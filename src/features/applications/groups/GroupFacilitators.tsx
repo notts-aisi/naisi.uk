@@ -493,8 +493,7 @@ export default function GroupFacilitators({ runId }: Props) {
   // ---- The groups card --------------------------------------------------------
   const groupBlock = (each: ViewGroup) => {
     const open = editing?.groupId === each.id;
-    const waitingOrClosed = each.asks;
-    const seatOpen = waitingOrClosed[waitingOrClosed.length - 1];
+    const canAskElse = model.decisionsSent && askable.length > 0;
     return (
       <li key={each.id} className={styles.group}>
         <div className={styles.groupHead}>
@@ -555,44 +554,48 @@ export default function GroupFacilitators({ runId }: Props) {
                     </li>
                   ))}
                   {each.asks.map((ask) => (
-                    <li key={ask.id} className={styles.person}>
-                      <span className={styles.personName}>
-                        <InitialsChip name={ask.name} uid={ask.uid} size="sm" />
-                        <span>{ask.name}</span>
+                    // Each ask with what can be done about it, under its own row:
+                    // a group can wait on more than one person.
+                    <li key={ask.id} className={styles.askItem}>
+                      <span className={styles.person}>
+                        <span className={styles.personName}>
+                          <InitialsChip name={ask.name} uid={ask.uid} size="sm" />
+                          <span>{ask.name}</span>
+                        </span>
+                        <StatusChip chip={ask.chip} />
                       </span>
-                      <StatusChip chip={ask.chip} />
+                      {ask.canRemind || ask.reminded || canAskElse ? (
+                        <span className={styles.groupActions}>
+                          {ask.canRemind ? (
+                            <>
+                              <Button
+                                variant="secondary"
+                                disabled={off || cannotSend}
+                                onClick={() => void remind(each.id, ask.id)}
+                              >
+                                {busy === `remind:${ask.id}` ? "Reminding…" : remindLabel(ask.firstName)}
+                              </Button>
+                              <span className={styles.emails}>{EMAILS_ONE}</span>
+                            </>
+                          ) : ask.reminded ? (
+                            <span className={styles.emails}>{ask.reminded}</span>
+                          ) : null}
+                          {canAskElse ? (
+                            <button
+                              type="button"
+                              className={styles.linkButton}
+                              disabled={off}
+                              onClick={() => openAsk({ mode: "seat", groupId: each.id, seat: ask.seat })}
+                            >
+                              {ASK_SOMEONE_ELSE}
+                            </button>
+                          ) : null}
+                        </span>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
               )}
-              {seatOpen ? (
-                <div className={styles.groupActions}>
-                  {seatOpen.canRemind ? (
-                    <>
-                      <Button
-                        variant="secondary"
-                        disabled={off || cannotSend}
-                        onClick={() => void remind(each.id, seatOpen.id)}
-                      >
-                        {busy === `remind:${seatOpen.id}` ? "Reminding…" : remindLabel(seatOpen.firstName)}
-                      </Button>
-                      <span className={styles.emails}>{EMAILS_ONE}</span>
-                    </>
-                  ) : seatOpen.reminded ? (
-                    <span className={styles.emails}>{seatOpen.reminded}</span>
-                  ) : null}
-                  {model.decisionsSent && askable.length > 0 ? (
-                    <button
-                      type="button"
-                      className={styles.linkButton}
-                      disabled={off}
-                      onClick={() => openAsk({ mode: "seat", groupId: each.id, seat: seatOpen.seat })}
-                    >
-                      {ASK_SOMEONE_ELSE}
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
               {groupSaid?.groupId === each.id ? (
                 <p className={groupSaid.said.tone === "ok" ? styles.saidOk : styles.problem} role="status">
                   {groupSaid.said.text}
@@ -622,7 +625,7 @@ export default function GroupFacilitators({ runId }: Props) {
 
   const personRow = (each: ViewPerson) => {
     const answersOpen = openAnswers.has(each.uid);
-    const long = written.some((column) => (own(each.answers, column.key) ?? "").length > 140);
+    const long = written.some((column) => (own(each.answers, column.key) ?? "").length > 90);
     return (
       <Fragment key={each.uid}>
         <tr className={styles.row}>
@@ -667,7 +670,9 @@ export default function GroupFacilitators({ runId }: Props) {
                   const answer = own(each.answers, column.key);
                   return (
                     <div key={column.key} className={styles.writtenItem}>
-                      <dt className={styles.writtenQuestion}>{column.header}</dt>
+                      <dt className={styles.writtenQuestion} title={column.header}>
+                        {column.header}
+                      </dt>
                       <dd className={styles.writtenAnswer}>
                         {answer ? `“${answer}”` : <span className={styles.muted}>{NOT_ANSWERED}</span>}
                       </dd>

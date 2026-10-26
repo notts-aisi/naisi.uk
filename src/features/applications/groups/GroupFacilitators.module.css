@@ -104,6 +104,13 @@
   font-size: 15px;
 }
 
+/* An ask: the person's row, then what can be done about it. */
+.askItem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .personName {
   display: inline-flex;
   align-items: center;
@@ -300,7 +307,10 @@
 
 /* ---- The people ------------------------------------------------------------ */
 
+/* Positioned, so the visually hidden "Ask" header is held inside the box
+   that scrolls rather than widening the page. */
 .tableScroll {
+  position: relative;
   margin-top: 16px;
   overflow-x: auto;
   min-width: 0;
@@ -404,12 +414,17 @@
   min-width: 0;
 }
 
+/* The question on one line (the whole question is its title, and is read
+   in full by a screen reader); the answer cut to two lines until opened. */
 .writtenQuestion {
+  overflow: hidden;
   font-family: var(--font-meta);
   font-size: 11px;
   line-height: 1.4;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--color-text-muted);
 }
 
@@ -421,9 +436,13 @@
   overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
+}
+
+.writtenOpen .writtenQuestion {
+  white-space: normal;
 }
 
 .writtenOpen .writtenAnswer {
@@ -558,6 +577,15 @@
   }
   .written {
     grid-template-columns: minmax(0, 1fr);
+  }
+  /* The table scrolls sideways inside its box on a phone: what spans a whole
+     row (the written answers, an ask) stays where it can be read. */
+  .written,
+  .writtenRow .linkButton,
+  .askRow .ask {
+    position: sticky;
+    left: 0;
+    max-width: calc(100vw - 4.5rem);
   }
   .letterField dt {
     flex-basis: 72px;
