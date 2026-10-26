@@ -54,11 +54,11 @@ function badRequest(error: string, extra: Record<string, unknown> = {}) {
   return NextResponse.json({ error, ...extra }, { status: 400 });
 }
 
-/** The gate and the address, before any document is read. */
-async function gate(params: Params["params"]): Promise<{ runId: string; weekId: string; uid: string } | NextResponse> {
+type Actor = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
+
+/** The gate and the address, before any document is read. Each handler has refused a missing session first. */
+async function gate(actor: Actor, params: Params["params"]): Promise<{ runId: string; weekId: string; uid: string } | NextResponse> {
   const { runId, weekId } = await params;
-  const actor = await getCurrentUser();
-  if (!actor) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   if (actor.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (!isAddressableId(runId)) return badRequest("That isn’t a run.");
   if (!WEEK_ID.test(weekId)) return badRequest("That isn’t a week of the run: weeks are w01 to w60.");
@@ -166,7 +166,9 @@ function readAnswer(read: PastedWeek, counts: Map<string, number>, loaded: Loade
 }
 
 export async function GET(_req: Request, ctx: Params) {
-  const gated = await gate(ctx.params);
+  const actor = await getCurrentUser();
+  if (!actor) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gated = await gate(actor, ctx.params);
   if (gated instanceof NextResponse) return gated;
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
@@ -185,7 +187,9 @@ export async function GET(_req: Request, ctx: Params) {
 export async function POST(req: Request, ctx: Params) {
   const blocked = await assertNotImpersonating();
   if (blocked) return blocked;
-  const gated = await gate(ctx.params);
+  const actor = await getCurrentUser();
+  if (!actor) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gated = await gate(actor, ctx.params);
   if (gated instanceof NextResponse) return gated;
   const sent = await markdownOf(req);
   if (sent instanceof NextResponse) return sent;
@@ -201,7 +205,9 @@ export async function POST(req: Request, ctx: Params) {
 export async function PUT(req: Request, ctx: Params) {
   const blocked = await assertNotImpersonating();
   if (blocked) return blocked;
-  const gated = await gate(ctx.params);
+  const actor = await getCurrentUser();
+  if (!actor) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gated = await gate(actor, ctx.params);
   if (gated instanceof NextResponse) return gated;
   const sent = await markdownOf(req);
   if (sent instanceof NextResponse) return sent;
