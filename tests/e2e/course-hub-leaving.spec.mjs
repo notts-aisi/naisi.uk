@@ -12,8 +12,9 @@
  * Fern to Group A -> Ben's programme page and Home show Group A and its link
  * -> Ben reads what leaving means, is refused a title typed wrong, and leaves
  * with it typed right and a reason -> Ben reads the page that says they
- * left, their marks, their notes and the reading list -> Ben's programme
- * page, Home and My programmes show the group no more -> Dan, pointed to the
+ * left and when, and nothing else, at the notes and reading list addresses
+ * too -> Ben's programme page and Home show the group no more, and My
+ * programmes has a card that says only that Ben left -> Dan, pointed to the
  * programme's page by a fresh look at the application, gives the place back
  * with "I can’t make it" on the page opened before, with a reason, and it
  * says Dan left and when -> the leave's email reaches each, word for word,
@@ -148,7 +149,9 @@ const LEAVING = Object.freeze({
   heading: (name) => `Leave ${name}?`,
   lines: (group) => [
     `You’ll leave ${group} straight away and give your place back.`,
-    "Your marks so far stay, and you keep your notes and the reading list. The weekly emails stop.",
+    // A fellowship's groups share notes (`runSharesGroupNotes`), so the line names them.
+    "Your marks so far stay on your group’s register, and the notes you shared stay with the group. " +
+      "After you leave, your programme’s page shows only that you left. The weekly emails stop.",
     `You can’t undo this yourself. If you change your mind, email ${SOCIETY} and we’ll see what we can do.`,
   ],
   reasonLabel: "Why are you leaving? (optional)",
@@ -162,16 +165,24 @@ const LEAVING = Object.freeze({
     `${title} has ended, so there’s nothing to leave. If you need something changed, email ${SOCIETY}.`,
   leftHeading: (name) => `You left ${name}`,
   leftOn: (day) => `That was on ${day}. Thanks for coming along.`,
-  whatStays: "What stays here",
-  notesLink: "Your notes and reflections",
-  readingLink: (published) => `The reading list for weeks 1 to ${published}`,
-  yourMarks: "Your marks",
   changedYourMind: "Changed your mind?",
   changedLine: `Email ${SOCIETY} and we’ll see what we can do.`,
   myProgrammes: "My programmes",
-  notesHeading: "Your notes and reflections",
-  readingHeading: "The reading list",
 });
+
+/**
+ * WHAT THE PAGE THAT SAYS SOMEBODY LEFT USED TO SHOW THEM, and may not now
+ * (somebody who leaves keeps nothing): the words of what stayed theirs, and
+ * the site's events.
+ */
+const KEPT_NOTHING = Object.freeze([
+  "What stays here",
+  "Your notes and reflections",
+  "The reading list",
+  "Your marks",
+  "Still around",
+  "Events are open to everyone.",
+]);
 
 /**
  * THE APPLICATION PAGE'S WORDS, restated from src/lib/applications/status/
@@ -199,6 +210,8 @@ const APPLICATION = Object.freeze({
   yes: "Yes, I can’t make it",
   leftChip: "Left the programme",
   leftTitle: (name) => `You left ${name}.`,
+  // Once said here, gone with what it pointed to: the programme's page shows
+  // somebody who left only that they left.
   stillYours: "Your notes and the reading list are still on your programme’s page.",
   changedLine: `Changed your mind? Email ${SOCIETY} and we’ll see what we can do.`,
 });
@@ -577,16 +590,35 @@ test(
     /** The main column's words, the page's own and nothing of the shell around it. */
     const mainText = async (pg) => textOf(pg.locator("main"));
 
-    /** The page that says somebody left: the heading, then everything they read on it. */
-    async function readLeftPage(pg, aTerm) {
+    /**
+     * The page that says somebody left, read whole at `path`: the bar (back
+     * to My programmes, the programme's name), that they left, the day, and
+     * what to do if it was a mistake, and nothing else at all. `textContent`
+     * runs the page's blocks together, so the words are joined with nothing
+     * between them. No marks, no way to notes or the reading list, no events.
+     */
+    async function readLeftPage(pg, aTerm, day, path = learnPath(aTerm)) {
       await pg.getByRole("heading", { level: 1, name: LEAVING.leftHeading(aTerm.programmeName), exact: true }).waitFor({ timeout: WAIT_MS });
-      assert.equal(new URL(pg.url()).pathname, learnPath(aTerm), "the page that says they left is not their programme's page");
-      const marks = pg.getByRole("region", { name: LEAVING.yourMarks, exact: true }).getByRole("listitem");
-      const rows = [];
-      for (let i = 0; i < (await marks.count()); i += 1) rows.push(await textsOf(marks.nth(i).locator("span")));
-      // Everything before the site's upcoming events, which are the target's own and not this journey's.
-      const said = (await mainText(pg)).split("Still around")[0];
-      return { rows, said };
+      assert.equal(new URL(pg.url()).pathname, path, "the page that says they left is not at the address that was opened");
+      const said = await mainText(pg);
+      assert.equal(
+        said,
+        [
+          LEAVING.myProgrammes,
+          aTerm.programmeName,
+          LEAVING.leftHeading(aTerm.programmeName),
+          LEAVING.leftOn(day),
+          LEAVING.changedYourMind,
+          LEAVING.changedLine,
+        ].join(""),
+        "the page that says they left says more, or less, than that they left and when",
+      );
+      for (const words of KEPT_NOTHING) assert.ok(!said.includes(words), `the page that says they left shows ${JSON.stringify(words)}: ${said}`);
+      assert.equal(await pg.getByRole("region", { name: "Your marks" }).count(), 0, "the page that says they left lists marks");
+      for (const suffix of ["/notes", "/reading"]) {
+        assert.equal(await pg.locator(`main a[href$="${suffix}"]`).count(), 0, `the page that says they left links to ${suffix}`);
+      }
+      return said;
     }
 
     try {
@@ -858,92 +890,56 @@ test(
         },
       );
 
+      // CHANGED ON PURPOSE (somebody who leaves keeps nothing, and the group
+      // keeps their notes). Until then this step read Ben's marks, the links
+      // to Ben's notes and the reading list, then those two pages with what
+      // Ben wrote and every published week on them. Now the page says that Ben
+      // left and when, word for word, and nothing else, and the notes' and the
+      // reading list's addresses show that same page.
       await step(
-        "the first leaver lands on the page that says they left, with their marks, their notes and the reading list",
+        "the first leaver lands on the page that says they left and when, and nothing else, which the notes and reading list addresses show too",
         async () => {
           activePage = benPage;
-          const left = await readLeftPage(benPage, term);
-          // The day Ben left, the board's words, and what stays: the links to
-          // Ben's notes and to every published week's reading, Ben's own
-          // marks from before leaving, and the way back in.
-          let from = 0;
-          for (const expected of [
-            LEAVING.leftOn(dayLabel(leftKeyOf.get(ben.key))),
-            LEAVING.whatStays,
-            LEAVING.notesLink,
-            LEAVING.readingLink(plan.published),
-            LEAVING.yourMarks,
-            LEAVING.changedYourMind,
-            LEAVING.changedLine,
-          ]) {
-            const at = left.said.indexOf(expected, from);
-            assert.ok(at !== -1, `the page that says Ben left does not say ${JSON.stringify(expected)} where it should: ${left.said}`);
-            from = at + expected.length;
-          }
-          // Ben's marks: every finished register from before leaving, as marked.
-          assert.deepEqual(
-            left.rows,
-            finishedWeeks.map((weekNumber) => [
-              `Week ${weekNumber}, ${dayLabel(sessionOf(groupA, weekNumber).dateKey)}`,
-              MARK_WORD[markOf(ben, weekNumber)],
-            ]),
-            "Ben's marks on the page that says Ben left",
-          );
-          // Nothing of the group's: not its name, its link, its people or what Ben said.
+          const day = dayLabel(leftKeyOf.get(ben.key));
+          const said = await readLeftPage(benPage, term, day);
+          // Nothing of Ben's records or the group's: not what Ben wrote, not
+          // the reading list, not the group's name, its link, its people or
+          // what Ben said. What Ben wrote is still in the records (the seed's
+          // own note is what is looked for).
+          const [note] = plan.notes;
           for (const [what, words] of [
+            ["Ben's note", note.note],
+            ["Ben's comment", note.comment],
+            ["week 1's reading", WEEK_ONE_READING.title],
             ["the group's name", groupA.name],
             ["the meeting link", linkHost],
             ["a way to join", "Join online"],
             ["Ben's reason", BEN_SAID],
             ...[ada, dan, cleo, fern].map((other) => [`${other.first}'s name`, other.first]),
           ]) {
-            assert.ok(!left.said.includes(words), `the page that says Ben left shows ${what}: ${left.said}`);
+            assert.ok(!said.includes(words), `the page that says Ben left shows ${what}: ${said}`);
           }
           assert.equal(await benPage.getByRole("region", { name: "Your next session" }).count(), 0, "the page that says Ben left has a ticket");
 
-          // Ben's notes and reflections: what Ben wrote on week 1's reading, Ben's alone.
-          await benPage.getByRole("link", { name: LEAVING.notesLink, exact: true }).click();
-          await benPage.getByRole("heading", { level: 1, name: LEAVING.notesHeading, exact: true }).waitFor({ timeout: WAIT_MS });
-          assert.equal(new URL(benPage.url()).pathname, `${learnPath(term)}/notes`, "Ben's notes are not at their own address");
-          const [note] = plan.notes;
-          const notes = benPage.locator("main ol").first();
-          await notes.waitFor({ timeout: WAIT_MS });
-          assert.deepEqual(
-            await textsOf(notes.locator(":scope > li > h2")),
-            [`Week ${note.weekNumber}: E2E week ${note.weekNumber} reading`],
-            "Ben's notes are not by the week they were written in",
-          );
-          assert.deepEqual(
-            await textsOf(notes.locator("li li p")),
-            [WEEK_ONE_READING.title, `Rated ${note.rating} of 5`, `Your comment: ${note.comment}`, `Your note: ${note.note}`],
-            "Ben's notes and reflections",
-          );
-
-          // The reading list: every published week, as Ben's group reads it.
-          await benPage.getByRole("link", { name: term.programmeName, exact: true }).first().click();
-          await readLeftPage(benPage, term);
-          await benPage.getByRole("link", { name: LEAVING.readingLink(plan.published), exact: true }).click();
-          await benPage.getByRole("heading", { level: 1, name: LEAVING.readingHeading, exact: true }).waitFor({ timeout: WAIT_MS });
-          assert.equal(new URL(benPage.url()).pathname, `${learnPath(term)}/reading`, "the reading list is not at its own address");
-          assert.deepEqual(
-            await textsOf(benPage.locator("main ol").first().locator(":scope > li > h2")),
-            weeks.filter((weekNumber) => weekNumber <= plan.published).map((weekNumber) => `Week ${weekNumber}: E2E week ${weekNumber} reading`),
-            "the reading list's weeks are not the published ones",
-          );
-          const reading = benPage.getByRole("link", { name: WEEK_ONE_READING.title, exact: true });
-          assert.equal(await reading.getAttribute("href"), `https://example.com/${WEEK_ONE_READING.id}`, "week 1's reading does not lead to it");
-          await benPage.getByText(`Reading · ${WEEK_ONE_READING.minutes} min`, { exact: true }).waitFor({ timeout: WAIT_MS });
+          // The addresses of Ben's notes and the reading list: the same page, and none of what was there.
+          for (const suffix of ["notes", "reading"]) {
+            await benPage.goto(`${origin}${learnPath(term)}/${suffix}`, { waitUntil: "domcontentloaded" });
+            const there = await readLeftPage(benPage, term, day, `${learnPath(term)}/${suffix}`);
+            for (const words of [note.note, note.comment, WEEK_ONE_READING.title]) {
+              assert.ok(!there.includes(words), `the ${suffix} address shows Ben ${JSON.stringify(words)}: ${there}`);
+            }
+          }
         },
       );
 
       await step(
-        "the first leaver's programme page, Home and My programmes no longer show the group or its meeting link",
+        "the first leaver's programme page and Home no longer show the group or its meeting link, and My programmes says only that they left",
         async () => {
           activePage = benPage;
           // Ben's programme page is the page that says Ben left (held above),
           // and the group's link is on none of these.
           const noGroupHere = async (where) => {
-            const said = (await mainText(benPage)).split("Still around")[0];
+            const said = await mainText(benPage);
             assert.ok(!said.includes(groupA.name), `${where} still names Ben's group: ${said}`);
             assert.ok(!said.includes(linkHost), `${where} still carries the meeting link`);
             assert.equal(
@@ -953,8 +949,9 @@ test(
             );
             assert.equal(await benPage.getByRole("region", { name: "Your next session" }).count(), 0, `${where} still has Ben's ticket`);
           };
+          const day = dayLabel(leftKeyOf.get(ben.key));
           await benPage.goto(`${origin}${learnPath(term)}`, { waitUntil: "domcontentloaded" });
-          await readLeftPage(benPage, term);
+          await readLeftPage(benPage, term, day);
           await noGroupHere("Ben's programme page");
 
           // Home: no programme of Ben's now. What it says instead is Home's own
@@ -973,12 +970,25 @@ test(
           await benPage.getByText("You’re not on a programme yet.", { exact: true }).waitFor({ timeout: WAIT_MS });
           await noGroupHere("Home");
 
-          // My programmes: no card for the run Ben left.
+          // CHANGED ON PURPOSE: My programmes said "You're not on a course
+          // yet" to somebody who had left one, with no way to the page that
+          // says so. Now the run Ben left is a card that says only that Ben
+          // left, and leads to that page.
           await benPage.goto(`${origin}/learn`, { waitUntil: "domcontentloaded" });
           await benPage.getByRole("heading", { level: 1, name: "Your courses", exact: true }).waitFor({ timeout: WAIT_MS });
-          await benPage.getByText("You're not on a course yet", { exact: true }).waitFor({ timeout: WAIT_MS });
-          assert.equal(await benPage.locator(`a[href="${learnPath(term)}"]`).count(), 0, "My programmes still links to the run Ben left");
+          const card = benPage.getByRole("link", { name: LEAVING.leftHeading(term.programmeName), exact: true });
+          await card.waitFor({ timeout: WAIT_MS });
+          assert.equal(await card.getAttribute("href"), learnPath(term), "the card for the run Ben left does not lead to its page");
+          assert.equal(await textOf(card), LEAVING.leftHeading(term.programmeName), "the card for the run Ben left says more than that Ben left");
+          assert.equal(await benPage.locator(`a[href="${learnPath(term)}"]`).count(), 1, "My programmes links to the run Ben left other than by its card");
+          assert.equal(
+            await benPage.getByText("You're not on a course yet", { exact: true }).count(),
+            0,
+            "My programmes tells Ben they are on no course, beside the card that says what became of it",
+          );
           await noGroupHere("My programmes");
+          await card.click();
+          await readLeftPage(benPage, term, day);
         },
       );
 
@@ -1049,7 +1059,6 @@ test(
             APPLICATION.leftChip,
             APPLICATION.leftTitle(term.programmeName),
             LEAVING.leftOn(dayLabel(leftKeyOf.get(dan.key))),
-            APPLICATION.stillYours,
             APPLICATION.changedLine,
             APPLICATION.goToProgramme,
           ];
@@ -1070,21 +1079,18 @@ test(
             );
             for (const [what, words] of [
               ["that Dan told us they can't make it", "You’ve told us you can’t make it."],
+              // Gone with the notes and reading list it pointed to.
+              ["that Dan's notes are still there", APPLICATION.stillYours],
               ["a reply button", APPLICATION.cantMakeIt],
               ["Dan's reason", DAN_SAID],
             ]) {
               assert.ok(!said.includes(words), `Dan's application page shows ${what}: ${said}`);
             }
           }
-          // And Dan's programme page is the page that says Dan left.
+          // And Dan's programme page is the page that says Dan left, and when,
+          // and nothing else (until then it listed Dan's marks too).
           await danLaptop.goto(`${origin}${learnPath(term)}`, { waitUntil: "domcontentloaded" });
-          const left = await readLeftPage(danLaptop, term);
-          assert.ok(left.said.includes(LEAVING.leftOn(dayLabel(leftKeyOf.get(dan.key)))), `Dan's page does not say when Dan left: ${left.said}`);
-          assert.deepEqual(
-            left.rows.map(([, mark]) => mark),
-            finishedWeeks.map((weekNumber) => MARK_WORD[markOf(dan, weekNumber)]),
-            "Dan's marks on the page that says Dan left",
-          );
+          await readLeftPage(danLaptop, term, dayLabel(leftKeyOf.get(dan.key)));
         },
       );
 

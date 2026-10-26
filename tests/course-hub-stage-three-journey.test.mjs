@@ -9,7 +9,7 @@
  * Two pieces were built beside each other, each with suites of its own on
  * sample documents shaped the way that piece expects: leaving a run the
  * application form placed you on (the confirmation, the page somebody reads
- * once they have left, their notes and reading list, the facilitators'
+ * once they have left, the facilitators'
  * register listing a leaver read only, Remove recording the day, the place on
  * the form given back) and who finished (the rule on Settings, Who finished
  * on the Overview after the last session, the head's "Finished", every
@@ -25,8 +25,9 @@
  *     assert it in full), then weeks 1 and 2, marked and finished by each
  *     group's facilitators, and the lead removing somebody after week 1.
  *  2. In week 3 a placed member leaves with a reason, behind the typed
- *     confirmation, and reads the page that says so, their notes and the
- *     reading list. The lead's Overview, Attendance and CSV, the
+ *     confirmation, and reads the page that says so and nothing else of the
+ *     run, at its notes and reading list addresses too. The lead's
+ *     Overview, Attendance and CSV, the
  *     facilitators' register and the lead's Applications agree about them;
  *     the place on the form is given back; the email is the leave's.
  *  3. A facilitator cancels a session through Change a session, and the
@@ -1625,15 +1626,13 @@ const LEFT_ATTENTION = [
   ["left", "Sam Whitfield left on Fri 13 Nov", "Sam said: “Too much on this term.” Sam’s off Group B’s register from week 3."],
   ["left", "Joel Adeyemi left on Wed 4 Nov", "Joel’s off Group A’s register from week 2."],
 ];
-const ALL_WEEKS_READING =
-  "AGI Strategy The reading list The reading list " +
-  [1, 2, 3, 4, 5, 6]
-    .map(
-      (n) =>
-        `Week ${n}: ${WEEK_TITLES[n - 1]} ${n === 1 ? "Racing to the precipice" : `Week ${n} reading`} Reading · 25 min ` +
-        `Week ${n} talk Link · Optional Before the session Note Bring one question about week ${n}.`,
-    )
-    .join(" ");
+/**
+ * The page Sam reads once Sam has left, at the run's address and at its notes
+ * and reading list addresses alike: that Sam left and when, and nothing else.
+ */
+const SAM_LEFT_PAGE =
+  "My programmes AGI Strategy You left AGI Strategy That was on Fri 13 Nov. Thanks for coming along. " +
+  "Changed your mind? Email ai-safety@uonsu.com and we’ll see what we can do.";
 const THE_LEAVING_EMAIL = (first) =>
   `You've left AGI Strategy Fellowship You've left AGI Strategy Fellowship That's you off the list, ${first} You're no longer on ` +
   "AGI Strategy Fellowship (Autumn 2026), and your place has gone back to the group. The weekly emails will stop. Thanks for giving " +
@@ -1719,7 +1718,11 @@ describe("stage three of the course hub, one term from week 3 to after its end",
       assert.equal(
         l().confirmation,
         "AGI Strategy Leave the programme Leave AGI Strategy? You’ll leave Group B straight away and give your place back. " +
-          "Your marks so far stay, and you keep your notes and the reading list. The weekly emails stop. You can’t undo this " +
+          // CHANGED ON PURPOSE (somebody who leaves keeps nothing, and the
+          // group keeps their notes): this line said Sam keeps the notes and the
+          // reading list, which the page that says Sam left no longer shows.
+          "Your marks so far stay on your group’s register, and the notes you shared stay with the group. After you leave, " +
+          "your programme’s page shows only that you left. The weekly emails stop. You can’t undo this " +
           "yourself. If you change your mind, email ai-safety@uonsu.com and we’ll see what we can do. Why are you leaving? " +
           "(optional) Only Claudia, who leads AGI Strategy, and admins read this. Type AGI Strategy Fellowship to confirm " +
           "Leave AGI Strategy Stay",
@@ -1795,27 +1798,23 @@ describe("stage three of the course hub, one term from week 3 to after its end",
       assert.equal(l().mail[0].text, THE_LEAVING_EMAIL("Sam"));
     });
 
-    test("he reads the page that says he left, his own notes and the reading list, and nothing else of the run", () => {
+    // CHANGED ON PURPOSE (somebody who leaves keeps nothing): the page that
+    // says Sam left listed what stayed Sam's (notes and reflections, the
+    // reading list for weeks 1 to 4, the marks) and the site's events, and
+    // the notes and reading list pages showed them to Sam. Now all three
+    // addresses show Sam one page, which says Sam left and when, word for word.
+    test("Sam reads the page that says Sam left, at each of its three addresses, and nothing else of the run", () => {
       const pages = l().pages;
-      assert.equal(
-        pages.runPage,
-        "My programmes AGI Strategy You left AGI Strategy That was on Fri 13 Nov. Thanks for coming along. What stays here " +
-          "Your notes and reflections The reading list for weeks 1 to 4 Your marks Week 1, Tue 3 Nov Present Week 2, Tue 10 Nov " +
-          "Absent Changed your mind? Email ai-safety@uonsu.com and we’ll see what we can do. Still around Events are open to " +
-          "everyone. Thu 19 Nov Pizza and board games 7pm · Hallward B12 Wed 25 Nov Movie night 7pm · Somewhere in Lenton",
-      );
-      assert.equal(
-        pages.notes,
-        "AGI Strategy Your notes and reflections Your notes and reflections Week 1: What could go wrong, and how fast Racing to " +
-          "the precipice Rated 4 of 5 Your comment: Clearer than I expected. Your note: Reread section 3 before the session. " +
-          "Week 1 talk Rated 2 of 5",
-      );
-      assert.equal(pages.reading, ALL_WEEKS_READING.slice(0, ALL_WEEKS_READING.indexOf(" Week 5: ")));
+      assert.equal(pages.runPage, SAM_LEFT_PAGE);
+      assert.equal(pages.notes, SAM_LEFT_PAGE);
+      assert.equal(pages.reading, SAM_LEFT_PAGE);
       assert.deepEqual(
         [pages.leave, pages.group, pages.layout, pages.overview, pages.updates, pages.roster],
         [{ sentTo: HOME }, { sentTo: HOME }, "drawn", 403, 403, 403],
       );
-      // My programmes still leaves out a run somebody left (4a's question 1 for Zach).
+      // The list of runs still leaves out a run somebody left. My programmes
+      // draws a card for it from its own page's read of the runs they left,
+      // which tests/course-hub-leaving.test.mjs runs as every kind of caller.
       assert.deepEqual(pages.hub, []);
     });
 
@@ -2116,14 +2115,13 @@ describe("stage three of the course hub, one term from week 3 to after its end",
       });
     }
 
-    test("Sam, who left, reads the page that says so, now with the whole reading list and no events to come", () => {
-      assert.equal(
-        seen.samAfter.runPage,
-        "My programmes AGI Strategy You left AGI Strategy That was on Fri 13 Nov. Thanks for coming along. What stays here " +
-          "Your notes and reflections The reading list for all 6 weeks Your marks Week 1, Tue 3 Nov Present Week 2, Tue 10 Nov " +
-          "Absent Changed your mind? Email ai-safety@uonsu.com and we’ll see what we can do.",
-      );
-      assert.equal(seen.samAfter.reading, ALL_WEEKS_READING);
+    // CHANGED ON PURPOSE, as in section 1: after the end the page listed the
+    // reading list for all 6 weeks and Sam's marks, and the reading list's page
+    // showed every week. Every week published and the run over change nothing
+    // on the page Sam is shown, at either address.
+    test("Sam, who left, reads the same page after the end, and every week published changes nothing on it", () => {
+      assert.equal(seen.samAfter.runPage, SAM_LEFT_PAGE);
+      assert.equal(seen.samAfter.reading, SAM_LEFT_PAGE);
       assert.deepEqual(seen.samAfter.hub, []);
     });
 

@@ -7,7 +7,8 @@
  *   /learn/[runId]                                          the programme page: the way out, and once left, wk-left-phone
  *   /learn/[runId]/leave                                    the confirmation
  *   DELETE /api/courses/runs/[runId]/enrol                  the leave itself
- *   /learn/[runId]/notes, /learn/[runId]/reading            what stays theirs
+ *   /learn/[runId]/notes, /learn/[runId]/reading            the same page, for somebody who left
+ *   /learn                                                  My programmes, and its card for a run they left
  *   GET  /api/courses/groups/[groupId]/attendance           the facilitators' register (the stage two walk's G3)
  *   POST /api/courses/runs/[runId]/enrolments/[uid]/remove  Remove, which now records the day
  *   POST /api/courses/runs/[runId]/allocate                 putting somebody back
@@ -32,11 +33,14 @@
  *     that came from the run's own older form is not this person's to leave;
  *     staff, an admin, somebody signed out and a view-as session are refused.
  *     An open run's seat is left as it always was, and touches no form.
- *  4. WHAT THEY READ AFTER: their programme page as wk-left-phone draws it, its
- *     marks only those before they left, its events section only when there
- *     are events; their own notes and reflections and nobody else's; every
- *     published week's readings and no other; and none of the group's
- *     people, updates, sessions or registers.
+ *  4. WHAT THEY READ AFTER, which is that they left and nothing else:
+ *     their programme page says they left and when, with the line about what
+ *     to do if it was a mistake, whatever their records hold; the notes and
+ *     reading list pages say the same and show none of what they wrote,
+ *     which stays in the records; My programmes has a card for each run they
+ *     left by themselves that says only that; none of the group's people,
+ *     updates, sessions or registers; and the group, its facilitator, the
+ *     lead and admins keep reading the notes they shared.
  *  5. EVERYBODY ELSE: the group's names leave them out; their facilitators'
  *     register lists them read only with the marks they had and the day, and
  *     refuses a mark for them; the lead's grid and Overview say the day and
@@ -97,6 +101,10 @@ const TITLE = "AGI Strategy Fellowship";
 const HOME = `/learn/${RUN.agi}`;
 /** Who finished's own answer to when a run is over. */
 const runEnd = await w.loadTs(join("lib", "courses", "finishing", "record.ts"));
+/** The one reader of a group's shared notes, and the shapes it is handed. */
+const sharedNotes = await w.loadTs(join("lib", "courses", "sharedNotes", "readers.ts"));
+const runs = await w.loadTs(join("lib", "firestore", "courses.ts"));
+const groupDocs = await w.loadTs(join("lib", "firestore", "courseGroups.ts"));
 
 beforeEach(() => {
   mock.timers.setTime(NOW.getTime());
@@ -256,7 +264,11 @@ describe("1. the way out: the link at the foot, and the confirmation", () => {
       "AGI Strategy Leave the programme " +
         "Leave AGI Strategy? " +
         "You’ll leave Group A straight away and give your place back. " +
-        "Your marks so far stay, and you keep your notes and the reading list. The weekly emails stop. " +
+        // CHANGED ON PURPOSE (somebody who leaves keeps nothing, and the group
+        // keeps their notes): this line said they keep their notes and the
+        // reading list, which the page that says they left no longer shows.
+        "Your marks so far stay on your group’s register, and the notes you shared stay with the group. " +
+        "After you leave, your programme’s page shows only that you left. The weekly emails stop. " +
         "You can’t undo this yourself. If you change your mind, email ai-safety@uonsu.com and we’ll see what we can do. " +
         "Why are you leaving? (optional) " +
         "Only Claudia, who leads AGI Strategy, and admins read this. " +
@@ -294,7 +306,10 @@ describe("1. the way out: the link at the foot, and the confirmation", () => {
       drawn.text,
       "Pre-course Leave the programme Leave Pre-course? " +
         "You’ll leave Tuesday drop-in straight away and give your place back. " +
-        "Your marks so far stay, and you keep your notes and the reading list. The weekly emails stop. " +
+        // CHANGED ON PURPOSE, as above. An open run's groups share no notes
+        // (`runSharesGroupNotes`), so its line names none.
+        "Your marks so far stay on your group’s register. " +
+        "After you leave, your programme’s page shows only that you left. The weekly emails stop. " +
         "You can’t undo this yourself. If you change your mind, email ai-safety@uonsu.com and we’ll see what we can do. " +
         "Why are you leaving? (optional) Only admins read this. " +
         "Type Pre-course to confirm Leave Pre-course Stay",
@@ -576,94 +591,97 @@ describe("3. nobody else leaves, and an open run is left as it always was", () =
 // 4. What they read after
 // ---------------------------------------------------------------------------
 
+// CHANGED ON PURPOSE (somebody who leaves keeps nothing, and the group keeps
+// their notes). Until then the page that says somebody left also listed what
+// stayed theirs (their notes and reflections, the reading list, their marks)
+// and the site's events, and the notes and reading list pages showed them.
+// Now it says only that they left and when, with the line about what to do if
+// it was a mistake, and those two pages say the same. Each old pin of a value
+// on the page is replaced by the page's whole text, held against worlds in
+// which every one of those values would have shown, and by the list of what
+// it may no longer show.
 describe("4. what somebody who left reads", () => {
   const LEFT_PAGE =
     "My programmes AGI Strategy " +
     "You left AGI Strategy That was on Tue 17 Nov. Thanks for coming along. " +
-    "What stays here Your notes and reflections The reading list for weeks 1 to 3 " +
-    "Your marks Week 1, Thu 29 Oct Present Week 2, Thu 5 Nov Present Week 3, Thu 12 Nov Present " +
-    "Changed your mind? Email ai-safety@uonsu.com and we’ll see what we can do. " +
-    "Still around Events are open to everyone. " +
-    "Thu 19 Nov Pizza and board games 7pm · Hallward B12 " +
-    "Wed 25 Nov Movie night 7pm · Somewhere in Lenton";
+    "Changed your mind? Email ai-safety@uonsu.com and we’ll see what we can do.";
 
-  test("her programme page, as wk-left-phone draws it, every value from a record", async () => {
+  /** Everything of Amara's, of Group A's or of the site's that the page showed before, and may not now. */
+  const NOT_SHOWN = [
+    "What stays here",
+    "Your notes and reflections",
+    "reading list",
+    "Your marks",
+    "Present",
+    "Clearer than I expected.",
+    "Reread section 3 before the session.",
+    "Rated",
+    "Racing to the precipice",
+    "Still around",
+    "Events are open to everyone.",
+    "Pizza and board games",
+    "Movie night",
+    "Group A",
+    "Dev Patel",
+    AMARA_SAID,
+  ];
+  const showsNothingElse = (drawn, where) => {
+    for (const words of NOT_SHOWN) assert.ok(!drawn.text.includes(words), `${where} shows “${words}”: ${drawn.text}`);
+  };
+  /** Where the page's links go, in order. */
+  const linksOf = (drawn) => [...drawn.html.matchAll(/<a href="([^"]+)"/g)].map((match) => match[1]);
+
+  test("Amara's programme page says Amara left and when, and nothing else", async () => {
     await leave("amara");
     const drawn = await home("amara");
     assert.equal(drawn.to, null);
     assert.equal(drawn.text, LEFT_PAGE);
+    showsNothingElse(drawn, "Amara's programme page");
     assert.equal(ui.runHome, null, "the cohort's page is not drawn for her");
     assert.match(drawn.html, /<a href="\/learn" class="back">/);
-    assert.match(drawn.html, new RegExp(`<a href="${HOME}/notes" class="row">`));
-    assert.match(drawn.html, new RegExp(`<a href="${HOME}/reading" class="row">`));
     assert.match(drawn.html, /<a href="mailto:ai-safety@uonsu.com" class="mail">ai-safety@uonsu.com<\/a>/);
-    assert.match(drawn.html, /<a href="\/events\/pizza" class="eventCard"><time class="tile" dateTime="2026-11-19T19:00:00.000Z">/);
-    // A room held back stays held back; the past event and the draft are not listed.
-    assert.ok(!drawn.html.includes("Example Road"));
-    assert.ok(!drawn.text.includes("Welcome social") && !drawn.text.includes("Not announced yet"));
+    // Back to My programmes and the society's address: no way to Amara's notes,
+    // the reading list or an event.
+    assert.deepEqual(linksOf(drawn), ["/learn", "mailto:ai-safety@uonsu.com"]);
     assert.equal(drawn.wrote, false);
   });
 
-  test("with no events on, the section is left out", async () => {
-    await leave("amara");
-    for (const id of ["pizza", "movie"]) world.db.poke(`events/${id}`, { status: "draft" });
-    const said = (await home("amara")).text;
-    assert.ok(said.endsWith("Changed your mind? Email ai-safety@uonsu.com and we’ll see what we can do."), said);
-  });
-
-  test("her marks are those of finished registers before she left", async () => {
-    // She left on Fri 6 Nov; week 3's register (Thu 12 Nov) did not mark
-    // her, and week 2's is not finished.
+  test("it is the same page whatever Amara's records hold: another day, every week published, a register changed, no events", async () => {
+    // Amara left on Fri 6 Nov: the day is the one thing on the page that moves.
     mock.timers.setTime(new Date("2026-11-06T10:00:00Z").getTime());
     await leave("amara");
     mock.timers.setTime(NOW.getTime());
-    const week3 = read(registerPath(A, 3));
-    delete week3.records.amara;
-    world.db.seed(registerPath(A, 3), week3);
-    world.db.poke(registerPath(A, 2), { pushedAt: null });
-    assert.match((await home("amara")).text, /That was on Fri 6 Nov\. .* Your marks Week 1, Thu 29 Oct Present Changed your mind\?/);
-  });
-
-  test("with every week published, the link is the reading list for all 6 weeks", async () => {
-    await leave("amara");
+    const leftOnFriday = LEFT_PAGE.replace("Tue 17 Nov", "Fri 6 Nov");
+    assert.equal((await home("amara")).text, leftOnFriday);
     for (let n = 4; n <= 6; n += 1) world.db.poke(`courseRuns/${RUN.agi}/weeks/w0${n}`, { published: true });
-    assert.match((await home("amara")).text, /Your notes and reflections The reading list for all 6 weeks Your marks/);
+    world.db.poke(registerPath(A, 2), { pushedAt: null });
+    for (const id of ["pizza", "movie"]) world.db.poke(`events/${id}`, { status: "draft" });
+    const drawn = await home("amara");
+    assert.equal(drawn.text, leftOnFriday);
+    showsNothingElse(drawn, "Amara's programme page");
   });
 
-  test("her notes and reflections: what she wrote on this run's readings, and nobody else's words", async () => {
+  test("the notes' address shows the page that says Amara left, and none of what Amara wrote, which stays in the records", async () => {
     await leave("amara");
     const drawn = await draw(pages.notes, "amara", { runId: RUN.agi });
-    assert.equal(
-      drawn.text,
-      "AGI Strategy Your notes and reflections Your notes and reflections " +
-        "Week 1: Week 1 readings Racing to the precipice Rated 4 of 5 " +
-        "Your comment: Clearer than I expected. Your note: Reread section 3 before the session. " +
-        "Week 2: Week 2 readings Week 2 reading Rated 2 of 5",
-    );
-    assert.match(drawn.html, new RegExp(`<a href="${HOME}" class="back">`));
+    assert.equal(drawn.to, null, "Amara is sent somewhere else instead of being told of leaving");
+    assert.equal(drawn.text, LEFT_PAGE);
+    showsNothingElse(drawn, "the notes' address");
+    assert.deepEqual(linksOf(drawn), ["/learn", "mailto:ai-safety@uonsu.com"]);
     assert.equal(drawn.wrote, false);
+    // What Amara wrote is where it was, for the programme's lead and admins.
+    const note = read(`courseProgress/${RUN.agi}__amara__m_w1_reading`);
+    assert.deepEqual([note.rating, note.publicComment, note.privateNote], [4, "Clearer than I expected.", "Reread section 3 before the session."]);
   });
 
-  test("the reading list: every published week's readings as her group reads them, read only", async () => {
+  test("the reading list's address shows the same page, and no reading", async () => {
     await leave("amara");
     const drawn = await draw(pages.reading, "amara", { runId: RUN.agi });
-    const week = (n, title) =>
-      `Week ${n}: ${title} ${n === 1 ? "Racing to the precipice" : `Week ${n} reading`} Reading · 25 min ` +
-      `Week ${n} slides Link · Optional Before the session Note Bring one question about week ${n}.`;
-    assert.equal(
-      drawn.text,
-      "AGI Strategy The reading list The reading list " +
-        `${week(1, "Week 1 readings")} ${week(2, "Week 2 readings")} ${week(3, "Who decides what AGI means")}`,
-    );
-    assert.match(drawn.html, /<a href="https:\/\/example.com\/readings\/week-1" class="readingLink" target="_blank" rel="noopener noreferrer">Racing to the precipice<\/a>/);
-    assert.ok(!drawn.text.includes("Week 4"), "a week not published is not listed");
-    // Her group's own copy of a week is the one she reads.
-    world.db.seed(`courseGroups/${A}/weeks/w02`, {
-      ...read(`courseRuns/${RUN.agi}/weeks/w02`),
-      title: "Group A's week 2",
-      materials: [{ id: "m_a_only", type: "link", title: "Group A's own link", url: "https://example.com/a" }],
-    });
-    assert.match((await draw(pages.reading, "amara", { runId: RUN.agi })).text, /Week 2: Group A's week 2 Group A's own link Link Week 3/);
+    assert.equal(drawn.to, null, "Amara is sent somewhere else instead of being told of leaving");
+    assert.equal(drawn.text, LEFT_PAGE);
+    showsNothingElse(drawn, "the reading list's address");
+    assert.deepEqual(linksOf(drawn), ["/learn", "mailto:ai-safety@uonsu.com"]);
+    assert.equal(drawn.wrote, false);
   });
 
   test("she is no longer shown the group's people, its updates, its sessions or its registers", async () => {
@@ -678,11 +696,11 @@ describe("4. what somebody who left reads", () => {
       asked[name] = (await call("amara", handler, params, { course: true })).status;
     }
     assert.deepEqual(asked, { roster: 403, updates: 403, "sessions and the week": 403, register: 403 });
-    // And no page of the run's but the three that are still hers.
+    // And no page of the run's but the one that says Amara left.
     assert.equal((await draw(pages.progress, "amara", { runId: RUN.agi })).to, "/learn");
   });
 
-  test("the run's gate lets her through to those pages, and nobody without a seat", async () => {
+  test("the run's gate lets Amara through to the page that says Amara left, and nobody without a seat", async () => {
     await leave("amara");
     const through = {};
     for (const who of ["amara", "omar", "una", null]) {
@@ -696,15 +714,154 @@ describe("4. what somebody who left reads", () => {
     });
   });
 
-  test("her notes and the reading list are hers alone to open", async () => {
+  test("the notes and reading list pages open to nobody else either, and somebody taking part still reads their own", async () => {
     await leave("amara");
     for (const Page of [pages.notes, pages.reading]) {
       const sent = {};
       for (const who of ["sofia", "zach", "omar", "una", null]) sent[who ?? "signed out"] = (await draw(Page, who, { runId: RUN.agi })).to;
       assert.deepEqual(sent, { sofia: HOME, zach: HOME, omar: HOME, una: HOME, "signed out": "/learn" });
     }
-    // Somebody still taking part reads their own.
-    assert.equal((await draw(pages.notes, "dev", { runId: RUN.agi })).text.includes("Dev's own note, which nobody else reads."), true);
+  });
+
+  // MOVED, not dropped: these two pages are still what somebody taking part
+  // reads, so what the leaver's pins held of them is held for Dev, in Group A
+  // beside Amara: Dev's notes and nobody else's, word for word, and every
+  // published week's readings as the group reads them, its own copy of a week
+  // over the run's, and no week that is not published.
+  test("somebody taking part reads their own notes, and the reading list as their group reads it", async () => {
+    await leave("amara");
+    const notes = await draw(pages.notes, "dev", { runId: RUN.agi });
+    assert.equal(
+      notes.text,
+      "AGI Strategy Your notes and reflections Your notes and reflections " +
+        "Week 1: Week 1 readings Racing to the precipice Your note: Dev's own note, which nobody else reads.",
+    );
+    assert.match(notes.html, new RegExp(`<a href="${HOME}" class="back">`));
+    assert.equal(notes.wrote, false);
+
+    const reading = await draw(pages.reading, "dev", { runId: RUN.agi });
+    const week = (n, title) =>
+      `Week ${n}: ${title} ${n === 1 ? "Racing to the precipice" : `Week ${n} reading`} Reading · 25 min ` +
+      `Week ${n} slides Link · Optional Before the session Note Bring one question about week ${n}.`;
+    assert.equal(
+      reading.text,
+      "AGI Strategy The reading list The reading list " +
+        `${week(1, "Week 1 readings")} ${week(2, "Week 2 readings")} ${week(3, "Who decides what AGI means")}`,
+    );
+    assert.match(reading.html, /<a href="https:\/\/example.com\/readings\/week-1" class="readingLink" target="_blank" rel="noopener noreferrer">Racing to the precipice<\/a>/);
+    assert.ok(!reading.text.includes("Week 4"), "a week not published is not listed");
+    assert.equal(reading.wrote, false);
+    // The group's own copy of a week is the one Dev reads.
+    world.db.seed(`courseGroups/${A}/weeks/w02`, {
+      ...read(`courseRuns/${RUN.agi}/weeks/w02`),
+      title: "Group A's week 2",
+      materials: [{ id: "m_a_only", type: "link", title: "Group A's own link", url: "https://example.com/a" }],
+    });
+    assert.match((await draw(pages.reading, "dev", { runId: RUN.agi })).text, /Week 2: Group A's week 2 Group A's own link Link Week 3/);
+  });
+
+  test("My programmes has a card for each run somebody left by themselves that says only that, and leads to that run's page", async () => {
+    const cardsOf = async (who) => {
+      const drawn = await draw(pages.programmes, who, {});
+      assert.equal(drawn.to, null);
+      assert.equal(drawn.wrote, false);
+      // The card is a div inside its link, never an article: Chromium gives a
+      // link wrapped round an article no accessible name, and the browser spec
+      // reads the card by its name.
+      return {
+        cards: [...drawn.html.matchAll(/<a href="([^"]+)" class="leftLink"><div class="[^"]*\bleftCard\b[^"]*"><h3 class="leftTitle">([^<]*)<\/h3><\/div><\/a>/g)].map(
+          (match) => [match[1], match[2]],
+        ),
+        text: drawn.text,
+      };
+    };
+    // A card is drawn exactly where the run's own page says somebody left.
+    // Sam's row is the older kind, whose stamp leaving cleared: the run's
+    // page does not open to Sam, and My programmes draws Sam no card either.
+    assert.equal((await home("sam")).to, "/learn");
+    assert.deepEqual((await cardsOf("sam")).cards, []);
+    // Before Amara leaves there is none; after, the card says only that Amara left.
+    assert.deepEqual((await cardsOf("amara")).cards, []);
+    await leave("amara");
+    const amara = await cardsOf("amara");
+    assert.deepEqual(amara.cards, [[HOME, "You left AGI Strategy"]]);
+    // The list of runs leaves the run out, and Amara is not told of being on no
+    // course: Amara was on one, and the card says what became of it.
+    assert.ok(amara.text.endsWith("You left AGI Strategy"), amara.text);
+    assert.ok(!amara.text.includes("not on a course yet"), amara.text);
+    for (const words of ["Group A", "Present", "Clearer than I expected.", AMARA_SAID]) {
+      assert.ok(!amara.text.includes(words), `My programmes shows Amara “${words}”`);
+    }
+    // An account that no longer stands is shown neither: Amara's seat is still
+    // shown by Publish's stamp, so only the gate's own question can
+    // tell, and the run's page and the list answer it the same way.
+    world.db.poke("users/amara", { role: "pending" });
+    assert.equal((await home("amara")).to, "/learn");
+    assert.deepEqual((await cardsOf("amara")).cards, [], "an account that no longer stands is drawn a card");
+    world.db.poke("users/amara", { role: "member" });
+    assert.deepEqual((await cardsOf("amara")).cards, [[HOME, "You left AGI Strategy"]]);
+    // In a view-as session the list makes no claim and reads nothing, as it
+    // makes none about a place (tests/applications-view-as-own-application):
+    // an admin viewing the site as Amara is drawn no card.
+    world.viewAs = true;
+    try {
+      assert.deepEqual((await cardsOf("amara")).cards, []);
+    } finally {
+      world.viewAs = false;
+    }
+    // An open run's seat left by its holder is a card too, named by its course.
+    assert.equal((await leave("kai", { confirmName: "Pre-course" }, OPEN_RUN)).status, 200);
+    assert.deepEqual((await cardsOf("kai")).cards, [[`/learn/${OPEN_RUN}`, "You left Pre-course"]]);
+    // Nobody else has one: somebody taking part, somebody staff removed (the
+    // run closes to them), somebody placed and not told, staff, an admin.
+    const removed = await call("claudia", routes.remove.POST, { runId: RUN.agi, uid: "tariq" }, { course: true });
+    assert.equal(removed.status, 200);
+    for (const who of ["dev", "tariq", "una", "sofia", "claudia", "zach"]) {
+      assert.deepEqual((await cardsOf(who)).cards, [], `${who} is shown a run they did not leave`);
+    }
+    // Signed out, the page reads no runs at all.
+    assert.deepEqual((await cardsOf(null)).cards, []);
+  });
+
+  test("the group keeps the notes Amara shared: its people, its facilitator, the lead and an admin read them, and Amara does not", async () => {
+    const SHARED = "Section 3 answers the question the first two raise.";
+    world.db.seed("courseGroupSharedNotes/note-amara", {
+      runId: RUN.agi,
+      groupId: A,
+      weekNumber: 1,
+      authorUid: "amara",
+      body: SHARED,
+      createdAt: new Date("2026-11-02T10:00:00Z"),
+    });
+    await leave("amara");
+    const run = runs.normalizeCourseRun(RUN.agi, read(`courseRuns/${RUN.agi}`));
+    const groups = [A, B, C, D].map((id) => groupDocs.normalizeCourseGroup(id, read(`courseGroups/${id}`)));
+    const groupA = (sections) =>
+      (sections ?? []).filter((section) => section.groupId === A).flatMap((section) => section.notes.map((note) => [note.writerName, note.body]));
+    const amaras = [["Amara Okafor", SHARED]];
+    // A week's page, as its readers read it: somebody still in Group A, and
+    // the group's facilitator.
+    for (const who of ["dev", "sofia"]) {
+      const page = await sharedNotes.sharedNotesForWeekPage(world.courseDb, w.sessionOf(who), run, groups, "Claudia");
+      assert.deepEqual(groupA(page?.sections), amaras, `${who} no longer reads what Amara shared`);
+    }
+    // The programme's Attendance tab: its lead and an admin.
+    for (const who of ["claudia", "zach"]) {
+      const sections = await sharedNotes.sharedNotesForAttendance(world.courseDb, w.sessionOf(who), run, groups, "Claudia");
+      assert.deepEqual(groupA(sections), amaras, `${who} no longer reads what Amara shared`);
+    }
+    // Amara reads none of the group's notes now, Amara's own among them.
+    const nowLeft = await sharedNotes.sharedNotesForWeekPage(world.courseDb, w.sessionOf("amara"), run, groups, "Claudia");
+    assert.deepEqual(groupA(nowLeft?.sections), [], "somebody who left still reads the group's notes");
+    // And leaving deleted nothing of it.
+    assert.deepEqual(read("courseGroupSharedNotes/note-amara"), {
+      runId: RUN.agi,
+      groupId: A,
+      weekNumber: 1,
+      authorUid: "amara",
+      body: SHARED,
+      createdAt: new Date("2026-11-02T10:00:00Z"),
+    });
   });
 });
 
@@ -854,7 +1011,7 @@ describe("6. Remove records the day somebody was taken off", () => {
     assert.equal((await home("kai", OPEN_RUN)).to, "/learn");
   });
 
-  test("somebody removed is not shown the page that says they left, nor what stays with somebody who did", async () => {
+  test("somebody removed is not shown the page that says they left, at any of its addresses", async () => {
     assert.equal((await remove("claudia", "tariq")).status, 200);
     assert.equal((await home("tariq")).to, "/learn");
     for (const Page of [pages.notes, pages.reading, pages.leave]) {
@@ -960,14 +1117,40 @@ describe("8. once the run's last session is over, nobody leaves", () => {
 // ---------------------------------------------------------------------------
 
 describe("the words", () => {
-  test("the reading list's link says which weeks", () => {
-    const { readingListLink } = lib.words;
-    assert.equal(readingListLink([], 6), null);
-    assert.equal(readingListLink([1], 6), "The reading list for week 1");
-    assert.equal(readingListLink([1, 2, 3], 6), "The reading list for weeks 1 to 3");
-    assert.equal(readingListLink([1, 3], 6), "The reading list for the 2 weeks published so far");
-    assert.equal(readingListLink([1, 2, 3, 4, 5, 6], 6), "The reading list for all 6 weeks");
-    assert.equal(readingListLink([1], 1), "The reading list for week 1");
+  // CHANGED ON PURPOSE (somebody who leaves keeps nothing): this test held the
+  // words of the reading list's link on the page that says somebody left.
+  // That link is gone, and so are the other words of what stayed theirs, so
+  // it now holds that none of them is among the words of leaving, where a
+  // page could pick one up again, and what the confirmation says instead.
+  test("the words of what stayed theirs are gone, and the confirmation says what stays and with whom", () => {
+    for (const name of [
+      "WHAT_STAYS",
+      "NOTES_LINK",
+      "readingListLink",
+      "YOUR_MARKS",
+      "markRowLabel",
+      "NOT_MARKED",
+      "DID_NOT_HAPPEN",
+      "STILL_AROUND",
+      "EVENTS_OPEN",
+    ]) {
+      assert.ok(!(name in lib.words), `${name} is back among the words of leaving`);
+    }
+    const all = JSON.stringify(Object.values(lib.words).map((value) => (typeof value === "function" ? value.toString() : value)));
+    for (const words of ["What stays here", "The reading list for", "Still around", "Events are open", "you keep your notes"]) {
+      assert.ok(!all.includes(words), `the words of leaving say “${words}” again`);
+    }
+    assert.deepEqual(lib.words.leaveLines("Group A", true), [
+      "You’ll leave Group A straight away and give your place back.",
+      "Your marks so far stay on your group’s register, and the notes you shared stay with the group. " +
+        "After you leave, your programme’s page shows only that you left. The weekly emails stop.",
+      "You can’t undo this yourself. If you change your mind, email ai-safety@uonsu.com and we’ll see what we can do.",
+    ]);
+    // A run whose groups share no notes names none.
+    assert.equal(
+      lib.words.leaveLines(null, false)[1],
+      "Your marks so far stay on your group’s register. After you leave, your programme’s page shows only that you left. The weekly emails stop.",
+    );
   });
 
   test("never a dash, and never the words the boards forbid for somebody who left", () => {

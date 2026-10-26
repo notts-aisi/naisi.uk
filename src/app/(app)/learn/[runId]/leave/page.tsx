@@ -8,6 +8,7 @@ import { leavePathFor } from "@/lib/courses/leaving";
 import { LEAVE_LINK, UNTITLED_COURSE, leaveHeading, leaveLines, reasonReaders } from "@/lib/courses/leavingWords";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { ENROLMENT_LIMITS } from "@/lib/firestore/courseEnrolments";
+import { runSharesGroupNotes } from "@/lib/firestore/courseGroupSharedNotes";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 
 /**
@@ -63,7 +64,7 @@ export default async function LeavePage({ params }: { params: Promise<{ runId: s
       <div className={styles.body}>
         <section className={styles.section}>
           <h1 className={styles.pageTitle}>{leaveHeading(name)}</h1>
-          {leaveLines(groupName).map((line) => (
+          {leaveLines(groupName, runSharesGroupNotes(access.run)).map((line) => (
             <p key={line} className={`${styles.text} ${styles.lede}`}>
               {line}
             </p>

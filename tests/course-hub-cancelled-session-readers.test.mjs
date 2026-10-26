@@ -188,13 +188,6 @@ const READERS = {
     proof: ["ownAttendance?.sessions"],
     why: "the run home's marks are the member's own projection, as the overview route carries it",
   },
-  "lib/courses/leftView.ts": {
-    kind: "told",
-    from: ["lib/courses/ownAttendance.ts"],
-    via: ["row"],
-    proof: ["ownAttendanceSessions(enrolment.uid, sessions, registers)"],
-    why: "the marks on the page somebody reads once they have left: their own projection, the registers handed to it unread",
-  },
   "lib/courses/attendanceRollup.ts": {
     kind: "told",
     from: ["lib/courses/attendanceMirror.ts"],

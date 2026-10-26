@@ -30,7 +30,9 @@
  * rate limiter, Next's navigation and link, whether the page's script has
  * arrived, the stylesheets, the run home's client component where the page
  * imports it (it records what it is handed), and the data hooks of the run
- * home and the register (each hands its component what a suite sets).
+ * home, the register and My programmes (each hands its component what a
+ * suite sets), and whether a member holds a place, which My programmes asks
+ * (no, here: that question is tests/applications-place-in-the-member-area's).
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -297,7 +299,7 @@ function stylesheets() {
  * the handle on `globalThis` the stubs read.
  */
 export async function makeLeavingWorld(key = "__leaving") {
-  const ui = { h: createElement, hydrated: false, replaced: [], runHome: null, attendance: null, overview: null };
+  const ui = { h: createElement, hydrated: false, replaced: [], runHome: null, attendance: null, overview: null, myRuns: null };
   const handle = `globalThis[${JSON.stringify(key)}].ui`;
   const made = makeWorld(key, [
     // Every request is somebody's first: the limiter is not what is under test.
@@ -337,6 +339,17 @@ export async function makeLeavingWorld(key = "__leaving") {
       `export function useRunOverview() { return ${handle}.overview; }\nexport default useRunOverview;`,
     ],
     ["./useSyncTasks", "export function useSyncTasks() {}"],
+    // The list of runs My programmes fetches in the browser: the hub is
+    // handed what a suite sets, and none unless it sets some.
+    [
+      "@/features/courses/useMyRuns",
+      `export function useMyRuns() { return ${handle}.myRuns ?? { runs: [], loading: false, error: null, reload() {} }; }\n` +
+        "export default useMyRuns;",
+    ],
+    // Whether a member holds a place, which My programmes asks before it says
+    // they are on nothing: here, no, so the hub is handed nothing in a run's
+    // stead and what it draws is the runs and the runs left.
+    ["@/features/applications/home/holdsPlace", "export async function holdsPlace() { return 'no'; }"],
     ...stylesheets().map((specifier) => [specifier, CLASS_NAMES]),
   ]);
   made.world.ui = ui;
@@ -359,6 +372,8 @@ export async function makeLeavingWorld(key = "__leaving") {
     reading: (await page("reading", "page.tsx")).default,
     progress: (await page("progress", "page.tsx")).default,
     layout: (await page("layout.tsx")).default,
+    // My programmes, the list every run page's bar goes back to.
+    programmes: (await loadTs(join("app", "(app)", "learn", "page.tsx"))).default,
   };
   const components = {
     AttendanceGrid: (await loadTs(join("features", "courses", "AttendanceGrid.tsx"))).default,
@@ -384,6 +399,7 @@ export async function makeLeavingWorld(key = "__leaving") {
     ui.runHome = null;
     ui.attendance = null;
     ui.overview = null;
+    ui.myRuns = null;
     for (const uid of ["claudia", "lloyd", "tess"]) world.db.poke(`users/${uid}`, { admissionsReviewer: true });
   }
 

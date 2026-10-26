@@ -687,6 +687,10 @@ const MUST_NAME = [
   ["where a leaver's reason is kept, and that it goes with the account", /It is kept with your place on the programme, not with your application, and it is deleted with your account\./i],
   ["leaving gives a place on the form back, without the reason", /leaving gives that place back, so the people who read your application see that you gave it back, but not your reason/i],
   ["a leaver's marks stay on the register", /Your marks up to then stay on your group&apos;s register with the day you left/i],
+  // Somebody who leaves keeps nothing, and the group keeps their notes: the
+  // page names both, and §2g holds each to the code.
+  ["a leaver is shown only that they left", /After you leave, your programme page shows only that you left: your marks, notes and reflections stay in our records for the programme&apos;s lead and admins, and are no longer shown to you\./i],
+  ["the notes a leaver shared stay with the group", /The notes you shared with your group stay with it/i],
   ["who finished", /we mark as finished everybody who came to at least the number of sessions its lead has set/i],
   ["the lead's changes to who finished are recorded", /The lead can then change anybody&apos;s, and we record who changed it and when\./i],
   ["only the lead and admins see the number and the list", /Only the lead and admins see that number, and the list with how many sessions each person came to and how many exercises they answered\./i],
@@ -2728,6 +2732,54 @@ describe("the course hub passage", () => {
     for (const suite of ["course-hub-leaving.test.mjs", "course-hub-cant-make-it-after-placement.test.mjs"]) {
       assert.ok(existsSync(join(REPO_ROOT, "tests", suite)), `tests/${suite} is gone`);
     }
+  });
+
+  test("somebody who left is shown only that they left, their records stay, and the notes they shared stay with their group", () => {
+    assert.match(
+      PAGE_FLAT,
+      /After you leave, your programme page shows only that you left: your marks, notes and reflections stay in our records for the programme&apos;s lead and admins, and are no longer shown to you\. The notes you shared with your group stay with it/i,
+    );
+    // The promise this replaced, that somebody who left keeps their notes,
+    // the reading list or their marks to read, is made nowhere on the page.
+    assert.doesNotMatch(
+      PAGE_FLAT,
+      /\byou keep\b[^.]*\b(?:notes|reading list|marks)\b|\bmarks to read\b/i,
+      "the policy promises somebody who left their notes, the reading list or their marks again, which no page shows them.",
+    );
+    // "Shows only that you left": the page is drawn from the programme's name
+    // and the day they left, and from nothing else of the run or the person.
+    const view = /export type LeftView = \{([\s\S]*?)\};/.exec(withoutComments(read("src/lib/courses/leftView.ts")));
+    assert.ok(view, "could not find what the page somebody who left reads is drawn from");
+    assert.deepEqual(
+      [...view[1].matchAll(/(\w+)\??:/g)].map((match) => match[1]),
+      ["runId", "name", "leftOn"],
+      "the page somebody who left reads is drawn from more than the programme's name and the day they left, " +
+        "which the policy says is all it shows them.",
+    );
+    // The two pages that show somebody taking part their notes and the
+    // reading list draw that same page for somebody who left, before either
+    // is read.
+    for (const page of ["src/app/(app)/learn/[runId]/notes/page.tsx", "src/app/(app)/learn/[runId]/reading/page.tsx"]) {
+      const code = withoutComments(read(page));
+      const left = code.indexOf("if (access.hasLeft) return <LeftProgramme view={await loadLeftView(db, { run: access.run, enrolment })} />;");
+      const theirs = code.search(/await load(?:OwnNotes|ReadingList)\(/);
+      assert.ok(left !== -1 && theirs !== -1 && left < theirs, `${page} shows somebody who left their notes or the reading list`);
+    }
+    // "Stay in our records": leaving deletes none of their marks, their notes
+    // or a note they shared.
+    assert.ok(
+      !/courseProgress|courseAttendance|courseGroupSharedNotes|COURSE_GROUP_SHARED_NOTES_COLLECTION/.test(withoutComments(read("src/lib/courses/leaveRun.ts"))),
+      "leaving now reaches somebody's marks, notes or shared notes, which the policy says stay in the records.",
+    );
+    // "The notes you shared with your group stay with it": the group's reader
+    // keeps a note whoever wrote it and wherever its writer is now.
+    assert.match(
+      withoutComments(read("src/lib/courses/sharedNotes/readers.ts")),
+      /\.filter\(\(note\): note is CourseGroupSharedNoteDoc => note !== null && note\.runId === run\.id && note\.groupId === groupId\)/,
+      "a group's notes are now filtered on who wrote them, so a note somebody who left shared may leave the group.",
+    );
+    // tests/course-hub-leaving.test.mjs runs each of these as every kind of caller.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-hub-leaving.test.mjs")));
   });
 
   test("a place that comes back is offered by the programme's lead or an admin until the end of the first week, and is not reminded each day", () => {

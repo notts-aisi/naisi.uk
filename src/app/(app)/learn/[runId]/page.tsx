@@ -19,8 +19,9 @@ import { getRunAccess } from "@/features/courses/runAccess";
  *
  *   canLearn                    → the cohort view
  *   left the run themselves     → the page that says so (wk-left-phone):
- *                                 the day, what stays theirs, their marks,
- *                                 and nothing of the group's
+ *                                 that they left and the day, and nothing
+ *                                 else: not their marks or notes, not the
+ *                                 reading list, nothing of the group's
  *   reviewer / track lead only  → /admissions, their entire surface on this
  *                                 run. Admissions is a separate lane from the
  *                                 cohort (locked decision, stated from the
@@ -61,7 +62,7 @@ export default async function RunHomePage({
     if (access.hasLeft && access.enrolment) {
       const leftDb = getAdminDb();
       if (leftDb) {
-        const view = await loadLeftView(leftDb, { run: access.run, enrolment: access.enrolment }, new Date());
+        const view = await loadLeftView(leftDb, { run: access.run, enrolment: access.enrolment });
         return <LeftProgramme view={view} />;
       }
     }

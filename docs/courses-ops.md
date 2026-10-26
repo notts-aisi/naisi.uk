@@ -1321,11 +1321,14 @@ keeps their record, and no place on the form goes back after the end.
   their reason stays with their seat), and one email goes to them and
   nobody else (the "Left a course" template in Email designs).
 - Publish waits for nobody who has left.
-- They keep their programme page, which now says they left, with their marks
-  from finished registers before they left, their notes and reflections, the
-  reading list of every published week, the society's address and the
-  site's upcoming events. Nothing else of the run opens to them: not the
-  group's names, its updates, its sessions or its registers.
+- They keep nothing of the programme. Its page now says only that they left
+  and when, with the society's address in case it was a mistake, and the
+  notes and reading list pages say the same; My programmes has a card that
+  says they left and links to it. Their marks, notes and reflections stay
+  where they are, for the programme's lead and admins, and the notes they
+  shared stay with their group, but none of it is shown to them. Nothing else
+  of the run opens to them either: not the group's names, its updates, its
+  sessions or its registers.
 
 Their facilitators' register lists them last, read only, with the marks
 they had, "Left" and the day, and refuses a mark for them; the lead's

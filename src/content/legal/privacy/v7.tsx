@@ -801,8 +801,11 @@ export default function PrivacyContentV7({
                   you gave it back, but not your reason. Your marks up to then
                   stay on your group&apos;s register with the day you left,
                   where your facilitators, the programme&apos;s lead and admins
-                  see them, and you keep your notes, the reading list and your
-                  own marks to read.
+                  see them. After you leave, your programme page shows only
+                  that you left: your marks, notes and reflections stay in our
+                  records for the programme&apos;s lead and admins, and are no
+                  longer shown to you. The notes you shared with your group
+                  stay with it (see Notes shared with your group).
                 </li>
                 <li>
                   <strong>Who finished.</strong> Once a programme&apos;s last

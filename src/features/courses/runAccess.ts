@@ -73,12 +73,12 @@ export type RunAccess = {
   /**
    * LEFT THE RUN THEMSELVES, after it was theirs to see: their own learner
    * row, withdrawn, shown to them (`placementIsShownTo`: leaving keeps
-   * Publish's stamp), on an account that still stands. They keep three
-   * things here and nothing else of the run: the programme page that says
-   * they left (with their own marks), their notes and reflections, and the
-   * reading list. No cohort surface opens to them: not the group's people,
-   * its updates, its sessions or its registers. Somebody staff removed is
-   * not this: the run closes to them as it always has.
+   * Publish's stamp), on an account that still stands. They are shown one
+   * thing here: the page that says they left, and when. Nothing else of the
+   * run opens to them: not their marks, notes or reflections, not the
+   * reading list, not the group's people, its updates, its sessions or its
+   * registers. Somebody staff removed is not this: the run closes to them as
+   * it always has.
    */
   hasLeft: boolean;
   /**
@@ -226,3 +226,35 @@ export const getRunAccess = cache(
     };
   },
 );
+
+/** The most of a person's own course rows the list of runs they left reads. */
+const MAX_OWN_ENROLMENTS = 50;
+
+/**
+ * THE RUNS THE CALLER LEFT THEMSELVES, for the card on My programmes that
+ * says so. One equality on the caller's own rows; then, for each withdrawn
+ * learner row, the gate above, so a run is listed exactly where its own page
+ * says the caller left it (`hasLeft`), and never for a seat staff removed, a
+ * placement nobody told them about, or a run being destroyed. Empty with no
+ * session.
+ */
+export const getLeftRuns = cache(async (): Promise<RunAccess[]> => {
+  const user = await getSessionUser();
+  if (!user) return [];
+  const db = getAdminDb();
+  if (!db) return [];
+  const snap = await db
+    .collection("courseEnrolments")
+    .where("uid", "==", user.uid)
+    .limit(MAX_OWN_ENROLMENTS)
+    .get();
+  const runIds = new Set<string>();
+  for (const doc of snap.docs) {
+    const row = normalizeCourseEnrolment(doc.id, doc.data() ?? {});
+    if (row.uid === user.uid && row.role === "learner" && row.status === "withdrawn" && row.runId) {
+      runIds.add(row.runId);
+    }
+  }
+  const accesses = await Promise.all([...runIds].map((runId) => getRunAccess(runId)));
+  return accesses.filter((access): access is RunAccess => access !== null && access.hasLeft);
+});
