@@ -7,6 +7,7 @@ import { londonClockLabel, londonDayAndClock, londonDayLabel } from "@/lib/cours
 import {
   buildRunAttendance,
   dayLabel,
+  groupSessions,
   groupsInWords,
   hasLeft,
   listGroups,
@@ -21,7 +22,7 @@ import { firstNameOfUser, readRunLead, type RunLead } from "@/lib/courses/progra
 import { emailsCountLine, readReminderState, remindLabel, type ReminderState } from "@/lib/courses/registerRemind";
 import { followUpDueAt } from "@/lib/courses/unmarkedRegisters";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
-import { weekReadiness } from "@/lib/courses/weekBlocks/reader";
+import { OPEN_WEEK_ONE, WEEK_ONE_NOT_READY, weekOneLine } from "@/lib/courses/weekOneLine";
 import { weekIsReady } from "@/lib/courses/weekReady";
 import { courseNudgeSessionWhere } from "@/lib/email/courseNudgeEmail";
 import { readCoursesConfig, type CoursesConfig } from "@/lib/firestore/config";
@@ -316,6 +317,16 @@ function remindedLine(state: ReminderState): string | null {
 }
 
 /**
+ * WHETHER ANY GROUP OF THE RUN HAS MET: a session of one of its groups that
+ * still meet has started. Until then the Overview is "Get ready for week 1"
+ * (board st-overview), and week 1's readiness is said; from then on it is
+ * the week the run is in (board wk-overview). The one answer for both.
+ */
+export function anyGroupHasMet(records: RunRecords, now: Date): boolean {
+  return records.groups.some((group) => [...groupSessions(records, group, now).values()].some((facts) => facts.started));
+}
+
+/**
  * THE OVERVIEW. Reads the week docs it needs, the reminder markers of the
  * registers not finished and the settings the chase reads; everything else
  * comes from the records the Attendance tab reads.
@@ -339,7 +350,7 @@ export async function buildProgrammeOverview(
   // ── Week 1 before any group has met (Q35 B) ──────────────────────────────
   // Week 1 opens to everybody holding a place once it is marked ready, so
   // until a group has met the page says whether it is, through the one answer.
-  const anyGroupMet = listed.some((entry) => [...entry.sessions.values()].some((facts) => facts.started));
+  const anyGroupMet = anyGroupHasMet(records, now);
   const planHasWeekOne = records.run.weekPlan.some((entry) => entry.kind === "week" && entry.weekNumber === 1);
   const weekOneId = weekDocId(1);
   const weekOne =
@@ -482,21 +493,17 @@ export async function buildProgrammeOverview(
   // Week 1 not ready before any group has met: the lead's "Mark ready" once
   // it holds something, published or not, as marking it ready publishes it
   // (Zach, 26 October 2026); while it has no page or nothing in it, the way
-  // to its page on the Weeks tab, where its Markdown is pasted.
-  if (!anyGroupMet && planHasWeekOne && !weekOneReady) {
-    const empty = !weekOne || weekReadiness(weekOne) === "empty";
+  // to its page on the Weeks tab, where its Markdown is pasted. The words are
+  // `weekOneLine`'s, which the checklist before the start and Publish's own
+  // page say too.
+  const weekOneSays = !anyGroupMet && planHasWeekOne ? weekOneLine(weekOne) : null;
+  if (weekOneSays && !weekOneSays.ready) {
     attention.push({
       kind: "week",
-      title: "Week 1 isn’t ready",
-      detail: !weekOne
-        ? "Week 1 has no page yet. Paste its Markdown on the Weeks tab, then mark it ready."
-        : empty
-          ? "Week 1 has nothing in it yet. Paste its Markdown on the Weeks tab, then mark it ready."
-          : !weekOne.published
-            ? "Week 1 isn’t published yet: marking it ready publishes it, and everyone holding a place can open it."
-            : "Everyone holding a place can open week 1 once it’s marked ready.",
-      link: empty ? { href: `${place.programmePath}/weeks/${weekOneId}`, label: "Open week 1" } : null,
-      ready: empty ? null : { runId: records.run.id, weekId: weekOneId, ready: false, line: "" },
+      title: WEEK_ONE_NOT_READY,
+      detail: weekOneSays.detail,
+      link: weekOneSays.open ? { href: `${place.programmePath}/weeks/${weekOneId}`, label: OPEN_WEEK_ONE } : null,
+      ready: weekOneSays.markReady ? { runId: records.run.id, weekId: weekOneId, ready: false, line: "" } : null,
     });
   }
 

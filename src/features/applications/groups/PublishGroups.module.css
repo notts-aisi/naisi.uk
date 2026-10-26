@@ -1,58 +1,469 @@
-/* Publish, on its own page under a programme's Groups tab (board st-publish):
-   the way back to People in groups, the heading, and the Publish area the
-   allocation board has always drawn. */
+/* Publish's own page (board st-publish): the way back and the heading, the
+   readiness check, the two emails as people will get them, then who a
+   press reaches and the two buttons. One column on a phone. */
 
 .page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
   min-width: 0;
-  max-width: 44rem;
 }
+
 .back {
-  align-self: flex-start;
   display: inline-flex;
   align-items: center;
+  gap: 4px;
+  align-self: flex-start;
   min-height: 44px;
+  margin: -8px 0 -16px;
   color: var(--color-accent-text);
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
 }
+
 .back:hover {
   color: var(--color-accent-text-hover);
 }
+
+.back:focus-visible,
+.itemButton:focus-visible,
+.moreSummary:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
 .title {
+  margin: 0;
   font-family: var(--font-display);
+  font-size: 26px;
   font-weight: 600;
-  font-size: 22px;
   line-height: 1.2;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   color: var(--color-text);
-  text-wrap: balance;
-  overflow-wrap: anywhere;
 }
-.unplaced {
-  padding: 14px 16px;
-  border: 1px solid var(--color-warning-line);
-  border-radius: var(--radius-row);
-  background: var(--color-warning-soft);
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--color-text);
-  overflow-wrap: anywhere;
+
+.card,
+.emailCard,
+.foot {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-sizing: border-box;
 }
-.unplacedTitle {
+
+.card {
+  padding: 22px 24px 8px;
+}
+
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.cardTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
   font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
 }
-.note {
-  font-size: 14px;
-  line-height: 1.5;
+
+.cardLine {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
   color: var(--color-text-muted);
 }
 
-@media (max-width: 48rem) { /* --bp-md */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.chipDot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.chipOk {
+  border-color: var(--color-ok-line);
+  background: var(--color-success-soft);
+  color: var(--color-ok);
+}
+
+.chipWarn {
+  border-color: var(--color-warning-line);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+/* "0 emails": nothing to send is not good news. */
+.chipNone {
+  border-color: var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+/* ── Ready? ────────────────────────────────────────────────────────────── */
+
+.groupHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin-top: 12px;
+}
+
+.groupHead + .items,
+.items + .groupHead {
+  margin-top: 4px;
+}
+
+.items + .groupHead {
+  margin-top: 22px;
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.groupLine {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.items {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px 16px;
+  padding: 14px 0;
+}
+
+.item + .item {
+  border-top: 1px solid var(--color-border);
+}
+
+.mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.markDone {
+  border-color: var(--color-ok-line);
+  background: var(--color-success-soft);
+  color: var(--color-ok);
+}
+
+.markCheck {
+  border-color: var(--color-warning-line);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+/* Needed and not done yet: the checklist's "To do" ring. */
+.markNeeded {
+  border: 1.5px solid var(--color-border-strong);
+  background: transparent;
+}
+
+.itemBody {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 24px;
+  min-width: 0;
+}
+
+.itemTitle {
+  flex: 1 1 320px;
+  min-width: 0;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-text);
+}
+
+.itemDetail {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.itemLine {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.itemActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 10px;
+}
+
+.itemButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.itemButton:hover {
+  background: var(--color-surface-hover);
+}
+
+/* ── The emails ────────────────────────────────────────────────────────── */
+
+.emailCard {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 24px 40px;
+  padding: 24px;
+}
+
+.emailWho {
+  display: flex;
+  flex: 1 1 300px;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.emailHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.emailHead .cardTitle {
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.names {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr));
+  gap: 12px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-size: 15px;
+  color: var(--color-text);
+}
+
+.name > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.more {
+  min-width: 0;
+}
+
+.moreSummary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-accent-text);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.moreSummary::-webkit-details-marker {
+  display: none;
+}
+
+.moreSummary::after {
+  content: "›";
+  margin-left: 8px;
+}
+
+.more[open] .moreSummary::after {
+  content: "‹";
+}
+
+.moreNames {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--color-text);
+}
+
+.emailSide {
+  display: flex;
+  flex: 1.5 1 440px;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.letter {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
+}
+
+.envelope {
+  margin: 0;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.envelopeRow {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 5px 0;
+}
+
+.envelopeRow dt {
+  flex: 0 0 84px;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.envelopeRow dd {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.subject {
+  font-weight: 600;
+}
+
+.frame {
+  display: block;
+  width: 100%;
+  height: 34rem;
+  border: 0;
+}
+
+/* ── Who a press reaches, and the buttons ──────────────────────────────── */
+
+.foot {
+  padding: 4px 24px 20px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.foot > section {
+  border-top: 0;
+}
+
+.unplaced {
+  padding: 14px 18px;
+  border: 1px solid var(--color-warning-line);
+  border-radius: var(--radius-row);
+  background: var(--color-warning-soft);
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.unplaced p {
+  margin: 0;
+}
+
+.unplacedTitle {
+  font-weight: 600;
+}
+
+.problem {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-danger-text);
+}
+
+@media (max-width: 48rem) {
+  .card,
+  .emailCard,
+  .foot {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
   .title {
-    font-size: 20px;
+    font-size: 22px;
+  }
+
+  .envelopeRow dt {
+    flex-basis: 72px;
   }
 }

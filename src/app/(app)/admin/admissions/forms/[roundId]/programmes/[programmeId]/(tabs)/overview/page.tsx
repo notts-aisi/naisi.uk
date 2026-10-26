@@ -5,8 +5,10 @@ import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { loadForm } from "@/lib/applications/repo";
 import { loadCertificatesSection } from "@/lib/courses/certificates/send";
 import { loadWhoFinished } from "@/lib/courses/finishing/whoFinished";
+import { buildGetReady } from "@/lib/courses/getReady/model";
+import { readGetReady } from "@/lib/courses/getReady/read";
 import { readRunRecords } from "@/lib/courses/programmeAttendance";
-import { buildProgrammeOverview } from "@/lib/courses/programmeOverview";
+import { anyGroupHasMet, buildProgrammeOverview } from "@/lib/courses/programmeOverview";
 import { loadRunGroups, loadUpdatesFor, updateReadingOf } from "@/lib/courses/updates/readers";
 import { overviewUpdateRows } from "@/lib/courses/updates/views";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -31,6 +33,12 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * People card says when it can be done (`loadWhoFinished`). Certificates
  * follows it, read only then (`loadCertificatesSection`, which asks the
  * same question of the form again), and sends through its own two routes.
+ *
+ * BEFORE ANY OF THE RUN'S GROUPS HAS MET (`anyGroupHasMet`) the page is "Get
+ * ready for week 1" instead (boards st-overview and st-overview-phone): the
+ * checklist, who has not said when they are free, the places and the
+ * facilitators, read once (`readGetReady`) and worked out by `buildGetReady`,
+ * the same facts Publish's own page checks itself against.
  */
 export default async function ProgrammeOverviewPage({
   params,
@@ -61,7 +69,9 @@ export default async function ProgrammeOverviewPage({
   const groups = await loadRunGroups(db, records.run.id);
   const now = new Date();
   const viewer = { isAdmin: view.viewer === "admin", uid: user.uid };
-  const [model, loaded, finishing] = await Promise.all([
+  // Before any group has met: "Get ready for week 1".
+  const beforeTheStart = !anyGroupHasMet(records, now);
+  const [model, loaded, finishing, ready] = await Promise.all([
     buildProgrammeOverview(
       db,
       records,
@@ -73,6 +83,7 @@ export default async function ProgrammeOverviewPage({
       loadUpdatesFor(db, records.run, reading, groups, view.programmeName),
     ),
     loadWhoFinished(db, records, viewer, now),
+    beforeTheStart ? readGetReady(db, user, view.roundId, view.programmeId, records, now) : Promise.resolve(null),
   ]);
   const certificates =
     finishing.state === "open" ? await loadCertificatesSection(db, user, roundId, programmeId, now) : null;
@@ -85,6 +96,7 @@ export default async function ProgrammeOverviewPage({
       programmePath={programmePath}
       finishing={finishing}
       certificates={certificates}
+      getReady={ready ? { model: buildGetReady(ready.facts), courseId: ready.courseId, runId: records.run.id } : null}
     />
   );
 }
