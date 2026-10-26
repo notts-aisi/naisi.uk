@@ -2,9 +2,10 @@ import YourApplications from "@/features/applications/home/YourApplications";
 import { holdsPlace } from "@/features/applications/home/holdsPlace";
 import { getLeftRuns } from "@/features/courses/runAccess";
 import { loadLeftView } from "@/lib/courses/leftView";
+import { beforeGroupsCardsFor, type BeforeGroupsCard } from "@/lib/courses/weekOne/cards";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
-import { getCurrentUser } from "@/lib/firebase/session";
+import { getCurrentUser, type SessionUser } from "@/lib/firebase/session";
 import LearnHub, { type LeftRun } from "./LearnHub";
 
 /**
@@ -35,12 +36,23 @@ import LearnHub, { type LeftRun } from "./LearnHub";
  * by nothing a request carries; neither is made in a view-as session (each
  * asks the view-as cookie itself, with the uid it is about to read by, before
  * it reads); and nothing in this file looks at an application or a decision.
+ *
+ * Above the runs, before groups go out, the card Home draws for each place
+ * held (`beforeGroups`, Q13 B), and only what `MAY_SHOW` in
+ * `tests/applications-place-in-the-member-area.test.mjs` lists.
  */
 export default async function LearnPage() {
   const user = await getCurrentUser();
   const held = user ? await holdsPlace(user.uid) : "unknown";
   const left = user ? await runsLeft(user.uid) : [];
-  return <LearnHub instead={held === "no" ? null : <YourApplications rows={null} />} left={left} />;
+  const cards = user ? await onItsWayCards(user) : [];
+  return (
+    <LearnHub
+      instead={held === "no" ? null : <YourApplications rows={null} />}
+      left={left}
+      beforeGroups={cards}
+    />
+  );
 }
 
 /**
@@ -64,4 +76,21 @@ async function runsLeft(uid: string): Promise<LeftRun[]> {
     .filter((entry): entry is LeftRun & { at: number } => entry !== null)
     .sort((a, b) => b.at - a.at || a.name.localeCompare(b.name, "en-GB"))
     .map(({ runId, name }) => ({ runId, name }));
+}
+
+/**
+ * "YOUR GROUP’S ON ITS WAY" at the top of My programmes (board st-waiting:
+ * "The same card sits at the top of My programmes"), with the way to week 1
+ * once its door is open to them (Q35 B). The same reader as Home's; it reads
+ * nothing in a view-as session, and a read that fails draws no card.
+ */
+async function onItsWayCards(user: SessionUser): Promise<BeforeGroupsCard[]> {
+  const db = getAdminDb();
+  if (!db) return [];
+  try {
+    return await beforeGroupsCardsFor(db, user, new Date());
+  } catch (err) {
+    console.warn("[learn] could not read whether groups are on their way", err);
+    return [];
+  }
 }

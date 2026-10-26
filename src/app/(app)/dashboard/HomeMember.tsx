@@ -6,6 +6,8 @@ import Skeleton from "@/components/ui/Skeleton";
 import MyCoursesSummary, { liveRunsOf } from "@/features/courses/MyCoursesSummary";
 import { useMyRuns } from "@/features/courses/useMyRuns";
 import MyWorkSummary from "@/features/tasks/components/MyWorkSummary";
+import OnItsWay from "@/features/courses/weekOne/OnItsWay";
+import type { BeforeGroupsCard } from "@/lib/courses/weekOne/cards";
 import HomeFacilitator from "./HomeFacilitator";
 import HomeProgramme from "./HomeProgramme";
 import styles from "./home.module.css";
@@ -40,6 +42,11 @@ import styles from "./home.module.css";
  * that could not be read, it leaves the sentence out and does nothing else:
  * the member's applications card, which names no outcome either, is the way
  * to the page that says where they stand.
+ *
+ * BEFORE GROUPS GO OUT, one card more for a place they hold (`beforeGroups`,
+ * Q13 B, board st-waiting): "Your group’s on its way", under the greeting in
+ * every form. Worded on the server by week 1's door; what it may say is held
+ * by `MAY_SHOW` in `tests/applications-place-in-the-member-area.test.mjs`.
  */
 
 type Slots = {
@@ -59,6 +66,12 @@ type Slots = {
    * While false, nothing is said about being on no programme.
    */
   holdsNoPlace: boolean;
+  /**
+   * "Your group’s on its way" for each place held before groups go out
+   * (Q13 B), worded on the server (`beforeGroupsCardsFor`). Drawn under the
+   * greeting in every form of Home, and nothing when there is none.
+   */
+  beforeGroups: readonly BeforeGroupsCard[];
   finishProfile: ReactNode;
 };
 
@@ -71,6 +84,7 @@ export default function HomeMember({
   applications,
   nothingYet,
   holdsNoPlace,
+  beforeGroups,
   finishProfile,
 }: Slots) {
   const { runs, loading, error } = useMyRuns();
@@ -111,11 +125,20 @@ export default function HomeMember({
     </>
   );
 
+  // The card sits straight under the greeting, with the install invitation.
+  const cards = <OnItsWay cards={beforeGroups} />;
+  const underGreeting = (
+    <>
+      {invite}
+      {cards}
+    </>
+  );
+
   if (facilitated) {
     return (
       <HomeFacilitator
         given={given}
-        invite={invite}
+        invite={underGreeting}
         entry={facilitated}
         comingUp={comingUpCards}
         more={
@@ -132,7 +155,7 @@ export default function HomeMember({
     return (
       <HomeProgramme
         given={given}
-        invite={invite}
+        invite={underGreeting}
         entry={learning}
         comingUp={comingUpCards}
         applications={applications}
@@ -149,6 +172,7 @@ export default function HomeMember({
     <>
       <PageHead title={greeting} description={onNothing ? "You’re not on a programme yet." : undefined} />
       {invite}
+      {cards}
       {termCard}
       <div className={styles.columns}>
         <div className={styles.stack}>{comingUpRows}</div>

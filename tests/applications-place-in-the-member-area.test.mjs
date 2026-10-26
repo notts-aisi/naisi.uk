@@ -1,6 +1,7 @@
 /**
  * Home and the list of a member's programmes (`/learn`) state no outcome,
- * and tell nobody who holds a place that they are on nothing.
+ * tell nobody who holds a place that they are on nothing, and say for a
+ * place the person holds only what `MAY_SHOW` (section 7) lists.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -13,8 +14,16 @@
  * applications (`docs/applications.md`, "One set of words for an outcome"):
  * a summary page is a third place the words could come to disagree, and
  * nobody should learn a decision from one. So both pages ask one thing,
- * whether the member holds a place, and do one thing with the answer. Six
- * things have to hold:
+ * whether the member holds a place, and do one thing with the answer.
+ *
+ * THE ONE CHANGE TO THAT, made on purpose (Q13 B with v20's Q35 B, Zach's
+ * "as drawn"): for a place the person holds, before Publish has told them
+ * their group, both pages may draw the cards `MAY_SHOW` lists, and nothing
+ * else about it. Each entry says why it may be there and names the test
+ * that holds it. Never "No offer this time", never anything of another
+ * person's, never how many others have answered anything. A new card for a
+ * place (the before survey's, Q50 B) is one more entry with its own test,
+ * never a second rewrite. Seven things have to hold:
  *
  *  1. THE ANSWER IS YES EXACTLY WHEN THE PERSON'S OWN PAGE IS THE PAGE OF
  *     SOMEBODY WITH A PLACE. Every way an application can stand is stored and
@@ -24,7 +33,9 @@
  *  2. NEITHER PAGE STATES AN OUTCOME. Both pages are run for real against
  *     each of those applications and drawn to HTML. What each draws carries
  *     none of the words the person's own page uses for that outcome, no
- *     programme's name and no programme's id.
+ *     programme's name and no programme's id. (In these worlds no programme
+ *     names a run, so no card of section 7 can be drawn: the cards are held
+ *     there, in a term whose programme does.)
  *  3. EACH IS ONE OF TWO PAGES, AND NOTHING ELSE. The page of a member known
  *     to hold no place, which reads as it always has, and the page of
  *     everybody else, which leaves the sentence out and has the way to the
@@ -41,6 +52,13 @@
  *     at an application. No file of these pages imports the words for an
  *     outcome. And nowhere in the tree is somebody told they are on nothing
  *     by a file that has not asked about a place first.
+ *  7. WHAT MAY BE SHOWN FOR A PLACE THE PERSON HOLDS (`MAY_SHOW`), each entry
+ *     with its board, its reason and its test, run for real in a term whose
+ *     programme names a run: drawn exactly as its entry says for a place
+ *     held before groups go out, gone once Publish has told them, once they
+ *     gave the place back, and in a view-as session; never for anybody else;
+ *     and asked by the two pages through one reader, which only week 1's door
+ *     answers, and nothing else in the tree.
  *
  * Who is asked and what is read (the member, an admin viewing the site as
  * them, another member, an unpublished decision) is held in
@@ -178,6 +196,7 @@ const { loadTs } = createLoader({
     ["./EmptyState.module.css", CLASS_NAMES],
     ["./Card.module.css", CLASS_NAMES],
     ["./Chip.module.css", CLASS_NAMES],
+    ["./OnItsWay.module.css", CLASS_NAMES],
   ]),
 });
 
@@ -645,6 +664,7 @@ function home({ holdsNoPlace = true } = {}) {
         applications: slot("applications"),
         nothingYet: null,
         holdsNoPlace,
+        beforeGroups: [],
         finishProfile: slot("profile"),
       }),
     ),
@@ -678,14 +698,16 @@ describe("Home, for a member on no run", () => {
     assert.ok(!home().includes(NOT_ON_A_PROGRAMME), "said to somebody who leads a programme");
   });
 
-  test("it takes nothing about a place but that one answer", () => {
+  test("it takes nothing about a place but that one answer, and the cards MAY_SHOW lists", () => {
     const code = stripSource(readFileSync(join(SRC, "app", "(app)", "dashboard", "HomeMember.tsx"), "utf8"), { keepStrings: true });
     const slots = code.slice(code.indexOf("type Slots = {"), code.indexOf("};", code.indexOf("type Slots = {")));
     assert.deepEqual(
       [...slots.matchAll(/^\s*(\w+)\??:/gm)].map((match) => match[1]),
-      ["given", "invite", "termCard", "comingUpRows", "comingUpCards", "applications", "nothingYet", "holdsNoPlace", "finishProfile"],
+      ["given", "invite", "termCard", "comingUpRows", "comingUpCards", "applications", "nothingYet", "holdsNoPlace", "beforeGroups", "finishProfile"],
     );
     assert.match(slots, /holdsNoPlace: boolean;/);
+    // The cards come worded from the server, by week 1's door: section 7.
+    assert.match(slots, /beforeGroups: readonly BeforeGroupsCard\[\];/);
   });
 });
 
@@ -782,12 +804,16 @@ describe("the pages ask one function, and it asks the reader behind the person's
     assert.ok(DASHBOARD.includes('const COULD_NOT_TELL: HoldsPlace = "unknown";'));
     assert.ok(DASHBOARD.includes('holdsNoPlace={held === "no"}'));
     assert.equal(DASHBOARD.split("held").length - 1, 2, "the dashboard uses the answer somewhere else");
+    // The page draws the hub with that one answer and the cards of section 7, and nothing else.
     assert.ok(
       LEARN_PAGE.includes(
         // The page also hands the hub the runs the member left by
-        // themselves (tests/course-hub-leaving.test.mjs); what it hands in a
-        // run's stead is still decided by the answer alone.
-        'const held = user ? await holdsPlace(user.uid) : "unknown"; const left = user ? await runsLeft(user.uid) : []; return <LearnHub instead={held === "no" ? null : <YourApplications rows={null} />} left={left} />;',
+        // themselves (tests/course-hub-leaving.test.mjs) and the cards of
+        // section 7; what it hands in a run's stead is still decided by the
+        // answer alone.
+        'const held = user ? await holdsPlace(user.uid) : "unknown"; const left = user ? await runsLeft(user.uid) : []; ' +
+          'const cards = user ? await onItsWayCards(user) : []; ' +
+          'return ( <LearnHub instead={held === "no" ? null : <YourApplications rows={null} />} left={left} beforeGroups={cards} /> );',
       ),
     );
     assert.equal(LEARN_PAGE.split("held").length - 1, 2, "the list of programmes uses the answer somewhere else");
@@ -921,4 +947,189 @@ describe("nobody is told they are on nothing by a file that has not asked about 
       }
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// 7. What Home and My programmes may show for a place the person holds
+// ---------------------------------------------------------------------------
+
+/**
+ * EVERYTHING HOME AND MY PROGRAMMES MAY SHOW FOR A PLACE THE PERSON HOLDS,
+ * each with the board it is drawn on, why it may be there, and the test in
+ * this section that holds it. Nothing else about a place, and nothing about
+ * any outcome, is drawn on either page: sections 2 to 6 hold the rest.
+ *
+ * What none of them may ever do: say "No offer this time" (or any other
+ * outcome but the person's own place), show anything of another person's,
+ * or say how many others have answered anything.
+ */
+const MAY_SHOW = {
+  "on its way": {
+    board: "st-waiting, option B (Q13), on Home and at the top of My programmes",
+    why:
+      "between decision day and the group email, somebody holding a place reads that their group is on its way, " +
+      "when the email comes and when their first session will be. It names their own programme, which their own " +
+      "page names too, and nothing of how the place was come by",
+    test: "the card for a place held before groups go out is drawn whole, for the holder alone",
+  },
+  "week 1 is open": {
+    board: "st-waiting read with v20's change, beside st-week1-phone (Q35 B)",
+    why:
+      "week 1 opens to everybody holding a place once the lead marks it ready, and this card is where they find " +
+      "it: the way to week 1, only once week 1's door is open to them",
+    test: "Week 1 is open is on the card only once week 1's door is open to them",
+  },
+  // A PLACE KEPT for the before survey's card (Q50 B, v21): "A survey for
+  // you: Before you start · about 3 minutes · Answer" while a survey waits
+  // for the person. It is one more entry here, with its own test, when the
+  // survey piece draws it; never how many others have answered.
+};
+
+describe("7. what Home and My programmes may show for a place the person holds", async () => {
+  const { namedSeed, CAST: HANDOVER_CAST, RUN: HANDOVER_RUN } = await import("./lib/handoverWorld.mjs");
+  /** Before the AGI run's first session, with groups planned to go out on Wed 28 Oct. */
+  const BEFORE_GROUPS = new Date("2026-10-24T12:00:00Z");
+  const W01 = `courseRuns/${HANDOVER_RUN.agi}/weeks/w01`;
+
+  /** The hand-over's term, whose AGI Strategy names a run, with week 1 published and marked ready or not. */
+  function heldTerm({ ready = true } = {}) {
+    const docs = namedSeed();
+    docs[`courseRuns/${HANDOVER_RUN.agi}`].groupsGoOutOn = "2026-10-28";
+    docs[W01] = { weekNumber: 1, title: "Week 1", published: true, ready, materials: [], exercises: [], checklist: [] };
+    const db = makeDb(docs, { now: () => new Date() });
+    const collection = db.collection;
+    db.collection = (name) => {
+      world.touched.push(name);
+      return withLimit(collection(name));
+    };
+    world.db = db;
+    world.touched = [];
+    return db;
+  }
+  const as = (uid, marker = null) => {
+    world.user = HANDOVER_CAST[uid];
+    world.cookie = marker === null ? null : JSON.stringify(marker);
+    world.touched = [];
+  };
+
+  const CARD =
+    "Fellowship: AGI Strategy Your group’s on its way We’re putting groups together now. You’ll get an email with your " +
+    "group, day and room by Wed 28 Oct. Your first session will be between Mon 26 Oct and Sun 1 Nov.";
+  const WEEK_ONE = "Week 1 is open";
+  const CHECK = "Check when you’re free";
+  const HOW_MANY = /\b\d+\s+(?:of\s+\d+\s+)?(?:people\s+)?(?:have\s+|has\s+)?answered\b/i;
+
+  test("every entry carries its board, its reason and its test, and the survey's place is kept", () => {
+    assert.deepEqual(Object.keys(MAY_SHOW), ["on its way", "week 1 is open"]);
+    for (const [name, entry] of Object.entries(MAY_SHOW)) {
+      assert.ok(entry.board.length > 10 && entry.why.length > 60 && entry.test.length > 20, name);
+    }
+    const source = readFileSync(fileURLToPath(import.meta.url), "utf8");
+    for (const entry of Object.values(MAY_SHOW)) assert.ok(source.includes(`test("${entry.test}"`), `no test is named ${entry.test}`);
+    assert.match(source, /A PLACE KEPT for the before survey's card \(Q50 B, v21\)/);
+  });
+
+  test("the card for a place held before groups go out is drawn whole, for the holder alone", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: BEFORE_GROUPS });
+    runsAre([]);
+    heldTerm({ ready: false });
+    as("amara");
+    const pages = await drawn();
+    // On Home, under the greeting, then the page as it always reads for a place.
+    assert.ok(pages.homeText.startsWith(`Hi Amara. [install] ${CARD} ${CHECK} [term]`), pages.homeText);
+    // And the same card at the top of My programmes.
+    assert.ok(pages.learnText.startsWith(`${HUB_HEAD} ${CARD} ${CHECK}`), pages.learnText);
+    const hrefs = [...pages.home.matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
+    assert.ok(hrefs.includes(`/applications/${ROUND}#when-youre-free`), "the way to their week");
+    // Nothing else about the outcome: the card is the only addition to the page of a place.
+    assert.doesNotMatch(pages.homeText.replace(CARD, "").replace(CHECK, ""), OUTCOME_WORDS);
+    assert.doesNotMatch(`${pages.homeText} ${pages.learnText}`, HOW_MANY);
+    // Nobody else's anything: none of the others holding a place, and no group.
+    for (const other of ["Dev", "Bea", "Tariq", "Nina", "Wen", "Monday evening", "Thursday morning"]) {
+      assert.ok(!pages.home.includes(other) && !pages.learn.includes(other), `a page carries ${other}`);
+    }
+  });
+
+  test("Week 1 is open is on the card only once week 1's door is open to them", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: BEFORE_GROUPS });
+    runsAre([]);
+    heldTerm({ ready: true });
+    as("amara");
+    const pages = await drawn();
+    assert.ok(pages.homeText.startsWith(`Hi Amara. [install] ${CARD} ${WEEK_ONE} ${CHECK} [term]`), pages.homeText);
+    assert.ok(pages.learnText.startsWith(`${HUB_HEAD} ${CARD} ${WEEK_ONE} ${CHECK}`), pages.learnText);
+    assert.ok(pages.home.includes(`href="/learn/${HANDOVER_RUN.agi}/weeks/1"`));
+    // Not ready: the card, and no way to week 1.
+    heldTerm({ ready: false });
+    as("amara");
+    assert.ok(!(await drawn()).homeText.includes(WEEK_ONE));
+  });
+
+  test("gone once Publish has told them, once they gave the place back, and once they left", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: BEFORE_GROUPS });
+    runsAre([]);
+    const seat = (over) => ({
+      runId: HANDOVER_RUN.agi, courseId: "agi-strategy-fellowship__c0urse01", uid: "amara", groupId: null,
+      status: "active", role: "learner", applicationId: null, joinedWeekNumber: 1, ...over,
+    });
+    heldTerm().seed(`courseEnrolments/${HANDOVER_RUN.agi}__amara`, seat({ allocatedEmailAt: BEFORE_GROUPS }));
+    as("amara");
+    assert.ok(!(await drawn()).homeText.includes("on its way"), "told");
+    heldTerm().seed(`courseEnrolments/${HANDOVER_RUN.agi}__amara`, seat({ status: "withdrawn", droppedOutAt: BEFORE_GROUPS }));
+    as("amara");
+    assert.ok(!(await drawn()).homeText.includes("on its way"), "left");
+    heldTerm();
+    as("nina");
+    const nina = await drawn();
+    assert.ok(!nina.homeText.includes("on its way") && !nina.learnText.includes("on its way"), "gave the place back");
+  });
+
+  test("never No offer this time, and nothing for no offer, an invitation not answered, or another programme's place", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: BEFORE_GROUPS });
+    runsAre([]);
+    for (const uid of ["omar", "ines", "wen", "nobody"]) {
+      heldTerm();
+      as(uid);
+      const pages = await drawn();
+      for (const text of [pages.homeText, pages.learnText]) {
+        assert.ok(!text.includes("on its way"), uid);
+        assert.doesNotMatch(text, /No offer|offer this time/i, uid);
+        assert.doesNotMatch(text, HOW_MANY, uid);
+      }
+    }
+  });
+
+  test("in a view-as session there is no card, and nothing of the member's is read", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: BEFORE_GROUPS });
+    runsAre([]);
+    heldTerm();
+    as("amara", VIEWING);
+    const pages = await drawn();
+    assert.ok(!pages.homeText.includes("on its way") && !pages.learnText.includes("on its way"));
+    assert.deepEqual(
+      world.touched.filter((name) => /^admission(Applications|Decisions)$|^courseEnrolments$/.test(name)),
+      [],
+      "something of the member's was read in a view-as session",
+    );
+  });
+
+  test("the two pages ask one reader for the cards, which only week 1's door answers, and nothing else does", () => {
+    const callers = [...sourceFiles(SRC)]
+      .filter((file) => /\bbeforeGroupsCardsFor\s*\(/.test(stripSource(readFileSync(file, "utf8"))))
+      .map(inRepo)
+      .sort();
+    assert.deepEqual(callers, [
+      "src/app/(app)/dashboard/page.tsx",
+      "src/app/(app)/learn/page.tsx",
+      "src/lib/courses/weekOne/cards.ts",
+    ]);
+    const cards = stripSource(readFileSync(join(SRC, "lib", "courses", "weekOne", "cards.ts"), "utf8"));
+    assert.match(cards, /const door = await weekOneDoorFor\(db, person, programme\.runId, \{ forms \}\);/);
+    assert.match(cards, /if \(!place\) continue;/);
+    const drawers = [...sourceFiles(SRC)]
+      .filter((file) => /<OnItsWay\b/.test(readFileSync(file, "utf8")))
+      .map(inRepo)
+      .sort();
+    assert.deepEqual(drawers, ["src/app/(app)/dashboard/HomeMember.tsx", "src/app/(app)/learn/LearnHub.tsx"]);
+  });
 });

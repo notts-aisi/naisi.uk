@@ -83,7 +83,8 @@ export default function WhenYoureFree({
 
   const shown = editing ? columns : stored;
   return (
-    <section className={styles.card} aria-labelledby={`${ids}-title`}>
+    // The address Home's "Check when you’re free" lands on.
+    <section id="when-youre-free" className={styles.card} aria-labelledby={`${ids}-title`}>
       <h2 id={`${ids}-title`} className={styles.title}>
         When you’re free
       </h2>

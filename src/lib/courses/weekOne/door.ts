@@ -1,5 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import { hasBeenTold, isInTerm } from "@/lib/applications/decisions";
 import { holdsPlaceOn } from "@/lib/applications/handover/holders";
 import { listForms, readRun, runStanding } from "@/lib/applications/handover/run";
 import { own } from "@/lib/applications/keys";
@@ -71,9 +72,10 @@ import { normalizeCourseWeek, weekDocId } from "@/lib/firestore/courses";
  * not been told, so Home still says their group is on its way.
  *
  * Reads, for a person in standing: the forms (or the ones handed in), their
- * application and their decision on the form that names the run, the run,
- * their own seat on it, the run's groups (one equality on the run) and the
- * run's week 1. Nothing of anybody else's.
+ * application on the form that names the run, the run, their own seat on it,
+ * the run's groups (one equality on the run) and the run's week 1; and their
+ * decision only once decision day has told them (never one unpublished to
+ * them). Nothing of anybody else's.
  */
 
 export type PlaceBeforeGroups = {
@@ -141,12 +143,11 @@ export async function weekOneDoorFor(
   if (!naming || !form || !programme) return shut("no-programme");
 
   const runRef = db.collection("courseRuns").doc(runId);
-  const [runSnap, seatSnap, groupSnap, application, decision, weekSnap] = await Promise.all([
+  const [runSnap, seatSnap, groupSnap, application, weekSnap] = await Promise.all([
     runRef.get(),
     db.collection("courseEnrolments").doc(courseEnrolmentId(runId, person.uid)).get(),
     db.collection("courseGroups").where("runId", "==", runId).limit(MAX_GROUPS).get(),
     loadApplication(db, form, person.uid),
-    loadDecision(db, form.round.id, person.uid),
     runRef.collection("weeks").doc(weekDocId(1)).get(),
   ]);
 
@@ -167,8 +168,13 @@ export async function weekOneDoorFor(
     .some((group) => !group.archived && isNamedWithStanding(person, "courseGroups.facilitatorUids", group.facilitatorUids));
   if (facilitates) return shut("in-the-run");
 
-  // The one test the hand-over and Publish share.
-  if (!application || !holdsPlaceOn(form, naming.programmeId, application, decision)) return shut("no-place");
+  // The one test the hand-over and Publish share. Their decision is read
+  // only once decision day has told them, so a decision nobody has
+  // published to them is never read here: `holdsPlaceOn` answers no for an
+  // application that is not sent, in the term and told, before it looks at one.
+  if (!application?.sent || !isInTerm(application) || !hasBeenTold(application)) return shut("no-place");
+  const decision = await loadDecision(db, form.round.id, person.uid);
+  if (!holdsPlaceOn(form, naming.programmeId, application, decision)) return shut("no-place");
 
   const place: PlaceBeforeGroups = {
     runId: run.id,
