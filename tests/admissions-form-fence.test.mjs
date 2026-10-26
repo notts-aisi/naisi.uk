@@ -426,6 +426,13 @@ const ROUND_SURFACES = {
       "one programme's settings, for its lead and for admins. It loads through loadSetup, " +
       "which starts from the form's own loader and finds nothing for a round that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/anonymous-feedback": {
+    kind: "form",
+    why:
+      "one programme's answers to its anonymous keep, change and drop form, for its lead and admins. It reaches " +
+      "the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for " +
+      "a round that is not a form, and the page then says there is no programme here",
+  },
   "/(public)/applications/[roundId]": {
     kind: "both",
     proof: ["await renderApplicationStatus({", "if (loaded.applicationForm) notFound();"],

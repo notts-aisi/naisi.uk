@@ -246,6 +246,18 @@ const PUBLIC = new Map([
     },
   ],
   [
+    "src/app/api/feedback/route.ts#POST",
+    {
+      touches: "finds the anonymous form the secret in the link opens, then keeps one answer: the three answers, the programme and the day",
+      gate: "formByToken(",
+      why:
+        "An answer to a programme's anonymous form, which reads no session by design: the random secret in " +
+        "the programme's one link is the gate. The body is checked first and touches no document; one " +
+        "equality on the token, and an unknown or malformed one reads nothing more; an in-memory per-address " +
+        "throttle runs before it. The one write is a new answer that names nobody.",
+    },
+  ],
+  [
     "src/app/api/events/[id]/calendar.ics/route.ts#GET",
     {
       touches: "reads one event",

@@ -146,6 +146,12 @@ const DEADLINE_NAMES = new Map([
         "src/lib/surveys/create.ts",
         "src/lib/surveys/emails.ts",
         "src/lib/surveys/words.ts",
+        // The anonymous form's (src/lib/anonymousFeedback/): `model.ts` declares
+        // its close and `forms.ts` stores it, copied from the survey at the
+        // programme's end, which `sending.ts` hands over at its first send.
+        "src/lib/anonymousFeedback/forms.ts",
+        "src/lib/anonymousFeedback/model.ts",
+        "src/lib/surveys/sending.ts",
       ],
       promises: [
         {
@@ -190,6 +196,16 @@ const DEADLINE_NAMES = new Map([
           told: ["src/lib/surveys/answerView.ts", "src/lib/surveys/sending.ts"],
           enforced: ["src/lib/surveys/answer.ts"],
           predicate: "isOpen(",
+        },
+        {
+          of: "a programme's anonymous form",
+          binds: "anybody holding the programme's link to it",
+          why:
+            "The anonymous keep, change and drop form takes answers until the survey at the programme's end closes: " +
+            "that survey's closing time, copied when it is first sent, which fixes it. The form's page names the day.",
+          told: ["src/lib/anonymousFeedback/view.ts", "src/lib/anonymousFeedback/readers.ts"],
+          enforced: ["src/app/api/feedback/route.ts"],
+          predicate: "isFormOpen(",
         },
       ],
     },
@@ -372,6 +388,10 @@ const DEADLINE_NAMES = new Map([
         // on a new survey.
         "src/lib/firestore/surveys.ts",
         "src/lib/surveys/create.ts",
+        // The anonymous form's: `model.ts` declares it and `forms.ts` writes it
+        // as null when the survey at the end opens the form.
+        "src/lib/anonymousFeedback/forms.ts",
+        "src/lib/anonymousFeedback/model.ts",
       ],
       promises: [
         {
@@ -394,6 +414,16 @@ const DEADLINE_NAMES = new Map([
           told: ["src/lib/surveys/answerView.ts"],
           enforced: ["src/lib/surveys/answer.ts"],
           predicate: "isOpen(",
+        },
+        {
+          of: "a programme's anonymous form closed with its survey",
+          binds: "anybody holding the programme's link to it",
+          why:
+            "Closing the survey at a programme's end by hand closes its anonymous form too, and from then it takes no " +
+            "answer, whatever its closing day says; the form's page says on which day it closed.",
+          told: ["src/lib/anonymousFeedback/view.ts"],
+          enforced: ["src/app/api/feedback/route.ts"],
+          predicate: "isFormOpen(",
         },
       ],
     },

@@ -437,6 +437,22 @@ const PUBLIC_HANDLERS = new Map([
   ],
 
   [
+    "src/app/api/feedback/route.ts#POST",
+    {
+      anonymous: true,
+      writes: true,
+      sends: false,
+      throttle: "rateLimit(`feedback:answer:ip:${clientIp(req)}`",
+      credential: "formByToken(",
+      why:
+        "An answer to a programme's anonymous keep, change and drop form, which never asks who is sending it. " +
+        "The 32-byte secret in the programme's one link IS the credential: a wrong one opens nothing, and a " +
+        "closed form takes nothing. An in-memory per-address throttle runs first and keeps no address, and a " +
+        "second, per form, after the secret; the one write is the three answers, the programme and the day, " +
+        "and nothing is emailed.",
+    },
+  ],
+  [
     "src/app/api/surveys/answer/route.ts#POST",
     {
       anonymous: true,
