@@ -1692,6 +1692,17 @@ service cloud.firestore {
           || request.resource.data.crest == null
           || request.resource.data.crest in ['agi-strategy', 'technical-ai-safety', 'governance-macrostrategy', 'alignment'];
       }
+      // A course's rubric for written answers (CourseDoc.rubric in
+      // src/lib/firestore/courses.ts) is the server's: its route
+      // (/api/courses/[courseId]/rubric) holds a pasted table to
+      // rubricProblems, rows by levels a rule cannot walk, and only an admin
+      // may save one. No browser writes it, admins included; the course
+      // editor's own writes never carry it.
+      function courseRubricUntouched() {
+        return resource == null
+          ? !request.resource.data.keys().hasAny(['rubric'])
+          : !request.resource.data.diff(resource.data).affectedKeys().hasAny(['rubric']);
+      }
 
       // ---- V3 W3 PR20: draft reads ---------------------------------------
       // A DRAFT course is staff-only. Every other status (published,
@@ -1757,9 +1768,10 @@ service cloud.firestore {
         && request.resource.data.get('destroyAuditId', '') == ''
         && request.resource.data.get('archived', false) == false
         && request.resource.data.get('crest', null) == null
-        && courseDayBeforeOk();
+        && courseDayBeforeOk()
+        && courseRubricUntouched();
 
-      allow update: if courseCrestOk() && courseDayBeforeOk() && (isAdmin()
+      allow update: if courseCrestOk() && courseDayBeforeOk() && courseRubricUntouched() && (isAdmin()
         || (
           (canApproveCourse() || isCourseCollaborator()
             || (canDraftCourse() && isOwnCourse()))

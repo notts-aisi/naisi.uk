@@ -63,6 +63,10 @@ const ADDRESSES =
 const TELLS = /\bisReflectionResponse\(|\.kind\s*===\s*["'`]reflection["'`]/;
 
 const READERS = {
+  "app/(app)/learn/[runId]/weeks/[n]/feedback/page.tsx": {
+    treats: "tells",
+    why: "the writer's own feedback page: their own written answer, read by its id; a reflection's row reads as no answer",
+  },
   "app/api/courses/exercise-responses/[responseId]/review/route.ts": {
     treats: "tells",
     why: "a verdict on one answer: a reflection's row reads as no row, refused as a missing one is",
@@ -109,6 +113,14 @@ const READERS = {
       "the week loader counts every row of the week on the items a paste would take out, reflections included, because " +
       "a reflection is an answer somebody gave; an admin is shown the count, never a row",
   },
+  "app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts": {
+    treats: "tells",
+    why: "the written answer's writer: it refuses to write over a reflection's row, or any row not counted in words",
+  },
+  "app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts": {
+    treats: "tells",
+    why: "opening, reopening and feedback on one written answer: a reflection's row is refused as an answer not sent",
+  },
   "lib/courses/facilitatorGroup.ts": {
     treats: "tells",
     why: "a facilitator's To review card counts answers sent; reflections are left out",
@@ -116,6 +128,14 @@ const READERS = {
   "lib/courses/finishing/whoFinished.ts": {
     treats: "tells",
     why: "who finished counts written answers sent; reflections are left out",
+  },
+  "lib/courses/writtenAnswers/queue.ts": {
+    treats: "tells",
+    why: "the review queue's written answers half: reflections, and the summer's answers, are left out before anything is counted",
+  },
+  "lib/courses/writtenAnswers/reviewPage.ts": {
+    treats: "tells",
+    why: "the review page's answers, each read by its id: a reflection's row reads as no answer",
   },
   "lib/firestore/accountDeletion.ts": {
     treats: "every-row",

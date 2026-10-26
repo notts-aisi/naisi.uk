@@ -183,6 +183,26 @@ const READERS = {
     asks: 1,
     why: "a member writes in their own reflection box on the run: an untold seat does not open the run (a group's facilitator writes as its facilitator, which is no seat)",
   },
+  "app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "a member writes and sends their own written answer: an untold seat does not open the run (a group's facilitator writes as its facilitator, which is no seat)",
+  },
+  "lib/courses/writtenAnswers/access.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "whose written answer a reviewer may read and give feedback on: an untold seat's answer is nobody's to review but an admin's",
+  },
+  "lib/courses/writtenAnswers/queue.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "the review queue's written answers half: an untold seat's answer waits in nobody's queue but an admin's",
+  },
+  "lib/courses/writtenAnswers/reviewPage.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "the review page's people: an untold seat is not a row for anybody but an admin",
+  },
   "app/api/courses/runs/[runId]/sync-tasks/route.ts": {
     kind: "shown",
     asks: 1,

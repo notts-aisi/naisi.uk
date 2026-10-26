@@ -835,6 +835,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
+  "/api/courses/[courseId]/rubric": {
+    reason:
+      "Course authoring: an admin sets a course's rubric for written answers by pasting or typing its table; every answer it gives is driven as each kind of caller in tests/course-hub-written-answers.test.mjs.",
+    coverWhen:
+      "When a browser spec pastes a rubric into a course's details and gives feedback by it on the review page.",
+  },
   "/api/courses/[courseId]/templates": {
     reason:
       "Courses: /api/courses/[courseId]/templates is staff-facing, taken deliberately, and answered on the screen that called it.",
@@ -1104,6 +1110,19 @@ const NOT_COVERED = {
       "Course hub: the programme's lead's and admins' Mark ready and Not ready for a week (pr-weeks, Q35), pressed on the programme's Overview and in the run's week editor; every caller and every refusal is executed by tests/course-hub-week-ready.test.mjs.",
     coverWhen:
       "When a browser spec signs in as a programme's lead, marks week 1 ready on the Overview, and a member holding a place opens week 1.",
+  },
+  "/api/courses/runs/[runId]/written-answers/[answerId]": {
+    reason:
+      "Course hub: a written answer on a week written as blocks, saved as the person types and sent once (wk-week, wk-week-phone); who writes, the first-sent time, the limit, the boxes and the lock are executed by tests/course-hub-written-answers.test.mjs.",
+    coverWhen:
+      "When a browser spec signs in a member of a group Publish has told, opens a week with a written answer, writes, sends, reloads and reads it back as sent.",
+  },
+  "/api/courses/runs/[runId]/written-answers/[answerId]/review": {
+    reason:
+      "Course hub: opening, reopening and feedback on a written answer by the rubric, with the one email that it is waiting (wk-review); every caller, the lock, Late and the email are executed by tests/course-hub-written-answers.test.mjs.",
+    coverWhen:
+      "When a browser spec signs in as a group's facilitator, opens a sent answer, gives feedback by the rubric, " +
+        "and the member reads it on the feedback page.",
   },
   "/api/courses/templates/[templateId]": {
     reason:
@@ -1585,6 +1604,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed a form after decision day with a place given back and a pooled applicant told no offer.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written": {
+    reason:
+      "Course hub: the programme's lead's way to the review page, where a facilitator's own answer gets feedback; drawn as the lead, another programme's lead and somebody signed out in tests/course-hub-written-answers.test.mjs.",
+    coverWhen:
+      "When a browser spec signs in as the programme's lead and gives feedback on a facilitator's own answer.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications/[uid]": {
     reason:
       "Application review: the review screen is reached from the list only, and was checked by hand at 1440 and 390 as a lead, a reviewer and an admin, keyboard included.",
@@ -1794,11 +1819,25 @@ const NOT_COVERED = {
     coverWhen:
       "When the card on week 1 and Home that links to it lands, with a spec that follows the card.",
   },
+  "/(app)/learn/[runId]/group/[groupId]/written": {
+    reason:
+      "Course hub: a group's written answers one at a time (wk-review, wk-review-phone), for its facilitators and admins; drawn as each kind of caller in tests/course-hub-written-answers.test.mjs.",
+    coverWhen:
+      "When a browser spec signs in as a group's facilitator, opens a sent answer, gives feedback by the rubric, " +
+        "and the member reads it on the feedback page.",
+  },
   "/(app)/learn/[runId]/weeks/[n]": {
     reason:
       "Learn hub: /(app)/learn/[runId]/weeks/[n] is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
     coverWhen:
       "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
+  },
+  "/(app)/learn/[runId]/weeks/[n]/feedback": {
+    reason:
+      "Course hub: a fellow's own feedback page (wk-feedback-phone), their answer as sent with each level and the comment; drawn as its writer and refused to everybody else in tests/course-hub-written-answers.test.mjs.",
+    coverWhen:
+      "When a browser spec signs in as a group's facilitator, opens a sent answer, gives feedback by the rubric, " +
+        "and the member reads it on the feedback page.",
   },
   "/(app)/newsletter": {
     reason:

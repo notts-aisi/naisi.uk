@@ -526,6 +526,12 @@ const REGISTRY = {
   "src/lib/courses/leaveRun.ts#sendCourseDroppedOutEmail": T(
     "The call site of that note, in the one leave both doors take: Leave the programme on the programme page, and I can’t make it from somebody in a group on their application page. It goes to the person who left and nobody else.",
   ),
+  "src/lib/email/writtenFeedbackEmail.ts#sendEmail": T(
+    "The one short \"feedback is waiting\" email (Q34 B): feedback has been sent on somebody's own written answer, and this says it is on the site, with a link to their feedback page. Owed to the person who sent their answer for feedback, as the course hub's other messages to one person about their own place and work are (the placement email, the leaving note), so it consults no notification preference.",
+  ),
+  "src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts#sendWrittenFeedbackEmail": T(
+    "The call site of that email: once per feedback sent, after the feedback is saved, to the address on the account of the person whose answer it is and nobody else.",
+  ),
   "src/lib/email/admissionEmails.ts#sendEmail": T(
     "The admissions template's send door, shared by five callers. It consults nothing itself; the two scheduled callers consult the courses row before they reach it and carry their own grid entries.",
   ),

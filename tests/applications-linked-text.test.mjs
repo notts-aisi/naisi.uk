@@ -1067,6 +1067,20 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance/page.tsx",
+    {
+      built: ["`${writtenPath}?group=${encodeURIComponent(group.id)}`"],
+      from: "the programme's own review page for written answers (its path from the form's and the programme's ids, encoded) and a live group's id. Nothing anybody typed",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written/page.tsx",
+    {
+      built: ["`${programmePath}/attendance`"],
+      from: "the way back to the programme's own Attendance tab: its path from the form's and the programme's ids in the address, encoded. Nothing anybody typed",
+    },
+  ],
+  [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/layout.tsx",
     { built: ["home"], from: "the term's own page, from the form's id" },
   ],
