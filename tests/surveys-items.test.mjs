@@ -1087,6 +1087,36 @@ describe("the answer page's model of each kind", () => {
   });
 });
 
+describe("the Facilitator line, not shown to somebody who facilitates a group of the run (Zach, 26 October 2026)", () => {
+  const q2 = (personal) =>
+    answerPagesOf({ items: AFTER }, personal).flatMap((page) => page.questions).find((each) => each.id === "q_q2");
+
+  test("the survey at the end names the line by the template's one id", () => {
+    const item = AFTER.find((each) => each.id === "q_q2");
+    assert.ok(item.lines.some((line) => line.id === templates.FACILITATOR_LINE_ID && line.label === "Facilitator"));
+  });
+
+  test("a hidden line is not drawn, and every other line is, in its order", () => {
+    const all = q2({ offered: {}, piped: {} }).lines.map((line) => line.id);
+    const shown = q2({ offered: {}, piped: {}, hiddenLines: [templates.FACILITATOR_LINE_ID] }).lines.map((line) => line.id);
+    assert.ok(all.includes("l_facilitator"));
+    assert.deepEqual(shown, all.filter((id) => id !== "l_facilitator"));
+  });
+
+  test("a value sent for a line that was not shown says nothing, and a lines answer left with none is no answer", () => {
+    const answers = {
+      q_q2: { type: "lines", values: { l_sessions: 4, l_facilitator: 5 } },
+      q_only: { type: "lines", values: { l_facilitator: 3 } },
+      q_q1: { type: "scale", value: 9 },
+    };
+    assert.deepEqual(items.withoutLines(answers, ["l_facilitator"]), {
+      q_q2: { type: "lines", values: { l_sessions: 4 } },
+      q_q1: { type: "scale", value: 9 },
+    });
+    assert.equal(items.withoutLines(answers, []), answers, "nothing hidden hands the answers back as they are");
+  });
+});
+
 // ---------------------------------------------------------------------------
 // How answers changed, person by person (results for admins)
 // ---------------------------------------------------------------------------

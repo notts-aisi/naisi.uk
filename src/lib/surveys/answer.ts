@@ -14,8 +14,8 @@ import {
 import { writeKairosChoice } from "@/lib/kairos/choice";
 import { KAIROS_REFUSAL } from "@/lib/kairos/words";
 import { consentsAskedOf } from "./consent";
-import { readSurveyAnswers, readSurveyConsents, type SurveyConsentPurpose } from "./items";
-import { groupHasMet, toldGroupOf } from "./personFacts";
+import { readSurveyAnswers, readSurveyConsents, withoutLines, type SurveyConsentPurpose } from "./items";
+import { groupHasMet, hiddenLinesFor, toldGroupOf } from "./personFacts";
 import { isOpen } from "./repo";
 import { REFUSAL } from "./words";
 
@@ -77,6 +77,10 @@ export async function recordAnswer(
     if (!asked.includes(purpose)) delete said.consents[purpose];
   }
   const consented = Object.keys(said.consents).length > 0;
+  // Only the lines this person was shown: the Facilitator line is not shown to
+  // somebody who facilitates a group of the run, and a line they were not
+  // shown says nothing for them.
+  const answers = withoutLines(read.answers, await hiddenLinesFor(db, survey, person.respondent.uid));
   const kairos = input.kairos;
   if (kairos !== undefined && typeof kairos !== "boolean") return { ok: false, status: 400, error: REFUSAL.body };
   if (kairos !== undefined && !asksKairos(survey)) return { ok: false, status: 400, error: KAIROS_REFUSAL.notOnSurvey };
@@ -100,7 +104,7 @@ export async function recordAnswer(
       surveyId: survey.id,
       roundId: survey.audience.roundId,
       respondent: { kind: fresh.respondent.kind, uid: fresh.respondent.uid },
-      answers: read.answers,
+      answers,
       sentAt: FieldValue.serverTimestamp(),
       via,
       afterFirstSession,

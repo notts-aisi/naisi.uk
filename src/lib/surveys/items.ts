@@ -791,6 +791,24 @@ function readOne(question: SurveyQuestion, raw: Raw): Read {
 }
 
 /**
+ * Answers with the lines a person was not shown taken out: a line they never
+ * saw says nothing for them. A lines answer left with no line is no answer.
+ */
+export function withoutLines(answers: Record<string, SurveyAnswer>, hidden: readonly string[]): Record<string, SurveyAnswer> {
+  if (hidden.length === 0) return answers;
+  const out: Record<string, SurveyAnswer> = {};
+  for (const [id, answer] of Object.entries(answers)) {
+    if (answer.type !== "lines") {
+      out[id] = answer;
+      continue;
+    }
+    const values = Object.fromEntries(Object.entries(answer.values).filter(([line]) => !hidden.includes(line)));
+    if (Object.keys(values).length > 0) out[id] = { type: "lines", values };
+  }
+  return out;
+}
+
+/**
  * A person's answers, read from a request: only the survey's own questions,
  * each checked against its question, and nothing for one left blank. Every
  * question can be skipped, so an empty answer is no problem: it is simply not
