@@ -207,6 +207,18 @@
  *     week after the event; the check-in link in the email that confirms a
  *     place; names off a year after the event (the `event-check-ins-tidy`
  *     job) and at once with the account (`src/lib/events/checkIns.ts`).
+ * 28. **The survey about leaving** (Q46). Somebody who leaves a programme by
+ *     their own hand while it has an open leaving survey has their own link
+ *     to it made as they leave (`src/lib/surveys/leaving.ts`, called by
+ *     `src/lib/courses/leaveRun.ts`), shown on the page that says they left,
+ *     in the leaving email and on Home and My programmes until they answer
+ *     (`src/lib/surveys/waiting.ts`); nobody presses send. What it asks, by
+ *     kind (its template). It is confidential like every survey; the
+ *     programme's lead reads its totals and comments as they come in, never
+ *     a name, the comments in an order that does not follow when they came
+ *     (`src/lib/surveys/leadResults.ts` and its page); when few have left, the
+ *     lead may still tell whose an answer is, which the policy says. The page
+ *     that says somebody left now shows that survey's card too.
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
@@ -526,6 +538,27 @@ export default function PrivacyContentV7({
                   as you last left it. Whatever you choose there, your answers
                   are kept and counted the same. See Sharing with Kairos, under
                   Sharing and processors.
+                </li>
+                <li>
+                  If you leave a programme yourself while it has a survey
+                  about leaving open, a link of your own to that survey is made
+                  when you leave. It is on the page that says you left, in the
+                  email that tells you so, and on Home and My programmes until
+                  you answer it. Nobody presses send, and it reaches nobody who
+                  did not leave. It asks why you left, what would have helped
+                  you stay and whether you would take part again.
+                </li>
+                <li>
+                  Like every survey here, the survey about leaving is
+                  confidential: only NAISI&apos;s admins can see who said what,
+                  and facilitators never see anything of it. The
+                  programme&apos;s lead sees its totals and comments as answers
+                  come in, never your name, with the comments in an order that
+                  does not follow when they came in. When only a few people
+                  have left, the lead may still be able to tell which answer is
+                  yours. Nothing you say in it changes your account or a future
+                  application, and your name comes off it two years after the
+                  programme&apos;s last session, as for every survey.
                 </li>
                 <li>
                   One form is anonymous: the keep, change and drop form linked
@@ -1130,10 +1163,12 @@ export default function PrivacyContentV7({
                   stay on your group&apos;s register with the day you left,
                   where your facilitators, the programme&apos;s lead and admins
                   see them. After you leave, your programme page shows only
-                  that you left: your marks, notes and reflections stay in our
-                  records for the programme&apos;s lead and admins, and are no
-                  longer shown to you. The notes you shared with your group
-                  stay with it (see Notes shared with your group).
+                  that you left, and the survey about leaving while it is
+                  yours to answer (see When you answer a survey): your marks,
+                  notes and reflections stay in our records for the
+                  programme&apos;s lead and admins, and are no longer shown to
+                  you. The notes you shared with your group stay with it (see
+                  Notes shared with your group).
                 </li>
                 <li>
                   <strong>Who finished.</strong> Once a programme&apos;s last

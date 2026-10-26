@@ -1,6 +1,6 @@
 import type { SurveyAudience, SurveyProgrammeKind } from "@/lib/firestore/surveys";
 import type { SurveyChoiceQuestion, SurveyQuestion } from "./items";
-import type { IncubatorStrand, SurveyStage } from "./templates";
+import type { IncubatorStrand, SurveyTemplate } from "./templates";
 
 /**
  * EVERY SENTENCE A SURVEY SAYS, in one place: the answer page, the
@@ -110,9 +110,10 @@ export function weekWords(n: number): string {
 /**
  * Each stage's words: what the admins call its survey ("AGI Strategy: after"),
  * the title people see (and the start of its email's subject), and the New
- * survey page's card for its template.
+ * survey page's card for its template. The leaving survey's card is sv-new's
+ * words; its title is written in the boards' voice, for the admin to change.
  */
-export const STAGE_WORDS: Record<SurveyStage, { name: string; title: string; card: string; cardLine: string }> = {
+export const STAGE_WORDS: Record<SurveyTemplate, { name: string; title: string; card: string; cardLine: string }> = {
   before: {
     name: "before",
     title: "Before you start",
@@ -137,10 +138,16 @@ export const STAGE_WORDS: Record<SurveyStage, { name: string; title: string; car
     card: "A year on",
     cardLine: "The same follow-up questions again, a year after the programme. Only for people who said yes to follow-ups.",
   },
+  leaving: {
+    name: "leaving",
+    title: "Why you left",
+    card: "Leaving a programme",
+    cardLine: "Linked from the leaving screen and email. Replaces today’s outside form.",
+  },
 };
 
 /** "AGI Strategy: before", the admins' name for a programme's survey at a stage. */
-export function surveyNameFor(programmeName: string, stage: SurveyStage): string {
+export function surveyNameFor(programmeName: string, stage: SurveyTemplate): string {
   return `${programmeName}: ${STAGE_WORDS[stage].name}`;
 }
 
@@ -156,9 +163,11 @@ export const BEFORE_TITLE = STAGE_WORDS.before.title;
  * A survey's intro as made, from the number of questions and minutes in it.
  * Its paragraphs open the email; the editor changes them.
  */
-export function introFor(stage: SurveyStage, questions: number, minutes: number): string {
+export function introFor(stage: SurveyTemplate, questions: number, minutes: number): string {
   const size = `It’s ${questionsWords(questions)} and takes ${minutesWords(minutes)}.`;
   switch (stage) {
+    case "leaving":
+      return `Tell us why you left, so we can do better. ${size}`;
     case "before":
       return `Week 1 is open. Before you get going, tell us where you’re starting from. ${size}\n\nWe’ll ask the same at the end.`;
     case "after":
@@ -216,9 +225,13 @@ export function pickUpToWords(n: number): string {
   return `Pick up to ${n}`;
 }
 
-/** "It closes on Wed 4 Nov. Once sent, your answers can’t change." */
-export function closingWords(closesAt: Date): string {
-  return `It closes on ${dayWords(closesAt)}. Once sent, your answers can’t change.`;
+/**
+ * "It closes on Wed 4 Nov. Once sent, your answers can’t change." A leaving
+ * survey has no closing day, so it says only the second sentence.
+ */
+export function closingWords(closesAt: Date | null): string {
+  const once = "Once sent, your answers can’t change.";
+  return closesAt ? `It closes on ${dayWords(closesAt)}. ${once}` : once;
 }
 
 /**
@@ -273,8 +286,8 @@ export const STATE_WORDS = {
 // ---------------------------------------------------------------------------
 
 export type ConfidentialFacts = {
-  /** Which of the programme's surveys it is: a follow-up compares with what was said during it. */
-  stage?: SurveyStage;
+  /** Which of the programme's surveys it is: a follow-up compares with what was said during it; leaving has its own words. */
+  stage?: SurveyTemplate;
   /** The programme lead's first name, or null when the programme has no lead who stands. */
   leadName: string | null;
   /**
@@ -308,10 +321,22 @@ export function confidentialPoints(facts: ConfidentialFacts): { points: string[]
   }
   const points = ["Only NAISI’s admins can see who said what."];
   if (who.length > 0) points.push(who.join(" "));
+  const names = `Your name comes off on ${dateKeyWords(facts.namesOffOn)}, two years after the ${facts.programmeKind} ends. The totals stay.`;
+  if (facts.stage === "leaving") {
+    // sv-privacy's leaving box, with the words that said it was anonymous
+    // replaced by what confidential means here (Q46): listed in the build
+    // notes for the boards' designers to confirm.
+    points.push(
+      "Nothing you say changes your account or a future application.",
+      "Totals may go in reports to the committee and our funder, Kairos.",
+      names,
+    );
+    return { points, note: "We ask who you are so each person answers once." };
+  }
   points.push(
     "Nothing you say here affects your place or a future application.",
     "Totals, and comments you tick to be quoted, may go in reports to the committee and our funder, Kairos, or on our site.",
-    `Your name comes off on ${dateKeyWords(facts.namesOffOn)}, two years after the ${facts.programmeKind} ends. The totals stay.`,
+    names,
   );
   const followUp = facts.stage === "followUp6" || facts.stage === "followUp12";
   return {
@@ -459,6 +484,8 @@ export const LIST_WORDS = {
   edit: "Edit",
   howTitle: "How surveys work",
   howConfidential: "We know who answered. Only admins see who said what.",
+  /** sv-list, a leaving survey's row: it has no closing day. */
+  neverCloses: "No closing date",
 } as const;
 
 /** "20 of 32". */
@@ -510,11 +537,12 @@ export const SEND_WORDS = {
 } as const;
 
 /** Who a survey reaches, in the Send tab's words, by who it is for and when. */
-export type AudienceKind = "start" | "end" | "followUps";
+export type AudienceKind = "start" | "end" | "followUps" | "leaving";
 
-/** Which of the three a survey's audience and stage make it. */
-export function audienceKindOf(audience: SurveyAudience, stage: SurveyStage): AudienceKind {
+/** Which of the four a survey's audience and stage make it. */
+export function audienceKindOf(audience: SurveyAudience, stage: SurveyTemplate): AudienceKind {
   if (audience.kind === "followUps") return "followUps";
+  if (audience.kind === "leaving") return "leaving";
   return stage === "after" ? "end" : "start";
 }
 
@@ -522,12 +550,14 @@ const HOLDING: Record<AudienceKind, string> = {
   start: "holding a place",
   end: "still holding a place",
   followUps: "who said yes to follow-ups",
+  leaving: "who left the programme",
 };
 
 const JOINED: Record<AudienceKind, string> = {
   start: "who joined since",
   end: "who joined since",
   followUps: "who said yes since",
+  leaving: "who left since",
 };
 
 /** "Emailed the 30 people holding a place". */
@@ -616,16 +646,22 @@ function rateOf(n: number, of: number): string {
   return of > 0 ? `${Math.round((n / of) * 100)}%` : "";
 }
 
+/**
+ * How the people a survey's rate is of came to it: it was sent to them, or,
+ * for a leaving survey, which nobody sends, it reached them as they left.
+ */
+export type ReachWord = "it was sent to" | "it reached";
+
 /** "12 answers from the 20 people it was sent to (60%)." */
-export function answersRateWords(answers: number, sent: number): string {
-  if (answers === 0) return sent > 0 ? `No answers yet from the ${peopleWords(sent)} it was sent to.` : "No answers yet.";
+export function answersRateWords(answers: number, sent: number, reach: ReachWord = "it was sent to"): string {
+  if (answers === 0) return sent > 0 ? `No answers yet from the ${peopleWords(sent)} ${reach}.` : "No answers yet.";
   const counted = `${answers} ${answers === 1 ? "answer" : "answers"}`;
-  return sent > 0 ? `${counted} from the ${peopleWords(sent)} it was sent to (${rateOf(answers, sent)}).` : `${counted}.`;
+  return sent > 0 ? `${counted} from the ${peopleWords(sent)} ${reach} (${rateOf(answers, sent)}).` : `${counted}.`;
 }
 
 /** "12 answered, 60% of the 20 it was sent to", beside each question. */
-export function answeredRateWords(n: number, sent: number, verb = "answered"): string {
-  return sent > 0 ? `${n} ${verb}, ${rateOf(n, sent)} of the ${sent} it was sent to` : `${n} ${verb}`;
+export function answeredRateWords(n: number, sent: number, verb = "answered", reach: ReachWord = "it was sent to"): string {
+  return sent > 0 ? `${n} ${verb}, ${rateOf(n, sent)} of the ${sent} ${reach}` : `${n} ${verb}`;
 }
 
 /** "Compared, person by person, with AGI Strategy: before (24 answers)." */
@@ -708,6 +744,9 @@ export const REFUSAL = {
   closesPast: "The closing day has to be today or later.",
   strand: "Pick which research this incubator does: it words the first line of its skills question.",
   consentNotAsked: "This survey doesn’t ask that.",
+  leavingNotSent: "A leaving survey isn’t sent: once it’s open, it reaches each person as they leave the programme.",
+  notLeaving: "Only a leaving survey is opened. Send this one from its Send tab.",
+  alreadyOpen: "This survey is open already.",
   consentNoRow: "You weren’t sent the survey that asks this, so there’s nothing to change.",
 } as const;
 
@@ -715,3 +754,106 @@ export const REFUSAL = {
 export function countChangedWords(now: number): string {
   return `Nothing was sent: the number of people this reaches is now ${now}. Check the list and press again.`;
 }
+
+// ---------------------------------------------------------------------------
+// The cards (Q50 B): a survey waiting for somebody, on Home, My programmes and
+// week 1's page
+// ---------------------------------------------------------------------------
+
+/**
+ * A card's own words (HANDOFF, "Home and My programmes": "A survey for you:
+ * Before you start · about 3 minutes · Answer"). What it is, how long, when
+ * it closes and "Answer", and never how many others have answered.
+ */
+export const CARD_WORDS = {
+  eyebrow: "A survey for you",
+  answer: "Answer",
+} as const;
+
+/** "14 questions, about 5 minutes", how long a survey takes, as its card says it. */
+export function cardSizeWords(questions: number, minutes: number): string {
+  return `${questionsWords(questions)}, ${minutesWords(minutes)}`;
+}
+
+// ---------------------------------------------------------------------------
+// The leaving survey's tab, for admins (Q46): opened, never sent
+// ---------------------------------------------------------------------------
+
+export const OPEN_WORDS = {
+  /** The tab that is a sent survey's Send. */
+  tab: "Open",
+  heading: "Open it",
+  how:
+    "Nobody presses send. Once it’s open, everybody who leaves the programme by their own hand gets their own link to it: " +
+    "on the page that says they left, and in the email that says so. Nobody who stays is sent it, and it has no closing day.",
+  fixes: "Opening it fixes its questions and words, as sending does. Nobody is emailed when you press it.",
+  see: "See it as people will",
+  open: "Open it",
+  opening: "Opening…",
+  failed: "It couldn’t be opened. Try again in a minute.",
+  unreachable: "It couldn’t be opened. Check your connection and try again.",
+  reached: "Reached",
+} as const;
+
+/** "Everyone who leaves AGI Strategy", who a leaving survey is for. */
+export function leaversWords(programmeName: string): string {
+  return `Everyone who leaves ${programmeName}`;
+}
+
+/** "Open since Thu 29 Oct." */
+export function openSinceWords(at: Date): string {
+  return `Open since ${dayWords(at)}.`;
+}
+
+/** "3 people have left since it opened, and 1 has answered." ("and nobody has answered yet" for none.) */
+export function reachedWords(reached: number, answered: number): string {
+  const left = reached === 1 ? "1 person has left" : `${reached} people have left`;
+  const told = answered === 0 ? "nobody has answered yet" : answered === 1 ? "1 has answered" : `${answered} have answered`;
+  return reached === 0 ? "Nobody has left since it opened." : `${left} since it opened, and ${told}.`;
+}
+
+// ---------------------------------------------------------------------------
+// Reaching somebody who left (Q46): the page that says they left, and the
+// leaving email
+// ---------------------------------------------------------------------------
+
+/**
+ * The leaving survey's card on the page that says somebody left
+ * (wk-left-phone). The board drew "Tell us why, anonymously" and "This survey
+ * never records who answers, even when you’re signed in.", which are untrue
+ * of a confidential survey (Q46): these are the nearest true words, listed in
+ * the build notes for the boards' designers to confirm.
+ */
+export const LEAVING_CARD_WORDS = {
+  heading: "Tell us why",
+  answer: "Answer",
+} as const;
+
+/** "3 questions, about a minute. It’s confidential: only NAISI’s admins can see who said what." */
+export function leavingCardLine(size: string): string {
+  return `${size}. It’s confidential: only NAISI’s admins can see who said what.`;
+}
+
+/**
+ * The leaving email's line for the leaving survey, around the person's own
+ * link, in place of the outside form's: "We’d like to know why you left, so
+ * we can do better: tell us in 3 questions, about a minute. It’s
+ * confidential: ...". Not drawn on any board: written in the boards' voice.
+ */
+export function leavingEmailWords(questions: number, minutes: number): { before: string; text: string; after: string } {
+  return {
+    before: "We’d like to know why you left, so we can do better:",
+    text: `tell us in ${questionsWords(questions)}`,
+    after: `, ${minutesWords(minutes)}. It’s confidential: only NAISI’s admins can see who said what, and your facilitators never see it.`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// A programme's survey results, for its lead (Q49 A)
+// ---------------------------------------------------------------------------
+
+export const LEAD_RESULTS_WORDS = {
+  line: "Totals and comments, never a name, from the first answer. Only the programme’s lead and NAISI’s admins see them; facilitators never do.",
+  notYours: "Only the programme’s lead and admins read its survey results.",
+  notHere: "That survey isn’t one of this programme’s.",
+} as const;

@@ -15,6 +15,7 @@ import {
 import { courseRunChannel, type CourseRunDoc } from "@/lib/firestore/courses";
 import { courseTaskId, MIRRORED_TASK_SOURCE } from "@/lib/firestore/courseTasks";
 import { unsubscribe } from "@/lib/firestore/subscriptions";
+import { reachLeaver, type Reached } from "@/lib/surveys/leaving";
 import type { LeavePath } from "./leaving";
 
 /**
@@ -69,6 +70,11 @@ import type { LeavePath } from "./leaving";
  * facilitators read it on the register, and the programme's lead and admins
  * on the programme's Overview, with the reason when one was given. A failure
  * of any of these is logged and never turns the leave into an error.
+ *
+ * THE LEAVING SURVEY (Q46): on a programme the form places people on, when it
+ * has an open leaving survey, the person's own row on it is made now, with
+ * their own link (`reachLeaver`), and the email links it in place of the
+ * outside form. Nobody presses send, and it reaches nobody who did not leave.
  */
 
 /**
@@ -217,6 +223,11 @@ export async function leaveRun(
   // sent a second time.
   if (!dropped) return { kind: "left", dropped: false, feedbackUrl };
 
+  // The programme's leaving survey, when it has an open one: their own row,
+  // made as they leave. When it reaches them, the outside form is not
+  // offered beside it, here or in their email.
+  const reached = path.kind === "form" ? await reachLeaverSafely(db, { roundId: path.roundId, programmeId: path.programmeId, uid: user.uid, now }) : null;
+
   // ── Everything after the commit is best effort ────────────────────────────
   // The member has left; none of the tidying below may turn that into an
   // error they see. Each step logs its own failure.
@@ -261,7 +272,9 @@ export async function leaveRun(
       name: user.displayName?.trim() || "NAISI member",
       courseTitle: run.courseTitle,
       runLabel: run.label,
-      feedbackUrl,
+      feedbackUrl: reached ? "" : feedbackUrl,
+      // Their own link, unless they answered it when they left before.
+      survey: reached?.link && !reached.answered ? { href: reached.link, ...reached.email } : null,
       uid: user.uid,
       runId,
     }).catch((err) => {
@@ -269,7 +282,17 @@ export async function leaveRun(
     });
   }
 
-  return { kind: "left", dropped: true, feedbackUrl };
+  return { kind: "left", dropped: true, feedbackUrl: reached ? "" : feedbackUrl };
+}
+
+/** `reachLeaver`, whose failure is logged and never turns the leave into an error. */
+async function reachLeaverSafely(db: Firestore, leaver: Parameters<typeof reachLeaver>[1]): Promise<Reached | null> {
+  try {
+    return await reachLeaver(db, leaver);
+  } catch (err) {
+    console.error("[courses leave] leaving survey row failed", leaver.uid, err);
+    return null;
+  }
 }
 
 /** Stop the cohort mail. Non-fatal: the row may not even exist. */

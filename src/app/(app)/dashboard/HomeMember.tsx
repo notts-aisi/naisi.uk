@@ -7,7 +7,9 @@ import MyCoursesSummary, { liveRunsOf } from "@/features/courses/MyCoursesSummar
 import { useMyRuns } from "@/features/courses/useMyRuns";
 import MyWorkSummary from "@/features/tasks/components/MyWorkSummary";
 import OnItsWay from "@/features/courses/weekOne/OnItsWay";
+import SurveyCards from "@/features/surveys/cards/SurveyCards";
 import type { BeforeGroupsCard } from "@/lib/courses/weekOne/cards";
+import type { SurveyCard } from "@/lib/surveys/waiting";
 import HomeFacilitator from "./HomeFacilitator";
 import HomeProgramme from "./HomeProgramme";
 import styles from "./home.module.css";
@@ -47,6 +49,10 @@ import styles from "./home.module.css";
  * Q13 B, board st-waiting): "Your group’s on its way", under the greeting in
  * every form. Worded on the server by week 1's door; what it may say is held
  * by `MAY_SHOW` in `tests/applications-place-in-the-member-area.test.mjs`.
+ *
+ * A SURVEY WAITING FOR THEM is Home's first card (`surveys`, Q50 B): "A
+ * survey for you", above the cards for a place, in every form. Worded on the
+ * server by `surveysWaitingFor`; never how many others have answered.
  */
 
 type Slots = {
@@ -72,6 +78,12 @@ type Slots = {
    * greeting in every form of Home, and nothing when there is none.
    */
   beforeGroups: readonly BeforeGroupsCard[];
+  /**
+   * "A survey for you" for each survey waiting for the member (Q50 B), worded
+   * on the server (`surveysWaitingFor`). Drawn first under the greeting in
+   * every form of Home, and nothing when there is none.
+   */
+  surveys: readonly SurveyCard[];
   finishProfile: ReactNode;
 };
 
@@ -85,6 +97,7 @@ export default function HomeMember({
   nothingYet,
   holdsNoPlace,
   beforeGroups,
+  surveys,
   finishProfile,
 }: Slots) {
   const { runs, loading, error } = useMyRuns();
@@ -125,8 +138,14 @@ export default function HomeMember({
     </>
   );
 
-  // The card sits straight under the greeting, with the install invitation.
-  const cards = <OnItsWay cards={beforeGroups} />;
+  // The cards sit straight under the greeting, with the install invitation:
+  // a survey waiting for them first (Q50 B), then the cards for a place.
+  const cards = (
+    <>
+      <SurveyCards cards={surveys} />
+      <OnItsWay cards={beforeGroups} />
+    </>
+  );
   const underGreeting = (
     <>
       {invite}

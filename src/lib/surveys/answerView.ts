@@ -108,7 +108,7 @@ export type AnswerSurvey = {
   intro: string[];
   box: { heading: string; points: string[]; note: string };
   pages: AnswerPage[];
-  /** "It closes on Wed 4 Nov. Once sent, your answers can’t change." */
+  /** "It closes on Wed 4 Nov. Once sent, your answers can’t change.", the second sentence alone for a leaving survey. */
   closing: string;
   submit: AnswerSubmit;
   /** The Kairos choice the form ends with, on every programme survey; null on any other. */
@@ -380,7 +380,8 @@ export async function answerScreenFor(
     const on = closedOn(survey);
     return on ? message(STATE_WORDS.closed(on)) : { state: "message", ...STATE_WORDS.noSurvey, consent: null };
   }
-  if (!survey.closesAt || !survey.namesOffOn) return { state: "message", ...STATE_WORDS.noSurvey, consent: null };
+  // Every survey closes on a day but the leaving survey, which takes answers until it is closed by hand.
+  if ((!survey.closesAt && survey.kind !== "leaving") || !survey.namesOffOn) return { state: "message", ...STATE_WORDS.noSurvey, consent: null };
   const [facts, offered, piped, eyebrow, consent, kairos, hiddenLines] = await Promise.all([
     confidentialFactsFor(db, survey, input.uid),
     profileOffersFor(db, survey, input.uid),

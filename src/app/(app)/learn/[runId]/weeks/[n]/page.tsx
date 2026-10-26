@@ -12,6 +12,7 @@ import { runSharesGroupNotes } from "@/lib/firestore/courseGroupSharedNotes";
 import { normalizeCourse, weekDocId } from "@/lib/firestore/courses";
 import { guideLinksOf } from "@/lib/courses/guide/load";
 import type { CourseRoutes } from "@/lib/courses/routes/model";
+import { beforeSurveyCardFor, type SurveyCard } from "@/lib/surveys/waiting";
 
 /**
  * Server shell for the member week page. It decides whether this viewer
@@ -37,6 +38,11 @@ import type { CourseRoutes } from "@/lib/courses/routes/model";
  *
  * Somebody holding a place whom Publish has not told yet reads week 1 alone,
  * once its door is open to them (Q35 B, `beforeGroups`): see below.
+ *
+ * WEEK 1'S FIRST CARD IS THE BEFORE SURVEY'S while it waits for the reader
+ * (Q50 B): this run's before survey, open, sent to them, still theirs and not
+ * answered, by the same answer Home asks (`beforeSurveyCardFor`). Asked of
+ * week 1 alone, and read for the reader alone; nothing in a view-as session.
  */
 
 export const dynamic = "force-dynamic";
@@ -76,7 +82,8 @@ export default async function WeekPage({
     // st-week1-phone draws "Start here · Glossary" for exactly this reader.
     const holderDb = getAdminDb();
     const holderGuide = holderDb ? await guideLinksOf(holderDb, access.run.id).catch(() => null) : null;
-    return <WeekView runId={runId} weekNumber={1} uid={access.user.uid} viewerRole="learner" sharedNotes={null} {...(holderGuide ? { guide: holderGuide } : {})} />;
+    const holderSurvey = await weekOneSurvey(access, 1);
+    return <WeekView runId={runId} weekNumber={1} uid={access.user.uid} viewerRole="learner" sharedNotes={null} {...(holderGuide ? { guide: holderGuide } : {})} {...(holderSurvey ? { survey: holderSurvey } : {})} />;
   }
 
   // A positive int inside the plan's bounds; anything else (including "03",
@@ -130,10 +137,11 @@ export default async function WeekPage({
   // The course's routes travel only when it has some: a course with none
   // hands the page nothing new, and the week shows the guide's own tables.
   const guideDb = getAdminDb();
-  const [sharedNotes, guide, routes] = await Promise.all([
+  const [sharedNotes, guide, routes, survey] = await Promise.all([
     sharedNotesFor(access),
     guideDb ? guideLinksOf(guideDb, access.run.id).catch(() => null) : Promise.resolve(null),
     routesFor(access),
+    weekOneSurvey(access, weekNumber),
   ]);
   return (
     <WeekView
@@ -144,6 +152,7 @@ export default async function WeekPage({
       sharedNotes={sharedNotes}
       {...(guide ? { guide } : {})}
       {...(routes ? { routes } : {})}
+      {...(survey ? { survey } : {})}
     />
   );
 }
@@ -164,6 +173,22 @@ async function routesFor(access: RunAccess): Promise<CourseRoutes | null> {
     return snap.exists ? normalizeCourse(snap.id, snap.data() ?? {}).routes : null;
   } catch (err) {
     console.error("[week page] routes read failed", access.run.id, err);
+    return null;
+  }
+}
+
+/**
+ * Week 1's first card (Q50 B): this run's before survey while it waits for
+ * the reader, or null; null on every other week, and when it cannot be read.
+ */
+async function weekOneSurvey(access: RunAccess, weekNumber: number): Promise<SurveyCard | null> {
+  if (weekNumber !== 1) return null;
+  const db = getAdminDb();
+  if (!db) return null;
+  try {
+    return await beforeSurveyCardFor(db, access.user, access.run.id, new Date());
+  } catch (err) {
+    console.warn("[week page] could not read the before survey waiting for this reader", access.run.id, err);
     return null;
   }
 }

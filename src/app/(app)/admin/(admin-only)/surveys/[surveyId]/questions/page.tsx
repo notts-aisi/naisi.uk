@@ -38,6 +38,7 @@ export default async function SurveyQuestionsPage({ params }: { params: Promise<
           surveyId={survey.id}
           measures={TEMPLATE_MEASURES}
           today={londonDateKey(now)}
+          closes={survey.kind !== "leaving"}
           initial={{
             title: survey.title,
             intro: survey.intro,

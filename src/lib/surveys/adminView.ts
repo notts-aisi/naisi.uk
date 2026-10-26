@@ -2,7 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import type { SurveyDoc, SurveyPersonDoc } from "@/lib/firestore/surveys";
 import { changeBetween, lookBackBetween, type ChangeResult, type PairedAnswers } from "./change";
-import { emailWordsFor, siteAddress } from "./emails";
+import { emailWordsFor, siteAddress, surveyLinkPath } from "./emails";
 import { consentItemsOf, surveyQuestionsOf } from "./items";
 import { namesOf } from "./names";
 import { answersOf, chainOf, closedOn, peopleOf, readSurvey, surveyState } from "./repo";
@@ -20,18 +20,22 @@ import {
   deadlineWords,
   firstSentWords,
   joinedSentWords,
+  leaversWords,
   namesOffWords,
   nobodyNewWords,
   notAnsweredWords,
+  openSinceWords,
   peopleWords,
   programmeLine,
   progressWords,
+  reachedWords,
   remindLeadWords,
   remindedWords,
   sizeWords,
   testSentWords,
   SEND_WORDS,
   type AudienceKind,
+  type ReachWord,
   type SurveyEmailWords,
 } from "./words";
 
@@ -60,11 +64,18 @@ export type ListRow = {
 
 export type ListView = { open: ListRow[]; drafts: ListRow[]; closed: ListRow[] };
 
+/** "Closes Wed 4 Nov", "Closed Wed 4 Nov", or a leaving survey's "No closing date" while it is open. */
+function closesFor(survey: SurveyDoc, state: SurveyState): string {
+  const ends = closedOn(survey);
+  if (state === "draft") return "";
+  if (!ends) return survey.kind === "leaving" ? LIST_WORDS.neverCloses : "";
+  return closesWords(ends, state === "closed");
+}
+
 function rowOf(survey: SurveyDoc, people: readonly SurveyPersonDoc[], now: Date): ListRow {
   const state = surveyState(survey, now);
   const sent = people.filter((person) => person.sentAt !== null).length;
   const answered = people.filter((person) => person.answered).length;
-  const ends = closedOn(survey);
   return {
     id: survey.id,
     name: survey.name,
@@ -72,8 +83,9 @@ function rowOf(survey: SurveyDoc, people: readonly SurveyPersonDoc[], now: Date)
     state,
     answers: state === "draft" ? LIST_WORDS.notSent : answeredOf(answered, sent),
     share: state === "draft" ? null : sent > 0 ? answered / sent : 0,
-    closes: state === "draft" || !ends ? "" : closesWords(ends, state === "closed"),
-    unanswered: state === "open" && sent > answered ? notAnsweredWords(sent - answered) : "",
+    closes: closesFor(survey, state),
+    // Nobody is reminded of a leaving survey: it reaches each person as they leave.
+    unanswered: state === "open" && sent > answered && survey.kind !== "leaving" ? notAnsweredWords(sent - answered) : "",
   };
 }
 
@@ -91,9 +103,11 @@ export type HeadView = {
   name: string;
   state: SurveyState;
   programme: string;
-  /** "Closes Wed 4 Nov", "Closed Wed 4 Nov". */
+  /** "Closes Wed 4 Nov", "Closed Wed 4 Nov", "No closing date". */
   closes: string;
   answered: number;
+  /** A leaving survey: opened rather than sent, so its fourth tab is Open. */
+  leaving: boolean;
 };
 
 export function headView(survey: SurveyDoc, people: readonly SurveyPersonDoc[], now: Date): HeadView {
@@ -104,8 +118,41 @@ export function headView(survey: SurveyDoc, people: readonly SurveyPersonDoc[], 
     name: survey.name,
     state,
     programme: programmeLine(survey.programmeKind, survey.programmeName),
-    closes: ends ? closesWords(ends, state === "closed") : "",
+    closes: ends ? closesWords(ends, state === "closed") : survey.kind === "leaving" ? LIST_WORDS.neverCloses : "",
     answered: people.filter((person) => person.answered).length,
+    leaving: survey.kind === "leaving",
+  };
+}
+
+/**
+ * A leaving survey's Open tab (Q46): what opening it does, the way to see it
+ * as people will, and once open, since when and how many it has reached.
+ */
+export type OpenView = {
+  state: SurveyState;
+  /** The survey's test link, which keeps nothing: "/survey/<its test secret>". */
+  testHref: string | null;
+  /** "Open since Thu 29 Oct.", once open. */
+  since: string;
+  /** "3 people have left since it opened, and 1 has answered.", once open. */
+  reached: string;
+  summary: { name: string; size: string; who: string; namesOff: string };
+};
+
+export function openView(survey: SurveyDoc, people: readonly SurveyPersonDoc[], now: Date): OpenView {
+  const state = surveyState(survey, now);
+  const answered = people.filter((person) => person.answered).length;
+  return {
+    state,
+    testHref: survey.testToken ? surveyLinkPath(survey.testToken) : null,
+    since: survey.firstSentAt ? openSinceWords(survey.firstSentAt) : "",
+    reached: survey.firstSentAt ? reachedWords(survey.reached, answered) : "",
+    summary: {
+      name: survey.name,
+      size: sizeWords(surveyQuestionsOf(survey.items).length, survey.minutes),
+      who: leaversWords(survey.programmeName),
+      namesOff: survey.namesOffOn ? namesOffWords(survey.namesOffOn) : "",
+    },
   };
 }
 
@@ -301,8 +348,14 @@ export type ResultRow = QuestionResult & {
 export type ResultsView = {
   /** Answers counted. */
   answers: number;
-  /** People it was sent to, by its record of each send: every response rate is of these. */
+  /**
+   * People it was sent to, by its record of each send: every response rate is
+   * of these. For a leaving survey, which nobody sends, the people it reached
+   * as they left (`reached`).
+   */
   sent: number;
+  /** How those people came to it, as the page says it. */
+  reach: ReachWord;
   /** Answers left out because they came after the person's first session. */
   leftOut: number;
   /** Whether the before-first-session switch means anything here: a before survey, or one paired with one. */
@@ -327,8 +380,17 @@ function paired(answers: readonly { respondent: { uid: string } | null; answers:
  * `beforeFirstSession` leaves out before-survey answers sent after the
  * person's first session: this survey's own when it is the before survey,
  * the earlier side's when it pairs with one.
+ *
+ * `commentsInOrder: "words"` lists each question's comments by their words,
+ * not in the order they came in: the programme's lead's reading, so the order
+ * of the comments says nothing of when, or after whom, each was written.
  */
-export async function resultsView(db: Firestore, survey: SurveyDoc, beforeFirstSession: boolean): Promise<ResultsView> {
+export async function resultsView(
+  db: Firestore,
+  survey: SurveyDoc,
+  beforeFirstSession: boolean,
+  options: { commentsInOrder?: "arrival" | "words" } = {},
+): Promise<ResultsView> {
   const [answers, people, chain] = await Promise.all([answersOf(db, survey), peopleOf(db, survey.id), chainOf(db, survey)]);
   const leaveOut = (list: Awaited<ReturnType<typeof answersOf>>, kind: SurveyDoc["kind"]) =>
     beforeFirstSession && kind === "before" ? list.filter((answer) => !answer.afterFirstSession) : list;
@@ -343,12 +405,18 @@ export async function resultsView(db: Firestore, survey: SurveyDoc, beforeFirstS
     }),
   );
   // Who it was sent to, as the survey's own record of each send says: it
-  // outlives the people rows, which go when names come off.
-  const sent = survey.presses.filter((press) => press.kind !== "remind").reduce((sum, press) => sum + press.count, 0);
+  // outlives the people rows, which go when names come off. A leaving survey
+  // is sent to nobody: its own count of the people it reached as they left.
+  const leaving = survey.kind === "leaving";
+  const sent = leaving ? survey.reached : survey.presses.filter((press) => press.kind !== "remind").reduce((sum, press) => sum + press.count, 0);
   const rows = people.filter((person) => person.sentAt !== null);
   const mine = paired(kept);
   const questions = surveyQuestionsOf(survey.items);
-  const results = surveyResults(survey.items, kept).map((result): ResultRow => {
+  const inWords = (result: QuestionResult): QuestionResult =>
+    options.commentsInOrder === "words" && result.kind === "comments"
+      ? { ...result, comments: [...result.comments].sort((a, b) => a.localeCompare(b, "en-GB")) }
+      : result;
+  const results = surveyResults(survey.items, kept).map(inWords).map((result): ResultRow => {
     const question = questions.find((each) => each.id === result.id)!;
     // The earliest survey of the pairs that asks the same question, the same way.
     const source = earlier.find((each) => surveyQuestionsOf(each.survey.items).some((asked) => asked.id === question.id && asked.type === question.type));
@@ -370,6 +438,7 @@ export async function resultsView(db: Firestore, survey: SurveyDoc, beforeFirstS
   return {
     answers: kept.length,
     sent,
+    reach: leaving ? "it reached" : "it was sent to",
     leftOut,
     offersFirstSession: survey.kind === "before" || chain.some((each) => each.kind === "before"),
     pairedWith: earlier.map((each) => ({ name: each.survey.name, answers: each.answers.length })),

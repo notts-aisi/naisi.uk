@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import LeftProgramme from "@/features/courses/leaving/LeftProgramme";
+import { leftPageSurvey } from "@/features/courses/leaving/leftSurvey";
 import ReadingListView from "@/features/courses/leaving/ReadingListView";
 import { getRunAccess } from "@/features/courses/runAccess";
 import { loadLeftView, loadReadingList } from "@/lib/courses/leftView";
@@ -29,7 +30,7 @@ export default async function ReadingPage({ params }: { params: Promise<{ runId:
   const db = getAdminDb();
   if (!db) redirect(home);
 
-  if (access.hasLeft) return <LeftProgramme view={await loadLeftView(db, { run: access.run, enrolment })} />;
+  if (access.hasLeft) return <LeftProgramme view={await loadLeftView(db, { run: access.run, enrolment })} survey={await leftPageSurvey(db, access)} />;
   const list = await loadReadingList(db, { run: access.run, enrolment });
   return <ReadingListView list={list} />;
 }

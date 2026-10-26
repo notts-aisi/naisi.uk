@@ -145,9 +145,15 @@ export async function openLink(db: Firestore, token: string): Promise<LinkTarget
   return survey.testToken === token ? { kind: "test", survey } : { kind: "none" };
 }
 
-/** Whether a survey takes answers now: sent, not closed by hand, and before its closing time. */
-export function isOpen(survey: Pick<SurveyDoc, "firstSentAt" | "closedAt" | "closesAt">, now: Date): boolean {
+/**
+ * Whether a survey takes answers now: sent, not closed by hand, and before its
+ * closing time. A leaving survey is never sent and has no closing time: it
+ * takes answers from when an admin opened it (`firstSentAt`) until one closes
+ * it by hand. Any other survey with no closing time takes none.
+ */
+export function isOpen(survey: Pick<SurveyDoc, "kind" | "firstSentAt" | "closedAt" | "closesAt">, now: Date): boolean {
   if (!survey.firstSentAt || survey.closedAt) return false;
+  if (survey.kind === "leaving") return true;
   return survey.closesAt !== null && now.getTime() < survey.closesAt.getTime();
 }
 
@@ -157,7 +163,7 @@ export function closedOn(survey: Pick<SurveyDoc, "closedAt" | "closesAt">): Date
 }
 
 /** A survey's state, as its chip says it. */
-export function surveyState(survey: Pick<SurveyDoc, "firstSentAt" | "closedAt" | "closesAt">, now: Date): "draft" | "open" | "closed" {
+export function surveyState(survey: Pick<SurveyDoc, "kind" | "firstSentAt" | "closedAt" | "closesAt">, now: Date): "draft" | "open" | "closed" {
   if (!survey.firstSentAt) return "draft";
   return isOpen(survey, now) ? "open" : "closed";
 }

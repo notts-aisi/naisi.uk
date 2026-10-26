@@ -1,4 +1,6 @@
+import LeavingSurveyCard from "@/features/surveys/cards/LeavingSurveyCard";
 import type { LeftView } from "@/lib/courses/leftView";
+import type { SurveyCard } from "@/lib/surveys/waiting";
 import {
   BACK_TO_PROGRAMMES,
   CHANGED_AFTER,
@@ -15,7 +17,8 @@ import { ProgrammeBar } from "./Parts";
  * THE PROGRAMME PAGE ONCE SOMEBODY HAS LEFT (board wk-left-phone), drawn on
  * the server from `loadLeftView`.
  *
- * What it says: that they left, the day, and the society's address for
+ * What it says: that they left, the day, the leaving survey's card while it
+ * is theirs to answer (`survey`, Q46), and the society's address for
  * somebody who has changed their mind. That is all of it. Their marks, notes
  * and reflections are not shown to them, nor the reading list, nor anything
  * of the group's: those stay with the programme's lead and admins, and the
@@ -24,7 +27,7 @@ import { ProgrammeBar } from "./Parts";
  * The run's own page draws it, and so do the notes and reading list pages
  * when the person asking has left.
  */
-export default function LeftProgramme({ view }: { view: LeftView }) {
+export default function LeftProgramme({ view, survey = null }: { view: LeftView; survey?: SurveyCard | null }) {
   return (
     <div className={styles.page}>
       <ProgrammeBar backHref="/learn" backLabel={BACK_TO_PROGRAMMES} title={view.name} />
@@ -33,6 +36,8 @@ export default function LeftProgramme({ view }: { view: LeftView }) {
           <h1 className={styles.pageTitle}>{leftHeading(view.name)}</h1>
           <p className={`${styles.text} ${styles.lede}`}>{leftOnLine(view.leftOn)}</p>
         </div>
+
+        {survey && <LeavingSurveyCard card={survey} />}
 
         <section className={styles.section} aria-labelledby="left-changed">
           <h2 id="left-changed" className={`${styles.heading} ${styles.headingSpaced}`}>

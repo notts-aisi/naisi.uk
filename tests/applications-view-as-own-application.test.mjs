@@ -295,7 +295,7 @@ const BOX =
  */
 const HOME_FORM = (name) =>
   `export default function ${name}(props) {\n` +
-  `  globalThis.__viewAsOwn.handed.${name} = { holdsNoPlace: props.holdsNoPlace, beforeGroups: props.beforeGroups, names: Object.keys(props).sort() };\n` +
+  `  globalThis.__viewAsOwn.handed.${name} = { holdsNoPlace: props.holdsNoPlace, beforeGroups: props.beforeGroups, surveys: props.surveys, names: Object.keys(props).sort() };\n` +
   "  return globalThis.__viewAsOwn.createElement('div', null, props.applications, props.nothingYet);\n" +
   "}";
 /** The list of somebody's runs: it draws what it is handed to stand where its empty state would, and nothing else here is about an application. */
@@ -681,7 +681,9 @@ describe("whether a member holds a place is asked for the member, and for nobody
    * week 1's door words for a place held before groups go out (Q13 B, held
    * in tests/applications-place-in-the-member-area.test.mjs, MAY_SHOW). In
    * every world here no programme names a run, so the second is always empty,
-   * and in a view-as session it is empty whatever is held.
+   * and in a view-as session it is empty whatever is held. And the survey
+   * cards (`surveysWaitingFor`, Q50 B), empty in every world here, where
+   * nobody was sent a survey, and read for nobody in a view-as session.
    */
   const HANDED_TO_HOME = [
     "applications",
@@ -693,6 +695,7 @@ describe("whether a member holds a place is asked for the member, and for nobody
     "holdsNoPlace",
     "invite",
     "nothingYet",
+    "surveys",
     "termCard",
   ];
   /** Home: whether it was told the member holds no place, and what its card of applications names. */
@@ -700,6 +703,7 @@ describe("whether a member holds a place is asked for the member, and for nobody
     renderToStaticMarkup(await DashboardPage());
     assert.deepEqual(world.handed.HomeMember.names, HANDED_TO_HOME, "Home is handed something else");
     assert.deepEqual(world.handed.HomeMember.beforeGroups, [], "Home is handed a card where no programme names a run");
+    assert.deepEqual(world.handed.HomeMember.surveys, [], "Home is handed a survey card where nobody was sent a survey");
     return { holdsNoPlace: world.handed.HomeMember.holdsNoPlace, rows: world.handed.YourApplications.rows };
   };
   /** The list of programmes: what it has drawn where its empty state would be. */

@@ -46,6 +46,8 @@ import type { WeekSharedNotes } from "@/lib/courses/sharedNotes/views";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import type { GuideLinks } from "@/lib/courses/guide/model";
+import SurveyCards from "@/features/surveys/cards/SurveyCards";
+import type { SurveyCard } from "@/lib/surveys/waiting";
 import ExerciseSubmit from "./ExerciseSubmit";
 import PacingBanner from "./PacingBanner";
 import { cancelledIn } from "./sessionChange/cardFacts";
@@ -110,6 +112,11 @@ import styles from "./WeekView.module.css";
  * overview, the week's document, the reader's own ticks and their own rows
  * (their reflections among them). Everything below the branch is a week
  * written before blocks, drawn exactly as it always has been.
+ *
+ * WEEK 1'S FIRST CARD IS THE BEFORE SURVEY'S while it waits for the reader
+ * (`survey`, Q50 B), read on the server by the answer Home asks
+ * (`beforeSurveyCardFor`) and handed in: under week 1's line for somebody
+ * holding a place, above everything else of the week.
  */
 
 type ViewerRole = "learner" | "facilitator" | "admin";
@@ -125,6 +132,8 @@ type Props = {
   guide?: GuideLinks | null;
   /** The run's course's routes and deadlines, read on the server; null for a course with none. */
   routes?: CourseRoutes | null;
+  /** Week 1's before survey while it waits for the reader (Q50 B), read on the server; null otherwise. */
+  survey?: SurveyCard | null;
 };
 
 /**
@@ -139,7 +148,7 @@ const TICK_REFUSED = "That tick didn’t save, so it has been undone. Check your
 
 const EMPTY_ROWS: ReadonlyArray<never> = [];
 
-export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNotes = null, guide = null, routes = null }: Props) {
+export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNotes = null, guide = null, routes = null, survey = null }: Props) {
   const overview = useRunOverview(runId);
   // WHERE THIS READER'S COPY OF THE WEEK LIVES (V2-3 copy-on-write): their
   // group's forked document when their facilitator has personalised this
@@ -320,7 +329,14 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
           }}
           sharedNotes={sharedNotes}
           leadFirstName={payload.programme?.leadFirstName ?? null}
-          leadCards={beforeGroups ? <WeekOneLine line={beforeGroups.line} /> : null}
+          leadCards={
+            beforeGroups || survey ? (
+              <>
+                {beforeGroups && <WeekOneLine line={beforeGroups.line} />}
+                {survey && <SurveyCards cards={[survey]} programme={false} />}
+              </>
+            ) : null
+          }
           guide={guide}
           routes={routes}
         />
@@ -449,6 +465,7 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
         />
 
         {beforeGroups && <WeekOneLine line={beforeGroups.line} />}
+        {survey && <SurveyCards cards={[survey]} programme={false} />}
 
         {weekDoc.guideBlocks.length > 0 && (
           <div className={weekly.guide}>

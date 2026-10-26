@@ -6,6 +6,7 @@ import { beforeGroupsCardsFor, type BeforeGroupsCard } from "@/lib/courses/weekO
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import { getCurrentUser, type SessionUser } from "@/lib/firebase/session";
+import { surveysWaitingFor, type SurveyCard } from "@/lib/surveys/waiting";
 import LearnHub, { type LeftRun } from "./LearnHub";
 
 /**
@@ -39,20 +40,40 @@ import LearnHub, { type LeftRun } from "./LearnHub";
  *
  * Above the runs, before groups go out, the card Home draws for each place
  * held (`beforeGroups`, Q13 B), and only what `MAY_SHOW` in
- * `tests/applications-place-in-the-member-area.test.mjs` lists.
+ * `tests/applications-place-in-the-member-area.test.mjs` lists. Above those,
+ * "A survey for you" for each survey waiting for the member (Q50 B), as Home
+ * draws it.
  */
 export default async function LearnPage() {
   const user = await getCurrentUser();
   const held = user ? await holdsPlace(user.uid) : "unknown";
   const left = user ? await runsLeft(user.uid) : [];
   const cards = user ? await onItsWayCards(user) : [];
+  const surveys = user ? await surveyCards(user) : [];
   return (
     <LearnHub
       instead={held === "no" ? null : <YourApplications rows={null} />}
       left={left}
       beforeGroups={cards}
+      surveys={surveys}
     />
   );
+}
+
+/**
+ * "A SURVEY FOR YOU" (Q50 B), the cards Home draws: each survey waiting for
+ * the member (`surveysWaitingFor`, which reads nothing in a view-as session).
+ * A read that fails draws no card.
+ */
+async function surveyCards(user: SessionUser): Promise<SurveyCard[]> {
+  const db = getAdminDb();
+  if (!db) return [];
+  try {
+    return await surveysWaitingFor(db, user, new Date());
+  } catch (err) {
+    console.warn("[learn] could not read the surveys waiting for this member", err);
+    return [];
+  }
 }
 
 /**

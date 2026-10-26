@@ -8,14 +8,16 @@ import { isValidDateKey, londonDateKey, londonWallClockToInstant } from "@/lib/c
 import { SURVEYS_COLLECTION, SURVEY_LIMITS, normalizeSurvey, type SurveyAudience, type SurveyDoc } from "@/lib/firestore/surveys";
 import { sameQuestions, sanitizeSurveyItems, surveyQuestionsOf, validateSurveyItems, type SurveyItem } from "./items";
 import { namesOffDayFor } from "./namesOff";
+import { mintSurveyToken } from "./token";
 import {
   INCUBATOR_STRANDS,
   SURVEY_STAGES,
-  TEMPLATE_MINUTES,
+  SURVEY_TEMPLATES,
   stageAsksStrand,
   templateItems,
+  templateMinutes,
   type IncubatorStrand,
-  type SurveyStage,
+  type SurveyTemplate,
 } from "./templates";
 import { REFUSAL, STAGE_WORDS, introFor, surveyNameFor } from "./words";
 
@@ -42,6 +44,12 @@ import { REFUSAL, STAGE_WORDS, introFor, surveyNameFor } from "./words";
  *
  * The day names come off is worked out from records when the survey is made
  * and each time it is saved, and fixed by the first send.
+ *
+ * THE LEAVING SURVEY (Q46) is made the same way, one per programme, from its
+ * own template, and differs in four things: it pairs with no other survey; it
+ * has no closing day; nobody sends it, so it is opened (`openLeavingSurvey`
+ * in `./leaving.ts`), which fixes it as a first send does; and its test link
+ * is made with it, so an admin can see it as people will before opening it.
  */
 
 /** The last minute of the closing day, in London. */
@@ -68,8 +76,9 @@ function closingDay(raw: unknown, now: Date): string | Refused {
 export type CreateInput = {
   roundId: string;
   programmeId: string;
-  stage: SurveyStage;
-  closesOn: string;
+  stage: SurveyTemplate;
+  /** "YYYY-MM-DD", or null for a leaving survey, which never closes. */
+  closesOn: string | null;
   /** An incubator's research, or null to take its pair's (or for a fellowship). */
   strand: IncubatorStrand | null;
 };
@@ -80,16 +89,17 @@ export function parseCreate(raw: unknown, now: Date): { ok: true; input: CreateI
     return { ok: false, status: 400, error: "Pick the programme the survey is for." };
   }
   const stage = raw.stage === undefined ? "before" : raw.stage;
-  if (!SURVEY_STAGES.includes(stage as SurveyStage)) return { ok: false, status: 400, error: "Pick which of the programme’s surveys to make." };
-  const closesOn = closingDay(raw.closesOn, now);
-  if (typeof closesOn !== "string") return closesOn;
+  if (!SURVEY_TEMPLATES.includes(stage as SurveyTemplate)) return { ok: false, status: 400, error: "Pick which of the programme’s surveys to make." };
+  // A leaving survey has no closing day: whatever was sent for one is not read.
+  const closesOn = stage === "leaving" ? null : closingDay(raw.closesOn, now);
+  if (closesOn !== null && typeof closesOn !== "string") return closesOn;
   const strand = raw.strand === undefined || raw.strand === null || raw.strand === "" ? null : raw.strand;
   if (strand !== null && !INCUBATOR_STRANDS.includes(strand as IncubatorStrand)) {
     return { ok: false, status: 400, error: REFUSAL.strand };
   }
   return {
     ok: true,
-    input: { roundId: raw.roundId, programmeId: raw.programmeId, stage: stage as SurveyStage, closesOn, strand: strand as IncubatorStrand | null },
+    input: { roundId: raw.roundId, programmeId: raw.programmeId, stage: stage as SurveyTemplate, closesOn, strand: strand as IncubatorStrand | null },
   };
 }
 
@@ -108,11 +118,12 @@ export type ProgrammeChoice = {
 
 const NO_RUN = "Name the programme’s course run in its Settings first, so the survey knows when the programme ends.";
 const NOT_SENT = "Decisions haven’t been sent yet, so nobody holds a place.";
-const HAS_ONE: Record<SurveyStage, string> = {
+const HAS_ONE: Record<SurveyTemplate, string> = {
   before: "It has its before survey already.",
   after: "It has its survey at the end already.",
   followUp6: "It has its six-month follow-up already.",
   followUp12: "It has its follow-up a year on already.",
+  leaving: "It has its leaving survey already.",
 };
 const NO_BEFORE = "Its before survey asks who may be contacted for follow-ups, and it hasn’t been sent.";
 
@@ -122,16 +133,17 @@ function programmeNameOf(form: ApplicationForm, programmeId: string): string {
 }
 
 /** The surveys already made for one programme, by stage. */
-function surveysOf(surveys: readonly SurveyDoc[], roundId: string, programmeId: string): Map<SurveyStage, SurveyDoc> {
-  const out = new Map<SurveyStage, SurveyDoc>();
+function surveysOf(surveys: readonly SurveyDoc[], roundId: string, programmeId: string): Map<SurveyTemplate, SurveyDoc> {
+  const out = new Map<SurveyTemplate, SurveyDoc>();
   for (const survey of surveys) {
     if (survey.audience.roundId === roundId && survey.audience.programmeId === programmeId && !out.has(survey.kind)) out.set(survey.kind, survey);
   }
   return out;
 }
 
-/** The survey a new one of `stage` pairs with: the nearest earlier stage the programme has. */
-function pairFor(stage: SurveyStage, made: Map<SurveyStage, SurveyDoc>): SurveyDoc | null {
+/** The survey a new one of `stage` pairs with: the nearest earlier stage the programme has. The leaving survey pairs with none. */
+function pairFor(stage: SurveyTemplate, made: Map<SurveyTemplate, SurveyDoc>): SurveyDoc | null {
+  if (stage === "leaving") return null;
   const earlier = SURVEY_STAGES.slice(0, SURVEY_STAGES.indexOf(stage)).reverse();
   for (const each of earlier) {
     const survey = made.get(each);
@@ -141,8 +153,10 @@ function pairFor(stage: SurveyStage, made: Map<SurveyStage, SurveyDoc>): SurveyD
 }
 
 /** Why a programme cannot have a survey of `stage` yet, or "". */
-function blockedFor(stage: SurveyStage, form: ApplicationForm, runId: string | null, made: Map<SurveyStage, SurveyDoc>): string {
+function blockedFor(stage: SurveyTemplate, form: ApplicationForm, runId: string | null, made: Map<SurveyTemplate, SurveyDoc>): string {
   if (made.has(stage)) return HAS_ONE[stage];
+  // Somebody leaves the programme's run, so it needs one; nobody is sent it.
+  if (stage === "leaving") return runId === null ? NO_RUN : "";
   if (stage === "before" || stage === "after") {
     if (form.decisionsSentAt === null) return NOT_SENT;
     if (runId === null) return NO_RUN;
@@ -154,7 +168,7 @@ function blockedFor(stage: SurveyStage, form: ApplicationForm, runId: string | n
 }
 
 /** Every programme on a form, with whether a survey of `stage` can be made for it now. */
-export async function listProgrammeChoices(db: Firestore, surveys: readonly SurveyDoc[], stage: SurveyStage = "before"): Promise<ProgrammeChoice[]> {
+export async function listProgrammeChoices(db: Firestore, surveys: readonly SurveyDoc[], stage: SurveyTemplate = "before"): Promise<ProgrammeChoice[]> {
   const forms = await listForms(db);
   const out: ProgrammeChoice[] = [];
   for (const form of forms) {
@@ -212,9 +226,11 @@ export async function createSurvey(
 
   const name = programmeNameOf(form, input.programmeId);
   const items = templateItems(input.stage, programme.kind, strand);
-  const minutes = TEMPLATE_MINUTES[input.stage];
-  const audience: SurveyAudience =
-    followUp && before
+  const minutes = templateMinutes(input.stage);
+  const leaving = input.stage === "leaving";
+  const audience: SurveyAudience = leaving
+    ? { kind: "leaving", roundId: input.roundId, programmeId: input.programmeId }
+    : followUp && before
       ? { kind: "followUps", roundId: input.roundId, programmeId: input.programmeId, consentFrom: before.id }
       : { kind: "programme", roundId: input.roundId, programmeId: input.programmeId };
   const ref = db.collection(SURVEYS_COLLECTION).doc();
@@ -233,14 +249,17 @@ export async function createSurvey(
     runId,
     pairOf: pair?.id ?? null,
     strand,
-    closesAt: closesAtFor(input.closesOn),
+    closesAt: input.closesOn === null ? null : closesAtFor(input.closesOn),
     closedAt: null,
     namesOffOn,
     namesOffAt: null,
     firstSentAt: null,
     presses: [],
+    reached: 0,
     tests: { survey: null, reminder: null },
-    testToken: null,
+    // Nobody is sent a leaving survey, so no test email makes its test link:
+    // it is made here, for the admin to see it as people will.
+    testToken: leaving ? mintSurveyToken() : null,
     createdByUid,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
@@ -258,7 +277,8 @@ export async function createBeforeSurvey(
   return createSurvey(db, createdByUid, { ...input, stage: "before", strand: input.strand ?? null }, now);
 }
 
-export type SaveInput = { title: string; intro: string; minutes: number; closesOn: string; items: SurveyItem[] };
+/** An editor's save. `closesOn` is null for a leaving survey, which has no closing day. */
+export type SaveInput = { title: string; intro: string; minutes: number; closesOn: string | null; items: SurveyItem[] };
 
 /** A save from the editor, checked against the survey's own questions before anything is written. */
 export function parseSave(raw: unknown, survey: SurveyDoc, now: Date): { ok: true; input: SaveInput } | Refused {
@@ -272,8 +292,8 @@ export function parseSave(raw: unknown, survey: SurveyDoc, now: Date): { ok: tru
   if (typeof minutes !== "number" || !Number.isInteger(minutes) || minutes < SURVEY_LIMITS.minMinutes || minutes > SURVEY_LIMITS.maxMinutes) {
     return { ok: false, status: 400, error: `About how many minutes it takes: a whole number from ${SURVEY_LIMITS.minMinutes} to ${SURVEY_LIMITS.maxMinutes}.` };
   }
-  const closesOn = closingDay(raw.closesOn, now);
-  if (typeof closesOn !== "string") return closesOn;
+  const closesOn = survey.kind === "leaving" ? null : closingDay(raw.closesOn, now);
+  if (closesOn !== null && typeof closesOn !== "string") return closesOn;
   const items = sanitizeSurveyItems(raw.items, { clampLimits: false });
   const problems = validateSurveyItems(items);
   if (problems.length > 0) return { ok: false, status: 400, error: problems[0].message };
@@ -299,7 +319,7 @@ export async function saveSurvey(db: Firestore, survey: SurveyDoc, input: SaveIn
       title: input.title,
       intro: input.intro,
       minutes: input.minutes,
-      closesAt: closesAtFor(input.closesOn),
+      closesAt: input.closesOn === null ? null : closesAtFor(input.closesOn),
       items: input.items,
       namesOffOn,
       updatedAt: FieldValue.serverTimestamp(),

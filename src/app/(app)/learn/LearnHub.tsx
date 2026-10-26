@@ -11,7 +11,9 @@ import RunCard from "@/features/courses/RunCard";
 import { useMyRuns } from "@/features/courses/useMyRuns";
 import { leftHeading } from "@/lib/courses/leavingWords";
 import OnItsWay from "@/features/courses/weekOne/OnItsWay";
+import SurveyCards from "@/features/surveys/cards/SurveyCards";
 import type { BeforeGroupsCard } from "@/lib/courses/weekOne/cards";
+import type { SurveyCard } from "@/lib/surveys/waiting";
 import styles from "./page.module.css";
 
 /**
@@ -80,11 +82,17 @@ type Props = {
    * heading, above the runs, whatever they are. Empty draws nothing.
    */
   beforeGroups?: readonly BeforeGroupsCard[];
+  /**
+   * "A survey for you" for each survey waiting for the member (Q50 B), worded
+   * on the server (`surveysWaitingFor`): drawn first under the heading, above
+   * the cards for a place and the runs. Empty draws nothing.
+   */
+  surveys?: readonly SurveyCard[];
 };
 
 const NO_RUNS_LEFT: readonly LeftRun[] = [];
 
-export default function LearnHub({ instead, left = NO_RUNS_LEFT, beforeGroups = [] }: Props) {
+export default function LearnHub({ instead, left = NO_RUNS_LEFT, beforeGroups = [], surveys = [] }: Props) {
   const { runs, loading, error } = useMyRuns();
 
   // The route already sorts archived rows last, so this is a partition of an
@@ -109,8 +117,9 @@ export default function LearnHub({ instead, left = NO_RUNS_LEFT, beforeGroups = 
         </p>
       </div>
 
-      {beforeGroups.length > 0 ? (
+      {surveys.length > 0 || beforeGroups.length > 0 ? (
         <div className={styles.above}>
+          <SurveyCards cards={surveys} />
           <OnItsWay cards={beforeGroups} />
         </div>
       ) : null}

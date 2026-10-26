@@ -2451,6 +2451,12 @@ export const ROUTES = {
       why: "Closing a survey early is an admin's alone; the admin is told the made-up survey is not there.",
     },
   },
+  "/api/surveys/[surveyId]/open": {
+    POST: {
+      expect: adminOnly(404),
+      why: "Opening a leaving survey, which emails nobody and fixes its words, is an admin's alone; the admin is told the made-up survey is not there.",
+    },
+  },
   "/api/surveys/[surveyId]/consent": {
     POST: {
       expect: signedIn(400),
@@ -3114,6 +3120,14 @@ export const PAGES = {
       "The admissions tree's gate, then the programme layout's and the page's own: Messages is the " +
       "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme " +
       "the caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: a leaving survey's results are the " +
+      "programme's lead's and an admin's, so a reviewer is told so before any survey is read, a survey that is not " +
+      "this programme's leaving survey is answered in a sentence, and a programme the caller has no role on, or one " +
+      "that does not exist, renders 'there is no programme here' with a 200.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),

@@ -19,9 +19,11 @@ records), `src/app/api/surveys/` (the routes), `src/app/survey/[token]/` and
 
 - **Only admins** make, change, send, remind, close and read a survey, and only
   admins see a name beside an answer. Facilitators never see anything of a
-  survey, about themselves included. A programme's lead will read totals and
-  comments for their own programme, never a name, as answers come in; that page
-  is not built yet, and nothing here holds results back until a survey closes.
+  survey, about themselves included. A programme's lead reads totals and
+  comments for their own programme, never a name, as answers come in: for the
+  leaving survey on its page under the programme (below); for the others with
+  the lead's Surveys tab, still to come. Nothing here holds results back until a
+  survey closes.
 - **Confidential, never anonymous.** Every survey on the site knows who answered.
   The confidential box at the top of every survey says so, in sv-privacy's words.
   The one anonymous form on the site is not a survey and has no anonymous mode
@@ -344,8 +346,9 @@ test is never a notice: it goes to the presser alone, marked `[TEST]`, as
 ## Answering (sv-before-phone)
 
 One page, two doors: `/survey/<secret>` with no sign-in, and
-`/learn/<run>/survey/<survey>` signed in, for a card on Home or week 1 to link
-to. The page shows the programme, the title and intro, "Every question can be
+`/learn/<run>/survey/<survey>` signed in, the same page inside the programme.
+The cards on Home, My programmes, week 1 and the page that says somebody left
+link the first, the person's own link (see The cards). The page shows the programme, the title and intro, "Every question can be
 skipped.", the confidential box, the questions a page (a section) at a time
 with Back and Next, "Send my answers", and "It closes on Wed 4 Nov. Once sent,
 your answers can’t change."
@@ -368,6 +371,81 @@ the person's group had met by then (from the start of its first session that is
 not cancelled). The signed-in route refuses during a view-as session. The link
 route is rate limited by a count in memory that keeps no address.
 
+## The cards (Q50 B)
+
+One function decides whether a survey is waiting for somebody,
+`surveysWaitingFor` in `src/lib/surveys/waiting.ts`, and Home, My programmes
+and week 1's page all ask it. A survey waits for a person while it is **open**
+(`isOpen`), it is **theirs** (they have a row on it that was sent to them,
+and for a programme's survey before it or at its end they still hold the
+place, by `holdsPlaceOn`, the test the reminder asks through
+`placeHoldersOn`), and they **have not answered it**.
+
+- **Home** draws "A survey for you" first under the greeting, above the cards
+  for a place, in every form a member's Home takes; **My programmes** draws it
+  first under its heading. Week 1's page draws the run's before survey as its
+  first card, above This week (`beforeSurveyCardFor`).
+- A card says what it is ("A survey for you", the survey's title), its
+  programme, how long ("14 questions, about 5 minutes"), when it closes and
+  "Answer". **Never how many others have answered**: nothing of anybody else is
+  read.
+- "Answer" opens **the person's own link** (`/survey/<secret>`), the page their
+  email opens, so it opens their own row whatever the run's own gate says
+  about them that day. A card is drawn only on the person's own pages.
+- **Nothing is read in a view-as session**, and a read that fails draws no card.
+  What Home and My programmes may show for a place is held by `MAY_SHOW` in
+  `tests/applications-place-in-the-member-area.test.mjs`; the card is its third
+  entry.
+
+## The leaving survey (Q46)
+
+Confidential, like every survey on the site (Zach: "to allow us to do better
+... technically optional but we have good reason to ask"). One per programme,
+made by an admin from New survey's "Leaving a programme", from its own
+template (`templateItems("leaving", ...)`): three questions, about a minute,
+written in the boards' voice for Zach to change before it is used. Its ids
+(`q_leave_why`, `q_leave_stay`, `q_leave_again`) are the same in every
+programme and are none of the stages', so leaving surveys compare with each
+other and with nothing else.
+
+- **It pairs with nothing**, and the stages still pair with each other.
+- **It has no closing day.** It takes answers from when it is opened until an
+  admin closes it by hand (`isOpen`).
+- **Nobody presses send.** An admin **opens** it on its Open tab
+  (`POST /api/surveys/[surveyId]/open`, `openLeavingSurvey` in
+  `src/lib/surveys/leaving.ts`), which fixes its questions and words and the day
+  names come off, as a first send does (`firstSentAt`), claimed once. Send,
+  Remind and an email's test are refused for it in a sentence. Its test link
+  is made with it, so an admin can see it as people will before opening it.
+- **Its box** is sv-privacy's leaving box with the words that called it
+  anonymous replaced by what confidential means here: only admins see who said
+  what, the lead sees totals and comments and never names, facilitators never
+  see the answers, nothing said changes the person's account or a future
+  application, totals may go in reports to the committee and Kairos, and the
+  name comes off two years after the programme ends, as for every survey.
+
+**Reaching it.** Somebody who leaves the programme by their own hand, by
+either door ("Leave the programme" or "I can’t make it", the one `leaveRun`),
+while the leaving survey is open, gets their own row on it as they leave,
+after the leave has committed (`reachLeaver`), with the secret in their own
+link, counted once on the survey (`reached`). A second leave makes no second
+row, so each person answers once per programme. Then:
+
+- **The leaving email** (the existing one, transactional) links their own link
+  in words that say it is confidential, in place of the outside form
+  (`config/courses.dropOutFeedbackUrl`), which it offers only where no leaving
+  survey reached the person: an open run, a programme with no open leaving
+  survey.
+- **The page that says they left** (`LeftProgramme`, and the notes and reading
+  list pages, which draw it for somebody who left) draws its card, "Tell us
+  why", while it is theirs to answer (`leavingSurveyCardFor`), and once they
+  have answered, only that they left. Home and My programmes draw it as "A
+  survey for you", as any waiting survey.
+- **Nothing reaches anybody who did not leave.** Somebody staff took off the
+  programme is not reached: they did not choose to leave, the run closes to
+  them, and they get no leaving email. Nobody presses send, and nobody is
+  reminded.
+
 ## The admins' pages
 
 Run NAISI › Surveys (`/admin/surveys`): open, drafts and closed, each with its
@@ -377,7 +455,9 @@ answered** (names, for admins only, and the spreadsheet), **Results**.
 
 **Results** are made on the server and never carry a name. Every number has its
 n beside it and the share of the people the survey was sent to (taken from the
-survey's own record of each send, so it outlives names coming off). For each
+survey's own record of each send, so it outlives names coming off); for the
+leaving survey, which nobody sends, of the people it reached as they left
+(`reached`, kept the same way). For each
 kind: a choice's count per answer, and a scored one's average or total ("6.4
 FTE in all"); pick any then which mattered most counted on its own; a scale,
 a percentage or a number by its counts or bands, average, middle value and
@@ -391,6 +471,16 @@ in the same survey shows **Looking back** beside it the same way. The before
 survey also shows how many said yes to follow-ups. A switch leaves out
 before-survey answers sent after someone's first session, on its own Results
 and on the before side of every later stage's comparison.
+
+**A leaving survey's results for the programme's lead** (Q46, Q49 A) are at
+`/admin/admissions/forms/<form>/programmes/<programme>/surveys/<survey>`, under
+the programme's head: the same results, for the programme's lead and admins
+(`loadProgrammeRun` first, a reviewer told in a sentence), from the first
+answer, never a name, each question's comments listed by their words and not
+in the order they came, so their order says nothing of when, or after whom,
+each was written. A lead reads the leaving survey alone for now
+(`LEAD_READS` in `src/lib/surveys/leadResults.ts`); the lead's Surveys tab,
+which will link this page, widens it with the policy's sentence for the rest.
 
 **The spreadsheet with names** (`POST /api/surveys/[id]/export`) is one row per
 person who answered and one column per question (and per line), choices in their
@@ -483,9 +573,9 @@ holds a day, a time or an id.
 
 ## Not built yet
 
-The cards on Home, My programmes and week 1; the leaving survey; event
-surveys, check-in, walk-ins and QR codes; results for a programme's lead; one
-person's answers page; public numbers; this term in numbers. The model is built so none of them needs a
+Event surveys; results for a programme's lead but the leaving survey's, and
+the lead's Surveys tab that links them; one person's answers page; public
+numbers; this term in numbers. The model is built so none of them needs a
 rewrite: another `audience.kind`, another `respondent.kind`, the same records.
 
 ## Check-in, for the surveys after events
@@ -521,7 +611,10 @@ who reaches survey code, the fields an answer keeps, the notice lane, the
 names-off job and the deletion step; what the surveys ask, by kind, against
 every question of every template, both ways; the two profile values a survey
 offers; the survey at the end showing a person their own earlier answer; and
-the follow-ups' box, who it sends them to and how it is changed. A change that
+the follow-ups' box, who it sends them to and how it is changed; and the
+survey about leaving: who it reaches and how, what it asks, who reads it,
+that the lead may still tell whose an answer is when few have left, and the
+page that says somebody left showing its card. A change that
 alters any of them changes the policy first: a template that asks a new kind
 of question fails until the policy names it.
 

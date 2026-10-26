@@ -12,8 +12,9 @@ import styles from "./page.module.css";
 
 /**
  * A PERSON'S SURVEY, SIGNED IN (sv-before-phone): the same page as their
- * personal link, inside their programme, for a card on Home or week 1 to link
- * to. The run's layout has already asked whether they hold any role on the
+ * personal link, inside their programme. (The cards on Home, My programmes
+ * and week 1 link the personal link itself: `src/lib/surveys/waiting.ts`.)
+ * The run's layout has already asked whether they hold any role on the
  * run; this page shows a survey only to somebody it was sent to, on this
  * run, and answers everybody else in one sentence.
  *

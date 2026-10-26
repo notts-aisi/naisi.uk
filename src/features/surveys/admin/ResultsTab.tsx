@@ -12,6 +12,7 @@ import {
   movedWords,
   numberWords,
   pairedWithWords,
+  type ReachWord,
 } from "@/lib/surveys/words";
 import styles from "./surveyAdmin.module.css";
 
@@ -105,7 +106,7 @@ function Change({ heading, change }: { heading: string; change: ChangeResult }) 
   );
 }
 
-function Result({ result, sent }: { result: ResultRow; sent: number }) {
+function Result({ result, sent, reach }: { result: ResultRow; sent: number; reach: ReachWord }) {
   return (
     <section className={`${styles.card} ${styles.result}`} aria-labelledby={`result-${result.id}`}>
       <h3 id={`result-${result.id}`} className={styles.resultTitle}>
@@ -114,7 +115,7 @@ function Result({ result, sent }: { result: ResultRow; sent: number }) {
       {result.kind === "options" && (
         <>
           <p className={styles.muted}>
-            {answeredRateWords(result.respondents, sent)}
+            {answeredRateWords(result.respondents, sent, "answered", reach)}
             {result.multiple ? ", ticking as many as applied" : ""}
           </p>
           <Tally options={result.options} of={result.respondents} />
@@ -128,7 +129,7 @@ function Result({ result, sent }: { result: ResultRow; sent: number }) {
           {result.most && (
             <>
               <p className={styles.tallyLabel}>{result.most.title}</p>
-              <p className={styles.muted}>{answeredRateWords(result.most.respondents, sent, "picked one")}</p>
+              <p className={styles.muted}>{answeredRateWords(result.most.respondents, sent, "picked one", reach)}</p>
               <Tally options={result.most.options} of={result.most.respondents} />
             </>
           )}
@@ -137,7 +138,7 @@ function Result({ result, sent }: { result: ResultRow; sent: number }) {
       {result.kind === "value" && (
         <>
           <p className={styles.muted}>
-            {answeredRateWords(result.respondents, sent)}
+            {answeredRateWords(result.respondents, sent, "answered", reach)}
             {result.respondents > 0
               ? `. Average ${numberWords(result.mean, result.unit)}, middle value ${numberWords(result.median, result.unit)}, from ${numberWords(result.lowest, result.unit)} to ${numberWords(result.highest, result.unit)}.`
               : ""}
@@ -154,7 +155,7 @@ function Result({ result, sent }: { result: ResultRow; sent: number }) {
             <div key={index} className={styles.section}>
               {row.label && <p className={styles.tallyLabel}>{row.label}</p>}
               <div className={styles.scaleRow} style={{ ["--scale-points" as string]: row.counts.length }}>
-                <span className={styles.muted}>{answeredRateWords(row.respondents, sent)}</span>
+                <span className={styles.muted}>{answeredRateWords(row.respondents, sent, "answered", reach)}</span>
                 {row.counts.map((count, point) => (
                   <span key={point} className={styles.scaleCell} title={`${point + result.min}: ${count}`}>
                     <span className={styles.scaleHead}>{point + result.min}</span> {count}
@@ -177,7 +178,7 @@ function Result({ result, sent }: { result: ResultRow; sent: number }) {
       )}
       {result.kind === "comments" && (
         <>
-          <p className={styles.muted}>{answeredRateWords(result.respondents, sent, "wrote something")}</p>
+          <p className={styles.muted}>{answeredRateWords(result.respondents, sent, "wrote something", reach)}</p>
           {result.comments.length > 0 && (
             <ul className={styles.comments}>
               {result.comments.map((comment, index) => (
@@ -208,7 +209,7 @@ export default function ResultsTab({
     <div className={styles.main}>
       <div className={styles.card}>
         <p className={styles.lead}>
-          {answersRateWords(view.answers, view.sent)}
+          {answersRateWords(view.answers, view.sent, view.reach)}
           {beforeFirstSession && view.leftOut > 0
             ? ` ${view.leftOut} sent after the person’s first session ${view.leftOut === 1 ? "is" : "are"} left out.`
             : ""}
@@ -233,7 +234,7 @@ export default function ResultsTab({
           ))}
         </section>
       )}
-      {view.answers > 0 && view.questions.map((result) => <Result key={result.id} result={result} sent={view.sent} />)}
+      {view.answers > 0 && view.questions.map((result) => <Result key={result.id} result={result} sent={view.sent} reach={view.reach} />)}
     </div>
   );
 }

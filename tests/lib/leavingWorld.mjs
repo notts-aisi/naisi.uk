@@ -350,6 +350,10 @@ export async function makeLeavingWorld(key = "__leaving") {
     // they are on nothing: here, no, so the hub is handed nothing in a run's
     // stead and what it draws is the runs and the runs left.
     ["@/features/applications/home/holdsPlace", "export async function holdsPlace() { return 'no'; }"],
+    // The page gates' own import of the session, by the name they write: a
+    // programme's pages ask requireAdmissionsPage, which reads the same
+    // session the world hands every handler.
+    ["./session", `export async function getCurrentUser() { return globalThis[${JSON.stringify(key)}].user; }`],
     ...stylesheets().map((specifier) => [specifier, CLASS_NAMES]),
   ]);
   made.world.ui = ui;

@@ -1382,6 +1382,18 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]": {
+    reason:
+      "Surveys: a leaving survey's results for its programme's lead and admins; tests/surveys-leaving.test.mjs renders it for the lead, an admin, another programme's lead, a reviewer, a facilitator, a member and somebody signed out, and finds no name.",
+    coverWhen:
+      "When the lead's Surveys tab links it, so a spec can follow the tab from the programme's head.",
+  },
+  "/api/surveys/[surveyId]/open": {
+    reason:
+      "Surveys: opening a leaving survey; tests/surveys-leaving.test.mjs opens one once as an admin, refuses everybody else and a second press, and finds it emailed nobody.",
+    coverWhen:
+      "When the leaving spec (tests/e2e/course-hub-leaving.spec.mjs) makes and opens its programme's leaving survey before somebody leaves, and reads its card on the left page.",
+  },
   "/api/surveys/[surveyId]/export": {
     reason:
       "Surveys: the spreadsheet with names; tests/surveys-routes.test.mjs reads the file and the dataExports row written before it, and the refusal when the row cannot be written.",

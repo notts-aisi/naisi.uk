@@ -222,12 +222,19 @@ export default function QuestionsEditor({
   initial,
   measures,
   today,
+  closes = true,
 }: {
   surveyId: string;
   initial: EditorValues;
   /** A section's id to the measure it asks about, for the templates' sections. */
   measures: Record<string, string>;
   today: string;
+  /**
+   * Whether the survey has a closing day and an email of its own. A leaving
+   * survey has neither: it takes answers until an admin closes it, and it
+   * reaches people through the leaving email, whose words are not these.
+   */
+  closes?: boolean;
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -310,7 +317,9 @@ export default function QuestionsEditor({
           </label>
           <Textarea id={`${id}-intro`} value={values.intro} rows={5} maxLength={1000} onChange={(event) => set({ intro: event.target.value })} />
           <p className={styles.muted}>
-            A blank line starts a new paragraph. It opens the email too. The privacy box under it can’t be edited.
+            {closes
+              ? "A blank line starts a new paragraph. It opens the email too. The privacy box under it can’t be edited."
+              : "A blank line starts a new paragraph. The privacy box under it can’t be edited."}
           </p>
         </div>
         <div className={styles.fieldRow}>
@@ -328,12 +337,16 @@ export default function QuestionsEditor({
               onChange={(event) => set({ minutes: Number(event.target.value) })}
             />
           </div>
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor={`${id}-closes`}>
-              It closes on
-            </label>
-            <Input id={`${id}-closes`} type="date" min={today} value={values.closesOn} onChange={(event) => set({ closesOn: event.target.value })} />
-          </div>
+          {closes ? (
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor={`${id}-closes`}>
+                It closes on
+              </label>
+              <Input id={`${id}-closes`} type="date" min={today} value={values.closesOn} onChange={(event) => set({ closesOn: event.target.value })} />
+            </div>
+          ) : (
+            <p className={styles.muted}>No closing day: once it’s open, it takes answers until you close it.</p>
+          )}
         </div>
       </section>
 
