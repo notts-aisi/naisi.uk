@@ -3520,7 +3520,12 @@ describe("the course hub passage", () => {
     const route = withoutComments(read("src/app/api/courses/groups/[groupId]/summary/route.ts"));
     assert.match(route, /group && !group\.archived && isNamedWithStanding\(actor, "courseGroups\.facilitatorUids", group\.facilitatorUids\)/);
     assert.match(route, /!isAdmin && isBeforeFirstSessionDay\(firstSessionDayOf\(run, group, now\), now\)/);
-    assert.match(route, /model\.people\.map\(\(person\) => \(\{ uid: person\.uid, firstName: person\.firstName \}\)\)/);
+    // The reader is left out: a facilitator who holds a place is one of the
+    // group's people, and is not told whether they themselves are coming.
+    assert.match(
+      route,
+      /model\.people\s*\.filter\(\(person\) => person\.uid !== actor\.uid\)\s*\.map\(\(person\) => \(\{ uid: person\.uid, firstName: person\.firstName \}\)\)/,
+    );
     assert.match(route, /whosComing\.map\(\(person\) => \(\{ firstName: person\.firstName, coming: person\.coming \}\)\)/);
 
     // The reply, run: "I can't make it", with its reason, is not a yes, and
