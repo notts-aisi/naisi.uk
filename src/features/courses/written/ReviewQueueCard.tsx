@@ -12,7 +12,6 @@ import {
   sentAtWords,
   toGiveFeedbackOnWords,
 } from "@/lib/courses/writtenAnswerWords";
-import styles from "./queue.module.css";
 
 /**
  * THE REVIEW QUEUE ON A GROUP'S PAGE (board wk-fac-group): its Written
@@ -43,10 +42,10 @@ export default function ReviewQueueCard({
           {REVIEW_QUEUE}
         </h2>
       </div>
-      <div className={styles.half}>
-        <div className={styles.halfHead}>
-          <h3 className={styles.halfTitle}>{WRITTEN_ANSWERS}</h3>
-          <p className={styles.halfCount}>{rows.length === 0 ? NOTHING_TO_GIVE_FEEDBACK_ON : toGiveFeedbackOnWords(rows.length)}</p>
+      <div className={facilitator.queueHalf}>
+        <div className={facilitator.queueHead}>
+          <h3 className={facilitator.queueTitle}>{WRITTEN_ANSWERS}</h3>
+          <p className={facilitator.queueCount}>{rows.length === 0 ? NOTHING_TO_GIVE_FEEDBACK_ON : toGiveFeedbackOnWords(rows.length)}</p>
         </div>
         {rows.length > 0 && (
           <ul className={facilitator.reviews}>
@@ -55,7 +54,7 @@ export default function ReviewQueueCard({
                 <InitialsChip name={row.name} uid={row.uid} size="md" />
                 <span className={facilitator.reviewText}>
                   <span className={facilitator.personName}>{row.name}</span>
-                  <span className={styles.rowMeta}>{sentAtWords(new Date(row.firstSentAt))}</span>
+                  <span className={facilitator.queueMeta}>{sentAtWords(new Date(row.firstSentAt))}</span>
                 </span>
                 <Link
                   href={hrefFor(row)}
@@ -93,12 +92,12 @@ export function LeadWrittenAnswersCard({
           {WRITTEN_ANSWERS}
         </h2>
       </div>
-      <ul className={styles.groups}>
+      <ul className={facilitator.queueGroups}>
         {groups.map((group) => (
-          <li key={group.id} className={styles.groupRow}>
-            <span className={styles.groupText}>
+          <li key={group.id} className={facilitator.queueGroupRow}>
+            <span className={facilitator.queueGroupText}>
               <span className={facilitator.personName}>{group.name}</span>
-              <span className={styles.rowMeta}>
+              <span className={facilitator.queueMeta}>
                 {group.waiting === 0 ? NOTHING_TO_GIVE_FEEDBACK_ON : toGiveFeedbackOnWords(group.waiting)}
               </span>
             </span>
