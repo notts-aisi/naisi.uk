@@ -1045,6 +1045,14 @@ const USERS = new Map([
       "fetcher, Next's link and navigation and the stylesheets are stubbed",
   ],
   [
+    "course-guide-format.test.mjs",
+    "executes a programme's Start here and Glossary model, its Markdown reader and writer (src/lib/courses/guide/) " +
+      "and the week reader's own reading of text on a synthetic Start here and Glossary in the fellow guide's " +
+      "shape, breaking every cap once, because what a pasted page reads as, what stops one being stored and " +
+      "that a copy pasted back is the same document are decided by the code that runs. Only `server-only` is " +
+      "stubbed",
+  ],
+  [
     "registration-status.test.mjs",
     "it executes the signup tracker end to end: the status rule, the three write helpers, and the " +
       "list, summary and profile-complete routes against one small fake database, because the claim " +

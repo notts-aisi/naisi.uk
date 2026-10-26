@@ -1027,6 +1027,12 @@ const NOT_COVERED = {
     coverWhen:
       "With the spec for the ask above: the person asked signs in, opens the page from the email and says yes.",
   },
+  "/api/courses/runs/[runId]/guide/[doc]": {
+    reason:
+      "Course authoring: /api/courses/runs/[runId]/guide/[doc] loads a programme's Start here or Glossary, an admin's job for now, and every answer it gives is driven as each kind of caller in tests/course-guide-pages.test.mjs.",
+    coverWhen:
+      "When a lead loads their own programme's Start here or Glossary through it, because a mistake then reaches a run's people before an admin sees it.",
+  },
   "/api/courses/runs/[runId]/material-notes": {
     reason:
       "Learn hub: /api/courses/runs/[runId]/material-notes belongs to the curriculum surface being rebuilt in October.",
@@ -1709,6 +1715,18 @@ const NOT_COVERED = {
       "Learn hub: /(app)/learn/[runId]/email is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
     coverWhen:
       "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
+  },
+  "/(app)/learn/[runId]/glossary": {
+    reason:
+      "Course hub: a programme's Glossary (wk-glossary), open to exactly the people the run's week 1 opens to; every kind of caller, the count from the record and the terms in the guide's order are executed by tests/course-guide-pages.test.mjs, and its find box's filter by the same suite.",
+    coverWhen:
+      "When the browser spec for week 1 before groups go out signs in somebody holding a place, opens the Glossary from week 1's page and finds a term in the box.",
+  },
+  "/(app)/learn/[runId]/start-here": {
+    reason:
+      "Course hub: a programme's Start here (wk-start), open to exactly the people the run's week 1 opens to; every kind of caller, the guide's sections in order and the line naming who reads reflections from records are executed by tests/course-guide-pages.test.mjs.",
+    coverWhen:
+      "When the browser spec for week 1 before groups go out signs in somebody holding a place and opens Start here from week 1's page.",
   },
   "/(app)/learn/[runId]/group/[groupId]/edit": {
     reason:
