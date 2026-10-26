@@ -52,14 +52,17 @@ function wordsOf(tokens: readonly Token[] | undefined): string {
   return out;
 }
 
-/** A cell's words, entities read and spaces folded. Nothing is cut: the check names an overlong one. */
+/** The five entities a table cell's text can carry, as the characters they stand for. */
+const ENTITIES: Readonly<Record<string, string>> = { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'" };
+
+/**
+ * A cell's words, entities read and spaces folded. Nothing is cut: the check
+ * names an overlong one. The entities are read in one pass, so "&amp;lt;"
+ * reads as the "&lt;" somebody typed, never as "<".
+ */
 function cellWords(cell: Tokens.TableCell): string {
   return wordsOf(cell.tokens)
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
+    .replace(/&(amp|lt|gt|quot|#39);/g, (_, name: string) => ENTITIES[name] ?? "")
     .replace(/\s+/g, " ")
     .trim();
 }

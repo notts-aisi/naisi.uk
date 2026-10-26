@@ -776,6 +776,13 @@ describe("6. finishing's column, the rubric's setting, the email", () => {
       "“R” has no description for A. Write one in that cell.",
     ]);
     assert.deepEqual(givenLevelsOf(RUBRIC, w.levels("Solid")).levels.map((level) => level.level), ["Solid", "Solid", "Solid", "Solid"]);
+    // A pasted cell's entities are read once: "&amp;lt;" is the "&lt;" the
+    // Markdown says, never a "<"; and "x < y" and "Q & A" read as typed.
+    const pasted = w.lib.rubricMarkdown.readRubricMarkdown(
+      "| | Weak | Strong |\n| --- | --- | --- |\n| Tags &amp;lt;b&amp;gt; | x < y | Q & A |\n",
+    );
+    assert.equal(pasted.ok, true);
+    assert.deepEqual(pasted.rubric.rows, [{ name: "Tags &lt;b&gt;", descriptors: ["x < y", "Q & A"] }]);
   });
 
   test("words are counted as Worksheets count them", () => {
