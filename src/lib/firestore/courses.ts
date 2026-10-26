@@ -411,9 +411,53 @@ export type CourseRunDoc = {
    * you’re free", the programme's head. Read here only as a valid date.
    */
   groupsGoOutOn: string | null;
+  /**
+   * An incubator's hand-in dates (see `TeamHandInSettings`): the day each
+   * team's one hand-in is due and the week of the showcase. Set by the
+   * programme's lead and admins on the programme's Teams tab, through its
+   * route (`.../programmes/[programmeId]/teams/hand-in`), and read by each
+   * team's page. Both null until somebody sets them: there is no default.
+   */
+  teamHandIn: TeamHandInSettings;
   createdAt?: Date | null;
   updatedAt?: Date | null;
 };
+
+/**
+ * AN INCUBATOR'S HAND-IN, AS ITS RUN HOLDS IT (boards in-team and
+ * en-handin-phone): each team hands in once, by a day, and shows its work
+ * at a showcase.
+ *
+ *  - `dueOn`: the London civil date hand-ins are due. A team can change its
+ *    hand-in until 23:59 in London that day, the house's closing minute, and
+ *    not after.
+ *  - `showcaseWeek`: the taught week whose session is the showcase. Its day,
+ *    time and room are that session's, as each team's group holds it, so a
+ *    showcase held somewhere else that week is a change to that session.
+ *
+ * Facts about one term, typed by the lead or an admin: no default, and a
+ * sentence built from an unset one is left out. Stored as
+ * `{ dueOn, showcaseWeek }` and read through `normalizeTeamHandIn`, which
+ * treats anything else as unset.
+ */
+export type TeamHandInSettings = {
+  dueOn: string | null;
+  showcaseWeek: number | null;
+};
+
+/** Nothing set. */
+export const NO_TEAM_HAND_IN: TeamHandInSettings = { dueOn: null, showcaseWeek: null };
+
+/** The stored `teamHandIn` map, read. A real date and a week from 1 to 60 are kept; anything else is unset. */
+export function normalizeTeamHandIn(raw: unknown): TeamHandInSettings {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return NO_TEAM_HAND_IN;
+  const data = raw as Record<string, unknown>;
+  const week = data.showcaseWeek;
+  return {
+    dueOn: typeof data.dueOn === "string" && isValidDateKey(data.dueOn) ? data.dueOn : null,
+    showcaseWeek: typeof week === "number" && Number.isInteger(week) && week >= 1 && week <= 60 ? week : null,
+  };
+}
 
 /**
  * PITCHING WEEK, AND THE TEAMS IT LEADS TO.
@@ -1409,6 +1453,7 @@ export function normalizeCourseRun(id: string, data: Raw): CourseRunDoc {
     teamsFrom: normalizeTeamsFrom(data.teamsFrom),
     groupsGoOutOn:
       typeof data.groupsGoOutOn === "string" && isValidDateKey(data.groupsGoOutOn) ? data.groupsGoOutOn : null,
+    teamHandIn: normalizeTeamHandIn(data.teamHandIn),
     createdAt: tsToDate(data.createdAt),
     updatedAt: tsToDate(data.updatedAt),
   };

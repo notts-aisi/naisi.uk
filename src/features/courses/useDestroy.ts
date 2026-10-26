@@ -245,6 +245,11 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "An incubator's teams: each team's name, project line and people, and who has been told their team.",
   },
+  teamEntries: {
+    label: "Team pages",
+    fate: "destroyed",
+    note: "What each team wrote on its page: every week's check-in, the team's links and its hand-in. Member-authored text.",
+  },
   finishing: {
     label: "Who finished",
     fate: "destroyed",

@@ -4,6 +4,7 @@ import { leavePathFor } from "@/lib/courses/leaving";
 import { leaveClosedLine } from "@/lib/courses/leavingWords";
 import { loadLeftView } from "@/lib/courses/leftView";
 import { pitchingCard } from "@/lib/courses/pitching/load";
+import { teamCardFor } from "@/lib/courses/teamPage/load";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
@@ -102,6 +103,10 @@ export default async function RunHomePage({
   // is; a run with no pitching week costs one query.
   const db = getAdminDb();
   const pitching = access.isEnrolled && db ? await pitchingCard(db, access.user, runId) : null;
+  // "Your team", for somebody among a team's people who has been told their
+  // team (`teamCardFor`, the team page's own gate). A run with no teams costs
+  // the gate's reads only for somebody taking part.
+  const team = access.isEnrolled && db ? await teamCardFor(db, access.user, runId) : null;
 
   // "Leave the programme" at the foot (wk-programme), for somebody taking
   // part whose seat they can leave themselves, until the run's last session
@@ -134,6 +139,7 @@ export default async function RunHomePage({
       isAdmin={access.isAdmin}
       canEmailCohort={canEmailCohort}
       pitching={pitching}
+      team={team}
       canLeave={canLeave}
       leaveNote={leaveNote}
       uid={access.user.uid}

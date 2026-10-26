@@ -23,6 +23,8 @@ import AboutThisCourse from "./AboutThisCourse";
 import CertificateCard from "./CertificateCard";
 import type { CertificateCardView } from "@/lib/courses/certificates/card";
 import type { GuideLinks } from "@/lib/courses/guide/model";
+import type { TeamCardView } from "@/lib/courses/teamPage/views";
+import { YOUR_TEAM, YOUR_TEAMS_PAGE } from "@/lib/courses/teamPage/words";
 import { useMaterialTicks } from "./weekly/useMaterialTicks";
 import { weekRowsOf } from "./weekly/weekRows";
 import { LEAVE_LINK } from "@/lib/courses/leavingWords";
@@ -98,6 +100,12 @@ type Props = {
    * draws nothing.
    */
   pitching?: { lede: string; open: boolean } | null;
+  /**
+   * "Your team", worked out by the server page for somebody among a team's
+   * people who has been told their team (`teamCardFor`): the team's name and
+   * who else is in it, and the way to the team's page. Null draws nothing.
+   */
+  team?: TeamCardView | null;
   /**
    * Whether "Leave the programme" is drawn at the foot (wk-programme): the
    * server page asks the leave route's own rule (`leavePathFor`), so the link
@@ -324,6 +332,7 @@ export default function RunHome({
   isAdmin,
   canEmailCohort,
   pitching = null,
+  team = null,
   canLeave = false,
   leaveNote = null,
   guide = null,
@@ -584,6 +593,21 @@ export default function RunHome({
               <p className={styles.panelNote}>{pitching.lede}</p>
               <Link className={styles.panelLink} href={`/learn/${encodeURIComponent(runId)}/pitching`}>
                 {pitching.open ? "Pitch and pick" : "See the pitches"}
+                <span className={styles.arrow} aria-hidden="true">
+                  →
+                </span>
+              </Link>
+            </Card>
+          )}
+
+          {team && (
+            /* Their team (in-team): from the moment they are told it, while
+               they take part. The page is the team's own. */
+            <Card as="section" padding="md" className={`${styles.panel} ${weekly.order2}`}>
+              <h3 className={styles.panelTitle}>{YOUR_TEAM}</h3>
+              <p className={styles.panelNote}>{team.line}</p>
+              <Link className={styles.panelLink} href={`/learn/${encodeURIComponent(runId)}/team`}>
+                {YOUR_TEAMS_PAGE}
                 <span className={styles.arrow} aria-hidden="true">
                   →
                 </span>

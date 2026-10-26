@@ -2,7 +2,10 @@ import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import RunBlank from "@/features/applications/groups/RunBlank";
 import ProgrammeTeams from "@/features/applications/teams/ProgrammeTeams";
 import { TeamsAreAnIncubators, TeamsAreTheLeads } from "@/features/applications/teams/TeamsRefusals";
+import TeamHandIns from "@/features/courses/team/TeamHandIns";
+import teamStyles from "@/features/courses/team/team.module.css";
 import { loadProgrammeTeams } from "@/lib/applications/handover/teamsLoad";
+import { loadTeamHandIns } from "@/lib/courses/teamPage/lead";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
@@ -19,6 +22,11 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * reviewer is told it is the lead's and admins'; a fellowship has no teams.
  * What each person ranked on the form is read only for those two, and only
  * for a run whose teams come from the agenda.
+ *
+ * Under the teams, "Hand-ins" (boards in-team and en-handin-phone): the
+ * hand-in dates the lead and admins set, and every team's hand-in, read from
+ * the team pages through the same gate (`loadTeamHandIns`), with the way to
+ * each team's page.
  */
 export default async function ProgrammeTeamsPage({
   params,
@@ -35,5 +43,11 @@ export default async function ProgrammeTeamsPage({
   }
   const { view } = outcome;
   if (view.blank !== null) return <RunBlank view={view} />;
-  return <ProgrammeTeams view={view} />;
+  const handIns = db ? await loadTeamHandIns(db, user, roundId, programmeId) : null;
+  return (
+    <div className={teamStyles.tabStack}>
+      <ProgrammeTeams view={view} />
+      {handIns ? <TeamHandIns view={handIns} /> : null}
+    </div>
+  );
 }

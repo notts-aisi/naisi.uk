@@ -19,6 +19,7 @@ import { FACILITATING_COLLECTION } from "@/lib/courses/facilitatorAsks/model";
 import { CERTIFICATES_COLLECTION } from "@/lib/courses/certificates/model";
 import { FINISHING_COLLECTION } from "@/lib/courses/finishing/model";
 import { RATINGS_COLLECTION } from "@/lib/ratings/model";
+import { TEAM_ENTRIES_COLLECTION } from "@/lib/courses/teamPage/model";
 import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
 import { COURSE_AUDIT_COLLECTION } from "./courseAudit";
 import { COURSE_PAGES_COLLECTION } from "./coursePages";
@@ -188,6 +189,14 @@ export type RunDestroyCounts = {
    * run: a team names a group this cascade deletes.
    */
   teams: number;
+  /**
+   * `courseTeamEntries` rows: what an incubator's teams wrote on their pages
+   * on this run, each week's check-in, the team's links and its hand-in
+   * (`src/lib/courses/teamPage/`). Member-authored text, keyed by `runId` on
+   * the row like every other leaf here, and it dies with the run: an entry
+   * names a team this cascade deletes.
+   */
+  teamEntries: number;
   /**
    * `courseFinishing` rows: the run's rule for who finished and the lead's
    * decisions about who did (`src/lib/courses/finishing/`). Keyed by `runId`
@@ -1081,6 +1090,7 @@ export async function countRunDestroyTargets(
     materialNotes,
     pitches,
     teams,
+    teamEntries,
     finishing,
     facilitating,
     ratings,
@@ -1116,6 +1126,8 @@ export async function countRunDestroyTargets(
     countAgg(db.collection(PITCHES_COLLECTION).where("runId", "==", runId)),
     // The same single equality the teams stage drains on.
     countAgg(db.collection(TEAMS_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the team entries stage drains on.
+    countAgg(db.collection(TEAM_ENTRIES_COLLECTION).where("runId", "==", runId)),
     // The same single equality the finishing stage drains on.
     countAgg(db.collection(FINISHING_COLLECTION).where("runId", "==", runId)),
     // The same single equality the facilitating stage drains on.
@@ -1189,6 +1201,7 @@ export async function countRunDestroyTargets(
     materialNotes,
     pitches,
     teams,
+    teamEntries,
     finishing,
     facilitating,
     ratings,
@@ -1631,6 +1644,14 @@ export async function destroyRunCascade(
       // teams routes, which refuse a run being destroyed. Drained with the
       // pitches the teams were made from, before the enrolments.
       drain: () => drainQuery(db, TEAMS_COLLECTION, byRunId(TEAMS_COLLECTION), budget),
+    },
+    {
+      key: "teamEntries",
+      // What the teams wrote on their pages: a leaf keyed by `runId`, written
+      // only by the team page routes, which ask for a live seat on a run that
+      // is not being destroyed. Drained with the teams they were written by,
+      // before the enrolments.
+      drain: () => drainQuery(db, TEAM_ENTRIES_COLLECTION, byRunId(TEAM_ENTRIES_COLLECTION), budget),
     },
     {
       key: "finishing",

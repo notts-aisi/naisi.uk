@@ -21,6 +21,7 @@ import {
 } from "@/lib/courses/certificates/markers";
 import { FINISHING_COLLECTION } from "@/lib/courses/finishing/model";
 import { PITCHES_COLLECTION } from "@/lib/courses/pitching/model";
+import { TEAM_ENTRIES_COLLECTION } from "@/lib/courses/teamPage/model";
 import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
 import { TEAMS_MARKERS, TEAMS_TEST_KIND } from "@/lib/courses/teams/told";
 import { normalizeCourseEnrolment } from "./courseEnrolments";
@@ -124,6 +125,13 @@ export type AccountDeletionSummary = {
    * of tests of the team email they sent themselves go too.
    */
   courseTeamsCleared: number;
+  /**
+   * What this account saved last on an incubator team's page
+   * (`courseTeamEntries`: a week's check-in, a link, the hand-in): their uid
+   * comes off each, and the words stay with the team, as a register keeps
+   * its marks. Counted once per entry.
+   */
+  courseTeamEntriesCleared: number;
   /**
    * Who finished (`courseFinishing`): the programme lead's decisions about
    * this account are deleted, and on decisions this account made about other
@@ -569,6 +577,27 @@ export async function clearCourseTeams(db: Firestore, uid: string): Promise<numb
     await batch.commit();
   }
   return teams.docs.length;
+}
+
+/**
+ * Take one account's name off what it saved on incubator teams' pages
+ * (`courseTeamEntries`, described in `src/lib/courses/teamPage/model.ts`).
+ *
+ * Everything on a team's page is the team's: anybody in the team may change
+ * a check-in, remove a link or change the hand-in, so an entry has a last
+ * writer and no owner. The entries this account saved last are found by
+ * that one equality (`byUid`) and keep their words for the rest of the team,
+ * with nobody's name on them; nothing else names the account. Counted once
+ * per entry.
+ */
+export async function clearCourseTeamEntries(db: Firestore, uid: string): Promise<number> {
+  const snap = await db.collection(TEAM_ENTRIES_COLLECTION).where("byUid", "==", uid).get();
+  for (let at = 0; at < snap.docs.length; at += 400) {
+    const batch = db.batch();
+    for (const doc of snap.docs.slice(at, at + 400)) batch.update(doc.ref, { byUid: null });
+    await batch.commit();
+  }
+  return snap.docs.length;
 }
 
 /**
@@ -1255,6 +1284,7 @@ export async function deleteAccountCascade(
     courseAttendanceMarksCleared: 0,
     coursePitchesCleared: 0,
     courseTeamsCleared: 0,
+    courseTeamEntriesCleared: 0,
     courseFinishingCleared: 0,
     courseFacilitatingCleared: 0,
     courseGroupNotesDeleted: 0,
@@ -1624,6 +1654,15 @@ export async function deleteAccountCascade(
     summary.courseTeamsCleared = await clearCourseTeams(db, uid);
   } catch (err) {
     console.error("[deleteAccount] courseTeams clear failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c''+. TEAM PAGES. What this account saved last on a team's page stays
+  //      with the team, and their uid comes off it (see clearCourseTeamEntries).
+  try {
+    summary.courseTeamEntriesCleared = await clearCourseTeamEntries(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseTeamEntries clear failed:", uid, err);
     partialFailure = true;
   }
 

@@ -235,14 +235,22 @@
  *     destroyed run, one whose link is on kept without them
  *     (`clearCourseCertificates`, `drainCertificates`). And nobody sent one
  *     for finishing stops being finished while it stands (`finishingAct.ts`).
+ * 30. **Your team's page, built.** (6) said what would happen; the page now
+ *     exists, so its bullet says each team has one. The same bullet adds what
+ *     the page does: anybody in the team can change what is there; the
+ *     hand-in says who handed it in, and the lead and admins also see who
+ *     last saved each week's check-in; what somebody wrote stays with the
+ *     team when they leave, and stays with their name taken off when their
+ *     account is deleted (`src/lib/courses/teamPage/`, `clearCourseTeamEntries` in
+ *     `src/lib/firestore/accountDeletion.ts`). "What a deletion leaves behind"
+ *     lists it.
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
  *
- * ONE THING HERE IS NOT BUILT YET, and is worded as what will happen, the
- * way v6 worded certificates: a team's page (6). It is built to these words
- * when it is built, or a new version says otherwise first. Certificates (1)
- * were worded that way too until they were built (29).
+ * NOTHING HERE IS WORDED AS WHAT WILL HAPPEN any more. Certificates (1) and
+ * a team's page (6) were worded that way, the way v6 worded certificates,
+ * until they were built (29 and 30), and each now describes the code.
  *
  * v6 IS FROZEN AS ACCEPTED. It is the wording members agreed to at sign-in
  * while it was current, so it is a digest in `tests/privacy-policy.test.mjs`
@@ -1151,11 +1159,15 @@ export default function PrivacyContentV7({
                 </li>
                 <li>
                   <strong>Your team&apos;s page.</strong> On an incubator, each
-                  team will have a page of its own: its project, a weekly
-                  check-in, the team&apos;s links and its hand-in. What anybody
-                  in the team writes there is seen by everybody in the team,
-                  the programme&apos;s lead and admins, and the page says so
-                  beside what you write.
+                  team has a page of its own: its project, a weekly check-in,
+                  the team&apos;s links and its hand-in. What anybody in the
+                  team writes there is seen by everybody in the team, the
+                  programme&apos;s lead and admins, and the page says so beside
+                  what you write. Anybody in the team can change what is
+                  there. The hand-in says who handed it in, and the lead and
+                  admins also see who last saved each week&apos;s check-in. If
+                  you leave, what you wrote stays with your team; if your
+                  account is deleted, it stays and your name comes off it.
                 </li>
                 <li>
                   <strong>Feedback on the material.</strong> You can give a
@@ -1853,6 +1865,10 @@ export default function PrivacyContentV7({
                 <li>
                   A pitch you sent with a partner: it stays theirs, without
                   your name.
+                </li>
+                <li>
+                  What you wrote on your team&apos;s page: it stays with your
+                  team, and your name comes off it.
                 </li>
                 <li>
                   Tasks you were on, with their comments, activity and
