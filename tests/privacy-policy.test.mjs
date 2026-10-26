@@ -3399,6 +3399,7 @@ describe("the course hub passage", () => {
       new Map([
         ["src/lib/firestore/courseProgress.ts", "the record: its shape, its limit and its normaliser"],
         ["src/features/courses/progressMutations.ts", "the writer: a person's own note, on their own row"],
+        ["src/app/api/courses/runs/[runId]/week-one/ticks/[itemId]/route.ts", "a person's own note, kept as it was when they tick week 1 before groups go out, on their own row"],
         ["src/features/courses/WeekView.tsx", "a person's own note, in their own box on a week written before blocks"],
         ["src/features/courses/weekBlocks/SourceCard.tsx", "a person's own note, in their own box under a source"],
         ["src/lib/courses/leftView.ts", "a person's own notes, on their own notes page"],
@@ -3434,7 +3435,9 @@ describe("the course hub passage", () => {
     assert.equal(memberWords.PRIVATE_NOTE_HINT_FACILITATOR, "Only admins see this. It’s never read out.");
     const blockWeek = withoutComments(read("src/features/courses/weekBlocks/BlockWeek.tsx"));
     assert.match(blockWeek, /: ticksSeenByWords\(facilitatorNames, leadFirstName\),/);
-    assert.match(blockWeek, /privateNoteHint: asFacilitator \? PRIVATE_NOTE_HINT_FACILITATOR : PRIVATE_NOTE_HINT,/);
+    // A facilitator's own note's hint, for a facilitator with no place and one who holds a place alike.
+    assert.match(blockWeek, /privateNoteHint: ownWorkIsTheLeads \? PRIVATE_NOTE_HINT_FACILITATOR : PRIVATE_NOTE_HINT,/);
+    assert.match(blockWeek, /const ownWorkIsTheLeads = asFacilitator \|\| overviewWeek\?\.thisWeek\?\.answersReadBy === "lead";/);
 
     // "A tick never counts against you": nothing that decides who finished
     // reads a tick. "Reflections get no feedback and no mark": the verdict
@@ -3444,7 +3447,9 @@ describe("the course hub passage", () => {
       [],
       "who finished now reads ticks, so a tick can count against somebody",
     );
-    assert.match(withoutComments(read("src/app/api/courses/exercise-responses/[responseId]/review/route.ts")), /isReflectionResponse\(/);
+    // It reads a reflection or a fill-in box as no row, and a reflection is one of those.
+    assert.match(withoutComments(read("src/app/api/courses/exercise-responses/[responseId]/review/route.ts")), /snap\.exists && !isOwnBoxResponse\(data\)/);
+    assert.match(withoutComments(read("src/lib/firestore/courseExercises.ts")), /return isReflectionResponse\(data\) \|\| isFillInResponse\(data\);/);
 
     // tests/course-hub-facilitator-week.test.mjs runs each page as every kind
     // of caller, and holds every reader of the progress store to a list.

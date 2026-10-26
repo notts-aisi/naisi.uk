@@ -624,6 +624,7 @@ const PROGRESS_ADDRESSERS = {
   "app/api/courses/runs/[runId]/comments/route.ts": ["comments", "the comments a person chose to show the rest of a run anyone can join"],
   "app/api/courses/runs/[runId]/normalise-weeks/route.ts": ["count", "refuses to renumber a run's weeks once anybody has ticked in them"],
   "app/api/courses/runs/[runId]/retrospective/route.ts": ["aggregate", "ratings and finishes as totals, read through a projection with no uid"],
+  "app/api/courses/runs/[runId]/week-one/ticks/[itemId]/route.ts": ["own", "somebody holding a place ticks week 1 before groups go out, through week 1's door, on their own row by their own uid"],
   "app/api/courses/runs/[runId]/weeks/[weekId]/blocks/route.ts": ["count", "the week loader counts the rows on items a paste would take out: a number for an admin"],
   "features/courses/progressMutations.ts": ["own", "a person writes their own tick, rating and note, on their own row"],
   "features/courses/useRunProgress.ts": ["own", "a person's own rows, in their browser, by their own uid"],
@@ -639,6 +640,7 @@ const PROGRESS_ADDRESSES =
 const PRIVATE_NOTE_READERS = {
   "lib/firestore/courseProgress.ts": "the record: its shape, its limit and its normaliser",
   "features/courses/progressMutations.ts": "the writer: a person's own note, on their own row",
+  "app/api/courses/runs/[runId]/week-one/ticks/[itemId]/route.ts": "a person's own note, kept as it was when they tick week 1 before groups go out, on their own row",
   "features/courses/WeekView.tsx": "a person's own note, in their own box on a week written before blocks",
   "features/courses/weekBlocks/SourceCard.tsx": "a person's own note, in their own box under a source",
   "lib/courses/leftView.ts": "a person's own notes, on their own notes page",
