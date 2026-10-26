@@ -306,10 +306,7 @@
 
 .markNone {
   display: block;
-  width: 26px;
-  text-align: center;
   color: var(--color-text-faint);
-  line-height: 1.45;
 }
 
 .taskBody {

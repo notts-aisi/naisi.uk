@@ -519,9 +519,9 @@ function ThisWeekBox({
           if (row.type === "none") {
             return (
               <li key={index} className={styles.task}>
-                <span className={styles.markNone} aria-hidden="true">
-                  –
-                </span>
+                <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true" className={styles.markNone}>
+                  <path d="M9 13h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
                 <div className={styles.taskBody}>
                   <p className={styles.taskWhat}>
                     <span className={styles.srOnly}>{TASK_MARK_WORDS.none}: </span>
