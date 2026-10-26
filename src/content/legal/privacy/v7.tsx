@@ -131,6 +131,20 @@
  *     waiting (`src/lib/courses/writtenAnswers/`, `src/lib/courses/rubric.ts`,
  *     `src/lib/email/writtenFeedbackEmail.ts`, and the two written-answers
  *     routes).
+ * 21. **Pathways and cases.** Some weeks give a person a pack to read (a
+ *     pathway) and a case to give a talk on. What is handed out on paper in
+ *     a session is recorded on the site, by the group's facilitators, the
+ *     programme's lead or an admin, and those three see what everybody in the
+ *     group was given; nobody else in the group sees it. A facilitator who
+ *     takes part in the group they run is in that draw like anybody. A pack a
+ *     person picks themselves is kept, and can change until their session
+ *     starts; the group's facilitators, the programme's lead and admins can
+ *     see which (This week's work's reader, `weekWorkOf`), except a
+ *     facilitator's own pick, which their co-facilitators cannot. Saying they
+ *     are ready for their talk is shown on their own pages and nobody else's.
+ *     It goes with the account
+ *     (`src/lib/firestore/coursePacksAndCases.ts`, the draw's route and the
+ *     person's own route, `deleteCoursePacksAndCases`).
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
@@ -847,6 +861,26 @@ export default function PrivacyContentV7({
                   a course to make decisions about you outside the programme.
                 </li>
                 <li>
+                  <strong>Pathways and cases.</strong> Some weeks give you a
+                  pack to read, such as a pathway, and a case to give a short
+                  talk on. When your facilitators hand these out on paper in a
+                  session, which ones you were given is recorded on the site,
+                  by them or by the programme&apos;s lead or an admin, and you
+                  see yours on that week&apos;s page. Your group&apos;s
+                  facilitators, the programme&apos;s lead and admins see what
+                  everyone in the group was given; nobody else in your group
+                  sees yours. If you facilitate the group you take part in,
+                  your co-facilitators see what you were given, as they see
+                  everybody&apos;s. When a week lets you pick a pack yourself,
+                  we keep the one you picked, and you can change it until your
+                  session starts. Your group&apos;s facilitators, the
+                  programme&apos;s lead and admins can see which one you
+                  picked, except that if you facilitate the group, your
+                  co-facilitators cannot. You can say you are ready for your
+                  talk, and that is shown on your own pages and nobody
+                  else&apos;s.
+                </li>
+                <li>
                   <strong>Notes shared with your group.</strong> On a programme
                   that places you in a group, each week&apos;s page has notes
                   the people in your group and its facilitators share with each
@@ -1411,10 +1445,12 @@ export default function PrivacyContentV7({
                 email-verification links, your course enrolments, applications
                 and drafts, the asks to facilitate a group sent to you and your
                 replies to them, your progress, your written answers with the
-                feedback on them, your calendar link, the notes you shared with a
-                group, notes you wrote for the other facilitators of a group, your
-                name on your survey answers, the record of each survey sent to you
-                with your link to answer it, a pitch you sent alone, your name on a pitch you sent with a
+                feedback on them, the packs and cases recorded for you and
+                whether you said you were ready for your talks, your calendar
+                link, the notes you shared with a group, notes you wrote for the
+                other facilitators of a group, your name on your survey answers,
+                the record of each survey sent to you with your link to answer
+                it, a pitch you sent alone, your name on a pitch you sent with a
                 partner, your picks in pitching week, your place in a team, any
                 decision a lead recorded about whether you finished, a
                 certificate whose link is off, your admission applications

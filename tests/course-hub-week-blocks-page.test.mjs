@@ -262,29 +262,75 @@ describe("1. a week written as blocks, drawn", () => {
       "Keep it: you will check it in the last week.",
       "Part 5",
     ]);
-    // A later page's: the packs, the table, the fill-in boxes and the cases
-    // draw nothing yet.
+    // The packs are drawn (plan item 8, packs and cases): the Choose one a
+    // facilitator gives out, with the line that says so, the questions to
+    // read every pack against, and each pack's name, time, sources and
+    // reading; then the one Chloe picks, with its line. Nothing is given out
+    // to Chloe yet, so no pack is marked as Chloe's and none has a tick.
+    inOrder(textOf(html), [
+      "Your pack",
+      "Read the pack you were given at the end of the last session.",
+      "Packs",
+      "Given out at the end of session 1. Only your pack counts. To switch, ask Rahul or Sofia.",
+      "Base rate: what has happened before?",
+      "Change: what is different now?",
+      "Elections",
+      "25 minutes · 2 sources",
+      "Example Press, “Polls and their errors” (2023), and Example Radio, “A podcast on swing” (2022), from 10 minutes in",
+      "Markets",
+      "About 30 minutes · 1 source",
+      "Example Journal, “Prices as forecasts” (2021)",
+      "Technology",
+      "20 minutes · 1 source",
+      "Example Lab, “A timeline tool”",
+      "If you take markets, keep to how prices form, not to trading advice.",
+      "Plan and pitch",
+      "Choose one",
+      "One short guide that fits you",
+      "10 to 15 minutes",
+      "Only the one you choose counts.",
+      "Forecasting at work",
+      "if you like numbers",
+      "Forecasting in public",
+      "if you like writing",
+    ]);
+    assert.doesNotMatch(html, /Your pack<\/span>/);
+    // The talks are drawn (plan item 8): the pitch with how to prepare and
+    // "Ready for my pitch", then the case study with Chloe's case not given
+    // yet, every case of the week by pack, and the content note on the one
+    // that has one.
+    inOrder(textOf(html), [
+      "Prepare by answering two questions:",
+      "What will you forecast?",
+      "Who will check it?",
+      "Ready for my pitch",
+      "Your case study",
+      "You get a case from your pack at the end of the previous session.",
+      "Your case",
+      "Not given yet",
+      "Given out at the end of session 1.",
+      "Ready for my talk",
+      "Prepare a 3-minute talk: the three questions",
+      "All 3 cases this week",
+      "If a case weighs on you, swap it.",
+      "Elections",
+      "2 cases",
+      "The surprise result, 2016",
+      "The close call, 2019",
+      "The sources quote abusive posts: talk to your facilitator before you take this one.",
+      "Markets",
+      "1 case",
+      "The crash nobody priced, 2008",
+      "In the session",
+    ]);
+    // A later page's: the table and the fill-in boxes draw nothing yet.
     for (const later of [
       "Forecasting packs",
-      "Elections",
-      "Technology",
-      "A timeline tool",
-      "Polls and their errors",
-      "Prices as forecasts",
       "Where to start",
       "Make one forecast about your pack’s question",
       "My plan",
       "What I’ll forecast next",
       "The decision it helps with",
-      "Prepare by answering two questions",
-      "Your case study You get a case",
-      "The surprise result, 2016",
-      "The crash nobody priced, 2008",
-      "The close call, 2019",
-      "If a case weighs on you, swap it.",
-      "Base rate:",
-      "Forecasting at work",
-      "A podcast on swing",
     ]) {
       assert.ok(!text.includes(later), `drawn, though a later page draws it: "${later}"`);
     }
@@ -658,9 +704,18 @@ describe("4. counts by This week's tasks", () => {
     const [task, none] = week1.thisWeek.rows;
     assert.equal(task.type, "task");
     assert.equal(task.label, "Parts 1 to 3");
-    // `answerIds` joined the needs with the written answer (its own page):
-    // week 1 has none, so it is empty, held as strictly as the rest.
-    assert.deepEqual(task.needs, { tickIds: sources("k1"), promptIds: boxes("k1"), answerIds: [], unseenIds: [] });
+    // `answerIds` joined the needs with the written answer (its own page),
+    // and the Choose ones and talks a task covers with packs and cases (plan
+    // item 8): week 1 has none of the three, so each is empty, held as
+    // strictly as the rest.
+    assert.deepEqual(task.needs, {
+      tickIds: sources("k1"),
+      promptIds: boxes("k1"),
+      answerIds: [],
+      chooseOneIds: [],
+      talkIds: [],
+      unseenIds: [],
+    });
     assert.deepEqual(task.written, ["k1-rp1"]);
     assert.deepEqual(task.due, { dateKey: "2026-11-03", moved: false });
     assert.equal(none.type, "none");

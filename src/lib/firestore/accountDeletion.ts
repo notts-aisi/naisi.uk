@@ -17,6 +17,7 @@ import { TEAMS_MARKERS, TEAMS_TEST_KIND } from "@/lib/courses/teams/told";
 import { normalizeCourseEnrolment } from "./courseEnrolments";
 import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
+import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
 import {
   MEMBER_RECORDS_COLLECTION,
   MEMBER_RECORD_APPLICATIONS,
@@ -122,6 +123,13 @@ export type AccountDeletionSummary = {
    * and it goes with their account.
    */
   courseGroupSharedNotesDeleted: number;
+  /**
+   * What this account had in each week's packs and talks
+   * (`coursePacksAndCases`): the pack it picked or was given, the case it was
+   * given and its own "Ready for my talk". Deleted: each record is about
+   * this account alone.
+   */
+  coursePacksAndCasesDeleted: number;
   /** Admission applications (drafts included) written by this account. */
   admissionApplicationsDeleted: number;
   /** Their access-requirements rows, deleted in the SAME batch. See below. */
@@ -622,6 +630,16 @@ export async function deleteCourseGroupNotes(db: Firestore, uid: string): Promis
  */
 export async function deleteCourseGroupSharedNotes(db: Firestore, uid: string): Promise<number> {
   return deleteOwnedCourseRows(db, COURSE_GROUP_SHARED_NOTES_COLLECTION, uid, "authorUid");
+}
+
+/**
+ * Delete every record of what this account had in a week's packs and talks
+ * (`coursePacksAndCases`), on every run, a page at a time: the pack it picked
+ * or was given, the case it was given and its own "Ready for my talk". Found
+ * by the one equality on `uid`; nobody else's record is touched.
+ */
+export async function deleteCoursePacksAndCases(db: Firestore, uid: string): Promise<number> {
+  return deleteOwnedCourseRows(db, COURSE_PACKS_AND_CASES_COLLECTION, uid);
 }
 
 /**
@@ -1149,6 +1167,7 @@ export async function deleteAccountCascade(
     courseFacilitatingCleared: 0,
     courseGroupNotesDeleted: 0,
     courseGroupSharedNotesDeleted: 0,
+    coursePacksAndCasesDeleted: 0,
     admissionApplicationsDeleted: 0,
     admissionApplicationPrivateDeleted: 0,
     admissionDecisionsDeleted: 0,
@@ -1515,6 +1534,17 @@ export async function deleteAccountCascade(
     summary.courseGroupSharedNotesDeleted = await deleteCourseGroupSharedNotes(db, uid);
   } catch (err) {
     console.error("[deleteAccount] courseGroupSharedNotes delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c. PACKS AND CASES. What this account had in each week's packs and
+  //      talks (the pack picked or given, the case given, its own ready
+  //      mark) is about this account alone, addressed by its uid, and goes
+  //      with it (see coursePacksAndCases.ts).
+  try {
+    summary.coursePacksAndCasesDeleted = await deleteCoursePacksAndCases(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] coursePacksAndCases delete failed:", uid, err);
     partialFailure = true;
   }
 

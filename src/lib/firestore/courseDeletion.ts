@@ -23,6 +23,7 @@ import { COURSE_PAGES_COLLECTION } from "./coursePages";
 import { countCourseGuide, courseGuideRefs } from "@/lib/courses/facilitatorGuide/store";
 import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
+import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
 import { COURSE_UPDATES_COLLECTION } from "./courseUpdates";
 // The ONLY two `tasks.source` values a run's cascade may delete. See
 // drainSourcedTasks for why the filter takes both halves of the predicate.
@@ -284,6 +285,14 @@ export type RunDestroyCounts = {
    * the group is gone.
    */
   groupSharedNotes: number;
+  /**
+   * `coursePacksAndCases` rows: what each person had in this run's weeks'
+   * packs and talks, the pack picked or given, the case given and their own
+   * "Ready for my talk" (`src/lib/firestore/coursePacksAndCases.ts`). Keyed
+   * by `runId` on the row like every other leaf here, and it dies with the
+   * run: each record names a block of a week this cascade deletes.
+   */
+  packsAndCases: number;
   /**
    * `schedulerMarkers` rows this run owns: the send-dedupe markers the
    * scheduler tick writes before it sends anything.
@@ -971,6 +980,7 @@ export async function countRunDestroyTargets(
     updates,
     groupNotes,
     groupSharedNotes,
+    packsAndCases,
     schedulerMarkerCounts,
     emailSendCounts,
     exportCounts,
@@ -1035,6 +1045,8 @@ export async function countRunDestroyTargets(
     countAgg(db.collection(COURSE_GROUP_NOTES_COLLECTION).where("runId", "==", runId)),
     // The same single equality the group shared notes stage drains on.
     countAgg(db.collection(COURSE_GROUP_SHARED_NOTES_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the packs and cases stage drains on.
+    countAgg(db.collection(COURSE_PACKS_AND_CASES_COLLECTION).where("runId", "==", runId)),
     Promise.all(markerCountPromises),
     Promise.all(emailCountPromises),
     Promise.all(exportCountPromises),
@@ -1061,6 +1073,7 @@ export async function countRunDestroyTargets(
     updates,
     groupNotes,
     groupSharedNotes,
+    packsAndCases,
     schedulerMarkers: schedulerMarkerCounts.reduce((a, b) => a + b, 0),
     emailSendRows: emailSendCounts.reduce((a, b) => a + b, 0),
     dataExportRows: exportCounts.reduce((a, b) => a + b, 0),
@@ -1615,6 +1628,16 @@ export async function destroyRunCascade(
           byRunId(COURSE_GROUP_SHARED_NOTES_COLLECTION),
           budget,
         ),
+    },
+    {
+      key: "packsAndCases",
+      // What each person had in the weeks' packs and talks: a leaf keyed by
+      // `runId`, drained with the other leaves and BEFORE the weeks whose
+      // blocks each record names. `write: if false` to every client, and
+      // both routes that write it refuse a run carrying the destroy marker,
+      // so nothing recreates one behind the cascade.
+      drain: () =>
+        drainQuery(db, COURSE_PACKS_AND_CASES_COLLECTION, byRunId(COURSE_PACKS_AND_CASES_COLLECTION), budget),
     },
     {
       key: "groups",

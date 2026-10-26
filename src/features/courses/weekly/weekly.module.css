@@ -1983,6 +1983,25 @@ a.weekItem:focus-visible {
   color: var(--color-ok);
 }
 
+/* A talk's row: the case given ("Shutdown resistance, 2025"), then "Not ready yet". */
+.taskRowSub {
+  margin: 2px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-body);
+  overflow-wrap: anywhere;
+}
+
+.taskRowStatus {
+  margin: 4px 0 0;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
 /* === Mobile === */
 @media (max-width: 48rem) {
   .card {

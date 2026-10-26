@@ -1160,11 +1160,120 @@
   }
 }
 
+/* === The spread: "Pathways in Group B" (wk-fac-group), drawn by
+   src/features/courses/packsAndCases/PathwaySpread.tsx === */
+
+.spreadTiles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr));
+  gap: 10px;
+}
+
+.spreadTile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.spreadTileHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.spreadName {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.spreadCount {
+  flex: none;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--color-text);
+}
+
+.spreadPeople {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.spreadFaces {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+}
+
+.spreadNames {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.spreadFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-top: 12px;
+}
+
+.spreadLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-accent-text);
+  text-decoration: none;
+}
+
+.spreadLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.spreadLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+.spreadLine {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
 /* === Mobile === */
 @media (max-width: 48rem) {
   /* The lead's line per group: its button beside the top of the words. */
   .queueGroupRow {
     align-items: flex-start;
+  }
+
+  .spreadTiles {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .person {
