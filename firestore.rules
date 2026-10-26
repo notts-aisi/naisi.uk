@@ -3088,6 +3088,25 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === kairosChoices ===
+    // Whether a person's name and programme record go to Kairos (one document
+    // per person, src/lib/kairos/model.ts): absent means shared. Written only
+    // by the profile's route and the survey answer routes on the Admin SDK,
+    // read only on the server. Every browser is refused, its owner's included.
+    match /kairosChoices/{uid} {
+      allow read, write: if false;
+    }
+
+    // === programmeRatings ===
+    // What a group's facilitators, the programme's lead and admins say about
+    // each fellow at a programme's end, and each run's sheet
+    // (src/lib/ratings/model.ts). Written only by the ratings route on the
+    // Admin SDK and read only on the server. Every browser is refused: a
+    // readable rating would show somebody what was said about them.
+    match /programmeRatings/{ratingId} {
+      allow read, write: if false;
+    }
+
     // === calendarLinks ===
     // One private calendar link per person (Add to calendar,
     // src/lib/firestore/calendarLinks.ts): the secret a calendar app fetches
