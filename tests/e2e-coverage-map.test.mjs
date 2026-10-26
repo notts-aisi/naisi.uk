@@ -793,6 +793,18 @@ const NOT_COVERED = {
     coverWhen:
       "Never automated here: cover it by hand against the written destroy checklist before an archive.",
   },
+  "/api/courses/[courseId]/facilitator-guide": {
+    reason:
+      "Facilitator guide: /api/courses/[courseId]/facilitator-guide lists a course's facilitator guide by its titles for a facilitator's Home, and every answer it gives is driven as each kind of caller in tests/course-facilitator-guide.test.mjs.",
+    coverWhen:
+      "When a browser spec signs in as a group's facilitator, because Home's link is the only way a facilitator meets this route.",
+  },
+  "/api/courses/[courseId]/facilitator-guide/[slot]": {
+    reason:
+      "Course authoring: /api/courses/[courseId]/facilitator-guide/[slot] loads a course's facilitator guide, an admin's job for now, and every answer it gives is driven as each kind of caller in tests/course-facilitator-guide.test.mjs.",
+    coverWhen:
+      "When a lead's Weeks tab loads a week's facilitator guide through it, because a mistake then reaches a run's facilitators before an admin sees it.",
+  },
   "/api/courses/[courseId]/page": {
     reason:
       "Courses: /api/courses/[courseId]/page is staff-facing, taken deliberately, and answered on the screen that called it.",
@@ -1573,6 +1585,12 @@ const NOT_COVERED = {
     coverWhen:
       "When a second person authors a course, because the cover today is the author reading back their own screen.",
   },
+  "/(app)/admin/courses/[courseId]/facilitator-guide": {
+    reason:
+      "Course authoring: /(app)/admin/courses/[courseId]/facilitator-guide is admin-only, and what it loads is read back on the guide's own pages by the admin who loaded it; its every caller is executed by tests/course-facilitator-guide.test.mjs.",
+    coverWhen:
+      "When a second person loads a course's facilitator guide, because the cover today is the admin reading back their own screen.",
+  },
   "/(app)/admin/courses/[courseId]/page": {
     reason:
       "Course authoring: /(app)/admin/courses/[courseId]/page is admin-only, and a mistake there is visible to its author before a member reaches it.",
@@ -1643,6 +1661,18 @@ const NOT_COVERED = {
     reason:
       "Course hub: the page an ask to facilitate opens (board st-fac-ask-phone), rendered to HTML for the person asked, somebody else and every state of an ask by tests/course-hub-facilitator-asks.test.mjs, and checked by hand at 390 and 1440.",
     coverWhen: "With the spec for the ask above.",
+  },
+  "/(app)/learn/facilitator-guide/[courseId]": {
+    reason:
+      "Facilitator guide: /(app)/learn/facilitator-guide/[courseId] is drawn on the server behind the guide's own gate; its every caller is executed by tests/course-facilitator-guide.test.mjs, and it was checked by hand at 1440 and 390 with a whole guide loaded.",
+    coverWhen:
+      "When the end-to-end fixtures seed a course's facilitator guide and sign in as a group's facilitator.",
+  },
+  "/(app)/learn/facilitator-guide/[courseId]/[doc]": {
+    reason:
+      "Facilitator guide: /(app)/learn/facilitator-guide/[courseId]/[doc] is drawn on the server behind the guide's own gate; its every caller is executed by tests/course-facilitator-guide.test.mjs, and it was checked by hand at 1440 and 390 with a whole guide loaded.",
+    coverWhen:
+      "When the end-to-end fixtures seed a course's facilitator guide and sign in as a group's facilitator.",
   },
   "/(app)/learn/[runId]/admissions": {
     reason:

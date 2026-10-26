@@ -1144,6 +1144,37 @@ export const ROUTES = {
         "is told the id is missing.",
     },
   },
+  "/api/courses/[courseId]/facilitator-guide": {
+    GET: {
+      expect: signedIn(403),
+      why:
+        "The titles of a course's facilitator guide, behind the guide's own gate: a facilitator of a " +
+        "live group on a run of the course, the lead of a programme naming a run of it, or an admin. " +
+        "A course that is not there is the same 403 for everybody, an admin included, so nobody " +
+        "learns which courses exist.",
+    },
+  },
+  "/api/courses/[courseId]/facilitator-guide/[slot]": {
+    GET: {
+      expect: adminOnly(400),
+      why:
+        "Copying a document of a course's facilitator guide out as Markdown is an admin's, decided " +
+        "before anything is read: every other session is forbidden, and the admin meets the place " +
+        "check, which a slot that is not a course document or a week's plan or notes fails.",
+    },
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "View-as is refused first, then the session, then the gate: reading a pasted document is an " +
+        "admin's, decided before the body or any document is read, and the admin meets the place check.",
+    },
+    PUT: {
+      expect: adminOnly(400),
+      why:
+        "View-as is refused first, then the session, then the gate: saving a pasted document is an " +
+        "admin's, decided before the body or any document is read, and the admin meets the place check.",
+    },
+  },
   "/api/courses/[courseId]/page": {
     PUT: {
       expect: signedIn(404),
@@ -2794,6 +2825,13 @@ export const PAGES = {
       "approveCourse holders and sends everyone else to the dashboard; a missing course or " +
       "run renders the tree's own not-found state.",
   },
+  "/(app)/admin/courses/[courseId]/facilitator-guide": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "Loading a course's facilitator guide is an admin's: the course authoring tree admits course " +
+      "drafters and approvers, and this page sends everybody but an admin to the dashboard, as the " +
+      "admin-only pages do. A course that is not there renders the page's own not-found state.",
+  },
   "/(app)/admin/courses/[courseId]/page": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, draftCourse: 200, approveCourse: 200 }),
     why:
@@ -3035,6 +3073,20 @@ export const PAGES = {
     why:
       "A run under /learn: the run layout sends every approved account back to /learn when " +
       "the run is missing, and the run's own roster decides the rest once it exists.",
+  },
+  "/(app)/learn/facilitator-guide/[courseId]": {
+    expect: everyone(200, { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A course's facilitator guide: every approved account is drawn the page, and the guide's own " +
+      "gate decides what is on it. A course that is not there, or a caller the gate does not admit, " +
+      "is given one calm sentence in place of the guide, never a redirect that says something exists.",
+  },
+  "/(app)/learn/facilitator-guide/[courseId]/[doc]": {
+    expect: everyone(200, { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "One page of a course's facilitator guide: every approved account is drawn the page, and the " +
+      "guide's own gate decides what is on it, before the address is read. A course that is not " +
+      "there, or a caller the gate does not admit, is given the same one calm sentence.",
   },
   "/(app)/newsletter": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, draftNewsletter: 200, approveNewsletter: 200 }),

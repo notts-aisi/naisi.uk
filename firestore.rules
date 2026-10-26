@@ -3011,6 +3011,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === courseFacilitatorGuide ===
+    // A course's facilitator guide: each week's session plan and notes, and
+    // the course's own documents for its facilitators
+    // (src/lib/firestore/courseFacilitatorGuide.ts). Written only by the
+    // loader's route on the Admin SDK, an admin's, and read only on the
+    // server by the guide's pages and routes after the guide's own gate.
+    // Nobody taking part ever reads it, so every browser is refused, admins,
+    // the programme's lead and a group's facilitators included.
+    match /courseFacilitatorGuide/{docId} {
+      allow read, write: if false;
+    }
+
     // === courseGroupSharedNotes ===
     // The notes a group's people and facilitators share with the group on
     // its week pages (C29, src/lib/firestore/courseGroupSharedNotes.ts):

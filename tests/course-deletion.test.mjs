@@ -316,8 +316,12 @@ const RUN_COUNT_KEYS = [
   // rather than as "survives".
   "dataExportRows",
 ];
-/** `CourseDestroyCounts`, mirrored. */
-const COURSE_COUNT_KEYS = ["runs", "coursePages", "templates"];
+/**
+ * `CourseDestroyCounts`, mirrored. `facilitatorGuide` is the course's
+ * facilitator guide (`courseFacilitatorGuide`), deleted in the course's final
+ * batch with its page, and on the manifest because the cascade deletes it.
+ */
+const COURSE_COUNT_KEYS = ["runs", "coursePages", "facilitatorGuide", "templates"];
 
 /** Counters whose rows SURVIVE the cascade — never part of the death toll. */
 const SURVIVING_COUNT_KEYS = [
@@ -367,17 +371,17 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   const counts = Object.fromEntries(
     [...RUN_COUNT_KEYS, ...COURSE_COUNT_KEYS].map((k) => [k, 10]),
   );
-  // Twenty-six counters at ten rows each: twenty-two that die,
+  // Twenty-seven counters at ten rows each: twenty-three that die,
   // `materialNotes`, `auditRows`, `schedulerMarkers`, the V3 `coursePages`,
-  // the V3 W2 `registerTasks` and the course hub's `pitches`, `updates`,
-  // `groupNotes`, `groupSharedNotes`, `teams`, `finishing` and `facilitating`
-  // among them, plus the four survivors (`admissionSeatOffers` is released,
-  // `dataExportRows` is retained).
-  assert.equal(sumCounts(counts), 260);
+  // the V3 W2 `registerTasks`, the course hub's `pitches`, `updates`,
+  // `groupNotes`, `groupSharedNotes`, `teams`, `finishing` and `facilitating`,
+  // and the course's `facilitatorGuide` among them, plus the four survivors
+  // (`admissionSeatOffers` is released, `dataExportRows` is retained).
+  assert.equal(sumCounts(counts), 270);
   // The progress denominator counts only what actually dies, so a large
   // retained counter cannot inflate it into a bar that never fills. Adding a
   // survivor must not move this number; adding a DESTROYED counter must.
-  assert.equal(destroyedTotal(counts), 220);
+  assert.equal(destroyedTotal(counts), 230);
 });
 
 test("MODEL — every key the cascade can report has copy, including the ones the manifest never shows", () => {
