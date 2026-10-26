@@ -6,6 +6,7 @@ import {
   always,
   composeWholeEmail,
   oneLine,
+  placeInSentence,
   typed,
   type ComposedEmail,
   type EmailValue,
@@ -26,7 +27,11 @@ import {
  * facilitates it, how many are in it, and links to the facilitator's group
  * page, signed by the lead of the programme that names the run. The wording
  * is a template an admin can edit (`course-facilitating`, "You’re
- * facilitating" in Email designs), with `{tokens}` in it.
+ * facilitating" in Email designs), with `{tokens}` in it. Its seed copy is in
+ * the board's words (st-emails): the room and who else facilitates sit
+ * inside the sentence that says when the group meets, through the inline
+ * tokens `{place}`, `{placeNote}` and `{facilitatingWith}`, and
+ * `{namesOnPage}` says where the people's names are.
  *
  * ## Written whole or not at all
  *
@@ -45,6 +50,13 @@ import {
  *  - `optional`: where it meets, who else facilitates it, and who signs it.
  *    A group may have no room yet, one facilitator, or a run no programme
  *    names, and the paragraph that would have said so is left out.
+ *  - `inline`: the same where and who, worded to stand in the sentence or go
+ *    from it ("in Hallward B12", "You’re facilitating with Sofia."), as the
+ *    board says them. With nothing to say each is left out of its sentence
+ *    alone (see `./placementEmail.ts`).
+ *
+ * `{where}` and `{coFacilitators}` stay on the list for wording saved before
+ * the board's, which uses them in paragraphs of their own.
  *
  * ## The dates are the group's own
  *
@@ -83,6 +95,10 @@ export const FACILITATING_TOKEN_RULES = {
   coFacilitators: "optional",
   leadName: "optional",
   programmeName: "optional",
+  namesOnPage: "always",
+  place: "inline",
+  placeNote: "inline",
+  facilitatingWith: "inline",
 } as const satisfies Record<string, PlacementTokenRule>;
 
 export type FacilitatingToken = keyof typeof FACILITATING_TOKEN_RULES;
@@ -161,6 +177,23 @@ export function groupSizeSentence(count: number): string {
   return count === 1 ? "There is 1 person in the group." : `There are ${count} people in the group.`;
 }
 
+/**
+ * The `{namesOnPage}` sentence, after the group's size: where its people's
+ * names are. The board's "Their names and week 1’s guide are on your group
+ * page." without the guide: whether the course's facilitator guide holds
+ * week 1 is not asked here, so the email does not promise it. A group of one
+ * reads right.
+ */
+export function namesOnPageSentence(count: number): string {
+  return count === 1 ? "Their name is on your group page." : "Their names are on your group page.";
+}
+
+/** "You’re facilitating with Sofia.": the `{facilitatingWith}` sentence. Null for somebody facilitating alone. */
+export function facilitatingWithSentence(coFacilitators: string | null): string | null {
+  const others = oneLine(coFacilitators);
+  return others ? `You’re facilitating with ${others}.` : null;
+}
+
 /** "Sofia", "Sofia and Tom", "Sofia, Tom and Ana". */
 export function namesInWords(names: readonly string[]): string {
   if (names.length <= 1) return names[0] ?? "";
@@ -184,9 +217,23 @@ function whereValue(where: PlacementWhere | null): EmailValue | null {
   return typed(where.linkOnPage ? `${ONLINE}. ${LINK_IS_ON_THE_GROUP_PAGE}` : ONLINE);
 }
 
+/**
+ * The `{placeNote}` sentence: for a place the email does not print, where
+ * the facilitator finds it. The link to join, for an online group whose page
+ * has one; where it meets, for a room with something a reader could follow
+ * typed into it. Never an address.
+ */
+function placeNoteValue(where: PlacementWhere | null): EmailValue | null {
+  if (!where) return null;
+  if (where.kind === "online") return where.linkOnPage ? typed(LINK_IS_ON_THE_GROUP_PAGE) : null;
+  if (where.kind === "on-page" || couldBeFollowed(where.room)) return typed(WHERE_IS_ON_THE_GROUP_PAGE);
+  return null;
+}
+
 function valuesOf(facts: FacilitatingFacts): Record<FacilitatingToken, EmailValue | null> {
   const name = oneLine(facts.name);
   const size = facts.groupSize;
+  const counted = size !== null && Number.isInteger(size) && size > 0;
   return {
     firstName: always(firstWord(name)),
     preferredName: always(name),
@@ -197,12 +244,17 @@ function valuesOf(facts: FacilitatingFacts): Record<FacilitatingToken, EmailValu
     firstSession: typed(facts.firstSession),
     lastSession: typed(facts.lastSession),
     // A group with nobody in it is not one a facilitator is told about yet.
-    groupSize: size !== null && Number.isInteger(size) && size > 0 ? typed(groupSizeSentence(size)) : null,
+    groupSize: counted ? typed(groupSizeSentence(size)) : null,
     groupUrl: typed(facts.groupUrl),
     where: whereValue(facts.where),
     coFacilitators: typed(facts.coFacilitators),
     leadName: typed(facts.leadName),
     programmeName: typed(facts.programmeName),
+    // The board's words for the same facts (see the header).
+    namesOnPage: always(counted ? namesOnPageSentence(size) : ""),
+    place: typed(placeInSentence(facts.where)),
+    placeNote: placeNoteValue(facts.where),
+    facilitatingWith: typed(facilitatingWithSentence(facts.coFacilitators)),
   };
 }
 
@@ -226,7 +278,10 @@ export function composeFacilitatingEmail(
 /**
  * The facts for a PROOF: the designer's preview and its test send, which hold
  * sample values by token name. Missing or blank is "nothing to say", so a
- * proof leaves out what a send would. Never used for a send.
+ * proof leaves out what a send would. Never used for a send. The board's
+ * tokens follow from the same samples as a send's follow from its facts:
+ * `{place}` and `{placeNote}` from `where`, `{facilitatingWith}` from
+ * `coFacilitators`, `{namesOnPage}` from `groupSize`.
  */
 export function facilitatingFactsFromSample(sample: Readonly<Record<string, string | undefined>>): FacilitatingFacts {
   const said = (token: FacilitatingToken): string | null => oneLine(sample[token]) || null;

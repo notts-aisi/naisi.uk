@@ -1,7 +1,7 @@
 import type { LengthSource } from "@/lib/applications/handover/times";
 import { clockLabel } from "@/lib/applications/review/availabilityView";
 import { listInWords } from "@/lib/applications/review/people";
-import { NEW_GROUP_SESSION_MINUTES } from "@/lib/courses/sessionLength";
+import { NEW_GROUP_SESSION_MINUTES, lengthWords } from "@/lib/courses/sessionLength";
 
 /**
  * What the times picture says, in the words of the st-times board.
@@ -26,14 +26,8 @@ export const dayLong = (weekday: number): string => DAY_LONG[weekday] ?? "";
 export const whenShort = (weekday: number, start: number): string =>
   `${dayShort(weekday)} ${clockLabel(start)}`;
 
-/** "2 hours", "1 hour", "90 minutes". */
-export function lengthWords(minutes: number): string {
-  if (minutes % 60 === 0) {
-    const hours = minutes / 60;
-    return `${hours} ${hours === 1 ? "hour" : "hours"}`;
-  }
-  return `${minutes} minutes`;
-}
+/** "2 hours", "1 hour", "90 minutes": the one function, kept with the lengths themselves. */
+export { lengthWords };
 
 /** "2-hour", "1-hour", "90-minute": the length before "session". */
 export function lengthBefore(minutes: number): string {

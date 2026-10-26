@@ -17,7 +17,10 @@
  *     (`src/lib/courses/placementEmail.ts`) is run over the seed copy and over
  *     wording an admin could save, for every combination of values a group
  *     can lack: what it returns for a send never has a token in it, and what
- *     it cannot write it refuses, with the reason.
+ *     it cannot write it refuses, with the reason. The seed copy is the
+ *     board's (st-emails, course hub, October 2026), and the wording it
+ *     replaced, which an admin may have saved, still composes as it did
+ *     (`SAVED`): the composer's own rules are held on it, unchanged.
  *  2. EACH TOKEN HAS ITS RULE. The group's name and its first session are
  *     what the email is for: without one, publishing is refused. The
  *     facilitators and the room can be missing: their paragraph is left out.
@@ -35,7 +38,9 @@
  *     beside it stays, no element is left empty by what was taken out, and
  *     a block that holds no token is never left out and never changed. Each
  *     is tested on its own, and every email the walk writes is held to all
- *     three.
+ *     three. An INLINE token is worded to stand in its sentence or to go
+ *     from it: with nothing to say it goes alone, the sentence closes up
+ *     around it, and a unit left with nothing in it goes.
  *  4. WORDING OF ANY LENGTH IS READ IN STEP WITH ITS LENGTH. The composer and
  *     the question asked of a room are run over three hundred thousand
  *     characters of each shape that is slow to read the wrong way, and each
@@ -83,6 +88,7 @@ import { render } from "@react-email/render";
 import { FIELD_VALUE_STUB, makeDb } from "./lib/applicationsStore.mjs";
 import { calls, scanModule, walkSource } from "./lib/functionScan.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
+import { syntheticWeekDoc } from "./lib/weekBlocksFixture.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -223,15 +229,32 @@ const FACTS = {
   facilitatorNames: "Priya and Sam",
   firstSessionWhen: "Tuesday 27 October, 18:00",
   firstSessionWhere: { kind: "room", room: "Hallward B12" },
+  // The values the board's seed copy says (st-emails), from October 2026.
+  programmeName: "AI Safety Fundamentals",
+  weeklySlot: "Tuesdays at 6pm",
+  firstSession: "Tue 27 Oct",
+  firstSessionDay: "Tuesday",
+  where: { kind: "room", room: "Hallward B12" },
+  sessionMinutes: 120,
+  facilitatorFirstNames: ["Priya", "Sam"],
+  groupSize: 8,
+  weekOneTime: "about 75 minutes",
+  programmeUrl: "https://naisi.invalid/learn/run-1",
+  leadName: "Jordan",
 };
+/** What the wording before the board's says and a group can lack. */
 const OPTIONAL = ["facilitatorNames", "firstSessionWhere", "startDate"];
 const ESSENTIAL = ["groupName", "firstSessionWhen"];
+/** What the board's seed copy says and a group can lack: optional, then inline. */
+const SEED_OPTIONAL = ["weekOneTime", "leadName", "where", "sessionMinutes", "facilitatorFirstNames", "groupSize"];
+const SEED_ESSENTIAL = ["groupName", "firstSessionWhen", "weeklySlot", "firstSession", "programmeUrl"];
 
 /** Every subset of a list. */
 function subsets(list) {
   return list.reduce((all, item) => [...all, ...all.map((subset) => [...subset, item])], [[]]);
 }
-const without = (facts, absent) => Object.fromEntries(Object.entries(facts).map(([key, value]) => [key, absent.includes(key) ? null : value]));
+const without = (facts, absent) =>
+  Object.fromEntries(Object.entries(facts).map(([key, value]) => [key, absent.includes(key) ? (Array.isArray(value) ? [] : null) : value]));
 
 /** An element with nothing in it: what taking a value out must never leave behind. */
 const EMPTY_SHELL = /<(p|li|ul|ol|blockquote|h[1-6]|div)\b[^>]*>\s*<\/\1>/i;
@@ -239,15 +262,47 @@ const EMPTY_SHELL = /<(p|li|ul|ol|blockquote|h[1-6]|div)\b[^>]*>\s*<\/\1>/i;
 const heading = (text) => ({ id: `h-${text.length}`, type: "heading", text, level: 2 });
 const rich = (html) => ({ id: `r-${html.length}`, type: "richText", html });
 
-const FULL =
+/**
+ * THE WORDING THE SEED COPY HAD BEFORE IT TOOK THE BOARD'S (course hub,
+ * October 2026), word for word, as an admin may have saved it in Email
+ * designs. Every token in it is still on the email's list and filled as it
+ * was, so it still composes exactly as it did; the composer's own rules
+ * (units, shells, typed values, rooms) are held on it below, unchanged.
+ */
+const SAVED = {
+  subject: "Your {courseTitle} group: first session {firstSessionWhen}",
+  blocks: [
+    heading("You've been placed, {firstName}"),
+    rich(
+      "<p>You're in <strong>{groupName}</strong> for {courseTitle} ({runLabel}).</p>" +
+        "<p>Your group is facilitated by {facilitatorNames}.</p>" +
+        "<p>Your first session is <strong>{firstSessionWhen}</strong>.</p>" +
+        "<p>Where: {firstSessionWhere}</p>" +
+        "<p>Everything you need is in the learning space on the website: the week's reading, your group's details and your progress.</p>" +
+        "<p>Do the first week's reading before you come; the sessions work best when everyone arrives with opinions.</p>",
+    ),
+  ],
+};
+
+const SAVED_FULL =
   "Your AI Safety Fundamentals group: first session Tuesday 27 October, 18:00 | You've been placed, Amara " +
   "You're in Group A for AI Safety Fundamentals (Autumn 2026). Your group is facilitated by Priya and Sam. " +
   "Your first session is Tuesday 27 October, 18:00 . Where: Hallward B12 " +
   "Everything you need is in the learning space on the website: the week's reading, your group's details and your progress. " +
   "Do the first week's reading before you come; the sessions work best when everyone arrives with opinions.";
 
+/** The board's email (st-emails, "Your AGI Strategy group: Tuesdays at 6pm"), as the seed copy writes it with everything known. */
+const BOARD_FULL =
+  "Your AI Safety Fundamentals group: Tuesdays at 6pm | Hi Amara, " +
+  "You’re in Group A. You’ll meet on Tuesdays at 6pm in Hallward B12, starting Tue 27 Oct. Sessions last 2 hours. " +
+  "Priya and Sam are your facilitators. There are 8 of you. " +
+  "Week 1’s reading takes about 75 minutes. Have a look before Tuesday. " +
+  "Open your programme Jordan AI Safety Fundamentals lead, NAISI";
+
 describe("each token has its rule", () => {
   test("the list is the email's whole token set, and the seed copy uses nothing outside it", () => {
+    // The board's tokens joined the list in October 2026 (course hub, st-emails).
+    // The first nine stay for wording saved before then, which still sends.
     assert.deepEqual(placement.PLACEMENT_TOKEN_RULES, {
       firstName: "always",
       preferredName: "always",
@@ -258,56 +313,160 @@ describe("each token has its rule", () => {
       startDate: "optional",
       facilitatorNames: "optional",
       firstSessionWhere: "optional",
+      programmeName: "always",
+      firstSessionDay: "always",
+      weeklySlot: "essential",
+      firstSession: "essential",
+      programmeUrl: "essential",
+      weekOneTime: "optional",
+      leadName: "optional",
+      naisiSignOff: "optional",
+      place: "inline",
+      placeNote: "inline",
+      sessionLength: "inline",
+      yourFacilitators: "inline",
+      groupSize: "inline",
     });
     const used = tokensIn(`${SEED.subject}\n${printed(SEED.blocks)}`);
     assert.deepEqual(used.filter((token) => !(token in placement.PLACEMENT_TOKEN_RULES)), []);
-    for (const token of [...ESSENTIAL, "facilitatorNames", "firstSessionWhere"]) {
+    for (const token of [
+      "firstName",
+      "groupName",
+      "weeklySlot",
+      "firstSession",
+      "firstSessionDay",
+      "programmeName",
+      "programmeUrl",
+      "weekOneTime",
+      "leadName",
+      "naisiSignOff",
+      "place",
+      "placeNote",
+      "sessionLength",
+      "yourFacilitators",
+      "groupSize",
+    ]) {
       assert.ok(used.includes(token), `the seed copy no longer says {${token}}`);
+    }
+    // And the wording before it is still the email's to fill, every token of it.
+    const saved = tokensIn(`${SAVED.subject}\n${printed(SAVED.blocks)}`);
+    assert.deepEqual(saved.filter((token) => !(token in placement.PLACEMENT_TOKEN_RULES)), []);
+    for (const token of [...ESSENTIAL, "facilitatorNames", "firstSessionWhere"]) {
+      assert.ok(saved.includes(token), `the saved wording no longer says {${token}}`);
     }
   });
 
-  test("with everything known, the seed copy reads in full", () => {
+  test("with everything known, the seed copy reads as the board does", () => {
     const email = placement.composePlacementEmail(SEED, FACTS);
     assert.equal(email.ok, true);
-    assert.equal(read(email), FULL);
+    assert.equal(read(email), BOARD_FULL);
+  });
+
+  test("the seed copy: no room yet takes the room out of its sentence, and nothing else", () => {
+    const email = placement.composePlacementEmail(SEED, without(FACTS, ["where"]));
+    assert.equal(email.ok, true);
+    assert.equal(read(email), BOARD_FULL.replace(" in Hallward B12,", ","));
+  });
+
+  test("the seed copy: one facilitator, two, or none", () => {
+    const one = placement.composePlacementEmail(SEED, { ...FACTS, facilitatorFirstNames: ["Priya"] });
+    assert.equal(read(one), BOARD_FULL.replace("Priya and Sam are your facilitators.", "Priya is your facilitator."));
+    const three = placement.composePlacementEmail(SEED, { ...FACTS, facilitatorFirstNames: ["Priya", "Sam", "Ana"] });
+    assert.equal(read(three), BOARD_FULL.replace("Priya and Sam are your facilitators.", "Priya, Sam and Ana are your facilitators."));
+    const none = placement.composePlacementEmail(SEED, without(FACTS, ["facilitatorFirstNames"]));
+    assert.equal(read(none), BOARD_FULL.replace(" Priya and Sam are your facilitators.", ""));
+  });
+
+  test("the seed copy: a group of one has no sentence for its size, and with no facilitator either the paragraph goes", () => {
+    assert.equal(read(placement.composePlacementEmail(SEED, { ...FACTS, groupSize: 1 })), BOARD_FULL.replace(" There are 8 of you.", ""));
+    const email = placement.composePlacementEmail(SEED, { ...FACTS, groupSize: 1, facilitatorFirstNames: [] });
+    assert.equal(read(email), BOARD_FULL.replace(" Priya and Sam are your facilitators. There are 8 of you.", ""));
+    assert.doesNotMatch(printed(email.blocks), EMPTY_SHELL);
+  });
+
+  test("the seed copy: the length is the group's own, and with none the sentence goes", () => {
+    assert.equal(read(placement.composePlacementEmail(SEED, { ...FACTS, sessionMinutes: 90 })), BOARD_FULL.replace("2 hours", "90 minutes"));
+    assert.equal(read(placement.composePlacementEmail(SEED, { ...FACTS, sessionMinutes: 60 })), BOARD_FULL.replace("2 hours", "1 hour"));
+    assert.equal(read(placement.composePlacementEmail(SEED, without(FACTS, ["sessionMinutes"]))), BOARD_FULL.replace(" Sessions last 2 hours.", ""));
+  });
+
+  test("the seed copy: with no time for week 1 its paragraph goes, and nothing else", () => {
+    const email = placement.composePlacementEmail(SEED, without(FACTS, ["weekOneTime"]));
+    assert.equal(read(email), BOARD_FULL.replace(" Week 1’s reading takes about 75 minutes. Have a look before Tuesday.", ""));
+  });
+
+  test("the seed copy: with no lead to sign it, NAISI signs it, as decision day does", () => {
+    const email = placement.composePlacementEmail(SEED, without(FACTS, ["leadName"]));
+    assert.equal(read(email), BOARD_FULL.replace("Jordan AI Safety Fundamentals lead, NAISI", "NAISI"));
+  });
+
+  test("the seed copy: an online group meets online, and is told where the link is, never the link", () => {
+    const linked = placement.composePlacementEmail(SEED, { ...FACTS, where: { kind: "online", linkOnPage: true } });
+    assert.equal(
+      read(linked),
+      BOARD_FULL.replace("at 6pm in Hallward B12,", "at 6pm online,").replace(
+        "Sessions last 2 hours.",
+        "Sessions last 2 hours. The link to join is on your programme’s page.",
+      ),
+    );
+    const unlinked = placement.composePlacementEmail(SEED, { ...FACTS, where: { kind: "online", linkOnPage: false } });
+    assert.equal(read(unlinked), BOARD_FULL.replace("at 6pm in Hallward B12,", "at 6pm online,"));
+  });
+
+  test("wording saved before the board's, with everything known, reads in full as it did", () => {
+    const email = placement.composePlacementEmail(SAVED, FACTS);
+    assert.equal(email.ok, true);
+    assert.equal(read(email), SAVED_FULL);
   });
 
   test("a group with no facilitator yet: that paragraph is left out, and nothing else", () => {
-    const email = placement.composePlacementEmail(SEED, without(FACTS, ["facilitatorNames"]));
+    const email = placement.composePlacementEmail(SAVED, without(FACTS, ["facilitatorNames"]));
     assert.equal(email.ok, true);
-    assert.equal(read(email), FULL.replace(" Your group is facilitated by Priya and Sam.", ""));
+    assert.equal(read(email), SAVED_FULL.replace(" Your group is facilitated by Priya and Sam.", ""));
   });
 
   test("a group with no room or link: the line about where is left out, and nothing else", () => {
-    const email = placement.composePlacementEmail(SEED, without(FACTS, ["firstSessionWhere"]));
+    const email = placement.composePlacementEmail(SAVED, without(FACTS, ["firstSessionWhere"]));
     assert.equal(email.ok, true);
-    assert.equal(read(email), FULL.replace(" Where: Hallward B12", ""));
+    assert.equal(read(email), SAVED_FULL.replace(" Where: Hallward B12", ""));
   });
 
   test("a group with no first session cannot be told when it meets: the email is refused", () => {
-    const email = placement.composePlacementEmail(SEED, without(FACTS, ["firstSessionWhen"]));
-    assert.deepEqual(email, { ok: false, problems: [{ kind: "no-first-session" }] });
+    for (const template of [SAVED, SEED]) {
+      for (const absent of [["firstSessionWhen"], ["weeklySlot"], ["firstSession"], ["firstSessionWhen", "weeklySlot", "firstSession"]]) {
+        // Said once, however many of the three a group lacks.
+        assert.deepEqual(placement.composePlacementEmail(template, without(FACTS, absent)), { ok: false, problems: [{ kind: "no-first-session" }] }, absent.join("+"));
+      }
+    }
   });
 
   test("a group with no name cannot be told which group it is: the email is refused", () => {
-    const email = placement.composePlacementEmail(SEED, without(FACTS, ["groupName"]));
-    assert.deepEqual(email, { ok: false, problems: [{ kind: "no-group-name" }] });
-    assert.equal(placement.composePlacementEmail(SEED, { ...FACTS, groupName: "   " }).ok, false);
+    for (const template of [SAVED, SEED]) {
+      const email = placement.composePlacementEmail(template, without(FACTS, ["groupName"]));
+      assert.deepEqual(email, { ok: false, problems: [{ kind: "no-group-name" }] });
+      assert.equal(placement.composePlacementEmail(template, { ...FACTS, groupName: "   " }).ok, false);
+    }
+  });
+
+  test("a site that does not know its own address cannot give the email its button: the email is refused", () => {
+    for (const template of [SAVED, SEED]) {
+      assert.deepEqual(placement.composePlacementEmail(template, without(FACTS, ["programmeUrl"])), { ok: false, problems: [{ kind: "no-site-address" }] });
+    }
   });
 
   test("an online group is told it is online, and where its people find the link to join", () => {
-    const email = placement.composePlacementEmail(SEED, { ...FACTS, firstSessionWhere: { kind: "online", linkOnPage: true } });
+    const email = placement.composePlacementEmail(SAVED, { ...FACTS, firstSessionWhere: { kind: "online", linkOnPage: true } });
     assert.equal(email.ok, true);
     assert.equal(
       read(email),
-      FULL.replace("Where: Hallward B12", "Where: Online. The link to join is on your programme's page in the learning space."),
+      SAVED_FULL.replace("Where: Hallward B12", "Where: Online. The link to join is on your programme's page in the learning space."),
     );
   });
 
   test("an online group with no link yet is told it is online, and is promised no link", () => {
-    const email = placement.composePlacementEmail(SEED, { ...FACTS, firstSessionWhere: { kind: "online", linkOnPage: false } });
+    const email = placement.composePlacementEmail(SAVED, { ...FACTS, firstSessionWhere: { kind: "online", linkOnPage: false } });
     assert.equal(email.ok, true);
-    assert.equal(read(email), FULL.replace("Where: Hallward B12", "Where: Online"));
+    assert.equal(read(email), SAVED_FULL.replace("Where: Hallward B12", "Where: Online"));
   });
 });
 
@@ -339,9 +498,27 @@ describe("the placement email is written whole or not at all", () => {
   }
 
   test("the seed copy, for every combination of values a group can lack", () => {
+    // The board's seed copy (October 2026): six values a group can lack,
+    // optional and inline, and five it cannot.
+    let written = 0;
+    for (const absent of subsets([...SEED_OPTIONAL, ...SEED_ESSENTIAL])) {
+      const email = wholeOrNot(SEED, without(FACTS, absent), absent.join("+") || "nothing absent");
+      const refused = absent.some((token) => SEED_ESSENTIAL.includes(token));
+      assert.equal(email.ok, !refused, `absent: ${absent.join(", ")}`);
+      if (email.ok) {
+        written += 1;
+        // Whatever is left out, no sentence is left with a hole or a stray space in it.
+        const said = read(email);
+        assert.doesNotMatch(said, / [,.]|  |\(\)/, said);
+      }
+    }
+    assert.equal(written, 64, "every combination of the six values a group can lack is an email");
+  });
+
+  test("wording saved before the board's, for every combination of values a group can lack", () => {
     let written = 0;
     for (const absent of subsets([...OPTIONAL, ...ESSENTIAL])) {
-      const email = wholeOrNot(SEED, without(FACTS, absent), absent.join("+") || "nothing absent");
+      const email = wholeOrNot(SAVED, without(FACTS, absent), absent.join("+") || "nothing absent");
       const refused = absent.some((token) => ESSENTIAL.includes(token));
       assert.equal(email.ok, !refused, `absent: ${absent.join(", ")}`);
       if (email.ok) written += 1;
@@ -505,7 +682,7 @@ describe("the placement email is written whole or not at all", () => {
   });
 
   test("a heading whose value is missing is left out with it", () => {
-    const template = { subject: SEED.subject, blocks: [heading("Led by {facilitatorNames}"), ...SEED.blocks] };
+    const template = { subject: SAVED.subject, blocks: [heading("Led by {facilitatorNames}"), ...SAVED.blocks] };
     assert.ok(read(placement.composePlacementEmail(template, FACTS)).includes("| Led by Priya and Sam You've been placed"));
     const email = placement.composePlacementEmail(template, without(FACTS, ["facilitatorNames"]));
     assert.equal(email.ok, true);
@@ -590,7 +767,8 @@ describe("a missing value takes its own unit, and nothing beside it", () => {
   });
 
   test("a block a token was in is left out only when nothing is left to show", () => {
-    const only = (html) => placement.composePlacementEmail({ subject: SEED.subject, blocks: [rich(html), ...SEED.blocks] }, NO_FACILITATOR).blocks[0];
+    // Behind the saved wording, whose first block is its heading.
+    const only = (html) => placement.composePlacementEmail({ subject: SAVED.subject, blocks: [rich(html), ...SAVED.blocks] }, NO_FACILITATOR).blocks[0];
     // Everything in it went: the block goes, and no empty one is sent.
     assert.equal(only("<p>Led by {facilitatorNames}</p>").type, "heading");
     assert.equal(only("<ul><li><p>Led by {facilitatorNames}</p></li></ul>").type, "heading");
@@ -653,6 +831,55 @@ describe("a missing value takes its own unit, and nothing beside it", () => {
   });
 });
 
+describe("an inline token takes only itself, and its sentence closes up", () => {
+  // No room, no length, no facilitators, a group of one: every inline value
+  // has nothing to say.
+  const NOTHING = { ...FACTS, where: null, sessionMinutes: null, facilitatorFirstNames: [], groupSize: 1 };
+  /** The rich text of one block of wording, written with `facts`. */
+  const html = (wording, facts = NOTHING) => {
+    const email = placement.composePlacementEmail({ subject: SEED.subject, blocks: [rich(wording)] }, facts);
+    assert.equal(email.ok, true, wording);
+    return email.blocks.map((block) => block.html).join("");
+  };
+
+  test("before a comma or a full stop, between two sentences, at either end: the space it leaves is closed up", () => {
+    assert.equal(html("<p>On {weeklySlot} {place}, starting {firstSession}.</p>"), "<p>On Tuesdays at 6pm, starting Tue 27 Oct.</p>");
+    assert.equal(html("<p>Meet {place}.</p>"), "<p>Meet.</p>");
+    assert.equal(html("<p>One. {sessionLength} Two.</p>"), "<p>One. Two.</p>");
+    assert.equal(html("<p>{yourFacilitators} {groupSize} Kept.</p>"), "<p>Kept.</p>");
+    assert.equal(html("<p>Kept. {yourFacilitators}</p>"), "<p>Kept.</p>");
+    // Filled, nothing is moved: the wording's own spaces stay as they were.
+    assert.equal(html("<p>On {weeklySlot}  {place} ,</p>", FACTS), "<p>On Tuesdays at 6pm  in Hallward B12 ,</p>");
+  });
+
+  test("a unit left with nothing in it goes, and leaves no shell; a unit with something left stays", () => {
+    assert.equal(html("<p>{groupName}</p><p>{yourFacilitators} {groupSize}</p>"), "<p>Group A</p>");
+    assert.equal(html("<p>{groupName}</p><ul><li><p>{sessionLength}</p></li><li><p>{placeNote}</p></li></ul>"), "<p>Group A</p>");
+    assert.equal(html("<p>{groupName}</p><p>{sessionLength} 🎉</p>"), "<p>Group A</p><p>🎉</p>");
+    // A block whose every unit went is not sent.
+    const email = placement.composePlacementEmail({ subject: SEED.subject, blocks: [rich("<p>{groupName}</p>"), rich("<p>{place}</p>")] }, NOTHING);
+    assert.equal(email.blocks.length, 1);
+  });
+
+  test("it never refuses an email, beside an essential value, in a subject or in a heading", () => {
+    assert.equal(html("<p>You’re in {groupName} {place}.</p>"), "<p>You’re in Group A.</p>");
+    const email = placement.composePlacementEmail(
+      { subject: "Your group {place}: {weeklySlot}", blocks: [heading("Meet {place}"), rich("<p>{groupName}</p>")] },
+      NOTHING,
+    );
+    assert.equal(email.ok, true);
+    assert.equal(email.subject, "Your group: Tuesdays at 6pm");
+    // A heading left with nothing in it goes.
+    const bare = placement.composePlacementEmail({ subject: SEED.subject, blocks: [heading("{place}"), rich("<p>{groupName}</p>")] }, NOTHING);
+    assert.deepEqual(bare.blocks.map((block) => block.type), ["richText"]);
+  });
+
+  test("an optional value beside it still takes its unit, as it always has", () => {
+    // `{weekOneTime}` is optional, not inline: its paragraph goes whole.
+    assert.equal(html("<p>{groupName}</p><p>{sessionLength} Week 1 takes {weekOneTime}.</p>", without(NOTHING, ["weekOneTime"])), "<p>Group A</p>");
+  });
+});
+
 describe("long hostile wording and rooms are answered in step with their length", () => {
   /**
    * Three hundred thousand characters of each shape that is slow to read the
@@ -686,6 +913,15 @@ describe("long hostile wording and rooms are answered in step with their length"
   }
   /** A long answer compared without printing it. */
   const same = (actual, expected, name) => assert.ok(actual === expected, `${name}: not what was expected (${actual.length} characters against ${expected.length})`);
+
+  test("a unit an inline token was left out of, closed up in one pass however much space is in it", () => {
+    const nothing = { ...FACTS, where: null, facilitatorFirstNames: [], groupSize: 1 };
+    const spaced = inTime("a run of space beside a missing inline value", () => write(`<p>{groupName}${" ".repeat(N)}{place}${" ".repeat(N)},</p>`, nothing));
+    assert.equal(spaced.ok, true);
+    same(spaced.blocks[0].html, "<p>Group A,</p>", "a run of space beside a missing inline value");
+    const pairs = inTime("a missing inline value between thousands of commas", () => write(`<p>{groupName} ${"{place} , ".repeat(N / 10)}</p>`, nothing));
+    same(pairs.blocks[0].html, `<p>Group A${",".repeat(N / 10)}</p>`, "a missing inline value between thousands of commas");
+  });
 
   test("a run of `<` with no `>`: kept as text, and counted as something to show", () => {
     const run = "<".repeat(N);
@@ -826,7 +1062,7 @@ describe("a value is text, whoever typed it", () => {
   };
 
   test("nothing typed becomes markup in a rich-text block, and nothing becomes a second line", () => {
-    const email = placement.composePlacementEmail(SEED, typed);
+    const email = placement.composePlacementEmail(SAVED, typed);
     assert.equal(email.ok, true);
     const html = printed(email.blocks.filter((block) => block.type === "richText"));
     assert.ok(!/<script|<img|<i>|<b>/.test(html), html);
@@ -837,11 +1073,37 @@ describe("a value is text, whoever typed it", () => {
     assert.ok(read(email).includes('Group <script>alert("x")</script> & Co'));
   });
 
+  test("the board's tokens take what was typed as text too, the room and the facilitators' first names among them", () => {
+    const email = placement.composePlacementEmail(SEED, {
+      ...typed,
+      facilitatorFirstNames: ["Sam <img src=x onerror=1>", "O'Neil"],
+      where: { kind: "room", room: 'Room "B12" <i>upstairs</i>\nsecond line' },
+    });
+    assert.equal(email.ok, true);
+    const html = printed(email.blocks.filter((block) => block.type === "richText"));
+    assert.ok(!/<script|<img|<i>|<b>/.test(html), html);
+    assert.ok(html.includes("You’re in Group &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; Co."), html);
+    assert.ok(html.includes("on Tuesdays at 6pm in Room &quot;B12&quot; &lt;i&gt;upstairs&lt;/i&gt; second line, starting"), html);
+    assert.ok(html.includes("Sam &lt;img src=x onerror=1&gt; and O&#39;Neil are your facilitators."), html);
+  });
+
   test("a name with curly brackets in it is not a token, and cannot stop an email being written", () => {
-    const email = placement.composePlacementEmail(SEED, { ...FACTS, name: "{groupName} {nope}", groupName: "Group {B}" });
+    const email = placement.composePlacementEmail(SAVED, { ...FACTS, name: "{groupName} {nope}", groupName: "Group {B}" });
     assert.equal(email.ok, true);
     assert.deepEqual(tokensIn(`${email.subject}\n${printed(email.blocks)}`), []);
     assert.ok(read(email).includes("You've been placed, (groupName) You're in Group (B) for"));
+    // And in the board's words.
+    const board = placement.composePlacementEmail(SEED, {
+      ...FACTS,
+      name: "{groupName} {nope}",
+      groupName: "Group {B}",
+      facilitatorFirstNames: ["{place}"],
+      where: { kind: "room", room: "Room {B12}" },
+    });
+    assert.equal(board.ok, true);
+    assert.deepEqual(tokensIn(`${board.subject}\n${printed(board.blocks)}`), []);
+    assert.ok(read(board).includes("Hi (groupName), You’re in Group (B). You’ll meet on Tuesdays at 6pm in Room (B12), starting"), read(board));
+    assert.ok(read(board).includes("(place) is your facilitator."), read(board));
   });
 });
 
@@ -900,24 +1162,44 @@ describe("where the first session is", () => {
 
   test("the email then says where to find it, in words true of a room and of a call, and prints none of what was typed", () => {
     for (const room of ROOMS_WITH_A_LINK) {
-      const email = placement.composePlacementEmail(SEED, { ...FACTS, firstSessionWhere: placement.placementWhere(session(room, null), null) });
+      const email = placement.composePlacementEmail(SAVED, { ...FACTS, firstSessionWhere: placement.placementWhere(session(room, null), null) });
       assert.equal(email.ok, true, room);
-      assert.equal(read(email), FULL.replace("Where: Hallward B12", `Where: ${ON_THE_PAGE}`), room);
+      assert.equal(read(email), SAVED_FULL.replace("Where: Hallward B12", `Where: ${ON_THE_PAGE}`), room);
+      // The board's words: the room goes from the sentence, and a sentence says where to find it.
+      const board = placement.composePlacementEmail(SEED, { ...FACTS, where: placement.placementWhere(session(room, null), null) });
+      assert.equal(
+        read(board),
+        BOARD_FULL.replace(" in Hallward B12,", ",").replace(
+          "Sessions last 2 hours.",
+          "Sessions last 2 hours. You’ll find where it meets on your programme’s page.",
+        ),
+        room,
+      );
     }
   });
 
   test("the composer asks again where it prints, whatever it was handed", () => {
     for (const room of ROOMS_WITH_A_LINK) {
       for (const proof of [false, true]) {
-        const email = placement.composePlacementEmail(SEED, { ...FACTS, firstSessionWhere: { kind: "room", room } }, { proof });
+        const email = placement.composePlacementEmail(SAVED, { ...FACTS, firstSessionWhere: { kind: "room", room } }, { proof });
         assert.equal(email.ok, true, room);
         const all = `${email.subject}\n${printed(email.blocks)}`.toLowerCase();
         for (const part of WAY_IN) assert.ok(!all.includes(part), `${room}: the email carries ${part}`);
         assert.ok(read(email).includes(`Where: ${ON_THE_PAGE}`), room);
+        // The board's words, handed the room as a room to print.
+        const board = placement.composePlacementEmail(SEED, { ...FACTS, where: { kind: "room", room } }, { proof });
+        assert.equal(board.ok, true, room);
+        const boardAll = `${board.subject}\n${printed(board.blocks)}`.toLowerCase();
+        for (const part of WAY_IN) assert.ok(!boardAll.includes(part), `${room}: the board's email carries ${part}`);
+        assert.ok(read(board).includes("You’ll meet on Tuesdays at 6pm, starting Tue 27 Oct."), read(board));
+        assert.ok(read(board).includes("You’ll find where it meets on your programme’s page."), read(board));
       }
       // The designer's sample goes the same way.
-      const proofed = placement.composePlacementEmail(SEED, placement.placementFactsFromSample({ ...samples.courseSampleTokens("course-allocated", "Alex Taylor"), firstSessionWhere: room }), { proof: true });
+      const sample = samples.courseSampleTokens("course-allocated", "Alex Taylor");
+      const proofed = placement.composePlacementEmail(SAVED, placement.placementFactsFromSample({ ...sample, firstSessionWhere: room }), { proof: true });
       assert.ok(!printed(proofed.blocks).toLowerCase().includes("meet.example"), room);
+      const boardProof = placement.composePlacementEmail(SEED, placement.placementFactsFromSample({ ...sample, place: room }), { proof: true });
+      assert.ok(!printed(boardProof.blocks).toLowerCase().includes("meet.example"), room);
     }
   });
 
@@ -1160,6 +1442,7 @@ function stage({
   facilitatorsTold = [],
   naming = null,
   incubatorTemplate = null,
+  extra = {},
 } = {}) {
   const docs = {
     [`courseRuns/${RUN}`]: {
@@ -1239,6 +1522,8 @@ function stage({
     }
   }
 
+  // Anything else the run holds (its weeks), as stored.
+  Object.assign(docs, extra);
   const db = makeDb(docs, { now: new Date("2026-10-24T12:00:00Z") });
   // The route caps each of its two queries, which the store has no word for.
   const withLimit = (query) => ({ ...query, where: (...filter) => withLimit(query.where(...filter)), limit: () => withLimit(query) });
@@ -1287,8 +1572,13 @@ async function opened(mail) {
   return { to: mail.to, subject: mail.subject, html, text: textOf(html.replace(/<head[\s\S]*?<\/head>/i, "")) };
 }
 
+/** The day `stage` stores its run on, Sat 24 Oct 2026: the run's first session is still to come. */
+const STAGED_NOW = new Date("2026-10-24T12:00:00Z");
+
 describe("publishing an allocation", { concurrency: false }, () => {
-  test("everybody is emailed their group, its facilitators, and when and where it first meets", async () => {
+  test("everybody is emailed their group, its facilitators, and when and where it first meets", async (t) => {
+    // The email names the day the group meets from, which is read off the clock.
+    t.mock.timers.enable({ apis: ["Date"], now: STAGED_NOW });
     stage({ people: { amara: "a", ben: "a" } });
     const response = await press();
     // The answer says what became of every email, people's and facilitators'
@@ -1301,34 +1591,38 @@ describe("publishing an allocation", { concurrency: false }, () => {
     // Each of the group's facilitators is told too, once, after the people.
     assert.deepEqual(world.sent.filter(isFacilitating).map((mail) => mail.to), ["priya@example.com", "sam@example.com"]);
     const mail = await opened(world.sent[0]);
-    // The first session in the words the facilitators' email and the boards
-    // write one ("Tue 27 Oct", "6pm"), since the course hub's walk (October
-    // 2026): until then this email alone wrote "Tuesday 27 October, 18:00".
-    assert.equal(mail.subject, "Your AI Safety Fundamentals group: first session Tue 27 Oct, 6pm");
-    for (const said of [
-      "You've been placed, Amara",
-      "You're in Group A for AI Safety Fundamentals (Autumn 2026).",
-      "Your group is facilitated by Priya and Sam.",
-      "Your first session is Tue 27 Oct, 6pm .",
-      "Where: Hallward B12",
-    ]) {
-      assert.ok(mail.text.includes(said), `missing: ${said}`);
-    }
+    // The board's words (st-emails), since October 2026: the weekly time in
+    // the subject; the group, its room, the day it meets from and how long
+    // its sessions last; its facilitators by first name and how many are in
+    // it; the button; and, no programme naming the run, NAISI's sign-off.
+    // Until then the subject was "first session Tue 27 Oct, 6pm", and the
+    // body said each fact on a line of its own.
+    assert.equal(mail.subject, "Your AI Safety Fundamentals group: Tuesdays at 6pm");
+    assert.ok(
+      mail.text.includes(
+        "Hi Amara, You’re in Group A. You’ll meet on Tuesdays at 6pm in Hallward B12, starting Tue 27 Oct. " +
+          "Sessions last 90 minutes. Priya and Sam are your facilitators. There are 2 of you. Open your programme NAISI",
+      ),
+      mail.text,
+    );
+    assert.ok(mail.html.includes(`href="https://naisi.invalid/learn/${RUN}"`), "the button leads to the programme's page");
     assert.ok((await stored(`courseEnrolments/${RUN}__amara`)).allocatedEmailAt, "the person told is not stamped");
     assert.ok((await stored(`courseRuns/${RUN}`)).allocationPublishedAt);
     assert.deepEqual(world.pushed, ["amara", "ben"]);
   });
 
-  test("the first session is written as the boards write a session: the short date, a comma, the time of day", async () => {
-    stage({
-      groups: {
-        a: group("Group A", { session: slot({ startTimeLocal: "12:00" }) }),
-        b: group("Group B", { session: slot({ weekday: 3, startTimeLocal: "09:00" }) }),
-        c: group("Group C", { session: slot({ weekday: 4, startTimeLocal: "18:30" }) }),
-        d: group("Group D", { session: slot({ weekday: 1, startTimeLocal: "00:00" }) }),
-      },
-      people: { amara: "a", ben: "b", chloe: "c", dev: "d" },
-    });
+  test("the first session is written as the boards write a session: the short date, a comma, the time of day", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: STAGED_NOW });
+    const groups = {
+      a: group("Group A", { session: slot({ startTimeLocal: "12:00" }) }),
+      b: group("Group B", { session: slot({ weekday: 3, startTimeLocal: "09:00" }) }),
+      c: group("Group C", { session: slot({ weekday: 4, startTimeLocal: "18:30" }) }),
+      d: group("Group D", { session: slot({ weekday: 1, startTimeLocal: "00:00" }) }),
+    };
+    const people = { amara: "a", ben: "b", chloe: "c", dev: "d" };
+    // {firstSessionWhen} is the saved wording's (the seed copy says the
+    // board's words since October 2026), and it is still written this way.
+    stage({ groups, people, template: SAVED });
     const response = await press();
     assert.equal(response.status, 200, JSON.stringify(response.body));
     assert.deepEqual(
@@ -1343,6 +1637,20 @@ describe("publishing an allocation", { concurrency: false }, () => {
     );
     // Nothing of the old long form, and no 24-hour clock.
     for (const mail of placedMail()) assert.doesNotMatch(mail.subject, /October|\d{2}:\d{2}/, mail.subject);
+
+    // The seed copy: the weekly time in the subject and the short date it meets from, in the same words.
+    stage({ groups, people });
+    assert.equal((await press()).status, 200);
+    const said = Object.fromEntries(
+      await Promise.all(placedMail().map(async (mail) => [mail.to, [mail.subject, /starting ([^.]*)\./.exec((await opened(mail)).text)?.[1]]])),
+    );
+    assert.deepEqual(said, {
+      "amara@example.com": ["Your AI Safety Fundamentals group: Tuesdays at 12pm", "Tue 27 Oct"],
+      "ben@example.com": ["Your AI Safety Fundamentals group: Wednesdays at 9am", "Wed 28 Oct"],
+      "chloe@example.com": ["Your AI Safety Fundamentals group: Thursdays at 6:30pm", "Thu 29 Oct"],
+      "dev@example.com": ["Your AI Safety Fundamentals group: Mondays at 12am", "Mon 26 Oct"],
+    });
+    for (const mail of await Promise.all(placedMail().map(opened))) assert.doesNotMatch(mail.text, /October|\d{2}:\d{2}/, mail.text);
   });
 
   test("no email from the route carries a token, whatever its groups lack", async () => {
@@ -1363,19 +1671,25 @@ describe("publishing an allocation", { concurrency: false }, () => {
     for (const mail of mails) assert.deepEqual(tokensIn(`${mail.subject}\n${mail.html}`), [], mail.to);
     const of = (uid) => mails.find((mail) => mail.to === `${uid}@example.com`).text;
     const told = (uid) => mails.filter((mail) => mail.to === `${uid}@example.com`).map((mail) => mail.text);
-    // A group with no room yet: its facilitators' email goes, with no line about where.
+    // A group with no room yet: its facilitators' email goes, and its
+    // sentence names no place (the board's words since October 2026; until
+    // then a line of its own, "Where: Hallward B12", left out whole).
     const [aboutA, aboutC] = told("priya");
-    assert.ok(aboutA.includes("Group A meets on Tuesdays at 6pm") && aboutA.includes("Where: Hallward B12"), aboutA);
-    assert.ok(aboutC.includes("Group C meets on Tuesdays at 6pm") && !aboutC.includes("Where:"), aboutC);
-    assert.ok(of("amara").includes("facilitated by Priya and Sam") && of("amara").includes("Where: Hallward B12"));
+    assert.ok(aboutA.includes("Group A meets on Tuesdays at 6pm in Hallward B12, from"), aboutA);
+    assert.ok(aboutC.includes("Group C meets on Tuesdays at 6pm, from") && !aboutC.includes("Hallward") && !aboutC.includes("Where:"), aboutC);
+    // The people's emails in the board's words (October 2026; until then each
+    // fact had a line of its own, "Where: Hallward B12" and "Your group is
+    // facilitated by Priya and Sam.").
+    assert.ok(of("amara").includes("Priya and Sam are your facilitators.") && of("amara").includes("at 6pm in Hallward B12, starting"), of("amara"));
     // No facilitator yet: the email goes, without that sentence.
-    assert.ok(!of("ben").includes("facilitated") && of("ben").includes("You're in Group B") && of("ben").includes("Where: Hallward B12"));
-    // No room: the email goes, without a line about where.
-    assert.ok(!of("chloe").includes("Where:") && of("chloe").includes("facilitated by Priya and Sam"));
+    assert.ok(!of("ben").includes("your facilitator") && of("ben").includes("You’re in Group B.") && of("ben").includes("at 6pm in Hallward B12, starting"), of("ben"));
+    // No room: the email goes, and its sentence names no place.
+    assert.ok(of("chloe").includes("You’ll meet on Tuesdays at 6pm, starting") && of("chloe").includes("Priya and Sam are your facilitators."), of("chloe"));
     // Online: it says so, and where the link is. The link itself is not in the email.
     assert.ok(
-      of("dev").includes("Where: Online. The link to join is on your programme's page in the learning space.") &&
-        !of("dev").includes("facilitated"),
+      of("dev").includes("You’ll meet on Tuesdays at 6pm online, starting") &&
+        of("dev").includes("The link to join is on your programme’s page.") &&
+        !of("dev").includes("your facilitator"),
       of("dev"),
     );
     for (const mail of mails) assert.ok(!mail.html.includes("meet.example"), `${mail.to} was emailed a meeting link`);
@@ -1392,9 +1706,14 @@ describe("publishing an allocation", { concurrency: false }, () => {
     for (const mail of await Promise.all(world.sent.map(opened))) {
       const all = `${mail.subject}\n${mail.html}`.toLowerCase();
       for (const part of WAY_IN) assert.ok(!all.includes(part), `${mail.to}: the email carries ${part}`);
-      // A facilitator is sent to their group page, and a placed person to their programme's.
-      const where = isFacilitating(mail) ? "You’ll find where it meets on your group page." : ON_THE_PAGE;
-      assert.ok(mail.text.includes(`Where: ${where}`), mail.text);
+      // A facilitator is sent to their group page, and a placed person to
+      // their programme's, in the board's words since October 2026 (until
+      // then "Where: You'll find where it meets on your programme's page in
+      // the learning space.").
+      const where = isFacilitating(mail)
+        ? ["meets on Tuesdays at 6pm, from", "You’ll find where it meets on your group page."]
+        : ["You’ll meet on Tuesdays at 6pm, starting", "Sessions last 90 minutes. You’ll find where it meets on your programme’s page."];
+      for (const said of where) assert.ok(mail.text.includes(said), mail.text);
     }
     assert.ok(!JSON.stringify(response.body).toLowerCase().includes("meet.example"));
   });
@@ -1715,14 +2034,51 @@ describe("Publish on a run a programme names", { concurrency: false }, () => {
     assert.deepEqual(world.pushed, ["amara", "ben"]);
   });
 
+  // The group email says how long week 1 takes since it took the board's
+  // words (October 2026). An incubator's people are sent their own email,
+  // which keeps its own words and says nothing of it.
+  test("an incubator's email keeps its own words, however week 1 is timed", async (t) => {
+    // Week 1's line is said only while the group has not met, which is read off the clock.
+    t.mock.timers.enable({ apis: ["Date"], now: STAGED_NOW });
+    const weekOne = syntheticWeekDoc({ weekNumber: 1, title: "Week 1" });
+    stage({
+      naming: INCUBATOR,
+      groups: { a: group("Group A", { facilitatorUids: ["priya"] }) },
+      people: { amara: "a" },
+      extra: { [`courseRuns/${RUN}/weeks/w01`]: weekOne },
+    });
+    assert.equal((await press()).status, 200);
+    const [mail] = await Promise.all(world.sent.map(opened));
+    assert.equal(mail.subject, "Your Research incubator sessions: Tuesdays at 6pm");
+    assert.ok(
+      mail.text.includes(
+        "Hi Amara, You’ll meet on Tuesdays at 6pm, starting Tue 27 Oct. Where: Hallward B12 Priya runs the sessions. " +
+          "Week 1 is on your programme’s page. Open your programme Priya Research incubator lead, NAISI",
+      ),
+      mail.text,
+    );
+    assert.doesNotMatch(mail.text, /reading takes|about 2 hours|Have a look/, mail.text);
+    // The same week, on a fellowship's run, is what the group email times.
+    stage({ naming: FELLOWSHIP, groups: { a: group("Group A", { facilitatorUids: ["sam"] }) }, people: { amara: "a" }, extra: { [`courseRuns/${RUN}/weeks/w01`]: weekOne } });
+    assert.equal((await press()).status, 200);
+    const [placed] = await Promise.all(placedMail().map(opened));
+    assert.ok(placed.text.includes("Week 1’s reading takes about 2 hours. Have a look before "), placed.text);
+  });
+
   test("a run a fellowship names, or one no programme names, is sent “Placed in a group”, as before", async () => {
     for (const naming of [FELLOWSHIP, null]) {
       stage({ naming, groups: { a: group("Group A", { facilitatorUids: ["sam"] }) } });
       const response = await press();
       assert.equal(response.status, 200, JSON.stringify(response.body));
       const mail = await opened(placedMail()[0]);
-      assert.equal(mail.subject, "Your AI Safety Fundamentals group: first session Tue 27 Oct, 6pm", JSON.stringify(naming));
-      assert.ok(mail.text.includes("You've been placed, Amara"), mail.text);
+      // In the board's words since October 2026 (until then "first session
+      // Tue 27 Oct, 6pm" and "You've been placed, Amara"): signed by the
+      // programme's lead, or by NAISI on a run no programme names.
+      assert.equal(mail.subject, "Your AI Safety Fundamentals group: Tuesdays at 6pm", JSON.stringify(naming));
+      assert.ok(mail.text.includes("Hi Amara, You’re in Group A. You’ll meet on Tuesdays at 6pm in Hallward B12, starting"), mail.text);
+      assert.ok(mail.text.includes("Sam is your facilitator."), mail.text);
+      const signed = naming ? "Open your programme Priya AI Safety Fundamentals lead, NAISI" : "Open your programme NAISI";
+      assert.ok(mail.text.includes(signed), mail.text);
       assert.equal((await planNow()).incubator, false);
     }
   });
@@ -1829,7 +2185,16 @@ describe("the designer offers what the composer fills, and proofs through it", (
     const proof = placement.composePlacementEmail(SEED, placement.placementFactsFromSample(sample), { proof: true });
     assert.equal(proof.ok, true);
     assert.deepEqual(tokensIn(`${proof.subject}\n${printed(proof.blocks)}`), []);
-    assert.ok(read(proof).includes("Where: Hallward Library, B12"));
+    // The board's email, every sentence of it, as the seed copy writes it (October 2026).
+    assert.equal(
+      read(proof),
+      "Your AI Safety Fundamentals group: Tuesdays at 6pm | Hi Alex, You’re in Group B. You’ll meet on Tuesdays at 6pm in " +
+        "Hallward Library, B12, starting Tue 7 Oct. Sessions last 2 hours. Priya and Sam are your facilitators. There are 8 of you. " +
+        "Week 1’s reading takes about 75 minutes. Have a look before Tuesday. Open your programme Jordan AI Safety Fundamentals lead, NAISI",
+    );
+    // And the wording saved before it, proofed with the same samples.
+    const saved = placement.composePlacementEmail(SAVED, placement.placementFactsFromSample(sample), { proof: true });
+    assert.ok(read(saved).includes("Where: Hallward Library, B12"));
   });
 
   test("the tokens the designer lists for the facilitators' email are its composer's own", () => {
@@ -1846,8 +2211,9 @@ describe("the designer offers what the composer fills, and proofs through it", (
     const proof = facilitating.composeFacilitatingEmail(seed, facilitating.facilitatingFactsFromSample(sample), { proof: true });
     assert.equal(proof.ok, true);
     assert.deepEqual(tokensIn(`${proof.subject}\n${printed(proof.blocks)}`), []);
-    assert.ok(read(proof).includes("Where: Hallward Library, B12"), read(proof));
-    assert.ok(read(proof).includes("There are 8 people in the group."), read(proof));
+    // The board's words, from the samples (October 2026; until then "Where: Hallward Library, B12" had a line of its own).
+    assert.ok(read(proof).includes("Group B meets on Tuesdays at 6pm in Hallward Library, B12, from Tue 7 Oct to Tue 11 Nov. You’re facilitating with Sam."), read(proof));
+    assert.ok(read(proof).includes("There are 8 people in the group. Their names are on your group page."), read(proof));
   });
 
   test("the tokens the designer lists for the incubator's email are its composer's own", () => {
@@ -1869,8 +2235,12 @@ describe("the designer offers what the composer fills, and proofs through it", (
   });
 
   test("a proof leaves a paragraph out as a send would, and leaves a token it cannot fill as typed", () => {
+    // The board's words leave the facilitators' sentence out as a send would.
+    const none = { ...samples.courseSampleTokens("course-allocated", "Alex Taylor"), yourFacilitators: "" };
+    const boardProof = placement.composePlacementEmail(SEED, placement.placementFactsFromSample(none), { proof: true });
+    assert.ok(!read(boardProof).includes("your facilitator") && read(boardProof).includes("2 hours. There are 8 of you."), read(boardProof));
     const sample = { ...samples.courseSampleTokens("course-allocated", "Alex Taylor"), facilitatorNames: "" };
-    const template = { subject: "Your group", blocks: [...SEED.blocks, rich("<p>Typed wrongly: {facilitatorName}</p>")] };
+    const template = { subject: "Your group", blocks: [...SAVED.blocks, rich("<p>Typed wrongly: {facilitatorName}</p>")] };
     const proof = placement.composePlacementEmail(template, placement.placementFactsFromSample(sample), { proof: true });
     assert.equal(proof.ok, true);
     assert.ok(!read(proof).includes("facilitated by"));

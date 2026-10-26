@@ -1201,6 +1201,24 @@ programme names" below).
   say how many ("1 person gave their place back, so they aren’t emailed.
   Remove them to free their seat."). See "When somebody gives their place
   back" below.
+- **What each person's email says: the board's words.** "Your AGI Strategy
+  group: Tuesdays at 6pm": the group, its weekly time and room (or that it
+  meets online, and that the link is on their programme's page), the day it
+  meets from, how long its sessions last (the group's own length), its
+  facilitators by first name, how many are in it (as their roster will show
+  them: the reader among them, never somebody untold), how long week 1 takes,
+  a button to their programme's page, and the lead's sign-off, or NAISI's
+  when no lead stands. Week 1's time is its This week's "In all" on a week
+  written in blocks, or its readings' own minutes added up on a week written
+  before them, read through one function (`weekReadingTime` in
+  `src/lib/courses/weekTime.ts`) from week 1 as the group's people read it.
+  A sentence whose value has no record is left out whole: no room, no
+  facilitator, a group of one, no length, and week 1 not published, with no
+  time, or already behind a group that has met. Somebody told after their
+  group first met is told its next session. Wording saved in Email designs
+  before these words is what sends while it is saved: press "Reset to
+  default" on "Placed in a group", then Save, and check its button, to take
+  them.
 - **An incubator's people are sent their own email.** When the programme
   that names the run is an incubator, Publish sends its people "Placed on an
   incubator" in place of "Placed in a group": the weekly session (day, time
@@ -1212,10 +1230,13 @@ programme names" below).
   group" as before.
 - **Each facilitator is told once a group, at Publish.** "You're
   facilitating" goes to every facilitator of every group with somebody in
-  it: the group's weekly time, where it meets, its first and last session
-  on the group's own calendar, who else facilitates it, how many in it have
-  been told their group and a button to their group page, signed by the lead
-  of the programme that names the run. That number counts only the people
+  it, in the board's words: the group's weekly time, where it meets (inside
+  that sentence, and left out of it when no room is set), its first and last
+  session on the group's own calendar, who else facilitates it, how many in
+  it have been told their group and that their names are on the group page,
+  and a button to their group page, signed by the lead of the programme that
+  names the run. The board's "and week 1’s guide" is not said: the email
+  does not ask whether the course's facilitator guide holds week 1. That number counts only the people
   told by the end of the press, so it is the number of names on their
   roster: somebody with no address on file, or whose email failed, is
   counted once a later press tells them. Never a meeting link: an online

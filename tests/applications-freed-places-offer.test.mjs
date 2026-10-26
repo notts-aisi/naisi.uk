@@ -41,6 +41,7 @@ import {
   loadRoutes,
   makeFreedWorld,
   short,
+  week,
 } from "./lib/freedPlacesWorld.mjs";
 
 /** Tue 27 Oct 2026, noon in London (the clocks went back on Sunday). */
@@ -51,6 +52,7 @@ const made = makeFreedWorld("__freedOffer");
 const { world, reset, everything, lib } = made;
 const api = await loadRoutes(made);
 const rules = await lib("applications", "freedPlaces", "rules.ts");
+const words = await lib("applications", "freedPlaces", "words.ts");
 const reminders = await lib("applications", "decisionDay", "reminders.ts");
 const normalise = await lib("applications", "normalise.ts");
 const { applicationInvitationRemindersJob: job } = await lib("scheduler", "jobs", "applicationInvitationReminders.ts");
@@ -602,6 +604,88 @@ describe("the group whose time the email names", () => {
       "The email to Omar Haddad can’t be written whole, so nothing was sent: Group B has no session still to come.",
     ]);
     assert.equal(world.mail.length, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// When they told us they are free: their own week says it, or nothing does
+// ---------------------------------------------------------------------------
+
+/**
+ * The board's "You told us you’re free on Wednesday afternoons." Since
+ * October 2026 it is said from the person's own painted week, and only when
+ * that week says it (at least an hour painted in that part of that day, the
+ * rule the page's "Free Mon evenings" reads a week by); otherwise it is left
+ * out and the rest of the email goes. Until then it was worked out from the
+ * group's time alone, and an email with nothing to say there was refused.
+ */
+describe("when they told us they are free: from their own week, and only when it says so", () => {
+  const MONDAY_SIX = { weekday: 1, startTimeLocal: "18:00" };
+  const FORM_GRID = () => world.db.read(FORM_PATH).availabilityGrid;
+
+  test("a part of a day counts with an hour of it painted, on the day the group meets", () => {
+    const grid = FORM_GRID();
+    assert.equal(words.freeOnInTheirWeek(MONDAY_SIX, week({ 1: [["17:00", "21:00"]] }), grid), "Monday evenings");
+    // An hour exactly is enough; a minute under is not, whatever else of the day is painted.
+    assert.equal(words.freeOnInTheirWeek({ weekday: 1, startTimeLocal: "16:00" }, week({ 1: [["16:00", "17:00"]] }), grid), "Monday afternoons");
+    assert.equal(words.freeOnInTheirWeek({ weekday: 1, startTimeLocal: "16:15" }, week({ 1: [["16:15", "18:00"]] }), grid), null);
+    // A session that starts late in the afternoon is an afternoon's, and the evening painted is not counted for it.
+    assert.equal(words.freeOnInTheirWeek({ weekday: 1, startTimeLocal: "16:30" }, week({ 1: [["16:30", "21:00"]] }), grid), null);
+    assert.equal(words.freeOnInTheirWeek({ weekday: 1, startTimeLocal: "16:30" }, week({ 1: [["15:00", "18:00"]] }), grid), "Monday afternoons");
+    // Another day painted says nothing of this one.
+    assert.equal(words.freeOnInTheirWeek(MONDAY_SIX, week({ 2: [["17:00", "21:00"]] }), grid), null);
+    // Nothing to read, and a time that is not a day and a time, say nothing.
+    assert.equal(words.freeOnInTheirWeek(MONDAY_SIX, null, grid), null);
+    assert.equal(words.freeOnInTheirWeek(MONDAY_SIX, week({}), grid), null);
+    assert.equal(words.freeOnInTheirWeek({ weekday: 9, startTimeLocal: "18:00" }, week({ 1: [["17:00", "21:00"]] }), grid), null);
+    assert.equal(words.freeOnInTheirWeek({ weekday: 1, startTimeLocal: "" }, week({ 1: [["17:00", "21:00"]] }), grid), null);
+  });
+
+  test("with nothing to say there, the sentence goes and the rest of the email is the board's", () => {
+    const base = {
+      firstName: "Hannah",
+      programme: { shortName: "AGI Strategy", kind: "fellowship" },
+      leadName: "Claudia",
+      toldOn: "Monday",
+      meets: "Wednesdays at 1pm",
+      startsOn: "Wed 4 Nov",
+      replyBy: "Thu 29 Oct",
+      link: `${APP_URL}/applications/${ROUND}`,
+    };
+    assert.equal(
+      words.composeFreedPlaceEmail({ ...base, freeOn: "Wednesday afternoons" }).paragraphs[1],
+      "It meets on Wednesdays at 1pm, starting Wed 4 Nov. You told us you’re free on Wednesday afternoons. Once you accept, we’ll email you your group and room.",
+    );
+    for (const freeOn of [null, "", "   "]) {
+      const email = words.composeFreedPlaceEmail({ ...base, freeOn });
+      assert.equal(email.paragraphs[1], "It meets on Wednesdays at 1pm, starting Wed 4 Nov. Once you accept, we’ll email you your group and room.", String(freeOn));
+      assert.equal(email.paragraphs.length, 3);
+    }
+    // An incubator's own next sentence, the same way.
+    assert.equal(
+      words.composeFreedPlaceEmail({ ...base, programme: { shortName: "Research incubator", kind: "incubator" }, freeOn: null }).paragraphs[1],
+      "It meets on Wednesdays at 1pm, starting Wed 4 Nov. We’ll email you before you start with how the first week works.",
+    );
+    // What it cannot do without still refuses it.
+    assert.equal(words.composeFreedPlaceEmail({ ...base, freeOn: "Wednesday afternoons", startsOn: "" }), null);
+  });
+
+  test("offered a group whose time their week covers with under an hour of that part of the day, they are told nothing of it", async () => {
+    // Group A meets on Thursdays at 11:30am for 90 minutes: half an hour of
+    // the morning. George painted exactly that session and nothing more.
+    world.db.poke(`courseGroups/${GROUP.thursday}`, { "session.startTimeLocal": "11:30" });
+    world.db.poke(applicationPath("george"), { "sent.availability": week({ 4: [["11:30", "13:00"]] }) });
+    const offered = await testThenOffer([pick("george", GROUP.thursday)]);
+    assert.equal(offered.status, 200, JSON.stringify(offered.body));
+    const email = world.mail.find((message) => message.to === "george@example.com").react.props.email;
+    assert.deepEqual(email.paragraphs, [
+      "On Friday we couldn’t offer you a place this term. Someone has given theirs back, and we’d love you to have it.",
+      "It meets on Thursdays at 11:30am, starting Thu 29 Oct. Once you accept, we’ll email you your group and room.",
+      "Please accept by Thu 29 Oct. If you can’t take it, just press No thanks.",
+    ]);
+    // And the test the admin sent first said the same: it is the real email.
+    const test = world.mail.find((message) => message.subject.startsWith("[TEST]")).react.props.email;
+    assert.equal(test.paragraphs[1], email.paragraphs[1]);
   });
 });
 

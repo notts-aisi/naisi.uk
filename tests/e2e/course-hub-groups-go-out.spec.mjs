@@ -77,7 +77,6 @@ import {
 import { RECAPTCHA_DEPENDENT_STEPS, SPEC } from "../../scripts/e2e-fixtures/course-hub-groups-go-out.mjs";
 import {
   dayLabel,
-  firstSessionWhen,
   sessionWhenLabel,
   slotLine,
   weeklySlotWords,
@@ -243,6 +242,8 @@ test(
     const groupB = groupOf("B");
     /** Where each person is placed first. Ben can make both groups, so he is the one moved. */
     const firstGroupOf = { [ada.key]: groupA, [ben.key]: groupA, [cleo.key]: groupB };
+    /** How many are in a group at the first press: everybody placed there first. */
+    const firstSizeOf = (group) => state.people.filter((person) => firstGroupOf[person.key] === group).length;
 
     const formBase = `${origin}/admin/admissions/forms/${enc(state.formId)}/programmes/${enc(state.programmeId)}`;
     const setupUrl = `${formBase}/setup`;
@@ -518,26 +519,50 @@ test(
       return found;
     }
 
-    /** "Placed in a group", for one person in one group, as the seed copy writes it. */
-    function assertPlacement(email, { person, group, facilitator, test: isTest = false }) {
-      const subject = `Your ${state.courseTitle} group: first session ${firstSessionWhen(group)}`;
+    /**
+     * "Placed in a group", for one person in one group, as the seed copy
+     * writes it: the board's words (st-emails), since October 2026. Until
+     * then it read "You've been placed, Ada", "Your group is facilitated by
+     * Fern.", "Your first session is ..." and "Where: Room E1", a line each,
+     * under the subject "Your <course> group: first session ...". `size` is
+     * how many are in the group once the press is done, the reader among
+     * them: a group of one has no sentence for it. No week of the run is
+     * published at this point of the term, so nothing gives week 1's time
+     * and the email says nothing of it; the programme has no lead, so NAISI
+     * signs it.
+     */
+    function assertPlacement(email, { person, group, facilitator, size, test: isTest = false }) {
+      const subject = `Your ${state.programmeName} group: ${weeklySlotWords(group)}`;
       assert.equal(email.subject, isTest ? `[TEST] ${subject}` : subject, "the placement email's subject");
       assertSays(email, {
         who: `${isTest ? "The test of " : ""}${person.first}'s placement email`,
         sentences: [
-          `You've been placed, ${person.first}`,
-          `You're in ${group.name} for ${state.courseTitle} (${state.runLabel}).`,
-          ...(facilitator ? [`Your group is facilitated by ${facilitator.first}.`] : []),
-          `Your first session is ${firstSessionWhen(group)}.`,
-          `Where: ${group.room}`,
-          "Everything you need is in the learning space on the website: the week's reading, your group's details and your progress.",
-          "Do the first week's reading before you come; the sessions work best when everyone arrives with opinions.",
+          `Hi ${person.first},`,
+          `You’re in ${group.name}.`,
+          `You’ll meet on ${weeklySlotWords(group)} in ${group.room}, starting ${dayLabel(group.firstDateKey)}.`,
+          `Sessions last ${group.durationMinutes} minutes.`,
+          ...(facilitator ? [`${facilitator.first} is your facilitator.`] : []),
+          ...(size > 1 ? [`There are ${size} of you.`] : []),
+          "Open your programme",
+          "NAISI",
         ],
-        absent: facilitator ? [] : ["Your group is facilitated by"],
+        absent: [
+          ...(facilitator ? [] : ["your facilitator"]),
+          ...(size > 1 ? [] : [" of you."]),
+          "Week 1’s reading",
+          "lead, NAISI",
+        ],
       });
+      const programmePage = `${origin}${programmePath}`;
+      assert.deepEqual(email.links, [programmePage], `the placement email's one link is not the programme's page (${programmePage})`);
     }
 
-    /** "You’re facilitating", for one group, as the seed copy writes it. */
+    /**
+     * "You’re facilitating", for one group, as the seed copy writes it: the
+     * board's words since October 2026, the room inside the sentence that
+     * says when the group meets (until then "Where: Room E1", a line of its
+     * own) and where the names are after the group's size.
+     */
     function assertFacilitating(email, { group, size, test: isTest = false }) {
       const subject = `You’re facilitating ${group.name}: ${weeklySlotWords(group)}`;
       assert.equal(email.subject, isTest ? `[TEST] ${subject}` : subject, "the facilitators' email's subject");
@@ -545,14 +570,15 @@ test(
         who: `${isTest ? "The test of " : ""}the facilitators' email`,
         sentences: [
           `Hi ${fern.first},`,
-          `${group.name} meets on ${weeklySlotWords(group)}, from ${dayLabel(group.firstDateKey)} to ${dayLabel(group.lastDateKey)}.`,
-          `Where: ${group.room}`,
-          size === 1 ? "There is 1 person in the group." : `There are ${size} people in the group.`,
+          `${group.name} meets on ${weeklySlotWords(group)} in ${group.room}, from ${dayLabel(group.firstDateKey)} to ${dayLabel(group.lastDateKey)}.`,
+          size === 1
+            ? "There is 1 person in the group. Their name is on your group page."
+            : `There are ${size} people in the group. Their names are on your group page.`,
           "Open your group",
           "Take the register on your phone during the session.",
         ],
         // One facilitator, and a programme with no lead to sign it.
-        absent: ["You’re facilitating with", "lead, NAISI"],
+        absent: ["You’re facilitating with", "lead, NAISI", "Where:"],
       });
       const groupPage = `${origin}${groupPagePath(group)}`;
       assert.ok(
@@ -860,13 +886,14 @@ test(
         assert.ok(placementTest && facilitatingTest, `the two tests are not one of each kind: ${tests.map((e) => e.subject)}`);
         // The first person a press would write to. Whoever that is, the test
         // is their real email, so it is held to their group.
-        const shown = state.people.find((person) => placementTest.words.includes(`You've been placed, ${person.first}`));
+        const shown = state.people.find((person) => placementTest.words.includes(`Hi ${person.first},`));
         assert.ok(shown, `the test of the placement email greets nobody placed: ${placementTest.words}`);
         const shownGroup = firstGroupOf[shown.key];
         assertPlacement(placementTest, {
           person: shown,
           group: shownGroup,
           facilitator: shownGroup === groupA ? fern : null,
+          size: firstSizeOf(shownGroup),
           test: true,
         });
         assertFacilitating(facilitatingTest, { group: groupA, size: 2, test: true });
@@ -916,7 +943,7 @@ test(
           assert.equal(mail.length, approvals + 1, `${person.first} has ${mail.length} emails`);
           const email = await readEmail(mail[mail.length - 1]);
           const group = firstGroupOf[person.key];
-          assertPlacement(email, { person, group, facilitator: group === groupA ? fern : null });
+          assertPlacement(email, { person, group, facilitator: group === groupA ? fern : null, size: firstSizeOf(group) });
           assertNoMeetingLink(email, `${person.first}'s placement email`);
           const enrolment = (await fixtureDoc("courseEnrolments", enrolmentId(state.runId, person.uid)).get()).data();
           assert.ok(enrolment?.allocatedEmailAt, `${person.first} is not stamped as told`);
@@ -1027,7 +1054,8 @@ test(
         const bensMail = await mailTo(ben.email, 3);
         assert.equal(bensMail.length, 3, `Ben has ${bensMail.length} emails`);
         const newest = await readEmail(bensMail[2]);
-        assertPlacement(newest, { person: ben, group: groupB, facilitator: null });
+        // Group B is Cleo, told at the first press, and Ben.
+        assertPlacement(newest, { person: ben, group: groupB, facilitator: null, size: 2 });
         assertNoMeetingLink(newest, "Ben's second placement email");
         // Nobody else was written to again.
         for (const [account, count] of [

@@ -19,11 +19,42 @@ export const COURSE_PREVIEW_SAMPLE = {
   courseTitle: "AI Safety Fundamentals",
   runLabel: "Autumn 2026",
   startDate: "Monday 6 October",
-  groupName: "Tuesday 6pm — Group B",
+  groupName: "Group B",
   facilitatorNames: "Priya and Sam",
   firstSessionWhen: "Tue 7 Oct, 6pm",
   firstSessionWhere: "Hallward Library, B12",
   feedbackUrl: "https://example.com/naisi-course-feedback",
+} as const;
+
+/**
+ * Sample values for the placement email's own tokens, the ones its seed copy
+ * says in the board's words ("Your AGI Strategy group: Tuesdays at 6pm").
+ * Shaped like a real send, as the facilitators' are: `place` is a room (the
+ * email says "in Hallward Library, B12"), `sessionLength` the group's length
+ * in minutes, `yourFacilitators` first names with commas between them and
+ * `groupSize` a count, each of which the email turns into its sentence.
+ * `placeNote` and `naisiSignOff` follow from the room and the lead, as they
+ * do on a send, so a sample for them is never read.
+ *
+ * Hard-coded for the same reason the facilitators' are: the token NAMES are
+ * the contract, and `PLACEMENT_TOKENS` in `src/lib/courses/placementEmail.ts`
+ * is their source of truth. `tests/email-unfilled-tokens.test.mjs` fails if
+ * the two drift apart.
+ */
+export const COURSE_PLACEMENT_PREVIEW_SAMPLE = {
+  programmeName: "AI Safety Fundamentals",
+  weeklySlot: "Tuesdays at 6pm",
+  firstSession: "Tue 7 Oct",
+  firstSessionDay: "Tuesday",
+  programmeUrl: "https://naisi.uk/learn/asf-autumn-2026",
+  weekOneTime: "about 75 minutes",
+  leadName: "Jordan",
+  naisiSignOff: "",
+  place: "Hallward Library, B12",
+  placeNote: "",
+  sessionLength: "120",
+  yourFacilitators: "Priya, Sam",
+  groupSize: "8",
 } as const;
 
 /**
@@ -51,6 +82,12 @@ export const COURSE_FACILITATING_PREVIEW_SAMPLE = {
   coFacilitators: "Sam",
   leadName: "Jordan",
   programmeName: "AI Safety Fundamentals",
+  // The board's tokens follow from the samples above, as a send's follow
+  // from its facts (`facilitatingFactsFromSample`), so these are never read.
+  namesOnPage: "",
+  place: "",
+  placeNote: "",
+  facilitatingWith: "",
 } as const;
 
 /**
@@ -454,5 +491,7 @@ export function courseSampleTokens(
       ...group,
       ...feedback,
     }),
+    // The board's tokens, which only the placement email fills.
+    ...(courseTemplateUsesGroupTokens(templateId) ? COURSE_PLACEMENT_PREVIEW_SAMPLE : {}),
   };
 }

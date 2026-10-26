@@ -9,7 +9,7 @@ import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { paintedWeekOf } from "../handover/paintedWeek";
 import { RUNS_COLLECTION } from "../handover/run";
 import type { ApplicationDoc } from "../model";
-import { freeOnWords, meetsWords } from "./words";
+import { meetsWords } from "./words";
 
 /**
  * THE COURSE RUN A FREED PLACE IS ON: its calendar, its groups, and who is in
@@ -84,11 +84,14 @@ export function nextSessionDay(run: CourseRunDoc, group: CourseGroupDoc, now: Da
   return null;
 }
 
-/** The words one group lends an email: when it meets, the part of the week, and when it next does. */
+/**
+ * The words one group lends an email: when it meets, and when it next does.
+ * When the person is free then is their own week's to say
+ * (`freeOnInTheirWeek` in `./words.ts`), never the group's.
+ */
 export function groupWords(run: CourseRunDoc, group: CourseGroupDoc, now: Date) {
   return {
     meets: meetsWords(group.session),
-    freeOn: freeOnWords(group.session),
     startsOn: nextSessionDay(run, group, now),
   };
 }

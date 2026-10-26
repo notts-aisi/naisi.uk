@@ -931,8 +931,11 @@ async function offerPage(who) {
       groups: person.groupIds.map((id) => GROUP_NAME[id] ?? id),
       cannot: person.cannot,
       toldOn: person.toldOn,
+      // When their own week says they are free at each group's time, by the group's name.
+      freeOn: Object.entries(person.freeOn).map(([id, said]) => [GROUP_NAME[id] ?? id, said]),
     })),
-    groups: board.groups.map((group) => [group.name, group.meets, group.freeOn, group.startsOn, group.seatsFree]),
+    // A group lends no "free on" words since October 2026: the person's own week says them.
+    groups: board.groups.map((group) => [group.name, group.meets, group.startsOn, group.seatsFree]),
     offered: board.offered.map((person) => [person.uid, person.said, person.email]),
     test: board.test,
   };
@@ -1235,19 +1238,31 @@ async function tellTheStory() {
 const FOOTER = "Nottingham AI Safety Initiative · University of Nottingham · ai-safety@uonsu.com";
 const short = (response) => [response.status, response.body?.error ?? null];
 const groupPage = (runId, groupId) => `${APP_URL}/learn/${runId}/group/${groupId}`;
+const programmePage = (runId) => `${APP_URL}/learn/${runId}`;
 
-/** The placement email Publish writes, word for word, from its heading to its footer. */
-const placementWords = ({ first, group, course = "AGI Strategy Fellowship", facilitators, when, room }) =>
-  `You've been placed, ${first} You're in ${group} for ${course} (Autumn 2026). Your group is facilitated by ${facilitators}. ` +
-  `Your first session is ${when}. Where: ${room} Everything you need is in the learning space on the website: the week's ` +
-  "reading, your group's details and your progress. Do the first week's reading before you come; the sessions work best " +
-  `when everyone arrives with opinions. ${FOOTER}`;
+/**
+ * The placement email Publish writes, word for word, from its greeting to its
+ * footer: the board's words (st-emails), since October 2026. Until then it
+ * read "You've been placed, Amara You're in Group B for AGI Strategy
+ * Fellowship (Autumn 2026). Your group is facilitated by ..." with each fact
+ * on a line of its own. This term's week 1 is published with no reading in
+ * it, so nothing gives its time and the email says nothing of it.
+ */
+const placementWords = ({ first, group, slot, room, from, facilitators, size }) =>
+  `Hi ${first}, You’re in ${group}. You’ll meet on ${slot} in ${room}, starting ${from}. Sessions last 2 hours. ` +
+  (facilitators.length === 1 ? `${facilitators[0]} is your facilitator. ` : `${facilitators.join(" and ")} are your facilitators. `) +
+  `There are ${size} of you. Open your programme Claudia AGI Strategy lead, NAISI ${FOOTER}`;
 
-/** The facilitators' email Publish writes, word for word, from its greeting to its footer. */
+/**
+ * The facilitators' email Publish writes, word for word, from its greeting to
+ * its footer: the board's words since October 2026. Until then the room was
+ * a line of its own ("Where: Room C20"), and so was "You’re facilitating with
+ * Sofia.", and nothing said where the names are.
+ */
 const facilitatingWords = ({ first, group, slot, from, to, room, withWhom = null, size, lead, programme }) =>
-  `Hi ${first}, ${group} meets on ${slot}, from ${from} to ${to}. Where: ${room} ` +
+  `Hi ${first}, ${group} meets on ${slot} in ${room}, from ${from} to ${to}. ` +
   (withWhom ? `You’re facilitating with ${withWhom}. ` : "") +
-  `There are ${size} people in the group. Open your group Take the register on your phone during the session. ` +
+  `There are ${size} people in the group. Their names are on your group page. Open your group Take the register on your phone during the session. ` +
   `${lead} ${programme} lead, NAISI ${FOOTER}`;
 
 /** Kofi's own application page while he holds his place and has not said he is coming, word for word. */
@@ -1277,17 +1292,22 @@ const INCUBATOR_TOLD_PAGE =
   "Questions? ai-safety@uonsu.com";
 
 /**
- * Each group's first session as the placement email writes it: in the words
- * the facilitators' email and the boards write a session in ("Tue 3 Nov",
- * "6pm"), since the walk of stage one found this email alone writing
- * "Tuesday 3 November, 18:00" (F5).
+ * Each group's weekly time and the day it meets from, as the placement email
+ * writes them: in the words the facilitators' email and the boards write a
+ * session in ("Tuesdays at 6pm", "Tue 3 Nov"), since the walk of stage one
+ * found this email alone writing "Tuesday 3 November, 18:00" (F5). The
+ * subject has said the weekly time since the email took the board's words
+ * (October 2026; until then "first session Tue 3 Nov, 6pm"). `size` is how
+ * many are in the group once the press is done, the reader among them.
  */
-const B_WHEN = "Tue 3 Nov, 6pm";
-const A_WHEN = "Thu 29 Oct, 6pm";
-const B_PLACED = (first) => placementWords({ first, group: "Group B", facilitators: "Rahul and Sofia", when: B_WHEN, room: "Room C20" });
-const A_PLACED = (first) => placementWords({ first, group: "Group A", facilitators: "Amelia", when: A_WHEN, room: "Room A13" });
-const B_SUBJECT = `Your AGI Strategy Fellowship group: first session ${B_WHEN}`;
-const A_SUBJECT = `Your AGI Strategy Fellowship group: first session ${A_WHEN}`;
+const B_PLACED = (first, size = 3) =>
+  placementWords({ first, group: "Group B", slot: "Tuesdays at 6pm", room: "Room C20", from: "Tue 3 Nov", facilitators: ["Rahul", "Sofia"], size });
+const A_PLACED = (first, size = 3) =>
+  placementWords({ first, group: "Group A", slot: "Thursdays at 6pm", room: "Room A13", from: "Thu 29 Oct", facilitators: ["Amelia"], size });
+/** Group B when Hannah is told: Amara and Kofi, told at Publish, and Hannah. Ella gave her place back and left it. */
+const HANNAH_GROUP_SIZE = 3;
+const B_SUBJECT = "Your AGI Strategy group: Tuesdays at 6pm";
+const A_SUBJECT = "Your AGI Strategy group: Thursdays at 6pm";
 
 /** What one moment's reading said. */
 function readAt(label) {
@@ -1611,7 +1631,7 @@ describe("stage one of the course hub, one term from decision day to the first s
           [address("zach"), "[TEST] You’re facilitating Group A: Thursdays at 6pm", "course-test"],
         ],
       );
-      assert.equal(readFrom(p().testMail[0], "You've been placed"), B_PLACED("Amara"));
+      assert.equal(readFrom(p().testMail[0], "Hi "), B_PLACED("Amara"));
       assert.equal(
         readFrom(p().testMail[1], "Hi "),
         facilitatingWords({ first: "Amelia", group: "Group A", slot: "Thursdays at 6pm", from: "Thu 29 Oct", to: "Thu 3 Dec", room: "Room A13", size: 3, lead: "Claudia", programme: "AGI Strategy" }),
@@ -1664,8 +1684,8 @@ describe("stage one of the course hub, one term from decision day to the first s
 
     test("each email says what the board placed: the person's group, its facilitators, its first session and room", () => {
       const to = (uid) => p().pressMail.find((mail) => mail.to === address(uid));
-      for (const uid of ["amara", "ella", "kofi"]) assert.equal(readFrom(to(uid), "You've been placed"), B_PLACED(NAME[uid].split(" ")[0]), uid);
-      for (const uid of ["dev", "joel", "priya"]) assert.equal(readFrom(to(uid), "You've been placed"), A_PLACED(NAME[uid].split(" ")[0]), uid);
+      for (const uid of ["amara", "ella", "kofi"]) assert.equal(readFrom(to(uid), "Hi "), B_PLACED(NAME[uid].split(" ")[0]), uid);
+      for (const uid of ["dev", "joel", "priya"]) assert.equal(readFrom(to(uid), "Hi "), A_PLACED(NAME[uid].split(" ")[0]), uid);
       const b = { group: "Group B", slot: "Tuesdays at 6pm", from: "Tue 3 Nov", to: "Tue 8 Dec", room: "Room C20", size: 3, lead: "Claudia", programme: "AGI Strategy" };
       assert.equal(readFrom(to("rahul"), "Hi "), facilitatingWords({ ...b, first: "Rahul", withWhom: "Sofia" }));
       assert.equal(readFrom(to("sofia"), "Hi "), facilitatingWords({ ...b, first: "Sofia", withWhom: "Rahul" }));
@@ -1675,19 +1695,22 @@ describe("stage one of the course hub, one term from decision day to the first s
       );
     });
 
-    test("no email Publish sends carries a meeting link or a token: the only link is a facilitator's own group page", () => {
+    // Each person's email has had the board's "Open your programme" since
+  // October 2026: their own programme's page is its one link, as a
+  // facilitator's group page is theirs. Until then it had no link at all.
+  test("no email Publish sends carries a meeting link or a token: the only link is the reader's own programme or group page", () => {
       for (const mail of [...p().testMail, ...p().pressMail]) {
         assert.deepEqual([...`${mail.subject} ${mail.text}`.matchAll(/\{[a-zA-Z]+\}/g)].map((m) => m[0]), [], mail.to);
       }
       assert.deepEqual(
         Object.fromEntries(p().pressMail.map((mail) => [mail.to, mail.links])),
         {
-          [address("amara")]: [],
-          [address("dev")]: [],
-          [address("ella")]: [],
-          [address("joel")]: [],
-          [address("kofi")]: [],
-          [address("priya")]: [],
+          [address("amara")]: [programmePage(RUN)],
+          [address("dev")]: [programmePage(RUN)],
+          [address("ella")]: [programmePage(RUN)],
+          [address("joel")]: [programmePage(RUN)],
+          [address("kofi")]: [programmePage(RUN)],
+          [address("priya")]: [programmePage(RUN)],
           [address("amelia")]: [groupPage(RUN, GROUP.A)],
           [address("rahul")]: [groupPage(RUN, GROUP.B)],
           [address("sofia")]: [groupPage(RUN, GROUP.B)],
@@ -1946,9 +1969,11 @@ describe("stage one of the course hub, one term from decision day to the first s
       // In People in groups' order, Monday first, as every tab of the
       // programme's page lists groups (the walk of stage two's fixes, G10).
       assert.deepEqual(page.groups, [
-        ["Group B", "Tuesdays at 6pm", "Tuesday evenings", "Tue 3 Nov", 1],
-        ["Group A", "Thursdays at 6pm", "Thursday evenings", "Thu 29 Oct", 0],
+        ["Group B", "Tuesdays at 6pm", "Tue 3 Nov", 1],
+        ["Group A", "Thursdays at 6pm", "Thu 29 Oct", 0],
       ]);
+      // Hannah's own week says she is free on Tuesday evenings, when Group B meets.
+      assert.deepEqual(page.people.find((person) => person.uid === "hannah").freeOn, [["Group B", "Tuesday evenings"]]);
       const NO_SEAT = "No group whose time they can make has a seat and a session still to come.";
       assert.deepEqual(
         page.people.map((person) => [person.uid, person.chips, person.groups, person.cannot]),
@@ -2006,7 +2031,15 @@ describe("stage one of the course hub, one term from decision day to the first s
         [1, "Offer 1 freed place", "Ella Robinson gave theirs back.", "All of them read No offer this time on Fri 23 Oct."],
       );
       assert.deepEqual(page.people, [
-        { uid: "hannah", detail: "Pooled: capacity · Free Tue evenings", chips: ["Fits Group B"], groups: ["Group B"], cannot: null, toldOn: "Friday" },
+        {
+          uid: "hannah",
+          detail: "Pooled: capacity · Free Tue evenings",
+          chips: ["Fits Group B"],
+          groups: ["Group B"],
+          cannot: null,
+          toldOn: "Friday",
+          freeOn: [["Group B", "Tuesday evenings"]],
+        },
         {
           uid: "nell",
           detail: "Pooled: capacity · Free Thu evenings",
@@ -2014,12 +2047,14 @@ describe("stage one of the course hub, one term from decision day to the first s
           groups: [],
           cannot: "No group whose time they can make has a seat and a session still to come.",
           toldOn: "Friday",
+          // No group she could be offered, so her email would name no time.
+          freeOn: [],
         },
       ]);
       // Monday first, as every tab lists groups (the walk of stage two's fixes, G10).
       assert.deepEqual(page.groups, [
-        ["Group B", "Tuesdays at 6pm", "Tuesday evenings", "Tue 3 Nov", 1],
-        ["Group A", "Thursdays at 6pm", "Thursday evenings", "Thu 29 Oct", 0],
+        ["Group B", "Tuesdays at 6pm", "Tue 3 Nov", 1],
+        ["Group A", "Thursdays at 6pm", "Thu 29 Oct", 0],
       ]);
     });
 
@@ -2059,7 +2094,7 @@ describe("stage one of the course hub, one term from decision day to the first s
       const after = f().pageAfterTheOffer;
       assert.deepEqual([after.free, after.heading], [0, "No freed places to offer"]);
       // Group B is listed first, Monday first (the walk of stage two's fixes, G10).
-      assert.deepEqual(after.groups[0], ["Group B", "Tuesdays at 6pm", "Tuesday evenings", "Tue 3 Nov", 0]);
+      assert.deepEqual(after.groups[0], ["Group B", "Tuesdays at 6pm", "Tue 3 Nov", 0]);
       assert.deepEqual(after.offered, [["hannah", "Waiting for an answer, by Fri 30 Oct", "Email sent"]]);
       assert.deepEqual(f().handOverBeforeTheAnswer.body.receipt, { handedOver: 0, alreadyThere: 5 });
     });
@@ -2107,7 +2142,7 @@ describe("stage one of the course hub, one term from decision day to the first s
         more: 0,
       });
       assert.deepEqual(f().pressMail.map((mail) => [mail.to, mail.subject]), [[address("hannah"), B_SUBJECT]]);
-      assert.equal(readFrom(f().pressMail[0], "You've been placed"), B_PLACED("Hannah"));
+      assert.equal(readFrom(f().pressMail[0], "Hi "), B_PLACED("Hannah", HANNAH_GROUP_SIZE));
       // From the freed place's test to the end: the lead's test, the offer, and her group.
       assert.deepEqual(f().allMail, [
         [address("claudia"), "[TEST] A place has come up on AGI Strategy"],

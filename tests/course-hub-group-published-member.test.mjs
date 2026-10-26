@@ -200,7 +200,9 @@ const addressOf = (uid) => world.db.read(`users/${uid}`).email;
 const firstNameOf = (uid) => world.db.read(`users/${uid}`).displayName.split(" ")[0];
 
 /** How the subject of Publish's email to a placed person starts (its seed wording). */
-const PLACEMENT_SUBJECT = "Your AGI Strategy Fellowship group: first session ";
+// The board's subject since October 2026 ("Your AGI Strategy group: Tuesdays at 6pm"); until then
+// "Your AGI Strategy Fellowship group: first session ...". Either way the email that tells somebody their group.
+const PLACEMENT_SUBJECT = "Your AGI Strategy group: ";
 
 /** The uid of every seat on the AGI run that carries Publish's stamp, sorted. */
 const stampedSeats = () =>
@@ -231,7 +233,8 @@ describe("a test of Publish's emails shows nobody their group, and a press shows
     // The placed person whose email it borrowed is the one it greets.
     const placement = world.mail.find((m) => m.subject.startsWith(`[TEST] ${PLACEMENT_SUBJECT}`));
     const words = await wordsOf(placement);
-    const borrowed = HOLDERS.filter((who) => words.includes(`You've been placed, ${firstNameOf(who)}`));
+    // Greeted by name, then told their group (the board's words since October 2026; until then "You've been placed, Amara").
+    const borrowed = HOLDERS.filter((who) => words.includes(`Hi ${firstNameOf(who)}, You’re in `));
     assert.equal(borrowed.length, 1, words);
     const [person] = borrowed;
     const group = GROUP_OF[person];

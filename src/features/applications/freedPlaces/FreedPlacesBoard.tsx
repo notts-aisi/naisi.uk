@@ -8,6 +8,7 @@ import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
 import kit from "@/features/applications/kit/kit.module.css";
 import { useHydrated } from "@/hooks/useHydrated";
 import type { OfferBoard, OfferGroup, OfferPerson } from "@/lib/applications/freedPlaces/views";
+import { own } from "@/lib/applications/keys";
 import {
   composeFreedPlaceEmail,
   emailsLine,
@@ -88,7 +89,7 @@ export default function FreedPlacesBoard({ board }: { board: OfferBoard }) {
           toldOn: first.toldOn,
           meets: firstGroup.meets,
           startsOn: firstGroup.startsOn ?? "",
-          freeOn: firstGroup.freeOn,
+          freeOn: own(first.freeOn, firstGroup.id) ?? null,
           replyBy: replyByLabel,
           link: board.applicationLink,
         })
