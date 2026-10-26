@@ -134,10 +134,15 @@ describe("3. the words", () => {
       "We’re putting groups together now. You’ll get an email with your group, day and room once they’re ready.",
     );
     assert.equal(
-      words.weekOneOpenWords("Wed 28 Oct"),
+      words.weekOneOpenWords("Wed 28 Oct", "fellowship"),
       "Week 1 is open now. You’ll hear your group and when it meets on Wed 28 Oct.",
     );
-    assert.equal(words.weekOneOpenWords(null), "Week 1 is open now. You’ll hear your group and when it meets once groups go out.");
+    assert.equal(
+      words.weekOneOpenWords(null, "fellowship"),
+      "Week 1 is open now. You’ll hear your group and when it meets once groups go out.",
+    );
+    // An incubator's people are told of no group.
+    assert.equal(words.weekOneOpenWords("Wed 28 Oct", "incubator"), "Week 1 is open now.");
     assert.equal(
       words.freeUntilWords("Wed 28 Oct"),
       "We use this to put you in a group. You can change it until we email your group on Wed 28 Oct.",

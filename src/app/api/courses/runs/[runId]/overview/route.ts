@@ -794,7 +794,7 @@ async function beforeGroupsPayload(
       isTrackLead: roles.isTrackLead,
     },
     beforeGroups: {
-      line: weekOneOpenWords(groupsGoOutDay(place.groupsGoOutOn, londonDateKey(new Date()))),
+      line: weekOneOpenWords(groupsGoOutDay(place.groupsGoOutOn, londonDateKey(new Date())), place.kind),
     },
   };
 }

@@ -60,12 +60,18 @@ export function firstSessionWindowWords(firstWeek: { from: string; to: string } 
   return from && to ? `Your first session will be between ${from} and ${to}.` : null;
 }
 
-/** st-week1-phone's line: "Week 1 is open now. You’ll hear your group and when it meets on Wed 28 Oct." */
-export function weekOneOpenWords(day: string | null): string {
+/**
+ * st-week1-phone's line: "Week 1 is open now. You’ll hear your group and
+ * when it meets on Wed 28 Oct." A fellowship's place only says a group: an
+ * incubator's people are told of no group, so theirs is the first sentence
+ * alone (listed in the build notes for the boards' designers to confirm, with
+ * the line for no day).
+ */
+export function weekOneOpenWords(day: string | null, kind: "fellowship" | "incubator"): string {
+  if (kind !== "fellowship") return "Week 1 is open now.";
   return day
     ? `Week 1 is open now. You’ll hear your group and when it meets on ${day}.`
-    : // No day set, or it has passed: listed in the build notes for the boards' designers to confirm.
-      "Week 1 is open now. You’ll hear your group and when it meets once groups go out.";
+    : "Week 1 is open now. You’ll hear your group and when it meets once groups go out.";
 }
 
 /**

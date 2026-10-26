@@ -18,7 +18,8 @@
  *     other way in, and never beside `canLearn`.
  *  3. THE OVERVIEW answers them week 1 and nothing else: no group, no
  *     session, no schedule, no other week, no due day, and st-week1-phone's
- *     line from the run's planned day.
+ *     line from the run's planned day (for an incubator's place, a line that
+ *     names no group: its people are told of none).
  *  4. THEIR DOORS: ticks through week 1's door write their own row, in the
  *     shape the browser writes, and only for week 1's own items; reflections
  *     in week 1's boxes, never week 2's; their own rows read back for week 1
@@ -46,7 +47,7 @@ import { fileURLToPath } from "node:url";
 import { walkSource } from "./lib/functionScan.mjs";
 import { FIELD_VALUE_STUB } from "./lib/applicationsStore.mjs";
 import { GROUP, RUN, groupSeed, makeGroupWorld } from "./lib/groupPublishedWorld.mjs";
-import { applicationPath } from "./lib/handoverWorld.mjs";
+import { AGI, ROUND, applicationPath } from "./lib/handoverWorld.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
 import { makeWeekBlocksPageWorld, weekOneBlocks } from "./lib/weekBlocksPageWorld.mjs";
 
@@ -305,6 +306,14 @@ describe("3. the overview answers week 1 and nothing else", () => {
       (await overview("amara")).body.beforeGroups.line,
       "Week 1 is open now. You’ll hear your group and when it meets once groups go out.",
     );
+  });
+
+  test("an incubator's place: week 1 is open, and the line names no group", async () => {
+    world.db.poke(`admissionRounds/${ROUND}`, { [`programmes.${AGI}.kind`]: "incubator" });
+    const body = (await overview("amara")).body;
+    assert.deepEqual(body.weeks.map((week) => week.weekNumber), [1]);
+    assert.deepEqual(body.beforeGroups, { line: "Week 1 is open now." });
+    assert.doesNotMatch(JSON.stringify(body.beforeGroups), /group|meets/i);
   });
 
   test("week 1 not ready, gave the place back, no offer, signed out: refused as before", async () => {

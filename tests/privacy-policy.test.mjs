@@ -3649,7 +3649,10 @@ describe("the course hub passage", () => {
     assert.equal(sharedNotesRecord.runSharesGroupNotes({ enrolMode: "admissions" }), true, "a run that places people in groups no longer shares notes");
     // The week's page draws the run's comments only where it draws no group's notes.
     assert.match(read("src/app/(app)/learn/[runId]/weeks/[n]/page.tsx"), /if \(!runSharesGroupNotes\(access\.run\) \|\| access\.groups\.length === 0\) return null;/);
-    assert.match(read("src/features/courses/WeekView.tsx"), /cohortNotes=\{sharedNotes === null\}/);
+    // Nor to somebody holding a place before groups go out, who opens week 1
+    // (Q35 B) on a programme that places people in groups and is in no group
+    // yet: they are drawn neither.
+    assert.match(read("src/features/courses/WeekView.tsx"), /cohortNotes=\{sharedNotes === null && !beforeGroups\}/);
     // tests/course-hub-shared-notes.test.mjs §5 draws both kinds of week page.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "course-hub-shared-notes.test.mjs")));
   });
