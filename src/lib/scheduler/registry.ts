@@ -81,7 +81,7 @@ export const SCHEDULER_JOB_IDS = [
   // has shipped and the publish route starts reading a switch nobody set.
   "event-announcements",
   "newsletter-drain",
-  // Names come off confidential survey answers a year after the programme
+  // Names come off confidential survey answers two years after the programme
   // (docs/surveys.md). It emails nobody, so it registers on: the privacy
   // policy's promise rests on it running.
   "surveys-names-off",

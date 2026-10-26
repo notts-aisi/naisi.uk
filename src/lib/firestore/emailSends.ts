@@ -120,7 +120,10 @@ export type EmailSendSurface =
   | "course-run"
   // A programme survey and its reminder (docs/surveys.md), to everybody
   // holding a place on the programme it is about.
-  | "course-survey";
+  | "course-survey"
+  // A programme's follow-up survey at 6 or 12 months and its reminder, to the
+  // people who said yes to follow-ups on its before survey.
+  | "course-follow-up";
 
 export type EmailSend = {
   messageId: string;

@@ -105,16 +105,23 @@
  *     shows. A replaced link opens an empty calendar, and a session after the
  *     day somebody left is not in it (`src/lib/courses/calendarFeed.ts`,
  *     `src/lib/courses/calendarLink.ts`, and the feed route).
- * 19. **When you answer a survey.** At a programme's start admins may send
- *     everybody holding a place a survey, emailed as an important notice with
- *     a personal link each. It is confidential: the answers keep the person's
- *     name, only admins see who said what or who has answered, and
- *     facilitators see nothing of it. Every question can be skipped, none of
- *     the answers is kept until they are sent, and no record is kept of
- *     opening it or of an IP address. The name comes off a year after the programme's
- *     last session (the `surveys-names-off` job), and at once with the
- *     account. The sentence about anonymous surveys moves here from Feedback
- *     on the material, unchanged (`src/lib/surveys/`).
+ * 19. **When you answer a survey.** At a programme's start and at its end
+ *     admins may send everybody holding a place a survey, and follow-ups at 6
+ *     and 12 months to people who said yes to them, each emailed as an
+ *     important notice with a personal link each. What the programme impact
+ *     questionnaire asks, by kind (`src/lib/surveys/templates.ts`); the level
+ *     and subject of study offered from the profile, which the person can
+ *     change (`src/lib/surveys/profileOffer.ts`); the survey at the end
+ *     showing a person their own earlier answer; the follow-ups' box, unticked
+ *     until ticked and changeable later (`src/lib/surveys/consent.ts`). It is
+ *     confidential: the answers keep the person's name, only admins see who
+ *     said what or who has answered, and facilitators see nothing of it. Every
+ *     question can be skipped, none of the answers is kept until they are
+ *     sent, and no record is kept of opening it or of an IP address. The name
+ *     comes off two years after the programme's last session (the
+ *     `surveys-names-off` job), and at once with the account. The sentence
+ *     about anonymous surveys moves here from Feedback on the material,
+ *     unchanged (`src/lib/surveys/`).
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
@@ -325,17 +332,53 @@ export default function PrivacyContentV7({
               <h3>When you answer a survey</h3>
               <ul>
                 <li>
-                  At the start of a programme, NAISI&apos;s admins may send a
-                  survey to everybody holding a place on it. Every survey is
-                  confidential: we keep your answers with your name, and each
-                  survey says so at the top. Only NAISI&apos;s admins can see
-                  who said what. Facilitators never see anything of a survey.
+                  At the start of a programme and again at its end,
+                  NAISI&apos;s admins may send a survey to everybody holding a
+                  place on it, and 6 and 12 months later a follow-up to the
+                  people who said yes to one. Every survey is confidential: we
+                  keep your answers with your name, and each survey says so at
+                  the top. Only NAISI&apos;s admins can see who said what.
+                  Facilitators never see anything of a survey.
+                </li>
+                <li>
+                  A programme&apos;s surveys ask about your level and subject of
+                  study, what you had done in AI safety before and how you first
+                  heard about NAISI; your career stage and plans, how likely you
+                  think you are to work on AI safety and the kinds of work that
+                  interest you; what you understand and know of the field, how
+                  many people in it you could contact, and how sure you are of
+                  your next step and of what you could contribute; what stands
+                  in your way and the steps you have taken; and what you want
+                  from the programme. At the end and in the follow-ups they
+                  also ask how the programme went, what it changed, what else
+                  shaped your plans, what you are doing now and what you plan
+                  next. An incubator&apos;s also ask about your research skills
+                  and what your team produced.
+                </li>
+                <li>
+                  Where your profile holds them, the survey before a programme
+                  starts its questions about your level and subject of study on
+                  your profile&apos;s answers. You can change or clear either
+                  before you send it, and only what you send is kept.
                 </li>
                 <li>
                   We keep your name with your answers so that we can compare
                   them with your answers to the same questions at the end of
-                  the programme, and so that a reminder goes only to people
-                  who have not answered. Only admins see who has answered.
+                  the programme and in any follow-ups, and so that a reminder
+                  goes only to people who have not answered. Only admins see
+                  who has answered. The survey at the end shows you what you
+                  said you wanted from the programme, so you can say whether
+                  you got it; nobody else is shown it there.
+                </li>
+                <li>
+                  The survey before a programme asks whether we may contact
+                  you at 6 and 12 months with a short follow-up survey, in a
+                  box that starts unticked, and only people who tick it are sent
+                  the follow-ups. You can change your answer at any time until
+                  your name comes off, on your survey&apos;s page, through its
+                  link or signed in, and the next follow-up goes by it. We keep
+                  what you said, and when, with the record that the survey was
+                  sent to you.
                 </li>
                 <li>
                   Every question can be skipped. Nothing you say in a survey
@@ -1305,10 +1348,11 @@ export default function PrivacyContentV7({
               </p>
               <p>
                 <strong>Survey answers.</strong> We take your name off your
-                answers to a survey on the day it tells you, a year after the
-                programme&apos;s last session, and delete the record that it
-                was sent to you, with your link to answer it. Your answers stay
-                in its totals, no longer linked to you.
+                answers to a survey on the day it tells you, two years after
+                the programme&apos;s last session, and delete the record that
+                it was sent to you, with your link to answer it and what you
+                said about follow-ups. Your answers stay in its totals, no
+                longer linked to you.
               </p>
               <p>
                 <strong>When a term&apos;s applications are destroyed.</strong>{" "}

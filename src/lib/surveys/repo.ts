@@ -79,6 +79,41 @@ export async function answersOf(db: Firestore, survey: SurveyDoc): Promise<Surve
     .sort((a, b) => (a.sentAt?.getTime() ?? 0) - (b.sentAt?.getTime() ?? 0) || a.id.localeCompare(b.id));
 }
 
+/**
+ * The surveys this one pairs back to, oldest first: for a follow-up a year
+ * on, the before survey, the one at the end and the first follow-up, as far
+ * as each was made. Three steps at most, and a pair that loops stops it.
+ */
+export async function chainOf(db: Firestore, survey: Pick<SurveyDoc, "id" | "pairOf">): Promise<SurveyDoc[]> {
+  const out: SurveyDoc[] = [];
+  const seen = new Set([survey.id]);
+  let next = survey.pairOf;
+  while (next && !seen.has(next) && out.length < 3) {
+    seen.add(next);
+    const earlier = await readSurvey(db, next);
+    if (!earlier) break;
+    out.unshift(earlier);
+    next = earlier.pairOf;
+  }
+  return out;
+}
+
+/**
+ * One person's own answers to one survey, or null: read for that person
+ * alone, to show them what they said (an earlier answer above a later
+ * question). One equality on `respondent.uid`.
+ */
+export async function ownAnswerOf(db: Firestore, survey: SurveyDoc, uid: string): Promise<SurveyAnswerDoc | null> {
+  if (!uid || uid.includes("/")) return null;
+  const snap = await db.collection(SURVEY_ANSWERS_COLLECTION).where("respondent.uid", "==", uid).get();
+  const read = (raw: unknown) => storedSurveyAnswers(survey.items, raw);
+  for (const doc of snap.docs) {
+    const answer = normalizeSurveyAnswer(doc.id, doc.data() ?? {}, read);
+    if (answer.surveyId === survey.id && answer.respondent?.uid === uid) return answer;
+  }
+  return null;
+}
+
 /** What a link's secret opens: a person's own row, a survey's test, or nothing. */
 export type LinkTarget =
   | { kind: "person"; person: SurveyPersonDoc; survey: SurveyDoc }

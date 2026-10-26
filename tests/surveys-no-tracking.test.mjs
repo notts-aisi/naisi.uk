@@ -62,6 +62,26 @@ const FILES = ROOTS.flatMap((root) => [...walk(root)]).filter((file) => /\.(ts|t
 const codeOf = (source) => stripSource(source, { keepStrings: true });
 
 const ACTIVITY = /\b(firstOpenedAt|lastOpenedAt|openedAt|lastActiveAt|activeMs|pageOpens|viewedAt|lastSeenAt|useResponseActivity|activity)\b/;
+
+/**
+ * Words a person reads that hold one of those names as prose, each exactly
+ * as written in the code and why it is no record. Only the whole sentence,
+ * written as a string, is passed over; the same name anywhere else in the file
+ * is still caught. Checked both ways: an entry no file holds any more fails.
+ */
+const PROSE = new Map([
+  [
+    "What’s your main activity now?",
+    "the questionnaire's F1, asked in a follow-up survey: a question a person reads about what they do, not a field and not a record of anything they do on the site",
+  ],
+]);
+
+/** Code with each allowed sentence, written as a string, taken out. */
+function withoutProse(code) {
+  let out = code;
+  for (const sentence of PROSE.keys()) out = out.split(`"${sentence}"`).join('""');
+  return out;
+}
 const ADDRESS = /x-forwarded-for|x-real-ip|remoteAddress|user-agent|userAgent|\bipAddress\b|\.ip\b/i;
 const CLIENT_IP = /clientIp\(/g;
 /** The one shape the client's address may be read in: inside a rate limit's key. */
@@ -72,7 +92,7 @@ const WRITE = /\.(set|update|add|create|delete)\(|runTransaction\(|\.batch\(\)/;
 export function breaches(path, source) {
   const out = [];
   const code = codeOf(source);
-  const activity = ACTIVITY.exec(code);
+  const activity = ACTIVITY.exec(withoutProse(code));
   if (activity) out.push(`${path} records activity: "${activity[0]}"`);
   const address = ADDRESS.exec(code);
   if (address) out.push(`${path} reads an address or a user agent: "${address[0]}"`);
@@ -92,6 +112,13 @@ describe("no survey file records activity or an IP address", () => {
   test("every file keeps the promise", () => {
     const found = FILES.flatMap((file) => breaches(relative(REPO_ROOT, file).split("\\").join("/"), readFileSync(file, "utf8")));
     assert.deepEqual(found, []);
+  });
+
+  test("every sentence passed over is still in the code, as a string", () => {
+    const all = FILES.map((file) => codeOf(readFileSync(file, "utf8"))).join("\n");
+    for (const [sentence, why] of PROSE) {
+      assert.ok(all.includes(`"${sentence}"`), `"${sentence}" is no longer in any survey file: take it out of PROSE (${why})`);
+    }
   });
 
   test("the one route that reads the client's address reads it only for its rate limit", () => {
@@ -127,6 +154,13 @@ describe("the scanner reads what it says it reads", () => {
   test("a page that writes is caught; one that reads is not", () => {
     bad("await db.collection('surveyPeople').doc(id).update({ seen: true });", "src/app/survey/[token]/page.tsx");
     ok("const survey = await readSurvey(db, id);", "src/app/survey/[token]/page.tsx");
+  });
+
+  test("an allowed sentence is passed over only whole, as a string, and the name stays caught elsewhere", () => {
+    ok('const f1 = single("q_f1", "What’s your main activity now?", []);');
+    bad('const f1 = single("q_f1", "What’s your main activity now?", []);\nawait ref.update({ activity: 1 });');
+    bad('const title = "What is your activity?";');
+    bad('await ref.update({ "activity": FieldValue.serverTimestamp() });');
   });
 
   test("a word in a comment is not a breach", () => {

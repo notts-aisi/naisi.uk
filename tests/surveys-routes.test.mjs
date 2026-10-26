@@ -17,7 +17,7 @@
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { AGI, LINES, NOW, ROUND, RUN, formPath, makeSurveyWorld, surveySeed } from "./lib/surveyWorld.mjs";
+import { AGI, NOW, ROUND, RUN, formPath, makeSurveyWorld, surveySeed } from "./lib/surveyWorld.mjs";
 import { applicationPath } from "./lib/applicationsSmallTerm.mjs";
 
 const w = await makeSurveyWorld("__surveysRoutes");
@@ -48,13 +48,16 @@ async function sentSurvey() {
 
 const short = (response) => [response.status, response.body?.error ?? null];
 
+/** Answers to the before survey's questionnaire, of each kind it asks. */
 const CHOICES = {
-  q_catastrophe: { type: "choice", optionId: "o_notsure" },
-  q_when: { type: "choice", optionId: "o_2036to2045" },
-  q_important: { type: "choice", optionId: "o_agree" },
-  q_explain: { type: "lines", values: { l1: 2, l2: 2, l3: 1, l4: 1, l5: 2 } },
-  q_where: { type: "choice", optionId: "o_curious" },
-  q_next12: { type: "choices", optionIds: ["o_course"] },
+  q_c1: { type: "choice", optionId: "o_stage1" },
+  q_c2: { type: "percent", value: 20 },
+  q_c3: { type: "choices", optionIds: ["o_policy", "o_strategy"] },
+  q_c4: { type: "scale", value: 3 },
+  q_c6: { type: "number", value: 2 },
+  q_c7: { type: "lines", values: { l_next: 2, l_contribute: 3 } },
+  q_c9: { type: "choices", optionIds: ["o_event"] },
+  q_p6: { type: "text", text: "To explain the risk clearly." },
 };
 
 // ---------------------------------------------------------------------------
@@ -123,18 +126,21 @@ describe("making the before survey", () => {
     assert.equal(stored.title, "Before you start");
     assert.equal(
       stored.intro,
-      "Week 1 is open. Before you get going, tell us where you’re starting from. It’s 6 questions and takes about 3 minutes.\n\nWe’ll ask the same at the end.",
+      "Week 1 is open. Before you get going, tell us where you’re starting from. It’s 14 questions and takes about 5 minutes.\n\nWe’ll ask the same at the end.",
     );
+    assert.equal(stored.kind, "before");
+    assert.equal(stored.minutes, 5);
+    assert.equal(stored.pairOf, null, "the before survey pairs with nothing");
+    assert.equal(stored.strand, null, "a fellowship has no strand");
+    assert.deepEqual(stored.items, w.lib.templates.templateItems("before", "fellowship", null), "the questionnaire's before survey, as made");
     assert.equal(stored.privacy, "confidential");
     assert.deepEqual(stored.audience, { kind: "programme", roundId: ROUND, programmeId: AGI });
     assert.equal(stored.runId, RUN.agi);
-    // The run's last session is Group C's on Wed 9 Dec; a year after.
-    assert.equal(stored.namesOffOn, "2027-12-09");
+    // The run's last session is Group C's on Wed 9 Dec 2026; two years after.
+    assert.equal(stored.namesOffOn, "2028-12-09");
     // 23:59 in London on Wed 4 Nov (GMT).
     assert.equal(new Date(stored.closesAt).toISOString(), "2026-11-04T23:59:00.000Z");
     assert.equal(stored.firstSentAt, null);
-    const lines = stored.items.find((item) => item.id === "q_explain").lines.map((line) => line.label);
-    assert.deepEqual(lines, LINES);
     assert.equal(w.people(made.body.survey.id).length, 0, "nobody is anybody's until it is sent");
   });
 
@@ -145,12 +151,13 @@ describe("making the before survey", () => {
     assert.deepEqual(short(await w.make()), [409, "It has its before survey already."]);
   });
 
-  test("refused without a run to end it, without a closing day, with a day gone, and without the lines", async (t) => {
+  test("refused without a run to end it, without a closing day, with a day gone, and for a stage that isn't one", async (t) => {
     clock(t);
     w.reset(seed());
     assert.equal((await w.make("zach", { closesOn: "2026-10-28" })).body.error, REFUSAL.closesPast);
     assert.equal((await w.make("zach", { closesOn: "not a day" })).status, 400);
-    assert.equal((await w.make("zach", { lines: ["", "", "", "", ""] })).status, 400);
+    assert.deepEqual(short(await w.make("zach", { stage: "during" })), [400, "Pick which of the programme’s surveys to make."]);
+    assert.deepEqual(short(await w.make("zach", { strand: "biology" })), [400, REFUSAL.strand]);
     w.world.db.poke(formPath, { [`programmes.${AGI}.runId`]: null });
     const noRun = await w.make();
     assert.equal(noRun.status, 409);
@@ -170,25 +177,26 @@ describe("the questions change until the first send, and never after", () => {
     const id = (await w.make()).body.survey.id;
     const stored = w.survey(id);
     const items = structuredClone(stored.items);
-    const q1 = items.findIndex((item) => item.id === "q_catastrophe");
-    const q2 = items.findIndex((item) => item.id === "q_when");
-    items[q1].title = "How likely is a catastrophe from advanced AI this century?";
-    items.find((item) => item.id === "q_explain").lines[0].label = "How fast AI is getting better";
+    const q1 = items.findIndex((item) => item.id === "q_c1");
+    const q2 = items.findIndex((item) => item.id === "q_c2");
+    items[q1].title = "Which of these is closest to you right now?";
+    items.find((item) => item.id === "q_c7").lines[0].label = "I know my next concrete step.";
     [items[q1], items[q2]] = [items[q2], items[q1]];
     const body = { title: "Before you start", intro: "Hello.", minutes: 4, closesOn: "2026-11-05", items };
     assert.equal((await call("zach", routes.questions.POST, { surveyId: id }, { body })).status, 200);
     const saved = w.survey(id);
-    assert.equal(saved.items.find((item) => item.id === "q_catastrophe").title, "How likely is a catastrophe from advanced AI this century?");
-    assert.equal(saved.items[q1].id, "q_when", "the order moved");
+    assert.equal(saved.items.find((item) => item.id === "q_c1").title, "Which of these is closest to you right now?");
+    assert.equal(saved.items.find((item) => item.id === "q_c7").lines[0].label, "I know my next concrete step.");
+    assert.equal(saved.items[q1].id, "q_c2", "the order moved");
     assert.equal(saved.minutes, 4);
     assert.equal(saved.intro, "Hello.");
 
-    const fewer = { ...body, items: items.filter((item) => item.id !== "q_next12") };
+    const fewer = { ...body, items: items.filter((item) => item.id !== "q_c9") };
     const refused = await call("zach", routes.questions.POST, { surveyId: id }, { body: fewer });
     assert.equal(refused.status, 400);
     assert.match(refused.body.error, /can’t be added, taken out or changed in kind/);
     const required = structuredClone(items);
-    required.find((item) => item.id === "q_where").required = true;
+    required.find((item) => item.id === "q_c3").required = true;
     assert.equal((await call("zach", routes.questions.POST, { surveyId: id }, { body: { ...body, items: required } })).status, 400);
   });
 
@@ -220,7 +228,7 @@ describe("the first send waits for a test, says how many it reaches, and goes on
     assert.deepEqual(tested.body, { ok: true, delivery: "sent", recorded: true });
     const [test] = w.mailText();
     assert.equal(test.to, "zach@example.com", "the test goes to the presser and nobody else");
-    assert.equal(test.subject, "[TEST] Before you start: 6 questions for AGI Strategy");
+    assert.equal(test.subject, "[TEST] Before you start: 14 questions for AGI Strategy");
     assert.equal(test.kind, "course-test", "a test is no notice");
 
     // The words change after the test: the test no longer counts.
@@ -266,13 +274,13 @@ describe("the first send waits for a test, says how many it reaches, and goes on
     assert.deepEqual(notices.map((message) => message.to).sort(), ["amara@example.com", "bea@example.com", "dev@example.com", "tariq@example.com"]);
     for (const message of notices) {
       assert.equal(message.surface, "course-survey");
-      assert.equal(message.subject, "Before you start: 6 questions for AGI Strategy");
+      assert.equal(message.subject, "Before you start: 14 questions for AGI Strategy");
       for (const sentence of [
-        "Week 1 is open. Before you get going, tell us where you’re starting from. It’s 6 questions and takes about 3 minutes.",
+        "Week 1 is open. Before you get going, tell us where you’re starting from. It’s 14 questions and takes about 5 minutes.",
         "We’ll ask the same at the end.",
         "It’s confidential: only NAISI’s admins can see who said what, and your facilitators never see it.",
         "It closes on Wed 4 Nov.",
-        "Answer the 6 questions",
+        "Answer the 14 questions",
         "Zach For NAISI",
         "Sent as an important notice",
       ]) {
@@ -315,7 +323,7 @@ describe("the first send waits for a test, says how many it reaches, and goes on
     const { readSurvey } = await w.loadTs("lib/surveys/repo.ts");
     const { pressSend } = await w.loadTs("lib/surveys/sending.ts");
     const stale = await readSurvey(w.world.db, id);
-    const input = { survey: stale, presserUid: "zach", emails: 4, namesOffOn: "2027-12-09", now: new Date() };
+    const input = { survey: stale, presserUid: "zach", emails: 4, namesOffOn: "2028-12-09", now: new Date() };
     assert.equal((await pressSend(w.world.db, "first", input)).ok, true);
     // Somebody joins, so a second "first" press would have somebody to send to.
     const reply = await w.formRoute("application", "reply");
@@ -378,14 +386,14 @@ describe("people who join since get it with one button; reminders go only to who
     assert.deepEqual(short(await call("zach", routes.remind.POST, { surveyId: id }, { body: { emails: 2 } })), [409, REFUSAL.noTest]);
     await call("zach", routes.test.POST, { surveyId: id }, { body: { email: "reminder" } });
     const [test] = w.mailText();
-    assert.equal(test.subject, "[TEST] A reminder: 6 questions for AGI Strategy, by Wed 4 Nov");
-    assert.ok(test.text.includes("You haven’t answered yet. It’s 6 questions and takes about 3 minutes."));
+    assert.equal(test.subject, "[TEST] A reminder: 14 questions for AGI Strategy, by Wed 4 Nov");
+    assert.ok(test.text.includes("You haven’t answered yet. It’s 14 questions and takes about 5 minutes."));
     w.world.mail.length = 0;
     const reminded = await call("zach", routes.remind.POST, { surveyId: id }, { body: { emails: 2 } });
     assert.equal(reminded.status, 200, JSON.stringify(reminded.body));
     assert.deepEqual(w.world.mail.map((message) => message.to).sort(), ["dev@example.com", "tariq@example.com"]);
     for (const message of w.mailText()) {
-      assert.equal(message.subject, "A reminder: 6 questions for AGI Strategy, by Wed 4 Nov");
+      assert.equal(message.subject, "A reminder: 14 questions for AGI Strategy, by Wed 4 Nov");
       assert.equal(message.surface, "course-survey");
       assert.ok(message.text.includes("It closes on Wed 4 Nov."));
     }
@@ -475,11 +483,13 @@ describe("answering: by a personal link or signed in, once, every question skipp
     const id = await sentSurvey();
     const token = w.tokenOf(id, "tariq");
     assert.equal((await w.answerByLink(token, { q_nope: { type: "choice", optionId: "o_x" } })).status, 400);
-    assert.equal((await w.answerByLink(token, { q_explain: { type: "lines", values: { l1: 6 } } })).status, 400);
-    assert.equal((await w.answerByLink(token, { q_where: { type: "choice", optionId: "o_nope" } })).status, 400);
+    assert.equal((await w.answerByLink(token, { q_c7: { type: "lines", values: { l_next: 6 } } })).status, 400);
+    assert.equal((await w.answerByLink(token, { q_c1: { type: "choice", optionId: "o_nope" } })).status, 400);
+    assert.equal((await w.answerByLink(token, { q_c3: { type: "choices", optionIds: ["o_research", "o_policy", "o_strategy", "o_founding"] } })).status, 400, "C3 takes up to 3");
+    assert.equal((await w.answerByLink(token, { q_c2: { type: "percent", value: 101 } })).status, 400);
     assert.equal(w.answers(id).length, 0);
-    assert.equal((await w.answerByLink(token, { q_explain: { type: "lines", values: { l1: 5, l2: null } } })).status, 200);
-    assert.deepEqual(w.answers(id)[0].answers, { q_explain: { type: "lines", values: { l1: 5 } } });
+    assert.equal((await w.answerByLink(token, { q_c7: { type: "lines", values: { l_next: 5, l_contribute: null } } })).status, 200);
+    assert.deepEqual(w.answers(id)[0].answers, { q_c7: { type: "lines", values: { l_next: 5 } } });
   });
 
   test("signed in: the caller's own row, refused to anybody it wasn't sent to and during view-as", async (t) => {
@@ -522,14 +532,22 @@ describe("the answer page, by link and signed in, records nothing", () => {
       "Claudia sees totals and comments, never names. Rahul and Sofia never see your answers.",
       "Nothing you say here affects your place or a future application.",
       "Totals, and comments you tick to be quoted, may go in reports to the committee and our funder, Kairos, or on our site.",
-      "Your name comes off on Thu 9 Dec 2027, a year after the fellowship ends. The totals stay.",
+      "Your name comes off on Sat 9 Dec 2028, two years after the fellowship ends. The totals stay.",
       "We ask who you are so we can compare your answers at the start and the end.",
-      "Page 1 of 3 What you think about AI",
-      "1 How likely is it that advanced AI causes a catastrophe for humanity this century?",
-      "Page 2 of 3 What you could explain",
-      "4 How confident would you be explaining these to a friend?",
-      "Not at all Very",
-      "6 In the next 12 months, which of these might you do? Tick as many as apply",
+      "Page 1 of 5 About you",
+      "1 Level of study",
+      "3 Before this programme, which of these had you done? Tick as many as apply",
+      "Page 2 of 5 Where you are now",
+      "5 Which best describes you right now? 0 Haven’t really thought about working on AI safety",
+      "6 How likely is it that in 5 years most of your working time goes on reducing risks from advanced AI? Research, policy, engineering, operations and fieldbuilding all count.",
+      "7 Which kinds of work interest you most? Pick up to 3",
+      "8 How well could you explain why some researchers think advanced AI could be catastrophically dangerous, and the main objections?",
+      "1 Not at all 4 The gist, to a friend 7 Could hold my own with a researcher",
+      "Strongly disagree Strongly agree",
+      "13 In the last 3 months, have you… Tick as many as apply",
+      "Page 5 of 5 To finish",
+      "14 What do you most want to get out of this programme?",
+      "Consent Anonymised results go to our funders: totals, never your name. Contact me at 6 and 12 months with a short follow-up survey",
       "Send my answers",
       "It closes on Wed 4 Nov. Once sent, your answers can’t change.",
     ]) {
@@ -607,7 +625,7 @@ describe("the admins' pages", () => {
     const page = await w.page(w.pages.send, { params: Promise.resolve({ surveyId: id }) }, "zach");
     for (const words of [
       "Surveys › AGI Strategy: before › Send",
-      "Before you start: 6 questions for AGI Strategy",
+      "Before you start: 14 questions for AGI Strategy",
       "Reply to ai-safety@uonsu.com",
       "To 4 people",
       "Send a test to me",
@@ -615,7 +633,7 @@ describe("the admins' pages", () => {
       "Send yourself a test of this email first. The button waits for it.",
       "Everyone holding a place on AGI Strategy (4)",
       "Wed 4 Nov, 23:59",
-      "Thu 9 Dec 2027, a year after the programme ends.",
+      "Sat 9 Dec 2028, two years after the programme ends.",
       "Answers sent after someone’s first session are labelled, so the comparison can leave them out.",
     ]) {
       assert.ok(page.text.includes(words), `missing "${words}"`);
@@ -633,7 +651,7 @@ describe("the admins' pages", () => {
       "1 of 4 have answered. It closes on Wed 4 Nov.",
       "Nobody new since Thu 29 Oct.",
       "3 haven’t answered. Nothing goes until you press the button.",
-      "A reminder: 6 questions for AGI Strategy, by Wed 4 Nov",
+      "A reminder: 14 questions for AGI Strategy, by Wed 4 Nov",
       "Email 3 people",
       "Reminders go only to people who haven’t answered. Nobody else is told who has.",
       "Close it now",
@@ -647,7 +665,7 @@ describe("the admins' pages", () => {
     w.reset(seed());
     const id = await sentSurvey();
     await w.answerByLink(w.tokenOf(id, "amara"), CHOICES);
-    await w.answerByLink(w.tokenOf(id, "dev"), { q_catastrophe: { type: "choice", optionId: "o_1to10" } });
+    await w.answerByLink(w.tokenOf(id, "dev"), { q_c1: { type: "choice", optionId: "o_stage3" } });
     const list = await w.page(w.pages.list, {}, "zach");
     for (const words of ["Surveys", "Only admins make and send surveys.", "Open 1", "AGI Strategy: before", "Fellowship: AGI Strategy", "2 of 4", "Closes Wed 4 Nov", "2 haven’t answered"]) {
       assert.ok(list.text.includes(words), `list: missing "${words}"`);
@@ -657,10 +675,11 @@ describe("the admins' pages", () => {
     assert.ok(answered.text.includes("Amara Okafor"));
     assert.ok(answered.text.includes("Personal link"));
     const results = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
-    assert.ok(results.text.includes("2 answers."), "results show from the first answers: there is no floor");
-    assert.ok(results.text.includes("1. How likely is it that advanced AI causes a catastrophe for humanity this century?"));
-    assert.ok(results.text.includes("2 answered"));
-    assert.ok(results.text.includes("Not sure"));
+    // Every number has its n and the response rate beside it.
+    assert.ok(results.text.includes("2 answers from the 4 people it was sent to (50%)."), "results show from the first answers: there is no floor");
+    assert.ok(results.text.includes("5. Which best describes you right now?"));
+    assert.ok(results.text.includes("2 answered, 50% of the 4 it was sent to"));
+    assert.ok(results.text.includes("My leading plan, no concrete steps yet"));
     assert.doesNotMatch(results.text, /Amara|Okafor|Dev Patel/, "results never name anybody");
   });
 
@@ -673,8 +692,9 @@ describe("the admins' pages", () => {
     assert.equal(file.status, 200);
     assert.match(file.headers["content-disposition"], /attachment; filename="agi-strategy-before-answers-2026-10-29\.csv"/);
     const [header, row] = file.text.trim().split(/\r?\n/);
-    assert.match(header, /^Name,Sent,How,After their first session,1\. How likely/);
-    assert.match(row, /^Amara Okafor,2026-10-29 09:00,Personal link,No,Not sure,/);
+    assert.match(header, /^Name,Sent,How,After their first session,1\. Level of study,2\. Subject of study,/);
+    assert.match(row, /^Amara Okafor,2026-10-29 09:00,Personal link,No,,,/);
+    assert.ok(row.includes("Thought about it, not a serious option"), "a choice is written in its words");
     assert.doesNotMatch(file.text, /@example\.com/, "never an address");
     const logged = w.world.db.paths().filter((path) => path.startsWith("dataExports/")).map((path) => w.world.db.read(path));
     assert.equal(logged.length, 1);
@@ -704,27 +724,30 @@ describe("the admins' pages", () => {
 // Names come off, and a survey outlives its form
 // ---------------------------------------------------------------------------
 
-describe("names come off a year after the programme, and the totals stay", () => {
+describe("names come off two years after the programme, and the totals stay", () => {
   test("the job takes the person off every answer and deletes the people rows on the day, and not before", async (t) => {
     clock(t);
     w.reset(seed());
     const id = await sentSurvey();
     await w.answerByLink(w.tokenOf(id, "amara"), CHOICES);
     const ctx = (now) => ({ now, log() {}, maxPerTick: 5, maxLateHours: 0, budget: { remainingMs: () => 60000, expired: () => false }, policy: {} });
-    const early = await w.lib.job.surveyNamesOffJob.handler(ctx(new Date("2027-12-08T12:00:00Z")));
+    // A year on, when names came off before Zach chose two years, they are still on.
+    const aYear = await w.lib.job.surveyNamesOffJob.handler(ctx(new Date("2027-12-09T12:00:00Z")));
+    assert.equal(aYear.processed, 0);
+    const early = await w.lib.job.surveyNamesOffJob.handler(ctx(new Date("2028-12-08T12:00:00Z")));
     assert.equal(early.processed, 0);
     assert.equal(w.answers(id)[0].respondent.uid, "amara");
-    const due = await w.lib.job.surveyNamesOffJob.handler(ctx(new Date("2027-12-09T00:30:00Z")));
+    const due = await w.lib.job.surveyNamesOffJob.handler(ctx(new Date("2028-12-09T00:30:00Z")));
     assert.equal(due.processed, 1);
     assert.equal(w.answers(id)[0].respondent, null, "the answer stays without its person");
     assert.deepEqual(w.answers(id)[0].answers, CHOICES, "the answers themselves are untouched");
     assert.equal(w.people(id).length, 0, "nobody's link or row is left");
     assert.ok(w.survey(id).namesOffAt);
     assert.equal(w.world.mail.filter((message) => message.kind !== "course-test" && message.kind !== "notice").length, 0);
-    const again = await w.lib.job.surveyNamesOffJob.handler(ctx(new Date("2027-12-10T00:30:00Z")));
+    const again = await w.lib.job.surveyNamesOffJob.handler(ctx(new Date("2028-12-10T00:30:00Z")));
     assert.equal(again.processed, 0, "a survey is visited once");
     const results = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
-    assert.ok(results.text.includes("1 answer."), "the totals stay");
+    assert.ok(results.text.includes("1 answer from the 4 people it was sent to (25%)."), "the totals stay");
     const file = await w.exportAs("zach", id);
     assert.match(file.text, /\(name taken off\)/);
   });
@@ -753,5 +776,516 @@ describe("a survey outlives its form", () => {
     const list = await w.page(w.pages.list, {}, "zach");
     assert.ok(list.text.includes("Fellowship: AGI Strategy"), "the survey names its programme without the form");
     assert.equal((await w.exportAs("zach", id)).status, 200);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The survey's own question kinds, through the real page and routes
+// ---------------------------------------------------------------------------
+
+/** A survey of every kind, as an admin's draft holds it before the first send. */
+const EVERY_KIND = [
+  { kind: "section", id: "s_one", heading: "Where you are now", body: [] },
+  { kind: "question", id: "q_stage", type: "singleChoice", title: "Which best describes you right now?", body: [], required: false, options: [{ id: "o_s0", label: "Haven’t thought about it" }, { id: "o_s1", label: "Thought about it" }], look: "points", scores: { o_s0: 0, o_s1: 1 } },
+  { kind: "question", id: "q_likely", type: "percent", title: "How likely is it?", ends: { min: "Not at all", max: "Certain" } },
+  { kind: "question", id: "q_kinds", type: "multipleChoice", title: "Which kinds of work interest you most?", body: [], required: false, options: [{ id: "o_a", label: "Research" }, { id: "o_b", label: "Policy" }, { id: "o_c", label: "Operations" }], maxPicks: 2 },
+  { kind: "question", id: "q_people", type: "number", title: "How many people could you message?", max: 1000 },
+  { kind: "question", id: "q_explain", type: "scale", title: "How well could you explain it?", min: 1, max: 7, anchors: [{ at: 1, label: "Not at all" }, { at: 4, label: "The gist" }, { at: 7, label: "Hold my own" }] },
+  { kind: "question", id: "q_recommend", type: "scale", title: "Would you recommend it?", min: 0, max: 10, anchors: [{ at: 0, label: "Not at all likely" }, { at: 10, label: "Extremely likely" }] },
+  { kind: "question", id: "q_shaped", type: "multipleChoice", title: "What else has shaped your plans?", body: [], required: false, options: [{ id: "o_x", label: "Friends" }, { id: "o_y", label: "AI news" }], most: "Which mattered most?" },
+  { kind: "question", id: "q_subject", type: "singleChoice", title: "Your subject", body: [], required: false, options: [{ id: "o_philosophy", label: "Philosophy" }, { id: "o_law", label: "Law" }], look: "menu", profile: "subject" },
+  { kind: "consent", id: "c_consent", statement: "Results with no names go to our funders.", boxes: [{ purpose: "followUps", label: "Contact me at 6 and 12 months" }] },
+];
+
+/** Every tag in some markup that carries `attribute`, whole. */
+const tagsWith = (html, attribute) => [...html.matchAll(/<[a-z]+\b[^>]*>/g)].map((match) => match[0]).filter((tag) => tag.includes(attribute));
+
+describe("every kind of question, on the page and through the routes", () => {
+  /** AGI Strategy's survey, made, its questions set to every kind, then sent. */
+  async function everyKindSurvey() {
+    const id = (await w.make()).body.survey.id;
+    w.world.db.poke(`surveys/${id}`, { items: EVERY_KIND });
+    const sent = await w.sendFirst(id);
+    assert.equal(sent.status, 200, JSON.stringify(sent.body));
+    return id;
+  }
+
+  test("each is drawn with a real control that works before the script, and the consent box starts unticked", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = await everyKindSurvey();
+    const before = w.everything();
+    // Amara's profile says "BA Philosophy", so her subject is offered.
+    const page = await w.page(w.pages.link, { params: Promise.resolve({ token: w.tokenOf(id, "amara") }) });
+    assert.equal(w.everything(), before, "opening the page wrote something");
+    const { html, text } = page;
+    for (const words of [
+      "0 Haven’t thought about it",
+      "1 Thought about it",
+      "0%: Not at all. 100%: Certain.",
+      "Pick up to 2",
+      "1 Not at all 4 The gist 7 Hold my own",
+      "Which mattered most?",
+      "From your profile. Change it if it’s not right.",
+      "Consent",
+      "Results with no names go to our funders.",
+      "Contact me at 6 and 12 months",
+    ]) {
+      assert.ok(text.includes(words), `missing "${words}"`);
+    }
+    // The typed percentage is the answer and needs no dragging; the slider is a second way in.
+    const [typed] = tagsWith(html, 'name="q_likely"');
+    for (const attribute of ['type="number"', 'inputMode="numeric"', 'min="0"', 'max="100"', 'step="1"', 'aria-labelledby="q-q_likely"']) {
+      assert.ok(typed.includes(attribute), `the typed percentage lacks ${attribute}: ${typed}`);
+    }
+    const [slider] = tagsWith(html, 'type="range"');
+    for (const attribute of ['disabled=""', 'aria-hidden="true"', 'tabindex="-1"']) {
+      assert.ok(slider.includes(attribute), `the slider lacks ${attribute}: ${slider}`);
+    }
+    assert.ok(!slider.includes("name="), "the slider sends nothing of its own");
+    const [people] = tagsWith(html, 'name="q_people"');
+    assert.ok(people.includes('type="number"') && people.includes('max="1000"') && people.includes('aria-labelledby="q-q_people"'), people);
+    // Eleven points for 0 to 10, each with its words for a screen reader.
+    assert.equal((html.match(/name="q_recommend"/g) ?? []).length, 11);
+    assert.match(html, /aria-label="0 out of 10: Not at all likely"/);
+    assert.match(html, /aria-label="4 out of 7: The gist"/);
+    // The menu starts on the profile's answer, and still has "Choose one".
+    assert.match(html, /<option value="o_philosophy" selected="">Philosophy<\/option>/);
+    assert.match(html, /<option value="">Choose one<\/option>/);
+    const [menu] = tagsWith(html, 'name="q_subject"');
+    assert.ok(menu.startsWith("<select") && menu.includes('aria-labelledby="q-q_subject"'), menu);
+    // Before the script, which mattered most offers every option.
+    assert.equal((html.match(/name="q_shaped\.most"/g) ?? []).length, 2);
+    const [box] = tagsWith(html, 'name="consent.followUps"');
+    assert.ok(box.includes('type="checkbox"') && box.includes('value="yes"'), box);
+    assert.ok(!box.includes("checked"), "the consent box is ticked before anybody ticks it");
+  });
+
+  test("Dev's profile holds no subject an answer matches, so nothing is offered", async (t) => {
+    clock(t);
+    w.reset(seed());
+    w.world.db.poke("users/dev", { "profile.subject": "History" });
+    const id = await everyKindSurvey();
+    const page = await w.page(w.pages.link, { params: Promise.resolve({ token: w.tokenOf(id, "dev") }) });
+    assert.match(page.html, /<option value="" selected="">Choose one<\/option>/);
+    assert.doesNotMatch(page.html, /<option value="o_[a-z]+" selected="">/);
+    assert.ok(!page.text.includes("From your profile."));
+  });
+
+  test("the consent ticks go on the person's own row with when, never into the answers; left unticked is a no", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = await everyKindSurvey();
+    const answers = {
+      q_stage: { type: "choice", optionId: "o_s1" },
+      q_likely: { type: "percent", value: 0 },
+      q_shaped: { type: "choices", optionIds: ["o_x", "o_y"], most: "o_y" },
+    };
+    const said = await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(id, "amara"), answers, consents: { followUps: true } } });
+    assert.equal(said.status, 200, JSON.stringify(said.body));
+    assert.equal((await w.answerByLink(w.tokenOf(id, "bea"), {})).status, 200);
+    const row = (uid) => w.people(id).find((each) => each.respondent.uid === uid);
+    assert.deepEqual(row("amara").consents, { followUps: true });
+    assert.ok(row("amara").consentsAt, "when it was said is kept");
+    assert.deepEqual(row("bea").consents, { followUps: false }, "a box left unticked is a no");
+    const amara = w.answers(id).find((each) => each.respondent.uid === "amara");
+    assert.deepEqual(amara.answers, answers, "the answers are only the questions'");
+    assert.deepEqual(Object.keys(amara).sort(), ["afterFirstSession", "answers", "path", "respondent", "roundId", "sentAt", "surveyId", "via"]);
+  });
+
+  test("a box the survey doesn't have, or an answer out of range, is refused and nothing is kept", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = await everyKindSurvey();
+    const token = w.tokenOf(id, "tariq");
+    const as = (body) => call(null, routes.answerByLink.POST, {}, { body: { token, answers: {}, ...body } });
+    assert.deepEqual(short(await as({ consents: { kairos: true } })), [400, "One of those boxes isn’t on this survey."]);
+    assert.deepEqual(short(await as({ answers: { q_kinds: { type: "choices", optionIds: ["o_a", "o_b", "o_c"] } } })), [400, "Pick up to 2."]);
+    assert.deepEqual(short(await as({ answers: { q_likely: { type: "percent", value: 140 } } })), [400, "Give a number from 0 to 100."]);
+    assert.deepEqual(short(await as({ answers: { q_shaped: { type: "choices", optionIds: ["o_x"], most: "o_y" } } })), [400, "Pick the one that mattered most from those you ticked."]);
+    assert.equal(w.answers(id).length, 0);
+    assert.equal(w.people(id).find((each) => each.respondent.uid === "tariq").answered, false);
+    assert.deepEqual(w.people(id).find((each) => each.respondent.uid === "tariq").consents, undefined);
+  });
+
+  test("signed in, the consent ticks go on the caller's own row too", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = await everyKindSurvey();
+    const sent = await call("amara", routes.answerSignedIn.POST, { surveyId: id }, { body: { answers: {}, consents: { followUps: true } } });
+    assert.equal(sent.status, 200, JSON.stringify(sent.body));
+    assert.deepEqual(w.people(id).find((each) => each.respondent.uid === "amara").consents, { followUps: true });
+  });
+
+  test("the results and the spreadsheet show each kind, with no name in the results", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = await everyKindSurvey();
+    await w.answerByLink(w.tokenOf(id, "amara"), { q_likely: { type: "percent", value: 30 }, q_recommend: { type: "scale", value: 9 }, q_people: { type: "number", value: 3 } });
+    await w.answerByLink(w.tokenOf(id, "bea"), { q_likely: { type: "percent", value: 50 }, q_recommend: { type: "scale", value: 4 } });
+    const results = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
+    for (const words of [
+      "2 answered, 50% of the 4 it was sent to. Average 40%, middle value 40%, from 30% to 50%.",
+      "Net promoter score 0, from 2 answers: the share at 9 or 10 less the share at 0 to 6.",
+      "0 is Not at all likely, 10 is Extremely likely.",
+      "1 answered, 25% of the 4 it was sent to. Average 3, middle value 3, from 3 to 3.",
+    ]) {
+      assert.ok(results.text.includes(words), `results: missing "${words}"`);
+    }
+    assert.doesNotMatch(results.text, /Amara|Okafor|Bea /);
+    const file = await w.exportAs("zach", id);
+    const [header, ...rows] = file.text.trim().split(/\r?\n/);
+    assert.match(header, /2\. How likely is it\?/);
+    assert.ok(rows.some((row) => row.startsWith("Amara Okafor,") && row.includes(",30,")));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The later stages: at the end, and the follow-ups at 6 and 12 months
+// ---------------------------------------------------------------------------
+
+describe("the survey at the end and the follow-ups pair with the one before, person by person", () => {
+  /** The before survey sent, and answered by Amara (yes to follow-ups) and Bea (no). */
+  async function beforeAnswered() {
+    const id = await sentSurvey();
+    const amara = await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(id, "amara"), answers: CHOICES, consents: { followUps: true } } });
+    assert.equal(amara.status, 200, JSON.stringify(amara.body));
+    assert.equal((await w.answerByLink(w.tokenOf(id, "bea"), { q_c1: { type: "choice", optionId: "o_stage0" } })).status, 200);
+    return id;
+  }
+
+  /** One stage made and sent by the admin, after a test. */
+  async function makeAndSend(stage, emails) {
+    const made = await w.make("zach", { stage, closesOn: "2026-12-20" });
+    assert.equal(made.status, 200, JSON.stringify(made.body));
+    const id = made.body.survey.id;
+    const sent = await w.sendFirst(id, "zach", { emails });
+    assert.equal(sent.status, 200, JSON.stringify(sent.body));
+    return id;
+  }
+
+  test("the survey at the end: its template, paired with the before survey, to everybody still holding a place", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const before = await beforeAnswered();
+    // Tariq gives his place back: he is not on the programme at its end.
+    w.world.db.poke(applicationPath("tariq"), { status: "withdrawn", attendance: { answer: "cant-make-it", answeredAt: NOW }, withdrawnAt: NOW, releaseReason: { kind: "times", other: "" } });
+    const made = await w.make("zach", { stage: "after", closesOn: "2026-12-20" });
+    assert.equal(made.status, 200, JSON.stringify(made.body));
+    const stored = w.survey(made.body.survey.id);
+    assert.equal(stored.kind, "after");
+    assert.equal(stored.name, "AGI Strategy: after");
+    assert.equal(stored.title, "At the end");
+    assert.equal(stored.pairOf, before, "it pairs with the before survey");
+    assert.equal(stored.minutes, 10);
+    assert.equal(stored.intro, "The same questions as week 1, then some about how it went and what’s next. It’s 23 questions and takes about 10 minutes.");
+    assert.deepEqual(stored.items, w.lib.templates.templateItems("after", "fellowship", null));
+    assert.deepEqual(stored.audience, { kind: "programme", roundId: ROUND, programmeId: AGI });
+    assert.deepEqual(short(await w.make("zach", { stage: "after", closesOn: "2026-12-20" })), [409, "It has its survey at the end already."]);
+    const send = await w.page(w.pages.send, { params: Promise.resolve({ surveyId: stored.id ?? made.body.survey.id }) }, "zach");
+    assert.ok(send.text.includes("Everyone still holding a place on AGI Strategy (3)"), send.text.slice(0, 400));
+    assert.ok(!send.text.includes("Answers sent after someone’s first session are labelled"), "only a before survey labels answers by the first session");
+    const sent = await w.sendFirst(made.body.survey.id, "zach", { emails: 3 });
+    assert.equal(sent.status, 200, JSON.stringify(sent.body));
+    const notices = w.mailText().filter((message) => message.kind === "notice" && message.subject.startsWith("At the end"));
+    assert.deepEqual(notices.map((message) => message.to).sort(), ["amara@example.com", "bea@example.com", "dev@example.com"]);
+    assert.ok(notices.every((message) => message.subject === "At the end: 23 questions for AGI Strategy"));
+  });
+
+  test("its page: the last week beside the programme, and Q3 shows each person what they said at the start", async (t) => {
+    clock(t);
+    w.reset(seed());
+    await beforeAnswered();
+    const after = await makeAndSend("after", 4);
+    const before = w.everything();
+    const page = async (uid) => (await w.page(w.pages.link, { params: Promise.resolve({ token: w.tokenOf(after, uid) }) })).text;
+    const amara = await page("amara");
+    assert.equal(w.everything(), before, "opening the page wrote something");
+    assert.ok(amara.includes("Fellowship: AGI Strategy · Week 6"), "the run's last week");
+    assert.ok(amara.includes("At the start you said: “To explain the risk clearly.” Did you get") || amara.includes("At the start you said: “To explain the risk clearly.”"));
+    assert.ok(amara.includes("We ask who you are so we can compare your answers at the start and the end."));
+    const bea = await page("bea");
+    assert.ok(!bea.includes("At the start you said"), "Bea said nothing to P6, so nothing is shown");
+    assert.ok(!bea.includes("To explain the risk clearly."), "nobody sees another person's answer");
+    // The test link shows where it would go, and nobody's words.
+    await call("zach", routes.test.POST, { surveyId: after }, { body: { email: "survey" } });
+    const test = (await w.page(w.pages.link, { params: Promise.resolve({ token: w.survey(after).testToken }) })).text;
+    assert.ok(test.includes("At the start you said: what each person wrote at the start shows here."));
+    assert.ok(!test.includes("To explain the risk clearly."));
+    // A follow-up's test link shows no consent panel: a test is nobody's.
+    const six = (await w.make("zach", { stage: "followUp6", closesOn: "2026-12-20" })).body.survey.id;
+    await call("zach", routes.test.POST, { surveyId: six }, { body: { email: "survey" } });
+    const sixTest = (await w.page(w.pages.link, { params: Promise.resolve({ token: w.survey(six).testToken }) })).text;
+    assert.ok(sixTest.includes("Six months on"), sixTest.slice(0, 200));
+    assert.ok(!sixTest.includes("Stop the follow-ups") && !sixTest.includes("You said we may contact you"), "a test link shows somebody's consent");
+    // Even handed a person's row, a test is drawn as nobody's.
+    assert.equal((await w.sendFirst(six, "zach", { emails: 1 })).status, 200);
+    const { answerScreenFor } = await w.loadTs("lib/surveys/answerView.ts");
+    const { readSurvey, readPerson } = await w.loadTs("lib/surveys/repo.ts");
+    const stored = await readSurvey(w.world.db, six);
+    const amaraRow = await readPerson(w.world.db, six, { kind: "account", uid: "amara" });
+    assert.ok(amaraRow, "Amara was sent the follow-up");
+    const screen = await answerScreenFor(w.world.db, stored, { uid: null, answered: false, answeredAt: null, submit: { kind: "test" }, now: new Date(), person: amaraRow });
+    assert.equal(screen.consent, null);
+    const hers = await answerScreenFor(w.world.db, stored, { uid: "amara", answered: false, answeredAt: null, submit: { kind: "link", token: amaraRow.token }, now: new Date(), person: amaraRow });
+    assert.equal(hers.consent?.button, "Stop the follow-ups", "her own page shows it");
+  });
+
+  test("a follow-up waits for a sent before survey, and goes only to people who said yes", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const waits = [409, "Its before survey asks who may be contacted for follow-ups, and it hasn’t been sent."];
+    assert.deepEqual(short(await w.make("zach", { stage: "followUp6", closesOn: "2026-12-20" })), waits, "no before survey");
+    const draft = (await w.make()).body.survey.id;
+    assert.deepEqual(short(await w.make("zach", { stage: "followUp6", closesOn: "2026-12-20" })), waits, "a before survey made but not sent");
+    assert.deepEqual(short(await w.make("zach", { stage: "followUp12", closesOn: "2026-12-20" })), waits);
+    // The same before survey, now sent and answered.
+    const sent = await w.sendFirst(draft);
+    assert.equal(sent.status, 200, JSON.stringify(sent.body));
+    const amara = await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(draft, "amara"), answers: CHOICES, consents: { followUps: true } } });
+    assert.equal(amara.status, 200);
+    assert.equal((await w.answerByLink(w.tokenOf(draft, "bea"), { q_c1: { type: "choice", optionId: "o_stage0" } })).status, 200);
+    const before = draft;
+    const after = await makeAndSend("after", 4);
+    const made = await w.make("zach", { stage: "followUp6", closesOn: "2026-12-20" });
+    assert.equal(made.status, 200, JSON.stringify(made.body));
+    const six = made.body.survey.id;
+    const stored = w.survey(six);
+    assert.deepEqual(stored.audience, { kind: "followUps", roundId: ROUND, programmeId: AGI, consentFrom: before });
+    assert.equal(stored.pairOf, after, "the six-month follow-up pairs with the survey at the end");
+    assert.equal(stored.title, "Six months on");
+    assert.equal(stored.namesOffOn, w.survey(before).namesOffOn, "names come off every stage on the same day");
+    // One button, its count the people who said yes: Amara alone.
+    const wrong = await w.sendFirst(six, "zach", { emails: 4 });
+    assert.equal(wrong.status, 409);
+    assert.equal(wrong.body.emails, 1);
+    w.world.mail.length = 0;
+    assert.equal((await w.sendFirst(six, "zach", { emails: 1 })).status, 200);
+    assert.deepEqual(w.world.mail.filter((message) => message.kind === "notice").map((message) => message.to), ["amara@example.com"]);
+    // Its line says why it reached her: her yes, not a place she may no longer hold.
+    const [followUp] = w.mailText().filter((message) => message.kind === "notice");
+    assert.equal(followUp.surface, "course-follow-up");
+    assert.equal(followUp.subject, "Six months on: 11 questions for AGI Strategy");
+    assert.ok(followUp.text.includes("You are getting this because you said we could send you follow-ups about this programme"), followUp.text.slice(0, 300));
+    assert.ok(followUp.text.includes("You said we could ask how things have gone since the programme. It’s 11 questions and takes about 3 minutes."));
+    const send = await w.page(w.pages.send, { params: Promise.resolve({ surveyId: six }) }, "zach");
+    assert.ok(send.text.includes("Emailed the 1 person who said yes to follow-ups"));
+    assert.ok(send.text.includes("Everyone on AGI Strategy who said yes to follow-ups (1)"));
+    // A year on pairs with six months on.
+    const twelve = await w.make("zach", { stage: "followUp12", closesOn: "2026-12-20" });
+    assert.equal(w.survey(twelve.body.survey.id).pairOf, six);
+    assert.equal(w.survey(twelve.body.survey.id).title, "A year on");
+  });
+
+  test("somebody who says yes later is sent it by the said-yes-since press; somebody who stops is not reminded", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const before = await beforeAnswered();
+    const six = await makeAndSend("followUp6", 1);
+    // Bea says yes after all, from her before survey's page; Amara stops them from the follow-up's.
+    const bea = await call(null, routes.consentByLink.POST, {}, { body: { token: w.tokenOf(before, "bea"), purpose: "followUps", given: true } });
+    assert.deepEqual(bea.body, { ok: true, given: true });
+    const send = await w.page(w.pages.send, { params: Promise.resolve({ surveyId: six }) }, "zach");
+    assert.ok(send.text.includes("Said yes since"), send.text.slice(0, 300));
+    w.world.mail.length = 0;
+    assert.equal((await call("zach", routes.send.POST, { surveyId: six }, { body: { to: "joined", emails: 1 } })).status, 200);
+    assert.deepEqual(w.world.mail.map((message) => message.to), ["bea@example.com"]);
+    const amara = await call(null, routes.consentByLink.POST, {}, { body: { token: w.tokenOf(six, "amara"), purpose: "followUps", given: false } });
+    assert.deepEqual(amara.body, { ok: true, given: false });
+    assert.equal(w.people(before).find((row) => row.respondent.uid === "amara").consents.followUps, false, "the follow-up's page changes the before survey's row");
+    await call("zach", routes.test.POST, { surveyId: six }, { body: { email: "reminder" } });
+    w.world.mail.length = 0;
+    const reminded = await call("zach", routes.remind.POST, { surveyId: six }, { body: { emails: 1 } });
+    assert.equal(reminded.status, 200, JSON.stringify(reminded.body));
+    assert.deepEqual(w.world.mail.map((message) => message.to), ["bea@example.com"], "Amara stopped them, so she is not reminded");
+  });
+
+  test("an incubator's surveys: the strand words its skills question, and the end takes the before survey's", async (t) => {
+    clock(t);
+    w.reset(seed({}));
+    w.world.db.poke(formPath, { [`programmes.${AGI}.kind`]: "incubator" });
+    assert.deepEqual(short(await w.make("zach")), [400, REFUSAL.strand], "an incubator's before survey needs its strand");
+    const made = await w.make("zach", { strand: "governance" });
+    assert.equal(made.status, 200, JSON.stringify(made.body));
+    const items = w.survey(made.body.survey.id).items;
+    assert.equal(items.find((item) => item.id === "q_i2").lines[0].label, "I could write a policy-relevant research memo");
+    assert.equal(w.survey(made.body.survey.id).strand, "governance");
+    const after = await w.make("zach", { stage: "after", closesOn: "2026-12-20" });
+    assert.equal(after.status, 200, JSON.stringify(after.body));
+    assert.equal(w.survey(after.body.survey.id).strand, "governance", "the end takes its pair's strand");
+    assert.ok(w.survey(after.body.survey.id).items.some((item) => item.id === "q_i4"));
+  });
+});
+
+describe("changing the follow-ups consent later, by the person alone", () => {
+  async function beforeAnsweredByAmara(yes) {
+    const id = await sentSurvey();
+    await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(id, "amara"), answers: {}, consents: { followUps: yes } } });
+    return id;
+  }
+
+  test("her answered page says where it stands and changes it, by her link and signed in", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = await beforeAnsweredByAmara(true);
+    const page = await w.page(w.pages.link, { params: Promise.resolve({ token: w.tokenOf(id, "amara") }) });
+    assert.ok(page.text.includes("You’ve answered"));
+    assert.ok(page.text.includes("You said we may contact you at 6 and 12 months with a short follow-up survey. Stop the follow-ups"));
+    assert.match(page.html, /<button type="button"[^>]*disabled=""[^>]*>Stop the follow-ups<\/button>/, "the button waits for the page's script");
+    const stopped = await call(null, routes.consentByLink.POST, {}, { body: { token: w.tokenOf(id, "amara"), purpose: "followUps", given: false } });
+    assert.deepEqual(stopped.body, { ok: true, given: false });
+    const row = w.people(id).find((each) => each.respondent.uid === "amara");
+    assert.equal(row.consents.followUps, false);
+    assert.ok(row.consentsAt);
+    const again = await w.page(w.pages.signedIn, { params: Promise.resolve({ runId: RUN.agi, surveyId: id }) }, "amara");
+    assert.ok(again.text.includes("You haven’t said we may contact you at 6 and 12 months. Contact me at 6 and 12 months"));
+    const yes = await call("amara", routes.consentSignedIn.POST, { surveyId: id }, { body: { purpose: "followUps", given: true } });
+    assert.deepEqual(yes.body, { ok: true, given: true });
+    assert.equal(w.people(id).find((each) => each.respondent.uid === "amara").consents.followUps, true);
+  });
+
+  test("a closed survey still shows it to somebody it was sent to; the open survey shows its own box instead", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = await sentSurvey();
+    const open = await w.page(w.pages.link, { params: Promise.resolve({ token: w.tokenOf(id, "dev") }) });
+    assert.ok(!open.text.includes("Stop the follow-ups") && !open.text.includes("You haven’t said we may contact you"), "while it can be answered, the box is on the form");
+    await call("zach", routes.close.POST, { surveyId: id }, { body: {} });
+    const closed = await w.page(w.pages.link, { params: Promise.resolve({ token: w.tokenOf(id, "dev") }) });
+    assert.ok(closed.text.includes("This survey has closed"));
+    assert.ok(closed.text.includes("You haven’t said we may contact you at 6 and 12 months. Contact me at 6 and 12 months"));
+    assert.equal((await call(null, routes.consentByLink.POST, {}, { body: { token: w.tokenOf(id, "dev"), purpose: "followUps", given: true } })).status, 200);
+  });
+
+  test("the change is the person's own row: a row on the before survey that names somebody else is changed by nobody", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const before = await beforeAnsweredByAmara(true);
+    const six = (await w.make("zach", { stage: "followUp6", closesOn: "2026-12-20" })).body.survey.id;
+    assert.equal((await w.sendFirst(six, "zach", { emails: 1 })).status, 200);
+    // Amara's row on the before survey, made to name Bea, as no writer here makes one.
+    w.world.db.poke(`surveyPeople/${before}__amara`, { "respondent.uid": "bea" });
+    const refused = await call(null, routes.consentByLink.POST, {}, { body: { token: w.tokenOf(six, "amara"), purpose: "followUps", given: false } });
+    assert.deepEqual(short(refused), [404, REFUSAL.consentNoRow]);
+    assert.equal(w.world.db.read(`surveyPeople/${before}__amara`).consents.followUps, true, "a row that names somebody else is left alone");
+  });
+
+  test("refused to everybody else: a wrong or test link, another person, view-as, signed out, and a survey that doesn't ask it", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = await beforeAnsweredByAmara(true);
+    const byLink = (body) => call(null, routes.consentByLink.POST, {}, { body: { purpose: "followUps", given: false, ...body } });
+    assert.deepEqual(short(await byLink({ token: "x".repeat(43) })), [404, REFUSAL.noLink]);
+    assert.deepEqual(short(await byLink({ token: "short" })), [400, REFUSAL.noLink]);
+    await call("zach", routes.test.POST, { surveyId: id }, { body: { email: "survey" } });
+    assert.deepEqual(short(await byLink({ token: w.survey(id).testToken })), [409, REFUSAL.testLink]);
+    assert.deepEqual(short(await byLink({ token: w.tokenOf(id, "amara"), purpose: "kairos" })), [400, REFUSAL.body]);
+    assert.deepEqual(short(await byLink({ token: w.tokenOf(id, "amara"), given: "no" })), [400, REFUSAL.body]);
+    const signedIn = (who, options = {}) => call(who, routes.consentSignedIn.POST, { surveyId: id }, { body: { purpose: "followUps", given: false }, ...options });
+    assert.equal((await signedIn("amara", { viewAs: true })).status, 403, "an admin viewing as Amara changes nothing of hers");
+    for (const who of ["claudia", "rahul", "nobody", "zach"]) assert.deepEqual(short(await signedIn(who)), [404, REFUSAL.notYours], who);
+    assert.equal((await signedIn(null)).status, 401);
+    assert.equal(w.people(id).find((each) => each.respondent.uid === "amara").consents.followUps, true, "nothing refused changed her row");
+    // The survey at the end asks no consent and is no follow-up.
+    const after = (await w.make("zach", { stage: "after", closesOn: "2026-12-20" })).body.survey.id;
+    await w.sendFirst(after, "zach", { emails: 4 });
+    assert.deepEqual(short(await byLink({ token: w.tokenOf(after, "amara") })), [409, REFUSAL.consentNotAsked]);
+  });
+});
+
+describe("the New survey page offers every stage's template", () => {
+  test("four cards, each saying which programmes can have it and why not", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const empty = await w.page(w.pages.newSurvey, {}, "zach");
+    for (const words of [
+      "Before the programme",
+      "14 questions for a fellowship, 17 for an incubator · about 5 minutes",
+      "At the end of the programme",
+      "23 questions for a fellowship, 32 for an incubator · about 10 minutes",
+      "Six months on",
+      "11 questions · about 3 minutes",
+      "A year on",
+      "AGI Strategy (Autumn 2026): Its before survey asks who may be contacted for follow-ups, and it hasn’t been sent.",
+    ]) {
+      assert.ok(empty.text.includes(words), `missing "${words}"`);
+    }
+    await sentSurvey();
+    const later = await w.page(w.pages.newSurvey, {}, "zach");
+    assert.ok(later.text.includes("AGI Strategy (Autumn 2026): It has its before survey already."));
+  });
+});
+
+describe("results for admins: n and the response rate beside every number, the change and the look-back", () => {
+  test("the survey at the end compares each shared question with the before survey, for people who answered both, never naming them", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const before = await sentSurvey();
+    await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(before, "amara"), answers: CHOICES, consents: { followUps: true } } });
+    await w.answerByLink(w.tokenOf(before, "bea"), { q_c1: { type: "choice", optionId: "o_stage3" }, q_c2: { type: "percent", value: 50 } });
+    await w.answerByLink(w.tokenOf(before, "dev"), { q_c1: { type: "choice", optionId: "o_stage0" } });
+    const after = (await w.make("zach", { stage: "after", closesOn: "2026-12-20" })).body.survey.id;
+    await w.sendFirst(after, "zach", { emails: 4 });
+    await w.answerByLink(w.tokenOf(after, "amara"), {
+      q_c1: { type: "choice", optionId: "o_stage3" },
+      q_t1: { type: "choice", optionId: "o_stage0" },
+      q_c2: { type: "percent", value: 45 },
+      q_c7: { type: "lines", values: { l_next: 4 } },
+    });
+    await w.answerByLink(w.tokenOf(after, "bea"), { q_c1: { type: "choice", optionId: "o_stage3" }, q_t1: { type: "choice", optionId: "o_stage3" }, q_c2: { type: "percent", value: 40 } });
+    const page = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: after }), searchParams: Promise.resolve({}) }, "zach");
+    for (const words of [
+      "2 answers from the 4 people it was sent to (50%).",
+      "Compared, person by person, with AGI Strategy: before (3 answers).",
+      "1. Which best describes you right now?",
+      "2 answered, 50% of the 4 it was sent to",
+      "Before and now Of the 2 who answered it both times (AGI Strategy: before): 1 moved up, 1 stayed, 0 moved down. Average 2 then, 3 now (up 1). Middle value 2 then, 3 now.",
+      "Looking back Of the 2 who answered it both times (Looking back, which best described you before the programme?): 1 moved up, 1 stayed, 0 moved down. Average 1.5 then, 3 now (up 1.5).",
+      "Average 35% then, 42.5% now (up 7.5 points).",
+      "I know what my next concrete step towards AI safety work would be. 2 → 4, 1 of 1 moved up",
+      "Leave out before-survey answers sent after someone’s first session",
+    ]) {
+      assert.ok(page.text.includes(words), `missing "${words}"`);
+    }
+    assert.doesNotMatch(page.text, /Amara|Okafor|Bea |Dev Patel|To explain the risk clearly/, "results name nobody and quote no one's earlier answer");
+  });
+
+  test("a reminder sends nobody new, so the response rate stays of the people it was sent to", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = await sentSurvey();
+    await w.answerByLink(w.tokenOf(id, "amara"), {});
+    await call("zach", routes.test.POST, { surveyId: id }, { body: { email: "reminder" } });
+    assert.equal((await call("zach", routes.remind.POST, { surveyId: id }, { body: { emails: 3 } })).status, 200);
+    const page = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
+    assert.ok(page.text.includes("1 answer from the 4 people it was sent to (25%)."), page.text.slice(0, 300));
+  });
+
+  test("the before survey's results say how many said yes to follow-ups, of the people it was sent to", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = await sentSurvey();
+    await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(id, "amara"), answers: {}, consents: { followUps: true } } });
+    await w.answerByLink(w.tokenOf(id, "bea"), {});
+    const page = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
+    assert.ok(page.text.includes("Consent 1 said yes, 25% of the 4 it was sent to: Contact me at 6 and 12 months with a short follow-up survey."), page.text.slice(0, 600));
+    assert.ok(!page.text.includes("Compared, person by person"), "the before survey pairs with nothing");
+  });
+
+  test("leaving out answers sent after the first session counts them out of the before side too", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const before = await sentSurvey();
+    // Bea answers after her group first met at 6pm: left out of a before.
+    t.mock.timers.setTime(new Date("2026-10-29T20:30:00Z").getTime());
+    await w.answerByLink(w.tokenOf(before, "bea"), { q_c1: { type: "choice", optionId: "o_stage1" } });
+    const after = (await w.make("zach", { stage: "after", closesOn: "2026-12-20" })).body.survey.id;
+    await w.sendFirst(after, "zach", { emails: 4 });
+    await w.answerByLink(w.tokenOf(after, "bea"), { q_c1: { type: "choice", optionId: "o_stage4" } });
+    const all = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: after }), searchParams: Promise.resolve({}) }, "zach");
+    assert.ok(all.text.includes("Of the 1 who answered it both times (AGI Strategy: before): 1 moved up"));
+    const strict = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: after }), searchParams: Promise.resolve({ "before-first-session": "1" }) }, "zach");
+    assert.ok(strict.text.includes("1 sent after the person’s first session is left out."));
+    assert.ok(strict.text.includes("Nobody has answered it both times yet (AGI Strategy: before)."));
   });
 });

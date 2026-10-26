@@ -72,14 +72,14 @@ export default function SendTab({ surveyId, view }: { surveyId: string; view: Se
         {view.joined && (
           <section className={`${styles.card} ${styles.section}`} aria-labelledby="send-joined">
             <h2 id="send-joined" className={styles.sectionTitle}>
-              {SEND_WORDS.joinedSince}
+              {view.joined.heading}
             </h2>
             {view.joined.emails === 0 ? (
               <p className={`${styles.muted} ${styles.dashed}`}>{view.joined.nobody}</p>
             ) : (
               <>
                 <p className={styles.lead}>{view.joined.names.join(", ")}</p>
-                <SendActions surveyId={surveyId} kind="joined" emails={view.joined.emails} testFresh testLine="" blocked={blocked} />
+                <SendActions surveyId={surveyId} kind="joined" audienceKind={view.audienceKind} emails={view.joined.emails} testFresh testLine="" blocked={blocked} />
               </>
             )}
           </section>
@@ -134,9 +134,11 @@ export default function SendTab({ surveyId, view }: { surveyId: string; view: Se
               <span>{view.summary.namesOff}</span>
             </div>
           )}
-          <div className={styles.summaryItem}>
-            <span className={styles.muted}>{SEND_WORDS.labelled}</span>
-          </div>
+          {view.summary.labelled && (
+            <div className={styles.summaryItem}>
+              <span className={styles.muted}>{SEND_WORDS.labelled}</span>
+            </div>
+          )}
           {view.state === "open" && (
             <div className={styles.summaryItem}>
               <CloseButton surveyId={surveyId} />

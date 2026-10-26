@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Button from "@/components/ui/Button";
 import { useHydrated } from "@/hooks/useHydrated";
-import { SEND_WORDS, emailButtonWords, joinedButtonWords, peopleWords } from "@/lib/surveys/words";
+import { SEND_WORDS, emailButtonWords, joinedButtonWords, peopleWords, type AudienceKind } from "@/lib/surveys/words";
 import styles from "./surveyAdmin.module.css";
 
 /**
@@ -26,8 +26,8 @@ const ROUTE: Record<Kind, { path: string; body: (emails: number) => Record<strin
   remind: { path: "remind", body: (emails) => ({ emails }) },
 };
 
-function buttonWords(kind: Kind, emails: number): string {
-  return kind === "joined" ? joinedButtonWords(emails) : emailButtonWords(emails);
+function buttonWords(kind: Kind, emails: number, audienceKind: AudienceKind): string {
+  return kind === "joined" ? joinedButtonWords(emails, audienceKind) : emailButtonWords(emails);
 }
 
 type Tally = { sent?: number; held?: number; suppressed?: number; failed?: number; noAddress?: number };
@@ -46,6 +46,7 @@ function tallyWords(tally: Tally): string {
 export default function SendActions({
   surveyId,
   kind,
+  audienceKind = "start",
   emails,
   testFresh,
   testLine,
@@ -53,6 +54,8 @@ export default function SendActions({
 }: {
   surveyId: string;
   kind: Kind;
+  /** Who the survey reaches, for the words on the joined-since button. */
+  audienceKind?: AudienceKind;
   /** The number the send would reach now. */
   emails: number;
   /** Whether the presser's own test of this wording has gone. Ignored for "joined". */
@@ -144,7 +147,7 @@ export default function SendActions({
           </Button>
         )}
         <Button onClick={send} disabled={sendDisabled}>
-          {buttonWords(kind, emails)}
+          {buttonWords(kind, emails, audienceKind)}
         </Button>
       </div>
       {blocked ? (

@@ -15,7 +15,8 @@ type Ctx = { params: Promise<{ surveyId: string }> };
  * not sent is refused in one sentence.
  *
  * Refused during a view-as session, so an admin looking at the site as a
- * member can never answer as them. Body `{ answers }`.
+ * member can never answer as them. Body `{ answers, consents? }`: `consents`
+ * is what the survey's consent boxes say, kept on the caller's own row.
  */
 export async function POST(req: Request, ctx: Ctx) {
   const blocked = await assertNotImpersonating();
@@ -32,6 +33,7 @@ export async function POST(req: Request, ctx: Ctx) {
     raw = null;
   }
   const answers = raw && typeof raw === "object" ? (raw as { answers?: unknown }).answers : undefined;
+  const consents = raw && typeof raw === "object" ? (raw as { consents?: unknown }).consents : undefined;
   if (!isSurveyId(surveyId) || answers === null || typeof answers !== "object") {
     return NextResponse.json({ error: REFUSAL.body }, { status: 400 });
   }
@@ -45,7 +47,7 @@ export async function POST(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: REFUSAL.notYours }, { status: 404 });
   }
 
-  const outcome = await recordAnswer(db, { survey, person, raw: answers, via: "signed-in", now: new Date() });
+  const outcome = await recordAnswer(db, { survey, person, raw: answers, consents, via: "signed-in", now: new Date() });
   if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });
   return NextResponse.json({ ok: true });
 }

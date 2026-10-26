@@ -6,7 +6,7 @@ import SurveyMissing from "@/features/surveys/admin/SurveyMissing";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { surveyPage } from "@/lib/surveys/adminView";
-import { MEASURE_WORDS } from "@/lib/surveys/words";
+import { TEMPLATE_MEASURES } from "@/lib/surveys/templates";
 
 export const dynamic = "force-dynamic";
 
@@ -32,11 +32,11 @@ export default async function SurveyQuestionsPage({ params }: { params: Promise<
     <AdminPage wide>
       <SurveyHead head={head} current="questions" />
       {survey.firstSentAt ? (
-        <QuestionsList items={survey.items} measures={MEASURE_WORDS} intro={survey.intro} title={survey.title} />
+        <QuestionsList items={survey.items} measures={TEMPLATE_MEASURES} intro={survey.intro} title={survey.title} />
       ) : (
         <QuestionsEditor
           surveyId={survey.id}
-          measures={MEASURE_WORDS}
+          measures={TEMPLATE_MEASURES}
           today={londonDateKey(now)}
           initial={{
             title: survey.title,

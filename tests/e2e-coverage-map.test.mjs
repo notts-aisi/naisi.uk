@@ -1279,6 +1279,18 @@ const NOT_COVERED = {
     coverWhen:
       "When an end-to-end spec downloads a file anywhere on the site, so the download path is driven in a browser once for all of them.",
   },
+  "/api/surveys/[surveyId]/consent": {
+    reason:
+      "Surveys: a follow-ups consent changed signed in; tests/surveys-routes.test.mjs changes it as the person the survey was sent to and is refused for everybody else, signed out and during view-as.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
+  },
+  "/api/surveys/consent": {
+    reason:
+      "Surveys: a follow-ups consent changed by a personal link; tests/surveys-routes.test.mjs stops and restarts it from the before survey's page and from a follow-up's, and refuses a wrong, malformed or test link and a survey that does not ask it.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
+  },
   "/api/surveys/[surveyId]/answer": {
     reason:
       "Surveys: answering signed in; tests/surveys-routes.test.mjs answers as the person sent it and is refused for everybody else and during view-as.",

@@ -62,8 +62,10 @@ import {
  *
  * THE CLASS IS NOTICE (`docs/notifications.md`): the survey reaches everybody
  * holding a place, whatever their notification grid says, with the lane's
- * visible line and its receipt (`course-survey`), and its caps. A test is
- * never a notice: it reaches its own sender.
+ * visible line and its receipt (`course-survey`), and its caps. A follow-up
+ * reaches the people who said yes to follow-ups, and its line and receipt say
+ * that (`course-follow-up`). A test is never a notice: it reaches its own
+ * sender.
  *
  * Each person's own row (`surveyPeople`) is written BEFORE their email, with
  * the secret their link carries; the email is then sent, one address per
@@ -302,7 +304,8 @@ async function sendOne(
   const result = await sendNotice({
     to,
     subject: words.subject,
-    surface: "course-survey",
+    // A follow-up reached the person because they said yes to it, not because they hold a place now.
+    surface: survey.audience.kind === "followUps" ? "course-follow-up" : "course-survey",
     actorUid: presserUid,
     referenceId: survey.id,
     replyTo: SURVEY_REPLY_TO,

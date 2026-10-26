@@ -15,7 +15,7 @@
  * facilitators share, the notes a group shares on its week pages and the
  * calendar link are described, with who reads each and what a deletion does
  * to it; and so is the survey at a programme's start: confidential, nothing
- * kept about how it is filled in, the name off a year after the programme or
+ * kept about how it is filled in, the name off two years after the programme or
  * at once with the account, and its answers with names a fourth logged
  * download. §2g holds those passages against the code. Two of them are
  * worded as what will happen,
@@ -736,12 +736,19 @@ const MUST_NAME = [
   // any member was asked to accept it. §2g holds each to its code.
   ["a survey is confidential, and says so at the top", /Every survey is confidential: we keep your answers with your name, and each survey says so at the top\./i],
   ["only admins see who said what in a survey, and facilitators see nothing of one", /Only NAISI&apos;s admins can see who said what\. Facilitators never see anything of a survey\./i],
-  ["why a survey keeps the name, and who sees who has answered", /We keep your name with your answers so that we can compare them with your answers to the same questions at the end of the programme, and so that a reminder goes only to people who have not answered\. Only admins see who has answered\./i],
+  // The questionnaire (26 October 2026) compares at the end and in follow-ups: "and in any follow-ups" added.
+  ["why a survey keeps the name, and who sees who has answered", /We keep your name with your answers so that we can compare them with your answers to the same questions at the end of the programme and in any follow-ups, and so that a reminder goes only to people who have not answered\. Only admins see who has answered\./i],
+  ["who a programme's surveys go to, at each stage", /At the start of a programme and again at its end, NAISI&apos;s admins may send a survey to everybody holding a place on it, and 6 and 12 months later a follow-up to the people who said yes to one\./i],
+  ["what a programme's surveys ask, by kind", /A programme&apos;s surveys ask about your level and subject of study, what you had done in AI safety before and how you first heard about NAISI; your career stage and plans, how likely you think you are to work on AI safety and the kinds of work that interest you;/i],
+  ["the profile values a survey offers", /Where your profile holds them, the survey before a programme starts its questions about your level and subject of study on your profile&apos;s answers\. You can change or clear either before you send it, and only what you send is kept\./i],
+  ["the survey at the end shows a person their own earlier answer, and nobody else", /The survey at the end shows you what you said you wanted from the programme, so you can say whether you got it; nobody else is shown it there\./i],
+  ["the follow-ups go only to people who tick the box, which they can change later", /The survey before a programme asks whether we may contact you at 6 and 12 months with a short follow-up survey, in a box that starts unticked, and only people who tick it are sent the follow-ups\. You can change your answer at any time until your name comes off, on your survey&apos;s page, through its link or signed in, and the next follow-up goes by it\. We keep what you said, and when, with the record that the survey was sent to you\./i],
   ["every question in a survey can be skipped, and nothing said in one affects a place", /Every question can be skipped\. Nothing you say in a survey affects your place on a programme or an application\./i],
   ["a survey records nothing about how it is filled in", /A survey records nothing about how you fill it in: not when you opened it, how long you spent on it or which page you were on, and none of your answers is kept until you send them\./i],
   ["what a survey records with the answers, and never an IP address", /We record when you sent them, whether you used your own link or were signed in, and whether your group had met for the first time by then\. We never keep your IP address with them, and the request logs our hosting provider keeps \(see Operational logs\) are never matched to them\./i],
   ["a survey is emailed as an important notice, with a link of your own", /A survey and its reminder are emailed as important notices, so your notification settings do not switch them off\. Each email carries a link of your own, so you can answer without signing in\. Anyone holding it could answer in your name, so keep it to yourself\./i],
-  ["names come off survey answers a year after the programme", /We take your name off your answers to a survey on the day it tells you, a year after the programme&apos;s last session, and delete the record that it was sent to you, with your link to answer it\. Your answers stay in its totals, no longer linked to you\./i],
+  // Two years since Zach chose it for everyone (26 October 2026); it said a year.
+  ["names come off survey answers two years after the programme", /We take your name off your answers to a survey on the day it tells you, two years after the programme&apos;s last session, and delete the record that it was sent to you, with your link to answer it and what you said about follow-ups\. Your answers stay in its totals, no longer linked to you\./i],
 ];
 
 describe("the courses section", () => {
@@ -2517,7 +2524,7 @@ describe("the account record passage", () => {
  * asked to accept it, so it kept its number: the notes a group's facilitators
  * share, the notes a group shares on its week pages, the calendar link, and
  * the survey at a programme's start (with the fourth logged download, the
- * name coming off a year after the programme, and a deletion taking it off at
+ * name coming off two years after the programme, and a deletion taking it off at
  * once). Each describes code that is built, and is held to it below.
  */
 
@@ -2541,6 +2548,9 @@ const calendarWords = await loadTs("lib/courses/calendarWords.ts");
  */
 const surveyWords = await loadTs("lib/surveys/words.ts");
 const surveyItems = await loadTs("lib/surveys/items.ts");
+const surveyTemplates = await loadTs("lib/surveys/templates.ts");
+const surveyNamesOff = await loadTs("lib/surveys/namesOff.ts");
+const surveyProfileOffer = await loadTs("lib/surveys/profileOffer.ts");
 const surveyExport = await loadTs("lib/surveys/exportTable.ts");
 const surveyRecords = await loadTs("lib/firestore/surveys.ts");
 /** Survey code imported from anywhere: the library, its components and its record. */
@@ -2592,6 +2602,10 @@ describe("the course hub passage", () => {
       /We take your name off your answers to a survey/i,
       /your name on your survey answers/i,
       /Your answers to surveys, no longer linked to you/i,
+      /contact you at 6 and 12 months/i,
+      /A programme&apos;s surveys ask about/i,
+      /starts its questions about your level and subject of study/i,
+      /what you said about follow-ups/i,
     ]) {
       assert.ok(
         !pattern.test(V6_FLAT),
@@ -3428,21 +3442,20 @@ describe("the course hub passage", () => {
     // and how they sent their answers, whether their group had met by then,
     // and the answers themselves, and never an email address": the layout,
     // run on the before survey's own questions and one person's answers.
-    const lines = ["How fast AI is improving, and why", "How advanced AI could go wrong", "What is being done", "The race", "What you could do"];
-    const table = surveyExport.surveyExportTable(surveyItems.beforeSurveyItems(lines), [
+    const table = surveyExport.surveyExportTable(surveyTemplates.templateItems("before", "fellowship", null), [
       {
         name: "Amara Okafor",
         sentAt: new Date(Date.UTC(2026, 10, 2, 18, 5)),
         via: "link",
         afterFirstSession: false,
-        answers: { q_catastrophe: { type: "choice", optionId: "o_1to10" } },
+        answers: { q_p3_level: { type: "choice", optionId: "o_masters" } },
       },
     ]);
     assert.deepEqual(table.header.slice(0, 4), ["Name", "Sent", "How", "After their first session"], "the survey file's first columns changed, so the policy's list of what it holds may no longer be what it holds");
     const questionColumns = table.header.slice(4);
     assert.ok(questionColumns.length > 0 && questionColumns.every((column) => /^\d+\. /.test(column)), "a column of the survey file after the first four is not a question");
     assert.deepEqual(table.rows[0].slice(0, 4), ["Amara Okafor", "2026-11-02 18:05", "Personal link", "No"]);
-    assert.equal(table.rows[0][4], "1 to 10%", "the survey file no longer writes a choice as its words");
+    assert.equal(table.rows[0][4], "Master’s", "the survey file no longer writes a choice as its words");
     assert.ok(!table.header.some((column) => /e-?mail|address/i.test(column)), "the survey file has a column for an email address");
     // Its names come from the account's name and never its address.
     const names = withoutComments(read("src/lib/surveys/names.ts"));
@@ -3723,7 +3736,7 @@ describe("the course hub passage", () => {
   test("a survey is confidential: its answers keep the person's name, only admins see who said what or who has answered, facilitators see nothing of it, and the survey says so at the top", () => {
     assert.match(
       PAGE_FLAT,
-      /<h3>When you answer a survey<\/h3> <ul> <li> At the start of a programme, NAISI&apos;s admins may send a survey to everybody holding a place on it\. Every survey is confidential: we keep your answers with your name, and each survey says so at the top\. Only NAISI&apos;s admins can see who said what\. Facilitators never see anything of a survey\. <\/li>/,
+      /<h3>When you answer a survey<\/h3> <ul> <li> At the start of a programme and again at its end, NAISI&apos;s admins may send a survey to everybody holding a place on it, and 6 and 12 months later a follow-up to the people who said yes to one\. Every survey is confidential: we keep your answers with your name, and each survey says so at the top\. Only NAISI&apos;s admins can see who said what\. Facilitators never see anything of a survey\. <\/li>/,
     );
     // Confidential is the one setting a survey has, whatever is stored.
     assert.match(read("src/lib/firestore/surveys.ts"), /export type SurveyPrivacy = "confidential";/, "a survey can now be something other than confidential");
@@ -3762,8 +3775,10 @@ describe("the course hub passage", () => {
         ["src/app/api/surveys/answer/route.ts", "the person's own answers, sent through the secret in their link"],
         ["src/app/(app)/learn/[runId]/survey/[surveyId]/page.tsx", "the person's own survey, signed in: shown only to somebody it was sent to, by their own row"],
         ["src/app/api/surveys/[surveyId]/answer/route.ts", "the person's own answers, signed in, to their own row: there is no uid in the request"],
+        ["src/app/api/surveys/consent/route.ts", "the person's own follow-ups consent, changed through the secret in their link, on their own row"],
+        ["src/app/api/surveys/[surveyId]/consent/route.ts", "the person's own follow-ups consent, changed signed in, on their own row: there is no uid in the request"],
         ["src/lib/firestore/accountDeletion.ts", "deleting an account takes its name off its survey answers and deletes its survey rows"],
-        ["src/lib/scheduler/jobs/surveyNamesOff.ts", "the job that takes names off a year after the programme"],
+        ["src/lib/scheduler/jobs/surveyNamesOff.ts", "the job that takes names off two years after the programme"],
       ]),
       "reaching survey code from outside it",
       "The policy says only admins see who said what or who has answered, and " +
@@ -3776,10 +3791,11 @@ describe("the course hub passage", () => {
       sourceFilesNaming(/./).filter((file) => SURVEY_STORE.test(withoutComments(read(file)))),
       new Map([
         ["src/lib/firestore/surveys.ts", "the records' own names and shapes"],
-        ["src/lib/surveys/repo.ts", "the readers: a person's own row, the row a link opens, and the answers for the admins' pages and the spreadsheet"],
+        ["src/lib/surveys/repo.ts", "the readers: a person's own row, the row a link opens, the answers for the admins' pages and the spreadsheet, and a person's own earlier answer, shown back to them alone"],
+        ["src/lib/surveys/consent.ts", "a person changing their own consent later, on their own row"],
         ["src/lib/surveys/answer.ts", "the one writer of an answer: a person's own, once"],
         ["src/lib/surveys/sending.ts", "the send, which writes each person's row with their link before their email"],
-        ["src/lib/surveys/namesOff.ts", "names off: a year after the programme, and at once with an account"],
+        ["src/lib/surveys/namesOff.ts", "names off: two years after the programme, and at once with an account"],
       ]),
       "addressing who a survey was sent to, or what somebody answered",
       "The policy says only admins see who said what or who has answered. If " +
@@ -3884,10 +3900,13 @@ describe("the course hub passage", () => {
     assert.match(PAGE_FLAT, /<li> Every question can be skipped\. Nothing you say in a survey affects your place on a programme or an application\. <\/li>/);
     // The rule, run: the before survey requires nothing, and a question stored
     // as required is refused.
-    const template = surveyItems.beforeSurveyItems(["One", "Two", "Three", "Four", "Five"]);
-    assert.deepEqual(surveyItems.validateSurveyItems(template), []);
-    assert.ok(surveyItems.surveyQuestionsOf(template).every((question) => question.required !== true), "the before survey requires an answer");
-    const required = template.map((item) => (item.id === "q_catastrophe" ? { ...item, required: true } : item));
+    for (const [stage, kind, strand] of [["before", "fellowship", null], ["after", "fellowship", null], ["followUp6", "fellowship", null], ["before", "incubator", "alignment"], ["after", "incubator", "governance"]]) {
+      const each = surveyTemplates.templateItems(stage, kind, strand);
+      assert.deepEqual(surveyItems.validateSurveyItems(each), [], `the ${stage} template of a ${kind} is not valid`);
+      assert.ok(surveyItems.surveyQuestionsOf(each).every((question) => question.required !== true), `the ${stage} template of a ${kind} requires an answer`);
+    }
+    const template = surveyTemplates.templateItems("before", "fellowship", null);
+    const required = template.map((item) => (item.id === "q_c1" ? { ...item, required: true } : item));
     assert.deepEqual(
       surveyItems.validateSurveyItems(required).map((problem) => problem.message),
       ["Every question in a survey can be skipped, so none is required."],
@@ -3904,13 +3923,17 @@ describe("the course hub passage", () => {
   });
 
   test("a survey and its reminder go as important notices, each with a link of its person's own, and the reminder only to people who have not answered", () => {
-    assert.match(PAGE_FLAT, /<li> We keep your name with your answers so that we can compare them with your answers to the same questions at the end of the programme, and so that a reminder goes only to people who have not answered\. Only admins see who has answered\. <\/li>/);
+    assert.match(PAGE_FLAT, /<li> We keep your name with your answers so that we can compare them with your answers to the same questions at the end of the programme and in any follow-ups, and so that a reminder goes only to people who have not answered\. Only admins see who has answered\. The survey at the end shows you what you said you wanted from the programme, so you can say whether you got it; nobody else is shown it there\. <\/li>/);
     assert.match(PAGE_FLAT, /<li> A survey and its reminder are emailed as important notices, so your notification settings do not switch them off\. Each email carries a link of your own, so you can answer without signing in\. Anyone holding it could answer in your name, so keep it to yourself\. <\/li>/);
     // Both go through the notice lane, which reads nobody's settings and has
     // no unsubscribe link (§2c holds the lane to that), and through no other door.
     const sending = withoutComments(read("src/lib/surveys/sending.ts"));
     assert.match(sending, /const result = await sendNotice\(\{/);
-    assert.match(sending, /surface: "course-survey",/);
+    // A follow-up is a notice too, whose line says it reached the person because they said yes to it.
+    assert.match(sending, /surface: survey\.audience\.kind === "followUps" \? "course-follow-up" : "course-survey",/);
+    const marker = withoutComments(read("src/emails/NoticeMarker.tsx"));
+    assert.match(marker, /"course-survey": "you hold a place on this programme",/);
+    assert.match(marker, /"course-follow-up": "you said we could send you follow-ups about this programme",/);
     assert.ok(!/\bsendEmail\(|wantsEmailFor|addressesForSend/.test(sending), "a survey or its reminder now goes through a door that reads the notification settings");
     // The reminder: people it was sent to who have not answered, and still hold a place.
     assert.match(sending, /\.filter\(\(person\) => person\.sentAt !== null && !person\.answered && holding\.has\(person\.respondent\.uid\)\)/);
@@ -3926,17 +3949,20 @@ describe("the course hub passage", () => {
     }
   });
 
-  test("names come off survey answers a year after the programme's last session, by a job that is on unless an admin turns it off, and the answers stay in the totals", () => {
+  test("names come off survey answers two years after the programme's last session, by a job that is on unless an admin turns it off, and the answers stay in the totals", () => {
     // The pairing §2's check on deletion periods cannot make: that check knows
-    // "30 days afterwards" and "delete or anonymise", and not "a year after".
+    // "30 days afterwards" and "delete or anonymise", and not "two years after".
     assert.match(
       PAGE_FLAT,
-      /<strong>Survey answers\.<\/strong> We take your name off your answers to a survey on the day it tells you, a year after the programme&apos;s last session, and delete the record that it was sent to you, with your link to answer it\. Your answers stay in its totals, no longer linked to you\./,
+      /<strong>Survey answers\.<\/strong> We take your name off your answers to a survey on the day it tells you, two years after the programme&apos;s last session, and delete the record that it was sent to you, with your link to answer it and what you said about follow-ups\. Your answers stay in its totals, no longer linked to you\./,
     );
     assert.match(PAGE_FLAT, /written work, feedback you gave us \(survey answers, below, are the exception\), and notes written about you\./);
     const namesOff = withoutComments(read("src/lib/surveys/namesOff.ts"));
-    // The day: a year after the run's last session, from each live group's own calendar.
-    assert.match(namesOff, /const last = runEndOf\(run, groups, now\)\.lastDateKey;\s*return last \? aYearAfter\(last\) : null;/);
+    // The day: two years after the run's last session, from each live group's own calendar.
+    assert.match(namesOff, /const last = runEndOf\(run, groups, now\)\.lastDateKey;\s*return last \? twoYearsAfter\(last\) : null;/);
+    assert.match(namesOff, /export const NAMES_KEPT_YEARS = 2;/);
+    assert.match(namesOff, /const year = Number\(match\[1\]\) \+ NAMES_KEPT_YEARS;/);
+    assert.equal(surveyNamesOff.twoYearsAfter("2026-12-09"), "2028-12-09", "the day is no longer two years after the last session");
     // On it, every answer's person goes and every row of who it was sent to
     // is deleted; the answers stay.
     const survey = /export async function takeNamesOffSurvey\([\s\S]*?\n\}/.exec(namesOff);
@@ -3956,8 +3982,8 @@ describe("the course hub passage", () => {
     assert.match(registry, /^\s*surveyNamesOffJob,$/m);
     assert.match(registry, /return job\.enabledByDefault !== false;/);
     // The box tells each person the same day, and that the totals stay.
-    const box = surveyWords.confidentialPoints({ leadName: null, facilitatorNames: null, namesOffOn: "2027-12-09", programmeKind: "fellowship" });
-    assert.ok(box.points.includes("Your name comes off on Thu 9 Dec 2027, a year after the fellowship ends. The totals stay."), "the box no longer tells somebody the day their name comes off");
+    const box = surveyWords.confidentialPoints({ leadName: null, facilitatorNames: null, namesOffOn: "2028-12-09", programmeKind: "fellowship" });
+    assert.ok(box.points.includes("Your name comes off on Sat 9 Dec 2028, two years after the fellowship ends. The totals stay."), "the box no longer tells somebody the day their name comes off");
     // tests/surveys-routes.test.mjs runs the job the day before and on the
     // day; tests/surveys-items.test.mjs counts the year, 29 February included.
     for (const suite of ["surveys-routes.test.mjs", "surveys-items.test.mjs"]) {
@@ -3982,6 +4008,133 @@ describe("the course hub passage", () => {
     assert.equal((account[0].match(/\.delete\(/g) ?? []).length, 1, "a deletion now removes survey answers, which the policy says stay in the totals");
     // tests/surveys-deletion.test.mjs runs the cascade over survey records.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-deletion.test.mjs")));
+  });
+
+  // The programme impact questionnaire (26 October 2026): what the surveys
+  // ask, what they offer from a profile, the survey at the end showing a
+  // person their own answer, and the follow-ups. Each sentence is held to the
+  // templates and the code that keeps it, both ways.
+  test("what a programme's surveys ask is said by kind, and every question of every template is one of those kinds", () => {
+    const kinds = /<li> (A programme&apos;s surveys ask about [^<]*) <\/li>/.exec(PAGE_FLAT);
+    assert.ok(kinds, "the passage no longer says what a programme's surveys ask");
+    assert.equal(
+      kinds[1],
+      "A programme&apos;s surveys ask about your level and subject of study, what you had done in AI safety before and how you first heard about NAISI; your career stage and plans, how likely you think you are to work on AI safety and the kinds of work that interest you; what you understand and know of the field, how many people in it you could contact, and how sure you are of your next step and of what you could contribute; what stands in your way and the steps you have taken; and what you want from the programme. At the end and in the follow-ups they also ask how the programme went, what it changed, what else shaped your plans, what you are doing now and what you plan next. An incubator&apos;s also ask about your research skills and what your team produced.",
+    );
+    // Each kind the sentence names, and the questions it covers.
+    const KINDS = new Map([
+      ["your level and subject of study", ["q_p3_level", "q_p3_subject"]],
+      ["what you had done in AI safety before", ["q_p4"]],
+      ["how you first heard about NAISI", ["q_p5"]],
+      ["your career stage and plans", ["q_c1", "q_t1"]],
+      ["how likely you think you are to work on AI safety", ["q_c2"]],
+      ["the kinds of work that interest you", ["q_c3"]],
+      ["what you understand and know of the field", ["q_c4", "q_c5", "q_t2", "q_t3"]],
+      ["how many people in it you could contact", ["q_c6", "q_i3"]],
+      ["how sure you are of your next step and of what you could contribute", ["q_c7"]],
+      ["what you want from the programme", ["q_p6", "q_q3"]],
+      ["what stands in your way", ["q_c8"]],
+      ["the steps you have taken", ["q_c9", "q_f4_applied", "q_f4_accepted"]],
+      ["how the programme went", ["q_q1", "q_q2"]],
+      ["what it changed", ["q_a1", "q_a2", "q_a3", "q_a5", "q_f7"]],
+      ["what else shaped your plans", ["q_a4"]],
+      ["what you are doing now", ["q_f1", "q_f1_where", "q_f2", "q_f3"]],
+      ["what you plan next", ["q_n1", "q_n2", "q_n3", "q_i7"]],
+      ["your research skills", ["q_i1", "q_i2", "q_i2_back"]],
+      ["what your team produced", ["q_i4", "q_i4_links", "q_i4_when", "q_i5", "q_i6"]],
+    ]);
+    const asked = new Set();
+    for (const [stage, kind, strand] of [["before", "fellowship", null], ["after", "fellowship", null], ["followUp6", "fellowship", null], ["followUp12", "fellowship", null], ["before", "incubator", "alignment"], ["after", "incubator", "governance"]]) {
+      for (const question of surveyItems.surveyQuestionsOf(surveyTemplates.templateItems(stage, kind, strand))) asked.add(question.id);
+    }
+    const named = new Set();
+    for (const [words, ids] of KINDS) {
+      assert.ok(kinds[1].includes(words), `the sentence no longer names "${words}"`);
+      for (const id of ids) {
+        assert.ok(asked.has(id), `"${words}" covers ${id}, which no template asks any more`);
+        named.add(id);
+      }
+    }
+    assert.deepEqual([...asked].filter((id) => !named.has(id)), [], "a template asks a question of a kind the policy does not name");
+    // The kinds the brief asked the policy to name, by their own words.
+    for (const kind of ["career stage and plans", "could contact", "stands in your way", "steps you have taken", "shaped your plans", "plan next"]) {
+      assert.ok(kinds[1].includes(kind), `the sentence no longer says ${kind}`);
+    }
+    // Every survey is made from a template, and a fellowship asks none of an incubator's questions.
+    const create = withoutComments(read("src/lib/surveys/create.ts"));
+    assert.match(create, /const items = templateItems\(input\.stage, programme\.kind, strand\);/);
+    assert.ok(![...surveyItems.surveyQuestionsOf(surveyTemplates.templateItems("after", "fellowship", null))].some((question) => question.id.startsWith("q_i")));
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-items.test.mjs")), "tests/surveys-items.test.mjs holds every template word for word");
+  });
+
+  test("a survey offers only the level and subject of study from a profile, as a starting answer the person can change, and keeps only what is sent", () => {
+    assert.match(PAGE_FLAT, /<li> Where your profile holds them, the survey before a programme starts its questions about your level and subject of study on your profile&apos;s answers\. You can change or clear either before you send it, and only what you send is kept\. <\/li>/);
+    // Only the two values are read from the account, and nothing else of it.
+    const offer = withoutComments(read("src/lib/surveys/profileOffer.ts"));
+    // The degree through `degreeOf`, the site's one reading of it (an older account's `course` included).
+    assert.match(offer, /return \{\s*status: typeof profile\.status === "string" \? profile\.status : "",\s*subject: degreeOf\(profile\),\s*\};/);
+    assert.deepEqual(Object.keys(surveyProfileOffer.profileFactsOf({ email: "a@example.com", displayName: "A", profile: { status: "phd", subject: "Law", motivation: "x", expectedGraduation: "2028-07" } })), ["status", "subject"]);
+    // Only the two questions that say so are offered, and only on the before survey.
+    const offered = (items) => surveyItems.surveyQuestionsOf(items).filter((question) => question.profile).map((question) => [question.id, question.profile]);
+    assert.deepEqual(offered(surveyTemplates.templateItems("before", "fellowship", null)), [["q_p3_level", "level"], ["q_p3_subject", "subject"]]);
+    for (const stage of ["after", "followUp6", "followUp12"]) assert.deepEqual(offered(surveyTemplates.templateItems(stage, "fellowship", null)), [], `the ${stage} survey offers something from a profile`);
+    // "Where your profile holds them": an undergraduate's year and a subject that matches no answer are not offered.
+    const levels = ["o_ug1", "o_ug2", "o_ug3", "o_ug4", "o_masters", "o_phd", "o_staff", "o_other"];
+    assert.equal(surveyProfileOffer.offerFromProfile("level", { status: "undergraduate", subject: "" }, levels), null);
+    assert.equal(surveyProfileOffer.offerFromProfile("level", { status: "masters", subject: "" }, levels), "o_masters");
+    // Read for the person whose page it is, and drawn as the menu's starting answer, which the person can change.
+    const view = withoutComments(read("src/lib/surveys/answerView.ts"));
+    assert.match(view, /const snap = await db\.collection\("users"\)\.doc\(uid\)\.get\(\);/);
+    assert.match(view, /profileOffersFor\(db, survey, input\.uid\)/);
+    const form = withoutComments(read("src/features/surveys/answer/SurveyForm.tsx"));
+    assert.match(form, /<Select name=\{question\.id\} defaultValue=\{question\.offered\}/);
+    assert.match(form, /<option value="">\{ANSWER_WORDS\.chooseOne\}<\/option>/);
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-routes.test.mjs")), "tests/surveys-routes.test.mjs draws the offer for a person whose profile holds it, and none for one whose does not");
+  });
+
+  test("the survey at the end shows a person their own answer from the start, read for them alone, and a test shows nobody's", () => {
+    const q3 = surveyItems.surveyQuestionsOf(surveyTemplates.templateItems("after", "fellowship", null)).find((question) => question.pipe);
+    assert.deepEqual([q3.id, q3.pipe], ["q_q3", { from: "q_p6", words: "At the start you said:" }]);
+    assert.equal(surveyItems.surveyQuestionsOf(surveyTemplates.templateItems("before", "fellowship", null)).find((question) => question.id === "q_p6").title, "What do you most want to get out of this programme?");
+    const view = withoutComments(read("src/lib/surveys/answerView.ts"));
+    assert.match(view, /const answers = \(await ownAnswerOf\(db, source, uid\)\)\?\.answers;/);
+    assert.match(view, /if \(test\) return Object\.fromEntries\(piping\.map\(\(question\) => \[question\.id, pipeTestWords\(question\.pipe!\.words\)\]\)\);/);
+    const repo = withoutComments(read("src/lib/surveys/repo.ts"));
+    const own = /export async function ownAnswerOf\([\s\S]*?\n\}/.exec(repo);
+    assert.ok(own, "could not find how a person's own earlier answer is read");
+    assert.match(own[0], /\.where\("respondent\.uid", "==", uid\)\.get\(\)/);
+    assert.match(own[0], /if \(answer\.surveyId === survey\.id && answer\.respondent\?\.uid === uid\) return answer;/);
+    // The results and the admins' pages carry no piped words.
+    assert.ok(!/pipedAnswersFor|ownAnswerOf/.test(withoutComments(read("src/lib/surveys/adminView.ts"))), "an admins' page now reads a person's earlier answer as that person");
+  });
+
+  test("the follow-ups go only to people who tick an unticked box, which each person can change later, kept with when on their own row", () => {
+    // The box: one purpose, unticked until ticked.
+    const consent = surveyTemplates.templateItems("before", "fellowship", null).find((item) => item.kind === "consent");
+    assert.deepEqual(consent.boxes, [{ purpose: "followUps", label: "Contact me at 6 and 12 months with a short follow-up survey" }]);
+    const form = withoutComments(read("src/features/surveys/answer/SurveyForm.tsx"));
+    assert.match(form, /<OptionRow key=\{box\.purpose\} type="checkbox" name=\{consentField\(box\.purpose\)\} value="yes">/);
+    assert.ok(!/consentField\([^)]*\)[^>]*(?:defaultChecked|checked)/.test(form), "the follow-ups box is ticked before the person ticks it");
+    // Kept on the person's own row with when, never in the answers.
+    const answer = withoutComments(read("src/lib/surveys/answer.ts"));
+    assert.match(answer, /consented \? \{ answered: true, consents: said\.consents, consentsAt: FieldValue\.serverTimestamp\(\) \} : \{ answered: true \}/);
+    assert.deepEqual(surveyItems.readSurveyConsents(consent ? [consent] : [], undefined), { consents: { followUps: false }, problem: null }, "a box left unticked is no longer a no");
+    // Only people who said yes are sent the follow-ups, as their row says at each press.
+    assert.match(read("src/lib/surveys/audience.ts"), /const said = \(await peopleOf\(db, consentFrom\)\)\.filter\(\(person\) => person\.consents\.followUps === true\);/);
+    const create = withoutComments(read("src/lib/surveys/create.ts"));
+    assert.match(create, /\? \{ kind: "followUps", roundId: input\.roundId, programmeId: input\.programmeId, consentFrom: before\.id \}/);
+    // Changed later by the person alone, on their own row, by their link or signed in.
+    const change = withoutComments(read("src/lib/surveys/consent.ts"));
+    assert.match(change, /const ref = db\.collection\(SURVEY_PEOPLE_COLLECTION\)\.doc\(surveyPersonId\(holder, person\.respondent\)\);/);
+    assert.match(change, /tx\.update\(ref, \{ \[`consents\.\$\{purpose\}`\]: given, consentsAt: FieldValue\.serverTimestamp\(\) \}\);/);
+    assert.match(read("src/app/api/surveys/consent/route.ts"), /const target = await openLink\(db, body\.token\);/);
+    assert.match(read("src/app/api/surveys/[surveyId]/consent/route.ts"), /await readPerson\(db, survey\.id, \{ kind: "account", uid: actor\.uid \}\)/);
+    for (const route of ["src/app/api/surveys/consent/route.ts", "src/app/api/surveys/[surveyId]/consent/route.ts"]) {
+      assert.match(read(route), /const blocked = await assertNotImpersonating\(\);\s*if \(blocked\) return blocked;/, `${route} lets an admin viewing as somebody change what they said`);
+    }
+    // "Until your name comes off": names off deletes the rows that hold it.
+    assert.match(withoutComments(read("src/lib/surveys/namesOff.ts")), /await inPages\(people\.docs, \(batch, doc\) => batch\.delete\(doc\.ref\), db\);/);
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-routes.test.mjs")), "tests/surveys-routes.test.mjs sends the follow-ups only to people who said yes and changes it by both doors");
   });
 });
 
@@ -4107,8 +4260,8 @@ describe("the re-consent gate", () => {
       ],
       [
         "that a survey is confidential, and when the name comes off",
-        /; and that our surveys are confidential: only admins see who said what, and your name comes off a year after the programme\./,
-        /Every survey is confidential: we keep your answers with your name, and each survey says so at the top\. Only NAISI&apos;s admins can see who said what\..*We take your name off your answers to a survey on the day it tells you, a year after the programme&apos;s last session/,
+        /; and that our surveys are confidential: only admins see who said what, and your name comes off two years after the programme\./,
+        /Every survey is confidential: we keep your answers with your name, and each survey says so at the top\. Only NAISI&apos;s admins can see who said what\..*We take your name off your answers to a survey on the day it tells you, two years after the programme&apos;s last session/,
       ],
       [
         "facilitators see names only",
@@ -4132,7 +4285,7 @@ describe("the re-consent gate", () => {
     const list = paragraph.slice(paragraph.indexOf("It says what"), paragraph.indexOf("It also says"));
     assert.ok(list.length > 200, "could not find the accept page's list of what v7 says");
     assert.equal((list.match(/\band that\b/g) ?? []).length, 1, "the accept page's list of what v7 says has more than one \"and that\", or none");
-    assert.match(list, /; and that our surveys are confidential: only admins see who said what, and your name comes off a year after the programme\. $/);
+    assert.match(list, /; and that our surveys are confidential: only admins see who said what, and your name comes off two years after the programme\. $/);
     // A register's notes are not among what a lead reads (§2g), so the
     // paragraph does not say they are. The notes it does name for the lead
     // are the ones its groups' facilitators share.

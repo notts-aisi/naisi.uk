@@ -114,8 +114,8 @@ export default async function ReConsentPage() {
           turn the link on; that you can add your sessions to your calendar
           with a private link, which your calendar&apos;s provider fetches
           and you can replace; and that our surveys are confidential: only
-          admins see who said what, and your name comes off a year after the
-          programme. It also says that facilitators see names only, never
+          admins see who said what, and your name comes off two years after
+          the programme. It also says that facilitators see names only, never
           email addresses, and that downloads of a programme&apos;s
           attendance are recorded.
         </p>

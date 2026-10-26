@@ -2,14 +2,15 @@ import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
-import { createBeforeSurvey, parseCreate } from "@/lib/surveys/create";
+import { createSurvey, parseCreate } from "@/lib/surveys/create";
 import { canRunSurveys } from "@/lib/surveys/repo";
 import { REFUSAL } from "@/lib/surveys/words";
 
 /**
- * MAKE A PROGRAMME'S BEFORE SURVEY from the template (sv-new): the programme,
- * the lines of question 4 and the day it closes. Admins only: only admins
- * make, send, remind and close surveys.
+ * MAKE ONE OF A PROGRAMME'S SURVEYS from its stage's template (sv-new): the
+ * programme, the stage (before it, at its end, 6 or 12 months on), the day
+ * it closes and, for an incubator, its research strand. Admins only: only
+ * admins make, send, remind and close surveys.
  *
  * ORDER: view-as first, then the session and the admin bar, then the body,
  * and only then a read. Answers `{ ok, survey: { id } }`.
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
-  const made = await createBeforeSurvey(db, actor.uid, parsed.input, now);
+  const made = await createSurvey(db, actor.uid, parsed.input, now);
   if (!made.ok) return NextResponse.json({ error: made.error }, { status: made.status });
   return NextResponse.json({ ok: true, survey: { id: made.id } });
 }

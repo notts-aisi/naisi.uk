@@ -32,7 +32,7 @@ export default async function SignedInSurveyPage({
   if (!user) redirect("/login");
 
   const db = getAdminDb();
-  let screen: Screen = { state: "message", ...STATE_WORDS.notYours };
+  let screen: Screen = { state: "message", ...STATE_WORDS.notYours, consent: null };
   let programmeName = "";
   if (db) {
     const survey = await readSurvey(db, surveyId);
@@ -45,6 +45,7 @@ export default async function SignedInSurveyPage({
         answeredAt: null,
         submit: { kind: "signed-in", surveyId: survey.id },
         now: new Date(),
+        person,
       });
     }
   }

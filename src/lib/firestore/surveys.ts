@@ -1,4 +1,5 @@
-import { sanitizeSurveyItems, type SurveyAnswer, type SurveyItem } from "@/lib/surveys/items";
+import { CONSENT_PURPOSES, sanitizeSurveyItems, type SurveyAnswer, type SurveyConsents, type SurveyItem } from "@/lib/surveys/items";
+import { INCUBATOR_STRANDS, SURVEY_STAGES, type IncubatorStrand, type SurveyStage } from "@/lib/surveys/templates";
 
 /**
  * SURVEYS: three server-only collections, the shapes their readers share.
@@ -9,7 +10,8 @@ import { sanitizeSurveyItems, type SurveyAnswer, type SurveyItem } from "@/lib/s
  *                                     names come off, what has been sent
  *   surveyPeople/{surveyId}__{who}    one person a survey is for: the secret
  *                                     in their personal link, when it was
- *                                     sent and reminded, whether answered
+ *                                     sent and reminded, whether answered,
+ *                                     and what their consent ticks say
  *   surveyAnswers/{autoId}            one person's answers, sent once
  *
  * SERVER-ONLY IN BOTH DIRECTIONS. `firestore.rules` shuts all three to every
@@ -22,7 +24,7 @@ import { sanitizeSurveyItems, type SurveyAnswer, type SurveyItem } from "@/lib/s
  * come. The person is a `respondent` map, `{ kind: "account", uid }`, found by
  * one equality on `respondent.uid`, so another kind can sit beside it without
  * a rewrite. Names come off by setting it to null on the answers (the totals
- * stay) and deleting the people rows: the job a year after the programme
+ * stay) and deleting the people rows: the job two years after the programme
  * (`src/lib/surveys/namesOff.ts`), and account deletion at once.
  *
  * WHAT IS NEVER KEPT: no draft of an answer before "Send my answers", no
@@ -34,18 +36,26 @@ export const SURVEYS_COLLECTION = "surveys";
 export const SURVEY_PEOPLE_COLLECTION = "surveyPeople";
 export const SURVEY_ANSWERS_COLLECTION = "surveyAnswers";
 
-/** The one kind built: the before survey of a pair. The after survey comes later. */
-export type SurveyKind = "before";
+/**
+ * Which of a programme's surveys this is: before it, at its end, or a
+ * follow-up 6 or 12 months on. Each pairs with the one before it.
+ */
+export type SurveyKind = SurveyStage;
 
 /** Confidential is the only setting: no survey on the site is anonymous. */
 export type SurveyPrivacy = "confidential";
 
 /**
- * Who a survey is for. Today: everybody holding a place on one programme of
- * an application form. Later kinds sit beside it (everybody still on the
- * programme at its end, people leaving, an event's sign-ups or who came).
+ * Who a survey is for. `programme`: everybody holding a place on one
+ * programme of an application form when it is sent, which before a programme
+ * is everybody starting and at its end everybody still on it. `followUps`:
+ * everybody whose row on the programme's before survey (`consentFrom`) says
+ * yes to being contacted at 6 and 12 months, now. Later kinds sit beside them
+ * (people leaving, an event's sign-ups or who came).
  */
-export type SurveyAudience = { kind: "programme"; roundId: string; programmeId: string };
+export type SurveyAudience =
+  | { kind: "programme"; roundId: string; programmeId: string }
+  | { kind: "followUps"; roundId: string; programmeId: string; consentFrom: string };
 
 /** A person a survey is for, or who answered it. An account today. */
 export type SurveyRespondent = { kind: "account"; uid: string };
@@ -93,11 +103,19 @@ export type SurveyDoc = {
   programmeKind: SurveyProgrammeKind;
   /** The course run the programme named when the survey was made. */
   runId: string;
+  /**
+   * The survey of the stage before this one, for the same programme, when
+   * this one was made: the after survey pairs with the before, a follow-up
+   * with the after (or the before). Answers compare by person along the pairs.
+   */
+  pairOf: string | null;
+  /** An incubator's research strand, for the first line of its skills question; null for a fellowship. */
+  strand: IncubatorStrand | null;
   /** It refuses answers from this moment: 23:59 in London on the day an admin picked. */
   closesAt: Date | null;
   /** Closed early, by hand. */
   closedAt: Date | null;
-  /** "YYYY-MM-DD", a year after the run's last session; null while that cannot be dated. */
+  /** "YYYY-MM-DD", when names come off; null while the run's last session cannot be dated. */
   namesOffOn: string | null;
   /** When names came off. */
   namesOffAt: Date | null;
@@ -129,6 +147,14 @@ export type SurveyPersonDoc = {
   remindedAt: Date | null;
   reminders: number;
   answered: boolean;
+  /**
+   * What the person's ticks in the survey's consent blocks say, by purpose: a
+   * yes or a no once they have sent their answers or changed it since, and
+   * nothing before. A follow-up survey goes only to people whose row says yes.
+   */
+  consents: SurveyConsents;
+  /** When the consents were last said, by sending the answers or changing them. */
+  consentsAt: Date | null;
 };
 
 /** How somebody's answers came in. */
@@ -197,7 +223,20 @@ function readRespondent(raw: unknown): SurveyRespondent | null {
 
 function readAudience(raw: unknown): SurveyAudience {
   const r = (raw ?? {}) as Raw;
+  if (r.kind === "followUps" && typeof r.consentFrom === "string" && r.consentFrom) {
+    return { kind: "followUps", roundId: str(r.roundId), programmeId: str(r.programmeId), consentFrom: r.consentFrom };
+  }
   return { kind: "programme", roundId: str(r.roundId), programmeId: str(r.programmeId) };
+}
+
+function readConsents(raw: unknown): SurveyConsents {
+  const out: SurveyConsents = {};
+  if (!raw || typeof raw !== "object") return out;
+  const r = raw as Raw;
+  for (const purpose of CONSENT_PURPOSES) {
+    if (typeof r[purpose] === "boolean") out[purpose] = r[purpose] as boolean;
+  }
+  return out;
 }
 
 function readTest(raw: unknown): SurveyTest | null {
@@ -224,7 +263,7 @@ export function normalizeSurvey(id: string, data: Raw): SurveyDoc {
   const minutes = count(data.minutes);
   return {
     id,
-    kind: "before",
+    kind: SURVEY_STAGES.includes(data.kind as SurveyKind) ? (data.kind as SurveyKind) : "before",
     privacy: "confidential",
     name: str(data.name),
     title: str(data.title),
@@ -235,6 +274,8 @@ export function normalizeSurvey(id: string, data: Raw): SurveyDoc {
     programmeName: str(data.programmeName),
     programmeKind: data.programmeKind === "incubator" ? "incubator" : "fellowship",
     runId: str(data.runId),
+    pairOf: typeof data.pairOf === "string" && data.pairOf ? data.pairOf : null,
+    strand: INCUBATOR_STRANDS.includes(data.strand as IncubatorStrand) ? (data.strand as IncubatorStrand) : null,
     closesAt: tsToDate(data.closesAt),
     closedAt: tsToDate(data.closedAt),
     namesOffOn: typeof data.namesOffOn === "string" && DATE_KEY.test(data.namesOffOn) ? data.namesOffOn : null,
@@ -270,6 +311,8 @@ export function normalizeSurveyPerson(id: string, data: Raw): SurveyPersonDoc | 
     remindedAt: tsToDate(data.remindedAt),
     reminders: count(data.reminders),
     answered: data.answered === true,
+    consents: readConsents(data.consents),
+    consentsAt: tsToDate(data.consentsAt),
   };
 }
 

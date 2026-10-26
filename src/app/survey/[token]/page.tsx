@@ -39,7 +39,7 @@ export default async function SurveyLinkPage({ params }: { params: Promise<{ tok
   const { token } = await params;
   const db = getAdminDb();
   const now = new Date();
-  let screen: Screen = { state: "message", ...STATE_WORDS.noSurvey };
+  let screen: Screen = { state: "message", ...STATE_WORDS.noSurvey, consent: null };
   if (db) {
     const target = await openLink(db, token);
     if (target.kind === "test") {
@@ -57,6 +57,7 @@ export default async function SurveyLinkPage({ params }: { params: Promise<{ tok
         answeredAt: null,
         submit: { kind: "link", token },
         now,
+        person: target.person,
       });
     }
   }

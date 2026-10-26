@@ -1,10 +1,11 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import type { SurveyDoc, SurveyPersonDoc } from "@/lib/firestore/surveys";
+import { changeBetween, lookBackBetween, type ChangeResult, type PairedAnswers } from "./change";
 import { emailWordsFor, siteAddress } from "./emails";
-import { surveyQuestionsOf } from "./items";
+import { consentItemsOf, surveyQuestionsOf } from "./items";
 import { namesOf } from "./names";
-import { answersOf, closedOn, peopleOf, readSurvey, surveyState } from "./repo";
+import { answersOf, chainOf, closedOn, peopleOf, readSurvey, surveyState } from "./repo";
 import { surveyResults, type QuestionResult } from "./results";
 import { readSendPlan, signerOf, testStateFor } from "./sending";
 import {
@@ -12,6 +13,7 @@ import {
   SURVEY_FROM_NAME,
   SURVEY_REPLY_TO,
   answeredOf,
+  audienceKindOf,
   audienceWords,
   closesWords,
   dayAndClockWords,
@@ -28,6 +30,8 @@ import {
   remindedWords,
   sizeWords,
   testSentWords,
+  SEND_WORDS,
+  type AudienceKind,
   type SurveyEmailWords,
 } from "./words";
 
@@ -140,6 +144,8 @@ export type TestView = { fresh: boolean; line: string };
 
 export type SendView = {
   state: SurveyState;
+  /** Who it reaches: holding a place at the start, still holding one at the end, or said yes to follow-ups. */
+  audienceKind: AudienceKind;
   /** The form or its programme has gone: nothing can be sent. */
   gone: boolean;
   /** The site cannot write a link: nothing can be sent. */
@@ -151,9 +157,10 @@ export type SendView = {
   progress: string;
   share: number;
   /** `nobody` is the board's sentence for when nobody has joined since. */
-  joined: { emails: number; names: string[]; nobody: string } | null;
+  joined: { heading: string; emails: number; names: string[]; nobody: string } | null;
   remind: { lead: string; email: EmailPreview | null; test: TestView; emails: number } | null;
-  summary: { name: string; size: string; who: string; closes: string; namesOff: string };
+  /** `labelled`: whether answers are labelled by the person's first session, which only a before survey does. */
+  summary: { name: string; size: string; who: string; closes: string; namesOff: string; labelled: boolean };
 };
 
 function testView(fresh: "none" | "stale" | "fresh", at: Date | null, now: Date): TestView {
@@ -167,17 +174,20 @@ export async function sendView(db: Firestore, survey: SurveyDoc, presserUid: str
   const reminderWords = emailWordsFor(survey, "reminder", signer);
   const questions = surveyQuestionsOf(survey.items).length;
   const ends = closedOn(survey);
+  const audienceKind = audienceKindOf(survey.audience, survey.kind);
   const summary = {
     name: survey.name,
     size: sizeWords(questions, survey.minutes),
-    who: audienceWords(survey.programmeName, plan.holders.length),
+    who: audienceWords(survey.programmeName, plan.holders.length, audienceKind),
     closes: survey.closesAt ? deadlineWords(survey.closesAt) : "",
     namesOff: survey.namesOffOn ? namesOffWords(survey.namesOffOn) : "",
+    labelled: survey.kind === "before",
   };
 
   if (state === "draft") {
     return {
       state,
+      audienceKind,
       gone: plan.gone,
       noAddress: !siteAddress(),
       first: {
@@ -206,11 +216,11 @@ export async function sendView(db: Firestore, survey: SurveyDoc, presserUid: str
   const log = survey.presses.map((press) => {
     const at = press.at ? dayAndClockWords(press.at) : "";
     if (press.kind === "first") {
-      return { at, line: firstSentWords(press.count), email: surveyWords ? preview(surveyWords, press.count, press.at) : null };
+      return { at, line: firstSentWords(press.count, audienceKind), email: surveyWords ? preview(surveyWords, press.count, press.at) : null };
     }
     if (press.kind === "joined") {
       const pressNames = (joinedNames.get(press.id) ?? []).filter(Boolean).sort((a, b) => a.localeCompare(b, "en"));
-      return { at, line: joinedSentWords(pressNames, press.count), email: null };
+      return { at, line: joinedSentWords(pressNames, press.count, audienceKind), email: null };
     }
     return { at, line: remindedWords(press.count), email: null };
   });
@@ -220,6 +230,7 @@ export async function sendView(db: Firestore, survey: SurveyDoc, presserUid: str
   const open = state === "open";
   return {
     state,
+    audienceKind,
     gone: plan.gone,
     noAddress: !siteAddress(),
     first: null,
@@ -228,9 +239,10 @@ export async function sendView(db: Firestore, survey: SurveyDoc, presserUid: str
     share: plan.sent > 0 ? plan.answered / plan.sent : 0,
     joined: open
       ? {
+          heading: audienceKind === "followUps" ? SEND_WORDS.saidYesSince : SEND_WORDS.joinedSince,
           emails: plan.owed.length,
           names: plan.owed.map((holder) => ownedNames.get(holder.uid) ?? holder.name),
-          nobody: nobodyNewWords(lastSent),
+          nobody: nobodyNewWords(lastSent, audienceKind),
         }
       : null,
     remind: open
@@ -278,21 +290,92 @@ export async function answeredView(db: Firestore, survey: SurveyDoc): Promise<{ 
   return { rows, answered: people.filter((person) => person.answered).length, sent: sent.length };
 }
 
-export type ResultsView = {
-  answers: number;
-  /** Answers left out because they came after the person's first session. */
-  leftOut: number;
-  questions: QuestionResult[];
+/** One question's totals, with what it is compared against. */
+export type ResultRow = QuestionResult & {
+  /** How it changed since an earlier survey of the programme, for people who answered both. */
+  change: ChangeResult | null;
+  /** Beside it: this question against the one in this survey that looks back on it. */
+  lookBack: ChangeResult | null;
 };
 
-/** Totals and comments, made here; `beforeFirstSession` leaves out answers sent after it. */
+export type ResultsView = {
+  /** Answers counted. */
+  answers: number;
+  /** People it was sent to, by its record of each send: every response rate is of these. */
+  sent: number;
+  /** Answers left out because they came after the person's first session. */
+  leftOut: number;
+  /** Whether the before-first-session switch means anything here: a before survey, or one paired with one. */
+  offersFirstSession: boolean;
+  /** The earlier surveys compared with, and how many answered each. */
+  pairedWith: { name: string; answers: number }[];
+  /** True once names have come off: answers no longer pair by person. */
+  namesOff: boolean;
+  questions: ResultRow[];
+  /** What the consent boxes say now, of the people it was sent to. */
+  consents: { label: string; yes: number; of: number }[];
+};
+
+function paired(answers: readonly { respondent: { uid: string } | null; answers: PairedAnswers["answers"] }[]): PairedAnswers[] {
+  return answers.flatMap((answer) => (answer.respondent ? [{ uid: answer.respondent.uid, answers: answer.answers }] : []));
+}
+
+/**
+ * Totals and comments, made here, with n and the response rate beside them;
+ * for a survey that pairs with an earlier one, how each shared question
+ * changed for the people who answered both, and the look-back beside it.
+ * `beforeFirstSession` leaves out before-survey answers sent after the
+ * person's first session: this survey's own when it is the before survey,
+ * the earlier side's when it pairs with one.
+ */
 export async function resultsView(db: Firestore, survey: SurveyDoc, beforeFirstSession: boolean): Promise<ResultsView> {
-  const answers = await answersOf(db, survey);
-  const kept = beforeFirstSession ? answers.filter((answer) => !answer.afterFirstSession) : answers;
+  const [answers, people, chain] = await Promise.all([answersOf(db, survey), peopleOf(db, survey.id), chainOf(db, survey)]);
+  const leaveOut = (list: Awaited<ReturnType<typeof answersOf>>, kind: SurveyDoc["kind"]) =>
+    beforeFirstSession && kind === "before" ? list.filter((answer) => !answer.afterFirstSession) : list;
+  const kept = leaveOut(answers, survey.kind);
+  let leftOut = answers.length - kept.length;
+  const earlier = await Promise.all(
+    chain.map(async (each) => {
+      const all = await answersOf(db, each);
+      const counted = leaveOut(all, each.kind);
+      leftOut += all.length - counted.length;
+      return { survey: each, answers: counted };
+    }),
+  );
+  // Who it was sent to, as the survey's own record of each send says: it
+  // outlives the people rows, which go when names come off.
+  const sent = survey.presses.filter((press) => press.kind !== "remind").reduce((sum, press) => sum + press.count, 0);
+  const rows = people.filter((person) => person.sentAt !== null);
+  const mine = paired(kept);
+  const questions = surveyQuestionsOf(survey.items);
+  const results = surveyResults(survey.items, kept).map((result): ResultRow => {
+    const question = questions.find((each) => each.id === result.id)!;
+    // The earliest survey of the pairs that asks the same question, the same way.
+    const source = earlier.find((each) => surveyQuestionsOf(each.survey.items).some((asked) => asked.id === question.id && asked.type === question.type));
+    const asked = source ? surveyQuestionsOf(source.survey.items).find((each) => each.id === question.id)! : null;
+    const back = questions.find((each) => each.lookBackOf === question.id) ?? null;
+    return {
+      ...result,
+      change: source && asked ? changeBetween(source.survey.name, asked, question, paired(source.answers), mine) : null,
+      lookBack: back ? lookBackBetween(question, back, mine, back.title) : null,
+    };
+  });
+  const consents = consentItemsOf(survey.items).flatMap((item) =>
+    item.boxes.map((box) => ({
+      label: box.label,
+      yes: rows.filter((person) => person.consents[box.purpose] === true).length,
+      of: rows.length,
+    })),
+  );
   return {
     answers: kept.length,
-    leftOut: answers.length - kept.length,
-    questions: surveyResults(survey.items, kept),
+    sent,
+    leftOut,
+    offersFirstSession: survey.kind === "before" || chain.some((each) => each.kind === "before"),
+    pairedWith: earlier.map((each) => ({ name: each.survey.name, answers: each.answers.length })),
+    namesOff: survey.namesOffAt !== null || earlier.some((each) => each.survey.namesOffAt !== null),
+    questions: results,
+    consents,
   };
 }
 

@@ -315,6 +315,7 @@ preference at all.
 | `course-run` | `POST /api/courses/runs/[runId]/updates`, an update to everyone or to the facilitators | admins, the run's `trackLeadUids` and the lead of the programme that names the run | to everyone: the run's cohort channel as above; to the facilitators: the facilitators of the run's live groups who still meet their bar, at their own addresses |
 | `course-group` | `POST /api/courses/runs/[runId]/updates`, an update to one group | the same, and a facilitator of that group while it is live | that group's members on the run's cohort channel, keeping the stored falses |
 | `course-survey` | `POST /api/surveys/[surveyId]/send` and `.../remind` (docs/surveys.md) | admins | everybody holding a place on the survey's programme, each at their account's address with their own link; the reminder to those of them who have not answered |
+| `course-follow-up` | the same two routes, for a follow-up survey at 6 or 12 months (docs/surveys.md) | admins | everybody whose row on the programme's before survey says yes to follow-ups now, each with their own link; the reminder to those of them who have not answered |
 
 An update (Q18) is kept on the site as well as emailed, and its email is a
 notice for the reason the group email is one: the lead of a programme, an
@@ -399,7 +400,7 @@ There is no unsubscribe footer and no `List-Unsubscribe` header, and
 something that cannot be switched off is the one dishonest thing this lane could
 ship.
 
-The `emailSends` receipt carries `kind: "notice"` plus `surface`, one of the six
+The `emailSends` receipt carries `kind: "notice"` plus `surface`, one of the seven
 strings above, so the deliverability tab can answer "how much un-switch-off-able
 mail went out, and from where" without reading subject lines. Both are set by
 `sendNotice` alone. The older `course-notice` kind stays defined for the room

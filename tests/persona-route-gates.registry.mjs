@@ -2129,6 +2129,15 @@ export const ROUTES = {
       why: "Closing a survey early is an admin's alone; the admin is told the made-up survey is not there.",
     },
   },
+  "/api/surveys/[surveyId]/consent": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Changing a follow-ups consent signed in, as the caller and nobody else: view-as first, then the session, " +
+        "then the body, so every signed-in persona meets the same 400 on an empty one. There is no uid in the " +
+        "request; a survey the caller was not sent is refused in one sentence once a body arrives.",
+    },
+  },
   "/api/surveys/[surveyId]/export": {
     POST: {
       expect: adminOnly(404),
@@ -2167,6 +2176,15 @@ export const ROUTES = {
       why:
         "Answering by a personal link, with no session: the secret in the body is the credential, after an " +
         "in-memory rate limit, so every caller meets the same 400 for a body with no secret in it, signed in or not.",
+    },
+  },
+  "/api/surveys/consent": {
+    POST: {
+      expect: everyone(400),
+      why:
+        "Changing a follow-ups consent by a personal link, with no session: the secret in the body is the " +
+        "credential, after an in-memory rate limit, so every caller meets the same 400 for a body with no secret " +
+        "in it, signed in or not.",
     },
   },
   "/api/tasks/[id]/delete": {
