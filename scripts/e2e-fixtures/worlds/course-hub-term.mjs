@@ -116,6 +116,18 @@
  * placed in it and told by Publish, every register finished and every week
  * published. Nobody facilitates it and nobody leads it.
  *
+ * ## The seventh point ("before-groups")
+ *
+ * The first point with the run's later weeks loaded (`BEFORE_GROUPS`):
+ * decision day's records exactly as the first point writes them, at the
+ * seed's own moment (the run a draft starting a few days later, nobody
+ * placed, the programme naming no run), and weeks 2 to the last published as
+ * an editor leaves them. Week 1 has no page at all: the programme's lead
+ * writes it on the Weeks tab and marks it ready, which publishes it and opens
+ * it to everybody holding a place before groups go out. The later weeks are
+ * there so that a week a person holding a place may not open is a week that
+ * exists and is published, not one that is missing.
+ *
  * ## Two points at once
  *
  * A spec may need the term at two points in one run (the leaving spec reads
@@ -168,6 +180,7 @@ const log = (msg) => console.log(`[term-seed] ${msg}`);
 /** The points in the term a spec can ask for, in term order. */
 export const TERM_POINTS = Object.freeze([
   "decisions-sent",
+  "before-groups",
   "week-three",
   "week-three-unmarked",
   "pitching-week",
@@ -465,6 +478,15 @@ export const AFTER_THE_END = Object.freeze({
   unfinished: null,
   published: 6,
 });
+
+/**
+ * THE TERM BEFORE GROUPS GO OUT, ITS LATER WEEKS LOADED: the seventh point.
+ * Decision day's records as the first point writes them, and the run's weeks
+ * from `firstPublished` to the last published as an editor leaves them, a
+ * day before the seed. Week 1 has no page: its lead's first save on the
+ * Weeks tab makes it, and marking it ready publishes it.
+ */
+export const BEFORE_GROUPS = Object.freeze({ firstPublished: 2 });
 
 /**
  * Who and what a point is made of: the form's one programme, its run's
@@ -1093,13 +1115,20 @@ function listedReading(reading) {
  * The run's pitching week, at a point that has one, is also ticked as one in
  * the week editor and lists its readings, which a pitch's paper is picked from.
  * A week a point's plan lists readings for (`readings`) carries them.
+ * `summary` says why the seed wrote the week; the points three weeks in and
+ * later keep the words they always had.
  */
-function publishedWeekDoc({ state, weekNumber, at }) {
+function publishedWeekDoc({
+  state,
+  weekNumber,
+  at,
+  summary = "Seeded so a term three weeks in has the weeks an editor would have published.",
+}) {
   const week = {
     e2eTermRunId: state.termRunId,
     weekNumber,
     title: `E2E week ${weekNumber} reading`,
-    summary: "Seeded so a term three weeks in has the weeks an editor would have published.",
+    summary,
     guideBlocks: [],
     materials: [],
     exercises: [],
@@ -1496,6 +1525,7 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
   }
 
   if (weekThree) await seedWeekThree(state, laterPlan, at);
+  if (point === "before-groups") await seedLaterWeeks(state, anchor);
 
   log(
     `Seeded form ${state.formId} (${state.programmeKind}, decisions sent, ${state.people.length} accepted and coming), ` +
@@ -1505,9 +1535,33 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
         ? `; ${laterPlan.daysIn} days into its run: places told, ${laterPlan.published} weeks published, registers, one update` +
           (state.notes ? `, ${state.notes.length} ${state.notes.length === 1 ? "note" : "notes"} on a reading` : "")
         : "") +
+      (point === "before-groups"
+        ? `; weeks ${BEFORE_GROUPS.firstPublished} to ${WEEK_COUNT} published, week 1 not written`
+        : "") +
       (state.pitching ? `; week ${state.pitching.weekNumber} is pitching week, teams made on ${state.pitching.teamsMadeOn}.` : "."),
   );
   return state;
+}
+
+/**
+ * The seventh point's weeks (`BEFORE_GROUPS`): from its first published week
+ * to the last, as an editor publishes them a day before the seed, and week 1
+ * not written at all, so the lead's first save on the Weeks tab makes it.
+ */
+async function seedLaterWeeks(state, now) {
+  const at = new Date(now.getTime() - DAY_MS);
+  for (let weekNumber = BEFORE_GROUPS.firstPublished; weekNumber <= WEEK_COUNT; weekNumber += 1) {
+    await fixtureSubcollection("courseRuns", state.runId, "weeks")
+      .doc(weekDocId(weekNumber))
+      .set(
+        publishedWeekDoc({
+          state,
+          weekNumber,
+          at,
+          summary: "Seeded so the term before groups go out has its later weeks loaded.",
+        }),
+      );
+  }
 }
 
 /**
@@ -1750,6 +1804,22 @@ function reminderMarkersOf(state) {
  * And at the sixth point, past the approval, the naming and the hand-over
  * every point has: nothing. Both doors refuse a leave once the run's last
  * session is over, before they write anything.
+ *
+ * And at the seventh point, as the lead and the people drive it, past the
+ * first point's naming, hand-over, placing, test and Publish:
+ *  - the day groups go out (the Groups tab): the run document itself;
+ *  - Start here and the Glossary (the run's editor): the run document itself;
+ *  - week 1 pasted, saved as a draft and marked ready (the Weeks tab): the
+ *    run's week 1, made by its first save (`weeks`);
+ *  - a tick on week 1 by somebody holding a place (week 1's door): their own
+ *    `courseProgress` row (`runId` on it);
+ *  - a reflection box written in on week 1: their own
+ *    `courseExerciseResponses` row (`runId` on it);
+ *  - "I can’t make it" before the hand-over: the person's own application and
+ *    the form's counters, and no email;
+ *  - Home, My programmes, the week page, Start here and the Glossary: they
+ *    read, and a programme page or Home may mirror a week into `tasks` for
+ *    somebody Publish has told.
  */
 export async function countTerm(state) {
   const counts = {};
@@ -1782,6 +1852,9 @@ export async function countTerm(state) {
   counts.courseAudit = (await fixtureQuery("courseAudit").where("runId", "==", runId).get()).size;
   counts.courseNudges = (await fixtureQuery("courseNudges").where("runId", "==", runId).get()).size;
   counts.courseProgress = (await fixtureQuery("courseProgress").where("runId", "==", runId).get()).size;
+  counts.courseExerciseResponses = (
+    await fixtureQuery("courseExerciseResponses").where("runId", "==", runId).get()
+  ).size;
   counts.weeks = (await fixtureSubcollection("courseRuns", runId, "weeks").get()).size;
   counts.tasks = (await fixtureQuery("tasks").where("sourceRef.cohortId", "==", runId).get()).size;
   counts.subscriptions = (
@@ -1863,6 +1936,8 @@ export async function teardownTerm(state) {
   await deleteQuery(fixtureQuery("courseEnrolments").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("courseApplications").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("courseProgress").where("runId", "==", runId));
+  // The seventh point's: the reflection boxes written in on a week page.
+  await deleteQuery(fixtureQuery("courseExerciseResponses").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("tasks").where("sourceRef.cohortId", "==", runId));
   // The second point's: registers and updates (seeded and posted alike), the
   // download log's row, the updates route's counters, Remind's markers.

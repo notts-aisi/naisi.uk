@@ -352,6 +352,11 @@ export const FIXTURE_COLLECTIONS = [
   "courseTeams",
   "courseEnrolments",
   "courseProgress",
+  // A person's own rows on a week written as blocks: each reflection box they
+  // write in is one row (`runId` on every one), written by the reflection
+  // route, by somebody holding a place on week 1 before groups go out too.
+  // Written by nothing a fixture seeds.
+  "courseExerciseResponses",
   "courseAudit",
   "subscriptions",
   "subscriptionEvents",
