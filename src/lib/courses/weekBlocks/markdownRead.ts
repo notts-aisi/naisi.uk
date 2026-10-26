@@ -896,7 +896,13 @@ class Reader {
 
     const head = rest[firstLink];
     if (head.refused) {
-      const title = rest.filter((run) => run.refused === head.refused).map((run) => run.text).join("").trim();
+      const title = rest
+        .filter((run) => run.refused === head.refused)
+        .map((run) => run.text)
+        .join("")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/^["“](.*)["”]$/, "$1");
       return { refused: head.refused, title };
     }
     let i = firstLink;
