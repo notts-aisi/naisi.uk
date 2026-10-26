@@ -101,6 +101,9 @@ export function FacilitatorTicket({
     ) : null;
   return (
     <section className={weekly.ticket} aria-label="Your next session" data-testid="session-card">
+      {/* The stub and the body side by side, as wk-fac-group draws them: the
+          ticket's frame is a column since Home's row of buttons sits under both. */}
+      <div className={weekly.ticketRow}>
       {tile && (
         <time className={weekly.stub} dateTime={facts.dateKey}>
           <span className={weekly.stubWeekday}>{tile.weekday}</span>
@@ -146,6 +149,7 @@ export function FacilitatorTicket({
           </div>
           {facts.joinUrl && <p className={weekly.ticketNote}>{LINK_IS_HERE}</p>}
         </div>
+      </div>
       </div>
     </section>
   );
