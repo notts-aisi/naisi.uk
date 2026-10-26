@@ -189,6 +189,17 @@
  *     rate, who rates whom, who reads them, never shown to the person rated
  *     on any page or in any email, deleted two years after the programme and
  *     with an account (`src/lib/ratings/`).
+ * 26. **The anonymous form.** The promise that an anonymous form would say so
+ *     and how, with the policy first, is kept and replaced: the separate keep,
+ *     change and drop form the survey at a programme's end links to. What it
+ *     keeps (the three answers, the programme and the day: `ANSWER_FIELDS`),
+ *     what it never reads (`tests/anonymous-feedback-no-trace.test.mjs`), the
+ *     holding record and the night's move that leaves only the day
+ *     (`src/lib/anonymousFeedback/move.ts`, the `anonymous-feedback-move`
+ *     job), the recovery copies and request logs that still hold a time for a
+ *     while, who reads it and from when (`src/lib/anonymousFeedback/readers.ts`),
+ *     that it goes with the run's destroy, and that an account's deletion has
+ *     nothing of it to remove (`src/lib/anonymousFeedback/`).
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
@@ -477,9 +488,32 @@ export default function PrivacyContentV7({
                   Sharing and processors.
                 </li>
                 <li>
-                  We do not currently run anonymous surveys on this site. If
-                  we add one, the form will say that it is anonymous and how
-                  that is done, and we will update this policy first.
+                  One form is anonymous: the keep, change and drop form linked
+                  from the end of the survey at a programme&apos;s end. It never
+                  asks or records who answers, even when you are signed in:
+                  everybody on the programme has the same link, and your
+                  browser sends the answers without your sign-in. With your
+                  three answers we keep only the programme and the day: no
+                  name, account, email address, IP address or detail of your
+                  device. The form says so at the top.
+                </li>
+                <li>
+                  We keep the day, not the time. Until the day is over the
+                  answers wait in a holding record, which our database stamps
+                  with the time, as it does every record; soon after midnight a
+                  job moves the day&apos;s answers together into the record we
+                  keep, which holds the day and not the time, and deletes the
+                  holding records. Recovery copies of our database, kept up to
+                  14 days, can hold a holding record until they expire, and our
+                  hosting provider&apos;s request logs (see Operational logs)
+                  note the time and address of every request; those logs are
+                  never matched to the answers.
+                </li>
+                <li>
+                  Only the programme&apos;s lead and NAISI&apos;s admins read the
+                  answers, from the day after they come in, in an order
+                  unrelated to when each came in. The form closes when the
+                  survey at the end does.
                 </li>
               </ul>
 
@@ -1620,6 +1654,12 @@ export default function PrivacyContentV7({
                 your account exists, so a later programme goes by it too.
               </p>
               <p>
+                <strong>Answers to the anonymous form.</strong> Kept while the
+                programme&apos;s course run is on the site, and deleted when the
+                run is destroyed. Nothing in them says whose they are, so
+                deleting your account removes none of them.
+              </p>
+              <p>
                 <strong>When a term&apos;s applications are destroyed.</strong>{" "}
                 This is the one exception to keeping them. An admin can destroy
                 a whole application form, for example one made as a test or by
@@ -1703,6 +1743,10 @@ export default function PrivacyContentV7({
                 <li>
                   Your answers to surveys, no longer linked to you: they stay
                   in the totals.
+                </li>
+                <li>
+                  Your answers to the anonymous form: nothing in them says they
+                  were yours, so there is nothing of yours to remove.
                 </li>
                 <li>
                   A pitch you sent with a partner: it stays theirs, without

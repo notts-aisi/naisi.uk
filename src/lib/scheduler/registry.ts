@@ -36,6 +36,7 @@ import {
 } from "@/lib/firestore/schedulerMarkers";
 import { admissionsRemindersJob } from "./jobs/admissionsReminders";
 import { admissionsStageReleaseJob } from "./jobs/admissionsStageRelease";
+import { anonymousFeedbackMoveJob } from "./jobs/anonymousFeedbackMove";
 import { applicationInvitationRemindersJob } from "./jobs/applicationInvitationReminders";
 import { eventAnnouncementsJob } from "./jobs/eventAnnouncements";
 import { heartbeatJob } from "./jobs/heartbeat";
@@ -58,6 +59,11 @@ export const SCHEDULER_JOB_IDS = [
   "heartbeat",
   "admissions-deadline-reminders",
   "admissions-stage-release",
+  // The anonymous keep, change and drop form's night move (docs/surveys.md):
+  // a day's answers into the record kept, which holds the day and not the
+  // time. It emails nobody, so it registers on: the form and the privacy
+  // policy say the move happens.
+  "anonymous-feedback-move",
   // The daily reminder for an invitation nobody has answered
   // (docs/applications.md). It emails people, so it registers with
   // `enabledByDefault: false`. The decision-day page looks this id up on the
@@ -236,6 +242,7 @@ export function policyFor(job: JobRegistration): MarkerPolicy {
 export const JOBS: readonly JobRegistration[] = [
   admissionsRemindersJob,
   admissionsStageReleaseJob,
+  anonymousFeedbackMoveJob,
   applicationInvitationRemindersJob,
   nextWeekEmailJob,
   registerRemindersJob,

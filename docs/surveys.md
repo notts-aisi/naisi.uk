@@ -24,6 +24,8 @@ records), `src/app/api/surveys/` (the routes), `src/app/survey/[token]/` and
   is not built yet, and nothing here holds results back until a survey closes.
 - **Confidential, never anonymous.** Every survey on the site knows who answered.
   The confidential box at the top of every survey says so, in sv-privacy's words.
+  The one anonymous form on the site is not a survey and has no anonymous mode
+  of one: it is the keep, change and drop form below, with its own records.
 - **Every question can be skipped.** No question is required.
 - **Nothing is kept before "Send my answers"**: no draft, no record of when the
   survey was opened or for how long, and no IP address, ever.
@@ -411,13 +413,79 @@ it is refused when that record cannot be written.
 - **Names come off** two years after the programme: the `surveys-names-off` job
   sets every answer's person to null and deletes the survey's people rows on the
   survey's day, then stamps it. It emails nobody, so it registers on.
+- **The anonymous form's answers** (below) name nobody, so an account's deletion
+  has nothing of them to find and removes none. They go with the programme's
+  course run, in the run's destroy (stage `anonymousFeedback`: the form first,
+  then the answers waiting and the answers kept), and a form's destroy leaves
+  them, as it leaves the surveys.
+
+## The anonymous form at a programme's end
+
+The questionnaire's separate anonymous form asks what to keep, what to change
+and what to drop (Zach, 26 Oct 2026: "anonymous feedback form should be
+somewhere else"). It is its own small thing, never an anonymous mode of the
+surveys: `src/lib/anonymousFeedback/` (the library),
+`src/features/anonymousFeedback/` (the page's parts and the card),
+`src/app/feedback/[token]/` (the page), `src/app/api/feedback/` (the route),
+the job `anonymous-feedback-move` and the readers' page under a programme's
+tabs, `.../programmes/[programmeId]/anonymous-feedback`. No file of it reaches
+survey code, and survey code takes from it only `openAnonymousForm`,
+`closeAnonymousForm`, `anonymousFormLinkFor` and the card.
+
+| Collection | One per | Holds |
+| --- | --- | --- |
+| `anonymousFeedbackForms/{surveyId}` | programme, keyed by its survey at the end | the form it was on, the programme, its run, its name and kind, the secret in its one link, when it opened, when it closes, when it was closed by hand |
+| `anonymousFeedbackWaiting/{autoId}` | answer, until the night's move | `ANSWER_FIELDS`: `roundId`, `programmeId`, `runId`, `keep`, `change`, `drop`, `day` |
+| `anonymousFeedback/{autoId}` | answer, kept | the same seven fields |
+
+All three are server-only in both directions (deny-all rules). Every query is
+one equality (`token`, `roundId`, `runId`) or a read of the small waiting
+collection.
+
+**Opened, linked and closed by the survey at the end.** Its first send opens the
+form (asked again by "joined since", which changes nothing once open), with the
+closing time that send fixes; Close closes it with the survey. Once a person
+has sent the survey at the end, its end shows a card linking the form, at one
+address for the programme (`/feedback/<secret>`), the same for everybody, with
+no referrer. A test link, the before survey and the follow-ups show no card.
+
+**What it keeps, and what it never reads.** The page and the route are drawn
+from the link alone: no session, no cookie, no view-as marker, no header but
+the client's address inside the in-memory rate limit's key, and nothing is
+logged. The route does not call the view-as guard, which reads a cookie: nothing
+it keeps names anybody, so there is nobody for a view-as session to be recorded
+as. The browser sends the answers with `credentials: "omit"` and no referrer.
+An answer is the three answers (each up to 2,000 characters, all three blank
+refused), the programme and the London day. Two limits keep floods out, both
+in memory: 30 a minute per address, 200 an hour per form. No captcha: one would
+hand the caller's address and browser to a third party.
+
+**The day, not the time.** The database stamps every record with the minute it
+was written, and an answer comes in minutes after its writer sent the survey at
+the end, which is kept with their name. So an answer waits in
+`anonymousFeedbackWaiting`, and once its London day is over the job
+`anonymous-feedback-move` (every tick; registers on, since it emails nobody)
+moves that day's answers in random order, up to 200 to a transaction, into
+`anonymousFeedback`, each under a new id, and deletes what waited. A kept
+answer's own time is then the move's, shared with its day. The database's
+recovery copies (up to 14 days) and the hosting provider's request logs still
+hold a time for a while; the privacy policy says so, and that neither is ever
+matched to the answers.
+
+**Who reads it.** The programme's lead and admins, on the readers' page,
+decided by `loadProgrammeRun` before any answer is read (a reviewer is told it
+is the lead's and admins'; anybody else meets the admissions gate or "there is
+no programme here"; the admin tree is closed during view-as). It shows the
+form's link and where it stands, how many answers, and each question's
+answers in alphabetical order, from a day that is over only (waiting answers
+included, so it reads the same before and after the move). Nothing it is handed
+holds a day, a time or an id.
 
 ## Not built yet
 
 The cards on Home, My programmes and week 1; the leaving survey; event
 surveys, check-in, walk-ins and QR codes; results for a programme's lead; one
-person's answers page; the questionnaire's separate anonymous keep, change
-and drop form; public numbers; this term in numbers. The model is built so none of them needs a
+person's answers page; public numbers; this term in numbers. The model is built so none of them needs a
 rewrite: another `audience.kind`, another `respondent.kind`, the same records.
 
 ## The guards
@@ -438,6 +506,12 @@ offers; the survey at the end showing a person their own earlier answer; and
 the follow-ups' box, who it sends them to and how it is changed. A change that
 alters any of them changes the policy first: a template that asks a new kind
 of question fails until the policy names it.
+
+`tests/anonymous-feedback.test.mjs` drives the anonymous form, its link, its
+move, its readers and its destroy as every kind of caller, and reads back every
+record it keeps. `tests/anonymous-feedback-no-trace.test.mjs` walks every file
+both of its doors reach for a session, a cookie, a header, an address, a uid or
+a log line, and holds the wall between it and survey code both ways.
 
 `tests/surveys-no-tracking.test.mjs` passes over exactly one sentence that holds
 one of its activity names as prose, F1's "What’s your main activity now?",

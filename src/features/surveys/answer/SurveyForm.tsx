@@ -9,6 +9,8 @@ import { KAIROS_FORM_WORDS } from "@/lib/kairos/words";
 import type { AnswerConsent, AnswerKairos, AnswerPage, AnswerQuestion, AnswerSubmit } from "@/lib/surveys/answerView";
 import { ANSWER_WORDS, pageWords, pickUpToWords } from "@/lib/surveys/words";
 import styles from "./SurveyForm.module.css";
+// The card at the end of the survey at a programme's end, to its anonymous form.
+import { AnonymousFormCard } from "@/features/anonymousFeedback/AfterTheSurvey";
 
 /**
  * The survey's questions, a page at a time, and "Send my answers"
@@ -510,6 +512,7 @@ export default function SurveyForm({ pages, closing, submit, testWords, kairos }
     return (
       <div className={styles.sent} role="status">
         <p className={styles.sentLine}>{ANSWER_WORDS.thanks}</p>
+        <AnonymousFormCard />
       </div>
     );
   }
