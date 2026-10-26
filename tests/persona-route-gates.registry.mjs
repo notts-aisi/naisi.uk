@@ -2696,6 +2696,24 @@ export const ROUTES = {
         "in-memory rate limit, so every caller meets the same 400 for a body with no secret in it, signed in or not.",
     },
   },
+  "/api/surveys/public-numbers": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Publishing a programme's numbers and ticked quotes on its public page is an admin's alone: view-as " +
+        "first, then canRunSurveys, then the body, so every other session is forbidden before anything is " +
+        "read and an admin meets the 400 an empty body gets.",
+    },
+  },
+  "/api/surveys/public-numbers/take-down": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Taking a programme's public numbers down is an admin's alone: view-as first, then canRunSurveys, then " +
+        "the body, so every other session is forbidden before anything is read and an admin meets the 400 an " +
+        "empty body gets.",
+    },
+  },
   "/api/surveys/consent": {
     POST: {
       expect: everyone(400),
@@ -3125,6 +3143,13 @@ export const PAGES = {
     why:
       "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard. The ids change nothing " +
       "about the gate: an address that names no programme is answered on the page in a sentence, never notFound.",
+  },
+  "/(app)/admin/(admin-only)/surveys/public-numbers": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard. The page offers totals " +
+      "from a programme's own surveys and the comments their writers ticked, never a name, and both its routes " +
+      "ask again.",
   },
   "/(app)/admin/(admin-only)/surveys/new": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),

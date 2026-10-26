@@ -951,6 +951,13 @@ const USERS = new Map([
       "by the handlers and readers that run",
   ],
   [
+    "public-numbers-last-term.test.mjs",
+    "it renders the public course page on the server with the real public numbers fetcher reading an " +
+      "in-memory store and the page's other lookups handed in, because what the Last term block shows, " +
+      "and that nothing else of the published record reaches the HTML, is decided by the fetcher's " +
+      "projection and the page that run",
+  ],
+  [
     "programme-crest-public-pages.test.mjs",
     "it renders the public course page, /courses, /incubator and the application form's rank " +
       "step on the server with the term and catalogue handed in and the real crest loader behind " +
