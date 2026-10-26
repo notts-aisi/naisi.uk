@@ -95,9 +95,13 @@ export async function loadWeekPreview(
         forked: resolved.source === "group",
         countableIds: [],
         thisWeek: null,
+        // A preview is nobody's: no pack picked or given, no talk marked ready.
+        picks: null,
       },
     ],
     weekSchedule: [],
+    // In no group, there is nobody to ask to swap a pack or a case.
+    askToSwap: [],
     programme: programme ? { name: programme.shortName, kind: programme.kind, leadFirstName: programme.leadFirstName } : null,
     shownCrest: null,
     forkedWeekIds: resolved.source === "group" ? [week.id] : [],
