@@ -107,15 +107,18 @@ describe("courseRuns: a programme's Start here and Glossary are the server's", (
 
   it("refuses a run created with either, for every creator, admins included", async () => {
     await seedCast();
+    // A run is born with nobody on it (the create rule's clean start), so each
+    // create here names no track lead, and a refusal is the guide's key alone.
+    const born = (uid, id, extra = {}) => runDoc({ authorUid: uid, channel: `cohort:${id}`, trackLeadUids: [], ...extra });
     for (const uid of ["admin1", "drafter"]) {
       const db = await asUser(uid);
       for (const [key, value] of Object.entries(SERVER_KEYS)) {
-        await assertFails(runs(db).doc(`run-${uid}-${key}`).set(runDoc({ authorUid: uid, channel: `cohort:run-${uid}-${key}`, [key]: value })));
+        await assertFails(runs(db).doc(`run-${uid}-${key}`).set(born(uid, `run-${uid}-${key}`, { [key]: value })));
       }
       // The key alone is refused, whatever it holds.
-      await assertFails(runs(db).doc(`run-${uid}-null`).set(runDoc({ authorUid: uid, channel: `cohort:run-${uid}-null`, glossary: null })));
+      await assertFails(runs(db).doc(`run-${uid}-null`).set(born(uid, `run-${uid}-null`, { glossary: null })));
       // And the run editor's own create, which carries neither, still passes.
-      await assertSucceeds(runs(db).doc(`run-${uid}-ok`).set(runDoc({ authorUid: uid, channel: `cohort:run-${uid}-ok` })));
+      await assertSucceeds(runs(db).doc(`run-${uid}-ok`).set(born(uid, `run-${uid}-ok`)));
     }
   });
 
