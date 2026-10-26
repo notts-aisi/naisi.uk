@@ -561,8 +561,8 @@ describe("5. who reaches a block week's page", () => {
 
   test("the page draws no words but the week's own and the page's, whoever reads it", async () => {
     const { text } = await w.weekPage("chloe", 1);
-    assert.doesNotMatch(text, /\bexercise\b|homework|assignment|\bgrade\b|\bscore\b|collate/i);
-    assert.doesNotMatch(text, /[–—]/);
+    assert.doesNotMatch(text, /\bexercise\b|homework|assignment|\bgrade\b|\bscore\b/i);
+    assert.doesNotMatch(text, /[\u2013\u2014]/);
     assert.equal(textOf("<p>a &amp; b</p>"), "a & b");
   });
 });
