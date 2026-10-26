@@ -93,6 +93,13 @@ export type GlossaryDoc = {
   after: Prose;
 };
 
+/**
+ * What a page links to of a run's guide (the week page's "Start here ·
+ * Glossary", the programme page's "About this course"): whether Start here
+ * exists, and how many terms the Glossary has, null when it has none.
+ */
+export type GuideLinks = { startHere: boolean; glossaryTerms: number | null };
+
 function asRecord(raw: unknown): Record<string, unknown> | null {
   return raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
 }
