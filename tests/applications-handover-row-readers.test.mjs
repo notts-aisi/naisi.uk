@@ -111,6 +111,14 @@ const READERS = {
     asks: 1,
     why: "writes a reviewer's notes onto one row, for an admin or the run's admissions reviewers",
   },
+  "app/api/courses/groups/[groupId]/facilitators/route.ts": {
+    kind: "staff",
+    asks: 1,
+    why:
+      "staffing a group by hand reads the row of each person it adds, to place a facilitator who holds a place in " +
+      "the group they facilitate, for an admin, the run's track leads or the lead of the programme that names it. " +
+      "A row the caller is not served saves nothing, in a sentence that says only who may staff that person",
+  },
   "app/api/courses/me/route.ts": {
     kind: "own",
     proof: ['.where("uid", "==", actor.uid)', "if (app.fromForm !== null) continue;"],
@@ -129,6 +137,14 @@ const READERS = {
       "came from (fromForm) and nothing else, and nothing of it handed back. Asked for the caller by the leave route " +
       "and the two pages that offer the way out, and for the person whose seat Remove takes off, behind Remove's own " +
       "gate, so their place on the form goes back as leaving gives it",
+  },
+  "lib/courses/facilitatorAsks/answer.ts": {
+    kind: "own",
+    proof: ["courseApplicationId(ask.runId, actor.uid)", "listedRow.uid === actor.uid"],
+    why:
+      "the yes of the person asked to facilitate reads their own row on the run's list, at the one id that is " +
+      "theirs, only to see whether they are accepted, so a facilitator who holds a place is placed in the group " +
+      "they facilitate. Nothing of it is handed back",
   },
   "features/courses/useMyApplication.ts": {
     kind: "own",

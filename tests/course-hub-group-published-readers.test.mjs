@@ -278,10 +278,14 @@ const READERS = {
   },
   "lib/courses/groupFacilitators.ts": {
     kind: "writer",
-    proof: ['role: "facilitator"', 'if (existing.role === "facilitator") {'],
+    proof: ['role: "facilitator"', 'if (existing.role === "facilitator") {', 'role: "learner"', "allocatedEmailAt: FieldValue.delete()"],
     why:
       "the one place a group's facilitators change, by hand or by an answer to an ask: it writes and " +
-      "retires facilitator rows, reads a learner row only to leave it alone, and shows nobody anything",
+      "retires facilitator rows, places a facilitator who holds a place and sits in no group in the group " +
+      "they facilitate (a learner's row with no Publish stamp, so the next Publish tells them), never moves " +
+      "anybody between groups, and shows nobody anything. Its callers name where somebody sits only to the " +
+      "people who place people (the group facilitators route, and an ask by the programme's lead or an " +
+      "admin); the person asked is told only about the group they were asked about",
   },
   "app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts": {
     kind: "staff",
