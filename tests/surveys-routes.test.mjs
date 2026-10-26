@@ -306,6 +306,26 @@ describe("the first send waits for a test, says how many it reaches, and goes on
     assert.deepEqual(short(await call("zach", routes.send.POST, { surveyId: id }, { body: { to: "everyone", emails: 4 } })), [409, REFUSAL.alreadySent]);
   });
 
+  test("the claim itself refuses a second first send, whatever the press read before it", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = (await w.make()).body.survey.id;
+    await call("zach", routes.test.POST, { surveyId: id }, { body: { email: "survey" } });
+    // Both presses hold the survey as it was before either was made.
+    const { readSurvey } = await w.loadTs("lib/surveys/repo.ts");
+    const { pressSend } = await w.loadTs("lib/surveys/sending.ts");
+    const stale = await readSurvey(w.world.db, id);
+    const input = { survey: stale, presserUid: "zach", emails: 4, namesOffOn: "2027-12-09", now: new Date() };
+    assert.equal((await pressSend(w.world.db, "first", input)).ok, true);
+    // Somebody joins, so a second "first" press would have somebody to send to.
+    const reply = await w.formRoute("application", "reply");
+    assert.equal((await call("ines", reply.POST, { roundId: ROUND }, { body: { reply: "accept-invitation" } })).status, 200);
+    const second = await pressSend(w.world.db, "first", { ...input, emails: 1 });
+    assert.equal(second.ok, false);
+    assert.equal(second.error, REFUSAL.alreadySent);
+    assert.equal(w.world.mail.filter((message) => message.kind === "notice").length, 4);
+  });
+
   test("two presses at once send it once", async (t) => {
     clock(t);
     w.reset(seed());
@@ -383,6 +403,17 @@ describe("people who join since get it with one button; reminders go only to who
     assert.deepEqual(short(await call("zach", routes.remind.POST, { surveyId: id }, { body: { emails: 4 } })), [409, REFUSAL.closedSend]);
     assert.deepEqual(short(await w.answerByLink(w.tokenOf(id, "amara"), CHOICES)), [409, REFUSAL.closed]);
     assert.equal(w.answers(id).length, 0);
+  });
+
+  test("closed while an answer is on its way, the answer is refused, not kept", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = await sentSurvey();
+    // The survey is closed by hand between the answer's first read and its commit.
+    w.world.db.beforeCommit = () => w.world.db.poke(`surveys/${id}`, { closedAt: new Date() });
+    assert.deepEqual(short(await w.answerByLink(w.tokenOf(id, "amara"), CHOICES)), [409, REFUSAL.closed]);
+    assert.equal(w.answers(id).length, 0);
+    assert.equal(w.people(id).find((row) => row.respondent.uid === "amara").answered, false);
   });
 
   test("past its closing time it refuses answers on its own", async (t) => {
