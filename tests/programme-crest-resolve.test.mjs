@@ -109,11 +109,23 @@ test("the walk sees the tree", () => {
   }
 });
 
+/**
+ * Files that write a crest key's word for something that is not a crest, with
+ * the word and what it means there. Checked both ways: each listed file must
+ * still write its word, so a stale entry fails rather than hiding a crest.
+ */
+const SAME_WORD_NOT_A_CREST = new Map([
+  ["src/lib/surveys/templates.ts", ["alignment", "an incubator's research strand, which words the impact questionnaire's question about research skills for that strand"]],
+  ["src/lib/surveys/words.ts", ["alignment", "the same strand, choosing its label in a survey's words"]],
+  ["src/app/(app)/admin/(admin-only)/surveys/new/page.tsx", ["alignment", "the same strand, counting an incubator template's questions"]],
+]);
+
 test("no crest is spelled out in code but in the keys and the drawings", () => {
   const spelled = [];
   for (const { file, text, css } of FILES) {
     if (file === COMPONENT || file === KEYS_MODULE || css) continue;
     for (const key of KEYS) {
+      if (SAME_WORD_NOT_A_CREST.get(file)?.[0] === key) continue;
       if (new RegExp(`["'\`]${key}["'\`]`).test(text)) spelled.push(`${file}: "${key}"`);
     }
   }
@@ -122,6 +134,16 @@ test("no crest is spelled out in code but in the keys and the drawings", () => {
     [],
     "a crest key is written out here. A page shows the crest an admin set, through src/lib/crests/resolve.ts; it never names one, and never works one out from a programme's name or slug.",
   );
+});
+
+test("every file that writes a crest key's word for something else still does, as listed", () => {
+  for (const [file, [word, why]] of SAME_WORD_NOT_A_CREST) {
+    assert.ok(KEYS.includes(word), `${file}: "${word}" is not a crest key, so it needs no entry`);
+    assert.ok(why.length > 0, `${file}: say what "${word}" means there`);
+    const found = FILES.find((f) => f.file === file);
+    assert.ok(found, `${file} is listed as writing "${word}" but is not in the tree`);
+    assert.ok(new RegExp(`["'\`]${word}["'\`]`).test(found.text), `${file} no longer writes "${word}": take its entry out`);
+  }
 });
 
 test("the programme colours are declared once and read only by the component", () => {
