@@ -29,7 +29,7 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
-import { B, BOXES, C, COURSE, NOW, ONE_BOX, RUBRIC, RUN, makeWrittenAnswersWorld } from "./lib/writtenAnswersWorld.mjs";
+import { B, C, COURSE, NOW, ONE_BOX, RUBRIC, RUN, makeWrittenAnswersWorld } from "./lib/writtenAnswersWorld.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 
