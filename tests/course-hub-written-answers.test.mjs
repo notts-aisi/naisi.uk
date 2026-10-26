@@ -378,6 +378,16 @@ describe("3. feedback: a level for each row and a comment, never a mark, and one
     const sent = await w.review("rahul", "chloe", 2, { action: "feedback", levels: [], comment: "A comment alone." });
     assert.equal(sent.status, 200);
     assert.deepEqual(stored("chloe", 2).feedback.levels, []);
+    // The pages say so: the review page offers the comment alone and says why; the week page names no rows.
+    const page = await w.writtenPage("rahul", { week: "2", person: "farah" });
+    assert.match(page.text, /The rubric This course has no rubric yet, so feedback here is a comment alone\. An admin can add one in the course’s details\./);
+    assert.match(page.text, /Farah sees your comment\. There are no marks\./);
+    assert.doesNotMatch(page.html, /aria-pressed/);
+    const week = await w.weekPage("kofi", 2);
+    assert.match(week.text, /Rahul and Sofia read it before your session and give feedback\. No marks\./);
+    // The feedback page reads the comment alone.
+    const feedback = await w.feedbackPage("chloe", 2);
+    assert.match(feedback.text, /There are no marks\. Rahul’s comment A comment alone\./);
   });
 
   test("a message that does not go undoes nothing, and the page is told", async () => {
