@@ -73,3 +73,50 @@ export function boardTally<Row extends TallyRow>(rows: readonly Row[], inPool: (
   }
   return { accepted: rows.length, placed, toPlace, gaveBack, left };
 }
+
+/**
+ * THE LINE OVER A PROGRAMME'S PEOPLE IN GROUPS (board st-groups), and the
+ * number beside its "Publish groups…": "30 holding a place · 26 in a group ·
+ * 4 to place · 2 invited". One function, asked wherever these numbers are
+ * said, so no two places can disagree:
+ *
+ *  - HOLDING A PLACE is the People tab's answer: `people.holders` are the
+ *    uids its model says hold a place on the programme (`holdsPlaceOn`, the
+ *    number beside the People tab).
+ *  - IN A GROUP is how many of them sit in a group's column of the board and
+ *    are still on the run.
+ *  - TO PLACE is everybody else holding a place: in the To place column, or
+ *    not on the run's list yet (`notOnTheRun`: nobody has handed them over,
+ *    so the board has no card for them).
+ *  - INVITED is the People tab's answer too: an invitation to the programme
+ *    nobody has answered, as the viewer may see it.
+ *
+ * `rows` are the board's cards and `inPool` says whether one is in the To
+ * place column now, as `boardTally` takes them, so a move counts the moment
+ * the card lands. Somebody who applied to the run itself, and holds no place
+ * on the form, is a card on the board and not a number here.
+ */
+export type PlacingCounts = {
+  holding: number;
+  inAGroup: number;
+  toPlace: number;
+  notOnTheRun: number;
+  invited: number;
+};
+
+export function placingCounts<Row extends { uid: string; enrolmentStatus: string }>(
+  rows: readonly Row[],
+  inPool: (row: Row) => boolean,
+  people: { holders: readonly string[]; invited: number },
+): PlacingCounts {
+  const byUid = new Map(rows.map((row) => [row.uid, row] as const));
+  let inAGroup = 0;
+  let notOnTheRun = 0;
+  for (const uid of new Set(people.holders)) {
+    const row = byUid.get(uid);
+    if (!row) notOnTheRun += 1;
+    else if (!enrolmentHasLeft(row.enrolmentStatus) && !inPool(row)) inAGroup += 1;
+  }
+  const holding = new Set(people.holders).size;
+  return { holding, inAGroup, toPlace: holding - inAGroup, notOnTheRun, invited: people.invited };
+}

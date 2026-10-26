@@ -10,11 +10,12 @@ import { isTimed } from "../freedPlaces/groups";
 import { placeHoldersOn } from "../handover/holders";
 import { RUNS_COLLECTION, readRun } from "../handover/run";
 import { own } from "../keys";
+import type { ApplicationDoc, ProgrammeSettings } from "../model";
 import type { ApplicationForm } from "../normalise";
 import { isId } from "../normalise";
 import { loadForm } from "../repo";
 import { listDecisions, listSentApplications } from "../staffRepo";
-import { programmePeople, type PeopleGroup, type PeopleSeat } from "./model";
+import { programmePeople, type PeopleGroup, type PeopleModel, type PeopleSeat } from "./model";
 import type { PeopleView } from "./views";
 import { placesSentence } from "./words";
 
@@ -135,6 +136,39 @@ export async function loadProgrammePeople(
   // Nobody is listed, or counted, until everybody has been told.
   if (form.decisionsSentAt === null) return { status: "ok", view };
 
+  const read = await readProgrammePeople(db, actor, form, programme);
+  if (!read) return { status: "ok", view };
+  const { model } = read;
+  return { status: "ok", view: { ...view, blank: null, sentence: model.sentence, counts: model.counts, rows: model.rows } };
+}
+
+/** The People tab's model, and what it was worked out from that another reader of the same people needs. */
+export type ProgrammePeopleRead = {
+  model: PeopleModel;
+  /** Every sent application on the form, as read for the model. */
+  applications: ApplicationDoc[];
+  /** The run's live groups in the board's order, each with its letter: empty while it names no run. */
+  groups: PeopleGroup[];
+};
+
+/**
+ * THE PEOPLE TAB'S READ AND ITS MODEL, for a caller the tab's gate has
+ * already answered (the programme's lead or an admin). People in groups
+ * (`src/lib/applications/handover/peopleInGroups.ts`) asks this too, so its
+ * line and its cards are this model's answers about the same records, read
+ * once, and the two tabs cannot disagree about who holds a place, who is
+ * invited, who said they are coming, or who gave a place back.
+ *
+ * Null until decisions have gone out: nobody is read before everybody has
+ * been told, whoever asks.
+ */
+export async function readProgrammePeople(
+  db: Firestore,
+  actor: SessionUser,
+  form: ApplicationForm,
+  programme: Pick<ProgrammeSettings, "id" | "runId">,
+): Promise<ProgrammePeopleRead | null> {
+  if (form.decisionsSentAt === null) return null;
   const runSnap = programme.runId ? await db.collection(RUNS_COLLECTION).doc(programme.runId).get() : null;
   const read = runSnap?.exists ? readRun(runSnap.id, runSnap.data()) : null;
   // A run being destroyed is no run to read groups or seats from.
@@ -162,7 +196,7 @@ export async function loadProgrammePeople(
     programmePath,
     runNamed: runId !== null,
   });
-  return { status: "ok", view: { ...view, blank: null, sentence: model.sentence, counts: model.counts, rows: model.rows } };
+  return { model, applications, groups };
 }
 
 /**

@@ -269,6 +269,11 @@ export async function makePitchingWorld(key = "__pitching") {
       ["./ProgrammePitches.module.css", CLASS_NAMES],
       ["./Select.module.css", CLASS_NAMES],
       ["./TimesPicture.module.css", CLASS_NAMES],
+      // The Times view's dialogs (the site's Modal, in the editor's frame).
+      ["./Modal.module.css", CLASS_NAMES],
+      ["./editor.module.css", CLASS_NAMES],
+      ["./kit.module.css", CLASS_NAMES],
+      ["@/features/applications/kit/kit.module.css", CLASS_NAMES],
       ["@/features/applications/editor/editor.module.css", CLASS_NAMES],
       [
         "@/features/applications/editor/Refusals",

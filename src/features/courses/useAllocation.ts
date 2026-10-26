@@ -67,6 +67,15 @@ export type AllocGroup = {
    * resolved to anything here.
    */
   facilitatorUids: string[];
+  /**
+   * People in groups' column head (board st-groups): the facilitators' first
+   * names, the group's letter, its slot in the board's short form ("Thu
+   * 6pm", "" with none) and its room ("" for none yet).
+   */
+  facilitatorFirstNames: string[];
+  tag: string;
+  when: string;
+  room: string;
   memberCount: number;
   /**
    * ── THE AUTONOMY TRIPLE (V2-3) ────────────────────────────────────────────

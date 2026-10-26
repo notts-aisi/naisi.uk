@@ -9,6 +9,7 @@ import {
   useState,
   useSyncExternalStore,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
 } from "react";
 // useEffect kept for click-outside + scroll/resize listeners (no setState
 // inside those effects so they don't trip set-state-in-effect).
@@ -69,6 +70,14 @@ type Props<T extends string = string> = {
    *  modals. Task-board consumers pass `"lg"` so the sheet/popover gate
    *  lines up with the board's own kanban-vs-phone CSS gate at `--bp-lg`. */
   sheetBreakpoint?: BreakpointKey;
+  /**
+   * An icon drawn in the trigger in place of the selected option's label and
+   * the chevron, for a menu that sits on a card as a small square button
+   * (the programme's People in groups draws its move menu as three dots).
+   * `ariaLabel` is still its name and the options are the same listbox; the
+   * caller's `className` gives the trigger its size.
+   */
+  triggerIcon?: ReactNode;
 };
 
 const subscribeClient = () => () => {};
@@ -87,6 +96,7 @@ export default function Dropdown<T extends string = string>({
   triggerPrefix,
   className,
   sheetBreakpoint = "md",
+  triggerIcon,
 }: Props<T>) {
   const reactId = useId();
   const triggerId = `dropdown-trigger-${reactId}`;
@@ -368,21 +378,25 @@ export default function Dropdown<T extends string = string>({
         }}
         onKeyDown={handleKeyDown}
       >
-        <span className={styles.triggerLabel}>{triggerLabel}</span>
-        <svg
-          className={styles.chevron}
-          viewBox="0 0 12 8"
-          aria-hidden="true"
-        >
-          <path
-            d="M1 1.5L6 6.5L11 1.5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.75"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        {triggerIcon ?? (
+          <>
+            <span className={styles.triggerLabel}>{triggerLabel}</span>
+            <svg
+              className={styles.chevron}
+              viewBox="0 0 12 8"
+              aria-hidden="true"
+            >
+              <path
+                d="M1 1.5L6 6.5L11 1.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </>
+        )}
       </button>
 
       {isClient &&

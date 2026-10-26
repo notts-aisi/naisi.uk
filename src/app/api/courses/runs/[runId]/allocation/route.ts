@@ -11,6 +11,9 @@ import {
   testWhen,
   type TestState,
 } from "@/lib/courses/allocationPublish";
+import { shortSlotWords } from "@/lib/courses/facilitatorAsks/words";
+import { groupTagOf } from "@/lib/courses/programmeAttendance";
+import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import type { WeekPlanEntry } from "@/lib/courses/weekPlan";
 import {
@@ -87,6 +90,19 @@ export type AllocGroup = {
    * Facilitators view can say who is ticked. A uid is an id, not an address.
    */
   facilitatorUids: string[];
+  /**
+   * What the programme's People in groups (board st-groups) heads a column
+   * with: the first names its facilitators go by ("Rahul", "Sofia"), in the
+   * same order; the group's letter as the People tab and the times picture
+   * write it ("C" for "Group C"); its weekly slot in the board's short form
+   * ("Thu 6pm", or "" with no day or time); and its room ("" for none yet).
+   * Staffing facts of the same tier as `sessionLabel` and `facilitatorNames`:
+   * a room is where the group meets, never a link.
+   */
+  facilitatorFirstNames: string[];
+  tag: string;
+  when: string;
+  room: string;
   /** The server-owned counter maintained by the allocation transaction. */
   memberCount: number;
   /**
@@ -428,11 +444,13 @@ export async function GET(
     : [];
 
   const nameByUid = new Map<string, string>();
+  const firstNameByUid = new Map<string, string>();
   const paidByUid = new Map<string, boolean>();
   for (const doc of userDocs) {
     if (!doc.exists) continue;
     const data = doc.data() ?? {};
     nameByUid.set(doc.id, displayNameOf(data));
+    firstNameByUid.set(doc.id, firstNameOfUser(data));
     // Against the RUN's academic year, not today's — same reasoning as the P5
     // queue: the badge must not blank when `currentAcademicYear()` rolls over
     // mid-cycle on 1 August.
@@ -538,6 +556,10 @@ export async function GET(
         (uid) => nameByUid.get(uid) ?? "NAISI member",
       ),
       facilitatorUids: [...g.facilitatorUids],
+      facilitatorFirstNames: g.facilitatorUids.map((uid) => firstNameByUid.get(uid) || "NAISI member"),
+      tag: groupTagOf(g.name),
+      when: shortSlotWords(g.session) ?? "",
+      room: g.session.location.trim(),
       memberCount: g.memberCount,
       // The autonomy triple, straight off the normalised doc plus the keys-only
       // subcollection read above. `normalizeCourseGroup` already coerces a

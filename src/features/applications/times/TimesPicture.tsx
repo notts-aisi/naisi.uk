@@ -6,6 +6,14 @@ import { WEEK_FROM_MONDAY, type TimesPicture as Picture } from "@/lib/applicatio
 import type { TimesView } from "@/lib/applications/handover/timesLoad";
 import { clockLabel } from "@/lib/applications/review/availabilityView";
 import { minutesFromTimeLocal } from "@/lib/admissions/availability";
+import {
+  AddGroupButton,
+  ChangeTimeButton,
+  TimesActionsProvider,
+  TimesActionsStatus,
+  UseForAGroupButton,
+  type TimesActionsSetup,
+} from "./TimesActions";
 import styles from "./TimesPicture.module.css";
 import {
   cantLine,
@@ -28,13 +36,13 @@ import {
 /**
  * THE TIMES PICTURE, under a programme's Groups tab (board st-times).
  *
- * Read only, and drawn on the server: it holds no state and sends no
- * script. Picking a session length is a link that asks the page again.
- *
- * What the board draws and this leaves out, because the feature does not
- * exist: "Use for a group", "Change" and "Add a group" (groups are made and
- * changed in the run editor, which an admin's card links to), and the
- * Sessions view. The row of views is the page's (`GroupsViews`), handed in.
+ * Drawn on the server, and it holds no state. Picking a session length is
+ * a link that asks the page again. The three controls the board draws are
+ * the only parts that run in the browser (`./TimesActions.tsx`): "Use for a
+ * group" beside a best time no group meets at, "Change" beside each group,
+ * and "Add a group". Each opens a dialog, writes through its route, and has
+ * the page read again. The row of views is the page's (`GroupsViews`),
+ * handed in.
  *
  * It is drawn for an admin and for the programme's lead. A lead is not
  * offered what only an admin can do from here: naming the run on the
@@ -232,7 +240,7 @@ function Grid({ picture, names }: { picture: Picture; names: Map<string, string>
   );
 }
 
-function BestTimes({ picture, names }: { picture: Picture; names: Map<string, string> }) {
+function BestTimes({ picture, names, acts }: { picture: Picture; names: Map<string, string>; acts: boolean }) {
   return (
     <section className={`${styles.card} ${styles.sideCard}`}>
       <h2 className={styles.sideTitle}>Best times</h2>
@@ -253,6 +261,7 @@ function BestTimes({ picture, names }: { picture: Picture; names: Map<string, st
                   {names.get(id)}
                 </span>
               ))}
+              {acts && best.groupIds.length === 0 && <UseForAGroupButton weekday={best.weekday} start={best.start} />}
             </li>
           ))}
         </ul>
@@ -261,11 +270,13 @@ function BestTimes({ picture, names }: { picture: Picture; names: Map<string, st
   );
 }
 
-function YourGroups({ view, picture }: { view: TimesView; picture: Picture }) {
+function YourGroups({ view, picture, acts }: { view: TimesView; picture: Picture; acts: boolean }) {
   const run = view.run;
   if (!run) return null;
   const withLength = view.length.source.kind === "mixed";
   const fit = picture.fit;
+  // "Add a group" starts on the best time no group meets at, if there is one.
+  const free = picture.best.find((best) => best.groupIds.length === 0) ?? null;
   return (
     <section className={`${styles.card} ${styles.sideCard} ${styles.groupsCard}`}>
       <h2 className={styles.sideTitle}>
@@ -287,15 +298,18 @@ function YourGroups({ view, picture }: { view: TimesView; picture: Picture }) {
                       startMinute: minutesFromTimeLocal(group.session.startTimeLocal),
                       durationMinutes: group.session.durationMinutes,
                     },
-                    group.canMake,
+                    picture.said > 0 ? group.canMake : null,
                     withLength,
+                    picture.said > 0,
                   )}
                 </span>
               </span>
+              {acts && <ChangeTimeButton groupId={group.id} />}
             </li>
           ))}
         </ul>
       )}
+      {acts && <TimesActionsStatus />}
       {fit && (
         <div className={styles.fit}>
           {fit.none.length === 1 ? (
@@ -332,6 +346,7 @@ function YourGroups({ view, picture }: { view: TimesView; picture: Picture }) {
           )}
         </div>
       )}
+      {acts && <AddGroupButton suggested={free ? { weekday: free.weekday, start: free.start } : null} />}
       {view.viewer === "admin" ? (
         <Link
           href={`/admin/courses/${encodeURIComponent(run.courseId)}/runs/${encodeURIComponent(run.id)}`}
@@ -346,10 +361,44 @@ function YourGroups({ view, picture }: { view: TimesView; picture: Picture }) {
   );
 }
 
+/**
+ * What the controls are handed, field by field: the run's groups with their
+ * slots and whether Publish has told anybody their time, the picture's
+ * counts (numbers only), the lengths a new group may last, and what it is
+ * offered. Null while there is no run to act on.
+ */
+function actionsSetup(view: TimesView, picture: Picture): TimesActionsSetup | null {
+  if (!view.run || !view.actions) return null;
+  const told = new Set(view.actions.told);
+  return {
+    roundId: view.roundId,
+    programmeId: view.programmeId,
+    groups: picture.groups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      weekday: group.session.weekday,
+      // The stored start whenever it is a time, so the route reads the slot the
+      // dialog was opened on exactly as it is stored.
+      start: minutesFromTimeLocal(group.session.startTimeLocal) !== null ? group.session.startTimeLocal : "",
+      minutes: group.session.durationMinutes,
+      told: told.has(group.id),
+    })),
+    counts:
+      picture.said > 0
+        ? { said: picture.said, minutes: picture.minutes, rows: [...picture.rows], cells: picture.counts.map((row) => [...row]) }
+        : null,
+    lengths: [...view.length.options],
+    counted: view.length.counted,
+    nextName: view.actions.nextName,
+    places: view.actions.places,
+  };
+}
+
 export default function TimesPicture({ view, views }: { view: TimesView; views: ReactNode }) {
   const picture = view.picture;
   const drawn = picture !== null && picture.said > 0;
   const names = new Map((picture?.groups ?? []).map((group) => [group.id, group.name] as const));
+  const setup = picture ? actionsSetup(view, picture) : null;
   return (
     <div className={styles.page}>
       <div className={styles.toolbar}>
@@ -364,15 +413,34 @@ export default function TimesPicture({ view, views }: { view: TimesView; views: 
             {saidSentence(picture.said, picture.holders, view.programmeName)}
             {drawn ? ` ${lengthSentence(view.length.source, view.length.counted)}` : ""}
           </p>
+          {/* Nobody has said when they are free yet: no picture to draw, but
+              the groups can still be given a time, or added, here. Their lines
+              say when each meets and count nobody. */}
+          {!drawn && setup && (
+            <div className={styles.side}>
+              <TimesActionsProvider setup={setup}>
+                <YourGroups view={view} picture={picture} acts />
+              </TimesActionsProvider>
+            </div>
+          )}
           {drawn && (
             <div className={styles.layout}>
               <div className={styles.main}>
                 <Grid picture={picture} names={names} />
               </div>
-              <div className={styles.side}>
-                <BestTimes picture={picture} names={names} />
-                <YourGroups view={view} picture={picture} />
-              </div>
+              {setup ? (
+                <TimesActionsProvider setup={setup}>
+                  <div className={styles.side}>
+                    <BestTimes picture={picture} names={names} acts />
+                    <YourGroups view={view} picture={picture} acts />
+                  </div>
+                </TimesActionsProvider>
+              ) : (
+                <div className={styles.side}>
+                  <BestTimes picture={picture} names={names} acts={false} />
+                  <YourGroups view={view} picture={picture} acts={false} />
+                </div>
+              )}
             </div>
           )}
         </>
