@@ -971,6 +971,24 @@
   color: var(--color-text-muted);
 }
 
+/* A block week's checklist (wk-week6-phone): steps in the body's weight, the
+   same ticked or not, the box beside the first line. */
+.stepRow {
+  align-items: flex-start;
+  gap: 2px 10px;
+  padding: 6px 0;
+}
+
+.stepTitle {
+  margin: 0;
+  padding-top: 10px;
+  font-size: clamp(0.9375rem, 1.12cqi, 1rem);
+  line-height: 1.55;
+  font-weight: 400;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
 .tickMeta {
   display: flex;
   flex-wrap: wrap;

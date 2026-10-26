@@ -66,6 +66,7 @@ import { useMaterialTicks } from "./weekly/useMaterialTicks";
 import weekly from "./weekly/weekly.module.css";
 import BlockWeek from "./weekBlocks/BlockWeek";
 import WeekOneLine from "./weekBlocks/WeekOneLine";
+import type { CourseRoutes } from "@/lib/courses/routes/model";
 import styles from "./WeekView.module.css";
 
 /**
@@ -122,6 +123,8 @@ type Props = {
   sharedNotes?: WeekSharedNotes;
   /** The programme's Start here and Glossary, linked under a block week's title when the run has them. */
   guide?: GuideLinks | null;
+  /** The run's course's routes and deadlines, read on the server; null for a course with none. */
+  routes?: CourseRoutes | null;
 };
 
 /**
@@ -136,7 +139,7 @@ const TICK_REFUSED = "That tick didn’t save, so it has been undone. Check your
 
 const EMPTY_ROWS: ReadonlyArray<never> = [];
 
-export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNotes = null, guide = null }: Props) {
+export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNotes = null, guide = null, routes = null }: Props) {
   const overview = useRunOverview(runId);
   // WHERE THIS READER'S COPY OF THE WEEK LIVES (V2-3 copy-on-write): their
   // group's forked document when their facilitator has personalised this
@@ -319,6 +322,7 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
           leadFirstName={payload.programme?.leadFirstName ?? null}
           leadCards={beforeGroups ? <WeekOneLine line={beforeGroups.line} /> : null}
           guide={guide}
+          routes={routes}
         />
         <ActionToast toast={toast} onDismiss={dismiss} />
       </>

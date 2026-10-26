@@ -7,7 +7,7 @@ import {
   normalizeCourseEnrolment,
   placementIsShownTo,
 } from "@/lib/firestore/courseEnrolments";
-import { isReflectionResponse, normalizeExerciseResponse } from "@/lib/firestore/courseExercises";
+import { isOwnBoxResponse, normalizeExerciseResponse } from "@/lib/firestore/courseExercises";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { isWordCountedAnswer } from "@/lib/courses/writtenAnswers/model";
 import { weekDocId } from "@/lib/firestore/courses";
@@ -295,9 +295,9 @@ export async function GET(
     // The group filter. Everything outside it is dropped before a single field
     // is copied into the payload.
     .filter((r) => memberSet.has(r.uid))
-    // A reflection is never reviewed, so it is never this queue's: its writer
-    // is the only person any page reads it back to (courseExercises.ts).
-    .filter((r) => !isReflectionResponse(r))
+    // A reflection or a fill-in box is never reviewed, so it is never this
+    // queue's: each is a box its writer fills in (courseExercises.ts).
+    .filter((r) => !isOwnBoxResponse(r))
     // Nor is a block week's written answer: it gets its feedback on the
     // group's written answers page, by the rubric.
     .filter((r) => !writtenIds.has(r.id));

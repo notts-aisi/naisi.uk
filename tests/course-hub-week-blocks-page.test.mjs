@@ -214,6 +214,18 @@ describe("1. a week written as blocks, drawn", () => {
       "Your forecast, the week’s written answer",
       "Part 5",
       "Plan and pitch",
+      // The fill-in boxes (wk-week6-phone's action plan), drawn since week 6's
+      // piece: the title, the count, each numbered heading with its hint and
+      // its boxes' labels, and who reads them.
+      "My plan",
+      "0 of 3 filled",
+      "Saves as you type. It’s here on your phone for the session.",
+      "What I’ll forecast next",
+      "(one sentence)",
+      "Why it matters",
+      "The decision it helps with",
+      "Who would use it",
+      "Rahul, Sofia, Claudia and admins can read your plan. Other fellows can’t.",
       "Find one forecast someone else made this year.",
       "Note how it turned out.",
       "In the session",
@@ -323,14 +335,11 @@ describe("1. a week written as blocks, drawn", () => {
       "The crash nobody priced, 2008",
       "In the session",
     ]);
-    // A later page's: the table and the fill-in boxes draw nothing yet.
+    // A later page's: the table draws nothing yet.
     for (const later of [
       "Forecasting packs",
       "Where to start",
       "Make one forecast about your pack’s question",
-      "My plan",
-      "What I’ll forecast next",
-      "The decision it helps with",
     ]) {
       assert.ok(!text.includes(later), `drawn, though a later page draws it: "${later}"`);
     }
@@ -705,15 +714,16 @@ describe("4. counts by This week's tasks", () => {
     assert.equal(task.type, "task");
     assert.equal(task.label, "Parts 1 to 3");
     // `answerIds` joined the needs with the written answer (its own page),
-    // and the Choose ones and talks a task covers with packs and cases (plan
-    // item 8): week 1 has none of the three, so each is empty, held as
-    // strictly as the rest.
+    // the Choose ones and talks a task covers with packs and cases (plan
+    // item 8), and the fill-in boxes with week 6's: week 1 has none of the
+    // four, so each is empty, held as strictly as the rest.
     assert.deepEqual(task.needs, {
       tickIds: sources("k1"),
       promptIds: boxes("k1"),
       answerIds: [],
       chooseOneIds: [],
       talkIds: [],
+      fillInIds: [],
       unseenIds: [],
     });
     assert.deepEqual(task.written, ["k1-rp1"]);

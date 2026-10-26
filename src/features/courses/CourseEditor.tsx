@@ -45,6 +45,7 @@ import { createRun, publishCourse, saveCourseCrest, updateCourse } from "./cours
 import CourseDangerZone from "./CourseDangerZone";
 import CourseRubricCard from "./CourseRubricCard";
 import { useCourseRuns, useCourses } from "./useAdminCourses";
+import CourseRoutesCard from "./CourseRoutesCard";
 import styles from "./adminCourses.module.css";
 
 /**
@@ -819,6 +820,9 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
             )}
           </section>
         </Card>
+
+        {/* === Routes and deadlines (the routes a week that lists them shows) === */}
+        <CourseRoutesCard key={course.id} courseId={course.id} stored={course.routes} />
 
         {/* === Archive + destroy ===
             Last on the page by design: end-of-life controls sit after

@@ -29,7 +29,7 @@ import { taskNeeds, taskSubject, thisWeekOf, type TaskNeeds } from "@/lib/course
 import { taskLabelWords } from "@/lib/courses/memberPageWords";
 import { findCase, talksOf } from "@/lib/courses/packsAndCases/model";
 import { NO_PICKS, readOwnPacksAndCases, type OwnPicks } from "@/lib/courses/packsAndCases/readers";
-import { isReflectionResponse } from "@/lib/firestore/courseExercises";
+import { isFillInResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { isWordCountedAnswer, readWrittenAnswer, type WrittenAnswerRecord } from "@/lib/courses/writtenAnswers/model";
 import {
@@ -364,8 +364,9 @@ export type OverviewGroup = {
 /**
  * THIS WEEK ON A WEEK WRITTEN AS BLOCKS (boards st-week1-phone, wk-week-phone,
  * wk-programme): its rows in order, each task with what it needs to be done
- * (`taskNeeds`, ids only), which of its reflection boxes the caller has
- * written in, and the day it is due for the caller's group. Every page that
+ * (`taskNeeds`, ids only), which of its boxes (reflection prompts and fill-in
+ * boxes) the caller has written in, and the day it is due for the caller's
+ * group. Every page that
  * says "N of M done" of a block week counts from this through
  * `src/lib/courses/weekBlocks/progress.ts`, the one place "done" is worked
  * out, with the caller's own live ticks.
@@ -394,8 +395,11 @@ export type OverviewThisWeek = {
   feedbackOn: string[];
   /**
    * Who reads the caller's own written answer and gives feedback on it
-   * (`writtenReviewRole`): their group's facilitators, or, for somebody who
-   * facilitates a group of the run, the programme's lead and admins.
+   * (`writtenReviewRole`), and who reads what they write in a week's fill-in
+   * boxes (`src/lib/courses/fillInBoxes/access.ts`): their group's
+   * facilitators, or, for somebody who facilitates a live group of the run (a
+   * facilitator holding a place included), the programme's lead and admins
+   * (Q30 C; Zach, Mon 26 Oct). One rule, which both readers keep.
    */
   answersReadBy: "facilitators" | "lead";
 };
@@ -432,7 +436,10 @@ export type OverviewThisWeekRow =
       /** The programme page's short line: "Parts 1 to 3", "Your written answer", "Your case talk". */
       label: string;
       needs: TaskNeeds;
-      /** Which of `needs.promptIds` the caller has written in. Empty for anybody not taking part. */
+      /**
+       * Which of `needs.promptIds` and `needs.fillInIds` the caller has
+       * written in. Empty for anybody not taking part.
+       */
       written: string[];
       /** Which of `needs.answerIds` the caller has sent. Empty for anybody not taking part. */
       sent: string[];
@@ -749,12 +756,15 @@ function currentWeekId(currentWeek: CurrentWeek | null): string {
   return n >= 1 ? weekDocId(n) : "";
 }
 
-/** "weekId::promptId" of every reflection box `uid` has written in, out of their own rows. */
+/**
+ * "weekId::itemId" of every box `uid` has written in, out of their own rows:
+ * a reflection prompt's and a fill-in box's, each keyed by its own id.
+ */
 function writtenBoxesOf(docs: ReadonlyArray<{ data: () => unknown }>, uid: string): Set<string> {
   const written = new Set<string>();
   for (const doc of docs) {
     const data = (doc.data() ?? {}) as Record<string, unknown>;
-    if (!isReflectionResponse(data) || data.uid !== uid) continue;
+    if (!(isReflectionResponse(data) || isFillInResponse(data)) || data.uid !== uid) continue;
     if (typeof data.text !== "string" || !data.text.trim()) continue;
     if (typeof data.weekId === "string" && typeof data.exerciseId === "string") {
       written.add(`${data.weekId}::${data.exerciseId}`);
@@ -889,7 +899,7 @@ function thisWeekPayload(
         whenText: row.whenText,
         label: taskLabelWords(taskSubject(blocks, row), row.what),
         needs,
-        written: needs.promptIds.filter((id) => work.boxes.has(`${weekId}::${id}`)),
+        written: [...needs.promptIds, ...needs.fillInIds].filter((id) => work.boxes.has(`${weekId}::${id}`)),
         sent: needs.answerIds.filter((id) => answerOf(id)?.firstSentAt != null),
         answer: ownAnswerOf(needs.answerIds.map((id) => answerOf(id))[0] ?? null, work.feedbackNames),
         packs: Object.fromEntries(

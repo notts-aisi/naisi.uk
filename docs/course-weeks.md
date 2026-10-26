@@ -285,9 +285,15 @@ paste that keeps the id keeps everybody's answers to it.
 
 - Fill-in boxes: the guide's code block template, numbered headings and
   labelled blanks, read as headings and boxes; copied out as
-  `**Fill in: My plan**` and a numbered list, each box with its id.
+  `**Fill in: My plan**` and a numbered list, each box with its id. On the
+  week page each box saves as the person types, as a row of their own
+  (`courseExerciseResponses`, kind `fillIn`, keyed on the box's id), read by
+  the people the line under the boxes names; a part with boxes is done when
+  every box holds something.
 - A checklist: in a part with nothing to read or answer, its bullets are
-  steps to tick; copied out as `**Checklist**` and `- [ ]` items.
+  steps to tick; copied out as `**Checklist**` and `- [ ]` items. Each step
+  is ticked as a week's checklist item always has been (the person's own
+  progress row of the checklist kind, keyed on the step's id).
 - A talk inside a part: a part titled for a pitch or talk ("Your 2-minute
   pitch") is a talk to get ready for, its "Prepare ..." paragraph and list
   how to prepare; copied out as `**Talk:** a 2-minute pitch · picked by each
@@ -356,6 +362,40 @@ Score a forecast in code.
 
 A section with a heading of its own ("Where to go next") is kept as text:
 paragraphs, lists and tables, as written.
+
+### A section of routes
+
+A section holding a table whose first column is Route (Technical AI
+Safety's week 6, "Where to go next") is a section of routes
+(`isRoutesSection` in `src/lib/courses/routes/model.ts`). It is read and
+copied as any other section, so the round trip is the same. On the week
+page, once the run's course has its routes and deadlines as a record
+(`CourseDoc.routes`, set by an admin in the course's details: see
+`docs/courses-ops.md`, "Routes and deadlines"), the section shows that list
+in place of what the guide wrote under its heading, each route past its
+deadline saying so. Until then it shows the guide's tables as written.
+
+The record is written in the same shape, read by its own reader
+(`src/lib/courses/routes/markdown.ts`) with the week's text reading:
+
+```
+Checked on 25 October 2026. Dates change, so check each route's own page.
+
+**Part-time, alongside a degree**
+
+| Route | What it is | Who it suits | Deadline | Next round |
+| --- | --- | --- | --- | --- |
+| [A sprint](https://example.com/sprint) | Five weeks, remote. | Anyone who codes | 1 November 2026 | Monthly |
+| [A workshop](https://example.org/workshop) | Online, any time. | | Rolling | |
+
+**Funding:** words after the last table are kept as written.
+```
+
+- The first line is the day they were checked. A table's first column is
+  Route, its name as one https link; What it is follows; Who it suits,
+  Deadline (a day, or Rolling, or empty) and Next round are written where a
+  table's routes use them.
+- Between two tables there is only the next group's heading, in bold.
 
 ## Text inside blocks
 

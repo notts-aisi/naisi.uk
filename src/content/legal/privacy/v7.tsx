@@ -145,6 +145,13 @@
  *     It goes with the account
  *     (`src/lib/firestore/coursePacksAndCases.ts`, the draw's route and the
  *     person's own route, `deleteCoursePacksAndCases`).
+ * 22. **Boxes you fill in.** A week's fill-in boxes (week 6's action plan)
+ *     save as the person types, and are read by them, their group's
+ *     facilitators, the programme's lead and admins; a facilitator's own by
+ *     the lead and admins alone; never by another fellow. After somebody
+ *     leaves, the lead and admins can still read them and the group's
+ *     facilitators and the person cannot. They go with the account
+ *     (`src/lib/courses/fillInBoxes/access.ts`, the two fill-in routes).
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
@@ -879,6 +886,19 @@ export default function PrivacyContentV7({
                   co-facilitators cannot. You can say you are ready for your
                   talk, and that is shown on your own pages and nobody
                   else&apos;s.
+                </li>
+                <li>
+                  <strong>Boxes you fill in.</strong> Some weeks have boxes
+                  for you to fill in, such as an action plan. What you write
+                  saves as you type. It is read by you, your group&apos;s
+                  facilitators, the programme&apos;s lead and admins, and by
+                  nobody else taking part; the page says so under the boxes.
+                  If you facilitate a group, what you write is read by the
+                  programme&apos;s lead and admins, and not by the group&apos;s
+                  other facilitators. If you leave the programme, the
+                  programme&apos;s lead and admins can still read it, and your
+                  group&apos;s facilitators and you no longer can. It is
+                  deleted with your account.
                 </li>
                 <li>
                   <strong>Notes shared with your group.</strong> On a programme

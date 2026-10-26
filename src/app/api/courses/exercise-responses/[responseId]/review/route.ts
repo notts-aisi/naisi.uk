@@ -10,7 +10,7 @@ import {
 } from "@/lib/firestore/courseEnrolments";
 import {
   EXERCISE_LIMITS,
-  isReflectionResponse,
+  isOwnBoxResponse,
   normalizeExerciseResponse,
   REVIEW_STATUSES,
   type ExerciseReviewStatus,
@@ -165,12 +165,12 @@ export async function POST(
   const ref = db.collection("courseExerciseResponses").doc(responseId);
   const snap = await ref.get();
   const data = snap.data() ?? {};
-  // A reflection is never reviewed (courseExercises.ts), and a block week's
-  // written answer gets its feedback on its own page, by the rubric, never a
-  // verdict here: either row reads here as no row at all, so it is refused
-  // exactly as a missing one is, by everybody.
+  // A reflection or a fill-in box is never reviewed (courseExercises.ts), and
+  // a block week's written answer gets its feedback on its own page, by the
+  // rubric, never a verdict here: each of those rows reads here as no row at
+  // all, so it is refused exactly as a missing one is, by everybody.
   const existing =
-    snap.exists && !isReflectionResponse(data) && !isWordCountedAnswer(data) ? normalizeExerciseResponse(snap.id, data) : null;
+    snap.exists && !isOwnBoxResponse(data) && !isWordCountedAnswer(data) ? normalizeExerciseResponse(snap.id, data) : null;
 
   // ---- Access: facilitator of the OWNER's group, or admin ------------------
   // Two addressed reads, no queries and no caller-supplied ids: the owner's
