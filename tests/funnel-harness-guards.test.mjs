@@ -505,6 +505,10 @@ test("the funnel fixture declares every collection its teardown must drain", () 
     // attendance CSV writes before it hands the file over.
     "courseUpdates",
     "dataExports",
+    // The end of a programme: the rule for who finished and the lead's
+    // decisions, and the certificates the send makes.
+    "courseFinishing",
+    "courseCertificates",
     // An incubator in its pitching week: the pitches (and the picks on them)
     // the two pitching routes write, and the teams the teams route makes from
     // them, with who was told their team.
