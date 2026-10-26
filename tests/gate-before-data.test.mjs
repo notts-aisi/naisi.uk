@@ -234,6 +234,18 @@ const PUBLIC = new Map([
     },
   ],
   [
+    "src/app/api/surveys/consent/route.ts#POST",
+    {
+      touches: "finds whose survey row the secret in the link is, reads that person's survey and their row on the survey that asks the consent, then changes that row's consent",
+      gate: "openLink(",
+      why:
+        "A follow-ups consent changed from the personal link in an email, which has no session to send: the " +
+        "random secret is the gate. One equality on the token, and an unknown or malformed one reads nothing " +
+        "more; an in-memory per-IP throttle runs before it. The one write is the person's own row, in a " +
+        "transaction.",
+    },
+  ],
+  [
     "src/app/api/events/[id]/calendar.ics/route.ts#GET",
     {
       touches: "reads one event",

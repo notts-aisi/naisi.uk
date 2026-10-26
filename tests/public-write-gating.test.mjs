@@ -451,6 +451,22 @@ const PUBLIC_HANDLERS = new Map([
         "address; the answers are kept once, in a transaction on the person's row, and nothing is emailed.",
     },
   ],
+  [
+    "src/app/api/surveys/consent/route.ts#POST",
+    {
+      anonymous: true,
+      writes: true,
+      sends: false,
+      throttle: "rateLimit(`surveys:consent:ip:${clientIp(req)}`",
+      credential: "openLink(",
+      why:
+        "A person's own follow-ups consent, changed from the personal link in their survey email, with no " +
+        "session to require. The 32-byte secret IS the credential: it opens that person's own row and nobody " +
+        "else's, a wrong one opens nothing, and a survey's test link changes nothing. An in-memory per-IP " +
+        "throttle runs first and keeps no address; the one write is the person's own row, in a transaction, and " +
+        "nothing is emailed.",
+    },
+  ],
 
   // --- gated inside a helper the scan cannot follow -------------------------
   [

@@ -818,6 +818,11 @@ const READS_THE_DEGREE = new Map([
   ["src/features/admin/ApprovalCard.tsx", "shows it on a join request"],
   ["src/app/(app)/admin/(admin-only)/members/page.tsx", "searches the admin's list of people by it"],
   ["src/app/(app)/dashboard/homeData.ts", "answers yes or no for Home: has this member said what they study"],
+  [
+    "src/lib/surveys/profileOffer.ts",
+    "starts a programme survey's subject question on the answer whose words are in it, only when exactly one " +
+      "subject's are, for the person whose page it is; they can change it before sending",
+  ],
 ]);
 
 /**
