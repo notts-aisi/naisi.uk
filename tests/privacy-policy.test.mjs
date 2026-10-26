@@ -2739,6 +2739,13 @@ describe("the course hub passage", () => {
       PAGE_FLAT,
       /After you leave, your programme page shows only that you left: your marks, notes and reflections stay in our records for the programme&apos;s lead and admins, and are no longer shown to you\. The notes you shared with your group stay with it/i,
     );
+    // The promise this replaced, that somebody who left keeps their notes,
+    // the reading list or their marks to read, is made nowhere on the page.
+    assert.doesNotMatch(
+      PAGE_FLAT,
+      /\byou keep\b[^.]*\b(?:notes|reading list|marks)\b|\bmarks to read\b/i,
+      "the policy promises somebody who left their notes, the reading list or their marks again, which no page shows them.",
+    );
     // "Shows only that you left": the page is drawn from the programme's name
     // and the day they left, and from nothing else of the run or the person.
     const view = /export type LeftView = \{([\s\S]*?)\};/.exec(withoutComments(read("src/lib/courses/leftView.ts")));

@@ -789,6 +789,14 @@ describe("4. what somebody who left reads", () => {
     for (const words of ["Group A", "Present", "Clearer than I expected.", AMARA_SAID]) {
       assert.ok(!amara.text.includes(words), `My programmes shows her “${words}”`);
     }
+    // An account that no longer stands is shown neither: her seat is still
+    // shown to her by Publish's stamp, so only the gate's own question can
+    // tell, and the run's page and the list answer it the same way.
+    world.db.poke("users/amara", { role: "rejected" });
+    assert.equal((await home("amara")).to, "/learn");
+    assert.deepEqual((await cardsOf("amara")).cards, [], "an account that no longer stands is drawn a card");
+    world.db.poke("users/amara", { role: "member" });
+    assert.deepEqual((await cardsOf("amara")).cards, [[HOME, "You left AGI Strategy"]]);
     // An open run's seat left by its holder is a card too, named by its course.
     assert.equal((await leave("kai", { confirmName: "Pre-course" }, OPEN_RUN)).status, 200);
     assert.deepEqual((await cardsOf("kai")).cards, [[`/learn/${OPEN_RUN}`, "You left Pre-course"]]);
