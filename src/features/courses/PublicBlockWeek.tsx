@@ -76,7 +76,8 @@ export default function PublicBlockWeek({ week }: { week: PublicBlockWeekData })
                     ) : (
                       <li key={index} className={styles.source}>
                         <span className={styles.kind}>Choose one</span>
-                        <span className={styles.what}>{item.title}</span>
+                        {/* A table's first header ("Pathway") names a column, not the choice; a list's line says what to choose. */}
+                        {item.form === "list" ? <span className={styles.what}>{item.title}</span> : null}
                         {item.time ? <span className={styles.time}>{item.time}</span> : null}
                         <ul className={styles.packs}>
                           {item.packs.map((pack, packIndex) => (

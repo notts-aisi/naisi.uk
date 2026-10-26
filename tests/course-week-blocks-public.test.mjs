@@ -152,6 +152,11 @@ describe("2. what the page draws", () => {
     for (const [what, words] of BEHIND_SIGN_IN) assert.ok(!ASKED.includes(words.replace(/’/g, "’")), `${what} was drawn`);
   });
 
+  test("a table of packs says Choose one and names each pack; a list says its own line", () => {
+    assert.ok(!ASKED.includes('<span class="what">Pack</span>'), "a table's first header is a column's name, not the choice");
+    assert.match(ASKED, /<span class="kind">Choose one<\/span><span class="what">one short guide that fits you<\/span>/);
+  });
+
   test("a list's options are said once, by their links", () => {
     assert.match(ASKED, /<a href="https:\/\/example\.com\/work" class="link" target="_blank" rel="noopener noreferrer">Forecasting at work<\/a>/);
     assert.equal(ASKED.split("Forecasting at work").length - 1, 1);
@@ -200,7 +205,8 @@ describe("3. the public week page", () => {
   });
 
   test("a block week draws its title and the public view, and nothing behind sign-in", async () => {
-    const html = await page(blockWeek());
+    const html = await page({ ...blockWeek(), estimatedMinutes: 75 });
+    assert.ok(!html.includes("of material this week"), "minutes of material describe a week written before blocks");
     assert.match(html, /<h1 class="title">How sure are you\?<\/h1>/);
     assert.ok(html.includes(ASKED), "the block view, whole");
     for (const [what, words] of BEHIND_SIGN_IN) assert.ok(!html.includes(words), `${what} was drawn`);

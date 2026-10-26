@@ -120,7 +120,8 @@ export default async function PublicCourseWeekPage({ params }: Props) {
               {weekDoc.title || `Week ${weekDoc.weekNumber}`}
             </h1>
             {weekDoc.summary && <p className={styles.lede}>{weekDoc.summary}</p>}
-            {weekDoc.estimatedMinutes ? (
+            {/* Minutes "of material" count a week's materials, which a block week does not have. */}
+            {weekDoc.estimatedMinutes && !isBlockWeek(weekDoc) ? (
               <p className={styles.timeNote}>
                 About {formatMinutes(weekDoc.estimatedMinutes)} of material this week.
               </p>

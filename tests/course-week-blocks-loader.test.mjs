@@ -16,7 +16,11 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { NOW, RUN, makeMemberPagesWorld } from "./lib/memberPagesWorld.mjs";
 import { syntheticGuideMarkdown, syntheticWeekDoc } from "./lib/weekBlocksFixture.mjs";
 
@@ -279,5 +283,38 @@ describe("5. what the route is sent", () => {
     const answer = await as("zach", "GET");
     assert.equal(answer.status, 404);
     assert.equal(answer.body.error, "This week isn’t written as blocks yet, so there is nothing to copy.");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. The card in the run's week editor
+// ---------------------------------------------------------------------------
+
+describe("6. the card in the run's week editor", () => {
+  const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
+
+  test("drawn with its box, its note on answers and Read it; Copy as Markdown only for a block week", async () => {
+    const { default: WeekBlocksLoader } = await loadTs(join("features", "courses", "WeekBlocksLoader.tsx"));
+    const draw = (blockWeek) =>
+      renderToStaticMarkup(createElement(WeekBlocksLoader, { runId: RUN.agi, weekId: "w03", weekNumber: 3, blockWeek, onSaved() {} }));
+    const block = draw(true);
+    assert.match(block, /Paste the week, then check it/);
+    assert.match(block, /<label[^>]*for="week-markdown-w03"[^>]*>Paste the week’s Markdown<\/label>/);
+    assert.match(block, /Pasting again replaces the week\. Answers stay with their blocks; if a block that has answers would go, it says\s+how many first\./);
+    assert.match(block, /Read it/);
+    assert.match(block, /Copy as Markdown/);
+    assert.doesNotMatch(draw(false), /Copy as Markdown/, "nothing to copy on a week written before blocks");
+  });
+
+  test("the editor draws the card for an admin alone, and offers a block week none of the old sections", () => {
+    const editor = readFileSync(join(SRC, "features", "courses", "WeekEditor.tsx"), "utf8");
+    assert.match(editor, /\{role === "admin" && \(\s*<WeekBlocksLoader /);
+    assert.match(editor, /const blockWeek = isBlockWeek\(saved\);/);
+    // The guide, the materials, the exercises and the checklist sit inside the two `!blockWeek` blocks.
+    const guide = editor.indexOf("{/* ---- Guide ---- */}");
+    const checklist = editor.indexOf("Save checklist");
+    const firstGate = editor.indexOf("{!blockWeek && (");
+    const secondGate = editor.indexOf("{!blockWeek && (", firstGate + 1);
+    assert.ok(firstGate > 0 && firstGate < guide && secondGate > guide && secondGate < checklist);
   });
 });
