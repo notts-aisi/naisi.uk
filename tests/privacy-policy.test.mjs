@@ -4765,6 +4765,9 @@ describe("the course hub passage", () => {
         ["src/app/(app)/events/manage/[id]/check-in/page.tsx", "the Check-in tab reads when the event's survey closes, the end of adding somebody who came and of a walk-in's email, and nothing of its answers or who answered"],
         ["src/app/(app)/events/manage/[id]/door/page.tsx", "the door list reads when the event's survey closes, for the day a walk-in's email goes, and nothing of its answers or who answered"],
         ["src/app/api/events/[id]/check-ins/route.ts", "the door list's route reads when the event's survey closes, the end of adding somebody who came and the day a walk-in's email goes, and nothing of its answers or who answered"],
+        // This term in numbers (sv-term, Q51 B): counts made on the server, never a name.
+        ["src/app/(app)/admin/(admin-only)/surveys/term/page.tsx", `${ADMIN_PAGE}; This term in numbers, counts made on the server, never a name`],
+        ["src/app/api/surveys/term/totals/route.ts", `${ADMIN_ROUTE}; This term in numbers as a file of totals that names nobody, not a recorded download`],
       ]),
       "reaching survey code from outside it",
       "The policy says only admins see who said what or who has answered, and " +
@@ -5433,10 +5436,15 @@ describe("the check-in passage", () => {
     const readers = sourceFilesNaming(NAMED_CHECK_IN_READERS).filter(
       (file) => file !== "src/lib/events/checkInLoad.ts" && file !== "src/lib/events/checkInView.ts",
     );
+    // CHANGED ON PURPOSE (Q51 B): This term in numbers counts the people the
+    // Check-in tab's rows hold, across a term's events, for admins alone; its
+    // loader asks the check-in bar beside the surveys' own, and hands on
+    // counts only (the "this term in numbers" block below).
     assert.deepEqual(readers, [
       "src/app/(app)/events/manage/[id]/check-in/page.tsx",
       "src/app/(app)/events/manage/[id]/door/page.tsx",
       "src/app/api/events/[id]/check-ins/route.ts",
+      "src/lib/surveys/term/load.ts",
     ]);
     for (const file of readers) assert.match(read(file), /runsCheckIn\((?:viewer|user)\)/, file);
     const tab = withoutComments(read("src/app/(app)/events/manage/[id]/check-in/page.tsx"));
@@ -5749,6 +5757,90 @@ describe("the survey after an event", () => {
     assert.match(file, /const names = new Map\(\(read\?\.people \?\? \[\]\)\.map\(\(member\) => \[member\.key, member\.name\]\)\);/);
     // tests/surveys-events.test.mjs runs the job the day before and on the day, guests and accounts alike, and downloads the file.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-events.test.mjs")));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2g, continued: this term in numbers
+// ---------------------------------------------------------------------------
+
+/**
+ * What v7 says about This term in numbers (board sv-term, Q51 B;
+ * docs/surveys.md "This term in numbers"), held to the code that makes it
+ * true: who sees it, how one person is matched across events and who never
+ * is, and that it is counts and nothing else. Added while v7 was on dev,
+ * before any member had been asked to accept it, so it kept its number.
+ * `tests/surveys-term-numbers.test.mjs` and its page and file suites run it
+ * as every kind of caller.
+ */
+const termModel = await loadTs("lib/surveys/term/model.ts");
+const termTotals = await loadTs("lib/surveys/term/totals.ts");
+
+describe("this term in numbers", () => {
+  const SENTENCE =
+    /<li> NAISI&apos;s admins also see how many different people came to a term&apos;s events, and how many came to two or more of them\. To count you once, we match your check-ins by your account and its email address, and a sign-up you made without an account by the email address you gave; a walk-in with no account is never matched\. Admins see these as counts only, on a page and in a file of totals, never as who came to which events\. <\/li>/;
+
+  test("the frozen v6 carries none of it", () => {
+    assert.ok(!/how many different people came/.test(V6_FLAT));
+    assert.ok(!/a walk-in with no account is never matched/.test(V6_FLAT));
+  });
+
+  test("admins alone see it: the page, the file and the loader each ask before anything is read", () => {
+    assert.match(PAGE_FLAT, SENTENCE);
+    const askedFirst = (source, ask, read) => {
+      const at = source.indexOf(ask);
+      return at !== -1 && at < source.indexOf(read);
+    };
+    const page = withoutComments(read("src/app/(app)/admin/(admin-only)/surveys/term/page.tsx"));
+    assert.ok(askedFirst(page, "if (!viewer || !canRunSurveys(viewer)) redirect(\"/dashboard\");", "loadTermNumbers(db"), "the page reads before it asks who the caller is");
+    const route = withoutComments(read("src/app/api/surveys/term/totals/route.ts"));
+    assert.ok(askedFirst(route, "if (!canRunSurveys(actor)) return NextResponse.json({ error: REFUSAL.adminOnly }, { status: 403 });", "loadTermNumbers(db"), "the file is built before the caller is asked whether they are an admin");
+    const load = withoutComments(read("src/lib/surveys/term/load.ts"));
+    const body = /export async function loadTermNumbers\([\s\S]*?\n\}/.exec(load);
+    assert.ok(body, "could not find the loader");
+    assert.match(body[0], /^export async function loadTermNumbers[^\n]*\n {2}if \(!canRunSurveys\(viewer\) \|\| !runsCheckIn\(viewer\)\) return null;/, "the loader reads something before it asks");
+    assert.match(read("src/lib/surveys/repo.ts"), /export function canRunSurveys\(user: Pick<SessionUser, "role"> \| null\): boolean \{\s*return user\?\.role === "admin";\s*\}/);
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-term-numbers-page.test.mjs")), "the page's suite renders it as every kind of caller");
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-term-numbers-file.test.mjs")), "the file's suite asks for it as every kind of caller");
+  });
+
+  test("one person is matched by account and its address, and a sign-up without an account by its address; a walk-in with no account never is", () => {
+    const load = withoutComments(read("src/lib/surveys/term/load.ts"));
+    // The keys a counted check-in carries: its account, and the address on its sign-up.
+    assert.match(load, /if \(uid\) \{\s*keys\.push\(accountKey\(uid\)\);/);
+    assert.match(load, /if \(signup && signup\.email\.trim\(\)\) keys\.push\(addressKey\(signup\.email\)\);/);
+    // An account's own address joins it to the sign-ups made on that address.
+    assert.match(load, /const email = snap\.exists \? \(snap\.data\(\) \?\? \{\}\)\.email : null;/);
+    // A walk-in's address is read for nothing here: it is for that event's survey alone.
+    assert.ok(!/record\??\.email|checkIn\.email|\.emailGoesAt/.test(load), "the loader reads the address a walk-in left");
+    // Run: keys that meet are one person; a walk-in with no keys is never anybody else.
+    const visit = (...keys) => ({ how: "door", keys });
+    assert.deepEqual(termModel.peopleAcross([{ counted: [visit("address:g")] }, { counted: [visit("account:g", "address:g")] }]), { people: 1, cameTwice: 1, unmatched: false });
+    assert.deepEqual(termModel.peopleAcross([{ counted: [visit()] }, { counted: [visit()] }]), { people: 2, cameTwice: 0, unmatched: true });
+  });
+
+  test("counts only, on the page and in the file: nothing it hands on can name anybody, and the file is not a recorded download", () => {
+    const view = termModel.buildTermView({
+      label: "Autumn 2026",
+      events: [
+        {
+          title: "VR games night",
+          startAt: new Date("2026-11-01T14:00:00Z"),
+          endsAt: new Date("2026-11-01T17:00:00Z"),
+          noSignup: false,
+          counted: [{ how: "qr", keys: ["account:amara", "address:amara@example.com"] }, { how: "door", keys: [] }],
+          survey: { sent: true, answers: 3, average: 4.5 },
+        },
+      ],
+      checkInSince: new Date("2026-11-01T14:05:00Z"),
+      programmes: [],
+    });
+    const handedOn = JSON.stringify(view) + termTotals.termTotalsCsv(view);
+    for (const bit of ["amara", "example.com", "account:", "address:"]) assert.ok(!handedOn.includes(bit), `what the page and file are handed holds "${bit}"`);
+    // The file is a GET that writes nothing, and records no download (the five recorded are listed above).
+    const route = withoutComments(read("src/app/api/surveys/term/totals/route.ts"));
+    assert.ok(!/logExport|dataExports/.test(route), "the file of totals is now a recorded download, which the policy's list of five does not name");
+    assert.match(route, /^export async function GET\(\)/m);
   });
 });
 

@@ -75,22 +75,37 @@ function comparedAsValues(question: SurveyQuestion): boolean {
   return question.type === "singleChoice" && question.scores !== undefined;
 }
 
+/** One person who answered both surveys, with both of their answer sets. */
+export type BothAnswers = { uid: string; earlier: Record<string, SurveyAnswer>; later: Record<string, SurveyAnswer> };
+
+/**
+ * THE PEOPLE WHO ANSWERED BOTH SURVEYS, by person: the one pairing every
+ * comparison here makes, and the one This term in numbers counts as
+ * "answered both". An answer whose name has come off (no uid) pairs with
+ * nothing. In the later survey's order.
+ */
+export function bothOf(earlier: readonly PairedAnswers[], later: readonly PairedAnswers[]): BothAnswers[] {
+  const first = new Map<string, Record<string, SurveyAnswer>>();
+  for (const set of earlier) if (set.uid) first.set(set.uid, set.answers);
+  const out: BothAnswers[] = [];
+  for (const set of later) {
+    const answers = set.uid ? first.get(set.uid) : undefined;
+    if (answers) out.push({ uid: set.uid, earlier: answers, later: set.answers });
+  }
+  return out;
+}
+
 /** Pairs of answers, by person, for people who gave both. */
 function pairsOf<T>(
   earlier: readonly PairedAnswers[],
   later: readonly PairedAnswers[],
   read: (answers: Record<string, SurveyAnswer>, side: "earlier" | "later") => T | null,
 ): [T, T][] {
-  const first = new Map<string, T>();
-  for (const set of earlier) {
-    const value = read(set.answers, "earlier");
-    if (value !== null && set.uid) first.set(set.uid, value);
-  }
   const out: [T, T][] = [];
-  for (const set of later) {
-    const before = first.get(set.uid);
-    const after = read(set.answers, "later");
-    if (before !== undefined && after !== null) out.push([before, after]);
+  for (const both of bothOf(earlier, later)) {
+    const before = read(both.earlier, "earlier");
+    const after = read(both.later, "later");
+    if (before !== null && after !== null) out.push([before, after]);
   }
   return out;
 }

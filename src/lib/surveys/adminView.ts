@@ -8,7 +8,7 @@ import { changeBetween, lookBackBetween, type ChangeResult, type PairedAnswers }
 import { emailWordsFor, siteAddress, surveyLinkPath } from "./emails";
 import { consentItemsOf, surveyQuestionsOf } from "./items";
 import { namesOf } from "./names";
-import { answersOf, chainOf, closedOn, peopleOf, readSurvey, surveyState } from "./repo";
+import { answersOf, chainOf, closedOn, peopleOf, readSurvey, sentCountOf, surveyState } from "./repo";
 import { surveyResults, type QuestionResult } from "./results";
 import { readSendPlan, signerOf, testStateFor } from "./sending";
 import {
@@ -416,7 +416,7 @@ export async function resultsView(
   // outlives the people rows, which go when names come off. A leaving survey
   // is sent to nobody: its own count of the people it reached as they left.
   const leaving = survey.kind === "leaving";
-  const sent = leaving ? survey.reached : survey.presses.filter((press) => press.kind !== "remind").reduce((sum, press) => sum + press.count, 0);
+  const sent = leaving ? survey.reached : sentCountOf(survey);
   const rows = people.filter((person) => person.sentAt !== null);
   const mine = paired(kept);
   const questions = surveyQuestionsOf(survey.items);

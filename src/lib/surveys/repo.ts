@@ -167,6 +167,16 @@ export function isOpen(survey: Pick<SurveyDoc, "kind" | "firstSentAt" | "closedA
   return survey.closesAt !== null && now.getTime() < survey.closesAt.getTime();
 }
 
+/**
+ * How many people a survey was sent to, by its own record of each press of a
+ * send button (a reminder sends to nobody new). It outlives the people rows,
+ * which go when names come off, so every rate of a survey's answers is of
+ * this: its Results, the Kairos report and This term in numbers.
+ */
+export function sentCountOf(survey: Pick<SurveyDoc, "presses">): number {
+  return survey.presses.filter((press) => press.kind !== "remind").reduce((sum, press) => sum + press.count, 0);
+}
+
 /** When it closed, or will: the hand's close, else the closing time. */
 export function closedOn(survey: Pick<SurveyDoc, "closedAt" | "closesAt">): Date | null {
   return survey.closedAt ?? survey.closesAt;

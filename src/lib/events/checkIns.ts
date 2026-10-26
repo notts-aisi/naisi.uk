@@ -302,6 +302,17 @@ export async function setWalkInEmailDeadlines(
   return { moved: await updateAll(db, keeping.map((doc) => doc.ref), { emailGoesAt: goesAt }), gone: 0 };
 }
 
+/**
+ * Whether anybody was checked in at any event before `at`. This term in
+ * numbers asks it to tell an event held before check-in was first used from
+ * one where nobody was checked in. One range on one field, which the
+ * automatic index serves; only the ids come back, and nobody's record is read.
+ */
+export async function anyCheckInBefore(db: Firestore, at: Date): Promise<boolean> {
+  const snap = await db.collection(EVENT_CHECK_INS_COLLECTION).where("at", "<", at).select().get();
+  return snap.docs.length > 0;
+}
+
 /** An account deleted: its name comes off every event it came to, at once. The counts stay. */
 export async function takeCheckInNamesOffForAccount(db: Firestore, uid: string): Promise<number> {
   const snap = await db.collection(EVENT_CHECK_INS_COLLECTION).where("uid", "==", uid).get();

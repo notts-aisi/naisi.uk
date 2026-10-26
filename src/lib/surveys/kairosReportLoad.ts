@@ -3,16 +3,16 @@ import type { Firestore } from "firebase-admin/firestore";
 import { isInTerm } from "@/lib/applications/decisions";
 import { loadForm } from "@/lib/applications/repo";
 import { listSentApplications } from "@/lib/applications/staffRepo";
-import { readFinishing, recordOf } from "@/lib/courses/finishing/record";
-import { runEndOf } from "@/lib/courses/finishing/runEnd";
-import { listGroups, readRunRecords, weeksOf } from "@/lib/courses/programmeAttendance";
+import { headcountOf } from "@/lib/courses/finishing/headcount";
+import { readFinishing } from "@/lib/courses/finishing/record";
+import { readRunRecords } from "@/lib/courses/programmeAttendance";
 import { kairosChoicesOf } from "@/lib/kairos/choice";
 import { sharesWithKairos } from "@/lib/kairos/model";
 import type { KairosProgramme } from "@/lib/kairos/programmes";
 import { isProgrammeAudience } from "@/lib/firestore/surveys";
 import { readRunRatings } from "@/lib/ratings/store";
 import { buildKairosReport, type KairosReport, type ReportSurvey } from "./kairosReport";
-import { answersOf, listSurveys } from "./repo";
+import { answersOf, listSurveys, sentCountOf } from "./repo";
 import { SURVEY_STAGES } from "./templates";
 
 /**
@@ -36,16 +36,14 @@ import { SURVEY_STAGES } from "./templates";
 export async function loadKairosReport(db: Firestore, programme: KairosProgramme, now: Date): Promise<KairosReport | null> {
   const records = await readRunRecords(db, programme.runId);
   if (!records) return null;
-  const end = runEndOf(records.run, records.groups, now);
-  const rows = listGroups(records, { isAdmin: true }, now, weeksOf(records)).flatMap((listed) => listed.people.map((person) => person.row));
-  const seen = new Set<string>();
-  const unique = rows.filter((row) => (seen.has(row.uid) ? false : (seen.add(row.uid), true)));
-  const atEnd = unique.filter((row) => row.left === null);
 
   const form = await loadForm(db, programme.roundId);
-  const [applications, finishing, ratings, choices, all] = await Promise.all([
+  const finishing = await readFinishing(db, programme.runId);
+  // Who started, who was there at the end and who finished: the one count
+  // This term in numbers shows too.
+  const { end, started, atEnd, finished } = headcountOf(records, finishing, now);
+  const [applications, ratings, choices, all] = await Promise.all([
     form ? listSentApplications(db, form) : Promise.resolve([]),
-    readFinishing(db, programme.runId),
     readRunRatings(db, programme.runId),
     kairosChoicesOf(db, atEnd.map((row) => row.uid)),
     listSurveys(db),
@@ -64,7 +62,7 @@ export async function loadKairosReport(db: Firestore, programme: KairosProgramme
       name: survey.name,
       items: survey.items,
       answers: answers.map((answer) => ({ uid: answer.respondent?.uid ?? null, answers: answer.answers })),
-      sent: survey.presses.filter((press) => press.kind !== "remind").reduce((sum, press) => sum + press.count, 0),
+      sent: sentCountOf(survey),
     });
   }
 
@@ -79,9 +77,9 @@ export async function loadKairosReport(db: Firestore, programme: KairosProgramme
     applications: applications.filter(
       (application) => isInTerm(application) && application.sent?.rankedProgrammeIds.includes(programme.programmeId),
     ).length,
-    started: unique.length,
+    started: started.length,
     atEnd: atEnd.length,
-    finished: end.over ? atEnd.filter((row) => recordOf(row, finishing, end)?.finished === true).length : null,
+    finished,
     finishRule: finishing.rule?.atLeast ?? null,
     lastDay: end.lastDay,
     surveys,

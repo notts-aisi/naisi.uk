@@ -6,6 +6,7 @@ import styles from "@/features/surveys/admin/surveyAdmin.module.css";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { listView, type ListView } from "@/lib/surveys/adminView";
 import { listSurveys } from "@/lib/surveys/repo";
+import { TERM_WORDS } from "@/lib/surveys/term/words";
 import { LIST_WORDS } from "@/lib/surveys/words";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,9 @@ export default async function SurveysPage() {
         description={LIST_WORDS.lede}
         actions={
           <>
+            <Link href="/admin/surveys/term" className={styles.linkButtonGhost}>
+              {TERM_WORDS.link}
+            </Link>
             <Link href="/admin/surveys/public-numbers" className={styles.linkButtonGhost}>
               {LIST_WORDS.publicNumbers}
             </Link>

@@ -295,6 +295,13 @@
  *     publish and take-down routes, `src/lib/publicNumbers/`). How we use it,
  *     the legal basis for a quote, how long it stays, and that a deletion
  *     leaves it, with no name and nothing linking it to anybody.
+ * 35. **This term in numbers** (Q51 B). How many different people came to a
+ *     term's events and how many came to two or more, matched by account and
+ *     its address, and a sign-up made without an account by the address it
+ *     gave, never a walk-in with no account; seen by admins only, as counts,
+ *     on a page and in a file of totals that is not a recorded download
+ *     (`src/lib/surveys/term/`, the page under Run NAISI › Surveys, and
+ *     `GET /api/surveys/term/totals`).
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
@@ -532,6 +539,16 @@ export default function PrivacyContentV7({
                 <li>
                   We use the record to count who comes. Nobody is shown one
                   person&apos;s list of the events they came to.
+                </li>
+                <li>
+                  NAISI&apos;s admins also see how many different people came
+                  to a term&apos;s events, and how many came to two or more of
+                  them. To count you once, we match your check-ins by your
+                  account and its email address, and a sign-up you made
+                  without an account by the email address you gave; a walk-in
+                  with no account is never matched. Admins see these as counts
+                  only, on a page and in a file of totals, never as who came to
+                  which events.
                 </li>
               </ul>
 

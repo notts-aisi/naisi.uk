@@ -1,6 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { own } from "@/lib/applications/keys";
+import { lastTaughtWeek } from "@/lib/courses/weekPlan";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { answerLimitOf, ratingScaleOf } from "@/lib/firestore/worksheets";
 import { asksKairos, asksQuotes, type SurveyDoc, type SurveyPersonDoc } from "@/lib/firestore/surveys";
@@ -300,8 +301,7 @@ async function lastWeekOf(db: Firestore, runId: string): Promise<number | null> 
   if (!runId || runId.includes("/")) return null;
   const snap = await db.collection("courseRuns").doc(runId).get();
   if (!snap.exists) return null;
-  const weeks = normalizeCourseRun(snap.id, snap.data() ?? {}).weekPlan.flatMap((entry) => (entry.kind === "week" ? [entry.weekNumber] : []));
-  return weeks.length > 0 ? Math.max(...weeks) : null;
+  return lastTaughtWeek(normalizeCourseRun(snap.id, snap.data() ?? {}).weekPlan);
 }
 
 /** Beside the programme at the top: "Week 1" before it, its last week at its end, nothing on a follow-up. */
