@@ -669,10 +669,9 @@ export async function deleteSet(
 export const PROGRAMME_CREST_IS_AN_ADMINS = "Only an admin can set a programme’s crest.";
 
 /**
- * Change one programme's settings. Its lead or an admin; closing it, or
- * opening it again, is an admin's alone, and so is setting its crest and
- * switching its scores on or off once reviewing has begun on it
- * (`reviewingHasBegunOn`).
+ * Change one programme's settings. Its lead or an admin; closing it, opening
+ * it again and setting its crest are an admin's alone, and so is switching
+ * its scores on or off once reviewing has begun on it (`reviewingHasBegunOn`).
  *
  * Each field is written at its own path under `programmes.<id>`, so this never
  * replaces another programme's settings, or this programme's lead and
