@@ -199,7 +199,8 @@ const READERS = {
     why:
       "where a place on the form stands on the run its programme names, for the reply and for the person's own " +
       "application page: a seat Publish has not told its owner about reads as no group, to them and whoever they are, " +
-      "so neither says anything of a placement before Publish has",
+      "so neither says anything of a placement before Publish has; a seat staff took off reads as taken off, and " +
+      "when, which names no group either",
   },
   "app/api/courses/runs/[runId]/nudge/route.ts": {
     kind: "shown",
@@ -265,6 +266,14 @@ const READERS = {
     why:
       "takes somebody off a run, for an admin, the run's track leads or the lead of the programme that names the run; " +
       "it answers with counts and names nobody to anybody else",
+  },
+  "lib/applications/handover/load.ts": {
+    kind: "staff",
+    proof: ['if (!canRunTerm(actor)) return { status: "not-admin" };'],
+    why:
+      "the Course run panel on a programme's Settings tab, an admin's alone: of the people on the run's list who no " +
+      "longer hold a place it reads each one's seat, by id, only for whether they left or were taken off, and shows " +
+      "nobody a placement",
   },
   "app/api/courses/runs/[runId]/enrolments/[uid]/reinstate/route.ts": {
     kind: "staff",

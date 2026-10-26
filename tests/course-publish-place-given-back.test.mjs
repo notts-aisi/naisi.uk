@@ -20,7 +20,10 @@
  *     press leave them out: nobody who gave their place back is emailed a
  *     group, counted, stamped as told, put on the cohort's list or pushed.
  *     The summary says how many, and the press sends exactly the number on
- *     the button. As an admin and as the programme's lead.
+ *     the button. As an admin and as the programme's lead. Somebody handed
+ *     over and never placed who gives it back is not waited for either:
+ *     their card stays in Unallocated with its badge, the rail counts them
+ *     apart from who is still to place, and the press goes without them.
  *  2. BESIDE EVERY OTHER KIND OF CARD: one that left by each door, one
  *     removed, a late placement and the people told already. The
  *     facilitators' email counts nobody who gave their place back.
@@ -308,10 +311,13 @@ async function everyKindOfCard(who) {
   assert.equal((await remove("claudia", "tariq")).status, 200);
   // Two late acceptances are handed over and placed; Una, placed and not
   // told, gives the place back on the form. (Bea and Dev gave theirs back by
-  // leaving, so Amara and Tariq are the two already there.)
+  // leaving, and Tariq's went back when the lead removed Tariq, so Amara is
+  // the one already there. Until Remove gave the place on the form back, in
+  // the follow-ups to Publish of October 2026, Tariq was there too and the
+  // receipt said alreadyThere: 2.)
   holdsAPlace("una", "Una Byrne");
   holdsAPlace("kit", "Kit Morgan");
-  assert.deepEqual((await press()).body.receipt, { handedOver: 2, alreadyThere: 2 });
+  assert.deepEqual((await press()).body.receipt, { handedOver: 2, alreadyThere: 1 });
   assert.equal((await place(who, [{ uid: "una", groupId: B }, { uid: "kit", groupId: A }])).body.placed, 2);
   await cantMakeIt("una");
   // And the lead asks Tom to run Group B as well.
@@ -410,19 +416,102 @@ describe("1. Publish leaves out somebody placed and not told who gave their plac
     assert.deepEqual([shown.adminOnly, shown.emails, "gaveBack" in shown], [true, 0, false]);
   });
 
-  test("somebody accepted and not placed who gives their place back is waited for as before, and named, not counted", async () => {
-    await press();
-    await place("zach", [
+  // Until the follow-ups to Publish (October 2026) somebody handed over and
+  // never placed who gave their place back was waited for: their row still
+  // said Accepted, only an admin could change it, and the press was refused
+  // naming them (409, unplaced ["Tariq Mensah"], nothing sent). That test
+  // ("is waited for as before, and named, not counted") is this one, as
+  // strict, for both callers: their card is now nobody to place, as a
+  // leaver's is, so the press goes, and still writes nothing to them.
+  for (const [label, who] of CALLERS) {
+    test(`as ${label}: somebody handed over and never placed who gives their place back is not waited for, counted or emailed`, async () => {
+      assert.equal((await press()).status, 200);
+      const done = await place(who, [
+        { uid: "amara", groupId: B },
+        { uid: "dev", groupId: B },
+        { uid: "bea", groupId: A },
+      ]);
+      assert.equal(done.body.placed, 3, JSON.stringify(done.body));
+      await cantMakeIt("tariq");
+      assert.equal(seat("tariq"), undefined, "Tariq was never placed");
+
+      // The board: Tariq's card stays in Unallocated with its badge, the
+      // rail counts Tariq apart from who is still to place, and the pool's
+      // own number leaves Tariq out.
+      const view = await drawn(who);
+      const row = view.body.people.find((each) => each.uid === "tariq");
+      assert.deepEqual([row.groupId, row.enrolmentStatus, row.fromForm.holdsPlace], [null, "none", false]);
+      assert.equal((await cards(who)).tariq, true, "Tariq's card says Gave their place back");
+      const columns = new Set(view.body.groups.map((group) => group.id));
+      const counted = tally.boardTally(view.body.people, (each) => !each.groupId || !columns.has(each.groupId));
+      assert.deepEqual(
+        [counted.accepted, counted.placed, counted.toPlace.map((each) => each.uid), counted.gaveBack, counted.left],
+        [4, 3, [], 1, 0],
+      );
+      assert.ok(
+        view.text.includes(
+          "4 accepted · 3 placed · 0 unallocated · 1 gave their place back Refresh Select several " +
+            "All 3 accepted applicants are placed, and 1 gave their place back. No one is in two groups.",
+        ),
+        view.text,
+      );
+      assert.ok(view.html.includes('aria-valuenow="100" aria-valuetext="3 of 3 accepted applicants placed"'), view.html);
+      assert.ok(view.text.includes("Unallocated 0 Accepted applicants with no group yet."), view.text);
+      assert.ok(view.html.includes('<section class="column columnPoolEmpty" aria-label="Unallocated">'), view.html);
+      assert.equal(view.html.split("Gave their place back").length - 1, 1);
+
+      // Publish's counts leave Tariq out: no seat, so nothing to free either.
+      const shown = view.body.publish;
+      assert.deepEqual(
+        [shown.emails, shown.people, shown.facilitators, shown.more, shown.noAddress, shown.emptyGroups, shown.refusals, "gaveBack" in shown],
+        [6, 3, 3, 0, [], ["Group C"], [], false],
+      );
+
+      // The test is the first person a press writes to, never Tariq.
+      const tested = await sendTest(who);
+      assert.deepEqual([tested.status, tested.body.emails, tested.body.recorded], [200, 2, true]);
+      const [person] = await Promise.all(world.mail.filter(isTest).map(opened));
+      assert.ok(person.text.includes("You've been placed, "), person.text);
+      assert.ok(!person.text.includes("Tariq"), person.text);
+
+      // The press is not refused for Tariq, and sends the number on the button.
+      const pressed = await pressWith(who, (await summary(who)).emails);
+      assert.deepEqual([pressed.status, pressed.body.unplaced], [200, []], JSON.stringify(pressed.body));
+      assert.equal(realMail().length, 6);
+      assert.deepEqual(realMail().filter((mail) => !isFacilitating(mail)).map((mail) => mail.to).sort(), [
+        "amara@example.com",
+        "bea@example.com",
+        "dev@example.com",
+      ]);
+      assert.equal(world.mail.filter((mail) => mail.to === "tariq@example.com").length, 0);
+      assert.ok(!onTheList().includes("tariq@example.com"));
+      assert.ok(!world.pushes.some((push) => push.uid === "tariq"));
+      assert.equal(seat("tariq"), undefined, "a press writes no seat for Tariq");
+
+      // Afterwards the board owes nothing and still counts Tariq apart.
+      const after = await drawn(who);
+      assert.deepEqual([after.body.publish.emails, "gaveBack" in after.body.publish], [0, false]);
+      assert.ok(after.text.includes("4 accepted · 3 placed · 0 unallocated · 1 gave their place back Refresh"), after.text);
+    });
+  }
+
+  test("somebody in Unallocated who gives their place back beside somebody still to place: only the second is waited for", async () => {
+    assert.equal((await press()).status, 200);
+    await place("claudia", [
       { uid: "amara", groupId: B },
       { uid: "dev", groupId: B },
-      { uid: "bea", groupId: A },
     ]);
     await cantMakeIt("tariq");
-    const shown = await summary("zach");
-    assert.equal("gaveBack" in shown, false);
-    await sendTest("zach");
-    const refused = await pressWith("zach", (await summary("zach")).emails);
-    assert.deepEqual([refused.status, refused.body.unplaced], [409, ["Tariq Mensah"]]);
+    const view = await drawn("claudia");
+    const columns = new Set(view.body.groups.map((group) => group.id));
+    const counted = tally.boardTally(view.body.people, (each) => !each.groupId || !columns.has(each.groupId));
+    assert.deepEqual([counted.placed, counted.toPlace.map((each) => each.uid), counted.gaveBack], [2, ["bea"], 1]);
+    assert.ok(view.text.includes("4 accepted · 2 placed · 1 unallocated · 1 gave their place back Refresh"), view.text);
+    assert.ok(view.text.includes("Unallocated 1 Accepted applicants with no group yet."), view.text);
+    assert.ok(!view.text.includes("No one is in two groups."), view.text);
+    await sendTest("claudia");
+    const refused = await pressWith("claudia", (await summary("claudia")).emails);
+    assert.deepEqual([refused.status, refused.body.unplaced], [409, ["Bea Lindqvist"]]);
     assert.equal(realMail().length, 0);
   });
 });
@@ -487,10 +576,12 @@ describe("2. beside a card that left by each door, one removed, a late placement
     const counted = tally.boardTally(shown.people, (row) => !row.groupId || !columns.has(row.groupId));
     assert.deepEqual([counted.accepted, counted.placed, counted.toPlace.map((row) => row.uid), counted.left], [6, 3, [], 3]);
     // Una gave the place back while placed; Bea and Dev gave theirs back by
-    // leaving. Tariq was removed, which gives nothing back.
+    // leaving; Tariq's went back when the lead removed Tariq, as leaving
+    // gives it. (Until the follow-ups to Publish of October 2026 a removal
+    // gave nothing back, and this list was bea, dev and una.)
     const badges = await cards("claudia");
     const saysItsGiven = Object.keys(badges).filter((uid) => badges[uid]).sort();
-    assert.deepEqual(saysItsGiven, ["bea", "dev", "una"]);
+    assert.deepEqual(saysItsGiven, ["bea", "dev", "tariq", "una"]);
     // Nobody whose card says it is written to by this press.
     const { sent } = await testThenPress("claudia");
     assert.deepEqual(sent.map((mail) => mail.to), ["kit@example.com", "tom@example.com"]);
@@ -510,8 +601,10 @@ describe("3. the board draws it: the sentence, the badges, the button's number a
       assert.ok(view.text.includes("1 person gave their place back, so they aren’t emailed. Remove them to free their seat."), view.text);
       assert.ok(view.text.includes("1 person and 1 facilitator"));
       assert.ok(view.text.includes("Publish and send 2 emails"));
-      // The badge on Una's card, and on the two who left by giving theirs back.
-      assert.equal(view.html.split("Gave their place back").length - 1, 3);
+      // The badge on Una's card, on the two who left by giving theirs back,
+      // and on Tariq's, whose removal gave it back (3 until the follow-ups to
+      // Publish of October 2026, when a removal gave nothing back).
+      assert.equal(view.html.split("Gave their place back").length - 1, 4);
       // Remove for the people still on the run, and for nobody who left.
       assert.deepEqual(
         Object.fromEntries(["amara", "kit", "una", "bea", "dev", "tariq"].map((uid) => [uid, offersRemove(view, uid)])),

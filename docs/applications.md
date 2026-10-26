@@ -1624,18 +1624,26 @@ the tree for a gate that admits a track lead and not the lead.
   the board, then take their row off the run's own list (its applications
   page). A row from the form carries no address, so the run's own decide
   route emails nobody about it. Publish never writes to somebody whose card
-  says it: the card and Publish's plan ask the one answer
+  says it, and never waits for one with no group: the card, the board's
+  count of who is still to place and Publish's plan ask the one answer
   (`gaveTheirPlaceBack` in `src/lib/courses/placeGivenBack.ts`) of the same
   facts, so the count on Publish's button, its test and its press leave them
   out, and the board says how many. Somebody staff put back on the run
   after they left is back: their card stops saying it, and Publish tells
   them.
+- **Once they are off the run**, by leaving or because staff took them off,
+  the same read names them apart, under `left` and `takenOff` (each one's
+  seat is read by id to tell which): their seat is free and the place is
+  given back, so the panel says there is nothing to do ("Left the
+  programme", "Taken off the programme"). Somebody put back on the run since
+  is under `gaveBack` again.
 - **Once Publish has told them their group**, giving the place back is
   leaving the programme, the person's own act (next section): their reply
   takes them out of their group. Their row on the run's own list stays.
 
-The hand-over, the panel and the board never take anybody off a run. Only a
-person's own act does, from either of the two doors to the one leave.
+The hand-over and the panel never take anybody off a run. A person's own
+act does, from either of the two doors to the one leave, and so does staff's
+Remove on the board (next section).
 
 ### Leaving the programme gives the place back
 
@@ -1693,6 +1701,22 @@ and after the end of the run's week 1 it cannot.
   of what they said.
 - **Their row on the run's own list is not changed**, and Publish waits for
   nobody who has left (`enrolmentHasLeft`).
+
+**Staff taking somebody off gives the place back the same way.** Remove on
+the allocation board (`POST /api/courses/runs/[runId]/enrolments/[uid]/remove`)
+asks `leavePathFor` where the seat's place came from, and for a seat the
+hand-over's row gave them that is still on the run it gives the place on the
+form back in its own transaction, with the same two functions and no reason.
+Nothing goes back after the run's last session, as for leaving. Their
+application page then says "Taken off the programme" and the day ("You’re no
+longer on AGI Strategy."), never that they told us they can't make it, with
+no link to the programme's page, which closes to them; the list of their
+applications says the same. Somebody who gave the place back themselves
+before the removal (their reply carries its reason) still reads what they
+told us. Putting them back on the run leaves the place given back, as it
+does for somebody who left. The words are on no board, and are listed for
+the boards' designers (`status/words.ts`). `tests/course-publish-follow-ups.test.mjs`
+runs it as an admin and as the programme's lead.
 
 `tests/course-hub-leaving.test.mjs` runs the leave as every kind of caller
 and holds what it writes on both sides, and

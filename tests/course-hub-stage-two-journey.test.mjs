@@ -1857,6 +1857,8 @@ const NOTICE_LINE = (reason) =>
   `Sent as an important notice You are getting this because ${reason}, so it reaches you whatever your notification settings say, and it is never marketing.`;
 const short = (response) => [response.status, response.body?.error ?? null];
 const groupPage = (runId, groupId) => `${APP_URL}/learn/${runId}/group/${groupId}`;
+/** The register's own page, where the register reminder's "Open the register" goes. */
+const registerPage = (runId, groupId) => `${groupPage(runId, groupId)}/register`;
 
 /** What an email says from `start` (its heading or greeting) to the end of its footer. */
 function readFrom(mail, start) {
@@ -2520,18 +2522,21 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     // of stage two's fixes (G9) the reminder the press sends said "finished"
     // in its subject, its first line and its last; it now follows the same
     // switch, and says "finished" only while next week's email is on its
-    // schedule and the button is "Finish the register".
+    // schedule and the button is "Finish the register". "Open the register"
+    // goes to the register's own page: until the follow-ups to Publish of
+    // October 2026 it went to the group's page, one tap from it, and both of
+    // the email's links read groupPage(RUN, GROUP.B) here.
     test("Remind emails the two of them once each, a second press is refused, and the card says who was reminded", () => {
       const m = seen.remind;
       assert.deepEqual(m.pressed.body, { emailed: 2, failed: 0, names: ["Rahul", "Sofia"] });
       assert.deepEqual(
         m.mail.map((mail) => [mail.to, mail.subject, mail.kind, mail.links]),
-        ["rahul", "sofia"].map((uid) => [address(uid), "Group B’s register isn’t pushed", "course-facilitator", [groupPage(RUN, GROUP.B), groupPage(RUN, GROUP.B)]]),
+        ["rahul", "sofia"].map((uid) => [address(uid), "Group B’s register isn’t pushed", "course-facilitator", [registerPage(RUN, GROUP.B), registerPage(RUN, GROUP.B)]]),
       );
       assert.equal(
         readFrom(m.mail[0], "Hi "),
         "Hi Rahul, Group B’s register for Tue 17 Nov isn’t pushed yet. Push attendance to lock the register, show everyone their mark and " +
-          `email the group about next week. Open the register Or paste this into your browser: ${groupPage(RUN, GROUP.B)} If the session didn’t ` +
+          `email the group about next week. Open the register Or paste this into your browser: ${registerPage(RUN, GROUP.B)} If the session didn’t ` +
           `happen, the register can say so, and it still needs pushing. If it’s still not pushed 60 hours after the session, Claudia and admins get a task. ${FOOTER}`,
       );
       assert.doesNotMatch(`${m.mail[1].subject} ${m.mail[1].text}`, /finish/i);

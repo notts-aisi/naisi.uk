@@ -936,7 +936,9 @@ test(
         const mail = await mailTo(fern.email, 2);
         assert.equal(mail.length, 2, `Fern has ${mail.length} emails`);
         const email = await readEmail(mail[1]);
-        const link = `${origin}${groupPagePath(unfinishedGroup)}`;
+        // The register's own page (the group's page, one tap from it, until
+        // the follow-ups to Publish of October 2026).
+        const link = `${origin}${groupPagePath(unfinishedGroup)}/register`;
         assert.equal(email.subject, `${unfinishedGroup.name}’s register isn’t ${word()}`, "the reminder's subject");
         assertSays(email, {
           who: "The reminder",

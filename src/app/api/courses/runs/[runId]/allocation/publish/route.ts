@@ -49,7 +49,8 @@ import { mirrorCourseDecisionToPush } from "@/lib/push/courseNotifications";
  *     Somebody who has left the run (withdrawn, or removed) is not waited
  *     for, whatever their row on the run's list still says. Somebody placed
  *     who gave their place back on the form is not written to: their card
- *     says "Gave their place back", and the plan leaves them out.
+ *     says "Gave their place back", and the plan leaves them out. Somebody
+ *     with no group whose card says it is not waited for either.
  *  2. SO IS "EVERY EMAIL CAN BE WRITTEN". Each person's email and each
  *     facilitator's is composed before anything goes, and publishing refuses
  *     (409) with sentences an admin can act on when one cannot be. NO EMAIL

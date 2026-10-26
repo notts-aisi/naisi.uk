@@ -125,8 +125,10 @@ const READERS = {
     kind: "own",
     proof: ["courseApplicationId(run.id, uid)", "row.uid !== uid"],
     why:
-      "whether the caller may leave a run by themselves: their own row, at the one id that is theirs, read for where " +
-      "it came from (fromForm) and nothing else, for the leave route and the two pages that offer the way out",
+      "where one person's seat on a run came from: their own row, at the one id that is theirs, read for where it " +
+      "came from (fromForm) and nothing else, and nothing of it handed back. Asked for the caller by the leave route " +
+      "and the two pages that offer the way out, and for the person whose seat Remove takes off, behind Remove's own " +
+      "gate, so their place on the form goes back as leaving gives it",
   },
   "features/courses/useMyApplication.ts": {
     kind: "own",
@@ -141,7 +143,10 @@ const READERS = {
   "app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts": {
     kind: "no-content",
     proof: ["appSnap.data()?.email"],
-    why: "takes the address off a row to drop a mailing-list entry when the account has gone. A row from the form carries no address, and nothing of the row is sent back",
+    why:
+      "takes the address off a row to drop a mailing-list entry when the account has gone. A row from the form " +
+      "carries no address, and nothing of the row is sent back. Where the seat's place came from, to give it back on " +
+      "the form, is leaving's own answer (lib/courses/leaving.ts, listed there)",
   },
   "lib/firestore/accountDeletion.ts": {
     kind: "no-content",

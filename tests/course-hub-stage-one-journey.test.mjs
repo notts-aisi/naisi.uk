@@ -1886,10 +1886,21 @@ describe("stage one of the course hub, one term from decision day to the first s
       assert.deepEqual(g().registerLeavers, []);
     });
 
+    // The Settings panel lists Ella under "Left the programme", apart from the
+    // people whose seat is still on the run. Until the follow-ups to Publish
+    // of October 2026 Ella was in `gaveBack` ("No longer hold a place", with
+    // the runbook's steps for a seat nothing takes off the run), and this
+    // read [5, 5, ["Ella Robinson"]] of holders, onTheList and gaveBack.
     test("the Settings panel and her card on the board name her, and the times picture stops counting her", () => {
       assert.deepEqual(
-        [g().panel.holders, g().panel.onTheList, g().panel.gaveBack.map((person) => person.name)],
-        [5, 5, ["Ella Robinson"]],
+        [
+          g().panel.holders,
+          g().panel.onTheList,
+          g().panel.gaveBack,
+          g().panel.left.map((person) => person.name),
+          g().panel.takenOff,
+        ],
+        [5, 5, [], ["Ella Robinson"], []],
       );
       assert.equal(timesAt("Ella gave her place back").board.cards.ella.holdsPlace, false);
       assert.deepEqual([timesAt("Ella gave her place back").picture.holders, timesAt("Ella gave her place back").picture.canMake["Group B"]], [5, 2]);

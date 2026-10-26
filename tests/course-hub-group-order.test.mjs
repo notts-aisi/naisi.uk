@@ -93,6 +93,14 @@ const READS_WITHOUT_A_LIST = new Map([
         "facilitators wait for somebody to be placed) are said in a sentence, not listed.",
     },
   ],
+  [
+    "src/lib/courses/leaving.ts",
+    {
+      why:
+        "Reached through Remove on People in groups, which asks leaving's own answer where a seat's place on the " +
+        "form came from: it reads a run's groups only to find when the run's last session ends, and lists none of them.",
+    },
+  ],
 ]);
 
 /** Modules the walk reaches that fetch an address it cannot read, each with what they fetch and why it lists no run's groups. */

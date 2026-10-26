@@ -1390,7 +1390,7 @@ test(
         }
       });
 
-      await step("the lead's Settings tab counts the places given back, and lists the two who left as no longer holding one", async () => {
+      await step("the lead's Settings tab counts the places given back, and lists the two who left apart, with nothing to do", async () => {
         activePage = adminPage;
         await adminPage.goto(`${formBase(term)}/setup`, { waitUntil: "domcontentloaded" });
         const panel = adminPage.getByRole("region", { name: "Course run" });
@@ -1404,35 +1404,40 @@ test(
           })
           .waitFor({ timeout: WAIT_MS });
         await panel.getByRole("button", { name: "Hand over anybody new", exact: true }).waitFor({ timeout: WAIT_MS });
-        // The two who left, named as no longer holding a place, each a link to
-        // their application, by name.
+        // The two who left, named apart as having left, each a link to their
+        // application, by name.
         const leavers = term.people
           .filter((person) => leftKeyOf.has(person.key))
           .sort((a, b) => a.displayName.localeCompare(b.displayName, "en") || a.uid.localeCompare(b.uid));
-        const group = panel.getByText(`No longer hold a place (${leavers.length})`, { exact: true }).locator("xpath=..");
+        const group = panel.getByText(`Left the programme (${leavers.length})`, { exact: true }).locator("xpath=..");
         await group.waitFor({ timeout: WAIT_MS });
         assert.deepEqual(
           await textsOf(group.getByRole("link")),
           leavers.map((person) => person.displayName),
-          "the panel does not name the two who left as no longer holding a place",
+          "the panel does not name the two who left under Left the programme",
         );
-        // PINNED (found by this spec, 25 Oct 2026): what the panel then tells
-        // the lead to do is written for somebody who gave their place back
-        // while still seated, and is wrong for somebody who LEFT, by either
-        // door: leaving took them off the run, the board offers no Remove for
-        // a seat that left, and Remove refuses one (the board's step below).
-        // `compareWithRun` (src/lib/applications/handover/holders.ts) reads
+        // CHANGED 25 Oct 2026, with the fix this spec found: the panel read
         // the run's own list and who holds a place, never the seat, so a
-        // leaver lands in this list with this advice. THE FIX: the panel's
-        // loader (src/lib/applications/handover/load.ts) reads each such
-        // person's seat by its id and lists those whose seat is withdrawn
-        // apart, as having left, with no advice to Remove them (words for the
-        // boards' designers); the fix changes this check in the same change.
+        // leaver was listed under "No longer hold a place" and the lead was
+        // told to Remove them, which the board does not offer and Remove
+        // refuses for a seat that left. The panel's loader now reads each such
+        // person's seat by its id and lists a seat that left apart, with
+        // nothing to do. So the check holds the new words whole, and that
+        // neither the old list nor its advice is drawn for anybody here.
         assert.equal(
-          await textOf(panel.locator("p").filter({ hasText: "They gave their place back after they were handed over" })),
-          "They gave their place back after they were handed over, and nothing takes them off the run. Remove them from " +
-            "their group on the board, then change their row on the run’s own applications list. Nobody is emailed by either.",
-          "the panel's advice about people who no longer hold a place",
+          await textOf(panel.locator("p").filter({ hasText: "They left by themselves" })),
+          "They left by themselves, so their seat is free and their place is given back. There’s nothing to do.",
+          "the panel's words for people who left",
+        );
+        assert.equal(
+          await panel.getByText(/^No longer hold a place \(/).count(),
+          0,
+          "the panel still lists people who left under No longer hold a place",
+        );
+        assert.equal(
+          await panel.locator("p").filter({ hasText: "They gave their place back after they were handed over" }).count(),
+          0,
+          "the panel still tells the lead to Remove somebody who left",
         );
       });
 

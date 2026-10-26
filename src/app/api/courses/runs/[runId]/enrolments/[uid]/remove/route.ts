@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
+import { loadForm } from "@/lib/applications/repo";
+import { givePlaceBack, readPlaceToGiveBack } from "@/lib/applications/status/record";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { leavePathFor } from "@/lib/courses/leaving";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { formatRunStartShort } from "@/lib/courses/window";
@@ -26,6 +29,19 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * It records WHEN (`droppedOutAt`, the field leaving writes), so the
  * programme's Overview, its Attendance tab and the group's register say the
  * day somebody went, whichever way they went.
+ *
+ * A SEAT THE APPLICATION FORM PLACED GIVES ITS PLACE ON THE FORM BACK, in the
+ * same transaction, exactly as leaving gives it (`readPlaceToGiveBack` and
+ * `givePlaceBack` in `src/lib/applications/status/record.ts`), with no reason
+ * written on the application. So the person's application page stops saying
+ * their group is on its way, and every count of the programme's places and
+ * list of its people agrees with the run the moment they are off it. Where
+ * the seat's place came from is leaving's own answer (`leavePathFor` in
+ * `src/lib/courses/leaving.ts`): the form and the programme the seat's row
+ * on the run's list names, and nothing once the run's last session is over,
+ * when no place on the form goes back. Only a seat still on the run gives its
+ * place back. Putting somebody back afterwards leaves it given back, as it
+ * does for somebody who left.
  *
  * NOBODY WHO LEFT BY THEMSELVES IS REMOVED. A seat withdrawn by its owner
  * (either door: "Leave the programme" on their programme's page, or "I can’t
@@ -106,6 +122,15 @@ export async function POST(_req: Request, ctx: Ctx) {
     .collection("courseEnrolments")
     .doc(courseEnrolmentId(runId, uid));
 
+  // Where the seat's place on the form came from, as leaving reads it, and
+  // the form it goes back to, read before the transaction (see the note at
+  // the top). A round that is no longer a form has no place on it to give
+  // back, and the removal goes ahead without it.
+  const now = new Date();
+  const leaving = await leavePathFor(db, run, uid, now);
+  const fromForm = "path" in leaving && leaving.path.kind === "form" ? leaving.path : null;
+  const form = fromForm ? await loadForm(db, fromForm.roundId) : null;
+
   try {
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(enrolmentRef);
@@ -120,7 +145,7 @@ export async function POST(_req: Request, ctx: Ctx) {
 
       if (existing.role === "facilitator") {
         throw new RemoveError(
-          "That's a facilitator enrolment — unassign them in the group editor instead.",
+          "That's a facilitator enrolment. Unassign them in the group editor instead.",
           409,
         );
       }
@@ -135,6 +160,15 @@ export async function POST(_req: Request, ctx: Ctx) {
       // Idempotent: a double-clicked Remove shouldn't surface a failure, and
       // must not decrement the counter twice.
       if (status === "removed") return;
+
+      // The place on the form, read before anything is written (a
+      // transaction takes every read first). Only a seat still on the run
+      // gives it back. Null when there is no place there to give back, and
+      // the removal goes ahead without it.
+      const place =
+        form && fromForm && status === "active"
+          ? await readPlaceToGiveBack(tx, db, form, uid, fromForm.programmeId, now)
+          : null;
 
       const groupId =
         typeof existing.groupId === "string" && existing.groupId
@@ -168,6 +202,7 @@ export async function POST(_req: Request, ctx: Ctx) {
         droppedOutAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
+      if (place) givePlaceBack(tx, place);
       if (heldSeat && groupId) {
         tx.update(db.collection("courseGroups").doc(groupId), {
           memberCount: FieldValue.increment(-1),

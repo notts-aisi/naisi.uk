@@ -74,6 +74,27 @@ export function handOverReceipt(receipt: HandOverReceiptView): string {
   return `${done} ${people(receipt.alreadyThere)} ${receipt.alreadyThere === 1 ? "was" : "were"} already there.`;
 }
 
+/*
+ * The two lists of people on the run's list who no longer hold a place and
+ * have nothing left to do: they left by themselves, or staff took them off.
+ * No board draws either: written in the boards' voice and listed in the build
+ * notes for the boards' designers to confirm.
+ */
+
+/** The heading over the people who left the programme by themselves. */
+export const LEFT_TITLE = "Left the programme";
+
+/** What the panel says under them. */
+export const LEFT_NOTE =
+  "They left by themselves, so their seat is free and their place is given back. There’s nothing to do.";
+
+/** The heading over the people staff took off the programme. */
+export const TAKEN_OFF_TITLE = "Taken off the programme";
+
+/** What the panel says under them. */
+export const TAKEN_OFF_NOTE =
+  "They were taken off the programme on the board, so their seat is free and their place is given back. There’s nothing to do.";
+
 /** Rows on the run that this programme's hand-over did not write. */
 export function otherRowsLine(count: number): string {
   return `${count === 1 ? "1 row" : `${count} rows`} on this run’s list did not come from this programme.`;

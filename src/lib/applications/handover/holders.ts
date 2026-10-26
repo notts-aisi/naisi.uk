@@ -17,7 +17,8 @@ import { rankedProgrammes } from "../sections";
  *    place. Somebody who gave their place back holds none. Somebody invited
  *    holds one from the moment they accept, and not before.
  *  - `compareWithRun`: where each of those people stands on the run's own
- *    list, and who is on that list without holding a place any more.
+ *    list, and who is on that list without holding a place any more
+ *    (`splitBySeat` then tells apart who left and who was taken off).
  *
  * A PERSON IS HANDED OVER ONLY ONCE THEY HAVE BEEN TOLD (`hasBeenTold`). A
  * row on a run is its owner's to read under that collection's own rule, and
@@ -149,5 +150,36 @@ export function compareWithRun(input: {
     });
   }
   out.gaveBack.sort(byName);
+  return out;
+}
+
+/** The people on the run's list who no longer hold a place, by where their seat on the run stands. */
+export type GaveBackBySeat = {
+  /** Their seat is still on the run, or they never had one: nothing takes them off it. */
+  stillOnTheRun: PlaceHolder[];
+  /** They left by themselves (a seat `withdrawn`): their seat is free, and leaving gave the place back. */
+  left: PlaceHolder[];
+  /** Staff took them off (a seat `removed`): their seat is free, and Remove gave the place back. */
+  takenOff: PlaceHolder[];
+};
+
+/**
+ * Split `compareWithRun`'s `gaveBack` by each person's seat on the run, so
+ * the panel tells an admin what is left to do: nothing for somebody who left
+ * or was taken off, and the runbook's steps for everybody else. `seats` is
+ * each person's seat status by uid, for the seats there are. Their order is
+ * kept.
+ */
+export function splitBySeat(
+  gaveBack: readonly PlaceHolder[],
+  seats: ReadonlyMap<string, string>,
+): GaveBackBySeat {
+  const out: GaveBackBySeat = { stillOnTheRun: [], left: [], takenOff: [] };
+  for (const person of gaveBack) {
+    const status = seats.get(person.uid);
+    if (status === "withdrawn") out.left.push(person);
+    else if (status === "removed") out.takenOff.push(person);
+    else out.stillOnTheRun.push(person);
+  }
   return out;
 }

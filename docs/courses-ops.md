@@ -1262,8 +1262,10 @@ left.
 
 **Before that** (handed over and not placed, or placed and not told yet),
 nothing takes them off the run. The panel names them under "No longer hold
-a place", and their card on the board says "Gave their place back". Then,
-by hand:
+a place", and their card on the board says "Gave their place back". Once
+they are removed it lists them under "Taken off the programme" instead, as
+it lists somebody who left under "Left the programme": nothing is left to do
+for either. Then, by hand:
 
 1. on the board, **Remove** them if they are in a group. That frees the
    seat. Publish leaves them out whether or not this comes first: a press
@@ -1271,11 +1273,13 @@ by hand:
    the Publish area says how many are waiting to be removed;
 2. on the run's own applications page, change their row from Accepted. A
    row the form wrote carries no address, so that page emails nobody about
-   it. Somebody handed over and never placed holds Publish up until this is
-   done, because Publish refuses while anybody accepted is not in a group;
-   somebody removed in step 1 does not. This step is an admin's (or the
-   run's admissions reviewer's): the programme's lead does step 1 from the
-   Groups tab and asks an admin for this one.
+   it. Nothing waits for this step: Publish waits for nobody whose card says
+   "Gave their place back", in a group or not, and the board counts
+   somebody in Unallocated whose card says it apart from the people still
+   to place ("1 gave their place back" at the end of the rail's numbers).
+   This step is an admin's (or the run's admissions reviewer's): the
+   programme's lead does step 1 from the Groups tab and asks an admin for
+   this one.
 
 Their own application page says they gave the place back as soon as they
 reply, and, for somebody who left their group, that they left the programme
@@ -1326,7 +1330,11 @@ keeps their record, and no place on the form goes back after the end.
 Their facilitators' register lists them last, read only, with the marks
 they had, "Left" and the day, and refuses a mark for them; the lead's
 Attendance tab, its CSV and the Overview say the same. **Remove** records
-the day too, so both kinds of leaving show it. Somebody who left by
+the day too, so both kinds of leaving show it, and it gives a place the
+application form gave them back, exactly as leaving does and with no
+reason (nothing goes back after the run's last session). Their application
+page then says "Taken off the programme" and the day, and the form's count
+of places held drops. Somebody who left by
 themselves is not offered Remove on the board, and the Remove route refuses
 them in a sentence with the day they left ("They left on Tue 17 Nov, so
 their seat is already free and there’s nothing to remove."), writing
@@ -1336,8 +1344,8 @@ run closes to them.
 To put somebody back, an admin places them again on the board and presses
 Publish, which emails them: placing them clears the day, the reason and
 Publish's stamp, and records when they were put back (`putBackAt`). Their
-place on the form stays given back: putting them back on the run does not
-change their application. Their card stops saying "Gave their place back"
+place on the form stays given back, whether they left or were removed:
+putting them back on the run does not change their application. Their card stops saying "Gave their place back"
 while they are back, so Publish tells them; if they leave again, it says so
 again.
 

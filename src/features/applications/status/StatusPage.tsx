@@ -11,7 +11,14 @@ import {
   leavingNowLine,
 } from "@/lib/applications/status/runWords";
 import type { InGroupView, StatusView } from "@/lib/applications/status/view";
-import { LEFT_CHIP, leftTitle } from "@/lib/applications/status/words";
+import {
+  LEFT_CHIP,
+  REMOVED_BY_MISTAKE,
+  REMOVED_CHIP,
+  leftTitle,
+  removedOnLine,
+  removedTitle,
+} from "@/lib/applications/status/words";
 import { CHANGED_AFTER, CHANGED_BEFORE, CHANGED_YOUR_MIND, leftOnLine } from "@/lib/courses/leavingWords";
 import OfferBanner from "./OfferBanner";
 import { InvitationReply, PlaceReply, ReplyTitle } from "./ReplyButtons";
@@ -35,7 +42,8 @@ import styles from "./status.module.css";
  * giving the place back is leaving the programme by then, so the page points
  * to their programme's page, where leaving is, and says what it means
  * (`InGroup`). Once they have left, by either door, the page says so and
- * when, never that they told us they could not make it.
+ * when, never that they told us they could not make it. Once staff have
+ * taken them off, it says that, and when, in the same way.
  *
  * Nothing on this page is a form control but the reply buttons, so apart
  * from those it reads in full from the first HTML, before any script runs.
@@ -561,6 +569,36 @@ export default function StatusPage({
           <div>
             <Link href={`/learn/${encodeURIComponent(view.runId)}`} className={styles.outlineSmall}>
               <span>{GO_TO_YOUR_PROGRAMME}</span>
+              <ArrowRightIcon />
+            </Link>
+          </div>
+        </div>
+      </Frame>
+    );
+  }
+
+  // Taken off the programme by staff, which gave the place on the form back.
+  // The run closes to them, so there is no way to their programme's page, and
+  // the page never says they told us they could not make it.
+  if (view.kind === "removed") {
+    const day = removedOnLine(view.removedOnLabel);
+    return (
+      <Frame eyebrow={eyebrow} pad="outcome" gap="outcome">
+        <div className={`${styles.card} ${styles.stack}`}>
+          <div>
+            <Chip>{REMOVED_CHIP}</Chip>
+          </div>
+          <h2 className={styles.cardTitle}>{removedTitle(view.programme?.shortName ?? null)}</h2>
+          <div className={styles.body}>
+            {day ? <p>{day}</p> : null}
+            <p>
+              {REMOVED_BY_MISTAKE} <Contact /> {CHANGED_AFTER}
+            </p>
+            <p>Our events are open to everyone, so come along to one.</p>
+          </div>
+          <div>
+            <Link href={EVENTS} className={styles.outlineSmall}>
+              <span>See what’s on</span>
               <ArrowRightIcon />
             </Link>
           </div>

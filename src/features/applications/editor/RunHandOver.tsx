@@ -10,6 +10,10 @@ import { fetchRunPanel, postHandOver, putProgrammeRun } from "./editorClient";
 import shared from "./editor.module.css";
 import styles from "./RunHandOver.module.css";
 import {
+  LEFT_NOTE,
+  LEFT_TITLE,
+  TAKEN_OFF_NOTE,
+  TAKEN_OFF_TITLE,
   handOverButton,
   handOverReceipt,
   holdersLine,
@@ -205,6 +209,22 @@ export default function RunHandOver({
                   )}
                   . Nobody is emailed by either.
                 </p>
+              </div>
+            )}
+
+            {/* People who no longer hold a place and whose seat is free
+                already: they left by themselves, or staff took them off. */}
+            {panel.left.length > 0 && (
+              <div className={styles.group}>
+                <People title={LEFT_TITLE} people={panel.left} />
+                <p className={styles.small}>{LEFT_NOTE}</p>
+              </div>
+            )}
+
+            {panel.takenOff.length > 0 && (
+              <div className={styles.group}>
+                <People title={TAKEN_OFF_TITLE} people={panel.takenOff} />
+                <p className={styles.small}>{TAKEN_OFF_NOTE}</p>
               </div>
             )}
 

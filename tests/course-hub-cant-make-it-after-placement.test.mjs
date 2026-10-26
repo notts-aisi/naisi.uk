@@ -229,6 +229,11 @@ const LEFT_CARD = (day) =>
   `That was on ${day}. Thanks for coming along. Your notes and the reading list are still on your programme’s ` +
   "page. Changed your mind? Email ai-safety@uonsu.com and we’ll see what we can do. Go to your programme";
 
+const REMOVED_CARD = (day) =>
+  "Autumn 2026 · Fri 23 Oct Your application Taken off the programme You’re no longer on AGI Strategy. " +
+  `That was on ${day}. If you think that’s a mistake, email ai-safety@uonsu.com and we’ll see what we can do. ` +
+  "Our events are open to everyone, so come along to one. See what’s on";
+
 // ---------------------------------------------------------------------------
 // 1. One act, two doors
 // ---------------------------------------------------------------------------
@@ -503,16 +508,28 @@ describe("4. what the application page says, in each state", () => {
 
   // Remove is staff taking somebody off, not leaving: the run closes to them
   // as it always has, and their page says nothing of a group or of leaving.
-  // (Whether Remove gives the place on the form back is the walk's H5, a
-  // question for the owner, and is not changed here.)
-  test("somebody staff took off the run reads their page as before groups went out, not as somebody who left", async () => {
+  // Since the follow-ups to Publish (October 2026, the walk's H5, the
+  // owner's yes) Remove gives the place on the form back as leaving does, so
+  // the page says they were taken off the programme, and when. Until then it
+  // read as before groups went out ("I’m coming" and "I can’t make it", view
+  // kind `place`): this test pinned that, and now pins the new page as
+  // strictly, word for word.
+  test("somebody staff took off the run reads that they were taken off, not that they left or said they can't make it", async () => {
     const removed = await call("claudia", routes.remove.POST, { runId: RUN.agi, uid: "tariq" }, { course: true });
     assert.equal(removed.status, 200);
+    assert.deepEqual(
+      [applicationOf("tariq").status, applicationOf("tariq").attendance, applicationOf("tariq").releaseReason],
+      ["withdrawn", "cant-make-it", null],
+    );
     const page = await ownPage("tariq");
-    assert.equal(page.view.kind, "place");
+    assert.equal(page.view.kind, "removed");
     assert.equal(page.view.inGroup, undefined);
-    assert.match(page.text, /I’m coming Optional\. It helps us plan groups\. I can’t make it/);
-    assert.ok(!page.text.includes("Left the programme"));
+    assert.equal(page.text, REMOVED_CARD("Tue 17 Nov"));
+    assert.match(page.html, /<a href="\/events" class="outlineSmall"><span>See what’s on<\/span>/);
+    assert.ok(!page.html.includes(HOME), "the run closes to somebody taken off it");
+    assert.ok(!page.html.includes("<button"), "a reply button is still drawn");
+    assert.ok(!page.text.includes("Left the programme") && !/can’t make it|I’m coming/.test(page.text));
+    assert.deepEqual(await listLine("tariq"), ["Taken off the programme", "You’re no longer on AGI Strategy."]);
   });
 
   test("on an incubator: the same pages, and never the word group", async () => {
