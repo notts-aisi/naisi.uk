@@ -58,6 +58,7 @@ const { isInTerm } = await loadTs(join("lib", "applications", "decisions.ts"));
 const { loadForm } = await loadTs(join("lib", "applications", "repo.ts"));
 const { listDecisions, listSentApplications } = await loadTs(join("lib", "applications", "staffRepo.ts"));
 const ProgrammePeople = (await loadTs(join("features", "applications", "people", "ProgrammePeople.tsx"))).default;
+const { comingReplyOf } = await loadTs(join("lib", "applications", "status", "coming.ts"));
 
 const PROGRAMME_PATH = `/admin/admissions/forms/${ROUND}/programmes/${AGI}`;
 
@@ -411,6 +412,40 @@ describe("4. every value from records", () => {
     }
     assert.match(html, /aria-label="More for Amara Okafor"/);
     assert.ok(!text.includes("Show more"), "Show more is offered with nothing more to show");
+  });
+
+  test("said they're coming is the one reading: to a place held on this programme, on its own day, and never a no for silence", () => {
+    const on = new Date("2026-10-26T10:00:00Z");
+    const place = (over) => ({
+      status: "accepted",
+      result: { kind: "accepted", programmeId: AGI },
+      invitation: null,
+      attendance: null,
+      ...over,
+    });
+    assert.deepEqual(comingReplyOf(place({ attendance: { answer: "coming", answeredAt: on } }), AGI), { said: true, on });
+    // No reply is not a yes, and it is not a no either: the column says "Not yet".
+    assert.deepEqual(comingReplyOf(place({}), AGI), { said: false });
+    // A place held on another programme says nothing about this one.
+    assert.deepEqual(comingReplyOf(place({ attendance: { answer: "coming", answeredAt: on } }), "technical-ai-safety"), { said: false });
+    // "I can't make it" gives the place back: never a yes.
+    assert.deepEqual(
+      comingReplyOf(place({ status: "withdrawn", attendance: { answer: "cant-make-it", answeredAt: on } }), AGI),
+      { said: false },
+    );
+    // Accepting an invitation is how somebody invited says so, on the day they accepted.
+    assert.deepEqual(
+      comingReplyOf(
+        {
+          status: "accepted",
+          result: { kind: "invited", programmeId: AGI },
+          invitation: { programmeId: AGI, replyBy: "2026-10-29", response: "accepted", respondedAt: on },
+          attendance: null,
+        },
+        AGI,
+      ),
+      { said: true, on },
+    );
   });
 
   test("the search reads names and degree lines, ignoring case and accents", () => {
