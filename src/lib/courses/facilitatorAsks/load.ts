@@ -245,9 +245,12 @@ export async function loadFacilitatorsModel(
     .map(({ view }) => view);
 
   // ---- The email the last person asked got ----------------------------------
-  const last = [...asks]
+  // The board's card is the email of somebody still to answer: the latest ask
+  // still waiting, or, with none waiting, the latest ask.
+  const sent = [...asks]
     .filter((ask) => ask.delivery !== "sending")
-    .sort((a, b) => (b.askedAt?.getTime() ?? 0) - (a.askedAt?.getTime() ?? 0))[0];
+    .sort((a, b) => (b.askedAt?.getTime() ?? 0) - (a.askedAt?.getTime() ?? 0));
+  const last = sent.find((ask) => stateOf.get(ask.id)?.kind === "waiting") ?? sent[0];
   const email = last
     ? {
         firstName: last.firstName || personOf.get(last.uid)?.firstName || "",

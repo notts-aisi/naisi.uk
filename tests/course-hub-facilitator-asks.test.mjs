@@ -346,6 +346,19 @@ describe("3. asking, reminding and asking someone else, each email counted and r
     assert.deepEqual(body.email.sent.paragraphs, wordsOf(sent[0]).paragraphs);
   });
 
+  test("the email card is the latest ask still waiting, and the latest ask once none is", async (t) => {
+    begin(t);
+    await testThenAsk("claudia");
+    t.mock.timers.setTime(NOW.getTime() + 60_000);
+    await ask("claudia", { uid: "wen", groupId: A, replyBy: REPLY_BY, emails: 1 });
+    let card = (await asking("claudia")).body.email;
+    assert.equal(card.toName, "Wen Zhao", "the latest ask, both waiting");
+    const wen = asksStored().find((doc) => doc.uid === "wen");
+    assert.equal((await answer("wen", wen.path.split("/")[1], "no")).status, 200);
+    card = (await asking("claudia")).body.email;
+    assert.equal(card.toName, "Omar Haddad", "the one still waiting, over a later ask answered");
+  });
+
   test("with the training set, the email names it; it never carries an address or a meeting link", async (t) => {
     begin(t);
     world.db.poke(`courseGroups/${B}`, { "session.meetingUrl": "https://meet.example.com/secret-room" });
