@@ -259,6 +259,11 @@ const RUN_COUNT_KEYS = [
   // (src/lib/courses/teams/). Keyed by `runId`, and on the manifest because
   // the cascade has a stage for it.
   "teams",
+  // `courseTeamEntries`, what an incubator's teams write on their pages: each
+  // week's check-in, the team's links and its hand-in
+  // (src/lib/courses/teamPage/). Member-authored, keyed by `runId`, and on the
+  // manifest because the cascade has a stage for it.
+  "teamEntries",
   // `courseFinishing`, who finished: the run's rule and the lead's decisions
   // (src/lib/courses/finishing/). Keyed by `runId`, and on the manifest
   // because the cascade has a stage for it.
@@ -391,19 +396,19 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   const counts = Object.fromEntries(
     [...RUN_COUNT_KEYS, ...COURSE_COUNT_KEYS].map((k) => [k, 10]),
   );
-  // Thirty-two counters at ten rows each: twenty-seven that die,
+  // Thirty-three counters at ten rows each: twenty-eight that die,
   // `materialNotes`, `auditRows`, `schedulerMarkers`, the V3 `coursePages`,
   // the V3 W2 `registerTasks`, the course hub's `pitches`, `updates`,
-  // `groupNotes`, `groupSharedNotes`, `packsAndCases`, `teams`, `finishing`,
-  // `facilitating`, `ratings`, `certificates` and `anonymousFeedback`, and
-  // the course's `facilitatorGuide` among them, plus the five survivors
-  // (`admissionSeatOffers` is released, `dataExportRows` is retained,
-  // `certificatesKept` stays without its run).
-  assert.equal(sumCounts(counts), 320);
+  // `groupNotes`, `groupSharedNotes`, `packsAndCases`, `teams`, `teamEntries`,
+  // `finishing`, `facilitating`, `ratings`, `certificates` and
+  // `anonymousFeedback`, and the course's `facilitatorGuide` among them, plus
+  // the five survivors (`admissionSeatOffers` is released, `dataExportRows` is
+  // retained, `certificatesKept` stays without its run).
+  assert.equal(sumCounts(counts), 330);
   // The progress denominator counts only what actually dies, so a large
   // retained counter cannot inflate it into a bar that never fills. Adding a
   // survivor must not move this number; adding a DESTROYED counter must.
-  assert.equal(destroyedTotal(counts), 270);
+  assert.equal(destroyedTotal(counts), 280);
 });
 
 test("MODEL — every key the cascade can report has copy, including the ones the manifest never shows", () => {
@@ -567,6 +572,9 @@ test("MODEL — the cascade's declared stage order is the one the contract needs
     // An incubator's teams: a run-keyed leaf, drained with the pitches they
     // were made from, before the enrolments.
     "teams",
+    // What the teams wrote on their pages: a run-keyed leaf, drained with the
+    // teams that wrote it, before the enrolments.
+    "teamEntries",
     // Who finished: the run's rule and the lead's decisions, a run-keyed leaf
     // drained before the enrolments the decisions are about.
     "finishing",

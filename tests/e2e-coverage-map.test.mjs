@@ -1988,6 +1988,49 @@ const NOT_COVERED = {
     coverWhen:
       "When the same browser spec deletes the note it added.",
   },
+  "/api/courses/runs/[runId]/team/check-in": {
+    reason:
+      "Course hub: this week's check-in on an incubator team's page (in-team); who saves it, who is refused, the week rule and what deletion does are executed by tests/course-hub-team-page-routes.test.mjs and tests/course-hub-team-page-deletion.test.mjs, and the page that draws it by tests/course-hub-team-page-pages.test.mjs; saved in a browser on the preview kit at 390 and 1440.",
+    coverWhen:
+      "When the incubator's browser spec, after telling everyone their team, signs in a person in a team, opens their team's page from the programme's page and saves a check-in.",
+  },
+  "/api/courses/runs/[runId]/team/links": {
+    reason:
+      "Course hub: a link added to an incubator team's page (in-team's Team links); the limit, the https rule and every caller are executed by tests/course-hub-team-page-routes.test.mjs; added in a browser on the preview kit.",
+    coverWhen: "When the same browser spec adds a link and reads it back on the team's page.",
+  },
+  "/api/courses/runs/[runId]/team/links/[linkId]": {
+    reason:
+      "Course hub: a link removed from an incubator team's page, by anybody in the team; another team's person and every other caller are executed by tests/course-hub-team-page-routes.test.mjs; removed in a browser on the preview kit.",
+    coverWhen: "When the same browser spec removes the link it added.",
+  },
+  "/api/courses/runs/[runId]/team/hand-in": {
+    reason:
+      "Course hub: an incubator team's one hand-in (en-handin-phone); the tick, the 200 words, the due day's 23:59 and every caller are executed by tests/course-hub-team-page-routes.test.mjs; handed in on the preview kit before and after the deadline.",
+    coverWhen:
+      "When the incubator's browser spec can seed a run whose hand-in is due, and a person in a team hands in for it.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/hand-in": {
+    reason:
+      "Course hub: an incubator's hand-in dates, set by its lead or an admin on the Teams tab; every caller and every refusal are executed by tests/course-hub-team-page-routes.test.mjs.",
+    coverWhen: "When the incubator's browser spec sets the hand-in dates on the Teams tab before a team hands in.",
+  },
+  "/(app)/learn/[runId]/team": {
+    reason:
+      "Course hub: an incubator team's own page (in-team, in-team-phone), drawn by tests/course-hub-team-page-pages.test.mjs as every kind of caller in week 5, in the break, in February and after the end; photographed on the preview kit at 390 and 1440.",
+    coverWhen:
+      "When the incubator's browser spec, after telling everyone their team, opens a person's team page from the programme's page.",
+  },
+  "/(app)/learn/[runId]/team/hand-in": {
+    reason:
+      "Course hub: an incubator team's hand-in page (en-handin-phone), drawn by tests/course-hub-team-page-pages.test.mjs before and after its deadline and for every kind of caller; photographed on the preview kit.",
+    coverWhen: "With the spec for the hand-in route above.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams/[teamId]": {
+    reason:
+      "Course hub: one team's page as an incubator's lead and admins read it, from the Teams tab's Hand-ins; drawn by tests/course-hub-team-page-pages.test.mjs for the lead, an admin, the reviewer and everybody else.",
+    coverWhen: "When the incubator's browser spec opens a team's page from the Teams tab as the lead.",
+  },
   "/(app)/learn/[runId]/nudge": {
     reason:
       "Learn hub: /(app)/learn/[runId]/nudge is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",

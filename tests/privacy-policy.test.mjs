@@ -20,14 +20,12 @@
  * download; and, with the impact questionnaire, sharing with Kairos unless
  * somebody says no (the Kairos file a fifth logged download), the ratings at
  * a programme's end, and totals to funders and sponsors that name nobody.
- * §2g holds those passages against the code. One of them is
- * worded as what will happen,
- * because it is not built yet (a team's page), and §2g holds that nothing
- * has been built that it would then have to describe. Two were worded that
- * way until they were built: certificates, whose paragraph still says what
- * happens when a programme ends and is held to the code in §2, and
- * facilitators seeing, before the first session, who has said they are
- * coming, which now says they see it and is held to the code in §2g.
+ * §2g holds those passages against the code. Three were worded as what
+ * will happen until they were built: certificates, whose paragraph still
+ * says what happens when a programme ends and is held to the code in §2; a
+ * team's page, which now says each team has one and is held to the code in
+ * §2g; and facilitators seeing, before the first session, who has said they
+ * are coming, which now says they see it and is held to the code in §2g.
  *
  * v6 (7 October 2026) was v5's text, rewritten where the application form
  * (docs/applications.md) made it untrue. The people who read an application
@@ -2748,13 +2746,10 @@ describe("the account record passage", () => {
  * page promises or the page stopped saying what the code does, and a change
  * to the words is a new version.
  *
- * One passage says what will happen, because the thing is not built yet: a
- * team's page. It is built to these words. Certificates were worded the same
- * way and are now built to their words: their check in §2 holds each
- * sentence to the code. A third, facilitators seeing who has said they are
- * coming before the first session, was worded the same way until it was
- * built; it now says they see it, and is held to the code below, as
- * strictly.
+ * Three passages were worded as what will happen until the thing was built,
+ * and each is now held to the code: certificates, by their check in §2; a
+ * team's page, by its tests below; and facilitators seeing who has said they
+ * are coming before the first session, by the code below, as strictly.
  *
  * Four more were added to v7 while it was on dev, before any member had been
  * asked to accept it, so it kept its number: the notes a group's facilitators
@@ -5780,5 +5775,66 @@ describe("the access-requirements read log", () => {
     assert.match(CURRENT_FLAT, /every time one of them does we record who read it/i);
     const notice = read("src/features/admissions/ApplicationPrivacyNotice.tsx");
     assert.match(notice.replace(/\s+/g, " "), /We record each time one of them/i);
+  });
+});
+
+describe("a team's page", () => {
+  test("each team has a page, which its people read and write and the programme's lead and admins read", () => {
+    assert.match(
+      PAGE_FLAT,
+      /team has a page of its own: its project, a weekly check-in, the team&apos;s links and its hand-in\. What anybody in the team writes there is seen by everybody in the team, the programme&apos;s lead and admins, and the page says so beside what you write\./,
+    );
+    assert.ok(!/will have a page of its own/.test(PAGE_FLAT), "v7 says a team's page will exist, and it is built");
+    const access = withoutComments(read("src/lib/courses/teamPage/access.ts"));
+    // The team's people, told their team by its email, read and write it.
+    assert.match(access, /export function toldTheirTeam\(team: TeamDoc, uid: string\): boolean/);
+    assert.match(access, /export async function teamPagePerson\(/);
+    // The lead and admins read every team's page and write none of it: the
+    // writes take the one person the team gate hands them.
+    const write = withoutComments(read("src/lib/courses/teamPage/write.ts"));
+    for (const writer of ["saveCheckIn", "addLink", "removeLink", "saveHandIn"]) {
+      assert.match(write, new RegExp(`export async function ${writer}\\(\\s*db: Firestore,\\s*person: TeamPagePerson`), writer);
+    }
+  });
+
+  test("anybody in the team can change what is there: an entry has a last writer and no owner", () => {
+    assert.match(PAGE_FLAT, /Anybody in the team can change what is there\./);
+    const write = withoutComments(read("src/lib/courses/teamPage/write.ts"));
+    // Every write records its writer, and none compares the writer with whoever wrote before.
+    assert.equal((write.match(/byUid: person\.user\.uid,/g) ?? []).length, 3);
+    assert.ok(!/\.byUid\s*(?:===|!==)/.test(write), "a team's page now lets only an entry's writer change it");
+  });
+
+  test("the hand-in says who handed it in; only the lead and admins see who last saved each check-in", () => {
+    assert.match(
+      PAGE_FLAT,
+      /The hand-in says who handed it in, and the lead and admins also see who last saved each week&apos;s check-in\./,
+    );
+    const load = withoutComments(read("src/lib/courses/teamPage/load.ts"));
+    // The hand-in's line names who handed it in, for the team as for the staff.
+    assert.match(load, /handedIn: entry \? handedInDayWords\(saverName\(roster, entry\.byUid\),/);
+    // The check-ins with who saved each are built for the staff's view alone.
+    assert.match(load, /const checkIns: CheckInView\[\] = member\s*\? \[\]\s*: checkInsOf\(entries\)/);
+    assert.match(load, /savedLine: savedWords\(saverName\(roster, entry\.byUid\),/);
+  });
+
+  test("what somebody wrote stays with the team when they leave, and loses their name with their account", () => {
+    assert.match(
+      PAGE_FLAT,
+      /If you leave, what you wrote stays with your team; if your account is deleted, it stays and your name comes off it\./,
+    );
+    assert.match(PAGE_FLAT, /What you wrote on your team&apos;s page: it stays with your team, and your name comes off it\./);
+    // Leaving touches no entry.
+    assert.ok(
+      !/courseTeamEntries|TEAM_ENTRIES_COLLECTION/.test(withoutComments(read("src/lib/courses/leaveRun.ts"))),
+      "leaving now changes what somebody wrote on their team's page",
+    );
+    // A deletion takes the uid off every entry it saved last, and deletes none.
+    const cascade = read("src/lib/firestore/accountDeletion.ts");
+    assert.ok(cascade.includes("summary.courseTeamEntriesCleared = await clearCourseTeamEntries(db, uid);"));
+    const clear = /export async function clearCourseTeamEntries[\s\S]*?\n\}/.exec(cascade)?.[0] ?? "";
+    assert.match(clear, /\.where\("byUid", "==", uid\)/);
+    assert.match(clear, /batch\.update\(doc\.ref, \{ byUid: null \}\)/);
+    assert.ok(!/\.delete\(/.test(clear), "the deletion now removes what somebody wrote on a team's page");
   });
 });

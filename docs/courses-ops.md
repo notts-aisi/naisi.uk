@@ -2157,8 +2157,8 @@ programme's lead who is none of these asks an admin):
   group, and a person moves only between their own group's teams.
 - **The tab is the lead's and admins'.** A reviewer of the programme is told
   so; the run's track lead, a group's facilitator and the people taking part
-  never reach it. People taking part see nothing new on a page: the email
-  tells them.
+  never reach it. The email tells each person their team, and from then on
+  their team's page is theirs (see A team's page and its hand-in, below).
 - **What each person ranked** on the form ("1st: Compute governance") is read
   only for the lead and admins, only for a run whose teams come from the
   agenda, and only from an application the caller may read.
@@ -2240,6 +2240,75 @@ One new rules block, `courseTeams` shut to every browser (the teams routes
 are the only writers and readers). No index: every query is one equality or
 one `array-contains`. The run's `teamsFrom` rides the run editor's existing
 write, and the run's rules cap no key set, so it needs nothing.
+
+## A team's page and its hand-in
+
+Each of an incubator's teams has a page of its own,
+`/learn/<run>/team`, reached from "Your team" on the programme's page: the
+team and its people with the group's slot and room, the project from its
+pitch, the group's next session, this week's check-in, the team's links, the
+hand-in and the weeks across both terms. The hand-in has its own page,
+`/learn/<run>/team/hand-in`. The code is `src/lib/courses/teamPage/` (the
+record, who reads and writes, what each page shows, the words) and
+`src/features/courses/team/`.
+
+### Setting it up
+
+On the programme's **Teams** tab, under the teams, **Hand-ins**: the day
+hand-ins are due and the week whose session is the showcase. Both are
+blank until the lead or an admin sets them, and nothing stands in for a
+blank one: the sentence it would fill is left out, and with no due day the
+hand-in stays open. A team can hand in and change it until 23:59 in London
+on the due day. The showcase is that week's session as each team's group
+holds it, so a showcase held in another room or at another time is a change
+to that week's session (Changing a session), which tells the group.
+
+The page's calendar is the run's own: an incubator that meets for seven
+weeks this term and three in February has a week plan of weeks 1 to 7,
+seven breaks and weeks 8 to 10 (the run editor's week plan; an admin can
+add breaks and weeks at the end of a running run). "The weeks" splits the
+taught weeks at the breaks and says where this term ends and when the next
+meets.
+
+### Who reads and writes what
+
+- **The team's people** read and write their team's page: somebody among a
+  team's people now (a live seat in the team's group, told by Publish, on an
+  account that stands) who has been told their team by its email. Somebody
+  moved into a team sees it once the next "Tell everyone their team" has
+  told them. A facilitator who holds a place is in a team like anybody.
+- **Anybody in the team can change anything on it**: this week's check-in
+  (one per team per week, for the week the team's group is in now), the
+  links (up to twelve, https only), and the one hand-in (a link, a summary
+  of up to 200 words, who did what if the team wants), behind the box "I've
+  shared this with ..." that whoever presses ticks. The page says beside
+  each that the team, the programme's lead and admins see it.
+- **The programme's lead and admins** read every team's hand-in on the
+  Teams tab, and each team's page, with every week's check-in and who last
+  saved it, from "Read the team's page". They write nothing on it.
+- **Nobody else**: not another team, somebody in no team, somebody who
+  left, a facilitator who holds no place, a track lead or a reviewer.
+- Nothing is emailed by any of it.
+
+### Things worth knowing
+
+- **What a team writes is the team's.** Each entry records who saved it
+  last. Somebody who leaves stops reading and writing at once, and what they
+  wrote stays with the team. Deleting an account takes its uid off what it
+  saved, and the words stay (`clearCourseTeamEntries`).
+- **A removed team's page** is not deleted with it: its entries stay, read
+  by nobody, until the run is destroyed.
+- **Destroying the run** deletes every team's page, and the destroy dialog
+  counts them as "Team pages".
+- **Not drawn yet**, though the boards draw them: "food provided" beside the
+  slot and "Pairs tonight" on the session. No record holds either.
+
+### Deploy
+
+One new rules block, `courseTeamEntries` shut to every browser (the team
+page routes are the only writers, and the server the only reader). No index:
+every query is one equality. The run's `teamHandIn` is written by the Teams
+tab's route.
 
 ## Routes and deadlines
 

@@ -147,6 +147,10 @@ const MUST_GUARD = [
   ["src/app/api/courses/runs/[runId]/nudge/route.ts", "sends the weekly nudge email"],
   ["src/app/api/courses/runs/[runId]/pitching/picks/route.ts", "records which pitches a member would join, which their lead makes teams from"],
   ["src/app/api/courses/runs/[runId]/pitching/pitch/route.ts", "saves a pitch in the member's own name and chooses who pitches it with them"],
+  ["src/app/api/courses/runs/[runId]/team/check-in/route.ts", "saves a team's check-in for the week, recorded as whoever the session says saved it"],
+  ["src/app/api/courses/runs/[runId]/team/hand-in/route.ts", "hands in for a whole team, recorded as whoever the session says pressed it"],
+  ["src/app/api/courses/runs/[runId]/team/links/route.ts", "adds a link to a team's page, recorded as whoever the session says added it"],
+  ["src/app/api/courses/runs/[runId]/team/links/[linkId]/route.ts", "removes a link from a team's page, for everybody in the team"],
   ["src/app/api/courses/runs/[runId]/roles/route.ts", "grants and revokes staff roles on a run"],
   ["src/app/api/courses/runs/[runId]/status/route.ts", "moves a run along its lifecycle, opening or closing applications"],
   ["src/app/api/courses/runs/[runId]/updates/route.ts", "posts an update to a run's people and emails it, in the poster's name"],
@@ -209,6 +213,11 @@ const MUST_GUARD = [
   [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell/test/route.ts",
     "sends a test of the team email to the address on the session, which during view-as is the member's, and records that it reached them",
+  ],
+  // An incubator's hand-in dates, set by its lead or an admin on the Teams tab.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/hand-in/route.ts",
+    "sets the day an incubator's hand-ins are due and the week of its showcase, which every team's page reads",
   ],
   // Certificates: their owner's switch, and the send that makes and emails
   // them, with its test.

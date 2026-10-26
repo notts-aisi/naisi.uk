@@ -2951,6 +2951,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === courseTeamEntries ===
+    // What an incubator's teams write on their pages
+    // (src/lib/courses/teamPage/model.ts): each week's check-in, the team's
+    // links and its one hand-in. Written only by the team page routes on the
+    // Admin SDK, for somebody among a team's people who has been told their
+    // team, and read only on the server, which decides who reads which
+    // team's page: the team, the programme's lead and admins. So every
+    // browser is refused, admins and a team's own people included.
+    match /courseTeamEntries/{entryId} {
+      allow read, write: if false;
+    }
+
     // === courseFinishing ===
     // Who finished a programme (src/lib/courses/finishing/model.ts): a run's
     // rule (the least number of sessions somebody must have come to) and the

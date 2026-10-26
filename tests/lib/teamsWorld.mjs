@@ -324,6 +324,9 @@ const STYLESHEETS = [
   "./Modal.module.css",
   "./kit.module.css",
   "@/features/applications/kit/kit.module.css",
+  // The Teams tab's Hand-ins section, from the team pages (src/features/courses/team/).
+  "./team.module.css",
+  "@/features/courses/team/team.module.css",
 ];
 
 /**
