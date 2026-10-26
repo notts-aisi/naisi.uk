@@ -34,11 +34,16 @@ import styles from "./ProgrammeFrame.module.css";
  *
  * An incubator has a Teams tab after Groups (`teams`, with how many teams its
  * run has), a link on the same terms as Groups. A fellowship has none.
+ *
+ * Weeks (board pr-weeks), between Groups (and an incubator's Teams) and
+ * Attendance, is a link on the same terms, where the run's weeks are written
+ * and marked ready. Its count is how many weeks the run's plan has, given
+ * only to the two who open it.
  */
 
 type Tab = {
   /** The route segment under the programme, for the tabs that have a page. */
-  segment: "overview" | "applications" | "people" | "groups" | "teams" | "attendance" | "messages" | "setup" | null;
+  segment: "overview" | "applications" | "people" | "groups" | "teams" | "weeks" | "attendance" | "messages" | "setup" | null;
   label: string;
   count?: number | null;
 };
@@ -51,6 +56,7 @@ export default function ProgrammeTabs({
   canEdit,
   groupsOpen,
   teams = null,
+  weeks = null,
 }: {
   /** The programme's own address, with no trailing slash. */
   base: string;
@@ -65,6 +71,8 @@ export default function ProgrammeTabs({
   groupsOpen: boolean;
   /** An incubator's Teams tab, with how many teams its run has; null for a fellowship. */
   teams?: { count: number | null } | null;
+  /** How many weeks the run's plan has, for an admin and the lead while the programme names a run; null otherwise. */
+  weeks?: number | null;
 }) {
   const active = useSelectedLayoutSegment();
   const tabs: Tab[] = [
@@ -74,6 +82,7 @@ export default function ProgrammeTabs({
     { segment: groupsOpen ? "people" : null, label: "People", count: groupsOpen ? people : null },
     { segment: groupsOpen ? "groups" : null, label: "Groups", count: groups },
     ...(teams ? [{ segment: groupsOpen ? ("teams" as const) : null, label: "Teams", count: teams.count }] : []),
+    { segment: groupsOpen ? "weeks" : null, label: "Weeks", count: groupsOpen ? weeks : null },
     { segment: groupsOpen ? "attendance" : null, label: "Attendance" },
     { segment: groupsOpen ? "messages" : null, label: "Messages" },
   ];

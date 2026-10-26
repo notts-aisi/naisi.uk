@@ -17,6 +17,7 @@ import { groupsGoOutDay } from "@/lib/courses/groupsGoOut";
 import { readGroupsGoOut } from "@/lib/courses/groupsGoOutRead";
 import { readRunHeader } from "@/lib/courses/programmeAttendance";
 import { londonDateKey } from "@/lib/courses/weekPlan";
+import { countRunWeeks } from "@/lib/courses/weeksTab/load";
 import { formatRunStartShort } from "@/lib/courses/window";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
@@ -65,7 +66,9 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  *
  * The People tab's count is how many hold a place on the programme now
  * (`countPlaceHolders`), worked out for an admin and the lead alone, who are
- * the two the tab opens for, and only once decisions have gone out.
+ * the two the tab opens for, and only once decisions have gone out. The
+ * Weeks tab's is how many weeks the run's plan has (`countRunWeeks`), for the
+ * same two.
  */
 export default async function ProgrammeLayout({
   children,
@@ -91,6 +94,8 @@ export default async function ProgrammeLayout({
   const teamsTab = db ? await readTeamsTab(db, programme) : null;
   // How many hold a place, beside People: for the two who open it.
   const people = db && opensProgrammeGroups(role) ? await countPlaceHolders(db, form, programme.id) : null;
+  // How many weeks the run's plan has, beside Weeks: for the same two, while the programme names a run.
+  const weeks = db && programme.runId && opensProgrammeGroups(role) ? await countRunWeeks(db, programme.runId) : null;
   // Before the run is under way, the day groups go out, for the lead and admins.
   const groupsGoOut =
     db && programme.runId && opensProgrammeGroups(role) && !runHeader
@@ -225,6 +230,7 @@ export default async function ProgrammeLayout({
         canEdit={role === "admin" || role === "lead"}
         groupsOpen={opensProgrammeGroups(role)}
         teams={teamsTab ? { count: teamsTab.count } : null}
+        weeks={weeks}
       />
       {children}
     </ApplicationsRoot>

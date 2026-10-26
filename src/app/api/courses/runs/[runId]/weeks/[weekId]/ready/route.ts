@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { isAddressableId } from "@/lib/addressableId";
 import { programmeLedBy } from "@/lib/courses/programmeLead";
+import { weekReadiness } from "@/lib/courses/weekBlocks/reader";
 import { weekIsReady } from "@/lib/courses/weekReady";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
@@ -27,13 +28,15 @@ import { normalizeCourseWeek } from "@/lib/firestore/courses";
  * session (401), the body (400), the gate (403), the address (404), then the
  * run and the week.
  *
- * WHAT IT REFUSES. Marking ready a week that is not published (409): a ready
- * week is always a published one, and publishing is the run's week editor's
- * (an admin's, for now). Taking Ready back is always allowed, published or
- * not, and leaves Published as it is.
+ * MARKING READY PUBLISHES (Zach, 26 October 2026). A week marked ready that
+ * is not published yet is published in the same write, so a ready week is
+ * always a published one and the lead needs nobody else to open a week they
+ * have finished. What it refuses: a week with nothing in it (409), which is
+ * not ready to be anybody's. Taking Ready back is always allowed, and leaves
+ * Published as it is: a week already open to its groups stays open.
  *
- * Read and written in one transaction, so a week unpublished between the
- * read and the write is not marked ready. A view-as session is refused first.
+ * Read and written in one transaction, so a week emptied between the read and
+ * the write is not marked ready. A view-as session is refused first.
  */
 
 type Params = { params: Promise<{ runId: string; weekId: string }> };
@@ -124,15 +127,13 @@ export async function PUT(req: Request, ctx: Params) {
         tx.update(weekRef, { ready: false, readyAt: FieldValue.delete(), readyByUid: FieldValue.delete() });
         return null;
       }
-      if (!week.published) {
-        throw new ReadyRefusal(
-          `Week ${weekNumber} isn’t published yet, so it can’t be marked ready. An admin publishes it in the run’s week editor.`,
-          409,
-        );
+      if (weekReadiness(week) === "empty") {
+        throw new ReadyRefusal(`Week ${weekNumber} has nothing in it yet. Paste its Markdown first.`, 409);
       }
       // Marked already: nothing to write, and the first mark keeps its time.
       if (weekIsReady(week)) return dateOf((weekSnap.data() ?? {}).readyAt);
-      tx.update(weekRef, { ready: true, readyAt: FieldValue.serverTimestamp(), readyByUid: actor.uid });
+      // Not published yet: marking it ready publishes it in the same write.
+      tx.update(weekRef, { published: true, ready: true, readyAt: FieldValue.serverTimestamp(), readyByUid: actor.uid });
       return new Date();
     });
   } catch (err) {

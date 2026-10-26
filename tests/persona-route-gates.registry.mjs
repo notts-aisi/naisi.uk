@@ -1185,21 +1185,25 @@ export const ROUTES = {
     GET: {
       expect: adminOnly(400),
       why:
-        "Copying a document of a course's facilitator guide out as Markdown is an admin's, decided " +
-        "before anything is read: every other session is forbidden, and the admin meets the place " +
-        "check, which a slot that is not a course document or a week's plan or notes fails.",
+        "Copying a document of a course's facilitator guide out as Markdown is for admins, decided on the " +
+        "session, and the lead of a programme naming a live run of the course (the Weeks tab's guide box), " +
+        "decided from the course's runs and the forms before any document is read: every other session is " +
+        "forbidden, and the admin meets the place check, which a slot that is not a course document or a " +
+        "week's plan or notes fails.",
     },
     POST: {
       expect: adminOnly(400),
       why:
-        "View-as is refused first, then the session, then the gate: reading a pasted document is an " +
-        "admin's, decided before the body or any document is read, and the admin meets the place check.",
+        "View-as is refused first, then the session, then the gate: reading a pasted document is for admins " +
+        "and the programme's lead, decided before the body or any document is read, and the admin meets the " +
+        "place check.",
     },
     PUT: {
       expect: adminOnly(400),
       why:
-        "View-as is refused first, then the session, then the gate: saving a pasted document is an " +
-        "admin's, decided before the body or any document is read, and the admin meets the place check.",
+        "View-as is refused first, then the session, then the gate: saving a pasted document is for admins " +
+        "and the programme's lead, decided before the body or any document is read, and the admin meets the " +
+        "place check.",
     },
   },
   "/api/courses/[courseId]/page": {
@@ -1482,6 +1486,27 @@ export const ROUTES = {
         "404 for everyone including outsiders: the route checks the shape of its ids before " +
         "the session, and the battery's week id is not a week id ('w01' and so on), so the " +
         "address names nothing and no document is read.",
+    },
+  },
+  "/api/courses/groups/[groupId]/weeks/[weekId]/blocks": {
+    GET: {
+      expect: adminOnly(404),
+      why:
+        "A week for one group (Q39): the group is read first, because it names its facilitators and its " +
+        "run, and a group that is missing, no longer meets or is somebody else's is one 403 for everybody " +
+        "but an admin, who is told the group is not there. Nothing else is read.",
+    },
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "View-as is refused first, then the session, then the gate on the group, before the body: one 403 " +
+        "for everybody but an admin, who is told the group is not there.",
+    },
+    PUT: {
+      expect: adminOnly(404),
+      why:
+        "View-as is refused first, then the session, then the gate on the group, before the body: one 403 " +
+        "for everybody but an admin, who is told the group is not there. Nothing is written.",
     },
   },
   "/api/courses/groups/[groupId]/weeks/[weekId]/fork": {
@@ -1931,23 +1956,24 @@ export const ROUTES = {
     GET: {
       expect: adminOnly(400),
       why:
-        "Copying a week out as Markdown is an admin's for now (Q39), decided before anything is read: " +
-        "every other session is forbidden, and the admin meets the week address check, which an id " +
-        "that is not w01 to w60 fails.",
+        "Copying a week out as Markdown is for admins and the lead of the programme that names the run " +
+        "(the Weeks tab, Q39), decided before anything of the run is read (only the forms, for whether the " +
+        "caller leads it): every other session is forbidden, and the admin meets the week address check, " +
+        "which an id that is not w01 to w60 fails.",
     },
     POST: {
       expect: adminOnly(400),
       why:
-        "View-as is refused first, then the session, then the gate: reading a pasted week is an " +
-        "admin's, decided before the body or any document is read, and the admin meets the week " +
-        "address check.",
+        "View-as is refused first, then the session, then the gate: reading a pasted week is for admins " +
+        "and the programme's lead, decided before the body or any document of the run is read, and the " +
+        "admin meets the week address check.",
     },
     PUT: {
       expect: adminOnly(400),
       why:
-        "View-as is refused first, then the session, then the gate: saving a pasted week is an " +
-        "admin's, decided before the body or any document is read, and the admin meets the week " +
-        "address check.",
+        "View-as is refused first, then the session, then the gate: saving a pasted week is for admins " +
+        "and the programme's lead, decided before the body or any document of the run is read, and the " +
+        "admin meets the week address check.",
     },
   },
   "/api/courses/runs/[runId]/week-one/ticks/[itemId]": {
@@ -1973,6 +1999,38 @@ export const ROUTES = {
         "is for the lead of the programme that names the run and admins, decided before anything of the run " +
         "is read (only the forms, for whether the caller leads it). Every other session is forbidden, and " +
         "the admin is told an id that is not w01 to w60 is no week.",
+    },
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/owner": {
+    PUT: {
+      expect: adminOnly(404),
+      drive: {
+        body: { ownerUid: null },
+        why:
+          "An empty body is the same 400 for every signed-in persona; a body naming the lead reaches the " +
+          "gate, which every persona here but the admin fails, and the admin meets the week address check.",
+      },
+      why:
+        "View-as is refused first, then the session, then the body, then the gate: choosing a week's owner " +
+        "on the Weeks tab is for the lead of the programme that names the run and admins, decided before " +
+        "anything of the run is read (only the forms). Every other session is forbidden, and the admin is " +
+        "told an id that is not w01 to w60 is no week.",
+    },
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/mode": {
+    PUT: {
+      expect: adminOnly(404),
+      drive: {
+        body: { online: false },
+        why:
+          "An empty body is the same 400 for every signed-in persona; a body saying in person reaches the " +
+          "gate, which every persona here but the admin fails, and the admin meets the week address check.",
+      },
+      why:
+        "View-as is refused first, then the session, then the body, then the gate: saying how a whole week " +
+        "meets is for the lead of the programme that names the run and admins, decided before anything of " +
+        "the run is read (only the forms). Every other session is forbidden, and the admin is told an id " +
+        "that is not w01 to w60 is no week.",
     },
   },
   "/api/courses/runs/[runId]/written-answers/[answerId]": {
@@ -3072,6 +3130,34 @@ export const PAGES = {
       "programme's end are the programme's lead's and an admin's to read, so a reviewer is told so before the run is " +
       "read, and a programme the caller has no role on, or one that does not exist, renders 'there is no programme " +
       "here' with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: Weeks is the " +
+      "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme " +
+      "the caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/copy": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "Copy weeks from the course, a page of the Weeks tab, on the tab's terms: a reviewer is told the tab " +
+      "is the lead's and an admin's, and a programme the caller has no role on, or one that does not exist, " +
+      "renders 'there is no programme here' with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "One week's page on the Weeks tab, on the tab's terms; a week that is no taught week of the run's " +
+      "plan goes back to the tab. A programme the caller has no role on, or one that does not exist, renders " +
+      "'there is no programme here' with a 200 before the week is looked at.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/preview": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "Preview as a fellow, on the tab's terms: it reads the week and nobody's answers, and writes nothing. " +
+      "A programme the caller has no role on, or one that does not exist, renders 'there is no programme " +
+      "here' with a 200 before the week is looked at.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),

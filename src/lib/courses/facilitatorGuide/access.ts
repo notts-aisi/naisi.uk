@@ -50,7 +50,7 @@ export type GuideReader = {
   readonly [MINTED_HERE]: true;
 };
 
-/** Proof that the caller may load documents into this course's guide: an admin. */
+/** Proof that the caller may load documents into this course's guide: an admin, or the lead of a programme naming a live run of it. */
 export type GuideWriter = {
   readonly courseId: string;
   readonly [MINTED_HERE]: true;
@@ -117,11 +117,18 @@ export async function facilitatorGuideReader(
 }
 
 /**
- * The loader's gate: an admin, and nobody else (Q39: an admin loads the
- * course material, for now). Decided on the session alone, before anything
- * is read, so every other caller meets the same refusal.
+ * The loader's gate: an admin, on an id that is one, decided on the session
+ * alone (the admin's loader page and the run's Weeks tab); and the lead of a
+ * programme that names a live run of the course, while they still stand as
+ * one, on a course that is there and not being destroyed: the Weeks tab's
+ * "Facilitator guide" box (board pr-weeks) is theirs. The same lead the
+ * reader gate admits (`leadsOnCourse`), so nobody may write a guide they may
+ * not read. Everybody else: null, the same refusal.
  */
-export function facilitatorGuideWriter(user: SessionUser, courseId: string): GuideWriter | null {
-  if (user.role !== "admin" || !isAddressableId(courseId)) return null;
-  return { courseId } as GuideWriter;
+export async function facilitatorGuideWriter(db: Firestore, user: SessionUser, courseId: string): Promise<GuideWriter | null> {
+  if (!isAddressableId(courseId)) return null;
+  if (user.role === "admin") return { courseId } as GuideWriter;
+  if (!(await liveCourse(db, courseId))) return null;
+  if (await leadsOnCourse(db, user, courseId)) return { courseId } as GuideWriter;
+  return null;
 }

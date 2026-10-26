@@ -17,15 +17,18 @@
  *     and nothing is written. Signed out is 401; a view-as session is refused
  *     before anything; a body that says nothing is 400.
  *  3. WHAT. Marking ready stores `ready`, `readyAt` and `readyByUid` on the
- *     run's own week, only on a published week (409 otherwise, nothing
- *     written); marking it again keeps the first time; "Not ready" clears all
- *     three, published or not, and leaves Published alone. A week with no
- *     page, an address that is not a week and a run being destroyed are
- *     refused, each with a sentence.
+ *     run's own week and publishes it in the same write (Zach, 26 October
+ *     2026); a week with nothing in it is refused (409, nothing written);
+ *     marking it again keeps the first time; "Not ready" clears all three,
+ *     published or not, and leaves Published alone. A week with no page, an
+ *     address that is not a week and a run being destroyed are refused, each
+ *     with a sentence.
  *  4. THE OVERVIEW, before any group has met: week 1 not ready is a line
  *     under Needs attention ("Week 1 isn’t ready") carrying "Mark ready" once
- *     the week is published; marked ready, the line goes and the week card
- *     says so with "Not ready". After a group has met, no such line.
+ *     the week has something in it, published or not; with no page or
+ *     nothing in it, the way to its page on the Weeks tab instead; marked
+ *     ready, the line goes and the week card says so with "Not ready". After
+ *     a group has met, no such line.
  *
  * Real: the route, the Overview's model and the libraries under them, the
  * store's transactions. Faked: the session, the Admin SDK handle, the
@@ -145,20 +148,37 @@ describe("3. what it stores", () => {
     assert.equal(stored().published, true);
   });
 
-  test("an unpublished week cannot be marked ready, and nothing is written", async () => {
+  test("marking an unpublished week ready publishes it in the same write, and Not ready leaves it published", async () => {
     world.db.poke(W01, { published: false });
-    const before = snapshot();
     const answer = await press("claudia", { ready: true });
-    assert.deepEqual(
-      [answer.status, answer.body.error],
-      [409, "Week 1 isn’t published yet, so it can’t be marked ready. An admin publishes it in the run’s week editor."],
-    );
-    assert.equal(snapshot(), before);
-    // Taking it back is always allowed.
-    world.db.poke(W01, { ready: true, readyByUid: "claudia" });
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.equal(answer.body.week.ready, true);
+    assert.equal(stored().published, true, "marking it ready published it");
+    assert.equal(stored().ready, true);
+    assert.equal(stored().readyByUid, "claudia");
+    assert.ok(stored().readyAt instanceof Date);
+    // Not ready takes back the mark alone: a week open to its groups stays open.
     assert.equal((await press("claudia", { ready: false })).status, 200);
     assert.equal(stored().ready, false);
+    assert.equal(stored().published, true);
+    // Taking it back is allowed on an unpublished week too, and publishes nothing.
+    world.db.poke(W01, { published: false, ready: true, readyByUid: "claudia" });
+    assert.equal((await press("zach", { ready: false })).status, 200);
+    assert.equal(stored().ready, false);
     assert.equal("readyByUid" in stored(), false);
+    assert.equal(stored().published, false);
+  });
+
+  test("a week with nothing in it cannot be marked ready, published or not, and nothing is written", async () => {
+    for (const published of [true, false]) {
+      world.db.poke(W01, { exercises: [], published });
+      const before = snapshot();
+      for (const who of ["claudia", "zach"]) {
+        const answer = await press(who, { ready: true });
+        assert.deepEqual([answer.status, answer.body.error], [409, "Week 1 has nothing in it yet. Paste its Markdown first."], `${who} ${published}`);
+      }
+      assert.equal(snapshot(), before);
+    }
   });
 
   test("marking it again keeps the first mark's time and who", async () => {
@@ -222,26 +242,40 @@ describe("4. the lead's Overview before any group has met", () => {
     });
   });
 
-  test("not published: what is in the way, the admin's way in, and no Mark ready", async () => {
+  test("not published: Mark ready, which publishes it, for the lead and for an admin", async () => {
     world.db.poke(W01, { published: false });
-    const forLead = weekOneLines(await model(LEAD))[0];
-    assert.equal(forLead.detail, "Week 1 isn’t published yet. An admin publishes it in the run’s week editor, then it can be marked ready.");
-    assert.equal(forLead.ready, null);
-    assert.equal(forLead.link, null);
-    const forAdmin = weekOneLines(await model(ADMIN))[0];
-    assert.deepEqual(forAdmin.link, {
-      href: `/admin/courses/agi-strategy-fellowship__c0urse01/runs/${RUN.agi}/weeks/w01`,
-      label: "Open week 1",
-    });
+    for (const viewer of [LEAD, ADMIN]) {
+      const [line] = weekOneLines(await model(viewer));
+      assert.equal(line.detail, "Week 1 isn’t published yet: marking it ready publishes it, and everyone holding a place can open it.");
+      assert.deepEqual(line.ready, { runId: RUN.agi, weekId: "w01", ready: false, line: "" });
+      assert.equal(line.link, null);
+    }
   });
 
-  test("no page yet: said, with no Mark ready", async () => {
+  const WEEK_ONE_PAGE = { href: `${PLACE.programmePath}/weeks/w01`, label: "Open week 1" };
+
+  test("no page yet: said, the way to its page on the Weeks tab, and no Mark ready", async () => {
     const seed = groupSeed();
     delete seed[W01];
     reset(seed);
-    const [line] = weekOneLines(await model(LEAD));
-    assert.equal(line.detail, "Week 1 has no page yet. An admin loads it in the run’s week editor, then it can be marked ready.");
-    assert.equal(line.ready, null);
+    for (const viewer of [LEAD, ADMIN]) {
+      const [line] = weekOneLines(await model(viewer));
+      assert.equal(line.detail, "Week 1 has no page yet. Paste its Markdown on the Weeks tab, then mark it ready.");
+      assert.equal(line.ready, null);
+      assert.deepEqual(line.link, WEEK_ONE_PAGE);
+    }
+  });
+
+  test("nothing in it yet, published or not: said, the way to its page, and no Mark ready", async () => {
+    for (const published of [true, false]) {
+      world.db.poke(W01, { exercises: [], published });
+      for (const viewer of [LEAD, ADMIN]) {
+        const [line] = weekOneLines(await model(viewer));
+        assert.equal(line.detail, "Week 1 has nothing in it yet. Paste its Markdown on the Weeks tab, then mark it ready.");
+        assert.equal(line.ready, null);
+        assert.deepEqual(line.link, WEEK_ONE_PAGE);
+      }
+    }
   });
 
   test("once a group has met there is no week 1 line, ready or not", async () => {

@@ -21,6 +21,7 @@ import { firstNameOfUser, readRunLead, type RunLead } from "@/lib/courses/progra
 import { emailsCountLine, readReminderState, remindLabel, type ReminderState } from "@/lib/courses/registerRemind";
 import { followUpDueAt } from "@/lib/courses/unmarkedRegisters";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
+import { weekReadiness } from "@/lib/courses/weekBlocks/reader";
 import { weekIsReady } from "@/lib/courses/weekReady";
 import { courseNudgeSessionWhere } from "@/lib/email/courseNudgeEmail";
 import { readCoursesConfig, type CoursesConfig } from "@/lib/firestore/config";
@@ -134,7 +135,7 @@ export type OverviewAttention = {
   title: string;
   detail: string;
   link: { href: string; label: string } | null;
-  /** Week 1 not ready before any group has met: "Mark ready", when it is published. */
+  /** Week 1 not ready before any group has met: "Mark ready", when it has something in it. */
   ready?: OverviewReady | null;
 };
 
@@ -479,25 +480,23 @@ export async function buildProgrammeOverview(
   }
 
   // Week 1 not ready before any group has met: the lead's "Mark ready" once
-  // it is published; until then, what is in the way and the admin's way in.
+  // it holds something, published or not, as marking it ready publishes it
+  // (Zach, 26 October 2026); while it has no page or nothing in it, the way
+  // to its page on the Weeks tab, where its Markdown is pasted.
   if (!anyGroupMet && planHasWeekOne && !weekOneReady) {
-    const editor =
-      viewer.isAdmin && place.courseId && !weekOne?.published
-        ? {
-            href: `/admin/courses/${encodeURIComponent(place.courseId)}/runs/${encodeURIComponent(records.run.id)}/weeks/${weekOneId}`,
-            label: "Open week 1",
-          }
-        : null;
+    const empty = !weekOne || weekReadiness(weekOne) === "empty";
     attention.push({
       kind: "week",
       title: "Week 1 isn’t ready",
       detail: !weekOne
-        ? "Week 1 has no page yet. An admin loads it in the run’s week editor, then it can be marked ready."
-        : !weekOne.published
-          ? "Week 1 isn’t published yet. An admin publishes it in the run’s week editor, then it can be marked ready."
-          : "Everyone holding a place can open week 1 once it’s marked ready.",
-      link: editor,
-      ready: weekOne?.published ? { runId: records.run.id, weekId: weekOneId, ready: false, line: "" } : null,
+        ? "Week 1 has no page yet. Paste its Markdown on the Weeks tab, then mark it ready."
+        : empty
+          ? "Week 1 has nothing in it yet. Paste its Markdown on the Weeks tab, then mark it ready."
+          : !weekOne.published
+            ? "Week 1 isn’t published yet: marking it ready publishes it, and everyone holding a place can open it."
+            : "Everyone holding a place can open week 1 once it’s marked ready.",
+      link: empty ? { href: `${place.programmePath}/weeks/${weekOneId}`, label: "Open week 1" } : null,
+      ready: empty ? null : { runId: records.run.id, weekId: weekOneId, ready: false, line: "" },
     });
   }
 

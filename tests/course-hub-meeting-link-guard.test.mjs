@@ -109,6 +109,10 @@ const READERS = {
     does: "asks",
     why: "whether a session can be held online: the change dialog offers it only to a group that has a link",
   },
+  "app/api/courses/runs/[runId]/weeks/[weekId]/mode/route.ts": {
+    does: "asks",
+    why: "refuses holding a whole week online while a group that would go online has no link to put on its programme page",
+  },
   "app/api/courses/groups/[groupId]/session/change/route.ts": {
     does: "asks",
     why: "refuses Hold it online for a group with no link to put on its programme page",

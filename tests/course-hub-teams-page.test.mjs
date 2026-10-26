@@ -243,8 +243,10 @@ describe("the programme's head", () => {
     assert.match(lead.text, /Running · week 2 of 7 T Lead: Tess · 10 taking part in 2 groups · Last sessions Wed 16 Dec · Teams by Thu 19 Nov/);
     assert.match(lead.html, new RegExp(`<a href="/admin/admissions/forms/${ROUND}/programmes/${INCUBATOR}/teams"[^>]*aria-current="page"[^>]*>Teams<span[^>]*>2</span></a>`));
     // People sits after Applications (board st-people), with how many hold a
-    // place on the incubator: nobody on the form holds one here.
-    assert.match(lead.text, /Overview Interest Applications 0 People 0 Groups 4 Teams 2 Attendance Messages Settings/);
+    // place on the incubator: nobody on the form holds one here. Weeks (board
+    // pr-weeks) sits after Teams and before Attendance, with how many weeks
+    // the run's plan has: the incubator's run has seven.
+    assert.match(lead.text, /Overview Interest Applications 0 People 0 Groups 4 Teams 2 Weeks 7 Attendance Messages Settings/);
   });
 
   test("a reviewer sees the tab drawn and not a link", async () => {

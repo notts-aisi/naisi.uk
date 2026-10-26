@@ -420,6 +420,30 @@ const ROUND_SURFACES = {
       "round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round " +
       "that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks": {
+    kind: "form",
+    why:
+      "one programme's Weeks tab, the weeks of the run it names, for its lead and admins. " +
+      "It reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form, and the page then says there is no programme here",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/copy": {
+    kind: "form",
+    why:
+      "Copy weeks from the course, a page of one programme's Weeks tab. " +
+      "It reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]": {
+    kind: "form",
+    why:
+      "one week's page on a programme's Weeks tab. " +
+      "It reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/preview": {
+    kind: "form",
+    why:
+      "Preview as a fellow, from a week's page on a programme's Weeks tab. " +
+      "It reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     kind: "form",
     why:

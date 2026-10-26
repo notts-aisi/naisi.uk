@@ -813,9 +813,9 @@ const NOT_COVERED = {
   },
   "/api/courses/[courseId]/facilitator-guide/[slot]": {
     reason:
-      "Course authoring: /api/courses/[courseId]/facilitator-guide/[slot] loads a course's facilitator guide, an admin's job for now, and every answer it gives is driven as each kind of caller in tests/course-facilitator-guide.test.mjs.",
+      "Course hub: /api/courses/[courseId]/facilitator-guide/[slot] loads a course's facilitator guide for admins and the lead of a programme naming a live run of it (the Weeks tab's guide box), and every answer it gives is driven as each kind of caller in tests/course-facilitator-guide.test.mjs and, as the lead, in tests/course-hub-weeks-tab-week.test.mjs.",
     coverWhen:
-      "When a lead's Weeks tab loads a week's facilitator guide through it, because a mistake then reaches a run's facilitators before an admin sees it.",
+      "When a browser spec signs in as a programme's lead and loads a week's session plan from the Weeks tab, because a mistake then reaches a run's facilitators before an admin sees it.",
   },
   "/api/courses/[courseId]/page": {
     reason:
@@ -906,6 +906,12 @@ const NOT_COVERED = {
       "Learn hub: /api/courses/groups/[groupId]/weeks/[weekId] belongs to the curriculum surface being rebuilt in October.",
     coverWhen:
       "When the October curriculum rebuild lands, because a spec written against today's shape would be thrown away with it.",
+  },
+  "/api/courses/groups/[groupId]/weeks/[weekId]/blocks": {
+    reason:
+      "Course hub: a week for one group by Markdown round trip (Q39), for admins and the programme's lead on any group of the run and a group's facilitators on their own; every caller, the copy made through templateWeekFields with its ids kept, the count of the group's answers and that no other week is written are executed by tests/course-hub-weeks-tab-groups.test.mjs.",
+    coverWhen:
+      "When a browser spec signs in as a group's facilitator, changes a week for their group, and a member of that group and one of another group each open it.",
   },
   "/api/courses/groups/[groupId]/weeks/[weekId]/fork": {
     reason:
@@ -1119,9 +1125,21 @@ const NOT_COVERED = {
   },
   "/api/courses/runs/[runId]/weeks/[weekId]/blocks": {
     reason:
-      "Course authoring: /api/courses/runs/[runId]/weeks/[weekId]/blocks loads a week as blocks, an admin's job for now, and every answer it gives is driven as each kind of caller in tests/course-week-blocks-loader.test.mjs.",
+      "Course hub: /api/courses/runs/[runId]/weeks/[weekId]/blocks loads a week as blocks for admins and the programme's lead (the Weeks tab), and every answer it gives is driven as each kind of caller in tests/course-week-blocks-loader.test.mjs and, as the lead, in tests/course-hub-weeks-tab-week.test.mjs.",
     coverWhen:
-      "When a lead's Weeks tab or a group's own copy of a week loads weeks through it, because a mistake then reaches a run's people before an admin sees it.",
+      "When a browser spec signs in as a programme's lead, pastes a week on the Weeks tab, saves it as a draft and marks it ready, because the lead's Weeks tab now reaches a run's people through it.",
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/owner": {
+    reason:
+      "Course hub: a week's owner on the Weeks tab (pr-weeks), the programme's lead's and admins'; every caller, every refusal and what it stores are executed by tests/course-hub-weeks-tab-week.test.mjs.",
+    coverWhen:
+      "When a browser spec signs in as a programme's lead on the Weeks tab.",
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/mode": {
+    reason:
+      "Course hub: In person or Online for a whole week on the Weeks tab (pr-weeks), written as the groups' own week mode; every caller, the groups it leaves alone, the link it needs and that it emails nobody are executed by tests/course-hub-weeks-tab-week.test.mjs.",
+    coverWhen:
+      "When a browser spec signs in as a programme's lead on the Weeks tab, holds a week online and a member of a group opens its join link on the programme page.",
   },
   "/api/courses/runs/[runId]/week-one/ticks/[itemId]": {
     reason:
@@ -1699,6 +1717,30 @@ const NOT_COVERED = {
       "Course hub: the Groups tab's People in groups view is the run's own allocation board, mounted for the programme's lead and admins; its every caller is executed by tests/course-hub-lead-pages.test.mjs, the board's routes by tests/course-hub-lead-routes.test.mjs and tests/applications-handover-board.test.mjs, and it was checked by hand at 1440 and 390.",
     coverWhen:
       "When the end-to-end fixtures can seed a programme that names a run with groups, with its lead signed in.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks": {
+    reason:
+      "Course hub: the Weeks tab lists the run's weeks for a programme's lead and admins (pr-weeks); its every caller, each week's state, first session, ready-by day and owner, and where the weeks meet are executed by tests/course-hub-weeks-tab.test.mjs, and it was checked by hand at 1440 and 390.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a programme that names a run with groups and weeks, with its lead signed in.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/copy": {
+    reason:
+      "Course hub: Copy weeks from the course, a page of the Weeks tab; its every caller and the copy it sends (never an overwrite) are executed by tests/course-hub-weeks-tab.test.mjs.",
+    coverWhen:
+      "When a course has two runs on dev and a browser spec copies one's weeks into the other as its programme's lead.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]": {
+    reason:
+      "Course hub: one week's page on the Weeks tab, where the lead pastes, checks and saves a week, chooses its owner, says how it meets, loads its facilitator guide and marks it ready; every caller and every control is executed by tests/course-hub-weeks-tab-week.test.mjs and tests/course-hub-weeks-tab-groups.test.mjs, and it was checked by hand at 1440 and 390.",
+    coverWhen:
+      "When a browser spec signs in as a programme's lead, pastes a week on the Weeks tab, saves it as a draft and marks it ready.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/preview": {
+    reason:
+      "Course hub: Preview as a fellow, the member's own week page drawn with nothing that can be pressed; its every caller, a group's copy and that it reads nobody's answers are executed by tests/course-hub-weeks-tab-week.test.mjs, and it was checked by hand at 1440 and 390.",
+    coverWhen:
+      "When a browser spec signs in as a programme's lead and previews a week it has pasted.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/people": {
     reason:

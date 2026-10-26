@@ -518,16 +518,29 @@ describe("5. two shapes of week", () => {
    * exercises and checklist) must carry the blocks too, by spreading
    * `weekBlocksField(...)` (the read side's own literal spreads a `blocks:`
    * of its own), or every copy made that way drops a block week's content.
-   * One literal makes a NEW week, which has none yet. Walks the tree, so a
-   * new copy is held to it the day it is written.
+   * One literal makes a NEW week, which has none yet, named by its file and
+   * the function it sits in, so nothing else in that file is let off. Walks
+   * the tree, so a new copy is held to it the day it is written.
    */
   test("every literal that writes a whole week carries its blocks", () => {
     const WEEK_PARTS = ["guideBlocks", "materials", "exercises", "checklist"];
-    /** Literals that write a whole week and rightly carry no blocks, each with why. */
+    /** Literals that write a whole week and rightly carry no blocks, as file#function, each with why. */
     const MAKES_A_NEW_WEEK = new Map([
-      ["features/courses/courseMutations.ts", "ensureWeekDoc creates an empty week for a slot nobody has written: a new week has no blocks"],
+      [
+        "lib/firestore/courses.ts#emptyWeekFields",
+        "a week as first made, for a slot nobody has written: the week editor's ensureWeekDoc, and the loader's first save, which writes the pasted blocks over it. A new week has no blocks",
+      ],
     ]);
+    /** The name of the function a node sits in, or "" at the top of a file. */
+    const enclosing = (node) => {
+      for (let at = node.parent; at; at = at.parent) {
+        if ((ts.isFunctionDeclaration(at) || ts.isMethodDeclaration(at)) && at.name) return at.name.getText();
+        if ((ts.isArrowFunction(at) || ts.isFunctionExpression(at)) && ts.isVariableDeclaration(at.parent)) return at.parent.name.getText();
+      }
+      return "";
+    };
     const found = [];
+    const seen = new Set();
     const missing = [];
     for (const file of walkSource(SRC)) {
       const source = readFileSync(file, "utf8");
@@ -541,14 +554,16 @@ describe("5. two shapes of week", () => {
             .filter(Boolean);
           if (WEEK_PARTS.every((part) => names.includes(part))) {
             const at = `${where}:${tree.getLineAndCharacterOfPosition(node.getStart()).line + 1}`;
+            const key = `${where}#${enclosing(node)}`;
             found.push(at);
+            seen.add(key);
             const carries =
               names.includes("blocks") ||
               node.properties.some(
                 (property) =>
                   ts.isSpreadAssignment(property) && /\bweekBlocksField\(|\bblocks\s*:/.test(property.expression.getText(tree)),
               );
-            if (!carries && !MAKES_A_NEW_WEEK.has(where)) missing.push(at);
+            if (!carries && !MAKES_A_NEW_WEEK.has(key)) missing.push(at);
           }
         }
         ts.forEachChild(node, visit);
@@ -559,9 +574,11 @@ describe("5. two shapes of week", () => {
       "app/api/courses/runs/[runId]/clone-weeks/route.ts",
       "app/api/courses/runs/[runId]/normalise-weeks/route.ts",
       "lib/firestore/courseTemplates.ts",
-      ...MAKES_A_NEW_WEEK.keys(),
     ]) {
       assert.ok(found.some((at) => at.startsWith(`${file}:`)), `the walk did not see ${file}: ${found.join(", ")}`);
+    }
+    for (const key of MAKES_A_NEW_WEEK.keys()) {
+      assert.ok(seen.has(key), `the walk did not see ${key}: ${[...seen].join(", ")}`);
     }
     assert.deepEqual(missing, [], `a whole week written without its blocks: ${missing.join(", ")}`);
   });

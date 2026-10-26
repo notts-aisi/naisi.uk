@@ -124,11 +124,12 @@ const READERS = {
     treats: "tells",
     why: "the one reader of somebody else's fill-in boxes (their group's facilitators, the lead and admins): fill-in boxes only",
   },
-  "app/api/courses/runs/[runId]/weeks/[weekId]/blocks/route.ts": {
+  "lib/courses/weekPaste.ts": {
     treats: "every-row",
     why:
-      "the week loader counts every row of the week on the items a paste would take out, reflections included, because " +
-      "a reflection is an answer somebody gave; an admin is shown the count, never a row",
+      "the checks behind both week loaders (the run's week and a group's own copy) count every row of the week on the " +
+      "items a paste would take out, reflections included, because a reflection is an answer somebody gave; the lead " +
+      "or an admin, or a group's facilitator, is shown the count, never a row",
   },
   "app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts": {
     treats: "tells",
