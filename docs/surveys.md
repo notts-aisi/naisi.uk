@@ -225,9 +225,9 @@ test is never a notice: it goes to the presser alone, marked `[TEST]`, as
 One page, two doors: `/survey/<secret>` with no sign-in, and
 `/learn/<run>/survey/<survey>` signed in, for a card on Home or week 1 to link
 to. The page shows the programme, the title and intro, "Every question can be
-skipped.", the confidential box, the questions three pages at a time with Back
-and Next, "Send my answers", and "It closes on Wed 4 Nov. Once sent, your
-answers can’t change."
+skipped.", the confidential box, the questions a page (a section) at a time
+with Back and Next, "Send my answers", and "It closes on Wed 4 Nov. Once sent,
+your answers can’t change."
 
 **The box** names the programme's lead (while they still stand as its lead) and
 the person's own group's facilitators, from records. A placement Publish has not

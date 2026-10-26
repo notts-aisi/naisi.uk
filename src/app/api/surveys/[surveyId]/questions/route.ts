@@ -13,10 +13,11 @@ type Ctx = { params: Promise<{ surveyId: string }> };
  * and intro people see, how many minutes it takes, the day it closes, and the
  * questions' words, options, lines and order. Refused once the survey has
  * been sent: from then on the email people got names the day it closes, and
- * the after survey has to ask the same questions.
+ * the later stages have to ask the same questions.
  *
  * Admins only. The questions themselves cannot be added, taken out or
- * retyped here (`sameQuestions`), so the six change questions stay the pair's.
+ * retyped here (`sameQuestions`), so every stage of a programme keeps
+ * asking the questionnaire's questions under the same ids.
  */
 export async function POST(req: Request, ctx: Ctx) {
   const blocked = await assertNotImpersonating();
