@@ -54,6 +54,9 @@ const SESSION = `export async function getCurrentUser() { return ${HANDLE}.user;
 const STYLESHEETS = [
   "./PeopleInGroups.module.css",
   "./PublishGroups.module.css",
+  // Publish's own page draws its readiness check (Get ready for week 1's) above the buttons.
+  "@/features/applications/groups/PublishGroups.module.css",
+  "./ProgrammeOverview.module.css",
   "./GroupsViews.module.css",
   "./editor.module.css",
   "@/features/applications/editor/editor.module.css",
@@ -107,6 +110,7 @@ const { countPlaceHolders, loadProgrammePeople } = await made.lib("applications"
 const { loadForm } = await made.lib("applications", "repo.ts");
 const { placingCounts } = await made.loadTs(join("features", "courses", "allocationTally.ts"));
 const words = await made.loadTs(join("features", "applications", "groups", "peopleInGroupsWords.ts"));
+const getReadyWords = await made.loadTs(join("lib", "courses", "getReady", "words.ts"));
 
 const PAGE_PATH = `/admin/admissions/forms/${ROUND}/programmes/${AGI}`;
 const A = GROUP.monday;
@@ -532,8 +536,11 @@ describe("4. the line, the number beside Publish and the People tab count with o
 // 5. Publish's own page
 // ---------------------------------------------------------------------------
 
-describe("5. Publish's own page draws Publish as the board did", () => {
-  test("the way back, the heading, and the Publish area with its count and its test", async () => {
+describe("5. Publish's own page draws Publish as the board did, under its readiness check", () => {
+  // The page is Get ready for week 1's Publish page (tests/course-hub-get-ready.test.mjs holds its
+  // readiness check and its emails); here, that it is still the way back to People in groups and
+  // the Publish area the board has always drawn, from the same summary.
+  test("the way back, the heading, the readiness check, and the Publish area with its count and its test", async () => {
     await termOnTheBoard();
     world.db.poke(`courseGroups/${A}`, { capacity: 8 });
     await place("zach", [
@@ -541,15 +548,15 @@ describe("5. Publish's own page draws Publish as the board did", () => {
       { uid: "tariq", groupId: A },
     ]);
     const { text: said, html, element } = await open(PublishPage, "claudia");
-    assert.match(html, new RegExp(`<a href="${PAGE_PATH}/groups" class="back">People in groups</a>`));
-    assert.match(said, /People in groups Publish AGI Strategy’s groups/);
-    // The Publish area the board has always drawn: the same words, from the same summary.
+    assert.match(html, new RegExp(`<a href="${PAGE_PATH}/groups" class="back">`));
+    assert.match(said, /^People in groups Publish AGI Strategy’s groups/);
+    assert.equal(find(element, "PublishReadiness").length, 1, "the readiness check is drawn above the Publish area");
     const area = find(element, "PublishGroups");
     assert.equal(area.length, 1);
-    assert.deepEqual(area[0].props, { runId: RUN.agi, roundId: ROUND, programmeId: AGI, programmeName: "AGI Strategy" });
+    assert.deepEqual(area[0].props, { runId: RUN.agi });
     assert.match(said, /Send a test to me/);
     assert.match(said, /Publish and send \d+ emails?/);
-    assert.ok(said.endsWith(words.BEFORE_PUBLISH));
+    assert.ok(said.includes(getReadyWords.AFTER_YOU_PUBLISH), "what publishing does next is said above the buttons");
   });
 });
 
