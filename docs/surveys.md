@@ -84,8 +84,9 @@ the incubator's research (`strand`: alignment or governance), picked when its
 survey is made; its survey at the end takes its before survey's.
 
 P1 (the email registered with) and P2 (the programme) are not asked: the site
-knows both. The questionnaire's second opt-in, sharing with Kairos, is not
-built; its box goes in P7's consent block, after the follow-ups box.
+knows both. The questionnaire's second opt-in, sharing with Kairos, is shared
+by default instead, with a way to say no at the end of every programme
+survey's form (see "The Kairos choice").
 
 **The ids are the pairing.** A question asked at more than one stage has the
 same id, type and option ids at every stage and in every programme (C1 is
@@ -103,7 +104,7 @@ with the earliest survey of the pair chain that asks it.
 | Stage | Who it goes to | Can be made |
 | --- | --- | --- |
 | Before, at the end | everybody holding a place when it is sent (`programme`): at the start everybody starting, at the end everybody still on it, finished or not | once decisions are sent and the programme names its run |
-| The follow-ups | everybody whose row on the programme's before survey says yes to follow-ups now (`followUps`, `consentFrom`) | once the before survey has been sent |
+| The follow-ups | everybody whose row on the programme's before survey says yes to follow-ups now, and everybody whose row there says nothing who said yes at the end (`followUps`, `consentFrom`) | once the before survey has been sent |
 
 The eyebrow beside the programme says "Week 1" before, the run's last week at
 the end, and nothing on a follow-up. Q3 at the end shows each person their own
@@ -114,14 +115,132 @@ shows where it would go and nobody's words.
 
 P7's box, "Contact me at 6 and 12 months", starts unticked. What the person
 says is kept on their row on the before survey (`consents.followUps`, with
-`consentsAt`), not in their answers, because it can change. They change it on
-their own survey's page, through their link (`POST /api/surveys/consent`) or
-signed in (`POST /api/surveys/[surveyId]/consent`): on the before survey once it
-can no longer be answered there (answered or closed), and on a follow-up at
-any time, where "Stop the follow-ups" changes the before survey's row. Each
-press of a follow-up's send or Remind reads the rows again, so the change
-holds from the next press. Nobody is emailed by a change, and nothing about it
-reaches the admins but the count on the send button.
+`consentsAt`), not in their answers, because it can change.
+
+**The survey at the end asks the same box** (`c_end`, the last item of What's
+next) of somebody whose before survey has not had their word (they missed it,
+or joined after it), and keeps it on their row there. Whoever said yes or no
+on the before survey is not shown the box again (`consentsAskedOf`), and a box
+sent for somebody it was not shown to says nothing for them.
+
+**One row holds each person's word** (`followUpsHolderFor`): the before
+survey's once it says yes or no, otherwise the survey at the end's once that
+does. They change it on any of the programme's survey pages, through their
+link (`POST /api/surveys/consent`) or signed in
+(`POST /api/surveys/[surveyId]/consent`): on a survey whose form asks them the
+box, once it can no longer be answered there (answered or closed), and
+anywhere else at any time; "Stop the follow-ups" changes the row that holds
+their word. The follow-ups go to everybody whose before row says yes, and to
+everybody whose before row says nothing and whose row at the end says yes.
+Each press of a follow-up's send or Remind reads the rows again, so the
+change holds from the next press. Nobody is emailed by a change, and nothing
+about it reaches the admins but the count on the send button.
+
+## The Kairos choice
+
+NAISI shares each person's name and programme record (the sessions they
+came to, whether they finished, and the ratings they were given at the end)
+with Kairos, its funder, BY DEFAULT, and the privacy policy says so (Zach,
+26 Oct 2026). Every programme survey's form ends with a way to say no,
+beside the sentence that sharing helps NAISI make its case to its funders
+and sponsors, and the person's profile has the same choice.
+
+- **One record per person**, `kairosChoices/{uid}` (`src/lib/kairos/`),
+  server-only in both directions. Shared until the person says no: most
+  people have no document, and no document reads as shared. It keeps their
+  latest word (`shared`), when (`at`) and where (`via`: `survey` or
+  `settings`). `kairosChoicesOf` is its one reader and `writeKairosChoice`
+  its one writer; `tests/kairos-choice.test.mjs` walks the tree for anything
+  else that names it.
+- **On the form**: every programme survey (`asksKairos`: before, at the end
+  and the follow-ups, whatever their items, so no edit takes it off) ends its
+  last page with "Sharing with Kairos" and the box "Don’t share my details
+  with Kairos", ticked before the person touches it only when their record
+  already says no. The form sends the choice only when the person changed the
+  box there, so a form left open never puts back a choice changed elsewhere;
+  it is kept with the answers, in their transaction. A test link draws it
+  unticked and keeps nothing.
+- **On the profile**: the same choice, changed by `POST /api/account/kairos`
+  on the caller's own record. Refused during view-as.
+- **Saying no** stops only what goes to Kairos with the person's name (the
+  Kairos file leaves them out). Admins still see their answers, and the
+  answers still count in the totals.
+- **Deleting an account** deletes its choice (step 1f).
+
+**The Kairos file** (`POST /api/kairos/export`, `src/lib/kairos/file.ts`), from
+Run NAISI › Surveys › Kairos: admins only, once a programme's last session is
+over, one row per person on it at its end (the register's rows, leavers left
+out) who has not said no, with their name, the programme, the sessions they
+came to and of how many, whether they finished (`recordOf`, the lead's
+decision or the rule's suggestion), how many ratings they were given and each
+rating question's answers in its own column, several joined by "; ". Never an
+email address, who gave a rating, or a survey answer. Every press is a
+download the site records before it hands the file over (`dataExports`, kind
+`kairos`, scope `roundId` and `runId`), and it is refused when that record
+cannot be written.
+
+**The Kairos report** (Run NAISI › Surveys › Kairos › a programme,
+`src/lib/surveys/kairosReport.ts`, read by `kairosReportLoad.ts`): the
+questionnaire's fourteen measures for one programme, in totals and never a
+name. Every figure has its n beside it, and that as a share of the people who
+started (on the programme at its end, and those who left after a register
+marked them). Pairs are by person (`q_c1` before against `q_c1` at the end,
+and so on), so only people who answered both count, and an answer whose name
+has come off pairs with nothing. Counterfactual FTE is labelled
+self-reported. Completions are the finished record (the lead's decision, or
+the rule's suggestion), and the figure says so. Applications are those still
+in the term (`isInTerm`). The cost per outcome and who goes on to organise next
+term say what they need instead of a number. Nothing here compares with
+near-misses: none were surveyed this term. The one written answer it lists is
+an incubator's links to what each team produced (the questionnaire asks for
+the outputs "with links"); the question's hint says they may be passed on to
+funders, and privacy v7 says so beside the totals. Any other written answer
+is only counted.
+
+## Ratings at a programme's end
+
+The questionnaire's facilitator rating (F1 to F5) and, on an incubator, its
+mentor rating (M1 to M3) are **not survey answers**: they are the raters'
+own form about each fellow, staff only and never shown to the person rated
+(`src/lib/ratings/`, `src/features/ratings/`). They are kept out of survey
+code on purpose: the privacy policy holds that no facilitator's page reaches
+survey code.
+
+- **Who rates whom** (`src/lib/ratings/rules.ts`): a facilitator is a fellow of
+  the group they run (Zach, 26 Oct 2026), so nobody rates themselves, a
+  co-facilitator never rates a co-facilitator (whatever else either is), and
+  the programme's lead or an admin rates a facilitator. A group's live
+  facilitator rates the other fellows of their group; the lead and admins may
+  rate any fellow. Only somebody taking part in the group at the end is
+  rated, never somebody who left.
+- **When**: once the run's last session is over (`runEndOf`), about two
+  minutes a person. F1, the sessions they came to, is read from the register
+  each time and never typed or stored.
+- **Mentors**: nobody is modelled as an incubator's mentor (a team has people
+  and a project), so an incubator's facilitators give M1 to M3 on the same
+  form, after F2 to F5, with each fellow's team named on their card (the
+  Teams tab's own rule of who stands in a team). A test fails the day a team
+  names a mentor, so who gives the mentor rating is decided again then.
+- **Where**: a group's facilitators at `/learn/<run>/group/<group>/ratings`
+  (linked from the group page once the run is over); the programme's lead and
+  admins on the programme's Ratings page
+  (`/admin/admissions/forms/<form>/programmes/<programme>/ratings`), every
+  group, with what everybody said and the rater's name, and their own form
+  for the facilitators. A facilitator reads only what they gave. Nobody is
+  ever one of the rows on any page, so nobody is shown what was said about
+  them. `POST /api/courses/groups/[groupId]/ratings` is the one writer.
+- **The record**: `programmeRatings`, server-only. A rating is
+  `{runId}__{rater}__{rated}` (`kind: "rating"`); clearing every answer
+  deletes it. The run's sheet, `{runId}` (`kind: "sheet"`), holds the day of
+  its last session, written with its first rating.
+- **Two years**: the `surveys-names-off` job deletes a run's ratings and its
+  sheet two years after its last session (`twoYearsAfter`, the day names come
+  off its surveys). Deleting an account deletes every rating it gave or was
+  given (step 1g), and destroying a run deletes its ratings and its sheet (the
+  `ratings` stage, named in the destroy dialog).
+- `tests/course-ratings.test.mjs` walks the tree: only the ratings' own
+  modules name the collection, and every file outside them that reaches them
+  is listed with why it may (no email, no participant's page).
 
 The items are **Worksheets' item model**, sanitised and validated by Worksheets'
 own functions, with the questions Worksheets lacks defined beside them in
@@ -297,8 +416,7 @@ it is refused when that record cannot be written.
 
 The cards on Home, My programmes and week 1; the leaving survey; event
 surveys, check-in, walk-ins and QR codes; results for a programme's lead; one
-person's answers page; the questionnaire's facilitator and mentor ratings, its
-Kairos sharing and the Kairos report, and its separate anonymous keep, change
+person's answers page; the questionnaire's separate anonymous keep, change
 and drop form; public numbers; this term in numbers. The model is built so none of them needs a
 rewrite: another `audience.kind`, another `respondent.kind`, the same records.
 

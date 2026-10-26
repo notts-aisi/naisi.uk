@@ -8,7 +8,7 @@ import { loadForm } from "@/lib/applications/repo";
 import { listDecisions, listSentApplications } from "@/lib/applications/staffRepo";
 import type { SurveyAudience } from "@/lib/firestore/surveys";
 import { namesOf } from "./names";
-import { peopleOf } from "./repo";
+import { listSurveys, peopleOf } from "./repo";
 
 /**
  * WHO A PROGRAMME SURVEY IS FOR, read when a button is drawn and again when
@@ -24,8 +24,10 @@ import { peopleOf } from "./repo";
  *    finished or not.
  *  - THE FOLLOW-UPS' AUDIENCE (`followUps`): everybody whose row on the
  *    programme's before survey says yes to being contacted at 6 and 12
- *    months, as it says now. A person changes it on their survey's page, and
- *    the next press reads the change. Nobody else is ever sent a follow-up.
+ *    months, as it says now, and everybody whose row there says nothing who
+ *    said yes on the survey at the end. A person changes it on their survey's
+ *    page, and the next press reads the change. Nobody else is ever sent a
+ *    follow-up.
  */
 
 export type AudienceRead =
@@ -34,21 +36,34 @@ export type AudienceRead =
   | { status: "gone" };
 
 /**
- * The people a follow-up is for: a yes on the before survey's row, and an
- * account still there to send it to. Read from the rows, so it needs no form.
+ * The people a follow-up is for: a yes on the before survey's row, or, for
+ * somebody whose row there says nothing (they missed it), a yes on their row
+ * on the survey at the end, which asked them the same box; and an account
+ * still there to send it to. Read from the rows, so it needs no form.
  */
-async function followUpHolders(db: Firestore, consentFrom: string): Promise<PlaceHolder[]> {
-  const said = (await peopleOf(db, consentFrom)).filter((person) => person.consents.followUps === true);
-  const names = await namesOf(db, said.map((person) => person.respondent.uid));
-  return said
-    .filter((person) => names.has(person.respondent.uid))
-    .map((person) => ({ uid: person.respondent.uid, name: names.get(person.respondent.uid) ?? "" }))
+async function followUpHolders(db: Firestore, audience: Extract<SurveyAudience, { kind: "followUps" }>): Promise<PlaceHolder[]> {
+  const { consentFrom } = audience;
+  const rows = await peopleOf(db, consentFrom);
+  const said = rows.filter((person) => person.consents.followUps === true);
+  // Who has said anything on the before survey: their word there decides.
+  const spoke = new Set(rows.filter((person) => person.consents.followUps !== undefined).map((person) => person.respondent.uid));
+  const atEnd = (await listSurveys(db))
+    .filter((each) => each.kind === "after" && each.audience.roundId === audience.roundId && each.audience.programmeId === audience.programmeId)
+    .sort((a, b) => (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0) || a.id.localeCompare(b.id))[0];
+  const late = atEnd
+    ? (await peopleOf(db, atEnd.id)).filter((person) => person.consents.followUps === true && !spoke.has(person.respondent.uid))
+    : [];
+  const uids = [...new Set([...said, ...late].map((person) => person.respondent.uid))];
+  const names = await namesOf(db, uids);
+  return uids
+    .filter((uid) => names.has(uid))
+    .map((uid) => ({ uid, name: names.get(uid) ?? "" }))
     .sort((a, b) => a.name.localeCompare(b.name, "en") || a.uid.localeCompare(b.uid));
 }
 
 export async function readAudience(db: Firestore, audience: SurveyAudience): Promise<AudienceRead> {
   if (audience.kind === "followUps") {
-    return { status: "ok", form: null, programme: null, holders: await followUpHolders(db, audience.consentFrom) };
+    return { status: "ok", form: null, programme: null, holders: await followUpHolders(db, audience) };
   }
   const form = await loadForm(db, audience.roundId);
   if (!form) return { status: "gone" };

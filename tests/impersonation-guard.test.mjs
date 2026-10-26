@@ -113,6 +113,7 @@ const MUST_GUARD = [
   ["src/app/api/courses/groups/[groupId]/notes/route.ts", "writes a note a group's facilitators share, in the writer's name"],
   ["src/app/api/courses/groups/[groupId]/draw/route.ts", "gives a group's people their packs and cases from the draw, in the typist's name"],
   ["src/app/api/courses/groups/[groupId]/shared-notes/route.ts", "adds a note shared with a group, in the writer's name"],
+  ["src/app/api/courses/groups/[groupId]/ratings/route.ts", "rates a fellow at a programme's end, in the rater's name"],
   ["src/app/api/courses/groups/[groupId]/shared-notes/[noteId]/route.ts", "deletes a note shared with a group, for the person who wrote it"],
   ["src/app/api/courses/groups/[groupId]/pace/route.ts", "changes a group's pacing, moving every learner's dates"],
   ["src/app/api/courses/groups/[groupId]/session/route.ts", "changes a group's meeting details"],
@@ -434,6 +435,10 @@ const MUST_GUARD = [
   [
     "src/app/api/account/delete/route.ts",
     "tears down the session account; the unfinished-only scope blocks the reachable view-as case, but the guard states the intent beside its sibling",
+  ],
+  [
+    "src/app/api/account/kairos/route.ts",
+    "changes the session account's own Kairos choice, whether its name and programme record go to Kairos, which during view-as would be the target member's word",
   ],
   [
     "src/app/api/account/reconsent/route.ts",

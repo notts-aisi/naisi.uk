@@ -3,8 +3,10 @@ import type { Firestore } from "firebase-admin/firestore";
 import { own } from "@/lib/applications/keys";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { answerLimitOf, ratingScaleOf } from "@/lib/firestore/worksheets";
-import type { SurveyDoc, SurveyPersonDoc } from "@/lib/firestore/surveys";
-import { consentSurveyIdFor } from "./consent";
+import { asksKairos, type SurveyDoc, type SurveyPersonDoc } from "@/lib/firestore/surveys";
+import { kairosChoicesOf } from "@/lib/kairos/choice";
+import { sharesWithKairos } from "@/lib/kairos/model";
+import { consentSurveyIdFor, consentsAskedOf, followUpsHolderFor } from "./consent";
 import {
   isLinesQuestion,
   isNumberQuestion,
@@ -20,7 +22,7 @@ import {
 } from "./items";
 import { confidentialFactsFor } from "./personFacts";
 import { offerFromProfile, profileFactsOf } from "./profileOffer";
-import { chainOf, closedOn, isOpen, ownAnswerOf, readPerson } from "./repo";
+import { chainOf, closedOn, isOpen, ownAnswerOf } from "./repo";
 import {
   BEFORE_WEEK,
   CONFIDENTIAL_HEADING,
@@ -91,6 +93,14 @@ export type AnswerPage = { heading: string; questions: AnswerQuestion[]; consent
 /** Where the answers go: the person's own link, their own session, or nowhere (a test). */
 export type AnswerSubmit = { kind: "link"; token: string } | { kind: "signed-in"; surveyId: string } | { kind: "test" };
 
+/**
+ * The Kairos choice at the end of the form, starting where the person's own
+ * record stands: "no" ticks "Don't share my details with Kairos" before they
+ * touch it, "shared" leaves it unticked. A test starts as shared, the
+ * default, and keeps nothing.
+ */
+export type AnswerKairos = { said: "shared" | "no" };
+
 export type AnswerSurvey = {
   /** "Fellowship: AGI Strategy", "Week 1". */
   eyebrow: string[];
@@ -101,6 +111,8 @@ export type AnswerSurvey = {
   /** "It closes on Wed 4 Nov. Once sent, your answers can’t change." */
   closing: string;
   submit: AnswerSubmit;
+  /** The Kairos choice the form ends with, on every programme survey; null on any other. */
+  kairos: AnswerKairos | null;
 };
 
 /**
@@ -122,8 +134,13 @@ export type AnswerScreen =
   | { state: "open"; survey: AnswerSurvey; consent: ConsentPanel | null }
   | { state: "message"; title: string; body: string; consent: ConsentPanel | null };
 
-/** What the page shows that is the person's own: a menu's offer by question id, and earlier answers in words. */
-export type PersonalFacts = { offered: Record<string, string>; piped: Record<string, string> };
+/**
+ * What the page shows that is the person's own: a menu's offer by question
+ * id, earlier answers in words, and the consent boxes they are asked (the
+ * survey at the end asks the follow-ups box only of somebody the before
+ * survey never asked). `asked` absent means every box the survey holds.
+ */
+export type PersonalFacts = { offered: Record<string, string>; piped: Record<string, string>; asked?: readonly SurveyConsentPurpose[] };
 
 export const NO_PERSONAL_FACTS: PersonalFacts = { offered: {}, piped: {} };
 
@@ -155,7 +172,8 @@ export function answerPagesOf(survey: Pick<SurveyDoc, "items">, personal: Person
     const consents: AnswerConsent[] = [];
     for (const item of items) {
       if (item.kind === "consent") {
-        consents.push({ id: item.id, statement: item.statement, boxes: item.boxes.map((box) => ({ purpose: box.purpose, label: box.label })) });
+        const boxes = item.boxes.filter((box) => !personal.asked || personal.asked.includes(box.purpose));
+        if (boxes.length > 0) consents.push({ id: item.id, statement: item.statement, boxes: boxes.map((box) => ({ purpose: box.purpose, label: box.label })) });
         continue;
       }
       if (item.kind !== "question") continue;
@@ -274,9 +292,10 @@ async function eyebrowFor(db: Firestore, survey: SurveyDoc): Promise<string[]> {
 }
 
 /**
- * The follow-ups consent the person can change from this page, or null: on
- * the survey that asks it, once it can no longer be answered there; on a
- * follow-up, always. Where it stands is read from the person's own row.
+ * The follow-ups consent the person can change from this page, or null: on a
+ * survey whose form asks them the box, once it can no longer be answered
+ * there; on any other survey of the programme, always. Where it stands is
+ * read from the one row that holds their word (`followUpsHolderFor`).
  */
 async function consentPanelFor(
   db: Firestore,
@@ -284,14 +303,15 @@ async function consentPanelFor(
   person: SurveyPersonDoc | null,
   submit: AnswerSubmit,
   formShown: boolean,
+  asked: readonly SurveyConsentPurpose[],
 ): Promise<ConsentPanel | null> {
   if (!person || submit.kind === "test") return null;
-  const holder = consentSurveyIdFor(survey, "followUps");
+  if (!consentSurveyIdFor(survey, "followUps")) return null;
+  // A form that asks the box shows the box while it can be answered.
+  if (formShown && asked.includes("followUps")) return null;
+  const holder = await followUpsHolderFor(db, survey, person.respondent);
   if (!holder) return null;
-  // The survey that asks it shows its own box while it can be answered.
-  if (holder === survey.id && formShown) return null;
-  const row = holder === survey.id ? person : await readPerson(db, holder, person.respondent);
-  if (!row) return null;
+  const row = holder.row;
   const given = row.consents.followUps === true;
   const words = CONSENT_WORDS.followUps;
   const yes = { line: words.yes, button: words.stop, done: words.started };
@@ -306,6 +326,18 @@ async function consentPanelFor(
     after: { line: then.line, button: then.button, done: then.done },
     submit,
   };
+}
+
+/**
+ * Where the Kairos choice starts for this person: their own record, read for
+ * them alone through its one reader, on a programme survey. A test starts as
+ * shared and reads nobody's.
+ */
+async function kairosFor(db: Firestore, survey: SurveyDoc, uid: string | null, submit: AnswerSubmit): Promise<AnswerKairos | null> {
+  if (!asksKairos(survey)) return null;
+  if (submit.kind === "test" || !uid) return { said: "shared" };
+  const choice = (await kairosChoicesOf(db, [uid])).get(uid);
+  return { said: sharesWithKairos(choice) ? "shared" : "no" };
 }
 
 /**
@@ -326,10 +358,11 @@ export async function answerScreenFor(
   },
 ): Promise<AnswerScreen> {
   const person = input.person ?? null;
+  const asked = await consentsAskedOf(db, survey, input.submit.kind === "test" ? null : (person?.respondent ?? null));
   const message = async (words: { title: string; body: string }): Promise<AnswerScreen> => ({
     state: "message",
     ...words,
-    consent: await consentPanelFor(db, survey, person, input.submit, false),
+    consent: await consentPanelFor(db, survey, person, input.submit, false, asked),
   });
   if (input.answered) return message(STATE_WORDS.answered(input.answeredAt));
   const test = input.submit.kind === "test";
@@ -338,12 +371,13 @@ export async function answerScreenFor(
     return on ? message(STATE_WORDS.closed(on)) : { state: "message", ...STATE_WORDS.noSurvey, consent: null };
   }
   if (!survey.closesAt || !survey.namesOffOn) return { state: "message", ...STATE_WORDS.noSurvey, consent: null };
-  const [facts, offered, piped, eyebrow, consent] = await Promise.all([
+  const [facts, offered, piped, eyebrow, consent, kairos] = await Promise.all([
     confidentialFactsFor(db, survey, input.uid),
     profileOffersFor(db, survey, input.uid),
     pipedAnswersFor(db, survey, input.uid, test),
     eyebrowFor(db, survey),
-    consentPanelFor(db, survey, person, input.submit, true),
+    consentPanelFor(db, survey, person, input.submit, true, asked),
+    kairosFor(db, survey, input.uid, input.submit),
   ]);
   const box = confidentialPoints(facts);
   return {
@@ -353,9 +387,10 @@ export async function answerScreenFor(
       title: survey.title,
       intro: paragraphsOf(survey.intro),
       box: { heading: CONFIDENTIAL_HEADING, points: box.points, note: box.note },
-      pages: answerPagesOf(survey, { offered, piped }),
+      pages: answerPagesOf(survey, { offered, piped, asked }),
       closing: closingWords(survey.closesAt),
       submit: input.submit,
+      kairos,
     },
     consent,
   };

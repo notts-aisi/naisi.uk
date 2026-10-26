@@ -1186,10 +1186,21 @@ describe("changing the follow-ups consent later, by the person alone", () => {
     for (const who of ["claudia", "rahul", "nobody", "zach"]) assert.deepEqual(short(await signedIn(who)), [404, REFUSAL.notYours], who);
     assert.equal((await signedIn(null)).status, 401);
     assert.equal(w.people(id).find((each) => each.respondent.uid === "amara").consents.followUps, true, "nothing refused changed her row");
-    // The survey at the end asks no consent and is no follow-up.
+    // A survey that asks no consent and is no follow-up changes none: a
+    // survey at the end made before it asked the follow-ups box, as one is
+    // when its consent block is not among its items.
     const after = (await w.make("zach", { stage: "after", closesOn: "2026-12-20" })).body.survey.id;
     await w.sendFirst(after, "zach", { emails: 4 });
+    const asked = w.survey(after).items;
+    w.world.db.poke(`surveys/${after}`, { items: asked.filter((item) => item.kind !== "consent") });
     assert.deepEqual(short(await byLink({ token: w.tokenOf(after, "amara") })), [409, REFUSAL.consentNotAsked]);
+    // The survey at the end as the template makes it asks the box, and Amara's
+    // change through its link reaches the row that holds Amara's word: the
+    // before survey's.
+    w.world.db.poke(`surveys/${after}`, { items: asked });
+    assert.deepEqual((await byLink({ token: w.tokenOf(after, "amara") })).body, { ok: true, given: false });
+    assert.equal(w.people(id).find((each) => each.respondent.uid === "amara").consents.followUps, false);
+    assert.equal(w.people(after).find((each) => each.respondent.uid === "amara").consents?.followUps, undefined, "Amara's row at the end holds nothing of it");
   });
 });
 

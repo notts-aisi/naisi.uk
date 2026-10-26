@@ -447,6 +447,7 @@ export const LIST_WORDS = {
   title: "Surveys",
   lede: "Only admins make and send surveys.",
   newSurvey: "New survey",
+  kairos: "Kairos",
   open: "Open",
   drafts: "Drafts",
   closed: "Closed",

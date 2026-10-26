@@ -110,9 +110,15 @@ export function textOf(html) {
     .trim();
 }
 
-export async function makeSurveyWorld(key = "__surveys") {
+/**
+ * The world, with `extraStubs` ([specifier, source] pairs) beside the ones
+ * every survey suite has: a suite that renders a page with client-only
+ * neighbours stubs those neighbours here.
+ */
+export async function makeSurveyWorld(key = "__surveys", extraStubs = []) {
   const handle = `globalThis[${JSON.stringify(key)}]`;
   const made = makeWorld(key, [
+    ...extraStubs,
     [
       "next/navigation",
       "export function redirect(to) { throw Object.assign(new Error('NEXT_REDIRECT'), { to }); }\n" +

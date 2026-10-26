@@ -17,7 +17,10 @@
  * to it; and so is the survey at a programme's start: confidential, nothing
  * kept about how it is filled in, the name off two years after the programme or
  * at once with the account, and its answers with names a fourth logged
- * download. §2g holds those passages against the code. Two of them are
+ * download; and, with the impact questionnaire, sharing with Kairos unless
+ * somebody says no (the Kairos file a fifth logged download), the ratings at
+ * a programme's end, and totals to funders and sponsors that name nobody.
+ * §2g holds those passages against the code. Two of them are
  * worded as what will happen,
  * because they are not built yet (certificates, a team's page), and §2g
  * holds that nothing has been built that they would then have to describe.
@@ -650,12 +653,13 @@ const MUST_NAME = [
   ["the people who read an application see whose it is", /They see your name\. Nothing hides who you are from the people who read, score and decide your application/i],
   ["who reads an application", /Admins, and the lead and the reviewers of each programme you ranked/i],
   ["a programme joined by invitation reads the application only once it is accepted", /can read your application from then on, and not before/i],
-  // A programme's attendance became the third logged download, and a
-  // survey's answers with names the fourth (each Download writes the log
-  // first and refuses without it); §2g walks the tree for every caller of the
-  // log. The entry this replaces said three, which was true until the survey's
-  // export joined the log.
-  ["only the four logged downloads are recorded", /Four of those downloads are recorded/],
+  // A programme's attendance became the third logged download, a survey's
+  // answers with names the fourth and the Kairos file the fifth (each
+  // Download writes the log first and refuses without it); §2g walks the tree
+  // for every caller of the log. The entry this replaces said four, which was
+  // true until the Kairos file joined the log.
+  ["only the five logged downloads are recorded", /Five of those downloads are recorded/],
+  ["what the Kairos file holds, and never holds", /The Kairos file holds, for each person on a programme at its end who has not said no to sharing with Kairos, their name, the programme, how many sessions they came to, whether they finished and the ratings they were given at the end, and never an email address, who gave a rating or a survey answer\./i],
   ["what the survey file holds, and never holds", /The survey file holds, for each person who answered, their name, when and how they sent their answers, whether their group had met by then, and the answers themselves, and never an email address\./i],
   ["what the attendance file holds, and never holds", /It holds each person&apos;s group, name and marks, how many sessions they came to and the day they left, if they did, and never an email address or a note\./i],
   ["who can see what", /Who can see what/],
@@ -782,13 +786,33 @@ const MUST_NAME = [
   ["what a programme's surveys ask, by kind", /A programme&apos;s surveys ask about your level and subject of study, what you had done in AI safety before and how you first heard about NAISI; your career stage and plans, how likely you think you are to work on AI safety and the kinds of work that interest you;/i],
   ["the profile values a survey offers", /Where your profile holds them, the survey before a programme starts its questions about your level and subject of study on your profile&apos;s answers\. You can change or clear either before you send it, and only what you send is kept\./i],
   ["the survey at the end shows a person their own earlier answer, and nobody else", /The survey at the end shows you what you said you wanted from the programme, so you can say whether you got it; nobody else is shown it there\./i],
-  ["the follow-ups go only to people who tick the box, which they can change later", /The survey before a programme asks whether we may contact you at 6 and 12 months with a short follow-up survey, in a box that starts unticked, and only people who tick it are sent the follow-ups\. You can change your answer at any time until your name comes off, on your survey&apos;s page, through its link or signed in, and the next follow-up goes by it\. We keep what you said, and when, with the record that the survey was sent to you\./i],
+  // The survey at the end asks the same box of somebody the before survey
+  // never had an answer from (part (b) of the questionnaire's build).
+  ["the follow-ups go only to people who tick the box, which they can change later", /The survey before a programme asks whether we may contact you at 6 and 12 months with a short follow-up survey, in a box that starts unticked, and only people who tick it are sent the follow-ups\. If you did not answer it there, the survey at the end asks you the same\. You can change your answer at any time until your name comes off, on your survey&apos;s page, through its link or signed in, and the next follow-up goes by it\. We keep what you said, and when, with the record that the survey was sent to you\./i],
   ["every question in a survey can be skipped, and nothing said in one affects a place", /Every question can be skipped\. Nothing you say in a survey affects your place on a programme or an application\./i],
   ["a survey records nothing about how it is filled in", /A survey records nothing about how you fill it in: not when you opened it, how long you spent on it or which page you were on, and none of your answers is kept until you send them\./i],
   ["what a survey records with the answers, and never an IP address", /We record when you sent them, whether you used your own link or were signed in, and whether your group had met for the first time by then\. We never keep your IP address with them, and the request logs our hosting provider keeps \(see Operational logs\) are never matched to them\./i],
   ["a survey is emailed as an important notice, with a link of your own", /A survey and its reminder are emailed as important notices, so your notification settings do not switch them off\. Each email carries a link of your own, so you can answer without signing in\. Anyone holding it could answer in your name, so keep it to yourself\./i],
   // Two years since Zach chose it for everyone (26 October 2026); it said a year.
   ["names come off survey answers two years after the programme", /We take your name off your answers to a survey on the day it tells you, two years after the programme&apos;s last session, and delete the record that it was sent to you, with your link to answer it and what you said about follow-ups\. Your answers stay in its totals, no longer linked to you\./i],
+  // Sharing with Kairos by default, and the ratings at a programme's end
+  // (part (b) of the impact questionnaire's build, Zach, 26 October 2026);
+  // §2g holds each to the code.
+  ["what goes to Kairos unless you say no", /Unless you say no, when a programme ends we send Kairos a file with, for each person on it at the end: their name, the programme, how many sessions they came to, whether they finished, and the ratings they were given at the end/i],
+  ["why it goes, and that agreeing helps", /We share it because it helps us make our case to our funders and sponsors, so leaving it on helps NAISI\./i],
+  ["what never goes to Kairos", /It never holds your email address, your survey answers, or who gave a rating\./i],
+  ["how to say no, and that it can change", /Every programme survey ends with a box to say no, and the same choice is on <a href="\/profile">your profile<\/a>\. You can change it at any time, and the next file goes by it\./i],
+  ["what saying no does and does not change", /Saying no stops only what goes to Kairos with your name: NAISI&apos;s admins still see your survey answers, and they still count in our totals\./i],
+  ["how long the choice is kept, and that a file sent is not recalled", /We keep your choice, and when you made it, until your account is deleted\. A file already sent is held by Kairos, and changing your choice later does not recall it\./i],
+  ["totals to funders and sponsors name nobody", /We also report totals to our funders and sponsors, Kairos among them: .* These never name anybody\./i],
+  ["an incubator's links to its work may go to funders, as its question says", /These never name anybody\. For an incubator we may also pass on the links its people give us, in the survey at its end, to the work their team produced; that question says so\./i],
+  ["what funders are shown, the links included", /Show our funders and sponsors what our programmes achieve: totals that name nobody, the links to an incubator&apos;s work that its people give us, and, unless you say no, what we share with Kairos/i],
+  ["the legal basis for sharing with Kairos, and objecting to it", /Sharing with Kairos rests on this basis too: it helps us make our case to our funders and sponsors, it shares only what Sharing with Kairos lists, and you can object to it at any time with the choice at the end of every programme survey or on your profile, which stops it\./i],
+  ["who rates whom at a programme's end", /Nobody rates themselves, and two facilitators of one group never rate each other: a facilitator, who takes part in the group they run, is rated by the programme&apos;s lead or an admin, who can also rate anybody else on the programme\./i],
+  ["who reads a rating, and that the person rated never does", /Ratings are read only by the programme&apos;s lead, NAISI&apos;s admins, and the person who gave each one, who sees only their own\. They are never shown to the person rated, on any page or in any email\./i],
+  ["the sessions beside a rating come from the register", /Beside each rating we show how many sessions the person came to, read from the register, never typed in\./i],
+  ["ratings are deleted two years after the programme and with an account", /We delete them two years after the programme&apos;s last session, and at once if the account of whoever gave or was given one is deleted\./i],
+  ["a copy of your data covers the ratings you were given", /the notes a facilitator wrote about you, the ratings you were given at the end of a programme, and the reason behind a conduct flag\./i],
 ];
 
 describe("the courses section", () => {
@@ -2565,7 +2589,11 @@ describe("the account record passage", () => {
  * share, the notes a group shares on its week pages, the calendar link, and
  * the survey at a programme's start (with the fourth logged download, the
  * name coming off two years after the programme, and a deletion taking it off at
- * once). Each describes code that is built, and is held to it below.
+ * once). Then the impact questionnaire's: sharing with Kairos unless somebody
+ * says no, with the way to say no on every programme survey and the profile
+ * and the Kairos file as the fifth logged download; the ratings at a
+ * programme's end; and the totals that go to funders and sponsors. Each
+ * describes code that is built, and is held to it below.
  */
 
 /** A file's code with its comments taken out, so a note about a field is not taken for a use of it. */
@@ -2595,6 +2623,14 @@ const surveyNamesOff = await loadTs("lib/surveys/namesOff.ts");
 const surveyProfileOffer = await loadTs("lib/surveys/profileOffer.ts");
 const surveyExport = await loadTs("lib/surveys/exportTable.ts");
 const surveyRecords = await loadTs("lib/firestore/surveys.ts");
+/** The Kairos file's layout. Pure: its route and its loader are read as source. */
+const kairosFileTable = await loadTs("lib/kairos/fileTable.ts");
+/** The Kairos choice's record and words, who rates whom, and the Kairos report's counting. All pure. */
+const kairosModel = await loadTs("lib/kairos/model.ts");
+const kairosWords = await loadTs("lib/kairos/words.ts");
+const ratingRules = await loadTs("lib/ratings/rules.ts");
+const ratingModel = await loadTs("lib/ratings/model.ts");
+const kairosReport = await loadTs("lib/surveys/kairosReport.ts");
 /** Survey code imported from anywhere: the library, its components and its record. */
 const SURVEY_CODE = /(?:\bfrom\s*|\bimport\s*\(\s*)"(?:@\/(?:lib\/surveys|features\/surveys|lib\/firestore\/surveys)|(?:\.{1,2}\/)+(?:[\w-]+\/)*surveys)["\/]/;
 /** Whether a file is survey code itself, rather than code that reaches it. */
@@ -2628,6 +2664,8 @@ describe("the course hub passage", () => {
       /by name only/i,
       /Four\s+kinds are logged today/i,
       /Four of those downloads are recorded/i,
+      /Five of those downloads are recorded/i,
+      /The Kairos file holds/i,
       /Nobody is taken off a programme by it/i,
       /Notes facilitators share\./i,
       /the notes the group&apos;s facilitators share with each other/i,
@@ -2653,6 +2691,13 @@ describe("the course hub passage", () => {
       /your name on your survey answers/i,
       /Your answers to surveys, no longer linked to you/i,
       /contact you at 6 and 12 months/i,
+      /the survey at the end asks you the same/i,
+      /Sharing with Kairos/i,
+      /Kairos/,
+      /Ratings at the end of a programme/i,
+      /every rating you gave or were given/i,
+      /These never name anybody/i,
+      /For an incubator we may also pass on the links/i,
       /A programme&apos;s surveys ask about/i,
       /starts its questions about your level and subject of study/i,
       /what you said about follow-ups/i,
@@ -3674,29 +3719,31 @@ describe("the course hub passage", () => {
     }
   });
 
-  // Four since the survey's export joined the log: the walk, the refusal loop
-  // and the title each said three, and each names the fourth now, as exactly.
-  test("four downloads are logged, each before its file is handed over, and the attendance and survey files hold what the page says", () => {
+  // Five since the Kairos file joined the log: the walk, the refusal loop and
+  // the title each said four, and each names the fifth now, as exactly.
+  test("five downloads are logged, each before its file is handed over, and the attendance, survey and Kairos files hold what the page says", () => {
     assertExactlyTheseFiles(
       sourceFilesNaming(/\blogExport\(/).filter((file) => file !== "src/lib/firestore/dataExports.ts"),
       new Map([
-        ["src/app/api/admin/membership/export/route.ts", "the membership list for a period, the first of the four the policy names"],
-        ["src/app/api/worksheets/circulations/[circulationId]/export/route.ts", "the answers to a circulated worksheet, the second of the four"],
-        ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/attendance/export/route.ts", "a programme's attendance, for its lead and admins, the third of the four"],
-        ["src/app/api/surveys/[surveyId]/export/route.ts", "a survey's answers with the names of the people who sent them, for admins alone, the fourth of the four"],
+        ["src/app/api/admin/membership/export/route.ts", "the membership list for a period, the first of the five the policy names"],
+        ["src/app/api/worksheets/circulations/[circulationId]/export/route.ts", "the answers to a circulated worksheet, the second of the five"],
+        ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/attendance/export/route.ts", "a programme's attendance, for its lead and admins, the third of the five"],
+        ["src/app/api/surveys/[surveyId]/export/route.ts", "a survey's answers with the names of the people who sent them, for admins alone, the fourth of the five"],
+        ["src/app/api/kairos/export/route.ts", "the Kairos file, for admins alone, the fifth of the five"],
       ]),
       "writing the record of a download",
-      "The policy says four downloads are recorded and names them. A " +
+      "The policy says five downloads are recorded and names them. A " +
         "download recorded and not named, or named and no longer recorded, " +
         "makes the sentence wrong: say so in a new version.",
     );
-    // "All four refuse to hand over the file if that record cannot be
+    // "All five refuse to hand over the file if that record cannot be
     // written": the record first, and a failure to write it is a refusal.
     for (const route of [
       "src/app/api/admin/membership/export/route.ts",
       "src/app/api/worksheets/circulations/[circulationId]/export/route.ts",
       "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/attendance/export/route.ts",
       "src/app/api/surveys/[surveyId]/export/route.ts",
+      "src/app/api/kairos/export/route.ts",
     ]) {
       const code = withoutComments(read(route));
       const logged = code.indexOf("await logExport(db, {");
@@ -3753,6 +3800,34 @@ describe("the course hub passage", () => {
     // tests/surveys-routes.test.mjs downloads it as every caller, reads the
     // record written first, and is refused when the record cannot be written.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-routes.test.mjs")));
+
+    // "The Kairos file holds, for each person on a programme at its end who
+    // has not said no to sharing with Kairos, their name, the programme, how
+    // many sessions they came to, whether they finished and the ratings they
+    // were given at the end, and never an email address, who gave a rating or
+    // a survey answer": admins only, asked before anything is read; nobody
+    // who said no; and the layout, run.
+    const kairos = withoutComments(read("src/app/api/kairos/export/route.ts"));
+    const kairosAdmins = kairos.indexOf('if (actor.role !== "admin") return NextResponse.json({ error: KAIROS_FILE_WORDS.adminOnly }, { status: 403 });');
+    const kairosRead = kairos.indexOf("await loadKairosProgramme(db, roundId, programmeId)");
+    assert.ok(kairosAdmins !== -1 && kairosRead !== -1 && kairosAdmins < kairosRead, "the Kairos file is built before the caller is asked whether they are an admin");
+    const builds = withoutComments(read("src/lib/kairos/file.ts"));
+    assert.match(builds, /if \(!sharesWithKairos\(choices\.get\(row\.uid\)\)\) \{\s*leftOut \+= 1;\s*continue;\s*\}/, "the Kairos file no longer leaves out everybody who said no");
+    assert.match(builds, /\.filter\(\(row\) => row\.left === null\);/, "the Kairos file now holds somebody who left");
+    assert.match(builds, /finished: recordOf\(row, finishing, end\)\?\.finished === true,/);
+    const kairosTable = kairosFileTable.kairosFileTable("AGI Strategy", "fellowship", [
+      { name: "Amara Okafor", came: 6, of: 6, finished: true, ratings: [{ f2: 4, f5: "strongYes" }, { f2: 5 }] },
+    ]);
+    assert.deepEqual(
+      kairosTable.header,
+      ["Name", "Programme", "Sessions attended", "Of", "Finished", "Ratings", "Engagement (1 to 5)", "Grasp (1 to 5)", "Drive (1 to 5)", "Next step"],
+      "the Kairos file's columns changed, so the policy's list of what it holds may no longer be what it holds",
+    );
+    assert.deepEqual(kairosTable.rows[0], ["Amara Okafor", "AGI Strategy", 6, 6, "Yes", 2, "4; 5", "", "", "Strong yes"]);
+    assert.ok(!kairosTable.header.some((column) => /e-?mail|address|rater|rated by|answer/i.test(column)), "the Kairos file has a column for an address, a rater or a survey answer");
+    // tests/kairos-file.test.mjs downloads it as every caller, reads the
+    // record written first on each press, and is refused when it cannot be.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "kairos-file.test.mjs")));
   });
 
   test("a pitch is shown to the group with its people's names, the form says so, and nobody's picks are shown to the group", () => {
@@ -4265,6 +4340,7 @@ describe("the course hub passage", () => {
         ["src/app/(app)/admin/(admin-only)/surveys/[surveyId]/send/page.tsx", ADMIN_PAGE],
         ["src/app/(app)/admin/(admin-only)/surveys/[surveyId]/answered/page.tsx", `${ADMIN_PAGE}; the one page that names who has answered`],
         ["src/app/(app)/admin/(admin-only)/surveys/[surveyId]/results/page.tsx", `${ADMIN_PAGE}; totals, made on the server, with no name`],
+        ["src/app/(app)/admin/(admin-only)/surveys/kairos/[roundId]/[programmeId]/page.tsx", `${ADMIN_PAGE}; the Kairos report, totals made on the server, with no name`],
         ["src/app/api/surveys/route.ts", ADMIN_ROUTE],
         ["src/app/api/surveys/[surveyId]/questions/route.ts", ADMIN_ROUTE],
         ["src/app/api/surveys/[surveyId]/test/route.ts", ADMIN_ROUTE],
@@ -4621,7 +4697,13 @@ describe("the course hub passage", () => {
     assert.match(answer, /consented \? \{ answered: true, consents: said\.consents, consentsAt: FieldValue\.serverTimestamp\(\) \} : \{ answered: true \}/);
     assert.deepEqual(surveyItems.readSurveyConsents(consent ? [consent] : [], undefined), { consents: { followUps: false }, problem: null }, "a box left unticked is no longer a no");
     // Only people who said yes are sent the follow-ups, as their row says at each press.
-    assert.match(read("src/lib/surveys/audience.ts"), /const said = \(await peopleOf\(db, consentFrom\)\)\.filter\(\(person\) => person\.consents\.followUps === true\);/);
+    // A yes on the before survey's row, or, for somebody whose row there says
+    // nothing, a yes on their row on the survey at the end, which asked them
+    // the same box: as their rows say at each press.
+    const audienceCode = withoutComments(read("src/lib/surveys/audience.ts"));
+    assert.match(audienceCode, /const rows = await peopleOf\(db, consentFrom\);\s*const said = rows\.filter\(\(person\) => person\.consents\.followUps === true\);/);
+    assert.match(audienceCode, /const spoke = new Set\(rows\.filter\(\(person\) => person\.consents\.followUps !== undefined\)\.map\(\(person\) => person\.respondent\.uid\)\);/);
+    assert.match(audienceCode, /\(await peopleOf\(db, atEnd\.id\)\)\.filter\(\(person\) => person\.consents\.followUps === true && !spoke\.has\(person\.respondent\.uid\)\)/);
     const create = withoutComments(read("src/lib/surveys/create.ts"));
     assert.match(create, /\? \{ kind: "followUps", roundId: input\.roundId, programmeId: input\.programmeId, consentFrom: before\.id \}/);
     // Changed later by the person alone, on their own row, by their link or signed in.
@@ -4633,9 +4715,126 @@ describe("the course hub passage", () => {
     for (const route of ["src/app/api/surveys/consent/route.ts", "src/app/api/surveys/[surveyId]/consent/route.ts"]) {
       assert.match(read(route), /const blocked = await assertNotImpersonating\(\);\s*if \(blocked\) return blocked;/, `${route} lets an admin viewing as somebody change what they said`);
     }
+    // "If you did not answer it there, the survey at the end asks you the
+    // same": the same box at the end, asked only of somebody whose before
+    // survey has not had their word, kept on their row there, and read by the
+    // follow-ups' audience after the before survey's.
+    const endBox = surveyTemplates.templateItems("after", "fellowship", null).find((item) => item.kind === "consent");
+    assert.deepEqual(endBox.boxes, consent.boxes, "the box at the end is not the before survey's box");
+    const asking = withoutComments(read("src/lib/surveys/consent.ts"));
+    assert.match(asking, /return saysFollowUps\(beforeRow\) \? purposes\.filter\(\(purpose\) => purpose !== "followUps"\) : purposes;/, "the survey at the end now asks somebody whose before survey has their word");
+    assert.match(answer, /if \(!asked\.includes\(purpose\)\) delete said\.consents\[purpose\];/, "a box somebody was not shown now says something for them");
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-follow-ups-at-end.test.mjs")), "tests/surveys-follow-ups-at-end.test.mjs asks the box at the end, keeps it and sends the follow-ups by it");
     // "Until your name comes off": names off deletes the rows that hold it.
     assert.match(withoutComments(read("src/lib/surveys/namesOff.ts")), /await inPages\(people\.docs, \(batch, doc\) => batch\.delete\(doc\.ref\), db\);/);
     assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-routes.test.mjs")), "tests/surveys-routes.test.mjs sends the follow-ups only to people who said yes and changes it by both doors");
+  });
+
+  test("Kairos is sent everybody's name and programme record unless they say no, on every programme survey and the profile, and saying no changes nothing else", () => {
+    // "Unless you say no": no record, or one that is not whole, reads as shared.
+    assert.equal(kairosModel.sharesWithKairos(null), true);
+    assert.equal(kairosModel.sharesWithKairos(kairosModel.normalizeKairosChoice("amara", { uid: "amara", shared: false })), false);
+    assert.match(withoutComments(read("src/lib/kairos/model.ts")), /return choice\?\.shared !== false;/);
+    // "Every programme survey ends with a box to say no": every programme
+    // survey, whatever its items, ends its last page with the choice, in
+    // words that say sharing helps.
+    assert.match(withoutComments(read("src/lib/firestore/surveys.ts")), /return survey\.audience\.kind === "programme" \|\| survey\.audience\.kind === "followUps";/);
+    const form = withoutComments(read("src/features/surveys/answer/SurveyForm.tsx"));
+    assert.match(form, /\{index === last && kairos && <KairosChoice kairos=\{kairos\} \/>\}/);
+    assert.match(form, /defaultChecked=\{kairos\.said === "no"\}/, "the box no longer starts where the person's record stands");
+    assert.equal(kairosWords.KAIROS_FORM_WORDS.why, "Sharing helps us make our case to our funders and sponsors, so leaving it on helps NAISI.");
+    assert.equal(kairosWords.KAIROS_FORM_WORDS.box, "Don’t share my details with Kairos");
+    // "and the same choice is on your profile": the page draws it for the
+    // person signed in, and its route changes their own record alone.
+    assert.match(withoutComments(read("src/app/(app)/profile/page.tsx")), /<KairosSetting shared=\{shared\} \/>/);
+    const route = withoutComments(read("src/app/api/account/kairos/route.ts"));
+    assert.match(route, /await writeKairosChoice\(db, \{ uid: actor\.uid, shared, via: "settings" \}\);/);
+    assert.match(route, /const blocked = await assertNotImpersonating\(\);\s*if \(blocked\) return blocked;/);
+    // "You can change it at any time, and the next file goes by it": the
+    // file reads every choice when it is made.
+    assert.match(withoutComments(read("src/lib/kairos/file.ts")), /kairosChoicesOf\(db, uids\),/);
+    // "Saying no stops only what goes to Kairos with your name: NAISI's
+    // admins still see your survey answers, and they still count in our
+    // totals": nothing that shows or counts answers reads the choice.
+    for (const file of ["src/lib/surveys/results.ts", "src/lib/surveys/adminView.ts", "src/lib/surveys/exportTable.ts", "src/lib/surveys/kairosReport.ts"]) {
+      assert.ok(!/kairosChoicesOf|sharesWithKairos/.test(withoutComments(read(file))), `${file} now leaves out somebody who said no to Kairos`);
+    }
+    // "We keep your choice ... until your account is deleted": the account's
+    // deletion takes it, and no job does.
+    assert.match(withoutComments(read("src/lib/firestore/accountDeletion.ts")), /summary\.kairosChoiceDeleted = await deleteKairosChoice\(db, uid\);/);
+    assert.deepEqual(sourceFilesNaming(/\bdeleteKairosChoice\(/).filter((file) => file !== "src/lib/kairos/choice.ts"), ["src/lib/firestore/accountDeletion.ts"]);
+    // "These never name anybody": the report, run with people in it, carries
+    // no uid out.
+    const report = kairosReport.buildKairosReport({
+      programmeName: "AGI Strategy",
+      kind: "fellowship",
+      applications: 2,
+      started: 2,
+      atEnd: 2,
+      finished: 1,
+      finishRule: 4,
+      lastDay: "Wed 9 Dec",
+      surveys: [],
+      rated: [{ uid: "uid-amara-okafor", ratings: [{ f5: "strongYes" }] }],
+      sharing: new Set(["uid-amara-okafor"]),
+    });
+    assert.ok(!JSON.stringify(report).includes("uid-amara-okafor"), "the report carries a person out");
+    // "For an incubator we may also pass on the links its people give us, in
+    // the survey at its end, to the work their team produced; that question
+    // says so": the report lists that one question's lines and nothing else
+    // written (other written answers are only counted), and the question
+    // tells whoever answers it.
+    const reportCode = withoutComments(read("src/lib/surveys/kairosReport.ts"));
+    assert.deepEqual(
+      [...reportCode.matchAll(/links\.push\(([^;]*)\)/g)].map((m) => m[1]),
+      ['...linesOf(answer, "q_i4_links")'],
+      "the report now lists other written answers",
+    );
+    assert.match(
+      withoutComments(read("src/lib/surveys/templates.ts")),
+      /text\("q_i4_links", "Links to what your team produced", true, \{ hint: "One on each line\. We may pass these on to our funders\." \}\)/,
+      "the links question no longer says the links may go to funders",
+    );
+    // tests/kairos-choice.test.mjs drives the form, the profile and both routes as every caller.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "kairos-choice.test.mjs")));
+  });
+
+  test("ratings at a programme's end: who rates whom, who reads them, never the person rated, and gone two years on and with an account", () => {
+    // "Nobody rates themselves, and two facilitators of one group never rate
+    // each other: a facilitator ... is rated by the programme's lead or an
+    // admin, who can also rate anybody else on the programme."
+    const group = { facilitatorUids: ["rahul", "sofia"], standingFacilitatorUids: ["rahul", "sofia"] };
+    const as = (uid, roles = {}) => ({ uid, isAdmin: false, leads: false, ...roles });
+    assert.deepEqual(ratingRules.mayRate(as("rahul"), group, "amara"), { ok: true });
+    assert.deepEqual(ratingRules.mayRate(as("rahul"), group, "rahul"), { ok: false, reason: "self" });
+    assert.deepEqual(ratingRules.mayRate(as("rahul"), group, "sofia"), { ok: false, reason: "co-facilitator" });
+    assert.deepEqual(ratingRules.mayRate(as("rahul", { isAdmin: true }), group, "sofia"), { ok: false, reason: "co-facilitator" }, "an admin who co-facilitates now rates a co-facilitator");
+    assert.deepEqual(ratingRules.mayRate(as("claudia", { leads: true }), group, "sofia"), { ok: true });
+    assert.deepEqual(ratingRules.mayRate(as("zach", { isAdmin: true }), group, "amara"), { ok: true });
+    assert.deepEqual(ratingRules.mayRate(as("amara"), group, "bea"), { ok: false, reason: "not-yours" });
+    // "Beside each rating we show how many sessions the person came to, read
+    // from the register, never typed in": a rating cannot carry it.
+    assert.deepEqual(ratingModel.parseRatingAnswers({ f1: 6 }, "fellowship"), { ok: false, problem: ratingModel.RATING_PROBLEMS.notAsked });
+    // "Ratings are read only by the programme's lead, NAISI's admins, and the
+    // person who gave each one, who sees only their own. They are never shown
+    // to the person rated, on any page or in any email."
+    assert.equal(ratingRules.readsEveryRating(as("rahul")), false);
+    const view = withoutComments(read("src/lib/ratings/view.ts"));
+    assert.match(view, /if \(fellow\.uid === actor\.uid\) continue;/, "a page now shows somebody a rating of themselves");
+    assert.match(view, /const others = reader\s*\? ratings/, "a facilitator now reads other people's ratings");
+    const reachesRatings = /(?:\bfrom\s*|\bimport\s*\(\s*)"(?:@\/(?:lib|features)\/ratings|(?:\.{1,2}\/)+(?:[\w-]+\/)*ratings)[/"]/;
+    assert.deepEqual(sourceFilesNaming(reachesRatings).filter((file) => file.startsWith("src/emails/")), [], "an email now reaches the ratings");
+    // "We delete them two years after the programme's last session, and at
+    // once if the account of whoever gave or was given one is deleted."
+    const job = withoutComments(read("src/lib/scheduler/jobs/surveyNamesOff.ts"));
+    assert.match(job, /const off = twoYearsAfter\(sheet\.lastSessionOn\);\s*return off !== null && off <= today;/);
+    assert.match(job, /const ratings = await deleteRunRatings\(db, sheet\.runId\);/);
+    assert.match(withoutComments(read("src/lib/firestore/accountDeletion.ts")), /summary\.programmeRatingsDeleted = await deleteRatingsForAccount\(db, uid\);/);
+    const store = withoutComments(read("src/lib/ratings/store.ts"));
+    assert.match(store, /\.where\("raterUid", "==", uid\)\.get\(\),\s*db\.collection\(RATINGS_COLLECTION\)\.where\("ratedUid", "==", uid\)\.get\(\),/);
+    // tests/course-ratings.test.mjs drives the route and both pages as every
+    // caller, and walks the tree for every file that reaches the ratings.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-ratings.test.mjs")));
   });
 });
 
@@ -4769,12 +4968,19 @@ describe("the re-consent gate", () => {
         /It also says that facilitators see names only, never email addresses,/,
         /They never see your email address:/,
       ],
-      // The policy says four now, with the attendance among them; the pattern
-      // this replaces said three.
+      // Sharing with Kairos by default, the ratings it carries, and the way to
+      // say no (part (b) of the impact questionnaire's build).
+      [
+        "sharing with Kairos unless you say no",
+        /And it says that, unless you say no, we share your name and your record on a programme with Kairos, one of our funders, including the ratings you were given at its end, which nobody is shown about themselves; you can say no at the end of any programme survey or on your profile, at any time\./,
+        /Unless you say no, when a programme ends we send Kairos a file with, for each person on it at the end: their name, the programme, how many sessions they came to, whether they finished, and the ratings they were given at the end.*Every programme survey ends with a box to say no, and the same choice is on <a href="\/profile">your profile<\/a>\. You can change it at any time/,
+      ],
+      // The policy says five now, with the attendance among them; the pattern
+      // this replaces said four.
       [
         "a programme's attendance is a logged download",
         /and that downloads of a programme&apos;s attendance are recorded\./,
-        /Four of those downloads are recorded, with who asked for it, what it covered, how many people were in it and when: the membership list, the answers to a circulated worksheet, a programme&apos;s attendance,/,
+        /Five of those downloads are recorded, with who asked for it, what it covered, how many people were in it and when: the membership list, the answers to a circulated worksheet, a programme&apos;s attendance,/,
       ],
     ]) {
       assert.match(paragraph, said, `the accept page no longer says v7 changed ${what}`);

@@ -229,10 +229,23 @@ describe("the survey at the end, word for word (C1 to C9 again, T1 to T3, A1 to 
       { heading: "Looking back", ids: ["q_t1", "q_t2", "q_t3"] },
       { heading: "What the programme did", ids: ["q_a1", "q_a2", "q_a3", "q_a4", "q_a5"] },
       { heading: "How it went", ids: ["q_q1", "q_q2", "q_q3"] },
-      { heading: "What’s next", ids: ["q_n1", "q_n2", "q_n3"] },
+      // The follow-ups box again, for somebody the before survey never asked
+      // (part (b) of the questionnaire's build; it asked none before).
+      { heading: "What’s next", ids: ["q_n1", "q_n2", "q_n3", "c_end"] },
     ]);
     assert.deepEqual(items.validateSurveyItems(AFTER), []);
-    assert.equal(AFTER.some((item) => item.kind === "consent"), false, "the end asks no consent");
+    assert.deepEqual(
+      AFTER.at(-1),
+      {
+        kind: "consent",
+        id: "c_end",
+        statement: "Anonymised results go to our funders: totals, never your name.",
+        boxes: [{ purpose: "followUps", label: "Contact me at 6 and 12 months with a short follow-up survey" }],
+      },
+      "the end closes with P7's follow-ups box, in P7's words",
+    );
+    assert.doesNotMatch(JSON.stringify(AFTER.at(-1)), /checked|default|given/, "the box at the end starts ticked");
+    assert.equal(AFTER.filter((item) => item.kind === "consent").length, 1, "the end asks one consent");
   });
 
   test("C1 to C8 in the same words as before; C9 since the programme started", () => {
@@ -396,7 +409,7 @@ describe("an incubator's additions (I1 to I7), each where the questionnaire puts
       { heading: "Your project", ids: ["q_i4", "q_i4_links", "q_i4_when", "q_i5", "q_i6", "q_i7"] },
       { heading: "What the programme did", ids: ["q_a1", "q_a2", "q_a3", "q_a4", "q_a5"] },
       { heading: "How it went", ids: ["q_q1", "q_q2", "q_q3"] },
-      { heading: "What’s next", ids: ["q_n1", "q_n2", "q_n3"] },
+      { heading: "What’s next", ids: ["q_n1", "q_n2", "q_n3", "c_end"] },
     ]);
     const back = question(INCUBATOR_AFTER, "q_i2_back");
     assert.deepEqual([back.title, back.lookBackOf], ["Looking back, how much would you have agreed before the incubator?", "q_i2"]);
@@ -412,7 +425,8 @@ describe("an incubator's additions (I1 to I7), each where the questionnaire puts
       "Talk at an event",
       "Nothing finished yet",
     ]);
-    assert.deepEqual([question(INCUBATOR_AFTER, "q_i4_links").title, question(INCUBATOR_AFTER, "q_i4_links").hint], ["Links to what your team produced", "One on each line."]);
+    // The hint says the links may go to funders: the Kairos report lists them, and privacy v7 says so.
+    assert.deepEqual([question(INCUBATOR_AFTER, "q_i4_links").title, question(INCUBATOR_AFTER, "q_i4_links").hint], ["Links to what your team produced", "One on each line. We may pass these on to our funders."]);
     assert.equal(question(INCUBATOR_AFTER, "q_i4_when").title, "If nothing is finished yet, when do you expect it to be?");
     assert.equal(question(INCUBATOR_AFTER, "q_i5").title, "Without the incubator, would this output exist?");
     assert.deepEqual(labels(INCUBATOR_AFTER, "q_i5"), ["Definitely", "Probably", "Possibly not", "Probably not"]);
@@ -925,8 +939,12 @@ describe("the survey's own questions: the answers a person sends", () => {
     assert.equal(items.readSurveyConsents(OWN, { kairos: true }).problem, "One of those boxes isn’t on this survey.");
     assert.equal(items.readSurveyConsents(OWN, { followUps: "yes" }).problem, "Your answers did not arrive in a shape the survey understands.");
     assert.deepEqual(items.readSurveyConsents(TEMPLATE, undefined), { consents: { followUps: false }, problem: null }, "the before survey asks about follow-ups");
-    assert.deepEqual(items.readSurveyConsents(AFTER, undefined), { consents: {}, problem: null }, "a survey with no consent block takes none");
-    assert.equal(items.readSurveyConsents(AFTER, { followUps: true }).problem, "One of those boxes isn’t on this survey.");
+    // The end asks the follow-ups box too (of the people it is shown to, which
+    // the answer route decides); a follow-up asks none.
+    assert.deepEqual(items.readSurveyConsents(AFTER, undefined), { consents: { followUps: false }, problem: null }, "the end asks about follow-ups");
+    const FOLLOW_UP = templates.templateItems("followUp6", "fellowship", null);
+    assert.deepEqual(items.readSurveyConsents(FOLLOW_UP, undefined), { consents: {}, problem: null }, "a survey with no consent block takes none");
+    assert.equal(items.readSurveyConsents(FOLLOW_UP, { followUps: true }).problem, "One of those boxes isn’t on this survey.");
     assert.deepEqual(refused({ c_consent: { type: "choice", optionId: "x" } }), ["One of those answers is to a question this survey doesn’t ask."]);
   });
 });

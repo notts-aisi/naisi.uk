@@ -183,6 +183,16 @@ export const SURVEY_LIMITS = {
   maxMinutes: 60,
 } as const;
 
+/**
+ * Whether a survey's form ends with the Kairos choice: every programme
+ * survey does (before, at the end, and the follow-ups), whatever its items,
+ * so no edit can take the way to say no off a form. A later kind of survey
+ * (one after an event) does not ask it.
+ */
+export function asksKairos(survey: Pick<SurveyDoc, "audience">): boolean {
+  return survey.audience.kind === "programme" || survey.audience.kind === "followUps";
+}
+
 /** One person's row: one per survey per person, so a second send to them is no second row. */
 export function surveyPersonId(surveyId: string, respondent: SurveyRespondent): string {
   return `${surveyId}__${respondent.uid}`;

@@ -253,6 +253,12 @@ const OLDER_PLUMBING = [
  * whole point of the list.
  */
 const ROUND_SURFACES = {
+  "/(app)/admin/(admin-only)/surveys/kairos/[roundId]/[programmeId]": {
+    kind: "form",
+    why:
+      "the Kairos report for one programme of an application form. It reaches the round only through " +
+      "loadKairosProgramme, which starts from the form's own loader and answers null for a round that is not a form",
+  },
   "/(app)/admin/admissions/[roundId]": {
     kind: "older",
     page: {
@@ -406,6 +412,13 @@ const ROUND_SURFACES = {
       "an incubator's Teams tab, for its lead and admins. It reaches the round only through " +
       "loadProgrammeTeams, which starts from the form's own loader and answers 'none' for a round " +
       "that is not a form, and the page then says there is no programme here",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/ratings": {
+    kind: "form",
+    why:
+      "one programme's Ratings, what each group's facilitators said about their fellows at the end. It reaches the " +
+      "round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round " +
+      "that is not a form",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     kind: "form",

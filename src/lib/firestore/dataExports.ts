@@ -76,7 +76,12 @@ export type DataExportKind =
   /** Every response to one worksheet circulation, answers included. */
   | "worksheet-responses"
   /** One survey's answers, with the names of the people who sent them. */
-  | "survey-answers";
+  | "survey-answers"
+  /**
+   * The Kairos file for one programme: the name, programme record and ratings
+   * of everybody on it at the end who has not said no to sharing with Kairos.
+   */
+  | "kairos";
 
 export const DATA_EXPORT_KINDS: DataExportKind[] = [
   "register",
@@ -86,6 +91,7 @@ export const DATA_EXPORT_KINDS: DataExportKind[] = [
   "attendance-summary",
   "worksheet-responses",
   "survey-answers",
+  "kairos",
 ];
 
 /** The label for a kind this build has never heard of. */
@@ -99,6 +105,7 @@ export const DATA_EXPORT_KIND_LABEL: Record<DataExportKind, string> = {
   "attendance-summary": "Attendance summary",
   "worksheet-responses": "Worksheet responses",
   "survey-answers": "Survey answers",
+  kairos: "Kairos file",
 };
 
 export function isDataExportKind(kind: unknown): kind is DataExportKind {
