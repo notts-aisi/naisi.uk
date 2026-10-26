@@ -9,7 +9,7 @@ import { normalizeCohort, type RunCohort } from "../courses/cohortLabel";
 import { normalizeTeamsFrom, type TeamsFrom } from "../courses/teams/model";
 import { WEEK_BLOCK_LIMITS } from "../courses/weekBlocks/limits";
 import { isClockTime, sanitizeWeekBlocks, type WeekBlock } from "../courses/weekBlocks/model";
-import { isCrestKey, type CrestKey } from "@/lib/crests/keys";
+import { isCrestKey, type CrestKey } from "../crests/keys";
 
 /**
  * Courses data model — `courses/{id}` → `courseRuns/{id}` (top-level) →
