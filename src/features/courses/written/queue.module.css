@@ -9,6 +9,14 @@
   min-width: 0;
 }
 
+/* "Written answers  2 to give feedback on", one line, as the board draws it. */
+.halfHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+}
+
 .halfTitle {
   margin: 0;
   font-size: var(--text-sm);

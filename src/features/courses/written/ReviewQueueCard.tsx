@@ -44,8 +44,10 @@ export default function ReviewQueueCard({
         </h2>
       </div>
       <div className={styles.half}>
-        <h3 className={styles.halfTitle}>{WRITTEN_ANSWERS}</h3>
-        <p className={styles.halfCount}>{rows.length === 0 ? NOTHING_TO_GIVE_FEEDBACK_ON : toGiveFeedbackOnWords(rows.length)}</p>
+        <div className={styles.halfHead}>
+          <h3 className={styles.halfTitle}>{WRITTEN_ANSWERS}</h3>
+          <p className={styles.halfCount}>{rows.length === 0 ? NOTHING_TO_GIVE_FEEDBACK_ON : toGiveFeedbackOnWords(rows.length)}</p>
+        </div>
         {rows.length > 0 && (
           <ul className={facilitator.reviews}>
             {rows.map((row) => (

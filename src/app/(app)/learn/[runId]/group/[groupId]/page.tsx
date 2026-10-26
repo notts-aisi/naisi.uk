@@ -450,9 +450,6 @@ export default async function GroupHomePage({
           {/* Every session the group holds is over: Home's sentence where the
               ticket was. A group with no dates yet draws nothing here. */}
           {!facts && range.lastDateKey && <NoMoreSessionsCard />}
-          {/* The review queue (wk-fac-group): its written answers half, on a
-              run whose weeks are written as blocks. */}
-          {writtenQueue && <ReviewQueueCard rows={writtenQueue} hrefFor={writtenHref} />}
           <GroupPeopleCard
             people={model.people}
             leavers={model.leavers}
@@ -468,6 +465,9 @@ export default async function GroupHomePage({
         </div>
 
         <div className={facilitator.colSide}>
+          {/* The review queue (wk-fac-group), first beside the ticket: its
+              written answers half, on a run whose weeks are written as blocks. */}
+          {writtenQueue && <ReviewQueueCard rows={writtenQueue} hrefFor={writtenHref} />}
           {/* The summer's exercises keep their own card, on a run of the
               summer's weeks or while any of them still waits. */}
           {(writtenQueue === null || model.toReview.length > 0) && (
