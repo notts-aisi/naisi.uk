@@ -1,4 +1,5 @@
 import type { CSSProperties, SVGProps } from "react";
+import type { CrestKey } from "@/lib/crests/keys";
 
 /*
   NAISI programme crests, Autumn 2026.
@@ -29,14 +30,11 @@ import type { CSSProperties, SVGProps } from "react";
      never let its colour carry a meaning by itself.
 */
 
-export const CREST_KEYS = [
-  "agi-strategy",
-  "technical-ai-safety",
-  "governance-macrostrategy",
-  "alignment",
-] as const;
-
-export type CrestKey = (typeof CREST_KEYS)[number];
+// The four keys and the check that a value is one live in a plain module, so
+// the readers of a stored crest can ask without compiling JSX. They are
+// re-exported here unchanged: this file is still where a page gets them.
+export { CREST_KEYS, isCrestKey } from "@/lib/crests/keys";
+export type { CrestKey } from "@/lib/crests/keys";
 
 /** night: white body, colour offset (the site). solid: colour body, white offset (dark grounds only).
  *  paper: navy body, colour offset (light grounds, print). white / navy: one ink, no offset. */
@@ -49,10 +47,6 @@ export const CREST_COLOURS: Record<CrestKey, string> = {
   "governance-macrostrategy": "#ff4b1f", // Marker (marker)
   alignment: "#3ddc97", // Mint (new)
 };
-
-export function isCrestKey(value: unknown): value is CrestKey {
-  return typeof value === "string" && (CREST_KEYS as readonly string[]).includes(value);
-}
 
 const NAVY = "#1b5577"; // emblem-navy
 const WHITE = "#ffffff";

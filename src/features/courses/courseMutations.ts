@@ -9,6 +9,7 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
+import type { CrestKey } from "@/lib/crests/keys";
 import { getClientAuth, getClientDb } from "@/lib/firebase/client";
 import { slugId } from "@/lib/firestore/slugId";
 import { isValidDateKey, type WeekPlanEntry } from "@/lib/courses/weekPlan";
@@ -700,6 +701,21 @@ export async function publishCourse(
     { showcaseRunId },
     "Couldn't publish this course.",
   );
+}
+
+/**
+ * Set or clear the programme crest a course carries. Admin only, and the one
+ * writer of `courses/{id}.crest`: the rules keep the field as it was on every
+ * client write that is not an admin's, so `updateCourse` never sends it.
+ */
+export async function saveCourseCrest(courseId: string, crest: CrestKey | null): Promise<void> {
+  const res = await fetch(`/api/courses/${encodeURIComponent(courseId)}/crest`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ crest }),
+  });
+  const parsed = (await res.json().catch(() => ({}))) as { error?: string };
+  if (!res.ok) throw new Error(parsed.error ?? "Couldn’t change this course’s crest.");
 }
 
 // ---- Weeks (curriculum content) ----

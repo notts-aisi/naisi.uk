@@ -60,6 +60,18 @@
   min-width: 0;
 }
 
+/* The crest's box, with what the programme shows beside it: the mark is
+   drawn at the height of My programmes' cards, and is never squeezed. */
+.crestRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.crestRow > select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* --- dates and places --------------------------------------------------- */
 
 .datesLine {

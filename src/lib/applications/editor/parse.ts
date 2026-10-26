@@ -12,6 +12,8 @@ import {
   type QuestionSetScope,
   type QuestionType,
 } from "../model";
+import type { CrestKey } from "@/lib/crests/keys";
+import { readCrestChoice } from "@/lib/crests/choice";
 import { isId } from "../normalise";
 import type { ProgrammeRolesChange } from "../roles";
 
@@ -394,6 +396,8 @@ export type ProgrammeChange = {
   closed?: boolean;
   /** The course whose public page offers this programme, or null for no course page. */
   courseId?: string | null;
+  /** Admin only. One of the four crests, or null for none. The writer refuses it from anybody else. */
+  crest?: CrestKey | null;
   /** A wording to store per email, or null to go back to the standard one. */
   emailWording?: Partial<Record<ProgrammeEmailKind, EmailWording | null>>;
 };
@@ -479,6 +483,13 @@ export function parseProgrammeChange(raw: unknown): Parsed<ProgrammeChange> {
     if (body.courseId === null || body.courseId === "") change.courseId = null;
     else if (!isId(body.courseId)) return fail(COURSE_NOT_ON_OFFER);
     else change.courseId = body.courseId;
+  }
+  if ("crest" in body) {
+    // Only the shape is decided here. Whether this caller may set it is the
+    // writer's to say, after it has decided they may change the programme.
+    const choice = readCrestChoice(body.crest);
+    if (!choice.ok) return fail(choice.error);
+    change.crest = choice.crest;
   }
   if ("emailWording" in body) {
     const given = asBody(body.emailWording);
