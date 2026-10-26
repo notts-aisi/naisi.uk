@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import ProgrammeMark from "@/components/ProgrammeMark";
 import Card from "@/components/ui/Card";
 import Chip, { type ChipTone } from "@/components/ui/Chip";
 import ProgressRing from "@/components/ui/ProgressRing";
@@ -188,8 +189,15 @@ export default function RunCard({ entry }: Props) {
       interactive={linked}
       className={[styles.card, offer ? styles.offer : ""].filter(Boolean).join(" ")}
     >
-      <h3 className={styles.title}>{entry.courseTitle}</h3>
-      {meta && <p className={styles.meta}>{meta}</p>}
+      {/* The run's crest (or the emblem in its place), decorative beside its
+          name: `shownCrest` is the route's answer from the crest resolver. */}
+      <div className={styles.head}>
+        <ProgrammeMark shown={entry.shownCrest} size={44} />
+        <div className={styles.names}>
+          <h3 className={styles.title}>{entry.courseTitle}</h3>
+          {meta && <p className={styles.meta}>{meta}</p>}
+        </div>
+      </div>
 
       {(roles.length > 0 || offer) && (
         <div className={styles.chips}>

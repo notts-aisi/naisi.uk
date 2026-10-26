@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import ProgrammeMark from "@/components/ProgrammeMark";
 import BlockView from "@/features/events/BlockView";
 import {
   COURSE_TRACK_LABELS,
@@ -26,6 +27,7 @@ import {
 import { fetchCoursePage } from "@/features/courses/fetchCoursePage";
 import type { PublicCoursePage } from "@/lib/firestore/coursePages";
 import { cohortLabel } from "@/lib/courses/cohortLabel";
+import { crestForCourse, crestForProgramme } from "@/lib/crests/resolve";
 import { linkPreviewImages } from "@/lib/linkPreviewCard";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import {
@@ -118,6 +120,11 @@ import styles from "./course.module.css";
  * line about where its curriculum comes from. Both come from
  * `fetchPublicTerm`, which decides what a visitor may be told. Nothing about
  * applying is read from it here: that stays with the two lookups below.
+ *
+ * THE CREST beside the title is the resolver's answer
+ * (`src/lib/crests/resolve.ts`): the programme's own when one of the term's
+ * programmes is tied to this course, else this course's, else the NAISI
+ * emblem. 128px, decorative: the course's name is the heading beside it.
  */
 
 // Run status, the round's window and the published-week set all change without
@@ -263,6 +270,7 @@ export default async function PublicCoursePage({
   const programme = term.programmes.find((p) => p.courseId === course.id) ?? null;
   const onTheForm = programme !== null || Boolean(speakingRound?.form);
   const fellowship = programme?.kind === "fellowship";
+  const shownCrest = programme ? crestForProgramme(programme, course) : crestForCourse(course);
   const eyebrow = programme
     ? [programmeKindWord(programme.kind), term.label].filter(Boolean).join(" · ")
     : [COURSE_TRACK_LABELS[course.track], cohort].filter(Boolean).join(" · ");
@@ -449,10 +457,15 @@ export default async function PublicCoursePage({
 
         <div className={styles.hero}>
           <header className={styles.heroMain}>
-            {eyebrow ? <p className={`meta ${shared.heroEyebrow}`}>{eyebrow}</p> : null}
-            <h1 className={`${shared.pageTitle} ${shared.pageTitleCompact}`}>
-              {course.title || "Untitled course"}
-            </h1>
+            <div className={styles.heroHead}>
+              <ProgrammeMark shown={shownCrest} size={128} />
+              <div className={styles.heroNames}>
+                {eyebrow ? <p className={`meta ${shared.heroEyebrow}`}>{eyebrow}</p> : null}
+                <h1 className={`${shared.pageTitle} ${shared.pageTitleCompact}`}>
+                  {course.title || "Untitled course"}
+                </h1>
+              </div>
+            </div>
             {lede ? <p className={shared.pageLede}>{lede}</p> : null}
             {chips.length > 0 ? (
               <ul className={shared.factChips}>

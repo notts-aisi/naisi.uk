@@ -37,6 +37,20 @@
   background: color-mix(in srgb, var(--color-bg) 55%, transparent);
 }
 
+/* The incubator's crest (or the emblem in its place) beside its name, which
+   wraps beside it rather than pushing the row wider. */
+.incubatorHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.incubatorHead > .incubatorName {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* The incubator's name. It restates its font, because a heading element's
    own size would otherwise win. */
 .incubatorName {

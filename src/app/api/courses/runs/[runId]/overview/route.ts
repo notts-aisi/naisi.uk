@@ -11,6 +11,8 @@ import {
   type WeekSource,
 } from "@/lib/courses/groupResolve";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
+import { runCrests } from "@/lib/crests/runs";
+import type { ShownCrest } from "@/lib/crests/resolve";
 import type { ProgrammeKind } from "@/lib/applications/model";
 import { finishedForMember } from "@/lib/courses/finishing/record";
 import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
@@ -455,6 +457,12 @@ export type OverviewPayload = {
    */
   programme: { name: string; kind: ProgrammeKind; leadFirstName: string | null } | null;
   /**
+   * The crest the run's page shows beside its name: `crestForRun`'s answer
+   * (the programme that names the run, else its course's), or null for the
+   * NAISI emblem. Only the key travels.
+   */
+  shownCrest: ShownCrest;
+  /**
    * Week doc ids that exist under `courseGroups/{ownGroup}/weeks` — i.e. the
    * weeks this caller must read from their group rather than from the run.
    * Always empty for a caller with no group of their own.
@@ -857,7 +865,7 @@ export async function GET(
   // somebody taking part, and only their own: `uid` is the session's.
   // Equalities on (uid, runId), the existing composite.
   const readsOwnAnswers = liveEnrolment?.role === "learner";
-  const [userDocs, weekEntries, ownRegisterDocs, programme, ownAnswerSnap, courseSnap] = await Promise.all([
+  const [userDocs, weekEntries, ownRegisterDocs, programme, ownAnswerSnap, courseSnap, shownCrests] = await Promise.all([
     facilitatorUids.length
       ? db.getAll(...facilitatorUids.map((uid) => db.collection("users").doc(uid)))
       : Promise.resolve([]),
@@ -892,6 +900,8 @@ export async function GET(
     // The run's course, for one setting only: when work set for the day
     // before a session is due (`dayBeforeDueTime`). Nothing else of it travels.
     run.courseId ? db.collection("courses").doc(run.courseId).get() : Promise.resolve(null),
+    // The crest beside the run's name. A read that fails shows the emblem.
+    runCrests(db, [{ id: run.id, courseId: run.courseId }]).catch(() => new Map<string, ShownCrest>()),
   ]);
   const dayBeforeTime =
     courseSnap?.exists ? normalizeCourse(courseSnap.id, courseSnap.data() ?? {}).dayBeforeDueTime : null;
@@ -1162,6 +1172,7 @@ export async function GET(
     programme: programme
       ? { name: programme.shortName, kind: programme.kind, leadFirstName: programme.leadFirstName }
       : null,
+    shownCrest: shownCrests.get(run.id) ?? null,
     forkedWeekIds,
     enrolment: enrolment
       ? {

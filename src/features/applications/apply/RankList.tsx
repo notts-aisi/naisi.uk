@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   DndContext,
@@ -61,6 +61,12 @@ export type RankItem = {
   name: string;
   /** A line under the name, set as metadata. Left out when there is none. */
   fact?: string;
+  /**
+   * A small picture before the name, drawn by the caller: a programme's crest
+   * on the Rank step. Decorative, because the name beside it says what the
+   * row is. Left out, nothing is drawn, as for a ranking question's options.
+   */
+  mark?: ReactNode;
 };
 
 type RowProps = {
@@ -87,6 +93,7 @@ function RowBody({
       <span aria-hidden="true" className={styles.number}>
         {position}
       </span>
+      {item.mark ? <span className={styles.mark}>{item.mark}</span> : null}
       <div className={styles.text}>
         <div className={styles.name}>
           {item.name}
