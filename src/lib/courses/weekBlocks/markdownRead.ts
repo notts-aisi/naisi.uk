@@ -552,6 +552,38 @@ function proseOf(tokens: readonly Token[], counts: InlineCounts, leftOut: string
   return out;
 }
 
+/**
+ * THE SAME READING OF TEXT, FOR A PAGE OF THE GUIDE THAT IS NOT A WEEK (a
+ * programme's Start here and Glossary, `src/lib/courses/guide/`): Markdown's
+ * own grammar through `marked`, inline text read into runs as a week's text
+ * is (bold, italics, entities, and only https or mailto links), and a run of
+ * blocks read as prose as a week's text is (paragraphs, lists, tables,
+ * code). One reader, so what a week refuses or leaves out, those pages
+ * refuse or leave out too. Each reader keeps its own count of what it left
+ * out, for the person who pasted to check.
+ */
+export type GuideTextReader = {
+  /** The Markdown's top-level blocks, read with GitHub's tables as a week's are. */
+  tokens(markdown: string): Token[];
+  /** Blocks as prose. */
+  prose(tokens: readonly Token[]): Prose;
+  /** A heading's or a table cell's inline text as one canonical line, never cut. */
+  line(tokens: readonly Token[] | undefined): Run[];
+  /** What was left out so far: HTML (one sentence each), pictures, and links that are not https or mailto. */
+  leftOut(): { html: string[]; images: number; refused: string[] };
+};
+
+export function guideTextReader(): GuideTextReader {
+  const counts: InlineCounts = { images: 0, refused: [] };
+  const html: string[] = [];
+  return {
+    tokens: (markdown) => marked.lexer(markdown, { gfm: true }),
+    prose: (tokens) => proseOf(tokens, counts, html),
+    line: (tokens) => line(tokensLine(tokens, counts)),
+    leftOut: () => ({ html: [...new Set(html)], images: counts.images, refused: [...new Set(counts.refused)] }),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // The document's sections
 // ---------------------------------------------------------------------------

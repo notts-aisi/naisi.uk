@@ -265,6 +265,29 @@ function heavyClause(why: Prose): string | null {
 }
 
 /**
+ * The guide's lines the site words differently (HANDOFF's guide edits): the
+ * written answer called "the week's one exercise", and "the Start here tab".
+ * A week's paste and a guide page's paste both ask this, in these words.
+ */
+export function guideWordsToCheck(markdown: string): string[] {
+  const lines = markdown.split(/\r?\n/);
+  // The guide's own words for its written answer, not every "exercise" (a hands-on route's "Exercises" are ARENA's).
+  const exercise = lines.filter((text) => /\b(?:one|the week[\u2019']s) exercise\b/i.test(text)).length;
+  const tab = lines.filter((text) => /\bStart here tab\b|\bunder this tab\b/i.test(text)).length;
+  const exerciseWords = `${exercise} ${exercise === 1 ? "line calls" : "lines call"} the written answer “the week’s one exercise”`;
+  const tabWords = `${tab} ${tab === 1 ? "points" : "point"} to “the Start here tab”`;
+  if (exercise > 0 && tab > 0) return [`${exerciseWords}, and ${tabWords}. Change them in the guide?`];
+  if (exercise > 0) return [`${exerciseWords}. Change ${exercise === 1 ? "it" : "them"} in the guide?`];
+  if (tab > 0) return [`${tab} ${tab === 1 ? "line points" : "lines point"} to “the Start here tab”. Change ${tab === 1 ? "it" : "them"} in the guide?`];
+  return [];
+}
+
+/** The host a link checker cannot read, if this address is on one (`LINK_CHECKER_BLOCKED_HOSTS`). */
+export function linkCheckerBlockedHost(url: string): string | null {
+  return blockedHost(url);
+}
+
+/**
  * The things to check, in the board's words and order: packs with one time
  * each, links a checker cannot read, no In the session, a heavy week with no
  * content note, and the guide's "exercise" and "Start here tab" lines. Then
@@ -297,15 +320,7 @@ export function thingsToCheck(input: {
     out.push(`“${heavy}”, says Why this week, but there’s no content note: add one with support links.`);
   }
 
-  const lines = input.markdown.split(/\r?\n/);
-  // The guide's own words for its written answer, not every "exercise" (a hands-on route's "Exercises" are ARENA's).
-  const exercise = lines.filter((text) => /\b(?:one|the week[\u2019']s) exercise\b/i.test(text)).length;
-  const tab = lines.filter((text) => /\bStart here tab\b|\bunder this tab\b/i.test(text)).length;
-  const exerciseWords = `${exercise} ${exercise === 1 ? "line calls" : "lines call"} the written answer “the week’s one exercise”`;
-  const tabWords = `${tab} ${tab === 1 ? "points" : "point"} to “the Start here tab”`;
-  if (exercise > 0 && tab > 0) out.push(`${exerciseWords}, and ${tabWords}. Change them in the guide?`);
-  else if (exercise > 0) out.push(`${exerciseWords}. Change ${exercise === 1 ? "it" : "them"} in the guide?`);
-  else if (tab > 0) out.push(`${tab} ${tab === 1 ? "line points" : "lines point"} to “the Start here tab”. Change ${tab === 1 ? "it" : "them"} in the guide?`);
+  out.push(...guideWordsToCheck(input.markdown));
 
   for (const block of blocks) {
     if (block.type !== "thisWeek") continue;

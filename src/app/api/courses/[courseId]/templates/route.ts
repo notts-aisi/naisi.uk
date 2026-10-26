@@ -21,6 +21,7 @@ import {
   type RetroProgressRow,
 } from "@/lib/firestore/courseTemplates";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { runGuideFields } from "@/lib/courses/guide/model";
 
 /**
  * `courseTemplates` for ONE course — the save half (POST) and the picker half
@@ -260,6 +261,9 @@ export async function POST(
     savedByName,
     weekCount: weeks.length,
     retrospective,
+    // The programme's Start here and Glossary travel with its weeks: the
+    // run's own, as stored (`runGuideFields`, the one copy of them).
+    ...runGuideFields(run),
   });
 
   // `create` (not `set`) throughout: a fresh random suffix per save means a
