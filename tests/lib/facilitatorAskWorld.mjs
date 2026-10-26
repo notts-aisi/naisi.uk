@@ -11,7 +11,7 @@
  *    day:
  *      omar   told "No offer this time", would facilitate AGI Strategy;
  *      wen    holds a Technical AI Safety place, said Either;
- *      nina   gave her AGI Strategy place back, would facilitate AGI Strategy;
+ *      nina   gave an AGI Strategy place back, would facilitate AGI Strategy;
  *      amara  holds an AGI Strategy place, said Either (Q21: never asked);
  *      ines   invited to AGI Strategy, not answered, would facilitate it;
  *      tariq  holds an AGI Strategy place, would facilitate Technical AI
