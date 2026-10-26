@@ -65,6 +65,7 @@ const PLACE_TESTERS = {
   "lib/applications/handover/board.ts": "the allocation board and Publish's plan: whether each person from the form still holds the place",
   "lib/courses/weekOne/door.ts": "week 1's door: whether this person holds a place on the programme that names the run",
   "lib/applications/people/model.ts": "the programme's People tab, for its lead and admins: everybody holding a place, by the same one test",
+  "lib/surveys/waiting.ts": "a survey waiting for somebody (Home, My programmes, week 1's first card): whether they still hold the place a programme's survey before it or at its end was sent for, the test its own reminder asks through placeHoldersOn",
 };
 
 /** Every page under the run that reads a holder's way in, and what it shows them. */
@@ -192,8 +193,9 @@ describe("the pages under the run that open to somebody holding a place", () => 
   test("the week page sends a holder from every other week to week 1, and draws week 1 as somebody taking part", () => {
     const page = read("app/(app)/learn/[runId]/weeks/[n]/page.tsx").replace(/\s+/g, " ");
     assert.ok(page.includes('if (!access.canLearn && access.beforeGroups) { if (n !== "1") redirect(`/learn/${encodeURIComponent(runId)}/weeks/1`);'));
-    // The holder's week 1 also hands the Start here and Glossary links, as st-week1-phone draws them for this reader.
-    assert.ok(page.includes('return <WeekView runId={runId} weekNumber={1} uid={access.user.uid} viewerRole="learner" sharedNotes={null} {...(holderGuide ? { guide: holderGuide } : {})} />;'));
+    // The holder's week 1 also hands the Start here and Glossary links, as st-week1-phone draws them for this
+    // reader, and the before survey's card while it waits for them (Q50 B: week 1's first card).
+    assert.ok(page.includes('return <WeekView runId={runId} weekNumber={1} uid={access.user.uid} viewerRole="learner" sharedNotes={null} {...(holderGuide ? { guide: holderGuide } : {})} {...(holderSurvey ? { survey: holderSurvey } : {})} />;'));
   });
 
   test("the gate asks the door only of somebody with no other way in", () => {
