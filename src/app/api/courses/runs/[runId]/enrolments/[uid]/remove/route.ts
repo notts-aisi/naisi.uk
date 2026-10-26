@@ -41,8 +41,8 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * `src/lib/courses/leaving.ts`): the form and the programme the seat's row
  * on the run's list names, and nothing once the run's last session is over,
  * when no place on the form goes back. Only a seat still on the run gives its
- * place back. Putting somebody back afterwards leaves it given back, as it
- * does for somebody who left.
+ * place back. Putting somebody back afterwards gives it to them again on the
+ * form (the allocate route), as it does for somebody who left.
  *
  * NOBODY WHO LEFT BY THEMSELVES IS REMOVED. A seat withdrawn by its owner
  * (either door: "Leave the programme" on their programme's page, or "I can’t

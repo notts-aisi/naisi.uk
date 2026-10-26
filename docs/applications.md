@@ -1629,14 +1629,15 @@ the tree for a gate that admits a track lead and not the lead.
   (`gaveTheirPlaceBack` in `src/lib/courses/placeGivenBack.ts`) of the same
   facts, so the count on Publish's button, its test and its press leave them
   out, and the board says how many. Somebody staff put back on the run
-  after they left is back: their card stops saying it, and Publish tells
-  them.
+  after they left is back: their place on the form is theirs again (the
+  allocate route gives it back to them), so their card stops saying it, and
+  Publish tells them.
 - **Once they are off the run**, by leaving or because staff took them off,
   the same read names them apart, under `left` and `takenOff` (each one's
   seat is read by id to tell which): their seat is free and the place is
   given back, so the panel says there is nothing to do ("Left the
   programme", "Taken off the programme"). Somebody put back on the run since
-  is under `gaveBack` again.
+  holds their place again and is in none of these lists.
 - **Once Publish has told them their group**, giving the place back is
   leaving the programme, the person's own act (next section): their reply
   takes them out of their group. Their row on the run's own list stays.
@@ -1713,10 +1714,25 @@ longer on AGI Strategy."), never that they told us they can't make it, with
 no link to the programme's page, which closes to them; the list of their
 applications says the same. Somebody who gave the place back themselves
 before the removal (their reply carries its reason) still reads what they
-told us. Putting them back on the run leaves the place given back, as it
-does for somebody who left. The words are on no board, and are listed for
-the boards' designers (`status/words.ts`). `tests/course-publish-follow-ups.test.mjs`
+told us. The words are on no board, and are listed for the boards'
+designers (`status/words.ts`). `tests/course-publish-follow-ups.test.mjs`
 runs it as an admin and as the programme's lead.
+
+**Putting somebody back gives the place to them again.** When an admin or the
+programme's lead places a seat that has left back on the run (the allocate
+route), the place on the form that leaving or Remove gave up is theirs again,
+in the same transaction (`readPlaceToRestore` and `restorePlaces` in
+`src/lib/applications/status/record.ts`): the application holds the place
+(`accepted`), the "I can’t make it" that gave it up, any reason given with it
+and the day it went are taken off, and the form's counters move back. So
+their page says they hold a place (and, once Publish tells them, their
+group), never "You’ve told us you can’t make it.", and every list and count
+of the programme's places says the same through `standingOf` and
+`holdsPlaceOn`, with no second rule. Only a place given back on that
+programme by "I can’t make it" is given again; anything else stays as it is
+and the seat records the put back (`putBackAt`), so the card and Publish
+follow it as before. `tests/course-hub-put-back.test.mjs` runs it as an admin
+and as the programme's lead.
 
 `tests/course-hub-leaving.test.mjs` runs the leave as every kind of caller
 and holds what it writes on both sides, and

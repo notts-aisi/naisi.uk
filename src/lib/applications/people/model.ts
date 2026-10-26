@@ -49,9 +49,11 @@ import { placesSentence } from "./words";
  *
  * The run the programme names says two things, from each person's seat on it
  * (`seats`): their group, and whether they have left it. Somebody who left
- * the run reads "Left the programme" with the day. What they said when they
- * left is read out on the programme's Overview, and not here. Which filters
- * they are under is still the form's: the run changes no count.
+ * the run by themselves reads "Left the programme" with the day, and somebody
+ * staff took off it "Taken off the programme" with the day, as the hand-over
+ * panel and their own application page say it. What they said when they left
+ * is read out on the programme's Overview, and not here. Which filters they
+ * are under is still the form's: the run changes no count.
  *
  * Pure: the loader reads, this decides. No email address, access requirement,
  * painted week or answer to a question is in what it returns.
@@ -60,10 +62,10 @@ import { placesSentence } from "./words";
 /** One of the run's live groups, as a row needs it: its name, its letter, and its weekly session if it has one. */
 export type PeopleGroup = { id: string; name: string; tag: string; session: SessionSlot | null };
 
-/** Somebody's seat on the run: the group it is in, and whether it has left the run, and when. */
+/** Somebody's seat on the run: the group it is in, and whether it has left the run, when, and by whose act. */
 export type PeopleSeat = {
   groupId: string | null;
-  left: { at: Date | null } | null;
+  left: { at: Date | null; by: "themselves" | "staff" } | null;
 };
 
 export type PeopleInput = {
@@ -149,7 +151,7 @@ export function programmePeople(input: PeopleInput): PeopleModel {
 
     let status: PersonStatus;
     if (category !== "invited" && seat?.left) {
-      status = { kind: "left", on: dayOf(seat.left.at) };
+      status = { kind: "left", on: dayOf(seat.left.at), by: seat.left.by };
     } else if (category === "holding") {
       status = { kind: "holding" };
     } else if (category === "gave-back") {

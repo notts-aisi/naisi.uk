@@ -25,8 +25,10 @@
  *     placement before Publish, as the board shows it), the reply and its
  *     day, the fit marks from the painted week against each group's own
  *     session, and where the place stands, with the reason and the day, or
- *     that somebody left the run.
- *  5. THE WORDS, the board's, with no dash and no gendered pronoun.
+ *     that somebody left the run, or was taken off it by staff.
+ *  5. THE WORDS, the board's, with no dash and no gendered pronoun; for a
+ *     seat that has left the run, the hand-over panel's and the person's own
+ *     page's words.
  *
  * Real: the page, the tabs' layout, the loaders, the model and the table,
  * rendered to HTML. Faked: see `tests/lib/peopleWorld.mjs` and
@@ -39,7 +41,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ACCESS, AGI, ANSWER, COURSE, MONDAY, ROUND, RUN, SAM_SAID, TOLD, makePeopleWorld, peopleSeed } from "./lib/peopleWorld.mjs";
+import { ACCESS, AGI, ANSWER, B, COURSE, MONDAY, ROUND, RUN, SAM_SAID, TOLD, makePeopleWorld, peopleSeed } from "./lib/peopleWorld.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
@@ -325,9 +327,12 @@ describe("3. one count", () => {
     assert.equal(removed.status, 200, JSON.stringify(removed.body));
     const after = (await open("claudia")).view;
     const amara = rowOf(after, "amara");
+    // Taken off by staff, so "Taken off the programme" (26 Oct, Zach's
+    // default): the words the hand-over panel and Amara's own page use for a
+    // removal. It said "Left the programme" for both kinds of leaving before.
     assert.deepEqual(
       [amara.category, amara.group, words.comingWords(amara.coming), words.statusWords(amara.status), amara.status.on],
-      ["gave-back", null, "No", "Left the programme", "Mon 26 Oct"],
+      ["gave-back", null, "No", "Taken off the programme", "Mon 26 Oct"],
     );
     assert.deepEqual(after.counts, {
       ...before.counts,
@@ -338,6 +343,37 @@ describe("3. one count", () => {
     // The tab's number is the hand-over's test, which agrees at once.
     assert.equal(await countPlaceHolders(world.db, await loadForm(world.db, ROUND), AGI), 5);
     assert.match((await layout("claudia")).html, /People<span class="tabCount">5<\/span>/);
+  });
+
+  test("staff putting somebody back holds their place again at once: back under holding, and every count with them", async () => {
+    world.db.seed(`courseApplications/${RUN.agi}__amara`, {
+      runId: RUN.agi,
+      courseId: COURSE.agi,
+      uid: "amara",
+      displayName: "Amara Okafor",
+      status: "accepted",
+      fromForm: { roundId: ROUND, programmeId: AGI },
+      createdAt: TOLD,
+      updatedAt: TOLD,
+    });
+    const before = (await open("claudia")).view;
+    // The programme's lead takes Amara off and puts her back in Group B, through the real routes.
+    assert.equal((await call("claudia", joinRoutes.remove.POST, { runId: RUN.agi, uid: "amara" }, { course: true })).status, 200);
+    const placed = await w.join.place("claudia", [{ uid: "amara", groupId: B }]);
+    assert.deepEqual([placed.status, placed.body.placed], [200, 1], JSON.stringify(placed.body));
+    const after = (await open("claudia")).view;
+    const amara = rowOf(after, "amara");
+    // Her place on the form is hers again, so People reads it as it reads any
+    // place held. Her "I'm coming" went with the removal, and she has not said
+    // it since, so she is under Haven't said rather than Coming.
+    assert.deepEqual(
+      [amara.category, amara.group, words.comingWords(amara.coming), words.statusWords(amara.status)],
+      ["holding", "Group B", "Not yet", "Holding a place"],
+    );
+    assert.deepEqual(after.counts, { ...before.counts, coming: before.counts.coming - 1, "havent-said": before.counts["havent-said"] + 1 });
+    assert.equal(after.sentence, before.sentence);
+    assert.equal(await countPlaceHolders(world.db, await loadForm(world.db, ROUND), AGI), 6);
+    assert.match((await layout("claudia")).html, /People<span class="tabCount">6<\/span>/);
   });
 
   test("the table draws a filter's rows by the same function, twelve at a time", () => {
@@ -398,8 +434,10 @@ describe("4. every value from records", () => {
       // An hour on Tuesday is less than any group's two-hour session.
       tariq: [words.NOT_IN_A_GROUP, "Not yet", "Fits none of the 3 times", "Holding a place", null, null],
       // Taken off the run by staff, which gave the form's place back: under
-      // Gave their place back, and the run says Callum left, and when.
-      callum: [words.NOT_IN_A_GROUP, "No", "Fits B", "Left the programme", null, "Tue 3 Nov"],
+      // Gave their place back, and the run says Callum was taken off, and
+      // when, in the words the hand-over panel and Callum's own page use
+      // (26 Oct, Zach's default; it said "Left the programme" before).
+      callum: [words.NOT_IN_A_GROUP, "No", "Fits B", "Taken off the programme", null, "Tue 3 Nov"],
       nina: [words.NOT_IN_A_GROUP, "No", "Fits B", "Gave their place back", "The times don’t work for me", "Fri 23 Oct"],
       // Left the run after Publish: the day, and not what Sam said on leaving,
       // which the programme's Overview reads out.
@@ -452,6 +490,16 @@ describe("4. every value from records", () => {
     }
     assert.match(html, /aria-label="More for Amara Okafor"/);
     assert.ok(!text.includes("Show more"), "Show more is offered with nothing more to show");
+  });
+
+  test("the table says who staff took off and who left by themselves, each in amber with the day", async () => {
+    const { html, text } = await open("claudia");
+    const chip = (words_, day) => `<span class="chip chipWarn">${words_}</span><span class="statusDay">${day}</span>`;
+    assert.ok(html.includes(chip("Taken off the programme", "Tue 3 Nov")), "Callum's removal");
+    assert.ok(html.includes(chip("Left the programme", "Mon 2 Nov")), "Sam's leaving");
+    assert.equal(html.split("Taken off the programme").length - 1, 1, "one removal is drawn once");
+    assert.match(text, /Callum Price BSc Geography · Graduating 2028 Group Not in a group Coming\? No When they’re free Fits B Status Taken off the programme Tue 3 Nov /);
+    assert.match(text, /Sam [^·]+· Graduating \d{4} Group Not in a group Coming\? No When they’re free Fits B Status Left the programme Mon 2 Nov /);
   });
 
   test("said they're coming is the one reading: to a place held on this programme, on its own day, and never a no for silence", () => {
@@ -511,6 +559,17 @@ describe("5. the words", () => {
     assert.equal(words.placesSentence(1, 1), "1 holds a place; 1 gave theirs back.");
     assert.equal(words.placesSentence(4, 0), "4 hold a place.");
     assert.equal(words.placesSentence(0, 0), "Nobody holds a place yet.");
+  });
+
+  test("a seat that has left the run reads as the hand-over panel and the person's own page read it", async () => {
+    const panelWords = await loadTs(join("features", "applications", "editor", "runHandOverWords.ts"));
+    const pageWords = await loadTs(join("lib", "applications", "status", "words.ts"));
+    const left = (by) => words.statusWords({ kind: "left", on: "Mon 2 Nov", by });
+    assert.equal(left("staff"), "Taken off the programme");
+    assert.equal(left("themselves"), "Left the programme");
+    // One set of words for each kind of leaving, wherever it is said.
+    assert.deepEqual([left("staff"), left("staff")], [panelWords.TAKEN_OFF_TITLE, pageWords.REMOVED_CHIP]);
+    assert.deepEqual([left("themselves"), left("themselves")], [panelWords.LEFT_TITLE, pageWords.LEFT_CHIP]);
   });
 
   test("the words module and the table carry no dash of either kind and no gendered pronoun", () => {

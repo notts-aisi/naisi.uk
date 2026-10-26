@@ -279,7 +279,7 @@ export type SourceFields = {
   date: string;
   /** "22 minutes", "About 35 minutes", "15 to 35 minutes", or "" (optional inside a pack). */
   time: string;
-  /** What a notebook needs to run ("free Colab", "a paid API key, about US$5"), or "". */
+  /** What a notebook needs to run ("free Colab", "a paid API key, about US$5"), or "". Always "" on any other kind. */
   compute: string;
   /** "The introduction and section B." One line, or none. */
   note: Run[];
@@ -697,7 +697,9 @@ function sourceFields(raw: Raw): SourceFields | null {
     by: oneLine(raw.by, L.sourceBy),
     date: oneLine(raw.date, L.sourceDate),
     time: oneLine(raw.time, L.sourceTime),
-    compute: oneLine(raw.compute, L.sourceCompute),
+    // Only a notebook runs, so only a notebook keeps what it needs to run, as
+    // the Markdown's reader and writer each take it for a notebook alone.
+    compute: kind === "notebook" ? oneLine(raw.compute, L.sourceCompute) : "",
     note,
   };
 }

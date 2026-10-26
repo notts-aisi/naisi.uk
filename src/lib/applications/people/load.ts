@@ -83,9 +83,10 @@ async function groupsOf(db: Firestore, runId: string): Promise<PeopleGroup[]> {
 
 /**
  * Each learner's seat on the run, by uid: its group, and whether it has left
- * the run. Every seat, told or not: the programme's lead and admins place
- * people, and see where they put them before Publish tells anybody, as the
- * allocation board shows them. Nobody else reaches this.
+ * the run, by the person's own act (`withdrawn`) or by staff's (`removed`).
+ * Every seat, told or not: the programme's lead and admins place people, and
+ * see where they put them before Publish tells anybody, as the allocation
+ * board shows them. Nobody else reaches this.
  */
 async function seatsOf(db: Firestore, runId: string): Promise<Map<string, PeopleSeat>> {
   const snap = await db.collection("courseEnrolments").where("runId", "==", runId).get();
@@ -95,7 +96,12 @@ async function seatsOf(db: Firestore, runId: string): Promise<Map<string, People
     if (seat.runId !== runId || seat.role !== "learner" || !seat.uid) continue;
     // The day somebody left the run, and nothing they said: a leaver's reason
     // is read out on the programme's Overview, its one reader.
-    seats.set(seat.uid, { groupId: seat.groupId, left: enrolmentHasLeft(seat.status) ? { at: seat.droppedOutAt } : null });
+    seats.set(seat.uid, {
+      groupId: seat.groupId,
+      left: enrolmentHasLeft(seat.status)
+        ? { at: seat.droppedOutAt, by: seat.status === "removed" ? "staff" : "themselves" }
+        : null,
+    });
   }
   return seats;
 }

@@ -307,7 +307,10 @@ function sourceLine(source: Omit<SourceFields, "note"> & { note: readonly Run[] 
   const lead = source.lead ? `${escapeMarkdownText(source.lead)} ` : "";
   const who = [source.by, source.date].filter(Boolean).map((part) => escapeMarkdownText(part)).join(", ");
   const time = source.time ? ` ${escapeMarkdownText(source.time)}.` : "";
-  const compute = source.compute ? ` ${escapeMarkdownText(source.compute)}.` : "";
+  // What a notebook needs to run, and only a notebook's: the reader takes the
+  // sentence back only for a notebook, so on any other kind it would come
+  // back as part of the note, and the week pasted back would not be the week.
+  const compute = source.kind === "notebook" && source.compute ? ` ${escapeMarkdownText(source.compute)}.` : "";
   return `${kind} ${lead}[${escapeMarkdownText(source.title)}](${destination(source.url)})${who ? `, ${who}` : ""}.${time}${compute}${note}`;
 }
 

@@ -6,9 +6,11 @@ import type { PeopleFilter, PersonComing, PersonFree, PersonStatus } from "./vie
  * The board's own words are kept exactly, apostrophes included; every name,
  * date, group and count in them is a slot the server fills from a record.
  * Words the board does not draw (an invitation's line, somebody who left the
- * run, the page before decisions go out, an empty filter) are written in the
- * same voice and listed in the build notes for the boards' designers to
- * confirm.
+ * run or was taken off it, the page before decisions go out, an empty filter)
+ * are written in the same voice and listed in the build notes for the boards'
+ * designers to confirm. Somebody staff took off the run is "Taken off the
+ * programme", in the words the hand-over panel and their own application page
+ * use; somebody who left by themselves is "Left the programme".
  *
  * No gendered pronoun, and no dash of either kind. Pure, so the server, the
  * table in the browser and the tests read the same sentences.
@@ -92,7 +94,7 @@ export function statusWords(status: PersonStatus): string {
     case "gave-back":
       return "Gave their place back";
     case "left":
-      return "Left the programme";
+      return status.by === "staff" ? "Taken off the programme" : "Left the programme";
     case "invited":
       return "Invited";
   }

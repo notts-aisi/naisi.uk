@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
+import type { ApplicationForm } from "@/lib/applications/normalise";
+import { loadForm } from "@/lib/applications/repo";
+import { readPlaceToRestore, restorePlaces, type PlaceToRestore } from "@/lib/applications/status/record";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { joinedWeekFor } from "@/lib/courses/groupResolve";
@@ -8,6 +11,7 @@ import {
   courseApplicationId,
   normalizeCourseApplication,
   rowIsServedTo,
+  type CourseApplicationDoc,
 } from "@/lib/firestore/courseApplications";
 import {
   courseEnrolmentId,
@@ -37,6 +41,18 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * (`rowIsServedTo`), so a track lead who sends that person's uid is answered
  * exactly as for somebody with no accepted application at all, and learns
  * nothing from the answer.
+ *
+ * PUTTING SOMEBODY BACK GIVES THEM THEIR PLACE ON THE FORM AGAIN. Leaving the
+ * run and Remove each give the place on the application form back, so
+ * placing a seat that has left (`withdrawn` or `removed`) back on the run
+ * gives that place to its person again, in the same transaction
+ * (`readPlaceToRestore` and `restorePlaces` in
+ * `src/lib/applications/status/record.ts`), for a row the form wrote on the
+ * run's list: their own page, the programme's lists of its people and every
+ * count of places then say they hold a place, each through the reading it
+ * already makes. Where the form has no such place to give (it was not given
+ * back on that programme, or the round is not a form any more), the seat
+ * records when it was put back instead (`putBackAt`), as it always has.
  *
  * ── WHY THERE IS NO UNIQUENESS SEARCH ───────────────────────────────────────
  * Double-placement is structurally impossible, so nothing here queries for
@@ -167,6 +183,17 @@ export async function POST(req: Request, ctx: Ctx) {
   let placed = 0;
   const rejected: Rejection[] = [];
 
+  // Each form a seat that has left may get its place back on, read once for
+  // the request and outside its transactions, as leaving and Remove read it.
+  const forms = new Map<string, Promise<ApplicationForm | null>>();
+  const formOf = (roundId: string): Promise<ApplicationForm | null> => {
+    const known = forms.get(roundId);
+    if (known) return known;
+    const loading = loadForm(db, roundId);
+    forms.set(roundId, loading);
+    return loading;
+  };
+
   for (let i = 0; i < placements.length; i += CHUNK_SIZE) {
     const chunk = placements.slice(i, i + CHUNK_SIZE);
     let outcome: { placed: number; rejected: Rejection[] };
@@ -246,6 +273,39 @@ export async function POST(req: Request, ctx: Ctx) {
           [...sourceGroupIds].forEach((id, idx) => groupById.set(id, snaps[idx]));
         }
 
+        // Each person's row on the run's list, when it is one this caller may
+        // place: accepted, and served to them. Only ACCEPTED applicants may be
+        // placed, so allocation follows admissions and never sidesteps it. (Direct
+        // enrolment without an application is a different, future path.) A row
+        // the application form put here is placed by an admin or by the lead of
+        // the programme whose hand-over wrote it, and anybody else is told what
+        // they would be told about a uid with no accepted row.
+        const servedRowByUid = new Map<string, CourseApplicationDoc>();
+        for (const { uid } of chunk) {
+          const appSnap = applicationByUid.get(uid);
+          const application = appSnap?.exists
+            ? normalizeCourseApplication(appSnap.id, appSnap.data() ?? {})
+            : null;
+          if (application && application.status === "accepted" && rowIsServedTo(application, staffing)) {
+            servedRowByUid.set(uid, application);
+          }
+        }
+
+        // Third read phase, still before any write: the place on the form each
+        // seat that has left gets back when it is put back (see the note at the
+        // top), for a served row the form wrote. Null where there is none to give.
+        const placeToRestoreByUid = new Map<string, PlaceToRestore>();
+        for (const { uid } of chunk) {
+          const row = servedRowByUid.get(uid);
+          const seatSnap = enrolmentByUid.get(uid);
+          if (!row?.fromForm || !seatSnap?.exists) continue;
+          if (!enrolmentHasLeft(normalizeCourseEnrolment(seatSnap.id, seatSnap.data() ?? {}).status)) continue;
+          const form = await formOf(row.fromForm.roundId);
+          const place = form ? await readPlaceToRestore(tx, db, form, uid, row.fromForm.programmeId) : null;
+          if (place) placeToRestoreByUid.set(uid, place);
+        }
+        const restoring: PlaceToRestore[] = [];
+
         // ── Decide, then write ────────────────────────────────────────────
         // Counter deltas accumulate per group and are written ONCE per group
         // at the end. `memberCount` counts enrolments that are BOTH active
@@ -268,21 +328,9 @@ export async function POST(req: Request, ctx: Ctx) {
         for (const placement of chunk) {
           const { uid, groupId } = placement;
 
-          // Only ACCEPTED applicants may be placed — allocation follows
-          // admissions, never sidesteps it. (Direct enrolment without an
-          // application is a different, future path.) A row the application
-          // form put here is placed by an admin or by the lead of the
-          // programme whose hand-over wrote it, and anybody else is told what
-          // they would be told about a uid with no accepted row.
-          const appSnap = applicationByUid.get(uid);
-          const application = appSnap?.exists
-            ? normalizeCourseApplication(appSnap.id, appSnap.data() ?? {})
-            : null;
-          if (
-            !application ||
-            application.status !== "accepted" ||
-            !rowIsServedTo(application, staffing)
-          ) {
+          // A row this caller may place, accepted and served to them (read
+          // above), or the answer for a uid with no accepted row.
+          if (!servedRowByUid.has(uid)) {
             chunkRejected.push({ uid, reason: "not-accepted" });
             continue;
           }
@@ -431,12 +479,21 @@ export async function POST(req: Request, ctx: Ctx) {
             patch.allocatedEmailAt = FieldValue.delete();
             patch.droppedOutAt = null;
             patch.dropOutReason = null;
-            // And when they were put back: a deliberate act on a card that
-            // says they left, so their card stops saying they gave their
-            // place back and the next Publish tells them, though their place
-            // on the application form stays given back (`putBackAt` on the
-            // enrolment's type says who reads it).
-            patch.putBackAt = FieldValue.serverTimestamp();
+            // THEIR PLACE ON THE FORM IS THEIRS AGAIN (`restorePlaces`, after
+            // this loop), so the form says they hold it and the seat keeps no
+            // record that it was put back: a later "I can’t make it" then
+            // reads as it does for anybody placed. Where the form has no place
+            // to give them, the seat records when they were put back instead,
+            // a deliberate act on a card that says they left, so their card
+            // stops saying they gave their place back and the next Publish
+            // tells them (`putBackAt` on the enrolment's type says who reads it).
+            const place = placeToRestoreByUid.get(uid);
+            if (place) {
+              restoring.push(place);
+              patch.putBackAt = FieldValue.delete();
+            } else {
+              patch.putBackAt = FieldValue.serverTimestamp();
+            }
           }
           tx.update(enrolmentRef, patch);
           if (wasCounted && enrolment.groupId) bumpDelta(enrolment.groupId, -1);
@@ -452,6 +509,9 @@ export async function POST(req: Request, ctx: Ctx) {
             updatedAt: FieldValue.serverTimestamp(),
           });
         }
+        // And each place on the form a seat put back gets again, with its
+        // form's counters, in the same transaction as the seat.
+        if (restoring.length > 0) restorePlaces(tx, restoring);
 
         return { placed: chunkPlaced, rejected: chunkRejected };
       });

@@ -134,12 +134,14 @@ export type CourseEnrolmentDoc = {
   droppedOutAt: Date | null;
   /**
    * WHEN STAFF LAST PUT THEM BACK on the run after they had left it (by
-   * themselves or by Remove): the allocate route writes it as it brings the
-   * seat back. Putting somebody back is a deliberate act on a card that says
-   * they left, so from then on they are not somebody who gave their place
-   * back (`gaveTheirPlaceBack` in `src/lib/courses/placeGivenBack.ts`), and
-   * the next Publish tells them their group, though their place on the
-   * application form stays given back. Null on a seat never put back.
+   * themselves or by Remove), where the application form had no place to
+   * give them again: the allocate route writes it as it brings the seat back.
+   * Putting somebody back is a deliberate act on a card that says they left,
+   * so from then on they are not somebody who gave their place back
+   * (`gaveTheirPlaceBack` in `src/lib/courses/placeGivenBack.ts`), and the
+   * next Publish tells them their group. Where the form's place could be
+   * given to them again it is, and the form says they hold it, so this is
+   * cleared instead. Null on a seat never put back, or put back with its place.
    */
   putBackAt: Date | null;
   /**

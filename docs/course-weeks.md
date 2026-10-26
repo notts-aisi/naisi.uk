@@ -199,6 +199,9 @@ Most questions have happened before, in some form.
   listen, Watch or read, Explore, Notebook. Words before the link are its
   lead. After the link: who, and when, then the time, then a note. A
   notebook's "Runs on ..." or "Needs ..." sentence is what it needs to run.
+  Only a notebook has one: on any other kind such a sentence is part of the
+  note, where it stays, and a copy of the week writes what a notebook needs
+  for a notebook alone, so a week copied out and pasted back is the same week.
   Every source is a link (Q36), an `https://` one; a source with no link of
   its own carries its links in its note.
 - Reflect, then one or two prompts as a list, is one reflection stop.

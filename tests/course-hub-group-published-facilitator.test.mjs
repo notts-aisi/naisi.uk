@@ -139,7 +139,13 @@ describe("after Publish a facilitator is shown the people Publish told", () => {
     assert.equal(queue.body.rows.find((row) => row.uid === "dev").responses[0].text, "dev wrote this.");
   });
 
-  test("they can mark, note and review the people in their group", async () => {
+  test("they can mark, note and review the people in their group", async (t) => {
+    // At its own moment: Mon 26 Oct 2026 at 7:30pm in London, as the Monday
+    // group's first session ends and its facilitator takes the register.
+    // Read off the real clock, this began to fail once the clock was in
+    // week 2: a placement made then joins in week 2, and week 1's register
+    // refuses a mark for somebody who had not joined.
+    t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-10-26T19:30:00Z") });
     await steps.published();
     assert.equal((await mark("claudia", GROUP.monday, "dev")).status, 200);
     assert.equal((await note("claudia", GROUP.monday, "dev")).status, 200);
@@ -200,7 +206,12 @@ describe("somebody moved into the group after Publish is shown to its facilitato
 // ---------------------------------------------------------------------------
 
 describe("an admin is shown everybody placed, before Publish and after it", () => {
-  test("the roster, the register and the queue list the group, and an admin acts on it", async () => {
+  test("the roster, the register and the queue list the group, and an admin acts on it", async (t) => {
+    // At its own moment: Mon 26 Oct 2026 at 6pm in London, as the Monday
+    // group's first session starts, before Publish has told anybody. Read off
+    // the real clock, this began to fail once the clock was in week 2, when
+    // week 1's register refuses a mark for somebody placed that week.
+    t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-10-26T18:00:00Z") });
     await steps.placed();
     const roster = await ask.roster("zach", GROUP.monday);
     assert.deepEqual([uidsOf(roster), roster.body.notYetTold], [MONDAY_PEOPLE, false]);
