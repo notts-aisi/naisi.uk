@@ -66,6 +66,8 @@ export type FacilitatorSummary = {
    * as blocks; a run of the summer's weeks answers without it.
    */
   writtenToGive?: number;
+  /** The oldest of them, for Home's Give feedback: its week and whose it is. Present only when one waits. */
+  writtenNext?: { weekNumber: number; uid: string };
   /** Null while next week's email is not on its schedule, or no email is left to go. */
   nextEmail: HomeNextEmail | null;
   /** Who left recently, by name, and the register they are off from. */
@@ -140,6 +142,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ groupId: strin
     notYetTold: model.notYetTold,
     toReview: model.toReview.length,
     ...(writtenQueue !== null ? { writtenToGive: writtenQueue.length } : {}),
+    ...(writtenQueue && writtenQueue[0] ? { writtenNext: { weekNumber: writtenQueue[0].weekNumber, uid: writtenQueue[0].uid } } : {}),
     nextEmail: line && line.state !== "missed" ? line : null,
     leftRecently: model.leftRecently.map((person) => ({
       uid: person.uid,

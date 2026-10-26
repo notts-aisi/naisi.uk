@@ -652,8 +652,10 @@ describe("4. the pages, as the boards draw them", () => {
     const summary = await w.summary("rahul");
     assert.equal(summary.body.writtenToGive, 2);
     assert.equal(summary.body.toReview, 1, "the summer's count holds the summer's answers alone");
+    assert.deepEqual(summary.body.writtenNext, { weekNumber: 2, uid: "chloe" }, "the oldest sent waits first");
     const home = await w.home("rahul");
     assert.match(home.text, /2 to give feedback on Give feedback/);
+    assert.match(home.html, /href="\/learn\/[^"]+\/group\/[^"]+\/written\?week=2&amp;person=chloe"/);
     // The lead's Attendance tab: a line per group, the facilitator's own answer counted for the lead.
     const tab = await w.attendanceTab("claudia");
     assert.match(tab.text, /Written answers .*Group B 3 to give feedback on Give feedback/);

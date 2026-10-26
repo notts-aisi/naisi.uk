@@ -353,7 +353,14 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
                   <p className={facilitator.weekRowText}>
                     {known.writtenToGive === 0 ? NOTHING_TO_GIVE_FEEDBACK_ON : toGiveFeedbackOnWords(known.writtenToGive)}
                   </p>
-                  <Link href={`${groupHref}/written`} className={styles.textLink}>
+                  <Link
+                    href={
+                      known.writtenNext
+                        ? `${groupHref}/written?week=${known.writtenNext.weekNumber}&person=${encodeURIComponent(known.writtenNext.uid)}`
+                        : `${groupHref}/written`
+                    }
+                    className={styles.textLink}
+                  >
                     {GIVE_FEEDBACK}
                     <ArrowRight />
                   </Link>
