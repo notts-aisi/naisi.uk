@@ -1,0 +1,158 @@
+/*
+ * Sealed predictions on the run editor, for an admin: who has a card, where
+ * it stands, "Open card" for each, and one opened card with both weeks'
+ * answers side by side.
+ */
+
+.line {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-soft);
+}
+
+.people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.person {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-border);
+  min-width: 0;
+}
+
+.person button {
+  min-height: 44px;
+}
+
+.name {
+  flex: 1 1 10rem;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.state {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.opened {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  min-width: 0;
+}
+
+.openedHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.openedName {
+  margin: 0;
+  font-size: var(--text-md, 1rem);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-live);
+  overflow-wrap: anywhere;
+}
+
+.questions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.question {
+  padding: 10px 0;
+  border-top: 1px solid var(--color-border);
+  min-width: 0;
+}
+
+.statement {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.number {
+  flex: none;
+  font-family: var(--font-meta);
+  font-weight: 700;
+  color: var(--color-live);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 8px 0 0;
+}
+
+.pairCell {
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.pairLabel {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.pairValue {
+  margin: 4px 0 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 48rem) {
+  .person {
+    align-items: flex-start;
+  }
+
+  .opened {
+    padding: 12px;
+  }
+}

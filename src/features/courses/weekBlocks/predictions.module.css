@@ -1,0 +1,296 @@
+/*
+ * A person's own predictions card on a week page (sealed predictions): a card
+ * on the week page's surface like the fill-in boxes' (`fillIn.module.css`),
+ * its printed heading in the meta face, the questions each with a typed box
+ * and a slider beside it, the seal or the opening, and the line that says who
+ * reads it. No board draws it; it borrows the week page's own measures.
+ */
+
+.card {
+  min-width: 0;
+  padding: 16px clamp(1rem, 1.6cqi, 1.375rem);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-sizing: border-box;
+}
+
+.title {
+  margin: 0 0 8px;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-live);
+  overflow-wrap: anywhere;
+}
+
+.lead,
+.line {
+  margin: 0;
+  font-size: var(--text-md, 1rem);
+  line-height: 1.55;
+  color: var(--color-text-body);
+}
+
+.intro {
+  margin: 10px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.saveLine,
+.quiet {
+  margin: 6px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.questions {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.question {
+  padding: 14px 0;
+  border-top: 1px solid var(--color-border);
+  min-width: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.statement {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  font-size: var(--text-md, 1rem);
+  line-height: 1.5;
+  font-weight: 500;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.number {
+  flex: none;
+  min-width: 1.1rem;
+  font-family: var(--font-meta);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--color-live);
+}
+
+/* A number: the slider for a finger, and the typed box that is the answer. */
+.numberRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.slider {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 2.75rem;
+  margin: 0;
+  accent-color: var(--color-live);
+  cursor: pointer;
+}
+
+.slider[data-unset] {
+  opacity: 0.45;
+}
+
+.numberBox {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.numberInput {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  width: 5.5rem;
+  min-height: 2.75rem;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-ui);
+}
+
+.numberInput:focus-visible,
+.sentence:focus-visible {
+  outline: none;
+  border-color: var(--color-live);
+  box-shadow: var(--focus-ring);
+}
+
+.unit {
+  font-weight: 600;
+  color: var(--color-text-body);
+}
+
+.ends {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
+.sentence {
+  display: block;
+  width: 100%;
+  min-height: 72px;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  resize: vertical;
+  field-sizing: content;
+}
+
+.answerText {
+  margin: 6px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-soft);
+  overflow-wrap: anywhere;
+}
+
+.status {
+  min-height: 18px;
+  margin: 10px 0 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.actions button {
+  min-height: 44px;
+}
+
+.confirm {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+}
+
+.confirmText {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.error {
+  margin: 10px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-danger-text);
+}
+
+/* A sealed card: the envelope's mark beside when it was sealed and when it opens. */
+.sealed {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.sealMark {
+  flex: none;
+  color: var(--color-live);
+}
+
+.sealedWords {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Both cards side by side, once opened. */
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 10px 0 0;
+}
+
+.pairCell {
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.pairLabel {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.pairValue {
+  margin: 4px 0 0;
+  font-size: var(--text-md, 1rem);
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.moved {
+  margin: 8px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--color-text-soft);
+}
+
+.readers {
+  margin: 8px 0 0;
+  font-size: 0.84375rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 48rem) {
+  .card {
+    padding-inline: 1rem;
+  }
+
+  .pair {
+    gap: 8px;
+  }
+}

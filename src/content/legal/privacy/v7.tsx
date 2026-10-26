@@ -258,6 +258,20 @@
  *     file. A walk-in's email now goes when that survey closes, or a week
  *     after the event if that comes first (`setWalkInEmailDeadlines` in
  *     `src/lib/events/checkIns.ts`).
+ * 32. **Sealed predictions** (Zach's extra (d)). A course's credence card
+ *     (`CourseDoc.predictionCard`, `src/lib/courses/predictions/`): each
+ *     answer saves as it is typed until the card is sealed; sealed, nothing
+ *     changes it, and nothing shows it to its owner until the week it opens
+ *     in has opened to their group and they open it there, after answering
+ *     the same questions again (`own.ts`, `taker.ts`, the predictions route).
+ *     Read by its owner and by admins at any time, and by nobody else, a
+ *     facilitator's co-facilitators included. Each admin opening is recorded
+ *     first, with who, whose by account id, the run and when, and the card
+ *     stays closed when it cannot be (`src/lib/firestore/recordOpenings.ts`,
+ *     the opening route); an admin cannot open their own. The card goes with
+ *     the account and with the run's destroy; the openings stay when an
+ *     account is deleted and go with the run's destroy
+ *     (`deleteCoursePredictions`, `src/lib/firestore/courseDeletion.ts`).
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
@@ -1122,6 +1136,33 @@ export default function PrivacyContentV7({
                   programme&apos;s lead and admins can still read it, and your
                   group&apos;s facilitators and you no longer can. It is
                   deleted with your account.
+                </li>
+                <li>
+                  <strong>Sealed predictions.</strong> On a programme whose
+                  course has a card of predictions, a week&apos;s page gives you
+                  that card to fill in: each question asks for a percentage, a
+                  number on a scale or a sentence, and each answer saves as you
+                  type. Once you seal your card, nobody can change it, you
+                  included, and you cannot read it again until the week it
+                  opens in has opened to your group and you open it there,
+                  after answering the same questions again. You then see both
+                  side by side, and neither changes after that. A card you
+                  never seal can no longer be changed once that week has
+                  opened, and you can still read it. Your card is read by you
+                  and by admins, who can open anybody&apos;s at any time, and
+                  by nobody else: not your group&apos;s facilitators, not the
+                  programme&apos;s lead and not other fellows. If you
+                  facilitate a group, its other facilitators do not read yours
+                  either. Each time an admin opens a card, we record who opened
+                  it, whose card it was by account id, the course run and
+                  when, before anything on the card is read, and never what it
+                  says; if that record cannot be written, the card stays
+                  closed. An admin cannot open their own card that way. If you
+                  leave the programme, you no longer see your card, and admins
+                  still can. Your card is deleted with your account, and when
+                  the programme&apos;s course run is destroyed. The records of
+                  admins opening a card stay when an account is deleted, and
+                  are deleted when the run is destroyed.
                 </li>
                 <li>
                   <strong>If you facilitate your own group.</strong> A

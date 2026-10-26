@@ -27,6 +27,8 @@ import { countCourseGuide, courseGuideRefs } from "@/lib/courses/facilitatorGuid
 import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
+import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
+import { RECORD_OPENINGS_COLLECTION } from "./recordOpenings";
 import { COURSE_UPDATES_COLLECTION } from "./courseUpdates";
 import {
   ANONYMOUS_ANSWERS_COLLECTION,
@@ -340,6 +342,21 @@ export type RunDestroyCounts = {
    * names a person, so nothing else ever deletes them.
    */
   anonymousFeedback: number;
+  /**
+   * `coursePredictions` rows: each person's sealed predictions on this run,
+   * both cards (`src/lib/firestore/coursePredictions.ts`). Keyed by `runId`
+   * on the row like every other leaf here, and it dies with the run: it is
+   * that person's own record of the run.
+   */
+  predictions: number;
+  /**
+   * `recordOpenings` rows keyed to this run: each time an admin opened
+   * somebody's sealed predictions card on it
+   * (`src/lib/firestore/recordOpenings.ts`). They die with the run because
+   * the cards they are about do, as `courseAudit`'s rows do; deleting an
+   * account takes none of them.
+   */
+  recordOpenings: number;
   /**
    * `schedulerMarkers` rows this run owns: the send-dedupe markers the
    * scheduler tick writes before it sends anything.
@@ -1105,6 +1122,8 @@ export async function countRunDestroyTargets(
     groupSharedNotes,
     packsAndCases,
     anonymousFeedbackCounts,
+    predictions,
+    recordOpenings,
     schedulerMarkerCounts,
     emailSendCounts,
     exportCounts,
@@ -1185,6 +1204,10 @@ export async function countRunDestroyTargets(
         countAgg(db.collection(collection).where("runId", "==", runId)),
       ),
     ),
+    // The same single equality the predictions stage drains on.
+    countAgg(db.collection(COURSE_PREDICTIONS_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the openings stage drains on.
+    countAgg(db.collection(RECORD_OPENINGS_COLLECTION).where("runId", "==", runId)),
     Promise.all(markerCountPromises),
     Promise.all(emailCountPromises),
     Promise.all(exportCountPromises),
@@ -1217,6 +1240,8 @@ export async function countRunDestroyTargets(
     groupSharedNotes,
     packsAndCases,
     anonymousFeedback: anonymousFeedbackCounts.reduce((a, b) => a + b, 0),
+    predictions,
+    recordOpenings,
     schedulerMarkers: schedulerMarkerCounts.reduce((a, b) => a + b, 0),
     emailSendRows: emailSendCounts.reduce((a, b) => a + b, 0),
     dataExportRows: exportCounts.reduce((a, b) => a + b, 0),
@@ -1819,6 +1844,23 @@ export async function destroyRunCascade(
             (collection) => () => drainQuery(db, collection, byRunId(collection), budget),
           ),
         ),
+    },
+    {
+      key: "predictions",
+      // Each person's sealed predictions: a leaf keyed by `runId`. `write: if
+      // false` to every client, and the one route that writes it refuses a
+      // run carrying the destroy marker, so nothing recreates one behind the
+      // cascade.
+      drain: () =>
+        drainQuery(db, COURSE_PREDICTIONS_COLLECTION, byRunId(COURSE_PREDICTIONS_COLLECTION), budget),
+    },
+    {
+      key: "recordOpenings",
+      // Each time an admin opened a card on this run, after the cards
+      // themselves: the opening route refuses a run carrying the destroy
+      // marker, so no row is added behind the cascade.
+      drain: () =>
+        drainQuery(db, RECORD_OPENINGS_COLLECTION, byRunId(RECORD_OPENINGS_COLLECTION), budget),
     },
     {
       key: "groups",
