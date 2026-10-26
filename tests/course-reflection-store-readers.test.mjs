@@ -143,6 +143,10 @@ const READERS = {
     answers: true,
     why: "a facilitator's To review card counts answers sent; reflections and fill-in boxes are left out",
   },
+  "lib/courses/facilitatorWeek/readers.ts": {
+    treats: "tells",
+    why: "a group's week for its facilitators, the programme's lead and admins: reflections only, of the people each viewer is shown, never an answer",
+  },
   "lib/courses/finishing/whoFinished.ts": {
     treats: "tells",
     answers: true,

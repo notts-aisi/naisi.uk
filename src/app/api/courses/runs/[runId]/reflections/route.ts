@@ -19,8 +19,9 @@ import { isReflectionResponse } from "@/lib/firestore/courseExercises";
  *
  * Every refusal is the same 403, decided before a single reflection is read,
  * so the answer never says whether somebody wrote anything. The group's own
- * facilitators reading their members' reflections (Q30) is the facilitator's
- * pages' to add, here, with its own test, when those pages are built.
+ * facilitators read their group's reflections (Q30) on the group's pages, on
+ * the server, through `src/lib/courses/facilitatorWeek/readers.ts` after each
+ * page's gate, and never through this route.
  *
  * What travels is the reflections, field by field: the prompt's id, the
  * words and when they were last saved. No name, no address.

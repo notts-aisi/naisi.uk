@@ -162,6 +162,17 @@
  *     leaves, the lead and admins can still read them and the group's
  *     facilitators and the person cannot. They go with the account
  *     (`src/lib/courses/fillInBoxes/access.ts`, the two fill-in routes).
+ * 23. **Reflections, ticks and private notes, and who reads them.** A
+ *     person's reflections and which sources they ticked are read, with their
+ *     name, by their group's facilitators, the programme's lead and admins; a
+ *     facilitator may read a line of a reflection out without saying who
+ *     wrote it, chosen on a page that shows the words with no name; the
+ *     private note under a reading is read by the group's facilitators and
+ *     admins, never the lead, and never read out, and is used to improve the
+ *     course. A facilitator's own reflections and ticks are the lead's and
+ *     admins' to read, never another facilitator's, and their own private
+ *     notes admins' alone (`src/lib/courses/facilitatorWeek/`, the group
+ *     page and its reflections page, and the lead's two pages).
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
@@ -873,11 +884,15 @@ export default function PrivacyContentV7({
                   whoever gave it, and never a mark. One short email tells you
                   that feedback is waiting; the feedback itself stays on the
                   site. You can also keep
-                  a private note against a piece of material: it is not shown
-                  to the rest of your run, but your facilitator and site admins
-                  can read it. We do not publish
+                  a private note against a piece of material: it is never shown
+                  to the rest of your run or read out. Your group&apos;s
+                  facilitators and admins can read it, with your name, and we
+                  use what it says to improve the course; if you facilitate the
+                  group, only admins read yours. We do not publish
                   anything you write to the rest of your group unless you
-                  choose to share it, and we will not use anything you write in
+                  choose to share it, apart from a line of a reflection your
+                  facilitators may read out without saying who wrote it (see
+                  Reflections), and we will not use anything you write in
                   a course to make decisions about you outside the programme.
                 </li>
                 <li>
@@ -925,6 +940,30 @@ export default function PrivacyContentV7({
                   does. Before you can leave the programme, or be taken off it,
                   the programme&apos;s lead or an admin takes you off the
                   group&apos;s facilitators.
+                </li>
+                <li>
+                  <strong>Reflections.</strong> At stops in a week&apos;s
+                  readings you answer set questions in boxes that save as you
+                  type. You, your group&apos;s facilitators, the
+                  programme&apos;s lead and admins can read your answers, and
+                  nobody else on the programme can; the week&apos;s page says
+                  so beside the boxes. A facilitator may read a line of one out
+                  in the session without saying who wrote it, and the page
+                  where they choose lines shows them the words with no name
+                  beside them. Reflections get no feedback and no mark. If you
+                  facilitate a group, your own reflections are read by the
+                  programme&apos;s lead and admins, not by the group&apos;s
+                  other facilitators, and nobody reads them out.
+                </li>
+                <li>
+                  <strong>Ticks.</strong> Each source in a week&apos;s readings
+                  has a tick for you. Your group&apos;s facilitators, the
+                  programme&apos;s lead and admins can see which sources you
+                  have ticked, with your name, and the week&apos;s page says
+                  so; nobody else on the programme can. A tick never counts
+                  against you. If you facilitate a group, the programme&apos;s
+                  lead and admins see yours, and the group&apos;s other
+                  facilitators do not.
                 </li>
                 <li>
                   <strong>Notes shared with your group.</strong> On a programme
@@ -1124,7 +1163,10 @@ export default function PrivacyContentV7({
                   notes its groups&apos; facilitators share, and the notes each
                   of its groups shares on its week pages, sees the pitches and
                   makes the teams on an incubator, reads the reason somebody
-                  gives for leaving, and says who finished.
+                  gives for leaving, and says who finished. The lead also reads
+                  the reflections its groups&apos; people write and sees which
+                  sources each of them has ticked, a facilitator&apos;s own
+                  among them.
                   Admins see every application but their own, with your email
                   addresses. On decision day they are the only ones who choose
                   what somebody no programme took will hear, and they send the
@@ -1135,10 +1177,15 @@ export default function PrivacyContentV7({
                 <li>
                   <strong>Facilitators</strong> (students, in most cases only a
                   year or two ahead of you) see their own groups: who is in
-                  them, by name only, attendance, written work, the participant
+                  them, by name only, attendance, written work, the reflections
+                  the group&apos;s people write and which sources each of them
+                  has ticked, the private notes they keep on what they read,
+                  the participant
                   notes their colleagues wrote about people in that group, and
                   the notes the group&apos;s facilitators share with each
-                  other. They never see your email address: they can email
+                  other. A facilitator never sees another facilitator&apos;s own
+                  reflections, ticks or private notes. They never see your
+                  email address: they can email
                   their group through the site without seeing anybody&apos;s.
                   Before the first session, they also see whether each
                   person in their group has said they are coming. Apart from

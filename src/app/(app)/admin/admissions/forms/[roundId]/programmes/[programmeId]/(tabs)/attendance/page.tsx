@@ -1,5 +1,6 @@
 import GroupNotesCard from "@/features/courses/facilitator/GroupNotesCard";
 import facilitator from "@/features/courses/facilitator/facilitator.module.css";
+import { GroupWeeksCard } from "@/features/courses/facilitatorWeek/ThisWeeksWork";
 import GroupSharedNotes from "@/features/courses/weekly/GroupSharedNotes";
 import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import NotYours from "@/features/applications/groups/NotYours";
@@ -12,6 +13,7 @@ import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
 import { leadNotesHeading, notesWhoLine } from "@/lib/courses/facilitatorPageWords";
 import { readRunGroupNotes } from "@/lib/courses/groupNotes/readers";
+import { runHasBlockWeeks, weekOfGroup } from "@/lib/courses/facilitatorWeek/readers";
 import { sharedNotesForAttendance } from "@/lib/courses/sharedNotes/readers";
 import { buildRunAttendance, readRunRecords } from "@/lib/courses/programmeAttendance";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -43,6 +45,13 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * lead and admins read them and write none; `sharedNotesForAttendance` asks
  * who the reader is before it reads, and the cards are handed only what they
  * show.
+ *
+ * EACH GROUP'S WEEK, on a run whose weeks are written as blocks: a line per
+ * group, the week it is getting ready for, and the way to the lead's view of
+ * it (`../../week`), where the lead and admins read This week's work, who
+ * ticked each source and the group's reflections, a facilitator's own among
+ * them, marked as theirs. Worked out from the run's own calendar; nothing
+ * about anybody is read for it.
  */
 export default async function ProgrammeAttendancePage({
   params,
@@ -85,6 +94,18 @@ export default async function ProgrammeAttendancePage({
   const liveGroups = records.groups.filter((group) => !group.archived);
   const writtenQueues = await loadWrittenQueues(db, user, records.run, liveGroups);
   const writtenPath = `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/written`;
+  // Each group's week, on a run whose weeks are written as blocks.
+  const now = new Date();
+  const groupWeeks =
+    records.groups.length > 0 && (await runHasBlockWeeks(db, records.run.id))
+      ? records.groups.map((group) => ({
+          id: group.id,
+          name: group.name,
+          weekNumber: weekOfGroup(records.run, group, now)?.weekNumber ?? null,
+          // A page of this site written out from ids, never from stored text.
+          href: `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/week?group=${encodeURIComponent(group.id)}`,
+        }))
+      : null;
   return (
     <>
       <ProgrammeAttendance
@@ -106,6 +127,11 @@ export default async function ProgrammeAttendancePage({
                 href: `${writtenPath}?group=${encodeURIComponent(group.id)}`,
               }))}
           />
+        </div>
+      )}
+      {groupWeeks && (
+        <div className={facilitator.leadNotes}>
+          <GroupWeeksCard groups={groupWeeks} />
         </div>
       )}
       {noted.length > 0 && (

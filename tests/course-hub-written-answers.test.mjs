@@ -658,7 +658,11 @@ describe("4. the pages, as the boards draw them", () => {
     // The summer's card stays for the summer's answers still waiting, and holds no written answer.
     const summer = group.text.slice(group.text.indexOf("To review"));
     assert.match(summer, /^To review 1 CN Chloe Nguyen · Week 1 exercise/);
-    assert.doesNotMatch(summer.slice(0, 200), /Week 2|Farah/);
+    // The card ends at its own link: on a week written as blocks This week's
+    // work, which names the whole group, follows it.
+    const summerCard = summer.slice(0, summer.indexOf("Review exercises"));
+    assert.ok(summerCard.length > 0, "the summer's card has lost its link to the review page");
+    assert.doesNotMatch(summerCard, /Week 2|Farah/);
     const summary = await w.summary("rahul");
     assert.equal(summary.body.writtenToGive, 2);
     assert.equal(summary.body.toReview, 1, "the summer's count holds the summer's answers alone");
