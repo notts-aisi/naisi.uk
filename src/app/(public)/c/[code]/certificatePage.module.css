@@ -1,0 +1,100 @@
+/*
+  A certificate's page (boards en-cert and en-cert-phone): the network
+  ground, the address over the certificate, the certificate, and its owner's
+  panel. The certificate draws itself (CertificateFace); this places it.
+
+  Plain layout, nothing animated in and nothing waiting for a script: the
+  address is printed on the certificate's PDF, so the page reads from its
+  first HTML.
+*/
+
+.hero {
+  padding: clamp(1.75rem, 3.6vw, 3.5rem) 0 clamp(3rem, 5vw, 5rem);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.column {
+  max-width: calc(760px + 2 * var(--page-gutter));
+  margin: 0 auto;
+  padding-left: max(var(--page-gutter), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--page-gutter), env(safe-area-inset-right, 0px));
+  box-sizing: border-box;
+}
+
+/* "NAISI.UK/C/…" over the certificate. The capitals are CSS. */
+.address {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 14px;
+  font-family: var(--font-meta);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.addressIcon {
+  display: block;
+  flex: none;
+}
+
+/* The one page for a link that is off and a code that opens nothing. */
+.calm {
+  max-width: calc(40rem + 2 * var(--page-gutter));
+  padding-top: clamp(1rem, 3vw, 3rem);
+  padding-bottom: clamp(1rem, 3vw, 3rem);
+}
+
+.calmEyebrow {
+  margin: 0;
+  color: var(--color-live);
+}
+
+.calmTitle {
+  margin: 0.875rem 0 0;
+  font-size: clamp(2rem, 3.6vw, 3rem);
+  font-weight: 700;
+  line-height: 1.06;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.calmBody {
+  margin: var(--space-4) 0 0;
+  max-width: 36rem;
+  font-size: var(--text-lg);
+  line-height: 1.55;
+  color: var(--color-text-soft);
+}
+
+.calmLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+  margin-top: var(--space-6);
+}
+
+.calmLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 600;
+  color: var(--color-accent-text);
+  text-decoration: none;
+}
+
+.calmLink:hover {
+  color: var(--color-accent-text-hover);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .calmBody {
+    font-size: var(--text-base);
+  }
+}

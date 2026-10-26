@@ -1,9 +1,11 @@
 import Link from "next/link";
 import InitialsChip from "@/components/ui/InitialsChip";
+import type { CertificatesSectionModel } from "@/lib/courses/certificates/send";
 import type { WhoFinishedModel } from "@/lib/courses/finishing/whoFinished";
 import { SET_THE_RULE } from "@/lib/courses/finishing/words";
 import type { OverviewAttention, OverviewModel, OverviewSession } from "@/lib/courses/programmeOverview";
 import type { OverviewUpdate } from "@/lib/courses/updates/views";
+import CertificatesSection from "./CertificatesSection";
 import OverviewMarkReady from "./OverviewMarkReady";
 import RemindButton from "./RemindButton";
 import WhoFinished from "./WhoFinished";
@@ -23,6 +25,8 @@ import styles from "./ProgrammeOverview.module.css";
  * is over, above everything else here, which stays: a register still not
  * finished, named under Needs attention, changes who came. Before then the
  * People card says when it can be done. Both from `loadWhoFinished`.
+ * CERTIFICATES follows it (`loadCertificatesSection`): who they go to, a
+ * preview, the email, its test and the send.
  */
 
 function Arrow() {
@@ -132,6 +136,7 @@ export default function ProgrammeOverview({
   programmeId,
   programmePath,
   finishing = null,
+  certificates = null,
 }: {
   model: OverviewModel;
   /** The newest updates on the run, worded on the server (`overviewUpdateRows`). */
@@ -142,12 +147,17 @@ export default function ProgrammeOverview({
   programmePath: string;
   /** Who finished, or when it can be said (`loadWhoFinished`). */
   finishing?: WhoFinishedModel | null;
+  /** The Certificates section, once the run is over (`loadCertificatesSection`). */
+  certificates?: CertificatesSectionModel | null;
 }) {
   const { week, sessions, attention, chart, people } = model;
   return (
     <div className={styles.page}>
       {finishing?.state === "open" && (
         <WhoFinished model={finishing} roundId={roundId} programmeId={programmeId} />
+      )}
+      {finishing?.state === "open" && certificates && (
+        <CertificatesSection model={certificates} roundId={roundId} programmeId={programmeId} />
       )}
       {week ? (
         <section className={styles.weekCard} aria-labelledby="overview-week">

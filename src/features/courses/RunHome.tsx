@@ -20,6 +20,8 @@ import ThisWeekCard from "./weekly/ThisWeekCard";
 import WeekList from "./weekly/WeekList";
 import YourGroup from "./weekly/YourGroup";
 import AboutThisCourse from "./AboutThisCourse";
+import CertificateCard from "./CertificateCard";
+import type { CertificateCardView } from "@/lib/courses/certificates/card";
 import type { GuideLinks } from "@/lib/courses/guide/model";
 import { useMaterialTicks } from "./weekly/useMaterialTicks";
 import { weekRowsOf } from "./weekly/weekRows";
@@ -116,6 +118,12 @@ type Props = {
    * when it has neither.
    */
   guide?: GuideLinks | null;
+  /**
+   * The caller's own certificates on this run, from the server page
+   * (`readOwnCertificates`): "Your certificate" (en-after-phone) under the
+   * head. Empty for anybody sent none, and drawn nothing.
+   */
+  certificates?: CertificateCardView[];
 };
 
 // ---------------------------------------------------------------------------
@@ -320,6 +328,7 @@ export default function RunHome({
   leaveNote = null,
   guide = null,
   uid = null,
+  certificates = [],
 }: Props) {
   const { data, error, reload } = useRunOverview(runId);
   const [tickFailed, setTickFailed] = useState(false);
@@ -560,6 +569,7 @@ export default function RunHome({
 
       <div className={weekly.columns}>
         <div className={weekly.colMain}>
+          <CertificateCard certificates={certificates} />
           {ticket}
           {weekCard}
           {!beforeStart && weekList}

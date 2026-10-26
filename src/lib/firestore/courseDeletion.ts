@@ -16,6 +16,7 @@ import {
 } from "./courses";
 import { PITCHES_COLLECTION } from "@/lib/courses/pitching/model";
 import { FACILITATING_COLLECTION } from "@/lib/courses/facilitatorAsks/model";
+import { CERTIFICATES_COLLECTION } from "@/lib/courses/certificates/model";
 import { FINISHING_COLLECTION } from "@/lib/courses/finishing/model";
 import { RATINGS_COLLECTION } from "@/lib/ratings/model";
 import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
@@ -210,6 +211,20 @@ export type RunDestroyCounts = {
    * run this cascade deletes.
    */
   ratings: number;
+  /**
+   * `courseCertificates` rows for this run whose link is OFF
+   * (`src/lib/courses/certificates/`): nobody but each owner could open them,
+   * and they die with the run, as a certificate whose link is off dies with
+   * its owner's account.
+   */
+  certificates: number;
+  /**
+   * `courseCertificates` rows for this run whose link is ON: NOT deleted. The
+   * privacy policy keeps a certificate whose link is on for the people its
+   * owner gave the link to, so each loses its run (`runId` cleared) and its
+   * page goes on showing what it was issued with.
+   */
+  certificatesKept: number;
   mirroredTasks: number;
   /**
    * `tasks` carrying `source: "course-register"` and pointing at this run: the
@@ -555,6 +570,65 @@ async function drainInOrder(drains: Array<() => Promise<DrainResult>>): Promise<
     if (!part.drained) return { deleted, drained: false };
   }
   return { deleted, drained: true };
+}
+
+/**
+ * The run's certificates, by whether their link is on: the manifest's two
+ * counters. One equality on `runId`; the link is read in memory.
+ */
+async function countCertificates(db: Firestore, runId: string): Promise<{ off: number; on: number }> {
+  const snap = await db.collection(CERTIFICATES_COLLECTION).where("runId", "==", runId).select("linkOn").get();
+  let on = 0;
+  for (const doc of snap.docs) if ((doc.data() ?? {}).linkOn === true) on += 1;
+  return { off: snap.docs.length - on, on };
+}
+
+/**
+ * THE CERTIFICATES STAGE, the privacy policy's rule for them on a run that is
+ * destroyed. A page at a time of the run's certificates: one whose link is
+ * off is deleted (counted as this stage's), one whose link is on keeps
+ * everything it shows and loses its run (`runId` cleared, counted under
+ * `certificatesKept`). Either way it leaves the query, so every page is new.
+ */
+async function drainCertificates(
+  db: Firestore,
+  runId: string,
+  budget: Budget,
+  extraTotals: Record<string, number>,
+): Promise<DrainResult> {
+  let deleted = 0;
+  let prevFirstId: string | null = null;
+  while (budget.remaining > 0) {
+    const limit = Math.min(DESTROY_PAGE_SIZE, budget.remaining);
+    const snap = await db.collection(CERTIFICATES_COLLECTION).where("runId", "==", runId).limit(limit).get();
+    if (snap.empty) return { deleted, drained: true };
+
+    const firstId = snap.docs[0].id;
+    if (firstId === prevFirstId) {
+      throw new Error(
+        "courseDeletion: certificate page did not shrink after a committed write, aborting rather than looping",
+      );
+    }
+    prevFirstId = firstId;
+
+    const batch = db.batch();
+    let kept = 0;
+    for (const d of snap.docs) {
+      if ((d.data() ?? {}).linkOn === true) {
+        kept += 1;
+        batch.update(d.ref, { runId: null, runGoneAt: FieldValue.serverTimestamp() });
+      } else {
+        batch.delete(d.ref);
+      }
+    }
+    await batch.commit();
+    deleted += snap.size - kept;
+    extraTotals.certificatesKept = (extraTotals.certificatesKept ?? 0) + kept;
+    budget.remaining -= snap.size;
+
+    if (snap.size < limit) return { deleted, drained: true };
+  }
+  return { deleted, drained: false };
 }
 
 /** Firestore's ceiling on the value list of an `in` filter. */
@@ -1010,6 +1084,7 @@ export async function countRunDestroyTargets(
     finishing,
     facilitating,
     ratings,
+    certificateCounts,
     mirroredTasks,
     registerTasks,
     subscriptionRows,
@@ -1047,6 +1122,9 @@ export async function countRunDestroyTargets(
     countAgg(db.collection(FACILITATING_COLLECTION).where("runId", "==", runId)),
     // The same single equality the ratings stage drains on.
     countAgg(db.collection(RATINGS_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the certificates stage pages on, split by the
+    // link in memory: a run has at most a few hundred.
+    countCertificates(db, runId),
     // Both halves of the mirror predicate, exactly as drainSourcedTasks
     // deletes them: a manifest that counted on the pointer alone would
     // promise to destroy rows the cascade (rightly) leaves alone.
@@ -1114,6 +1192,8 @@ export async function countRunDestroyTargets(
     finishing,
     facilitating,
     ratings,
+    certificates: certificateCounts.off,
+    certificatesKept: certificateCounts.on,
     mirroredTasks,
     registerTasks,
     subscriptionRows,
@@ -1576,6 +1656,14 @@ export async function destroyRunCascade(
       // records (and so finds nothing once it is being destroyed). Drained
       // before the enrolments the ratings are about.
       drain: () => drainQuery(db, RATINGS_COLLECTION, byRunId(RATINGS_COLLECTION), budget),
+    },
+    {
+      key: "certificates",
+      // Certificates for the run: one whose link is off is deleted, one whose
+      // link is on loses its run and stays (see drainCertificates). Written
+      // only by the certificate send, which reads the run and so finds nothing
+      // once it is being destroyed.
+      drain: () => drainCertificates(db, runId, budget, totals),
     },
     {
       key: "enrolments",

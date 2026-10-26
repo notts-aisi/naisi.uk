@@ -164,6 +164,18 @@ export function youFinished(name: string): string {
   return `You finished ${name}.`;
 }
 
+/**
+ * The first sentence of the certificate email for somebody whose record says
+ * they finished (`emailWords` in src/lib/courses/certificates/words.ts), with
+ * their facilitator's certificate beside it when they facilitated a group
+ * too. Only the people the record says finished are sent it.
+ */
+export function finishedCertificateLead(programme: string, alsoFacilitated: boolean): string {
+  return alsoFacilitated
+    ? `You finished the ${programme} and facilitated a group on it, so you have two certificates, and both are ready.`
+    : `You finished the ${programme}, and your certificate is ready.`;
+}
+
 /** The run home's heading for everybody else: the programme has ended, and nothing more. */
 export function hasEnded(name: string): string {
   return `${name} has ended.`;

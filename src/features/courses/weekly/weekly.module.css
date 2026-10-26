@@ -2031,6 +2031,100 @@ a.weekItem:focus-visible {
 }
 
 /* === Mobile === */
+/* === Your certificate (board en-after-phone): the certificate made smaller,
+   its day and who can see it, then the way to its page and to LinkedIn. === */
+
+.certRow {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.certRow + .certRow {
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+
+.certTop {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.certThumb {
+  display: block;
+  flex: none;
+  width: 132px;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.certThumbZoom {
+  display: block;
+  width: 760px;
+  zoom: 0.1737;
+}
+
+.certText {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.certIssued {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.certSee {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: var(--radius-md);
+  box-sizing: border-box;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: var(--text-ui);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.certSee:hover {
+  background: var(--color-accent-hover);
+}
+
+.certSee:focus-visible,
+.certLinkedIn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.certLinkedIn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  align-self: center;
+  min-height: 44px;
+  color: var(--color-accent-text);
+  font-size: var(--text-ui);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.certLinkedIn:hover {
+  color: var(--color-accent-text-hover);
+}
+
 @media (max-width: 48rem) {
   .card {
     padding-inline: var(--space-4);

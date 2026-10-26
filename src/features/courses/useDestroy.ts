@@ -260,6 +260,16 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "What each group's facilitators, the programme's lead and admins said about each person once the last session was over.",
   },
+  certificates: {
+    label: "Certificates whose link is off",
+    fate: "destroyed",
+    note: "Certificates sent to the people who finished and to facilitators, which nobody but each owner could open. They go with the run.",
+  },
+  certificatesKept: {
+    label: "Certificates whose link is on",
+    fate: "orphaned",
+    note: "KEPT. Their owners turned their links on, so they stay for the people given the link, as the privacy policy says. Each still shows what it was issued with, and loses its link back to this run.",
+  },
   mirroredTasks: {
     label: "Mirrored My Work tasks",
     fate: "destroyed",
