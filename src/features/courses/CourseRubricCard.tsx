@@ -81,7 +81,7 @@ export default function CourseRubricCard({ courseId, stored }: { courseId: strin
         <div className={styles.sectionHead}>
           <h2 className={styles.sectionTitle}>Rubric for written answers</h2>
           <p className={styles.sectionHint}>
-            Facilitators give each written answer a level on each row, and a short comment. Never a mark.
+            Feedback on a written answer is a level on each row and a short comment. Never a mark.
           </p>
         </div>
 

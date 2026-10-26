@@ -129,6 +129,9 @@ export default async function FeedbackPage({ params }: { params: Promise<{ runId
     <div className={styles.feedbackPage}>
       {bar}
       <Link href={weekHref} className={styles.crumb}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M15 6l-6 6 6 6" />
+        </svg>
         Week {weekNumber}
       </Link>
       <div>
