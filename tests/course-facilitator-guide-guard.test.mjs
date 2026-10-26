@@ -350,7 +350,11 @@ describe("3. no week ever carries facilitator material", () => {
     assert.match(paste, /const material = facilitatorMaterialIn\(input\.markdown\);\s*if \(material\) problems\.unshift\(material\);/);
     const route = FILES.get("app/api/courses/runs/[runId]/weeks/[weekId]/blocks/route.ts").code;
     assert.match(route, /if \(read\.problems\.length > 0\) return badRequest\(read\.problems\[0\], answer\);/);
-    assert.ok(route.indexOf("read.problems.length > 0") < route.indexOf(".update({"), "the week loader writes before it refuses");
+    // Every write the route makes (the save onto a week's page, and the first save that makes the page) comes after the refusal.
+    const refusal = route.indexOf("read.problems.length > 0");
+    const writes = [...route.matchAll(/\.(?:update|create|set)\(/g)].map((match) => match.index);
+    assert.ok(refusal > 0 && writes.length >= 2, "the scan no longer sees the week loader's refusal and its writes");
+    for (const at of writes) assert.ok(refusal < at, "the week loader writes before it refuses");
   });
 });
 
