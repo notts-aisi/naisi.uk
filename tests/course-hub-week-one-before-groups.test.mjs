@@ -39,6 +39,8 @@
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { walkSource } from "./lib/functionScan.mjs";
@@ -46,7 +48,7 @@ import { FIELD_VALUE_STUB } from "./lib/applicationsStore.mjs";
 import { GROUP, RUN, groupSeed, makeGroupWorld } from "./lib/groupPublishedWorld.mjs";
 import { applicationPath } from "./lib/handoverWorld.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
-import { weekOneBlocks } from "./lib/weekBlocksPageWorld.mjs";
+import { makeWeekBlocksPageWorld, weekOneBlocks } from "./lib/weekBlocksPageWorld.mjs";
 
 /** Sat 24 Oct 2026, 1pm in London: decisions are out, and nobody has met. */
 const NOW = new Date("2026-10-24T12:00:00Z");
@@ -542,5 +544,51 @@ describe("6. the pages under the run", () => {
     const { week } = await loaded();
     const two = await open("amara", week, { n: "2" });
     assert.equal(two.to, null, "a told member reaches week 2's page, which says when it opens");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. The week page, as a holder reads it
+// ---------------------------------------------------------------------------
+
+describe("7. week 1's page, drawn for somebody holding a place before groups go out", async () => {
+  // The page's own world: every browser hook stood in, handing the page what
+  // the server answered this holder in the world above.
+  const page = await makeWeekBlocksPageWorld("__weekOneBeforeGroupsPage");
+  const { normalizeCourseWeek } = await loadTs(join("lib", "firestore", "courses.ts"));
+
+  async function drawWeekOne({ ticked = [] } = {}) {
+    const answer = await overview("amara");
+    assert.equal(answer.status, 200);
+    page.ui.overview = answer.body;
+    page.ui.weekDocs = { w01: normalizeCourseWeek("w01", world.db.read(W01)) };
+    page.ui.ownRows = new Map();
+    page.ui.ownRowsLoaded = true;
+    page.ui.progress = new Map(ticked.map((id) => [id, { id, itemId: id, itemKind: "material", completed: true, weekNumber: 1 }]));
+    const html = renderToStaticMarkup(
+      createElement(page.components.WeekView, { runId: RUN.agi, weekNumber: 1, uid: "amara", viewerRole: "learner", sharedNotes: null }),
+    );
+    return { html, text: html.replace(/<[^>]+>/g, " ").replace(/&#x27;/g, "'").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim() };
+  }
+
+  test("the line, the count, ticks and boxes that take writing, and the way back to My programmes", async () => {
+    const { html, text } = await drawWeekOne();
+    assert.match(text, /Week 1 is open now\. You’ll hear your group and when it meets on Wed 28 Oct\./);
+    assert.match(text, /0 of 1 done/);
+    const boxes = [...html.matchAll(/<input[^>]*type="checkbox"[^>]*>/g)].map((match) => match[0]);
+    assert.ok(boxes.length >= 2, "the sources have no ticks");
+    for (const box of boxes) assert.doesNotMatch(box, /disabled/, "a tick does not take writing");
+    const areas = [...html.matchAll(/<textarea[^>]*>/g)].map((match) => match[0]);
+    assert.ok(areas.length >= 6, "the reflection boxes are not drawn");
+    for (const area of areas) assert.doesNotMatch(area, /readOnly|readonly/, "a box does not take writing");
+    assert.ok(html.includes('href="/learn"'), "no way back to My programmes");
+    assert.ok(!html.includes(`href="/learn/${RUN.agi}"`), "a way to the run's home, which is not theirs yet");
+    assert.ok(!text.includes("See your progress week by week"));
+    assert.match(text, /Before your first session, if you can/);
+  });
+
+  test("a ticked source opens no rating or note: nobody it names reads one yet", async () => {
+    const { text } = await drawWeekOne({ ticked: ["k1-s1"] });
+    assert.ok(!text.includes("Rate it or leave a note"));
   });
 });

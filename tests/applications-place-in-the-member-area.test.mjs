@@ -1084,6 +1084,15 @@ describe("7. what Home and My programmes may show for a place the person holds",
     assert.ok(!nina.homeText.includes("on its way") && !nina.learnText.includes("on its way"), "gave the place back");
   });
 
+  test("an incubator's place has no card: its people are told of no group", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: BEFORE_GROUPS });
+    runsAre([]);
+    heldTerm().poke(`admissionRounds/${ROUND}`, { [`programmes.${AGI}.kind`]: "incubator" });
+    as("amara");
+    const pages = await drawn();
+    assert.ok(!pages.homeText.includes("on its way") && !pages.learnText.includes("on its way"));
+  });
+
   test("never No offer this time, and nothing for no offer, an invitation not answered, or another programme's place", async (t) => {
     t.mock.timers.enable({ apis: ["Date"], now: BEFORE_GROUPS });
     runsAre([]);
