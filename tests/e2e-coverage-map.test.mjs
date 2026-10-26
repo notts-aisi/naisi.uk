@@ -1063,6 +1063,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
+  "/api/courses/runs/[runId]/packs-and-cases/[blockId]": {
+    reason:
+      "Course hub: a person's own pick in a Choose one and their Ready for my talk (wk-week, wk-week6-phone); who writes, who is refused, the pick's lock at the session and the ready box's wait for a case are executed by tests/course-hub-packs-and-cases.test.mjs; pressed in a browser on the preview kit.",
+    coverWhen:
+      "When a browser spec signs in a member of a group Publish has told, picks a pack on a week page, marks a talk ready, reloads and reads both back.",
+  },
   "/api/courses/runs/[runId]/reflections": {
     reason:
       "Course hub: one person's reflections, read by the programme's lead and admins (Q30; a facilitator's own reflections too); every caller is executed by tests/course-hub-week-blocks-page.test.mjs. No page reads it yet: the facilitator's and the lead's pages that will are later pieces.",
@@ -1783,6 +1789,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed a run Publish has told, with a group's facilitator signed in.",
   },
+  "/api/courses/groups/[groupId]/draw": {
+    reason:
+      "Course hub: the draw typed into the group page (Q32 A, wk-cases): who may type it, the case lists, the content note kept out, swaps and what a save clears are executed by tests/course-hub-packs-and-cases.test.mjs as every kind of caller; typed in a browser on the preview kit at 390 and 1440.",
+    coverWhen:
+      "When a browser spec signs in a group's facilitator after a session, copies the slips in on the draw page and a member of the group reads their case on their week page.",
+  },
   "/api/courses/groups/[groupId]/notes": {
     reason:
       "Course hub: the notes a group's facilitators share (C30); who writes, who is refused, what a note keeps and what takes it away are executed by tests/course-hub-group-notes.test.mjs, and the page that reads them by tests/course-hub-facilitator-pages.test.mjs; written in a browser on the preview kit at 1440.",
@@ -1838,6 +1850,12 @@ const NOT_COVERED = {
     coverWhen:
       "When a browser spec signs in as a group's facilitator, opens a sent answer, gives feedback by the rubric, " +
         "and the member reads it on the feedback page.",
+  },
+  "/(app)/learn/draw/[groupId]": {
+    reason:
+      "Course hub: the draw's page (wk-cases, option A), drawn as each kind of caller and with its lists held word for word by tests/course-hub-packs-and-cases.test.mjs; photographed on the preview kit at 390 and 1440.",
+    coverWhen:
+      "When the browser spec that copies the slips in drives the page.",
   },
   "/(app)/newsletter": {
     reason:

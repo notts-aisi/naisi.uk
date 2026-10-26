@@ -404,6 +404,16 @@ const RAW_SITES = {
       "appointment, caught because worksheets name their author the same way. The roster floor is " +
       "applied above it, so an account that has lost its standing deletes nothing.",
   },
+  "src/app/api/courses/runs/[runId]/overview/route.ts": {
+    role: "not-a-gate",
+    matches: { facilitatorUids: 1 },
+    provedBy: ['isNamedWithStanding(actor, "courseGroups.facilitatorUids", g.facilitatorUids),'],
+    why:
+      "Leaves the caller out of who they are told to ask to swap a pack or a case (`askToSwap`), so a " +
+      "facilitator who takes part in the group is never told to ask themselves. It names, never " +
+      "admits: the route's gate is above it, and who facilitates there is held to the bar with " +
+      "`isNamedWithStanding`.",
+  },
   "src/app/api/tasks/[id]/send-for-review/route.ts": {
     role: "not-a-gate",
     matches: { reviewerUids: 1 },
