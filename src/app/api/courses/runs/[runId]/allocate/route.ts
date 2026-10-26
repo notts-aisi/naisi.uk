@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import type { ApplicationForm } from "@/lib/applications/normalise";
 import { loadForm } from "@/lib/applications/repo";
-import { readPlaceToRestore, restorePlaces, type PlaceToRestore } from "@/lib/applications/status/record";
+import { readPlaceToRestore, restorePlaces, type PlaceToRestore } from "@/lib/applications/status/restore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { joinedWeekFor } from "@/lib/courses/groupResolve";
@@ -47,7 +47,7 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * placing a seat that has left (`withdrawn` or `removed`) back on the run
  * gives that place to its person again, in the same transaction
  * (`readPlaceToRestore` and `restorePlaces` in
- * `src/lib/applications/status/record.ts`), for a row the form wrote on the
+ * `src/lib/applications/status/restore.ts`), for a row the form wrote on the
  * run's list: their own page, the programme's lists of its people and every
  * count of places then say they hold a place, each through the reading it
  * already makes. Where the form has no such place to give (it was not given
