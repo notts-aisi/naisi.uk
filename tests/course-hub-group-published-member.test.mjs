@@ -113,6 +113,10 @@ describe("placed by an admin and not yet published: everything reads as it did b
 
   test("and what they read then is nothing: no run, a shut run, refusals and no row", async () => {
     await steps.placed();
+    // Week 1 is not marked ready in this world. Once it is, week 1's door
+    // (Q35 B) opens week 1 alone to somebody holding a place: held, as
+    // strictly as this, in tests/course-hub-week-one-before-groups.test.mjs.
+    assert.notEqual(world.db.read(`courseRuns/${RUN.agi}/weeks/w01`).ready, true);
     const read = await everythingTheyRead("amara", GROUP.thursday);
     assert.deepEqual(read.hub, []);
     assert.deepEqual(read.access, { canLearn: false, isEnrolled: false, isFacilitator: false, enrolment: null });

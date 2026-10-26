@@ -6,6 +6,7 @@ import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
+import { weekOneDoorFor } from "@/lib/courses/weekOne/door";
 import { weekReflectionPrompts } from "@/lib/courses/weekBlocks/reader";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import {
@@ -43,7 +44,10 @@ import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exerci
  *  - a facilitator of a live group of this run, as themselves (Zach, Mon 26
  *    Oct: a group's facilitators take part in the course too). Their own
  *    reflections are read by the programme's lead and admins only, never by
- *    their co-facilitators or the group (`../route.ts`, the one reader).
+ *    their co-facilitators or the group (`../route.ts`, the one reader);
+ *  - somebody holding a place whom Publish has not told yet, in WEEK 1's
+ *    boxes only, once week 1's door is open to them (Q35 B: `weekOneDoorFor`,
+ *    the one answer). Their week is the run's own: they have no group yet.
  * Nobody writes on anybody else's behalf: not the lead, not an admin.
  *
  * WHICH BOX. The prompt must be one of the reflection prompts of the week as
@@ -145,7 +149,12 @@ export async function PUT(
   // Archived groups staff nobody, as everywhere else.
   const liveGroups = groupSnap.docs.map((d) => normalizeCourseGroup(d.id, d.data() ?? {})).filter((g) => !g.archived);
   const facilitates = liveGroups.filter((g) => isNamedWithStanding(actor, "courseGroups.facilitatorUids", g.facilitatorUids));
-  if (!takesPart && facilitates.length === 0) {
+  // Week 1 before groups go out (Q35 B): somebody holding a place whom
+  // Publish has not told writes in week 1's boxes once week 1's door is open
+  // to them (`weekOneDoorFor`, the one answer), and in no other week's.
+  const beforeGroups =
+    !takesPart && facilitates.length === 0 && weekNumber === 1 && (await weekOneDoorFor(db, actor, runId)).open;
+  if (!takesPart && facilitates.length === 0 && !beforeGroups) {
     return NextResponse.json(
       { error: "Only somebody taking part in this programme can write in its reflection boxes." },
       { status: 403 },

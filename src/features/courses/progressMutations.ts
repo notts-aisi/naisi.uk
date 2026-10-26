@@ -187,3 +187,27 @@ export async function saveProgressReflection(
     privateNote: args.privateNote,
   });
 }
+
+/**
+ * Tick an item of week 1 off, or untick it, BEFORE GROUPS GO OUT (Q35 B):
+ * somebody holding a place whom Publish has not told yet has no seat the
+ * rules above can see, so their tick goes through week 1's door
+ * (`PUT /api/courses/runs/[runId]/week-one/ticks/[itemId]`), which asks the
+ * one answer and writes the same row this module would. The row comes back
+ * through the same live listener. Rejects with the route's own sentence when
+ * it refuses.
+ */
+export async function tickWeekOneBeforeGroups(args: { runId: string; itemId: string; next: boolean }): Promise<void> {
+  const res = await fetch(
+    `/api/courses/runs/${encodeURIComponent(args.runId)}/week-one/ticks/${encodeURIComponent(args.itemId)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ completed: args.next }),
+    },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error ?? "That tick didn’t save.");
+  }
+}

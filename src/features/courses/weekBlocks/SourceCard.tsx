@@ -58,6 +58,8 @@ type Props = {
   ticksLine: string | null;
   /** Who reads the private note: the reader's facilitators and admins, or for a facilitator's own, admins. */
   privateNoteHint: string;
+  /** A ticked reading opens "Rate it or leave a note". Off before groups go out (Q35 B). */
+  canRate?: boolean;
 };
 
 function Check() {
@@ -115,6 +117,7 @@ export default function SourceCard({
   onTick,
   ticksLine,
   privateNoteHint,
+  canRate = true,
 }: Props) {
   return (
     <div className={styles.sources}>
@@ -154,7 +157,7 @@ export default function SourceCard({
                 )}
                 {/* What a notebook needs to run, as the guide writes it ("Runs on a free notebook service"). */}
                 {source.compute.trim() && <p className={styles.sourceNote}>{source.compute.trim()}</p>}
-                {showTicks && canWrite && done && (
+                {showTicks && canWrite && canRate && done && (
                   <ReadingBox
                     runId={runId}
                     uid={uid}

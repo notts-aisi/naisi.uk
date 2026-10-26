@@ -32,6 +32,9 @@ import { weekDocId } from "@/lib/firestore/courses";
  * readable by anybody signed in, so this is the page's gate, like
  * `published`, and not a boundary. Facilitators and admins see every
  * published week, as they always have.
+ *
+ * Somebody holding a place whom Publish has not told yet reads week 1 alone,
+ * once its door is open to them (Q35 B, `beforeGroups`): see below.
  */
 
 export const dynamic = "force-dynamic";
@@ -53,12 +56,22 @@ export default async function WeekPage({
     const user = await getSessionUser();
     redirect(user ? "/learn" : "/login");
   }
-  if (!access.canLearn) {
+  if (!access.canLearn && !access.beforeGroups) {
     redirect(
       access.isReviewer || access.isTrackLead
         ? `/learn/${encodeURIComponent(runId)}/admissions`
         : "/learn",
     );
+  }
+
+  // WEEK 1 BEFORE GROUPS GO OUT (Q35 B): somebody holding a place whom
+  // Publish has not told, once week 1's door is open to them (`beforeGroups`,
+  // asked of `weekOneDoorFor` by the gate). Week 1 and nothing else of the
+  // run: every other week sends them to week 1, and there is no group, no
+  // session and no group notes. What it draws is the overview's week 1 alone.
+  if (!access.canLearn && access.beforeGroups) {
+    if (n !== "1") redirect(`/learn/${encodeURIComponent(runId)}/weeks/1`);
+    return <WeekView runId={runId} weekNumber={1} uid={access.user.uid} viewerRole="learner" sharedNotes={null} />;
   }
 
   // A positive int inside the plan's bounds; anything else (including "03",

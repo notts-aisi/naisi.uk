@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { useRunProgress } from "@/features/courses/useRunProgress";
 import type { CourseProgressDoc, ProgressItemKind } from "@/lib/firestore/courseProgress";
-import { toggleProgressItem } from "../progressMutations";
+import { tickWeekOneBeforeGroups, toggleProgressItem } from "../progressMutations";
 
 /**
  * TICKING A READING OFF, the one way every page does it (C33): the week page,
@@ -21,6 +21,12 @@ import { toggleProgressItem } from "../progressMutations";
  * active enrolment, as the session's own uid (`uid`, which the rules hold the
  * row to). Staff reading the week tick nothing, and a refused write is put
  * back and reported, never kept on screen as if it had saved.
+ *
+ * `writer` says which door the tick goes through: the browser's own write
+ * (`"browser"`, everybody taking part), or week 1's door
+ * (`"week-one-door"`, somebody holding a place before groups go out, Q35 B),
+ * which writes the same row on the server. Either way the row comes back
+ * through the same listener.
  *
  * Optimistic: the box flips at once, and the live row settles it.
  */
@@ -45,6 +51,7 @@ export function useMaterialTicks(
   uid: string | null,
   weekNumber: number,
   canTick: boolean,
+  writer: "browser" | "week-one-door" = "browser",
 ): MaterialTicks {
   const progress = useRunProgress(runId);
   const [flips, setFlips] = useState<ReadonlyMap<string, boolean>>(new Map());
@@ -70,15 +77,19 @@ export function useMaterialTicks(
       if (!allowed || !uid) return false;
       setFlip(itemId, next);
       try {
-        await toggleProgressItem({
-          runId,
-          uid,
-          weekNumber,
-          itemKind,
-          itemId,
-          current: progress.byItemId.get(itemId) ?? null,
-          next,
-        });
+        if (writer === "week-one-door") {
+          await tickWeekOneBeforeGroups({ runId, itemId, next });
+        } else {
+          await toggleProgressItem({
+            runId,
+            uid,
+            weekNumber,
+            itemKind,
+            itemId,
+            current: progress.byItemId.get(itemId) ?? null,
+            next,
+          });
+        }
         setFlip(itemId, null);
         return true;
       } catch {
@@ -86,7 +97,7 @@ export function useMaterialTicks(
         return false;
       }
     },
-    [allowed, progress.byItemId, runId, setFlip, uid, weekNumber],
+    [allowed, progress.byItemId, runId, setFlip, uid, weekNumber, writer],
   );
 
   return {

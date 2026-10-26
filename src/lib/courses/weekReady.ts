@@ -1,5 +1,3 @@
-import type { CourseWeekDoc } from "@/lib/firestore/courses";
-
 /**
  * WHETHER A WEEK IS READY (board pr-weeks, Q35): the one answer, for every
  * page and route that asks.
@@ -17,13 +15,14 @@ import type { CourseWeekDoc } from "@/lib/firestore/courses";
  * published and not ready still opens to its groups.
  *
  * Who asks: week 1's door, the programme's Overview ("Week 1 isn’t ready"),
- * the run's week editor, and the readiness check and checklist that come
+ * the run's week editor, the lead's list of weeks (`weekReadiness` in
+ * `weekBlocks/reader.ts`), and the readiness check and checklist that come
  * later. Each asks this function and nothing else, so no page can count a
  * week ready that another page counts not ready.
  *
  * Pure, with no server import, so a page and a route ask the same function.
  */
-export function weekIsReady(week: Pick<CourseWeekDoc, "published" | "ready"> | null | undefined): boolean {
+export function weekIsReady(week: { published?: boolean; ready?: boolean } | null | undefined): boolean {
   return week !== null && week !== undefined && week.published === true && week.ready === true;
 }
 
