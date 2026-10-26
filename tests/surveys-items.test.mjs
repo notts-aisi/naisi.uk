@@ -1028,11 +1028,13 @@ describe("what a survey offers from a person's profile", () => {
   });
 
   test("only the two values an offer needs are read from the account", () => {
-    assert.deepEqual(profileFactsOf({ email: "zoe@example.com", profile: { status: "phd", subject: "Law", motivation: "x", universityEmail: "z@nottingham.ac.uk" } }), {
+    assert.deepEqual(profileFactsOf({ email: "zoe@example.com", profile: { status: "phd", subject: "Law", motivation: "x", universityEmail: "someone@nottingham.ac.uk" } }), {
       status: "phd",
       subject: "Law",
     });
     assert.deepEqual(profileFactsOf({}), { status: "", subject: "" });
+    // The degree is read as everywhere else on the site: an older account's is its `course`.
+    assert.deepEqual(profileFactsOf({ profile: { status: "undergraduate", course: "BSc Mathematics" } }), { status: "undergraduate", subject: "BSc Mathematics" });
   });
 });
 

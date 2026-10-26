@@ -4071,7 +4071,8 @@ describe("the course hub passage", () => {
     assert.match(PAGE_FLAT, /<li> Where your profile holds them, the survey before a programme starts its questions about your level and subject of study on your profile&apos;s answers\. You can change or clear either before you send it, and only what you send is kept\. <\/li>/);
     // Only the two values are read from the account, and nothing else of it.
     const offer = withoutComments(read("src/lib/surveys/profileOffer.ts"));
-    assert.match(offer, /return \{\s*status: typeof profile\.status === "string" \? profile\.status : "",\s*subject: typeof profile\.subject === "string" \? profile\.subject : "",\s*\};/);
+    // The degree through `degreeOf`, the site's one reading of it (an older account's `course` included).
+    assert.match(offer, /return \{\s*status: typeof profile\.status === "string" \? profile\.status : "",\s*subject: degreeOf\(profile\),\s*\};/);
     assert.deepEqual(Object.keys(surveyProfileOffer.profileFactsOf({ email: "a@example.com", displayName: "A", profile: { status: "phd", subject: "Law", motivation: "x", expectedGraduation: "2028-07" } })), ["status", "subject"]);
     // Only the two questions that say so are offered, and only on the before survey.
     const offered = (items) => surveyItems.surveyQuestionsOf(items).filter((question) => question.profile).map((question) => [question.id, question.profile]);

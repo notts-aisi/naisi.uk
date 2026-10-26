@@ -1,3 +1,4 @@
+import { degreeOf } from "@/features/profile/studyChange";
 import type { SurveyProfileField } from "./items";
 
 /**
@@ -12,9 +13,11 @@ import type { SurveyProfileField } from "./items";
  *    post-doc) and "other" each have an answer. An undergraduate's profile
  *    does not say which year, and a foundation year has no answer of its own,
  *    so neither is offered.
- *  - SUBJECT from `profile.subject`, which is typed freely: offered only when
- *    exactly one subject's words are in it, so "BA Philosophy" offers
- *    Philosophy and "Philosophy, Politics and Economics" offers nothing.
+ *  - SUBJECT from the person's degree, read by `degreeOf` (the profile's
+ *    `subject`, or an older account's `course`), which is typed freely:
+ *    offered only when exactly one subject's words are in it, so "BA
+ *    Philosophy" offers Philosophy and "Philosophy, Politics and Economics"
+ *    offers nothing.
  *
  * Pure: the answer page reads the profile on the server and asks this.
  */
@@ -69,23 +72,23 @@ export type ProfileFacts = { status: string; subject: string };
  * The option a profile offers for one menu question, or null when the profile
  * does not hold it or the question no longer has that answer.
  */
-export function offerFromProfile(field: SurveyProfileField, profile: ProfileFacts, optionIds: readonly string[]): string | null {
+export function offerFromProfile(field: SurveyProfileField, facts: ProfileFacts, optionIds: readonly string[]): string | null {
   let offered: string | null = null;
   if (field === "level") {
-    offered = LEVEL_BY_STATUS[profile.status] ?? null;
+    offered = LEVEL_BY_STATUS[facts.status] ?? null;
   } else {
-    const subject = profile.subject.trim();
+    const subject = facts.subject.trim();
     const matches = subject ? SUBJECT_WORDS.filter(([, words]) => words.test(subject)).map(([id]) => id) : [];
     offered = matches.length === 1 ? matches[0] : null;
   }
   return offered !== null && optionIds.includes(offered) ? offered : null;
 }
 
-/** The profile values an offer reads, from a stored account. Nothing else of it. */
+/** The profile values an offer reads, from a stored account: its status and the degree. Nothing else of it. */
 export function profileFactsOf(account: Record<string, unknown>): ProfileFacts {
   const profile = account.profile && typeof account.profile === "object" ? (account.profile as Record<string, unknown>) : {};
   return {
     status: typeof profile.status === "string" ? profile.status : "",
-    subject: typeof profile.subject === "string" ? profile.subject : "",
+    subject: degreeOf(profile),
   };
 }
