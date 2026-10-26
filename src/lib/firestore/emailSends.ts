@@ -46,6 +46,12 @@ export type EmailSendKind =
   // left get their confirmation" is a question the deliverability tab has to
   // answer without reading subject lines.
   | "course-enrolment"
+  // The one short "feedback is waiting" email (Q34 B): a facilitator, the
+  // programme's lead or an admin has sent feedback on somebody's own written
+  // answer, and this tells that person it is on the site. Its own kind so
+  // "was Amara told the feedback was waiting" is answerable without reading
+  // subject lines, apart from the enrolment and admissions mail.
+  | "course-feedback"
   // The ADMISSIONS lifecycle (V3): everything NAISI sends somebody about their
   // application to a round. Kept apart from `course-application`, which means
   // the V2 per-run funnel this replaces, because the deliverability tab has to
