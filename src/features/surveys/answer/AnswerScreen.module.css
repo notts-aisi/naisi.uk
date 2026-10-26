@@ -1,0 +1,124 @@
+/*
+  One person's survey (sv-before-phone): its head, the confidential box and
+  the questions. One column, phone first; the board's sizes: a 26px title,
+  15px intro, 14px box.
+*/
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  line-height: 1.3;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.eyebrowPart {
+  white-space: nowrap;
+}
+
+.title {
+  margin: var(--space-2) 0 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.625rem;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.intro {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-ui);
+  line-height: 1.55;
+  color: var(--color-text-body);
+  overflow-wrap: anywhere;
+}
+
+.skippable {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.box {
+  padding: 0.875rem var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-strong);
+}
+
+.boxHead {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-accent-text);
+  font-weight: 700;
+  font-size: var(--text-ui);
+}
+
+.points {
+  margin: var(--space-2) 0 0;
+  padding-left: 1.125rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.message {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.messageTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.messageBody {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.55;
+  color: var(--color-text-body);
+}
+
+@media (max-width: 48rem) {
+  .message {
+    padding: var(--space-5) var(--space-4);
+  }
+}

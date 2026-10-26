@@ -111,11 +111,13 @@ export default async function ReConsentPage() {
           gives back can be offered to somebody else until the end of the
           first week; how we record who finished; that certificates are sent
           to the people who finished and to facilitators, private until you
-          turn the link on; and that you can add your sessions to your
-          calendar with a private link, which your calendar&apos;s provider
-          fetches and you can replace. It also says that facilitators see
-          names only, never email addresses, and that downloads of a
-          programme&apos;s attendance are recorded.
+          turn the link on; that you can add your sessions to your calendar
+          with a private link, which your calendar&apos;s provider fetches
+          and you can replace; and that our surveys are confidential: only
+          admins see who said what, and your name comes off a year after the
+          programme. It also says that facilitators see names only, never
+          email addresses, and that downloads of a programme&apos;s
+          attendance are recorded.
         </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           Read the full{" "}

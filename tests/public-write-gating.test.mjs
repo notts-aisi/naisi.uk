@@ -436,6 +436,22 @@ const PUBLIC_HANDLERS = new Map([
     },
   ],
 
+  [
+    "src/app/api/surveys/answer/route.ts#POST",
+    {
+      anonymous: true,
+      writes: true,
+      sends: false,
+      throttle: "rateLimit(`surveys:answer:ip:${clientIp(req)}`",
+      credential: "openLink(",
+      why:
+        "A person's answers to a survey, from the personal link in their email, with no session to require. The " +
+        "32-byte secret IS the credential: it opens that person's own row and nobody else's, a wrong one opens " +
+        "nothing, and a survey's test link keeps nothing. An in-memory per-IP throttle runs first and keeps no " +
+        "address; the answers are kept once, in a transaction on the person's row, and nothing is emailed.",
+    },
+  ],
+
   // --- gated inside a helper the scan cannot follow -------------------------
   [
     "src/app/api/admin/members/[uid]/conduct-flag/route.ts#GET",

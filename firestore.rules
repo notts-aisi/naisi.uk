@@ -2982,6 +2982,24 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === surveys, surveyPeople, surveyAnswers ===
+    // Surveys (docs/surveys.md, src/lib/firestore/surveys.ts): a survey, the
+    // people it is for (with the secret in each one's personal link), and each
+    // person's answers. Written only by the survey routes on the Admin SDK and
+    // read only on the server: the admins' pages, the answer page and its
+    // routes. So every browser is refused, admins and a row's own person
+    // included: a readable people row is a readable secret, and a readable
+    // answer names who said what.
+    match /surveys/{surveyId} {
+      allow read, write: if false;
+    }
+    match /surveyPeople/{rowId} {
+      allow read, write: if false;
+    }
+    match /surveyAnswers/{answerId} {
+      allow read, write: if false;
+    }
+
     // === config ===
     // Server-only runtime config, written by the Admin SDK and read only by
     // routes: `config/taskEmails` (the task-email kill switch),

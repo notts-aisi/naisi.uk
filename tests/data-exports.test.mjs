@@ -186,7 +186,7 @@ const ENTRY = {
 // ---------------------------------------------------------------------------
 
 describe("DataExportKind", () => {
-  test("is exactly the six kinds the contract names", () => {
+  test("is exactly the seven kinds the contract names", () => {
     assert.deepEqual(DATA_EXPORT_KINDS, [
       "register",
       "roster",
@@ -196,6 +196,9 @@ describe("DataExportKind", () => {
       // Worksheets (docs/worksheets.md): the circulation export, scoped by
       // `circulationId` rather than by the worksheet it was sent from.
       "worksheet-responses",
+      // Surveys (docs/surveys.md): one survey's answers with the names of the
+      // people who sent them, scoped by `surveyId`.
+      "survey-answers",
     ]);
   });
 

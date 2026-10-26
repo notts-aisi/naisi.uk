@@ -117,7 +117,10 @@ export type EmailSendSurface =
   | "event-cancel"
   | "course-group"
   | "course-room"
-  | "course-run";
+  | "course-run"
+  // A programme survey and its reminder (docs/surveys.md), to everybody
+  // holding a place on the programme it is about.
+  | "course-survey";
 
 export type EmailSend = {
   messageId: string;

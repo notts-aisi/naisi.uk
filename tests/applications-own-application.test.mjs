@@ -187,6 +187,11 @@ const READS_THE_LISTS = {
     why: "the times picture counts everybody who holds a place by when they said they are free, and names who no group suits, an admin who applied included. It reads nobody until the term is marked as sent, when there is nothing left for anybody to learn early",
     holds: "after-the-send",
   },
+  "lib/surveys/audience.ts#readAudience": {
+    kind: "everybody",
+    why: "a programme survey goes to everybody who holds a place on the programme, an admin who applied included. It reads nobody until the term is marked as sent, when there is nothing left for anybody to learn early",
+    holds: "after-the-send",
+  },
 };
 
 /**

@@ -141,7 +141,11 @@ const DEADLINE_NAMES = new Map([
         "src/lib/courses/enrolWindow.ts",
         "src/lib/courses/window.ts",
         "src/lib/firestore/admissionRounds.ts",
+        "src/lib/firestore/surveys.ts",
         "src/lib/scheduler/jobs/admissionsReminders.ts",
+        "src/lib/surveys/create.ts",
+        "src/lib/surveys/emails.ts",
+        "src/lib/surveys/words.ts",
       ],
       promises: [
         {
@@ -176,6 +180,16 @@ const DEADLINE_NAMES = new Map([
             "src/app/api/admissions/rounds/[roundId]/apply/submit/route.ts",
           ],
           predicate: "isStageOpenForAnswers(",
+        },
+        {
+          of: "a survey",
+          binds: "a person a survey was sent to",
+          why:
+            "The last instant a survey takes answers: 23:59 in London on the day an admin picked, or earlier when " +
+            "an admin closes it by hand. The email and the answer page both name the day.",
+          told: ["src/lib/surveys/answerView.ts", "src/lib/surveys/sending.ts"],
+          enforced: ["src/lib/surveys/answer.ts"],
+          predicate: "isOpen(",
         },
       ],
     },
@@ -354,6 +368,10 @@ const DEADLINE_NAMES = new Map([
         "src/app/api/worksheets/circulations/[circulationId]/close/route.ts",
         "src/app/api/worksheets/circulations/route.ts",
         "src/lib/firestore/circulations.ts",
+        // A survey's: `surveys.ts` declares it and `create.ts` writes it as null
+        // on a new survey.
+        "src/lib/firestore/surveys.ts",
+        "src/lib/surveys/create.ts",
       ],
       promises: [
         {
@@ -366,6 +384,16 @@ const DEADLINE_NAMES = new Map([
           notEnforced:
             "It is a record of a past act, not a limit on a future one. The neighbouring " +
             "`status` is what refuses a late submission, and this field only timestamps it.",
+        },
+        {
+          of: "a survey an admin has closed by hand",
+          binds: "a person a survey was sent to",
+          why:
+            "Unlike a circulation's, a survey's is the limit itself: once an admin presses Close it takes no " +
+            "answer, whatever its closing day says, and the answer page says on which day it closed.",
+          told: ["src/lib/surveys/answerView.ts"],
+          enforced: ["src/lib/surveys/answer.ts"],
+          predicate: "isOpen(",
         },
       ],
     },

@@ -39,6 +39,7 @@ const NOTICE_REASON: Record<EmailSendSurface, string> = {
   "course-group": "you are in this course group",
   "course-room": "you are in this course group",
   "course-run": "you are on this course",
+  "course-survey": "you hold a place on this programme",
 };
 
 type Props = {
