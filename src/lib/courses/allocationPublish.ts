@@ -17,7 +17,7 @@ import {
   type CourseGroupDoc,
 } from "@/lib/firestore/courseGroups";
 import type { ProgrammeKind } from "@/lib/applications/model";
-import type { CourseRunDoc } from "@/lib/firestore/courses";
+import { weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
 import { loadCourseEmailTemplate, type CourseEmailTemplate } from "@/lib/email/courseApplicationEmails";
 // The three composers by their `@/` paths, as every caller of a token filler
@@ -47,11 +47,12 @@ import {
   type PlacementWhere,
   type RefusedGroup,
 } from "@/lib/courses/placementEmail";
-import { resolveCalendar } from "./groupResolve";
+import { resolveCalendar, resolveWeekDoc } from "./groupResolve";
 import { gaveTheirPlaceBack, type PlaceOnTheForm } from "./placeGivenBack";
 import { readNamingProgramme, readRunLead, type RunLead } from "./programmeLead";
 import { resolveSessions, sessionRange, type ResolvedSession } from "./sessions";
-import { COURSE_TZ, isValidDateKey } from "./weekPlan";
+import { COURSE_TZ, daysBetween, isValidDateKey, londonDateKey } from "./weekPlan";
+import { weekReadingTime } from "./weekTime";
 import { formatRunStart, formatRunStartShort } from "./window";
 
 /**
@@ -128,6 +129,22 @@ import { formatRunStart, formatRunStartShort } from "./window";
  * that is true (`facilitatorEmailFor`). When every send to a group's people
  * fails, its facilitators wait for the next press. "Send a test to me" shows
  * the email for every send going.
+ *
+ * Each PERSON's email says the same number ("There are 8 of you."), worked
+ * out before anything is sent for every send going: those told before the
+ * press and those it writes to, the person among them. Somebody whose send
+ * fails is still in the group and is told by the next press, so the number
+ * stays the group's.
+ *
+ * ## The people's email says what the board says
+ *
+ * "Your AGI Strategy group: Tuesdays at 6pm" (board st-emails): the group,
+ * its weekly time and room, the day it meets from, how long its sessions
+ * last, its facilitators by first name, how many are in it, how long week 1
+ * takes while the group has not met yet (`weekReadingTime`, from week 1 as
+ * the group's people read it), and the programme's lead, or NAISI where none
+ * stands. Every value is a record's (`groupEmailFacts` in `loadPublishPlan`),
+ * and the composer leaves out what a record does not hold.
  *
  * ## The count is what a press sends
  *
@@ -396,12 +413,34 @@ function firstSessionWhere(run: CourseRunDoc, group: CourseGroupDoc): PlacementW
   return placementWhere(sessionForWeek(group, first.weekId), sessionModeForWeek(group, first.weekId));
 }
 
+/**
+ * What one group lends the email every person placed in it is sent: the
+ * same for each of them, worked out once (see `loadPublishPlan`).
+ */
+type GroupEmailFacts = Pick<
+  PlacementFacts,
+  | "programmeName"
+  | "weeklySlot"
+  | "firstSession"
+  | "firstSessionDay"
+  | "where"
+  | "sessionMinutes"
+  | "groupSize"
+  | "weekOneTime"
+  | "programmeUrl"
+  | "leadName"
+>;
+
+/** The group's facilitators as one person placed in it is told them: never that person. */
+type FacilitatorsFor = { names: string[]; firstNames: string[] };
+
 /** What the placement email is told about one person in one group. */
 function placementFacts(
   run: CourseRunDoc,
   group: CourseGroupDoc,
   name: string,
-  facilitatorNames: string[],
+  facilitators: FacilitatorsFor,
+  shared: GroupEmailFacts,
 ): PlacementFacts {
   return {
     name,
@@ -409,10 +448,45 @@ function placementFacts(
     runLabel: run.label,
     startDate: formatRunStart(run.startDate) ?? null,
     groupName: group.name.trim() || null,
-    facilitatorNames: facilitatorNames.length > 0 ? namesInWords(facilitatorNames) : null,
+    facilitatorNames: facilitators.names.length > 0 ? namesInWords(facilitators.names) : null,
     firstSessionWhen: firstSessionWhen(run, group) ?? null,
     firstSessionWhere: firstSessionWhere(run, group),
+    facilitatorFirstNames: facilitators.firstNames,
+    ...shared,
   };
+}
+
+/**
+ * THE SESSION THE GROUP'S TWO EMAILS NAME as the one it meets from: its
+ * first, or once that has finished, the next one, so somebody told after the
+ * group first met is told when they next meet it and never a day already
+ * past. The next session is the soonest still to finish on the group's own
+ * calendar (`sessionRange`); with none left, it is the first, as it always
+ * was. `first` says whether it is the group's first, which is when the
+ * person's email says how long week 1 takes. Null when the calendar cannot
+ * date a session.
+ */
+function meetingFrom(run: CourseRunDoc, group: CourseGroupDoc, now: Date): { dateKey: string; first: boolean } | null {
+  const range = sessionRange(resolveSessions(run, group), now);
+  const next = range.next?.dateKey ?? "";
+  if (next && range.firstDateKey && next > range.firstDateKey) return { dateKey: next, first: false };
+  return range.firstDateKey ? { dateKey: range.firstDateKey, first: true } : null;
+}
+
+/**
+ * The day "Have a look before ..." names: the session's day of the week while
+ * it is within the next six days, as people say it ("Tuesday"), and its date
+ * on the day itself and further off, where a day's name alone could be read as
+ * another ("Tue 3 Nov"), as a freed place's email says the day somebody was
+ * told. Null for a date that is not one.
+ */
+export function sessionDayWords(dateKey: string, now: Date): string | null {
+  if (!isValidDateKey(dateKey)) return null;
+  const days = daysBetween(londonDateKey(now), dateKey);
+  if (days >= 1 && days <= 6) {
+    return new Intl.DateTimeFormat("en-GB", { timeZone: COURSE_TZ, weekday: "long" }).format(new Date(`${dateKey}T12:00:00Z`));
+  }
+  return formatRunStartShort(dateKey) ?? null;
 }
 
 /** The group's first and last session, as "Tue 3 Nov", on its own calendar. */
@@ -425,19 +499,15 @@ function groupTerm(run: CourseRunDoc, group: CourseGroupDoc): { first: string | 
 }
 
 /**
- * WHEN A FACILITATOR IS TOLD THE GROUP MEETS FROM, as "Tue 3 Nov": its first
- * session, or once that has finished, the next one, so somebody added after
- * the group first met is told when they next meet it and never a day already
- * past ("from Thu 5 Nov to Thu 3 Dec"). The next session is the soonest still
- * to finish on the group's own calendar (`sessionRange`); with none left, it
- * is the first, as it always was. Still a date, so wording saved around
- * `{firstSession}` in Email designs reads as it did.
+ * WHEN THE GROUP IS SAID TO MEET FROM, as "Tue 3 Nov", in both of its emails:
+ * the session `meetingFrom` names, so somebody added after the group first
+ * met is told when they next meet it ("from Thu 5 Nov to Thu 3 Dec"). Still a
+ * date, so wording saved around `{firstSession}` in Email designs reads as it
+ * did.
  */
 function facilitatingFrom(run: CourseRunDoc, group: CourseGroupDoc, now: Date): string | null {
-  const range = sessionRange(resolveSessions(run, group), now);
-  const next = range.next?.dateKey ?? "";
-  const key = next && range.firstDateKey && next > range.firstDateKey ? next : range.firstDateKey;
-  return key ? (formatRunStartShort(key) ?? null) : null;
+  const from = meetingFrom(run, group, now);
+  return from ? (formatRunStartShort(from.dateKey) ?? null) : null;
 }
 
 /**
@@ -887,16 +957,80 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   // the person themselves. A facilitator who holds a place sits in the group
   // they facilitate, so they are placed in it and told it like anybody else,
   // and their own email names the others who facilitate it, or nobody (the
-  // email then leaves that paragraph out whole). Their "You’re facilitating"
-  // email, below, is the one that tells them they facilitate it.
-  const facilitatorNamesOf = (group: CourseGroupDoc, recipientUid: string): string[] =>
-    group.facilitatorUids
-      .filter((uid) => uid !== recipientUid)
-      .map((uid) => {
-        const data = users.get(uid);
-        return data ? displayNameOf(data) : "";
-      })
-      .filter(Boolean);
+  // email then leaves that sentence out). Their "You’re facilitating" email,
+  // below, is the one that tells them they facilitate it. Whole names for
+  // wording saved before the board's, first names for the board's.
+  const facilitatorNamesOf = (group: CourseGroupDoc, recipientUid: string): FacilitatorsFor => {
+    const others = group.facilitatorUids.filter((uid) => uid !== recipientUid).map((uid) => users.get(uid));
+    return {
+      names: others.map((data) => (data ? displayNameOf(data) : "")).filter(Boolean),
+      firstNames: others.map((data) => (data ? firstNameOf(data) : "")).filter(Boolean),
+    };
+  };
+
+  // ── Who is written to, and where ────────────────────────────────────────
+  // Each person owed an email, with the name it greets them by and the
+  // address it goes to.
+  const addressed = owed.map(({ row, group }) => {
+    const data = users.get(row.uid);
+    return {
+      row,
+      group,
+      name: data ? displayNameOf(data) : row.displayName || "NAISI member",
+      // The proven address: `users.email` is the Google sign-in address. The
+      // application's own copy is the fallback for a since-deleted account.
+      to: emailOf(data) || row.email?.trim() || null,
+    };
+  });
+
+  // ── How many each group's emails count ──────────────────────────────────
+  // The people in each group this press writes to: everybody owed an email
+  // there who has an address. A press takes the people first, so a press
+  // that carries a facilitator's email carries every one of these.
+  const writesIn = new Map<string, number>();
+  for (const person of addressed) {
+    if (person.to) writesIn.set(person.group.id, (writesIn.get(person.group.id) ?? 0) + 1);
+  }
+
+  // ── Week 1's time ────────────────────────────────────────────────────────
+  // Read for each group of a fellowship's run whose people are owed their
+  // email, as its people read week 1 (the group's own copy, else the run's,
+  // `resolveWeekDoc`), and timed by the one function (`weekReadingTime`):
+  // its This week's "In all", or its materials' own minutes. Nothing for a
+  // week that is not published. An incubator's email says nothing of it.
+  const weekOneTimes = new Map<string, string | null>();
+  if (!incubator) {
+    const groups = [...new Map(owed.map(({ group }) => [group.id, group])).values()];
+    const weeks = await Promise.all(groups.map((group) => resolveWeekDoc(db, runId, group.id, weekDocId(1))));
+    groups.forEach((group, at) => weekOneTimes.set(group.id, weekReadingTime(weeks[at].week)));
+  }
+
+  /**
+   * What a group lends each of its people's emails. THE GROUP'S SIZE is the
+   * people in it who will have been told once this press is done, those told
+   * before it and those it writes to, the number the facilitators' email and
+   * the roster say: never somebody untold, and never somebody who gave their
+   * place back. WEEK 1'S TIME only while the session the email names is the
+   * group's first: somebody told after the group has met is told when they
+   * next meet it, and week 1 is behind them.
+   */
+  const groupEmailFacts = (group: CourseGroupDoc): GroupEmailFacts => {
+    const from = meetingFrom(run, group, now);
+    return {
+      // A run no programme names is called what its course is.
+      programmeName: naming.programmeName ?? run.courseTitle,
+      weeklySlot: weeklySlotWords(group.session),
+      firstSession: from ? (formatRunStartShort(from.dateKey) ?? null) : null,
+      firstSessionDay: from ? sessionDayWords(from.dateKey, now) : null,
+      // The weekly slot's own place, not one week's change of room.
+      where: placementWhere(group.session, null),
+      sessionMinutes: group.session.durationMinutes > 0 ? group.session.durationMinutes : null,
+      groupSize: (toldIn.get(group.id) ?? 0) + (writesIn.get(group.id) ?? 0),
+      weekOneTime: from?.first ? (weekOneTimes.get(group.id) ?? null) : null,
+      programmeUrl: programmePageUrl(runId),
+      leadName: naming.programmeName ? leadName : null,
+    };
+  };
 
   // ── The people's emails ─────────────────────────────────────────────────
   // "Placed in a group", or on a run an incubator names "Placed on an
@@ -918,7 +1052,8 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
     return written.ok ? { subject: written.subject, blocks: written.blocks } : null;
   };
   const writePlacement = (group: CourseGroupDoc, name: string, uid: string): WrittenEmail | null => {
-    const written = composePlacementEmail(templates.allocated, placementFacts(run, group, name, facilitatorNamesOf(group, uid)));
+    const facts = placementFacts(run, group, name, facilitatorNamesOf(group, uid), groupEmailFacts(group));
+    const written = composePlacementEmail(templates.allocated, facts);
     if (!written.ok && !refusedPeople.has(group.id)) {
       refusedPeople.set(group.id, {
         name: group.name.trim(),
@@ -930,12 +1065,7 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
     }
     return written.ok ? { subject: written.subject, blocks: written.blocks } : null;
   };
-  for (const { row, group } of owed) {
-    const data = users.get(row.uid);
-    const name = data ? displayNameOf(data) : row.displayName || "NAISI member";
-    // The proven address: `users.email` is the Google sign-in address. The
-    // application's own copy is the fallback for a since-deleted account.
-    const to = emailOf(data) || row.email?.trim() || null;
+  for (const { row, group, name, to } of addressed) {
     people.push({
       uid: row.uid,
       name,
@@ -947,13 +1077,7 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   }
 
   // ── Who each facilitators' email counts ─────────────────────────────────
-  // The people in each group this press writes to: everybody owed an email
-  // there who has an address. A press takes the people first, so a press
-  // that carries a facilitator's email carries every one of these.
-  const writesIn = new Map<string, number>();
-  for (const person of people) {
-    if (person.to) writesIn.set(person.groupId, (writesIn.get(person.groupId) ?? 0) + 1);
-  }
+  // The people in each group this press writes to (`writesIn`, above).
   // A facilitator is told about a group once somebody in it is told: a group
   // whose people this press cannot write to waits, as an empty one does, for
   // the press that tells somebody there.

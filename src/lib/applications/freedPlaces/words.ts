@@ -18,8 +18,11 @@ import type { OfferReport } from "./views";
  *
  * The email is the board's ("A place has come up on AGI Strategy"), and it
  * names when the group meets, so it goes out WHOLE OR NOT AT ALL:
- * {@link composeFreedPlaceEmail} answers null when any slot is empty, and
- * nothing that answers null is sent. It never carries the group's name, its
+ * {@link composeFreedPlaceEmail} answers null when any slot it cannot do
+ * without is empty, and nothing that answers null is sent. "You told us
+ * you’re free on Wednesday afternoons." is the one sentence that can go: it
+ * is said from the person's own painted week, and only when that week says
+ * it ({@link freeOnInTheirWeek}). It never carries the group's name, its
  * room or a meeting link: "Once you accept, we’ll email you your group and
  * room", and Publish is what does.
  *
@@ -67,12 +70,6 @@ export function meetsWords(session: SlotSession): string | null {
   return `${WEEKDAY[session.weekday]}s at ${clockLabel(minute)}`;
 }
 
-/** "Wednesday afternoons": the part of the week a group's time falls in. Null as above. */
-export function freeOnWords(session: SlotSession): string | null {
-  const minute = minutesFromTimeLocal(session.startTimeLocal);
-  if (minute === null || !isWeekday(session.weekday)) return null;
-  return `${WEEKDAY[session.weekday]} ${partOf(minute).many}`;
-}
 
 /**
  * The day somebody was told "No offer this time", as the email says it: the
@@ -91,13 +88,10 @@ export function toldOnWords(toldAt: Date, now: Date): string {
 const FREE_FOR_MINUTES = 60;
 
 /**
- * WHEN SOMEBODY IS FREE, IN A FEW WORDS: "Free Wed afternoons", "Free Mon and
- * Thu evenings", "Free every evening", "Free weekday mornings". A part of a
- * day counts when they painted at least an hour of it. Null when nothing
- * does, and for a week painted on a grid that cannot be read: the fit chips
- * say the rest. Read against the grid the week was drawn on.
+ * The grid a painted week was drawn on: its own, or the form's for a week
+ * stored before weeks carried their own. Null when neither can be read.
  */
-export function freeInWords(mask: AvailabilityMask, fallback: AvailabilityGrid): string | null {
+function gridOf(mask: AvailabilityMask, fallback: AvailabilityGrid): AvailabilityGrid | null {
   const own: AvailabilityGrid = {
     version: mask.version,
     startMinute: mask.startMinute,
@@ -105,20 +99,37 @@ export function freeInWords(mask: AvailabilityMask, fallback: AvailabilityGrid):
     slotMinutes: mask.slotMinutes,
   };
   const grid = isUsableGrid(own) ? own : fallback;
-  if (!isUsableGrid(grid)) return null;
+  return isUsableGrid(grid) ? grid : null;
+}
+
+/** How many minutes of one part of a day one day's painted slots cover. */
+function paintedMinutesIn(column: readonly boolean[], grid: AvailabilityGrid, part: (typeof PARTS)[number]): number {
+  let minutes = 0;
+  column.forEach((painted, at) => {
+    if (!painted) return;
+    const start = grid.startMinute + at * grid.slotMinutes;
+    const end = start + grid.slotMinutes;
+    minutes += Math.max(0, Math.min(end, part.to) - Math.max(start, part.from));
+  });
+  return minutes;
+}
+
+/**
+ * WHEN SOMEBODY IS FREE, IN A FEW WORDS: "Free Wed afternoons", "Free Mon and
+ * Thu evenings", "Free every evening", "Free weekday mornings". A part of a
+ * day counts when they painted at least an hour of it. Null when nothing
+ * does, and for a week painted on a grid that cannot be read: the fit chips
+ * say the rest. Read against the grid the week was drawn on.
+ */
+export function freeInWords(mask: AvailabilityMask, fallback: AvailabilityGrid): string | null {
+  const grid = gridOf(mask, fallback);
+  if (!grid) return null;
   const columns = decodeMask(mask.days, grid);
   const phrases: string[] = [];
   for (const part of PARTS) {
     const days: number[] = [];
     for (const day of WEEK_ORDER) {
-      let minutes = 0;
-      (columns[day] ?? []).forEach((painted, at) => {
-        if (!painted) return;
-        const start = grid.startMinute + at * grid.slotMinutes;
-        const end = start + grid.slotMinutes;
-        minutes += Math.max(0, Math.min(end, part.to) - Math.max(start, part.from));
-      });
-      if (minutes >= FREE_FOR_MINUTES) days.push(day);
+      if (paintedMinutesIn(columns[day] ?? [], grid, part) >= FREE_FOR_MINUTES) days.push(day);
     }
     if (days.length === 0) continue;
     if (days.length === 7) phrases.push(`every ${part.one}`);
@@ -126,6 +137,29 @@ export function freeInWords(mask: AvailabilityMask, fallback: AvailabilityGrid):
     else phrases.push(`${listInWords(days.map((day) => WEEKDAY_SHORT[day]))} ${part.many}`);
   }
   return phrases.length === 0 ? null : `Free ${listInWords(phrases)}`;
+}
+
+/**
+ * "Wednesday afternoons": the part of the week a group's time falls in, said
+ * only when the person's OWN painted week says they are free then, by the
+ * rule `freeInWords` reads a week by: at least an hour painted in that part
+ * of that day, read against the grid the week was drawn on. The email's "You
+ * told us you’re free on ..." is this or nothing. Null when the week does not
+ * say it, cannot be read, or there is none, and when the group's time is not
+ * a day and a time.
+ */
+export function freeOnInTheirWeek(
+  session: SlotSession,
+  mask: AvailabilityMask | null | undefined,
+  fallback: AvailabilityGrid,
+): string | null {
+  const minute = minutesFromTimeLocal(session.startTimeLocal);
+  if (minute === null || !isWeekday(session.weekday) || !mask) return null;
+  const grid = gridOf(mask, fallback);
+  if (!grid) return null;
+  const part = partOf(minute);
+  const painted = paintedMinutesIn(decodeMask(mask.days, grid)[session.weekday] ?? [], grid, part);
+  return painted >= FREE_FOR_MINUTES ? `${WEEKDAY[session.weekday]} ${part.many}` : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -212,8 +246,12 @@ export type FreedPlaceEmailInput = {
   meets: string;
   /** "Wed 4 Nov": the group's next session. */
   startsOn: string;
-  /** "Wednesday afternoons" ({@link freeOnWords}). */
-  freeOn: string;
+  /**
+   * "Wednesday afternoons" ({@link freeOnInTheirWeek}): when their own
+   * painted week says they are free at the group's time. Null leaves "You
+   * told us you’re free on ..." out, and the rest of the email goes.
+   */
+  freeOn: string | null;
   /** "Thu 29 Oct": the day to accept by, chosen by whoever offers it. */
   replyBy: string;
   /** The person's own application page, where both buttons lead. */
@@ -225,8 +263,10 @@ const FELLOWSHIP_NEXT = "Once you accept, we’ll email you your group and room.
 
 /**
  * "A place has come up on AGI Strategy": the email that offers a freed place,
- * in the board's words. NULL WHEN ANY SLOT IS EMPTY: it names a time, so it
- * goes whole or not at all, and the send refuses rather than drop a sentence.
+ * in the board's words. NULL WHEN ANY SLOT IT CANNOT DO WITHOUT IS EMPTY: it
+ * names a time, so it goes whole or not at all, and the send refuses rather
+ * than drop a sentence. The one sentence that can go is when they told us
+ * they are free, which is said only when their own week says it.
  *
  * An incubator is not a group with a facilitator, and its people are never
  * told about a group: the sentence after when it meets is the incubator's own
@@ -234,9 +274,11 @@ const FELLOWSHIP_NEXT = "Once you accept, we’ll email you your group and room.
  */
 export function composeFreedPlaceEmail(input: FreedPlaceEmailInput): DecisionEmail | null {
   const short = input.programme.shortName.trim();
-  const slots = [short, input.toldOn, input.meets, input.startsOn, input.freeOn, input.replyBy, input.link];
+  const slots = [short, input.toldOn, input.meets, input.startsOn, input.replyBy, input.link];
   if (slots.some((slot) => slot.trim() === "")) return null;
   const next = input.programme.kind === "fellowship" ? FELLOWSHIP_NEXT : placeNextWords(input.programme.kind).email;
+  const free = (input.freeOn ?? "").trim();
+  const told = free ? ` You told us you’re free on ${free}.` : "";
   const lead = input.leadName.trim();
   return {
     kind: "invitation",
@@ -244,7 +286,7 @@ export function composeFreedPlaceEmail(input: FreedPlaceEmailInput): DecisionEma
     greeting: `Hi ${input.firstName.trim() || "there"},`,
     paragraphs: [
       `On ${input.toldOn} we couldn’t offer you a place this term. Someone has given theirs back, and we’d love you to have it.`,
-      `It meets on ${input.meets}, starting ${input.startsOn}. You told us you’re free on ${input.freeOn}. ${next}`,
+      `It meets on ${input.meets}, starting ${input.startsOn}.${told} ${next}`,
       `Please accept by ${input.replyBy}. If you can’t take it, just press No thanks.`,
     ],
     buttons: [

@@ -36,6 +36,7 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -221,6 +222,10 @@ describe("what an admin is shown", () => {
       groupIds: [GROUP.monday, GROUP.thursday],
       score: "3.5",
       toldOn: "Friday",
+      // When their own painted week says they are free at each group's time,
+      // as their email says it (the board's words; until October 2026 this
+      // was the group's, said whatever the person's week held).
+      freeOn: { [GROUP.monday]: "Monday evenings", [GROUP.thursday]: "Thursday mornings" },
       cannot: null,
     });
     assert.deepEqual([byUid.george.detail, byUid.george.chips, byUid.george.score], [
@@ -244,9 +249,10 @@ describe("what an admin is shown", () => {
     const { board } = await boardFor("zach");
     assert.equal(board.timedGroups, 2);
     // Monday first, as every tab of the programme's page lists groups (the walk of stage two's fixes, G10).
+    // When somebody is free is their own week's to say, so a group lends none (October 2026).
     assert.deepEqual(board.groups, [
-      { id: GROUP.monday, name: "Group B", meets: "Mondays at 6pm", freeOn: "Monday evenings", startsOn: "Mon 2 Nov", seatsFree: 8 },
-      { id: GROUP.thursday, name: "Group A", meets: "Thursdays at 10am", freeOn: "Thursday mornings", startsOn: "Thu 29 Oct", seatsFree: 8 },
+      { id: GROUP.monday, name: "Group B", meets: "Mondays at 6pm", startsOn: "Mon 2 Nov", seatsFree: 8 },
+      { id: GROUP.thursday, name: "Group A", meets: "Thursdays at 10am", startsOn: "Thu 29 Oct", seatsFree: 8 },
     ]);
   });
 
@@ -353,7 +359,7 @@ describe("the page an admin reads", () => {
       toldOn: omar.toldOn,
       meets: groupB.meets,
       startsOn: groupB.startsOn,
-      freeOn: groupB.freeOn,
+      freeOn: omar.freeOn[GROUP.monday] ?? null,
       replyBy: "Thu 29 Oct",
       link: board.applicationLink,
     });
@@ -361,6 +367,11 @@ describe("the page an admin reads", () => {
     await api.offer("zach", { picks: [{ uid: "omar", groupId: GROUP.monday }], replyBy: REPLY_BY, invitations: 1 });
     const sent = world.mail.find((message) => message.to === "omar@example.com").react.props.email;
     assert.deepEqual(preview, sent);
+    // The page's own preview takes the same fields: when the person picked is
+    // free, from their own week, for the group picked for them (October
+    // 2026; until then the group's words, whatever the person's week said).
+    const component = readFileSync(new URL("../src/features/applications/freedPlaces/FreedPlacesBoard.tsx", import.meta.url), "utf8");
+    assert.ok(component.includes("freeOn: own(first.freeOn, firstGroup.id) ?? null,"), "the page's preview no longer says when the person picked is free from their own week");
   });
 });
 

@@ -9,10 +9,12 @@
  *  1. THE TOKEN LIST IS THE EMAIL'S WHOLE SET, and the seed copy uses every
  *     one and nothing outside it.
  *  2. WITH EVERYTHING KNOWN, THE SEED READS AS THE BOARD DOES, in the words
- *     st-emails draws, apart from the differences written beside each.
- *  3. A MISSING VALUE TAKES ITS OWN PARAGRAPH AND NOTHING ELSE: no room, one
+ *     st-emails draws, apart from the difference written beside it. The
+ *     wording before the board's, which an admin may have saved, still reads
+ *     as it did (`SAVED`).
+ *  3. A MISSING VALUE TAKES ITS OWN PIECE AND NOTHING ELSE: no room, one
  *     facilitator, no programme to sign it. Every combination of those comes
- *     back whole, with no token and no empty element.
+ *     back whole, word for word, with no token and no empty element.
  *  4. AN ESSENTIAL VALUE MISSING REFUSES THE EMAIL, with the problem named,
  *     and the refusal reads as a sentence an admin can act on.
  *  5. NEVER A MEETING LINK: an online group is told the link is on its page,
@@ -73,17 +75,46 @@ function subsets(list) {
 }
 
 /**
- * The board's email, with two differences written down in the notes and the
- * pull request: the room has a paragraph of its own ("Where: …") and so has
- * "You’re facilitating with Sofia.", because a missing value takes its own
- * paragraph and rooms are not needed to publish this week; and "Their names
- * and week 1’s guide are on your group page." is left out, because the group
- * page shows no week guide.
+ * The board's email (st-emails), word for word since October 2026, with one
+ * difference written down in the notes and the pull request: "Their names
+ * and week 1’s guide are on your group page." says the names only, because
+ * the email does not ask whether the course's facilitator guide holds week 1.
  */
 const FULL =
+  "You’re facilitating Group B: Tuesdays at 6pm | Hi Rahul, Group B meets on Tuesdays at 6pm in Hallward B12, from Tue 3 Nov to Tue 8 Dec. " +
+  "You’re facilitating with Sofia. There are 8 people in the group. Their names are on your group page. Open your group " +
+  "Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI";
+
+/**
+ * THE WORDING BEFORE THE BOARD'S (until October 2026), word for word, as an
+ * admin may have saved it in Email designs: the room and "You’re
+ * facilitating with Sofia." each in a paragraph of its own. Every token in
+ * it is still filled as it was, so it still reads as it did.
+ */
+const SAVED = {
+  subject: "You’re facilitating {groupName}: {weeklySlot}",
+  blocks: [
+    {
+      id: "saved",
+      type: "richText",
+      html:
+        "<p>Hi {firstName},</p>" +
+        "<p>{groupName} meets on {weeklySlot}, from {firstSession} to {lastSession}.</p>" +
+        "<p>Where: {where}</p>" +
+        "<p>You’re facilitating with {coFacilitators}.</p>" +
+        "<p>{groupSize}</p>" +
+        '<p><a href="{groupUrl}" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#6a82ff;color:#050810;font-weight:600;text-decoration:none">Open your group</a></p>' +
+        "<p>Take the register on your phone during the session.</p>" +
+        '<p>{leadName}<br /><span style="color:#71717a">{programmeName} lead, NAISI</span></p>',
+    },
+  ],
+};
+const SAVED_FULL =
   "You’re facilitating Group B: Tuesdays at 6pm | Hi Rahul, Group B meets on Tuesdays at 6pm, from Tue 3 Nov to Tue 8 Dec. " +
   "Where: Hallward B12 You’re facilitating with Sofia. There are 8 people in the group. Open your group " +
   "Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI";
+/** The board's tokens, which the seed says: the inline three and the sentence about names. */
+const BOARD = ["namesOnPage", "place", "placeNote", "facilitatingWith"];
 
 describe("1. each token has its rule", () => {
   test("the list is the email's whole token set, and the seed uses all of it and nothing more", () => {
@@ -102,12 +133,23 @@ describe("1. each token has its rule", () => {
       coFacilitators: "optional",
       leadName: "optional",
       programmeName: "optional",
+      // The board's, since October 2026.
+      namesOnPage: "always",
+      place: "inline",
+      placeNote: "inline",
+      facilitatingWith: "inline",
     });
     const used = tokensIn(`${SEED.subject}\n${printed(SEED.blocks)}`);
     assert.deepEqual(used.filter((token) => !(token in email.FACILITATING_TOKEN_RULES)), []);
-    for (const token of [...ESSENTIAL, ...OPTIONAL, "firstName"]) assert.ok(used.includes(token), `the seed no longer says {${token}}`);
+    for (const token of [...ESSENTIAL, "leadName", "programmeName", "firstName", ...BOARD]) {
+      assert.ok(used.includes(token), `the seed no longer says {${token}}`);
+    }
+    // The wording before the board's is still the email's to fill, every token of it.
+    const saved = tokensIn(`${SAVED.subject}\n${printed(SAVED.blocks)}`);
+    assert.deepEqual(saved.filter((token) => !(token in email.FACILITATING_TOKEN_RULES)), []);
+    for (const token of [...ESSENTIAL, ...OPTIONAL, "firstName"]) assert.ok(saved.includes(token), `the saved wording no longer says {${token}}`);
     // No optional value may sit in the subject, where it could not be left out.
-    for (const token of OPTIONAL) assert.ok(!SEED.subject.includes(`{${token}}`), token);
+    for (const token of OPTIONAL) assert.ok(!SEED.subject.includes(`{${token}}`) && !SAVED.subject.includes(`{${token}}`), token);
   });
 
   test("it is a course email an admin can edit, named as the designer names it", () => {
@@ -125,40 +167,76 @@ describe("2. with everything known, the seed reads as the board does", () => {
     assert.equal(read(written), FULL);
     assert.ok(printed(written.blocks).includes(`href="${FACTS.groupUrl}"`), "the button leads to the group page");
   });
+
+  test("wording saved before the board's reads in full as it did", () => {
+    const written = email.composeFacilitatingEmail(SAVED, FACTS);
+    assert.equal(written.ok, true, JSON.stringify(written));
+    assert.equal(read(written), SAVED_FULL);
+  });
 });
 
-describe("3. a missing value takes its own paragraph and nothing else", () => {
+describe("3. a missing value takes its own piece and nothing else", () => {
+  // What each missing value takes out of the board's email, and nothing more.
+  const GONE = {
+    coFacilitators: " You’re facilitating with Sofia.",
+    where: " in Hallward B12",
+    leadName: " Claudia AGI Strategy lead, NAISI",
+    programmeName: " Claudia AGI Strategy lead, NAISI",
+  };
   const cases = [
-    ["somebody facilitating alone", ["coFacilitators"], " You’re facilitating with Sofia."],
-    ["a group with no room yet", ["where"], " Where: Hallward B12"],
-    ["a run no programme names", ["leadName", "programmeName"], " Claudia AGI Strategy lead, NAISI"],
-    ["a programme with no lead", ["leadName"], " Claudia AGI Strategy lead, NAISI"],
+    ["somebody facilitating alone", ["coFacilitators"]],
+    ["a group with no room yet", ["where"]],
+    ["a run no programme names", ["leadName", "programmeName"]],
+    ["a programme with no lead", ["leadName"]],
   ];
-  for (const [label, absent, gone] of cases) {
+  for (const [label, absent] of cases) {
     test(label, () => {
       const written = email.composeFacilitatingEmail(SEED, without(FACTS, absent));
       assert.equal(written.ok, true, JSON.stringify(written));
-      assert.equal(read(written), FULL.replace(gone, ""));
+      assert.equal(read(written), FULL.replace(GONE[absent[0]], ""));
     });
   }
 
-  test("every combination of what can be missing comes back whole", () => {
+  // The wording before the board's, as it always did: each in a paragraph of its own.
+  const savedCases = [
+    ["saved wording, somebody facilitating alone", ["coFacilitators"], " You’re facilitating with Sofia."],
+    ["saved wording, a group with no room yet", ["where"], " Where: Hallward B12"],
+    ["saved wording, a run no programme names", ["leadName", "programmeName"], " Claudia AGI Strategy lead, NAISI"],
+    ["saved wording, a programme with no lead", ["leadName"], " Claudia AGI Strategy lead, NAISI"],
+  ];
+  for (const [label, absent, gone] of savedCases) {
+    test(label, () => {
+      const written = email.composeFacilitatingEmail(SAVED, without(FACTS, absent));
+      assert.equal(written.ok, true, JSON.stringify(written));
+      assert.equal(read(written), SAVED_FULL.replace(gone, ""));
+    });
+  }
+
+  test("every combination of what can be missing comes back whole, word for word", () => {
     for (const absent of subsets(OPTIONAL)) {
       const written = email.composeFacilitatingEmail(SEED, without(FACTS, absent));
       assert.equal(written.ok, true, absent.join(", "));
       const all = `${written.subject}\n${printed(written.blocks)}`;
       assert.deepEqual(tokensIn(all), [], absent.join(", "));
       assert.doesNotMatch(all, EMPTY_SHELL, absent.join(", "));
-      // The sentences that are not about a missing value are all still there.
+      // Exactly the board's email less what each missing value takes.
+      const expected = [...new Set(absent.map((token) => GONE[token]))].reduce((text, gone) => text.replace(gone, ""), FULL);
+      assert.equal(read(written), expected, absent.join(", "));
+      // And the saved wording keeps every sentence that is not about a missing value.
+      const saved = email.composeFacilitatingEmail(SAVED, without(FACTS, absent));
       for (const kept of ["Group B meets on Tuesdays at 6pm, from Tue 3 Nov to Tue 8 Dec.", "There are 8 people in the group.", "Take the register on your phone during the session."]) {
-        assert.ok(read(written).includes(kept), `${absent.join(", ")}: ${kept}`);
+        assert.ok(read(saved).includes(kept), `${absent.join(", ")}: ${kept}`);
       }
     }
   });
 
   test("a group of one reads right", () => {
     const written = email.composeFacilitatingEmail(SEED, { ...FACTS, groupSize: 1 });
-    assert.ok(read(written).includes("There is 1 person in the group."), read(written));
+    assert.equal(
+      read(written),
+      FULL.replace("There are 8 people in the group. Their names are on your group page.", "There is 1 person in the group. Their name is on your group page."),
+    );
+    assert.ok(read(email.composeFacilitatingEmail(SAVED, { ...FACTS, groupSize: 1 })).includes("There is 1 person in the group."));
   });
 });
 
@@ -209,10 +287,17 @@ describe("4. an essential value missing refuses the email", () => {
 describe("5. never a meeting link", () => {
   test("an online group is told it is online, and where the link is", () => {
     for (const [linkOnPage, said] of [
+      [true, "Group B meets on Tuesdays at 6pm online, from Tue 3 Nov to Tue 8 Dec. The link to join is on your group page. You’re facilitating with Sofia."],
+      [false, "Group B meets on Tuesdays at 6pm online, from Tue 3 Nov to Tue 8 Dec. You’re facilitating with Sofia."],
+    ]) {
+      const written = email.composeFacilitatingEmail(SEED, { ...FACTS, where: { kind: "online", linkOnPage } });
+      assert.ok(read(written).includes(said), read(written));
+    }
+    for (const [linkOnPage, said] of [
       [true, "Where: Online. The link to join is on your group page."],
       [false, "Where: Online"],
     ]) {
-      const written = email.composeFacilitatingEmail(SEED, { ...FACTS, where: { kind: "online", linkOnPage } });
+      const written = email.composeFacilitatingEmail(SAVED, { ...FACTS, where: { kind: "online", linkOnPage } });
       assert.ok(read(written).includes(said), read(written));
     }
   });
@@ -224,15 +309,29 @@ describe("5. never a meeting link", () => {
         const written = email.composeFacilitatingEmail(SEED, { ...FACTS, where });
         const all = `${written.subject}\n${printed(written.blocks)}`.toLowerCase();
         assert.ok(!all.includes("meet.example") && !all.includes("8675309"), all);
-        assert.ok(read(written).includes("Where: You’ll find where it meets on your group page."), read(written));
+        assert.ok(
+          read(written).includes(
+            "Group B meets on Tuesdays at 6pm, from Tue 3 Nov to Tue 8 Dec. You’ll find where it meets on your group page. You’re facilitating with Sofia.",
+          ),
+          read(written),
+        );
+        const saved = email.composeFacilitatingEmail(SAVED, { ...FACTS, where });
+        assert.ok(!`${saved.subject}\n${printed(saved.blocks)}`.toLowerCase().includes("meet.example"));
+        assert.ok(read(saved).includes("Where: You’ll find where it meets on your group page."), read(saved));
       }
     }
   });
 
   test("nothing typed becomes markup", () => {
-    const written = email.composeFacilitatingEmail(SEED, { ...FACTS, groupName: "<b>Group</b> {B}", coFacilitators: "Sofia & Tom" });
+    const written = email.composeFacilitatingEmail(SEED, {
+      ...FACTS,
+      groupName: "<b>Group</b> {B}",
+      coFacilitators: "Sofia & Tom",
+      where: { kind: "room", room: "Room <i>B</i>" },
+    });
     const html = printed(written.blocks);
-    assert.ok(html.includes("&lt;b&gt;Group&lt;/b&gt; (B)") && html.includes("Sofia &amp; Tom"), html);
+    assert.ok(html.includes("&lt;b&gt;Group&lt;/b&gt; (B)") && html.includes("You’re facilitating with Sofia &amp; Tom."), html);
+    assert.ok(html.includes("on Tuesdays at 6pm in Room &lt;i&gt;B&lt;/i&gt;, from"), html);
   });
 });
 

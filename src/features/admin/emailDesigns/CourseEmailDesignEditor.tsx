@@ -86,6 +86,43 @@ const GROUP_TOKENS: TokenHelp[] = [
     description:
       "Where that first session is, e.g. Hallward Library, B12. Online groups say Online, and that the link to join is on their programme's page. Never the meeting link, and never a room that has a link typed into it: that group is told to look on their programme's page.",
   },
+  {
+    token: "programmeName",
+    description: "The short name of the programme that names the run, e.g. AGI Strategy. The course's title on a run no programme names.",
+  },
+  { token: "weeklySlot", description: "When the group meets each week, e.g. Tuesdays at 6pm." },
+  {
+    token: "firstSession",
+    description: "The day it meets from, on the group's own calendar, e.g. Tue 3 Nov. Its next session once it has met.",
+  },
+  {
+    token: "firstSessionDay",
+    description: "That day as a sentence says it before it: Tuesday within the coming week, Tue 3 Nov further off.",
+  },
+  { token: "programmeUrl", description: "The address of their programme's page, for the button." },
+  {
+    token: "weekOneTime",
+    description:
+      "How long week 1 takes, e.g. about 80 minutes: its This week box's In all, or its readings' own minutes. Nothing when week 1 is not published or has no time, or the group has already met.",
+  },
+  { token: "leadName", description: "The first name of the lead of the programme that names the run, who signs the email." },
+  { token: "naisiSignOff", description: "NAISI, signing the email when no lead stands to. Nothing when the lead signs." },
+  {
+    token: "place",
+    description:
+      "Where the group meets, worded to sit after its time: in Hallward Library, B12, or online. Nothing when no room is set, and never a meeting link or a room with a link typed into it.",
+  },
+  {
+    token: "placeNote",
+    description:
+      "A sentence for a place the email does not print: The link to join is on your programme’s page, for an online group, or where to find a room that has a link typed into it. Nothing otherwise.",
+  },
+  { token: "sessionLength", description: "A sentence from the group's own length, e.g. Sessions last 2 hours. Nothing when none is set." },
+  {
+    token: "yourFacilitators",
+    description: "A sentence naming the group's facilitators by first name, e.g. Rahul and Sofia are your facilitators. Nothing for none.",
+  },
+  { token: "groupSize", description: "A sentence saying how many are in the group, e.g. There are 8 of you. Nothing for a group of one." },
 ];
 
 /**
@@ -122,6 +159,24 @@ const FACILITATING_TOKENS: TokenHelp[] = [
   },
   { token: "leadName", description: "The first name of the lead of the programme that names the run." },
   { token: "programmeName", description: "That programme's short name. Nothing on a run no programme names." },
+  {
+    token: "namesOnPage",
+    description: "A sentence after the group's size: Their names are on your group page, or Their name is, for a group of one.",
+  },
+  {
+    token: "place",
+    description:
+      "Where the group meets, worded to sit after its time: in Hallward Library, B12, or online. Nothing when no room is set, and never a meeting link or a room with a link typed into it.",
+  },
+  {
+    token: "placeNote",
+    description:
+      "A sentence for a place the email does not print: The link to join is on your group page, for an online group, or where to find a room that has a link typed into it. Nothing otherwise.",
+  },
+  {
+    token: "facilitatingWith",
+    description: "A sentence naming the others who facilitate the group, e.g. You’re facilitating with Sofia. Nothing for somebody facilitating alone.",
+  },
 ];
 
 /**
@@ -449,14 +504,17 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
         {showsFacilitatingTokens && (
           <p className={styles.tokensNote}>
             Publish sends this to each facilitator of each group with people in it, once a group. A
-            group can have no room yet, one facilitator, or a run no programme names. So keep{" "}
-            <code>{"{where}"}</code>, <code>{"{coFacilitators}"}</code> and the sign-off (
-            <code>{"{leadName}"}</code>, <code>{"{programmeName}"}</code>) each in a paragraph of its
-            own: that paragraph is left out when there is nothing to put in it, and the rest of the
-            email goes. None can go in the subject, or in a paragraph with <code>{"{groupName}"}</code>
-            , <code>{"{weeklySlot}"}</code> or the two dates. A group with no name or no day and time
-            cannot be published at all, and neither can wording that uses a token not on this list:
-            publishing says which.
+            group can have no room yet, one facilitator, or a run no programme names.{" "}
+            <code>{"{place}"}</code>, <code>{"{placeNote}"}</code> and <code>{"{facilitatingWith}"}</code>{" "}
+            are worded to sit inside a sentence and to go from it when there is nothing to say: a group
+            with no room yet reads &ldquo;Group B meets on Tuesdays at 6pm, from Tue 3 Nov to Tue 8
+            Dec.&rdquo; Keep <code>{"{where}"}</code>, <code>{"{coFacilitators}"}</code> and the
+            sign-off (<code>{"{leadName}"}</code>, <code>{"{programmeName}"}</code>) each in a paragraph
+            of its own: that paragraph is left out when there is nothing to put in it, and the rest of
+            the email goes. None can go in the subject, or in a paragraph with{" "}
+            <code>{"{groupName}"}</code>, <code>{"{weeklySlot}"}</code> or the two dates. A group with
+            no name or no day and time cannot be published at all, and neither can wording that uses a
+            token not on this list: publishing says which.
           </p>
         )}
         {showsIncubatorTokens && (
@@ -478,20 +536,27 @@ export default function CourseEmailDesignEditor({ templateId }: Props) {
           !showsFacilitatingTokens &&
           !showsIncubatorTokens && (
           <p className={styles.tokensNote}>
-            The last four only resolve on the group placement email: nobody has a group
+            The greyed tokens only resolve on the group placement email: nobody has a group
             yet when this one sends. Used here they arrive as the literal{" "}
             <code>{"{groupName}"}</code> text, which the preview shows you.
           </p>
         )}
         {showsGroupTokens && (
           <p className={styles.tokensNote}>
-            A group can be formed before it has a facilitator or a room. So keep{" "}
-            <code>{"{facilitatorNames}"}</code> and <code>{"{firstSessionWhere}"}</code> each in a
-            paragraph of its own: that paragraph is left out for a group with nothing to put in
-            it, and the rest of the email goes. Neither can go in the subject, or in a paragraph
-            with <code>{"{groupName}"}</code> or <code>{"{firstSessionWhen}"}</code>. A group with
-            no name or no session time cannot be published at all, and neither can wording that
-            uses a token not on this list: publishing says which.
+            A group can be formed before it has a facilitator or a room. Five tokens are worded to
+            sit inside a sentence and to go from it when there is nothing to say:{" "}
+            <code>{"{place}"}</code>, <code>{"{placeNote}"}</code>, <code>{"{sessionLength}"}</code>,{" "}
+            <code>{"{yourFacilitators}"}</code> and <code>{"{groupSize}"}</code>. A group with no room
+            yet reads &ldquo;You’ll meet on Tuesdays at 6pm, starting Tue 3 Nov.&rdquo;, and a paragraph
+            left with nothing in it goes. Keep the others that can be missing (
+            <code>{"{weekOneTime}"}</code>, <code>{"{facilitatorNames}"}</code>,{" "}
+            <code>{"{firstSessionWhere}"}</code>, and the sign-offs <code>{"{leadName}"}</code> and{" "}
+            <code>{"{naisiSignOff}"}</code>) each in a paragraph of its own: that paragraph is left out
+            for a group with nothing to put in it, and the rest of the email goes. None can go in the
+            subject, or in a paragraph with <code>{"{groupName}"}</code>, <code>{"{weeklySlot}"}</code>{" "}
+            or <code>{"{firstSession}"}</code>. A group with no name or no day and time cannot be
+            published at all, and neither can wording that uses a token not on this list: publishing
+            says which.
           </p>
         )}
         {showsWeekTokens && (

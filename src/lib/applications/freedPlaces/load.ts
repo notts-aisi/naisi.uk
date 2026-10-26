@@ -32,6 +32,7 @@ import {
   fitsNoneWords,
   fitsWords,
   freeInWords,
+  freeOnInTheirWeek,
   gaveBackSentence,
   offerHeading,
   toldOnWords,
@@ -189,7 +190,6 @@ export async function loadOfferBoard(
           id: group.id,
           name: group.name,
           meets: words.meets ?? "",
-          freeOn: words.freeOn ?? "",
           startsOn: words.startsOn,
           seatsFree: seatsFree(group, waiting),
         };
@@ -242,6 +242,14 @@ export async function loadOfferBoard(
         return view !== undefined && view.startsOn !== null && (view.seatsFree === null || view.seatsFree > 0);
       })
       .map((group) => group.id);
+    // When their own week says they are free at each group's time, in the
+    // email's words: the preview is composed from it, as the send is.
+    const freeOn: Record<string, string> = {};
+    for (const group of fitting) {
+      if (!groupIds.includes(group.id)) continue;
+      const said = freeOnInTheirWeek(group.session, sent.availability, form.round.availabilityGrid);
+      if (said) freeOn[group.id] = said;
+    }
     const cannot = !painted
       ? "They gave no times, so no email can say when they’re free."
       : fitting.length === 0
@@ -270,6 +278,7 @@ export async function loadOfferBoard(
         groupIds,
         score: score === null ? null : formatScore(score),
         toldOn: toldOnWords(toldAt, now),
+        freeOn,
         cannot,
       },
       score,

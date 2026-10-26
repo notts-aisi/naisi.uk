@@ -350,7 +350,8 @@ describe("1. Publish leaves out somebody placed and not told who gave their plac
       const tested = await sendTest(who);
       assert.deepEqual([tested.status, tested.body.emails, tested.body.recorded], [200, 2, true]);
       const [person, facilitator] = await Promise.all(world.mail.map(opened));
-      assert.ok(person.text.includes("You've been placed, Bea"), person.text);
+      // Bea's group email: its greeting and first words, the board's since October 2026 (until then "You've been placed, Bea").
+      assert.ok(person.text.includes("Hi Bea, You’re in Group "), person.text);
       assert.ok(!person.text.includes("Amara"), person.text);
       // Rahul's Group B, which Amara's seat sits in: Dev alone is counted.
       assert.ok(facilitator.text.includes("Hi Rahul,"), facilitator.text);
@@ -471,7 +472,8 @@ describe("1. Publish leaves out somebody placed and not told who gave their plac
       const tested = await sendTest(who);
       assert.deepEqual([tested.status, tested.body.emails, tested.body.recorded], [200, 2, true]);
       const [person] = await Promise.all(world.mail.filter(isTest).map(opened));
-      assert.ok(person.text.includes("You've been placed, "), person.text);
+      // A group email: its greeting and first words, the board's since October 2026 (until then "You've been placed, ").
+      assert.match(person.text, /Hi [A-Z][a-z]+, You’re in Group [A-Z]\. You’ll meet on /);
       assert.ok(!person.text.includes("Tariq"), person.text);
 
       // The press is not refused for Tariq, and sends the number on the button.
@@ -549,7 +551,8 @@ describe("2. beside a card that left by each door, one removed, a late placement
       // The test: Kit's email and Tom's, to the presser.
       const tests = await Promise.all(world.mail.slice(mailBefore).filter(isTest).map(opened));
       assert.deepEqual(tests.map((mail) => mail.to), [`${who}@example.com`, `${who}@example.com`]);
-      assert.ok(tests[0].text.includes("You've been placed, Kit"), tests[0].text);
+      // Kit's group email, the board's words since October 2026 (until then "You've been placed, Kit").
+      assert.ok(tests[0].text.includes("Hi Kit, You’re in Group "), tests[0].text);
       // The press: the number on the button, and those two.
       assert.equal(sent.length, number);
       assert.deepEqual(sent.map((mail) => mail.to), ["kit@example.com", "tom@example.com"]);

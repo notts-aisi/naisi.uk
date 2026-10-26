@@ -2040,7 +2040,8 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.deepEqual(
         p.testMail.map((mail) => [mail.to, mail.subject, mail.kind]),
         [
-          [address("claudia"), "[TEST] Your AGI Strategy Fellowship group: first session Tue 3 Nov, 6pm", "course-test"],
+          // The board's subject since October 2026 (until then "first session Tue 3 Nov, 6pm").
+          [address("claudia"), "[TEST] Your AGI Strategy group: Tuesdays at 6pm", "course-test"],
           [address("claudia"), "[TEST] You’re facilitating Group A: Thursdays at 6pm", "course-test"],
         ],
       );
@@ -2262,8 +2263,9 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.deepEqual(s().pressMail.map((mail) => [mail.to, mail.subject, mail.links]), [[address("tom"), "You’re facilitating Group A: Thursdays at 6pm", [groupPage(RUN, GROUP.A)]]]);
       assert.equal(
         readFrom(s().pressMail[0], "Hi "),
-        "Hi Tom, Group A meets on Thursdays at 6pm, from Thu 5 Nov to Thu 3 Dec. Where: Room A13 You’re facilitating with Amelia. " +
-          `There are 3 people in the group. Open your group Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI ${FOOTER}`,
+        // The board's words since October 2026 (until then "Where: Room A13" on a line of its own, and nothing about names).
+        "Hi Tom, Group A meets on Thursdays at 6pm in Room A13, from Thu 5 Nov to Thu 3 Dec. You’re facilitating with Amelia. " +
+          `There are 3 people in the group. Their names are on your group page. Open your group Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI ${FOOTER}`,
       );
     });
   });
@@ -2366,8 +2368,8 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.equal(
         readFrom(l().pressMail[0], "Hi "),
         // Told on Wed 4 Nov, after the group first met: its next session (G5).
-        "Hi Sofia, Group A meets on Thursdays at 6pm, from Thu 5 Nov to Thu 3 Dec. Where: Room A13 You’re facilitating with Amelia and Tom. " +
-          `There are 3 people in the group. Open your group Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI ${FOOTER}`,
+        "Hi Sofia, Group A meets on Thursdays at 6pm in Room A13, from Thu 5 Nov to Thu 3 Dec. You’re facilitating with Amelia and Tom. " +
+          `There are 3 people in the group. Their names are on your group page. Open your group Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI ${FOOTER}`,
       );
       assert.deepEqual(short(l().leadDecides), [403, "Forbidden"]);
       assert.deepEqual(l().adminDecides.body, { ok: true });

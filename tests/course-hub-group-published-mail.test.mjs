@@ -104,7 +104,10 @@ function whatItIs(mail) {
   const test = mail.subject.startsWith("[TEST] ");
   if (mail.kind !== (test ? "course-test" : "course-application")) return `${mail.kind}: ${mail.subject}`;
   const subject = test ? mail.subject.slice("[TEST] ".length) : mail.subject;
-  const what = subject.startsWith("Your AGI Strategy Fellowship group: first session ")
+  // The board's subject since October 2026 ("Your AGI Strategy group:
+  // Tuesdays at 6pm"); until then "Your AGI Strategy Fellowship group: first
+  // session ...". Either way the email that tells somebody their group.
+  const what = subject.startsWith("Your AGI Strategy group: ")
     ? "placement"
     : subject.startsWith("You’re facilitating ")
       ? "facilitating"

@@ -93,8 +93,13 @@ async function mailTo(address) {
 
 const address = (uid) => world.db.read(`users/${uid}`).email;
 
-/** Who a placement email says facilitates the group: "Sofia and Amara", or null when it says nobody. */
-const facilitatedBy = (text) => (/Your group is facilitated by ([^.]*)\./.exec(text) ?? [])[1] ?? null;
+/**
+ * Who a placement email says facilitates the group: "Sofia and Amara", or
+ * null when it says nobody. In the board's sentence since October 2026
+ * ("Sofia and Amara are your facilitators.", "Sofia is your facilitator.");
+ * until then "Your group is facilitated by Sofia and Amara."
+ */
+const facilitatedBy = (text) => (/([A-Z][^.]*?) (?:is your facilitator|are your facilitators)\./.exec(text) ?? [])[1] ?? null;
 
 /** Where the board shows somebody: the group their card is in, or null for the pool. */
 async function onTheBoard(who, uid) {
@@ -288,7 +293,7 @@ describe("2. Publish tells a facilitator who holds a place their group and their
     await sendTest();
     assert.equal((await pressNow()).status, 200);
     const [placedEmail, facilitating] = await mailTo(address("amara"));
-    assert.match(placedEmail.text, /You've been placed, Amara You're in Group A for AGI Strategy Fellowship/);
+    assert.match(placedEmail.text, /Hi Amara, You’re in Group A\. You’ll meet on Thursdays at 6pm/);
     assert.equal(facilitatedBy(placedEmail.text), "Sofia", "Amara was told wrongly who facilitates Amara's own group");
     assert.equal(facilitating.subject, "You’re facilitating Group A: Thursdays at 6pm");
     assert.ok(facilitating.text.includes("You’re facilitating with Sofia."), facilitating.text);
@@ -308,8 +313,9 @@ describe("2. Publish tells a facilitator who holds a place their group and their
     assert.equal((await pressNow()).status, 200);
     const [placedEmail, facilitating] = await mailTo(address("amara"));
     assert.equal(facilitatedBy(placedEmail.text), null, placedEmail.text);
-    assert.ok(!placedEmail.text.includes("facilitated by"), placedEmail.text);
-    assert.ok(placedEmail.text.includes("Your first session is"), placedEmail.text);
+    assert.ok(!placedEmail.text.includes("your facilitator"), placedEmail.text);
+    // The rest of the email goes: the group and when it meets.
+    assert.ok(placedEmail.text.includes("You’re in Group A. You’ll meet on Thursdays at 6pm"), placedEmail.text);
     assert.ok(!facilitating.text.includes("You’re facilitating with"), facilitating.text);
     const [bea] = await mailTo(address("bea"));
     assert.equal(facilitatedBy(bea.text), "Amara");

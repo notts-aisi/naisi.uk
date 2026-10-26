@@ -42,7 +42,7 @@ import {
 import { readTermInTransaction } from "./term";
 import { freedPlaceFingerprint, freedPlaceTestStanding, sendIsTested } from "./tested";
 import type { OfferReport } from "./views";
-import { composeFreedPlaceEmail, toldOnWords } from "./words";
+import { composeFreedPlaceEmail, freeOnInTheirWeek, toldOnWords } from "./words";
 
 /**
  * OFFERING FREED PLACES: the one writer of an offer, the emails that follow
@@ -156,7 +156,8 @@ function emailFor(input: {
     toldOn: toldAt ? toldOnWords(toldAt, now) : "",
     meets: words.meets ?? "",
     startsOn: words.startsOn ?? "",
-    freeOn: words.freeOn ?? "",
+    // Said only when their own painted week says it.
+    freeOn: freeOnInTheirWeek(group.session, application.sent?.availability, form.round.availabilityGrid),
     replyBy: formatRunStartShort(input.replyBy) ?? "",
     link: input.link,
   });

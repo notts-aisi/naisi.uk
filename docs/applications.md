@@ -1228,10 +1228,14 @@ applicants' page goes on saying what was picked before it.
 "A place has come up on AGI Strategy", in the board's words, composed by
 `composeFreedPlaceEmail` (`freedPlaces/words.ts`) from records: when the
 person was told, the weekly time and next session of a group of the run, the
-part of the week that time falls in, the day to accept by, and the lead who
-signs it. It names when the group meets, so it goes WHOLE OR NOT AT ALL: a
-slot with nothing in it refuses the press with a sentence, before anything
-is written. It never names the group, its room or a link: "Once you accept,
+day to accept by, and the lead who signs it. It names when the group meets,
+so it goes WHOLE OR NOT AT ALL: a slot with nothing in it refuses the press
+with a sentence, before anything is written. "You told us you’re free on
+Wednesday afternoons." is the one sentence that can go: it is said from the
+person's OWN painted week (`freeOnInTheirWeek`), only when that week has at
+least an hour painted in the part of the day the group's time falls in (the
+rule the page's "Free Wed afternoons" reads a week by), and the page's
+preview says it the same way. It never names the group, its room or a link: "Once you accept,
 we'll email you your group and room", and Publish is what does. It goes
 through decision day's own mail door (`sendDecisionEmail`), with the same
 reply-to, after the offer has committed, because its buttons open the

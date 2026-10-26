@@ -295,7 +295,18 @@ describe("2. a test first", () => {
       assert.equal(mail.kind, "course-test");
     }
     const [person, facilitator] = await Promise.all(world.mail.map(opened));
-    assert.match(person.subject, /^\[TEST\] Your AGI Strategy Fellowship group: first session /);
+    // Amara's email in the board's words (st-emails, October 2026; until then
+    // "Your AGI Strategy Fellowship group: first session Tue 3 Nov, 6pm"),
+    // as Publish would send it: no week of the run is written yet, so it
+    // says nothing of week 1.
+    assert.equal(person.subject, "[TEST] Your AGI Strategy group: Tuesdays at 6pm");
+    assert.ok(
+      person.text.includes(
+        "Hi Amara, You’re in Group B. You’ll meet on Tuesdays at 6pm in Hallward B12, starting Tue 3 Nov. Sessions last 2 hours. " +
+          "Rahul and Sofia are your facilitators. There are 2 of you. Open your programme Claudia AGI Strategy lead, NAISI",
+      ),
+      person.text,
+    );
     assert.equal(facilitator.subject, "[TEST] You’re facilitating Group B: Tuesdays at 6pm");
     assert.ok(facilitator.text.includes("Hi Rahul,"), "it is Rahul's email, as Publish would send it");
     await nothingToFollow(world.mail);
@@ -568,7 +579,8 @@ describe("4. once per facilitator per group", () => {
     assert.equal((await pressNow()).status, 200);
     assert.deepEqual(toOf(realMail().filter(isFacilitating)), ["rahul@example.com", "sofia@example.com"]);
     const bea = await opened(realMail().find((mail) => mail.to === "bea@example.com"));
-    assert.ok(!bea.text.includes("facilitated by"), bea.text);
+    // Group A has no facilitator, so no sentence names one (the board's words since October 2026).
+    assert.ok(!bea.text.includes("your facilitator"), bea.text);
   });
 });
 
@@ -649,11 +661,14 @@ describe("6. the emails", () => {
     await pressNow();
     const rahul = await opened(realMail().find((mail) => mail.to === "rahul@example.com"));
     assert.equal(rahul.subject, "You’re facilitating Group B: Tuesdays at 6pm");
-    // Everything between the logo and the footer, in order.
+    // Everything between the logo and the footer, in order: the board's
+    // words since October 2026 (until then "Where: Hallward B12" and "You’re
+    // facilitating with Sofia." each had a line of their own, and nothing
+    // said where the names are).
     assert.ok(
       rahul.text.includes(
-        "Hi Rahul, Group B meets on Tuesdays at 6pm, from Tue 3 Nov to Tue 8 Dec. Where: Hallward B12 " +
-          "You’re facilitating with Sofia. There are 2 people in the group. Open your group " +
+        "Hi Rahul, Group B meets on Tuesdays at 6pm in Hallward B12, from Tue 3 Nov to Tue 8 Dec. " +
+          "You’re facilitating with Sofia. There are 2 people in the group. Their names are on your group page. Open your group " +
           "Take the register on your phone during the session. Claudia AGI Strategy lead, NAISI",
       ),
       rahul.text,
@@ -662,7 +677,7 @@ describe("6. the emails", () => {
     // Sofia facilitates Group A alone: no sentence names anybody beside her.
     const sofiaA = await opened(realMail().find((mail) => mail.to === "sofia@example.com" && mail.subject.includes("Group A")));
     assert.ok(!sofiaA.text.includes("You’re facilitating with"), sofiaA.text);
-    assert.ok(sofiaA.text.includes("Group A meets on Thursdays at 6pm, from Thu 29 Oct to Thu 3 Dec. Where: Portland A13"), sofiaA.text);
+    assert.ok(sofiaA.text.includes("Group A meets on Thursdays at 6pm in Portland A13, from Thu 29 Oct to Thu 3 Dec. There are"), sofiaA.text);
     await nothingToFollow(world.mail);
   });
 
@@ -764,9 +779,17 @@ describe("6. the emails", () => {
     await sendTest();
     await pressNow();
     const amara = await opened(realMail().find((mail) => mail.to === "amara@example.com"));
-    assert.ok(amara.text.includes("Where: Online. The link to join is on your programme's page in the learning space."), amara.text);
+    // In the board's words since October 2026 (until then "Where: Online. The
+    // link to join is on your programme's page in the learning space.").
+    assert.ok(
+      amara.text.includes(
+        "You’ll meet on Wednesdays at 1pm online, starting Wed 4 Nov. Sessions last 2 hours. The link to join is on your programme’s page.",
+      ),
+      amara.text,
+    );
     const tom = await opened(realMail().find((mail) => mail.to === "tom@example.com"));
-    assert.ok(tom.text.includes("Where: Online. The link to join is on your group page."), tom.text);
+    // Until October 2026 "Where: Online. The link to join is on your group page." on a line of its own.
+    assert.ok(tom.text.includes("Group C meets on Wednesdays at 1pm online, from Wed 4 Nov to Wed 9 Dec. The link to join is on your group page."), tom.text);
     await nothingToFollow(world.mail);
   });
 
@@ -777,11 +800,15 @@ describe("6. the emails", () => {
     await sendTest();
     await pressNow();
     const bea = await opened(realMail().find((mail) => mail.to === "bea@example.com"));
-    // The first session in the boards' words ("Thu 5 Nov", "6pm"), since the
-    // walk of stage one (October 2026): until then this email wrote "Thursday 5 November, 18:00".
-    assert.equal(bea.subject, "Your AGI Strategy Fellowship group: first session Thu 5 Nov, 6pm");
+    // The day it meets from, in the boards' words ("Thu 5 Nov"): in the
+    // subject until the email took the board's words (st-emails, October
+    // 2026), and in its first sentence since, beside the weekly time the
+    // subject now says.
+    assert.equal(bea.subject, "Your AGI Strategy group: Thursdays at 6pm");
+    assert.ok(bea.text.includes("You’ll meet on Thursdays at 6pm in Portland A13, starting Thu 5 Nov."), bea.text);
     const amara = await opened(realMail().find((mail) => mail.to === "amara@example.com"));
-    assert.equal(amara.subject, "Your AGI Strategy Fellowship group: first session Tue 3 Nov, 6pm");
+    assert.equal(amara.subject, "Your AGI Strategy group: Tuesdays at 6pm");
+    assert.ok(amara.text.includes("You’ll meet on Tuesdays at 6pm in Hallward B12, starting Tue 3 Nov."), amara.text);
     const sofiaA = await opened(realMail().find((mail) => mail.to === "sofia@example.com" && mail.subject.includes("Group A")));
     assert.ok(sofiaA.text.includes("from Thu 5 Nov to Thu 10 Dec"), sofiaA.text);
   });
@@ -807,14 +834,15 @@ describe("6. the emails", () => {
     };
     // Half an hour into its first session, that session is still the one named.
     world.db.poke(`courseGroups/${A}`, { facilitatorUids: ["sofia", "tom"] });
-    assert.ok((await toldTom("2026-10-29T18:30:00Z")).includes("Group A meets on Thursdays at 6pm, from Thu 29 Oct to Thu 3 Dec."));
+    // The room sits in the sentence since the board's words (October 2026).
+    assert.ok((await toldTom("2026-10-29T18:30:00Z")).includes("Group A meets on Thursdays at 6pm in Portland A13, from Thu 29 Oct to Thu 3 Dec."));
     // The next morning, a second facilitator is told when the group next meets.
     world.db.poke(`courseGroups/${A}`, { facilitatorUids: ["sofia", "tom", "rahul"] });
     mock.timers.setTime(new Date("2026-10-30T09:00:00Z").getTime());
     const before = realMail().length;
     assert.equal((await pressNow()).status, 200);
     const rahul = await opened(realMail().slice(before).find((mail) => mail.to === "rahul@example.com" && mail.subject.includes("Group A")));
-    assert.ok(rahul.text.includes("Group A meets on Thursdays at 6pm, from Thu 5 Nov to Thu 3 Dec."), rahul.text);
+    assert.ok(rahul.text.includes("Group A meets on Thursdays at 6pm in Portland A13, from Thu 5 Nov to Thu 3 Dec."), rahul.text);
     assert.ok(!rahul.text.includes("Thu 29 Oct"), rahul.text);
   });
 
@@ -853,7 +881,15 @@ describe("6. the emails", () => {
     const moved = realMail().slice(before);
     assert.deepEqual(toOf(moved), ["amara@example.com"]);
     const amara = await opened(moved[0]);
-    assert.match(amara.text, /You're in Group A for AGI Strategy Fellowship/);
+    // Her new group, in the board's words since October 2026 (until then
+    // "You're in Group A for AGI Strategy Fellowship"), counting Bea and Tariq, told before.
+    assert.ok(
+      amara.text.includes(
+        "Hi Amara, You’re in Group A. You’ll meet on Thursdays at 6pm in Portland A13, starting Thu 29 Oct. Sessions last 2 hours. " +
+          "Sofia is your facilitator. There are 3 of you.",
+      ),
+      amara.text,
+    );
   });
 
   test("a room with a link typed into it is not printed, in either email", async () => {
@@ -862,7 +898,11 @@ describe("6. the emails", () => {
     await sendTest();
     await pressNow();
     const rahul = await opened(realMail().find((mail) => mail.to === "rahul@example.com"));
-    assert.ok(rahul.text.includes("Where: You’ll find where it meets on your group page."), rahul.text);
+    // Until October 2026 "Where: You’ll find where it meets on your group page." on a line of its own.
+    assert.ok(
+      rahul.text.includes("Group B meets on Tuesdays at 6pm, from Tue 3 Nov to Tue 8 Dec. You’ll find where it meets on your group page. You’re facilitating with Sofia."),
+      rahul.text,
+    );
     await nothingToFollow(world.mail);
   });
 });

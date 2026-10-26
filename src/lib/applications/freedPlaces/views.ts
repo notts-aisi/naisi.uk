@@ -20,8 +20,6 @@ export type OfferGroup = {
   name: string;
   /** "Wednesdays at 1pm". */
   meets: string;
-  /** "Wednesday afternoons", as the email says it. */
-  freeOn: string;
   /** "Wed 4 Nov": its next session. Null when none is still to come, and then no email can name it. */
   startsOn: string | null;
   /** How many more people it can be promised. Null for a group with no cap. */
@@ -48,6 +46,14 @@ export type OfferPerson = {
   score: string | null;
   /** "Monday" or "Mon 26 Oct": when they were told, as their email says it today. */
   toldOn: string;
+  /**
+   * By group id, the part of the week their email says they told us they
+   * are free in ("Wednesday afternoons"), from their own painted week, for
+   * each group in `groupIds` whose time it says that of. A group missing
+   * here is one their email says nothing of the kind about. Words only: no
+   * painted week.
+   */
+  freeOn: Readonly<Record<string, string>>;
   /** Why they cannot be picked, or null when they can. */
   cannot: string | null;
 };
