@@ -250,6 +250,11 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "The rule for who finished, and each change the programme's lead made to who did.",
   },
+  facilitating: {
+    label: "Asks to facilitate",
+    fate: "destroyed",
+    note: "Who was asked to facilitate each group, by when, and what they answered, with the run's training and the last test of the email. The emails themselves stay in the delivery log.",
+  },
   mirroredTasks: {
     label: "Mirrored My Work tasks",
     fate: "destroyed",

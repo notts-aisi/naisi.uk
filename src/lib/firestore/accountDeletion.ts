@@ -9,6 +9,7 @@ import {
 } from "firebase-admin/firestore";
 import { deleteCalendarLink } from "@/lib/courses/calendarLink";
 import { takeNamesOffForAccount } from "@/lib/surveys/namesOff";
+import { FACILITATING_COLLECTION } from "@/lib/courses/facilitatorAsks/model";
 import { FINISHING_COLLECTION } from "@/lib/courses/finishing/model";
 import { PITCHES_COLLECTION } from "@/lib/courses/pitching/model";
 import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
@@ -102,6 +103,13 @@ export type AccountDeletionSummary = {
    * stays. Counted once per document.
    */
   courseFinishingCleared: number;
+  /**
+   * Asking people to facilitate (`courseFacilitating`): every ask sent to
+   * this account, with its answer, is deleted; where this account asked
+   * somebody, set a run's training or sent a test of the ask's email, who
+   * did it is cleared and the record stays. Counted once per document.
+   */
+  courseFacilitatingCleared: number;
   /**
    * The notes this account wrote as one of a group's facilitators for the
    * others (`courseGroupNotes`, C30). Deleted: a note is its writer's words,
@@ -543,6 +551,50 @@ export async function clearCourseFinishing(db: Firestore, uid: string): Promise<
     if (touched.has(doc.id)) continue;
     touched.add(doc.id);
     writes.push((batch) => batch.update(doc.ref, { byUid: null }));
+  }
+  for (let at = 0; at < writes.length; at += 400) {
+    const batch = db.batch();
+    for (const write of writes.slice(at, at + 400)) write(batch);
+    await batch.commit();
+  }
+  return touched.size;
+}
+
+/**
+ * Take one account out of asking people to facilitate (`courseFacilitating`,
+ * described in `src/lib/courses/facilitatorAsks/model.ts`).
+ *
+ * An ask sent to this account carries their `uid`, found by that one
+ * equality and deleted: it is about them, and their answer goes with it. An
+ * ask this account sent carries it as `askedByUid`, a run's training as
+ * `setByUid`, and a test record as `byUid`: each is found by its one
+ * equality and keeps everything but who did it, which is cleared, because it
+ * is about somebody else or about the run. Counted once per document.
+ */
+export async function clearFacilitatorAsks(db: Firestore, uid: string): Promise<number> {
+  const rows = db.collection(FACILITATING_COLLECTION);
+  const [about, asked, trained, tested] = await Promise.all([
+    rows.where("uid", "==", uid).get(),
+    rows.where("askedByUid", "==", uid).get(),
+    rows.where("setByUid", "==", uid).get(),
+    rows.where("byUid", "==", uid).get(),
+  ]);
+  const writes: Array<(batch: ReturnType<Firestore["batch"]>) => void> = [];
+  const touched = new Set<string>();
+  for (const doc of about.docs) {
+    touched.add(doc.id);
+    writes.push((batch) => batch.delete(doc.ref));
+  }
+  for (const [snap, field] of [
+    [asked, "askedByUid"],
+    [trained, "setByUid"],
+    [tested, "byUid"],
+  ] as const) {
+    for (const doc of snap.docs) {
+      if (touched.has(doc.id)) continue;
+      touched.add(doc.id);
+      writes.push((batch) => batch.update(doc.ref, { [field]: "" }));
+    }
   }
   for (let at = 0; at < writes.length; at += 400) {
     const batch = db.batch();
@@ -1094,6 +1146,7 @@ export async function deleteAccountCascade(
     coursePitchesCleared: 0,
     courseTeamsCleared: 0,
     courseFinishingCleared: 0,
+    courseFacilitatingCleared: 0,
     courseGroupNotesDeleted: 0,
     courseGroupSharedNotesDeleted: 0,
     admissionApplicationsDeleted: 0,
@@ -1431,6 +1484,16 @@ export async function deleteAccountCascade(
     summary.courseFinishingCleared = await clearCourseFinishing(db, uid);
   } catch (err) {
     console.error("[deleteAccount] courseFinishing clear failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c''''-. ASKED TO FACILITATE. Every ask sent to this account goes, with
+  //      its answer; where this account asked, set the training or sent a
+  //      test, who did it is cleared (see clearFacilitatorAsks).
+  try {
+    summary.courseFacilitatingCleared = await clearFacilitatorAsks(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseFacilitating clear failed:", uid, err);
     partialFailure = true;
   }
 
