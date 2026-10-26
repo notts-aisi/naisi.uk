@@ -29,7 +29,7 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
-import { B, BOXES, COURSE, NOW, ONE_BOX, RUBRIC, RUN, makeWrittenAnswersWorld } from "./lib/writtenAnswersWorld.mjs";
+import { B, BOXES, C, COURSE, NOW, ONE_BOX, RUBRIC, RUN, makeWrittenAnswersWorld } from "./lib/writtenAnswersWorld.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 
@@ -219,6 +219,23 @@ describe("2. the gate: who opens an answer, who reopens it, and the lock", () =>
     assert.equal((await w.write("rahul", 2, { text: words(23) })).status, 409);
     // An admin may send the feedback.
     assert.equal((await w.review("zach", "rahul", 2, { action: "feedback", levels: w.levels("Strong"), comment: "" })).status, 200);
+  });
+
+  test("nobody reviews their own answer: not the lead who also facilitates a group, not an admin", async () => {
+    // Claudia leads the programme and facilitates Group C too, so she writes her own answer.
+    const groupC = w.world.db.read(`courseGroups/${C}`);
+    w.world.db.poke(`courseGroups/${C}`, { facilitatorUids: [...groupC.facilitatorUids, "claudia"] });
+    w.at(BEFORE_DUE_2);
+    assert.equal((await w.write("claudia", 2, { text: words(22) }, { send: true })).status, 200);
+    w.at(NOW);
+    const before = w.everything();
+    assert.deepEqual(await w.review("claudia", "claudia", 2, { action: "open" }), { status: 403, body: { error: "Forbidden" } });
+    assert.deepEqual(await w.review("claudia", "claudia", 2, { action: "feedback", levels: w.levels(), comment: "Mine." }), { status: 403, body: { error: "Forbidden" } });
+    assert.equal(w.everything(), before);
+    // Tom, Group C's other facilitator, may not either; an admin may.
+    assert.equal((await w.review("tom", "claudia", 2, { action: "open" })).status, 403);
+    assert.equal((await w.review("zach", "claudia", 2, { action: "open" })).status, 200);
+    assert.equal(stored("claudia", 2).openedByUid, "zach");
   });
 
   test("everybody else is refused with the same answer before any answer is read, and writes nothing", async () => {
@@ -431,6 +448,11 @@ describe("4. the pages, as the boards draw them", () => {
     ]);
     assert.match(page.html, /<label for="[^"]+" class="label">Your answer<\/label><textarea id="[^"]+" class="box answerBox" rows="8">/);
     assert.doesNotMatch(page.text, /\bLate\b|exercise/i);
+    // Nothing sent, nothing ticked: neither task is done.
+    assert.match(page.text, /0 of 2 done/);
+    // A draft is not sent: the task stays open.
+    await w.write("chloe", 2, { text: words(25) });
+    assert.match((await w.weekPage("chloe", 2)).text, /0 of 2 done/);
   });
 
   test("once sent it says so and stays changeable; once opened it is read only and says who opened it; then Feedback from", async () => {
@@ -483,9 +505,11 @@ describe("4. the pages, as the boards draw them", () => {
     await w.write("chloe", 3, { boxes: { "wb-what": words(5) } });
     let home = await w.programmeHome("chloe");
     assert.match(home.text, /Your written answer Draft · 5 words/);
+    assert.match(home.text, /0 of 2 done/);
     await w.write("chloe", 3, { boxes: { "wb-what": words(5) } }, { send: true });
     home = await w.programmeHome("chloe");
     assert.match(home.text, /Your written answer Sent Tue 17 Nov/);
+    assert.match(home.text, /1 of 2 done/, "the programme page counts a sent answer done, from the overview's own rows");
     await w.review("sofia", "chloe", 3, { action: "feedback", levels: w.levels(), comment: "" });
     home = await w.programmeHome("chloe");
     assert.match(home.html, /Sent Tue 17 Nov <a href="\/learn\/[^"]+\/weeks\/3\/feedback" class="cardLink">Feedback from Sofia<\/a>/);
@@ -621,8 +645,13 @@ describe("4. the pages, as the boards draw them", () => {
     inOrder(group.text, ["Review queue", "Written answers", "2 to give feedback on", "Chloe Nguyen", "Sent Sun 8 Nov, 10am", "Give feedback", "Farah Hussain", "Sent Tue 17 Nov, 12pm", "Give feedback"]);
     assert.match(group.html, /href="\/learn\/[^"]+\/group\/[^"]+\/written\?week=2&amp;person=chloe"/);
     assert.doesNotMatch(group.text.slice(group.text.indexOf("Review queue"), group.text.indexOf("Review queue") + 400), /Rahul Mehta/);
+    // The summer's card stays for the summer's answers still waiting, and holds no written answer.
+    const summer = group.text.slice(group.text.indexOf("To review"));
+    assert.match(summer, /^To review 1 CN Chloe Nguyen · Week 1 exercise/);
+    assert.doesNotMatch(summer.slice(0, 200), /Week 2|Farah/);
     const summary = await w.summary("rahul");
     assert.equal(summary.body.writtenToGive, 2);
+    assert.equal(summary.body.toReview, 1, "the summer's count holds the summer's answers alone");
     const home = await w.home("rahul");
     assert.match(home.text, /2 to give feedback on Give feedback/);
     // The lead's Attendance tab: a line per group, the facilitator's own answer counted for the lead.
