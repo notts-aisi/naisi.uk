@@ -436,6 +436,14 @@ describe("4. stable ids", () => {
     assert.equal(findBlock(read, "rs-1").prompts[0].id, "rp-1");
   });
 
+  test("two blocks with one id: the first keeps it on read, the second is not read, and the check names it", () => {
+    const blocks = syntheticWeekBlocks();
+    const twin = { ...structuredClone(blocks.find((block) => block.id === "tx-next")), heading: "A second section" };
+    const read = model.sanitizeWeekBlocks([...blocks, twin]);
+    assert.deepEqual(read, blocks);
+    assert.ok(model.weekBlocksProblems([...blocks, twin]).includes("The id tx-next is used twice."));
+  });
+
   test("an id the site can't use is named, and the block is not read", () => {
     const blocks = withBlock("src-1", (source) => ({ ...source, id: "src__1" }));
     assert.ok(model.weekBlocksProblems(blocks).some((line) => line.includes("has an id the site can’t use")));

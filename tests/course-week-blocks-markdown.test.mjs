@@ -575,6 +575,11 @@ describe("5. what stops a save, and what is said", () => {
   test("a field longer than its cap is named, never cut short", () => {
     const read = paste(copy().replace("A field guide to base rates", "A".repeat(400)));
     assert.ok(read.problems.some((line) => line.includes("the title is 400 characters; the most is 300")), read.problems.join("\n"));
+    const note = paste(copy().replace("Only the first table.", "N".repeat(1200)));
+    assert.ok(
+      note.problems.includes("Part 1’s source “The forecaster’s handbook”: the note is 1200 characters; the most is 1000."),
+      note.problems.join("\n"),
+    );
   });
 
   test("a picture is left out, and said", () => {
