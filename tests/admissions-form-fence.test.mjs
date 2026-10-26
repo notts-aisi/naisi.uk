@@ -406,6 +406,13 @@ const ROUND_SURFACES = {
       "a form is a round that is not there, and it answers one that way before it reads a row " +
       "or draws anything",
   },
+  "/(public)/applications/[roundId]/free": {
+    kind: "form",
+    why:
+      "changing when you're free, for somebody holding a place on a fellowship until groups go out. " +
+      "It reaches the round only through loadWhenFree, which starts from the form's own loader and " +
+      "answers null for a round that is not a form, and the page then sends the caller to their application page",
+  },
   "/(public)/apply/[roundId]": {
     kind: "both",
     proof: ["await renderApplicationForm({", "if (isApplicationForm(roundSnap.data())) return null;"],
@@ -449,6 +456,13 @@ const ROUND_SURFACES = {
       "records the applicant's reply to what decision day told them. It loads the round " +
       "through the form's own loader, which answers null for a round that is not a form, and " +
       "writes through recordReply, which is handed the form that loader returned",
+  },
+  "/api/admissions/forms/[roundId]/application/availability": {
+    kind: "form",
+    why:
+      "changes the week a place painted until groups go out. It loads the round through the form's " +
+      "own loader, which answers null for a round that is not a form, and writes through " +
+      "changeSentAvailability, which is handed the form that loader returned",
   },
   "/api/admissions/forms/[roundId]/application/send": {
     kind: "form",
@@ -592,6 +606,12 @@ const ROUND_SURFACES = {
       "sets the rule for who finished the run a programme names, through setFinishRule, which reaches " +
       "the round only through loadProgrammeRun and answers a round that is not a form as a programme " +
       "that is not here",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups-go-out": {
+    kind: "form",
+    why:
+      "sets the day groups go out on the run a programme names, reaching the round only through " +
+      "loadProgrammeRun, which answers a round that is not a form as a programme that is not here",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams": {
     kind: "form",

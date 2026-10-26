@@ -238,6 +238,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/courses/weekOne/",
+    {
+      why: "week 1's door before groups go out and the cards it words: each reads a form's programmes by an id on that form's own programmeIds (the door the one namingProgrammeIn found, the cards each one in turn), to take the programme's kind, short name, course and run",
+    },
+  ],
+  [
     "src/lib/firestore/memberRecords.ts",
     {
       why: "builds the kept member record: it reads a form's programmes by a programme id off the application, and a review's scores by a criterion id off the round",

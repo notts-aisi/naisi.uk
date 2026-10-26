@@ -115,6 +115,11 @@ const READERS = {
     asks: 1,
     why: "who reads a run's updates: an untold seat reads nothing, as no seat read nothing, so no update to its group is shown to it",
   },
+  "lib/courses/weekOne/door.ts": {
+    kind: "told",
+    asks: 1,
+    why: "week 1's door before groups go out (Q35 B): the caller's own seat only, never shown. A seat Publish has told them about is the run gate's, a seat that has left shuts the door, and an untold seat opens week 1 alone, by the place on the form, with nothing of its group",
+  },
   "lib/courses/updates/audience.ts": {
     kind: "told",
     asks: 1,

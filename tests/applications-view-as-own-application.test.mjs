@@ -91,6 +91,7 @@ const OWN_READS = {
   loadHoldsPlace: "@/lib/applications/status/load",
   loadStatusRows: "@/lib/admissions/statusHubData",
   loadStatusRowForRound: "@/lib/admissions/statusHubData",
+  loadWhenFree: "@/lib/applications/status/whenFree",
 };
 
 const GUARD_FIRST = /^\{\s*const blocked = await assertNotImpersonating\(\);\s*if \(blocked\) return blocked;/;
@@ -123,6 +124,10 @@ const HELD = {
     how: "refuses-first",
     why: "a reply answers with where the application stands afterwards",
   },
+  "app/api/admissions/forms/[roundId]/application/availability/route.ts#PUT": {
+    how: "refuses-first",
+    why: "a change of when they're free answers with the application as it now stands",
+  },
   "app/api/admissions/applications/me/route.ts#GET": {
     how: "refuses-first",
     why: "every application the caller has, which is what the list page draws",
@@ -151,6 +156,11 @@ const HELD = {
     how: "notice-first",
     leaves: 'if (markerIsLive(await getImpersonator(), uid)) return "unknown";',
     why: "whether the member holds a place, which Home and the list of their programmes ask before they say a member is on nothing",
+  },
+  "app/(public)/applications/[roundId]/free/page.tsx#WhenYoureFreePage": {
+    how: "notice-first",
+    leaves: "if (markerIsLive(await getImpersonator(), user.uid)) {",
+    why: "the form's own editor for when the caller is free, which opens on the week their application holds",
   },
   "app/(public)/applications/[roundId]/page.tsx#ApplicationDetailPage": {
     how: "after-the-form",

@@ -413,6 +413,24 @@ const USERS = new Map([
       "route reaches the course email templates through the mail door it stubs",
   ],
   [
+    "course-hub-groups-go-out-day.test.mjs",
+    "renders the Groups tab's Sessions view and the programme's head (.tsx server components) to " +
+      "HTML for the lead, an admin and a reviewer, because whether the day groups go out is set where " +
+      "the run's groups are set up, and said in the head while it is ahead, is only right if the pages say so",
+  ],
+  [
+    "course-hub-week-one-before-groups.test.mjs",
+    "renders the run's layout, its week page, its home and its progress page (.tsx server components) " +
+      "as somebody holding a place before groups go out, because that week 1 opens to them and nothing " +
+      "else of the run does is decided by the pages as they run",
+  ],
+  [
+    "course-hub-when-free.test.mjs",
+    "renders the application page (a .tsx server component) and its When you're free card for somebody " +
+      "holding a place and for somebody told their group, because whether the card is drawn, and what it " +
+      "says, is decided by the page as it runs",
+  ],
+  [
     "course-hub-group-published-pages.test.mjs",
     "renders the facilitator's Home, the group page's roster, the run home's panel, the " +
       "register, the review queue and the two group composers (.tsx) to HTML with their data " +
