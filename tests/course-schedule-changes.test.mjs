@@ -239,6 +239,8 @@ const STATUS_ROUTE = api("runs", "[runId]", "status", "route.ts");
 const REMOVE_ROUTE = api("runs", "[runId]", "enrolments", "[uid]", "remove", "route.ts");
 const ENROL_ROUTE = api("runs", "[runId]", "enrol", "route.ts");
 const FACILITATORS = api("groups", "[groupId]", "facilitators", "route.ts");
+/** The one place a group's facilitators change, and so where the route's enrolment writes live. */
+const GROUP_FACILITATORS = src("lib", "courses", "groupFacilitators.ts");
 
 const MATERIAL_NOTES = api("runs", "[runId]", "material-notes", "route.ts");
 const PACE = api("groups", "[groupId]", "pace", "route.ts");
@@ -1544,9 +1546,16 @@ test("a member can still write progress on a completed run, because no route com
   // The only enrolment-status writers in the whole feature.
   assert.match(ALLOCATE, /status: "active"/);
   assert.match(REMOVE_ROUTE, /status: "removed"/);
-  assert.match(FACILITATORS, /"active"|"removed"/);
+  // The group facilitators route's writes moved into the one place a group's
+  // facilitators change (asking people to facilitate, October 2026), and the
+  // route's own "active" went with the rule that nobody facilitates a
+  // programme they take part in (lifted on 26 Oct 2026). So the writes are
+  // pinned where they are, each one: a facilitator's row active, a retired
+  // one removed, and a facilitator who holds a place a learner's row, active.
+  assert.match(GROUP_FACILITATORS, /status: "active"/);
+  assert.match(GROUP_FACILITATORS, /status: "removed"/);
   // Nothing writes the other two onto an enrolment.
-  for (const source of [ALLOCATE, REMOVE_ROUTE, FACILITATORS, STATUS_ROUTE]) {
+  for (const source of [ALLOCATE, REMOVE_ROUTE, FACILITATORS, GROUP_FACILITATORS, STATUS_ROUTE]) {
     assert.doesNotMatch(source, /status:\s*"withdrawn"/);
   }
   assert.doesNotMatch(STATUS_ROUTE, /courseEnrolments/);

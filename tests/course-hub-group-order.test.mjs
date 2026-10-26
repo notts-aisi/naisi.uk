@@ -135,6 +135,12 @@ const FETCHES_IT_CANNOT_READ = new Map([
       "the ones the page's loader lists, which `timedGroupsOf` orders with the comparator.",
   ],
   [
+    "src/features/applications/groups/GroupFacilitators.tsx",
+    "The Facilitators view's asks, their test and Remind (`post(url)`), to the programme's own routes under " +
+      "`.../programmes/[programmeId]/facilitators`: each names one group of the ones the view's read listed, and " +
+      "lists none.",
+  ],
+  [
     "src/features/courses/courseMutations.ts",
     "Reached from the Facilitators view for `setGroupFacilitators` alone, which posts one group's facilitators " +
       "(`postJson(url)`); its other calls are the course editor's, not a programme page's.",

@@ -1,34 +1,51 @@
 import { NextResponse } from "next/server";
-import { FieldValue } from "firebase-admin/firestore";
-import type { Firestore } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
+import { joinedWeekFor } from "@/lib/courses/groupResolve";
 import { asUidList } from "@/lib/firestore/events";
-import { GROUP_FIELD_LIMITS } from "@/lib/firestore/courseGroups";
-import { courseEnrolmentId } from "@/lib/firestore/courseEnrolments";
+import { courseApplicationId, normalizeCourseApplication, rowIsServedTo } from "@/lib/firestore/courseApplications";
+import { GROUP_FIELD_LIMITS, normalizeCourseGroup } from "@/lib/firestore/courseGroups";
+import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import {
+  enrolmentRefsFor,
+  facilitatorChange,
+  placementsFor,
+  writeFacilitatorChange,
+  type SeatFacts,
+  type SeatProblem,
+} from "@/lib/courses/groupFacilitators";
+import { byHandElsewhereWords, byHandFullWords, byHandNotYoursWords } from "@/lib/courses/facilitatorAsks/words";
+import type { Firestore } from "firebase-admin/firestore";
 
 /**
- * Staff a group. `courseGroups.facilitatorUids` is server-owned (pinned in
- * rules) because assigning it does TWO things that must not drift apart:
- *
- *  1. it grants the facilitator read/edit access to the group (rules resolve
- *     `isGroupFacilitator()` off this array), and
- *  2. it upserts a `role: "facilitator"` enrolment for the run, which is what
- *     makes the group appear on that person's /learn hub ("every run you
- *     touch" is one query over enrolments).
+ * Staff a group by hand: the route the run editor's group card and a
+ * programme's Facilitators view ("Change") use. Every write is
+ * `writeFacilitatorChange` in `src/lib/courses/groupFacilitators.ts`, the one
+ * place a group's facilitators change, which says why `facilitatorUids` is
+ * server-owned and what else moves with it.
  *
  * Gated to admins, the parent run's track leads and the lead of the programme
  * that names the run (`runStaffingOf`): the people who staff a run.
  * Facilitators cannot add each other.
+ *
+ * A FACILITATOR WHO HOLDS A PLACE SITS IN THE GROUP THEY FACILITATE. Somebody
+ * added who holds a place on the run and sits in no group yet is placed in
+ * this one, in the same transaction, and the answer names them (`placed`).
+ * Somebody who sits in another group, or a group with no room for those it
+ * would place, saves nothing and is answered with a sentence: the board
+ * decides where people sit. A row on the run's list that the application form
+ * wrote is the business of an admin and of the lead of the programme that
+ * names the run (`rowIsServedTo`), so anybody else adding that person saves
+ * nothing either.
  */
 
 const ELIGIBLE_ROLES = ["member", "committee", "admin"] as const;
 
 /**
- * Approved members, committee and admins — the eligible facilitator pool.
- * Requested uids are intersected with this set so a forged or since-rejected
+ * Approved members, committee and admins: the eligible facilitator pool.
+ * Requested uids are intersected with this set so a forged or since-refused
  * uid can never be written. (Same shape as the run roles route's candidate
  * load; kept local because route handlers don't import from one another.)
  */
@@ -39,6 +56,26 @@ async function loadEligibleUids(db: Firestore): Promise<Set<string>> {
     .get();
   return new Set(snap.docs.map((d) => d.id));
 }
+
+/** An account's name, for a sentence about them. */
+async function nameOf(db: Firestore, uid: string): Promise<string> {
+  const account = await db.collection("users").doc(uid).get();
+  const name = account.exists ? account.data()?.displayName : null;
+  return typeof name === "string" && name.trim() ? name.trim() : "That person";
+}
+
+/** A group's name, for a sentence about it. */
+async function groupNameOf(db: Firestore, groupId: string): Promise<string> {
+  const snap = await db.collection("courseGroups").doc(groupId).get();
+  const name = snap.exists ? snap.data()?.name : null;
+  return typeof name === "string" && name.trim() ? name.trim() : "another group";
+}
+
+type Outcome =
+  | { kind: "gone" }
+  | { kind: "not-yours"; uid: string }
+  | { kind: "seat"; problem: SeatProblem; groupName: string }
+  | { kind: "saved"; placed: string[] };
 
 export async function POST(
   req: Request,
@@ -99,77 +136,72 @@ export async function POST(
     .filter((uid) => eligible.has(uid))
     .slice(0, GROUP_FIELD_LIMITS.maxFacilitators);
 
-  const current = asUidList(group.facilitatorUids);
-  const nextSet = new Set(next);
-  const currentSet = new Set(current);
-  const added = next.filter((uid) => !currentSet.has(uid));
-  const removed = current.filter((uid) => !nextSet.has(uid));
+  // One transaction: the group, the rows of everybody the change touches and
+  // the run's list rows of everybody it adds are read, the places decided,
+  // and every write made, so a placement cannot overfill the group while the
+  // board fills it too.
+  const outcome = await db.runTransaction(async (tx): Promise<Outcome> => {
+    const fresh = await tx.get(groupRef);
+    if (!fresh.exists) return { kind: "gone" };
+    const stored = normalizeCourseGroup(fresh.id, fresh.data() ?? {});
+    const current = asUidList(fresh.data()?.facilitatorUids);
+    const { added, removed } = facilitatorChange(current, next);
+    const touched = [...added, ...removed];
+    const [enrolments, listed] = await Promise.all([
+      touched.length ? tx.getAll(...enrolmentRefsFor(db, runId, touched)) : Promise.resolve([]),
+      added.length
+        ? tx.getAll(...added.map((uid) => db.collection("courseApplications").doc(courseApplicationId(runId, uid))))
+        : Promise.resolve([]),
+    ]);
+    const enrolmentByUid = new Map(touched.map((uid, i) => [uid, enrolments[i]] as const));
 
-  // Read every enrolment we might touch up front — Firestore batches are
-  // write-only, so the add/retire decisions are made from these snapshots.
-  const touched = [...added, ...removed];
-  const enrolmentRefs = touched.map((uid) =>
-    db.collection("courseEnrolments").doc(courseEnrolmentId(runId, uid)),
-  );
-  const enrolments = enrolmentRefs.length ? await db.getAll(...enrolmentRefs) : [];
-  const enrolmentByUid = new Map(
-    touched.map((uid, i) => [uid, enrolments[i]] as const),
-  );
+    // Where each person added sits on the run, as this caller may see it.
+    const seats = new Map<string, SeatFacts>();
+    for (const [i, uid] of added.entries()) {
+      const snap = listed[i];
+      const row = snap?.exists ? normalizeCourseApplication(snap.id, snap.data() ?? {}) : null;
+      if (row && !rowIsServedTo(row, staffing)) return { kind: "not-yours", uid };
+      const enrolment = enrolmentByUid.get(uid);
+      seats.set(uid, {
+        row: enrolment?.exists ? (enrolment.data() ?? {}) : null,
+        accepted: row !== null && row.uid === uid && row.status === "accepted",
+      });
+    }
+    const places = placementsFor({
+      group: stored,
+      added,
+      seats,
+      joinedWeekNumber: joinedWeekFor(normalizeCourseRun(runSnap.id, run), stored),
+    });
+    if (!places.ok) return { kind: "seat", problem: places.problem, groupName: stored.name.trim() || "This group" };
 
-  const batch = db.batch();
-  batch.update(groupRef, {
-    facilitatorUids: next,
-    updatedAt: FieldValue.serverTimestamp(),
+    writeFacilitatorChange(tx, db, {
+      groupRef,
+      runId,
+      courseId,
+      current,
+      next,
+      enrolments: enrolmentByUid,
+      recorded: new Set(Object.keys(stored.facilitatorAppointments)),
+      placing: places.placing,
+    });
+    return { kind: "saved", placed: [...places.placing.keys()] };
   });
 
-  for (const uid of added) {
-    const snap = enrolmentByUid.get(uid);
-    const ref = db.collection("courseEnrolments").doc(courseEnrolmentId(runId, uid));
-    if (!snap?.exists) {
-      batch.set(ref, {
-        runId,
-        courseId,
-        uid,
-        // Facilitators carry a null `groupId` on purpose: that scalar is the
-        // LEARNER allocation invariant (one placement per person per run).
-        // Which group someone facilitates is `courseGroups.facilitatorUids`,
-        // which is also what lets one person facilitate two groups.
-        groupId: null,
-        status: "active",
-        role: "facilitator",
-        applicationId: null,
-        // Facilitators aren't paced or scored, so week 1 is the neutral
-        // anchor — `joinedWeekNumber` only scopes learner percentages.
-        joinedWeekNumber: 1,
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-      continue;
-    }
-    const existing = snap.data() ?? {};
-    // A learner enrolment is never overwritten: flipping its role would
-    // discard their group placement and their learner history on this run.
-    // They still get facilitator access via `facilitatorUids` above.
-    if (existing.role === "facilitator") {
-      batch.update(ref, { status: "active", updatedAt: FieldValue.serverTimestamp() });
-    }
+  if (outcome.kind === "gone") return NextResponse.json({ error: "Group not found" }, { status: 404 });
+  if (outcome.kind === "not-yours") {
+    return NextResponse.json({ error: byHandNotYoursWords(await nameOf(db, outcome.uid)) }, { status: 409 });
   }
-
-  for (const uid of removed) {
-    const snap = enrolmentByUid.get(uid);
-    if (!snap?.exists) continue;
-    const existing = snap.data() ?? {};
-    // Retire rather than delete, and only ever a facilitator row: a learner
-    // enrolment for the same (run, uid) shares this doc id, and someone who
-    // learned on the run before facilitating it must keep that history.
-    // "removed" (not a delete) also keeps the audit trail of who staffed what.
-    if (existing.role === "facilitator") {
-      const ref = db.collection("courseEnrolments").doc(courseEnrolmentId(runId, uid));
-      batch.update(ref, { status: "removed", updatedAt: FieldValue.serverTimestamp() });
-    }
+  if (outcome.kind === "seat") {
+    const { problem, groupName } = outcome;
+    const name = await nameOf(db, problem.uid);
+    const error =
+      problem.kind === "elsewhere"
+        ? byHandElsewhereWords(name, await groupNameOf(db, problem.groupId), groupName)
+        : byHandFullWords(name, groupName);
+    return NextResponse.json({ error }, { status: 409 });
   }
-
-  await batch.commit();
-
-  return NextResponse.json({ ok: true, facilitatorUids: next });
+  if (outcome.placed.length === 0) return NextResponse.json({ ok: true, facilitatorUids: next });
+  const placed = await Promise.all(outcome.placed.map((uid) => nameOf(db, uid)));
+  return NextResponse.json({ ok: true, facilitatorUids: next, placed });
 }

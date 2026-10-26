@@ -48,7 +48,15 @@
  *     lead the marks and none of the notes. The lead does read the notes its
  *     groups' facilitators share (16) and the notes each group shares on its
  *     week pages (17), both on the programme's Attendance tab, and writes
- *     neither.
+ *     neither. The lead also reads the answers about facilitating of
+ *     everybody who said they would like to facilitate the programme, whether
+ *     or not they ranked it, on a list that shows their name, their degree and
+ *     stage and where they stand in a few words, and nothing else of their
+ *     application. From decision day the lead or an admin can ask them by
+ *     email, whatever their settings say, with up to three reminders; the
+ *     person answers on a page that shows the ask to nobody else, and each ask
+ *     is kept with its email as it went and the answer, and no address
+ *     (`src/lib/courses/facilitatorAsks/`).
  * 10. **What other participants see.** On an incubator, a pitch is seen by
  *     the group, and a team's page by the team. A comment on a piece of
  *     material is shown to the run only on a programme anyone can join; on a
@@ -62,8 +70,9 @@
  * 13. **No automated decisions.** Who finished starts from the lead's number
  *     and the site makes teams only when the lead asks; a person decides both.
  * 14. **What a deletion removes and leaves.** Pitches, picks, a place in a
- *     team, a decision about finishing, and a certificate whose link is off
- *     (`clearCoursePitches`, `clearCourseTeams` and `clearCourseFinishing` in
+ *     team, a decision about finishing, an ask to facilitate with its answer,
+ *     and a certificate whose link is off (`clearCoursePitches`,
+ *     `clearCourseTeams`, `clearCourseFinishing` and `clearFacilitatorAsks` in
  *     `src/lib/firestore/accountDeletion.ts`); a pitch sent with a partner
  *     stays the partner's, without the name. The calendar link (18), the notes
  *     shared with a group (17) and the notes written for a group's other
@@ -563,6 +572,19 @@ export default function PrivacyContentV7({
                   your application from then on, and not before.
                 </li>
                 <li>
+                  <strong>If you would like to facilitate.</strong> If you
+                  said you would like to facilitate a group, the lead of each
+                  programme you said you would facilitate, by name or by
+                  choosing &quot;Either&quot;, can read your answers to the
+                  questions about facilitating, even if you did not rank that
+                  programme. They read them on a list of the people who would
+                  like to facilitate it, which shows your name, your degree or
+                  area of work, and your status or the year you expect to
+                  graduate, and, from decision day, where you stand in a few
+                  words, such as taking part in another programme or no offer
+                  this time. The list shows nothing else of your application.
+                </li>
+                <li>
                   <strong>Reviewer scores and comments.</strong> Where a
                   programme uses scores, a reviewer can give each of your
                   answers to that programme&apos;s own questions a score from 1
@@ -637,6 +659,27 @@ export default function PrivacyContentV7({
                   a day to reply by. You answer it as you would an invitation.
                   The daily reminder about an invitation is not sent for these
                   offers.
+                </li>
+                <li>
+                  <strong>Being asked to facilitate.</strong> If you said you
+                  would like to facilitate a group, then from decision day the
+                  lead of a programme you said you would facilitate, or an
+                  admin, may ask you to facilitate one of its groups. We email
+                  you the ask whatever your notification settings say, because
+                  it answers what you said on your application, and while it
+                  waits for your answer we may send you up to three reminders,
+                  at least twelve hours apart. You answer on our site, on a page
+                  that shows the ask to you and nobody else, by the day and time
+                  the ask gives. If you say yes, you become one of that
+                  group&apos;s facilitators. We keep a record of each ask: who
+                  asked you and when, which group it was for, the day and time
+                  to answer by, whether the email went, any reminders, your
+                  answer and when you gave it, and a copy of the email as it
+                  was sent, with the name it was sent to. The record holds no
+                  email address. The programme&apos;s lead and admins can see
+                  these records, and you can see your own ask on its page. They
+                  are kept with the rest of your course record, and deleted
+                  with your account.
                 </li>
                 <li>
                   <strong>Your reply.</strong> You answer on your own
@@ -922,7 +965,11 @@ export default function PrivacyContentV7({
                   <strong>The lead of each programme</strong> sees everything
                   a reviewer sees, and records the decision for that programme.
                   After decision day the lead can also offer a place that comes
-                  back. Once the programme is running, the lead places its
+                  back. The lead also reads the answers about facilitating of
+                  everybody who said they would like to facilitate the
+                  programme, whether or not they ranked it, and from decision
+                  day can ask them to facilitate one of its groups. Once the
+                  programme is running, the lead places its
                   people in groups, reads every register of its groups, the
                   notes its groups&apos; facilitators share, and the notes each
                   of its groups shares on its week pages, sees the pitches and
@@ -1291,7 +1338,8 @@ export default function PrivacyContentV7({
                 and profile, your newsletter subscriptions and their history,
                 your collaborator application if you made one, any outstanding
                 email-verification links, your course enrolments, applications
-                and drafts, your progress and your answers to exercises, your
+                and drafts, the asks to facilitate a group sent to you and your
+                replies to them, your progress and your answers to exercises, your
                 calendar link, the notes you shared with a group, notes you
                 wrote for the other facilitators of a group, your name on your
                 survey answers, the record of each survey sent to you with your

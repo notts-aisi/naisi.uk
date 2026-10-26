@@ -128,6 +128,10 @@ async function transpileToDataUrl(file) {
     compilerOptions: {
       target: tsc.ScriptTarget.ES2022,
       module: tsc.ModuleKind.ESNext,
+      // SPECIFIER reads every `from "…"` in the output, so a doc comment such
+      // as `"6pm" from "18:00"` would be taken for an import. Comments carry
+      // nothing a module runs.
+      removeComments: true,
     },
   });
   const rewrites = new Map();
@@ -677,6 +681,15 @@ const MUST_NAME = [
   // person taking part would not guess at; §2g holds each to the code.
   ["a place that comes back", /until the end of the programme&apos;s first week its lead or an admin can offer that place to somebody who ranked the programme and was told no offer this time, as long as the programme had not turned them down/i],
   ["a freed place's offer is emailed whatever the settings say, and is not reminded daily", /we email it to you whatever your notification settings say, with a day to reply by\. You answer it as you would an invitation\. The daily reminder about an invitation is not sent for these offers\./i],
+  // Asking people to facilitate (src/lib/courses/facilitatorAsks/), added to
+  // v7 before any member was asked to accept it: who reads the answers about
+  // facilitating, a programme's lead included where it was not ranked, and
+  // the record each ask leaves. §2g holds each to its code.
+  ["the answers about facilitating, read by the lead of each programme somebody would facilitate", /the lead of each programme you said you would facilitate, by name or by choosing &quot;Either&quot;, can read your answers to the questions about facilitating, even if you did not rank that programme\./i],
+  ["what the list of people who would like to facilitate shows, and nothing else", /which shows your name, your degree or area of work, and your status or the year you expect to graduate, and, from decision day, where you stand in a few words, such as taking part in another programme or no offer this time\. The list shows nothing else of your application\./i],
+  ["an ask to facilitate is emailed whatever the settings say, with up to three reminders", /We email you the ask whatever your notification settings say, because it answers what you said on your application, and while it waits for your answer we may send you up to three reminders, at least twelve hours apart\./i],
+  ["what the record of an ask holds, and that it holds no address", /We keep a record of each ask: who asked you and when, which group it was for, the day and time to answer by, whether the email went, any reminders, your answer and when you gave it, and a copy of the email as it was sent, with the name it was sent to\. The record holds no email address\./i],
+  ["who sees the asks, and that they go with the account", /The programme&apos;s lead and admins can see these records, and you can see your own ask on its page\. They are kept with the rest of your course record, and deleted with your account\./i],
   ["\"I cannot make it\" from somebody in a group is leaving", /If you are already in a group when you say you cannot make it, that is the same as leaving the programme, and your reason goes where a leaver&apos;s does/i],
   ["pitching week, and that sending a pitch shares it with the group", /Sending a pitch is choosing to share it: everybody in your group sees it, with your name and your partner&apos;s, and the pitch form says so\./i],
   ["who picked a pitch is told to nobody in the group", /Nobody else in your group is told which ones you picked\./i],
@@ -2550,6 +2563,12 @@ describe("the course hub passage", () => {
       /We then email you your team&apos;s name/i,
       /If you give a reason, only admins and, where the programme has one, its lead read it/i,
       /A place that comes back/i,
+      /If you would like to facilitate\./i,
+      /can read your answers to the questions about facilitating/i,
+      /Being asked to facilitate\./i,
+      /We keep a record of each ask/i,
+      /The lead also reads the answers about facilitating/i,
+      /the asks to facilitate a group sent to you/i,
       /we mark as finished everybody who came to at least/i,
       /reads every register of its groups/i,
       /by name only/i,
@@ -2826,6 +2845,321 @@ describe("the course hub passage", () => {
     assert.notEqual(invitationReminders.invitationReminderDue(invited, now).why, "freed-place");
     // tests/applications-freed-places-*.test.mjs run the offer, its email and its reply.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "applications-freed-places-offer.test.mjs")));
+  });
+
+  // Asking people to facilitate (src/lib/courses/facilitatorAsks/) was added to
+  // v7 while it was on dev, before any member had been asked to accept it, as
+  // the passages named at the top of this section were. Two claims: who reads
+  // the answers about facilitating, and the record each ask leaves. The
+  // modules run here are pure, and are loaded inside each test.
+  test("the answers about facilitating are read by the lead of each programme somebody would facilitate, ranked or not, on a list that shows nothing else of their application", async () => {
+    assert.match(
+      PAGE_FLAT,
+      /<strong>If you would like to facilitate\.<\/strong> If you said you would like to facilitate a group, the lead of each programme you said you would facilitate, by name or by choosing &quot;Either&quot;, can read your answers to the questions about facilitating, even if you did not rank that programme\. They read them on a list of the people who would like to facilitate it, which shows your name, your degree or area of work, and your status or the year you expect to graduate, and, from decision day, where you stand in a few words, such as taking part in another programme or no offer this time\. The list shows nothing else of your application\./,
+    );
+    // The lead's own line under "Who can see what" says it too.
+    const fromLead = PAGE_FLAT.slice(PAGE_FLAT.indexOf("<strong>The lead of each programme</strong>"));
+    const lead = fromLead.slice(0, fromLead.indexOf("</li>"));
+    assert.match(
+      lead,
+      /The lead also reads the answers about facilitating of everybody who said they would like to facilitate the programme, whether or not they ranked it, and from decision day can ask them to facilitate one of its groups\./,
+    );
+
+    const rules = await loadTs("lib/courses/facilitatorAsks/rules.ts");
+    const reviewPeople = await loadTs("lib/applications/review/people.ts");
+
+    // Who is on a programme's list, run: somebody who said yes to
+    // facilitating and chose the programme by name, or "Either" where Either
+    // covers it. Somebody who ranked only the other programme and chose this
+    // one is on its list: "even if you did not rank that programme".
+    const form = {
+      programmeIds: ["agi", "tais"],
+      programmes: {
+        agi: { id: "agi", shortName: "AGI Strategy", name: "AGI Strategy Fellowship" },
+        tais: { id: "tais", shortName: "Technical AI Safety", name: "Technical AI Safety Fellowship" },
+      },
+    };
+    const which = {
+      id: "which",
+      type: "choice",
+      text: "Which would you like to facilitate?",
+      options: ["AGI Strategy", "Technical AI Safety", "Either"],
+      optionsFromRanking: false,
+    };
+    const before = { id: "before", type: "long", text: "Have you led a discussion before?", options: [], optionsFromRanking: false };
+    const sets = [
+      { id: "fac", role: "facilitator", questions: [which, before] },
+      { id: "agi-own", role: "stream", questions: [{ id: "why", type: "long", text: "Why this one?", options: [], optionsFromRanking: false }] },
+    ];
+    const sent = (choice, wantsToFacilitate = true) => ({
+      wantsToFacilitate,
+      rankedProgrammeIds: ["tais"],
+      answers: { fac: { which: choice, before: "I ran a reading group." }, "agi-own": { why: "Because it matters." } },
+    });
+    const { agi, tais } = form.programmes;
+    assert.equal(rules.wouldFacilitate(form, sets, sent("AGI Strategy"), agi), true, "somebody who chose a programme they did not rank is not on its lead's list, and the policy says they are");
+    assert.equal(rules.wouldFacilitate(form, sets, sent("AGI Strategy"), tais), false, "somebody is on the list of a programme they did not say they would facilitate");
+    assert.equal(rules.wouldFacilitate(form, sets, sent("Either"), agi), true);
+    assert.equal(rules.wouldFacilitate(form, sets, sent("Either"), tais), true);
+    assert.equal(rules.wouldFacilitate(form, sets, sent("AGI Strategy", false), agi), false, "somebody who did not say they would like to facilitate is on a list");
+    // Where the question's options are the ranking, Either covers only what was ranked.
+    const fromRanking = [{ ...sets[0], questions: [{ ...which, options: [], optionsFromRanking: true }, before] }, sets[1]];
+    assert.equal(rules.wouldFacilitate(form, fromRanking, sent("Either"), agi), false);
+    assert.equal(rules.wouldFacilitate(form, fromRanking, sent("Either"), tais), true);
+
+    // "Your answers to the questions about facilitating": the facilitator
+    // sets' own questions, less the one that picks the programme, and no
+    // answer from anywhere else on the form.
+    assert.deepEqual(rules.facilitatorColumns(form, sets).map((column) => column.key), ["fac/before"]);
+    assert.deepEqual(rules.answersFor(form, sets, sent("AGI Strategy")), { "fac/before": "I ran a reading group." });
+
+    // "Your name, your degree or area of work, and your status or the year you
+    // expect to graduate": the line under a name, run.
+    assert.equal(
+      reviewPeople.applicantDetail({ subject: "BA Philosophy", status: "undergraduate", statusOther: "", expectedGraduation: "2028-06" }),
+      "BA Philosophy · Graduating 2028",
+    );
+    assert.equal(reviewPeople.applicantDetail({ subject: "PhD Politics", status: "phd", statusOther: "", expectedGraduation: "" }), "PhD Politics · Postgrad");
+
+    // "From decision day, where you stand in a few words": nothing before
+    // decision day's send, and the board's words after it.
+    const facts = (standing, decisionsSent = true) => ({
+      programme: agi,
+      standing,
+      role: "member",
+      decisionsSent,
+      runAsks: [],
+      facilitates: new Map(),
+      groupNames: new Map(),
+      now: new Date(Date.UTC(2026, 9, 27, 12)),
+    });
+    const elsewhere = { kind: "place", via: "ranking", programmeId: "tais", saidComing: true };
+    assert.equal(rules.personStatus("kai", facts(elsewhere)).chip.words, "Taking part in another programme");
+    assert.equal(rules.personStatus("omar", facts({ kind: "no-place" })).chip.words, "No offer this time");
+    assert.equal(rules.personStatus("kai", facts(elsewhere, false)).chip, null, "where somebody stands is shown before decision day");
+
+    // "The list shows nothing else of your application": what is kept of each
+    // person, field by field, and what the view sends of them, field by field.
+    const people = withoutComments(read("src/lib/courses/facilitatorAsks/people.ts"));
+    assert.match(people, /\(application\) => application\.sent !== null && wouldFacilitate\(form, sets, application\.sent, programme\),/);
+    assert.match(
+      people,
+      /return \{\s*uid: application\.uid,\s*name: applicantName\(sent\.aboutYou, application\.displayName\),\s*firstName: applicantFirstName\(sent\.aboutYou, application\.displayName\),\s*detail: applicantDetail\(sent\.aboutYou\),\s*answers: answersFor\(form, sets, sent\),\s*standing: standingOf\(application\),\s*role: roleOf\.get\(application\.uid\) \?\? null,\s*\};/,
+      "the list now keeps more of each application than the policy says it shows",
+    );
+    const load = withoutComments(read("src/lib/courses/facilitatorAsks/load.ts"));
+    assert.match(
+      load,
+      /const view: ViewPerson = \{\s*uid: person\.uid,\s*name: person\.name,\s*firstName: person\.firstName,\s*detail: person\.detail,\s*answers: person\.answers,\s*status: \{ chip: status\.chip, note: status\.note, ask: status\.ask \},\s*\};/,
+      "the view now sends more of each person on the list than the policy says it shows",
+    );
+    const viewPerson = /export type ViewPerson = \{([\s\S]*?)\n\};/.exec(load);
+    assert.ok(viewPerson, "could not find what the view sends of each person on the list");
+    assert.deepEqual([...viewPerson[1].matchAll(/^\s*(\w+)\??:/gm)].map((match) => match[1]), ["uid", "name", "firstName", "detail", "answers", "status"]);
+
+    // "The lead of each programme": the list is read behind the programme's
+    // own gate, which answers its lead and admins and refuses a reviewer.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bloadFacilitatorPeople\(/),
+      new Map([
+        ["src/lib/courses/facilitatorAsks/people.ts", "where the list is read from the term's applications"],
+        ["src/lib/courses/facilitatorAsks/load.ts", "the Facilitators view's model, read after askContext answers the programme's lead or an admin"],
+        ["src/lib/courses/facilitatorAsks/act.ts", "an ask and its test, which take somebody from the list, behind the same gate"],
+      ]),
+      "reading the list of the people who would like to facilitate",
+      "The policy says the lead of the programme somebody would facilitate reads their answers about facilitating, " +
+        "with their name and the line under it. If this file shows the list to anybody else, the sentence is wrong " +
+        "and a new version has to say so.",
+    );
+    assert.match(
+      load,
+      /const context = await askContext\(db, actor, roundId, programmeId\);\s*if \(!context\.ok\) return context;\s*const \{ form, programme, sets, run, groups \} = context;\s*const \[people, runAsks, training, test, lead, accounts\] = await Promise\.all\(\[\s*loadFacilitatorPeople\(db, form, sets, programme, actor\.uid\),/,
+      "the Facilitators view reads the list before it asks whether the caller leads the programme",
+    );
+    // In the writer the list is read by one helper, which takes the gate's own answer.
+    const act = withoutComments(read("src/lib/courses/facilitatorAsks/act.ts"));
+    assert.equal((act.match(/\bloadFacilitatorPeople\(/g) ?? []).length, 1);
+    assert.match(act, /async function personAndGroup\(\s*db: Firestore,\s*actor: SessionUser,\s*context: AskContext,/);
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bloadFacilitatorsModel\(/),
+      new Map([
+        ["src/lib/courses/facilitatorAsks/load.ts", "where the Facilitators view's model is built"],
+        ["src/app/api/courses/runs/[runId]/facilitators/asking/route.ts", "the view's one read, answered only with what the gate let through"],
+      ]),
+      "building the Facilitators view",
+      "The policy says the programme's lead and admins read the list. A new caller of the view's model is a new reader.",
+    );
+    const context = withoutComments(read("src/lib/courses/facilitatorAsks/context.ts"));
+    assert.match(context, /const outcome = await loadProgrammeRun\(db, actor, roundId, programmeId\);/);
+    assert.match(context, /if \(outcome\.status === "not-yours"\) return refuse\(403, LEADS_AND_ADMINS\);/);
+    assert.equal(applicationAccess.opensProgrammeGroups("lead"), true);
+    assert.equal(applicationAccess.opensProgrammeGroups("reviewer"), false, "a programme's reviewer now reads the list of the people who would like to facilitate it");
+    // Nothing the person asked opens reaches the list.
+    assert.ok(
+      !/from "\.\/(?:people|load|act)"/.test(read("src/lib/courses/facilitatorAsks/answerPage.ts")),
+      "the page the person asked opens now reaches the list of the people who would like to facilitate",
+    );
+    // tests/course-hub-facilitator-asks.test.mjs runs the view's read as every kind of caller.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-hub-facilitator-asks.test.mjs")));
+  });
+
+  test("an ask to facilitate is emailed whatever the settings say, reminded at most three times, answered on a page only its person is shown, kept with what the page lists and no address, and deleted with that person's account", async () => {
+    assert.match(
+      PAGE_FLAT,
+      /<strong>Being asked to facilitate\.<\/strong> If you said you would like to facilitate a group, then from decision day the lead of a programme you said you would facilitate, or an admin, may ask you to facilitate one of its groups\. We email you the ask whatever your notification settings say, because it answers what you said on your application, and while it waits for your answer we may send you up to three reminders, at least twelve hours apart\. You answer on our site, on a page that shows the ask to you and nobody else, by the day and time the ask gives\. If you say yes, you become one of that group&apos;s facilitators\. We keep a record of each ask: who asked you and when, which group it was for, the day and time to answer by, whether the email went, any reminders, your answer and when you gave it, and a copy of the email as it was sent, with the name it was sent to\. The record holds no email address\. The programme&apos;s lead and admins can see these records, and you can see your own ask on its page\. They are kept with the rest of your course record, and deleted with your account\./,
+    );
+    assert.match(
+      PAGE_FLAT,
+      /your course enrolments, applications and drafts, the asks to facilitate a group sent to you and your replies to them, your progress/,
+    );
+
+    const model = await loadTs("lib/courses/facilitatorAsks/model.ts");
+    const rules = await loadTs("lib/courses/facilitatorAsks/rules.ts");
+    const words = await loadTs("lib/courses/facilitatorAsks/words.ts");
+    const act = withoutComments(read("src/lib/courses/facilitatorAsks/act.ts"));
+
+    // "From decision day", "the lead of a programme ... or an admin": an ask
+    // is refused before decision day's send, behind the programme's own gate.
+    assert.match(
+      act,
+      /const context = await askContext\(db, actor, roundId, programmeId\);\s*if \(!context\.ok\) return context;\s*if \(context\.form\.decisionsSentAt === null\) return refuse\(409, NOT_SENT_YET\);/,
+      "an ask can now go before decision day has been sent",
+    );
+
+    // "Whatever your notification settings say": one call to the mail door,
+    // and nothing in the writer reads a notification row or reaches the
+    // notice lane.
+    assert.match(act, /import \{ sendEmail \} from "@\/lib\/email\/send";/);
+    assert.equal((act.match(/\bsendEmail\(/g) ?? []).length, 1, "asking somebody to facilitate sends from more than one place");
+    for (const marker of ["wantsCategory(", "addressesForSend(", "wantsEmailForProfile(", "wantsPushFor(", "hasOptedOutOfCourseAnnouncements(", "sendNotice(", "sendNoticePush("]) {
+      assert.ok(!act.includes(marker), `asking somebody to facilitate now calls ${marker}, so whether it is sent may depend on a notification setting`);
+    }
+
+    // "Up to three reminders, at least twelve hours apart", "while it waits
+    // for your answer".
+    assert.equal(model.FACILITATING_LIMITS.maxReminders, 3);
+    assert.equal(model.FACILITATING_LIMITS.remindAfterMs, 12 * 60 * 60 * 1000);
+    assert.match(act, /if \(!current \|\| askStateOf\(current, runAsks, now\)\.kind !== "waiting"\) return refuse\(409, NOT_WAITING\);/);
+    assert.match(act, /if \(current\.reminders >= FACILITATING_LIMITS\.maxReminders\) return refuse\(409, REMINDED_ENOUGH\);/);
+    assert.match(
+      act,
+      /if \(current\.remindedAt && now\.getTime\(\) - current\.remindedAt\.getTime\(\) < FACILITATING_LIMITS\.remindAfterMs\) \{\s*return refuse\(409, REMINDED_RECENTLY\);/,
+    );
+
+    // "On a page that shows the ask to you and nobody else": the page and the
+    // answer each treat an ask that is not the caller's as no ask at all.
+    const page = withoutComments(read("src/lib/courses/facilitatorAsks/answerPage.ts"));
+    assert.match(page, /const ask = await readAsk\(db, askId\);\s*if \(!ask \|\| ask\.uid !== actor\.uid\) return \{ kind: "not-yours" \};/);
+    const answer = withoutComments(read("src/lib/courses/facilitatorAsks/answer.ts"));
+    assert.match(answer, /if \(!seen \|\| seen\.uid !== actor\.uid\) return refuse\(404, NOT_AN_ASK\);/);
+    assert.match(answer, /if \(!ask \|\| ask\.uid !== actor\.uid\) return refuse\(404, NOT_AN_ASK\);/);
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bloadAnswerPage\(/),
+      new Map([
+        ["src/lib/courses/facilitatorAsks/answerPage.ts", "the page's model, which is nothing for anybody but the person an ask names"],
+        ["src/app/(app)/learn/facilitate/[askId]/page.tsx", "the page an ask's email opens"],
+      ]),
+      "drawing the page an ask opens",
+      "The policy says the page shows the ask to the person asked and nobody else.",
+    );
+
+    // "By the day and time the ask gives", run (12pm in London on Wed 28 Oct
+    // is noon in UTC), and refused after it.
+    const ask = { id: "a1", seat: "a1", uid: "kai", answer: null, replyBy: { dateKey: "2026-10-28", time: "12:00" } };
+    assert.equal(rules.askStateOf(ask, [ask], new Date(Date.UTC(2026, 9, 28, 11, 59))).kind, "waiting");
+    assert.equal(rules.askStateOf(ask, [ask], new Date(Date.UTC(2026, 9, 28, 12, 0))).kind, "late");
+    assert.match(answer, /if \(state\.kind === "late"\) \{\s*return refuse\(409, lateWords\(/);
+
+    // "If you say yes, you become one of that group's facilitators", through
+    // the one place a group's facilitators change.
+    assert.match(answer, /writeFacilitatorChange\(tx, db, \{[\s\S]*?next: \[\.\.\.current, actor\.uid\],/);
+
+    // "We keep a record of each ask: ...": the one write of an ask, field by
+    // field, built from the person on the list (who carries no address) and
+    // the email as composed (which holds none).
+    const created = /tx\.create\(ref, \{([\s\S]*?)\}\);/.exec(act);
+    assert.ok(created, "could not find the write of an ask");
+    assert.deepEqual(
+      [...created[1].matchAll(/^\s*(\w+)(?::|,)/gm)].map((match) => match[1]),
+      [
+        "kind", "runId", "roundId", "programmeId", "groupId", "uid", "seat", "askedByUid", "askedAt", "replyBy",
+        "answer", "answeredAt", "remindedAt", "reminders", "delivery", "email", "toName", "firstName", "leadName",
+      ],
+      "an ask is now kept with more, or less, than the policy lists",
+    );
+    assert.match(created[1], /toName: person\.name,/);
+    const person = /export type FacilitatorPerson = \{([\s\S]*?)\n\};/.exec(withoutComments(read("src/lib/courses/facilitatorAsks/people.ts")));
+    assert.ok(person, "could not find what is kept of each person on the list");
+    assert.deepEqual([...person[1].matchAll(/^\s*(\w+)\??:/gm)].map((match) => match[1]), ["uid", "name", "firstName", "detail", "answers", "standing", "role"]);
+    const sentEmail = /export type SentAskEmail = \{([\s\S]*?)\n\};/.exec(withoutComments(read("src/lib/courses/facilitatorAsks/model.ts")));
+    assert.ok(sentEmail, "could not find the shape of the email an ask keeps");
+    assert.deepEqual([...sentEmail[1].matchAll(/^\s*(\w+)\??:/gm)].map((match) => match[1]), ["subject", "greeting", "paragraphs", "button", "signOff"]);
+    const composed = words.composeAskEmail({
+      firstName: "Kai",
+      shortName: "AGI Strategy",
+      programmeName: "AGI Strategy Fellowship",
+      groupName: "Group D",
+      meets: "Mondays at 6pm",
+      where: { kind: "room", room: "Room A13" },
+      weeks: 6,
+      firstSession: "Mon 2 Nov",
+      capacity: 8,
+      training: { day: "Wed 28 Oct", time: "6pm", room: "Room B5" },
+      replyBy: { day: "Wed 28 Oct", time: "12pm" },
+      leadName: "Claudia",
+      link: "https://naisi.uk/learn/facilitate/a1",
+    });
+    assert.ok(composed, "the email an ask keeps could not be written whole");
+    assert.ok(!JSON.stringify(composed).includes("@"), "the email an ask keeps now carries an email address");
+
+    // "The programme's lead and admins can see these records, and you can see
+    // your own ask on its page": every file that reads asks, and every file
+    // that addresses the record, each for a reason.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\b(?:listRunAsks|readAsk)\(/),
+      new Map([
+        ["src/lib/courses/facilitatorAsks/read.ts", "the readers of the record, which answer only documents that are what was asked for"],
+        ["src/lib/courses/facilitatorAsks/load.ts", "the Facilitators view, for the programme's lead and admins, behind askContext"],
+        ["src/lib/courses/facilitatorAsks/act.ts", "Remind, behind askContext, which reads the one ask it reminds somebody of"],
+        ["src/lib/courses/facilitatorAsks/answerPage.ts", "the page the person asked opens, which shows an ask to nobody else"],
+      ]),
+      "reading the record of asks to facilitate",
+      "The policy says the programme's lead and admins see these records and the person asked sees their own. " +
+        "If this file shows an ask to anybody else, the sentence is wrong and a new version has to say so.",
+    );
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bFACILITATING_COLLECTION\b|["'`]courseFacilitating["'`]/),
+      new Map([
+        ["src/lib/courses/facilitatorAsks/model.ts", "the record's own shape and the collection's name"],
+        ["src/lib/courses/facilitatorAsks/read.ts", "every read of the record"],
+        ["src/lib/courses/facilitatorAsks/act.ts", "the one writer of an ask, its reminders, the test before it and the run's training"],
+        ["src/lib/courses/facilitatorAsks/answer.ts", "the answer, from the person asked and nobody else"],
+        ["src/lib/firestore/accountDeletion.ts", "deleting an account deletes every ask sent to it"],
+        ["src/lib/firestore/courseDeletion.ts", "destroying a run deletes its asks"],
+      ]),
+      "addressing the record of asks to facilitate",
+      "The policy says what an ask keeps, who sees it, and that it goes with the account of the person asked. " +
+        "If this file reads, shows or keeps asks otherwise, the sentence is wrong and a new version has to say so.",
+    );
+
+    // "Deleted with your account": every ask that names the account, found by
+    // its one equality, is deleted.
+    const cascade = withoutComments(read("src/lib/firestore/accountDeletion.ts"));
+    assert.ok(
+      cascade.includes("summary.courseFacilitatingCleared = await clearFacilitatorAsks(db, uid);"),
+      "the account deletion no longer clears the asks to facilitate, which the policy lists among what a deletion removes",
+    );
+    const from = cascade.indexOf("export async function clearFacilitatorAsks(");
+    assert.ok(from !== -1, "could not find the step that clears the asks to facilitate");
+    const clear = cascade.slice(from, cascade.indexOf("\n}\n", from));
+    assert.match(clear, /rows\.where\("uid", "==", uid\)\.get\(\),/);
+    assert.match(clear, /for \(const doc of about\.docs\) \{\s*touched\.add\(doc\.id\);\s*writes\.push\(\(batch\) => batch\.delete\(doc\.ref\)\);\s*\}/);
+    // tests/course-hub-facilitator-asks.test.mjs runs the ask, the reminder,
+    // the answer and the deletions as every kind of caller, and
+    // tests/course-hub-facilitator-asks-pages.test.mjs draws the page.
+    for (const suite of ["course-hub-facilitator-asks.test.mjs", "course-hub-facilitator-asks-pages.test.mjs"]) {
+      assert.ok(existsSync(join(REPO_ROOT, "tests", suite)), `tests/${suite} is gone`);
+    }
   });
 
   test("who finished: the number is shown to the programme's lead and admins, and a member is told only whether they finished", () => {

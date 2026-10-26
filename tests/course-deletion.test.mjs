@@ -263,6 +263,11 @@ const RUN_COUNT_KEYS = [
   // (src/lib/courses/finishing/). Keyed by `runId`, and on the manifest
   // because the cascade has a stage for it.
   "finishing",
+  // `courseFacilitating`, the asks to facilitate the run's groups, each
+  // person's answer, the training and the test record
+  // (src/lib/courses/facilitatorAsks/). Keyed by `runId`, and on the manifest
+  // because the cascade has a stage for it.
+  "facilitating",
   "mirroredTasks",
   // The SECOND sweep on `tasks`, for the source the unmarked-register
   // scheduler job mints (V3 W2 PR25). Counted separately from the mirrors
@@ -362,17 +367,17 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   const counts = Object.fromEntries(
     [...RUN_COUNT_KEYS, ...COURSE_COUNT_KEYS].map((k) => [k, 10]),
   );
-  // Twenty-five counters at ten rows each: twenty-one that die,
+  // Twenty-six counters at ten rows each: twenty-two that die,
   // `materialNotes`, `auditRows`, `schedulerMarkers`, the V3 `coursePages`,
   // the V3 W2 `registerTasks` and the course hub's `pitches`, `updates`,
-  // `groupNotes`, `groupSharedNotes`, `teams` and `finishing` among them, plus
-  // the four survivors (`admissionSeatOffers` is released, `dataExportRows` is
-  // retained).
-  assert.equal(sumCounts(counts), 250);
+  // `groupNotes`, `groupSharedNotes`, `teams`, `finishing` and `facilitating`
+  // among them, plus the four survivors (`admissionSeatOffers` is released,
+  // `dataExportRows` is retained).
+  assert.equal(sumCounts(counts), 260);
   // The progress denominator counts only what actually dies, so a large
   // retained counter cannot inflate it into a bar that never fills. Adding a
   // survivor must not move this number; adding a DESTROYED counter must.
-  assert.equal(destroyedTotal(counts), 210);
+  assert.equal(destroyedTotal(counts), 220);
 });
 
 test("MODEL — every key the cascade can report has copy, including the ones the manifest never shows", () => {
@@ -539,6 +544,10 @@ test("MODEL — the cascade's declared stage order is the one the contract needs
     // Who finished: the run's rule and the lead's decisions, a run-keyed leaf
     // drained before the enrolments the decisions are about.
     "finishing",
+    // The asks to facilitate the run's groups: a run-keyed leaf, every ask
+    // names a group and a person, so it drains before the enrolments and the
+    // groups.
+    "facilitating",
     "enrolments",
     "applications",
     // Immediately after the seat rows it points at: until those are deleted,

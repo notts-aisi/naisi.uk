@@ -16,6 +16,7 @@ import type {
 } from "@/lib/applications/editor/views";
 import { Chip, DialogFrame, MenuButton, SavedStatus, Toggle, type SaveState } from "./controls";
 import { patchProgramme, putProgrammeRoles, type ProgrammePatch } from "./editorClient";
+import FacilitatorTraining, { type TrainingSetting } from "./FacilitatorTraining";
 import FinishingRule from "./FinishingRule";
 import {
   ArrowRightIcon,
@@ -122,10 +123,17 @@ function changesIn(draft: Draft, view: ProgrammeSetupView): { patch: ProgrammePa
 export default function ProgrammeSetup({
   programme,
   finishing = null,
+  training,
 }: {
   programme: ProgrammeSetupView;
   /** The run's rule for who finished, for a programme that names a run; null draws no card. */
   finishing?: { atLeast: number | null } | null;
+  /**
+   * The facilitators' training, a setting of the run the programme names:
+   * as stored, or null while none is set. Absent while the programme names
+   * no run, and the card is not drawn.
+   */
+  training?: TrainingSetting;
 }) {
   const ids = useId();
   // The boxes are read-only until the page is live, so nothing typed before
@@ -766,6 +774,10 @@ export default function ProgrammeSetup({
 
       {finishing && (
         <FinishingRule roundId={view.roundId} programmeId={view.id} initial={{ atLeast: finishing.atLeast }} />
+      )}
+
+      {training !== undefined && (
+        <FacilitatorTraining roundId={view.roundId} programmeId={view.id} initial={training} />
       )}
 
       <section className={`${shared.card} ${styles.careful}`} aria-labelledby={`${ids}-careful`}>

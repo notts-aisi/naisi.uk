@@ -443,8 +443,10 @@ function assertGroupCapacity(
 /**
  * Create a group inside `run`. `facilitatorUids` and `memberCount` start
  * empty/zero (rule-enforced): facilitators arrive via
- * `setGroupFacilitators()` and the count moves only inside the allocation
- * transaction, so it can never drift from the enrolment docs it summarises.
+ * `setGroupFacilitators()` and the count moves only inside a server
+ * transaction that writes the placement it counts (the allocation board's, or
+ * an appointment that places a facilitator who holds a place), so it can never
+ * drift from the enrolment docs it summarises.
  *
  * `run.enrolMode` is required because an open-mode run's groups MUST carry a
  * capacity; see `assertGroupCapacity`.
@@ -620,18 +622,23 @@ export async function assignRunRoles(
 
 /**
  * Replace a group's facilitators. The route also upserts / retires the
- * matching `role: "facilitator"` enrolment rows, which is why this can't be a
- * client write.
+ * matching `role: "facilitator"` enrolment rows, and places in this group
+ * anybody added who holds a place on the run and sits in no group yet, which
+ * is why this can't be a client write. Answers the names of those it placed.
  */
 export async function setGroupFacilitators(
   groupId: string,
   uids: string[],
-): Promise<void> {
-  await postJson(
+): Promise<{ placed: string[] }> {
+  const answered = await postJson<{ placed?: unknown }>(
     `/api/courses/groups/${groupId}/facilitators`,
     { uids },
     "Couldn't update this group's facilitators.",
   );
+  const placed = Array.isArray(answered?.placed)
+    ? answered.placed.filter((name): name is string => typeof name === "string")
+    : [];
+  return { placed };
 }
 
 /** Move a run along its lifecycle. The allowed-transition table is server-side. */

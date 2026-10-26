@@ -5,6 +5,7 @@ import frame from "@/features/applications/editor/ProgrammeSetup.module.css";
 import { loadSetup } from "@/lib/applications/editor/load";
 import { projectProgrammeForSetup } from "@/lib/applications/editor/views";
 import { loadRunPanel } from "@/lib/applications/handover/load";
+import { readTraining } from "@/lib/courses/facilitatorAsks/read";
 import { readFinishRule } from "@/lib/courses/finishing/record";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
@@ -30,6 +31,10 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * the caller is the lead or an admin: nobody else is ever shown it, and a
  * lead's page still reads nothing of the run itself. Its route asks the
  * gate again, and refuses a run that is no longer on the site.
+ *
+ * THE FACILITATORS' TRAINING is the run's too, set here by the same people
+ * in the same way, and read by its address only after `loadSetup` has said
+ * the caller is the lead or an admin.
  */
 export default async function ProgrammeSetupPage({
   params,
@@ -44,17 +49,25 @@ export default async function ProgrammeSetupPage({
     return <SettingsAreTheLeads roundId={roundId} programmeId={programmeId} />;
   }
   const { form, sets, programme, context } = outcome.setup;
-  const [run, rule] = db
+  const [run, rule, training] = db
     ? await Promise.all([
         loadRunPanel(db, user, roundId, programmeId),
         programme.runId ? readFinishRule(db, programme.runId) : Promise.resolve(null),
+        programme.runId ? readTraining(db, programme.runId) : Promise.resolve(null),
       ])
-    : [null, null];
+    : [null, null, null];
   return (
     <div className={frame.stack}>
       <ProgrammeSetup
         programme={projectProgrammeForSetup(form, sets, programme, context)}
         finishing={programme.runId ? { atLeast: rule?.atLeast ?? null } : null}
+        training={
+          programme.runId
+            ? training
+              ? { dateKey: training.dateKey, time: training.time, room: training.room }
+              : null
+            : undefined
+        }
       />
       {run?.status === "ok" && (
         <RunHandOver roundId={form.round.id} programmeId={programme.id} initial={run.panel} />

@@ -220,6 +220,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/courses/facilitatorAsks/",
+    {
+      why: "asking people to facilitate: it reads a form's programmes by the programme id an ask or a request names, and each applicant's answers by the facilitator question ids of the form's own question sets",
+    },
+  ],
+  [
     "src/lib/courses/placeOnRun.ts",
     {
       why: "where a place on the form stands on the run its programme names: it reads the form's programmes by the programme id of the place the person's own application holds, to take the run that programme names",

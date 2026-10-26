@@ -12,7 +12,9 @@ import type {
  *
  * It draws what `composeDecisionEmail` hands it and adds no words of its own,
  * so the preview an admin reads, the test they send themselves and the email
- * an applicant gets cannot say different things.
+ * an applicant gets cannot say different things. The email that asks somebody
+ * to facilitate (`src/emails/FacilitatorAskEmail.tsx`) is drawn by it too, so
+ * every email signed by a programme's lead looks the same.
  *
  * EVERY STRING IS A TEXT NODE. A programme's own wording is typed by a lead
  * and is rendered as text, never as markup: nothing here reaches
@@ -21,7 +23,10 @@ import type {
  * No unsubscribe footer: this is the answer to an application the person
  * sent, so it goes whatever their notification settings say.
  */
-export default function DecisionEmailBody({ email }: { email: DecisionEmail }) {
+/** What the body draws: an email's words, with no say in which kind of email it is. */
+export type EmailBodyWords = Pick<DecisionEmail, "subject" | "greeting" | "paragraphs" | "buttons" | "signOff">;
+
+export default function DecisionEmailBody({ email }: { email: EmailBodyWords }) {
   return (
     <EmailChrome subject={email.subject} preheader={email.subject} greeting={email.greeting}>
       <Section>

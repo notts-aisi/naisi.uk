@@ -20,7 +20,11 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 
 /**
  * Place accepted applicants into groups — the write half of the allocation
- * board, and the ONLY writer of learner placements.
+ * board, and the writer of learner placements. The one other place a learner
+ * is placed is an appointment of a facilitator who holds a place and sits in
+ * no group yet: `src/lib/courses/groupFacilitators.ts` places them in the
+ * group they facilitate, with the row this route's first placement writes,
+ * counted the same way, and never moves anybody from one group to another.
  *
  * WHO MAY ALLOCATE: admins ∪ the run's `trackLeadUids` ∪ the lead of the
  * programme that names the run (`runStaffingOf`): the people who staff the

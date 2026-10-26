@@ -1,5 +1,22 @@
 /* The Facilitators view of a programme's Groups tab (board st-facilitators):
-   one card, a row per group, its name and time beside who facilitates it. */
+   the groups and who facilitates each, beside the email the last person
+   asked got; then the people who'd like to facilitate, in a table that
+   scrolls inside its own box when the screen is narrower than it. */
+
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+.top {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  min-width: 0;
+}
 
 .card {
   min-width: 0;
@@ -19,6 +36,15 @@
   color: var(--color-text);
 }
 
+.lede {
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* ---- The groups ---------------------------------------------------------- */
+
 .groups {
   margin: 12px 0 0;
   padding: 0;
@@ -27,9 +53,9 @@
 
 .group {
   display: grid;
-  grid-template-columns: minmax(8rem, 11rem) minmax(0, 1fr);
-  gap: 8px 20px;
-  padding: 14px 0;
+  grid-template-columns: minmax(6.5rem, 8.5rem) minmax(0, 1fr);
+  gap: 8px 16px;
+  padding: 12px 0;
 }
 
 .group + .group {
@@ -54,7 +80,7 @@
 .groupBody {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 10px;
   min-width: 0;
 }
@@ -62,7 +88,7 @@
 .people {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -70,21 +96,86 @@
 
 .person {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 8px 12px;
   color: var(--color-text);
   font-size: 15px;
+}
+
+/* An ask: the person's row, then what can be done about it. */
+.askItem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.personName {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 
+.chip {
+  white-space: normal;
+}
+
+.groupActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.emails {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .change {
-  margin-top: 2px;
+  align-self: flex-start;
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* A button that reads as a link: the board's "Ask someone else". */
+.linkButton {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.linkButton:hover:not(:disabled) {
+  color: var(--color-accent-text-hover);
+}
+
+.linkButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.linkButton:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .muted {
@@ -101,6 +192,13 @@
   line-height: 1.5;
 }
 
+.saidOk {
+  margin: 0;
+  color: var(--color-ok);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .foot {
   margin: 12px 0 0;
   padding-top: 14px;
@@ -108,6 +206,360 @@
   color: var(--color-text-muted);
   font-size: 14px;
   line-height: 1.5;
+}
+
+/* ---- The email ------------------------------------------------------------ */
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 1.3;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.letter {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+.letterHead {
+  margin: 0;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.letterField {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 5px 0;
+}
+
+.letterField dt {
+  flex: 0 0 84px;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.letterField dd {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.letterSubject {
+  font-weight: 600;
+}
+
+.letterBody {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 18px 18px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text-body);
+}
+
+.letterBody p {
+  margin: 0;
+}
+
+.letterButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: var(--color-accent);
+  color: #050810;
+  font-weight: 600;
+}
+
+.letterSign {
+  color: var(--color-text-body);
+}
+
+.letterRole {
+  color: var(--color-text-muted);
+}
+
+/* ---- The people ------------------------------------------------------------ */
+
+/* Positioned, so the visually hidden "Ask" header is held inside the box
+   that scrolls rather than widening the page. */
+.tableScroll {
+  position: relative;
+  margin-top: 16px;
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.table {
+  width: 100%;
+  min-width: 44rem;
+  border-collapse: collapse;
+}
+
+.th {
+  padding: 0 12px 12px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: bottom;
+  font-family: var(--font-meta);
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 1.4;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.row > th,
+.row > td {
+  padding: 16px 12px 8px;
+  vertical-align: top;
+  text-align: left;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text);
+}
+
+.personCell {
+  min-width: 13rem;
+}
+
+.personText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.name {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.detail {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.answerCell {
+  min-width: 9rem;
+  overflow-wrap: anywhere;
+}
+
+.statusCell {
+  min-width: 12rem;
+}
+
+.note {
+  display: block;
+  margin-top: 6px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.askCell {
+  width: 11rem;
+  text-align: right;
+}
+
+.asked {
+  display: inline-block;
+  padding-top: 2px;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.writtenRow > td,
+.askRow > td {
+  padding: 0 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.written {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 24px;
+  margin: 0;
+}
+
+.writtenItem {
+  min-width: 0;
+}
+
+/* The question on one line (the whole question is its title, and is read
+   in full by a screen reader); the answer cut to two lines until opened. */
+.writtenQuestion {
+  overflow: hidden;
+  font-family: var(--font-meta);
+  font-size: 11px;
+  line-height: 1.4;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color-text-muted);
+}
+
+.writtenAnswer {
+  margin: 4px 0 0;
+  color: var(--color-text-body);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.writtenOpen .writtenQuestion {
+  white-space: normal;
+}
+
+.writtenOpen .writtenAnswer {
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  overflow: visible;
+}
+
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+/* ---- The ask ---------------------------------------------------------------- */
+
+.ask {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  margin-top: 4px;
+  padding: 18px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+}
+
+.askTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 17px;
+  line-height: 1.3;
+  color: var(--color-text);
+}
+
+.askFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 14rem));
+  gap: 12px 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* The group, or the person, to ask: real radio buttons, one row each. */
+.choices {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.choices > legend {
+  margin-bottom: 6px;
+  padding: 0;
+}
+
+.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  color: var(--color-text);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.choice input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.fieldLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-md, 1rem);
+  color-scheme: dark;
+}
+
+.askActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+@media (max-width: 60rem) { /* --bp-lg */
+  .top {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 48rem) { /* --bp-md */
@@ -119,5 +571,23 @@
   }
   .actions > * {
     flex: 1 1 auto;
+  }
+  .askFields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .written {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* The table scrolls sideways inside its box on a phone: what spans a whole
+     row (the written answers, an ask) stays where it can be read. */
+  .written,
+  .writtenRow .linkButton,
+  .askRow .ask {
+    position: sticky;
+    left: 0;
+    max-width: calc(100vw - 4.5rem);
+  }
+  .letterField dt {
+    flex-basis: 72px;
   }
 }

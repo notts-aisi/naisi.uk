@@ -38,6 +38,7 @@ export const SEND_DOOR_NAMES = [
   "sendRegisterReminderEmail",
   "sendTeamEmails",
   "sendTeamEmailTest",
+  "sendAskTest",
 ];
 
 /** Any of the doors, as a call. */

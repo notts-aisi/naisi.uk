@@ -532,6 +532,12 @@ const REGISTRY = {
   "src/lib/applications/decisionDay/deliver.ts#sendEmail": T(
     "The decision-day template's send door: You're in, Invitation and No offer this time, and the daily reminder that repeats an invitation. It consults nothing itself; the one scheduled caller consults the courses row before it reaches it and carries its own grid entry.",
   ),
+  "src/lib/courses/facilitatorAsks/act.ts#sendEmail": T(
+    "Asking somebody to facilitate: the answer to their own application, where they said they would like to (\"Would you facilitate a group on AGI Strategy?\"), one message to the one person an ask or a reminder names, and a rehearsal of one to the address on the session of whoever asks. One call, in the one helper every one of them goes through.",
+  ),
+  "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask/test/route.ts#sendAskTest": T(
+    "\"Send a test to me\" before asking somebody to facilitate: the real email one person would get, marked as a test, to the address on the caller's own session and nobody else.",
+  ),
   "src/lib/applications/freedPlaces/offer.ts#sendDecisionEmail": T(
     "A freed place offered after decision day: the answer to the person's own application (\"A place has come up\"), one message to each person a press offers a place to or whose email is still to go, and a rehearsal of one to the address on the session of the admin who asked. One call each.",
     2,

@@ -1373,9 +1373,12 @@ already open; nothing under `/admin/courses` is needed.
   send the test and press Publish, with the same test lock and the same
   count on the button.
 - **Groups tab, Times**: the times picture.
-- **Groups tab, Facilitators**: who facilitates each group, changed by hand.
-  The list to pick from is names only. Changing it emails nobody; somebody
-  added after groups have gone out is told by the next press of Publish.
+- **Groups tab, Facilitators**: who facilitates each group, the people who
+  said on the form they would like to facilitate the programme, and asking
+  them (see "Asking people to facilitate" below). Each group can still be
+  changed by hand: the list to pick from is names only, a change emails
+  nobody, and somebody added after groups have gone out is told by the next
+  press of Publish.
 - **Overview tab**: the run's week, each group's session this week and its
   register, what needs attention, who came by week and how many are taking
   part (see "The lead's Overview and Attendance" below).
@@ -1462,6 +1465,102 @@ number agrees between them and the CSV.
   the press or the job comes first. It works while the job is switched off:
   the press is a person's decision. A facilitator who has turned off their
   "Tasks and worksheets" emails is not offered.
+
+## Asking people to facilitate
+
+Boards st-facilitators and st-fac-ask-phone (Q6 option B: "Ask, then
+train"). The programme's lead, or an admin, asks somebody who said on the
+application form that they would like to facilitate; they get one email and
+say yes or no on the site; training is a dated session with a room.
+
+### Who can be asked
+
+The Groups tab's Facilitators view lists everybody whose application said
+yes to facilitating and chose this programme or "Either" (read from the
+form's own facilitator questions, whatever they are called), with their
+answers to those questions and nothing else of the application. The viewer's
+own application is never listed. Asking opens once decision day has been
+sent. Somebody holding a place on the programme can be asked: a facilitator
+can be one of its fellows too, in the group they facilitate (the rule that
+nobody facilitates a programme they take part in was lifted on 26 October
+2026). Somebody invited to it and not yet answered is asked once they have
+answered, and only an approved account can facilitate. Somebody taking part
+in another programme can be asked.
+
+### A facilitator who holds a place
+
+A facilitator who holds a place on the run is one of its fellows: a
+learner's row in a group, like everybody else's, beside their name on the
+group's facilitators. They SIT IN THE GROUP THEY FACILITATE. So every
+appointment, by an answer or by hand, asks where the person sits first
+(`seatFor` in
+`src/lib/courses/groupFacilitators.ts`):
+
+- in that group already: nothing moves;
+- in no group yet (handed over and never placed, or taken out of their
+  group on People in groups): the appointment places them in that group, in
+  the same transaction, as the board's own placement would, and the group's
+  count of people moves with them. By hand, the saved sentence names them;
+- in another group: nothing is saved. The board decides where people sit,
+  so they are moved on People in groups first, or made a facilitator of
+  their own group. Asking them for another group is refused before any
+  email, with both groups named;
+- a group with no room left for somebody it would place saves nothing;
+- holding no place on the run: a facilitator's row, as before.
+
+The person asked is never told where staff have placed them: a yes that
+cannot be placed is answered with one sentence that names only the group
+they were asked about. A yes from somebody holding a place who has not been
+handed over yet waits until they have. A row on the run's list that the
+application form wrote is placed only by an admin or the programme's lead,
+so a track lead adding that person saves nothing. Taking a facilitator off a
+group leaves their place where it is.
+
+### Asking
+
+"Ask to facilitate…" picks the group and the day and time to answer by,
+shows the email as it will read, and holds the ask until "Send a test to
+me" has reached whoever is asking for that day and time (another day or time
+asks for a new test). The ask emails that one person, from NAISI, replies to
+ai-safety@uonsu.com, signed by the programme's lead. It names the group's
+weekly time, its room (left out while it has none), its first session and
+weeks on its own calendar, its size, the training (left out while none is
+set) and the day and time to answer by. It is written whole or not at all:
+a group with no day and time, or nothing still to come, cannot be asked for.
+An email that fails takes the ask back with it.
+
+"Remind" sends the ask again under a line saying it is a reminder, to that
+person only, while the ask is waiting: at most three times, twelve hours
+apart. "Ask someone else" asks another person for the same place; whoever
+says yes first takes it, and the other ask closes.
+
+### The answer
+
+"Say yes or no" opens `/learn/facilitate/<ask>`, for the person asked,
+signed in, and nobody else (anybody else is told the page is somebody
+else's). Yes puts them on the group as a facilitator through the same code
+the run editor's group card uses (`src/lib/courses/groupFacilitators.ts`),
+in one transaction with the answer, places them in the group when they hold
+a place and sit in no group yet (above), and records who asked them and when
+they agreed in the group's `facilitatorAppointments`. Somebody invited to the
+programme answers that invitation before their yes is taken. No is
+recorded. After the
+day and time to answer by, or once somebody else has the place, the page
+says so and nothing can be answered. Nobody is emailed by an answer: groups
+going out (Publish) tells the new facilitator their group, as it tells
+everybody, and until then they see no names.
+
+### The training
+
+A setting of the run on the programme's Settings tab, for the lead and
+admins: a day, a time and a room, all three, or none. There is no default.
+
+### What is kept
+
+`courseFacilitating`, server only: each ask (who, which group, by when, the
+answer, the email exactly as it went), the run's training and the last test.
+Destroying the run drains it; deleting an account deletes every ask sent to
+it, and clears the account's uid where it asked somebody or set the training.
 
 ## Updates on a run
 

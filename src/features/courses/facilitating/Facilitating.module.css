@@ -1,0 +1,235 @@
+/* The page an ask to facilitate opens (board st-fac-ask-phone): a phone
+   page first, held to a readable width on a laptop. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  max-width: 34rem;
+  padding: 18px 0 28px;
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  line-height: 1.3;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.heading {
+  margin: 8px 0 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.heading:focus {
+  outline: none;
+}
+
+.facts {
+  min-width: 0;
+  padding: 4px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.factList {
+  margin: 0;
+}
+
+.fact {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.fact + .fact {
+  border-top: 1px solid var(--color-border);
+}
+
+.factLabel {
+  flex: 0 0 62px;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.factValue {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.training {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.trainingTitle {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.trainingLine {
+  margin: 6px 0 0;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.trainingText {
+  margin: 8px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-soft);
+  text-wrap: pretty;
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.yes,
+.no {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 24px;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+}
+
+.yes {
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: #050810;
+}
+
+.yes:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.no {
+  border: 1px solid var(--color-border-strong);
+  background: transparent;
+  color: var(--color-text);
+}
+
+.no:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.yes:disabled,
+.no:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.yes:focus-visible,
+.no:focus-visible,
+.groupLink:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger-text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.foot {
+  margin: -4px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+}
+
+.text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-soft);
+}
+
+.closed {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+  color: var(--color-text-soft);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.closedTitle {
+  margin: 0 0 4px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.groupLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0 24px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: #050810;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .page {
+    padding-top: 2px;
+  }
+}

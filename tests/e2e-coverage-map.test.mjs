@@ -676,6 +676,27 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed a run whose last session is over, with finished registers, and its programme's lead signed in.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask": {
+    reason:
+      "Course hub: asking one person to facilitate one group, pressed by a programme's lead or an admin on the Groups tab's Facilitators view (board st-facilitators). tests/course-hub-facilitator-asks.test.mjs executes it as every kind of caller, with the email it sends read word for word and counted against the button.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a term after decision day whose form asked about facilitating, with somebody who said yes, and its programme's lead signed in.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask/test": {
+    reason:
+      "Course hub: the test of the ask's email, sent only to the address on the session of whoever asks; tests/course-hub-facilitator-asks.test.mjs executes it and the lock it unlocks.",
+    coverWhen: "With the spec for the ask above, because the test is the ask's first step.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/remind": {
+    reason:
+      "Course hub: Remind on an ask nobody has answered, emailing only that person; tests/course-hub-facilitator-asks.test.mjs executes it as every kind of caller and holds its limits.",
+    coverWhen: "With the spec for the ask above.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/training": {
+    reason:
+      "Course hub: the facilitators' training, a setting of the run on a programme's Settings tab; tests/course-hub-facilitator-asks.test.mjs executes it as every kind of caller, and what the email and the answer page then say.",
+    coverWhen: "With the spec for the ask above, which sets the training before it asks.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing/rule": {
     reason:
       "Course hub: the rule for who finished, on a programme's Settings tab. tests/course-hub-finishing-routes.test.mjs executes it as every kind of caller, at its edges, and tests/course-hub-finishing-pages.test.mjs draws the card.",
@@ -963,6 +984,18 @@ const NOT_COVERED = {
       "Learn hub: /api/courses/runs/[runId]/exercises/[exerciseId]/submit belongs to the curriculum surface being rebuilt in October.",
     coverWhen:
       "When the October curriculum rebuild lands, because a spec written against today's shape would be thrown away with it.",
+  },
+  "/api/courses/runs/[runId]/facilitators/asking": {
+    reason:
+      "Course hub: the read behind the Groups tab's Facilitators view. tests/course-hub-facilitator-asks.test.mjs executes it as every kind of caller and holds that it carries no address; the groups-go-out spec opens the view, and so this read, but does not yet list it among what it covers.",
+    coverWhen:
+      "When the groups-go-out spec, or the spec for the ask above, lists it among what it covers after a run that passed in CI.",
+  },
+  "/api/courses/facilitator-asks/[askId]/answer": {
+    reason:
+      "Course hub: the yes or no of the person asked to facilitate, on their own page (board st-fac-ask-phone). tests/course-hub-facilitator-asks.test.mjs executes it as every kind of caller, yes appointing them through the group's own appointment code and a late answer refused.",
+    coverWhen:
+      "With the spec for the ask above: the person asked signs in, opens the page from the email and says yes.",
   },
   "/api/courses/runs/[runId]/material-notes": {
     reason:
@@ -1587,6 +1620,11 @@ const NOT_COVERED = {
       "Events authoring: /(app)/events/manage/new is committee-facing, and a failure surfaces on the editor that caused it.",
     coverWhen:
       "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
+  },
+  "/(app)/learn/facilitate/[askId]": {
+    reason:
+      "Course hub: the page an ask to facilitate opens (board st-fac-ask-phone), rendered to HTML for the person asked, somebody else and every state of an ask by tests/course-hub-facilitator-asks.test.mjs, and checked by hand at 390 and 1440.",
+    coverWhen: "With the spec for the ask above.",
   },
   "/(app)/learn/[runId]/admissions": {
     reason:
