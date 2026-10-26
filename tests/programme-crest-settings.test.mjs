@@ -63,6 +63,7 @@ const normalise = await loadTs("lib/applications/normalise.ts");
 const courses = await loadTs("lib/firestore/courses.ts");
 const write = await loadTs("lib/applications/editor/write.ts");
 const { CREST_KEYS } = await loadTs("components/ProgrammeCrest.tsx");
+const publicTerm = await loadTs(join("lib", "applications", "lifecycle", "publicTerm.ts"));
 const courseCrestRoute = await loadTs(join("app", "api", "courses", "[courseId]", "crest", "route.ts"));
 const programmeRoute = await loadTs(
   join("app", "api", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "route.ts"),
@@ -487,6 +488,22 @@ describe("a programme's crest in its settings", () => {
   test("a programme added to a form carries no crest of its own", () => {
     const parsed = normalise.normaliseProgramme("new", { name: "New", shortName: "New", kind: "fellowship" });
     assert.equal(parsed.crest, null);
+  });
+});
+
+describe("what a visitor's page is told about a programme's crest", () => {
+  test("the projection carries each programme's own crest, and a stored value that is not one as none", async () => {
+    const raw = await stored(ROUND_PATH);
+    raw.status = "open";
+    raw.programmes[AGI].crest = "dragon";
+    db = makeDb({ ...seed(), [ROUND_PATH]: raw });
+    const term = await publicTerm.findPublicTerm(db, new Date("2026-10-10T12:00:00Z"));
+    assert.equal(term.stage, "open");
+    const byId = Object.fromEntries(term.programmes.map((p) => [p.id, p.crest]));
+    // The incubator's own crest; AGI Strategy's stored value is not one of the four keys.
+    assert.deepEqual(byId, { [AGI]: null, [INC]: "alignment" });
+    // Its own crest only: the course's is the resolver's to add, on the page.
+    assert.equal(crestForProgramme(term.programmes.find((p) => p.id === AGI), { crest: "agi-strategy" }), "agi-strategy");
   });
 });
 
