@@ -95,7 +95,7 @@ export type PlaceBeforeGroups = {
 export type WeekOneShut =
   /** An admin viewing the site as this person: nothing is read. */
   | "view-as"
-  /** The account does not stand (pending, rejected): it holds no seat on any run. */
+  /** The account does not stand (pending, or turned down at approval): it holds no seat on any run. */
   | "no-standing"
   /** No programme, or more than one, names this run. */
   | "no-programme"
