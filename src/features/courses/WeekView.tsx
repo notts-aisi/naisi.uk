@@ -70,6 +70,7 @@ import BlockWeek from "./weekBlocks/BlockWeek";
 import WeekOneLine from "./weekBlocks/WeekOneLine";
 import type { CourseRoutes } from "@/lib/courses/routes/model";
 import type { PredictionsView } from "@/lib/courses/predictions/wire";
+import type { OwnPair } from "@/lib/courses/pairs/model";
 import styles from "./WeekView.module.css";
 
 /**
@@ -137,6 +138,8 @@ type Props = {
   survey?: SurveyCard | null;
   /** The reader's own sealed predictions card on this week, read on the server; null on a week that holds none. */
   predictions?: PredictionsView | null;
+  /** The reader's own pairs for a session in pairs, read on the server; none on any other week. */
+  pairs?: readonly OwnPair[];
 };
 
 /**
@@ -151,7 +154,7 @@ const TICK_REFUSED = "That tick didn’t save, so it has been undone. Check your
 
 const EMPTY_ROWS: ReadonlyArray<never> = [];
 
-export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNotes = null, guide = null, routes = null, survey = null, predictions = null }: Props) {
+export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNotes = null, guide = null, routes = null, survey = null, predictions = null, pairs }: Props) {
   const overview = useRunOverview(runId);
   // WHERE THIS READER'S COPY OF THE WEEK LIVES (V2-3 copy-on-write): their
   // group's forked document when their facilitator has personalised this
@@ -343,6 +346,7 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
           guide={guide}
           routes={routes}
           predictions={predictions}
+          {...(pairs ? { pairs } : {})}
         />
         <ActionToast toast={toast} onDismiss={dismiss} />
       </>

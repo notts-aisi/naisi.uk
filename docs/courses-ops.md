@@ -2119,6 +2119,63 @@ talk; the code is `src/lib/courses/packsAndCases/`.
   browser (two routes are the only writers, and pages read on the server).
   No index.
 
+## Pairs for a session in pairs
+
+A week asks for pairs when its In the session block's "Before you come"
+says people are paired (Technical AI Safety's week 5: hands-on, in pairs,
+with at least one laptop in each pair), and asks who is bringing a laptop
+when the same words name one. The week's own words decide (`pairsAskOf`);
+no week number is in code, and a group's own copy of the week decides for
+that group. The record is `coursePairs`, one per person per group per
+session in pairs: which pair they are in, and whether they are bringing a
+laptop. The code is `src/lib/courses/pairs/`.
+
+### Pairing a group
+
+1. **Before the session**, the group page shows "Pairs in Group B" for the
+   week the group meets next, when that week asks: each pair with who is in
+   it and who is bringing a laptop, and the check that every pair has one.
+   It links to the pairs page, "Pair people up", then "Change pairs and
+   laptops" (`/learn/pairs/<group>?week=<n>`).
+2. **Pair everybody.** Each person in the group has a row, the group's
+   facilitators included (they take part too, so a facilitator can pair
+   themselves): a "Pair" select (Pair 1, Pair 2 and so on, or "Not paired
+   yet"), and "Bringing a laptop" on a week that asks. Two or three people
+   given one number are a pair.
+3. **The check.** The pairs as they stand sit above the rows: a pair with
+   nobody bringing a laptop is said ("Pair 2 has no laptop yet."), and so is
+   anybody not paired yet. It is a check, never a refusal: Save still saves.
+4. **Save** writes only what changed. A save that would leave one person
+   alone in a pair, or put four in one, is refused with a sentence. Nobody
+   is emailed: each person sees their pair on that week's page.
+
+### Who sees what
+
+- **The group's live facilitators, the programme's lead and admins** type
+  them and see every pair, on the pairs page; the group's facilitators and
+  admins also on the group page. The lead has no link to the pairs page
+  yet: open it by its address.
+- **Each person** sees their own pair on that week's page, under the
+  guide's "Before you come": who they are paired with, by first name, and
+  who in their pair is bringing a laptop ("You’re paired with Kofi.",
+  "Kofi is bringing a laptop."). Before they are paired, the guide's words
+  alone. Nobody else in the group sees their pair.
+- **A facilitator paired in two groups** sees each, with the group named.
+
+### Things worth knowing
+
+- **Somebody who left** is in no pair, and nobody is shown them as a
+  partner; their record stays until the account or the run goes. A pair
+  left with one person says so on the pairs page, and does not stop the
+  facilitators saving anything else.
+- **Somebody who moves group** is in no pair of the new group until its
+  facilitators pair them.
+- **Deleting an account** deletes the person's records; a partner's record
+  names nothing of them. **Destroying the run** deletes them all, and the
+  destroy dialog counts them as "Pairs and laptops".
+- **Deploy**: one new rules block, `coursePairs` shut to every browser (one
+  route is the only writer, and pages read on the server). No index.
+
 ## Teams
 
 An incubator meets as one weekly group, and its people work in small teams

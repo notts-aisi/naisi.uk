@@ -272,6 +272,17 @@
  *     the account and with the run's destroy; the openings stay when an
  *     account is deleted and go with the run's destroy
  *     (`deleteCoursePredictions`, `src/lib/firestore/courseDeletion.ts`).
+ * 33. **Pairs for a session.** When a week's In the session block says people
+ *     are paired (`pairsAskOf` in `src/lib/courses/pairs/model.ts`), the
+ *     group's live facilitators, the programme's lead or an admin record each
+ *     person's pair and, where the week asks, whether they are bringing a
+ *     laptop (the pairs route, behind the draw's gate). Each person sees
+ *     their own pair, by first name, and who in it is bringing a laptop, on
+ *     that week's page, and nothing of another pair (`readOwnPairs`); the
+ *     group's facilitators, the lead and admins see every pair
+ *     (`readGroupPairs`). A facilitator can be in a pair like anybody, seen by
+ *     their co-facilitators. Somebody who leaves is shown in no pair, and it
+ *     goes with the account (`deleteCoursePairs`).
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
@@ -1123,6 +1134,21 @@ export default function PrivacyContentV7({
                   co-facilitators cannot. You can say you are ready for your
                   talk, and that is shown on your own pages and nobody
                   else&apos;s.
+                </li>
+                <li>
+                  <strong>Pairs for a session.</strong> When a week&apos;s
+                  session is in pairs, your group&apos;s facilitators, the
+                  programme&apos;s lead or an admin record on the site who is
+                  in each pair and, where the week asks, who is bringing a
+                  laptop. On that week&apos;s page you see who you are paired
+                  with, by first name, and who in your pair is bringing a
+                  laptop, and your partners see the same about you. Your
+                  group&apos;s facilitators, the programme&apos;s lead and
+                  admins see every pair in the group; nobody else in your group
+                  sees your pair. If you facilitate the group, you can be in a
+                  pair like anybody, and your co-facilitators see it. If you
+                  leave the programme, you are no longer shown in a pair. It is
+                  deleted with your account.
                 </li>
                 <li>
                   <strong>Boxes you fill in.</strong> Some weeks have boxes
