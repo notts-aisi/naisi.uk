@@ -44,6 +44,7 @@ import {
 } from "@/lib/courses/sessionChange/words";
 import type { WeekSharedNotes } from "@/lib/courses/sharedNotes/views";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
+import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import ExerciseSubmit from "./ExerciseSubmit";
 import PacingBanner from "./PacingBanner";
 import { cancelledIn } from "./sessionChange/cardFacts";
@@ -62,6 +63,7 @@ import GroupSharedNotes from "./weekly/GroupSharedNotes";
 import TickRows, { tickItemsOf, type TickItem } from "./weekly/TickRows";
 import { useMaterialTicks } from "./weekly/useMaterialTicks";
 import weekly from "./weekly/weekly.module.css";
+import BlockWeek from "./weekBlocks/BlockWeek";
 import styles from "./WeekView.module.css";
 
 /**
@@ -99,6 +101,12 @@ import styles from "./WeekView.module.css";
  *
  * PROGRESS SEMANTICS ARE UNCHANGED BY EXERCISES: the fraction counts
  * non-optional materials plus checklist items and nothing else.
+ *
+ * A WEEK WRITTEN AS BLOCKS is drawn by `weekBlocks/BlockWeek.tsx` instead
+ * (boards st-week1-phone, wk-week-phone, wk-week), from the same data: the
+ * overview, the week's document, the reader's own ticks and their own rows
+ * (their reflections among them). Everything below the branch is a week
+ * written before blocks, drawn exactly as it always has been.
  */
 
 type ViewerRole = "learner" | "facilitator" | "admin";
@@ -139,8 +147,14 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
   const week = useWeek(runId, weekDocId(weekNumber), canSeeDrafts, weekSrc);
   const comments = useWeekComments(runId, weekNumber);
   // Own exercise answers for this week, for a learner only: "" is the hook's off switch.
+  // On a week written as blocks a group's facilitator takes part too, and reads
+  // back their own reflections the same way.
   const isLearnerViewer = overview.data?.enrolment?.role === "learner";
-  const myExercises = useMyExercises(isLearnerViewer ? runId : "", weekNumber);
+  const placementGroupId = isLearnerViewer ? (overview.data?.enrolment?.groupId ?? null) : null;
+  const facilitatesGroup =
+    overview.data?.access.isFacilitator === true && (overview.data?.groups ?? []).some((g) => g.id !== placementGroupId);
+  const ownRowsWanted = isLearnerViewer || (facilitatesGroup && week.week !== null && isBlockWeek(week.week));
+  const myExercises = useMyExercises(ownRowsWanted ? runId : "", weekNumber);
   // P10 mirror trigger, keyed to the RUN: the route recomputes the anchor week.
   useSyncTasks(
     runId,
@@ -262,6 +276,43 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
   const payload = overview.data;
   const weekDoc = week.week;
   if (!weekDoc) return <WeekSkeleton />; // unreachable; narrows the type
+
+  if (isBlockWeek(weekDoc)) {
+    // A refused tick is put back by the hook and said, as on every page.
+    const tickBlock = (itemKind: ProgressItemKind, itemId: string, next: boolean) => {
+      if (!canWrite) return;
+      void ticks.toggle(itemKind, itemId, next).then((ok) => {
+        if (ok || !mounted.current) return;
+        void runToast(async () => {
+          throw new Error(TICK_REFUSED);
+        });
+      });
+    };
+    return (
+      <>
+        <BlockWeek
+          runId={runId}
+          weekNumber={weekNumber}
+          uid={uid}
+          week={weekDoc}
+          forked={week.forked}
+          payload={payload}
+          ticks={ticks}
+          onTick={tickBlock}
+          ownRows={{
+            byId: myExercises.byExerciseId,
+            loaded: myExercises.loaded,
+            loading: myExercises.loading,
+            reload: myExercises.reload,
+            apply: myExercises.apply,
+          }}
+          sharedNotes={sharedNotes}
+          leadFirstName={payload.programme?.leadFirstName ?? null}
+        />
+        <ActionToast toast={toast} onDismiss={dismiss} />
+      </>
+    );
+  }
 
   // ---- Derived page facts -------------------------------------------------
   const hasEnrolment = payload.enrolment !== null;
