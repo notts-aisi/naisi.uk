@@ -1394,6 +1394,18 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/anonymous-feedback": {
+    reason:
+      "The anonymous form's answers for the programme's lead and admins; tests/anonymous-feedback.test.mjs renders it as the lead, an admin, the lead of another programme, a reviewer, a facilitator, a member and signed out, and finds only answers from a day that is over, each question's in alphabetical order.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated and anonymous answers from an earlier day, so a spec can read them as the lead.",
+  },
+  "/api/feedback": {
+    reason:
+      "The anonymous keep, change and drop form: answering by the programme's one link; tests/anonymous-feedback.test.mjs answers signed out, signed in and in a view-as session, keeps only the three answers, the programme and the day, and refuses a wrong, malformed, closed or destroyed form's link and a flood past either limit.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can send the survey at the end, answer it and open the form from its end.",
+  },
   "/api/surveys/answer": {
     reason:
       "Surveys: answering by a personal link; tests/surveys-routes.test.mjs answers by link, once, and refuses a wrong, malformed or test link and a closed survey.",
@@ -2126,6 +2138,12 @@ const NOT_COVERED = {
       "Surveys: the answer page by a personal link; tests/surveys-routes.test.mjs renders it for each kind of person (the box's names, an untold group, answered, closed, a test) and finds it writes nothing.",
     coverWhen:
       "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can open a link from the email in Mailpit and answer.",
+  },
+  "/feedback/[token]": {
+    reason:
+      "The anonymous keep, change and drop form's page; tests/anonymous-feedback.test.mjs renders it signed out and signed in, finds the box before the questions, nothing about who is looking and nothing written, and renders a wrong, closed and destroyed form's link as one sentence.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can open the link at the end of the survey at the end and send the form.",
   },
   "/collaborator": {
     reason:

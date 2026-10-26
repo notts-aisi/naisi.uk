@@ -628,8 +628,18 @@ const MUST_NAME = [
   // this replaces, "star rating and leave a comment", pinned the comment box
   // on every run, which a run with groups no longer draws.
   ["feedback on the material", /You can give a piece of course material a star rating\. On a programme anyone can join you can also leave a comment on it, which is shown to the rest of your run; on a programme that places you in a group, you share notes with your group instead \(see Notes shared with your group\)\. Ratings and comments are stored against your account and your name\./i],
-  ["no anonymous survey is claimed yet", /We do not\s+currently run anonymous surveys on this site/i],
-  ["an anonymous form would say so and move the policy first", /the form will say that it is anonymous and how that is done/i],
+  // The promise that an anonymous form would say it is anonymous and how,
+  // with this policy first, is kept and replaced (the questionnaire's part (c),
+  // 26 October 2026): the two entries this replaces pinned the promise. §2g
+  // holds each sentence below to the code.
+  ["the one anonymous form, apart from the surveys", /One form is anonymous: the keep, change and drop form linked from the end of the survey at a programme&apos;s end\./i],
+  ["how the anonymous form never records who answers", /It never asks or records who answers, even when you are signed in: everybody on the programme has the same link, and your browser sends the answers without your sign-in\./i],
+  ["what the anonymous form keeps, and nothing else", /With your three answers we keep only the programme and the day: no name, account, email address, IP address or detail of your device\./i],
+  ["the anonymous form says it is anonymous, and how, at the top", /The form says so at the top\. <\/li>/i],
+  ["the day and not the time, by the night's move", /We keep the day, not the time\. Until the day is over the answers wait in a holding record, which our database stamps with the time, as it does every record; soon after midnight a job moves the day&apos;s answers together into the record we keep, which holds the day and not the time, and deletes the holding records\./i],
+  ["where a time is still held for a while, and never matched", /Recovery copies of our database, kept up to 14 days, can hold a holding record until they expire, and our hosting provider&apos;s request logs \(see Operational logs\) note the time and address of every request; those logs are never matched to the answers\./i],
+  ["who reads the anonymous answers, and from when", /Only the programme&apos;s lead and NAISI&apos;s admins read the answers, from the day after they come in, in an order unrelated to when each came in\. The form closes when the survey at the end does\./i],
+  ["how long the anonymous answers are kept, and that an account's deletion removes none", /<strong>Answers to the anonymous form\.<\/strong> Kept while the programme&apos;s course run is on the site, and deleted when the run is destroyed\. Nothing in them says whose they are, so deleting your account removes none of them\./i],
   ["membership tier", /membership tier \(paid, comped, alumni, staff\)/i],
   ["membership provenance", /a list the\s+Students&apos; Union gives us/i],
   ["the conduct flag", /an admin can\s+flag an\s+account and must record a reason/i],
@@ -2642,6 +2652,8 @@ const SURVEY_STORE = /\bSURVEY_(?:ANSWERS|PEOPLE)_COLLECTION\b|["'`](?:surveyAns
 const comingReplies = await loadTs("lib/applications/status/coming.ts");
 /** What the written answer's pages say: who reads it, beside the box. Pure. */
 const writtenWords = await loadTs("lib/courses/writtenAnswerWords.ts");
+/** The anonymous form's records: what an answer holds, and the readers' order. Pure. */
+const anonymousRecords = await loadTs("lib/anonymousFeedback/model.ts");
 
 describe("the course hub passage", () => {
   test("the frozen v6 carries none of these sentences, so the move was a version and not an edit", () => {
@@ -2686,6 +2698,9 @@ describe("the course hub passage", () => {
       /Every survey is confidential/i,
       /Facilitators never see anything of a survey/i,
       /A survey records nothing about how you fill it in/i,
+      /One form is anonymous/i,
+      /Answers to the anonymous form/i,
+      /a job moves the day&apos;s answers together/i,
       /A survey and its reminder are emailed as important notices/i,
       /We take your name off your answers to a survey/i,
       /your name on your survey answers/i,
@@ -4317,11 +4332,16 @@ describe("the course hub passage", () => {
     // Confidential is the one setting a survey has, whatever is stored.
     assert.match(read("src/lib/firestore/surveys.ts"), /export type SurveyPrivacy = "confidential";/, "a survey can now be something other than confidential");
     assert.equal(surveyRecords.normalizeSurvey("s1", { privacy: "anonymous" }).privacy, "confidential");
-    // The sentence about anonymous surveys moved here from Feedback on the
-    // material, word for word, and closes the passage. It is on the page once.
+    // The sentence about anonymous surveys, moved here from Feedback on the
+    // material, promised that an anonymous form would say so and how, with
+    // the policy first. The anonymous form keeps that promise and replaces the
+    // sentence: the passage now closes with the form's three points, each on
+    // the page once, and the promise is gone (the next test holds the three
+    // to the code).
     const passage = PAGE_FLAT.slice(PAGE_FLAT.indexOf("<h3>When you answer a survey</h3>"), PAGE_FLAT.indexOf("<h3>When you subscribe to our newsletter</h3>"));
-    assert.match(passage, /<li> We do not currently run anonymous surveys on this site\. If we add one, the form will say that it is anonymous and how that is done, and we will update this policy first\. <\/li> <\/ul> $/);
-    assert.equal((PAGE_FLAT.match(/We do not currently run anonymous surveys on this site/g) ?? []).length, 1);
+    assert.match(passage, /<li> One form is anonymous: [^<]* <\/li> <li> We keep the day, not the time\. [^<]* <\/li> <li> Only the programme&apos;s lead and NAISI&apos;s admins read the answers, [^<]* The form closes when the survey at the end does\. <\/li> <\/ul> $/);
+    assert.equal((PAGE_FLAT.match(/We do not currently run anonymous surveys/g) ?? []).length, 0, "the promise is still on the page beside the form that kept it");
+    assert.equal((PAGE_FLAT.match(/One form is anonymous/g) ?? []).length, 1);
 
     // Every page and route that reaches survey code from outside it, and why
     // each may: the admins' (behind the (admin-only) layout, or canRunSurveys
@@ -4585,6 +4605,75 @@ describe("the course hub passage", () => {
     assert.equal((account[0].match(/\.delete\(/g) ?? []).length, 1, "a deletion now removes survey answers, which the policy says stay in the totals");
     // tests/surveys-deletion.test.mjs runs the cascade over survey records.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-deletion.test.mjs")));
+  });
+
+  // The anonymous keep, change and drop form (docs/surveys.md, the
+  // questionnaire's part (c), 26 October 2026). Each of its three points, and
+  // the retention and deletion sentences, held to the code that makes it true.
+  test("the anonymous form keeps three answers, the programme and the day, reads nothing of the person, moves each day's answers overnight, is read from the next day by the lead and admins, and goes with the run", () => {
+    const anonymousModel = withoutComments(read("src/lib/anonymousFeedback/model.ts"));
+    // Not a survey: no file of the form reaches survey code, and survey code
+    // takes from it only its opening, closing, link and card
+    // (tests/anonymous-feedback-no-trace.test.mjs holds the wall both ways).
+    for (const file of sourceFilesNaming(/./).filter((path) => path.startsWith("src/lib/anonymousFeedback/") || path.startsWith("src/features/anonymousFeedback/"))) {
+      assert.ok(!SURVEY_CODE.test(read(file)), `${file} now reaches survey code`);
+    }
+    // Linked from the end of the survey at the end, once sent: its first send opens the form, and the card shows only after it is sent.
+    assert.match(read("src/lib/surveys/sending.ts"), /if \(survey\.kind === "after" && survey\.closesAt\) \{\s*await openAnonymousForm\(/);
+    assert.match(read("src/features/surveys/answer/SurveyForm.tsx"), /<p className=\{styles\.sentLine\}>\{ANSWER_WORDS\.thanks\}<\/p>\s*<AnonymousFormCard \/>/);
+    // One link per programme, the same for everybody: the form's secret and nothing else.
+    assert.match(withoutComments(read("src/lib/anonymousFeedback/forms.ts")), /return `\/feedback\/\$\{form\.token\}`;/);
+    // The form reads nothing about who is answering: no session, no cookie,
+    // no header but the rate limit's key (the no-trace guard walks every file
+    // both doors reach), and the browser sends the answers without its sign-in.
+    const route = withoutComments(read("src/app/api/feedback/route.ts"));
+    assert.ok(!/getCurrentUser|assertNotImpersonating|cookies\(|next\/headers/.test(route));
+    assert.equal((route.match(/clientIp\(/g) ?? []).length, 1);
+    assert.match(withoutComments(read("src/features/anonymousFeedback/AnonymousForm.tsx")), /credentials: "omit",/);
+    // What it keeps: the three answers, the programme and the day, field by field, and nothing else.
+    assert.match(anonymousModel, /export const ANSWER_FIELDS = \["roundId", "programmeId", "runId", "keep", "change", "drop", "day"\] as const;/);
+    const added = /\.add\(\{([\s\S]*?)\}\);/.exec(withoutComments(read("src/lib/anonymousFeedback/answer.ts")));
+    assert.deepEqual([...added[1].matchAll(/^\s*(\w+)(?=[:,])/gm)].map((m) => m[1]), ["roundId", "programmeId", "runId", "keep", "change", "drop", "day"]);
+    assert.match(anonymousModel, /export function dayOf\(at: Date\): string \{\s*return londonDateKey\(at\);\s*\}/);
+    // It says so at the top, before its questions.
+    const screen = read("src/features/anonymousFeedback/AnonymousFormScreen.tsx");
+    const box = screen.indexOf("<section className={styles.box} aria-label={screen.box.heading}>");
+    const questions = screen.indexOf("<AnonymousForm ");
+    assert.ok(box !== -1 && questions !== -1 && box < questions, "the anonymous box is no longer drawn above the form's questions");
+    // The day and not the time: answers wait, and once their day is over the
+    // night's move writes them, by name, into the record kept, and deletes
+    // what waited. The job emails nobody, so it registers on.
+    const move = withoutComments(read("src/lib/anonymousFeedback/move.ts"));
+    assert.match(anonymousModel, /export function dueToMove\(answer: Pick<AnonymousAnswer, "day">, today: string\): boolean \{\s*return answer\.day < today;\s*\}/);
+    assert.match(move, /tx\.create\(db\.collection\(ANONYMOUS_ANSWERS_COLLECTION\)\.doc\(\), \{/);
+    assert.match(move, /tx\.delete\(snap\.ref\);/);
+    const job = withoutComments(read("src/lib/scheduler/jobs/anonymousFeedbackMove.ts"));
+    assert.match(job, /id: "anonymous-feedback-move",/);
+    assert.ok(!/enabledByDefault/.test(job), "the move now waits for somebody to switch it on, while the policy says it happens");
+    assert.match(withoutComments(read("src/lib/scheduler/registry.ts")), /^\s*anonymousFeedbackMoveJob,$/m);
+    // Who reads them, and from when: the lead and admins, decided before any
+    // answer is read; from the day after; each question's in alphabetical order.
+    const page = withoutComments(read("src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/anonymous-feedback/page.tsx"));
+    assert.ok(page.indexOf("loadProgrammeRun(db, user, roundId, programmeId)") < page.indexOf("readAnonymousAnswers("), "the answers are read before the page decides who is reading");
+    assert.match(read("src/lib/applications/access.ts"), /export function opensProgrammeGroups\(role: ProgrammeRole \| null\): boolean \{\s*return role === "admin" \|\| role === "lead";\s*\}/);
+    assert.match(withoutComments(read("src/lib/anonymousFeedback/readers.ts")), /answer\.day < today/);
+    assert.deepEqual(
+      anonymousRecords.answersInOrder([{ keep: "Zebra" }, { keep: "apple" }, { keep: "" }, { keep: "Mango" }], "keep"),
+      ["apple", "Mango", "Zebra"],
+      "the readers' order now follows something other than the words",
+    );
+    // Until the survey at the end closes: its closing time and its Close.
+    assert.match(read("src/app/api/surveys/[surveyId]/close/route.ts"), /await closeAnonymousForm\(db, surveyId\);/);
+    // Kept with the run's records and deleted with it; an account's deletion has nothing to find.
+    const engine = withoutComments(read("src/lib/firestore/courseDeletion.ts"));
+    assert.match(engine, /key: "anonymousFeedback",/);
+    assert.match(engine, /\[ANONYMOUS_FORMS_COLLECTION, ANONYMOUS_WAITING_COLLECTION, ANONYMOUS_ANSWERS_COLLECTION\]\.map\(\s*\(collection\) => \(\) => drainQuery\(db, collection, byRunId\(collection\), budget\),/);
+    assert.ok(!/anonymousFeedback|ANONYMOUS_/.test(withoutComments(read("src/lib/firestore/accountDeletion.ts"))), "an account's deletion now reaches the anonymous answers, which the policy says it removes none of");
+    assert.match(PAGE_FLAT, /<li> Your answers to the anonymous form: nothing in them says they were yours, so there is nothing of yours to remove\. <\/li>/);
+    // tests/anonymous-feedback.test.mjs drives all of it as every caller.
+    for (const suite of ["anonymous-feedback.test.mjs", "anonymous-feedback-no-trace.test.mjs"]) {
+      assert.ok(existsSync(join(REPO_ROOT, "tests", suite)), `tests/${suite} is gone`);
+    }
   });
 
   // The programme impact questionnaire (26 October 2026): what the surveys

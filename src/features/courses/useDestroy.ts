@@ -305,6 +305,11 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "What each person had in the weeks' packs and talks: the pack they picked or were given, the case they were given, and whether they marked themselves ready. Each one names a week this destroy deletes, so they go with the run.",
   },
+  anonymousFeedback: {
+    label: "The anonymous form and its answers",
+    fate: "destroyed",
+    note: "The programme's anonymous keep, change and drop form, which stops its link working, and every answer to it. Nothing in them names anybody, so they go with the run and nothing else ever takes them.",
+  },
   schedulerMarkers: {
     label: "Scheduler send markers",
     fate: "destroyed",

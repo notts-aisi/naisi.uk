@@ -26,6 +26,11 @@ import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
 import { COURSE_UPDATES_COLLECTION } from "./courseUpdates";
+import {
+  ANONYMOUS_ANSWERS_COLLECTION,
+  ANONYMOUS_FORMS_COLLECTION,
+  ANONYMOUS_WAITING_COLLECTION,
+} from "@/lib/anonymousFeedback/model";
 // The ONLY two `tasks.source` values a run's cascade may delete. See
 // drainSourcedTasks for why the filter takes both halves of the predicate.
 import {
@@ -303,6 +308,15 @@ export type RunDestroyCounts = {
    */
   packsAndCases: number;
   /**
+   * The anonymous keep, change and drop form of the programme that names
+   * this run (`src/lib/anonymousFeedback/`): the form's own record, which
+   * holds its one link, and every answer to it, waiting for the night's move
+   * or kept. Each is keyed by `runId` on the row like every other leaf here,
+   * and goes with the run, as the run's other records do. Nothing in them
+   * names a person, so nothing else ever deletes them.
+   */
+  anonymousFeedback: number;
+  /**
    * `schedulerMarkers` rows this run owns: the send-dedupe markers the
    * scheduler tick writes before it sends anything.
    *
@@ -527,6 +541,20 @@ async function drainQuery(
     if (snap.size < limit) return { deleted, drained: true };
   }
   return { deleted, drained: false };
+}
+
+/**
+ * Several drains as one stage, in the order given: each runs only once the
+ * one before it has drained, and the stage has drained when the last has.
+ */
+async function drainInOrder(drains: Array<() => Promise<DrainResult>>): Promise<DrainResult> {
+  let deleted = 0;
+  for (const drain of drains) {
+    const part = await drain();
+    deleted += part.deleted;
+    if (!part.drained) return { deleted, drained: false };
+  }
+  return { deleted, drained: true };
 }
 
 /** Firestore's ceiling on the value list of an `in` filter. */
@@ -991,6 +1019,7 @@ export async function countRunDestroyTargets(
     groupNotes,
     groupSharedNotes,
     packsAndCases,
+    anonymousFeedbackCounts,
     schedulerMarkerCounts,
     emailSendCounts,
     exportCounts,
@@ -1059,6 +1088,13 @@ export async function countRunDestroyTargets(
     countAgg(db.collection(COURSE_GROUP_SHARED_NOTES_COLLECTION).where("runId", "==", runId)),
     // The same single equality the packs and cases stage drains on.
     countAgg(db.collection(COURSE_PACKS_AND_CASES_COLLECTION).where("runId", "==", runId)),
+    // The same single equality, on each of the three collections the
+    // anonymous form stage drains.
+    Promise.all(
+      [ANONYMOUS_FORMS_COLLECTION, ANONYMOUS_WAITING_COLLECTION, ANONYMOUS_ANSWERS_COLLECTION].map((collection) =>
+        countAgg(db.collection(collection).where("runId", "==", runId)),
+      ),
+    ),
     Promise.all(markerCountPromises),
     Promise.all(emailCountPromises),
     Promise.all(exportCountPromises),
@@ -1087,6 +1123,7 @@ export async function countRunDestroyTargets(
     groupNotes,
     groupSharedNotes,
     packsAndCases,
+    anonymousFeedback: anonymousFeedbackCounts.reduce((a, b) => a + b, 0),
     schedulerMarkers: schedulerMarkerCounts.reduce((a, b) => a + b, 0),
     emailSendRows: emailSendCounts.reduce((a, b) => a + b, 0),
     dataExportRows: exportCounts.reduce((a, b) => a + b, 0),
@@ -1659,6 +1696,20 @@ export async function destroyRunCascade(
       // so nothing recreates one behind the cascade.
       drain: () =>
         drainQuery(db, COURSE_PACKS_AND_CASES_COLLECTION, byRunId(COURSE_PACKS_AND_CASES_COLLECTION), budget),
+    },
+    {
+      key: "anonymousFeedback",
+      // The anonymous keep, change and drop form: three leaves keyed by
+      // `runId`, drained in this order. The form's own record goes first,
+      // which closes its link, so no answer can arrive behind the cascade;
+      // then the answers waiting for the night's move, whose move reads each
+      // one again and so never writes one back; then the answers kept.
+      drain: () =>
+        drainInOrder(
+          [ANONYMOUS_FORMS_COLLECTION, ANONYMOUS_WAITING_COLLECTION, ANONYMOUS_ANSWERS_COLLECTION].map(
+            (collection) => () => drainQuery(db, collection, byRunId(collection), budget),
+          ),
+        ),
     },
     {
       key: "groups",

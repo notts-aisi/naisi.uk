@@ -2159,6 +2159,15 @@ export const ROUTES = {
         "anything is read, and an admin is told the empty body names no programme. A file, not JSON, so no fields.",
     },
   },
+  "/api/feedback": {
+    POST: {
+      expect: everyone(400),
+      why:
+        "An answer to a programme's anonymous keep, change and drop form, with no session and no cookie read: " +
+        "the form's secret in the body is the credential, after an in-memory rate limit, so every caller " +
+        "meets the same 400 for a body with no secret in it, signed in or not.",
+    },
+  },
   "/api/members/roster": {
     GET: {
       expect: everyone(200, { anonymous: 403, pending: 403, rejected: 403 }),
@@ -3027,6 +3036,14 @@ export const PAGES = {
       "The admissions tree's gate, then the programme layout's: a programme the caller has no " +
       "role on, and one that does not exist, both render 'there is no programme here' in " +
       "place of the page with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/anonymous-feedback": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: the answers to the " +
+      "programme's anonymous form are its lead's and an admin's to read, so a reviewer is told so before any " +
+      "answer is read, and a programme the caller has no role on, or one that does not exist, renders " +
+      "'there is no programme here' with a 200.",
   },
   "/(app)/admin/admissions/forms/[roundId]/send": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),

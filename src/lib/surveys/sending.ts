@@ -2,6 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import SurveyEmail from "@/emails/SurveyEmail";
+import { openAnonymousForm } from "@/lib/anonymousFeedback/forms";
 import type { PlaceHolder } from "@/lib/applications/handover/holders";
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { dispatchSends } from "@/lib/email/dispatch";
@@ -358,6 +359,26 @@ export async function pressSend(db: Firestore, kind: "first" | "joined", input: 
 
   const tally = emptyTally();
   try {
+    // The survey at a programme's end opens the programme's anonymous keep,
+    // change and drop form with its first send, with the closing time that
+    // send has just fixed (docs/surveys.md). Asked again by "joined since",
+    // which changes nothing once it is open, so a first send that failed
+    // here still opens it on the next press.
+    if (survey.kind === "after" && survey.closesAt) {
+      await openAnonymousForm(
+        db,
+        {
+          surveyId: survey.id,
+          roundId: survey.audience.roundId,
+          programmeId: survey.audience.programmeId,
+          runId: survey.runId,
+          programmeName: survey.programmeName,
+          programmeKind: survey.programmeKind,
+          closesAt: survey.closesAt,
+        },
+        now,
+      );
+    }
     const addresses = await addressesOf(db, owed.map((holder) => holder.uid));
     // Each person's row, with the secret their link carries, before any email.
     const byUid = new Map(plan.people.map((person) => [person.respondent.uid, person]));

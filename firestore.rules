@@ -3137,6 +3137,25 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === anonymousFeedbackForms, anonymousFeedbackWaiting, anonymousFeedback ===
+    // The anonymous keep, change and drop form (docs/surveys.md,
+    // src/lib/anonymousFeedback/model.ts): each programme's form with the
+    // secret in its one link, each answer as it came in, and each answer as it
+    // is kept. Written only by the form's route, the survey routes that open
+    // and close it, the night's move and a run's destroy, on the Admin SDK, and
+    // read only on the server. So every browser is refused, admins and the
+    // programme's lead included: a readable form is a readable link, and a
+    // browser read of an answer would hand over the database's own time on it.
+    match /anonymousFeedbackForms/{surveyId} {
+      allow read, write: if false;
+    }
+    match /anonymousFeedbackWaiting/{answerId} {
+      allow read, write: if false;
+    }
+    match /anonymousFeedback/{answerId} {
+      allow read, write: if false;
+    }
+
     // === config ===
     // Server-only runtime config, written by the Admin SDK and read only by
     // routes: `config/taskEmails` (the task-email kill switch),

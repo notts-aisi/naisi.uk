@@ -1,3 +1,4 @@
+import { AnonymousFormCard } from "@/features/anonymousFeedback/AfterTheSurvey";
 import type { AnswerScreen as Screen } from "@/lib/surveys/answerView";
 import { ANSWER_WORDS, STATE_WORDS } from "@/lib/surveys/words";
 import ConsentPanel from "./ConsentPanel";
@@ -22,6 +23,8 @@ export default function AnswerScreen({ screen }: { screen: Screen }) {
         <h1 className={styles.messageTitle}>{screen.title}</h1>
         <p className={styles.messageBody}>{screen.body}</p>
         {screen.consent && <ConsentPanel panel={screen.consent} />}
+        {/* The anonymous form, at the end of the survey at a programme's end; nothing on any other. */}
+        <AnonymousFormCard />
       </div>
     );
   }

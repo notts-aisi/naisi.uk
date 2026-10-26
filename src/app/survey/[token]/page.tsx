@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import BrandMark from "@/components/BrandMark";
+import { AnonymousFormLink } from "@/features/anonymousFeedback/AfterTheSurvey";
 import AnswerScreen from "@/features/surveys/answer/AnswerScreen";
+import { anonymousFormLinkFor } from "@/lib/anonymousFeedback/forms";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { answerScreenFor, type AnswerScreen as Screen } from "@/lib/surveys/answerView";
 import { openLink } from "@/lib/surveys/repo";
@@ -40,6 +42,9 @@ export default async function SurveyLinkPage({ params }: { params: Promise<{ tok
   const db = getAdminDb();
   const now = new Date();
   let screen: Screen = { state: "message", ...STATE_WORDS.noSurvey, consent: null };
+  // The anonymous form the survey at a programme's end links to, once the
+  // person has sent it: the same address for everybody on the programme.
+  let anonymousForm: string | null = null;
   if (db) {
     const target = await openLink(db, token);
     if (target.kind === "test") {
@@ -59,6 +64,7 @@ export default async function SurveyLinkPage({ params }: { params: Promise<{ tok
         now,
         person: target.person,
       });
+      anonymousForm = await anonymousFormLinkFor(db, target.survey.id, now);
     }
   }
 
@@ -73,7 +79,9 @@ export default async function SurveyLinkPage({ params }: { params: Promise<{ tok
           <span className={styles.barEnd} aria-hidden="true" />
         </div>
         <div className={styles.body}>
-          <AnswerScreen screen={screen} />
+          <AnonymousFormLink href={anonymousForm}>
+            <AnswerScreen screen={screen} />
+          </AnonymousFormLink>
         </div>
       </div>
     </main>
