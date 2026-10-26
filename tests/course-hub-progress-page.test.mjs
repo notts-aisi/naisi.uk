@@ -150,11 +150,21 @@ describe("1. a week written as blocks counts This week's tasks", () => {
     assert.deepEqual(rowOf(await rowsFor("chloe", needs.tickIds), 1), [1, 1, true]);
   });
 
-  test("a week holding what a later page finishes is counted and never done; a row with nothing to do or only offered counts for nothing", async () => {
+  test("a week whose tasks hold more than ticks is counted, and ticks alone finish none of them; a row with nothing to do or only offered counts for nothing", async () => {
     const week = (await w.overview("chloe")).body.weeks.find((each) => each.weekNumber === 2);
     const tasks = week.thisWeek.rows.filter((row) => row.type === "task");
     assert.equal(tasks.length, 3);
-    assert.ok(tasks.every((task) => task.needs.unseenIds.length > 0));
+    // Each task also holds what ticking does not finish, now that every page
+    // can see it done: a pack to have, a written answer to send, a talk to be
+    // ready for. Nothing is left unseen.
+    assert.deepEqual(
+      tasks.map((task) => [task.needs.chooseOneIds.length, task.needs.answerIds.length, task.needs.talkIds.length, task.needs.unseenIds.length]),
+      [
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 1, 0],
+      ],
+    );
     // Every source and checklist item of the week ticked: still nothing done.
     const everyTick = tasks.flatMap((task) => task.needs.tickIds);
     assert.deepEqual(rowOf(await rowsFor("chloe", everyTick), 2), [0, 3, true]);
