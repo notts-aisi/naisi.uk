@@ -64,6 +64,7 @@ const PLACE_TESTERS = {
   "lib/applications/handover/holders.ts": "placeHoldersOn, the hand-over's own list, asks it of each person",
   "lib/applications/handover/board.ts": "the allocation board and Publish's plan: whether each person from the form still holds the place",
   "lib/courses/weekOne/door.ts": "week 1's door: whether this person holds a place on the programme that names the run",
+  "lib/applications/people/model.ts": "the programme's People tab, for its lead and admins: everybody holding a place, by the same one test",
 };
 
 /** Every page under the run that reads a holder's way in, and what it shows them. */
@@ -109,7 +110,7 @@ describe("week 1's door is asked through one function", () => {
 });
 
 describe("holding a place is one test", () => {
-  test("holdsPlaceOn is called by the hand-over, the board and week 1's door, and nothing else", () => {
+  test("holdsPlaceOn is called by the hand-over, the board, week 1's door and the People tab, and nothing else", () => {
     assert.deepEqual(
       filesWhere(/\bholdsPlaceOn\s*\(/),
       Object.keys(PLACE_TESTERS).sort(),

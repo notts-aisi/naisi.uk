@@ -728,7 +728,7 @@ async function beforeGroupsPayload(
   roles: { isReviewer: boolean; isTrackLead: boolean },
 ): Promise<OverviewPayload> {
   const weekId = weekDocId(1);
-  const [weekSnap, programme, ownAnswerSnap, courseSnap] = await Promise.all([
+  const [weekSnap, programme, ownAnswerSnap, courseSnap, shownCrests] = await Promise.all([
     db.collection("courseRuns").doc(run.id).collection("weeks").doc(weekId).get(),
     runProgrammeOf(db, run.id).catch(() => null),
     // Their own rows on the run, for the boxes they have written in:
@@ -740,6 +740,9 @@ async function beforeGroupsPayload(
       .limit(MAX_OWN_ANSWER_ROWS)
       .get(),
     run.courseId ? db.collection("courses").doc(run.courseId).get() : Promise.resolve(null),
+    // The crest beside the run's name, as the run's own page shows it. A read
+    // that fails shows the emblem.
+    runCrests(db, [{ id: run.id, courseId: run.courseId }]).catch(() => new Map<string, ShownCrest>()),
   ]);
   const dayBeforeTime =
     courseSnap?.exists ? normalizeCourse(courseSnap.id, courseSnap.data() ?? {}).dayBeforeDueTime : null;
@@ -780,6 +783,7 @@ async function beforeGroupsPayload(
       : [],
     weekSchedule: [],
     programme: programme ? { name: programme.shortName, kind: programme.kind, leadFirstName: programme.leadFirstName } : null,
+    shownCrest: shownCrests.get(run.id) ?? null,
     forkedWeekIds: [],
     enrolment: null,
     group: null,
