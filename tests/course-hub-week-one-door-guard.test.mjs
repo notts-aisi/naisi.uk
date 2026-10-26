@@ -71,6 +71,7 @@ const PLACE_TESTERS = {
 const PAGES_FOR_HOLDERS = {
   "app/(app)/learn/[runId]/layout.tsx": "lets a holder in, for week 1's page; every other page narrows to its own predicate",
   "app/(app)/learn/[runId]/weeks/[n]/page.tsx": "draws week 1 for a holder and sends every other week to week 1",
+  "features/courses/guide/door.ts": "Start here and the Glossary (both pages ask guideDoor): open to exactly the people week 1 opens to, canLearn || beforeGroups",
 };
 
 describe("week 1's door is asked through one function", () => {
@@ -155,7 +156,12 @@ describe("whether a week is ready is one answer", () => {
 
 describe("the pages under the run that open to somebody holding a place", () => {
   test("every page under /learn/[runId] that reads a holder's way in is listed, both ways", () => {
-    const reading = FILES.filter(([file, code]) => file.startsWith("app/(app)/learn/[runId]/") && /\bbeforeGroups\b/.test(code))
+    // The pages under the run, and Start here's and the Glossary's door, which both of those pages ask.
+    const reading = FILES.filter(
+      ([file, code]) =>
+        (file.startsWith("app/(app)/learn/[runId]/") || file === "features/courses/guide/door.ts") &&
+        /\bbeforeGroups\b/.test(code),
+    )
       .map(([file]) => file)
       .sort();
     assert.deepEqual(
@@ -169,7 +175,8 @@ describe("the pages under the run that open to somebody holding a place", () => 
   test("the week page sends a holder from every other week to week 1, and draws week 1 as somebody taking part", () => {
     const page = read("app/(app)/learn/[runId]/weeks/[n]/page.tsx").replace(/\s+/g, " ");
     assert.ok(page.includes('if (!access.canLearn && access.beforeGroups) { if (n !== "1") redirect(`/learn/${encodeURIComponent(runId)}/weeks/1`);'));
-    assert.ok(page.includes('return <WeekView runId={runId} weekNumber={1} uid={access.user.uid} viewerRole="learner" sharedNotes={null} />;'));
+    // The holder's week 1 also hands the Start here and Glossary links, as st-week1-phone draws them for this reader.
+    assert.ok(page.includes('return <WeekView runId={runId} weekNumber={1} uid={access.user.uid} viewerRole="learner" sharedNotes={null} {...(holderGuide ? { guide: holderGuide } : {})} />;'));
   });
 
   test("the gate asks the door only of somebody with no other way in", () => {

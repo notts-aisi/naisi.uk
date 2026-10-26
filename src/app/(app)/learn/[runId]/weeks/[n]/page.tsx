@@ -72,7 +72,10 @@ export default async function WeekPage({
   // session and no group notes. What it draws is the overview's week 1 alone.
   if (!access.canLearn && access.beforeGroups) {
     if (n !== "1") redirect(`/learn/${encodeURIComponent(runId)}/weeks/1`);
-    return <WeekView runId={runId} weekNumber={1} uid={access.user.uid} viewerRole="learner" sharedNotes={null} />;
+    // st-week1-phone draws "Start here · Glossary" for exactly this reader.
+    const holderDb = getAdminDb();
+    const holderGuide = holderDb ? await guideLinksOf(holderDb, access.run.id).catch(() => null) : null;
+    return <WeekView runId={runId} weekNumber={1} uid={access.user.uid} viewerRole="learner" sharedNotes={null} {...(holderGuide ? { guide: holderGuide } : {})} />;
   }
 
   // A positive int inside the plan's bounds; anything else (including "03",

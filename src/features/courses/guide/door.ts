@@ -19,10 +19,7 @@ const PLACEHOLDER_NAME = "NAISI member";
  * The door is `weekOneDoorFor` in `src/lib/courses/weekOne/door.ts`, which
  * `getRunAccess` asks for anybody with no other way in and carries as
  * `access.beforeGroups` (the place they hold, when week 1 is open to them).
- * It is not in this tree yet: until it lands, `beforeGroups` is absent and
- * this answers for `canLearn` alone; once it lands, this same line lets in
- * exactly the people the door opens week 1 to, and the cast goes. Never a
- * second copy of the door's rule here.
+ * Never a second copy of the door's rule here.
  *
  * "run" opens the page from the run (its way back is the programme page);
  * "week-one" opens it through week 1's door (the way back is week 1, the only
@@ -30,8 +27,7 @@ const PLACEHOLDER_NAME = "NAISI member";
  */
 export function guideDoor(access: RunAccess): "run" | "week-one" | null {
   if (access.canLearn) return "run";
-  const beforeGroups = (access as RunAccess & { beforeGroups?: unknown }).beforeGroups;
-  return beforeGroups !== undefined && beforeGroups !== null ? "week-one" : null;
+  return access.beforeGroups ? "week-one" : null;
 }
 
 /**
