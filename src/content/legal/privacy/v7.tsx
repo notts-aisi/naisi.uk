@@ -831,10 +831,11 @@ export default function PrivacyContentV7({
                   your group&apos;s facilitators opens it (for a
                   facilitator&apos;s own answer, the programme&apos;s lead or an
                   admin), or feedback is sent on it; we record when it was
-                  opened, and any of its readers can open it again for you to
-                  change. Its readers can see when you sent it and whether that
-                  was after it was due; you are not shown that. Feedback is a level for each row of the
-                  course&apos;s rubric and a short comment, with the name of
+                  opened, and any of its readers can reopen it for you to
+                  change. Its readers can see when you sent it, and whether
+                  that was after it was due. Your own pages show when you sent
+                  it, but never mark it late. Feedback is a level for each row
+                  of the course&apos;s rubric and a short comment, with the name of
                   whoever gave it, and never a mark. One short email tells you
                   that feedback is waiting; the feedback itself stays on the
                   site. You can also keep

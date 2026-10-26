@@ -3750,8 +3750,8 @@ describe("the course hub passage", () => {
       /A written answer is read by you, your group&apos;s facilitators, the programme&apos;s lead and admins, and by nobody else taking part; the week&apos;s page says so beside it\./,
       /If you facilitate a group, your own answer is read by the programme&apos;s lead and admins, and not by the group&apos;s other facilitators\./,
       /We record when you first send it, and when you change it after that\./,
-      /You can change it until one of your group&apos;s facilitators opens it \(for a facilitator&apos;s own answer, the programme&apos;s lead or an admin\), or feedback is sent on it; we record when it was opened, and any of its readers can open it again for you to change\./,
-      /Its readers can see when you sent it and whether that was after it was due; you are not shown that\./,
+      /You can change it until one of your group&apos;s facilitators opens it \(for a facilitator&apos;s own answer, the programme&apos;s lead or an admin\), or feedback is sent on it; we record when it was opened, and any of its readers can reopen it for you to change\./,
+      /Its readers can see when you sent it, and whether that was after it was due\. Your own pages show when you sent it, but never mark it late\./,
       /One short email tells you that feedback is waiting; the feedback itself stays on the site\./,
     ]) {
       assert.match(work, sentence, `v7's "Your written work" no longer says ${sentence}`);
