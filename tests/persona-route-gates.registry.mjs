@@ -2664,6 +2664,15 @@ export const ROUTES = {
         "survey is not there.",
     },
   },
+  "/api/surveys/[surveyId]/people/[who]": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Opening one person's answers is an admin's alone: view-as first, then the session and the admin " +
+        "bar, before the database; the admin is told the made-up survey is not there, and no opening is " +
+        "recorded.",
+    },
+  },
   "/api/surveys/[surveyId]/questions": {
     POST: {
       expect: adminOnly(404),
@@ -3120,6 +3129,13 @@ export const PAGES = {
       "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard. The survey id changes " +
       "nothing about the gate: an id that opens no survey is answered on the page in a sentence, never " +
       "notFound.",
+  },
+  "/(app)/admin/(admin-only)/surveys/[surveyId]/answered/[who]": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard. The page reads the " +
+      "survey's name alone: an id that opens no survey is answered on the page in a sentence, never " +
+      "notFound, and the person's answers come only from the opening route, which records each opening first.",
   },
   "/(app)/admin/(admin-only)/surveys/[surveyId]/questions": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),

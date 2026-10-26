@@ -1437,6 +1437,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a published event with sign-ups and check-ins, so a spec can make its survey, open it and answer it with the QR code.",
   },
+  "/api/surveys/[surveyId]/people/[who]": {
+    reason:
+      "Surveys: opening one person's answers; tests/surveys-one-person.test.mjs opens them as every kind of caller, holds the opening recorded before anything of the person is read, and refuses whole when it cannot be recorded.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
+  },
   "/api/surveys/[surveyId]/questions": {
     reason:
       "Surveys: changing a survey until it is sent; tests/surveys-routes.test.mjs saves words, options, lines and order, and is refused a removed question and any change after the send.",
@@ -1740,6 +1746,12 @@ const NOT_COVERED = {
   "/(app)/admin/(admin-only)/surveys/[surveyId]": {
     reason:
       "Surveys: a survey's address, which opens its Questions or its Results tab.",
+    coverWhen:
+      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
+  },
+  "/(app)/admin/(admin-only)/surveys/[surveyId]/answered/[who]": {
+    reason:
+      "Surveys: one person's answers, opened from Who answered; tests/surveys-one-person.test.mjs renders the page before the opening and what it draws once the opening route answers.",
     coverWhen:
       "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
   },

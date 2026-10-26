@@ -451,6 +451,7 @@ const MUST_GUARD = [
   ["src/app/api/surveys/[surveyId]/open-at-event/route.ts", "opens a survey after an event for its QR code, fixing its words, in the admin's name"],
   ["src/app/api/surveys/[surveyId]/open/route.ts", "opens a leaving survey, fixing its words, in the admin's name"],
   ["src/app/api/surveys/[surveyId]/export/route.ts", "hands over everybody's answers with names, recorded as the presser's download"],
+  ["src/app/api/surveys/[surveyId]/people/[who]/route.ts", "opens one person's answers, the opening recorded in the opener's name before anything of them is read"],
   ["src/app/api/surveys/[surveyId]/answer/route.ts", "keeps the session's person's answers, once, as their own"],
   ["src/app/api/surveys/answer/route.ts", "keeps a person's answers, once, through their link"],
   ["src/app/api/surveys/[surveyId]/consent/route.ts", "changes the session's person's own follow-ups consent"],

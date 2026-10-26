@@ -4702,6 +4702,7 @@ describe("the course hub passage", () => {
         ["src/app/(app)/admin/(admin-only)/surveys/[surveyId]/questions/page.tsx", ADMIN_PAGE],
         ["src/app/(app)/admin/(admin-only)/surveys/[surveyId]/send/page.tsx", ADMIN_PAGE],
         ["src/app/(app)/admin/(admin-only)/surveys/[surveyId]/answered/page.tsx", `${ADMIN_PAGE}; the one page that names who has answered`],
+        ["src/app/(app)/admin/(admin-only)/surveys/[surveyId]/answered/[who]/page.tsx", `${ADMIN_PAGE}; one person's answers, drawn only from what the opening route hands back`],
         ["src/app/(app)/admin/(admin-only)/surveys/[surveyId]/results/page.tsx", `${ADMIN_PAGE}; totals, made on the server, with no name`],
         ["src/app/(app)/admin/(admin-only)/surveys/kairos/[roundId]/[programmeId]/page.tsx", `${ADMIN_PAGE}; the Kairos report, totals made on the server, with no name`],
         // Public numbers (sv-public): an admin publishes totals and ticked
@@ -4719,6 +4720,7 @@ describe("the course hub passage", () => {
         ["src/app/api/surveys/[surveyId]/close/route.ts", ADMIN_ROUTE],
         ["src/app/api/surveys/[surveyId]/open/route.ts", `${ADMIN_ROUTE}; opens a leaving survey, which emails nobody`],
         ["src/app/api/surveys/[surveyId]/export/route.ts", `${ADMIN_ROUTE}; the spreadsheet with names`],
+        ["src/app/api/surveys/[surveyId]/people/[who]/route.ts", `${ADMIN_ROUTE}; opens one person's answers, the opening recorded before any is read`],
         ["src/app/survey/[token]/page.tsx", "the person's own survey, by the secret in their link, which opens their own row and nobody else's"],
         ["src/app/api/surveys/answer/route.ts", "the person's own answers, sent through the secret in their link"],
         ["src/app/(app)/learn/[runId]/survey/[surveyId]/page.tsx", "the person's own survey, signed in: shown only to somebody it was sent to, by their own row"],
@@ -4780,7 +4782,7 @@ describe("the course hub passage", () => {
       sourceFilesNaming(/./).filter((file) => SURVEY_STORE.test(withoutComments(read(file)))),
       new Map([
         ["src/lib/firestore/surveys.ts", "the records' own names and shapes"],
-        ["src/lib/surveys/repo.ts", "the readers: a person's own row, the row a link opens, the answers for the admins' pages and the spreadsheet, and a person's own earlier answer, shown back to them alone"],
+        ["src/lib/surveys/repo.ts", "the readers: a person's own row, the row a link opens, the answers for the admins' pages and the spreadsheet, a person's own earlier answer, shown back to them alone, and one person's rows and answers for the admins' page that opens them, read once that opening is recorded"],
         ["src/lib/surveys/consent.ts", "a person changing their own consent later, on their own row"],
         ["src/lib/surveys/answer.ts", "the one writer of an answer: a person's own, once"],
         ["src/lib/surveys/sending.ts", "the send, which writes each person's row with their link before their email"],
@@ -4790,7 +4792,7 @@ describe("the course hub passage", () => {
         ["src/lib/surveys/waiting.ts", "the cards: a person's own rows, read for that person alone, to say which surveys sent to them wait for an answer"],
         // CHANGED ON PURPOSE (Q46): the leaving survey's row for a person is made as they leave.
         ["src/lib/surveys/leaving.ts", "the leaving survey's row for a person, made as they leave the programme, with their own link: never an answer"],
-        ["src/lib/surveys/events/store.ts", "a survey after an event's rows and its one writer of answers: each person's row before their email, and their own answers, once, by their link or signed in"],
+        ["src/lib/surveys/events/store.ts", "a survey after an event's rows and its one writer of answers: each person's row before their email, their own answers, once, by their link or signed in, and one person's row and answers for the admins' page that opens them, read once that opening is recorded"],
       ]),
       "addressing who a survey was sent to, or what somebody answered",
       "The policy says only admins see who said what or who has answered. If " +
@@ -4811,6 +4813,7 @@ describe("the course hub passage", () => {
       "src/app/api/surveys/[surveyId]/open/route.ts",
       "src/app/api/surveys/[surveyId]/export/route.ts",
       "src/app/api/surveys/[surveyId]/open-at-event/route.ts",
+      "src/app/api/surveys/[surveyId]/people/[who]/route.ts",
     ]) {
       const code = withoutComments(read(route));
       const refused = code.indexOf("if (!canRunSurveys(actor)) return NextResponse.json({ error: REFUSAL.adminOnly }, { status: 403 });");
