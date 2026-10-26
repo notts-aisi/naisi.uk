@@ -519,3 +519,71 @@ The words you'll meet most, in plain words.
 - No table, more than one, a third column, a row with no term or a term
   with no definition stops a save. A term in the table twice is a thing to
   check.
+
+## The lead's Weeks tab, and a week for one group
+
+A programme's lead writes its run's weeks on the programme's Weeks tab
+(board pr-weeks, option B as Q39 chose), and so do admins. The run's week
+editor under `/admin/courses` stays an admin's.
+
+| Where | What it does |
+| --- | --- |
+| `(tabs)/weeks/page.tsx` | Each week of the run's plan: Ready, Draft or Empty, its first session, the day it should be ready by and its owner |
+| `(tabs)/weeks/[weekId]/page.tsx` | One week's page: paste and check, its settings, Preview as a fellow, Mark ready, and the week for one group |
+| `(tabs)/weeks/[weekId]/preview/page.tsx` | The week as a fellow reads it, drawn by the member's own week page with nothing that can be pressed |
+| `(tabs)/weeks/copy/page.tsx` | Copy weeks from another run of the course |
+| `src/lib/courses/weeksTab/` | What the tab shows, its words and its addresses |
+| `src/lib/courses/weekPaste.ts` | The checks every paste is held to, for the run's week and a group's copy alike |
+
+- **Who.** The lead of the programme that names the run (`programmeLedBy`)
+  and admins: the tab's pages, the week loader, Mark ready, the owner route,
+  the route that sets how a week meets, and the facilitator guide's loader.
+  Everybody else gets one refusal, decided before anything of the run is read.
+- **States.** Ready is `weekIsReady` (marked, on a published week); Empty is a
+  week with nothing in it, or with no page; Draft is anything else, published
+  or not. A published week that is not marked ready still opens to each group
+  straight after its previous session, as it always has.
+- **First session and ready by.** The earliest session that week among the
+  run's groups that still meet, each on its own calendar, a cancelled one left
+  out; ready by is seven days before it.
+- **Owner** is `ownerUid` on the run's week, null for the programme's lead,
+  written only by `PUT .../weeks/[weekId]/owner`. The owner can be the lead or
+  one of the run's helpers (its track leads, with an approved account). A
+  stored owner who is neither any more is shown as the lead. No copy of a
+  week carries it.
+- **In person or Online** is the groups' own week mode, `sessionModes`, the
+  field "Change a session" writes: online shows the session's join link on the
+  programme page, never in an email. `PUT .../weeks/[weekId]/mode` sets it for
+  every group of the run whose session that week can change, leaves alone a
+  group that has met that week and one whose session was changed on its own
+  (moved, cancelled or pushed back), and refuses whole when a group that would
+  go online has no meeting link. It emails nobody.
+- **The facilitator guide box** loads the week's session plan and notes
+  through the guide's own route, which admits the lead the guide's reader gate
+  admits. The guide never goes on a week.
+- **A week for one group** goes through
+  `/api/courses/groups/[groupId]/weeks/[weekId]/blocks`, for admins and the
+  programme's lead on any group of the run and for a group's facilitators on
+  their own. The first save makes the group's copy through `templateWeekFields`
+  with the pasted blocks, so every id the paste keeps stays and ticks and
+  answers stay with their blocks; later saves change the copy's blocks and
+  title. A copy is made only of a published week. The answers a paste would
+  take out are counted for that group's people and facilitators alone. The
+  run's week and every other group's are never written. A facilitator gets
+  the same card on their group's week editor, for a week written as blocks.
+
+### Not built, on purpose
+
+- **Option C's "Add a block" editor** (write a week block by block, no
+  Markdown). Q39 chose B; a page to build a week by hand comes later.
+- **The board's block-by-block fields**: a found row opening its block's
+  fields to edit in place. A week is changed by copying it as Markdown,
+  editing that and pasting it back; what was read is checked through What we
+  found, the things to check and Preview as a fellow.
+- **Reordering weeks** (the board's drag handles and Move up or down). Once a
+  run is out of draft its plan is an admin's, in the run's editor.
+- **A week with no page yet.** The loader saves only onto a week that has a
+  page; an admin makes it by opening the week in the run's week editor.
+- **A course's own weeks.** A course holds none yet, so "Copy weeks from the
+  course" copies another run's, through the copy route the run editor uses,
+  never overwriting a week the run has.

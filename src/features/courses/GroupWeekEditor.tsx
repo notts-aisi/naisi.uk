@@ -15,6 +15,9 @@ import SegmentedControl from "@/components/ui/SegmentedControl";
 import Skeleton from "@/components/ui/Skeleton";
 import Switch from "@/components/ui/Switch";
 import { youtubeIdFromUrl } from "@/lib/firestore/newsletterBlocks";
+import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
+import { groupPasteLede, saveForWords } from "@/lib/courses/weeksTab/words";
+import WeekBlocksLoader from "./WeekBlocksLoader";
 import type { WeekPlanEntry } from "@/lib/courses/weekPlan";
 import type { GroupSessionMode } from "@/lib/firestore/courseGroups";
 import {
@@ -1660,6 +1663,10 @@ export default function GroupWeekEditor({
   }
 
   const shown = week ?? canonical;
+  // A week written as blocks (Q39) is changed for this group by Markdown:
+  // copy it, change it, paste it back. The fork door and the editor of the
+  // old lists below are for a week written before blocks.
+  const blockShape = shown !== null && shown !== undefined && isBlockWeek(shown);
 
   return (
     <div className={styles.editor}>
@@ -1773,8 +1780,24 @@ export default function GroupWeekEditor({
         </p>
       </Card>
 
+      {/* ---- A week written as blocks: copy as Markdown, change, paste back (Q39) ---- */}
+      {blockShape && (
+        <WeekBlocksLoader
+          runId={runId}
+          weekId={weekId}
+          weekNumber={weekNumber}
+          blockWeek
+          endpoint={`/api/courses/groups/${encodeURIComponent(groupId)}/weeks/${encodeURIComponent(weekId)}/blocks`}
+          saveLabel={saveForWords(groupName)}
+          title={`Paste ${groupName}’s week, then check it`}
+          lede={`${groupPasteLede(groupName)}${forked ? "" : ` Saving makes ${groupName} its own copy of ${weekLabel}, and from then on changes to the programme’s week no longer reach it.`}`}
+          idSuffix={`-${groupId}`}
+          onSaved={reload}
+        />
+      )}
+
       {/* ---- Not forked: the door, then the preview ----------------------- */}
-      {!forked && (
+      {!forked && !blockShape && (
         <>
           <div className={styles.forkCard}>
             <h2 className={styles.forkTitle}>
@@ -1816,7 +1839,7 @@ export default function GroupWeekEditor({
       )}
 
       {/* ---- Forked: the editor ------------------------------------------ */}
-      {forked && week && (
+      {forked && week && !blockShape && (
         <>
           {pending && (
             <div className={styles.orphanPanel}>

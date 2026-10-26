@@ -18,9 +18,12 @@ import { readGuideSlot, saveGuideSlot } from "@/lib/courses/facilitatorGuide/sto
  *             save, and what saving would replace. Writes nothing.
  *   PUT  ...  "Save": the same read, then the document written in its place.
  *
- * WHO. Admins only (Q39: an admin loads the course material, for now),
- * decided on the session before anything is read; every other caller meets
- * the same 403. The store takes a `GuideWriter`, which only the gate mints.
+ * WHO. Admins, decided on the session before anything is read, and the lead
+ * of a programme that names a live run of the course, while they stand as
+ * one: the Weeks tab's "Facilitator guide" box (board pr-weeks) sends here
+ * for each week's session plan and notes. Every other caller meets the same
+ * 403 (`facilitatorGuideWriter`). The store takes a `GuideWriter`, which only
+ * the gate mints.
  *
  * THE COLLECTION IS SHUT TO EVERY BROWSER (`courseFacilitatorGuide`), so this
  * is the only way a document gets in. What is saved is what was read: the
@@ -31,16 +34,21 @@ type Params = { params: Promise<{ courseId: string; slot: string }> };
 
 type Actor = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
+type Db = NonNullable<ReturnType<typeof getAdminDb>>;
+
 function badRequest(error: string, extra: Record<string, unknown> = {}) {
   return NextResponse.json({ error, ...extra }, { status: 400 });
 }
 
-/** The gate and the address, before any document is read. Each handler has refused a missing session first. */
-async function gate(actor: Actor, params: Params["params"]): Promise<{ writer: GuideWriter; slot: GuideSlot } | NextResponse> {
+/**
+ * The gate and the address, before any document of the guide is read. Each
+ * handler has refused a missing session first. An admin on an id that is not
+ * one is told so; everybody the gate does not admit gets the one 403.
+ */
+async function gate(db: Db, actor: Actor, params: Params["params"]): Promise<{ writer: GuideWriter; slot: GuideSlot } | NextResponse> {
   const { courseId, slot } = await params;
-  if (actor.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const writer = facilitatorGuideWriter(actor, courseId);
-  if (!writer) return badRequest("That isn’t a course.");
+  const writer = await facilitatorGuideWriter(db, actor, courseId);
+  if (!writer) return actor.role === "admin" ? badRequest("That isn’t a course.") : NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const place = parseSlotKey(slot);
   if (!place) {
     return badRequest("That isn’t a place in the facilitator guide: a course document, or a week’s session plan or notes (w01-plan to w60-notes).");
@@ -66,7 +74,7 @@ async function markdownOf(req: Request): Promise<string | NextResponse> {
 }
 
 /** Whether the course is there: a 404 for the admin when it is not. */
-async function courseThere(db: NonNullable<ReturnType<typeof getAdminDb>>, writer: GuideWriter): Promise<NextResponse | null> {
+async function courseThere(db: Db, writer: GuideWriter): Promise<NextResponse | null> {
   const snap = await db.collection("courses").doc(writer.courseId).get();
   return snap.exists ? null : NextResponse.json({ error: "Course not found" }, { status: 404 });
 }
@@ -87,10 +95,10 @@ function readAnswer(read: ReadGuide, slot: GuideSlot, replaces: string | null) {
 export async function GET(_req: Request, ctx: Params) {
   const actor = await getCurrentUser();
   if (!actor) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  const gated = await gate(actor, ctx.params);
-  if (gated instanceof NextResponse) return gated;
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
+  const gated = await gate(db, actor, ctx.params);
+  if (gated instanceof NextResponse) return gated;
   const missing = await courseThere(db, gated.writer);
   if (missing) return missing;
   const stored = await readGuideSlot(db, gated.writer, gated.slot);
@@ -105,12 +113,12 @@ export async function POST(req: Request, ctx: Params) {
   if (blocked) return blocked;
   const actor = await getCurrentUser();
   if (!actor) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  const gated = await gate(actor, ctx.params);
+  const db = getAdminDb();
+  if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
+  const gated = await gate(db, actor, ctx.params);
   if (gated instanceof NextResponse) return gated;
   const markdown = await markdownOf(req);
   if (markdown instanceof NextResponse) return markdown;
-  const db = getAdminDb();
-  if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
   const missing = await courseThere(db, gated.writer);
   if (missing) return missing;
   const stored = await readGuideSlot(db, gated.writer, gated.slot);
@@ -122,12 +130,12 @@ export async function PUT(req: Request, ctx: Params) {
   if (blocked) return blocked;
   const actor = await getCurrentUser();
   if (!actor) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  const gated = await gate(actor, ctx.params);
+  const db = getAdminDb();
+  if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
+  const gated = await gate(db, actor, ctx.params);
   if (gated instanceof NextResponse) return gated;
   const markdown = await markdownOf(req);
   if (markdown instanceof NextResponse) return markdown;
-  const db = getAdminDb();
-  if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
   const missing = await courseThere(db, gated.writer);
   if (missing) return missing;
   const read = readGuideMarkdown(markdown, gated.slot);

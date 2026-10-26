@@ -14,10 +14,13 @@ import styles from "./WeekBlocksLoader.module.css";
  * things to check, then Save. "Copy as Markdown" gives a block week back, ids
  * written in, for editing and pasting again.
  *
- * Admins only (the editor draws this card for an admin alone, and the route
- * refuses everyone else). Every read and write goes through
- * `/api/courses/runs/[runId]/weeks/[weekId]/blocks`, which reads the paste
- * against the week as stored, so what is saved is what was read.
+ * Drawn in the run's week editor for an admin, and on a programme's Weeks
+ * tab for its lead and admins (with "Save draft"), where it also loads a
+ * group's own copy of the week (`endpoint`). Every read and write goes
+ * through the route it is pointed at (the run's week by default,
+ * `/api/courses/runs/[runId]/weeks/[weekId]/blocks`), which decides who may
+ * and reads the paste against the week as stored, so what is saved is what
+ * was read.
  */
 
 type FoundRow = { state: "found" | "missing" | "check"; label: string; detail: string; indent: boolean };
@@ -47,10 +50,33 @@ type Props = {
   blockWeek: boolean;
   /** Called after a save, to read the week again. */
   onSaved: () => void;
+  /** The route that reads and saves this paste; the run's own week when not given. */
+  endpoint?: string;
+  /** The press that saves: "Save" in the run's week editor, "Save draft" on the Weeks tab. */
+  saveLabel?: string;
+  /** The card's heading. */
+  title?: string;
+  /** What the card is for, under its heading; the editor's own line when not given. */
+  lede?: string;
+  /** Names the box apart when two cards for one week are on a page. */
+  idSuffix?: string;
 };
 
-export default function WeekBlocksLoader({ runId, weekId, weekNumber, blockWeek, onSaved }: Props) {
-  const url = `/api/courses/runs/${encodeURIComponent(runId)}/weeks/${encodeURIComponent(weekId)}/blocks`;
+export default function WeekBlocksLoader({
+  runId,
+  weekId,
+  weekNumber,
+  blockWeek,
+  onSaved,
+  endpoint,
+  saveLabel = "Save",
+  title = "Paste the week, then check it",
+  lede,
+  idSuffix = "",
+}: Props) {
+  const url = endpoint ?? `/api/courses/runs/${encodeURIComponent(runId)}/weeks/${encodeURIComponent(weekId)}/blocks`;
+  const boxId = `week-markdown-${weekId}${idSuffix}`;
+  const copyId = `week-copy-${weekId}${idSuffix}`;
   const [markdown, setMarkdown] = useState("");
   const [read, setRead] = useState<ReadAnswer | null>(null);
   /** The Markdown `read` answers, so a change to the box asks for "Read it" again. */
@@ -143,15 +169,19 @@ export default function WeekBlocksLoader({ runId, weekId, weekNumber, blockWeek,
 
   return (
     <Card padding="lg">
-      <h3 className={styles.title}>Paste the week, then check it</h3>
+      <h3 className={styles.title}>{title}</h3>
       <p className={styles.hint}>
-        The fellow guide exports each week to Markdown. The site reads it into blocks for you to check.
-        {blockWeek ? " This week is written as blocks: what its people read, tick and answer comes from them." : ""}
+        {lede ?? (
+          <>
+            The fellow guide exports each week to Markdown. The site reads it into blocks for you to check.
+            {blockWeek ? " This week is written as blocks: what its people read, tick and answer comes from them." : ""}
+          </>
+        )}
       </p>
 
-      <Field id={`week-markdown-${weekId}`} label="Paste the week’s Markdown">
+      <Field id={boxId} label="Paste the week’s Markdown">
         <Textarea
-          id={`week-markdown-${weekId}`}
+          id={boxId}
           className={styles.markdown}
           value={markdown}
           onChange={(e) => setMarkdown(e.target.value)}
@@ -177,8 +207,8 @@ export default function WeekBlocksLoader({ runId, weekId, weekNumber, blockWeek,
       </div>
 
       {copied !== null && (
-        <Field id={`week-copy-${weekId}`} label="The week as Markdown: select it and copy">
-          <Textarea id={`week-copy-${weekId}`} className={styles.markdown} value={copied} readOnly rows={12} />
+        <Field id={copyId} label="The week as Markdown: select it and copy">
+          <Textarea id={copyId} className={styles.markdown} value={copied} readOnly rows={12} />
         </Field>
       )}
 
@@ -245,7 +275,7 @@ export default function WeekBlocksLoader({ runId, weekId, weekNumber, blockWeek,
 
           <div className={styles.actions}>
             <Button type="button" onClick={save} disabled={busy || read.problems.length > 0}>
-              {read.answers > 0 ? `Save and take out ${read.answers === 1 ? "1 answer" : `${read.answers} answers`}` : "Save"}
+              {read.answers > 0 ? `${saveLabel} and take out ${read.answers === 1 ? "1 answer" : `${read.answers} answers`}` : saveLabel}
             </Button>
           </div>
         </div>

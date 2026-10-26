@@ -10,9 +10,11 @@
  *   POST  "Read it": what was found, what to check, what stops a save, the answers at stake
  *   PUT   "Save": the same read, then the blocks and the title written
  *
- * Admins only: the programme's lead, the run's track lead, a group's
- * facilitator, a member and somebody signed out are all refused before a
- * document is read, and a view-as session is refused before that.
+ * Admins and the programme's lead (from the Weeks tab, board pr-weeks), the
+ * lead answered exactly as an admin: the lead of another programme, a lead
+ * who no longer stands as one, the run's track lead, a group's facilitator, a
+ * member and somebody signed out are all refused before a document of the run
+ * is read, and a view-as session is refused before that.
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
@@ -53,8 +55,12 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("1. who may load a week", () => {
+  // The programme's lead loads the run's weeks from the Weeks tab (board
+  // pr-weeks, Q39), so the lead moved out of this list into the test below,
+  // which holds every answer of theirs to the admin's. The lead of ANOTHER
+  // programme takes the lead's old place here, refused as strictly.
   const REFUSED = [
-    ["claudia", 403, "the programme's lead"],
+    ["tess", 403, "the lead of another programme"],
     ["yusuf", 403, "the run's track lead"],
     ["rahul", 403, "a facilitator of one of the run's groups"],
     ["chloe", 403, "a member placed on the run"],
@@ -74,6 +80,44 @@ describe("1. who may load a week", () => {
       assert.equal(everything(), before);
     });
   }
+
+  test("the programme's lead is answered exactly as an admin: Read it, Save and Copy as Markdown", async () => {
+    world.db.seed(W3, syntheticWeekDoc());
+    const asked = { markdown: syntheticGuideMarkdown() };
+    const admin = await as("zach", "POST", asked);
+    const lead = await as("claudia", "POST", asked);
+    assert.equal(lead.status, 200, JSON.stringify(lead.body));
+    assert.deepEqual(lead.body, admin.body, "the same read, the same checks, the same answers at stake");
+    const saved = await as("claudia", "PUT", { ...asked, confirmAnswers: admin.body.answers });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    assert.equal(world.db.read(W3).updatedByUid, "claudia", "the save is recorded as the lead's");
+    const copy = await as("claudia", "GET");
+    assert.equal(copy.status, 200);
+    assert.deepEqual(copy.body, (await as("zach", "GET")).body);
+  });
+
+  test("a lead who no longer stands as one is refused on every method, and nothing is written", async () => {
+    world.db.seed(W3, syntheticWeekDoc());
+    world.db.poke("users/claudia", { role: "member", suRecognised: false });
+    const before = everything();
+    for (const method of ["GET", "POST", "PUT"]) {
+      const answer = await as("claudia", method, method === "GET" ? undefined : { markdown: syntheticGuideMarkdown() });
+      assert.equal(answer.status, 403, method);
+      assert.deepEqual(Object.keys(answer.body), ["error"]);
+    }
+    assert.equal(everything(), before);
+  });
+
+  test("the lead is refused on a run their programme does not name", async () => {
+    const other = { runId: RUN.tais, weekId: "w01" };
+    world.db.seed(`courseRuns/${RUN.tais}/weeks/w01`, syntheticWeekDoc({ weekNumber: 1, title: "Week one" }));
+    const before = everything();
+    for (const method of ["GET", "POST", "PUT"]) {
+      const answer = await as("claudia", method, method === "GET" ? undefined : { markdown: syntheticGuideMarkdown() }, other);
+      assert.equal(answer.status, 403, method);
+    }
+    assert.equal(everything(), before);
+  });
 
   test("an admin in a view-as session is refused Read it and Save, before anything else", async () => {
     const before = everything();

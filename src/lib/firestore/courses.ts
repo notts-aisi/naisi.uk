@@ -618,6 +618,16 @@ export type CourseWeekDoc = {
    * `true` is on.
    */
   pitching: boolean;
+  /**
+   * WHO OWNS THE WEEK on its programme's Weeks tab (board pr-weeks, "Owner:
+   * the lead or a helper"): the uid the lead or an admin chose there, or null
+   * for the programme's lead, which is what every week starts as. Read only
+   * off the RUN's week, as `ready` is: no copy carries it. Written only by the
+   * owner route (`.../runs/[runId]/weeks/[weekId]/owner`). A stored uid that
+   * is no longer the lead or one of the run's helpers is shown as the lead
+   * (`src/lib/courses/weeksTab/load.ts`).
+   */
+  ownerUid: string | null;
   updatedAt?: Date | null;
   updatedByUid?: string | null;
 };
@@ -1360,6 +1370,11 @@ export function normalizeCourseRun(id: string, data: Raw): CourseRunDoc {
   return doc;
 }
 
+/** A stored week owner: one account's uid, which names one document and is never longer than an account id can be. */
+export function isWeekOwnerUid(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= 128 && !value.includes("/") && value !== "." && value !== "..";
+}
+
 export function normalizeCourseWeek(id: string, data: Raw): CourseWeekDoc {
   return {
     id,
@@ -1382,6 +1397,7 @@ export function normalizeCourseWeek(id: string, data: Raw): CourseWeekDoc {
     // the stored week has a list.
     ...(Array.isArray(data.blocks) ? { blocks: sanitizeWeekBlocks(data.blocks) } : {}),
     pitching: data.pitching === true,
+    ownerUid: isWeekOwnerUid(data.ownerUid) ? data.ownerUid : null,
     updatedAt: tsToDate(data.updatedAt),
     updatedByUid: (data.updatedByUid as string | null | undefined) ?? null,
   };

@@ -15,8 +15,9 @@
  *     out. Each condition broken once: an archived group, an account that no
  *     longer stands, a group whose run is another course's, a run or a course
  *     mid-destroy, a lead replaced.
- *  2. WHO LOADS IT. Admins only, never in a view-as session, and what is saved
- *     is what was read, with nothing personal stored.
+ *  2. WHO LOADS IT. Admins and the lead of a programme naming a live run of
+ *     the course (the Weeks tab's guide box), never in a view-as session, and
+ *     what is saved is what was read, with nothing personal stored.
  *  3. EVERYBODY ELSE IS GIVEN ONE CALM ANSWER, the same words whether or not
  *     the course or the page is there.
  *  4. THE PAGES draw what the documents say, as text, never markup.
@@ -135,16 +136,42 @@ describe("1. who reads a course's facilitator guide", () => {
     assert.equal(await gate("claudia"), null);
   });
 
-  test("the loader's own gate: an admin, on an id that is one, and nobody else", () => {
-    const writerFor = (who, courseId = COURSE.agi) => {
+  // The Weeks tab's "Facilitator guide" box (board pr-weeks) is the
+  // programme's lead's, so the writer admits the lead the reader admits as
+  // the lead (a programme naming a live run of the course, standing as one),
+  // as strictly as the reader does, and still nobody else.
+  test("the loader's own gate: an admin on an id that is one, and the lead of a programme naming a live run of it; nobody else", async () => {
+    const writerFor = async (who, courseId = COURSE.agi) => {
       const session = w.sessionFor(who);
-      return session ? guide.access.facilitatorGuideWriter(session, courseId) : null;
+      return session ? guide.access.facilitatorGuideWriter(world.courseDb, session, courseId) : null;
     };
     for (const who of EVERYBODY.filter((one) => one !== null)) {
-      assert.equal(writerFor(who) === null, who !== "zach", String(who));
+      assert.equal((await writerFor(who)) === null, !["zach", "claudia"].includes(who), String(who));
     }
-    assert.deepEqual({ ...writerFor("zach") }, { courseId: COURSE.agi });
-    for (const courseId of ["a/b", "", ".."]) assert.equal(writerFor("zach", courseId), null, courseId);
+    assert.deepEqual({ ...(await writerFor("zach")) }, { courseId: COURSE.agi });
+    assert.deepEqual({ ...(await writerFor("claudia")) }, { courseId: COURSE.agi });
+    // Tess leads Technical AI Safety's programme: she writes its guide, and never AGI Strategy's.
+    assert.deepEqual({ ...(await writerFor("tess", COURSE.tais)) }, { courseId: COURSE.tais });
+    assert.equal(await writerFor("claudia", COURSE.tais), null);
+    for (const courseId of ["a/b", "", ".."]) {
+      assert.equal(await writerFor("zach", courseId), null, courseId);
+      assert.equal(await writerFor("claudia", courseId), null, courseId);
+    }
+    // A course that is not there, or is being destroyed, is never the lead's.
+    assert.equal(await writerFor("claudia", "no-such-course__c0urse99"), null);
+    world.db.poke(`courses/${COURSE.agi}`, { destroying: true });
+    assert.equal(await writerFor("claudia"), null);
+  });
+
+  test("a lead who no longer stands as one, or whose programme stops naming the run, writes nothing from the next request", async () => {
+    const writerFor = async (who) => guide.access.facilitatorGuideWriter(world.courseDb, w.sessionFor(who), COURSE.agi);
+    world.db.poke("users/claudia", { role: "member", suRecognised: false });
+    assert.equal(await writerFor("claudia"), null);
+    reset();
+    const form = world.db.read(formPath);
+    const agi = Object.keys(form.programmes).find((id) => form.programmes[id].runId === RUN.agi);
+    world.db.poke(formPath, { programmes: { ...form.programmes, [agi]: { ...form.programmes[agi], runId: null } } });
+    assert.equal(await writerFor("claudia"), null);
   });
 
   test("a course that is not there, or an id that is not one, is nobody's: an admin's too", async () => {
@@ -158,8 +185,11 @@ describe("1. who reads a course's facilitator guide", () => {
 // 2. Who loads it: the loader's route
 // ---------------------------------------------------------------------------
 
-describe("2. the loader's route: admins only, and what is saved is what was read", () => {
-  test("every method refuses everybody but an admin, and a view-as session, before anything is read", async () => {
+describe("2. the loader's route: admins and the programme's lead, and what is saved is what was read", () => {
+  // The programme's lead loads the course's guide from the Weeks tab's
+  // "Facilitator guide" box (board pr-weeks), so the lead is answered as an
+  // admin is; everybody else is refused as before, as strictly.
+  test("every method refuses everybody but an admin and the programme's lead, and a view-as session, before anything is read", async () => {
     const before = JSON.stringify(stored().map((path) => world.db.read(path)));
     const said = {};
     for (const who of EVERYBODY) {
@@ -170,7 +200,7 @@ describe("2. the loader's route: admins only, and what is saved is what was read
       ];
     }
     const refused = Object.fromEntries(EVERYBODY.map((who) => [who ?? "signed out", who === null ? [401, 401, 401] : [403, 403, 403]]));
-    assert.deepEqual(said, { ...refused, zach: [200, 200, 400] });
+    assert.deepEqual(said, { ...refused, zach: [200, 200, 400], claudia: [200, 200, 400] });
     // An admin viewing the site as somebody is refused both writes, as the
     // view-as guard answers, and nothing is written.
     assert.equal((await load("zach", "POST", "w03-plan", { markdown: PLAN_W3, viewAs: true })).status, 403);

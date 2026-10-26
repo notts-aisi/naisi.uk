@@ -1,19 +1,21 @@
 import { NextResponse } from "next/server";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { isAddressableId } from "@/lib/addressableId";
+import { programmeLedBy } from "@/lib/courses/programmeLead";
+import { weekToMarkdown } from "@/lib/courses/weekBlocks/markdownWrite";
+import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
+import {
+  answersOnRemoved,
+  pasteAnswer,
+  pasteBodyOf,
+  readPasteAgainst,
+  unconfirmedAnswers,
+  type PasteBody,
+} from "@/lib/courses/weekPaste";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
-import {
-  COURSE_FIELD_LIMITS,
-  normalizeCourse,
-  normalizeCourseRun,
-  normalizeCourseWeek,
-  type CourseWeekDoc,
-} from "@/lib/firestore/courses";
-import { dayBeforeWords, weekToMarkdown } from "@/lib/courses/weekBlocks/markdownWrite";
-import { isBlockWeek, type WeekItem } from "@/lib/courses/weekBlocks/model";
-import { MAX_PASTE_CHARS, readPastedWeek, type PastedWeek } from "@/lib/courses/weekBlocks/paste";
+import { normalizeCourse, normalizeCourseRun, normalizeCourseWeek, type CourseWeekDoc } from "@/lib/firestore/courses";
 
 /**
  * LOADING A WEEK AS BLOCKS (board pr-weeks, Option B; Q39): the run's week
@@ -33,10 +35,15 @@ import { MAX_PASTE_CHARS, readPastedWeek, type PastedWeek } from "@/lib/courses/
  * only the server can hold them to `weekBlocksProblems`. The rules keep every
  * browser write off `blocks`, so this is the only way in.
  *
- * WHO. Admins only, for now (Q39: the curriculum is loaded by an admin; a
- * lead's Weeks tab and a group's own copy come later and will widen this).
- * The gate is decided before anything is read; every other caller meets the
- * same 403.
+ * WHO. Admins, and the lead of the programme that names the run, while they
+ * stand as one (`programmeLedBy`, the lead's half of the gate every run route
+ * a lead passes asks): the run's week editor sends here for an admin, the
+ * programme's Weeks tab for its lead and admins (board pr-weeks, Q39). The
+ * gate is decided before anything of the run is read (only the forms, for
+ * whether the caller leads the programme that names it); every other caller
+ * meets the same 403. Everything below is asked of the lead exactly as of an
+ * admin. A group's own copy of a week has its own route
+ * (`/api/courses/groups/[groupId]/weeks/[weekId]/blocks`).
  *
  * WHAT SAVE CHECKS. The paste is read again against the week as stored at
  * that moment, so what is saved is what was read, with its ids settled. A
@@ -56,34 +63,25 @@ function badRequest(error: string, extra: Record<string, unknown> = {}) {
 
 type Actor = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
-/** The gate and the address, before any document is read. Each handler has refused a missing session first. */
-async function gate(actor: Actor, params: Params["params"]): Promise<{ runId: string; weekId: string; uid: string } | NextResponse> {
+/**
+ * The gate and the address, before any document of the run is read. Each
+ * handler has refused a missing session first. An admin, or the lead of the
+ * programme that names the run, asked of the forms alone.
+ */
+async function gate(db: Firestore, actor: Actor, params: Params["params"]): Promise<{ runId: string; weekId: string; uid: string } | NextResponse> {
   const { runId, weekId } = await params;
-  if (actor.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (actor.role !== "admin" && (!isAddressableId(runId) || (await programmeLedBy(db, actor, runId)) === null)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   if (!isAddressableId(runId)) return badRequest("That isn’t a run.");
   if (!WEEK_ID.test(weekId)) return badRequest("That isn’t a week of the run: weeks are w01 to w60.");
   return { runId, weekId, uid: actor.uid };
 }
 
-/** The Markdown in a request's body, or the sentence that says what is wrong with it. */
-async function markdownOf(req: Request): Promise<{ markdown: string; confirmAnswers: number | null } | NextResponse> {
-  let body: { markdown?: unknown; confirmAnswers?: unknown };
-  try {
-    body = (await req.json()) as typeof body;
-  } catch {
-    return badRequest("Send the week’s Markdown as JSON.");
-  }
-  if (typeof body?.markdown !== "string" || body.markdown.trim() === "") {
-    return badRequest("Paste the week’s Markdown first.");
-  }
-  if (body.markdown.length > MAX_PASTE_CHARS) {
-    return badRequest(`That is ${body.markdown.length} characters; a week’s Markdown can be at most ${MAX_PASTE_CHARS}.`);
-  }
-  const confirm = body.confirmAnswers;
-  if (confirm !== undefined && confirm !== null && !(typeof confirm === "number" && Number.isInteger(confirm) && confirm >= 0)) {
-    return badRequest("The number of answers to confirm has to be a whole number.");
-  }
-  return { markdown: body.markdown, confirmAnswers: typeof confirm === "number" ? confirm : null };
+/** The Markdown in a request's body, or a 400 that says what is wrong with it. */
+async function markdownOf(req: Request): Promise<PasteBody | NextResponse> {
+  const sent = await pasteBodyOf(req);
+  return "error" in sent ? badRequest(sent.error) : sent;
 }
 
 type Loaded = { week: CourseWeekDoc; weekNumber: number; dayBeforeTime: string | null };
@@ -105,73 +103,18 @@ async function load(db: Firestore, runId: string, weekId: string): Promise<Loade
   return { week, weekNumber, dayBeforeTime: course?.dayBeforeDueTime ?? null };
 }
 
-/** The paste, read against the week as stored, with the title's cap held too. */
-function readAgainst(markdown: string, loaded: Loaded): PastedWeek {
-  const read = readPastedWeek({
-    markdown,
-    weekNumber: loaded.weekNumber,
-    stored: loaded.week.blocks ?? null,
-    dayBeforeTime: loaded.dayBeforeTime,
-  });
-  if (read.title.length > COURSE_FIELD_LIMITS.weekTitle) {
-    read.problems.push(`The title is ${read.title.length} characters; the most is ${COURSE_FIELD_LIMITS.weekTitle}.`);
-  }
-  return read;
-}
-
-/**
- * The answers on the items a paste takes out, by item id: ticks and ratings
- * (`courseProgress`), written answers and reflections (`courseExerciseResponses`,
- * this week's), and facilitators' notes on a source (`courseMaterialNotes`).
- * Each read is equality on the run alone, filtered here, so no read needs a
- * composite index. Nothing is read when nothing goes.
- */
-async function answersOn(db: Firestore, runId: string, weekId: string, removed: readonly WeekItem[]): Promise<Map<string, number>> {
-  const counts = new Map<string, number>();
-  const ids = new Set(removed.map((item) => item.id));
-  if (ids.size === 0) return counts;
-  const add = (id: unknown) => {
-    if (typeof id === "string" && ids.has(id)) counts.set(id, (counts.get(id) ?? 0) + 1);
-  };
-  const [progress, responses, notes] = await Promise.all([
-    db.collection("courseProgress").where("runId", "==", runId).get(),
-    db.collection("courseExerciseResponses").where("runId", "==", runId).get(),
-    db.collection("courseMaterialNotes").where("runId", "==", runId).get(),
-  ]);
-  for (const doc of progress.docs) add(doc.data()?.itemId);
-  for (const doc of responses.docs) {
-    const row = doc.data();
-    if (row?.weekId === weekId) add(row.exerciseId);
-  }
-  for (const doc of notes.docs) add(doc.data()?.itemId);
-  return counts;
-}
-
-/** What "Read it" and a refused save show: the read, field by field, and the answers at stake. */
-function readAnswer(read: PastedWeek, counts: Map<string, number>, loaded: Loaded) {
-  const answers = [...counts.values()].reduce((sum, n) => sum + n, 0);
-  return {
-    /** The course's day-before rule in words ("by noon the day before"), for the line under the found list. */
-    due: dayBeforeWords(loaded.dayBeforeTime),
-    title: read.title,
-    found: read.found.map((row) => ({ state: row.state, label: row.label, detail: row.detail, indent: row.indent })),
-    checks: [...read.checks],
-    problems: [...read.problems],
-    removed: read.removed.map((item) => ({ id: item.id, kind: item.kind, label: item.label, answers: counts.get(item.id) ?? 0 })),
-    answers,
-    kept: read.kept,
-    minted: read.minted,
-    blockCount: read.blocks.length,
-  };
+/** The paste, read against the week as stored. */
+function readAgainst(markdown: string, loaded: Loaded) {
+  return readPasteAgainst(markdown, { blocks: loaded.week.blocks ?? null, weekNumber: loaded.weekNumber, dayBeforeTime: loaded.dayBeforeTime });
 }
 
 export async function GET(_req: Request, ctx: Params) {
   const actor = await getCurrentUser();
   if (!actor) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  const gated = await gate(actor, ctx.params);
-  if (gated instanceof NextResponse) return gated;
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
+  const gated = await gate(db, actor, ctx.params);
+  if (gated instanceof NextResponse) return gated;
   const loaded = await load(db, gated.runId, gated.weekId);
   if (loaded instanceof NextResponse) return loaded;
   if (!isBlockWeek(loaded.week)) {
@@ -189,17 +132,17 @@ export async function POST(req: Request, ctx: Params) {
   if (blocked) return blocked;
   const actor = await getCurrentUser();
   if (!actor) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  const gated = await gate(actor, ctx.params);
+  const db = getAdminDb();
+  if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
+  const gated = await gate(db, actor, ctx.params);
   if (gated instanceof NextResponse) return gated;
   const sent = await markdownOf(req);
   if (sent instanceof NextResponse) return sent;
-  const db = getAdminDb();
-  if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
   const loaded = await load(db, gated.runId, gated.weekId);
   if (loaded instanceof NextResponse) return loaded;
   const read = readAgainst(sent.markdown, loaded);
-  const counts = await answersOn(db, gated.runId, gated.weekId, read.removed);
-  return NextResponse.json(readAnswer(read, counts, loaded));
+  const counts = await answersOnRemoved(db, gated.runId, gated.weekId, read.removed);
+  return NextResponse.json(pasteAnswer(read, counts, loaded.dayBeforeTime));
 }
 
 export async function PUT(req: Request, ctx: Params) {
@@ -207,27 +150,20 @@ export async function PUT(req: Request, ctx: Params) {
   if (blocked) return blocked;
   const actor = await getCurrentUser();
   if (!actor) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  const gated = await gate(actor, ctx.params);
+  const db = getAdminDb();
+  if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
+  const gated = await gate(db, actor, ctx.params);
   if (gated instanceof NextResponse) return gated;
   const sent = await markdownOf(req);
   if (sent instanceof NextResponse) return sent;
-  const db = getAdminDb();
-  if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
   const loaded = await load(db, gated.runId, gated.weekId);
   if (loaded instanceof NextResponse) return loaded;
   const read = readAgainst(sent.markdown, loaded);
-  const counts = await answersOn(db, gated.runId, gated.weekId, read.removed);
-  const answer = readAnswer(read, counts, loaded);
+  const counts = await answersOnRemoved(db, gated.runId, gated.weekId, read.removed);
+  const answer = pasteAnswer(read, counts, loaded.dayBeforeTime);
   if (read.problems.length > 0) return badRequest(read.problems[0], answer);
-  if (answer.answers > 0 && sent.confirmAnswers !== answer.answers) {
-    return NextResponse.json(
-      {
-        error: `This paste takes out ${answer.removed.filter((item) => item.answers > 0).length === 1 ? "an item" : "items"} with ${answer.answers} ${answer.answers === 1 ? "answer" : "answers"}. Confirm to save it anyway.`,
-        ...answer,
-      },
-      { status: 409 },
-    );
-  }
+  const unconfirmed = unconfirmedAnswers(answer, sent.confirmAnswers);
+  if (unconfirmed) return NextResponse.json({ error: unconfirmed, ...answer }, { status: 409 });
   await db
     .collection("courseRuns")
     .doc(gated.runId)
