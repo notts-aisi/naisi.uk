@@ -17,6 +17,11 @@ import {
 import { dayRangeWords } from "@/lib/courses/sessionChange/words";
 import { addDaysToKey, isValidDateKey } from "@/lib/courses/weekPlan";
 import { weekDocId } from "@/lib/firestore/courses";
+import type { OverviewThisWeek, OverviewThisWeekRow } from "@/app/api/courses/runs/[runId]/overview/route";
+import { TASK_DONE, TASK_MARK_WORDS } from "@/lib/courses/memberPageWords";
+import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
+import { handedTaskDone, handedTasksDone, isCounted } from "@/lib/courses/weekBlocks/progress";
+import { blockTickItemsOf } from "../weekBlocks/tickItems";
 import TickRows, { tickItemsOf } from "./TickRows";
 import type { MaterialTicks } from "./useMaterialTicks";
 import styles from "./weekly.module.css";
@@ -31,6 +36,13 @@ import styles from "./weekly.module.css";
  * The dates are the week's seven days in the reader's group's own calendar
  * (`slotStartKey`). A week that is not open to the reader yet says when it
  * opens instead of leading to it (C17).
+ *
+ * A WEEK WRITTEN AS BLOCKS (`thisWeek`) counts by This week's tasks, worked
+ * out in `src/lib/courses/weekBlocks/progress.ts`: "0 of 1 done" for week 1.
+ * Once the programme has started the card draws the tasks (board
+ * wk-programme: "Parts 1 to 3 · Done") where a week written before blocks
+ * draws its bar, and before the first session it lists the sources on the
+ * path to tick. No bar: the boards draw no percentages for these weeks.
  */
 
 type Props = {
@@ -41,6 +53,8 @@ type Props = {
   /** The first day of the week's seven in the reader's own calendar, or null when undated. */
   slotStartKey: string | null;
   countableIds: readonly string[];
+  /** A week written as blocks: its tasks, as the overview hands them. Null on any other week. */
+  thisWeek?: OverviewThisWeek | null;
   /** The week's page is open to the reader. */
   open: boolean;
   /** "Opens tonight, after your session", for a week that is not open yet. */
@@ -62,6 +76,7 @@ export default function ThisWeekCard({
   title,
   slotStartKey,
   countableIds,
+  thisWeek = null,
   open,
   opens,
   breakLabel = null,
@@ -77,8 +92,12 @@ export default function ThisWeekCard({
   const week = useWeek(runId, listsReadings ? weekDocId(weekNumber) : "", false, weekSource);
   const dates =
     slotStartKey && isValidDateKey(slotStartKey) ? dayRangeWords(slotStartKey, addDaysToKey(slotStartKey, 6)) : "";
-  const done = countableIds.filter((id) => ticks.isDone(id)).length;
-  const counted = countableIds.length;
+  const tasks = (thisWeek?.rows ?? []).filter(
+    (row): row is Extract<OverviewThisWeekRow, { type: "task" }> => row.type === "task",
+  );
+  const byTasks = thisWeek ? handedTasksDone(tasks, ticks.isDone) : null;
+  const done = byTasks ? byTasks.done : countableIds.filter((id) => ticks.isDone(id)).length;
+  const counted = byTasks ? byTasks.of : countableIds.length;
   const known = !ticks.loading && !ticks.error;
   const heading = variant === "before-first" ? BEFORE_FIRST_SESSION : THIS_WEEK;
   const headingId = `this-week-${runId}`;
@@ -112,13 +131,38 @@ export default function ThisWeekCard({
               <span className={styles.cardMeta}>{dates}</span>
             </p>
           )}
-          {known && counted > 0 && open && (
+          {known && counted > 0 && open && !thisWeek && (
             <ProgressBar value={done} max={counted} size="md" ariaLabel={doneWords(done, counted)} />
+          )}
+          {known && open && thisWeek && variant === "this-week" && tasks.length > 0 && (
+            <ul className={styles.taskRows} role="list">
+              {tasks.map((task, index) => {
+                const taskIsDone = isCounted(task.needs) && handedTaskDone(task, ticks.isDone);
+                return (
+                  <li key={index} className={styles.taskRow}>
+                    <span className={taskIsDone ? styles.taskMarkDone : styles.taskMarkOpen} aria-hidden="true">
+                      {taskIsDone && (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M5 12.5l4.5 4.5L19 7.5" />
+                        </svg>
+                      )}
+                    </span>
+                    <div className={styles.taskRowBody}>
+                      <p className={styles.taskRowLabel}>
+                        <span className={styles.srOnly}>{taskIsDone ? TASK_MARK_WORDS.done : TASK_MARK_WORDS.notDone}: </span>
+                        {task.label}
+                      </p>
+                      {taskIsDone && <p className={styles.taskRowDone}>{TASK_DONE}</p>}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           )}
           {listsReadings && week.status === "loading" && <Skeleton lines={3} height="2.5rem" ariaLabel="Loading the readings…" />}
           {listsReadings && week.status === "ready" && week.week && (
             <TickRows
-              items={tickItemsOf(week.week, false)}
+              items={isBlockWeek(week.week) ? blockTickItemsOf(week.week.blocks) : tickItemsOf(week.week, false)}
               isDone={ticks.isDone}
               canTick={ticks.canTick}
               showTicks={showTicks}

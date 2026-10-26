@@ -16,6 +16,11 @@ import { finishedForMember } from "@/lib/courses/finishing/record";
 import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
 import { cardChangeFacts } from "@/lib/courses/sessionChange/model";
 import { isOpenAt, weekOpening } from "@/lib/courses/weekOpening";
+import { dueMoment } from "@/lib/courses/weekBlocks/due";
+import type { When } from "@/lib/courses/weekBlocks/model";
+import { taskNeeds, taskSubject, thisWeekOf, type TaskNeeds } from "@/lib/courses/weekBlocks/progress";
+import { taskLabelWords } from "@/lib/courses/memberPageWords";
+import { isReflectionResponse } from "@/lib/firestore/courseExercises";
 import {
   ownAttendanceSessions,
   sessionsFromJoinWeek,
@@ -334,6 +339,42 @@ export type OverviewGroup = {
   cancelledSessions: OverviewCancelledSession[];
 };
 
+/**
+ * THIS WEEK ON A WEEK WRITTEN AS BLOCKS (boards st-week1-phone, wk-week-phone,
+ * wk-programme): its rows in order, each task with what it needs to be done
+ * (`taskNeeds`, ids only), which of its reflection boxes the caller has
+ * written in, and the day it is due for the caller's group. Every page that
+ * says "N of M done" of a block week counts from this through
+ * `src/lib/courses/weekBlocks/progress.ts`, the one place "done" is worked
+ * out, with the caller's own live ticks.
+ */
+export type OverviewThisWeek = {
+  rows: OverviewThisWeekRow[];
+  /** "About 2¼ hours" ("In all"), or "". */
+  total: string;
+};
+
+export type OverviewThisWeekRow =
+  | {
+      type: "task";
+      what: string;
+      /** "About 80 minutes": words, so it can be a range. */
+      time: string;
+      when: When;
+      /** The programme page's short line: "Parts 1 to 3", "Your written answer", "Your case talk". */
+      label: string;
+      needs: TaskNeeds;
+      /** Which of `needs.promptIds` the caller has written in. Empty for anybody not taking part. */
+      written: string[];
+      /**
+       * The day it is due for the caller's own group (`dueMoment`), or null
+       * while there is none to give ("Due dates wait for the group").
+       * `moved`: the week's session is cancelled and it is due by the next.
+       */
+      due: { dateKey: string; moved: boolean } | null;
+    }
+  | { type: "none"; what: string; time: string; note: string };
+
 export type OverviewPayload = {
   run: {
     id: string;
@@ -382,9 +423,12 @@ export type OverviewPayload = {
      * The ids of what a member ticks off in the week, the ones its count of
      * "done" is out of: every material that is not optional, then every
      * checklist item, as the week page counts them. Ids only, so a page can
-     * say "1 of 3 done" beside a week without reading the week.
+     * say "1 of 3 done" beside a week without reading the week. A week
+     * written as blocks counts by `thisWeek` instead, and has none here.
      */
     countableIds: string[];
+    /** A week written as blocks: This week's rows and what each task needs. Null on any other week. */
+    thisWeek: OverviewThisWeek | null;
   }>;
   /**
    * The caller's own calendar's taught weeks, in its order, with each week's
@@ -394,9 +438,11 @@ export type OverviewPayload = {
   /**
    * The programme on the application form that names this run, as a member's
    * pages name it ("AGI Strategy", a fellowship), or null when no programme
-   * names it. Nothing else of the form travels.
+   * names it. Nothing else of the form travels but its lead's first name,
+   * which a week page says when it tells someone who reads their reflections
+   * (Q30); null when no lead stands.
    */
-  programme: { name: string; kind: ProgrammeKind } | null;
+  programme: { name: string; kind: ProgrammeKind; leadFirstName: string | null } | null;
   /**
    * Week doc ids that exist under `courseGroups/{ownGroup}/weeks` — i.e. the
    * weeks this caller must read from their group rather than from the run.
@@ -503,6 +549,12 @@ export type OverviewPayload = {
  * bounded `getAll`.
  */
 const MAX_OWN_ATTENDANCE_SESSIONS = 90;
+
+/**
+ * The caller's own rows of the run's answers read for their reflection boxes:
+ * a run's weeks of answers and boxes for one person, with room to spare.
+ */
+const MAX_OWN_ANSWER_ROWS = 600;
 
 /** Index = `GroupSession.weekday` (`Date.getDay()`, 0 = Sunday). */
 const WEEKDAY_NAMES = [
@@ -789,7 +841,12 @@ export async function GET(
       ).slice(0, MAX_OWN_ATTENDANCE_SESSIONS)
     : [];
 
-  const [userDocs, weekEntries, ownRegisterDocs, programme] = await Promise.all([
+  // The caller's own rows of the run's answers, for which reflection boxes
+  // they have written in (a block week's This week counts them). Only for
+  // somebody taking part, and only their own: `uid` is the session's.
+  // Equalities on (uid, runId), the existing composite.
+  const readsOwnAnswers = liveEnrolment?.role === "learner";
+  const [userDocs, weekEntries, ownRegisterDocs, programme, ownAnswerSnap] = await Promise.all([
     facilitatorUids.length
       ? db.getAll(...facilitatorUids.map((uid) => db.collection("users").doc(uid)))
       : Promise.resolve([]),
@@ -813,7 +870,25 @@ export async function GET(
     // The programme that names the run, for the pages' words. A form that
     // cannot be read leaves the pages naming the course instead.
     runProgrammeOf(db, runId).catch(() => null),
+    readsOwnAnswers
+      ? db
+          .collection("courseExerciseResponses")
+          .where("uid", "==", actor.uid)
+          .where("runId", "==", runId)
+          .limit(MAX_OWN_ANSWER_ROWS)
+          .get()
+      : Promise.resolve(null),
   ]);
+  // "weekId::promptId" of every reflection box the caller has written in.
+  const writtenBoxes = new Set<string>();
+  for (const doc of ownAnswerSnap?.docs ?? []) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    if (!isReflectionResponse(data) || data.uid !== actor.uid) continue;
+    if (typeof data.text !== "string" || !data.text.trim()) continue;
+    if (typeof data.weekId === "string" && typeof data.exerciseId === "string") {
+      writtenBoxes.add(`${data.weekId}::${data.exerciseId}`);
+    }
+  }
   const nameByUid = new Map<string, string>();
   for (const doc of userDocs) {
     if (doc.exists) nameByUid.set(doc.id, displayNameOf(doc.data() ?? {}));
@@ -830,13 +905,18 @@ export async function GET(
         published: w.published,
         estimatedMinutes: w.estimatedMinutes,
         forked: source === "group",
-        countableIds: [
-          ...w.materials.filter((m) => !m.optional).map((m) => m.id),
-          ...w.checklist.map((c) => c.id),
-        ],
+        // A week written as blocks counts by This week's tasks (`thisWeek`, set
+        // below once the caller's sessions are known), never by these.
+        countableIds: Array.isArray(w.blocks)
+          ? []
+          : [...w.materials.filter((m) => !m.optional).map((m) => m.id), ...w.checklist.map((c) => c.id)],
+        thisWeek: null as OverviewThisWeek | null,
       };
     })
     .sort((a, b) => a.weekNumber - b.weekNumber || a.id.localeCompare(b.id));
+  const blocksByWeekId = new Map(
+    weekEntries.flatMap(({ week: w }) => (Array.isArray(w.blocks) ? [[w.id, w.blocks] as const] : [])),
+  );
 
   /**
    * ONE CARD, ON ITS OWN GROUP'S CLOCK.
@@ -958,6 +1038,37 @@ export async function GET(
   };
   const weekSchedule = ownSessionsAll.filter((session) => session.occurrence === 1).map(scheduleOf);
 
+  /*
+   * THIS WEEK OF EACH WEEK WRITTEN AS BLOCKS (`OverviewThisWeek`): what each
+   * task needs, the boxes the caller has written in, and the day it is due on
+   * the caller's own calendar, a session moved or cancelled through "Change
+   * a session" included (`dueMoment`). Nothing is dated for somebody with no
+   * group: their week has no session to be due by.
+   */
+  for (const entry of weeks) {
+    const blocks = blocksByWeekId.get(entry.id);
+    const block = blocks ? thisWeekOf(blocks) : null;
+    if (!blocks || !block) continue;
+    entry.thisWeek = {
+      total: block.total,
+      rows: block.rows.map((row): OverviewThisWeekRow => {
+        if (row.type === "none") return { type: "none", what: row.what, time: row.time, note: row.note };
+        const needs = taskNeeds(blocks, row);
+        const due = ownGroup ? dueMoment(ownSessionsAll, entry.weekNumber, row.when) : null;
+        return {
+          type: "task",
+          what: row.what,
+          time: row.time,
+          when: row.when,
+          label: taskLabelWords(taskSubject(blocks, row), row.what),
+          needs,
+          written: needs.promptIds.filter((id) => writtenBoxes.has(`${entry.id}::${id}`)),
+          due: due ? { dateKey: due.dateKey, moved: due.moved } : null,
+        };
+      }),
+    };
+  }
+
   /**
    * THE PROJECTION, keyed by session key rather than by array position.
    * `getAll` does answer in request order, but a register landing under the
@@ -1027,7 +1138,9 @@ export async function GET(
     currentWeek,
     weeks,
     weekSchedule,
-    programme: programme ? { name: programme.shortName, kind: programme.kind } : null,
+    programme: programme
+      ? { name: programme.shortName, kind: programme.kind, leadFirstName: programme.leadFirstName }
+      : null,
     forkedWeekIds,
     enrolment: enrolment
       ? {

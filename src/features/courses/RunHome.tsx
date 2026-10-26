@@ -464,6 +464,7 @@ export default function RunHome({
         title={thisDoc?.title ?? ""}
         slotStartKey={thisSchedule?.slotStartKey || null}
         countableIds={thisDoc?.countableIds ?? []}
+        thisWeek={thisDoc?.thisWeek ?? null}
         open={thisSchedule?.open ?? false}
         opens={thisSchedule?.opensAfter ? opensWords(thisSchedule.opensAfter, todayKey) : null}
         breakLabel={calendarWeek?.breakLabel ?? null}

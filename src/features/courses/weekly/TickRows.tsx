@@ -23,6 +23,8 @@ export type TickItem = {
   /** "Reading", "Video", "Link", "Note"; null for a checklist item. */
   chip: string | null;
   minutes: number | null;
+  /** A source's time in words ("About 35 minutes"), on a week written as blocks; absent otherwise. */
+  time?: string | null;
   /** Who wrote it, or a line on why it is here. */
   source: string | null;
   /** Only an address that parses as a web address. */
@@ -142,11 +144,12 @@ export default function TickRows({ items, isDone, canTick, showTicks, onTick, op
             )}
             <div className={styles.tickBody}>
               <p className={done ? styles.tickTitleDone : styles.tickTitle}>{item.title}</p>
-              {(item.chip || item.optional || item.minutes || (withSource && item.source)) && (
+              {(item.chip || item.optional || item.minutes || item.time || (withSource && item.source)) && (
                 <p className={styles.tickMeta}>
                   {item.chip && <span className={styles.kindChip}>{item.chip}</span>}
                   {item.optional && <span className={styles.kindChip}>Optional</span>}
                   {item.minutes && <span className={styles.minutes}>{item.minutes} min</span>}
+                  {!item.minutes && item.time && <span className={styles.minutes}>{item.time}</span>}
                   {withSource && item.source && <span className={styles.source}>{item.source}</span>}
                 </p>
               )}

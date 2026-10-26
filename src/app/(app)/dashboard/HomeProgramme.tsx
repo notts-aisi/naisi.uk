@@ -35,6 +35,9 @@ import {
 import { dayWords } from "@/lib/courses/sessionChange/words";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { weekDocId } from "@/lib/firestore/courses";
+import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
+import { handedTasksDone } from "@/lib/courses/weekBlocks/progress";
+import { blockTickItemsOf } from "@/features/courses/weekBlocks/tickItems";
 import { ArrowRight } from "./icons";
 import { firstName } from "./homeWords";
 import styles from "./home.module.css";
@@ -55,6 +58,10 @@ import styles from "./home.module.css";
  *
  * "Add to calendar" fills the row under the ticket (st-calendar-phone: the
  * member's own calendar link).
+ *
+ * A WEEK WRITTEN AS BLOCKS counts by This week's tasks ("0 of 1 done" for
+ * week 1, `src/lib/courses/weekBlocks/progress.ts`) and lists the sources on
+ * its path to tick, with no bar: the boards draw no percentages for it.
  *
  * WHAT IS NOT HERE, though the board draws it: "Can’t make it" beside it on
  * the ticket (it does not exist yet). The member's marks are on their
@@ -133,8 +140,13 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
     firstName: firstName(name) || name,
   }));
 
-  const counted = doc?.countableIds ?? [];
-  const done = counted.filter((id) => ticks.isDone(id)).length;
+  // A week written as blocks counts This week's tasks; any other week, its
+  // readings and checklist, as it always has.
+  const tasks = (doc?.thisWeek?.rows ?? []).flatMap((row) => (row.type === "task" ? [row] : []));
+  const byTasks = doc?.thisWeek ? handedTasksDone(tasks, ticks.isDone) : null;
+  const countable = doc?.countableIds ?? [];
+  const total = byTasks ? byTasks.of : countable.length;
+  const done = byTasks ? byTasks.done : countable.filter((id) => ticks.isDone(id)).length;
   const ticksKnown = !ticks.loading && !ticks.error;
   const beforeTitle = !facts
     ? BEFORE_YOUR_SESSION
@@ -211,20 +223,20 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
                 <h2 id="home-before" className={weekly.cardTitle}>
                   {beforeTitle}
                 </h2>
-                {readable && ticksKnown && counted.length > 0 ? (
-                  <p className={weekly.cardCount}>{doneWords(done, counted.length)}</p>
+                {readable && ticksKnown && total > 0 ? (
+                  <p className={weekly.cardCount}>{doneWords(done, total)}</p>
                 ) : (
                   !isToday && <span className={weekly.cardMeta}>{dayWords(facts.dateKey)}</span>
                 )}
               </div>
               <p className={`${weekly.cardLine} ${weekly.cardLineSpaced}`}>{weekTitleWords(weekNumber, doc?.title ?? "")}</p>
-              {readable && ticksKnown && counted.length > 0 && (
-                <ProgressBar value={done} max={counted.length} size="md" ariaLabel={doneWords(done, counted.length)} />
+              {readable && ticksKnown && total > 0 && !byTasks && (
+                <ProgressBar value={done} max={total} size="md" ariaLabel={doneWords(done, total)} />
               )}
               {readable && week.status === "loading" && <Skeleton lines={3} height="2.5rem" ariaLabel="Loading the reading…" />}
               {readable && week.status === "ready" && week.week && (
                 <TickRows
-                  items={tickItemsOf(week.week, false)}
+                  items={isBlockWeek(week.week) ? blockTickItemsOf(week.week.blocks) : tickItemsOf(week.week, false)}
                   isDone={ticks.isDone}
                   canTick={ticks.canTick}
                   showTicks={learner !== null}
