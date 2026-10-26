@@ -758,6 +758,20 @@ const MUST_NAME = [
   ["facilitators email their group without seeing an address", /They never see your email address: they can email their group through the site without seeing anybody&apos;s\./i],
   ["what the people in a group and a team see on an incubator", /On an incubator, the people in your group also see any pitch you send, with your name, and the people in your team see that you are in it and anything you write on your team&apos;s page\./i],
   ["destroying a term's applications takes nobody off a programme", /Nobody is taken off a programme by it: a place on a course run, which notes the application form and programme it came from, stays with the rest of that person&apos;s course record\./i],
+  // Reflections, ticks and private notes, as a group's facilitators, the
+  // programme's lead and admins read them (Q30, Q31, Q37, Q38, and a
+  // facilitator's own coursework), added to v7 before any member was asked
+  // to accept it. §2g holds each to its code.
+  ["the private note's readers, and that it is never read out", /You can also keep a private note against a piece of material: it is never shown to the rest of your run or read out\. Your group&apos;s facilitators and admins can read it, with your name, and we use what it says to improve the course; if you facilitate the group, only admins read yours\./i],
+  ["a line of a reflection may be read out, without saying who wrote it", /We do not publish anything you write to the rest of your group unless you choose to share it, apart from a line of a reflection your facilitators may read out without saying who wrote it \(see Reflections\)/i],
+  ["who reads a reflection, and that the week's page says so", /You, your group&apos;s facilitators, the programme&apos;s lead and admins can read your answers, and nobody else on the programme can; the week&apos;s page says so beside the boxes\./i],
+  ["lines to read out are chosen on a page with no names", /A facilitator may read a line of one out in the session without saying who wrote it, and the page where they choose lines shows them the words with no name beside them\./i],
+  ["a facilitator's own reflections are the lead's and admins'", /If you facilitate a group, your own reflections are read by the programme&apos;s lead and admins, not by the group&apos;s other facilitators, and nobody reads them out\./i],
+  ["who sees which sources somebody ticked, by name", /Your group&apos;s facilitators, the programme&apos;s lead and admins can see which sources you have ticked, with your name, and the week&apos;s page says so; nobody else on the programme can\. A tick never counts against you\./i],
+  ["a facilitator's own ticks are the lead's and admins'", /If you facilitate a group, the programme&apos;s lead and admins see yours, and the group&apos;s other facilitators do not\./i],
+  ["the lead reads reflections and sees ticks", /The lead also reads the reflections its groups&apos; people write and sees which sources each of them has ticked, a facilitator&apos;s own among them\./i],
+  ["what facilitators read of their groups' reflections, ticks and private notes", /written work, the reflections the group&apos;s people write and which sources each of them has ticked, the private notes they keep on what they read, the participant notes/i],
+  ["a facilitator never sees another facilitator's own work", /A facilitator never sees another facilitator&apos;s own reflections, ticks or private notes\./i],
   // The survey at a programme's start (docs/surveys.md), added to v7 before
   // any member was asked to accept it. §2g holds each to its code.
   ["a survey is confidential, and says so at the top", /Every survey is confidential: we keep your answers with your name, and each survey says so at the top\./i],
@@ -2626,6 +2640,10 @@ describe("the course hub passage", () => {
       /Boxes you fill in\./i,
       /Some weeks have boxes for you to fill in/i,
       /your calendar link, the notes you shared with a group, notes you wrote for the other facilitators of a group/i,
+      /<strong>Reflections\.<\/strong>/i,
+      /<strong>Ticks\.<\/strong>/i,
+      /without saying who wrote it/i,
+      /we use what it says to improve the course/i,
       /When you answer a survey/i,
       /Every survey is confidential/i,
       /Facilitators never see anything of a survey/i,
@@ -3341,6 +3359,96 @@ describe("the course hub passage", () => {
     ]) {
       assert.ok(existsSync(join(REPO_ROOT, "tests", suite)), `tests/${suite} is gone`);
     }
+  });
+
+  test("reflections, ticks and private notes: who reads them, what may be read out and from what page, and a facilitator's own", async () => {
+    // The page's two new passages, whole, and the private note's sentence.
+    assert.match(
+      PAGE_FLAT,
+      /<strong>Reflections\.<\/strong> At stops in a week&apos;s readings you answer set questions in boxes that save as you type\. You, your group&apos;s facilitators, the programme&apos;s lead and admins can read your answers, and nobody else on the programme can; the week&apos;s page says so beside the boxes\. A facilitator may read a line of one out in the session without saying who wrote it, and the page where they choose lines shows them the words with no name beside them\. Reflections get no feedback and no mark\. If you facilitate a group, your own reflections are read by the programme&apos;s lead and admins, not by the group&apos;s other facilitators, and nobody reads them out\./,
+    );
+    assert.match(
+      PAGE_FLAT,
+      /<strong>Ticks\.<\/strong> Each source in a week&apos;s readings has a tick for you\. Your group&apos;s facilitators, the programme&apos;s lead and admins can see which sources you have ticked, with your name, and the week&apos;s page says so; nobody else on the programme can\. A tick never counts against you\. If you facilitate a group, the programme&apos;s lead and admins see yours, and the group&apos;s other facilitators do not\./,
+    );
+
+    // Who sees whose work, decided in one place, run: a facilitator is never
+    // shown a facilitator's own; the lead and admins are, marked as theirs;
+    // private notes are the group's facilitators' and admins', never the
+    // lead's, and a facilitator's own note an admin's alone.
+    const week = await loadTs("lib/courses/facilitatorWeek/model.ts");
+    const VIEWERS = ["facilitator", "lead", "admin"];
+    assert.deepEqual(VIEWERS.map(week.seesFacilitatorsOwnWork), [false, true, true], "who is shown a facilitator's own reflections and ticks moved");
+    assert.deepEqual(VIEWERS.map(week.readsPrivateNotes), [true, false, true], "who reads private notes moved");
+    assert.deepEqual(VIEWERS.map(week.readsFacilitatorsPrivateNotes), [false, false, true], "who reads a facilitator's own private note moved");
+    const people = [{ uid: "fellow", name: "A Fellow" }, { uid: "facilitator", name: "A Facilitator" }];
+    const facilitators = [{ uid: "facilitator", name: "A Facilitator", firstName: "A" }];
+    assert.deepEqual(week.peopleShown("facilitator", people, facilitators).map((person) => person.uid), ["fellow"]);
+    assert.deepEqual(week.peopleShown("lead", people, facilitators).map((person) => [person.uid, person.own]), [["fellow", false], ["facilitator", true]]);
+    // "Shows them the words with no name beside them": a card is its words
+    // and a key naming nothing but its place, in the order of the words.
+    assert.deepEqual(week.readOutCards("p1", ["Zeta", "alpha"]), [{ key: "p1-1", text: "alpha" }, { key: "p1-2", text: "Zeta" }]);
+    const readers = withoutComments(read("src/lib/courses/facilitatorWeek/readers.ts"));
+    assert.match(readers, /cards: readOutCards\(key, wrote\.map\(\(person\) => reflections\.get\(person\.uid\)\?\.get\(prompt\.id\) \?\? ""\)\),/);
+    // The private note's one reader is asked only for a viewer who reads
+    // notes, and the page to read lines out reads none.
+    assert.match(readers, /readsPrivateNotes\(viewer\) \? readPrivateNotes\(db, run\.id, at\.weekNumber, readable, sourceIds\)/);
+    assert.doesNotMatch(readers.slice(readers.indexOf("export async function loadReadOutWeek(")), /privateNote|readPrivateNotes/);
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bprivateNote\b/).filter((file) => /\bprivateNote\b/.test(withoutComments(read(file)))),
+      new Map([
+        ["src/lib/firestore/courseProgress.ts", "the record: its shape, its limit and its normaliser"],
+        ["src/features/courses/progressMutations.ts", "the writer: a person's own note, on their own row"],
+        ["src/features/courses/WeekView.tsx", "a person's own note, in their own box on a week written before blocks"],
+        ["src/features/courses/weekBlocks/SourceCard.tsx", "a person's own note, in their own box under a source"],
+        ["src/lib/courses/leftView.ts", "a person's own notes, on their own notes page"],
+        ["src/lib/courses/facilitatorWeek/readers.ts", "the one reader of somebody else's note: a group's facilitators and admins, after the page's gate"],
+      ]),
+      "reading a private note",
+      "The policy says a private note is read by its writer, the group's facilitators and admins, and nobody else. A new reader is a new sentence.",
+    );
+    // The pages that read a group's week, each behind its own gate (the
+    // group's: a live facilitator or an admin; the lead's: the programme's
+    // lead or an admin, from the form).
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\b(?:loadGroupWeek|loadReadOutWeek)\(/),
+      new Map([
+        ["src/lib/courses/facilitatorWeek/readers.ts", "the two loaders, which ask nobody who is reading, so each caller decides that first"],
+        ["src/app/(app)/learn/[runId]/group/[groupId]/page.tsx", "the group's page, for its live facilitators and admins"],
+        ["src/app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx", "the page to read lines out, for the group's live facilitators and admins"],
+        ["src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week/page.tsx", "the lead's view of a group's week, for the programme's lead and admins"],
+        ["src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections/page.tsx", "the lead's reading of a group's reflections, for the programme's lead and admins"],
+      ]),
+      "reading a group's reflections and ticks",
+      "The policy says a person's reflections and ticks are read by their group's facilitators, the programme's lead and admins. A new reader is a new sentence.",
+    );
+
+    // "The week's page says so": the lines under the boxes and the sources,
+    // run, and the page that draws them.
+    const memberWords = await loadTs("lib/courses/memberPageWords.ts");
+    assert.equal(memberWords.reflectionsReadByWords(["Rahul", "Sofia"], "Claudia"), "Rahul, Sofia, Claudia and admins can read your reflections. Other fellows can’t.");
+    assert.equal(memberWords.ticksSeenByWords(["Rahul", "Sofia"], "Claudia"), "Rahul, Sofia, Claudia and admins can see which sources you tick.");
+    assert.equal(memberWords.facilitatorReflectionsReadByWords("Claudia"), "Only Claudia and admins can read your reflections.");
+    assert.equal(memberWords.facilitatorTicksSeenByWords("Claudia"), "Only Claudia and admins can see which sources you tick.");
+    assert.equal(memberWords.PRIVATE_NOTE_HINT, "Only your facilitators and admins see this. It’s never read out.");
+    assert.equal(memberWords.PRIVATE_NOTE_HINT_FACILITATOR, "Only admins see this. It’s never read out.");
+    const blockWeek = withoutComments(read("src/features/courses/weekBlocks/BlockWeek.tsx"));
+    assert.match(blockWeek, /: ticksSeenByWords\(facilitatorNames, leadFirstName\),/);
+    assert.match(blockWeek, /privateNoteHint: asFacilitator \? PRIVATE_NOTE_HINT_FACILITATOR : PRIVATE_NOTE_HINT,/);
+
+    // "A tick never counts against you": nothing that decides who finished
+    // reads a tick. "Reflections get no feedback and no mark": the verdict
+    // route reads a reflection as no row.
+    assert.deepEqual(
+      sourceFilesNaming(/["'`]courseProgress["'`]/).filter((file) => file.startsWith("src/lib/courses/finishing/")),
+      [],
+      "who finished now reads ticks, so a tick can count against somebody",
+    );
+    assert.match(withoutComments(read("src/app/api/courses/exercise-responses/[responseId]/review/route.ts")), /isReflectionResponse\(/);
+
+    // tests/course-hub-facilitator-week.test.mjs runs each page as every kind
+    // of caller, and holds every reader of the progress store to a list.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-hub-facilitator-week.test.mjs")), "tests/course-hub-facilitator-week.test.mjs is gone");
   });
 
   test("who finished: the number is shown to the programme's lead and admins, and a member is told only whether they finished", () => {

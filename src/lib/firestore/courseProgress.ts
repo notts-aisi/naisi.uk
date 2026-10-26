@@ -48,7 +48,12 @@ export type CourseProgressDoc = {
    * `buildProgressWrite` and the rules, so they can never disagree.
    */
   hasPublicComment: boolean;
-  /** Visible to facilitators + admins only. Plain text. */
+  /**
+   * Read by the group's facilitators and admins (a facilitator's own note by
+   * admins alone), on the group page through
+   * `src/lib/courses/facilitatorWeek/readers.ts`; never by the programme's
+   * lead, never read out. Plain text.
+   */
   privateNote?: string;
   /**
    * Set by the admin moderation route when a public comment is hidden.
