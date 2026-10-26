@@ -159,6 +159,16 @@
   border-radius: var(--radius-sm);
 }
 
+/* In place of the way out, for somebody who has none here and is told why. */
+.footNote {
+  margin: 0;
+  max-width: 40rem;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
 /* === The bar over a page on a phone: back, and what the page is === */
 
 .bar {

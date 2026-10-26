@@ -60,6 +60,13 @@ export type AllocGroup = {
   sessionLabel: string;
   /** NAMES ONLY — no uids to resolve, no users read from this surface. */
   facilitatorNames: string[];
+  /**
+   * The same facilitators by uid, as the payload has always carried them,
+   * matched only against a card's own uid: a facilitator who holds a place
+   * sits in the group they facilitate, and their card says so. Never
+   * resolved to anything here.
+   */
+  facilitatorUids: string[];
   memberCount: number;
   /**
    * ── THE AUTONOMY TRIPLE (V2-3) ────────────────────────────────────────────

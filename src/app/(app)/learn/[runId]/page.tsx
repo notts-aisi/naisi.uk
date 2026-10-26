@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { leavePathFor } from "@/lib/courses/leaving";
+import { leaveClosedLine } from "@/lib/courses/leavingWords";
 import { loadLeftView } from "@/lib/courses/leftView";
 import { pitchingCard } from "@/lib/courses/pitching/load";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -102,13 +103,14 @@ export default async function RunHomePage({
   // is over: the same rule the leave route asks (`leavePathFor`), so the link
   // is drawn exactly where the press works.
   const own = access.enrolment;
-  const canLeave =
-    access.isEnrolled &&
-    own !== null &&
-    own.role === "learner" &&
-    own.status === "active" &&
-    db !== undefined &&
-    "path" in (await leavePathFor(db, access.run, access.user.uid, new Date()));
+  const leave =
+    access.isEnrolled && own !== null && own.role === "learner" && own.status === "active" && db !== undefined
+      ? await leavePathFor(db, access.run, access.user.uid, new Date())
+      : null;
+  const canLeave = leave !== null && "path" in leave;
+  // A facilitator who holds a place is told why there is no way out here,
+  // and who gives them one.
+  const leaveNote = leave !== null && "closed" in leave && leave.closed === "facilitating" ? leaveClosedLine(leave, access.run.courseTitle) : null;
 
   // "About this course" (wk-programme): the programme's Start here and
   // Glossary, each linked when the run has it; nothing for a run with neither.
@@ -121,6 +123,7 @@ export default async function RunHomePage({
       canEmailCohort={canEmailCohort}
       pitching={pitching}
       canLeave={canLeave}
+      leaveNote={leaveNote}
       uid={access.user.uid}
       {...(guide ? { guide } : {})}
     />

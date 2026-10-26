@@ -1516,6 +1516,55 @@ application form wrote is placed only by an admin or the programme's lead,
 so a track lead adding that person saves nothing. Taking a facilitator off a
 group leaves their place where it is.
 
+Everywhere else the hub treats them as both:
+
+- **The board** places them in the group they facilitate and no other, and
+  will not move them to another group while they facilitate theirs (the
+  refusal's reason is `facilitates-another-group`): change who facilitates
+  first, on the Facilitators view, then move them. Somebody made a
+  facilitator before anybody placed them has a facilitator's row; the
+  board's placement turns it into their learner's row, on the group's clock
+  and counted. Their card says "Facilitates Group A", and warns when it sits
+  anywhere else.
+- **Publish** sends them both of its emails: "placed in a group", which
+  names the group's other facilitators and never them (or leaves that line
+  out when there is nobody else), and "You're facilitating", which counts
+  the group's people as their roster shows them, themselves included. The
+  button counts every email.
+- **The register** lists them with the group's people. Whoever takes the
+  register marks them, a co-facilitator or they themselves while they run
+  the session; the lead reads it and marks nothing.
+- **Who finished** lists and counts them like everybody in the group, and
+  they are sent both certificates once those are built.
+- **Their own coursework** is read and reviewed by the programme's lead and
+  admins, and by nobody who facilitates, themselves included: one rule that
+  every kind of answer asks (`facilitatesOnRun` and
+  `readsFacilitatorsOwnWork` in `src/lib/courses/writtenAnswers/access.ts`).
+  The lead gives feedback on a written answer from the Attendance tab's
+  Written answers card. The summer's review queue and the group page's To
+  review leave their exercise answers out for everybody else who
+  facilitates, and the review route refuses everybody else's verdict.
+- **Leaving and Remove**: while they facilitate a live group of the run,
+  "Leave the programme" and "I can't make it" are refused with one sentence,
+  their programme page says it where the way out would be, and Remove is
+  refused too. The programme's lead or an admin takes them off the group's
+  facilitators first (their place stays), and then they leave or are
+  removed like anybody else.
+- **The hub and Home**: the hub reads the facilitator role off the groups
+  that name them as well as off their row, so their run carries both roles
+  and Home is the facilitator's Home, with one line to their own week on
+  the programme's page. Before Publish tells them their own place, their
+  run reaches them as any facilitator's does, with no seat on it.
+- **Writing to the group**: the group email and the group notice go to
+  everybody in the group but whoever sends them, so a facilitator who holds
+  a place is never sent their own message.
+- **The week pages** open every published week to them, as to any
+  facilitator (they run the sessions), and their own ticks and answers are
+  recorded through their learner's row.
+- **A run anyone can join**: they keep the session they run. Changing it is
+  refused while they facilitate a live group of the run (changing stream
+  within it is not); staff take them off the group's facilitators first.
+
 ### Asking
 
 "Ask to facilitate…" picks the group and the day and time to answer by,

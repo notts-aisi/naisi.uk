@@ -98,7 +98,25 @@ const READS_WITHOUT_A_LIST = new Map([
     {
       why:
         "Reached through Remove on People in groups, which asks leaving's own answer where a seat's place on the " +
-        "form came from: it reads a run's groups only to find when the run's last session ends, and lists none of them.",
+        "form came from: it reads a run's groups only to find when the run's last session ends and whether the " +
+        "person facilitates one of them (a facilitator who holds a place is stood down first), and lists none of them.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/allocate/route.ts",
+    {
+      why:
+        "A placement reads the run's groups in its transaction only to find who facilitates which live group, so a " +
+        "facilitator who holds a place is placed in their own group and no other. It lists none of them.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts",
+    {
+      why:
+        "Remove reads the run's groups in its transaction only to find whether the person facilitates one, so a " +
+        "facilitator who holds a place is taken off its facilitators first. It names that one group in a sentence " +
+        "and lists none.",
     },
   ],
 ]);

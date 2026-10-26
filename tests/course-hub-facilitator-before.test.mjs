@@ -160,6 +160,26 @@ describe("2. only the group's own facilitators", () => {
     });
   });
 
+  test("a facilitator who holds a place is handed the list of everybody else in the group, and is on their co-facilitators' list", async () => {
+    await told();
+    // Amara, placed in Group B and told, becomes one of its facilitators too:
+    // a facilitator who holds a place is one of the group's people.
+    w.world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia", "amara"] });
+    assert.deepEqual((await summary("amara")).body.whosComing, [
+      { firstName: "Dev", coming: false },
+      { firstName: "Kofi", coming: true },
+      { firstName: "Sam", coming: false },
+    ]);
+    const drawn = await home("amara", "Amara");
+    assert.ok(drawn.text.includes("Who’s coming 1 of 3 said they’re coming. Dev and Sam haven’t said."), drawn.text);
+    assert.doesNotMatch(drawn.html, /Amara<span class="srOnly">/, "Amara is told whether Amara is coming");
+    // To Rahul, Amara is one of the group's people like anybody in it.
+    assert.deepEqual(
+      (await summary("rahul")).body.whosComing.map((person) => person.firstName),
+      ["Amara", "Dev", "Kofi", "Sam"],
+    );
+  });
+
   test("a facilitator of another group is handed their own group's list, and never this one's", async () => {
     await told();
     const own = (await summary("tom", C)).body.whosComing.map((person) => person.firstName);
@@ -320,9 +340,14 @@ describe("5. one reading of the reply", () => {
   test("the course side reads an application for a facilitator in one place", () => {
     const source = readFileSync(join(SRC, "app", "api", "courses", "groups", "[groupId]", "summary", "route.ts"), "utf8");
     // Who is asked, and when: a facilitator, before the first session's day,
-    // about the people the facilitator's own view of the group lists.
+    // about the people the facilitator's own view of the group lists, but the
+    // reader (a facilitator who holds a place is one of them, and is not told
+    // about themselves; the test of a facilitator who holds a place runs it).
     assert.match(source, /!isAdmin && isBeforeFirstSessionDay\(firstSessionDayOf\(run, group, now\), now\)/);
-    assert.match(source, /model\.people\.map\(\(person\) => \(\{ uid: person\.uid, firstName: person\.firstName \}\)\)/);
+    assert.match(
+      source,
+      /model\.people\s*\.filter\(\(person\) => person\.uid !== actor\.uid\)\s*\.map\(\(person\) => \(\{ uid: person\.uid, firstName: person\.firstName \}\)\)/,
+    );
     // And what leaves: a first name and a yes or a no, field by field.
     assert.match(source, /whosComing\.map\(\(person\) => \(\{ firstName: person\.firstName, coming: person\.coming \}\)\)/);
   });

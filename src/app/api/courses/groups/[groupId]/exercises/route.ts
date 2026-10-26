@@ -9,6 +9,12 @@ import {
 } from "@/lib/firestore/courseEnrolments";
 import { isOwnBoxResponse, normalizeExerciseResponse } from "@/lib/firestore/courseExercises";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
+import {
+  facilitatesOnRun,
+  liveGroupsOf,
+  readsFacilitatorsOwnWork,
+  reviewerFactsOf,
+} from "@/lib/courses/writtenAnswers/access";
 import { isWordCountedAnswer } from "@/lib/courses/writtenAnswers/model";
 import { weekDocId } from "@/lib/firestore/courses";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
@@ -55,6 +61,12 @@ import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exerci
  * placement is the board's until Publish emails the person their group
  * (`placementIsShownTo`): before then they are not a row here, and
  * `notYetTold` says that somebody is waiting.
+ *
+ * A FACILITATOR'S OWN WORK only for whoever the one rule lets read it
+ * (`facilitatesOnRun` and `readsFacilitatorsOwnWork` in
+ * `src/lib/courses/writtenAnswers/access.ts`): somebody who facilitates a
+ * live group of the run is a row here only for the programme's lead and
+ * admins, and never for themselves.
  */
 
 // ---------------------------------------------------------------------------
@@ -284,7 +296,20 @@ export async function GET(
     .filter((e) => Boolean(e.uid));
   // Somebody Publish has not told is not a row for anybody but an admin.
   const shown = placed.filter((e) => placementIsShownTo(e, { isAdmin }));
-  const memberUids = shown.map((e) => e.uid);
+  // NOR IS A FACILITATOR'S OWN WORK, for anybody the one rule keeps it from.
+  // A facilitator who holds a place does the group's coursework as one of its
+  // fellows, and their answers are read and reviewed by the programme's lead
+  // and admins (the review route asks the same rule), never by a
+  // co-facilitator and never by themselves. The caller's standing is read
+  // only when somebody listed facilitates.
+  const liveGroups = await liveGroupsOf(db, group.runId);
+  const facts = shown.some((e) => facilitatesOnRun(e.uid, liveGroups))
+    ? await reviewerFactsOf(db, actor, group.runId)
+    : null;
+  const ownWork = shown.filter(
+    (e) => !facilitatesOnRun(e.uid, liveGroups) || (facts !== null && readsFacilitatorsOwnWork(actor, facts, e.uid)),
+  );
+  const memberUids = ownWork.map((e) => e.uid);
   const memberSet = new Set(memberUids);
 
   const writtenIds = new Set(

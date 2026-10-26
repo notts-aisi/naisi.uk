@@ -29,6 +29,16 @@ import type { CourseRunDoc } from "@/lib/firestore/courses";
  * finished record, and nothing after the end gives a place on the form back.
  * A run whose sessions cannot be dated is never over, so it can still be left.
  *
+ * A FACILITATOR WHO HOLDS A PLACE IS TAKEN OFF THE GROUP'S FACILITATORS FIRST.
+ * They sit in the group they facilitate and run its sessions, so leaving by
+ * themselves would leave a group nobody had arranged cover for. As a
+ * facilitator's own seat on a run has always been stood down by staff
+ * (`SEAT_REFUSALS.facilitator` in `./leaveRun.ts`), so is a facilitator's
+ * place: the programme's lead or an admin takes them off the group's
+ * facilitators (which leaves their place where it is), and then they can
+ * leave like anybody else. Asked of the run's live groups, which this
+ * already reads for when the run ends.
+ *
  * TWO DOORS, ONE LEAVE. Somebody leaves from their programme page ("Leave the
  * programme", the enrol route's `DELETE`), and somebody in a group Publish
  * has told them about who replies "I can’t make it" on their application page
@@ -53,8 +63,12 @@ export type LeavePath =
  * The answer: the way out, or why there is none.
  *  - `not-theirs`: no seat they can leave themselves.
  *  - `ended`: the run's last session is over.
+ *  - `facilitating`: they facilitate `groupName`, one of the run's live groups.
  */
-export type LeaveAnswer = { path: LeavePath } | { closed: "not-theirs" | "ended" };
+export type LeaveAnswer =
+  | { path: LeavePath }
+  | { closed: "not-theirs" | "ended" }
+  | { closed: "facilitating"; groupName: string };
 
 /** The seat's way out, whatever the clock says, or null for a seat that is not theirs to leave. */
 async function wayOut(db: Firestore, run: Pick<CourseRunDoc, "id" | "enrolMode">, uid: string): Promise<LeavePath | null> {
@@ -70,24 +84,27 @@ async function wayOut(db: Firestore, run: Pick<CourseRunDoc, "id" | "enrolMode">
 }
 
 /**
- * Whether the run's last session is over: who finished's own answer
- * (`runEndOf`) over the run's live groups, read with one equality on the
- * run's groups. Read here rather than through who finished's record module
- * because the person's own application page asks it too, and nothing that
- * builds an applicant's page loads the staff side's modules.
+ * The run's live groups, read with one equality on the run's groups: what
+ * says whether its last session is over (who finished's own answer,
+ * `runEndOf`) and who facilitates which group. Read here rather than through
+ * who finished's record module because the person's own application page
+ * asks it too, and nothing that builds an applicant's page loads the staff
+ * side's modules.
  */
-async function runIsOver(db: Firestore, run: CourseRunDoc, now: Date): Promise<boolean> {
+async function liveGroupsOfRun(db: Firestore, run: CourseRunDoc) {
   const snap = await db.collection("courseGroups").where("runId", "==", run.id).get();
-  const groups = liveGroupsOf(
+  return liveGroupsOf(
     run.id,
     snap.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})),
   );
-  return runEndOf(run, groups, now).over;
 }
 
 export async function leavePathFor(db: Firestore, run: CourseRunDoc, uid: string, now: Date): Promise<LeaveAnswer> {
   const path = await wayOut(db, run, uid);
   if (!path) return { closed: "not-theirs" };
-  if (await runIsOver(db, run, now)) return { closed: "ended" };
+  const groups = await liveGroupsOfRun(db, run);
+  if (runEndOf(run, groups, now).over) return { closed: "ended" };
+  const facilitated = groups.find((group) => group.facilitatorUids.includes(uid));
+  if (facilitated) return { closed: "facilitating", groupName: facilitated.name.trim() || "a group" };
   return { path };
 }

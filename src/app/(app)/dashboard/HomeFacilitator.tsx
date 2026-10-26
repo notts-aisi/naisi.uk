@@ -18,8 +18,10 @@ import {
   NOBODY_IN_GROUP,
   NO_MORE_SESSIONS,
   OPEN_YOUR_GROUP,
+  OPEN_YOUR_PROGRAMME,
   REVIEW,
   SAY_HELLO,
+  TAKING_PART_TOO,
   TAKE_THE_REGISTER,
   THIS_WEEK,
   WHOS_COMING,
@@ -398,6 +400,17 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
               You facilitate {groups.length} groups. This is the one that meets next.{" "}
               <Link href={runHref} className={styles.inlineLink}>
                 See them all
+              </Link>
+            </p>
+          )}
+
+          {/* A facilitator who holds a place does the course too: Home leads
+              with the group they run, and their own week is a tap away. */}
+          {entry.roles.includes("learner") && (
+            <p className={styles.quiet}>
+              {TAKING_PART_TOO}{" "}
+              <Link href={runHref} className={styles.inlineLink}>
+                {OPEN_YOUR_PROGRAMME}
               </Link>
             </p>
           )}

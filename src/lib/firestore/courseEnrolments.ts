@@ -30,6 +30,16 @@ export const ENROLMENT_STATUS_LABEL: Record<CourseEnrolmentStatus, string> = {
 /**
  * Facilitators get a `role: "facilitator"` enrolment when assigned to a
  * group, so "every run you touch" on /learn is one query over enrolments.
+ *
+ * A FACILITATOR WHO HOLDS A PLACE on the run is one of its fellows too, and
+ * their row is a LEARNER'S: their place, in the group they facilitate,
+ * counted, marked on its register and counted towards who finished like
+ * everybody else's. Their facilitating lives on the group
+ * (`courseGroups.facilitatorUids`), never on the row. Still one row per
+ * person per run: somebody made a facilitator before anybody placed them has
+ * a facilitator's row, and the board's placement turns that row into their
+ * learner's (`POST /api/courses/runs/[runId]/allocate`), in the group they
+ * facilitate and no other.
  */
 export type CourseEnrolmentRole = "learner" | "facilitator";
 

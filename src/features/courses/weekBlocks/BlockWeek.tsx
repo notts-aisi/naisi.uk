@@ -289,6 +289,14 @@ export default function BlockWeek({
     overviewWeek?.thisWeek?.answersReadBy === "lead"
       ? { kind: "lead", leadName: leadFirstName }
       : { kind: "facilitators", names: facilitatorNames };
+  // Whose work this is, for the lines under the boxes and the ticks: a
+  // facilitator's own work is read by the programme's lead and admins and
+  // never by a co-facilitator (`readsFacilitatorsOwnWork`), and nobody
+  // running the session reads it out. That is a facilitator with no place
+  // (`asFacilitator`), and a facilitator who holds a place, who takes part
+  // through their learner's row in the group they facilitate: the overview
+  // says the caller facilitates a group of the run (`answersReadBy`).
+  const ownWorkIsTheLeads = asFacilitator || overviewWeek?.thisWeek?.answersReadBy === "lead";
   const answerDue = new Map((overviewWeek?.thisWeek?.answers ?? []).map((answer) => [answer.id, answer.due]));
   /**
    * This week's line for a task that covers a written answer: "Draft · 241
@@ -483,16 +491,16 @@ export default function BlockWeek({
                 ownRows,
                 firstStopId,
                 firstSourceId,
-                readers: asFacilitator
+                readers: ownWorkIsTheLeads
                   ? { access: facilitatorReflectionsReadByWords(leadFirstName), readOut: null }
                   : {
                       access: reflectionsReadByWords(facilitatorNames, leadFirstName),
                       readOut: readOutWords(facilitatorNames),
                     },
-                ticksLine: asFacilitator
+                ticksLine: ownWorkIsTheLeads
                   ? facilitatorTicksSeenByWords(leadFirstName)
                   : ticksSeenByWords(facilitatorNames, leadFirstName),
-                privateNoteHint: asFacilitator ? PRIVATE_NOTE_HINT_FACILITATOR : PRIVATE_NOTE_HINT,
+                privateNoteHint: ownWorkIsTheLeads ? PRIVATE_NOTE_HINT_FACILITATOR : PRIVATE_NOTE_HINT,
                 canRate: !beforeGroups,
                 answer: {
                   readers: answerReaders,

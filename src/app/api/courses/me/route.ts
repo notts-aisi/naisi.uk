@@ -31,7 +31,7 @@ import {
  * "Every run you touch" — the payload behind the `/learn` hub.
  *
  * WHO MAY READ: any signed-in caller, about THEMSELVES only. There is no uid
- * parameter and no way to ask about someone else: the four queries below are
+ * parameter and no way to ask about someone else: the five queries below are
  * each scoped to `actor.uid`, so the route is enumeration-safe by construction.
  *
  * Five ways a run reaches this list, merged into one row per run because one
@@ -40,7 +40,14 @@ import {
  *
  *   learner / facilitator  — a `courseEnrolments` row (facilitators get one
  *                            when they are staffed onto a group, which is why
- *                            "every run you touch" is ONE enrolment query)
+ *                            "every run you touch" is ONE enrolment query).
+ *                            A facilitator who HOLDS A PLACE has a learner's
+ *                            row instead and facilitates through the group,
+ *                            so `facilitator` is also read off the groups
+ *                            that name them (`facilitatorUids`, one
+ *                            array-contains, the automatic index), and Home
+ *                            gives them the facilitator's Home as it gives
+ *                            anybody who facilitates
  *   reviewer               — named in `courseRuns.admissionsReviewerUids`
  *   lead                   — named in `courseRuns.trackLeadUids`
  *   offered / waitlisted   — a decided `courseApplications` row with no seat
@@ -313,7 +320,7 @@ export async function GET() {
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
-  // Four scoped queries, one per way a run can reach the hub. `withdrawn` and
+  // Five scoped queries, one per way a run can reach the hub. `withdrawn` and
   // `removed` enrolments are excluded at the query: leaving a run removes it
   // from your hub, and the composite (uid, status) index makes that free.
   // `completed` stays — a finished cohort is history you can still open.
@@ -323,7 +330,7 @@ export async function GET() {
   // want a (uid, status) composite index this collection does not have, and
   // the rows are the CALLER'S OWN — a member holds one per run they ever
   // applied to, so the whole set is a handful of documents whatever the term.
-  const [enrolSnap, reviewerSnap, leadSnap, applicationSnap] = await Promise.all([
+  const [enrolSnap, reviewerSnap, leadSnap, applicationSnap, facilitatedSnap] = await Promise.all([
     db
       .collection("courseEnrolments")
       .where("uid", "==", actor.uid)
@@ -345,7 +352,13 @@ export async function GET() {
       .where("uid", "==", actor.uid)
       .limit(50)
       .get(),
+    db
+      .collection("courseGroups")
+      .where("facilitatorUids", "array-contains", actor.uid)
+      .limit(50)
+      .get(),
   ]);
+
 
   // THE SAME FLOOR THE RUN ROUTES APPLY. An enrolment row is an authority the
   // allocation and facilitators routes wrote for an approved account, and
@@ -355,6 +368,20 @@ export async function GET() {
   const standing: CourseEnrolmentDoc[] = enrolSnap.docs
     .map((d) => normalizeCourseEnrolment(d.id, d.data() ?? {}))
     .filter((e) => isNamedWithStanding(actor, "courseEnrolments.uid", e.uid));
+
+  // The runs whose live groups name the caller as a facilitator, while the
+  // account still stands behind the role (the same question every page
+  // under /learn asks, `runAccess.ts`), on a run they have a row on, told or
+  // not: an appointment always writes one, so this adds the role to a
+  // facilitator who holds a place (a learner's row) and to nobody else.
+  const rowRunIds = new Set(standing.map((e) => e.runId));
+  const facilitatedRunIds = new Set<string>();
+  for (const doc of facilitatedSnap.docs) {
+    const group = normalizeCourseGroup(doc.id, doc.data() ?? {});
+    if (group.archived || !group.runId || !rowRunIds.has(group.runId)) continue;
+    if (!isNamedWithStanding(actor, "courseGroups.facilitatorUids", group.facilitatorUids)) continue;
+    facilitatedRunIds.add(group.runId);
+  }
   // A placement Publish has not told its owner about is passed over here,
   // whatever else is true of it: see the note at the top. Its run is
   // remembered only so that the offer probe below does not read the seat as
@@ -405,7 +432,7 @@ export async function GET() {
   }
   const missingRunIds = [
     ...new Set(
-      [...enrolments.map((e) => e.runId), ...offerRunIds].filter(
+      [...enrolments.map((e) => e.runId), ...offerRunIds, ...facilitatedRunIds].filter(
         (id) => id && !runById.has(id),
       ),
     ),
@@ -472,6 +499,14 @@ export async function GET() {
     const entry = ensure(run);
     entry.enrolment = enrolment;
     entry.roles.add(enrolment.role === "facilitator" ? "facilitator" : "learner");
+  }
+  // A facilitator who holds a place: their row says learner, their groups
+  // say facilitator, and they are both. Before Publish tells them their own
+  // place, the run reaches them as any facilitator's does, with no seat on
+  // the row.
+  for (const runId of facilitatedRunIds) {
+    const run = runById.get(runId);
+    if (run) ensure(run).roles.add("facilitator");
   }
   // BEING NAMED IS NOT THE SAME AS STILL HOLDING THE ROLE. Nothing rewrites
   // either array when an account is demoted or rejected, so the hub asks the

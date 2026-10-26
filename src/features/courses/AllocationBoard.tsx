@@ -50,7 +50,7 @@ import {
   type AllocRow,
   type Placement,
 } from "./useAllocation";
-import { GAVE_PLACE_BACK, cardFit, type CardFit } from "./allocationFit";
+import { GAVE_PLACE_BACK, cardFit, facilitatedGroupOf, facilitatesWords, type CardFit } from "./allocationFit";
 import { boardTally, poolRowIsToPlace, rowHasLeft } from "./allocationTally";
 import styles from "./AllocationBoard.module.css";
 
@@ -256,6 +256,12 @@ type CardFacts = {
    * form placed here, who painted a week instead. See `allocationFit.ts`.
    */
   fit: CardFit;
+  /**
+   * The group they facilitate, for somebody who holds a place and runs a
+   * group too, or null. The card says so, and warns when the card sits
+   * anywhere but that group.
+   */
+  facilitates: AllocGroup | null;
 };
 
 /**
@@ -276,6 +282,7 @@ function cardFacts(
   const facilitator = row.reviewerPreferredFacilitatorName;
   const fit = cardFit(row, group, [...groupsById.values()]);
   return {
+    facilitates: facilitatedGroupOf(row.uid, [...groupsById.values()]),
     row,
     group,
     fit,
@@ -323,6 +330,17 @@ function PersonCardBody({
         <div className={styles.chips}>
           <Badge tone={row.enrolmentStatus === "removed" ? "danger" : "neutral"}>
             {row.enrolmentStatus === "removed" ? "Removed" : "Withdrawn"}
+          </Badge>
+        </div>
+      ) : null}
+
+      {/* Somebody who holds a place and facilitates a group sits in that
+          group: the board places them there and nowhere else. Warned when
+          the card is anywhere but there. */}
+      {facts.facilitates ? (
+        <div className={styles.chips}>
+          <Badge tone={facts.group?.id === facts.facilitates.id ? "neutral" : "warning"}>
+            {facilitatesWords(facts.facilitates.name || "a group")}
           </Badge>
         </div>
       ) : null}

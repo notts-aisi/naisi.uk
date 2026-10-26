@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser, type SessionUser } from "@/lib/firebase/session";
+import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { enrolWindow, isEnrolOpen } from "@/lib/courses/enrolWindow";
 import { joinedWeekFor } from "@/lib/courses/groupResolve";
@@ -595,6 +596,14 @@ async function subscribeToCohort(db: Db, runId: string, user: SessionUser) {
  * sign-ups", and someone already holding a seat swapping Tuesday for Thursday
  * is not a new sign-up.
  */
+/**
+ * NOT DRAWN. A session change from a facilitator who holds a place on an open
+ * run: they run their group's sessions, so staff change which group that is.
+ */
+function facilitatingSessionError(groupName: string): string {
+  return `You facilitate ${groupName}, so your session is the one you run. Ask an admin to change which group you facilitate.`;
+}
+
 export async function PATCH(req: Request, ctx: Ctx) {
   const blocked = await assertNotImpersonating();
   if (blocked) return blocked;
@@ -644,11 +653,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
   try {
     await db.runTransaction(async (tx) => {
-      const [runSnap, targetSnap, existingSnap] = await tx.getAll(
-        db.collection("courseRuns").doc(runId),
-        targetRef,
-        enrolmentRef,
-      );
+      const [[runSnap, targetSnap, existingSnap], runGroupsSnap] = await Promise.all([
+        tx.getAll(db.collection("courseRuns").doc(runId), targetRef, enrolmentRef),
+        // Who facilitates the run's groups: one equality on one field.
+        tx.get(db.collection("courseGroups").where("runId", "==", runId)),
+      ]);
 
       if (!runSnap.exists) throw new EnrolError("Course run not found.", 404);
       const freshRun = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
@@ -692,6 +701,21 @@ export async function PATCH(req: Request, ctx: Ctx) {
       streamId = stream.streamId;
 
       const movingGroup = row.groupId !== groupId;
+
+      // A FACILITATOR WHO HOLDS A PLACE SITS IN THE GROUP THEY FACILITATE:
+      // their session is the one they run, and only staff change which group
+      // that is. Changing stream within it is still theirs to do.
+      const facilitated = runGroupsSnap.docs
+        .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
+        .find(
+          (each) =>
+            each.runId === runId &&
+            !each.archived &&
+            isNamedWithStanding(user, "courseGroups.facilitatorUids", each.facilitatorUids),
+        );
+      if (movingGroup && facilitated) {
+        throw new EnrolError(facilitatingSessionError(facilitated.name.trim() || "a group"), 409);
+      }
 
       // Capacity is only asked when the seat is actually new. Re-saving the
       // same session to change stream must not be refused by the group the
@@ -829,7 +853,7 @@ export async function DELETE(req: Request, ctx: Ctx) {
   // over; anybody else asks the team.
   const answer = await leavePathFor(db, run, user.uid, now);
   if ("closed" in answer) {
-    return NextResponse.json({ error: leaveClosedLine(answer.closed, run.courseTitle) }, { status: 409 });
+    return NextResponse.json({ error: leaveClosedLine(answer, run.courseTitle) }, { status: 409 });
   }
 
   // An unnamed course cannot be confirmed by name: with an empty title the

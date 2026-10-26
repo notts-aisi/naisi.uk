@@ -103,12 +103,27 @@ export function endedNothingToLeave(name: string): string {
 }
 
 /**
+ * NOT DRAWN. Leaving, for a facilitator who holds a place: the programme's
+ * lead or an admin takes them off the group's facilitators first, which
+ * leaves their place where it is, and then they can leave. Written in the
+ * boards' voice; said on their programme's page where the way out would be,
+ * and by both doors' refusals.
+ */
+export function facilitatingCantLeave(groupName: string): string {
+  return `You facilitate ${groupName}, so you can’t leave the programme here. Ask the programme’s lead or an admin to take you off its facilitators first, then you can leave.`;
+}
+
+/**
  * What a press is answered with when leaving is closed to this person
- * (`leavePathFor`'s `closed`), the same from both doors. `courseTitle` is the
+ * (`leavePathFor`'s answer), the same from both doors. `courseTitle` is the
  * run's, as stored.
  */
-export function leaveClosedLine(closed: "ended" | "not-theirs", courseTitle: string): string {
-  return closed === "ended" ? endedNothingToLeave(courseTitle.trim() || "This programme") : NOT_YOURS_TO_LEAVE;
+export function leaveClosedLine(
+  answer: { closed: "ended" | "not-theirs" } | { closed: "facilitating"; groupName: string },
+  courseTitle: string,
+): string {
+  if (answer.closed === "facilitating") return facilitatingCantLeave(answer.groupName);
+  return answer.closed === "ended" ? endedNothingToLeave(courseTitle.trim() || "This programme") : NOT_YOURS_TO_LEAVE;
 }
 
 /** Said when the press could not reach the site at all. */
