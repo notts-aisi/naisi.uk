@@ -355,6 +355,18 @@ const ROUND_SURFACES = {
       "one programme's Groups tab, its Facilitators view. It reaches the round only through loadProgrammeRun, which " +
       "starts from the form's own loader and answers 'none' for a round that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections": {
+    kind: "form",
+    why:
+      "the lead's and admins' reading of one group's reflections. It reaches the round only through openLeadDoor, " +
+      "which calls loadProgrammeRun, starting from the form's own loader and answering 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week": {
+    kind: "form",
+    why:
+      "the lead's and admins' view of one group's week. It reaches the round only through openLeadDoor, which calls " +
+      "loadProgrammeRun, starting from the form's own loader and answering 'none' for a round that is not a form",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance": {
     kind: "form",
     why:

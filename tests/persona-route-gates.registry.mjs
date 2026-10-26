@@ -2882,6 +2882,23 @@ export const PAGES = {
       "those admitted, an application that is missing or not theirs to read renders the " +
       "page's own calm not-here state as ordinary HTML, with a 200.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the page's own door (openLeadDoor, decided from the form before the " +
+      "run is read): a group's reflections, its facilitators' own among them, are the programme's lead's and " +
+      "an admin's to read here, so a reviewer on the form is told the page is theirs, and a programme the caller " +
+      "has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the page's own door (openLeadDoor, decided from the form before the " +
+      "run is read): a group's week, who ticked each source by name and its facilitators' own work, is the " +
+      "programme's lead's and an admin's to read here, so a reviewer on the form is told the page is theirs, " +
+      "and a programme the caller has no role on, or one that does not exist, renders 'there is no programme " +
+      "here' with a 200.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
     why:
@@ -3162,6 +3179,13 @@ export const PAGES = {
     why:
       "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
       "missing, and the page's own gate (the register's: a live facilitator of the group, or an admin) " +
+      "sends everybody else to the run's home.",
+  },
+  "/(app)/learn/[runId]/group/[groupId]/reflections": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
+      "missing, and the page's own gate (the group page's: a live facilitator of the group, or an admin) " +
       "sends everybody else to the run's home.",
   },
   "/(app)/learn/[runId]/group/[groupId]/review": {
