@@ -1668,6 +1668,17 @@ service cloud.firestore {
           && request.resource.data.get('archived', false)
             == resource.data.get('archived', false);
       }
+      // When written work set for "the day before" a session is due
+      // (CourseDoc.dayBeforeDueTime in src/lib/firestore/courses.ts): absent
+      // or null for the end of that day, or a London time "HH:MM" from 00:00
+      // to 23:59, the one shape isClockTime reads. Held for every writer,
+      // admins included, so a stored value is always one the readers take;
+      // the course editor writes null or a time and nothing else.
+      function courseDayBeforeOk() {
+        return request.resource.data.get('dayBeforeDueTime', null) == null
+          || (request.resource.data.dayBeforeDueTime is string
+              && request.resource.data.dayBeforeDueTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$'));
+      }
 
       // ---- V3 W3 PR20: draft reads ---------------------------------------
       // A DRAFT course is staff-only. Every other status (published,
@@ -1731,9 +1742,10 @@ service cloud.firestore {
         // its first real destroy.
         && request.resource.data.get('destroying', false) == false
         && request.resource.data.get('destroyAuditId', '') == ''
-        && request.resource.data.get('archived', false) == false;
+        && request.resource.data.get('archived', false) == false
+        && courseDayBeforeOk();
 
-      allow update: if isAdmin()
+      allow update: if courseDayBeforeOk() && (isAdmin()
         || (
           (canApproveCourse() || isCourseCollaborator()
             || (canDraftCourse() && isOwnCourse()))
@@ -1752,7 +1764,7 @@ service cloud.firestore {
             request.resource.data.status == resource.data.status
             || canApproveCourse()
           )
-        );
+        ));
 
       // Deletion cascades runs/weeks/groups/progress — far too much blast
       // radius for a client write. The destroy routes (Admin SDK) own it:
@@ -2243,6 +2255,20 @@ service cloud.firestore {
             || (isSignedIn() && request.auth.uid in run().get('trackLeadUids', [])
                 && isApprovedAccount());
         }
+        // A week's blocks and its Ready are the server's, for every writer,
+        // admins included. The blocks route reads a paste against the answers
+        // people have given (rows no browser may read) and holds the blocks to
+        // weekBlocksProblems in src/lib/courses/weekBlocks/model.ts, nested
+        // lists a rule cannot walk. Ready is set only through a route. Copies
+        // of a week go through Admin SDK routes. The week editor's own writes
+        // (ensureWeekDoc, saveWeek) never carry any of these keys, so a
+        // create without them, and an update that leaves them as stored, pass.
+        function serverOnlyWeekFieldsUntouched() {
+          return resource == null
+            ? !request.resource.data.keys().hasAny(['blocks', 'ready', 'readyAt', 'readyByUid'])
+            : !request.resource.data.diff(resource.data).affectedKeys()
+                .hasAny(['blocks', 'ready', 'readyAt', 'readyByUid']);
+        }
 
         allow read: if isSignedIn();
 
@@ -2253,6 +2279,7 @@ service cloud.firestore {
         // plus the weekNumber bounds keep a typo'd editor write from minting
         // an unaddressable week.
         allow create, update: if canEditRun()
+          && serverOnlyWeekFieldsUntouched()
           && weekId.matches('^w[0-9][0-9]$')
           && request.resource.data.weekNumber is int
           && request.resource.data.weekNumber >= 1

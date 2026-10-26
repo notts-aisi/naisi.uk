@@ -1006,6 +1006,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
+  "/api/courses/runs/[runId]/weeks/[weekId]/blocks": {
+    reason:
+      "Course authoring: /api/courses/runs/[runId]/weeks/[weekId]/blocks loads a week as blocks, an admin's job for now, and every answer it gives is driven as each kind of caller in tests/course-week-blocks-loader.test.mjs.",
+    coverWhen:
+      "When a lead's Weeks tab or a group's own copy of a week loads weeks through it, because a mistake then reaches a run's people before an admin sees it.",
+  },
   "/api/courses/templates/[templateId]": {
     reason:
       "Courses: /api/courses/templates/[templateId] is staff-facing, taken deliberately, and answered on the screen that called it.",

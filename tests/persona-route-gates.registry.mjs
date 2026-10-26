@@ -1688,6 +1688,29 @@ export const ROUTES = {
         "the bar and a missing run has none. Anonymous is refused first.",
     },
   },
+  "/api/courses/runs/[runId]/weeks/[weekId]/blocks": {
+    GET: {
+      expect: adminOnly(400),
+      why:
+        "Copying a week out as Markdown is an admin's for now (Q39), decided before anything is read: " +
+        "every other session is forbidden, and the admin meets the week address check, which an id " +
+        "that is not w01 to w60 fails.",
+    },
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "View-as is refused first, then the session, then the gate: reading a pasted week is an " +
+        "admin's, decided before the body or any document is read, and the admin meets the week " +
+        "address check.",
+    },
+    PUT: {
+      expect: adminOnly(400),
+      why:
+        "View-as is refused first, then the session, then the gate: saving a pasted week is an " +
+        "admin's, decided before the body or any document is read, and the admin meets the week " +
+        "address check.",
+    },
+  },
   "/api/courses/templates/[templateId]": {
     DELETE: {
       expect: adminOnly(404),
