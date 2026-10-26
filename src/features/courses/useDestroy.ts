@@ -320,6 +320,11 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "The authored programme page: the pitch, the weekly themes, the FAQ and the journey strip. Authored copy, not member work, and it goes with the course it describes.",
   },
+  facilitatorGuide: {
+    label: "Facilitator guide documents",
+    fate: "destroyed",
+    note: "The course’s session plans, week notes and its own documents for facilitators. Course material, not member work, and it goes with the course it belongs to.",
+  },
   dataExportRows: {
     label: "Download-log rows",
     fate: "retained",
