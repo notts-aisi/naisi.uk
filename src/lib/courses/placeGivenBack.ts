@@ -28,9 +28,11 @@
  *  - whether staff have put them back on the run since they left it
  *    (`putBackAt` on their enrolment, which the allocate route writes).
  *    Leaving gives the place on the form back, and putting somebody back
- *    leaves it given back; but putting them back is a deliberate act on a
- *    card that said they had left, so from then on they are not somebody
- *    who gave their place back, and the next Publish tells them their group.
+ *    gives it to them again where the form can, so the first fact answers
+ *    for them; where it cannot, the seat records the put back, a deliberate
+ *    act on a card that said they had left, so from then on they are not
+ *    somebody who gave their place back, and the next Publish tells them
+ *    their group.
  *
  * Pure, with no import, so the card in the browser and the plan on the
  * server ask the same function. A second reading of either fact is what this

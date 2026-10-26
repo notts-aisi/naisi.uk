@@ -53,8 +53,12 @@ export type PersonStatus =
   | { kind: "holding" }
   /** Their reason as the committee reads it, and the day, "Mon 26 Oct". */
   | { kind: "gave-back"; reason: string | null; on: string | null }
-  /** They left the programme's run after it was theirs, by themselves or taken off by staff, on this day. */
-  | { kind: "left"; on: string | null }
+  /**
+   * They left the programme's run after it was theirs, on this day: by
+   * themselves ("Left the programme"), or taken off it by staff ("Taken off
+   * the programme", as the hand-over panel and their own page say it).
+   */
+  | { kind: "left"; on: string | null; by: "themselves" | "staff" }
   /** Invited and not answered yet: the day to answer by and the day they were invited. */
   | { kind: "invited"; until: string | null; on: string | null };
 

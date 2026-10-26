@@ -1344,13 +1344,20 @@ their seat is already free and there’s nothing to remove."), writing
 nothing. Somebody removed does not get the page that says they left: the
 run closes to them.
 
-To put somebody back, an admin places them again on the board and presses
-Publish, which emails them: placing them clears the day, the reason and
-Publish's stamp, and records when they were put back (`putBackAt`). Their
-place on the form stays given back, whether they left or were removed:
-putting them back on the run does not change their application. Their card stops saying "Gave their place back"
-while they are back, so Publish tells them; if they leave again, it says so
-again.
+To put somebody back, an admin or the programme's lead places them again on
+the board and presses Publish, which emails them: placing them clears the
+day, the reason and Publish's stamp, and gives them back the place on the
+form that leaving or Remove gave up, in the same transaction
+(`readPlaceToRestore` and `restorePlaces` in
+`src/lib/applications/status/record.ts`). Their application holds the place
+again, with no reply on record and no reason, and the form's count of places
+held goes back up, so their own page, My programmes, People, the Course run
+panel and the count of free places all say they hold a place. Where the form
+has no such place to give (it was not given back on that programme), the seat
+records when they were put back instead (`putBackAt`), as before. Either way
+their card stops saying "Gave their place back" while they are back, so
+Publish tells them; if they leave again, or say "I can’t make it" before the
+next Publish, it says so again.
 
 ### What is logged
 
@@ -1395,8 +1402,10 @@ already open; nothing under `/admin/courses` is needed.
   names and degrees, and per person their group, whether they have said they
   are coming and on which day, when they are free as fit marks against the
   run's groups, and where the place stands (with the reason and the day for
-  a place given back, and "Left the programme" with the day for somebody who
-  left the run). Read only, from `src/lib/applications/people/`. Who holds a
+  a place given back, "Left the programme" with the day for somebody who
+  left the run by themselves, and "Taken off the programme" with the day for
+  somebody staff took off it, as the Course run panel and their own page say
+  it). Read only, from `src/lib/applications/people/`. Who holds a
   place is the hand-over's own test, so the tab's number is the times
   picture's and Publish's people; "said they are coming" is one reading
   (`comingReplyOf`) that a facilitator's Home asks too. A row is somebody

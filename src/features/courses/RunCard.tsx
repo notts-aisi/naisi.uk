@@ -182,13 +182,9 @@ export default function RunCard({ entry }: Props) {
     entry.status !== "completed" &&
     week?.phase !== "after";
 
-  const card = (
-    <Card
-      as="article"
-      padding="md"
-      interactive={linked}
-      className={[styles.card, offer ? styles.offer : ""].filter(Boolean).join(" ")}
-    >
+  const className = [styles.card, offer ? styles.offer : ""].filter(Boolean).join(" ");
+  const body = (
+    <>
       {/* The run's crest (or the emblem in its place), decorative beside its
           name: `shownCrest` is the route's answer from the crest resolver. */}
       <div className={styles.head}>
@@ -234,16 +230,28 @@ export default function RunCard({ entry }: Props) {
       {entry.groupName && <p className={styles.group}>{entry.groupName}</p>}
 
       {offer && showOfferNote && <p className={styles.note}>{offer.note}</p>}
-    </Card>
+    </>
   );
 
   // An offer opens onto nothing (see the module comment), so it is rendered as
-  // the bare card rather than wrapped in an anchor to a route that redirects.
-  if (!linked) return card;
+  // the bare card, an article, rather than wrapped in an anchor to a route
+  // that redirects.
+  if (!linked) {
+    return (
+      <Card as="article" padding="md" className={className}>
+        {body}
+      </Card>
+    );
+  }
 
+  // Inside its link the card is a div, never an article: a link whose content
+  // is an article has no accessible name in Chromium, so the card would be an
+  // unnamed link (`tests/link-wraps-no-article.test.mjs` holds the tree to it).
   return (
     <Link href={`/learn/${encodeURIComponent(entry.runId)}`} className={styles.link}>
-      {card}
+      <Card as="div" padding="md" interactive className={className}>
+        {body}
+      </Card>
     </Link>
   );
 }

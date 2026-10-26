@@ -32,9 +32,10 @@
  *     told us they can't make it, never that they left, and no way to the
  *     programme's page, which closes to them. Somebody who gave the place back
  *     themselves before the removal still reads what they told us.
- *  4. PUTTING SOMEBODY BACK after a removal follows the Publish fix's rule:
- *     their card stops saying "Gave their place back" and Publish tells them.
- *     Their place on the form stays given back.
+ *  4. PUTTING SOMEBODY BACK after a removal: their card stops saying "Gave
+ *     their place back", Publish tells them, and their place on the form is
+ *     theirs again (`tests/course-hub-put-back.test.mjs` holds every page
+ *     that reads it).
  *  5. THE REGISTER REMINDER'S "Open the register" goes to the register's own
  *     page, whichever sends it: the lead's Remind (as an admin and as the
  *     programme's lead) or the job.
@@ -356,18 +357,22 @@ describe("3. the person's own page after a removal", () => {
 // 4. Putting somebody back after a removal
 // ---------------------------------------------------------------------------
 
-describe("4. putting somebody back after a removal follows the Publish fix's rule", () => {
+describe("4. putting somebody back after a removal: the card, Publish, and the place on the form", () => {
   for (const [label, who] of CALLERS) {
-    test(`as ${label}: Amara's card stops saying Gave their place back, Publish tells Amara, and the place on the form stays given back`, async () => {
+    test(`as ${label}: Amara's card stops saying Gave their place back, Publish tells Amara, and the place on the form is hers again`, async () => {
       assert.equal((await remove(who, "amara")).status, 200);
       await w.settle();
       const placed = await w.join.place(who, [{ uid: "amara", groupId: A }]);
       assert.equal(placed.body.placed, 1, JSON.stringify(placed.body));
+      // Putting her back gives her the place on the form again (the allocate
+      // route, since the small follow-ups), so the seat keeps no put-back
+      // record: until then it recorded one and the place stayed given back.
       const seat = read(enrolmentPath("amara"));
-      assert.deepEqual([seat.status, seat.groupId, seat.putBackAt instanceof Date, seat.allocatedEmailAt], ["active", A, true, undefined]);
+      assert.deepEqual([seat.status, seat.groupId, "putBackAt" in seat, seat.allocatedEmailAt], ["active", A, false, undefined]);
 
+      // The card reads the form, which says she holds the place again.
       const card = await cardOf(who, "amara");
-      assert.deepEqual([card.row.fromForm.holdsPlace, card.row.putBack, card.gaveBack], [false, true, false]);
+      assert.deepEqual([card.row.fromForm.holdsPlace, "putBack" in card.row, card.gaveBack], [true, false, false]);
 
       const before = world.mail.length;
       const pressed = await w.join.publish(who);
@@ -375,7 +380,9 @@ describe("4. putting somebody back after a removal follows the Publish fix's rul
       const sent = world.mail.slice(before).filter((mail) => !mail.subject.startsWith("[TEST]"));
       assert.ok(sent.some((mail) => mail.to === "amara@example.com"), JSON.stringify(sent.map((mail) => mail.to)));
       assert.ok(read(enrolmentPath("amara")).allocatedEmailAt instanceof Date);
-      assert.equal(applicationOf("amara").status, "withdrawn");
+      // Her application holds the place, with no reply, reason or day it went
+      // (it was withdrawn, given back by the removal, before the follow-ups).
+      assert.deepEqual(applicationOf("amara"), { status: "accepted", attendance: null, releaseReason: null, withdrawnAt: null });
     });
   }
 });
@@ -496,12 +503,19 @@ describe("6. the hand-over panel lists who left and who was taken off apart from
     }
   });
 
-  test("somebody put back on the run after leaving is listed with the people whose seat is still on the run", async () => {
+  test("somebody put back on the run after leaving holds their place again, and is in none of the lists of people who no longer hold one", async () => {
+    const start = (await panelOf("zach")).panel;
     assert.equal((await w.leave("dev")).status, 200);
     assert.equal((await w.join.place("zach", [{ uid: "dev", groupId: A }])).body.placed, 1);
     const { panel } = await panelOf("zach");
-    assert.ok(names(panel.gaveBack).includes("Dev Patel"));
-    assert.ok(!names(panel.left).includes("Dev Patel"));
+    // Putting Dev back gives him his place on the form again (since the small
+    // follow-ups), so he is counted on the run's list as before he left, and
+    // not under "No longer hold a place", where the runbook's steps would have
+    // told an admin to remove somebody they had just put back.
+    for (const list of [panel.gaveBack, panel.left, panel.takenOff]) {
+      assert.ok(!names(list).includes("Dev Patel"), JSON.stringify(names(list)));
+    }
+    assert.deepEqual([panel.holders, panel.onTheList], [start.holders, start.onTheList]);
   });
 
   test("the programme's lead and a member are refused the panel, as before", async () => {

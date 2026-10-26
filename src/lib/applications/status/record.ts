@@ -47,6 +47,10 @@ import { standingOf } from "./standing";
  * as it stands inside the transaction that takes them off the run, and the
  * same write. So every count of places and every list of the programme's
  * people says so in the same moment as the run does.
+ *
+ * Putting somebody back on the run gives the place to them again: the
+ * inverse act, written in `restore.ts` beside this file, so the reply's
+ * writer stays the one transaction its guards read.
  */
 
 export const NO_APPLICATION = "There is no application on this form under this account.";

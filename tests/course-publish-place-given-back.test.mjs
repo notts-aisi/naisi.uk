@@ -671,10 +671,13 @@ describe("4. putting somebody who left back is still how they come back", () => 
       assert.equal((await cards(who)).bea, true, "Bea gave the place back by leaving");
       const placedAgain = await place(who, [{ uid: "bea", groupId: A }]);
       assert.equal(placedAgain.body.placed, 1, JSON.stringify(placedAgain.body));
-      assert.deepEqual([seat("bea").status, seat("bea").putBackAt instanceof Date, seat("bea").allocatedEmailAt], ["active", true, undefined]);
-      // The place on the form stays given back; Bea is back on the run.
+      // Putting Bea back gives her the place on the form again (the allocate
+      // route, since the small follow-ups), so the seat keeps no put-back
+      // record and her card reads the form: until then the place stayed given
+      // back and the record was what stopped the card saying so.
+      assert.deepEqual([seat("bea").status, "putBackAt" in seat("bea"), seat("bea").allocatedEmailAt], ["active", false, undefined]);
       const row = (await board(who)).body.people.find((each) => each.uid === "bea");
-      assert.deepEqual([row.fromForm.holdsPlace, row.putBack], [false, true]);
+      assert.deepEqual([row.fromForm.holdsPlace, "putBack" in row], [true, false]);
       assert.equal((await cards(who)).bea, false);
       const shown = await summary(who);
       assert.deepEqual([shown.emails, shown.people, "gaveBack" in shown], [1, 1, false]);
@@ -814,7 +817,8 @@ const READS_THE_PLACE = {
 /** Every file that reads or writes when somebody was put back on a run, and why. */
 const READS_THE_PUT_BACK = {
   "src/lib/firestore/courseEnrolments.ts": "the enrolment's normaliser, and enrolmentIsPutBack, the one reading of it",
-  "src/app/api/courses/runs/[runId]/allocate/route.ts": "writes it, in the patch that puts somebody who left back on the run",
+  "src/app/api/courses/runs/[runId]/allocate/route.ts":
+    "writes it, in the patch that puts somebody who left back on the run when the form has no place to give them again, and clears it when it gives one",
 };
 
 /** Every caller of the one answer, and of the one reading of a put-back. */
