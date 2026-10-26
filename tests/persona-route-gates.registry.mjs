@@ -2457,8 +2457,8 @@ export const ROUTES = {
       expect: adminOnly(404, { suCommittee: 404 }),
       why:
         "A short link's code: admins draw any link's, SU-recognised committee only an event's " +
-        "door code, so both read the link and are told a missing one is missing; everybody " +
-        "else is refused before it is read.",
+        "door code and an event survey's code while it takes answers, so both read the link " +
+        "and are told a missing one is missing; everybody else is refused before it is read.",
     },
   },
   "/api/members/roster": {
