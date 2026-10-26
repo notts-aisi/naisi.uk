@@ -117,6 +117,8 @@ globalThis.__runCard = drawn;
 const { loadTs: loadCard } = createLoader({
   stubs: new Map([
     ["./RunCard.module.css", "export default new Proxy({}, { get: (_, name) => String(name) });"],
+    // The card draws the run's crest, or the emblem in its place.
+    ["./BrandMark.module.css", "export default new Proxy({}, { get: (_, name) => String(name) });"],
     [
       "next/link",
       "export default function Link({ href, children }) {\n" +

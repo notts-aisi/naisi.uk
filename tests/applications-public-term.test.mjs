@@ -666,7 +666,9 @@ describe("what a visitor's page is handed", () => {
       for (const each of term.programmes) {
         assert.deepEqual(
           Object.keys(each).sort(),
-          ["courseId", "facts", "id", "kind", "name", "pitch", "runId", "shortName", "starts"],
+          // A programme's own crest is named on purpose: it is drawn beside the programme's
+          // name on every public page, so a visitor sees it either way.
+          ["courseId", "crest", "facts", "id", "kind", "name", "pitch", "runId", "shortName", "starts"],
           stage,
         );
       }
@@ -694,6 +696,7 @@ describe("what a visitor's page is handed", () => {
       starts: "w/c 18 Jan",
       courseId: AGI_COURSE,
       runId: "run-agi-spring",
+      crest: null,
     };
     const incubator = {
       id: "research-incubator",
@@ -705,6 +708,7 @@ describe("what a visitor's page is handed", () => {
       starts: "w/c 25 Jan",
       courseId: null,
       runId: null,
+      crest: null,
     };
     for (const [stage, [stored, now]] of Object.entries(AT_EACH_STAGE)) {
       assert.deepEqual((await find({ [FORM_ID]: stored }, now)).programmes, [agi, incubator], stage);

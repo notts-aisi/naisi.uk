@@ -84,6 +84,10 @@ const { loadTs } = createLoader({
     ["./Chip.module.css", CLASS_NAMES],
     ["./CourseFaq.module.css", CLASS_NAMES],
     ["./CourseVisual.module.css", CLASS_NAMES],
+    // The rows and the cards draw each programme's crest, or the emblem in its
+    // place. No course is read here: each programme shows its own crest.
+    ["./BrandMark.module.css", CLASS_NAMES],
+    ["@/features/courses/fetchCrests", "export async function fetchCourseCrests() { return new Map(); }"],
   ]),
 });
 

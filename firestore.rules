@@ -1666,7 +1666,11 @@ service cloud.firestore {
           // than born client-writable, which is the way round that gets
           // noticed.
           && request.resource.data.get('archived', false)
-            == resource.data.get('archived', false);
+            == resource.data.get('archived', false)
+          // The crest is an admin's to set, through its own route, so every
+          // other writer carries it through as it was.
+          && request.resource.data.get('crest', null)
+            == resource.data.get('crest', null);
       }
       // When written work set for "the day before" a session is due
       // (CourseDoc.dayBeforeDueTime in src/lib/firestore/courses.ts): absent
@@ -1678,6 +1682,15 @@ service cloud.firestore {
         return request.resource.data.get('dayBeforeDueTime', null) == null
           || (request.resource.data.dayBeforeDueTime is string
               && request.resource.data.dayBeforeDueTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$'));
+      }
+      // The programme crest a course carries: one of the four keys in
+      // src/lib/crests/keys.ts, or none. Set by an admin through
+      // /api/courses/[courseId]/crest (Admin SDK); a client write is held to
+      // the shape whoever makes it.
+      function courseCrestOk() {
+        return !('crest' in request.resource.data)
+          || request.resource.data.crest == null
+          || request.resource.data.crest in ['agi-strategy', 'technical-ai-safety', 'governance-macrostrategy', 'alignment'];
       }
 
       // ---- V3 W3 PR20: draft reads ---------------------------------------
@@ -1743,9 +1756,10 @@ service cloud.firestore {
         && request.resource.data.get('destroying', false) == false
         && request.resource.data.get('destroyAuditId', '') == ''
         && request.resource.data.get('archived', false) == false
+        && request.resource.data.get('crest', null) == null
         && courseDayBeforeOk();
 
-      allow update: if courseDayBeforeOk() && (isAdmin()
+      allow update: if courseCrestOk() && courseDayBeforeOk() && (isAdmin()
         || (
           (canApproveCourse() || isCourseCollaborator()
             || (canDraftCourse() && isOwnCourse()))

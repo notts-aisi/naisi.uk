@@ -900,6 +900,27 @@ const USERS = new Map([
       "helper, both stubbed, and the shared loader is what compiles the TypeScript in-process",
   ],
   [
+    "programme-crest.test.mjs",
+    "it renders src/components/ProgrammeCrest.tsx in every theme on both sides of its cut and " +
+      "compares the drawing with a digest of the handoff and with the 32 files it shipped with, " +
+      "because what a crest looks like is decided by the JSX that runs; nothing is stubbed, the " +
+      "graph is the component and its keys",
+  ],
+  [
+    "programme-crest-settings.test.mjs",
+    "it drives the course crest route and the programme settings route as every caller, and the " +
+      "crest loaders against an in-memory store, with the session, the Admin SDK handle and the " +
+      "view-as guard stubbed, because who may set a crest and which one is read back are decided " +
+      "by the handlers and readers that run",
+  ],
+  [
+    "programme-crest-public-pages.test.mjs",
+    "it renders the public course page, /courses, /incubator and the application form's rank " +
+      "step on the server with the term and catalogue handed in and the real crest loader behind " +
+      "an in-memory store, because which crest each placement draws is decided by the pages' own " +
+      "JSX and the resolver they call",
+  ],
+  [
     "profile-study-changes.test.mjs",
     "it executes the function that builds the profile's save of a member's degree and graduation " +
       "(src/features/profile/studyChange.ts), the users normaliser and the words the admin's page " +

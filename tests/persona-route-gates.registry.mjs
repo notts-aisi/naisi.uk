@@ -1120,6 +1120,14 @@ export const ROUTES = {
         "is told the id is missing.",
     },
   },
+  "/api/courses/[courseId]/crest": {
+    PUT: {
+      expect: adminOnly(400),
+      why:
+        "Admin only, decided before the body is read: every other session is forbidden and " +
+        "the admin meets the validation (the battery sends no crest).",
+    },
+  },
   "/api/courses/[courseId]/destroy": {
     POST: {
       expect: adminOnly(400),
