@@ -290,7 +290,10 @@ export async function POST(
     // The sender's own roster: nobody Publish has not told, for a facilitator.
     .filter((e) => placementIsShownTo(e, { isAdmin }))
     .map((e) => e.uid)
-    .filter(Boolean);
+    .filter(Boolean)
+    // Never the sender: a facilitator who holds a place is one of the
+    // group's people, and is not sent their own notice.
+    .filter((uid) => uid !== actor.uid);
   const userDocs = memberUids.length
     ? await db.getAll(...memberUids.map((uid) => db.collection("users").doc(uid)))
     : [];

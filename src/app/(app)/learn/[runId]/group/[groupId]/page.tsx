@@ -328,7 +328,7 @@ export default async function GroupHomePage({
   const [[groupCount], reading, model, programme, notes, writtenQueue] = await Promise.all([
     updateAudienceCounts(db, access.run, runGroups, { groupIds: [groupId] }, access.user.uid),
     updateReadingOf(db, access.user, access.run, runGroups),
-    loadFacilitatorGroup(db, access.run, group, { isAdmin: access.isAdmin }, now),
+    loadFacilitatorGroup(db, access.run, group, { isAdmin: access.isAdmin, actor: access.user }, now),
     runProgrammeOf(db, runId),
     readGroupNotes(db, group),
     // The review queue's written answers half: null on a run of the summer's weeks.

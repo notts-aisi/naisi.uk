@@ -883,8 +883,15 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   // The first name the lead goes by, while they still stand.
   const leadName = naming.lead?.firstName || null;
 
-  const facilitatorNamesOf = (group: CourseGroupDoc): string[] =>
+  // The group's facilitators as a person placed in it is told them: never
+  // the person themselves. A facilitator who holds a place sits in the group
+  // they facilitate, so they are placed in it and told it like anybody else,
+  // and their own email names the others who facilitate it, or nobody (the
+  // email then leaves that paragraph out whole). Their "You’re facilitating"
+  // email, below, is the one that tells them they facilitate it.
+  const facilitatorNamesOf = (group: CourseGroupDoc, recipientUid: string): string[] =>
     group.facilitatorUids
+      .filter((uid) => uid !== recipientUid)
       .map((uid) => {
         const data = users.get(uid);
         return data ? displayNameOf(data) : "";
@@ -910,8 +917,8 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
     }
     return written.ok ? { subject: written.subject, blocks: written.blocks } : null;
   };
-  const writePlacement = (group: CourseGroupDoc, name: string): WrittenEmail | null => {
-    const written = composePlacementEmail(templates.allocated, placementFacts(run, group, name, facilitatorNamesOf(group)));
+  const writePlacement = (group: CourseGroupDoc, name: string, uid: string): WrittenEmail | null => {
+    const written = composePlacementEmail(templates.allocated, placementFacts(run, group, name, facilitatorNamesOf(group, uid)));
     if (!written.ok && !refusedPeople.has(group.id)) {
       refusedPeople.set(group.id, {
         name: group.name.trim(),
@@ -935,7 +942,7 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
       to,
       groupId: group.id,
       groupName: group.name,
-      email: incubator ? writeIncubatorStart(group, name) : writePlacement(group, name),
+      email: incubator ? writeIncubatorStart(group, name) : writePlacement(group, name, row.uid),
     });
   }
 

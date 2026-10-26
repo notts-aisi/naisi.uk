@@ -39,6 +39,12 @@ import { programmeLedBy } from "../programmeLead";
  * placement before it is told, as everywhere), active or finished, or a
  * facilitator of a live group. Somebody who left, was taken off or never
  * took part has no answer here (`ownerFactsOf` answers null).
+ *
+ * A FACILITATOR'S OWN WORK IS ONE RULE FOR EVERY KIND OF ANSWER. Its two
+ * halves, `facilitatesOnRun` (whose work it is) and `readsFacilitatorsOwnWork`
+ * (who reads and reviews it), are asked here and by the summer's exercise
+ * answers too: their review route, their review queue and the group page's
+ * To review count. None of them decides it again.
  */
 
 /**
@@ -93,7 +99,7 @@ export async function ownerFactsOf(
     enrolment.groupId !== null &&
     liveGroups.some((group) => group.id === enrolment.groupId) &&
     placementIsShownTo(enrolment, viewer);
-  const facilitates = liveGroups.some((group) => group.facilitatorUids.includes(uid));
+  const facilitates = facilitatesOnRun(uid, liveGroups);
   if (!placed && !facilitates) return null;
   return { uid, placedGroupId: placed ? enrolment.groupId : null };
 }
@@ -108,9 +114,30 @@ export type ReviewRole = {
 };
 
 /**
+ * A FACILITATOR'S OWN WORK, WHOSE IT IS: `uid` facilitates a live group of
+ * the run (`liveGroups`, archived ones left out), holding a place there or
+ * not. Their answers, written or to the summer's exercises, are then a
+ * facilitator's own, and `readsFacilitatorsOwnWork` says who reads them.
+ */
+export function facilitatesOnRun(uid: string, liveGroups: readonly CourseGroupDoc[]): boolean {
+  return Boolean(uid) && liveGroups.some((group) => !group.archived && group.facilitatorUids.includes(uid));
+}
+
+/**
+ * A FACILITATOR'S OWN WORK, WHO READS IT (Zach, Mon 26 Oct 2026: "read by
+ * the programme's lead and admins (not co-facilitators)"): the lead of the
+ * programme that names the run and admins read it and review it, and nobody
+ * else: never a co-facilitator or anybody else who facilitates, and never its
+ * owner, an admin included. `facts` is `reviewerFactsOf`'s answer for the run.
+ */
+export function readsFacilitatorsOwnWork(actor: Pick<SessionUser, "uid">, facts: ReviewerFacts, ownerUid: string): boolean {
+  return Boolean(actor.uid) && actor.uid !== ownerUid && (facts.isAdmin || facts.isLead);
+}
+
+/**
  * THE GATE. What `actor` may do with `owner`'s written answer on a run whose
- * live groups are `liveGroups`. Pure: every read it needs is done by the two
- * functions above, once per request.
+ * live groups are `liveGroups`. Pure: every read it needs is done by
+ * `reviewerFactsOf` and `ownerFactsOf`, once per request.
  */
 export function writtenReviewRole(
   actor: SessionUser,
@@ -118,13 +145,14 @@ export function writtenReviewRole(
   owner: OwnerFacts,
   liveGroups: readonly CourseGroupDoc[],
 ): ReviewRole {
-  const ownerFacilitates = liveGroups.some((group) => group.facilitatorUids.includes(owner.uid));
+  const ownerFacilitates = facilitatesOnRun(owner.uid, liveGroups);
   // Nobody reviews their own answer, an admin included.
   if (!actor.uid || actor.uid === owner.uid) return { mayReview: false, locksOnOpen: false, ownerFacilitates };
   const staff = facts.isAdmin || facts.isLead;
   if (ownerFacilitates) {
     // A facilitator's own answer: the lead's and admins', never a co-facilitator's.
-    return { mayReview: staff, locksOnOpen: staff, ownerFacilitates };
+    const own = readsFacilitatorsOwnWork(actor, facts, owner.uid);
+    return { mayReview: own, locksOnOpen: own, ownerFacilitates };
   }
   const group = owner.placedGroupId ? (liveGroups.find((candidate) => candidate.id === owner.placedGroupId) ?? null) : null;
   const facilitatesTheirGroup =

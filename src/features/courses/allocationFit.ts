@@ -82,6 +82,28 @@ export const CAN_MAKE_NO_SESSION = "Can’t make any of these sessions";
 export const GAVE_PLACE_BACK = "Gave their place back";
 
 /**
+ * NOT DRAWN. "Facilitates Group A", on the card of somebody who holds a
+ * place and facilitates one of the run's groups: they sit in that group,
+ * and the board places them there and nowhere else (the allocate route
+ * refuses another with `facilitates-another-group`).
+ */
+export function facilitatesWords(groupName: string): string {
+  return `Facilitates ${groupName}`;
+}
+
+/**
+ * The live group this person facilitates, by the board's own columns, or
+ * null. A fellow facilitates the one group they sit in; somebody named on
+ * two (before the rule) is shown the first, in the board's order.
+ */
+export function facilitatedGroupOf<G extends { id: string; facilitatorUids: readonly string[] }>(
+  uid: string,
+  groups: readonly G[],
+): G | null {
+  return groups.find((group) => group.facilitatorUids.includes(uid)) ?? null;
+}
+
+/**
  * Whether a card says "Gave their place back": the one answer, which
  * Publish's plan asks too, asked of the card's own facts. Somebody who
  * applied to the run itself has no place on the form to give back, and

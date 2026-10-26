@@ -77,7 +77,8 @@ export type FacilitatorSummary = {
   /**
    * Before the group's first session's day, for a facilitator of the group:
    * each person Publish has told, by first name, and whether they have said
-   * they are coming. Null after that day, and for an admin.
+   * they are coming, the reader left out (a facilitator who holds a place is
+   * one of the group's people). Null after that day, and for an admin.
    */
   whosComing: WhosComingPerson[] | null;
   /**
@@ -114,19 +115,23 @@ export async function GET(_req: Request, ctx: { params: Promise<{ groupId: strin
   }
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
   const now = new Date();
-  const model = await loadFacilitatorGroup(db, run, group, { isAdmin }, now);
+  const model = await loadFacilitatorGroup(db, run, group, { isAdmin, actor }, now);
   const [line, writtenQueue] = await Promise.all([
     readNextEmailForHome(db, run, group, model.scheduled, now),
     loadWrittenQueue(db, actor, run, group),
   ]);
   // Who's coming: a facilitator's, before the first session's day, about the
-  // people the facilitator's own view of the group lists (told, taking part).
+  // people the facilitator's own view of the group lists (told, taking part),
+  // the reader left out: a facilitator who holds a place is one of the
+  // group's people, and is not told whether they themselves have said so.
   const whosComing =
     !isAdmin && isBeforeFirstSessionDay(firstSessionDayOf(run, group, now), now)
       ? await readWhosComing(
           db,
           run.id,
-          model.people.map((person) => ({ uid: person.uid, firstName: person.firstName })),
+          model.people
+            .filter((person) => person.uid !== actor.uid)
+            .map((person) => ({ uid: person.uid, firstName: person.firstName })),
         )
       : null;
   // The way to write to the group, for Home's Say hello, counted as the group

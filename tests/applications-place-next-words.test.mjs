@@ -846,7 +846,11 @@ describe("the email Publish sends an incubator's people names no group either", 
     const plan = codeOf("lib", "courses", "allocationPublish.ts");
     assert.ok(plan.includes('const incubator = naming.kind === "incubator";'), "the plan no longer asks the kind");
     assert.ok(plan.includes("const templates = { allocated: incubator ? onAnIncubator : inAGroup, facilitating };"));
-    assert.ok(plan.includes("email: incubator ? writeIncubatorStart(group, name) : writePlacement(group, name),"));
+    // The placement email is written for its reader (`row.uid`), so it names
+    // the group's facilitators other than them (a facilitator who holds a
+    // place is in the group they facilitate); the choice between the two
+    // emails is still made here, by the kind alone.
+    assert.ok(plan.includes("email: incubator ? writeIncubatorStart(group, name) : writePlacement(group, name, row.uid),"));
     const route = codeOf("app", "api", "courses", "runs", "[runId]", "allocation", "publish", "route.ts");
     assert.ok(route.includes("body: plan.incubator ? `${run.courseTitle}: the details are in your email.` :"), "the push to an incubator's people");
   });

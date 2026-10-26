@@ -536,6 +536,26 @@ describe("3. a group's facilitator takes part, as themselves", () => {
     assert.match(after.text, /Done/);
   });
 
+  test("a facilitator who holds a place: their own boxes through their learner's row, and lines that name only the lead and admins", async () => {
+    // Chloe holds a place in Group B and becomes one of its facilitators
+    // (a facilitator who holds a place sits in the group they facilitate).
+    // Their own work is read by the programme's lead and admins, never by a
+    // co-facilitator, so their page says what Rahul's says.
+    const member = await w.weekPage("chloe", 1);
+    assert.match(member.text, /Rahul, Sofia, Claudia and admins can read your reflections\. Other fellows can’t\./);
+    w.world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia", "chloe"] });
+    assert.equal((await w.writeBox("chloe", "k1-rp1", "w01", "Chloe's own view.")).status, 200);
+    assert.equal(w.world.db.read(rowPath("chloe", "w01", "k1-rp1")).kind, "reflection");
+    const page = await w.weekPage("chloe", 1);
+    assert.match(page.html, /<textarea[^>]*>Chloe&#x27;s own view\.<\/textarea>/);
+    assert.match(page.text, /Only Claudia and admins can read your reflections\./);
+    assert.match(page.text, /Only Claudia and admins can see which sources you tick\./);
+    assert.doesNotMatch(page.text, /may read a line out|Other fellows can’t|Rahul, Sofia/);
+    // Their co-facilitator is refused their reflections, as Rahul's are.
+    assert.equal((await w.readReflections("rahul", "chloe", 1)).status, 403);
+    assert.equal((await w.readReflections("claudia", "chloe", 1)).status, 200);
+  });
+
   test("a facilitator of two groups writes on the run's own week, and a member placed nowhere still cannot", async () => {
     assert.equal((await w.writeBox("sofia", "k1-rp2", "w01", "Sofia's.")).status, 200);
     assert.equal((await w.writeBox("tom", "k1-rp2", "w01", "Tom's.")).status, 200);

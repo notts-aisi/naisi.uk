@@ -16,7 +16,9 @@ import { londonDateKey } from "@/lib/courses/weekPlan";
 import { readCoursesConfig } from "@/lib/firestore/config";
 import type { AttendanceStatus } from "@/lib/firestore/courseAttendance";
 import { isOwnBoxResponse } from "@/lib/firestore/courseExercises";
+import { facilitatesOnRun, readsFacilitatorsOwnWork, reviewerFactsOf } from "@/lib/courses/writtenAnswers/access";
 import { isWordCountedAnswer } from "@/lib/courses/writtenAnswers/model";
+import type { SessionUser } from "@/lib/firebase/session";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 
@@ -31,7 +33,8 @@ import type { CourseRunDoc } from "@/lib/firestore/courses";
  * page and the summary route behind Home admit a live facilitator of the
  * group and admins. `viewer.isAdmin` then decides who is a row, by the
  * register's own rule: somebody Publish has not told their group is nobody's
- * row but an admin's.
+ * row but an admin's. `viewer.actor` is who is asking, for whose answers
+ * wait for them (TO REVIEW below).
  *
  * What it answers:
  *  - THE PEOPLE: everybody taking part, with each FINISHED register's mark
@@ -41,7 +44,12 @@ import type { CourseRunDoc } from "@/lib/firestore/courses";
  *    and how many came of those marked (late and left early count as came).
  *  - HOW MANY ARE EXPECTED at the next session: the people taking part.
  *  - TO REVIEW: each person's exercises waiting for review, a row per person
- *    per week, newest first, from the review the site already keeps.
+ *    per week, newest first, from the review the site already keeps. A
+ *    facilitator of the group who holds a place is one of its people, with
+ *    their marks, but their own answers are a facilitator's own work, listed
+ *    only to whoever the one rule lets read it (`facilitatesOnRun` and
+ *    `readsFacilitatorsOwnWork` in `src/lib/courses/writtenAnswers/access.ts`):
+ *    the programme's lead and admins, never a co-facilitator or themselves.
  *  - PACE: how many taught weeks the group is behind the programme (or ahead
  *    of it), from the pace the site already keeps for the group.
  *  - FOR HOME: who left the group recently (until the end of the first
@@ -268,7 +276,7 @@ export async function loadFacilitatorGroup(
   db: Firestore,
   run: CourseRunDoc,
   group: CourseGroupDoc,
-  viewer: { isAdmin: boolean },
+  viewer: { isAdmin: boolean; actor: SessionUser },
   now: Date,
 ): Promise<FacilitatorGroupModel> {
   const records = await recordsWith(db, run, group);
@@ -292,6 +300,17 @@ export async function loadFacilitatorGroup(
   const registers = ordered
     .map((facts) => registerRowOf(facts, todayKey, rows))
     .filter((row): row is GroupRegisterRow => row !== null);
+  // Whose answers wait for the viewer: the group's people, but a
+  // facilitator's own work only for whoever the one rule lets read it. The
+  // viewer's standing is read only when one of the people facilitates.
+  const reviewer = people.some((person) => facilitatesOnRun(person.uid, records.groups))
+    ? await reviewerFactsOf(db, viewer.actor, run.id)
+    : null;
+  const reviewable = people.filter(
+    (person) =>
+      !facilitatesOnRun(person.uid, records.groups) ||
+      (reviewer !== null && readsFacilitatorsOwnWork(viewer.actor, reviewer, person.uid)),
+  );
 
   return {
     facilitators: listed.facilitators,
@@ -303,7 +322,10 @@ export async function loadFacilitatorGroup(
     firstSessionDateKey: ordered[0]?.session.dateKey ?? "",
     expected: people.length,
     scheduled: records.switches.scheduled,
-    toReview: await readToReview(db, run.id, people),
+    // A facilitator who holds a place is one of the group's people, and their
+    // own answers wait for the programme's lead and admins, never for their
+    // co-facilitators or themselves.
+    toReview: await readToReview(db, run.id, reviewable),
     weeksBehind: weeksBehindOf(run, group, now),
     leftRecently: leftRecentlyIn(records, listed, now),
   };

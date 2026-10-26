@@ -56,6 +56,22 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * Placements are processed in chunks of ≤100, each chunk one transaction, so
  * a board-wide "auto-place all" stays inside Firestore's transaction limits
  * while a single drag is still one tiny atomic commit.
+ *
+ * ── A FACILITATOR WHO HOLDS A PLACE SITS IN THE GROUP THEY FACILITATE ───────
+ * A facilitator can be one of the run's fellows too. So a placement asks
+ * which of the run's live groups the person facilitates (the run's groups,
+ * one equality, read in the transaction):
+ *  · somebody who facilitates a group is placed in THAT group and no other,
+ *    and is never moved out of it to another (`facilitates-another-group`):
+ *    who facilitates a group changes on its Facilitators view, and only then
+ *    does the board move them;
+ *  · somebody whose row on the run is a FACILITATOR'S (they were made a
+ *    facilitator before anybody placed them) is placed by turning that row
+ *    into a learner's: their place, on the group's own clock, counted like
+ *    any first placement. The row keeps its id, so it is still the one row
+ *    the person has on the run. Their facilitating is unchanged, because it
+ *    lives on the group (`facilitatorUids`), not on the row.
+ * ────────────────────────────────────────────────────────────────────────────
  */
 
 type Ctx = { params: Promise<{ runId: string }> };
@@ -75,6 +91,9 @@ const MAX_PLACEMENTS = 500;
  *  - "group-not-found": target group missing or belongs to another run
  *  - "group-archived": target group is archived
  *  - "group-full":     placing would exceed the group's capacity
+ *  - "facilitates-another-group": they facilitate one of the run's other
+ *    live groups, and somebody who holds a place sits in the group they
+ *    facilitate
  */
 type Rejection = { uid: string; reason: string };
 
@@ -179,14 +198,26 @@ export async function POST(req: Request, ctx: Ctx) {
           db.collection("courseGroups").doc(id),
         );
 
-        const [enrolmentSnaps, applicationSnaps, targetGroupSnaps] =
+        const [enrolmentSnaps, applicationSnaps, targetGroupSnaps, runGroupsSnap] =
           await Promise.all([
             tx.getAll(...enrolmentRefs),
             tx.getAll(...applicationRefs),
             targetGroupRefs.length
               ? tx.getAll(...targetGroupRefs)
               : Promise.resolve([]),
+            // Who facilitates which of the run's live groups: one equality on
+            // one field, read in the transaction so an appointment made while
+            // this runs makes it run again.
+            tx.get(db.collection("courseGroups").where("runId", "==", runId)),
           ]);
+        const facilitatedBy = new Map<string, string[]>();
+        for (const doc of runGroupsSnap.docs) {
+          const group = normalizeCourseGroup(doc.id, doc.data() ?? {});
+          if (group.runId !== runId || group.archived) continue;
+          for (const uid of group.facilitatorUids) {
+            facilitatedBy.set(uid, [...(facilitatedBy.get(uid) ?? []), group.id]);
+          }
+        }
 
         const enrolmentByUid = new Map(
           chunk.map((p, idx) => [p.uid, enrolmentSnaps[idx]] as const),
@@ -286,6 +317,19 @@ export async function POST(req: Request, ctx: Ctx) {
             .collection("courseEnrolments")
             .doc(courseEnrolmentId(runId, uid));
 
+          // A facilitator who holds a place sits in the group they
+          // facilitate: placed there, or nowhere yet, and never in another.
+          const facilitates = facilitatedBy.get(uid) ?? [];
+          if (groupId && facilitates.length > 0 && !facilitates.includes(groupId)) {
+            chunkRejected.push({ uid, reason: "facilitates-another-group" });
+            continue;
+          }
+          // A facilitator's row is the row of somebody nobody has placed yet:
+          // taking them out of a group is nothing to do, and putting them in
+          // one turns the row into their place (below).
+          const facilitatorRow = enrolment !== null && enrolment.role === "facilitator";
+          if (facilitatorRow && !groupId) continue;
+
           // Whether this enrolment currently holds a counted seat.
           const wasCounted =
             enrolment !== null &&
@@ -294,9 +338,11 @@ export async function POST(req: Request, ctx: Ctx) {
 
           // Already exactly where they're being placed — nothing to do. (An
           // inactive enrolment "in" the same group still falls through to be
-          // reactivated below.)
+          // reactivated below, and so does a facilitator's row, which is
+          // nobody's place yet.)
           if (
             enrolment &&
+            !facilitatorRow &&
             enrolment.groupId === groupId &&
             enrolment.status === "active"
           ) {
@@ -359,13 +405,22 @@ export async function POST(req: Request, ctx: Ctx) {
             status: "active",
             updatedAt: FieldValue.serverTimestamp(),
           };
+          if (facilitatorRow && targetGroup) {
+            // THEIR FIRST PLACE, on the row they already have: a learner's,
+            // from their row on the run's list, on THEIR group's clock, as a
+            // first placement writes it. A retired facilitator's row
+            // ("removed") is no leaver, so nothing of leaving is touched.
+            patch.role = "learner";
+            patch.applicationId = courseApplicationId(runId, uid);
+            patch.joinedWeekNumber = joinedWeekFor(run, targetGroup);
+          }
           if (enrolment.groupId !== groupId) {
             // The stamp certifies "emailed about their CURRENT group"; a
             // changed placement invalidates it, so the next publish emails
             // them about the new group.
             patch.allocatedEmailAt = FieldValue.delete();
           }
-          if (enrolmentHasLeft(enrolment.status)) {
+          if (!facilitatorRow && enrolmentHasLeft(enrolment.status)) {
             // SOMEBODY WHO LEFT, PUT BACK. Leaving keeps the group and
             // Publish's stamp (they were told about it, and it shows them
             // the page that says they left), so a re-placement in that same

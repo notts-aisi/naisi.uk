@@ -87,6 +87,14 @@ export const TAKE_THE_REGISTER = "Take the register";
 export const NO_MORE_SESSIONS = "No more sessions are planned for your group.";
 
 /**
+ * NOT DRAWN. On a facilitator's Home, for a facilitator who holds a place on
+ * the programme: Home leads with the group they run, and their own week is
+ * on the programme's page, one tap away.
+ */
+export const TAKING_PART_TOO = "You’re taking part too: your own week, with its readings and questions, is on your programme’s page.";
+export const OPEN_YOUR_PROGRAMME = "Open your programme";
+
+/**
  * Under Home's "Take the register": "Opens your group’s register for
  * tonight." on the day of an evening session, "for today." on the day of a
  * daytime one, and on any other day where it leads.

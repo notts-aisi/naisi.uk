@@ -19,9 +19,12 @@ import { courseEnrolmentId, enrolmentHasLeft } from "@/lib/firestore/courseEnrol
  *
  *  1. it grants the facilitator read and edit access to the group (rules
  *     resolve `isGroupFacilitator()` off this array);
- *  2. it upserts a `role: "facilitator"` enrolment for the run, which is what
- *     makes the group appear on that person's /learn hub ("every run you
- *     touch" is one query over enrolments);
+ *  2. it upserts a `role: "facilitator"` enrolment for the run, for somebody
+ *     who holds no place on it, which is what makes the group appear on that
+ *     person's /learn hub ("every run you touch" is one query over
+ *     enrolments). Somebody who holds a place keeps their learner's row;
+ *     the board turns a facilitator's row into a learner's when it places
+ *     them;
  *  3. it keeps `facilitatorAppointments` (the record of how each uid got
  *     there) to the uids in the array: an answer writes who asked, when, and
  *     when they agreed; anybody taken off loses their record with their place.

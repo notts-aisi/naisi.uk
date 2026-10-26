@@ -102,6 +102,12 @@ type Props = {
    * is there exactly where the press would work.
    */
   canLeave?: boolean;
+  /**
+   * Said at the foot in place of "Leave the programme" for a facilitator who
+   * holds a place: they are taken off the group's facilitators first
+   * (`leavePathFor`'s `facilitating`). Null for everybody else.
+   */
+  leaveNote?: string | null;
   /** The session's own uid, from the server gate: the ticks' row, and "(you)" in the group. */
   uid?: string | null;
   /**
@@ -311,6 +317,7 @@ export default function RunHome({
   canEmailCohort,
   pitching = null,
   canLeave = false,
+  leaveNote = null,
   guide = null,
   uid = null,
 }: Props) {
@@ -670,6 +677,13 @@ export default function RunHome({
           <Link className={weekly.footLink} href={`/learn/${encodeURIComponent(runId)}/leave`}>
             {LEAVE_LINK}
           </Link>
+        </div>
+      )}
+      {/* A facilitator who holds a place: why there is no way out here, and
+          who gives them one. */}
+      {!canLeave && leaveNote && access.isEnrolled && (
+        <div className={weekly.foot}>
+          <p className={weekly.footNote}>{leaveNote}</p>
         </div>
       )}
     </PageEnter>

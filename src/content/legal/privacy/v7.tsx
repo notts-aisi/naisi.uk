@@ -10,7 +10,8 @@
  *  1. **Certificates are sent, and start private.** v6 said a person mints
  *     their own and nothing is issued unless they choose to. When a programme
  *     ends, its lead or an admin will send one to everybody its record says
- *     finished, and to each of its facilitators. Each starts private until its
+ *     finished, and to each of its facilitators: a facilitator who held a
+ *     place and finished is sent both. Each starts private until its
  *     owner turns its link on. A certificate whose link is off goes with the
  *     account; one whose link is on stays, as a minted one did under v6.
  *  2. **Who finished.** The lead's number of sessions, the lead's changes
@@ -56,7 +57,16 @@
  *     email, whatever their settings say, with up to three reminders; the
  *     person answers on a page that shows the ask to nobody else, and each ask
  *     is kept with its email as it went and the answer, and no address
- *     (`src/lib/courses/facilitatorAsks/`).
+ *     (`src/lib/courses/facilitatorAsks/`). A facilitator can hold a place on
+ *     the programme too: a yes from them puts them in the group they
+ *     facilitate (`seatFor` in `src/lib/courses/groupFacilitators.ts`), they
+ *     are on its register and count towards who finished like everybody in
+ *     it, their own written answers are the programme's lead's and admins'
+ *     to read and review and never their co-facilitators' (`facilitatesOnRun`
+ *     and `readsFacilitatorsOwnWork` in
+ *     `src/lib/courses/writtenAnswers/access.ts`), and they are taken off the
+ *     group's facilitators before they leave or are removed (`leavePathFor`
+ *     in `src/lib/courses/leaving.ts`).
  * 10. **What other participants see.** On an incubator, a pitch is seen by
  *     the group, and a team's page by the team. A comment on a piece of
  *     material is shown to the run only on a programme anyone can join; on a
@@ -752,7 +762,10 @@ export default function PrivacyContentV7({
                   email address. The programme&apos;s lead and admins can see
                   these records, and you can see your own ask on its page. They
                   are kept with the rest of your course record, and deleted
-                  with your account.
+                  with your account. If you hold a place on that programme,
+                  saying yes also puts you in that group, as one of its
+                  people: a facilitator who holds a place sits in the group
+                  they facilitate.
                 </li>
                 <li>
                   <strong>Your reply.</strong> You answer on your own
@@ -901,6 +914,19 @@ export default function PrivacyContentV7({
                   deleted with your account.
                 </li>
                 <li>
+                  <strong>If you facilitate your own group.</strong> A
+                  facilitator can also hold a place on the programme, in the
+                  group they facilitate. If you do, you are one of the
+                  group&apos;s people as well: you are on its register, and
+                  whoever takes the register marks you, which can be you; you
+                  count towards who finished; and your written answers are not
+                  shown to the group&apos;s other facilitators, who do not give
+                  you feedback on them: the programme&apos;s lead or an admin
+                  does. Before you can leave the programme, or be taken off it,
+                  the programme&apos;s lead or an admin takes you off the
+                  group&apos;s facilitators.
+                </li>
+                <li>
                   <strong>Notes shared with your group.</strong> On a programme
                   that places you in a group, each week&apos;s page has notes
                   the people in your group and its facilitators share with each
@@ -1022,7 +1048,8 @@ export default function PrivacyContentV7({
                 When a programme ends, we will send a certificate to everybody
                 the programme&apos;s record says finished it (see Who
                 finished), and to each person who facilitated one of its
-                groups. The programme&apos;s lead or an admin sends each one as
+                groups. A facilitator who held a place and finished is sent
+                both. The programme&apos;s lead or an admin sends each one as
                 an email with a link to its page on our site. The page shows
                 your name, that you finished the programme or facilitated a
                 group on it, the programme, the term, how many weeks it ran and

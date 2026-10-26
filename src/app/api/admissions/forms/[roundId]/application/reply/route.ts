@@ -138,7 +138,7 @@ export async function POST(req: Request, ctx: Ctx) {
       if (onRun?.kind === "in-a-group") {
         if ("closed" in onRun.leave) {
           return NextResponse.json(
-            { error: leaveClosedLine(onRun.leave.closed, onRun.run.courseTitle) },
+            { error: leaveClosedLine(onRun.leave, onRun.run.courseTitle) },
             { status: 409 },
           );
         }

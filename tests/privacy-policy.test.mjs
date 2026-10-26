@@ -694,6 +694,19 @@ const MUST_NAME = [
   ["an ask to facilitate is emailed whatever the settings say, with up to three reminders", /We email you the ask whatever your notification settings say, because it answers what you said on your application, and while it waits for your answer we may send you up to three reminders, at least twelve hours apart\./i],
   ["what the record of an ask holds, and that it holds no address", /We keep a record of each ask: who asked you and when, which group it was for, the day and time to answer by, whether the email went, any reminders, your answer and when you gave it, and a copy of the email as it was sent, with the name it was sent to\. The record holds no email address\./i],
   ["who sees the asks, and that they go with the account", /The programme&apos;s lead and admins can see these records, and you can see your own ask on its page\. They are kept with the rest of your course record, and deleted with your account\./i],
+  // A facilitator who holds a place (the rule that nobody facilitates a
+  // programme they take part in was lifted on 26 October 2026), added to v7
+  // before any member was asked to accept it: a yes places them, they are on
+  // the register and count towards who finished, their own written answers
+  // are the programme's lead's and an admin's (Zach, Mon 26 Oct 2026), they
+  // are stood down before they leave, and they are sent both certificates.
+  // §2g holds each to its code.
+  ["a yes from somebody holding a place puts them in that group", /If you hold a place on that programme, saying yes also puts you in that group, as one of its people: a facilitator who holds a place sits in the group they facilitate\./i],
+  ["a facilitator who holds a place is on the group's register, marked by whoever takes it", /If you do, you are one of the group&apos;s people as well: you are on its register, and whoever takes the register marks you, which can be you;/i],
+  ["a facilitator who holds a place counts towards who finished", /which can be you; you count towards who finished;/i],
+  ["a facilitator's own written answers are the programme's lead's and an admin's, not the group's other facilitators'", /your written answers are not shown to the group&apos;s other facilitators, who do not give you feedback on them: the programme&apos;s lead or an admin does\./i],
+  ["a facilitator who holds a place is stood down before they leave or are removed", /Before you can leave the programme, or be taken off it, the programme&apos;s lead or an admin takes you off the group&apos;s facilitators\./i],
+  ["a facilitator who held a place and finished is sent both certificates", /A facilitator who held a place and finished is sent both\./i],
   ["\"I cannot make it\" from somebody in a group is leaving", /If you are already in a group when you say you cannot make it, that is the same as leaving the programme, and your reason goes where a leaver&apos;s does/i],
   ["pitching week, and that sending a pitch shares it with the group", /Sending a pitch is choosing to share it: everybody in your group sees it, with your name and your partner&apos;s, and the pitch form says so\./i],
   ["who picked a pitch is told to nobody in the group", /Nobody else in your group is told which ones you picked\./i],
@@ -2632,6 +2645,9 @@ describe("the course hub passage", () => {
       /Pathways and cases\./i,
       /which ones you were given is recorded on the site/i,
       /the packs and cases recorded for you/i,
+      /saying yes also puts you in that group/i,
+      /If you facilitate your own group\./i,
+      /A facilitator who held a place and finished is sent both/i,
     ]) {
       assert.ok(
         !pattern.test(V6_FLAT),
@@ -3202,6 +3218,131 @@ describe("the course hub passage", () => {
     }
   });
 
+  test("a facilitator who holds a place is one of the group's people: a yes places them, the register and who finished count them, their answers are the programme's lead's and an admin's, they are stood down before they leave, and they are sent both certificates", async () => {
+    assert.match(
+      PAGE_FLAT,
+      /deleted with your account\. If you hold a place on that programme, saying yes also puts you in that group, as one of its people: a facilitator who holds a place sits in the group they facilitate\./,
+    );
+    assert.match(
+      PAGE_FLAT,
+      /<strong>If you facilitate your own group\.<\/strong> A facilitator can also hold a place on the programme, in the group they facilitate\. If you do, you are one of the group&apos;s people as well: you are on its register, and whoever takes the register marks you, which can be you; you count towards who finished; and your written answers are not shown to the group&apos;s other facilitators, who do not give you feedback on them: the programme&apos;s lead or an admin does\. Before you can leave the programme, or be taken off it, the programme&apos;s lead or an admin takes you off the group&apos;s facilitators\./,
+    );
+
+    // "Saying yes also puts you in that group": where somebody sits, run.
+    const seats = await loadTs("lib/courses/groupFacilitators.ts");
+    const fellow = (groupId, status = "active") => ({ row: { role: "learner", status, groupId }, accepted: true });
+    assert.deepEqual(seats.seatFor("a", fellow(null)), { kind: "place", row: "update" });
+    assert.deepEqual(seats.seatFor("a", { row: null, accepted: true }), { kind: "place", row: "create" });
+    assert.deepEqual(seats.seatFor("a", fellow("a")), { kind: "in-the-group" });
+    assert.deepEqual(seats.seatFor("a", fellow("b")), { kind: "elsewhere", groupId: "b" }, "a yes now moves somebody out of another group");
+    assert.deepEqual(seats.seatFor("a", fellow("a", "withdrawn")), { kind: "facilitator-only" }, "somebody who left is placed again by an appointment");
+    assert.deepEqual(seats.seatFor("a", { row: null, accepted: false }), { kind: "facilitator-only" });
+    // "As one of its people": room in the group is asked as for anybody placed.
+    const group = { id: "a", capacity: 2, memberCount: 2 };
+    assert.deepEqual(
+      seats.placementsFor({ group, added: ["amara"], seats: new Map([["amara", { row: null, accepted: true }]]), joinedWeekNumber: 1 }),
+      { ok: false, problem: { kind: "full", uid: "amara" } },
+    );
+    // The two doors that appoint, and only they, place somebody this way, and
+    // the answer hands its places to the one writer.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bplacementsFor\(/),
+      new Map([
+        ["src/lib/courses/groupFacilitators.ts", "where the places an appointment makes are decided"],
+        ["src/lib/courses/facilitatorAsks/answer.ts", "a yes from the person asked, in the transaction that records it"],
+        ["src/app/api/courses/groups/[groupId]/facilitators/route.ts", "a change of a group's facilitators by hand, in one transaction"],
+      ]),
+      "placing somebody as they are made a facilitator",
+      "The policy says a yes from somebody holding a place puts them in that group. A new door that places people this way is a new sentence.",
+    );
+    const answer = withoutComments(read("src/lib/courses/facilitatorAsks/answer.ts"));
+    assert.match(answer, /writeFacilitatorChange\(tx, db, \{[\s\S]*?next: \[\.\.\.current, actor\.uid\],[\s\S]*?placing,\s*\}\);/);
+
+    // "On its register, and whoever takes the register marks you, which can
+    // be you": the register lists every active row in the group, with no
+    // question about anybody's role, and the group's facilitators mark it.
+    const registerAccess = withoutComments(read("src/lib/courses/registerAccess.ts"));
+    const members = registerAccess.slice(registerAccess.indexOf("export async function loadRegisterMembers("));
+    const membersBody = members.slice(0, members.indexOf("\n}\n"));
+    assert.match(membersBody, /\.where\("groupId", "==", groupId\)\s*\.where\("status", "==", "active"\)/);
+    assert.ok(!/\brole\b/.test(membersBody), "the register now asks people's roles, so a facilitator who holds a place may be left off it");
+
+    // "You count towards who finished": who finished is the run's learner
+    // rows, and nothing in it leaves out a facilitator.
+    const attendance = withoutComments(read("src/lib/courses/programmeAttendance.ts"));
+    assert.match(attendance, /\.filter\(\(row\) => row\.role === "learner" && row\.uid !== "" && row\.runId === runId\)/);
+    assert.ok(!/facilitatorUids/.test(withoutComments(read("src/lib/courses/finishing/whoFinished.ts"))), "who finished now asks who facilitates");
+
+    // "Not shown to the group's other facilitators, who do not give you
+    // feedback on them: the programme's lead or an admin does" (Zach, Mon 26
+    // Oct 2026: a facilitator's own work is read by the programme's lead and
+    // admins, not co-facilitators). One rule, run: whose work is a
+    // facilitator's own, and who reads it.
+    const ownWork = await loadTs("lib/courses/writtenAnswers/access.ts");
+    const groupNaming = (archived) => [{ id: "a", runId: "r", archived, facilitatorUids: ["sofia", "amara"] }];
+    assert.equal(ownWork.facilitatesOnRun("amara", groupNaming(false)), true);
+    assert.equal(ownWork.facilitatesOnRun("bea", groupNaming(false)), false);
+    assert.equal(ownWork.facilitatesOnRun("amara", groupNaming(true)), false, "an archived group makes somebody's work a facilitator's own");
+    const readsAmaras = (uid, facts) => ownWork.readsFacilitatorsOwnWork({ uid }, facts, "amara");
+    assert.equal(readsAmaras("claudia", { isAdmin: false, isLead: true }), true, "the programme's lead no longer reads a facilitator's own work");
+    assert.equal(readsAmaras("zach", { isAdmin: true, isLead: false }), true, "an admin no longer reads a facilitator's own work");
+    assert.equal(readsAmaras("sofia", { isAdmin: false, isLead: false }), false, "a co-facilitator reads a facilitator's own work");
+    assert.equal(readsAmaras("amara", { isAdmin: true, isLead: true }), false, "somebody reviews their own work");
+    // Every place that reads or reviews other people's answers asks it: the
+    // written answers' gate (every written answers page, route and count
+    // asks that) and the summer's three. None decides it again.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\breadsFacilitatorsOwnWork\(/),
+      new Map([
+        ["src/lib/courses/writtenAnswers/access.ts", "the one rule, and the written answers' gate that every written answers page, route and count asks"],
+        ["src/app/api/courses/exercise-responses/[responseId]/review/route.ts", "a verdict on an answer to the summer's exercises"],
+        ["src/app/api/courses/groups/[groupId]/exercises/route.ts", "the summer's review queue: the answers a group's facilitators and admins are listed"],
+        ["src/lib/courses/facilitatorGroup.ts", "the group page's and Home's To review count of the summer's answers"],
+      ]),
+      "deciding who reads a facilitator's own work",
+      "The policy says a facilitator's own written answers are read by the programme's lead and admins and by none of the group's other facilitators. A new place that reads or reviews them asks the same rule.",
+    );
+    const ownGate = withoutComments(read("src/lib/courses/writtenAnswers/access.ts"));
+    assert.ok(ownGate.includes("const own = readsFacilitatorsOwnWork(actor, facts, owner.uid);"), "the written answers' gate no longer asks the one rule for a facilitator's own answer");
+    for (const file of [
+      "src/app/api/courses/groups/[groupId]/exercises/route.ts",
+      "src/app/api/courses/exercise-responses/[responseId]/review/route.ts",
+      "src/lib/courses/facilitatorGroup.ts",
+    ]) {
+      const code = withoutComments(read(file));
+      assert.match(code, /\bfacilitatesOnRun\(/, `${file} no longer asks whose work is a facilitator's own`);
+      assert.doesNotMatch(code, /facilitatorUids\.includes\(/, `${file} decides a facilitator's own work by a rule of its own`);
+    }
+
+    // "Before you can leave the programme, or be taken off it": leaving's one
+    // answer, its words run, and Remove's refusal.
+    const leaving = withoutComments(read("src/lib/courses/leaving.ts"));
+    assert.match(leaving, /if \(facilitated\) return \{ closed: "facilitating", groupName: /);
+    const leavingWords = await loadTs("lib/courses/leavingWords.ts");
+    assert.equal(
+      leavingWords.leaveClosedLine({ closed: "facilitating", groupName: "Group A" }, "AGI Strategy Fellowship"),
+      "You facilitate Group A, so you can’t leave the programme here. Ask the programme’s lead or an admin to take you off its facilitators first, then you can leave.",
+    );
+    const remove = withoutComments(read("src/app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts"));
+    assert.match(remove, /if \(facilitated && existing\.status === "active"\) \{\s*throw new RemoveError\(facilitatesGroupLine\(/);
+
+    // "A facilitator who held a place and finished is sent both": worded as
+    // what will happen, as the rest of the passage is (§2 fails the day the
+    // site keeps certificates). The two lists they will go to can hold one
+    // person: who finished's (learner rows, above) and the groups'
+    // facilitators.
+    assert.match(PAGE_FLAT, /and to each person who facilitated one of its groups\. A facilitator who held a place and finished is sent both\./);
+
+    // The suites that run each of these as every kind of caller.
+    for (const suite of [
+      "course-hub-facilitator-fellows.test.mjs",
+      "course-hub-facilitator-fellows-leaving.test.mjs",
+      "course-hub-facilitator-fellows-finishing.test.mjs",
+    ]) {
+      assert.ok(existsSync(join(REPO_ROOT, "tests", suite)), `tests/${suite} is gone`);
+    }
+  });
+
   test("who finished: the number is shown to the programme's lead and admins, and a member is told only whether they finished", () => {
     // The words, run: the lead's sentences say who sees the rule, and a
     // member's carry a programme's name and nothing else.
@@ -3379,7 +3520,12 @@ describe("the course hub passage", () => {
     const route = withoutComments(read("src/app/api/courses/groups/[groupId]/summary/route.ts"));
     assert.match(route, /group && !group\.archived && isNamedWithStanding\(actor, "courseGroups\.facilitatorUids", group\.facilitatorUids\)/);
     assert.match(route, /!isAdmin && isBeforeFirstSessionDay\(firstSessionDayOf\(run, group, now\), now\)/);
-    assert.match(route, /model\.people\.map\(\(person\) => \(\{ uid: person\.uid, firstName: person\.firstName \}\)\)/);
+    // The reader is left out: a facilitator who holds a place is one of the
+    // group's people, and is not told whether they themselves are coming.
+    assert.match(
+      route,
+      /model\.people\s*\.filter\(\(person\) => person\.uid !== actor\.uid\)\s*\.map\(\(person\) => \(\{ uid: person\.uid, firstName: person\.firstName \}\)\)/,
+    );
     assert.match(route, /whosComing\.map\(\(person\) => \(\{ firstName: person\.firstName, coming: person\.coming \}\)\)/);
 
     // The reply, run: "I can't make it", with its reason, is not a yes, and
@@ -3904,7 +4050,12 @@ describe("the course hub passage", () => {
     // Who reads it: the one gate, its three lines that decide.
     const gate = withoutComments(read("src/lib/courses/writtenAnswers/access.ts"));
     assert.ok(gate.includes('if (!actor.uid || actor.uid === owner.uid) return { mayReview: false, locksOnOpen: false, ownerFacilitates };'), "the gate no longer refuses everybody their own answer");
-    assert.ok(gate.includes("return { mayReview: staff, locksOnOpen: staff, ownerFacilitates };"), "the gate no longer keeps a facilitator's own answer for the lead and admins");
+    // A facilitator's own answer: the one rule for a facilitator's own work,
+    // asked here and by the summer's answers (the test of "If you facilitate
+    // your own group" runs it), its body pinned as this line pinned the
+    // gate's own before the rule was shared.
+    assert.ok(gate.includes("const own = readsFacilitatorsOwnWork(actor, facts, owner.uid);") && gate.includes("return { mayReview: own, locksOnOpen: own, ownerFacilitates };"), "the gate no longer keeps a facilitator's own answer for the lead and admins");
+    assert.ok(gate.includes("return Boolean(actor.uid) && actor.uid !== ownerUid && (facts.isAdmin || facts.isLead);"), "the rule for a facilitator's own work no longer admits the lead and admins alone, and never its owner");
     assert.ok(gate.includes("return { mayReview: staff || facilitatesTheirGroup, locksOnOpen: facilitatesTheirGroup, ownerFacilitates };"), "the gate no longer admits a fellow's group's facilitators, the lead and admins, and nobody else");
     // The page beside the box says so: the words are run.
     const words = writtenWords;

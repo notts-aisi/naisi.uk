@@ -14,6 +14,7 @@ import {
   type CourseEnrolmentStatus,
 } from "@/lib/firestore/courseEnrolments";
 import { courseApplicationId } from "@/lib/firestore/courseApplications";
+import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { courseRunChannel, normalizeCourseRun } from "@/lib/firestore/courses";
 import { unsubscribe } from "@/lib/firestore/subscriptions";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
@@ -65,9 +66,26 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * managed by the group facilitators route (which retires it when the person
  * is unassigned). Refused here so the board can't quietly strip someone's
  * facilitator access under the guise of un-placing a learner.
+ *
+ * SO IS A FACILITATOR WHO HOLDS A PLACE, while they facilitate one of the
+ * run's live groups: their row is a learner's, but taking them off the run
+ * would leave a group's facilitator who is no longer on it. They are taken
+ * off the group's facilitators first (which leaves their place where it
+ * is), and then removed like anybody else, as leaving asks of them too
+ * (`leavePathFor`). Asked of the run's groups inside the transaction, so an
+ * appointment made while this runs makes it run again.
  */
 
 type Ctx = { params: Promise<{ runId: string; uid: string }> };
+
+/**
+ * NOT DRAWN. Remove, for a facilitator who holds a place: they come off the
+ * group's facilitators first, and then off the run. Written in the boards'
+ * voice.
+ */
+function facilitatesGroupLine(groupName: string): string {
+  return `They facilitate ${groupName}. Take them off its facilitators first, on the Facilitators view, then remove them.`;
+}
 
 /**
  * The refusal for a seat whose person left by themselves: that they left, on
@@ -133,7 +151,11 @@ export async function POST(_req: Request, ctx: Ctx) {
 
   try {
     await db.runTransaction(async (tx) => {
-      const snap = await tx.get(enrolmentRef);
+      const [snap, runGroups] = await Promise.all([
+        tx.get(enrolmentRef),
+        // One equality on one field: who facilitates the run's groups.
+        tx.get(db.collection("courseGroups").where("runId", "==", runId)),
+      ]);
       if (!snap.exists) throw new RemoveError("Enrolment not found", 404);
       const existing = snap.data() ?? {};
 
@@ -148,6 +170,12 @@ export async function POST(_req: Request, ctx: Ctx) {
           "That's a facilitator enrolment. Unassign them in the group editor instead.",
           409,
         );
+      }
+      const facilitated = runGroups.docs
+        .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
+        .find((group) => group.runId === runId && !group.archived && group.facilitatorUids.includes(uid));
+      if (facilitated && existing.status === "active") {
+        throw new RemoveError(facilitatesGroupLine(facilitated.name.trim() || "a group"), 409);
       }
 
       const status = existing.status as CourseEnrolmentStatus;

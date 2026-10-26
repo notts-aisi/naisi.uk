@@ -16,6 +16,12 @@ import {
   type ExerciseReviewStatus,
 } from "@/lib/firestore/courseExercises";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
+import {
+  facilitatesOnRun,
+  liveGroupsOf,
+  readsFacilitatorsOwnWork,
+  reviewerFactsOf,
+} from "@/lib/courses/writtenAnswers/access";
 import { isWordCountedAnswer } from "@/lib/courses/writtenAnswers/model";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
@@ -41,6 +47,13 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * caller names no group and cannot review across group lines. Admissions
  * reviewers and track leads are NOT here: admissions is a separate lane from
  * the cohort (locked decision), and staffing a run is not facilitating a group.
+ *
+ * A FACILITATOR'S OWN ANSWER is the one exception, decided by the rule every
+ * kind of answer asks (`facilitatesOnRun` and `readsFacilitatorsOwnWork` in
+ * `src/lib/courses/writtenAnswers/access.ts`): when the owner facilitates a
+ * live group of the run, holding a place there or not, the programme's lead
+ * and admins review it, and nobody else: never a co-facilitator, and never
+ * the owner, an admin included.
  *
  * `responseId` is the opaque deterministic doc id carried by the queue payload.
  * It is used VERBATIM as a doc id and NEVER parsed: `runId` can itself contain
@@ -172,12 +185,14 @@ export async function POST(
   const existing =
     snap.exists && !isOwnBoxResponse(data) && !isWordCountedAnswer(data) ? normalizeExerciseResponse(snap.id, data) : null;
 
-  // ---- Access: facilitator of the OWNER's group, or admin ------------------
-  // Two addressed reads, no queries and no caller-supplied ids: the owner's
-  // enrolment (bound to (runId, uid) by `courseEnrolmentId`) names the group,
-  // and the group names its facilitators. A withdrawn or completed enrolment
-  // still resolves — work submitted while someone was in your group stays yours
-  // to review after they leave it.
+  // ---- Access: a facilitator's own answer by the one rule; otherwise a ------
+  // ---- facilitator of the OWNER's group, or admin ---------------------------
+  // The run's live groups by one equality on the row's own run, then two
+  // addressed reads and no caller-supplied ids: the owner's enrolment (bound
+  // to (runId, uid) by `courseEnrolmentId`) names the group, and the group
+  // names its facilitators. A withdrawn or completed enrolment still
+  // resolves: work submitted while someone was in your group stays yours to
+  // review after they leave it.
   //
   // AUTHORIZATION BEFORE EXISTENCE. `responseId` is DETERMINISTIC
   // (`runId__uid__weekId__exerciseId`), so anyone holding a run id and a uid can
@@ -187,10 +202,17 @@ export async function POST(
   // exercise". Only an admin, who is past the gate on their role alone and may
   // read any of these rows anyway, is told a row is genuinely missing.
   const isAdmin = actor.role === "admin";
-  if (!isAdmin) {
-    let allowed = false;
-    // A row that can't say whose it is can't be access-checked. Fail closed.
-    if (existing?.runId && existing.uid) {
+  // A row that can't say whose it is can't be access-checked. Fail closed:
+  // only an admin passes, to be told below that it is missing.
+  let allowed = isAdmin;
+  if (existing?.runId && existing.uid) {
+    const liveGroups = await liveGroupsOf(db, existing.runId);
+    if (facilitatesOnRun(existing.uid, liveGroups)) {
+      // A FACILITATOR'S OWN ANSWER: the programme's lead and admins review
+      // it, never a co-facilitator, never its owner. The same refusal as any
+      // other below, so it says nothing more about the row.
+      allowed = readsFacilitatorsOwnWork(actor, await reviewerFactsOf(db, actor, existing.runId), existing.uid);
+    } else if (!isAdmin) {
       const enrolSnap = await db
         .collection("courseEnrolments")
         .doc(courseEnrolmentId(existing.runId, existing.uid))
@@ -222,9 +244,9 @@ export async function POST(
         );
       }
     }
-    if (!allowed) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+  }
+  if (!allowed) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   // Reachable only by an admin (every other caller is authorised against a row
