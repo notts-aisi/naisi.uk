@@ -258,7 +258,9 @@ describe("1. the survey at a programme's end opens one form for it, links to it 
     assert.equal((await w.answerByLink(w.tokenOf(after, "bea"), {})).status, 200);
     const beas = await w.page(w.pages.link, { params: Promise.resolve({ token: w.tokenOf(after, "bea") }) });
     assert.deepEqual([...beas.html.matchAll(/href="(\/feedback\/[^"]+)"/g)].map((m) => m[1]), [href]);
-    assert.ok(!href.includes(w.tokenOf(after, "bea")) && !href.includes("bea") && !href.includes("?"));
+    // Neither her link's token nor her uid is in it, and nothing follows it. The uid is held to the address's
+    // segments, not its letters: the form's token is random and may hold "bea" by chance.
+    assert.ok(!href.includes(w.tokenOf(after, "bea")) && !href.split("/").includes("bea") && !href.includes("?"));
   });
 
   test("the card once a survey is sent is the same card, drawn from the address it is handed and nothing else", () => {
