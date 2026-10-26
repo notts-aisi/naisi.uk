@@ -73,8 +73,42 @@ your plans (a choice and a pick-any). Their ids are fixed strings
 person and compare across programmes; the after survey will copy them.
 
 The items are **Worksheets' item model**, sanitised and validated by Worksheets'
-own functions, with the one question Worksheets lacks ("1 to 5 for each line")
-defined beside them. Worksheets itself is unchanged.
+own functions, with the questions Worksheets lacks defined beside them in
+`src/lib/surveys/items.ts`. Worksheets itself is unchanged.
+
+## The question types
+
+Every one is drawn phone first with real labelled form controls and targets
+of at least 44px, works before the page's script arrives, and can be skipped.
+
+| Kind | Stored as | Answer |
+| --- | --- | --- |
+| Choose one, pick any, short and long answer, 1 to 5 | Worksheets' own | Worksheets' own |
+| Every point described (a stage, 0 to 5) | a single choice, `look: "points"`, `scores` | the option's id; results read its number |
+| Each answer counts as a number (a share of working time as FTE) | a single choice, `scores`, `scoreUnit` | the option's id |
+| A menu, offered from the profile | a single choice, `look: "menu"`, `profile` | the option's id |
+| Pick up to some number | pick any, `maxPicks` | the ids, refused over the limit |
+| Pick any, then which mattered most | pick any, `most` | the ids and `most`, which must be one of them |
+| 1 to 5 for each line (an agreement grid gives every point its words) | `lines`, `scale.points` | a number per line |
+| 0 to 100% | `percent`, with words at the ends | a whole number; the typed box is the answer and the slider beside it a second way in |
+| A number | `number`, with its largest | a whole number from 0 |
+| A scale with words at chosen points (1 to 7, 0 to 10) | `scale`, `min`, `max`, `anchors` | a whole number; 0 to 10 also gives a net promoter score |
+| A consent statement and its boxes | `kind: "consent"` (not a question) | what is ticked goes on the person's row, `consents`, never into the answers |
+
+Any question may also carry a line under it (`hint`), the question it looks
+back on (`lookBackOf`, so results set a look-back beside what it looks back
+on) and an earlier answer of the person's own shown above it (`pipe`).
+
+**A consent box starts unticked**, and only a tick is a yes. When the answers
+are sent, each box's yes or no is written on the person's own row with when it
+was said (`consentsAt`), because an answer can never change and a consent can.
+
+**What a profile offers** (`src/lib/surveys/profileOffer.ts`): the level of
+study from `profile.status` (a master's, a PhD, staff, other; an
+undergraduate's profile does not say which year, so nothing is offered), and
+the subject from `profile.subject` when exactly one subject's words are in it.
+The menu starts on that answer and says so; the person can change it. Nothing
+else of the profile is read.
 
 **Until the first send** an admin may change the words, the options, the lines,
 the order, the title, the intro, the minutes and the closing day. Questions are

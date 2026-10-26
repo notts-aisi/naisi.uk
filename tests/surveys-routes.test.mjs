@@ -755,3 +755,164 @@ describe("a survey outlives its form", () => {
     assert.equal((await w.exportAs("zach", id)).status, 200);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The survey's own question kinds, through the real page and routes
+// ---------------------------------------------------------------------------
+
+/** A survey of every kind, as an admin's draft holds it before the first send. */
+const EVERY_KIND = [
+  { kind: "section", id: "s_one", heading: "Where you are now", body: [] },
+  { kind: "question", id: "q_stage", type: "singleChoice", title: "Which best describes you right now?", body: [], required: false, options: [{ id: "o_s0", label: "Haven’t thought about it" }, { id: "o_s1", label: "Thought about it" }], look: "points", scores: { o_s0: 0, o_s1: 1 } },
+  { kind: "question", id: "q_likely", type: "percent", title: "How likely is it?", ends: { min: "Not at all", max: "Certain" } },
+  { kind: "question", id: "q_kinds", type: "multipleChoice", title: "Which kinds of work interest you most?", body: [], required: false, options: [{ id: "o_a", label: "Research" }, { id: "o_b", label: "Policy" }, { id: "o_c", label: "Operations" }], maxPicks: 2 },
+  { kind: "question", id: "q_people", type: "number", title: "How many people could you message?", max: 1000 },
+  { kind: "question", id: "q_explain", type: "scale", title: "How well could you explain it?", min: 1, max: 7, anchors: [{ at: 1, label: "Not at all" }, { at: 4, label: "The gist" }, { at: 7, label: "Hold my own" }] },
+  { kind: "question", id: "q_recommend", type: "scale", title: "Would you recommend it?", min: 0, max: 10, anchors: [{ at: 0, label: "Not at all likely" }, { at: 10, label: "Extremely likely" }] },
+  { kind: "question", id: "q_shaped", type: "multipleChoice", title: "What else has shaped your plans?", body: [], required: false, options: [{ id: "o_x", label: "Friends" }, { id: "o_y", label: "AI news" }], most: "Which mattered most?" },
+  { kind: "question", id: "q_subject", type: "singleChoice", title: "Your subject", body: [], required: false, options: [{ id: "o_philosophy", label: "Philosophy" }, { id: "o_law", label: "Law" }], look: "menu", profile: "subject" },
+  { kind: "consent", id: "c_consent", statement: "Results with no names go to our funders.", boxes: [{ purpose: "followUps", label: "Contact me at 6 and 12 months" }] },
+];
+
+/** Every tag in some markup that carries `attribute`, whole. */
+const tagsWith = (html, attribute) => [...html.matchAll(/<[a-z]+\b[^>]*>/g)].map((match) => match[0]).filter((tag) => tag.includes(attribute));
+
+describe("every kind of question, on the page and through the routes", () => {
+  /** AGI Strategy's survey, made, its questions set to every kind, then sent. */
+  async function everyKindSurvey() {
+    const id = (await w.make()).body.survey.id;
+    w.world.db.poke(`surveys/${id}`, { items: EVERY_KIND });
+    const sent = await w.sendFirst(id);
+    assert.equal(sent.status, 200, JSON.stringify(sent.body));
+    return id;
+  }
+
+  test("each is drawn with a real control that works before the script, and the consent box starts unticked", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = await everyKindSurvey();
+    const before = w.everything();
+    // Amara's profile says "BA Philosophy", so her subject is offered.
+    const page = await w.page(w.pages.link, { params: Promise.resolve({ token: w.tokenOf(id, "amara") }) });
+    assert.equal(w.everything(), before, "opening the page wrote something");
+    const { html, text } = page;
+    for (const words of [
+      "0 Haven’t thought about it",
+      "1 Thought about it",
+      "0%: Not at all. 100%: Certain.",
+      "Pick up to 2",
+      "1 Not at all 4 The gist 7 Hold my own",
+      "Which mattered most?",
+      "From your profile. Change it if it’s not right.",
+      "Consent",
+      "Results with no names go to our funders.",
+      "Contact me at 6 and 12 months",
+    ]) {
+      assert.ok(text.includes(words), `missing "${words}"`);
+    }
+    // The typed percentage is the answer and needs no dragging; the slider is a second way in.
+    const [typed] = tagsWith(html, 'name="q_likely"');
+    for (const attribute of ['type="number"', 'inputMode="numeric"', 'min="0"', 'max="100"', 'step="1"', 'aria-labelledby="q-q_likely"']) {
+      assert.ok(typed.includes(attribute), `the typed percentage lacks ${attribute}: ${typed}`);
+    }
+    const [slider] = tagsWith(html, 'type="range"');
+    for (const attribute of ['disabled=""', 'aria-hidden="true"', 'tabindex="-1"']) {
+      assert.ok(slider.includes(attribute), `the slider lacks ${attribute}: ${slider}`);
+    }
+    assert.ok(!slider.includes("name="), "the slider sends nothing of its own");
+    const [people] = tagsWith(html, 'name="q_people"');
+    assert.ok(people.includes('type="number"') && people.includes('max="1000"') && people.includes('aria-labelledby="q-q_people"'), people);
+    // Eleven points for 0 to 10, each with its words for a screen reader.
+    assert.equal((html.match(/name="q_recommend"/g) ?? []).length, 11);
+    assert.match(html, /aria-label="0 out of 10: Not at all likely"/);
+    assert.match(html, /aria-label="4 out of 7: The gist"/);
+    // The menu starts on the profile's answer, and still has "Choose one".
+    assert.match(html, /<option value="o_philosophy" selected="">Philosophy<\/option>/);
+    assert.match(html, /<option value="">Choose one<\/option>/);
+    const [menu] = tagsWith(html, 'name="q_subject"');
+    assert.ok(menu.startsWith("<select") && menu.includes('aria-labelledby="q-q_subject"'), menu);
+    // Before the script, which mattered most offers every option.
+    assert.equal((html.match(/name="q_shaped\.most"/g) ?? []).length, 2);
+    const [box] = tagsWith(html, 'name="consent.followUps"');
+    assert.ok(box.includes('type="checkbox"') && box.includes('value="yes"'), box);
+    assert.ok(!box.includes("checked"), "the consent box is ticked before anybody ticks it");
+  });
+
+  test("Dev's profile holds no subject an answer matches, so nothing is offered", async (t) => {
+    clock(t);
+    w.reset(seed());
+    w.world.db.poke("users/dev", { "profile.subject": "History" });
+    const id = await everyKindSurvey();
+    const page = await w.page(w.pages.link, { params: Promise.resolve({ token: w.tokenOf(id, "dev") }) });
+    assert.match(page.html, /<option value="" selected="">Choose one<\/option>/);
+    assert.doesNotMatch(page.html, /<option value="o_[a-z]+" selected="">/);
+    assert.ok(!page.text.includes("From your profile."));
+  });
+
+  test("the consent ticks go on the person's own row with when, never into the answers; left unticked is a no", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = await everyKindSurvey();
+    const answers = {
+      q_stage: { type: "choice", optionId: "o_s1" },
+      q_likely: { type: "percent", value: 0 },
+      q_shaped: { type: "choices", optionIds: ["o_x", "o_y"], most: "o_y" },
+    };
+    const said = await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(id, "amara"), answers, consents: { followUps: true } } });
+    assert.equal(said.status, 200, JSON.stringify(said.body));
+    assert.equal((await w.answerByLink(w.tokenOf(id, "bea"), {})).status, 200);
+    const row = (uid) => w.people(id).find((each) => each.respondent.uid === uid);
+    assert.deepEqual(row("amara").consents, { followUps: true });
+    assert.ok(row("amara").consentsAt, "when it was said is kept");
+    assert.deepEqual(row("bea").consents, { followUps: false }, "a box left unticked is a no");
+    const amara = w.answers(id).find((each) => each.respondent.uid === "amara");
+    assert.deepEqual(amara.answers, answers, "the answers are only the questions'");
+    assert.deepEqual(Object.keys(amara).sort(), ["afterFirstSession", "answers", "path", "respondent", "roundId", "sentAt", "surveyId", "via"]);
+  });
+
+  test("a box the survey doesn't have, or an answer out of range, is refused and nothing is kept", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = await everyKindSurvey();
+    const token = w.tokenOf(id, "tariq");
+    const as = (body) => call(null, routes.answerByLink.POST, {}, { body: { token, answers: {}, ...body } });
+    assert.deepEqual(short(await as({ consents: { kairos: true } })), [400, "One of those boxes isn’t on this survey."]);
+    assert.deepEqual(short(await as({ answers: { q_kinds: { type: "choices", optionIds: ["o_a", "o_b", "o_c"] } } })), [400, "Pick up to 2."]);
+    assert.deepEqual(short(await as({ answers: { q_likely: { type: "percent", value: 140 } } })), [400, "Give a number from 0 to 100."]);
+    assert.deepEqual(short(await as({ answers: { q_shaped: { type: "choices", optionIds: ["o_x"], most: "o_y" } } })), [400, "Pick the one that mattered most from those you ticked."]);
+    assert.equal(w.answers(id).length, 0);
+    assert.equal(w.people(id).find((each) => each.respondent.uid === "tariq").answered, false);
+    assert.deepEqual(w.people(id).find((each) => each.respondent.uid === "tariq").consents, undefined);
+  });
+
+  test("signed in, the consent ticks go on the caller's own row too", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = await everyKindSurvey();
+    const sent = await call("amara", routes.answerSignedIn.POST, { surveyId: id }, { body: { answers: {}, consents: { followUps: true } } });
+    assert.equal(sent.status, 200, JSON.stringify(sent.body));
+    assert.deepEqual(w.people(id).find((each) => each.respondent.uid === "amara").consents, { followUps: true });
+  });
+
+  test("the results and the spreadsheet show each kind, with no name in the results", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = await everyKindSurvey();
+    await w.answerByLink(w.tokenOf(id, "amara"), { q_likely: { type: "percent", value: 30 }, q_recommend: { type: "scale", value: 9 }, q_people: { type: "number", value: 3 } });
+    await w.answerByLink(w.tokenOf(id, "bea"), { q_likely: { type: "percent", value: 50 }, q_recommend: { type: "scale", value: 4 } });
+    const results = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
+    for (const words of [
+      "2 answered. Average 40%, middle value 40%, from 30% to 50%.",
+      "Net promoter score 0: the share at 9 or 10 less the share at 0 to 6.",
+      "0 is Not at all likely, 10 is Extremely likely.",
+      "1 answered. Average 3, middle value 3, from 3 to 3.",
+    ]) {
+      assert.ok(results.text.includes(words), `results: missing "${words}"`);
+    }
+    assert.doesNotMatch(results.text, /Amara|Okafor|Bea /);
+    const file = await w.exportAs("zach", id);
+    const [header, ...rows] = file.text.trim().split(/\r?\n/);
+    assert.match(header, /2\. How likely is it\?/);
+    assert.ok(rows.some((row) => row.startsWith("Amara Okafor,") && row.includes(",30,")));
+  });
+});

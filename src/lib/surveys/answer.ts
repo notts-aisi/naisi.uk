@@ -10,7 +10,7 @@ import {
   type SurveyDoc,
   type SurveyPersonDoc,
 } from "@/lib/firestore/surveys";
-import { readSurveyAnswers } from "./items";
+import { readSurveyAnswers, readSurveyConsents } from "./items";
 import { groupHasMet, toldGroupOf } from "./personFacts";
 import { isOpen } from "./repo";
 import { REFUSAL } from "./words";
@@ -29,13 +29,19 @@ import { REFUSAL } from "./words";
  * two presses at once keep one and refuse the other. The survey is read again
  * inside it, so an answer sent as the survey closes is held to the moment it
  * was sent.
+ *
+ * WHAT A CONSENT BLOCK'S BOXES SAY goes on the person's row, never into the
+ * answers: a yes or a no for each box the survey asks (a box left unticked is
+ * a no), with when it was said. The row is where the person can change it
+ * later, and where a follow-up survey reads who said yes; an answer can never
+ * change once sent.
  */
 
 export type AnswerOutcome = { ok: true } | { ok: false; status: number; error: string };
 
 export async function recordAnswer(
   db: Firestore,
-  input: { survey: SurveyDoc; person: SurveyPersonDoc; raw: unknown; via: SurveyAnswerVia; now: Date },
+  input: { survey: SurveyDoc; person: SurveyPersonDoc; raw: unknown; consents?: unknown; via: SurveyAnswerVia; now: Date },
 ): Promise<AnswerOutcome> {
   const { survey, person, via, now } = input;
   if (person.answered) return { ok: false, status: 409, error: REFUSAL.answered };
@@ -43,6 +49,9 @@ export async function recordAnswer(
 
   const read = readSurveyAnswers(survey.items, input.raw);
   if (read.problems.length > 0) return { ok: false, status: 400, error: read.problems[0].message };
+  const said = readSurveyConsents(survey.items, input.consents);
+  if (said.problem) return { ok: false, status: 400, error: said.problem };
+  const consented = Object.keys(said.consents).length > 0;
 
   // Whether their group had met: worked out now, kept with the answers.
   const afterFirstSession = groupHasMet(await toldGroupOf(db, survey.runId, person.respondent.uid), now);
@@ -68,7 +77,10 @@ export async function recordAnswer(
       via,
       afterFirstSession,
     });
-    tx.update(personRef, { answered: true });
+    tx.update(
+      personRef,
+      consented ? { answered: true, consents: said.consents, consentsAt: FieldValue.serverTimestamp() } : { answered: true },
+    );
     return { ok: true };
   });
 }

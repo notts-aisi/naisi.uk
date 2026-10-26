@@ -193,8 +193,9 @@ describe("totals and comments, never a name", () => {
   test("each line of question 4 is counted on its own scale", () => {
     const q4 = results.find((result) => result.id === "q_explain");
     assert.equal(q4.kind, "scale");
-    assert.deepEqual(q4.rows[0], { label: LINES[0], respondents: 2, counts: [0, 1, 0, 1, 0], mean: 3 });
-    assert.deepEqual(q4.rows[1], { label: LINES[1], respondents: 1, counts: [0, 0, 0, 1, 0], mean: 4 });
+    // Each row also carries its middle value, which the change view reads.
+    assert.deepEqual(q4.rows[0], { label: LINES[0], respondents: 2, counts: [0, 1, 0, 1, 0], mean: 3, median: 3 });
+    assert.deepEqual(q4.rows[1], { label: LINES[1], respondents: 1, counts: [0, 0, 0, 1, 0], mean: 4, median: 4 });
     assert.equal(q4.rows[2].mean, null);
   });
 
@@ -339,5 +340,334 @@ describe("the records", () => {
   test("an answer whose name has come off reads back with nobody", () => {
     const answer = records.normalizeSurveyAnswer("a1", { surveyId: "s1", respondent: null, answers: {}, via: "link" }, () => ({}));
     assert.equal(answer.respondent, null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The survey's own question types, and the settings it adds to Worksheets'
+// ---------------------------------------------------------------------------
+
+const { offerFromProfile, profileFactsOf, LEVEL_OPTION, SUBJECT_OPTION } = await loadTs(join("lib", "surveys", "profileOffer.ts"));
+const { answerPagesOf } = await loadTs(join("lib", "surveys", "answerView.ts"));
+
+/** One of each kind a questionnaire asks, as a template would write them. */
+const KINDS = [
+  { kind: "section", id: "s_one", heading: "Where you are now", body: [] },
+  {
+    kind: "question",
+    id: "q_stage",
+    type: "singleChoice",
+    title: "Which best describes you right now?",
+    body: [],
+    required: false,
+    options: [
+      { id: "o_s0", label: "Haven’t really thought about it" },
+      { id: "o_s1", label: "Thought about it" },
+      { id: "o_s2", label: "Seriously considering it" },
+    ],
+    look: "points",
+    scores: { o_s0: 0, o_s1: 1, o_s2: 2 },
+  },
+  { kind: "question", id: "q_likely", type: "percent", title: "How likely is it?", hint: "Research and policy both count.", ends: { min: "Not at all", max: "Certain" } },
+  {
+    kind: "question",
+    id: "q_kinds",
+    type: "multipleChoice",
+    title: "Which kinds of work interest you most?",
+    body: [],
+    required: false,
+    options: [
+      { id: "o_research", label: "Technical research" },
+      { id: "o_policy", label: "Governance or policy" },
+      { id: "o_ops", label: "Operations" },
+      { id: "o_unsure", label: "Not sure" },
+    ],
+    maxPicks: 2,
+    noneIds: ["o_unsure"],
+  },
+  { kind: "question", id: "q_explain", type: "scale", title: "How well could you explain it?", min: 1, max: 7, anchors: [{ at: 1, label: "Not at all" }, { at: 4, label: "The gist" }, { at: 7, label: "Hold my own" }] },
+  { kind: "question", id: "q_people", type: "number", title: "How many people could you message?", max: 1000 },
+  {
+    kind: "question",
+    id: "q_agree",
+    type: "lines",
+    title: "How much do you agree?",
+    lines: [{ id: "l_next", label: "I know my next step." }, { id: "l_can", label: "I could contribute." }],
+    scale: { max: 5, minLabel: "Strongly disagree", maxLabel: "Strongly agree", points: ["Strongly disagree", "Disagree", "Neither", "Agree", "Strongly agree"] },
+  },
+  { kind: "pageBreak", id: "pb_1" },
+  { kind: "section", id: "s_two", heading: "About the programme", body: [] },
+  { kind: "question", id: "q_back", type: "singleChoice", title: "Looking back, which described you before?", body: [], required: false, options: [{ id: "o_s0", label: "Haven’t really thought about it" }, { id: "o_s1", label: "Thought about it" }, { id: "o_s2", label: "Seriously considering it" }], look: "points", scores: { o_s0: 0, o_s1: 1, o_s2: 2 }, lookBackOf: "q_stage" },
+  { kind: "question", id: "q_recommend", type: "scale", title: "How likely are you to recommend it?", min: 0, max: 10, anchors: [{ at: 0, label: "Not at all likely" }, { at: 10, label: "Extremely likely" }] },
+  {
+    kind: "question",
+    id: "q_shaped",
+    type: "multipleChoice",
+    title: "What else has shaped your plans?",
+    body: [],
+    required: false,
+    options: [{ id: "o_bluedot", label: "BlueDot" }, { id: "o_friends", label: "Friends" }, { id: "o_news", label: "AI news" }],
+    most: "Which mattered most?",
+  },
+  { kind: "question", id: "q_got", type: "scale", title: "Did you get what you wanted from it?", min: 1, max: 5, anchors: [{ at: 1, label: "Not at all" }, { at: 5, label: "Completely" }], pipe: { from: "q_want", words: "At the start you said:" } },
+  { kind: "question", id: "q_level", type: "singleChoice", title: "Your level of study", body: [], required: false, options: [{ id: "o_masters", label: "Master’s" }, { id: "o_phd", label: "PhD" }, { id: "o_other", label: "Other" }], look: "menu", profile: "level" },
+  { kind: "question", id: "q_fte", type: "singleChoice", title: "What share of your working time goes on it?", body: [], required: false, options: [{ id: "o_0", label: "None" }, { id: "o_half", label: "About half" }, { id: "o_all", label: "All of it" }], scores: { o_0: 0, o_half: 0.5, o_all: 1 }, scoreUnit: "FTE" },
+  { kind: "consent", id: "c_consent", statement: "Results with no names go to our funders.", boxes: [{ purpose: "followUps", label: "Contact me at 6 and 12 months" }] },
+];
+const OWN = items.sanitizeSurveyItems(structuredClone(KINDS));
+const byId = (id) => OWN.find((item) => item.id === id);
+
+describe("the survey's own questions: stored and read back", () => {
+  test("every kind and setting reads back as it was written", () => {
+    assert.deepEqual(OWN, KINDS);
+    assert.deepEqual(items.validateSurveyItems(OWN), []);
+    assert.equal(items.surveyQuestionsOf(OWN).length, 12, "a consent block is not a question");
+    assert.deepEqual(items.consentPurposesOf(OWN), ["followUps"]);
+    assert.equal(items.scoreOf(byId("q_fte"), "o_half"), 0.5);
+  });
+
+  test("settings a kind cannot carry are dropped on reading", () => {
+    const read = items.sanitizeSurveyItems([
+      { kind: "question", id: "a", type: "multipleChoice", title: "t", body: [], required: false, options: [{ id: "x", label: "X" }, { id: "y", label: "Y" }], look: "points", scores: { x: 1 }, profile: "level" },
+      { kind: "question", id: "b", type: "singleChoice", title: "t", body: [], required: false, options: [{ id: "x", label: "X" }, { id: "y", label: "Y" }], maxPicks: 1, most: "Most?", noneIds: ["x"], scores: { x: 1, gone: 2 } },
+      { kind: "consent", id: "c", statement: "s", boxes: [{ purpose: "made-up", label: "x" }] },
+      { kind: "question", id: "d", type: "percent", title: "t", ends: "nonsense", pipe: { words: "no source" } },
+    ]);
+    assert.deepEqual(Object.keys(read[0]).filter((key) => ["look", "scores", "profile"].includes(key)), [], "pick any takes no points, scores or profile");
+    assert.deepEqual(Object.keys(read[1]).filter((key) => ["maxPicks", "most", "noneIds"].includes(key)), [], "choose one takes no limit and no second part");
+    assert.deepEqual(read[1].scores, { x: 1 }, "a score for an option that is not there is dropped");
+    assert.deepEqual(read[2].boxes, [], "a box for a purpose the site does not know is dropped");
+    assert.deepEqual(read[3].ends, { min: "", max: "" });
+    assert.equal("pipe" in read[3], false, "a pipe that names no question is dropped");
+  });
+});
+
+describe("the survey's own questions: what the editor's save is refused", () => {
+  const broken = (id, change) => {
+    const copy = structuredClone(KINDS);
+    change(copy.find((item) => item.id === id));
+    return items.validateSurveyItems(items.sanitizeSurveyItems(copy, { clampLimits: false })).map((problem) => problem.message);
+  };
+
+  test("each kind's own limits", () => {
+    assert.ok(broken("q_likely", (q) => (q.ends.max = "x".repeat(81))).some((m) => /0% or 100%/.test(m)));
+    assert.ok(broken("q_people", (q) => (q.max = 0)).some((m) => /largest number/.test(m)));
+    assert.ok(broken("q_explain", (q) => (q.min = 2)).some((m) => /starts at 0 or at 1/.test(m)));
+    assert.ok(broken("q_explain", (q) => (q.max = 11)).some((m) => /tops out by 10/.test(m)));
+    assert.ok(broken("q_explain", (q) => (q.anchors[1].at = 9)).some((m) => /a point the scale doesn’t have: 9/.test(m)));
+    assert.ok(broken("q_explain", (q) => (q.anchors[1].at = 1)).some((m) => /same point/.test(m)));
+    assert.ok(broken("q_agree", (q) => q.scale.points.pop()).some((m) => /Every point of the scale needs its words: 5/.test(m)));
+    assert.ok(broken("q_stage", (q) => q.options.push({ id: "o_new", label: "New" })).some((m) => /reworded but not added/.test(m)));
+    assert.ok(broken("q_kinds", (q) => (q.maxPicks = 5)).some((m) => /from 1 to 4/.test(m)));
+    assert.ok(broken("c_consent", (c) => (c.statement = " ")).some((m) => /needs its statement/.test(m)));
+    assert.ok(broken("c_consent", (c) => c.boxes.push({ purpose: "followUps", label: "Again" })).some((m) => /ask the same thing/.test(m)));
+    assert.ok(broken("q_back", (q) => (q.lookBackOf = "q_people")).some((m) => /looks back on a question/.test(m)));
+    assert.ok(broken("q_likely", (q) => (q.hint = "x".repeat(301))).some((m) => /line under this question/.test(m)));
+  });
+
+  test("none of them can be required, and a consent box is no question", () => {
+    assert.ok(broken("q_stage", (q) => (q.required = true)).includes("Every question in a survey can be skipped, so none is required."));
+  });
+
+  test("the same questions: a consent block counts, and its boxes too", () => {
+    assert.equal(items.sameQuestions(OWN, OWN.filter((item) => item.kind !== "consent")), false);
+    const moved = structuredClone(OWN).reverse();
+    assert.equal(items.sameQuestions(OWN, moved), true);
+    const retyped = structuredClone(OWN);
+    retyped.find((item) => item.id === "q_people").type = "percent";
+    assert.equal(items.sameQuestions(OWN, items.sanitizeSurveyItems(retyped)), false);
+  });
+});
+
+describe("the survey's own questions: the answers a person sends", () => {
+  const read = (raw) => items.readSurveyAnswers(OWN, raw);
+  const refused = (raw) => read(raw).problems.map((problem) => problem.message);
+
+  test("a percentage, a number and a scale keep the number given, 0 included", () => {
+    const { answers, problems } = read({
+      q_likely: { type: "percent", value: 0 },
+      q_people: { type: "number", value: 0 },
+      q_recommend: { type: "scale", value: 0 },
+      q_explain: { type: "scale", value: 7 },
+    });
+    assert.deepEqual(problems, []);
+    assert.deepEqual(answers, {
+      q_likely: { type: "percent", value: 0 },
+      q_people: { type: "number", value: 0 },
+      q_recommend: { type: "scale", value: 0 },
+      q_explain: { type: "scale", value: 7 },
+    });
+  });
+
+  test("each is refused out of its range, or not whole, in a sentence", () => {
+    assert.deepEqual(refused({ q_likely: { type: "percent", value: 101 } }), ["Give a number from 0 to 100."]);
+    assert.deepEqual(refused({ q_likely: { type: "percent", value: 40.5 } }), ["Give a number from 0 to 100."]);
+    assert.deepEqual(refused({ q_people: { type: "number", value: 1001 } }), ["Give a whole number from 0 to 1000."]);
+    assert.deepEqual(refused({ q_people: { type: "number", value: -1 } }), ["Give a whole number from 0 to 1000."]);
+    assert.deepEqual(refused({ q_explain: { type: "scale", value: 0 } }), ["Pick a number from 1 to 7."]);
+    assert.deepEqual(refused({ q_recommend: { type: "percent", value: 5 } }), ["That answer is not in a shape this question understands."]);
+  });
+
+  test("pick up to: more than the limit is refused", () => {
+    assert.deepEqual(refused({ q_kinds: { type: "choices", optionIds: ["o_research", "o_policy", "o_ops"] } }), ["Pick up to 2."]);
+    assert.deepEqual(read({ q_kinds: { type: "choices", optionIds: ["o_research", "o_policy"] } }).answers.q_kinds, { type: "choices", optionIds: ["o_research", "o_policy"] });
+  });
+
+  test("which mattered most: one of those ticked, or nothing", () => {
+    assert.deepEqual(read({ q_shaped: { type: "choices", optionIds: ["o_bluedot", "o_news"], most: "o_news" } }).answers.q_shaped, {
+      type: "choices",
+      optionIds: ["o_bluedot", "o_news"],
+      most: "o_news",
+    });
+    assert.deepEqual(refused({ q_shaped: { type: "choices", optionIds: ["o_bluedot"], most: "o_news" } }), ["Pick the one that mattered most from those you ticked."]);
+    assert.deepEqual(read({ q_shaped: { type: "choices", optionIds: ["o_friends"], most: "" } }).answers.q_shaped, { type: "choices", optionIds: ["o_friends"] });
+    // A question with no second part keeps none, whatever was sent.
+    assert.deepEqual(read({ q_kinds: { type: "choices", optionIds: ["o_ops"], most: "o_ops" } }).answers.q_kinds, { type: "choices", optionIds: ["o_ops"] });
+  });
+
+  test("a consent box is a yes or a no on its own, never an answer", () => {
+    assert.deepEqual(items.readSurveyConsents(OWN, { followUps: true }), { consents: { followUps: true }, problem: null });
+    assert.deepEqual(items.readSurveyConsents(OWN, undefined), { consents: { followUps: false }, problem: null }, "a box left unticked is a no");
+    assert.deepEqual(items.readSurveyConsents(OWN, {}), { consents: { followUps: false }, problem: null });
+    assert.equal(items.readSurveyConsents(OWN, { kairos: true }).problem, "One of those boxes isn’t on this survey.");
+    assert.equal(items.readSurveyConsents(OWN, { followUps: "yes" }).problem, "Your answers did not arrive in a shape the survey understands.");
+    assert.deepEqual(items.readSurveyConsents(TEMPLATE, undefined), { consents: {}, problem: null }, "a survey with no consent block takes none");
+    assert.deepEqual(refused({ c_consent: { type: "choice", optionId: "x" } }), ["One of those answers is to a question this survey doesn’t ask."]);
+  });
+});
+
+describe("the survey's own questions: totals", () => {
+  const sets = [
+    { answers: { q_stage: { type: "choice", optionId: "o_s1" }, q_likely: { type: "percent", value: 10 }, q_people: { type: "number", value: 0 }, q_recommend: { type: "scale", value: 10 }, q_shaped: { type: "choices", optionIds: ["o_bluedot", "o_news"], most: "o_news" }, q_fte: { type: "choice", optionId: "o_half" } } },
+    { answers: { q_stage: { type: "choice", optionId: "o_s2" }, q_likely: { type: "percent", value: 60 }, q_people: { type: "number", value: 4 }, q_recommend: { type: "scale", value: 6 }, q_shaped: { type: "choices", optionIds: ["o_news"], most: "o_news" }, q_fte: { type: "choice", optionId: "o_all" } } },
+    { answers: { q_likely: { type: "percent", value: 35 }, q_people: { type: "number", value: 12 }, q_recommend: { type: "scale", value: 9 } } },
+  ];
+  const results = surveyResults(OWN, sets);
+  const result = (id) => results.find((each) => each.id === id);
+
+  test("a percentage and a number: average, middle value, spread and bands", () => {
+    assert.deepEqual(result("q_likely"), {
+      kind: "value",
+      id: "q_likely",
+      number: 2,
+      title: "How likely is it?",
+      unit: "%",
+      respondents: 3,
+      mean: 35,
+      median: 35,
+      lowest: 10,
+      highest: 60,
+      bands: [
+        { label: "0 to 19%", count: 1 },
+        { label: "20 to 39%", count: 1 },
+        { label: "40 to 59%", count: 0 },
+        { label: "60 to 79%", count: 1 },
+        { label: "80 to 100%", count: 0 },
+      ],
+    });
+    assert.deepEqual(result("q_people").bands.map((band) => band.count), [1, 0, 1, 0, 1]);
+    assert.equal(result("q_people").median, 4);
+  });
+
+  test("a 0 to 10 scale counts from 0 and gives its net promoter score", () => {
+    const recommend = result("q_recommend");
+    assert.equal(recommend.min, 0);
+    assert.equal(recommend.rows[0].counts.length, 11);
+    assert.equal(recommend.rows[0].counts[10], 1);
+    // One at 9 or 10 twice over, one at 6: (2 - 1) of 3.
+    assert.equal(recommend.promoterScore, 33);
+    assert.equal(result("q_explain").promoterScore, null, "only a 0 to 10 scale has one");
+  });
+
+  test("which mattered most is counted on its own; scored answers total their numbers", () => {
+    assert.equal(result("q_shaped").most.respondents, 2);
+    assert.equal(result("q_shaped").most.options.find((option) => option.label === "AI news").count, 2);
+    assert.deepEqual(result("q_fte").scored, { total: 1.5, mean: 0.75, unit: "FTE" });
+    assert.deepEqual(result("q_stage").scored, { total: 3, mean: 1.5, unit: "" });
+  });
+
+  test("the results carry no person", () => {
+    assert.doesNotMatch(JSON.stringify(results), /uid/);
+  });
+});
+
+describe("the survey's own questions: the spreadsheet", () => {
+  test("a number for a scale, a percentage or a number, and a column for which mattered most", () => {
+    const table = surveyExportTable(OWN, [
+      { name: "Zoe Example", sentAt: new Date("2026-10-29T09:00:00Z"), via: "link", afterFirstSession: false, answers: { q_likely: { type: "percent", value: 0 }, q_explain: { type: "scale", value: 4 }, q_shaped: { type: "choices", optionIds: ["o_bluedot", "o_news"], most: "o_news" } } },
+    ]);
+    const cell = (header) => table.rows[0][table.header.indexOf(header)];
+    assert.equal(cell("2. How likely is it?"), "0");
+    assert.equal(cell("4. How well could you explain it?"), "4");
+    assert.equal(cell("9. What else has shaped your plans?"), "BlueDot; AI news");
+    assert.equal(cell("9. What else has shaped your plans?: Which mattered most?"), "AI news");
+    assert.ok(table.header.every((column, at) => at < 4 || /^\d+\. /.test(column)), "every column after the first four is a question's");
+    assert.ok(!table.header.some((column) => /consent|contact me/i.test(column)), "what the consent boxes say is not in the file");
+  });
+});
+
+describe("what a survey offers from a person's profile", () => {
+  const levels = Object.values(LEVEL_OPTION);
+  const subjects = Object.values(SUBJECT_OPTION);
+  const facts = (status, subject = "") => ({ status, subject });
+
+  test("the level, only where the profile holds it", () => {
+    assert.equal(offerFromProfile("level", facts("masters"), levels), LEVEL_OPTION.masters);
+    assert.equal(offerFromProfile("level", facts("phd"), levels), LEVEL_OPTION.phd);
+    assert.equal(offerFromProfile("level", facts("employee"), levels), LEVEL_OPTION.staff);
+    assert.equal(offerFromProfile("level", facts("postdoc"), levels), LEVEL_OPTION.staff);
+    assert.equal(offerFromProfile("level", facts("undergraduate"), levels), null, "the profile does not say which year");
+    assert.equal(offerFromProfile("level", facts("foundation"), levels), null);
+    assert.equal(offerFromProfile("level", facts("masters"), levels.filter((id) => id !== LEVEL_OPTION.masters)), null, "an answer the question no longer has");
+  });
+
+  test("the subject, only when exactly one subject's words are in it", () => {
+    assert.equal(offerFromProfile("subject", facts("undergraduate", "BA Philosophy"), subjects), SUBJECT_OPTION.philosophy);
+    assert.equal(offerFromProfile("subject", facts("undergraduate", "BSc Mathematics"), subjects), SUBJECT_OPTION.maths);
+    assert.equal(offerFromProfile("subject", facts("undergraduate", "Computer Science with Artificial Intelligence"), subjects), SUBJECT_OPTION.cs);
+    assert.equal(offerFromProfile("subject", facts("masters", "MEng Mechanical Engineering"), subjects), SUBJECT_OPTION.physicsEngineering);
+    assert.equal(offerFromProfile("subject", facts("undergraduate", "Politics and International Relations"), subjects), SUBJECT_OPTION.politics);
+    assert.equal(offerFromProfile("subject", facts("undergraduate", "Philosophy, Politics and Economics"), subjects), null);
+    assert.equal(offerFromProfile("subject", facts("undergraduate", "History"), subjects), null);
+    assert.equal(offerFromProfile("subject", facts("undergraduate", ""), subjects), null);
+  });
+
+  test("only the two values an offer needs are read from the account", () => {
+    assert.deepEqual(profileFactsOf({ email: "zoe@example.com", profile: { status: "phd", subject: "Law", motivation: "x", universityEmail: "z@nottingham.ac.uk" } }), {
+      status: "phd",
+      subject: "Law",
+    });
+    assert.deepEqual(profileFactsOf({}), { status: "", subject: "" });
+  });
+});
+
+describe("the answer page's model of each kind", () => {
+  const pages = answerPagesOf({ items: OWN }, { offered: { q_level: "o_phd" }, piped: { q_got: "At the start you said: “To explain it clearly.”" } });
+  const question = (id) => pages.flatMap((page) => page.questions).find((each) => each.id === id);
+
+  test("two pages, numbered across them, the consent block on the page that holds it", () => {
+    assert.deepEqual(pages.map((page) => page.heading), ["Where you are now", "About the programme"]);
+    assert.deepEqual(pages.map((page) => page.questions.map((each) => each.number)), [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]]);
+    assert.deepEqual(pages[1].consents, [{ id: "c_consent", statement: "Results with no names go to our funders.", boxes: [{ purpose: "followUps", label: "Contact me at 6 and 12 months" }] }]);
+    assert.deepEqual(pages[0].consents, []);
+  });
+
+  test("each kind carries what it is drawn with, and nothing of anybody else", () => {
+    assert.deepEqual(question("q_stage").options.map((option) => option.point), ["0", "1", "2"]);
+    assert.equal(question("q_stage").look, "points");
+    assert.equal(question("q_fte").look, "rows", "a scored answer without points is drawn as rows");
+    assert.equal(question("q_fte").options[0].point, "");
+    assert.equal(question("q_kinds").maxPicks, 2);
+    assert.equal(question("q_shaped").most, "Which mattered most?");
+    assert.equal(question("q_level").look, "menu");
+    assert.equal(question("q_level").offered, "o_phd");
+    assert.equal(question("q_got").piped, "At the start you said: “To explain it clearly.”");
+    assert.equal(question("q_likely").hint, "Research and policy both count.");
+    assert.deepEqual(question("q_explain").anchors, [{ at: 1, label: "Not at all" }, { at: 4, label: "The gist" }, { at: 7, label: "Hold my own" }]);
+    assert.deepEqual(question("q_agree").points, ["Strongly disagree", "Disagree", "Neither", "Agree", "Strongly agree"]);
+    assert.equal(question("q_people").max, 1000);
+    // An offer for an answer the menu does not have is no offer.
+    const stale = answerPagesOf({ items: OWN }, { offered: { q_level: "o_ug1" }, piped: {} });
+    assert.equal(stale.flatMap((page) => page.questions).find((each) => each.id === "q_level").offered, "");
   });
 });

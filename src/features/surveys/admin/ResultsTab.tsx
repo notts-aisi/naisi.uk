@@ -17,6 +17,29 @@ function percentWords(count: number, of: number): string {
   return of > 0 ? `${count} (${Math.round((count / of) * 100)}%)` : `${count}`;
 }
 
+/** A number as the results print it: whole when it is, else to one place. */
+function numberWords(value: number | null, unit = ""): string {
+  if (value === null) return "";
+  const shown = Number.isInteger(value) ? String(value) : value.toFixed(1);
+  return `${shown}${unit}`;
+}
+
+function Tally({ options, of }: { options: { label: string; count: number; percent: number }[]; of: number }) {
+  return (
+    <div className={styles.tally}>
+      {options.map((option) => (
+        <div key={option.label} className={styles.tallyRow}>
+          <span className={styles.tallyLabel}>{option.label}</span>
+          <span className={styles.tallyBar} aria-hidden="true">
+            <span className={styles.tallyFill} style={{ width: `${option.percent}%` }} />
+          </span>
+          <span className={styles.tallyCount}>{percentWords(option.count, of)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Result({ result }: { result: QuestionResult }) {
   return (
     <section className={`${styles.card} ${styles.result}`} aria-labelledby={`result-${result.id}`}>
@@ -28,17 +51,35 @@ function Result({ result }: { result: QuestionResult }) {
           <p className={styles.muted}>
             {result.respondents} answered{result.multiple ? ", ticking as many as applied" : ""}
           </p>
-          <div className={styles.tally}>
-            {result.options.map((option) => (
-              <div key={option.label} className={styles.tallyRow}>
-                <span className={styles.tallyLabel}>{option.label}</span>
-                <span className={styles.tallyBar} aria-hidden="true">
-                  <span className={styles.tallyFill} style={{ width: `${option.percent}%` }} />
-                </span>
-                <span className={styles.tallyCount}>{percentWords(option.count, result.respondents)}</span>
-              </div>
-            ))}
-          </div>
+          <Tally options={result.options} of={result.respondents} />
+          {result.scored && result.scored.mean !== null && (
+            <p className={styles.muted}>
+              {result.scored.unit
+                ? `${numberWords(result.scored.total)} ${result.scored.unit} in all, ${numberWords(result.scored.mean)} on average.`
+                : `Average ${numberWords(result.scored.mean)}.`}
+            </p>
+          )}
+          {result.most && (
+            <>
+              <p className={styles.tallyLabel}>{result.most.title}</p>
+              <p className={styles.muted}>{result.most.respondents} picked one</p>
+              <Tally options={result.most.options} of={result.most.respondents} />
+            </>
+          )}
+        </>
+      )}
+      {result.kind === "value" && (
+        <>
+          <p className={styles.muted}>
+            {result.respondents} answered
+            {result.respondents > 0
+              ? `. Average ${numberWords(result.mean, result.unit)}, middle value ${numberWords(result.median, result.unit)}, from ${numberWords(result.lowest, result.unit)} to ${numberWords(result.highest, result.unit)}.`
+              : ""}
+          </p>
+          <Tally
+            options={result.bands.map((band) => ({ label: band.label, count: band.count, percent: result.respondents > 0 ? Math.round((band.count / result.respondents) * 100) : 0 }))}
+            of={result.respondents}
+          />
         </>
       )}
       {result.kind === "scale" && (
@@ -49,8 +90,8 @@ function Result({ result }: { result: QuestionResult }) {
               <div className={styles.scaleRow} style={{ ["--scale-points" as string]: row.counts.length }}>
                 <span className={styles.muted}>{row.respondents} answered</span>
                 {row.counts.map((count, point) => (
-                  <span key={point} className={styles.scaleCell} title={`${point + 1}: ${count}`}>
-                    <span className={styles.scaleHead}>{point + 1}</span> {count}
+                  <span key={point} className={styles.scaleCell} title={`${point + result.min}: ${count}`}>
+                    <span className={styles.scaleHead}>{point + result.min}</span> {count}
                   </span>
                 ))}
                 <span className={styles.tallyCount}>{row.mean === null ? "" : `Mean ${row.mean.toFixed(1)}`}</span>
@@ -58,8 +99,13 @@ function Result({ result }: { result: QuestionResult }) {
             </div>
           ))}
           <p className={styles.muted}>
-            1 is {result.minLabel || "the lowest"}, {result.rows[0]?.counts.length ?? 5} is {result.maxLabel || "the highest"}.
+            {result.min} is {result.minLabel || "the lowest"}, {result.min + (result.rows[0]?.counts.length ?? 5) - 1} is {result.maxLabel || "the highest"}.
           </p>
+          {result.promoterScore !== null && (
+            <p className={styles.muted}>
+              Net promoter score {result.promoterScore > 0 ? `+${result.promoterScore}` : result.promoterScore}: the share at 9 or 10 less the share at 0 to 6.
+            </p>
+          )}
         </div>
       )}
       {result.kind === "comments" && (

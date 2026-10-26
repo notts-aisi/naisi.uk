@@ -1,6 +1,6 @@
 import { own } from "@/lib/applications/keys";
 import type { SurveyAnswerVia } from "@/lib/firestore/surveys";
-import { isLinesQuestion, questionNumbers, surveyQuestionsOf, type SurveyAnswer, type SurveyItem } from "./items";
+import { isChoiceOrTextQuestion, isLinesQuestion, questionNumbers, surveyQuestionsOf, type SurveyAnswer, type SurveyItem } from "./items";
 
 /**
  * THE SPREADSHEET OF A SURVEY'S ANSWERS, WITH NAMES, for admins: one row per
@@ -10,7 +10,9 @@ import { isLinesQuestion, questionNumbers, surveyQuestionsOf, type SurveyAnswer,
  *
  * Names only, never an email address. An answer whose name has come off is a
  * row without one. Choices are written as their words, several picks joined
- * by "; ". Dates are the London day and time.
+ * by "; ", and "which mattered most" gets a column of its own; a scale, a
+ * percentage or a number is written as the number given. Dates are the
+ * London day and time.
  *
  * Pure: the route reads, this lays out.
  */
@@ -61,6 +63,17 @@ export function surveyExportTable(items: readonly SurveyItem[], rows: readonly E
       }
       continue;
     }
+    if (!isChoiceOrTextQuestion(question)) {
+      // A scale, a percentage or a number: the number given.
+      columns.push({
+        header: `${number}. ${question.title}`,
+        cell: (answers) => {
+          const answer = own(answers, question.id);
+          return answer && (answer.type === "scale" || answer.type === "percent" || answer.type === "number") ? String(answer.value) : "";
+        },
+      });
+      continue;
+    }
     const labelOf = (id: string) => question.options?.find((option) => option.id === id)?.label ?? "";
     columns.push({
       header: `${number}. ${question.title}`,
@@ -81,6 +94,15 @@ export function surveyExportTable(items: readonly SurveyItem[], rows: readonly E
         }
       },
     });
+    if (question.type === "multipleChoice" && question.most) {
+      columns.push({
+        header: `${number}. ${question.title}: ${question.most}`,
+        cell: (answers) => {
+          const answer = own(answers, question.id);
+          return answer && answer.type === "choices" && answer.most ? labelOf(answer.most) : "";
+        },
+      });
+    }
   }
   const header = ["Name", "Sent", "How", "After their first session", ...columns.map((column) => column.header)];
   const sorted = [...rows].sort(

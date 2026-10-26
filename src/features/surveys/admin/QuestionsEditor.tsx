@@ -6,15 +6,25 @@ import { useId, useState } from "react";
 import Button from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { useHydrated } from "@/hooks/useHydrated";
-import { newSurveyId, type SurveyItem, type SurveyQuestion } from "@/lib/surveys/items";
+import {
+  newSurveyId,
+  type SurveyChoiceQuestion,
+  type SurveyConsentItem,
+  type SurveyItem,
+  type SurveyQuestion,
+} from "@/lib/surveys/items";
+import { questionTypeWords } from "@/lib/surveys/words";
 import styles from "./surveyAdmin.module.css";
 
 /**
  * A survey's words and questions, until it is sent (sv-edit), as small as is
  * honest: the title and intro people see, about how many minutes it takes,
- * the day it closes, and each question's words, options and lines, and their
- * order. Questions are not added, taken out or changed in kind here: the six
- * are the pair's, and the after survey asks them again.
+ * the day it closes, and each question's words, the line under it, its
+ * options, lines and the words on its scale, and their order. Questions are
+ * not added, taken out or changed in kind here: they are the programme's
+ * questionnaire, asked again at the end and afterwards, so answers compare.
+ * An answer that counts as a number (a stage, a share of working time) is
+ * reworded, never added or taken out.
  *
  * The whole survey is saved at once, through the route that refuses a survey
  * already sent. Nothing can be typed before the page's script has arrived
@@ -30,25 +40,180 @@ export type EditorValues = {
   items: SurveyItem[];
 };
 
-const TYPE_WORDS: Record<string, string> = {
-  singleChoice: "Choose one",
-  multipleChoice: "Pick any",
-  rating: "1 to 5",
-  lines: "1 to 5 for each line",
-  shortText: "Short answer",
-  longText: "Long answer",
-};
-
-function typeWords(question: SurveyQuestion): string {
-  if (question.type === "singleChoice" && "look" in question && question.look === "agree") return "Agree or disagree";
-  return TYPE_WORDS[question.type] ?? "";
-}
-
 function ArrowIcon({ up }: { up: boolean }) {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
       <path d={up ? "M6 15l6-6 6 6" : "M6 9l6 6 6-6"} />
     </svg>
+  );
+}
+
+/** The words of one question, by kind. */
+function QuestionWords({ question, number, onChange }: { question: SurveyQuestion; number: number; onChange: (next: SurveyQuestion) => void }) {
+  const change = (patch: Partial<SurveyQuestion>) => onChange({ ...question, ...patch } as SurveyQuestion);
+  if (question.type === "lines") {
+    const points = question.scale.points;
+    return (
+      <div className={styles.editRows}>
+        {question.lines.map((line, lineAt) => (
+          <div key={line.id} className={styles.editRow}>
+            <Input
+              aria-label={`Question ${number}, line ${lineAt + 1}`}
+              value={line.label}
+              maxLength={120}
+              onChange={(event) => change({ lines: question.lines.map((each) => (each.id === line.id ? { ...each, label: event.target.value } : each)) })}
+            />
+            <button
+              type="button"
+              className={styles.textButton}
+              disabled={question.lines.length <= 1}
+              onClick={() => change({ lines: question.lines.filter((each) => each.id !== line.id) })}
+            >
+              Take out
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          className={styles.textButton}
+          disabled={question.lines.length >= 10}
+          onClick={() => change({ lines: [...question.lines, { id: newSurveyId("l"), label: "" }] })}
+        >
+          Add a line
+        </button>
+        {points ? (
+          points.map((words, at) => (
+            <Input
+              key={at}
+              aria-label={`Question ${number}, the words at ${at + 1}`}
+              value={words}
+              maxLength={40}
+              onChange={(event) => change({ scale: { ...question.scale, points: points.map((each, i) => (i === at ? event.target.value : each)) } })}
+            />
+          ))
+        ) : (
+          <div className={styles.fieldRow}>
+            <Input
+              aria-label={`Question ${number}, the words at 1`}
+              value={question.scale.minLabel}
+              maxLength={40}
+              onChange={(event) => change({ scale: { ...question.scale, minLabel: event.target.value } })}
+            />
+            <Input
+              aria-label={`Question ${number}, the words at ${question.scale.max}`}
+              value={question.scale.maxLabel}
+              maxLength={40}
+              onChange={(event) => change({ scale: { ...question.scale, maxLabel: event.target.value } })}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+  if (question.type === "scale") {
+    return (
+      <div className={styles.editRows}>
+        {question.anchors.map((anchor, at) => (
+          <div key={anchor.at} className={styles.editRow}>
+            <span className={styles.qPage}>{anchor.at}</span>
+            <Input
+              aria-label={`Question ${number}, the words at ${anchor.at}`}
+              value={anchor.label}
+              maxLength={80}
+              onChange={(event) => change({ anchors: question.anchors.map((each, i) => (i === at ? { ...each, label: event.target.value } : each)) })}
+            />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (question.type === "percent") {
+    return (
+      <div className={styles.fieldRow}>
+        <Input
+          aria-label={`Question ${number}, the words at 0%`}
+          value={question.ends.min}
+          maxLength={80}
+          onChange={(event) => change({ ends: { ...question.ends, min: event.target.value } })}
+        />
+        <Input
+          aria-label={`Question ${number}, the words at 100%`}
+          value={question.ends.max}
+          maxLength={80}
+          onChange={(event) => change({ ends: { ...question.ends, max: event.target.value } })}
+        />
+      </div>
+    );
+  }
+  if (question.type === "singleChoice" || question.type === "multipleChoice") {
+    const choice = question as SurveyChoiceQuestion;
+    const options = choice.options ?? [];
+    // An answer that stands for a number keeps its place in the scoring.
+    const fixed = choice.scores !== undefined;
+    return (
+      <div className={styles.editRows}>
+        {options.map((option, optionAt) => (
+          <div key={option.id} className={styles.editRow}>
+            <Input
+              aria-label={`Question ${number}, answer ${optionAt + 1}`}
+              value={option.label}
+              maxLength={120}
+              onChange={(event) => change({ options: options.map((each) => (each.id === option.id ? { ...each, label: event.target.value } : each)) })}
+            />
+            {!fixed && (
+              <button
+                type="button"
+                className={styles.textButton}
+                disabled={options.length <= 2}
+                onClick={() => change({ options: options.filter((each) => each.id !== option.id) })}
+              >
+                Take out
+              </button>
+            )}
+          </div>
+        ))}
+        {!fixed && (
+          <button
+            type="button"
+            className={styles.textButton}
+            disabled={options.length >= 20}
+            onClick={() => change({ options: [...options, { id: newSurveyId("o"), label: "" }] })}
+          >
+            Add an answer
+          </button>
+        )}
+        {choice.most !== undefined && (
+          <Input
+            aria-label={`Question ${number}, its second part`}
+            value={choice.most}
+            maxLength={200}
+            onChange={(event) => change({ most: event.target.value } as Partial<SurveyQuestion>)}
+          />
+        )}
+      </div>
+    );
+  }
+  return null;
+}
+
+function ConsentWords({ item, onChange }: { item: SurveyConsentItem; onChange: (next: SurveyConsentItem) => void }) {
+  return (
+    <div className={styles.qSection}>
+      <div className={styles.qSectionHead}>
+        <span className={styles.qMeasure}>Consent</span>
+      </div>
+      <Textarea aria-label="Consent statement" value={item.statement} rows={2} maxLength={400} onChange={(event) => onChange({ ...item, statement: event.target.value })} />
+      {item.boxes.map((box, at) => (
+        <Input
+          key={box.purpose}
+          aria-label={`Consent box ${at + 1}`}
+          value={box.label}
+          maxLength={200}
+          onChange={(event) => onChange({ ...item, boxes: item.boxes.map((each, i) => (i === at ? { ...each, label: event.target.value } : each)) })}
+        />
+      ))}
+      <p className={styles.muted}>Each box starts unticked. Only what people tick is kept.</p>
+    </div>
   );
 }
 
@@ -60,7 +225,7 @@ export default function QuestionsEditor({
 }: {
   surveyId: string;
   initial: EditorValues;
-  /** A section's id to the measure it asks about, for the template's sections. */
+  /** A section's id to the measure it asks about, for the templates' sections. */
   measures: Record<string, string>;
   today: string;
 }) {
@@ -191,6 +356,9 @@ export default function QuestionsEditor({
               </div>
             );
           }
+          if (item.kind === "consent") {
+            return <ConsentWords key={item.id} item={item} onChange={(next) => setItem(index, next)} />;
+          }
           const question = item;
           const at = questionPositions.indexOf(index);
           return (
@@ -204,73 +372,21 @@ export default function QuestionsEditor({
                   maxLength={200}
                   onChange={(event) => setItem(index, { ...question, title: event.target.value } as SurveyQuestion)}
                 />
-                <span className={styles.qType}>{typeWords(question)}</span>
-                {question.type === "lines" && (
-                  <div className={styles.editRows}>
-                    {question.lines.map((line, lineAt) => (
-                      <div key={line.id} className={styles.editRow}>
-                        <Input
-                          aria-label={`Question ${number}, line ${lineAt + 1}`}
-                          value={line.label}
-                          maxLength={120}
-                          onChange={(event) => {
-                            const lines = question.lines.map((each) => (each.id === line.id ? { ...each, label: event.target.value } : each));
-                            setItem(index, { ...question, lines });
-                          }}
-                        />
-                        <button
-                          type="button"
-                          className={styles.textButton}
-                          disabled={question.lines.length <= 1}
-                          onClick={() => setItem(index, { ...question, lines: question.lines.filter((each) => each.id !== line.id) })}
-                        >
-                          Take out
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      className={styles.textButton}
-                      disabled={question.lines.length >= 10}
-                      onClick={() => setItem(index, { ...question, lines: [...question.lines, { id: newSurveyId("l"), label: "" }] })}
-                    >
-                      Add a line
-                    </button>
-                  </div>
-                )}
-                {(question.type === "singleChoice" || question.type === "multipleChoice") && (
-                  <div className={styles.editRows}>
-                    {(question.options ?? []).map((option, optionAt) => (
-                      <div key={option.id} className={styles.editRow}>
-                        <Input
-                          aria-label={`Question ${number}, answer ${optionAt + 1}`}
-                          value={option.label}
-                          maxLength={120}
-                          onChange={(event) => {
-                            const options = (question.options ?? []).map((each) => (each.id === option.id ? { ...each, label: event.target.value } : each));
-                            setItem(index, { ...question, options });
-                          }}
-                        />
-                        <button
-                          type="button"
-                          className={styles.textButton}
-                          disabled={(question.options ?? []).length <= 2}
-                          onClick={() => setItem(index, { ...question, options: (question.options ?? []).filter((each) => each.id !== option.id) })}
-                        >
-                          Take out
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      className={styles.textButton}
-                      disabled={(question.options ?? []).length >= 20}
-                      onClick={() => setItem(index, { ...question, options: [...(question.options ?? []), { id: newSurveyId("o"), label: "" }] })}
-                    >
-                      Add an answer
-                    </button>
-                  </div>
-                )}
+                <Input
+                  aria-label={`Question ${number}, the line under it`}
+                  placeholder="A line under it (optional)"
+                  value={question.hint ?? ""}
+                  maxLength={300}
+                  onChange={(event) => {
+                    const hint = event.target.value;
+                    const { hint: _old, ...rest } = question;
+                    void _old;
+                    setItem(index, (hint ? { ...rest, hint } : rest) as SurveyQuestion);
+                  }}
+                />
+                <span className={styles.qType}>{questionTypeWords(question)}</span>
+                {question.pipe && <span className={styles.muted}>Shows each person what they said to it at an earlier stage.</span>}
+                <QuestionWords question={question} number={number} onChange={(next) => setItem(index, next)} />
               </div>
               <div className={styles.moves}>
                 <button type="button" className={styles.iconButton} aria-label={`Move question ${number} up`} disabled={at <= 0} onClick={() => move(index, -1)}>
@@ -289,7 +405,7 @@ export default function QuestionsEditor({
             </div>
           );
         })}
-        <p className={styles.lockNote}>The change questions lock once this is sent, so the before and after match.</p>
+        <p className={styles.lockNote}>The questions lock once this is sent, so every stage of the programme asks the same.</p>
       </section>
 
       {error && (

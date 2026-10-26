@@ -1,4 +1,5 @@
 import type { SurveyProgrammeKind } from "@/lib/firestore/surveys";
+import type { SurveyChoiceQuestion, SurveyQuestion } from "./items";
 
 /**
  * EVERY SENTENCE A SURVEY SAYS, in one place: the answer page, the
@@ -138,6 +139,10 @@ export const ANSWER_WORDS = {
   eyebrow: "Survey",
   skippable: "Every question can be skipped.",
   tickMany: "Tick as many as apply",
+  chooseOne: "Choose one",
+  fromProfile: "From your profile. Change it if it’s not right.",
+  mostFirst: "Tick some above first.",
+  consent: "Consent",
   next: "Next",
   back: "Back",
   send: "Send my answers",
@@ -149,6 +154,11 @@ export const ANSWER_WORDS = {
 /** "Page 1 of 3". */
 export function pageWords(n: number, of: number): string {
   return `Page ${n} of ${of}`;
+}
+
+/** "Pick up to 3", above a pick-any question with a limit. */
+export function pickUpToWords(n: number): string {
+  return `Pick up to ${n}`;
 }
 
 /** "It closes on Wed 4 Nov. Once sent, your answers can’t change." */
@@ -296,6 +306,51 @@ export const TEST_LINE =
 // ---------------------------------------------------------------------------
 // The admins' pages
 // ---------------------------------------------------------------------------
+
+/** "1, 4 and 7". */
+function pointsList(points: readonly number[]): string {
+  return namesInWords(points.map(String));
+}
+
+/**
+ * A question's kind in a few words, as the editor and the read-only list name
+ * it (sv-edit: "Choose one", "Pick any", "1 to 5 for each line").
+ */
+export function questionTypeWords(question: SurveyQuestion): string {
+  switch (question.type) {
+    case "singleChoice": {
+      const choice = question as SurveyChoiceQuestion;
+      if (choice.look === "agree") return "Agree or disagree";
+      if (choice.look === "points") return "Choose one, every point described";
+      if (choice.look === "menu") return choice.profile ? "Choose one from a menu, offered from the profile" : "Choose one from a menu";
+      return choice.scores ? "Choose one, each answer counts as a number" : "Choose one";
+    }
+    case "multipleChoice": {
+      const choice = question as SurveyChoiceQuestion;
+      if (choice.most) return "Pick any, then the one that mattered most";
+      if (choice.maxPicks) return pickUpToWords(choice.maxPicks);
+      return "Pick any";
+    }
+    case "rating":
+      return `1 to ${question.rating?.max ?? 5}`;
+    case "lines":
+      return question.scale.points ? `1 to ${question.scale.max} for each line, every point described` : `1 to ${question.scale.max} for each line`;
+    case "scale":
+      return question.anchors.length > 0
+        ? `${question.min} to ${question.max}, words at ${pointsList(question.anchors.map((anchor) => anchor.at))}`
+        : `${question.min} to ${question.max}`;
+    case "percent":
+      return "0 to 100%";
+    case "number":
+      return "A number";
+    case "shortText":
+      return "Short answer";
+    case "longText":
+      return "Long answer";
+    default:
+      return "";
+  }
+}
 
 /** What each of the template's sections measures, as the editor names it (sv-edit). */
 export const MEASURE_WORDS: Record<string, string> = {

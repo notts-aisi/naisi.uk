@@ -1,4 +1,4 @@
-import { sanitizeSurveyItems, type SurveyAnswer, type SurveyItem } from "@/lib/surveys/items";
+import { CONSENT_PURPOSES, sanitizeSurveyItems, type SurveyAnswer, type SurveyConsents, type SurveyItem } from "@/lib/surveys/items";
 
 /**
  * SURVEYS: three server-only collections, the shapes their readers share.
@@ -9,7 +9,8 @@ import { sanitizeSurveyItems, type SurveyAnswer, type SurveyItem } from "@/lib/s
  *                                     names come off, what has been sent
  *   surveyPeople/{surveyId}__{who}    one person a survey is for: the secret
  *                                     in their personal link, when it was
- *                                     sent and reminded, whether answered
+ *                                     sent and reminded, whether answered,
+ *                                     and what their consent ticks say
  *   surveyAnswers/{autoId}            one person's answers, sent once
  *
  * SERVER-ONLY IN BOTH DIRECTIONS. `firestore.rules` shuts all three to every
@@ -129,6 +130,14 @@ export type SurveyPersonDoc = {
   remindedAt: Date | null;
   reminders: number;
   answered: boolean;
+  /**
+   * What the person's ticks in the survey's consent blocks say, by purpose: a
+   * yes or a no once they have sent their answers or changed it since, and
+   * nothing before. A follow-up survey goes only to people whose row says yes.
+   */
+  consents: SurveyConsents;
+  /** When the consents were last said, by sending the answers or changing them. */
+  consentsAt: Date | null;
 };
 
 /** How somebody's answers came in. */
@@ -198,6 +207,16 @@ function readRespondent(raw: unknown): SurveyRespondent | null {
 function readAudience(raw: unknown): SurveyAudience {
   const r = (raw ?? {}) as Raw;
   return { kind: "programme", roundId: str(r.roundId), programmeId: str(r.programmeId) };
+}
+
+function readConsents(raw: unknown): SurveyConsents {
+  const out: SurveyConsents = {};
+  if (!raw || typeof raw !== "object") return out;
+  const r = raw as Raw;
+  for (const purpose of CONSENT_PURPOSES) {
+    if (typeof r[purpose] === "boolean") out[purpose] = r[purpose] as boolean;
+  }
+  return out;
 }
 
 function readTest(raw: unknown): SurveyTest | null {
@@ -270,6 +289,8 @@ export function normalizeSurveyPerson(id: string, data: Raw): SurveyPersonDoc | 
     remindedAt: tsToDate(data.remindedAt),
     reminders: count(data.reminders),
     answered: data.answered === true,
+    consents: readConsents(data.consents),
+    consentsAt: tsToDate(data.consentsAt),
   };
 }
 
