@@ -1862,11 +1862,16 @@ describe("stage one of the course hub, one term from decision day to the first s
     test("Ella's reply takes her out of Group B at once and gives the place back; her page says she left, and the one email is the leave's, to her", () => {
       assert.equal(g().reply.status, 200);
       assert.deepEqual(g().mailedByTheReply, [[address("ella"), "You've left AGI Strategy Fellowship", "course-enrolment"]]);
+      // CHANGED ON PURPOSE (somebody who leaves keeps nothing): the page said
+      // "Your notes and the reading list are still on your programme’s page."
+      // after the day. The programme's page now shows somebody who left only
+      // that they left, so the sentence is gone, and the page is held to its
+      // whole text without it.
       assert.equal(
         g().page.text,
         "Autumn 2026 · Fri 23 Oct Your application Left the programme You left AGI Strategy. That was on Wed 28 Oct. " +
-          "Thanks for coming along. Your notes and the reading list are still on your programme’s page. Changed your " +
-          "mind? Email ai-safety@uonsu.com and we’ll see what we can do. Go to your programme",
+          "Thanks for coming along. Changed your mind? Email ai-safety@uonsu.com and we’ll see what we can do. " +
+          "Go to your programme",
       );
       // The seat as leaving leaves one: withdrawn, the day and her reason,
       // the group and Publish's stamp kept; and her seat freed in Group B.

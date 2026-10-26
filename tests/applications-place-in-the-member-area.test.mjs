@@ -784,7 +784,10 @@ describe("the pages ask one function, and it asks the reader behind the person's
     assert.equal(DASHBOARD.split("held").length - 1, 2, "the dashboard uses the answer somewhere else");
     assert.ok(
       LEARN_PAGE.includes(
-        'const held = user ? await holdsPlace(user.uid) : "unknown"; return <LearnHub instead={held === "no" ? null : <YourApplications rows={null} />} />;',
+        // The page also hands the hub the runs the member left by
+        // themselves (tests/course-hub-leaving.test.mjs); what it hands in a
+        // run's stead is still decided by the answer alone.
+        'const held = user ? await holdsPlace(user.uid) : "unknown"; const left = user ? await runsLeft(user.uid) : []; return <LearnHub instead={held === "no" ? null : <YourApplications rows={null} />} left={left} />;',
       ),
     );
     assert.equal(LEARN_PAGE.split("held").length - 1, 2, "the list of programmes uses the answer somewhere else");
