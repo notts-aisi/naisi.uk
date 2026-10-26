@@ -28,10 +28,14 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createLoader } from "./lib/tsLoader.mjs";
 
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const { loadTs } = createLoader({ stubs: new Map() });
 const crests = await loadTs("components/ProgrammeCrest.tsx");
 const { CREST_KEYS, CREST_COLOURS, ProgrammeCrest, crestName, isCrestKey } = crests;
@@ -224,5 +228,24 @@ describe("a crest is one of the four keys and nothing else", () => {
       new String("alignment"),
     ];
     for (const value of near) assert.equal(isCrestKey(value), false, JSON.stringify(value));
+  });
+});
+
+describe("the colour tokens", () => {
+  const css = readFileSync(join(REPO_ROOT, "src/theme/tokens.css"), "utf8");
+  const declared = [...css.matchAll(/(--programme-[a-z-]+)\s*:\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]);
+
+  test("each programme's token is declared once, with the component's own fallback as its value", () => {
+    assert.deepEqual(
+      declared,
+      CREST_KEYS.map((key) => [`--programme-${key}`, CREST_COLOURS[key]]),
+      "tokens.css and CREST_COLOURS disagree: the page and a crest drawn without the stylesheet would differ",
+    );
+  });
+
+  test("the governance crest's colour is its own value, not the marker's token", () => {
+    // `--color-marker` is the homepage's, for one aside a page. A crest that
+    // read it would change colour whenever the marker was retuned.
+    for (const [, value] of declared) assert.doesNotMatch(value, /var\(/);
   });
 });
