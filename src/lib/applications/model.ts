@@ -1,5 +1,6 @@
 import type { AvailabilityMask } from "@/lib/admissions/availability";
 import type { AdmissionApplicationStatus } from "@/lib/firestore/admissionApplications";
+import type { CrestKey } from "@/lib/crests/keys";
 
 /**
  * THE APPLICATION SYSTEM'S DATA, IN ONE PLACE.
@@ -190,6 +191,14 @@ export type ProgrammeSettings = {
    * whatever reads this treats a course that is not there as no course.
    */
   courseId: string | null;
+  /**
+   * The programme crest this programme carries this term (one of the four
+   * keys in `src/components/ProgrammeCrest.tsx`), or null for none. It wins
+   * over its course's crest wherever the programme is shown, and with
+   * neither the NAISI emblem stands in its place: `src/lib/crests/resolve.ts`
+   * is the one answer. An admin's to set, in the programme's Settings.
+   */
+  crest: CrestKey | null;
   /** The programme's own wording for its decision-day emails. */
   emailWording: Partial<Record<ProgrammeEmailKind, EmailWording>>;
 };

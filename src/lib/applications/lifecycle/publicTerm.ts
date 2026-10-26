@@ -1,5 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import type { CrestKey } from "@/lib/crests/keys";
 import type { AdmissionRoundDoc } from "@/lib/firestore/admissionRounds";
 import type { ProgrammeKind, ProgrammeSettings } from "../model";
 import type { ApplicationForm } from "../normalise";
@@ -111,6 +112,13 @@ export type PublicTermProgramme = {
   courseId: string | null;
   /** The course run it places people on, once one is set. A lookup key, never printed. */
   runId: string | null;
+  /**
+   * The crest the programme carries itself, or null. Not what a page shows:
+   * that is `crestForProgramme` with the programme's course
+   * (`src/lib/crests/resolve.ts`). A crest is drawn beside the name, so a
+   * visitor sees it either way.
+   */
+  crest: CrestKey | null;
 };
 
 /** The next intake: what the form that opens next is called, and when it opens. */
@@ -322,6 +330,7 @@ function programmeOf(programme: ProgrammeSettings): PublicTermProgramme {
     starts: programme.starts,
     courseId: programme.courseId,
     runId: programme.runId,
+    crest: programme.crest,
   };
 }
 

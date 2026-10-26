@@ -30,6 +30,19 @@
   min-width: 0;
 }
 
+/* The programme's crest (or the emblem in its place) beside the eyebrow and
+   the title, and above them on a phone. */
+.heroHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.heroNames {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* The pitch: authored blocks, in one reading column. */
 .pitch {
   max-width: 44rem;
@@ -60,5 +73,15 @@
 
   .second {
     margin-top: var(--space-10);
+  }
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  /* On a phone the crest sits over the eyebrow, so the title keeps the
+     width of the page. */
+  .heroHead {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-5);
   }
 }

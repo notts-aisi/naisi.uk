@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { holdsStanding, isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { runCrests } from "@/lib/crests/runs";
+import type { ShownCrest } from "@/lib/crests/resolve";
 import { isValidDateKey } from "@/lib/courses/weekPlan";
 import { finishedForMember } from "@/lib/courses/finishing/record";
 import { memberCurrentWeek, resolveCalendar } from "@/lib/courses/groupResolve";
@@ -205,6 +207,12 @@ export type MyRunEntry = {
    * says the run has ended and claims nothing.
    */
   finished: boolean;
+  /**
+   * The crest the card shows beside the run's name: `crestForRun`'s answer
+   * (the programme that names the run, else its course's), or null for the
+   * NAISI emblem. Only the key travels, never the form or the course.
+   */
+  shownCrest: ShownCrest;
 };
 
 export type MePayload = { runs: MyRunEntry[] };
@@ -533,6 +541,14 @@ export async function GET() {
     }),
   );
 
+  // Each run's crest: one read of the forms and one of the courses for the
+  // whole list, and none when the caller is on nothing. A read that fails
+  // costs the cards their crests (the emblem shows), never the hub.
+  const shownCrests = await runCrests(
+    db,
+    [...merged.values()].map(({ run }) => ({ id: run.id, courseId: run.courseId })),
+  ).catch(() => new Map<string, ShownCrest>());
+
   const runs: MyRunEntry[] = [...merged.values()]
     .map(({ run, roles, enrolment }): MyRunEntry => {
       // Resolved ONCE per row: the pacing, the taught-week total and the
@@ -561,6 +577,7 @@ export async function GET() {
         pacedByGroup: calendar.source === "group",
         groupName: group?.name ?? null,
         finished: finishedRunIds.has(run.id),
+        shownCrest: shownCrests.get(run.id) ?? null,
       };
     })
     // A row has to be SOMETHING to be worth a card: a role to open, or a

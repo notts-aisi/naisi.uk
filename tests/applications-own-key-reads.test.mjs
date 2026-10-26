@@ -214,6 +214,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/crests/runs.ts",
+    {
+      why: "the crest a course run shows: it reads the programme that names the run, by the programme id `namingProgrammeIn` found on that form's own programmeIds, to take its crest",
+    },
+  ],
+  [
     "src/lib/courses/programmeLead.ts",
     {
       why: "the one answer to who leads the programme that names a course run: it reads each form's programmes by the ids on that form's own programmeIds, to find the programme whose runId names the run and take its lead",

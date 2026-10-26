@@ -13,6 +13,7 @@ import { withAccountEmail } from "@/lib/applications/applicant/account";
 import { mustVerifyBeforeSending } from "@/lib/applications/applicant/join";
 import { own } from "@/lib/applications/applicant/keys";
 import { emptyContent, formShapeOf, questionSetsOf, sameContent } from "@/lib/applications/applicant/shape";
+import type { ShownCrest } from "@/lib/crests/resolve";
 import type {
   ApplicantApplication,
   ApplicantForm,
@@ -102,6 +103,12 @@ type Props = {
   pending: boolean;
   /** An admin is looking at this as the member. Nothing may be saved. */
   viewingAs: boolean;
+  /**
+   * What each programme shows beside its name on the Rank step, by programme
+   * id: the crest resolver's answer, worked out on the server, so only the
+   * keys reach the page.
+   */
+  shownCrests: Readonly<Record<string, ShownCrest>>;
 };
 
 const HOME = "/";
@@ -151,6 +158,7 @@ export default function ApplicationForm({
   initialStep,
   pending,
   viewingAs,
+  shownCrests,
 }: Props) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -722,6 +730,7 @@ export default function ApplicationForm({
             <RankStep
               programmes={ranked.map((programme) => form.programmes.find((each) => each.id === programme.id)!)}
               onReorder={reorder}
+              shownCrests={shownCrests}
             />
           ) : null}
           {step.kind === "facilitating" ? (

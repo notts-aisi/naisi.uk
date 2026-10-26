@@ -229,6 +229,8 @@ const STYLESHEETS = [
   "./Chip.module.css",
   "./Select.module.css",
   "./RunHome.module.css",
+  // The run home's head draws the programme's crest, or the emblem in its place.
+  "./BrandMark.module.css",
   // The pages a member uses every week share one stylesheet (board
   // wk-programme and its kin), by the three paths it is imported by.
   "./weekly/weekly.module.css",

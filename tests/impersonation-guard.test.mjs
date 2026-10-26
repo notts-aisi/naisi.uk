@@ -93,6 +93,7 @@ const GUARDED_TREES = [
  * Paths are repo-relative and use forward slashes.
  */
 const MUST_GUARD = [
+  ["src/app/api/courses/[courseId]/crest/route.ts", "sets the programme crest a course shows on every page that names it"],
   ["src/app/api/courses/[courseId]/destroy/route.ts", "destroys a course and everything under it"],
   ["src/app/api/courses/[courseId]/page/route.ts", "rewrites the public marketing page a logged-out visitor reads"],
   ["src/app/api/courses/[courseId]/page/generate-themes/route.ts", "regenerates the public weekly themes and their provenance"],

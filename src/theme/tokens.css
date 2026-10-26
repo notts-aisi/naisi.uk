@@ -119,6 +119,27 @@
   --color-warning-soft: rgba(196, 124, 12, 0.08);
 }
 
+/*
+  NAISI programme colours (Autumn 2026), one per programme crest
+  (src/components/ProgrammeCrest.tsx, which falls back to the same values).
+  A crest's offset takes its programme colour in the night and paper themes;
+  its body does in solid. Contrast on night bg (#0a0e16) / surface (#1a2238).
+  They do not change with data-theme: which ground a crest is drawn for is
+  its own `theme` prop's to say, not these values'.
+
+  --programme-governance-macrostrategy is the marker's ink, and it is NOT
+  governed by --color-marker's rule above (one correction or aside per page,
+  the homepage only). It is a crest's colour, used wherever that crest is.
+  It is its own value, not var(--color-marker), so retuning the marker never
+  recolours a crest.
+*/
+:root {
+  --programme-agi-strategy: #ffc530;             /* Sun = emblem-daylight-sun. 12.2:1 / 10.0:1 */
+  --programme-technical-ai-safety: #4d8eff;      /* Electric = electric. 6.1:1 / 5.0:1 */
+  --programme-governance-macrostrategy: #ff4b1f; /* Marker = marker. 5.8:1 / 4.7:1 */
+  --programme-alignment: #3ddc97;                /* Mint, new. 10.9:1 / 8.9:1 */
+}
+
 :root {
   /* spacing scale (4px base) */
   --space-1: 0.25rem;

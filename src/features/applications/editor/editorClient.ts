@@ -1,5 +1,6 @@
 "use client";
 
+import type { CrestKey } from "@/lib/crests/keys";
 import type { EmailWording, ProgrammeEmailKind, ProgrammeKind, QuestionSetScope, QuestionType } from "@/lib/applications/model";
 import type {
   FormStaffView,
@@ -151,6 +152,8 @@ export type ProgrammePatch = {
   closed?: boolean;
   /** A course's id, or null for no course page. */
   courseId?: string | null;
+  /** Admin only: one of the four crests, or null for none. */
+  crest?: CrestKey | null;
   emailWording?: Partial<Record<ProgrammeEmailKind, EmailWording | null>>;
 };
 

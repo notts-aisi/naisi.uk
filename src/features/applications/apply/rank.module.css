@@ -107,6 +107,15 @@
   color: var(--color-accent-text);
 }
 
+/* A programme's crest (or the emblem in its place) before its name: 28px,
+   never squeezed by a long name beside it. */
+.mark {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding-left: 2px;
+}
+
 .text {
   flex: 1 1 auto;
   min-width: 0;

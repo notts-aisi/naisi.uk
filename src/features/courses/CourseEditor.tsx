@@ -3,6 +3,9 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/auth/AuthProvider";
+import ProgrammeMark from "@/components/ProgrammeMark";
+import { CREST_KEYS, crestName, type CrestKey } from "@/components/ProgrammeCrest";
 import ActionToast, { useActionToast } from "@/components/ui/ActionToast";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
@@ -16,6 +19,7 @@ import ResponsiveSelect, {
 } from "@/components/ui/ResponsiveSelect";
 import { AdminLoadingBar, AdminPage } from "@/features/admin/adminList";
 import BlockEditor from "@/components/blocks/BlockEditor";
+import { crestForCourse } from "@/lib/crests/resolve";
 import { isValidDateKey } from "@/lib/courses/weekPlan";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
 import {
@@ -36,7 +40,7 @@ import {
   runStatusTone,
   taughtWeekCount,
 } from "./AdminCourseList";
-import { createRun, publishCourse, updateCourse } from "./courseMutations";
+import { createRun, publishCourse, saveCourseCrest, updateCourse } from "./courseMutations";
 import CourseDangerZone from "./CourseDangerZone";
 import { useCourseRuns, useCourses } from "./useAdminCourses";
 import styles from "./adminCourses.module.css";
@@ -119,6 +123,32 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
   const meta = useMemo<MetaDraft>(() => ({ ...base, ...draft }), [base, draft]);
   const dirty = !sameMeta(meta, base);
   const patch = (p: Partial<MetaDraft>) => setDraft((d) => ({ ...d, ...p }));
+
+  // --- The crest: an admin's to set, through its own route ---
+  // Shown to everybody who can open this page, and changed only by an admin:
+  // the rules keep the field as it was on every other write. The value shown
+  // is the last one picked until a reload brings the stored one back, and the
+  // stored one again if the save is refused.
+  const { role } = useAuth();
+  const isAdmin = role === "admin";
+  const [crestPicked, setCrestPicked] = useState<CrestKey | null | undefined>(undefined);
+
+  async function handleCrest(next: CrestKey | null) {
+    if (!isAdmin) return;
+    setCrestPicked(next);
+    await runAction(
+      async () => {
+        try {
+          await saveCourseCrest(courseId, next);
+        } catch (err) {
+          setCrestPicked(undefined);
+          throw err;
+        }
+        reload();
+      },
+      { savingMessage: "Saving the crest…", successMessage: "Crest saved" },
+    );
+  }
 
   // --- Publish control ---
   const [showcaseChoice, setShowcaseChoice] = useState<string | null>(null);
@@ -323,6 +353,12 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
     );
   }
 
+  const crestChoice = crestPicked === undefined ? course.crest : crestPicked;
+  const crestOptions: ResponsiveSelectOption[] = [
+    { value: "", label: "No crest" },
+    ...CREST_KEYS.map((key) => ({ value: key, label: crestName(key) })),
+  ];
+
   const published = course.status === "published";
   const publishQuestion = published
     ? `Update the public curriculum preview for “${course.title}”?`
@@ -500,6 +536,43 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
                   Revert
                 </Button>
                 {!dirty && <span className={styles.status}>No unsaved changes.</span>}
+              </div>
+            </div>
+          </section>
+        </Card>
+
+        {/* === Crest === */}
+        <Card padding="lg">
+          <section className={styles.section} aria-labelledby="course-crest-title">
+            <div className={styles.sectionHead}>
+              <h2 id="course-crest-title" className={styles.sectionTitle}>
+                Crest
+              </h2>
+              <p className={styles.sectionHint}>
+                Beside the course’s name on /courses and at the top of its page.
+              </p>
+            </div>
+            <div className={styles.crestRow}>
+              <ProgrammeMark shown={crestForCourse({ crest: crestChoice })} size={64} />
+              <div className={styles.crestField}>
+                <Field
+                  id="course-crest"
+                  label="Crest"
+                  hint={
+                    isAdmin
+                      ? "A programme on the application form can carry its own, which shows in its place. With neither, the NAISI emblem shows."
+                      : "Only an admin can change the crest."
+                  }
+                >
+                  <ResponsiveSelect
+                    id="course-crest"
+                    value={crestChoice ?? ""}
+                    onChange={(value) => void handleCrest(CREST_KEYS.find((key) => key === value) ?? null)}
+                    options={crestOptions}
+                    ariaLabel="Crest"
+                    disabled={saving || !isAdmin}
+                  />
+                </Field>
               </div>
             </div>
           </section>

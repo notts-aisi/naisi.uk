@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
+import ProgrammeMark from "@/components/ProgrammeMark";
+import { CREST_KEYS, crestName, type CrestKey } from "@/components/ProgrammeCrest";
 import InitialsChip from "@/components/ui/InitialsChip";
 import Select from "@/components/ui/Select";
 import kit from "@/features/applications/kit/kit.module.css";
 import { useHydrated } from "@/hooks/useHydrated";
 import { APPLICATION_LIMITS, type ProgrammeEmailKind } from "@/lib/applications/model";
 import { questionCountLabel } from "@/lib/applications/editor/sets";
+import { crestForProgramme } from "@/lib/crests/resolve";
 import type {
   CourseChoiceView,
   EmailView,
@@ -40,7 +43,7 @@ import styles from "./ProgrammeSetup.module.css";
  * reviewer added or removed, and a wording are sent as they are made.
  *
  * WHAT A LEAD CANNOT DO HERE is drawn and explained, never hidden: changing
- * the lead and closing the programme are an admin's.
+ * the lead, closing the programme and setting its crest are an admin's.
  *
  * THE RULE FOR WHO FINISHED is the run's, drawn here (`FinishingRule`, saved
  * through its own route) when the page hands it in: for a programme that
@@ -161,6 +164,12 @@ export default function ProgrammeSetup({
   /** True while the course's saves are being sent: the ref decides, the state draws. */
   const courseSending = useRef(false);
   const [courseSaving, setCourseSaving] = useState(false);
+  /** The crest just picked, until the server has answered. `undefined` is nothing pending. */
+  const [crestPicked, setCrestPicked] = useState<CrestKey | null | undefined>(undefined);
+  /** The latest crest picked and not yet sent, and whether its saves are on their way. */
+  const crestWaiting = useRef<CrestKey | null | undefined>(undefined);
+  const crestSending = useRef(false);
+  const [crestSaving, setCrestSaving] = useState(false);
   const [dialog, setDialog] = useState<
     { kind: "wording"; email: ProgrammeEmailKind } | { kind: "close" } | null
   >(null);
@@ -323,6 +332,30 @@ export default function ProgrammeSetup({
     })();
   };
 
+  // The crest is sent the moment it is picked, the way the course is, and
+  // the box stays usable while its own save is on its way. Only an admin may
+  // set it; a lead is shown it and told so. What the programme then shows is
+  // the resolver's answer, so the preview beside the box is the pages' own.
+  const crestChoice = crestPicked === undefined ? view.crest : crestPicked;
+  const pickCrest = (next: CrestKey | null) => {
+    setCrestPicked(next);
+    crestWaiting.current = next;
+    if (crestSending.current) return;
+    crestSending.current = true;
+    setCrestSaving(true);
+    void (async () => {
+      while (crestWaiting.current !== undefined) {
+        const wanted = crestWaiting.current;
+        crestWaiting.current = undefined;
+        await act(() => patchProgramme(view.roundId, view.id, { crest: wanted }));
+      }
+      crestSending.current = false;
+      setCrestSaving(false);
+      setCrestPicked(undefined);
+    })();
+  };
+  const shownCrest = crestForProgramme({ crest: crestChoice }, { crest: view.courseCrest });
+
   const streamSetId = view.questionSets.find((set) => set.scored)?.id ?? view.questionSets[0]?.id;
   const everyone = [view.lead, ...view.reviewers].filter((person): person is PersonView => person !== null);
 
@@ -445,6 +478,39 @@ export default function ProgrammeSetup({
                   </Link>
                 </>
               )}
+            </p>
+          </div>
+        </div>
+        <div className={`${styles.basics} ${styles.basicsSecond}`}>
+          <div className={`${shared.field} ${styles.basicsCourse}`}>
+            <label htmlFor={`${ids}-crest`} className={shared.label}>
+              Crest
+            </label>
+            <div className={styles.crestRow}>
+              <ProgrammeMark shown={shownCrest} size={44} />
+              <Select
+                id={`${ids}-crest`}
+                className={shared.select}
+                value={crestChoice ?? ""}
+                disabled={!live || !isAdmin || (busy && !crestSaving)}
+                aria-describedby={`${ids}-crest-hint`}
+                onChange={(event) => {
+                  const next = CREST_KEYS.find((key) => key === event.target.value) ?? null;
+                  pickCrest(next);
+                }}
+              >
+                <option value="">No crest of its own</option>
+                {CREST_KEYS.map((key) => (
+                  <option key={key} value={key}>
+                    {crestName(key)}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <p id={`${ids}-crest-hint`} className={shared.hint}>
+              {isAdmin
+                ? "Shown beside the programme’s name on the site and on the application form. With no crest of its own it shows its course’s, or the NAISI emblem."
+                : "Only an admin can change the crest. It is shown beside the programme’s name on the site and on the application form."}
             </p>
           </div>
         </div>

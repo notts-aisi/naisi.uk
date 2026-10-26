@@ -775,6 +775,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the risk-ordered list reaches admin CRUD, which is after every applicant-facing and member-facing journey in this map is verified.",
   },
+  "/api/courses/[courseId]/crest": {
+    reason:
+      "Courses: /api/courses/[courseId]/crest is admin-only, sets one mark beside a course's name, and is answered on the screen that called it.",
+    coverWhen:
+      "When a programme's crest is first changed while its members are on the run, because a wrong mark is then seen by people who did not choose it.",
+  },
   "/api/courses/[courseId]/destroy": {
     reason:
       "Destroy protocol: /api/courses/[courseId]/destroy removes a whole course or run, and must never be automated against a database other people are using.",

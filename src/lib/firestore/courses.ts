@@ -9,6 +9,7 @@ import { normalizeCohort, type RunCohort } from "../courses/cohortLabel";
 import { normalizeTeamsFrom, type TeamsFrom } from "../courses/teams/model";
 import { WEEK_BLOCK_LIMITS } from "../courses/weekBlocks/limits";
 import { isClockTime, sanitizeWeekBlocks, type WeekBlock } from "../courses/weekBlocks/model";
+import { isCrestKey, type CrestKey } from "../crests/keys";
 
 /**
  * Courses data model — `courses/{id}` → `courseRuns/{id}` (top-level) →
@@ -92,6 +93,15 @@ export type CourseDoc = {
    * pinned in rules, mutated only via routes.
    */
   collaboratorUids: string[];
+  /**
+   * The programme crest this course carries (one of the four keys in
+   * `src/components/ProgrammeCrest.tsx`), or null for none, which shows the
+   * NAISI emblem in its place. An admin's to set, through
+   * `/api/courses/[courseId]/crest` and nothing else. Which crest a page
+   * shows is `src/lib/crests/resolve.ts`'s to say: a programme's own crest
+   * wins over its course's.
+   */
+  crest: CrestKey | null;
   createdAt?: Date | null;
   updatedAt?: Date | null;
 };
@@ -1248,6 +1258,8 @@ export function normalizeCourse(id: string, data: Raw): CourseDoc {
     showcaseRunId: (data.showcaseRunId as string | null | undefined) ?? null,
     authorUid: (data.authorUid as string) ?? "",
     collaboratorUids: asUidList(data.collaboratorUids),
+    // Only one of the four keys is a crest; anything else stored reads as none.
+    crest: isCrestKey(data.crest) ? data.crest : null,
     createdAt: tsToDate(data.createdAt),
     updatedAt: tsToDate(data.updatedAt),
   };

@@ -290,6 +290,9 @@ function newProgrammeData(input: NewProgramme): Omit<ProgrammeSettings, "id"> {
     closed: false,
     runId: null,
     courseId: null,
+    // A new programme carries no crest of its own: it shows its course's, or
+    // the NAISI emblem, until an admin sets one in its Settings.
+    crest: null,
     emailWording: {},
   };
 }
@@ -662,10 +665,13 @@ export async function deleteSet(
 // One programme's settings
 // ---------------------------------------------------------------------------
 
+/** What a lead is told when they try to set their programme's crest. */
+export const PROGRAMME_CREST_IS_AN_ADMINS = "Only an admin can set a programme’s crest.";
+
 /**
- * Change one programme's settings. Its lead or an admin; closing it, or
- * opening it again, is an admin's alone, and so is switching its scores on
- * or off once reviewing has begun on it (`reviewingHasBegunOn`).
+ * Change one programme's settings. Its lead or an admin; closing it, opening
+ * it again and setting its crest are an admin's alone, and so is switching
+ * its scores on or off once reviewing has begun on it (`reviewingHasBegunOn`).
  *
  * Each field is written at its own path under `programmes.<id>`, so this never
  * replaces another programme's settings, or this programme's lead and
@@ -697,6 +703,11 @@ export async function changeProgramme(
     }
     if (change.closed !== undefined && !canRunTerm(actor)) {
       return refuse(403, "Only an admin can close a programme.");
+    }
+    // A programme's crest is an admin's to set, as a course's is: a lead
+    // sees it in Settings and is told so, and is refused here.
+    if (change.crest !== undefined && !canRunTerm(actor)) {
+      return refuse(403, PROGRAMME_CREST_IS_AN_ADMINS);
     }
     // Scores decide what a review of this programme IS: what its reviewers
     // are asked for, and what ends a first review. Once anybody has reviewed
@@ -748,6 +759,9 @@ export async function changeProgramme(
         return refuse(400, COURSE_NOT_ON_OFFER);
       }
       update[at("courseId")] = change.courseId;
+    }
+    if (change.crest !== undefined && change.crest !== programme.crest) {
+      update[at("crest")] = change.crest;
     }
     for (const [kind, wording] of Object.entries(change.emailWording ?? {})) {
       update[at(`emailWording.${kind}`)] = wording ?? FieldValue.delete();

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import ProgrammeMark from "@/components/ProgrammeMark";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
@@ -512,21 +513,27 @@ export default function RunHome({
         <div className={weekly.barEnd} />
       </div>
 
-      <header className={weekly.head}>
-        {kindAndTermWords(data.programme?.kind ?? null, run.label) && (
-          <p className={weekly.eyebrow}>{kindAndTermWords(data.programme?.kind ?? null, run.label)}</p>
-        )}
-        <div className={weekly.titleRow}>
-          <h1 className={weekly.title}>{run.courseTitle || programmeName}</h1>
-          {chip && <span className={weekly.weekChip}>{chip}</span>}
+      <header className={`${weekly.head} ${styles.headWithCrest}`}>
+        {/* The programme's crest (or the emblem in its place), decorative
+            beside its name: `shownCrest` is the route's answer from the
+            crest resolver. Beside the words at 1440, above them on a phone. */}
+        <ProgrammeMark shown={data.shownCrest} size={128} />
+        <div className={styles.headWords}>
+          {kindAndTermWords(data.programme?.kind ?? null, run.label) && (
+            <p className={weekly.eyebrow}>{kindAndTermWords(data.programme?.kind ?? null, run.label)}</p>
+          )}
+          <div className={weekly.titleRow}>
+            <h1 className={weekly.title}>{run.courseTitle || programmeName}</h1>
+            {chip && <span className={weekly.weekChip}>{chip}</span>}
+          </div>
+          {groupLine && <p className={weekly.groupLine}>{groupLine}</p>}
+          {state && (
+            <>
+              <p className={weekly.stateHeading}>{state.heading}</p>
+              <p className={weekly.stateLine}>{state.line}</p>
+            </>
+          )}
         </div>
-        {groupLine && <p className={weekly.groupLine}>{groupLine}</p>}
-        {state && (
-          <>
-            <p className={weekly.stateHeading}>{state.heading}</p>
-            <p className={weekly.stateLine}>{state.line}</p>
-          </>
-        )}
       </header>
 
       {tickFailed && (

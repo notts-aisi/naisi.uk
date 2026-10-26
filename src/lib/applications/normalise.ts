@@ -11,6 +11,7 @@ import {
   normalizeAdmissionRound,
   type AdmissionRoundDoc,
 } from "@/lib/firestore/admissionRounds";
+import { isCrestKey } from "@/lib/crests/keys";
 import { FIELD_LIMITS } from "@/lib/firestore/users";
 import * as keys from "./keys";
 import {
@@ -216,6 +217,8 @@ export function normaliseProgramme(id: string, v: unknown): ProgrammeSettings {
     closed: bool(raw.closed),
     runId: isId(raw.runId) ? raw.runId : null,
     courseId: isId(raw.courseId) ? raw.courseId : null,
+    // Only one of the four keys is a crest; anything else stored reads as none.
+    crest: isCrestKey(raw.crest) ? raw.crest : null,
     emailWording,
   };
 }

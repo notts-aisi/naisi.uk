@@ -300,10 +300,31 @@
   }
 }
 
+/* === The head: the programme's crest beside its words ===
+   The crest (or the emblem in its place) is 128px at every width: beside
+   the eyebrow, the title and the group's line here, above them on a phone,
+   so the title keeps the width of the page. */
+.headWithCrest {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.headWords {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* === Mobile === */
 @media (max-width: 48rem) { /* --bp-md */
   .page {
     gap: var(--space-8);
+  }
+
+  .headWithCrest {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-4);
   }
 
   .title {
