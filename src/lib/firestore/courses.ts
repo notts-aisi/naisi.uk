@@ -514,6 +514,28 @@ export function courseRunChannel(runId: string): string {
 // ---- Week ----
 
 /**
+ * A week's document as it is first made: every field empty but present, so
+ * it meets the rules' shape checks from its first byte, and unpublished, so a
+ * new week is never shown to anybody before somebody writes it. The run's
+ * week editor makes one in the browser (`ensureWeekDoc`), and the loader's
+ * first save from the Weeks tab makes one on the server; both start here.
+ */
+export function emptyWeekFields(weekNumber: number) {
+  return {
+    weekNumber,
+    title: "",
+    summary: "",
+    guideBlocks: [] as Block[],
+    materials: [] as Material[],
+    exercises: [] as Exercise[],
+    checklist: [] as ChecklistItem[],
+    questions: [] as string[],
+    estimatedMinutes: null,
+    published: false,
+  };
+}
+
+/**
  * Week doc id: "w01".."w60". Zero-padded so Firestore's lexicographic doc
  * ordering matches week order, and STABLE across copy-forward (clone-weeks
  * preserves ids so progress/exercise references survive re-runs).
@@ -585,9 +607,11 @@ export type CourseWeekDoc = {
    *    whether a week shows asks it.
    *  - READY is the lead's word that the week is finished. One route stores
    *    it, "Mark ready" and "Not ready" for the programme's lead and admins
-   *    (`.../runs/[runId]/weeks/[weekId]/ready`), and it marks only a
-   *    published week, so a ready week is always a published one: read here,
-   *    a stored `ready` counts only on a published week, whoever wrote what.
+   *    (`.../runs/[runId]/weeks/[weekId]/ready`), and marking a week ready
+   *    publishes it in the same write (Zach, 26 October 2026), so a ready
+   *    week is always a published one: read here, a stored `ready` counts
+   *    only on a published week, whoever wrote what. "Not ready" takes back
+   *    the mark alone: a week already open to its groups stays open.
    *    Whether a week is ready is asked of `weekIsReady`
    *    (`src/lib/courses/weekReady.ts`) and nothing else.
    *  - Week 1 opening BEFORE groups go out, to everybody holding a place

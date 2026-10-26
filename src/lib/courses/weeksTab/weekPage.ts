@@ -5,6 +5,7 @@ import { weeklySlotWords } from "@/lib/courses/facilitatingEmail";
 import { groupWeekRef } from "@/lib/courses/groupResolve";
 import { dayBeforeWords } from "@/lib/courses/weekBlocks/markdownWrite";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
+import { weekReadiness } from "@/lib/courses/weekBlocks/reader";
 import { weekIsReady } from "@/lib/courses/weekReady";
 import { normalizeGroupWeek, sessionModeForWeek } from "@/lib/firestore/courseGroups";
 import { normalizeCourse, normalizeCourseWeek, type CourseWeekDoc } from "@/lib/firestore/courses";
@@ -43,6 +44,8 @@ export type WeekPage = {
   /** The week's own title, or "". */
   title: string;
   hasPage: boolean;
+  /** Nothing in it yet, or no page: nothing to mark ready (`weekReadiness`). */
+  empty: boolean;
   published: boolean;
   blockWeek: boolean;
   ready: boolean;
@@ -120,6 +123,7 @@ export async function loadWeekPage(db: Firestore, tab: WeeksTab, week: WeeksTabW
     week,
     title: doc?.title.trim() ?? "",
     hasPage: doc !== null,
+    empty: doc === null || weekReadiness(doc) === "empty",
     published: doc?.published === true,
     blockWeek: doc !== null && isBlockWeek(doc),
     ready: weekIsReady(doc),

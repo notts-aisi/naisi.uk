@@ -8,6 +8,8 @@
  * browser off `ready`, `readyAt` and `readyByUid`. It counts only on a
  * PUBLISHED week, whoever wrote what, so a week taken down is not ready
  * however it was marked (`normalizeCourseWeek` reads it the same way).
+ * Marking a week ready publishes it in the same write (Zach, 26 October
+ * 2026), and a week with nothing in it cannot be marked.
  *
  * WHAT IT OPENS. Week 1, to everybody holding a place, before groups go out
  * (Q35 B: `src/lib/courses/weekOne/door.ts`). After groups go out every week

@@ -28,6 +28,11 @@ import styles from "./weeks.module.css";
  * Online, and the facilitator guide box); then Preview as a fellow and Mark
  * ready, and the line about when written work is due.
  *
+ * A week of the plan with no page yet shows the paste box with a line above
+ * it, as its first save makes the page; Mark ready waits for a week with
+ * something in it, and marking a week ready publishes it (Zach, 26 October
+ * 2026).
+ *
  * NOT BUILT, and written down in the build notes: the board's block-by-block
  * fields (a found row opening its block's fields to edit in place) and
  * option C's "Add a block" editor. A week is changed by copying it as
@@ -59,11 +64,8 @@ export default function WeekPageView({
         {week.range && <p className={styles.range}>{week.range}</p>}
       </header>
 
-      {page.hasPage ? (
-        <WeekPaste runId={runId} weekId={week.weekId} weekNumber={week.weekNumber} blockWeek={page.blockWeek} saveLabel={SAVE_DRAFT} />
-      ) : (
-        <p className={styles.panelNote}>{noPageWords(week.weekNumber)}</p>
-      )}
+      {!page.hasPage && <p className={styles.panelNote}>{noPageWords(week.weekNumber)}</p>}
+      <WeekPaste runId={runId} weekId={week.weekId} weekNumber={week.weekNumber} blockWeek={page.blockWeek} saveLabel={SAVE_DRAFT} />
 
       <section className={styles.panel} aria-labelledby="week-settings-title">
         <h3 id="week-settings-title" className={styles.subheading}>
@@ -103,9 +105,9 @@ export default function WeekPageView({
             {PREVIEW}
           </Link>
         )}
-        {page.hasPage && page.published && <WeekReady runId={runId} weekId={week.weekId} ready={page.ready} />}
+        {page.hasPage && !page.empty && <WeekReady runId={runId} weekId={week.weekId} ready={page.ready} />}
       </div>
-      {page.hasPage && !page.published && (
+      {page.hasPage && !page.published && !page.empty && (
         <p className={styles.muted}>
           {notPublishedWords(week.weekNumber)}
           {viewer === "admin" && (

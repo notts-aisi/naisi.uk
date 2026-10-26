@@ -23,13 +23,14 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { NOW, RUN, makeMemberPagesWorld } from "./lib/memberPagesWorld.mjs";
+import { NOW, RUN, makeMemberPagesWorld, memberSeed } from "./lib/memberPagesWorld.mjs";
 import { syntheticGuideMarkdown, syntheticWeekDoc } from "./lib/weekBlocksFixture.mjs";
 
 const w = await makeMemberPagesWorld("__weekBlocksLoader");
 const { world, call, courseRoute, loadTs } = w;
 const route = await courseRoute("runs", "[runId]", "weeks", "[weekId]", "blocks");
 const model = await loadTs(join("lib", "courses", "weekBlocks", "model.ts"));
+const { emptyWeekFields } = await loadTs(join("lib", "firestore", "courses.ts"));
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 
@@ -318,9 +319,12 @@ describe("5. what the route is sent", () => {
     assert.equal((await as("zach", "POST", { markdown: "# Week 3: A" }, { runId: RUN.agi, weekId: "w3" })).status, 400);
     assert.equal((await as("zach", "GET", undefined, { runId: RUN.agi, weekId: "week-3" })).status, 400);
     assert.equal((await as("zach", "POST", { markdown: "# Week 3: A" }, { runId: "no-such-run", weekId: "w03" })).status, 404);
-    const unwritten = await as("zach", "PUT", { markdown: "# Week 9: A" }, { runId: RUN.agi, weekId: "w09" });
-    assert.equal(unwritten.status, 404);
-    assert.equal(unwritten.body.error, "This week has no document yet: open it from the run’s week plan first.");
+    const before = everything();
+    for (const method of ["GET", "POST", "PUT"]) {
+      const unplanned = await as("zach", method, method === "GET" ? undefined : { markdown: "# Week 9: A" }, { runId: RUN.agi, weekId: "w09" });
+      assert.deepEqual([unplanned.status, unplanned.body.error], [404, "That week isn’t in this run’s week plan."], method);
+    }
+    assert.equal(everything(), before, "a week out of the plan is not made");
   });
 
   test("Copy as Markdown on a week written before blocks says there is nothing to copy", async () => {
@@ -360,5 +364,86 @@ describe("6. the card in the run's week editor", () => {
     const firstGate = editor.indexOf("{!blockWeek && (");
     const secondGate = editor.indexOf("{!blockWeek && (", firstGate + 1);
     assert.ok(firstGate > 0 && firstGate < guide && secondGate > guide && secondGate < checklist);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. A week of the plan with no page yet (Zach, 26 October 2026)
+// ---------------------------------------------------------------------------
+
+describe("7. a week of the plan with no page yet", () => {
+  beforeEach(() => {
+    const seed = memberSeed();
+    delete seed[W3];
+    w.reset(seed);
+  });
+
+  test("Read it reads it as an empty week and writes nothing; Copy as Markdown has nothing to copy", async () => {
+    const before = everything();
+    for (const who of ["claudia", "zach"]) {
+      const read = await as(who, "POST", { markdown: syntheticGuideMarkdown() });
+      assert.equal(read.status, 200, JSON.stringify(read.body));
+      assert.deepEqual(read.body.problems, []);
+      assert.deepEqual(read.body.removed, [], "an empty week has nothing to take out");
+      assert.equal(read.body.answers, 0);
+      const copy = await as(who, "GET");
+      assert.deepEqual([copy.status, copy.body.error], [404, "This week isn’t written as blocks yet, so there is nothing to copy."]);
+    }
+    assert.equal(everything(), before);
+  });
+
+  for (const who of ["claudia", "zach"]) {
+    test(`the first save makes its page as the week editor would, unpublished, with the blocks and the title (${who})`, async () => {
+      const answer = await as(who, "PUT", { markdown: syntheticGuideMarkdown() });
+      assert.equal(answer.status, 200, JSON.stringify(answer.body));
+      assert.equal(answer.body.saved, true);
+      const stored = world.db.read(W3);
+      const empty = emptyWeekFields(3);
+      assert.deepEqual(Object.keys(stored).sort(), [...Object.keys(empty), "blocks", "updatedAt", "updatedByUid"].sort());
+      for (const [key, value] of Object.entries(empty)) {
+        if (key !== "title") assert.deepEqual(stored[key], value, key);
+      }
+      assert.equal(stored.published, false, "a new page is shown to nobody until it is published");
+      assert.equal(stored.title, "How sure are you?");
+      assert.ok(model.isBlockWeek(stored));
+      assert.deepEqual(model.weekBlocksProblems(stored.blocks), []);
+      assert.equal(stored.updatedByUid, who);
+      assert.ok(stored.updatedAt instanceof Date);
+      // Copied out and pasted back, the second save is an ordinary one onto the page the first made.
+      const copied = await as(who, "GET");
+      assert.equal(copied.status, 200, JSON.stringify(copied.body));
+      const again = await as(who, "PUT", { markdown: copied.body.markdown });
+      assert.equal(again.status, 200, JSON.stringify(again.body));
+      assert.equal(again.body.minted, 0, "every id the first save minted is kept");
+      assert.deepEqual(world.db.read(W3).blocks, stored.blocks);
+    });
+  }
+
+  test("a page made by somebody else between the read and the write is never overwritten: 409, read it again", async () => {
+    const theirs = syntheticWeekDoc();
+    const view = world.courseDb;
+    const real = view.collection;
+    let seen = null;
+    const meanwhile = (ref) => ({
+      ...ref,
+      collection: (name) => around(ref.collection(name)),
+      create: async (data) => {
+        if (ref.path === W3) {
+          world.db.seed(W3, theirs);
+          seen = JSON.stringify(world.db.read(W3));
+        }
+        return ref.create(data);
+      },
+    });
+    const around = (collection) => ({ ...collection, doc: (id) => meanwhile(collection.doc(id)) });
+    view.collection = (name) => around(real(name));
+    try {
+      const answer = await as("claudia", "PUT", { markdown: syntheticGuideMarkdown() });
+      assert.deepEqual([answer.status, answer.body.error], [409, "This week has just changed. Read it again, then save."]);
+    } finally {
+      view.collection = real;
+    }
+    assert.ok(seen, "the page was made between the read and the write");
+    assert.equal(JSON.stringify(world.db.read(W3)), seen, "the page made meanwhile is as it was made");
   });
 });

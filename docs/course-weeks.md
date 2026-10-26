@@ -83,7 +83,10 @@ When a week is pasted:
 programme's lead has marked the week ready: week 1 opens to everyone who holds
 a place once it is ready (Q35), before groups go out. Ready counts only on a
 published week (`normalizeCourseWeek` reads `ready` as false otherwise), so
-taking a week down takes its Ready with it. A copy of a week never carries
+taking a week down takes its Ready with it. Marking a week ready publishes it
+in the same write (Zach, 26 October 2026), so the lead needs nobody else to
+open a week they have finished; a week with nothing in it cannot be marked.
+"Not ready" takes back the mark alone and leaves Published as it is. A copy of a week never carries
 Ready, as it never carries `pitching`: each run's lead marks their own. No
 browser write may change it.
 
@@ -561,6 +564,10 @@ editor under `/admin/courses` stays an admin's.
 - **The facilitator guide box** loads the week's session plan and notes
   through the guide's own route, which admits the lead the guide's reader gate
   admits. The guide never goes on a week.
+- **A week with no page yet** (Zach, 26 October 2026). A week of the run's
+  plan that nobody has opened in the run's week editor shows the paste box,
+  and its first save makes its page: the document the week editor makes
+  (`emptyWeekFields`, unpublished) with the pasted blocks and title.
 - **A week for one group** goes through
   `/api/courses/groups/[groupId]/weeks/[weekId]/blocks`, for admins and the
   programme's lead on any group of the run and for a group's facilitators on
@@ -582,8 +589,6 @@ editor under `/admin/courses` stays an admin's.
   found, the things to check and Preview as a fellow.
 - **Reordering weeks** (the board's drag handles and Move up or down). Once a
   run is out of draft its plan is an admin's, in the run's editor.
-- **A week with no page yet.** The loader saves only onto a week that has a
-  page; an admin makes it by opening the week in the run's week editor.
 - **A course's own weeks.** A course holds none yet, so "Copy weeks from the
   course" copies another run's, through the copy route the run editor uses,
   never overwriting a week the run has.

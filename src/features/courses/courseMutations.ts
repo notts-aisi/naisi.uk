@@ -22,19 +22,17 @@ import {
   COURSE_FIELD_LIMITS,
   EMPTY_APPLICATION_COUNTS,
   courseRunChannel,
+  emptyWeekFields,
   pitchSettingsError,
   sanitizeWeekQuestions,
   storedPitchSettings,
   weekDocId,
-  type ChecklistItem,
   type CourseEnrolMode,
   type CourseRunStatus,
   type CourseRunStream,
   type CourseStatus,
   type CourseTrack,
   type CourseWeekDoc,
-  type Exercise,
-  type Material,
   type RunPitchSettings,
 } from "@/lib/firestore/courses";
 import {
@@ -813,16 +811,7 @@ export async function ensureWeekDoc(
   if (existing.exists()) return;
 
   await setDoc(ref, {
-    weekNumber: n,
-    title: "",
-    summary: "",
-    guideBlocks: [] as Block[],
-    materials: [] as Material[],
-    exercises: [] as Exercise[],
-    checklist: [] as ChecklistItem[],
-    questions: [] as string[],
-    estimatedMinutes: null,
-    published: false,
+    ...emptyWeekFields(n),
     updatedAt: serverTimestamp(),
     updatedByUid: uid,
   });

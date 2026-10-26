@@ -169,12 +169,13 @@ export function previewForWords(groupName: string): string {
 }
 export const NO_GROUPS_YET = "The run has no groups that meet yet, so there is no group to change a week for.";
 
-/** Mark ready, when the week cannot be marked yet. */
+/** Beside Mark ready on a week not published yet (marking it ready publishes it, Zach, 26 October 2026). */
 export function notPublishedWords(weekNumber: number): string {
-  return `Week ${weekNumber} isn’t published yet. An admin publishes it in the run’s week editor, then it can be marked ready.`;
+  return `Week ${weekNumber} isn’t published yet: marking it ready publishes it.`;
 }
+/** Above the paste box on a week of the plan with no page yet (its first save makes it, Zach, 26 October 2026). */
 export function noPageWords(weekNumber: number): string {
-  return `Week ${weekNumber} has no page on this run yet. An admin opens it in the run’s week editor, then its Markdown can be pasted here.`;
+  return `Week ${weekNumber} has no page on this run yet: saving its Markdown here makes it.`;
 }
 
 /** What somebody with a role on the programme who is neither its lead nor an admin is told, in place of the tab. */

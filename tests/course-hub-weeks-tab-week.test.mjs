@@ -117,22 +117,52 @@ describe("1. one week's page", () => {
     }
   });
 
-  test("a week with no page says who makes one, and offers nothing to paste, preview or mark", async () => {
+  test("a week with no page offers the paste, says its first save makes the page, and offers nothing to preview, mark or own", async () => {
     await world.db.collection(`courseRuns/${RUN.agi}/weeks`).doc("w06").delete();
     const page = await draw("claudia", WeekPage, at("w06"));
-    assert.match(page.text, /Week 6 has no page on this run yet\. An admin opens it in the run’s week editor, then its Markdown can be pasted here\./);
-    for (const absent of ["Paste the week’s Markdown", "Preview as a fellow", "Mark ready", "Owner"]) {
+    assert.match(page.text, /Week 6 has no page on this run yet: saving its Markdown here makes it\./);
+    assert.ok(page.text.includes("Paste the week’s Markdown"), "the paste box is offered");
+    for (const absent of ["Preview as a fellow", "Mark ready", "Owner", "isn’t published yet"]) {
       assert.ok(!page.text.includes(absent), absent);
     }
+    // The lead's first save makes the page, unpublished; then Mark ready is offered, and publishes it.
+    const saved = await call("claudia", blocksRoute.PUT, { runId: RUN.agi, weekId: "w06" }, {
+      body: { markdown: syntheticGuideMarkdown().replace("# Week 3:", "# Week 6:") },
+      course: true,
+    });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    assert.equal(world.db.read(weekPath("w06")).published, false);
+    const made = await draw("claudia", WeekPage, at("w06"));
+    assert.ok(!made.text.includes("has no page on this run yet"));
+    assert.match(made.text, /Week 6 isn’t published yet: marking it ready publishes it\./);
+    assert.ok(made.text.includes("Mark ready") && made.text.includes("Preview as a fellow"));
   });
 
-  test("an unpublished week says an admin publishes it, with the way to the week editor for an admin alone", async () => {
+  test("an unpublished week offers Mark ready, which publishes it, with the way to the week editor for an admin alone", async () => {
     world.db.poke(weekPath("w03"), { published: false });
     const lead = await draw("claudia", WeekPage, at("w03"));
-    assert.match(lead.text, /Week 3 isn’t published yet\. An admin publishes it in the run’s week editor, then it can be marked ready\./);
-    assert.ok(!lead.text.includes("Mark ready") && !lead.text.includes("Open the run’s week editor"));
+    assert.match(lead.text, /Week 3 isn’t published yet: marking it ready publishes it\./);
+    assert.ok(lead.text.includes("Mark ready"));
+    assert.ok(!lead.text.includes("Open the run’s week editor"));
     const admin = await draw("zach", WeekPage, at("w03"));
     assert.match(admin.html, new RegExp(`href="/admin/courses/${COURSE.agi}/runs/${RUN.agi}/weeks/w03"[^>]*>Open the run’s week editor</a>`));
+    const marked = await call("claudia", readyRoute.PUT, { runId: RUN.agi, weekId: "w03" }, { body: { ready: true }, course: true });
+    assert.equal(marked.status, 200, JSON.stringify(marked.body));
+    assert.equal(world.db.read(weekPath("w03")).published, true);
+    const after = await draw("claudia", WeekPage, at("w03"));
+    assert.ok(!after.text.includes("isn’t published yet"));
+    assert.match(after.text, /Week 3 is marked ready\./);
+  });
+
+  test("a week with nothing in it offers the paste and nothing to mark, published or not", async () => {
+    for (const published of [true, false]) {
+      world.db.poke(weekPath("w03"), { blocks: [], published });
+      const page = await draw("claudia", WeekPage, at("w03"));
+      assert.ok(page.text.includes("Paste the week’s Markdown"), "the paste box is offered");
+      for (const absent of ["Mark ready", "isn’t published yet", "has no page on this run yet"]) {
+        assert.ok(!page.text.includes(absent), `${absent} (${published})`);
+      }
+    }
   });
 
   test("once marked ready the press reads Not ready, with what Ready means for the week", async () => {

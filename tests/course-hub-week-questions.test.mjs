@@ -313,7 +313,7 @@ describe("4. every copy of a week carries its questions", () => {
     }
     // The walk sees the copies it exists for.
     for (const file of [
-      "features/courses/courseMutations.ts",
+      "lib/firestore/courses.ts",
       "app/api/courses/runs/[runId]/clone-weeks/route.ts",
       "app/api/courses/runs/[runId]/normalise-weeks/route.ts",
       "lib/firestore/courseTemplates.ts",

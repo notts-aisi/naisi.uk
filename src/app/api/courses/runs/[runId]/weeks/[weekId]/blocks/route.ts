@@ -15,7 +15,7 @@ import {
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
-import { normalizeCourse, normalizeCourseRun, normalizeCourseWeek, type CourseWeekDoc } from "@/lib/firestore/courses";
+import { emptyWeekFields, normalizeCourse, normalizeCourseRun, normalizeCourseWeek, type CourseWeekDoc } from "@/lib/firestore/courses";
 
 /**
  * LOADING A WEEK AS BLOCKS (board pr-weeks, Option B; Q39): the run's week
@@ -50,6 +50,14 @@ import { normalizeCourse, normalizeCourseRun, normalizeCourseWeek, type CourseWe
  * paste with a problem is refused (400). A paste that takes out items with
  * answers is refused (409) until the body confirms the count it was shown,
  * so a count that has grown since "Read it" asks again.
+ *
+ * A WEEK WITH NO PAGE YET (Zach, 26 October 2026). A week of the run's plan
+ * that nobody has opened in the run's week editor is read as an empty one,
+ * and its first save makes its page: the same document the week editor makes
+ * (`emptyWeekFields`, unpublished), with the blocks and the title in it, so
+ * the lead needs nobody else to start a week. `create` refuses if the page
+ * was made since the read (409, read it again). A week that is not in the
+ * plan and has no page is not a week of the run (404).
  */
 
 type Params = { params: Promise<{ runId: string; weekId: string }> };
@@ -84,23 +92,29 @@ async function markdownOf(req: Request): Promise<PasteBody | NextResponse> {
   return "error" in sent ? badRequest(sent.error) : sent;
 }
 
-type Loaded = { week: CourseWeekDoc; weekNumber: number; dayBeforeTime: string | null };
+/** `exists` is false for a week of the plan with no page yet, read as an empty one. */
+type Loaded = { week: CourseWeekDoc; weekNumber: number; dayBeforeTime: string | null; exists: boolean };
 
 /** The run, its course's day-before time and the week, or a 404 that says which is missing. */
 async function load(db: Firestore, runId: string, weekId: string): Promise<Loaded | NextResponse> {
   const runSnap = await db.collection("courseRuns").doc(runId).get();
   if (!runSnap.exists) return NextResponse.json({ error: "Run not found" }, { status: 404 });
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
+  const slot = run.weekPlan.find((entry) => entry.kind === "week" && entry.weekId === weekId);
+  const planned = slot && slot.kind === "week" ? slot.weekNumber : null;
   const weekSnap = await db.collection("courseRuns").doc(runId).collection("weeks").doc(weekId).get();
-  if (!weekSnap.exists) {
-    return NextResponse.json({ error: "This week has no document yet: open it from the run’s week plan first." }, { status: 404 });
-  }
-  const week = normalizeCourseWeek(weekSnap.id, weekSnap.data() ?? {});
+  let week: CourseWeekDoc;
+  if (weekSnap.exists) week = normalizeCourseWeek(weekSnap.id, weekSnap.data() ?? {});
+  else if (planned !== null) week = normalizeCourseWeek(weekId, emptyWeekFields(planned));
+  else return NextResponse.json({ error: "That week isn’t in this run’s week plan." }, { status: 404 });
   const courseSnap = run.courseId ? await db.collection("courses").doc(run.courseId).get() : null;
   const course = courseSnap?.exists ? normalizeCourse(courseSnap.id, courseSnap.data() ?? {}) : null;
-  const slot = run.weekPlan.find((entry) => entry.kind === "week" && entry.weekId === weekId);
-  const weekNumber = slot && slot.kind === "week" ? slot.weekNumber : week.weekNumber;
-  return { week, weekNumber, dayBeforeTime: course?.dayBeforeDueTime ?? null };
+  return { week, weekNumber: planned ?? week.weekNumber, dayBeforeTime: course?.dayBeforeDueTime ?? null, exists: weekSnap.exists };
+}
+
+function isAlreadyExists(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null)?.code;
+  return code === 6 || code === "already-exists" || code === "ALREADY_EXISTS";
 }
 
 /** The paste, read against the week as stored. */
@@ -164,17 +178,24 @@ export async function PUT(req: Request, ctx: Params) {
   if (read.problems.length > 0) return badRequest(read.problems[0], answer);
   const unconfirmed = unconfirmedAnswers(answer, sent.confirmAnswers);
   if (unconfirmed) return NextResponse.json({ error: unconfirmed, ...answer }, { status: 409 });
-  await db
-    .collection("courseRuns")
-    .doc(gated.runId)
-    .collection("weeks")
-    .doc(gated.weekId)
-    .update({
-      blocks: read.blocks,
-      ...(read.title ? { title: read.title } : {}),
-      updatedAt: FieldValue.serverTimestamp(),
-      updatedByUid: gated.uid,
-    });
+  const weekRef = db.collection("courseRuns").doc(gated.runId).collection("weeks").doc(gated.weekId);
+  const written = {
+    blocks: read.blocks,
+    ...(read.title ? { title: read.title } : {}),
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedByUid: gated.uid,
+  };
+  if (loaded.exists) {
+    await weekRef.update(written);
+  } else {
+    // The week's first save makes its page, unpublished, as the week editor would.
+    try {
+      await weekRef.create({ ...emptyWeekFields(loaded.weekNumber), ...written });
+    } catch (err) {
+      if (!isAlreadyExists(err)) throw err;
+      return NextResponse.json({ error: "This week has just changed. Read it again, then save." }, { status: 409 });
+    }
+  }
   return NextResponse.json({
     saved: true,
     blockCount: read.blocks.length,
