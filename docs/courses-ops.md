@@ -1978,6 +1978,63 @@ programme's Teams tab (see Teams, below). The code is
 - **Deploy**: one new rules block, `coursePitches` shut to every browser
   (the routes are the only writers and readers). No index.
 
+## Pathways, cases and talks
+
+A week written as blocks can hold a **Choose one** (packs to read, such as
+week 3's pathways) and a **talk** (the case study, given out at the end of
+the session before, or a pitch). Who settles which pack a person has is the
+week's own (`givenBy`, from the guide's words): each person picks on the
+week page, or a facilitator hands the slips out on paper and types the draw
+in. The record is `coursePacksAndCases`, one per person per Choose one or
+talk; the code is `src/lib/courses/packsAndCases/`.
+
+### Typing in the draw
+
+1. **After the session**, the group page shows the spread for the week the
+   group meets next ("Pathways in Group B": each pathway with who has it,
+   and who has nothing yet) and links to the draw page, "Change pathways and
+   cases" (`/learn/draw/<group>?week=<n>`).
+2. **Copy the slips in.** Each person in the group has a row, the group's
+   facilitators included (they take part too): their pathway, then their
+   case. A case list offers only that pathway's cases. A case with a content
+   note is never in a list: it stays out of the draw.
+3. **Swaps** go through the group's facilitators: "Swap two people" swaps
+   everything two people have; Save keeps it. Changing somebody's pathway
+   takes back a case the new one does not offer.
+4. **Save** writes only what changed. Nobody is emailed: each person sees
+   theirs on that week's page.
+
+### Who sees what
+
+- **The group's live facilitators, the programme's lead and admins** type
+  and read the draw. The lead has no link to the draw page yet: open it by
+  its address. Nobody else in the group sees anybody's.
+- **The person** sees their own pack and case on the week page, their case
+  on the programme page's This week card, and their own pack among Home's
+  rows to tick.
+- **A pick** is the person's work for the week: This week's work's reader
+  (`weekWorkOf`) hands it to the group's facilitators, the lead and admins,
+  and leaves a facilitator's own pick blank for their co-facilitators. No
+  page draws that table yet. A pick can change until the person's group's
+  session for that week starts.
+- **"Ready for my talk"** is the person's own: no page shows it to anybody
+  else. It waits for a case on a case study, and a case changed or taken
+  back clears it.
+
+### Things worth knowing
+
+- **Done counts the pack the person has**, ticked as one, and the talk once
+  they mark themselves ready; until a pack is given out, the task is not
+  done.
+- **Somebody who left** is in no draw and is shown nothing; their records
+  stay for the lead and admins.
+- **Deleting an account** deletes the person's records. **Destroying the
+  run** deletes them all, and the destroy dialog counts them as "Packs,
+  cases and ready marks".
+- **Deploy**: one new rules block, `coursePacksAndCases` shut to every
+  browser (two routes are the only writers, and pages read on the server).
+  No index.
+
 ## Teams
 
 An incubator meets as one weekly group, and its people work in small teams

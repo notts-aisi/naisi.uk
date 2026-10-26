@@ -3060,6 +3060,22 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === coursePacksAndCases ===
+    // What each person has in a week's packs and talks (plan item 8, Q32 A,
+    // src/lib/firestore/coursePacksAndCases.ts): the pack they picked or were
+    // given, the case they were given, and their own "Ready for my talk".
+    // Written only by two routes on the Admin SDK (a person's own pick and
+    // ready box, and the draw a group's facilitators, the programme's lead or
+    // an admin type in), and read only on the server through
+    // src/lib/courses/packsAndCases/readers.ts, after each page's own gate.
+    // So every browser is refused, the person a record is about, the group's
+    // facilitators, the programme's lead and admins included: a client read
+    // would hand a fellow somebody else's case, and a co-facilitator a
+    // facilitator's own pick or ready box.
+    match /coursePacksAndCases/{recordId} {
+      allow read, write: if false;
+    }
+
     // === calendarLinks ===
     // One private calendar link per person (Add to calendar,
     // src/lib/firestore/calendarLinks.ts): the secret a calendar app fetches

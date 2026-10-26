@@ -22,6 +22,7 @@ import { TASK_DONE, TASK_MARK_WORDS } from "@/lib/courses/memberPageWords";
 import { draftStateWords, feedbackFromWords, sentOnWords } from "@/lib/courses/writtenAnswerWords";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { handedTaskDone, handedTasksDone, isCounted } from "@/lib/courses/weekBlocks/progress";
+import { NOT_GIVEN_YET, NOT_READY_YET } from "@/lib/courses/packsAndCases/words";
 import { blockTickItemsOf } from "../weekBlocks/tickItems";
 import TickRows, { tickItemsOf } from "./TickRows";
 import type { MaterialTicks } from "./useMaterialTicks";
@@ -43,7 +44,9 @@ import styles from "./weekly.module.css";
  * Once the programme has started the card draws the tasks (board
  * wk-programme: "Parts 1 to 3 · Done") where a week written before blocks
  * draws its bar, and before the first session it lists the sources on the
- * path to tick. No bar: the boards draw no percentages for these weeks.
+ * path to tick. No bar: the boards draw no percentages for these weeks. A
+ * talk's task says the case given ("Shutdown resistance, 2025", or "Not
+ * given yet") and "Not ready yet" until the person marks themselves ready.
  */
 
 type Props = {
@@ -159,6 +162,8 @@ export default function ThisWeekCard({
                         )}
                         {task.label}
                       </p>
+                      {task.talk?.hasCases && <p className={styles.taskRowSub}>{task.talk.caseTitle ?? NOT_GIVEN_YET}</p>}
+                      {task.talk && !task.talk.ready && !taskIsDone && <p className={styles.taskRowStatus}>{NOT_READY_YET}</p>}
                       {task.answer ? (
                         // The written answer's own line (wk-programme): "Sent Mon 16 Nov",
                         // then "Feedback from Rahul"; "Draft · 241 words" before it is sent.
@@ -191,7 +196,11 @@ export default function ThisWeekCard({
           {listsReadings && week.status === "loading" && <Skeleton lines={3} height="2.5rem" ariaLabel="Loading the readings…" />}
           {listsReadings && week.status === "ready" && week.week && (
             <TickRows
-              items={isBlockWeek(week.week) ? blockTickItemsOf(week.week.blocks) : tickItemsOf(week.week, false)}
+              items={
+                isBlockWeek(week.week)
+                  ? blockTickItemsOf(week.week.blocks, Object.assign({}, ...tasks.map((task) => task.packs ?? {})))
+                  : tickItemsOf(week.week, false)
+              }
               isDone={ticks.isDone}
               canTick={ticks.canTick}
               showTicks={showTicks}

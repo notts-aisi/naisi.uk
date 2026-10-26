@@ -12,6 +12,7 @@ import {
   ToReviewCard,
 } from "@/features/courses/facilitator/GroupCards";
 import facilitator from "@/features/courses/facilitator/facilitator.module.css";
+import PathwaySpread from "@/features/courses/packsAndCases/PathwaySpread";
 import { ticketFacts } from "@/features/courses/sessionChange/cardFacts";
 import SessionNotice from "@/features/courses/sessionChange/SessionNotice";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
@@ -25,6 +26,9 @@ import { facilitatorGuidePath } from "@/lib/courses/facilitatorGuide/model";
 import { readGuideIndex } from "@/lib/courses/facilitatorGuide/store";
 import { guideForWeekWords } from "@/lib/courses/facilitatorGuide/words";
 import { loadFacilitatorGroup } from "@/lib/courses/facilitatorGroup";
+import { hasDraw } from "@/lib/courses/packsAndCases/model";
+import { drawPeople, readDrawState, readGroupWeek, spreadOf } from "@/lib/courses/packsAndCases/readers";
+import { changeDrawWords, spreadTitleWords } from "@/lib/courses/packsAndCases/words";
 import {
   MY_PROGRAMMES,
   coFacilitatorsWords,
@@ -69,6 +73,10 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * THE REGISTER is a page of its own beside this one (`./register`), as board
  * wk-register draws it: "Take the register" and each register's "See it" lead
  * there.
+ *
+ * THE SPREAD (Q32 A, "Pathways in Group B"): the draw of the week of the
+ * group's next session, each pathway with who has it, and the way to the draw
+ * page (`/learn/draw/[groupId]`), where the slips are copied in.
  *
  * NOT DRAWN, though the board draws it: who can't make it tonight (that
  * feature does not exist yet).
@@ -330,6 +338,14 @@ export default async function GroupHomePage({
     `${groupPath}/written?week=${row.weekNumber}&person=${encodeURIComponent(row.uid)}`;
   const { updates } = await loadUpdatesFor(db, access.run, narrowToGroup(reading, groupId), runGroups);
 
+  // The draw of the week the group meets next (Q32 A): the slips handed out
+  // at the end of the last session are that week's. Everybody in the group
+  // is in it, its facilitators too, who take part.
+  const drawWeek = !group.archived && range.next ? await readGroupWeek(db, runId, groupId, range.next.weekNumber) : null;
+  const drawList = drawPeople(model.people, model.facilitators);
+  const spread =
+    drawWeek && hasDraw(drawWeek.draw) ? spreadOf(drawWeek, drawList, await readDrawState(db, runId, drawWeek, drawList)) : null;
+
   // The head: the group, its week, its programme, its usual day, time and
   // room, and the group's other facilitators by their whole names.
   const groupName = group.name || "Group";
@@ -450,6 +466,14 @@ export default async function GroupHomePage({
           {/* Every session the group holds is over: Home's sentence where the
               ticket was. A group with no dates yet draws nothing here. */}
           {!facts && range.lastDateKey && <NoMoreSessionsCard />}
+          {drawWeek && spread && (
+            <PathwaySpread
+              title={spreadTitleWords(drawWeek.draw, groupName)}
+              spread={spread}
+              changeHref={`/learn/draw/${encodeURIComponent(groupId)}?week=${drawWeek.weekNumber}`}
+              changeLabel={changeDrawWords(drawWeek.draw)}
+            />
+          )}
           <GroupPeopleCard
             people={model.people}
             leavers={model.leavers}

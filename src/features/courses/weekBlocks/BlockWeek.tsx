@@ -41,6 +41,7 @@ import {
   SOURCE_KIND_LABEL,
   allBlocks,
   partsOf,
+  type CasesBlock,
   type ChecklistBlock,
   type ContentNoteBlock,
   type GoFurtherBlock,
@@ -66,7 +67,12 @@ import {
 } from "@/lib/courses/weekBlocks/progress";
 import type { CourseWeekDoc } from "@/lib/firestore/courses";
 import type { ProgressItemKind } from "@/lib/firestore/courseProgress";
+import { findCase, keyingChooseOne } from "@/lib/courses/packsAndCases/model";
+import { NOT_GIVEN_YET, NOT_READY_YET, NOT_SAVED, YOUR_CASE_LABEL } from "@/lib/courses/packsAndCases/words";
 import { weekHref } from "../links";
+import ChooseOneView from "../packsAndCases/ChooseOneView";
+import TalkView from "../packsAndCases/TalkView";
+import { usePicks, type Picks } from "../packsAndCases/usePicks";
 import PacingBanner from "../PacingBanner";
 import { setWeekNavDirection } from "../weekNavDirection";
 import GroupSharedNotes from "../weekly/GroupSharedNotes";
@@ -114,11 +120,17 @@ import answerStyles from "./writtenAnswer.module.css";
  * task for it says where it stands ("Draft · 241 words", "Sent Mon 16 Nov",
  * "Feedback from Rahul"). Never "Late": that is staff's alone.
  *
- * DRAWN BY A LATER PAGE, AND NOTHING HERE YET: a Choose one's packs, a
- * table, the cases and fill-in boxes. A task that covers
- * one of them is counted and is never done until that page can see it done
- * (`progress.ts`). Under the title, "Start here · Glossary": each linked
- * when the run has its document (`guide`).
+ * A CHOOSE ONE (plan item 8): its packs, the person's own open and ticked as
+ * one, given out by a facilitator or picked here until the session starts
+ * (`../packsAndCases/ChooseOneView.tsx`); only that pack counts. A TALK: Your
+ * case study (the case given out, "Ready for my talk", every case of the
+ * week) or a pitch inside its part (`../packsAndCases/TalkView.tsx`); This
+ * week says "Your case: ..." and "Not ready yet" under its task.
+ *
+ * DRAWN BY A LATER PAGE, AND NOTHING HERE YET: a table and fill-in boxes. A
+ * task that covers one of them is counted and is never done until that page
+ * can see it done (`progress.ts`). Under the title, "Start here ·
+ * Glossary": each linked when the run has its document (`guide`).
  *
  * "DONE" IS WORKED OUT IN ONE PLACE, `src/lib/courses/weekBlocks/progress.ts`,
  * from the reader's own live ticks and their own reflection boxes as they
@@ -206,12 +218,17 @@ export default function BlockWeek({
   const beforeGroups = Boolean(payload.beforeGroups);
   const participant = learner !== null || asFacilitator || beforeGroups;
   const canWrite = learner ? learner.status === "active" : asFacilitator || beforeGroups;
+  const overviewWeek = payload.weeks.find((entry) => entry.weekNumber === weekNumber) ?? null;
+  // The person's own packs, cases and ready marks, as handed in and as changed here.
+  const picks = usePicks(runId, week.id, participant ? (overviewWeek?.picks ?? null) : null, NOT_SAVED);
 
   const state: DoneState = {
     isTicked: ticks.isDone,
     isWritten: (promptId) => Boolean(ownRows.byId.get(promptId)?.text?.trim()),
     // Sent once its first-sent time is stored: editing it after, or a reviewer opening it, changes nothing.
     isSent: (answerId) => Boolean(ownRows.byId.get(answerId)?.written?.firstSentAt),
+    packOf: (chooseOneId) => (participant ? picks.packOf(chooseOneId) : null),
+    isReady: (talkId) => participant && picks.isReady(talkId),
   };
 
   // The week's seven days and its session, in the reader's own calendar.
@@ -234,7 +251,6 @@ export default function BlockWeek({
 
   // This week, and its count.
   const thisWeekBlock = blocks.find((block): block is ThisWeekBlock => block.type === "thisWeek") ?? null;
-  const overviewWeek = payload.weeks.find((entry) => entry.weekNumber === weekNumber) ?? null;
   // Who reads the written answer and gives feedback on it (Q30 C): the
   // group's facilitators, or the lead and admins for a facilitator's own.
   const answerReaders: AnswerReaders =
@@ -344,6 +360,17 @@ export default function BlockWeek({
             counts={counts}
             first={first}
             todayKey={todayKey}
+            talkLine={(talkId) => {
+              const talk = blocks.find((candidate): candidate is CasesBlock => candidate.type === "cases" && candidate.id === talkId) ??
+                partsOf(blocks).flatMap((part) => part.blocks).find((candidate): candidate is CasesBlock => candidate.type === "cases" && candidate.id === talkId);
+              if (!talk) return null;
+              const found = findCase(talk, picks.caseOf(talk.id));
+              return {
+                hasCases: talk.groups.some((group) => group.cases.length > 0),
+                caseTitle: found ? found.item.title : null,
+                ready: picks.isReady(talk.id),
+              };
+            }}
           />,
         );
         break;
@@ -427,6 +454,9 @@ export default function BlockWeek({
                   first,
                   todayKey,
                 },
+                picks,
+                askToSwap: payload.askToSwap ?? [],
+                blocks,
               })
             }
           />,
@@ -445,9 +475,25 @@ export default function BlockWeek({
         rail.push({ id: anchor(block.id), label: HANDS_ON_SHORT, count: null, mark: null, indent: false });
         body.push(<HandsOn key={block.id} block={block} />);
         break;
-      // The case study is a later page's: nothing yet, not even its heading.
-      case "cases":
+      case "cases": {
+        const keying = keyingChooseOne(blocks, block);
+        rail.push({ id: anchor(block.id), label: block.heading || "Your case study", count: null, mark: null, indent: false });
+        body.push(
+          <TalkView
+            key={block.id}
+            block={block}
+            weekNumber={weekNumber}
+            participant={participant}
+            canWrite={canWrite}
+            picks={picks}
+            askToSwap={payload.askToSwap ?? []}
+            packId={keying && participant ? picks.packOf(keying.id) : null}
+            variant="section"
+            anchorId={anchor(block.id)}
+          />,
+        );
         break;
+      }
     }
   }
 
@@ -602,6 +648,7 @@ function ThisWeekBox({
   counts,
   first,
   todayKey,
+  talkLine,
 }: {
   block: ThisWeekBlock;
   /** A task's line about the reader's own written answer, when it covers one. */
@@ -616,6 +663,8 @@ function ThisWeekBox({
   counts: { done: number; of: number };
   first: boolean;
   todayKey: string;
+  /** The talk a task covers, as its line says it: the case given and the person's own mark. */
+  talkLine: (talkId: string) => { hasCases: boolean; caseTitle: string | null; ready: boolean } | null;
 }) {
   const id = anchor(block.id);
   return (
@@ -655,6 +704,7 @@ function ThisWeekBox({
           const done = learner && counted && taskDone(needs, state);
           const fromOverview = rows[index];
           const due = fromOverview && fromOverview.type === "task" && fromOverview.what === row.what ? fromOverview.due : null;
+          const talk = learner && needs.talkIds.length > 0 ? talkLine(needs.talkIds[0]) : null;
           return (
             <li key={index} className={styles.task}>
               {!counted ? <NoneMark /> : learner && done ? <DoneMark /> : <OpenMark />}
@@ -669,6 +719,12 @@ function ThisWeekBox({
                     {taskWhenWords(row.when, due, { first, todayKey, dayBeforeTime, whenText: row.whenText })}
                   </span>
                 </p>
+                {talk?.hasCases && (
+                  <p className={styles.taskWhen}>
+                    {YOUR_CASE_LABEL} {talk.caseTitle ?? NOT_GIVEN_YET}
+                  </p>
+                )}
+                {talk && !talk.ready && <p className={styles.taskWhen}>{NOT_READY_YET}</p>}
                 {needs.answerIds.length > 0
                   ? answerLine(needs.answerIds, due?.dateKey ?? null)
                   : done && <p className={styles.taskDone}>{TASK_DONE}</p>}
@@ -848,6 +904,12 @@ type ChildContext = {
     first: boolean;
     todayKey: string;
   };
+  /** The person's own packs, cases and ready marks. */
+  picks: Picks;
+  /** Who the person asks to switch a pack or swap a case. */
+  askToSwap: readonly string[];
+  /** The week's blocks, for the Choose one a talk's cases are grouped by. */
+  blocks: WeekBlock[];
 };
 
 type AnswerReaders = { kind: "facilitators"; names: string[] } | { kind: "lead"; leadName: string | null };
@@ -941,8 +1003,47 @@ function renderPartChild(child: PartChild, rest: PartChild[], ctx: ChildContext)
           />
         ),
       };
-    // Drawn by a later page: a Choose one's packs, a table, a talk or the
-    // cases, fill-in boxes.
+    case "chooseOne":
+      return {
+        used: 1,
+        node: (
+          <ChooseOneView
+            block={child}
+            weekNumber={ctx.weekNumber}
+            participant={ctx.learner}
+            canWrite={ctx.canWrite}
+            picks={ctx.picks}
+            askToSwap={ctx.askToSwap}
+            isDone={ctx.ticks.isDone}
+            canTick={ctx.ticks.canTick}
+            rows={ctx.ticks.byItemId}
+            onTick={ctx.onTick}
+            runId={ctx.runId}
+            uid={ctx.uid}
+            privateNoteHint={ctx.privateNoteHint}
+          />
+        ),
+      };
+    case "cases": {
+      const keying = keyingChooseOne(ctx.blocks, child);
+      return {
+        used: 1,
+        node: (
+          <TalkView
+            block={child}
+            weekNumber={ctx.weekNumber}
+            participant={ctx.learner}
+            canWrite={ctx.canWrite}
+            picks={ctx.picks}
+            askToSwap={ctx.askToSwap}
+            packId={keying && ctx.learner ? ctx.picks.packOf(keying.id) : null}
+            variant="part"
+            anchorId={anchor(child.id)}
+          />
+        ),
+      };
+    }
+    // Drawn by a later page: a table, fill-in boxes.
     default:
       return { used: 1, node: null };
   }

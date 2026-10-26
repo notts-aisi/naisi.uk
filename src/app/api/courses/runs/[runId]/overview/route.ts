@@ -27,6 +27,8 @@ import { rubricOf } from "@/lib/courses/rubric";
 import type { When } from "@/lib/courses/weekBlocks/model";
 import { taskNeeds, taskSubject, thisWeekOf, type TaskNeeds } from "@/lib/courses/weekBlocks/progress";
 import { taskLabelWords } from "@/lib/courses/memberPageWords";
+import { findCase, talksOf } from "@/lib/courses/packsAndCases/model";
+import { NO_PICKS, readOwnPacksAndCases, type OwnPicks } from "@/lib/courses/packsAndCases/readers";
 import { isReflectionResponse } from "@/lib/firestore/courseExercises";
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { isWordCountedAnswer, readWrittenAnswer, type WrittenAnswerRecord } from "@/lib/courses/writtenAnswers/model";
@@ -398,6 +400,26 @@ export type OverviewThisWeek = {
   answersReadBy: "facilitators" | "lead";
 };
 
+/** A talk a This week task covers, as the programme page draws its line (board wk-programme). */
+export type OverviewTalk = {
+  /** The talk hands out cases (a case study), so "Not given yet" means something. */
+  hasCases: boolean;
+  /** The title of the case the caller was given, or null. */
+  caseTitle: string | null;
+  ready: boolean;
+};
+
+/**
+ * THE CALLER'S OWN PACKS, CASES AND READY MARKS IN ONE WEEK WRITTEN AS BLOCKS
+ * (plan item 8; Q32 A), for the week page: the pack they have in each Choose
+ * one, picked or given out, the case they were given in each talk, and the
+ * talks they marked themselves ready for, each held to the week's blocks as
+ * they are now. `open` says whether a pack the caller picks themselves can
+ * still change: until their group's session for the week starts. Only ever
+ * the caller's own (`readOwnPacksAndCases`, addressed by their uid).
+ */
+export type OverviewPicks = OwnPicks & { open: boolean };
+
 export type OverviewThisWeekRow =
   | {
       type: "task";
@@ -422,6 +444,17 @@ export type OverviewThisWeekRow =
        * the caller has written nothing in it. Never whether it was late.
        */
       answer: { words: number; sentOn: string | null; feedbackFrom: string | null } | null;
+      /** The caller's pack in each Choose one of `needs.chooseOneIds`, by the Choose one's id. */
+      packs: Record<string, string>;
+      /** Which of `needs.talkIds` the caller marked themselves ready for. */
+      ready: string[];
+      /**
+       * The talk this task covers, for the programme page's line under "Your
+       * case talk": the case the caller was given (its title, or null before
+       * it is given), whether the talk has cases at all, and the caller's own
+       * mark. Null for a task that covers no talk.
+       */
+      talk: OverviewTalk | null;
       /**
        * The day it is due for the caller's own group (`dueMoment`), or null
        * while there is none to give ("Due dates wait for the group").
@@ -487,7 +520,19 @@ export type OverviewPayload = {
     countableIds: string[];
     /** A week written as blocks: This week's rows and what each task needs. Null on any other week. */
     thisWeek: OverviewThisWeek | null;
+    /**
+     * A week written as blocks, for somebody taking part: their own packs,
+     * cases and ready marks (`OverviewPicks`). Null on any other week and for
+     * anybody not taking part.
+     */
+    picks: OverviewPicks | null;
   }>;
+  /**
+   * Who a person taking part asks to switch a pack or swap a case (Q32 A:
+   * "To swap, ask Rahul or Sofia"): the first names of their own group's
+   * facilitators other than themselves. Empty with no group.
+   */
+  askToSwap: string[];
   /**
    * The caller's own calendar's taught weeks, in its order, with each week's
    * session and whether its page is open to them. See `OverviewWeekSchedule`.
@@ -686,6 +731,18 @@ function displayNameOf(data: Record<string, unknown>): string {
  * sees the slot it will return to. An empty string means "no override", which
  * `sessionForWeek` resolves to the recurring slot.
  */
+/** The first talk a task covers, as the programme page draws its line, or null. */
+function talkLine(blocks: Parameters<typeof talksOf>[0], talkIds: readonly string[], picks: OwnPicks): OverviewTalk | null {
+  const talk = talksOf(blocks).find((candidate) => talkIds.includes(candidate.id));
+  if (!talk) return null;
+  const given = findCase(talk, picks.cases[talk.id] ?? null);
+  return {
+    hasCases: talk.groups.some((group) => group.cases.length > 0),
+    caseTitle: given ? given.item.title : null,
+    ready: picks.ready.includes(talk.id),
+  };
+}
+
 function currentWeekId(currentWeek: CurrentWeek | null): string {
   if (!currentWeek) return "";
   const n = currentWeek.weekNumber ?? currentWeek.anchorWeekNumber;
@@ -788,8 +845,10 @@ function ownAnswerOf(
 /**
  * This week of one week written as blocks, for the caller: each task with
  * what it needs, which of its boxes the caller has written in, which of its
- * written answers they have sent and where their own answer stands, and the
- * day it is due (`dueOf`, null while there is none to give); the week's
+ * written answers they have sent and where their own answer stands, the pack
+ * they picked in each Choose one and the talks they marked themselves ready
+ * for (`picks`), and the day it is due (`dueOf`, null while there is none to
+ * give); the week's
  * written answers, each due by the same `dueOf`; the rubric's rows; and who
  * reads the caller's own answer. Null for a week with no This week. Both
  * payloads build This week here and nowhere else.
@@ -799,6 +858,7 @@ function thisWeekPayload(
   weekId: string,
   course: ThisWeekCourse,
   work: OwnWork,
+  picks: OwnPicks,
   answersReadBy: OverviewThisWeek["answersReadBy"],
   dueOf: (when: When) => { dateKey: string; moved: boolean } | null,
 ): OverviewThisWeek | null {
@@ -832,6 +892,11 @@ function thisWeekPayload(
         written: needs.promptIds.filter((id) => work.boxes.has(`${weekId}::${id}`)),
         sent: needs.answerIds.filter((id) => answerOf(id)?.firstSentAt != null),
         answer: ownAnswerOf(needs.answerIds.map((id) => answerOf(id))[0] ?? null, work.feedbackNames),
+        packs: Object.fromEntries(
+          needs.chooseOneIds.flatMap((id) => (picks.packs[id] ? [[id, picks.packs[id]] as const] : [])),
+        ),
+        ready: needs.talkIds.filter((id) => picks.ready.includes(id)),
+        talk: talkLine(blocks, needs.talkIds, picks),
         due: due ? { dateKey: due.dateKey, moved: due.moved } : null,
       };
     }),
@@ -906,12 +971,16 @@ async function beforeGroupsPayload(
             // own rule below, feedback on their written answer is their
             // group's facilitators' to give.
             thisWeek: Array.isArray(week.blocks)
-              ? thisWeekPayload(week.blocks, week.id, course, work, "facilitators", () => null)
+              ? thisWeekPayload(week.blocks, week.id, course, work, NO_PICKS, "facilitators", () => null)
               : null,
+            // A pack is given out at a session and picked until one starts,
+            // and nobody through week 1's door has a group or a session yet.
+            picks: null,
           },
         ]
       : [],
     weekSchedule: [],
+    askToSwap: [],
     programme: programme ? { name: programme.shortName, kind: programme.kind, leadFirstName: programme.leadFirstName } : null,
     shownCrest: shownCrests.get(run.id) ?? null,
     forkedWeekIds: [],
@@ -1232,12 +1301,26 @@ export async function GET(
           ? []
           : [...w.materials.filter((m) => !m.optional).map((m) => m.id), ...w.checklist.map((c) => c.id)],
         thisWeek: null as OverviewThisWeek | null,
+        picks: null as OverviewPicks | null,
       };
     })
     .sort((a, b) => a.weekNumber - b.weekNumber || a.id.localeCompare(b.id));
   const blocksByWeekId = new Map(
     weekEntries.flatMap(({ week: w }) => (Array.isArray(w.blocks) ? [[w.id, w.blocks] as const] : [])),
   );
+  // The caller's own packs, cases and ready marks across the weeks written as
+  // blocks, for somebody taking part: a learner on the run, or a facilitator
+  // of one of its live groups, who takes part as themselves. Addressed by the
+  // caller's own uid, so nobody else's is read.
+  const readsOwnPicks = liveEnrolment?.role === "learner" || facilitates.length > 0;
+  const ownPicks = readsOwnPicks
+    ? await readOwnPacksAndCases(
+        db,
+        runId,
+        actor.uid,
+        [...blocksByWeekId].map(([id, blocks]) => ({ id, blocks })),
+      )
+    : new Map<string, OwnPicks>();
 
   /**
    * ONE CARD, ON ITS OWN GROUP'S CLOCK.
@@ -1375,12 +1458,19 @@ export async function GET(
    */
   for (const entry of weeks) {
     const blocks = blocksByWeekId.get(entry.id);
+    if (blocks && readsOwnPicks) {
+      // A pick stays open until the caller's group's session for the week
+      // starts (the week's own, or the next one when it is cancelled).
+      const startsAt = ownGroup ? dueMoment(ownSessionsAll, entry.weekNumber, "before") : null;
+      entry.picks = { ...(ownPicks.get(entry.id) ?? NO_PICKS), open: !startsAt || now.getTime() < startsAt.at.getTime() };
+    }
     if (!blocks) continue;
     entry.thisWeek = thisWeekPayload(
       blocks,
       entry.id,
       course,
       work,
+      ownPicks.get(entry.id) ?? NO_PICKS,
       facilitates.length > 0 ? "lead" : "facilitators",
       (when) => (ownGroup ? dueMoment(ownSessionsAll, entry.weekNumber, when, course.dayBeforeTime) : null),
     );
@@ -1455,6 +1545,12 @@ export async function GET(
     currentWeek,
     weeks,
     weekSchedule,
+    askToSwap: readsOwnPicks && ownGroup
+      ? ownGroup.facilitatorUids
+          .filter((uid) => uid !== actor.uid)
+          .map((uid) => (nameByUid.get(uid) ?? "").trim().split(/\s+/)[0] ?? "")
+          .filter(Boolean)
+      : [],
     programme: programme
       ? { name: programme.shortName, kind: programme.kind, leadFirstName: programme.leadFirstName }
       : null,

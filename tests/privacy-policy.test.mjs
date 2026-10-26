@@ -2619,6 +2619,9 @@ describe("the course hub passage", () => {
       /that feedback on your written answer is waiting/i,
       /how many written answers they sent/i,
       /your written answers with the feedback on them/i,
+      /Pathways and cases\./i,
+      /which ones you were given is recorded on the site/i,
+      /the packs and cases recorded for you/i,
     ]) {
       assert.ok(
         !pattern.test(V6_FLAT),
@@ -3653,6 +3656,79 @@ describe("the course hub passage", () => {
     assert.ok(existsSync(join(REPO_ROOT, "tests", "course-hub-shared-notes.test.mjs")));
   });
 
+  test("pathways and cases: what is given out is recorded by the group's facilitators, the lead or an admin and seen by those three, a pick seen by those three too but never by a facilitator's co-facilitators, the ready box by nobody else, and they go with the account", () => {
+    assert.match(
+      PAGE_FLAT,
+      /<strong>Pathways and cases\.<\/strong> Some weeks give you a pack to read, such as a pathway, and a case to give a short talk on\. When your facilitators hand these out on paper in a session, which ones you were given is recorded on the site, by them or by the programme&apos;s lead or an admin, and you see yours on that week&apos;s page\. Your group&apos;s facilitators, the programme&apos;s lead and admins see what everyone in the group was given; nobody else in your group sees yours\. If you facilitate the group you take part in, your co-facilitators see what you were given, as they see everybody&apos;s\. When a week lets you pick a pack yourself, we keep the one you picked, and you can change it until your session starts\. Your group&apos;s facilitators, the programme&apos;s lead and admins can see which one you picked, except that if you facilitate the group, your co-facilitators cannot\. You can say you are ready for your talk, and that is shown on your own pages and nobody else&apos;s\./,
+    );
+    // Every file that addresses the record, and why it may.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bCOURSE_PACKS_AND_CASES_COLLECTION\b|["'`]coursePacksAndCases["'`]/),
+      new Map([
+        ["src/lib/firestore/coursePacksAndCases.ts", "the record's own shape, its id and its normaliser"],
+        ["src/lib/courses/packsAndCases/readers.ts", "the readers, each read by id from the people a page may show it to"],
+        ["src/app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts", "the person's own pick and ready box, in their own name only"],
+        ["src/app/api/courses/groups/[groupId]/draw/route.ts", "the draw, typed in by the group's live facilitators, the programme's lead or an admin"],
+        ["src/lib/firestore/courseDeletion.ts", "destroying a run deletes its records"],
+        ["src/lib/firestore/accountDeletion.ts", "deleting an account deletes every record of theirs"],
+      ]),
+      "addressing the pathways and cases recorded for people",
+      "The policy says what is given out is seen by the group's facilitators, " +
+        "the programme's lead and admins and nobody else in the group, that a " +
+        "pick is seen by those three too, never a facilitator's own by their " +
+        "co-facilitators, that the ready box reaches nobody's pages but the " +
+        "person's, and that they go with the account. If this file reads, " +
+        "shows or removes them otherwise, the sentence is wrong and a new " +
+        "version has to say so.",
+    );
+    // Who records and reads the draw: the group's live facilitators, the
+    // programme's lead and admins, by one gate, which the page and the route
+    // both ask.
+    const readers = withoutComments(read("src/lib/courses/packsAndCases/readers.ts"));
+    assert.match(readers, /!group\.archived && isNamedWithStanding\(actor, "courseGroups\.facilitatorUids", group\.facilitatorUids\);/);
+    assert.match(readers, /const leadOf = await programmeLedBy\(db, actor, group\.runId\);/);
+    assert.ok(!/isTrackLead|trackLeadUids|admissionsReviewer/.test(readers), "the draw's gate now admits a run's track lead or a reviewer");
+    for (const file of ["src/app/api/courses/groups/[groupId]/draw/route.ts", "src/app/(app)/learn/draw/[groupId]/page.tsx"]) {
+      assert.match(read(file), /await drawGate\(db, (?:actor|user), group\)/, `${file} no longer asks the draw's gate`);
+    }
+    // What the draw hands staff holds packs and cases, never the ready box:
+    // the draw's state, the spread and This week's work's cells.
+    const drawState = /export async function readDrawState\([\s\S]*?\n\}/.exec(readers);
+    const weekWork = /export async function weekWorkOf\([\s\S]*?\n\}/.exec(readers);
+    assert.ok(drawState && weekWork, "could not find the draw's readers");
+    for (const body of [drawState[0], weekWork[0]]) {
+      assert.ok(!/\bready\b/.test(body), "a reader of the draw for staff now carries the ready box");
+    }
+    // A pick reaches This week's work for the group's facilitators, the lead
+    // and admins, and a facilitator's own pick is left blank for their
+    // co-facilitators: only the lead and admins see that one.
+    assert.match(weekWork[0], /const seesOwnWork = viewer\.isAdmin \|\| viewer\.leadOf !== null;/);
+    assert.match(weekWork[0], /const hidden = picked && person\.facilitates && !seesOwnWork;/);
+    // A person reads their own, by their own uid: the overview asks for the caller's.
+    assert.match(
+      read("src/app/api/courses/runs/[runId]/overview/route.ts"),
+      /await readOwnPacksAndCases\(\s*db,\s*runId,\s*actor\.uid,/,
+    );
+    // The person's own route writes the caller's record, never anybody else's.
+    assert.match(
+      read("src/app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts"),
+      /\.doc\(packCaseRecordId\(runId, actor\.uid, blockId\)\)/,
+    );
+    // A pick stays open until the session starts.
+    assert.match(
+      read("src/app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts"),
+      /if \(startsAt && Date\.now\(\) >= startsAt\.at\.getTime\(\)\) \{/,
+    );
+    // They go with the account, found by the person's uid.
+    assert.match(
+      read("src/lib/firestore/accountDeletion.ts"),
+      /export async function deleteCoursePacksAndCases\(db: Firestore, uid: string\): Promise<number> \{\s*return deleteOwnedCourseRows\(db, COURSE_PACKS_AND_CASES_COLLECTION, uid\);\s*\}/,
+    );
+    // tests/course-hub-packs-and-cases.test.mjs runs the draw, the picks, the
+    // ready box and the deletions as every kind of caller.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-hub-packs-and-cases.test.mjs")));
+  });
+
   test("a comment on the material is shown to the run only on a programme anyone can join, and the group's notes take its place on one that places people in groups", () => {
     assert.match(PAGE_FLAT, /On a programme anyone can join you can also leave a comment on it, which is shown to the rest of your run; on a programme that places you in a group, you share notes with your group instead \(see Notes shared with your group\)\./);
     assert.match(PAGE_FLAT, /On a programme anyone can join, they also see any comment or star rating you leave on a piece of course material; on a programme that places you in a group, the people in your group see the notes you share with it\./);
@@ -3810,8 +3886,10 @@ describe("the course hub passage", () => {
     assert.match(
       PAGE_FLAT,
       // The written answers and their feedback by name, where "your answers
-      // to exercises" stood: the same rows, deleted by the same step below.
-      /your progress, your written answers with the feedback on them, your calendar link, the notes you shared with a group, notes you wrote for the other facilitators of a group, your name on your survey answers, the record of each survey sent to you with your link to answer it, a pitch you sent alone,/,
+      // to exercises" stood (the same rows, deleted by the same step below),
+      // then the packs and cases recorded for a person (plan item 8), before
+      // the calendar link; everything else is as it was.
+      /your progress, your written answers with the feedback on them, the packs and cases recorded for you and whether you said you were ready for your talks, your calendar link, the notes you shared with a group, notes you wrote for the other facilitators of a group, your name on your survey answers, the record of each survey sent to you with your link to answer it, a pitch you sent alone,/,
     );
     const cascade = withoutComments(read("src/lib/firestore/accountDeletion.ts"));
     for (const step of [
@@ -3819,6 +3897,7 @@ describe("the course hub passage", () => {
       "summary.calendarLinkDeleted = await deleteCalendarLink(db, uid);",
       "summary.courseGroupSharedNotesDeleted = await deleteCourseGroupSharedNotes(db, uid);",
       "summary.courseGroupNotesDeleted = await deleteCourseGroupNotes(db, uid);",
+      "summary.coursePacksAndCasesDeleted = await deleteCoursePacksAndCases(db, uid);",
     ]) {
       assert.ok(cascade.includes(step), `the account deletion no longer runs \`${step}\`, which the policy lists among what a deletion removes`);
     }

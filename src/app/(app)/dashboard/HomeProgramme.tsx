@@ -236,7 +236,11 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
               {readable && week.status === "loading" && <Skeleton lines={3} height="2.5rem" ariaLabel="Loading the reading…" />}
               {readable && week.status === "ready" && week.week && (
                 <TickRows
-                  items={isBlockWeek(week.week) ? blockTickItemsOf(week.week.blocks) : tickItemsOf(week.week, false)}
+                  items={
+                    isBlockWeek(week.week)
+                      ? blockTickItemsOf(week.week.blocks, Object.assign({}, ...tasks.map((task) => task.packs ?? {})))
+                      : tickItemsOf(week.week, false)
+                  }
                   isDone={ticks.isDone}
                   canTick={ticks.canTick}
                   showTicks={learner !== null}

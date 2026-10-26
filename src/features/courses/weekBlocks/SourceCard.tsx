@@ -180,9 +180,10 @@ export default function SourceCard({
 /**
  * The reading's box: the stars and the private note on the person's own row
  * for the source. Seeded when it opens and dropped when it closes, so a save
- * landing while they type never replaces what they are writing.
+ * landing while they type never replaces what they are writing. A pack, ticked
+ * as one, has the same box (`src/features/courses/packsAndCases/ChooseOneView.tsx`).
  */
-function ReadingBox({
+export function ReadingBox({
   runId,
   uid,
   weekNumber,
