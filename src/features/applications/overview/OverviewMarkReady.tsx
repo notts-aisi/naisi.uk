@@ -18,7 +18,7 @@ export default function OverviewMarkReady({ runId, weekId, ready }: { runId: str
       weekId={weekId}
       ready={ready}
       onDone={() => router.refresh()}
-      classes={{ control: styles.remind, button: styles.remindButton, problem: styles.problem }}
+      classes={{ control: styles.markReady, button: styles.remindButton, problem: styles.problem }}
     />
   );
 }

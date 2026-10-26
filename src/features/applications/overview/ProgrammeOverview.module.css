@@ -991,6 +991,14 @@
   margin-top: var(--space-3);
 }
 
+/* Mark ready and Not ready: the button as wide as its words, its problem under it. */
+.markReady {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
 /* Week 1 marked ready, before any group has met: the line and "Not ready". */
 .readyRow {
   display: flex;
@@ -1017,6 +1025,11 @@
 }
 
 @media (max-width: 48rem) { /* --bp-md */
+  /* On a phone the button takes the card's width: an easy target for a thumb. */
+  .markReady {
+    align-items: stretch;
+  }
+
   .page {
     gap: 22px;
   }

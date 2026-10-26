@@ -55,16 +55,18 @@ export default async function WhenYoureFreePage({ params }: Params) {
   const free = db ? await loadWhenFree(db, roundId, user.uid, new Date()) : null;
   if (!free) redirect(page);
 
+  // Laid out as the offer page it belongs to: on a phone the way back is the
+  // screen's own top bar, edge to edge, with the column under it.
   return (
     <ApplicationsRoot className={root}>
-      <div className={styles.shell}>
+      <div className={styles.shell} data-pad="offer">
         <div className={styles.bar}>
           <Link href={`/applications/${encodeURIComponent(roundId)}#when-youre-free`} className={styles.back}>
             <BackIcon size={20} />
             <span>Your application</span>
           </Link>
         </div>
-        <div className={styles.column}>
+        <div className={styles.column} data-gap="offer">
           <div>
             <div className={`${kit.mono} ${styles.eyebrow}`}>Your application</div>
             <h1 className={styles.title}>When you’re free</h1>
