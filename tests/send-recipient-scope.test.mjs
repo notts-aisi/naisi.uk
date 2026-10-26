@@ -259,6 +259,18 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
+    "src/lib/courses/facilitatorAsks/act.ts#group.facilitatorUids",
+    {
+      reads: 1,
+      origin: "roster",
+      writtenBy: "src/lib/courses/groupFacilitators.ts",
+      why:
+        "Whether the person to be asked already facilitates one of the run's groups, which means " +
+        "they are not asked again. It decides nothing about who an email goes to: an ask and a " +
+        "reminder email only the one person the request names, at their own account's address.",
+    },
+  ],
+  [
     "src/lib/applications/handover/teamsTell.ts#member.teammateUids",
     {
       reads: 1,

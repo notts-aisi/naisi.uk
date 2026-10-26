@@ -757,6 +757,41 @@ export const ROUTES = {
         "reviewer is refused and anybody with no role on it is told the programme is not there.",
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Asking one person to facilitate one group: the body (who, which group, the day and time to " +
+        "answer by, the number of emails the button showed) is checked before anything is read, so " +
+        "every signed-in persona meets the same 400 on an empty one. Who may ask is decided from the " +
+        "form after it: the programme's lead or an admin.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask/test": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "As the ask: the body (whose email, which group, the day and time to answer by) is checked " +
+        "before anything is read, then the role from the form. A test goes only to the address on the " +
+        "session.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/remind": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Reminding one person of their ask: the body (the ask, and the number of emails the button " +
+        "showed) is checked before anything is read, then the role from the form.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/training": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "The facilitators' training, from the Settings tab: the body (a day, a time and a room, or " +
+        "null) is checked before anything is read, then the role from the form.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing/rule": {
     PUT: {
       expect: signedIn(400),
@@ -1215,6 +1250,15 @@ export const ROUTES = {
         "id is required in the query.",
     },
   },
+  "/api/courses/facilitator-asks/[askId]/answer": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "The answer to an ask to facilitate, from the person asked: the body (yes or no) is checked " +
+        "before anything is read, so every signed-in persona meets the same 400 on an empty one. An " +
+        "ask that is not the caller's own is answered as one that is not there.",
+    },
+  },
   "/api/courses/groups/[groupId]/facilitators": {
     POST: {
       expect: signedIn(404),
@@ -1547,6 +1591,15 @@ export const ROUTES = {
       why:
         "Session required, then the caller's own request is validated before the document is " +
         "read, so every signed-in persona meets the same 400 on an empty one.",
+    },
+  },
+  "/api/courses/runs/[runId]/facilitators/asking": {
+    GET: {
+      expect: signedIn(404),
+      why:
+        "The Facilitators view as one model: session required, then the programme that names the run " +
+        "is found, and its lead or an admin is answered. The battery's id names no run any programme " +
+        "names, so every signed-in persona is told there is no programme here.",
     },
   },
   "/api/courses/runs/[runId]/facilitators": {
@@ -2897,6 +2950,14 @@ export const PAGES = {
       "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
       "missing, and the page sends anybody who does not facilitate the live group, or is not an admin, to " +
       "the run's home.",
+  },
+  "/(app)/learn/facilitate/[askId]": {
+    expect: everyone(200, { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "The page an ask to facilitate opens, under /learn so a stranger is sent to sign in and back by " +
+      "the proxy, a pending account to the waiting page and a rejected one home by the layout. Every " +
+      "approved account renders it: for an ask that is not theirs, or none, it says the page is " +
+      "somebody else's and shows nothing of any ask.",
   },
   "/(app)/learn/[runId]/leave": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),

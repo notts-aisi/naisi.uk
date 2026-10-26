@@ -276,10 +276,12 @@ const READERS = {
       "people in the group told by the end of the press, never an untold seat; and its answers name only the people it " +
       "cannot write to",
   },
-  "app/api/courses/groups/[groupId]/facilitators/route.ts": {
-    kind: "staff",
-    proof: ["if (!doesTrackLeadWork(staffing)) {", 'role: "facilitator"'],
-    why: "staffs a group: writes and retires facilitator rows, and reads a learner row only to leave it alone",
+  "lib/courses/groupFacilitators.ts": {
+    kind: "writer",
+    proof: ['role: "facilitator"', 'if (existing.role === "facilitator") {'],
+    why:
+      "the one place a group's facilitators change, by hand or by an answer to an ask: it writes and " +
+      "retires facilitator rows, reads a learner row only to leave it alone, and shows nobody anything",
   },
   "app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts": {
     kind: "staff",

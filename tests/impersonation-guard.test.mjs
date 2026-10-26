@@ -204,6 +204,30 @@ const MUST_GUARD = [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing/rule/route.ts",
     "sets the rule that decides who finished a programme, which changes what its members are told once it is over",
   ],
+  // Asking people to facilitate: an ask and a reminder email one person in
+  // the caller's name, a test emails the session's own address and is
+  // recorded on the run, the training is a setting of the run, and an answer
+  // is the person's own and puts them on a group.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask/route.ts",
+    "asks one person to facilitate a group, which writes the ask and emails them in the caller's name",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask/test/route.ts",
+    "sends a test of the ask's email to the address on the session, and records it on the run",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/remind/route.ts",
+    "reminds one person of their ask by email, in the caller's name, and counts the reminder",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/training/route.ts",
+    "sets the run's facilitators' training, which every later ask's email and page name",
+  ],
+  [
+    "src/app/api/courses/facilitator-asks/[askId]/answer/route.ts",
+    "records the person's own yes or no to an ask, and a yes puts them on a group as its facilitator",
+  ],
   // A programme's run as its lead reads and chases it. The attendance CSV
   // takes every register of the run off the platform and writes the
   // dataExports row that is the only record it happened; Remind emails a

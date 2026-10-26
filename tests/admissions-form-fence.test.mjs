@@ -560,6 +560,32 @@ const ROUND_SURFACES = {
       "reaches the round only through loadProgrammeRun, which starts from the form's own loader and " +
       "answers 'none' for a round that is not a form, so nothing is written for one",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask": {
+    kind: "form",
+    why:
+      "asks one person to facilitate a group of the run a programme names, through askToFacilitate, " +
+      "which reaches the round only through loadProgrammeRun and the form's own loader, and answers a " +
+      "round that is not a form as a programme that is not here",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask/test": {
+    kind: "form",
+    why:
+      "sends a test of the ask's email, through sendAskTest, which reaches the round as the ask does " +
+      "and finds nothing for a round that is not a form",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/remind": {
+    kind: "form",
+    why:
+      "reminds one person of their ask, through remindAsk, which reaches the round as the ask does " +
+      "and finds nothing for a round that is not a form",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/training": {
+    kind: "form",
+    why:
+      "sets the facilitators' training of the run a programme names, through setTraining, which " +
+      "reaches the round only through loadProgrammeRun and answers a round that is not a form as a " +
+      "programme that is not here",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing/rule": {
     kind: "form",
     why:
