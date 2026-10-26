@@ -53,7 +53,7 @@ export function deadlineWords(at: Date): string {
   return `${p.weekday} ${p.day} ${p.month}, ${p.hour}:${p.minute}`;
 }
 
-/** "Thu 9 Dec 2027" for a civil date "2027-12-09", or "" for anything else. */
+/** "Sat 9 Dec 2028" for a civil date "2028-12-09", or "" for anything else. */
 export function dateKeyWords(key: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return "";
   // Noon UTC is the same calendar day in London whatever the season.
@@ -282,7 +282,7 @@ export type ConfidentialFacts = {
    * are in no group they have been told about yet.
    */
   facilitatorNames: readonly string[] | null;
-  /** "2027-12-09". */
+  /** "2028-12-09". */
   namesOffOn: string;
   programmeKind: SurveyProgrammeKind;
 };
@@ -311,7 +311,7 @@ export function confidentialPoints(facts: ConfidentialFacts): { points: string[]
   points.push(
     "Nothing you say here affects your place or a future application.",
     "Totals, and comments you tick to be quoted, may go in reports to the committee and our funder, Kairos, or on our site.",
-    `Your name comes off on ${dateKeyWords(facts.namesOffOn)}, a year after the ${facts.programmeKind} ends. The totals stay.`,
+    `Your name comes off on ${dateKeyWords(facts.namesOffOn)}, two years after the ${facts.programmeKind} ends. The totals stay.`,
   );
   const followUp = facts.stage === "followUp6" || facts.stage === "followUp12";
   return {
@@ -589,9 +589,9 @@ export function audienceWords(programmeName: string, n: number, kind: AudienceKi
   return `Everyone ${HOLDING[kind]} on ${programmeName} (${n})`;
 }
 
-/** "Thu 9 Dec 2027, a year after the programme ends." */
+/** "Sat 9 Dec 2028, two years after the programme ends." */
 export function namesOffWords(key: string): string {
-  return `${dateKeyWords(key)}, a year after the programme ends.`;
+  return `${dateKeyWords(key)}, two years after the programme ends.`;
 }
 
 /** "6 questions · about 3 minutes". */

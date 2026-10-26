@@ -11,10 +11,12 @@ import {
 } from "@/lib/firestore/surveys";
 
 /**
- * NAMES COME OFF. A confidential survey keeps who answered, so the before and
- * the after can be compared person by person, and only for as long as the
- * person was told: until a year after the programme's last session, or at
- * once when their account is deleted. Taking a name off:
+ * NAMES COME OFF. A confidential survey keeps who answered, so the before, the
+ * end and the follow-ups can be compared person by person, and only for as
+ * long as the person was told: until two years after the programme's last
+ * session (Zach, 26 Oct 2026: "2 years for everyone"), or at once when their
+ * account is deleted. Every stage of a programme comes off on the same day.
+ * Taking a name off:
  *
  *  - sets `respondent` to null on each of the person's answers, which stay,
  *    so the totals stay;
@@ -30,11 +32,14 @@ import {
 /** Firestore takes at most 500 writes in one batch; a page stays well under it. */
 const PAGE = 200;
 
-/** "2027-12-09" for "2026-12-09": the same day a year on, and 28 February for the 29th. */
-export function aYearAfter(key: string): string | null {
+/** How long names are kept after a programme's last session, in years. */
+export const NAMES_KEPT_YEARS = 2;
+
+/** "2028-12-09" for "2026-12-09": the same day two years on, and 28 February for the 29th. */
+export function twoYearsAfter(key: string): string | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key);
   if (!match) return null;
-  const year = Number(match[1]) + 1;
+  const year = Number(match[1]) + NAMES_KEPT_YEARS;
   const month = Number(match[2]);
   let day = Number(match[3]);
   const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
@@ -43,7 +48,7 @@ export function aYearAfter(key: string): string | null {
 }
 
 /**
- * The day names come off a programme survey: a year after the run's last
+ * The day names come off a programme survey: two years after the run's last
  * session, worked out from each live group's own calendar (`runEndOf`, the
  * answer who finished asks). Null while the run, or its last session, cannot
  * be dated.
@@ -59,7 +64,7 @@ export async function namesOffDayFor(db: Firestore, runId: string, now: Date): P
     groupsSnap.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})),
   );
   const last = runEndOf(run, groups, now).lastDateKey;
-  return last ? aYearAfter(last) : null;
+  return last ? twoYearsAfter(last) : null;
 }
 
 export type NamesOffDone = { answers: number; people: number };

@@ -6,8 +6,8 @@ import type { JobContext, JobRegistration, JobResult } from "../registry";
 
 /**
  * NAMES COME OFF CONFIDENTIAL SURVEY ANSWERS, on the day each survey says:
- * a year after its programme's last session. Each confidential survey's box
- * promises it ("Your name comes off on Thu 9 Dec 2027"), and the privacy
+ * two years after its programme's last session. Each confidential survey's
+ * box promises it ("Your name comes off on Sat 9 Dec 2028"), and the privacy
  * policy may promise it only because this job keeps it.
  *
  * For each survey whose day has come, every answer's person is set to null
@@ -42,7 +42,7 @@ export const surveyNamesOffJob: JobRegistration = {
   id: "surveys-names-off",
   label: "Names off survey answers",
   description:
-    "Takes people's names off confidential survey answers a year after their programme's last session, as each survey promised, and deletes who it was sent to. The answers stay in the totals. Emails nobody. Turning it off breaks that promise for as long as it is off.",
+    "Takes people's names off confidential survey answers two years after their programme's last session, as each survey promised, and deletes who it was sent to. The answers stay in the totals. Emails nobody. Turning it off breaks that promise for as long as it is off.",
   // Surveys a tick, each a few batched writes.
   maxPerTick: 5,
   // Nothing is skipped for being late: a name due off comes off whenever the

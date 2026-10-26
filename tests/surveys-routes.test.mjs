@@ -136,8 +136,8 @@ describe("making the before survey", () => {
     assert.equal(stored.privacy, "confidential");
     assert.deepEqual(stored.audience, { kind: "programme", roundId: ROUND, programmeId: AGI });
     assert.equal(stored.runId, RUN.agi);
-    // The run's last session is Group C's on Wed 9 Dec; a year after.
-    assert.equal(stored.namesOffOn, "2027-12-09");
+    // The run's last session is Group C's on Wed 9 Dec 2026; two years after.
+    assert.equal(stored.namesOffOn, "2028-12-09");
     // 23:59 in London on Wed 4 Nov (GMT).
     assert.equal(new Date(stored.closesAt).toISOString(), "2026-11-04T23:59:00.000Z");
     assert.equal(stored.firstSentAt, null);
@@ -323,7 +323,7 @@ describe("the first send waits for a test, says how many it reaches, and goes on
     const { readSurvey } = await w.loadTs("lib/surveys/repo.ts");
     const { pressSend } = await w.loadTs("lib/surveys/sending.ts");
     const stale = await readSurvey(w.world.db, id);
-    const input = { survey: stale, presserUid: "zach", emails: 4, namesOffOn: "2027-12-09", now: new Date() };
+    const input = { survey: stale, presserUid: "zach", emails: 4, namesOffOn: "2028-12-09", now: new Date() };
     assert.equal((await pressSend(w.world.db, "first", input)).ok, true);
     // Somebody joins, so a second "first" press would have somebody to send to.
     const reply = await w.formRoute("application", "reply");
@@ -532,7 +532,7 @@ describe("the answer page, by link and signed in, records nothing", () => {
       "Claudia sees totals and comments, never names. Rahul and Sofia never see your answers.",
       "Nothing you say here affects your place or a future application.",
       "Totals, and comments you tick to be quoted, may go in reports to the committee and our funder, Kairos, or on our site.",
-      "Your name comes off on Thu 9 Dec 2027, a year after the fellowship ends. The totals stay.",
+      "Your name comes off on Sat 9 Dec 2028, two years after the fellowship ends. The totals stay.",
       "We ask who you are so we can compare your answers at the start and the end.",
       "Page 1 of 5 About you",
       "1 Level of study",
@@ -633,7 +633,7 @@ describe("the admins' pages", () => {
       "Send yourself a test of this email first. The button waits for it.",
       "Everyone holding a place on AGI Strategy (4)",
       "Wed 4 Nov, 23:59",
-      "Thu 9 Dec 2027, a year after the programme ends.",
+      "Sat 9 Dec 2028, two years after the programme ends.",
       "Answers sent after someone’s first session are labelled, so the comparison can leave them out.",
     ]) {
       assert.ok(page.text.includes(words), `missing "${words}"`);
@@ -724,24 +724,27 @@ describe("the admins' pages", () => {
 // Names come off, and a survey outlives its form
 // ---------------------------------------------------------------------------
 
-describe("names come off a year after the programme, and the totals stay", () => {
+describe("names come off two years after the programme, and the totals stay", () => {
   test("the job takes the person off every answer and deletes the people rows on the day, and not before", async (t) => {
     clock(t);
     w.reset(seed());
     const id = await sentSurvey();
     await w.answerByLink(w.tokenOf(id, "amara"), CHOICES);
     const ctx = (now) => ({ now, log() {}, maxPerTick: 5, maxLateHours: 0, budget: { remainingMs: () => 60000, expired: () => false }, policy: {} });
-    const early = await w.lib.job.surveyNamesOffJob.handler(ctx(new Date("2027-12-08T12:00:00Z")));
+    // A year on, when names came off before Zach chose two years, they are still on.
+    const aYear = await w.lib.job.surveyNamesOffJob.handler(ctx(new Date("2027-12-09T12:00:00Z")));
+    assert.equal(aYear.processed, 0);
+    const early = await w.lib.job.surveyNamesOffJob.handler(ctx(new Date("2028-12-08T12:00:00Z")));
     assert.equal(early.processed, 0);
     assert.equal(w.answers(id)[0].respondent.uid, "amara");
-    const due = await w.lib.job.surveyNamesOffJob.handler(ctx(new Date("2027-12-09T00:30:00Z")));
+    const due = await w.lib.job.surveyNamesOffJob.handler(ctx(new Date("2028-12-09T00:30:00Z")));
     assert.equal(due.processed, 1);
     assert.equal(w.answers(id)[0].respondent, null, "the answer stays without its person");
     assert.deepEqual(w.answers(id)[0].answers, CHOICES, "the answers themselves are untouched");
     assert.equal(w.people(id).length, 0, "nobody's link or row is left");
     assert.ok(w.survey(id).namesOffAt);
     assert.equal(w.world.mail.filter((message) => message.kind !== "course-test" && message.kind !== "notice").length, 0);
-    const again = await w.lib.job.surveyNamesOffJob.handler(ctx(new Date("2027-12-10T00:30:00Z")));
+    const again = await w.lib.job.surveyNamesOffJob.handler(ctx(new Date("2028-12-10T00:30:00Z")));
     assert.equal(again.processed, 0, "a survey is visited once");
     const results = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
     assert.ok(results.text.includes("1 answer from the 4 people it was sent to (25%)."), "the totals stay");

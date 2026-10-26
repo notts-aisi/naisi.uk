@@ -26,7 +26,7 @@ const templates = await loadTs(join("lib", "surveys", "templates.ts"));
 const words = await loadTs(join("lib", "surveys", "words.ts"));
 const { surveyResults } = await loadTs(join("lib", "surveys", "results.ts"));
 const { surveyExportTable, exportFilename, NAME_TAKEN_OFF } = await loadTs(join("lib", "surveys", "exportTable.ts"));
-const { aYearAfter, namesDueOff } = await loadTs(join("lib", "surveys", "namesOff.ts"));
+const { twoYearsAfter, namesDueOff, NAMES_KEPT_YEARS } = await loadTs(join("lib", "surveys", "namesOff.ts"));
 const records = await loadTs(join("lib", "firestore", "surveys.ts"));
 
 const TEMPLATE = templates.templateItems("before", "fellowship", null);
@@ -599,7 +599,7 @@ describe("the spreadsheet with names", () => {
 });
 
 describe("the confidential box, for every kind of person (sv-privacy)", () => {
-  const base = { namesOffOn: "2027-12-09", programmeKind: "fellowship" };
+  const base = { namesOffOn: "2028-12-09", programmeKind: "fellowship" };
   const box = (facts) => words.confidentialPoints({ ...base, ...facts });
 
   test("the board's own words, for somebody in a group with two facilitators", () => {
@@ -609,7 +609,7 @@ describe("the confidential box, for every kind of person (sv-privacy)", () => {
         "Claudia sees totals and comments, never names. Rahul and Sofia never see your answers.",
         "Nothing you say here affects your place or a future application.",
         "Totals, and comments you tick to be quoted, may go in reports to the committee and our funder, Kairos, or on our site.",
-        "Your name comes off on Thu 9 Dec 2027, a year after the fellowship ends. The totals stay.",
+        "Your name comes off on Sat 9 Dec 2028, two years after the fellowship ends. The totals stay.",
       ],
       note: "We ask who you are so we can compare your answers at the start and the end.",
     });
@@ -620,7 +620,7 @@ describe("the confidential box, for every kind of person (sv-privacy)", () => {
     assert.equal(box({ leadName: "Claudia", facilitatorNames: null }).points[1], "Claudia sees totals and comments, never names. Your facilitators never see your answers.");
     assert.equal(box({ leadName: null, facilitatorNames: ["Rahul", "Sofia", "Tom"] }).points[1], "Rahul, Sofia and Tom never see your answers.");
     assert.equal(box({ leadName: "Claudia", facilitatorNames: [] }).points[1], "Claudia sees totals and comments, never names.");
-    assert.match(box({ leadName: "Tess", facilitatorNames: null, programmeKind: "incubator" }).points.at(-1), /a year after the incubator ends/);
+    assert.match(box({ leadName: "Tess", facilitatorNames: null, programmeKind: "incubator" }).points.at(-1), /two years after the incubator ends/);
   });
 });
 
@@ -690,21 +690,24 @@ describe("the two emails, word for word (HANDOFF, Emails)", () => {
 });
 
 describe("dates, in London", () => {
-  test("a year after the last session; 28 February for the 29th", () => {
-    assert.equal(aYearAfter("2026-12-09"), "2027-12-09");
-    assert.equal(aYearAfter("2028-02-29"), "2029-02-28");
-    assert.equal(aYearAfter("nonsense"), null);
+  test("two years after the last session, for everyone; 28 February for the 29th", () => {
+    assert.equal(NAMES_KEPT_YEARS, 2, "Zach, 26 Oct 2026: two years for everyone");
+    assert.equal(twoYearsAfter("2026-12-09"), "2028-12-09");
+    assert.equal(twoYearsAfter("2028-02-29"), "2030-02-28");
+    assert.equal(twoYearsAfter("2026-02-28"), "2028-02-28");
+    assert.equal(twoYearsAfter("nonsense"), null);
   });
 
   test("names are due off on their day, once", () => {
-    assert.equal(namesDueOff({ namesOffOn: "2027-12-09", namesOffAt: null }, "2027-12-08"), false);
-    assert.equal(namesDueOff({ namesOffOn: "2027-12-09", namesOffAt: null }, "2027-12-09"), true);
-    assert.equal(namesDueOff({ namesOffOn: "2027-12-09", namesOffAt: new Date() }, "2027-12-10"), false);
+    assert.equal(namesDueOff({ namesOffOn: "2028-12-09", namesOffAt: null }, "2028-12-08"), false);
+    assert.equal(namesDueOff({ namesOffOn: "2028-12-09", namesOffAt: null }, "2028-12-09"), true);
+    assert.equal(namesDueOff({ namesOffOn: "2028-12-09", namesOffAt: new Date() }, "2028-12-10"), false);
     assert.equal(namesDueOff({ namesOffOn: null, namesOffAt: null }, "2099-01-01"), false);
   });
 
   test("the words the pages use", () => {
-    assert.equal(words.dateKeyWords("2027-12-09"), "Thu 9 Dec 2027");
+    assert.equal(words.dateKeyWords("2028-12-09"), "Sat 9 Dec 2028");
+    assert.equal(words.namesOffWords("2028-12-09"), "Sat 9 Dec 2028, two years after the programme ends.");
     assert.equal(words.closingWords(new Date("2026-11-04T23:59:00Z")), "It closes on Wed 4 Nov. Once sent, your answers can’t change.");
     assert.equal(words.deadlineWords(new Date("2026-11-04T23:59:00Z")), "Wed 4 Nov, 23:59");
     assert.equal(words.dayAndClockWords(new Date("2026-10-29T09:00:00Z")), "Thu 29 Oct, 9am");

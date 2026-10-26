@@ -24,7 +24,7 @@ import { INCUBATOR_STRANDS, SURVEY_STAGES, type IncubatorStrand, type SurveyStag
  * come. The person is a `respondent` map, `{ kind: "account", uid }`, found by
  * one equality on `respondent.uid`, so another kind can sit beside it without
  * a rewrite. Names come off by setting it to null on the answers (the totals
- * stay) and deleting the people rows: the job a year after the programme
+ * stay) and deleting the people rows: the job two years after the programme
  * (`src/lib/surveys/namesOff.ts`), and account deletion at once.
  *
  * WHAT IS NEVER KEPT: no draft of an answer before "Send my answers", no

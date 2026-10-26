@@ -34,8 +34,9 @@ records), `src/app/api/surveys/` (the routes), `src/app/survey/[token]/` and
 - **No floors.** Results show from the first answer (Zach, 25 Oct 2026). Public
   numbers will have a threshold of their own, decided when they are built.
 - **No answer or result is ever in an email.**
-- **Names come off** a year after the programme's last session, and at once when
-  an account is deleted. The answers stay, so the totals stay.
+- **Names come off** two years after the programme's last session (Zach, 26
+  Oct 2026), the same day for every stage, and at once when an account is
+  deleted. The answers stay, so the totals stay.
 
 ## The records
 
@@ -168,7 +169,7 @@ as a number is reworded, never added or taken out. **From the first send
 everything is fixed**: the email people got names the closing day, and the
 later stages have to ask the same questions.
 
-The day names come off is worked out from records, a year after the run's last
+The day names come off is worked out from records, two years after the run's last
 session (`namesOffDayFor`, through `runEndOf`), each time the survey is saved or
 tested, and fixed by the first send.
 
@@ -286,7 +287,7 @@ it is refused when that record cannot be written.
   `tests/surveys-deletion.test.mjs` holds both destroy engines to naming no
   survey collection, so a destroy that takes surveys is a decision made here
   first.
-- **Names come off** a year after the programme: the `surveys-names-off` job
+- **Names come off** two years after the programme: the `surveys-names-off` job
   sets every answer's person to null and deletes the survey's people rows on the
   survey's day, then stamps it. It emails nobody, so it registers on.
 

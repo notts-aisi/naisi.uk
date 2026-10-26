@@ -7,7 +7,7 @@
  *    surveys (who a survey was sent to, the secret in their link), each
  *    counted in the summary. Nobody else's answers or rows are touched.
  *  - DESTROYING A FORM leaves its surveys alone. A survey is the programme's,
- *    with its own retention (names off a year after the programme), as the
+ *    with its own retention (names off two years after the programme), as the
  *    course run the form fed outlives it; a survey stands without its form
  *    (`tests/surveys-routes.test.mjs`, "a survey outlives its form"). The
  *    destroy engine names no survey collection, which section 3 holds, so

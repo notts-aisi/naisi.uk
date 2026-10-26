@@ -111,8 +111,8 @@
  *     name, only admins see who said what or who has answered, and
  *     facilitators see nothing of it. Every question can be skipped, none of
  *     the answers is kept until they are sent, and no record is kept of
- *     opening it or of an IP address. The name comes off a year after the programme's
- *     last session (the `surveys-names-off` job), and at once with the
+ *     opening it or of an IP address. The name comes off two years after the
+ *     programme's last session (the `surveys-names-off` job), and at once with the
  *     account. The sentence about anonymous surveys moves here from Feedback
  *     on the material, unchanged (`src/lib/surveys/`).
  *
@@ -1305,10 +1305,10 @@ export default function PrivacyContentV7({
               </p>
               <p>
                 <strong>Survey answers.</strong> We take your name off your
-                answers to a survey on the day it tells you, a year after the
-                programme&apos;s last session, and delete the record that it
-                was sent to you, with your link to answer it. Your answers stay
-                in its totals, no longer linked to you.
+                answers to a survey on the day it tells you, two years after
+                the programme&apos;s last session, and delete the record that
+                it was sent to you, with your link to answer it. Your answers
+                stay in its totals, no longer linked to you.
               </p>
               <p>
                 <strong>When a term&apos;s applications are destroyed.</strong>{" "}

@@ -15,7 +15,7 @@
  * facilitators share, the notes a group shares on its week pages and the
  * calendar link are described, with who reads each and what a deletion does
  * to it; and so is the survey at a programme's start: confidential, nothing
- * kept about how it is filled in, the name off a year after the programme or
+ * kept about how it is filled in, the name off two years after the programme or
  * at once with the account, and its answers with names a fourth logged
  * download. §2g holds those passages against the code. Two of them are
  * worded as what will happen,
@@ -741,7 +741,8 @@ const MUST_NAME = [
   ["a survey records nothing about how it is filled in", /A survey records nothing about how you fill it in: not when you opened it, how long you spent on it or which page you were on, and none of your answers is kept until you send them\./i],
   ["what a survey records with the answers, and never an IP address", /We record when you sent them, whether you used your own link or were signed in, and whether your group had met for the first time by then\. We never keep your IP address with them, and the request logs our hosting provider keeps \(see Operational logs\) are never matched to them\./i],
   ["a survey is emailed as an important notice, with a link of your own", /A survey and its reminder are emailed as important notices, so your notification settings do not switch them off\. Each email carries a link of your own, so you can answer without signing in\. Anyone holding it could answer in your name, so keep it to yourself\./i],
-  ["names come off survey answers a year after the programme", /We take your name off your answers to a survey on the day it tells you, a year after the programme&apos;s last session, and delete the record that it was sent to you, with your link to answer it\. Your answers stay in its totals, no longer linked to you\./i],
+  // Two years since Zach chose it for everyone (26 October 2026); it said a year.
+  ["names come off survey answers two years after the programme", /We take your name off your answers to a survey on the day it tells you, two years after the programme&apos;s last session, and delete the record that it was sent to you, with your link to answer it\. Your answers stay in its totals, no longer linked to you\./i],
 ];
 
 describe("the courses section", () => {
@@ -2517,7 +2518,7 @@ describe("the account record passage", () => {
  * asked to accept it, so it kept its number: the notes a group's facilitators
  * share, the notes a group shares on its week pages, the calendar link, and
  * the survey at a programme's start (with the fourth logged download, the
- * name coming off a year after the programme, and a deletion taking it off at
+ * name coming off two years after the programme, and a deletion taking it off at
  * once). Each describes code that is built, and is held to it below.
  */
 
@@ -2542,6 +2543,7 @@ const calendarWords = await loadTs("lib/courses/calendarWords.ts");
 const surveyWords = await loadTs("lib/surveys/words.ts");
 const surveyItems = await loadTs("lib/surveys/items.ts");
 const surveyTemplates = await loadTs("lib/surveys/templates.ts");
+const surveyNamesOff = await loadTs("lib/surveys/namesOff.ts");
 const surveyExport = await loadTs("lib/surveys/exportTable.ts");
 const surveyRecords = await loadTs("lib/firestore/surveys.ts");
 /** Survey code imported from anywhere: the library, its components and its record. */
@@ -3765,7 +3767,7 @@ describe("the course hub passage", () => {
         ["src/app/api/surveys/consent/route.ts", "the person's own follow-ups consent, changed through the secret in their link, on their own row"],
         ["src/app/api/surveys/[surveyId]/consent/route.ts", "the person's own follow-ups consent, changed signed in, on their own row: there is no uid in the request"],
         ["src/lib/firestore/accountDeletion.ts", "deleting an account takes its name off its survey answers and deletes its survey rows"],
-        ["src/lib/scheduler/jobs/surveyNamesOff.ts", "the job that takes names off a year after the programme"],
+        ["src/lib/scheduler/jobs/surveyNamesOff.ts", "the job that takes names off two years after the programme"],
       ]),
       "reaching survey code from outside it",
       "The policy says only admins see who said what or who has answered, and " +
@@ -3782,7 +3784,7 @@ describe("the course hub passage", () => {
         ["src/lib/surveys/consent.ts", "a person changing their own consent later, on their own row"],
         ["src/lib/surveys/answer.ts", "the one writer of an answer: a person's own, once"],
         ["src/lib/surveys/sending.ts", "the send, which writes each person's row with their link before their email"],
-        ["src/lib/surveys/namesOff.ts", "names off: a year after the programme, and at once with an account"],
+        ["src/lib/surveys/namesOff.ts", "names off: two years after the programme, and at once with an account"],
       ]),
       "addressing who a survey was sent to, or what somebody answered",
       "The policy says only admins see who said what or who has answered. If " +
@@ -3932,17 +3934,20 @@ describe("the course hub passage", () => {
     }
   });
 
-  test("names come off survey answers a year after the programme's last session, by a job that is on unless an admin turns it off, and the answers stay in the totals", () => {
+  test("names come off survey answers two years after the programme's last session, by a job that is on unless an admin turns it off, and the answers stay in the totals", () => {
     // The pairing §2's check on deletion periods cannot make: that check knows
-    // "30 days afterwards" and "delete or anonymise", and not "a year after".
+    // "30 days afterwards" and "delete or anonymise", and not "two years after".
     assert.match(
       PAGE_FLAT,
-      /<strong>Survey answers\.<\/strong> We take your name off your answers to a survey on the day it tells you, a year after the programme&apos;s last session, and delete the record that it was sent to you, with your link to answer it\. Your answers stay in its totals, no longer linked to you\./,
+      /<strong>Survey answers\.<\/strong> We take your name off your answers to a survey on the day it tells you, two years after the programme&apos;s last session, and delete the record that it was sent to you, with your link to answer it\. Your answers stay in its totals, no longer linked to you\./,
     );
     assert.match(PAGE_FLAT, /written work, feedback you gave us \(survey answers, below, are the exception\), and notes written about you\./);
     const namesOff = withoutComments(read("src/lib/surveys/namesOff.ts"));
-    // The day: a year after the run's last session, from each live group's own calendar.
-    assert.match(namesOff, /const last = runEndOf\(run, groups, now\)\.lastDateKey;\s*return last \? aYearAfter\(last\) : null;/);
+    // The day: two years after the run's last session, from each live group's own calendar.
+    assert.match(namesOff, /const last = runEndOf\(run, groups, now\)\.lastDateKey;\s*return last \? twoYearsAfter\(last\) : null;/);
+    assert.match(namesOff, /export const NAMES_KEPT_YEARS = 2;/);
+    assert.match(namesOff, /const year = Number\(match\[1\]\) \+ NAMES_KEPT_YEARS;/);
+    assert.equal(surveyNamesOff.twoYearsAfter("2026-12-09"), "2028-12-09", "the day is no longer two years after the last session");
     // On it, every answer's person goes and every row of who it was sent to
     // is deleted; the answers stay.
     const survey = /export async function takeNamesOffSurvey\([\s\S]*?\n\}/.exec(namesOff);
@@ -3962,8 +3967,8 @@ describe("the course hub passage", () => {
     assert.match(registry, /^\s*surveyNamesOffJob,$/m);
     assert.match(registry, /return job\.enabledByDefault !== false;/);
     // The box tells each person the same day, and that the totals stay.
-    const box = surveyWords.confidentialPoints({ leadName: null, facilitatorNames: null, namesOffOn: "2027-12-09", programmeKind: "fellowship" });
-    assert.ok(box.points.includes("Your name comes off on Thu 9 Dec 2027, a year after the fellowship ends. The totals stay."), "the box no longer tells somebody the day their name comes off");
+    const box = surveyWords.confidentialPoints({ leadName: null, facilitatorNames: null, namesOffOn: "2028-12-09", programmeKind: "fellowship" });
+    assert.ok(box.points.includes("Your name comes off on Sat 9 Dec 2028, two years after the fellowship ends. The totals stay."), "the box no longer tells somebody the day their name comes off");
     // tests/surveys-routes.test.mjs runs the job the day before and on the
     // day; tests/surveys-items.test.mjs counts the year, 29 February included.
     for (const suite of ["surveys-routes.test.mjs", "surveys-items.test.mjs"]) {
@@ -4113,8 +4118,8 @@ describe("the re-consent gate", () => {
       ],
       [
         "that a survey is confidential, and when the name comes off",
-        /; and that our surveys are confidential: only admins see who said what, and your name comes off a year after the programme\./,
-        /Every survey is confidential: we keep your answers with your name, and each survey says so at the top\. Only NAISI&apos;s admins can see who said what\..*We take your name off your answers to a survey on the day it tells you, a year after the programme&apos;s last session/,
+        /; and that our surveys are confidential: only admins see who said what, and your name comes off two years after the programme\./,
+        /Every survey is confidential: we keep your answers with your name, and each survey says so at the top\. Only NAISI&apos;s admins can see who said what\..*We take your name off your answers to a survey on the day it tells you, two years after the programme&apos;s last session/,
       ],
       [
         "facilitators see names only",
@@ -4138,7 +4143,7 @@ describe("the re-consent gate", () => {
     const list = paragraph.slice(paragraph.indexOf("It says what"), paragraph.indexOf("It also says"));
     assert.ok(list.length > 200, "could not find the accept page's list of what v7 says");
     assert.equal((list.match(/\band that\b/g) ?? []).length, 1, "the accept page's list of what v7 says has more than one \"and that\", or none");
-    assert.match(list, /; and that our surveys are confidential: only admins see who said what, and your name comes off a year after the programme\. $/);
+    assert.match(list, /; and that our surveys are confidential: only admins see who said what, and your name comes off two years after the programme\. $/);
     // A register's notes are not among what a lead reads (§2g), so the
     // paragraph does not say they are. The notes it does name for the lead
     // are the ones its groups' facilitators share.

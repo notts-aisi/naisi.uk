@@ -8,8 +8,8 @@
  * AGI Strategy naming its run with Claudia as its lead, the run's six weeks
  * from Thu 29 Oct and its three groups (A on Thursdays at 6pm with Sofia, B on
  * Tuesdays at 6pm with Rahul and Sofia, C on Wednesdays at 1pm with Tom). The
- * run's last session is Wed 9 Dec, so names come off on Thu 9 Dec 2027, as
- * the boards draw it. On top of that, the people holding a place on AGI
+ * run's last session is Wed 9 Dec, so names come off two years on, on Sat 9
+ * Dec 2028 (the boards drew a year, Thu 9 Dec 2027, before Zach chose two). On top of that, the people holding a place on AGI
  * Strategy (Amara, Bea, Dev and Tariq) stand four ways:
  *
  *  - AMARA is in Group B, told by Publish: her box names Rahul and Sofia.
