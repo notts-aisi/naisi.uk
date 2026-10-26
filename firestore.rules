@@ -3176,11 +3176,13 @@ service cloud.firestore {
     }
 
     // === recordOpenings ===
-    // One row each time an admin opened one person's confidential record (today a
-    // sealed predictions card; src/lib/firestore/recordOpenings.ts): who opened it,
-    // whose it was by account id, the run and when. Append-only, written only by the
-    // Admin SDK before the record is read, and read by no browser, admins included,
-    // as courseAudit: an audit its own actor can amend is not an audit.
+    // One row each time an admin opened one person's confidential record
+    // (src/lib/firestore/recordOpenings.ts): a sealed predictions card, keyed
+    // to its run, or one person's survey answers, keyed to the surveys and
+    // never to a run. Who opened it, whose it was by an id, and when. Append-only,
+    // written only by the Admin SDK before the record is read, and read by no
+    // browser, admins included, as courseAudit: an audit its own actor can
+    // amend is not an audit.
     match /recordOpenings/{openingId} {
       allow read, write: if false;
     }
