@@ -1264,6 +1264,17 @@ export const ROUTES = {
         "place check.",
     },
   },
+  "/api/courses/[courseId]/facilitator-guide/printables/pdf": {
+    GET: {
+      expect: everyone(200, { anonymous: 307 }),
+      why:
+        "A course's printables as an A4 PDF, behind the facilitator guide's own gate: a facilitator of a live " +
+        "group on a run of the course, the lead of a programme naming a run of it, or an admin. Everybody it " +
+        "refuses, and everybody asking about a course that is not there, an admin included, is given the " +
+        "guide's one calm sentence at 200, as plain text and with no PDF, so nobody learns which courses exist. " +
+        "Somebody signed out is sent to sign in (a 307 to /login), because the route is opened by a link.",
+    },
+  },
   "/api/courses/[courseId]/page": {
     PUT: {
       expect: signedIn(404),

@@ -151,6 +151,10 @@ const READERS = {
     gate: "facilitatorGuideWriter(",
     why: "the loader: copy, read and save one document, for admins and the lead of a programme naming a live run of the course, never in a view-as session",
   },
+  "app/api/courses/[courseId]/facilitator-guide/printables/pdf/route.ts": {
+    gate: "facilitatorGuideReader(",
+    why: "a course's printables as an A4 PDF, one session's or the whole document's, drawn on request for the gate's three; the one calm sentence and not a byte of a PDF for everybody else",
+  },
   "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/page.tsx": {
     gate: "facilitatorGuideReader(",
     why: "a week's page on a programme's Weeks tab, for its lead and admins: the titles loaded in the week's session plan and notes, for the guide box, read only behind facilitatorGuideWriter too",

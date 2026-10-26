@@ -866,6 +866,12 @@ const NOT_COVERED = {
     coverWhen:
       "When a browser spec signs in as a programme's lead and loads a week's session plan from the Weeks tab, because a mistake then reaches a run's facilitators before an admin sees it.",
   },
+  "/api/courses/[courseId]/facilitator-guide/printables/pdf": {
+    reason:
+      "Facilitator guide: /api/courses/[courseId]/facilitator-guide/printables/pdf draws a course's printables as an A4 PDF on request for the guide's readers, and every answer it gives (the PDF, the calm sentence, the way to sign in, the sentences for a session the course does not have) is driven as each kind of caller in tests/course-facilitator-guide-printables.test.mjs, which also holds its bytes to the renderer's.",
+    coverWhen:
+      "When a browser spec signs in as a group's facilitator and presses a download on the Printables page, because a file the browser saves is the one thing a server-side test never sees arrive.",
+  },
   "/api/courses/[courseId]/page": {
     reason:
       "Courses: /api/courses/[courseId]/page is staff-facing, taken deliberately, and answered on the screen that called it.",
