@@ -436,6 +436,15 @@ describe("3. asking, reminding and asking someone else, each email counted and r
     const other = await ask("claudia", { uid: "wen", groupId: B, replyBy: REPLY_BY, emails: 1, seat: first.body.askId });
     assert.equal(other.status, 200, JSON.stringify(other.body));
     assert.deepEqual(world.mail.map((message) => message.to), ["wen@example.com"]);
+    const words = wordsOf(world.mail[0]);
+    assert.equal(words.subject, "Would you facilitate a group on AGI Strategy?");
+    assert.equal(words.greeting, "Hi Wen,");
+    assert.deepEqual(words.paragraphs, [
+      "You said you’d like to facilitate, and we’d love you to. Would you take Group B of the AGI Strategy Fellowship?",
+      "Group B meets on Tuesdays at 6pm in Hallward B12, for 6 weeks from Tue 3 Nov. It’s for up to 8 people.",
+      "Please let us know by Wed 28 Oct at 12pm, so we can tell the group.",
+    ]);
+    assert.equal(words.buttons[0].href, `https://naisi.invalid/learn/facilitate/${other.body.askId}`);
     const stored = asksStored().find((doc) => doc.uid === "wen");
     assert.equal(stored.seat, first.body.askId);
     // A place is in one group: it cannot be another group's.
