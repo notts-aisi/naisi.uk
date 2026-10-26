@@ -85,7 +85,7 @@ export default async function GroupReflectionsPage({
   const asked = typeof askedWeek === "string" && /^\d{1,2}$/.test(askedWeek) ? Number(askedWeek) : null;
   const weekNumber = asked !== null && taught.has(asked) ? asked : (weekOfGroup(access.run, group, now)?.weekNumber ?? null);
 
-  const model = await loadFacilitatorGroup(db, access.run, group, { isAdmin: access.isAdmin }, now);
+  const model = await loadFacilitatorGroup(db, access.run, group, { isAdmin: access.isAdmin, actor: access.user }, now);
   const week =
     weekNumber === null
       ? null

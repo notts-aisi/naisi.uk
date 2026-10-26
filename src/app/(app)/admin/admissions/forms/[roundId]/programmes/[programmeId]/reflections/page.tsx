@@ -83,7 +83,7 @@ export default async function LeadGroupReflectionsPage({
   const asked = typeof query.week === "string" && /^\d{1,2}$/.test(query.week) ? Number(query.week) : null;
   const weekNumber = asked !== null && taught.has(asked) ? asked : (weekOfGroup(run, group, now)?.weekNumber ?? null);
   const [model, programme] = await Promise.all([
-    loadFacilitatorGroup(db, run, group, { isAdmin: viewer === "admin" }, now),
+    loadFacilitatorGroup(db, run, group, { isAdmin: viewer === "admin", actor: user }, now),
     runProgrammeOf(db, run.id),
   ]);
   const week =

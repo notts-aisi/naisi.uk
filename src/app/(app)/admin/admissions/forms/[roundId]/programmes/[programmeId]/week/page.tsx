@@ -71,7 +71,7 @@ export default async function LeadGroupWeekPage({
 
   const { run, group, viewer } = door;
   const now = new Date();
-  const model = await loadFacilitatorGroup(db, run, group, { isAdmin: viewer === "admin" }, now);
+  const model = await loadFacilitatorGroup(db, run, group, { isAdmin: viewer === "admin", actor: user }, now);
   const week = await loadGroupWeek(db, { run, group, model, viewer, now });
 
   return (
