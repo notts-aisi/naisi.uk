@@ -69,6 +69,36 @@ export async function readEventPerson(db: Firestore, surveyId: string, responden
   return person && person.surveyId === surveyId ? person : null;
 }
 
+/**
+ * ONE PERSON'S ROW AND ANSWERS ON A SURVEY AFTER AN EVENT, an account or a
+ * guest, for the one admins' page that opens them
+ * (`src/lib/surveys/onePerson.ts`), which records the opening before it calls
+ * this. Their row by its fixed id; their answers by one equality on
+ * `respondent.uid`, or on `respondent.signupId` for a guest, then the survey
+ * in memory. An answer whose name has come off is nobody's and is never found.
+ */
+export async function eventPersonOn(
+  db: Firestore,
+  survey: Pick<EventSurveyDoc, "id" | "items">,
+  respondent: EventRespondent,
+): Promise<{ row: EventSurveyPersonDoc | null; answer: EventSurveyAnswerDoc | null }> {
+  const answersSnap =
+    respondent.kind === "account"
+      ? await db.collection(SURVEY_ANSWERS_COLLECTION).where("respondent.uid", "==", respondent.uid).get()
+      : await db.collection(SURVEY_ANSWERS_COLLECTION).where("respondent.signupId", "==", respondent.signupId).get();
+  const read = (raw: unknown) => storedSurveyAnswers(survey.items, raw);
+  const same = (other: EventRespondent | null) =>
+    other !== null &&
+    (respondent.kind === "account"
+      ? other.kind === "account" && other.uid === respondent.uid
+      : other.kind === "guest" && other.signupId === respondent.signupId);
+  const answers = answersSnap.docs
+    .map((doc) => normalizeEventAnswer(doc.id, (doc.data() ?? {}) as Raw, read))
+    .filter((answer) => answer.surveyId === survey.id && same(answer.respondent))
+    .sort((a, b) => (a.sentAt?.getTime() ?? Infinity) - (b.sentAt?.getTime() ?? Infinity) || a.id.localeCompare(b.id));
+  return { row: await readEventPerson(db, survey.id, respondent), answer: answers[0] ?? null };
+}
+
 /** A person an email is about to go to: their row's fixed id and the secret their link carries. */
 export type EventRow = { id: string; token: string };
 

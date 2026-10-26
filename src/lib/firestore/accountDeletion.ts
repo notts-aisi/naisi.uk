@@ -1436,7 +1436,11 @@ export async function deleteAccountCascade(
   //     the answers stay in the totals; its rows on surveys (who a survey was
   //     sent to, the secret in their link, whether they answered) are deleted
   //     (`takeNamesOffForAccount`, `src/lib/surveys/namesOff.ts`). One
-  //     equality on `respondent.uid` in each collection.
+  //     equality on `respondent.uid` in each collection. The record of each
+  //     time an admin opened this account's answers, and of each time this
+  //     account, as an admin, opened somebody's, stays (`recordOpenings`,
+  //     kind `survey-answers`), as the record of downloads does: it names the
+  //     account by an id that no longer resolves, and nothing the answers said.
   //
   //     BEST-EFFORT, with the 207 keeping the registration row so the sweep
   //     is retried: a failure here leaves a name on answers only admins read,

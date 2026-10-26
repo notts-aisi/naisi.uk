@@ -5845,6 +5845,94 @@ describe("this term in numbers", () => {
 });
 
 // ---------------------------------------------------------------------------
+// §2g, continued: one person's answers, opened by an admin
+// ---------------------------------------------------------------------------
+
+/**
+ * What v7 says about an admin opening one person's survey answers (board
+ * sv-person; docs/surveys.md, "One person's answers"), held to the code that
+ * makes it true: who may open them and on what, the record written before
+ * anything of them is read and what it holds, nothing shown when it cannot be
+ * written, and the record kept when names come off and when an account is
+ * deleted. Added while v7 was on dev, before any member had been asked to
+ * accept it, so it kept its number. `tests/surveys-one-person.test.mjs` runs
+ * the route and the page as every kind of caller; here each sentence is
+ * paired with a line of source that is matched or a rule that is run.
+ */
+describe("one person's answers, opened by an admin", () => {
+  const BULLET =
+    /<li> An admin can open one person&apos;s answers to a programme&apos;s surveys, or to a survey after an event, together on one page\. Each time, before anything of them is read, we record who opened them, whose they were, by an id and never by name, which surveys and when, and never what the answers say; if that record cannot be written, nothing of them is shown\. We keep that record when names come off and when an account is deleted, as we keep the record of downloads\. <\/li>/;
+
+  test("the frozen v6 carries none of it", () => {
+    for (const pattern of [/An admin can open one person&apos;s answers/, /whose they were, by an id and never by name/, /We keep that record when names come off/]) {
+      assert.ok(!pattern.test(V6_FLAT), `v6 already says ${pattern}`);
+    }
+  });
+
+  test("an admin opens them, a programme's or an event's, on one page", () => {
+    assert.match(PAGE_FLAT, BULLET);
+    // Admins only: the route refuses a view-as session, then anybody but an admin, before the database.
+    const route = withoutComments(read("src/app/api/surveys/[surveyId]/people/[who]/route.ts"));
+    const guard = route.indexOf("const blocked = await assertNotImpersonating();");
+    const refused = route.indexOf("if (!canRunSurveys(actor)) return NextResponse.json({ error: REFUSAL.adminOnly }, { status: 403 });");
+    const db = route.indexOf("getAdminDb()");
+    assert.ok(guard > -1 && refused > guard && db > refused, "the opening route reaches the database before it refuses everybody but an admin");
+    // The page is in the admins' tree, and reads the survey alone.
+    assert.match(read("src/app/(app)/admin/(admin-only)/layout.tsx"), /await requireAdminPage\(\);/);
+    assert.doesNotMatch(
+      withoutComments(read("src/app/(app)/admin/(admin-only)/surveys/[surveyId]/answered/[who]/page.tsx")),
+      /personOnSurveys|eventPersonOn|openPersonAnswers|SURVEY_(?:ANSWERS|PEOPLE)_COLLECTION/,
+      "the page reads something of the person without recording an opening",
+    );
+    // A programme's surveys together, or a survey after an event alone.
+    const person = withoutComments(read("src/lib/surveys/onePerson.ts"));
+    assert.match(person, /if \(isEventSurvey\(survey\)\) return \[survey\];/);
+    assert.match(person, /\.filter\(\(each\) => !isEventSurvey\(each\) && isProgrammeAudience\(each\.audience, roundId, programmeId\)\)/);
+  });
+
+  test("each opening is recorded first, with who, whose by an id, which surveys and when, and never what they say", () => {
+    assert.match(PAGE_FLAT, BULLET);
+    const log = withoutComments(read("src/lib/firestore/recordOpenings.ts"));
+    const writer = log.slice(log.indexOf("export async function openSurveyAnswersRecorded"));
+    const created = writer.indexOf("await ref.create({");
+    assert.ok(created > -1 && writer.indexOf("const value = await read();") > created, "the answers are read before the opening is recorded");
+    const row = writer.slice(created, writer.indexOf("});", created));
+    assert.deepEqual(
+      [...row.matchAll(/^\s*(\.\.\.)?(\w+)(?=[:,])/gm)].map((m) => `${m[1] ?? ""}${m[2]}`),
+      ["kind", "actorUid", "actorName", "...subject", "surveyId", "surveyIds", "openedAt"],
+      "an opening of survey answers now keeps something the policy does not list",
+    );
+    // Whose, by an id: an account's uid, or a guest's sign-up; never a name.
+    assert.match(writer, /opening\.subject\.kind === "account" \? \{ subjectUid: opening\.subject\.uid \} : \{ subjectSignupId: opening\.subject\.signupId \}/);
+    // Nothing of the person is read but inside the read the opening hands back, and nothing is shown when it is refused.
+    const person = withoutComments(read("src/lib/surveys/onePerson.ts"));
+    const recorded = person.indexOf("const opened = await openSurveyAnswersRecorded(");
+    assert.ok(recorded > -1 && person.indexOf("() => readPerson(db, survey, shown, subject),") > recorded);
+    assert.match(person, /if \(!opened\.ok\) return \{ kind: "not-recorded" \};/);
+    assert.match(
+      withoutComments(read("src/app/api/surveys/[surveyId]/people/[who]/route.ts")),
+      /if \(opening\.kind === "not-recorded"\) return NextResponse\.json\(\{ error: PERSON_WORDS\.notRecorded \}, \{ status: 500 \}\);/,
+    );
+  });
+
+  test("the record stays when names come off and when an account is deleted, as the record of downloads does", () => {
+    assert.match(PAGE_FLAT, BULLET);
+    // Nothing that takes names off, or deletes an account, names the log.
+    for (const file of ["src/lib/firestore/accountDeletion.ts", "src/lib/surveys/namesOff.ts", "src/lib/scheduler/jobs/surveyNamesOff.ts"]) {
+      assert.doesNotMatch(withoutComments(read(file)), /RECORD_OPENINGS_COLLECTION|["'`]recordOpenings["'`]/, `${file} now reaches the record of openings`);
+    }
+    // A run's destroy deletes the log's rows by run, and an opening of survey answers holds none.
+    assert.match(read("src/lib/firestore/courseDeletion.ts"), /drainQuery\(db, RECORD_OPENINGS_COLLECTION, byRunId\(RECORD_OPENINGS_COLLECTION\), budget\)/);
+    const log = withoutComments(read("src/lib/firestore/recordOpenings.ts"));
+    const writer = log.slice(log.indexOf("export async function openSurveyAnswersRecorded"));
+    assert.doesNotMatch(writer.slice(0, writer.indexOf("const value = await read();")), /runId/, "an opening of survey answers now names a run, so a run's destroy would take it");
+    // The record of downloads is kept by both cascades, the same way.
+    assert.doesNotMatch(withoutComments(read("src/lib/firestore/accountDeletion.ts")), /DATA_EXPORTS_COLLECTION|["'`]dataExports["'`]/);
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-one-person.test.mjs")));
+  });
+});
+
+// ---------------------------------------------------------------------------
 // §3 The re-consent gate
 // ---------------------------------------------------------------------------
 

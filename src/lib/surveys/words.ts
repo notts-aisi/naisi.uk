@@ -983,3 +983,136 @@ export const LEAD_RESULTS_WORDS = {
   notYours: "Only the programme’s lead and admins read its survey results.",
   notHere: "That survey isn’t one of this programme’s.",
 } as const;
+
+// ---------------------------------------------------------------------------
+// One person's answers, for admins (sv-person)
+// ---------------------------------------------------------------------------
+
+/**
+ * The page an admin opens from Who answered: one person's answers to each of
+ * a programme's surveys, the change questions start and end side by side, or
+ * to a survey after an event. The board's words where it draws them; where it
+ * draws none (a follow-up's column, a survey not answered, nothing to open),
+ * words in its voice, listed in the build notes for the boards' designers to
+ * confirm. No pronoun stands for the person: the site does not know theirs.
+ */
+export const PERSON_WORDS = {
+  /** While the opening is being recorded and the answers read. */
+  opening: "Opening the answers…",
+  /** The page's heading when nothing was opened. */
+  heading: "One person’s answers",
+  notice: "Only admins can open one person’s answers, and each opening is logged.",
+  usually: "Usually for a request to see or delete someone’s answers.",
+  changeTitle: "The change questions",
+  question: "Question",
+  noAnswer: "No answer",
+  notAnswered: "Not answered",
+  notSent: "Not sent",
+  namesOffTitle: "Names come off",
+  stayInTotals: "Their answers stay in the totals.",
+  whoOpenedTitle: "Who has opened this",
+  tryAgain: "Try again",
+  /** The person's name, when their account is gone. */
+  accountGone: "A deleted account",
+  /** A guest the event's list no longer holds, as Who answered names them. */
+  guestGone: "A guest no longer on the list",
+  notRecorded: "We couldn’t record that you opened these answers, so they stay closed. Try again.",
+  nobodyHere: "There’s nobody by that address on this survey.",
+  namesOff: "Names have come off this survey’s answers, so there are none of anybody’s to open. The answers stay in the totals.",
+  deleted: "This account has been deleted, so its name has come off its answers and there are none to open.",
+} as const;
+
+/** Each survey's column, by its kind: "Start" and "End" as the board draws them. */
+export const PERSON_COLUMN_WORDS: Record<SurveyKind, string> = {
+  before: "Start",
+  after: "End",
+  followUp6: "Six months on",
+  followUp12: "A year on",
+  leaving: "Leaving",
+  event: "Answers",
+};
+
+/** "Only admins can open one person’s answers, and each opening is logged. You opened this at 11:04am." */
+export function personNoticeWords(at: Date): string {
+  return `${PERSON_WORDS.notice} You opened this at ${clockWords(at)}.`;
+}
+
+/** "The same 6 at the start and at the end." */
+export function sameQuestionsWords(n: number): string {
+  return n === 1 ? "The same question at the start and at the end." : `The same ${n} at the start and at the end.`;
+}
+
+/** "The after survey only.", under a survey's own questions beside the change questions. */
+export function onlyThisSurveyWords(kind: "before" | "after"): string {
+  return `The ${STAGE_WORDS[kind].name} survey only.`;
+}
+
+/** "Answered both", "Answered all 3", "Answered", "Answered 1 of 2", "Hasn’t answered". */
+export function answeredSummaryWords(answered: number, of: number): string {
+  if (answered === 0) return "Hasn’t answered";
+  if (answered < of) return `Answered ${answered} of ${of}`;
+  if (of === 1) return "Answered";
+  return of === 2 ? "Answered both" : `Answered all ${of}`;
+}
+
+/** "Sent Thu 29 Oct, 9am. Not answered.", for a survey somebody was sent and has not answered. */
+export function sentNotAnsweredWords(sentAt: Date | null): string {
+  return sentAt ? `Sent ${dayAndClockWords(sentAt)}. ${PERSON_WORDS.notAnswered}.` : `${PERSON_WORDS.notAnswered}.`;
+}
+
+/** "Amara’s name comes off on Sat 9 Dec 2028." */
+export function nameComesOffWords(firstName: string, key: string): string {
+  return `${firstName}’s name comes off on ${dateKeyWords(key)}.`;
+}
+
+/** "AGI Strategy: before, Sat 9 Dec 2028", when the person's surveys come off on different days. */
+export function surveyComesOffWords(surveyName: string, key: string): string {
+  return `${surveyName}, ${dateKeyWords(key)}`;
+}
+
+/** "Zach Levin · Mon 21 Dec, 11:04am", one opening in Who has opened this. */
+export function openingLineWords(name: string, at: Date | null): string {
+  return at ? `${name} · ${dayAndClockWords(at)}` : name;
+}
+
+/** "Amara Okafor has no answers here to open." */
+export function nothingToOpenWords(name: string): string {
+  return `${name} has no answers here to open.`;
+}
+
+/** "End: Since the programme started, have you…", when the end's wording of a change question differs. */
+export function otherWordingWords(column: string, title: string): string {
+  return `${column}: ${title}`;
+}
+
+/**
+ * The scale under a question, from its own words: "1 Not at all to 5 Very",
+ * "1 Poor to 5 Excellent", "Pick any". Nothing for a choose-one, a text or a
+ * number.
+ */
+export function personScaleWords(question: SurveyQuestion): string {
+  switch (question.type) {
+    case "lines": {
+      const low = question.scale.points?.[0] ?? question.scale.minLabel;
+      const high = question.scale.points?.[question.scale.max - 1] ?? question.scale.maxLabel;
+      return low && high ? `1 ${low} to ${question.scale.max} ${high}` : `1 to ${question.scale.max}`;
+    }
+    case "rating": {
+      const max = question.rating?.max ?? 5;
+      const low = question.rating?.minLabel ?? "";
+      const high = question.rating?.maxLabel ?? "";
+      return low && high ? `1 ${low} to ${max} ${high}` : `1 to ${max}`;
+    }
+    case "scale": {
+      const low = question.anchors.find((anchor) => anchor.at === question.min)?.label ?? "";
+      const high = question.anchors.find((anchor) => anchor.at === question.max)?.label ?? "";
+      return low && high ? `${question.min} ${low} to ${question.max} ${high}` : `${question.min} to ${question.max}`;
+    }
+    case "percent":
+      return question.ends.min && question.ends.max ? `0% ${question.ends.min} to 100% ${question.ends.max}` : "0 to 100%";
+    case "multipleChoice":
+      return questionTypeWords(question);
+    default:
+      return "";
+  }
+}

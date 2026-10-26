@@ -664,6 +664,28 @@
   overflow-wrap: anywhere;
 }
 
+/* A name in Who answered, which opens that person's answers (sv-person). The
+   negative margins keep the row's height while the target reaches 44px. */
+.personLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  margin: -0.625rem 0;
+  color: var(--color-accent-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.personLink:hover {
+  color: var(--color-accent-text-hover);
+  text-decoration: underline;
+}
+
+.personLink:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
 .result {
   display: flex;
   flex-direction: column;

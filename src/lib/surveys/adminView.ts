@@ -8,6 +8,7 @@ import { changeBetween, lookBackBetween, type ChangeResult, type PairedAnswers }
 import { emailWordsFor, siteAddress, surveyLinkPath } from "./emails";
 import { consentItemsOf, surveyQuestionsOf } from "./items";
 import { namesOf } from "./names";
+import { whoOf } from "./onePersonLayout";
 import { answersOf, chainOf, closedOn, peopleOf, readSurvey, sentCountOf, surveyState } from "./repo";
 import { surveyResults, type QuestionResult } from "./results";
 import { readSendPlan, signerOf, testStateFor } from "./sending";
@@ -314,6 +315,8 @@ export async function sendView(db: Firestore, survey: SurveyDoc, presserUid: str
 
 export type AnsweredRow = {
   name: string;
+  /** Who the row is, in the address of the page that opens their answers: their uid, or `g_<signupId>` for a guest. */
+  who: string;
   /** "Thu 29 Oct, 9am": when it was sent to them. */
   sent: string;
   /** "Thu 29 Oct, 7:41pm", or "" while they haven't answered. */
@@ -334,6 +337,7 @@ export async function answeredView(db: Firestore, survey: SurveyDoc): Promise<{ 
       const answer = byUid.get(person.respondent.uid);
       return {
         name: names.get(person.respondent.uid) ?? "Somebody whose account has gone",
+        who: whoOf(person.respondent),
         sent: person.sentAt ? dayAndClockWords(person.sentAt) : "",
         answered: answer?.sentAt ? dayAndClockWords(answer.sentAt) : person.answered ? "Answered" : "",
         how: answer ? (answer.via === "signed-in" ? "Signed in" : "Personal link") : "",

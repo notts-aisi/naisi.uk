@@ -13,7 +13,8 @@ The code: `src/lib/surveys/` (the library), `src/lib/firestore/surveys.ts` (the
 records), `src/app/api/surveys/` (the routes), `src/app/survey/[token]/` and
 `src/app/(app)/learn/[runId]/survey/[surveyId]/` (the answer page),
 `src/app/(app)/admin/(admin-only)/surveys/` (the admins' pages),
-`src/lib/scheduler/jobs/surveyNamesOff.ts` (names off).
+`src/lib/scheduler/jobs/surveyNamesOff.ts` (names off),
+`src/lib/surveys/onePerson.ts` (one person's answers, opened by an admin).
 
 ## The rules, in one place
 
@@ -506,7 +507,8 @@ row, so each person answers once per programme. Then:
 Run NAISI › Surveys (`/admin/surveys`): open, drafts and closed, each with its
 answers, closing day and the way to its tabs; New survey. Each survey has four
 tabs: **Questions** (the editor until it is sent), **Send** (above), **Who
-answered** (names, for admins only, and the spreadsheet), **Results**.
+answered** (names, for admins only, and the spreadsheet; each name opens that
+person's answers, below), **Results**.
 
 **Results** are made on the server and never carry a name. Every number has its
 n beside it and the share of the people the survey was sent to (taken from the
@@ -594,6 +596,55 @@ tied to (pub-agi), and can take them down at any time.
   itself out by its own width, so the admins' preview shows it as a phone (390)
   and a computer (78% of 1440) will.
 
+## One person's answers (sv-person)
+
+Each name on a survey's Who answered tab opens
+`/admin/surveys/<survey>/answered/<who>`: that person's answers, usually for a
+request to see or delete them. `<who>` is the person's uid, or on a survey
+after an event `g_<signupId>` for a guest (`whoOf` and `subjectOf`).
+
+- **Admins only**, never a programme's lead, a facilitator or a committee
+  member: the page sits in the `(admin-only)` tree, which a view-as session
+  closes, and the route it asks
+  (`POST /api/surveys/[surveyId]/people/[who]`) refuses view-as first and then
+  anybody but an admin, before the database.
+- **The page reads nothing of the person.** It reads the survey's name for the
+  way back; once it is open in the admin's browser it asks the route, once. So
+  a prefetch or a preview of the address records nothing and shows nothing.
+- **Every opening is recorded first** (`openSurveyAnswersRecorded`, in the
+  openings log `recordOpenings`, `src/lib/firestore/recordOpenings.ts`): kind
+  `survey-answers`, who opened them and their name then, whose they were
+  (`subjectUid`, or `subjectSignupId` for a guest), the survey they were
+  opened from, every survey shown (`surveyIds`), and when. Never anything the
+  answers say. Before the row is written only the surveys' own records are
+  read; the person's name, rows, answers and group are read once it is
+  stored. When it cannot be written the route answers 500 "We couldn’t record
+  that you opened these answers, so they stay closed. Try again." and nothing
+  of the person has been read. An opening of somebody with nothing there is
+  recorded too.
+- **What it shows** (`src/lib/surveys/onePersonLayout.ts`): on a programme,
+  every survey of the same programme that has been sent or opened (the four
+  stages and leaving), in that order. When the person was on both the start
+  and the end and answered at least one, **The change questions**: those the
+  two ask the same way (same id, same type), in the before survey's order and
+  numbering, the start and the end side by side, each column read against its
+  own survey's options, the end's wording beside the start's where it
+  differs. Then each survey's own questions under its title ("The before
+  survey only.", "The after survey only." beside the change questions, the
+  survey's name otherwise), a survey they were sent and did not answer said
+  in a line. After an event, its one survey. Every question as the survey
+  holds it: its words, its line, its scale's words. A skipped question says
+  "No answer". The side column says when the name comes off (the surveys' own
+  `namesOffOn`) and who has opened these answers (the log, newest first). The
+  head names their programme, their told group, and how many of the surveys
+  they were on they answered ("Answered both").
+- **A name that has come off has nothing to open.** When names have come off
+  every survey shown, the route says so (410) and records nothing. A deleted
+  account's answers name nobody, so its page says the account was deleted and
+  there are none.
+- **Not built**: the board's download of one person's answers and deleting
+  them (its Export and Careful cards). Neither is drawn until it exists.
+
 ## Deletion
 
 - **An account deleted**: its survey rows are deleted and its name comes off
@@ -615,6 +666,13 @@ tied to (pub-agi), and can take them down at any time.
   takes it down, which the policy says they will on request. A form's destroy,
   a run's destroy and names coming off leave it too: it is the programme's
   public page's, and only Take it down deletes it.
+- **The openings of one person's answers** are kept as the record of
+  downloads (`dataExports`) is: an account's deletion takes none, in either
+  direction (the openings of the account's answers, and those it made as an
+  admin), names coming off take none, and a run's destroy, which deletes the
+  openings log's rows by `runId`, never finds one, since none holds a run. The
+  answers outlive every run, and a survey after an event has none. A row names
+  a person by an id and holds nothing they said.
 - **The anonymous form's answers** (below) name nobody, so an account's deletion
   has nothing of them to find and removes none. They go with the programme's
   course run, in the run's destroy (stage `anonymousFeedback`: the form first,
@@ -829,10 +887,11 @@ base; no threshold (Zach, 26 Oct 2026). The code: `src/lib/surveys/term/`
 ## Not built yet
 
 Results for a programme's lead but the leaving survey's, and the lead's
-Surveys tab that links them; one person's answers page; "Can be quoted"
-beside a ticked comment on Results (sv-results); and an option's own words
-("Something else: ..."). The model is built so none of them needs a rewrite:
-another `audience.kind`, another `respondent.kind`, the same records.
+Surveys tab that links them; downloading or deleting one person's answers from
+their page; "Can be quoted" beside a ticked comment on Results (sv-results);
+and an option's own words ("Something else: ..."). The model is built so none
+of them needs a rewrite: another `audience.kind`, another `respondent.kind`,
+the same records.
 
 ## Check-in, for the surveys after events
 
@@ -860,10 +919,12 @@ writes), `tests/surveys-quote-tick.test.mjs` (the box and the tick, one
 decision; the tick kept with its answer), `tests/surveys-public-numbers.test.mjs`
 (the counting, what is read and never read, both routes and the admins' page as
 every kind of caller), `tests/public-numbers-last-term.test.mjs` (the block
-on the public page, from the record alone), and This term in numbers' three:
-`tests/surveys-term-numbers.test.mjs` (the counting, and every number held to
-its own page's reader), `tests/surveys-term-numbers-page.test.mjs` and
-`tests/surveys-term-numbers-file.test.mjs` (the page and the file as every
+on the public page, from the record alone), `tests/surveys-one-person.test.mjs`
+(one person's answers as every kind of caller, the opening recorded before
+anything is read, and refused whole when it cannot be), and This term in
+numbers' three: `tests/surveys-term-numbers.test.mjs` (the counting, and every
+number held to its own page's reader), `tests/surveys-term-numbers-page.test.mjs`
+and `tests/surveys-term-numbers-file.test.mjs` (the page and the file as every
 kind of caller, and nothing about a person in either).
 
 The privacy policy says what a survey keeps, who sees it, when names come off
