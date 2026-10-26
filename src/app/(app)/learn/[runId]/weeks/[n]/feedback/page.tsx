@@ -6,7 +6,7 @@ import weekly from "@/features/courses/weekly/weekly.module.css";
 import ClampedAnswer from "@/features/courses/written/ClampedAnswer";
 import styles from "@/features/courses/written/written.module.css";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
-import { firstNameOfUser } from "@/lib/courses/programmeLead";
+import { firstNameOfUser, fullNameOfUser } from "@/lib/courses/programmeLead";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
 import { isBlockWeek, partsOf } from "@/lib/courses/weekBlocks/model";
 import { weekWrittenAnswers } from "@/lib/courses/weekBlocks/reader";
@@ -96,8 +96,11 @@ export default async function FeedbackPage({ params }: { params: Promise<{ runId
   const readerUids = facilitated.length > 0 ? [] : (ownGroup?.facilitatorUids ?? []);
   const nameUids = [...new Set([record?.openedByUid ?? "", record?.feedback?.byUid ?? "", ...readerUids].filter(Boolean))];
   const firstNames = new Map<string, string>();
+  const fullNames = new Map<string, string>();
   for (const userSnap of nameUids.length ? await db.getAll(...nameUids.map((uid) => db.collection("users").doc(uid))) : []) {
-    if (userSnap.exists) firstNames.set(userSnap.id, firstNameOfUser(userSnap.data() ?? {}) || "Your facilitator");
+    if (!userSnap.exists) continue;
+    firstNames.set(userSnap.id, firstNameOfUser(userSnap.data() ?? {}) || "Your facilitator");
+    fullNames.set(userSnap.id, fullNameOfUser(userSnap.data() ?? {}));
   }
   const byName = record?.feedback ? (firstNames.get(record.feedback.byUid) ?? "Your facilitator") : "";
   const leadFirstName = facilitated.length > 0 ? ((await runProgrammeOf(db, runId).catch(() => null))?.leadFirstName ?? null) : null;
@@ -145,7 +148,7 @@ export default async function FeedbackPage({ params }: { params: Promise<{ runId
           {record.feedback ? (
             <>
               <p className={styles.from}>
-                <InitialsChip name={byName} uid={record.feedback.byUid} size="sm" />
+                <InitialsChip name={fullNames.get(record.feedback.byUid) ?? byName} uid={record.feedback.byUid} size="sm" />
                 <span>{fromWords(byName, record.feedback.sentAt)}</span>
               </p>
               {record.feedback.levels.length > 0 && (

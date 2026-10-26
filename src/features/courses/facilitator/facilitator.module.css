@@ -672,7 +672,9 @@
   color: var(--color-text-muted);
 }
 
+/* "Sent Mon 16 Nov, 11:58pm", under the name. */
 .queueMeta {
+  display: block;
   font-size: 0.8125rem;
   line-height: 1.4;
   color: var(--color-text-muted);

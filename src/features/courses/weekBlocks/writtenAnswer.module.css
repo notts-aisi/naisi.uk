@@ -89,8 +89,12 @@
   color: var(--color-text-muted);
 }
 
+/* The answer grows with what is written up to about a screen, then scrolls
+   in its own box, as the board draws it. */
 .answerBox {
   min-height: 220px;
+  max-height: 22rem;
+  overflow-y: auto;
 }
 
 .boxRow .answerBox {

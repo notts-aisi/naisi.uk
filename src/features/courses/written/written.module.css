@@ -317,11 +317,10 @@
   min-width: 0;
 }
 
+/* Folded to its first two lines (the board's "Show all of it"): the question's
+   paragraphs are blocks, so the fold is two lines' height, not a line clamp. */
 .questionClamp {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  max-height: calc(2 * 1.6 * var(--text-sm));
   overflow: hidden;
 }
 
@@ -335,7 +334,7 @@
   gap: 8px;
   font-size: var(--text-sm);
   line-height: 1.6;
-  color: var(--color-text-soft);
+  color: var(--color-text);
   overflow-wrap: anywhere;
 }
 
@@ -879,6 +878,11 @@
 @media (max-width: 48rem) {
   .feedbackPage .phoneBar {
     display: flex;
+  }
+
+  /* The phone has the bar; the breadcrumb is the laptop's. */
+  .feedbackPage .crumb {
+    display: none;
   }
 
   .answerBody {

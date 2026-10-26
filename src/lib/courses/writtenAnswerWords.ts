@@ -423,7 +423,8 @@ export function noFeedbackYetWords(names: readonly string[]): string {
 
 export const REVIEW_QUEUE = "Review queue";
 export const GIVE_FEEDBACK = "Give feedback";
-export const NOTHING_TO_GIVE_FEEDBACK_ON = "Nothing to give feedback on.";
+/** In the same place as the count, so it reads as a label too: no full stop. */
+export const NOTHING_TO_GIVE_FEEDBACK_ON = "Nothing to give feedback on";
 
 /** "2 to give feedback on". */
 export function toGiveFeedbackOnWords(n: number): string {
