@@ -4374,6 +4374,7 @@ describe("the course hub passage", () => {
       new Map([
         [gateFile, "the gate itself: admins and the programme's lead for anybody's, a live facilitator of a fellow's own group for theirs, and nobody else for a facilitator's own"],
         [readerFile, "the one reader of somebody else's boxes, which asks the gate before a box is read"],
+        ["src/lib/courses/facilitatorWeek/readers.ts", "a group's week for its facilitators, the programme's lead and admins: each person's boxes on the week the page shows, the gate asked person by person before a box is read, for exactly the people it admits"],
       ]),
       "deciding who reads somebody's fill-in boxes",
       "The policy says a person's boxes are read by them, their group's " +
