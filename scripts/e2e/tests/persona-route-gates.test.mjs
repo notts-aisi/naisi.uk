@@ -103,12 +103,15 @@ const POOL = 4;
  * fine, and it does so for EVERY persona at once until the quota window
  * passes. So a refusal that reads as "no session" (a 401, or a redirect to
  * sign in) for a persona that HAS a cookie is asked again after a pause that
- * grows, up to a minute in all, and only the last answer counts. A genuine
+ * grows, up to about three and a half minutes in all, and only the last
+ * answer counts: with sixteen thousand cells, a window of a minute was not
+ * always enough (October 2026), and while every worker waits the lookups
+ * stop, so the window passes. A genuine
  * 401 for that persona answers 401 every time; a throttled lookup answers
  * correctly once the window has passed. Every retry is counted and printed,
  * so a run that leaned on them says so rather than passing quietly.
  */
-const RETRY_PAUSES_MS = [2000, 6000, 15000, 40000];
+const RETRY_PAUSES_MS = [2000, 6000, 15000, 40000, 60000, 90000];
 let retried = 0;
 let retriesThatChanged = 0;
 const looksLikeNoSession = (result) =>

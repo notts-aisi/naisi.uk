@@ -3648,11 +3648,12 @@ export const PAGES = {
       "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own: the Surveys tab is the programme's " +
       "lead's and an admin's, so a reviewer is told so before any survey is read, and a programme the caller has no " +
-      "role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+      "role on, or one that does not exist, renders 'there is no programme here' with a 200. The lead persona is " +
+      "admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads).",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
