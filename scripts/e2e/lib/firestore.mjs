@@ -152,7 +152,7 @@ export async function readEmailVerification(tokenId) {
  * policy file and computing the same string, so a policy bump fails offline
  * with the line to update rather than at 2am in a browser.
  */
-export const ACCEPTED_POLICY_VERSION = "terms.1+privacy.6";
+export const ACCEPTED_POLICY_VERSION = "terms.1+privacy.7";
 
 /**
  * Creates the minimal `users` document the register flow would create, for a
@@ -173,16 +173,36 @@ export const ACCEPTED_POLICY_VERSION = "terms.1+privacy.6";
  * current by its own Accept press or not at all (see `acceptReConsentIfAsked`
  * in browser.mjs), and `tests/funnel-harness-guards.test.mjs` fails on a
  * `policyVersion` key written anywhere else in the harness.
+ *
+ * `names` gives the account a name of its own, for a spec that has to tell
+ * several fixture people apart on one screen (an allocation board names each
+ * card after its person, and a facilitator is picked by name). Both halves are
+ * plain words and nothing else: a name grants nothing, and one that is not a
+ * short single line is refused rather than trimmed into something else.
+ * Without it every account is "E2E Harness", as it always was.
  */
+export const DEFAULT_FIXTURE_NAMES = Object.freeze({ preferred: "E2E", display: "E2E Harness" });
+
+/** A short, single line of letters, digits and spaces: what a fixture's name may be. */
+const FIXTURE_NAME = /^[A-Za-z0-9][A-Za-z0-9 ]{0,59}$/;
+
 export async function seedPendingUserDoc(
   ledger,
-  { uid, email, universityEmail, legacyConsent = false },
+  { uid, email, universityEmail, legacyConsent = false, names = DEFAULT_FIXTURE_NAMES },
 ) {
   if (!isHarnessAccount(email)) {
     throw new Error(
       `REFUSING to write users/${uid}: ${JSON.stringify(email)} is not a harness ` +
         "account. This harness only ever creates documents for accounts it made.",
     );
+  }
+  for (const name of [names?.preferred, names?.display]) {
+    if (typeof name !== "string" || !FIXTURE_NAME.test(name)) {
+      throw new Error(
+        `REFUSING to name users/${uid} ${JSON.stringify(name)}: a fixture account's name is ` +
+          "one short line of letters, digits and spaces.",
+      );
+    }
   }
   const consent = legacyConsent
     ? {}
@@ -193,13 +213,13 @@ export async function seedPendingUserDoc(
     .set({
       uid,
       email,
-      displayName: "E2E Harness",
+      displayName: names.display,
       role: ONLY_ALLOWED_ROLE,
       showOnMembers: false,
       ...consent,
       createdAt: new Date(),
       profile: {
-        preferredName: "E2E",
+        preferredName: names.preferred,
         universityEmail,
         status: "undergraduate",
         subject: "e2e",

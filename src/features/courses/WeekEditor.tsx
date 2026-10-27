@@ -10,7 +10,10 @@ import Card from "@/components/ui/Card";
 import CountedTextarea from "@/components/ui/CountedTextarea";
 import { Field, Input } from "@/components/ui/Input";
 import Switch from "@/components/ui/Switch";
+import { useAuth } from "@/auth/AuthProvider";
 import { getClientDb } from "@/lib/firebase/client";
+import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
+import { READY_OPENS, weekIsReady } from "@/lib/courses/weekReady";
 import { AdminLoadingBar } from "@/features/admin/adminList";
 import BlockEditor from "@/components/blocks/BlockEditor";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
@@ -26,7 +29,10 @@ import {
 } from "@/lib/firestore/courses";
 import { ensureWeekDoc, saveWeek } from "./courseMutations";
 import ExerciseBuilder from "./ExerciseBuilder";
+import MarkReady from "./MarkReady";
 import MaterialListEditor from "./MaterialListEditor";
+import WeekBlocksLoader from "./WeekBlocksLoader";
+import WeekQuestionsEditor from "./WeekQuestionsEditor";
 import styles from "./WeekEditor.module.css";
 
 /**
@@ -167,6 +173,8 @@ function buildChecklistItem(row: ChecklistRow): ChecklistItem {
 
 export default function WeekEditor({ courseId, runId, weekId }: Props) {
   const { toast, run: runAction, dismiss } = useActionToast();
+  // Loading a week as blocks is an admin's job for now (Q39); its route refuses everyone else.
+  const { role } = useAuth();
   const { data, loading, missing, error, reload } = useWeekEditorData(runId, weekId);
 
   // ---- Header ----
@@ -174,6 +182,9 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
   const [summary, setSummary] = useState("");
   const [minutes, setMinutes] = useState("");
   const [published, setPublished] = useState(false);
+  // Pitching week: a setting on the week, off until somebody ticks it. See
+  // `CourseWeekDoc.pitching` and docs/courses-ops.md, "Pitching week".
+  const [pitching, setPitching] = useState(false);
   const [headerError, setHeaderError] = useState<string | null>(null);
 
   // ---- Guide ----
@@ -196,6 +207,7 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
       setSummary(week.summary);
       setMinutes(week.estimatedMinutes == null ? "" : String(week.estimatedMinutes));
       setPublished(week.published);
+      setPitching(week.pitching);
       setHeaderError(null);
       setGuide(week.guideBlocks);
       setGuideError(null);
@@ -255,11 +267,15 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
     title !== saved.title ||
     summary !== saved.summary ||
     minutes !== savedMinutes ||
-    published !== saved.published;
+    published !== saved.published ||
+    pitching !== saved.pitching;
   const guideDirty = JSON.stringify(guide) !== JSON.stringify(saved.guideBlocks);
   const checklistDirty =
     JSON.stringify(checklist) !== JSON.stringify(toChecklistRows(saved.checklist));
   const checklistFull = checklist.length >= COURSE_FIELD_LIMITS.maxChecklistItems;
+  // A block week's people read, tick and answer its blocks; the guide, materials,
+  // exercises and checklist below are not drawn for it, so they are not offered.
+  const blockWeek = isBlockWeek(saved);
 
   async function saveHeader() {
     const trimmedTitle = title.trim();
@@ -291,6 +307,7 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
           summary: summary.trim().slice(0, COURSE_FIELD_LIMITS.weekSummary),
           estimatedMinutes,
           published,
+          pitching,
         });
         ok = true;
       },
@@ -317,6 +334,19 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
       { savingMessage: "Saving guide…", successMessage: "Guide saved" },
     );
     if (ok) reload();
+  }
+
+  async function saveQuestions(questions: string[]): Promise<boolean> {
+    let ok = false;
+    await runAction(
+      async () => {
+        await saveWeek(runId, weekId, { questions });
+        ok = true;
+      },
+      { savingMessage: "Saving questions…", successMessage: "Questions saved" },
+    );
+    if (ok) reload();
+    return ok;
   }
 
   async function saveChecklist() {
@@ -372,10 +402,12 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
           <Badge tone={saved.published ? "success" : "neutral"}>
             {saved.published ? "Published" : "Unpublished"}
           </Badge>
+          {weekIsReady(saved) && <Badge tone="success">Ready</Badge>}
           <Badge tone="neutral">{weekId}</Badge>
         </div>
         <span className={styles.muted}>
           {saved.materials.length} material{saved.materials.length === 1 ? "" : "s"} ·{" "}
+          {saved.questions.length} question{saved.questions.length === 1 ? "" : "s"} ·{" "}
           {saved.exercises.length} exercise{saved.exercises.length === 1 ? "" : "s"} ·{" "}
           {saved.checklist.length} checklist item
           {saved.checklist.length === 1 ? "" : "s"}
@@ -458,6 +490,41 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
               />
             </div>
           </div>
+
+          {/* READY (board pr-weeks, Q35): the lead's mark, stored by its own
+              route, which only an admin and the programme's lead may press.
+              Here it is an admin's; anybody else editing the week reads it. */}
+          <div className={styles.readyCell}>
+            <p className={styles.readyTitle}>Ready</p>
+            <p className={styles.hint}>{READY_OPENS}</p>
+            {role === "admin" && saved.published ? (
+              <MarkReady
+                runId={runId}
+                weekId={weekId}
+                ready={weekIsReady(saved)}
+                onDone={reload}
+                classes={{ control: styles.readyControl, button: styles.readyButton, problem: styles.error }}
+              />
+            ) : (
+              <p className={styles.muted}>
+                {weekIsReady(saved)
+                  ? "Marked ready."
+                  : saved.published
+                    ? "Not marked ready."
+                    : "Publish the week first, then it can be marked ready."}
+              </p>
+            )}
+          </div>
+
+          <div className={styles.switchCell}>
+            <Switch
+              checked={pitching}
+              onChange={setPitching}
+              label="This is pitching week"
+              description="People pitch a paper and a twist, alone or with a partner from their group, and pick the pitches they’d join until their group’s session this week starts. It opens once the week is published. How many they may pick is set on the run."
+              size="lg"
+            />
+          </div>
         </div>
 
         {headerError && <p className={styles.error}>{headerError}</p>}
@@ -469,6 +536,19 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
         </div>
       </Card>
 
+      {role === "admin" && (
+        <WeekBlocksLoader runId={runId} weekId={weekId} weekNumber={weekNumber} blockWeek={blockWeek} onSaved={reload} />
+      )}
+
+      {blockWeek && role !== "admin" && (
+        <p className={styles.warn}>
+          This week is written as blocks, loaded by an admin. Its details and questions are edited here; what its
+          people read, tick and answer is in its blocks.
+        </p>
+      )}
+
+      {!blockWeek && (
+      <>
       {/* ---- Guide ---- */}
       <Card padding="lg">
         <h3 className={styles.sectionTitle}>Guide</h3>
@@ -516,6 +596,14 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
         />
       </Card>
 
+      </>
+      )}
+
+      {/* ---- Questions to think about (C29) ---- */}
+      <WeekQuestionsEditor questions={saved.questions} onSave={saveQuestions} />
+
+      {!blockWeek && (
+      <>
       {/* ---- Exercises ---- */}
       <Card padding="lg">
         <h3 className={styles.sectionTitle}>Exercises</h3>
@@ -639,6 +727,8 @@ export default function WeekEditor({ courseId, runId, weekId }: Props) {
           </Button>
         </div>
       </Card>
+      </>
+      )}
 
       <ActionToast toast={toast} onDismiss={dismiss} />
     </div>

@@ -260,11 +260,18 @@ function GiveBack({
 export function PlaceReply({
   roundId,
   said,
+  helps,
   locked,
 }: {
   roundId: string;
   /** What they have already told us, as a sentence, or null when they have said nothing yet. */
   said: string | null;
+  /**
+   * Why saying they are coming helps, for the kind of programme the place is
+   * on, shown after "Optional." under the button. The view's `comingHelps`:
+   * this file types none of it, so the page cannot say what the email does not.
+   */
+  helps: string;
   /** An admin is looking at this as the member. */
   locked: boolean;
 }) {
@@ -308,7 +315,7 @@ export function PlaceReply({
           >
             {sending === "coming" ? "Saving…" : "I’m coming"}
           </button>
-          <p className={styles.note}>Optional. It helps us plan groups.</p>
+          <p className={styles.note}>Optional. {helps}</p>
         </>
       )}
       <button type="button" className={styles.quiet} onClick={() => setAsking(true)} disabled={off}>

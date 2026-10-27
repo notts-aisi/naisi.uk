@@ -59,6 +59,14 @@ export type CourseAuditKind =
   /** A run was settled: enrolments closed out and completion decided. */
   | "run-settled"
   /**
+   * An admin handed the people who hold a place on a programme of the
+   * application form over to this run's allocation board. One row for each
+   * press that put anybody there, saying how many and from which programme.
+   * It is about the run, so it is keyed to the run like every kind above, and
+   * it names no member.
+   */
+  | "run-hand-over"
+  /**
    * Somebody read an applicant's access-requirements answer. Logged because
    * that answer is health and disability information held deliberately
    * outside the scored payload, and "who has read it" is the only control
@@ -66,7 +74,7 @@ export type CourseAuditKind =
    */
   | "access-requirements-read"
   /**
-   * The five below belong to an APPLICATION FORM (`src/lib/applications/`).
+   * The six below belong to an APPLICATION FORM (`src/lib/applications/`).
    * They are about a form and the people who applied to it rather than about
    * a run, so a row of one of these kinds stores "" in `runId` and names the
    * form in `roundId`.
@@ -82,7 +90,13 @@ export type CourseAuditKind =
   /** An admin gave one person a second place, as a named exception. */
   | "application-exception"
   /** An admin sent decision day: the outcomes were published and the emails went. */
-  | "application-decisions-sent";
+  | "application-decisions-sent"
+  /**
+   * An admin offered freed places after decision day: people told "No offer
+   * this time" were each given an invitation. One row for each press, saying
+   * how many and on which programme, and naming nobody.
+   */
+  | "application-freed-places-offered";
 
 export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "attendance-edit",
@@ -93,12 +107,14 @@ export const COURSE_AUDIT_KINDS: CourseAuditKind[] = [
   "enrolment-dropout",
   "enrol-mode-change",
   "run-settled",
+  "run-hand-over",
   "access-requirements-read",
   "application-decision",
   "application-decision-revoked",
   "application-pooled-outcome",
   "application-exception",
   "application-decisions-sent",
+  "application-freed-places-offered",
 ];
 
 /** The label for a kind this build does not know. See `courseAuditKindLabel`. */
@@ -113,12 +129,14 @@ export const COURSE_AUDIT_KIND_LABEL: Record<CourseAuditKind, string> = {
   "enrolment-dropout": "Member dropped out",
   "enrol-mode-change": "Enrolment mode changed",
   "run-settled": "Run settled",
+  "run-hand-over": "People handed over from the application form",
   "access-requirements-read": "Access requirements read",
   "application-decision": "Application decided",
   "application-decision-revoked": "Acceptance revoked",
   "application-pooled-outcome": "Pooled applicant’s outcome picked",
   "application-exception": "Placement exception made",
   "application-decisions-sent": "Decisions sent",
+  "application-freed-places-offered": "Freed places offered",
 };
 
 /**

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import ProgrammeMark from "@/components/ProgrammeMark";
+import { fetchCourseCrests } from "@/features/courses/fetchCrests";
 import Arrow from "@/features/programmes/Arrow";
 import { bandWords } from "@/features/programmes/bandWords";
 import Callout from "@/features/programmes/Callout";
@@ -14,6 +16,7 @@ import { fetchPublicTerm } from "@/features/term/fetchPublicTerm";
 import TermApplyLink from "@/features/term/TermApplyLink";
 import TermStatusLine from "@/features/term/TermStatusLine";
 import { termCivilDay, termDeadline } from "@/features/term/termWords";
+import { crestForProgramme, type ShownCrest } from "@/lib/crests/resolve";
 import { incubatorPageWords } from "./incubatorWords";
 import styles from "./incubator.module.css";
 
@@ -41,6 +44,9 @@ import styles from "./incubator.module.css";
  *    words about it; with more than one, each by its own name,
  *    description and facts line, and nothing said of them all that the form
  *    does not say.
+ * 4. EACH ROW'S CREST IS THE RESOLVER'S ANSWER (`src/lib/crests/resolve.ts`):
+ *    the incubator's own crest, else its course's, else the NAISI emblem, at
+ *    48px beside its name. The courses are read only when rows are drawn.
  */
 
 export const metadata: Metadata = {
@@ -76,6 +82,15 @@ export default async function IncubatorPage() {
   const next = onTheForm ? term.next : null;
 
   const words = incubatorPageWords({ incubators, stage, termLabel: term.label });
+  // What each listed incubator shows beside its name. Read only when the
+  // page lists them, which is when the form carries more than one.
+  const shownCrests = new Map<string, ShownCrest>();
+  if (words.listed.length > 0) {
+    const courses = await fetchCourseCrests(incubators.map((incubator) => incubator.courseId));
+    for (const incubator of incubators) {
+      shownCrests.set(incubator.id, crestForProgramme(incubator, courses.get(incubator.courseId ?? "")));
+    }
+  }
   // The one start every incubator shares. Each incubator's own is beside its name.
   const starts = words.starts;
   const decisionsDay = decisionsByDate ? termCivilDay(decisionsByDate) : null;
@@ -172,7 +187,10 @@ export default async function IncubatorPage() {
           <ul className={styles.incubators}>
             {words.listed.map((incubator) => (
               <li key={incubator.id} className={styles.incubator}>
-                <h2 className={styles.incubatorName}>{incubator.name}</h2>
+                <div className={styles.incubatorHead}>
+                  <ProgrammeMark shown={shownCrests.get(incubator.id) ?? null} size={48} />
+                  <h2 className={styles.incubatorName}>{incubator.name}</h2>
+                </div>
                 {incubator.pitch ? <p className={styles.incubatorPitch}>{incubator.pitch}</p> : null}
                 {incubator.facts || incubator.starts ? (
                   <div className={styles.incubatorFoot}>

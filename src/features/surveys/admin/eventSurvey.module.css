@@ -1,0 +1,183 @@
+/*
+  What a survey after an event adds to the admins' pages (sv-send,
+  sv-results): the QR code at the event, the choice of who its email goes
+  to, and the numbers above its results. Built on surveyAdmin.module.css.
+*/
+
+.codeRow {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+}
+
+.codeImage {
+  flex: none;
+  width: 8.5rem;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+}
+
+.codeImage svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.codeText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.codeAddress {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: var(--text-base);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.fullButton {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  padding: 0.5rem 1.125rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fullButton:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.fullButton:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+.fullButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.stepNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--color-accent-text);
+  border-radius: 999px;
+  color: var(--color-accent-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.emails {
+  margin: 0;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.choiceDetail {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  min-width: 0;
+}
+
+.statNumber {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.statLabel {
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.statSub {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* The aside is narrow: the download's label wraps inside its button. */
+.download button {
+  width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+
+@media (max-width: 48rem) {
+  .codeRow {
+    flex-direction: column;
+  }
+
+  .stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fullButton {
+    min-height: 44px;
+  }
+}

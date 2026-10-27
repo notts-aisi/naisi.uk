@@ -592,6 +592,8 @@ export default function ProfileForm() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ matrix: payloadMatrix }),
+        // Sent without waiting, so it has to outlive the page: tests/fetch-keepalive.test.mjs.
+        keepalive: true,
       }).catch((err) => {
         console.warn("[profile subscriptions sync] failed", err);
       });

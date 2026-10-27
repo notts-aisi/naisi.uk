@@ -70,6 +70,16 @@ export type WeekPlanEntry =
   | { kind: "break"; label: string };
 
 /**
+ * The last taught week of a plan, or null for a plan with none: the week the
+ * survey at a programme's end is named for, and after which This term in
+ * numbers says it comes.
+ */
+export function lastTaughtWeek(weekPlan: readonly WeekPlanEntry[]): number | null {
+  const weeks = weekPlan.flatMap((entry) => (entry.kind === "week" ? [entry.weekNumber] : []));
+  return weeks.length > 0 ? Math.max(...weeks) : null;
+}
+
+/**
  * `en-CA` formats as `YYYY-MM-DD`, which is exactly our civil-date key — no
  * manual part assembly, no locale surprises. Module-scoped because
  * constructing an `Intl.DateTimeFormat` is expensive relative to using one,

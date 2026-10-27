@@ -474,12 +474,39 @@ const HANDS_ON = new Map([
     },
   ],
   [
+    "src/lib/applications/handover/handOver.ts",
+    {
+      to: "src/lib/applications/handover/holders.ts",
+      why:
+        "hands every sent application to placeHoldersOn, which passes over anybody who has left " +
+        "the term before it asks who holds a place, so a place given back is never handed over",
+    },
+  ],
+  [
+    "src/lib/applications/handover/load.ts",
+    {
+      to: "src/lib/applications/handover/holders.ts",
+      why:
+        "hands every sent application to placeHoldersOn for who holds a place, which leaves a " +
+        "withdrawn one out, and keeps the whole list only to name somebody who has since left",
+    },
+  ],
+  [
     "src/lib/scheduler/jobs/applicationInvitationReminders.ts",
     {
       to: "src/lib/applications/decisionDay/reminders.ts",
       why:
         "hands each sent application to invitationReminderDue, whose first question is whether " +
         "the application is still in the term, so nobody who has left is reminded",
+    },
+  ],
+  [
+    "src/lib/surveys/audience.ts",
+    {
+      to: "src/lib/applications/handover/holders.ts",
+      why:
+        "hands every sent application to placeHoldersOn for who a programme survey is for, which passes over " +
+        "anybody who has left the term before it asks who holds a place, so nobody who gave theirs back is sent it",
     },
   ],
 ]);

@@ -1,0 +1,1223 @@
+/* ============================================================
+   A week written as blocks (boards st-week1-phone, wk-week-phone,
+   and wk-week at 1440 with "On this page"). Sizes are the
+   boards'; colours are the theme's tokens for the boards'
+   values. The page is a size container: the rail beside the
+   week appears when the page itself is wide enough for both
+   (the board's 760px column and 256px rail), never on the
+   window's width alone. The last block is for phones.
+   ============================================================ */
+
+.page {
+  min-width: 0;
+  container-type: inline-size;
+  container-name: blockweek;
+}
+
+/* The bar over the page on a phone: back, and which week. */
+.page .phoneBar {
+  display: none;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 2.25rem;
+  min-width: 0;
+  max-width: 47.5rem;
+  width: 100%;
+  margin-inline: auto;
+  padding-bottom: 28px;
+}
+
+.rail {
+  display: none;
+}
+
+@container blockweek (min-width: 62rem) {
+  .layout {
+    grid-template-columns: minmax(0, 47.5rem) minmax(13rem, 16rem);
+    justify-content: space-between;
+    column-gap: var(--space-8);
+    align-items: start;
+  }
+
+  .main {
+    margin-inline: 0;
+  }
+
+  .rail {
+    display: block;
+    position: sticky;
+    top: var(--space-6);
+    padding: 1.25rem 1.25rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg);
+  }
+}
+
+/* === The head === */
+
+.head {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.title {
+  margin: 8px 0 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.75rem, 3.6cqi, 2.375rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 10px 0 0;
+}
+
+.waysHead,
+.waysFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 var(--space-3);
+  min-width: 0;
+}
+
+.waysHead {
+  margin-top: 6px;
+}
+
+.waysFoot {
+  padding-top: 4px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* === Headings and text === */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 8px;
+}
+
+.h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(1.3125rem, 2.2cqi, 1.5rem);
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  color: var(--color-text);
+  text-wrap: balance;
+}
+
+.h3 {
+  margin: 0;
+  font-size: var(--text-md, 1rem);
+  line-height: 1.55;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.h4 {
+  margin: 0 0 6px;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.lede,
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  color: var(--color-text-soft);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.lede {
+  font-size: clamp(1rem, 1.6cqi, 1.0625rem);
+  line-height: 1.6;
+}
+
+.body {
+  font-size: clamp(0.9375rem, 1.5cqi, 1rem);
+  line-height: 1.6;
+}
+
+.lede p,
+.body p {
+  margin: 0;
+}
+
+.list {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* A table in a week's text: inside the column, scrolling sideways on its own
+   when it is wider than the page, never the page itself. */
+.table {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.table table {
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.table th,
+.table td {
+  min-width: 8rem;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.table th {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+/* Code as the guide writes it, every space and line kept. */
+.code {
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  white-space: pre;
+  overflow-x: auto;
+  box-sizing: border-box;
+}
+
+.inlineLink {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-decoration-color: var(--color-accent-line);
+  text-underline-offset: 3px;
+}
+
+.inlineLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.inlineLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+.mono {
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.quietLine {
+  margin: 10px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.sessionNote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 10px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* === This week === */
+
+.thisWeek {
+  min-width: 0;
+  padding: 18px clamp(1rem, 2.6cqi, 1.375rem) 16px;
+  border-radius: 14px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  box-sizing: border-box;
+}
+
+.twHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 4px;
+}
+
+.twCount {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.tasks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.task {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  column-gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.markDone {
+  display: block;
+  color: var(--color-ok);
+}
+
+.markOpen {
+  display: block;
+  color: var(--color-control-border);
+}
+
+.markNone {
+  display: block;
+  color: var(--color-text-faint);
+}
+
+.taskBody {
+  min-width: 0;
+}
+
+.taskWhat {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.taskMeta {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin: 4px 0 0;
+}
+
+.taskWhen {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-soft);
+}
+
+.taskDone {
+  margin: 6px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  font-weight: 600;
+  color: var(--color-ok);
+}
+
+.inAll {
+  margin: 0;
+  padding: 14px 0 4px;
+  border-top: 1px solid var(--color-border);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.twNote {
+  margin-top: 8px;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.twNote p {
+  margin: 0;
+}
+
+/* === After this week you can === */
+
+.outcomes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: -1.25rem;
+  min-width: 0;
+}
+
+.dots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: clamp(0.9375rem, 1.5cqi, 1rem);
+  line-height: 1.55;
+  color: var(--color-text);
+}
+
+.dots li {
+  position: relative;
+  padding-left: 26px;
+  overflow-wrap: anywhere;
+}
+
+.dots li::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 0.62em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-live);
+  opacity: 0.8;
+}
+
+/* === The content note === */
+
+.contentNote {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 16px clamp(1rem, 2.6cqi, 1.375rem);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-accent-line);
+  background: var(--color-accent-soft);
+}
+
+.contentNoteHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.infoIcon {
+  flex: none;
+  color: var(--color-accent-text);
+}
+
+.supportLinks {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.supportLink {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 4px 0;
+}
+
+.supportLabel {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: -10px 0 -9px;
+  color: var(--color-accent-text);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--color-accent-line);
+  overflow-wrap: anywhere;
+}
+
+.supportLabel:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+.supportDetail {
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+/* === A part === */
+
+.part {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.partHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-bottom: -8px;
+}
+
+.partEyebrow {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  margin: 0;
+}
+
+.partNumber {
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-live);
+}
+
+.partSep {
+  color: var(--color-text-faint);
+}
+
+.partTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(1.125rem, 1.9cqi, 1.25rem);
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.doneChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px 0 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-success-soft);
+  border: 1px solid var(--color-ok-line);
+  color: var(--color-ok);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.partText {
+  min-width: 0;
+}
+
+/* === Sources === */
+
+.sources {
+  min-width: 0;
+  padding: 4px clamp(1rem, 2.6cqi, 1.375rem) 2px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-sizing: border-box;
+}
+
+.sourceList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.source {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px 10px;
+  padding: 8px 0 12px;
+}
+
+.source + .source {
+  border-top: 1px solid var(--color-border);
+}
+
+.sourceBody {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-top: 10px;
+}
+
+.sourceTitle {
+  display: inline;
+  color: var(--color-text);
+  font-weight: 600;
+  font-size: clamp(0.9375rem, 1.5cqi, 1rem);
+  line-height: 1.4;
+  text-decoration: underline;
+  text-decoration-color: var(--color-accent-line);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+.sourceTitle:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.sourceTitle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+.sourceTitlePlain {
+  margin: 0;
+  color: var(--color-text);
+  font-weight: 600;
+  font-size: clamp(0.9375rem, 1.5cqi, 1rem);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* The words the guide writes before a title ("section 2 of"), in the title's line. */
+.sourceLead {
+  color: var(--color-text-soft);
+  font-weight: 400;
+  font-size: clamp(0.9375rem, 1.5cqi, 1rem);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.arrow {
+  display: inline-block;
+  margin-left: 6px;
+  vertical-align: -1px;
+  color: var(--color-accent-text);
+}
+
+.sourceMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin: 8px 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.kindPill {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.sourceBy,
+.sourceNote {
+  margin: 4px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.sourceByInline {
+  color: var(--color-text-muted);
+}
+
+.cardFootLine {
+  margin: 0;
+  padding: 10px 0 12px;
+  border-top: 1px solid var(--color-border);
+  font-size: 0.84375rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* === The reading's box === */
+
+.readingBox {
+  margin-top: 6px;
+}
+
+.rateButton {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  margin: -6px 0 -10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent-text);
+  font: inherit;
+  font-size: 0.84375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rateButton:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.rateButton:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+.chevron,
+.chevronOpen {
+  transition: transform 160ms ease;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.readingPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.stars,
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fieldLabel {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.fieldHint {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.panelActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* === A reflection stop === */
+
+.reflect {
+  min-width: 0;
+  padding: 16px clamp(1rem, 2.6cqi, 1.375rem) 18px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-live) 3.5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-live) 30%, transparent);
+  box-sizing: border-box;
+}
+
+.reflectLabel {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  line-height: 1.3;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-live);
+}
+
+.prompt {
+  margin-top: 14px;
+}
+
+.prompt + .prompt {
+  margin-top: 22px;
+}
+
+.promptLabel {
+  display: block;
+  margin-bottom: 10px;
+  font-size: clamp(0.9375rem, 1.5cqi, 1rem);
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.promptText {
+  margin: 14px 0 0;
+  font-size: clamp(0.9375rem, 1.5cqi, 1rem);
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.box {
+  display: block;
+  width: 100%;
+  min-height: 96px;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  resize: vertical;
+  field-sizing: content;
+}
+
+.box::placeholder {
+  color: var(--color-text-muted);
+}
+
+.box:focus-visible {
+  outline: none;
+  border-color: var(--color-live);
+  box-shadow: var(--focus-ring);
+}
+
+.box[readonly] {
+  color: var(--color-text-soft);
+}
+
+.boxStatus {
+  min-height: 18px;
+  margin: 6px 0 0;
+}
+
+.saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.01em;
+  color: var(--color-text-muted);
+}
+
+.saved svg {
+  color: var(--color-ok);
+}
+
+.boxError {
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-danger-text);
+}
+
+.readers {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--color-live) 20%, transparent);
+}
+
+.readersLine {
+  margin: 0;
+  font-size: 0.84375rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.reflectBlocked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 12px;
+}
+
+.reflectBlockedText {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-warning);
+}
+
+.quietButton {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.quietButton:hover {
+  background: var(--color-surface-hover);
+}
+
+.quietButton:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* === Go further === */
+
+.goFurther {
+  min-width: 0;
+}
+
+.goDetails {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.goSummary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 60px;
+  padding: 0 clamp(1rem, 2.6cqi, 1.375rem);
+  cursor: pointer;
+  list-style: none;
+}
+
+.goSummary::-webkit-details-marker {
+  display: none;
+}
+
+.goSummary:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-lg);
+}
+
+.goTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.125rem;
+  line-height: 1.25;
+  color: var(--color-text);
+}
+
+.goCount {
+  flex: none;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.goChevron {
+  flex: none;
+  color: var(--color-text-muted);
+  transition: transform 160ms ease;
+}
+
+.goDetails[open] .goChevron {
+  transform: rotate(180deg);
+}
+
+.goBody {
+  padding: 0 clamp(1rem, 2.6cqi, 1.375rem) 6px;
+}
+
+.goList {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+}
+
+.goItem {
+  padding: 14px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.goWhy {
+  margin: 6px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-soft);
+  overflow-wrap: anywhere;
+}
+
+/* What to do before you come, under In the session. */
+.beforeYouCome {
+  margin-top: 12px;
+}
+
+/* The reader's own pair for a session in pairs, under Before you come
+   (src/features/courses/pairs/YourPair.tsx). */
+.yourPair {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  margin-top: 14px;
+  padding: 14px clamp(1rem, 2.6cqi, 1.25rem);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+}
+
+.yourPairGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.yourPairHead {
+  margin: 0 0 2px;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.yourPairLine {
+  margin: 0;
+  font-size: var(--text-md, 1rem);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.yourPairLaptop {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-soft);
+  overflow-wrap: anywhere;
+}
+
+/* The hands-on route's own text, under its "Not counted" line. */
+.handsOnBody {
+  margin: 12px 0 14px;
+}
+
+/* === Notes shared with the group, as today === */
+
+.sharedNotes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* === On this page (laptop) === */
+
+.railTitle {
+  margin: 0 0 10px;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.railList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.railItem,
+.railItemIndent {
+  min-width: 0;
+}
+
+.railItemIndent {
+  padding-left: 6px;
+}
+
+.railLink {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: var(--color-text);
+  text-decoration: none;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.railItemIndent .railLink {
+  font-weight: 400;
+  color: var(--color-text-body);
+}
+
+.railLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.railLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+.railLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.railCount {
+  flex: none;
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.railMarkDone,
+.railMarkOpen {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.railMarkDone {
+  border: 1.5px solid var(--color-ok);
+  color: var(--color-ok);
+}
+
+.railMarkOpen {
+  border: 1.5px solid var(--color-control-border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron,
+  .chevronOpen,
+  .goChevron {
+    transition-duration: 1ms;
+  }
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) {
+  .page .phoneBar {
+    display: flex;
+  }
+
+  .main {
+    gap: 2rem;
+  }
+
+  .title {
+    font-size: 1.75rem;
+  }
+
+  .outcomes {
+    margin-top: -1rem;
+  }
+}

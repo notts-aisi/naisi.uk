@@ -221,9 +221,9 @@ const COUNT_META: Record<string, CountMeta> = {
     note: "Check-offs, ratings, private notes and the public comments the cohort wrote.",
   },
   exerciseResponses: {
-    label: "Exercise answers",
+    label: "Answers and reflections",
     fate: "destroyed",
-    note: "Member-authored text, with any facilitator review attached to it.",
+    note: "Member-authored text: answers, with any facilitator review attached to them, and the reflections people wrote on a week's page.",
   },
   attendanceRegisters: {
     label: "Attendance registers",
@@ -234,6 +234,46 @@ const COUNT_META: Record<string, CountMeta> = {
     label: "Facilitator material notes",
     fate: "destroyed",
     note: "Staff assessments of how each piece of the curriculum landed — the written half of this run's retrospective. A snapshot saved from this run keeps its frozen summary; these notes do not survive.",
+  },
+  pitches: {
+    label: "Pitches",
+    fate: "destroyed",
+    note: "Pitching week's pitches: what each person or pair pitched, and who said they'd join each. Member-authored text.",
+  },
+  teams: {
+    label: "Teams",
+    fate: "destroyed",
+    note: "An incubator's teams: each team's name, project line and people, and who has been told their team.",
+  },
+  teamEntries: {
+    label: "Team pages",
+    fate: "destroyed",
+    note: "What each team wrote on its page: every week's check-in, the team's links and its hand-in. Member-authored text.",
+  },
+  finishing: {
+    label: "Who finished",
+    fate: "destroyed",
+    note: "The rule for who finished, and each change the programme's lead made to who did.",
+  },
+  facilitating: {
+    label: "Asks to facilitate",
+    fate: "destroyed",
+    note: "Who was asked to facilitate each group, by when, and what they answered, with the run's training and the last test of the email. The emails themselves stay in the delivery log.",
+  },
+  ratings: {
+    label: "Ratings at the end",
+    fate: "destroyed",
+    note: "What each group's facilitators, the programme's lead and admins said about each person once the last session was over.",
+  },
+  certificates: {
+    label: "Certificates whose link is off",
+    fate: "destroyed",
+    note: "Certificates sent to the people who finished and to facilitators, which nobody but each owner could open. They go with the run.",
+  },
+  certificatesKept: {
+    label: "Certificates whose link is on",
+    fate: "orphaned",
+    note: "KEPT. Their owners turned their links on, so they stay for the people given the link, as the privacy policy says. Each still shows what it was issued with, and loses its link back to this run.",
   },
   mirroredTasks: {
     label: "Mirrored My Work tasks",
@@ -260,6 +300,46 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "The operational log for this run: registers pushed and edited, facilitators appointed and removed, drop-outs, the run being settled. Unlike the delivery log these describe rows this destroy is deleting, so they do not outlive it.",
   },
+  updates: {
+    label: "Updates",
+    fate: "destroyed",
+    note: "The updates written to this run's people and its facilitators, with what each one's email did. Staff writing, and it goes with the run. The emails themselves stay in the delivery log.",
+  },
+  groupNotes: {
+    label: "Facilitators' notes on their groups",
+    fate: "destroyed",
+    note: "The notes each group's facilitators wrote for each other on their group's page. Staff writing about the groups this destroy deletes, so they go with the run.",
+  },
+  groupSharedNotes: {
+    label: "Notes shared with each group",
+    fate: "destroyed",
+    note: "The notes each group's people and facilitators shared with their group on the week pages. They belong to the groups this destroy deletes, so they go with the run.",
+  },
+  packsAndCases: {
+    label: "Packs, cases and ready marks",
+    fate: "destroyed",
+    note: "What each person had in the weeks' packs and talks: the pack they picked or were given, the case they were given, and whether they marked themselves ready. Each one names a week this destroy deletes, so they go with the run.",
+  },
+  pairs: {
+    label: "Pairs and laptops",
+    fate: "destroyed",
+    note: "Who was paired with whom for a session in pairs, and who was bringing a laptop. Each one names a group and a week this destroy deletes, so they go with the run.",
+  },
+  anonymousFeedback: {
+    label: "The anonymous form and its answers",
+    fate: "destroyed",
+    note: "The programme's anonymous keep, change and drop form, which stops its link working, and every answer to it. Nothing in them names anybody, so they go with the run and nothing else ever takes them.",
+  },
+  predictions: {
+    label: "Sealed predictions",
+    fate: "destroyed",
+    note: "Each person's predictions card on this run: what they answered in the week it was sealed in and in the week it opened in. Each is that person's own record of the run, so it goes with the run.",
+  },
+  recordOpenings: {
+    label: "Records of admins opening a card",
+    fate: "destroyed",
+    note: "Each time an admin opened somebody's sealed predictions card on this run, with who opened it and when. They are about the cards this destroy deletes, so they go with the run.",
+  },
   schedulerMarkers: {
     label: "Scheduler send markers",
     fate: "destroyed",
@@ -284,6 +364,11 @@ const COUNT_META: Record<string, CountMeta> = {
     label: "Public course page",
     fate: "destroyed",
     note: "The authored programme page: the pitch, the weekly themes, the FAQ and the journey strip. Authored copy, not member work, and it goes with the course it describes.",
+  },
+  facilitatorGuide: {
+    label: "Facilitator guide documents",
+    fate: "destroyed",
+    note: "The course’s session plans, week notes and its own documents for facilitators. Course material, not member work, and it goes with the course it belongs to.",
   },
   dataExportRows: {
     label: "Download-log rows",

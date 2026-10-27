@@ -152,7 +152,10 @@ export async function readMirrorPlan(
         sessionKey: session.sessionKey,
         weekNumber: session.weekNumber,
         occurrence: session.occurrence,
-        held: override?.held ?? stored?.held ?? true,
+        // A session cancelled through "Change a session" did not happen,
+        // whatever its register says: it counts for nobody (the rollup's
+        // second rule), as the lead's tabs and the register read it.
+        held: !session.cancelled && (override?.held ?? stored?.held ?? true),
         pushedAt: override?.pushedAt ?? stored?.pushedAt ?? null,
         status,
       });

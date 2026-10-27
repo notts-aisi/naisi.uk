@@ -1,0 +1,153 @@
+/*
+ * An A4 sign. On screen, the sheet sits on the page with a toolbar above it;
+ * in print, the sheet is the page. Every size inside the sheet is in `cqi`
+ * (a hundredth of the sheet's width), so the preview on a phone is the
+ * printed sheet made smaller, and nothing reflows between the two.
+ */
+
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+.page {
+  min-height: 100vh;
+  padding: var(--space-6) var(--space-4) var(--space-12);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.toolbar {
+  width: min(100%, 210mm);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.toolbarNote {
+  flex: 1 1 12rem;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-accent-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.backLink:hover {
+  text-decoration: underline;
+}
+
+/* The sheet is the size container; its inner box is where the cqi sizes are
+   read, so a cqi is a hundredth of the sheet's width, padding included. */
+.sheet {
+  container-type: inline-size;
+  box-sizing: border-box;
+  width: min(100%, 210mm);
+  aspect-ratio: 210 / 297;
+  background: #fff;
+  color: #000;
+  box-shadow: var(--shadow-lg);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.sheetInner {
+  box-sizing: border-box;
+  height: 100%;
+  padding: 12cqi 9cqi 9cqi;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.name {
+  flex: none;
+  margin: 0 0 7cqi;
+  font-family: var(--font-display);
+  font-size: 6cqi;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+/* Never shrunk by the column: the code is the sign. */
+.code {
+  flex: none;
+  display: block;
+  width: 62cqi;
+  height: 62cqi;
+}
+
+.address {
+  flex: none;
+  margin: 5cqi 0 0;
+  font-family: var(--font-meta);
+  font-size: 4.2cqi;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: auto 0 0;
+  max-width: 70cqi;
+  font-family: var(--font-body);
+  font-size: 2.6cqi;
+  line-height: 1.4;
+}
+
+.refusal {
+  max-width: 32rem;
+  padding: var(--space-12) 0;
+}
+
+.refusalTitle {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+}
+
+@media print {
+  .page {
+    min-height: 0;
+    padding: 0;
+    display: block;
+    background: #fff;
+  }
+
+  .toolbar {
+    display: none;
+  }
+
+  .sheet {
+    width: 210mm;
+    height: 296mm;
+    aspect-ratio: auto;
+    overflow: hidden;
+    box-shadow: none;
+    break-inside: avoid;
+  }
+}
+
+@media (max-width: 48rem) {
+  .page {
+    padding-top: var(--space-4);
+    gap: var(--space-4);
+  }
+
+  .sheet {
+    box-shadow: var(--shadow-md);
+  }
+}

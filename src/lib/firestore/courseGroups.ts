@@ -36,7 +36,9 @@ import {
  * `paceStartDate`, `paceWeekPlan` and the `sessionModes` map (the stored form
  * of every override's `mode` — see `GroupSessionMode`) are SERVER-OWNED like
  * `memberCount` (pinned in rules for the non-admin client lanes; the
- * pace/session routes are the writers). The rest of the session fields stay
+ * pace/session routes are the writers). So is `sessionChanges`, the record of
+ * what "Change a session" did and why (see `SessionChange`), whose one writer
+ * is the change route. The rest of the session fields stay
  * facilitator-editable client-direct, exactly as before.
  */
 
@@ -113,6 +115,53 @@ export const GROUP_SESSION_MODES: GroupSessionMode[] = ["in-person", "virtual"];
 export type GroupSessionOverride = Partial<GroupSession> & {
   /** SERVER-OWNED — folded from `sessionModes` at normalise time. */
   mode?: GroupSessionMode;
+};
+
+/**
+ * What "Change a session" did to one week's session (Q25), as the group's
+ * people are told it.
+ *
+ *  - `online`: the week's session is held online, same day and time. The
+ *    effect itself is `sessionModes[weekId] = "virtual"`; this is the record of
+ *    who did it and why.
+ *  - `moved`: the week's session moved, that week only. The effect is the
+ *    week's `sessionOverrides` entry (day, time, room).
+ *  - `cancelled`: the week's session is off and the group keeps pace: its
+ *    reading stays open and the next session covers both weeks. The record IS
+ *    the effect, and only while the week's session still falls on `dateKey`
+ *    (see `isCancelledOn`).
+ *  - `pushed`: the session on `dateKey` was cancelled and this week, with
+ *    every week after it, moved back one week. The effect is a break slot in
+ *    the group's own plan (`paceWeekPlan`); this is the record of the
+ *    cancelled evening.
+ *
+ * SERVER-OWNED, like `sessionModes`: written only by the change route, and
+ * pinned in firestore.rules for every non-admin client lane, so the reason a
+ * group reads and the cancellation it acts on come from the one place that
+ * also tells them.
+ */
+export type SessionChangeKind = "online" | "moved" | "cancelled" | "pushed";
+
+export const SESSION_CHANGE_KINDS: readonly SessionChangeKind[] = [
+  "online",
+  "moved",
+  "cancelled",
+  "pushed",
+];
+
+export type SessionChange = {
+  kind: SessionChangeKind;
+  /** What the group was told, as typed: one line, no link. */
+  reason: string;
+  /**
+   * The session's civil date when it was changed, "YYYY-MM-DD": the evening
+   * nobody meets for `cancelled` and `pushed`, the date it moved FROM for
+   * `moved`, the evening held online for `online`.
+   */
+  dateKey: string;
+  /** Who changed it. */
+  byUid: string;
+  at: Date | null;
 };
 
 /**
@@ -199,10 +248,35 @@ export type CourseGroupDoc = {
    * ONLY through `resolveCalendar()` in `src/lib/courses/groupResolve.ts`.
    */
   paceWeekPlan: WeekPlanEntry[] | null;
+  /**
+   * What "Change a session" did, by week doc id ("w04"). SERVER-OWNED (the
+   * change route is the one writer; pinned in rules like `sessionModes`).
+   * Bounded by `maxSessionOverrides`, taken in week order. See `SessionChange`.
+   */
+  sessionChanges: Record<string, SessionChange>;
   archived: boolean;
   createdAt?: Date | null;
   updatedAt?: Date | null;
 };
+
+/**
+ * THE ORDER A RUN'S GROUPS ARE LISTED IN, on every tab of a programme's page
+ * and wherever its groups are listed for staff: the order the Groups tab's
+ * People in groups draws its columns in. By the day of the week each group
+ * meets, Monday first, then the time it starts, then its name. A list that
+ * sorts its groups any other way puts them in two orders on one page.
+ *
+ * A sentence that names several groups ("Groups A and D") is not a list and
+ * reads in name order (`groupsInWords`).
+ */
+export function compareGroupsByMeeting(
+  a: { name: string; session: { weekday: number; startTimeLocal: string } },
+  b: { name: string; session: { weekday: number; startTimeLocal: string } },
+): number {
+  // `weekday` is stored Sunday first (`Date.getDay()`).
+  const day = ((a.session.weekday + 6) % 7) - ((b.session.weekday + 6) % 7);
+  return day || a.session.startTimeLocal.localeCompare(b.session.startTimeLocal) || a.name.localeCompare(b.name);
+}
 
 /**
  * Field budgets for group editing. Keep in sync with firestore.rules — the
@@ -220,6 +294,8 @@ export const GROUP_FIELD_LIMITS = {
   /** One appointment record per facilitator slot; see `maxFacilitators`. */
   maxFacilitatorAppointments: 5,
   appointedByName: 120,
+  /** The reason a group is given for a changed session: one line. */
+  changeReason: 200,
 } as const;
 
 /**
@@ -444,6 +520,40 @@ export function sessionModeForWeek(
 }
 
 /**
+ * What "Change a session" last did to a (group, week)'s session, or null.
+ * The same `weekDocId(n)` addressing as `sessionForWeek`. Defensive about a
+ * group shape that predates the field.
+ */
+export function sessionChangeForWeek(
+  group: Pick<CourseGroupDoc, "sessionChanges">,
+  weekId: string,
+): SessionChange | null {
+  return group.sessionChanges?.[weekId] ?? null;
+}
+
+/**
+ * IS THIS WEEK'S SESSION, ON THIS DATE, CANCELLED (and the group keeping
+ * pace)? The one predicate every reader asks: the resolver that marks a
+ * session cancelled, and through it the register chase, next week's email and
+ * every session card.
+ *
+ * The date is part of the answer on purpose. A cancellation is of one
+ * evening: "Cancel Tue 24 Nov’s session". If the week's session later falls
+ * on another date (the run was re-dated, the group re-paced), that is not the
+ * evening that was cancelled, and the session is held again on its new date
+ * rather than silently staying off.
+ */
+export function isCancelledOn(
+  group: Pick<CourseGroupDoc, "sessionChanges">,
+  weekId: string,
+  dateKey: string,
+): boolean {
+  if (!dateKey) return false;
+  const change = sessionChangeForWeek(group, weekId);
+  return change !== null && change.kind === "cancelled" && change.dateKey === dateKey;
+}
+
+/**
  * EVERY week's mode for this group, flat — `sessionModeForWeek` for a surface
  * that cannot name its week in advance.
  *
@@ -473,6 +583,36 @@ export function sessionModesOf(
     const mode = group.sessionOverrides[weekId]?.mode;
     if (!mode) continue;
     out[weekId] = mode;
+    count += 1;
+  }
+  return out;
+}
+
+/**
+ * The change records, keeping only what a reader can trust: a week id key, a
+ * known kind, a real civil date, a one-line reason within its cap. Bounded by
+ * `maxSessionOverrides` and taken in week order, the `sessionModesOf`
+ * doctrine, so a hand-edited document truncates the same way every time.
+ */
+function normalizeSessionChanges(v: unknown): Record<string, SessionChange> {
+  if (!v || typeof v !== "object") return {};
+  const out: Record<string, SessionChange> = {};
+  let count = 0;
+  for (const weekId of Object.keys(v as Record<string, unknown>).sort()) {
+    if (count >= GROUP_FIELD_LIMITS.maxSessionOverrides) break;
+    if (!WEEK_ID_SHAPE.test(weekId)) continue;
+    const raw = (v as Record<string, unknown>)[weekId];
+    if (!raw || typeof raw !== "object") continue;
+    const entry = raw as Raw;
+    if (!SESSION_CHANGE_KINDS.includes(entry.kind as SessionChangeKind)) continue;
+    if (typeof entry.dateKey !== "string" || !isValidDateKey(entry.dateKey)) continue;
+    out[weekId] = {
+      kind: entry.kind as SessionChangeKind,
+      reason: str(entry.reason, GROUP_FIELD_LIMITS.changeReason).replace(/\s+/g, " ").trim(),
+      dateKey: entry.dateKey,
+      byUid: typeof entry.byUid === "string" ? entry.byUid : "",
+      at: tsToDate(entry.at),
+    };
     count += 1;
   }
   return out;
@@ -546,6 +686,7 @@ export function normalizeCourseGroup(id: string, data: Raw): CourseGroupDoc {
     paceWeekPlan: Array.isArray(data.paceWeekPlan)
       ? sanitizeWeekPlan(data.paceWeekPlan)
       : null,
+    sessionChanges: normalizeSessionChanges(data.sessionChanges),
     archived: data.archived === true,
     createdAt: tsToDate(data.createdAt),
     updatedAt: tsToDate(data.updatedAt),

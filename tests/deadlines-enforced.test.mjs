@@ -140,10 +140,39 @@ const DEADLINE_NAMES = new Map([
         "src/lib/applications/editor/write.ts",
         "src/lib/courses/enrolWindow.ts",
         "src/lib/courses/window.ts",
+        "src/lib/events/checkIns.ts",
         "src/lib/firestore/admissionRounds.ts",
+        "src/lib/firestore/surveys.ts",
         "src/lib/scheduler/jobs/admissionsReminders.ts",
+        "src/lib/surveys/create.ts",
+        "src/lib/surveys/emails.ts",
+        // A survey after an event's: `events/create.ts` writes its close when it
+        // is made, and `events/words.ts` names it in its two emails.
+        "src/lib/surveys/events/create.ts",
+        "src/lib/surveys/events/words.ts",
+        "src/lib/surveys/words.ts",
+        // The anonymous form's (src/lib/anonymousFeedback/): `model.ts` declares
+        // its close and `forms.ts` stores it, copied from the survey at the
+        // programme's end, which `sending.ts` hands over at its first send.
+        "src/lib/anonymousFeedback/forms.ts",
+        "src/lib/anonymousFeedback/model.ts",
+        "src/lib/surveys/sending.ts",
       ],
       promises: [
+        {
+          of: "an event's door list",
+          binds: "the people who run check-in, and anybody checking themselves in with the door code",
+          why:
+            "An hour after the event ends: until then the door list and the door code take " +
+            "check-ins; after it, people who came are added from the event's page, until a " +
+            "week after the event.",
+          told: [
+            "src/lib/events/checkInView.ts",
+            "src/app/(app)/events/manage/[id]/check-in/page.tsx",
+          ],
+          enforced: ["src/app/api/events/[id]/check-ins/route.ts", "src/lib/events/selfCheckIn.ts"],
+          predicate: "checkInPhase(",
+        },
         {
           of: "an admission round",
           binds: "an applicant",
@@ -176,6 +205,26 @@ const DEADLINE_NAMES = new Map([
             "src/app/api/admissions/rounds/[roundId]/apply/submit/route.ts",
           ],
           predicate: "isStageOpenForAnswers(",
+        },
+        {
+          of: "a survey",
+          binds: "a person a survey was sent to",
+          why:
+            "The last instant a survey takes answers: 23:59 in London on the day an admin picked, or earlier when " +
+            "an admin closes it by hand. The email and the answer page both name the day.",
+          told: ["src/lib/surveys/answerView.ts", "src/lib/surveys/sending.ts", "src/lib/surveys/events/answerView.ts", "src/lib/surveys/events/words.ts"],
+          enforced: ["src/lib/surveys/answer.ts", "src/lib/surveys/events/store.ts"],
+          predicate: "isOpen(",
+        },
+        {
+          of: "a programme's anonymous form",
+          binds: "anybody holding the programme's link to it",
+          why:
+            "The anonymous keep, change and drop form takes answers until the survey at the programme's end closes: " +
+            "that survey's closing time, copied when it is first sent, which fixes it. The form's page names the day.",
+          told: ["src/lib/anonymousFeedback/view.ts", "src/lib/anonymousFeedback/readers.ts"],
+          enforced: ["src/app/api/feedback/route.ts"],
+          predicate: "isFormOpen(",
         },
       ],
     },
@@ -280,11 +329,13 @@ const DEADLINE_NAMES = new Map([
     {
       files: [
         "src/app/api/worksheets/circulations/route.ts",
+        "src/lib/courses/heldEmailTask.ts",
         "src/lib/courses/unmarkedRegisters.ts",
         "src/lib/email/worksheetReminderEmails.ts",
         "src/lib/firestore/circulations.ts",
         "src/lib/firestore/courseTasks.ts",
         "src/lib/firestore/tasks.ts",
+        "src/lib/scheduler/jobs/nextWeekEmail.ts",
         "src/lib/scheduler/jobs/unmarkedRegisters.ts",
         "src/lib/scheduler/jobs/worksheetDueReminders.ts",
         "src/lib/worksheets/mint.ts",
@@ -346,12 +397,44 @@ const DEADLINE_NAMES = new Map([
     },
   ],
   [
+    "surveyClosesAt",
+    {
+      files: ["src/lib/events/checkIns.ts"],
+      promises: [
+        {
+          of: "an event's survey, as check-in reads it",
+          binds: "the people who run check-in, adding somebody who came after the door, and a walk-in who left an email",
+          why:
+            "Not a stored field: the event's survey's close (closed by hand, else its closing time), " +
+            "handed to check-in when it is sooner than a week after the event. Nobody more is added as " +
+            "having come from then, and a walk-in's email, kept for that survey alone, goes then.",
+          told: [
+            "src/app/(app)/events/manage/[id]/check-in/page.tsx",
+            "src/app/(app)/events/manage/[id]/door/page.tsx",
+          ],
+          enforced: ["src/app/api/events/[id]/check-ins/route.ts"],
+          predicate: "checkInPhase(",
+        },
+      ],
+    },
+  ],
+  [
     "closedAt",
     {
       files: [
         "src/app/api/worksheets/circulations/[circulationId]/close/route.ts",
         "src/app/api/worksheets/circulations/route.ts",
         "src/lib/firestore/circulations.ts",
+        // A survey's: `surveys.ts` declares it and `create.ts` writes it as null
+        // on a new survey.
+        "src/lib/firestore/surveys.ts",
+        "src/lib/surveys/create.ts",
+        // A survey after an event's, written as null when it is made.
+        "src/lib/surveys/events/create.ts",
+        // The anonymous form's: `model.ts` declares it and `forms.ts` writes it
+        // as null when the survey at the end opens the form.
+        "src/lib/anonymousFeedback/forms.ts",
+        "src/lib/anonymousFeedback/model.ts",
       ],
       promises: [
         {
@@ -364,6 +447,26 @@ const DEADLINE_NAMES = new Map([
           notEnforced:
             "It is a record of a past act, not a limit on a future one. The neighbouring " +
             "`status` is what refuses a late submission, and this field only timestamps it.",
+        },
+        {
+          of: "a survey an admin has closed by hand",
+          binds: "a person a survey was sent to",
+          why:
+            "Unlike a circulation's, a survey's is the limit itself: once an admin presses Close it takes no " +
+            "answer, whatever its closing day says, and the answer page says on which day it closed.",
+          told: ["src/lib/surveys/answerView.ts", "src/lib/surveys/events/answerView.ts"],
+          enforced: ["src/lib/surveys/answer.ts", "src/lib/surveys/events/store.ts"],
+          predicate: "isOpen(",
+        },
+        {
+          of: "a programme's anonymous form closed with its survey",
+          binds: "anybody holding the programme's link to it",
+          why:
+            "Closing the survey at a programme's end by hand closes its anonymous form too, and from then it takes no " +
+            "answer, whatever its closing day says; the form's page says on which day it closed.",
+          told: ["src/lib/anonymousFeedback/view.ts"],
+          enforced: ["src/app/api/feedback/route.ts"],
+          predicate: "isFormOpen(",
         },
       ],
     },

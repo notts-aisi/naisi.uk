@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import type { DocumentReference } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { canApproveCourse } from "@/lib/firestore/users";
 import { asUidList } from "@/lib/firestore/events";
 import {
@@ -12,6 +12,8 @@ import {
   sanitizeWeekPlan,
 } from "@/lib/firestore/courses";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { weekBlocksField } from "@/lib/courses/weekBlocks/model";
+import { RUN_GUIDE_FIELDS, runGuideFields } from "@/lib/courses/guide/model";
 
 /**
  * Copy-forward: clone one run's `weeks` subcollection into another run of the
@@ -58,6 +60,11 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  *  - **Idempotent.** A week id that already exists in the target is skipped
  *    unless the caller asks to overwrite, so re-running the copy after
  *    authoring three weeks by hand doesn't wipe them.
+ *
+ * The programme's guide travels with its weeks: the source run's Start here
+ * and Glossary (`runGuideFields`, the one copy of them) go onto the target
+ * run on the same terms, each kept when the target already has its own
+ * unless the caller asks to overwrite.
  */
 
 /**
@@ -121,16 +128,13 @@ export async function POST(
   const target = targetSnap.data() ?? {};
   const source = sourceSnap.data() ?? {};
 
-  // Admins, approvers, and the TARGET run's track leads — the people who own
-  // this run's curriculum. Authority over the source run isn't required
+  // Admins, approvers, the TARGET run's track leads and the lead of the
+  // programme that names the target run (`runStaffingOf`): the people who
+  // own this run's curriculum. Authority over the source run isn't required
   // separately because of the same-course check below: a track lead can only
   // ever pull content out of a run of the course they already lead.
-  const isTrackLead = isNamedWithStanding(
-    actor,
-    "courseRuns.trackLeadUids",
-    asUidList(target.trackLeadUids),
-  );
-  if (!(canApproveCourse(actor) || isTrackLead)) {
+  const staffing = await runStaffingOf(db, actor, { id: runId, trackLeadUids: asUidList(target.trackLeadUids) });
+  if (!(canApproveCourse(actor) || doesTrackLeadWork(staffing))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -199,6 +203,10 @@ export async function POST(
         materials: week.materials,
         exercises: week.exercises,
         checklist: week.checklist,
+        questions: week.questions,
+        // A block week's blocks, ids and all (`weekBlocksField`); a week
+        // written before blocks gets no `blocks` key.
+        ...weekBlocksField(week),
         estimatedMinutes: week.estimatedMinutes,
         // Carried verbatim: the copy is a faithful clone of authored state, and
         // publication is scoped to this run anyway (the public catalogue reads
@@ -220,5 +228,15 @@ export async function POST(
     await batch.commit();
   }
 
-  return NextResponse.json({ ok: true, created: pending.length, skipped });
+  // The programme's Start here and Glossary, on the weeks' terms: each the
+  // source has goes onto the target, unless the target has its own and the
+  // caller did not ask to overwrite.
+  const sourceGuide = runGuideFields(source);
+  const targetGuide = runGuideFields(target);
+  const guide = RUN_GUIDE_FIELDS.filter((field) => sourceGuide[field] !== undefined && (overwrite || targetGuide[field] === undefined));
+  if (guide.length > 0) {
+    await runsCol.doc(runId).update(Object.fromEntries(guide.map((field) => [field, sourceGuide[field]])));
+  }
+
+  return NextResponse.json({ ok: true, created: pending.length, skipped, guide });
 }

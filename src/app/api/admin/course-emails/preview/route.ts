@@ -7,6 +7,8 @@ import {
   renderCourseNudge,
   COURSE_NUDGE_TEMPLATE_ID,
 } from "@/lib/email/courseNudgeEmail";
+import { composeFacilitatingEmail, facilitatingFactsFromSample } from "@/lib/courses/facilitatingEmail";
+import { composeIncubatorStartEmail, incubatorStartFactsFromSample } from "@/lib/courses/incubatorStartEmail";
 import { composePlacementEmail, placementFactsFromSample } from "@/lib/courses/placementEmail";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { isCourseTemplateId, type CourseTemplateId } from "@/lib/firestore/courseEmails";
@@ -19,6 +21,12 @@ import {
 
 /** The one template whose preview is written by the placement email's own composer. */
 const PLACEMENT_TEMPLATE_ID: CourseTemplateId = "course-allocated";
+
+/** And the one written by the facilitators' email's composer. */
+const FACILITATING_TEMPLATE_ID: CourseTemplateId = "course-facilitating";
+
+/** And the one an incubator's people are sent at Publish, written by its own composer. */
+const INCUBATOR_TEMPLATE_ID: CourseTemplateId = "course-allocated-incubator";
 
 /**
  * Server-side render of a COURSE email for the admin editor's iframe preview.
@@ -72,7 +80,11 @@ export async function POST(req: Request) {
         ? await renderNudgePreview(rawSubject, blocks, tokens)
         : templateId === PLACEMENT_TEMPLATE_ID
           ? await renderPlacementPreview(rawSubject, blocks, tokens)
-          : await renderCourseTemplatePreview(rawSubject, blocks, tokens);
+          : templateId === FACILITATING_TEMPLATE_ID
+            ? await renderFacilitatingPreview(rawSubject, blocks, tokens)
+            : templateId === INCUBATOR_TEMPLATE_ID
+              ? await renderIncubatorPreview(rawSubject, blocks, tokens)
+              : await renderCourseTemplatePreview(rawSubject, blocks, tokens);
     return new NextResponse(html, {
       status: 200,
       headers: { "content-type": "text/html; charset=utf-8" },
@@ -114,6 +126,52 @@ function renderPlacementPreview(
   tokens: TokenValues,
 ): Promise<string> {
   const proof = composePlacementEmail({ subject: rawSubject, blocks }, placementFactsFromSample(tokens), {
+    proof: true,
+  });
+  const subject = (proof.ok && proof.subject) || "(no subject)";
+  return render(
+    ApplicationEmail({
+      subject,
+      blocks: proof.ok ? proof.blocks : [],
+      preheader: subject,
+    }),
+  );
+}
+
+/**
+ * The facilitators' email, through its own composer, as a PROOF: exactly as
+ * for the placement email above, a paragraph with nothing to say is left out
+ * as it would be for a facilitator, and a token it cannot fill stays as typed.
+ */
+function renderFacilitatingPreview(
+  rawSubject: string,
+  blocks: ReturnType<typeof sanitizeBlocks>,
+  tokens: TokenValues,
+): Promise<string> {
+  const proof = composeFacilitatingEmail({ subject: rawSubject, blocks }, facilitatingFactsFromSample(tokens), {
+    proof: true,
+  });
+  const subject = (proof.ok && proof.subject) || "(no subject)";
+  return render(
+    ApplicationEmail({
+      subject,
+      blocks: proof.ok ? proof.blocks : [],
+      preheader: subject,
+    }),
+  );
+}
+
+/**
+ * The incubator's email, through its own composer, as a PROOF: exactly as for
+ * the two above, a paragraph with nothing to say is left out as it would be
+ * for a person on the run, and a token it cannot fill stays as typed.
+ */
+function renderIncubatorPreview(
+  rawSubject: string,
+  blocks: ReturnType<typeof sanitizeBlocks>,
+  tokens: TokenValues,
+): Promise<string> {
+  const proof = composeIncubatorStartEmail({ subject: rawSubject, blocks }, incubatorStartFactsFromSample(tokens), {
     proof: true,
   });
   const subject = (proof.ok && proof.subject) || "(no subject)";

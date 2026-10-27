@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { holdsStanding, isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { runCrests } from "@/lib/crests/runs";
+import type { ShownCrest } from "@/lib/crests/resolve";
 import { isValidDateKey } from "@/lib/courses/weekPlan";
+import { finishedForMember } from "@/lib/courses/finishing/record";
 import { memberCurrentWeek, resolveCalendar } from "@/lib/courses/groupResolve";
 import {
   normalizeCourseApplication,
@@ -11,6 +14,7 @@ import {
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
+  placementIsShownTo,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
 import {
@@ -27,7 +31,7 @@ import {
  * "Every run you touch" — the payload behind the `/learn` hub.
  *
  * WHO MAY READ: any signed-in caller, about THEMSELVES only. There is no uid
- * parameter and no way to ask about someone else: the four queries below are
+ * parameter and no way to ask about someone else: the five queries below are
  * each scoped to `actor.uid`, so the route is enumeration-safe by construction.
  *
  * Five ways a run reaches this list, merged into one row per run because one
@@ -36,7 +40,14 @@ import {
  *
  *   learner / facilitator  — a `courseEnrolments` row (facilitators get one
  *                            when they are staffed onto a group, which is why
- *                            "every run you touch" is ONE enrolment query)
+ *                            "every run you touch" is ONE enrolment query).
+ *                            A facilitator who HOLDS A PLACE has a learner's
+ *                            row instead and facilitates through the group,
+ *                            so `facilitator` is also read off the groups
+ *                            that name them (`facilitatorUids`, one
+ *                            array-contains, the automatic index), and Home
+ *                            gives them the facilitator's Home as it gives
+ *                            anybody who facilitates
  *   reviewer               — named in `courseRuns.admissionsReviewerUids`
  *   lead                   — named in `courseRuns.trackLeadUids`
  *   offered / waitlisted   — a decided `courseApplications` row with no seat
@@ -51,7 +62,8 @@ import {
  * ── THE OFFER GAP (why the fourth query exists) ─────────────────────────────
  * Accepting an application deliberately does NOT enrol anyone: "an accepted
  * application is an offer, not a seat" (the decide route's header), and the
- * `courseEnrolments` row is minted only when allocation is PUBLISHED. Between
+ * `courseEnrolments` row a placement makes is shown to its owner only once
+ * allocation is PUBLISHED (see the last note below). Between
  * those two moments — which is hours at best and a fortnight in practice — a
  * member who has just been emailed "you're in" held no row in any collection
  * this route read, so `/learn` told them "You're not on a course yet", the
@@ -67,9 +79,41 @@ import {
  *
  * PII: names never travel at all (nobody but the caller is named), and the one
  * cross-collection lookup is a group NAME. No emails, no cohort rosters. The
- * application rows are read for exactly two fields, `runId` and `status`;
- * nothing else on them (the applicant's email, their answers) goes near the
- * payload, and the query cannot see another applicant's row at all.
+ * application rows are read for exactly three fields, `runId`, `status` and
+ * `fromForm`; nothing else on them (the applicant's email, their answers)
+ * goes near the payload, and the query cannot see another applicant's row at
+ * all.
+ *
+ * ── A ROW THE APPLICATION FORM'S HAND-OVER WROTE IS ANNOUNCED AS NOTHING ────
+ * The term's application form decides who holds a place, and an admin's
+ * hand-over then writes a row on a run for each of them (`fromForm` says so),
+ * for the allocation board to place people from. That row is the course
+ * side's working list. It is NOT news for its owner, whatever its status:
+ *
+ *  - what became of their application is said on their own application page
+ *    and on the list of their applications, and nowhere else
+ *    (docs/applications.md, "One set of words for an outcome"), and what
+ *    comes next for their kind of programme is said there too;
+ *  - an offer card speaks in the words of a run's own application form
+ *    ("Place offered", "Waitlisted"), which somebody from the term's form
+ *    never used.
+ *
+ * So such a row is passed over before its status is looked at, and nothing
+ * about the form or the caller's application is read here at all. The first
+ * thing this hub shows somebody the form placed is their GROUP: the enrolment
+ * an admin's placement on the board makes, drawn as it is for anybody, once
+ * Publish has told them (below).
+ *
+ * ── A PLACEMENT IS SHOWN ONCE PUBLISH HAS TOLD ITS OWNER ────────────────────
+ * An admin's placement on the board makes the enrolment at once, but it is
+ * the board's working copy until Publish emails its owner their group
+ * (`placementIsTold`). Until then this hub passes the enrolment over as if
+ * it were not there, so the member reads what they read before they were
+ * placed: nothing at all for somebody the application form placed, and the
+ * offer card for somebody who applied to the run itself (the probe below
+ * does not count such a seat as spending the offer). A seat somebody chose
+ * for themselves on an open run shows at once, and an admin is shown their
+ * own seats as they are.
  */
 
 // ---------------------------------------------------------------------------
@@ -84,7 +128,13 @@ export type MyRunRole = "learner" | "facilitator" | "reviewer" | "lead";
  * offer on the run they lead, and a reviewer holds neither.
  *
  *   enrolled    — a LIVE `courseEnrolments` row (active or completed). Exactly
- *                 the population this route served before offers existed.
+ *                 the population this route served before offers existed,
+ *                 and one more: somebody named on a live group of the run
+ *                 as one of its facilitators, who holds a row on it, told
+ *                 or not. The run's own gate (`runAccess.ts`) admits them
+ *                 from the appointment, so Home gives them the
+ *                 facilitator's Home from then on, whether or not they
+ *                 also hold a place Publish has yet to tell them about.
  *   offered     — accepted, not yet allocated. They have been told they are in
  *                 and there is no seat document anywhere yet.
  *   waitlisted  — waitlisted, same absence of a seat.
@@ -163,6 +213,19 @@ export type MyRunEntry = {
   pacedByGroup: boolean;
   /** Only ever the caller's OWN group, and only when they are enrolled in one. */
   groupName: string | null;
+  /**
+   * WHETHER THE CALLER FINISHED THIS RUN: true only once its last session is
+   * over and their own finished record says so (`finishedForMember`, the one
+   * answer every page asks). False for everything else, so a card told false
+   * says the run has ended and claims nothing.
+   */
+  finished: boolean;
+  /**
+   * The crest the card shows beside the run's name: `crestForRun`'s answer
+   * (the programme that names the run, else its course's), or null for the
+   * NAISI emblem. Only the key travels, never the form or the course.
+   */
+  shownCrest: ShownCrest;
 };
 
 export type MePayload = { runs: MyRunEntry[] };
@@ -181,7 +244,10 @@ const ROLE_ORDER: MyRunRole[] = ["learner", "facilitator", "reviewer", "lead"];
  *
  *   1. A LIVE ENROLMENT WINS OUTRIGHT. Once a seat exists the application is
  *      history — it is left reading `accepted` forever (nothing rewinds it),
- *      so it must never be consulted while a seat is present.
+ *      so it must never be consulted while a seat is present. So does
+ *      facilitating a live group of the run: the run's own gate admits a
+ *      facilitator from the appointment, so the row says enrolled from
+ *      then on, as it does for a facilitator who holds no place.
  *
  *   2. AN ENROLMENT DOC THAT IS NOT LIVE KILLS THE OFFER. This is the rule
  *      that needs the test. The remove route flips the enrolment to `removed`
@@ -201,12 +267,18 @@ const ROLE_ORDER: MyRunRole[] = ["learner", "facilitator", "reviewer", "lead"];
 export function membershipFor(signals: {
   /** An `active` or `completed` enrolment on this run. */
   hasLiveEnrolment: boolean;
+  /**
+   * Named on a live group of this run as one of its facilitators, standing,
+   * with a row of their own on the run (told or not). Absent reads as false.
+   */
+  facilitatesLiveGroup?: boolean;
   /** ANY enrolment doc at (run, uid) — including withdrawn / removed. */
   hasEnrolmentDoc: boolean;
   /** The caller's own application status, or null if they never applied. */
   applicationStatus: CourseApplicationStatus | null;
 }): MyRunMembership {
   if (signals.hasLiveEnrolment) return "enrolled";
+  if (signals.facilitatesLiveGroup === true) return "enrolled";
   if (signals.hasEnrolmentDoc) return "none";
   if (signals.applicationStatus === "accepted") return "offered";
   if (signals.applicationStatus === "waitlisted") return "waitlisted";
@@ -263,7 +335,7 @@ export async function GET() {
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
-  // Four scoped queries, one per way a run can reach the hub. `withdrawn` and
+  // Five scoped queries, one per way a run can reach the hub. `withdrawn` and
   // `removed` enrolments are excluded at the query: leaving a run removes it
   // from your hub, and the composite (uid, status) index makes that free.
   // `completed` stays — a finished cohort is history you can still open.
@@ -273,7 +345,7 @@ export async function GET() {
   // want a (uid, status) composite index this collection does not have, and
   // the rows are the CALLER'S OWN — a member holds one per run they ever
   // applied to, so the whole set is a handful of documents whatever the term.
-  const [enrolSnap, reviewerSnap, leadSnap, applicationSnap] = await Promise.all([
+  const [enrolSnap, reviewerSnap, leadSnap, applicationSnap, facilitatedSnap] = await Promise.all([
     db
       .collection("courseEnrolments")
       .where("uid", "==", actor.uid)
@@ -295,16 +367,45 @@ export async function GET() {
       .where("uid", "==", actor.uid)
       .limit(50)
       .get(),
+    db
+      .collection("courseGroups")
+      .where("facilitatorUids", "array-contains", actor.uid)
+      .limit(50)
+      .get(),
   ]);
+
 
   // THE SAME FLOOR THE RUN ROUTES APPLY. An enrolment row is an authority the
   // allocation and facilitators routes wrote for an approved account, and
   // nothing rewrites it when that stops being true, so the hub draws a cohort
   // card only while the account is still on the roster. The two role loops
   // below ask the same question of their own arrays.
-  const enrolments: CourseEnrolmentDoc[] = enrolSnap.docs
+  const standing: CourseEnrolmentDoc[] = enrolSnap.docs
     .map((d) => normalizeCourseEnrolment(d.id, d.data() ?? {}))
     .filter((e) => isNamedWithStanding(actor, "courseEnrolments.uid", e.uid));
+
+  // The runs whose live groups name the caller as a facilitator, while the
+  // account still stands behind the role (the same question every page
+  // under /learn asks, `runAccess.ts`), on a run they have a row on, told or
+  // not: an appointment always writes one, so this adds the role to a
+  // facilitator who holds a place (a learner's row) and to nobody else.
+  const rowRunIds = new Set(standing.map((e) => e.runId));
+  const facilitatedRunIds = new Set<string>();
+  for (const doc of facilitatedSnap.docs) {
+    const group = normalizeCourseGroup(doc.id, doc.data() ?? {});
+    if (group.archived || !group.runId || !rowRunIds.has(group.runId)) continue;
+    if (!isNamedWithStanding(actor, "courseGroups.facilitatorUids", group.facilitatorUids)) continue;
+    facilitatedRunIds.add(group.runId);
+  }
+  // A placement Publish has not told its owner about is passed over here,
+  // whatever else is true of it: see the note at the top. Its run is
+  // remembered only so that the offer probe below does not read the seat as
+  // spending an offer the member was still reading before they were placed.
+  const isAdmin = actor.role === "admin";
+  const enrolments = standing.filter((e) => placementIsShownTo(e, { isAdmin }));
+  const untoldRunIds = new Set(
+    standing.filter((e) => !enrolments.includes(e)).map((e) => e.runId),
+  );
 
   /**
    * runId → the caller's own decided application status, for the two statuses
@@ -319,6 +420,10 @@ export async function GET() {
     // Belt to the query's braces: the row is only ever the caller's, and a
     // row whose stored uid disagrees is not theirs to be told about.
     if (app.uid !== actor.uid || !app.runId) continue;
+    // A row the application form's hand-over wrote is never an offer, and
+    // never anything else here either: see the note at the top. Asked before
+    // the status, so no status such a row can be given is ever announced.
+    if (app.fromForm !== null) continue;
     if (app.status !== "accepted" && app.status !== "waitlisted") continue;
     applicationStatusByRun.set(app.runId, app.status);
   }
@@ -342,7 +447,7 @@ export async function GET() {
   }
   const missingRunIds = [
     ...new Set(
-      [...enrolments.map((e) => e.runId), ...offerRunIds].filter(
+      [...enrolments.map((e) => e.runId), ...offerRunIds, ...facilitatedRunIds].filter(
         (id) => id && !runById.has(id),
       ),
     ),
@@ -355,8 +460,15 @@ export async function GET() {
   // above could not see?", i.e. withdrawn or removed: those keep an `accepted`
   // application forever (the remove route rewinds nothing), and announcing
   // that as an offer is the one way this feature could lie outright.
+  //
+  // A run whose seat is a placement nobody has told the member about is not
+  // probed: the query above has already read that seat, it is active, and it
+  // does not spend the offer. The member goes on reading the offer they read
+  // before an admin placed them, until Publish tells them their group.
   const offerEnrolmentRunIdById = new Map(
-    offerRunIds.map((id) => [courseEnrolmentId(id, actor.uid), id] as const),
+    offerRunIds
+      .filter((id) => !untoldRunIds.has(id))
+      .map((id) => [courseEnrolmentId(id, actor.uid), id] as const),
   );
   const [missingRunSnaps, offerEnrolSnaps] = await Promise.all([
     missingRunIds.length
@@ -402,6 +514,15 @@ export async function GET() {
     const entry = ensure(run);
     entry.enrolment = enrolment;
     entry.roles.add(enrolment.role === "facilitator" ? "facilitator" : "learner");
+  }
+  // A facilitator who holds a place: their row says learner, their groups
+  // say facilitator, and they are both. Before Publish tells them their own
+  // place, the run reaches them as any facilitator's does, with no seat on
+  // the row, and enrolled (`membershipFor`): Home is the facilitator's Home
+  // from the appointment, as it is for a facilitator who holds no place.
+  for (const runId of facilitatedRunIds) {
+    const run = runById.get(runId);
+    if (run) ensure(run).roles.add("facilitator");
   }
   // BEING NAMED IS NOT THE SAME AS STILL HOLDING THE ROLE. Nothing rewrites
   // either array when an account is demoted or rejected, so the hub asks the
@@ -455,6 +576,30 @@ export async function GET() {
     groupById.set(snap.id, normalizeCourseGroup(snap.id, snap.data() ?? {}));
   }
 
+  // Who finished, asked only of a learner's runs that are past their last
+  // week (by the caller's own calendar) or marked completed. Not a rule (the
+  // answer is false for a run still going whatever is asked) but a saving:
+  // asking reads the run's groups, and this list holds every run a member was
+  // ever on.
+  const now = new Date();
+  const finishedRunIds = new Set<string>();
+  await Promise.all(
+    [...merged.values()].map(async ({ run, enrolment }) => {
+      if (!enrolment || enrolment.role !== "learner") return;
+      const group = enrolment.groupId ? (groupById.get(enrolment.groupId) ?? null) : null;
+      const over = run.status === "completed" || currentWeekSummary(run, group)?.phase === "after";
+      if (over && (await finishedForMember(db, run, enrolment, now))) finishedRunIds.add(run.id);
+    }),
+  );
+
+  // Each run's crest: one read of the forms and one of the courses for the
+  // whole list, and none when the caller is on nothing. A read that fails
+  // costs the cards their crests (the emblem shows), never the hub.
+  const shownCrests = await runCrests(
+    db,
+    [...merged.values()].map(({ run }) => ({ id: run.id, courseId: run.courseId })),
+  ).catch(() => new Map<string, ShownCrest>());
+
   const runs: MyRunEntry[] = [...merged.values()]
     .map(({ run, roles, enrolment }): MyRunEntry => {
       // Resolved ONCE per row: the pacing, the taught-week total and the
@@ -474,6 +619,7 @@ export async function GET() {
         roles: ROLE_ORDER.filter((role) => roles.has(role)),
         membership: membershipFor({
           hasLiveEnrolment: Boolean(enrolment),
+          facilitatesLiveGroup: facilitatedRunIds.has(run.id),
           hasEnrolmentDoc: Boolean(enrolment) || supersededOfferRunIds.has(run.id),
           applicationStatus: applicationStatusByRun.get(run.id) ?? null,
         }),
@@ -482,6 +628,8 @@ export async function GET() {
         totalWeeks: calendar.weekPlan.filter((entry) => entry.kind === "week").length,
         pacedByGroup: calendar.source === "group",
         groupName: group?.name ?? null,
+        finished: finishedRunIds.has(run.id),
+        shownCrest: shownCrests.get(run.id) ?? null,
       };
     })
     // A row has to be SOMETHING to be worth a card: a role to open, or a

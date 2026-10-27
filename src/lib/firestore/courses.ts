@@ -6,6 +6,13 @@ import {
 import { sanitizeSignupForm, type FormQuestion } from "./events";
 import { isValidDateKey, type WeekPlanEntry } from "../courses/weekPlan";
 import { normalizeCohort, type RunCohort } from "../courses/cohortLabel";
+import { normalizeTeamsFrom, type TeamsFrom } from "../courses/teams/model";
+import { WEEK_BLOCK_LIMITS } from "../courses/weekBlocks/limits";
+import { isClockTime, sanitizeWeekBlocks, type WeekBlock } from "../courses/weekBlocks/model";
+import { isCrestKey, type CrestKey } from "../crests/keys";
+import { normalizeRubric, type CourseRubric } from "../courses/rubric";
+import { normalizeCourseRoutes, type CourseRoutes } from "../courses/routes/model";
+import { normalizePredictionCard, type PredictionCard } from "../courses/predictions/model";
 
 /**
  * Courses data model — `courses/{id}` → `courseRuns/{id}` (top-level) →
@@ -66,6 +73,33 @@ export type CourseDoc = {
   level: string;
   /** Rough weekly commitment shown on the catalogue, e.g. 5. */
   estimatedWeeklyHours: number | null;
+  /**
+   * When written work due "the day before" a session is due, on this course:
+   * a London time that day ("12:00": by noon the day before), or null for by
+   * the end of the day. A block week names only the rule (`When`); the time
+   * is this setting, so two courses differ without a line of code
+   * (`dueMoment` in `src/lib/courses/weekBlocks/due.ts`). Set in the course's
+   * details; null on every course written before it.
+   */
+  dayBeforeDueTime: string | null;
+  /**
+   * The rubric a written answer is given feedback on (`src/lib/courses/rubric.ts`):
+   * rows by levels, one descriptor in each cell, never a mark. Set by an admin
+   * in the course's details through its route; null for a course with none,
+   * whose review page offers the comment alone. Read through `rubricOf`.
+   */
+  rubric: CourseRubric | null;
+  /**
+   * The credit line every certificate of this course carries after its weeks
+   * (boards en-cert and en-cert-phone: "6 weeks · based on the BlueDot Impact
+   * curriculum", on a finished certificate and a facilitator's alike), or ""
+   * for none. Stored as it prints after the dot, so it starts as typed; the
+   * programme's Settings shows it as a line of its own, first letter in
+   * capitals. Set on the course's own page in the course editor. A
+   * certificate copies it when it is issued, so a later change reaches only
+   * certificates issued after it.
+   */
+  credit: string;
   status: CourseStatus;
   /**
    * The run whose curriculum the PUBLIC course pages display. Set by admins
@@ -80,6 +114,32 @@ export type CourseDoc = {
    * pinned in rules, mutated only via routes.
    */
   collaboratorUids: string[];
+  /**
+   * The programme crest this course carries (one of the four keys in
+   * `src/components/ProgrammeCrest.tsx`), or null for none, which shows the
+   * NAISI emblem in its place. An admin's to set, through
+   * `/api/courses/[courseId]/crest` and nothing else. Which crest a page
+   * shows is `src/lib/crests/resolve.ts`'s to say: a programme's own crest
+   * wins over its course's.
+   */
+  crest: CrestKey | null;
+  /**
+   * The course's routes and deadlines (`src/lib/courses/routes/model.ts`):
+   * where a fellow could go next, each route with what it is and when its
+   * round closes, under the day they were all checked. Shown in place of the
+   * guide's own tables on a week that lists routes, and read by the
+   * facilitators' notes. Set by an admin in the course's details through its
+   * route; null for a course with none.
+   */
+  routes: CourseRoutes | null;
+  /**
+   * The course's credence card for sealed predictions
+   * (`src/lib/courses/predictions/model.ts`): its questions, the week each
+   * person fills it in and seals it, and the week it opens in beside the same
+   * questions asked again. Set by an admin in the course's details through its
+   * route; null for a course with none, which shows no card on any week.
+   */
+  predictionCard: PredictionCard | null;
   createdAt?: Date | null;
   updatedAt?: Date | null;
 };
@@ -330,9 +390,181 @@ export type CourseRunDoc = {
    */
   templateId: string | null;
   templateLabel: string | null;
+  /**
+   * Pitching week's settings (see `RunPitchSettings`). Authored content,
+   * edited in the run editor beside the run's other settings and written
+   * client-direct like them. Every part reads as null until somebody sets it.
+   */
+  pitchSettings: RunPitchSettings;
+  /**
+   * How an incubator's teams are made on the programme page's Teams tab
+   * (`src/lib/courses/teams/model.ts`): from pitching week's pitches, or from
+   * the agenda the application form asked people to rank. Authored content,
+   * set in the run editor's Pitching week section beside `pitchSettings` and
+   * written client-direct with them. Null until somebody says: there is no
+   * default, and the Teams tab makes no team until it is set.
+   */
+  teamsFrom: TeamsFrom | null;
+  /**
+   * THE DAY GROUPS GO OUT, as planned: the day the people holding a place
+   * are emailed their group, day and room, a civil "YYYY-MM-DD" in London.
+   * Null until somebody sets it. It is the plan, never the record of the
+   * press: when Publish actually told somebody is on their own seat
+   * (`allocatedEmailAt`).
+   *
+   * Set by the programme's lead and admins on the programme's Groups tab,
+   * above its sessions, through its route
+   * (`.../programmes/[programmeId]/groups-go-out`), and
+   * read by every sentence that names the day: Home's "Your group’s on its
+   * way", week 1's line before groups go out, the application page's "When
+   * you’re free", the programme's head. Read here only as a valid date.
+   */
+  groupsGoOutOn: string | null;
+  /**
+   * An incubator's hand-in dates (see `TeamHandInSettings`): the day each
+   * team's one hand-in is due and the week of the showcase. Set by the
+   * programme's lead and admins on the programme's Teams tab, through its
+   * route (`.../programmes/[programmeId]/teams/hand-in`), and read by each
+   * team's page. Both null until somebody sets them: there is no default.
+   */
+  teamHandIn: TeamHandInSettings;
   createdAt?: Date | null;
   updatedAt?: Date | null;
 };
+
+/**
+ * AN INCUBATOR'S HAND-IN, AS ITS RUN HOLDS IT (boards in-team and
+ * en-handin-phone): each team hands in once, by a day, and shows its work
+ * at a showcase.
+ *
+ *  - `dueOn`: the London civil date hand-ins are due. A team can change its
+ *    hand-in until 23:59 in London that day, the house's closing minute, and
+ *    not after.
+ *  - `showcaseWeek`: the taught week whose session is the showcase. Its day,
+ *    time and room are that session's, as each team's group holds it, so a
+ *    showcase held somewhere else that week is a change to that session.
+ *
+ * Facts about one term, typed by the lead or an admin: no default, and a
+ * sentence built from an unset one is left out. Stored as
+ * `{ dueOn, showcaseWeek }` and read through `normalizeTeamHandIn`, which
+ * treats anything else as unset.
+ */
+export type TeamHandInSettings = {
+  dueOn: string | null;
+  showcaseWeek: number | null;
+};
+
+/** Nothing set. */
+export const NO_TEAM_HAND_IN: TeamHandInSettings = { dueOn: null, showcaseWeek: null };
+
+/** The stored `teamHandIn` map, read. A real date and a week from 1 to 60 are kept; anything else is unset. */
+export function normalizeTeamHandIn(raw: unknown): TeamHandInSettings {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return NO_TEAM_HAND_IN;
+  const data = raw as Record<string, unknown>;
+  const week = data.showcaseWeek;
+  return {
+    dueOn: typeof data.dueOn === "string" && isValidDateKey(data.dueOn) ? data.dueOn : null,
+    showcaseWeek: typeof week === "number" && Number.isInteger(week) && week >= 1 && week <= 60 ? week : null,
+  };
+}
+
+/**
+ * PITCHING WEEK, AND THE TEAMS IT LEADS TO.
+ *
+ * In an incubator's pitching week each person pitches a paper and a twist,
+ * alone or with one partner from their group, and picks the pitches they
+ * would join; the lead makes teams from that. WHICH week is pitching week is
+ * a flag on that week's own document (`CourseWeekDoc.pitching`). The rest is
+ * the run's, here, stored as `courseRuns.pitchSettings`:
+ *
+ *  - `pickLimit`: how many pitches one person may say they would join;
+ *  - `teamSize`: how small and how large a team may be, set as a pair;
+ *  - `teamsMadeOn`: the London civil date the teams are made.
+ *
+ * NONE OF THESE HAS A DEFAULT. They are facts about one term, typed by
+ * whoever sets the programme up, so an unset value is null and every
+ * sentence built from it is left out. A run with no `pickLimit` takes
+ * pitches and lets nobody pick until it is set.
+ *
+ * Stored as `{ pickLimit, teamSizeMin, teamSizeMax, teamsMadeOn }`, each a
+ * number, a "YYYY-MM-DD" string or null, and read through
+ * `normalizePitchSettings`, which treats anything else as unset.
+ */
+export type RunPitchSettings = {
+  pickLimit: number | null;
+  teamSize: { min: number; max: number } | null;
+  teamsMadeOn: string | null;
+};
+
+/** Nothing set. */
+export const NO_PITCH_SETTINGS: RunPitchSettings = {
+  pickLimit: null,
+  teamSize: null,
+  teamsMadeOn: null,
+};
+
+/**
+ * The stored `pitchSettings` map, read. A whole number in range is kept and
+ * anything else is unset; a team size counts only when both ends are set and
+ * the smaller is not above the larger.
+ */
+export function normalizePitchSettings(raw: unknown): RunPitchSettings {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return NO_PITCH_SETTINGS;
+  const data = raw as Record<string, unknown>;
+  const whole = (value: unknown, max: number): number | null =>
+    typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= max
+      ? value
+      : null;
+  const pickLimit = whole(data.pickLimit, COURSE_FIELD_LIMITS.maxPitchPicks);
+  const min = whole(data.teamSizeMin, COURSE_FIELD_LIMITS.maxTeamSize);
+  const max = whole(data.teamSizeMax, COURSE_FIELD_LIMITS.maxTeamSize);
+  const teamsMadeOn =
+    typeof data.teamsMadeOn === "string" && isValidDateKey(data.teamsMadeOn)
+      ? data.teamsMadeOn
+      : null;
+  return {
+    pickLimit,
+    teamSize: min !== null && max !== null && min <= max ? { min, max } : null,
+    teamsMadeOn,
+  };
+}
+
+/**
+ * Why these settings cannot be saved, in a sentence for whoever typed them,
+ * or null when they can. The run editor asks before it writes, and the write
+ * asks again.
+ */
+export function pitchSettingsError(settings: RunPitchSettings): string | null {
+  const { pickLimit, teamSize, teamsMadeOn } = settings;
+  const inRange = (n: number, max: number) => Number.isInteger(n) && n >= 1 && n <= max;
+  if (pickLimit !== null && !inRange(pickLimit, COURSE_FIELD_LIMITS.maxPitchPicks)) {
+    return `How many pitches a person may pick is a whole number from 1 to ${COURSE_FIELD_LIMITS.maxPitchPicks}.`;
+  }
+  if (
+    teamSize !== null &&
+    (!inRange(teamSize.min, COURSE_FIELD_LIMITS.maxTeamSize) ||
+      !inRange(teamSize.max, COURSE_FIELD_LIMITS.maxTeamSize) ||
+      teamSize.min > teamSize.max)
+  ) {
+    return `A team’s size is two whole numbers from 1 to ${COURSE_FIELD_LIMITS.maxTeamSize}, the smaller first.`;
+  }
+  if (teamsMadeOn !== null && !isValidDateKey(teamsMadeOn)) {
+    return "Give the day the teams are made as a real date.";
+  }
+  return null;
+}
+
+/** The stored shape of these settings: four fields, each set or null. */
+export function storedPitchSettings(
+  settings: RunPitchSettings,
+): Record<"pickLimit" | "teamSizeMin" | "teamSizeMax" | "teamsMadeOn", number | string | null> {
+  return {
+    pickLimit: settings.pickLimit,
+    teamSizeMin: settings.teamSize?.min ?? null,
+    teamSizeMax: settings.teamSize?.max ?? null,
+    teamsMadeOn: settings.teamsMadeOn,
+  };
+}
 
 /**
  * The subscription channel for a run's cohort email. Deterministic from the
@@ -344,6 +576,28 @@ export function courseRunChannel(runId: string): string {
 }
 
 // ---- Week ----
+
+/**
+ * A week's document as it is first made: every field empty but present, so
+ * it meets the rules' shape checks from its first byte, and unpublished, so a
+ * new week is never shown to anybody before somebody writes it. The run's
+ * week editor makes one in the browser (`ensureWeekDoc`), and the loader's
+ * first save from the Weeks tab makes one on the server; both start here.
+ */
+export function emptyWeekFields(weekNumber: number) {
+  return {
+    weekNumber,
+    title: "",
+    summary: "",
+    guideBlocks: [] as Block[],
+    materials: [] as Material[],
+    exercises: [] as Exercise[],
+    checklist: [] as ChecklistItem[],
+    questions: [] as string[],
+    estimatedMinutes: null,
+    published: false,
+  };
+}
 
 /**
  * Week doc id: "w01".."w60". Zero-padded so Firestore's lexicographic doc
@@ -395,10 +649,73 @@ export type CourseWeekDoc = {
   materials: Material[];
   exercises: Exercise[];
   checklist: ChecklistItem[];
+  /**
+   * "Questions to think about" (board wk-week-phone, C29): each one line of
+   * plain text, in the order the week page numbers them (01, 02, 03). Empty
+   * on a week nobody has given any, which draws no heading. Carried wherever
+   * a week is copied, as the materials are. See `sanitizeWeekQuestions`.
+   */
+  questions: string[];
   /** Rough total for the week's materials, shown in the week header. */
   estimatedMinutes: number | null;
   /** Unpublished weeks are hidden from learners and the public curriculum. */
   published: boolean;
+  /**
+   * THE LEAD'S "MARK READY" (board pr-weeks, Q35). Ready and Published
+   * answer two different questions, and this is how they relate:
+   *
+   *  - PUBLISHED, unchanged, is whether the week can be read at all: by its
+   *    groups as soon as it is published (every published week is open to
+   *    read ahead, Zach, 27 October 2026), and on the public course pages
+   *    when its run is the course's showcase run. Every reader that decides
+   *    whether a week shows asks it.
+   *  - READY is the lead's word that the week is finished. One route stores
+   *    it, "Mark ready" and "Not ready" for the programme's lead and admins
+   *    (`.../runs/[runId]/weeks/[weekId]/ready`), and marking a week ready
+   *    publishes it in the same write (Zach, 26 October 2026), so a ready
+   *    week is always a published one: read here, a stored `ready` counts
+   *    only on a published week, whoever wrote what. "Not ready" takes back
+   *    the mark alone: a week already open to its groups stays open.
+   *    Whether a week is ready is asked of `weekIsReady`
+   *    (`src/lib/courses/weekReady.ts`) and nothing else.
+   *  - Week 1 opening BEFORE groups go out, to everybody holding a place
+   *    (Q35 B), asks READY, not Published: that is the lead deciding the
+   *    week is fit to open early. After groups go out every published week
+   *    is open to every group at once (Zach, 27 October 2026).
+   *  - A published week that is not ready is a week shown by the switch in
+   *    the run's week editor: it opens to its groups once groups go out, and
+   *    never before.
+   *
+   * Read only off the RUN's week, as `pitching` is: no copy carries it, so
+   * a group's copy, a template and another run's copy all start not ready.
+   * Only the server writes it (the rules keep browsers off it). Only a
+   * stored `true` is on.
+   */
+  ready: boolean;
+  /**
+   * The week as an ordered list of blocks (the v20 coursework,
+   * `src/lib/courses/weekBlocks/model.ts`). ABSENT on every week written
+   * before blocks, which reads and draws exactly as it always has. Written
+   * only by the server; carried by every copy of a week (`weekBlocksField`).
+   */
+  blocks?: WeekBlock[];
+  /**
+   * This week is the run's pitching week (see `RunPitchSettings`). Ticked in
+   * the week editor by whoever edits the run's weeks, and read only off the
+   * RUN's week: a group's copy of a week does not carry it. Only a stored
+   * `true` is on.
+   */
+  pitching: boolean;
+  /**
+   * WHO OWNS THE WEEK on its programme's Weeks tab (board pr-weeks, "Owner:
+   * the lead or a helper"): the uid the lead or an admin chose there, or null
+   * for the programme's lead, which is what every week starts as. Read only
+   * off the RUN's week, as `ready` is: no copy carries it. Written only by the
+   * owner route (`.../runs/[runId]/weeks/[weekId]/owner`). A stored uid that
+   * is no longer the lead or one of the run's helpers is shown as the lead
+   * (`src/lib/courses/weeksTab/load.ts`).
+   */
+  ownerUid: string | null;
   updatedAt?: Date | null;
   updatedByUid?: string | null;
 };
@@ -765,6 +1082,35 @@ export function sanitizeChecklist(raw: unknown): ChecklistItem[] {
     });
 }
 
+// ---- Questions to think about ----
+
+/**
+ * One question as a week keeps it: a single line of plain text, its runs of
+ * spaces and line breaks folded to one space and its ends trimmed. "" for
+ * anything that is not text.
+ */
+export function oneLineQuestion(raw: unknown): string {
+  return typeof raw === "string" ? raw.replace(/\s+/g, " ").trim() : "";
+}
+
+/**
+ * A week's "Questions to think about" (board wk-week-phone, C29), as stored:
+ * each one line of text, blanks dropped, at most
+ * `COURSE_FIELD_LIMITS.maxWeekQuestions`, each at most
+ * `COURSE_FIELD_LIMITS.weekQuestion` characters. Every writer keeps to those
+ * limits (the rules for the run's own weeks, the group week route for a
+ * group's copy); this is the reader's half, so a hand-edited row draws
+ * nothing it should not.
+ */
+export function sanitizeWeekQuestions(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map(oneLineQuestion)
+    .filter(Boolean)
+    .slice(0, COURSE_FIELD_LIMITS.maxWeekQuestions)
+    .map((question) => question.slice(0, COURSE_FIELD_LIMITS.weekQuestion));
+}
+
 // ---- Field limits ----
 
 /**
@@ -776,6 +1122,8 @@ export const COURSE_FIELD_LIMITS = {
   title: 120,
   tagline: 200,
   level: 80,
+  /** A certificate's credit line ("based on the BlueDot Impact curriculum"). Keep in step with the certificate's own limit. */
+  credit: 80,
   runLabel: 80,
   academicYear: 10,
   weekTitle: 120,
@@ -789,6 +1137,16 @@ export const COURSE_FIELD_LIMITS = {
   exerciseHelpText: 600,
   checklistTitle: 160,
   checklistDetail: 500,
+  /**
+   * "Questions to think about" on a week (C29). Each question is one line,
+   * as long as a checklist item's title. At most five on a week: the board
+   * draws three, a handful is what a group can think about before one
+   * session, and the rules check each question's length by its place in the
+   * list (a rule cannot loop), so the number has to stay small. Keep both in
+   * step with the weeks block in firestore.rules.
+   */
+  weekQuestion: 160,
+  maxWeekQuestions: 5,
   maxSummaryBlocks: 40,
   maxGuideBlocks: 40,
   /**
@@ -819,6 +1177,18 @@ export const COURSE_FIELD_LIMITS = {
    * as leaving it core, but there is no reason to refuse the write.
    */
   maxItemStreamIds: 6,
+  /**
+   * Bounds on pitching week's settings (`RunPitchSettings`). They catch a
+   * typo; they are not the settings, which have no default.
+   */
+  maxPitchPicks: 10,
+  maxTeamSize: 12,
+  /**
+   * A week written as blocks: one cap per kind of block and per field (see
+   * `src/lib/courses/weekBlocks/limits.ts`, which they are kept in so the
+   * block model can read them without importing this file).
+   */
+  ...WEEK_BLOCK_LIMITS,
 } as const;
 
 // ---- Submission URL validation ----
@@ -1009,6 +1379,17 @@ function asApplicationCounts(v: unknown): ApplicationCounts {
   };
 }
 
+/**
+ * A course's credit line, trimmed, or "" for none. One longer than its limit
+ * reads as none: the editor never writes one, and a certificate must not
+ * carry a line nobody could see whole in the box that set it.
+ */
+function asCredit(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const credit = value.trim();
+  return credit.length <= COURSE_FIELD_LIMITS.credit ? credit : "";
+}
+
 export function normalizeCourse(id: string, data: Raw): CourseDoc {
   return {
     id,
@@ -1018,10 +1399,17 @@ export function normalizeCourse(id: string, data: Raw): CourseDoc {
     track: asCourseTrack(data.track),
     level: (data.level as string) ?? "",
     estimatedWeeklyHours: asPositiveIntOrNull(data.estimatedWeeklyHours),
+    dayBeforeDueTime: isClockTime(data.dayBeforeDueTime) ? data.dayBeforeDueTime : null,
+    rubric: normalizeRubric(data.rubric),
+    credit: asCredit(data.credit),
     status: asCourseStatus(data.status),
     showcaseRunId: (data.showcaseRunId as string | null | undefined) ?? null,
     authorUid: (data.authorUid as string) ?? "",
     collaboratorUids: asUidList(data.collaboratorUids),
+    // Only one of the four keys is a crest; anything else stored reads as none.
+    crest: isCrestKey(data.crest) ? data.crest : null,
+    routes: normalizeCourseRoutes(data.routes),
+    predictionCard: normalizePredictionCard(data.predictionCard),
     createdAt: tsToDate(data.createdAt),
     updatedAt: tsToDate(data.updatedAt),
   };
@@ -1071,6 +1459,11 @@ export function normalizeCourseRun(id: string, data: Raw): CourseRunDoc {
       typeof data.templateLabel === "string" && data.templateLabel
         ? data.templateLabel
         : null,
+    pitchSettings: normalizePitchSettings(data.pitchSettings),
+    teamsFrom: normalizeTeamsFrom(data.teamsFrom),
+    groupsGoOutOn:
+      typeof data.groupsGoOutOn === "string" && isValidDateKey(data.groupsGoOutOn) ? data.groupsGoOutOn : null,
+    teamHandIn: normalizeTeamHandIn(data.teamHandIn),
     createdAt: tsToDate(data.createdAt),
     updatedAt: tsToDate(data.updatedAt),
   };
@@ -1079,6 +1472,11 @@ export function normalizeCourseRun(id: string, data: Raw): CourseRunDoc {
   const submissionExerciseRef = asSubmissionExerciseRef(data.submissionExerciseRef);
   if (submissionExerciseRef) doc.submissionExerciseRef = submissionExerciseRef;
   return doc;
+}
+
+/** A stored week owner: one account's uid, which names one document and is never longer than an account id can be. */
+export function isWeekOwnerUid(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= 128 && !value.includes("/") && value !== "." && value !== "..";
 }
 
 export function normalizeCourseWeek(id: string, data: Raw): CourseWeekDoc {
@@ -1094,8 +1492,16 @@ export function normalizeCourseWeek(id: string, data: Raw): CourseWeekDoc {
     materials: sanitizeMaterials(data.materials),
     exercises: sanitizeExercises(data.exercises),
     checklist: sanitizeChecklist(data.checklist),
+    questions: sanitizeWeekQuestions(data.questions),
     estimatedMinutes: asPositiveIntOrNull(data.estimatedMinutes),
     published: data.published === true,
+    // A ready week is always a published one (see `CourseWeekDoc.ready`).
+    ready: data.ready === true && data.published === true,
+    // Absent on a week written before blocks: the key is only there when
+    // the stored week has a list.
+    ...(Array.isArray(data.blocks) ? { blocks: sanitizeWeekBlocks(data.blocks) } : {}),
+    pitching: data.pitching === true,
+    ownerUid: isWeekOwnerUid(data.ownerUid) ? data.ownerUid : null,
     updatedAt: tsToDate(data.updatedAt),
     updatedByUid: (data.updatedByUid as string | null | undefined) ?? null,
   };

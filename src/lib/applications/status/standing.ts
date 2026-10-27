@@ -5,10 +5,12 @@ import type { ApplicationResultKind } from "../model";
  * WHERE ONE PERSON STANDS, read off their own application and nothing else.
  *
  * Decision day writes `result` (and `invitation`, for an invitation) onto the
- * applicant's own document. The person's replies are written there too:
- * `attendance` by somebody who was placed, `invitation.response` by somebody
- * who was invited. This module turns those fields into the one thing the
- * page, the reply route and anybody counting places needs to know.
+ * applicant's own document. A freed place offered after decision day writes
+ * an `invitation` beside a "No offer this time" result, and is read here as
+ * decision day's own invitation is. The person's replies are written there
+ * too: `attendance` by somebody who was placed, `invitation.response` by
+ * somebody who was invited. This module turns those fields into the one thing
+ * the page, the reply route and anybody counting places needs to know.
  *
  * ## The rule this file exists for
  *
@@ -104,25 +106,43 @@ export function standingOf(application: Answerable): Standing {
     if (!invitation) {
       return application.status === "withdrawn" ? { kind: "withdrawn" } : { kind: "unclear" };
     }
-    const programmeId = invitation.programmeId;
-    if (invitation.response === "declined") {
-      return { kind: "released", via: "invitation", programmeId, how: "no-thanks" };
-    }
-    if (invitation.response === "accepted") {
-      if (attendance?.answer === "cant-make-it") {
-        return { kind: "released", via: "invitation", programmeId, how: "cant-make-it" };
-      }
-      if (application.status === "withdrawn") return { kind: "withdrawn" };
-      // Accepting an invitation is how somebody invited says they are coming.
-      return { kind: "place", via: "invitation", programmeId, saidComing: true };
-    }
-    if (application.status === "withdrawn") return { kind: "withdrawn" };
-    return { kind: "invitation", programmeId, replyBy: invitation.replyBy };
+    return invitationStanding(application, invitation);
   }
+
+  // A FREED PLACE. Somebody told "No offer this time" can be offered a place
+  // given back after decision day: the offer is an invitation written beside
+  // the result, which stays what decision day said. From then on it is read
+  // exactly as decision day's own, so the reply route, every count of places
+  // and the person's own page answer it the same way. Only "No offer this
+  // time" ever carries one: an invitation beside a declined result is not
+  // read, because nothing offers a place to somebody every programme declined.
+  if (result.kind === "no-offer" && invitation) return invitationStanding(application, invitation);
 
   // No offer, or declined. The person reads the same thing for both.
   if (application.status === "withdrawn") return { kind: "withdrawn" };
   return { kind: "no-place" };
+}
+
+/** Where somebody with an invitation stands: still to answer it, or what they said. */
+function invitationStanding(
+  application: Answerable,
+  invitation: NonNullable<Answerable["invitation"]>,
+): Standing {
+  const { attendance } = application;
+  const programmeId = invitation.programmeId;
+  if (invitation.response === "declined") {
+    return { kind: "released", via: "invitation", programmeId, how: "no-thanks" };
+  }
+  if (invitation.response === "accepted") {
+    if (attendance?.answer === "cant-make-it") {
+      return { kind: "released", via: "invitation", programmeId, how: "cant-make-it" };
+    }
+    if (application.status === "withdrawn") return { kind: "withdrawn" };
+    // Accepting an invitation is how somebody invited says they are coming.
+    return { kind: "place", via: "invitation", programmeId, saidComing: true };
+  }
+  if (application.status === "withdrawn") return { kind: "withdrawn" };
+  return { kind: "invitation", programmeId, replyBy: invitation.replyBy };
 }
 
 /**

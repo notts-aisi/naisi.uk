@@ -2,6 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import CourseNudgeEmail from "@/emails/CourseNudgeEmail";
 import { couldBeFollowed } from "@/lib/courses/followable";
+import { sessionWhenLabel } from "@/lib/courses/londonLabels";
 import { addDaysToKey, isValidDateKey } from "@/lib/courses/weekPlan";
 import type { GroupSession, GroupSessionMode } from "@/lib/firestore/courseGroups";
 import {
@@ -11,6 +12,8 @@ import {
 } from "@/lib/firestore/courseEmails";
 import { firstWord } from "@/lib/firestore/applicationEmails";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
+import type { WeekBlock } from "@/lib/courses/weekBlocks/model";
+import { weekSummaryText } from "@/lib/courses/weekBlocks/reader";
 import { sendEmail } from "./send";
 
 /**
@@ -227,7 +230,7 @@ export function nudgeWeekMarkerIds(runId: string, slotStartKey: string): string[
  * The civil date this week's session falls on: the first day at or after the
  * slot's start whose weekday matches the group's.
  *
- * Feeds `courseNudgeSessionWhen`, which reads as a date ("Tuesday 26 August")
+ * Feeds `courseNudgeSessionWhen`, which reads as a date ("Tue 26 Aug")
  * rather than a recurring label once it has one. Returns "" on input the week
  * maths would reject, which degrades to the recurring label rather than throwing
  * mid-send.
@@ -320,7 +323,7 @@ export type CourseNudgeTokens = {
   weekTitle: string;
   /** The week's one-line summary, collapsed to a single line. */
   weekSummary: string;
-  /** Human session label, e.g. "Tuesday 26 August, 18:00–19:30". */
+  /** Human session label, e.g. "Tue 26 Aug, 6pm to 7:30pm" (`sessionWhenLabel`). */
   sessionWhen: string;
   /** Where that session is, e.g. "Hallward B12" or "Online". Empty for a room a reader could follow. */
   sessionWhere: string;
@@ -439,6 +442,165 @@ export const COURSE_NUDGE_TOKEN_KEYS = [
  * "every value is a string" invariant the send guarantees, and the same
  * `sessionWhere`-follows-`sessionWhen` pairing.
  */
+// ---------------------------------------------------------------------------
+// Whole or not at all
+// ---------------------------------------------------------------------------
+
+/**
+ * The two tokens an email may go WITHOUT, and why each is a complete email
+ * rather than a broken one:
+ *
+ *  - `feedbackUrl`: no weekly form is set in Site status. The paragraph that
+ *    carries it is a request for feedback, not a fact about the session, and
+ *    an email that asks for nothing is whole.
+ *  - `firstName`: one recipient has no name on their account. The greeting
+ *    goes, the rest of the message is the same for everybody.
+ *
+ * Every OTHER token the template uses is a fact the group needs: when, where,
+ * what to read. Next week's email on the schedule goes out only when every one
+ * of them has a value (`emptyNudgeValues`), because the renderer's own rule
+ * (drop the sentence whose tokens are all empty) would otherwise send a group
+ * an email that silently says nothing about where it meets.
+ */
+export const NUDGE_TOKENS_AN_EMAIL_MAY_GO_WITHOUT: readonly (keyof CourseNudgeTokens)[] = [
+  "feedbackUrl",
+  "firstName",
+];
+
+/** Every token a template refers to, once each, in the order first met. */
+export function nudgeTokensUsed(template: {
+  subject: string;
+  blocks: Block[];
+}): (keyof CourseNudgeTokens)[] {
+  const texts: string[] = [template.subject];
+  for (const block of template.blocks) {
+    if (block.type === "heading") texts.push(block.text);
+    else if (block.type === "richText") texts.push(block.html);
+    else if (block.type === "image") texts.push(block.alt, block.caption ?? "");
+    else if (block.type === "video") texts.push(block.caption ?? "");
+  }
+  const known = new Set<string>(COURSE_NUDGE_TOKEN_KEYS);
+  const used: (keyof CourseNudgeTokens)[] = [];
+  for (const text of texts) {
+    for (const match of text.matchAll(TOKEN_PATTERN)) {
+      const key = match[1];
+      if (known.has(key) && !used.includes(key as keyof CourseNudgeTokens)) {
+        used.push(key as keyof CourseNudgeTokens);
+      }
+    }
+  }
+  return used;
+}
+
+/**
+ * The tokens this template uses that resolved to nothing, leaving out the two
+ * an email may go without. Empty means the email is whole.
+ *
+ * Asked ONCE PER GROUP, with the group's tokens: every token but `firstName`
+ * is the same for everybody in one group's email, and `firstName` is one of
+ * the two left out.
+ */
+export function emptyNudgeValues(
+  template: { subject: string; blocks: Block[] },
+  tokens: CourseNudgeTokens,
+): (keyof CourseNudgeTokens)[] {
+  return nudgeTokensUsed(template).filter(
+    (key) => !NUDGE_TOKENS_AN_EMAIL_MAY_GO_WITHOUT.includes(key) && !tokens[key],
+  );
+}
+
+/**
+ * What an empty token means to the person who has to fill it in, as a phrase
+ * that finishes "missing: ...". `weekNumber` names the week the email is about.
+ */
+export function missingNudgeValueWords(
+  keys: readonly (keyof CourseNudgeTokens)[],
+  weekNumber: number,
+): string[] {
+  const week = `week ${weekNumber}’s`;
+  const words: Record<keyof CourseNudgeTokens, string> = {
+    courseTitle: "the course’s name",
+    runLabel: "the run’s name",
+    weekNumber: "the week’s number",
+    weekTitle: `${week} title`,
+    weekSummary: `${week} summary`,
+    sessionWhen: "the group’s day and time",
+    sessionWhere: "the group’s room",
+    weekUrl: "the site’s address for the week’s page",
+    feedbackUrl: "the weekly feedback form",
+    firstName: "a name",
+    weekPrep: `${week} reading`,
+  };
+  return keys.map((key) => words[key]);
+}
+
+/** "the room", "the room and week 4’s reading", "a, b and c". */
+export function joinWords(items: readonly string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+/**
+ * THE FACTS ONE GROUP'S EMAIL IS ABOUT, resolved the one way both lanes use:
+ * the push after a register, and the schedule. Two lanes that each worked out
+ * "when and where" would be two answers to a question that has one.
+ *
+ * `session` is the session the email is ABOUT (the group's next one). Its date
+ * and slot come from `resolveSessions`, so a week's one-off change of time or
+ * room is already applied; the week's virtual switch is read from the group.
+ */
+export function groupNudgeFacts(args: {
+  courseTitle: string;
+  runLabel: string;
+  runId: string;
+  appUrl: string;
+  feedbackUrl: string;
+  session: { weekNumber: number; dateKey: string; session: GroupSession };
+  mode: GroupSessionMode | null;
+  week: {
+    title?: string | null;
+    summary?: string | null;
+    materials?: readonly { optional?: boolean }[] | null;
+    exercises?: readonly { required?: boolean }[] | null;
+    estimatedMinutes?: number | null;
+    blocks?: readonly WeekBlock[] | null;
+  };
+}): { sessionWhen: string; sessionWhere: string; context: CourseNudgeRunContext } {
+  return {
+    sessionWhen: courseNudgeSessionWhen(args.session.session, args.session.dateKey),
+    sessionWhere: courseNudgeSessionWhere(args.session.session, args.mode),
+    context: {
+      courseTitle: args.courseTitle,
+      runLabel: args.runLabel,
+      weekNumber: args.session.weekNumber,
+      weekTitle: args.week.title ?? "",
+      // A block week with no summary of its own says what its Why this week
+      // says (`weekSummaryText`, the one reader), so its email is not held
+      // for an empty value it never had a box for.
+      weekSummary: weekSummaryText(args.week),
+      weekPrep: courseWeekPrepLine(args.week),
+      weekUrl: courseWeekUrl(args.appUrl, args.runId, args.session.weekNumber),
+      // Empty until an admin sets a form, and the renderer then drops the
+      // paragraph whole rather than shipping a dead link.
+      feedbackUrl: args.feedbackUrl,
+    },
+  };
+}
+
+/** The group's tokens, with no recipient: what `emptyNudgeValues` is asked of. */
+export function groupNudgeTokens(facts: {
+  sessionWhen: string;
+  sessionWhere: string;
+  context: CourseNudgeRunContext;
+}): CourseNudgeTokens {
+  return buildCourseNudgeTokens({
+    ...facts.context,
+    sessionWhen: facts.sessionWhen,
+    sessionWhere: facts.sessionWhere,
+    recipientName: "",
+  });
+}
+
 export function courseNudgeTokensFrom(
   raw: Record<string, string | undefined>,
 ): CourseNudgeTokens {
@@ -463,63 +625,26 @@ export function courseNudgeTokensFrom(
 // Deriving the harder token values
 // ---------------------------------------------------------------------------
 
-/** Index = `GroupSession.weekday` (`Date.getDay()`, 0 = Sunday). */
-const WEEKDAY_NAMES = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
-
-function endTimeLabel(start: string, minutes: number): string {
-  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(start);
-  if (!m || minutes <= 0) return "";
-  const total = (Number(m[1]) * 60 + Number(m[2]) + minutes) % 1440;
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
-
 /**
  * The `{sessionWhen}` value for ONE recipient's group.
  *
  * Pass `sessionDateKey` (the `YYYY-MM-DD` civil date this week's session falls
  * on, which the route already computes to place the session inside the slot)
- * and it reads as a date — "Tuesday 26 August, 18:00–19:30" — which is what a
- * weekly email wants. Without it, it falls back to the recurring house label
- * ("Tuesdays 18:00–19:30") that the apply page, the admissions queue and the
- * allocation board all render, so a member never meets two spellings of their
- * own slot.
+ * and it reads as a date, "Tue 10 Nov, 6pm to 8pm", which is what a weekly
+ * email wants. Without it, it is the weekly habit, "Tuesdays, 6pm to 8pm".
+ * Either way in the words `sessionWhenLabel` gives a session everywhere it is
+ * written (the placement email's first session, and the session card on the
+ * programme's page), so a member never meets two spellings of one evening.
  *
- * Returns "" — never a partial string — when the group has no time set, which
+ * Returns "", never a partial string, when the group has no time set, which
  * is what makes the whole session sentence disappear rather than dangle.
  */
 export function courseNudgeSessionWhen(
   session: GroupSession | null | undefined,
   sessionDateKey?: string | null,
 ): string {
-  if (!session || !session.startTimeLocal) return "";
-  const end = endTimeLabel(session.startTimeLocal, session.durationMinutes);
-  const time = `${session.startTimeLocal}${end ? `–${end}` : ""}`;
-
-  if (sessionDateKey && /^\d{4}-\d{2}-\d{2}$/.test(sessionDateKey)) {
-    const at = new Date(`${sessionDateKey}T12:00:00Z`);
-    if (!Number.isNaN(at.getTime())) {
-      // Noon UTC: far enough from either boundary that no London offset can
-      // move the civil date this label names.
-      const day = new Intl.DateTimeFormat("en-GB", {
-        timeZone: "Europe/London",
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-      }).format(at);
-      return `${day}, ${time}`;
-    }
-  }
-
-  const day = WEEKDAY_NAMES[session.weekday];
-  return day ? `${day}s ${time}` : time;
+  if (!session) return "";
+  return sessionWhenLabel(session, sessionDateKey);
 }
 
 /**
@@ -620,7 +745,9 @@ export function courseWeekPrepLine(week: {
   materials?: readonly { optional?: boolean }[] | null;
   exercises?: readonly { required?: boolean }[] | null;
   estimatedMinutes?: number | null;
+  blocks?: readonly WeekBlock[] | null;
 }): string {
+  if (Array.isArray(week.blocks)) return blockWeekPrepLine(week.blocks);
   const materials = (week.materials ?? []).filter((m) => !m.optional).length;
   const exercises = (week.exercises ?? []).filter((x) => x.required).length;
   const duration = durationLabel(week.estimatedMinutes);
@@ -643,6 +770,26 @@ export function courseWeekPrepLine(week: {
   const verb = materials + exercises === 1 ? "is" : "are";
   const tail = duration ? `, ${duration} in total` : "";
   return `There ${verb} ${parts.join(" and ")} this week${tail}.`;
+}
+
+/**
+ * The `{weekPrep}` sentence for a block week: what its This week box asks
+ * for, counted by task, and its "In all" (HANDOFF: on the new week page the
+ * email's "reading" is the week's page and its This week box, not a list of
+ * readings). Never "exercise". "" when the week has no task to do yet, which
+ * holds an email that goes whole rather than send it without the line.
+ */
+function blockWeekPrepLine(blocks: readonly WeekBlock[]): string {
+  const thisWeek = blocks.find((block) => block.type === "thisWeek");
+  if (!thisWeek || thisWeek.type !== "thisWeek") return "";
+  const tasks = thisWeek.rows.filter((row) => row.type === "task").length;
+  if (tasks === 0) return "";
+  const verb = tasks === 1 ? "is" : "are";
+  const things = `${countWord(tasks)} ${tasks === 1 ? "thing" : "things"}`;
+  const total = thisWeek.total.trim();
+  // "About 2¼ hours" reads mid-sentence as "about 2¼ hours".
+  const inAll = total ? `, ${/^[A-Z][a-z]/.test(total) ? total[0].toLowerCase() + total.slice(1) : total} in all` : "";
+  return `There ${verb} ${things} to do this week${inAll}.`;
 }
 
 /** The `{weekUrl}` value — the learning space's week page for this run. */
@@ -1036,7 +1183,32 @@ export type SendCourseWeekNudgeArgs = {
   /** From `resolveCourseNudgeTemplate(db)` — resolve once, pass to every send. */
   template: CourseNudgeTemplate;
   context: CourseNudgeRunContext;
+  /**
+   * What changed about the session this email is about (Q25), as text: "Tue
+   * 24 Nov is cancelled. Rahul and Sofia are both away. Do week 4’s reading
+   * anyway. On Tue 1 Dec you’ll talk about weeks 4 and 5 together." Set only
+   * by next week's email (`src/lib/courses/nextWeekEmail.ts`), and drawn as the
+   * paragraph after the greeting, escaped like every other value. Never a
+   * link: the change route refuses a reason that holds one.
+   */
+  sessionChange?: string | null;
 };
+
+/** The change paragraph's own block id, so a renderer keys it apart from the template's. */
+const SESSION_CHANGE_BLOCK_ID = "session-change";
+
+/**
+ * The template's blocks with the session's change as a paragraph of its own,
+ * after the greeting when the template opens with one and first otherwise.
+ * Text in, escaped HTML out: the reason was typed by a person.
+ */
+export function withSessionChange(blocks: readonly Block[], change: string): Block[] {
+  const line = oneLine(change);
+  if (!line) return [...blocks];
+  const paragraph: Block = { id: SESSION_CHANGE_BLOCK_ID, type: "richText", html: `<p>${escapeHtml(line)}</p>` };
+  const at = blocks[0]?.type === "heading" ? 1 : 0;
+  return [...blocks.slice(0, at), paragraph, ...blocks.slice(at)];
+}
 
 /**
  * Send one nudge to one member.
@@ -1066,7 +1238,11 @@ export async function sendCourseWeekNudgeEmail(
     recipientName: args.recipientName,
   });
 
-  const { subject, blocks, preheader } = renderCourseNudge(args.template, tokens);
+  const rendered = renderCourseNudge(args.template, tokens);
+  const subject = rendered.subject;
+  // A changed session leads the email, and is what the inbox previews.
+  const blocks = args.sessionChange ? withSessionChange(rendered.blocks, args.sessionChange) : rendered.blocks;
+  const preheader = args.sessionChange ? preheaderOf(blocks) : rendered.preheader;
 
   await sendEmail({
     to: args.to,

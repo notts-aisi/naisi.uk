@@ -62,7 +62,13 @@ const STUBS = new Map([
       "  serverTimestamp: () => ({ __op: 'serverTimestamp' }),\n" +
       "  increment: (by) => ({ __op: 'increment', by }),\n" +
       "  delete: () => ({ __op: 'delete' }),\n" +
-      "};",
+      "};\n" +
+      // The route now also reaches the leave a reply makes for somebody in a
+      // group (`src/lib/courses/leaveRun.ts`), whose mailing-list writer
+      // imports this class. No run is named on this suite's form, so it is
+      // never called here: `tests/course-hub-cant-make-it-after-placement.test.mjs`
+      // runs that leave.
+      "export class Timestamp { static now() { return new Date(); } }",
   ],
   ["@/lib/firebase/admin", "export function getAdminDb() {\n  return globalThis.__replyDb ?? null;\n}"],
   ["@/lib/firebase/session", "export async function getCurrentUser() {\n  return globalThis.__replyUser ?? null;\n}"],

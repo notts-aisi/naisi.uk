@@ -10,6 +10,7 @@ import {
   type WeekPlanEntry,
 } from "@/lib/firestore/courses";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { weekBlocksField } from "@/lib/courses/weekBlocks/model";
 
 /**
  * Re-address a DRAFT run's weeks so the plan's `weekId` and the doc id every
@@ -252,6 +253,9 @@ export async function POST(
       materials: doc.materials,
       exercises: doc.exercises,
       checklist: doc.checklist,
+      questions: doc.questions,
+      // A block week moves with its blocks, ids and all (`weekBlocksField`).
+      ...weekBlocksField(doc),
       estimatedMinutes: doc.estimatedMinutes,
       published: doc.published,
       updatedAt: FieldValue.serverTimestamp(),

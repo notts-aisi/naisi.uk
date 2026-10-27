@@ -42,12 +42,16 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Dropdown, { type DropdownOption } from "@/components/ui/Dropdown";
 import { divergenceNote, type GroupDivergenceInput } from "@/lib/courses/groupResolve";
+import { emailsLabel, publishConfirmText, publishResultLines } from "@/lib/courses/publishWords";
+import AllocationPublish from "./AllocationPublish";
 import {
   useAllocation,
   type AllocGroup,
   type AllocRow,
   type Placement,
 } from "./useAllocation";
+import { GAVE_PLACE_BACK, cardFit, facilitatedGroupOf, facilitatesWords, type CardFit } from "./allocationFit";
+import { boardTally, poolRowIsToPlace, rowHasLeft } from "./allocationTally";
 import styles from "./AllocationBoard.module.css";
 
 /**
@@ -91,13 +95,17 @@ import styles from "./AllocationBoard.module.css";
  */
 
 type Props = {
-  /**
-   * Only used to link back to the run editor from the no-groups empty state.
-   * That link is admin-shaped; when P7 mounts this board on the learn side for
-   * track leads, the href becomes a prop rather than a route built in here.
-   */
   courseId: string;
   runId: string;
+  /**
+   * Where the no-groups empty state sends somebody to add groups: the run
+   * editor, which sits under `/admin/courses` behind course permissions.
+   * Omitted, the board links there, as every mount did before a programme's
+   * Groups tab mounted it. Null says there is no link to give: a programme's
+   * lead adds no groups and cannot open the editor, so they are told an
+   * admin adds them.
+   */
+  runEditorHref?: string | null;
 };
 
 /** Column id for the unallocated pool. Not a group id — there is no such group. */
@@ -202,6 +210,20 @@ function plural(n: number, one: string, many: string): string {
   return n === 1 ? one : many;
 }
 
+/**
+ * What follows "All 5 accepted applicants are placed": who is not among
+ * them. Nothing when nobody has left and nobody with no group gave their
+ * place back, so the sentence reads as it always has.
+ */
+function placedTail(left: number, gaveBack: number): string {
+  const leftWords = `${left} ${plural(left, "has", "have")} left`;
+  const gaveWords = `${gaveBack} gave their place back`;
+  if (left > 0 && gaveBack > 0) return `, ${leftWords} and ${gaveWords}`;
+  if (left > 0) return `, and ${leftWords}`;
+  if (gaveBack > 0) return `, and ${gaveWords}`;
+  return "";
+}
+
 /** "Ada, Grace and Alan" — a list a human reads, not a comma-joined dump. */
 function nameList(names: string[]): string {
   if (names.length === 0) return "";
@@ -228,6 +250,18 @@ type CardFacts = {
    * ever true when they stated one — silence is not a conflict.
    */
   availabilityConflict: boolean;
+  /**
+   * What the card says about when they are free, worked out one way for
+   * somebody who ticked this run's sessions and for somebody the application
+   * form placed here, who painted a week instead. See `allocationFit.ts`.
+   */
+  fit: CardFit;
+  /**
+   * The group they facilitate, for somebody who holds a place and runs a
+   * group too, or null. The card says so, and warns when the card sits
+   * anywhere but that group.
+   */
+  facilitates: AllocGroup | null;
 };
 
 /**
@@ -246,9 +280,12 @@ function cardFacts(
     ? (preferred?.name ?? "a group that no longer exists")
     : null;
   const facilitator = row.reviewerPreferredFacilitatorName;
+  const fit = cardFit(row, group, [...groupsById.values()]);
   return {
+    facilitates: facilitatedGroupOf(row.uid, [...groupsById.values()]),
     row,
     group,
+    fit,
     preferredGroupName: preferredName,
     againstPreferredGroup:
       row.reviewerPreferredGroupId !== null &&
@@ -257,11 +294,7 @@ function cardFacts(
       facilitator !== null &&
       group !== null &&
       !group.facilitatorNames.includes(facilitator),
-    availabilityConflict:
-      group !== null &&
-      group.sessionLabel !== "" &&
-      row.availability.length > 0 &&
-      !row.availability.includes(group.sessionLabel),
+    availabilityConflict: fit.conflict,
   };
 }
 
@@ -283,12 +316,17 @@ function PersonCardBody({
     <>
       <div className={styles.cardHead}>
         <span className={styles.name}>{row.displayName || "Applicant"}</span>
-        <Badge tone={row.paidMembership ? "success" : "warning"}>
-          {row.paidMembership ? paidLabel : "Unpaid"}
-        </Badge>
+        {/* Drawn only when it is known. "Unpaid" is a statement about a
+            person, and a card that could read nothing about their membership
+            makes none. */}
+        {row.paidMembership !== null && (
+          <Badge tone={row.paidMembership ? "success" : "warning"}>
+            {row.paidMembership ? paidLabel : "Unpaid"}
+          </Badge>
+        )}
       </div>
 
-      {row.enrolmentStatus === "withdrawn" || row.enrolmentStatus === "removed" ? (
+      {rowHasLeft(row) ? (
         <div className={styles.chips}>
           <Badge tone={row.enrolmentStatus === "removed" ? "danger" : "neutral"}>
             {row.enrolmentStatus === "removed" ? "Removed" : "Withdrawn"}
@@ -296,9 +334,29 @@ function PersonCardBody({
         </div>
       ) : null}
 
-      {row.availability.length > 0 ? (
+      {/* Somebody who holds a place and facilitates a group sits in that
+          group: the board places them there and nowhere else. Warned when
+          the card is anywhere but there. */}
+      {facts.facilitates ? (
+        <div className={styles.chips}>
+          <Badge tone={facts.group?.id === facts.facilitates.id ? "neutral" : "warning"}>
+            {facilitatesWords(facts.facilitates.name || "a group")}
+          </Badge>
+        </div>
+      ) : null}
+
+      {/* Somebody the application form placed here who has since given the
+          place back on the form. Nothing takes them off this board, so the
+          card has to say it before anybody puts them in a group. */}
+      {facts.fit.gaveBack ? (
+        <div className={styles.chips}>
+          <Badge tone="warning">{GAVE_PLACE_BACK}</Badge>
+        </div>
+      ) : null}
+
+      {facts.fit.slots.length > 0 ? (
         <ul className={styles.chips}>
-          {row.availability.map((slot) => (
+          {facts.fit.slots.map((slot) => (
             /* The slot matching this card's own session is highlighted: it is
                the one fact that answers "can they actually come to this?". */
             <li
@@ -308,6 +366,14 @@ function PersonCardBody({
               {slot}
             </li>
           ))}
+        </ul>
+      ) : null}
+
+      {/* Said in words when there is no chip to say it: they gave no
+          availability, or the week they gave covers none of these sessions. */}
+      {facts.fit.note ? (
+        <ul className={styles.chips}>
+          <li className={facts.fit.noteWarns ? styles.chipWarn : styles.chip}>{facts.fit.note}</li>
         </ul>
       ) : null}
 
@@ -353,10 +419,22 @@ function PersonCardBody({
             <span className={styles.srOnly}>: {row.reviewerNotes}</span>
           </li>
         ) : null}
+        {/* What became of their group's email, as Publish recorded it: a
+            held or stopped email is not "Emailed", and the card says so. */}
         {row.allocatedEmailAt ? (
-          <li className={styles.chipOk} title={`Emailed ${formatWhen(row.allocatedEmailAt)}`}>
-            Emailed
-          </li>
+          row.allocatedEmailDelivery === "held" ? (
+            <li className={styles.chipWarn} title="This copy of the site doesn't email that address, so nothing went.">
+              Email held
+            </li>
+          ) : row.allocatedEmailDelivery === "suppressed" ? (
+            <li className={styles.chipWarn} title="The address is on the do-not-email list, so nothing went.">
+              Not emailed: do-not-email list
+            </li>
+          ) : (
+            <li className={styles.chipOk} title={`Emailed ${formatWhen(row.allocatedEmailAt)}`}>
+              Emailed
+            </li>
+          )
         ) : null}
       </ul>
     </>
@@ -464,7 +542,10 @@ function PersonCard({
 
           {/* An enrolment can only be removed once it exists. Un-placing
               someone (Move to → Unallocated) is a different, softer thing:
-              they stay on the run expecting a place. */}
+              they stay on the run expecting a place. Only a seat still on
+              the run is offered Remove: never one whose person left by
+              themselves (the Remove route refuses that, saying when), nor
+              one already removed. */}
           {row.enrolmentStatus === "active" && (
             <Button
               variant="ghost"
@@ -523,10 +604,16 @@ function BoardColumn({
   });
 
   const isPool = group === null;
-  const count = rows.length;
+  // The number on the column counts the people still on the run: somebody
+  // who has left holds no seat and is nobody to place, and the rail counts
+  // them as having left. Their card stays, so they can be moved back. The
+  // pool's number is who is still to place, so it leaves out a card there
+  // that says "Gave their place back" too, as the rail does (`boardTally`).
+  const count = rows.filter((r) => (isPool ? poolRowIsToPlace(r) : !rowHasLeft(r))).length;
+  const cards = rows.length;
   const atCapacity = group?.capacity != null && count >= group.capacity;
   const allSelected =
-    count > 0 && rows.every((r) => selectedUids.has(r.uid));
+    cards > 0 && rows.every((r) => selectedUids.has(r.uid));
 
   const className = [
     styles.column,
@@ -570,13 +657,13 @@ function BoardColumn({
             </p>
           </>
         )}
-        {bulkMode && count > 0 && (
+        {bulkMode && cards > 0 && (
           <button
             type="button"
             className={styles.selectAll}
             onClick={() => onSelectAll(rows.map((r) => r.uid), !allSelected)}
           >
-            {allSelected ? "Clear these" : `Select these ${count}`}
+            {allSelected ? "Clear these" : `Select these ${cards}`}
           </button>
         )}
       </header>
@@ -585,7 +672,7 @@ function BoardColumn({
         <SortableContext items={rows.map((r) => r.uid)} strategy={NO_REORDER}>
           {children}
         </SortableContext>
-        {count === 0 && (
+        {cards === 0 && (
           <p className={styles.columnEmpty}>
             {isPool
               ? "Everyone has a group."
@@ -601,7 +688,11 @@ function BoardColumn({
 // Board
 // ---------------------------------------------------------------------------
 
-export default function AllocationBoard({ courseId, runId }: Props) {
+export default function AllocationBoard({ courseId, runId, runEditorHref }: Props) {
+  const editorHref =
+    runEditorHref === undefined
+      ? `/admin/courses/${encodeURIComponent(courseId)}/runs/${encodeURIComponent(runId)}`
+      : runEditorHref;
   const {
     data,
     loading,
@@ -609,6 +700,7 @@ export default function AllocationBoard({ courseId, runId }: Props) {
     reload,
     place,
     publishAllocation,
+    sendPublishTest,
     removeEnrolment,
   } = useAllocation(runId);
   const { toast, run: runAction, dismiss } = useActionToast();
@@ -629,7 +721,13 @@ export default function AllocationBoard({ courseId, runId }: Props) {
   const [busy, setBusy] = useState(false);
   /** Names the server (or this board) says still have no group. */
   const [unplacedNames, setUnplacedNames] = useState<string[]>([]);
-  const [publishNote, setPublishNote] = useState<string | null>(null);
+  /** What the last press of Publish did, a sentence each. */
+  const [publishLines, setPublishLines] = useState<string[]>([]);
+  /** Why the last test or press did not go. */
+  const [publishProblem, setPublishProblem] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  /** What the last test came to, when the board's own line does not say it. */
+  const [testNote, setTestNote] = useState<string | null>(null);
 
   const settleTimer = useRef<number | null>(null);
   useEffect(
@@ -693,12 +791,24 @@ export default function AllocationBoard({ courseId, runId }: Props) {
   // Memoised rather than read inline: the `?? []` fallback would otherwise
   // mint a fresh array every render and re-run everything downstream of it.
   const poolRows = useMemo(() => byColumn.get(UNALLOCATED) ?? [], [byColumn]);
-  const acceptedCount = people.length;
-  const unallocatedCount = poolRows.length;
-  const placedCount = acceptedCount - unallocatedCount;
-  const everyonePlaced = acceptedCount > 0 && unallocatedCount === 0;
+  // Somebody who has left the run is counted as having left, wherever their
+  // card sits, and is never somebody still to place (`boardTally`): Publish
+  // does not wait for them either. Nor is somebody in the pool whose card
+  // says "Gave their place back": the rail counts them apart.
+  const tally = useMemo(() => {
+    const inPool = new Set(poolRows.map((row) => row.uid));
+    return boardTally(people, (row) => inPool.has(row.uid));
+  }, [people, poolRows]);
+  const acceptedCount = tally.accepted;
+  const unallocatedCount = tally.toPlace.length;
+  const placedCount = tally.placed;
+  const leftCount = tally.left;
+  const gaveBackCount = tally.gaveBack;
+  // Who the board is placing: everybody placed or still to place.
+  const owedAGroup = placedCount + unallocatedCount;
+  const everyonePlaced = owedAGroup > 0 && unallocatedCount === 0;
   const progressPct =
-    acceptedCount === 0 ? 0 : Math.round((placedCount / acceptedCount) * 100);
+    owedAGroup === 0 ? 0 : Math.round((placedCount / owedAGroup) * 100);
 
   /** Which column a uid is in right now, honouring optimistic overrides. */
   const columnIdOf = useCallback(
@@ -742,7 +852,7 @@ export default function AllocationBoard({ courseId, runId }: Props) {
         // capacity: the transaction is the authority on whether a group is
         // full, and a client-side guess would quietly hide a legitimate
         // over-allocation the allocator is entitled to attempt.
-        label: `${group.name} · ${(byColumn.get(group.id) ?? []).length}/${group.capacity ?? "∞"}`,
+        label: `${group.name} · ${(byColumn.get(group.id) ?? []).filter((row) => !rowHasLeft(row)).length}/${group.capacity ?? "∞"}`,
       })),
     ],
     [groups, byColumn],
@@ -984,83 +1094,110 @@ export default function AllocationBoard({ courseId, runId }: Props) {
   );
 
   /**
+   * "Send a test to me": the first person's and the first facilitator's real
+   * emails, marked as a test, to the caller's own address. The board is read
+   * again afterwards, and its line says when the test went; a test that was
+   * held or stopped by the do-not-email list does not count, and says so here.
+   */
+  const handleTest = useCallback(() => {
+    setTesting(true);
+    setTestNote(null);
+    setPublishProblem(null);
+    void (async () => {
+      try {
+        const result = await sendPublishTest();
+        if (!result.ok) {
+          setPublishProblem(result.error);
+        } else if (result.delivery === "held") {
+          setTestNote(
+            "The test was held, not sent: this copy of the site doesn’t email your address. A held test doesn’t count, so Publish stays locked until one reaches you.",
+          );
+        } else if (result.delivery === "suppressed") {
+          setTestNote("Your address is on the do-not-email list, so the test was not sent. It doesn’t count as a test.");
+        }
+      } finally {
+        setTesting(false);
+      }
+    })();
+  }, [sendPublishTest]);
+
+  /**
    * Publish. Two refusal paths, both landing in the STATUS RAIL rather than a
    * toast, because "who is still unplaced" is a work list you act on, not a
    * notification you dismiss:
    *
-   *  1. The board already knows the pool is non-empty → refuse locally, name
+   *  1. The board already knows the pool is non-empty: refuse locally, name
    *     them in the rail, never call and never show the confirm dialog.
    *  2. The board thought it was done but the server disagreed (someone was
-   *     accepted in another tab between the load and the click) → the route's
+   *     accepted in another tab between the load and the click): the route's
    *     409 carries the names, and they go in the same place.
+   *
+   * The confirmation says the number on the button, and the press carries
+   * it: the server refuses if it is no longer what a press would send.
    */
   const handlePublish = useCallback(() => {
-    if (unallocatedCount > 0) {
-      setPublishNote(null);
-      setUnplacedNames(poolRows.map((r) => r.displayName || "Applicant"));
+    if (!data) return;
+    if (tally.toPlace.length > 0) {
+      setPublishLines([]);
+      setUnplacedNames(tally.toPlace.map((r) => r.displayName || "Applicant"));
       return;
     }
-    const label = data?.run.label ?? "this run";
-    const already = data?.run.allocationPublishedAt != null;
+    const summary = data.publish;
     if (
       !window.confirm(
-        `Publish the allocation for ${label}?\n\n` +
-          `• ${placedCount} ${plural(placedCount, "member is", "members are")} enrolled in their group.\n` +
-          `• Everyone newly placed is emailed their group, session time and facilitator.\n` +
-          `• The cohort mailing list for this run is created so it can be emailed as one group.\n\n` +
-          (already
-            ? "This run has been published before — only people placed since then will be emailed."
-            : "Emails cannot be un-sent."),
+        publishConfirmText({
+          runLabel: data.run.label || "this run",
+          emails: summary.emails,
+          people: summary.people,
+          facilitators: summary.facilitators,
+          more: summary.more,
+          noAddress: summary.noAddress,
+          emptyGroups: summary.emptyGroups,
+          gaveBack: summary.gaveBack ?? 0,
+          republish: data.run.allocationPublishedAt != null,
+        }),
       )
     ) {
       return;
     }
     const conflict: { names: string[] } = { names: [] };
     setBusy(true);
+    setPublishProblem(null);
+    setTestNote(null);
     void (async () => {
       try {
         await runAction(
           async () => {
-            const result = await publishAllocation();
+            const result = await publishAllocation(summary.emails);
             if (result.ok) {
               setUnplacedNames([]);
-              setPublishNote(
-                `Published — ${result.emailed} ${plural(result.emailed, "email", "emails")} sent` +
-                  (result.skipped > 0
-                    ? `, ${result.skipped} skipped (already had theirs).`
-                    : "."),
-              );
+              setPublishLines(publishResultLines(result.report));
               return;
             }
             if (result.unplaced.length > 0) {
               conflict.names = result.unplaced;
               throw new Error(
-                "Nothing was sent — some accepted applicants still have no group. They're listed above the board.",
+                "Nothing was sent. Some accepted applicants still have no group: they are listed above the board.",
               );
             }
+            setPublishProblem(result.error);
             throw new Error(result.error);
           },
           {
-            savingMessage: "Publishing allocation…",
-            successMessage: "Allocation published — emails are on their way",
+            savingMessage:
+              summary.emails > 0 ? `Publishing and sending ${emailsLabel(summary.emails)}…` : "Publishing…",
+            successMessage: "Published. What went is on the board.",
           },
         );
       } finally {
         setBusy(false);
         if (conflict.names.length > 0) {
-          setPublishNote(null);
+          setPublishLines([]);
           setUnplacedNames(conflict.names);
         }
       }
     })();
-  }, [
-    unallocatedCount,
-    poolRows,
-    data,
-    placedCount,
-    publishAllocation,
-    runAction,
-  ]);
+  }, [tally, data, publishAllocation, runAction]);
 
   // -------------------------------------------------------------------------
   // Drag and drop
@@ -1200,7 +1337,6 @@ export default function AllocationBoard({ courseId, runId }: Props) {
   }
 
   const { run } = data;
-  const publishedAt = run.allocationPublishedAt;
   const draggingRow = draggingUid ? peopleByUid.get(draggingUid) : undefined;
   const selectedCount = liveSelection.size;
 
@@ -1270,6 +1406,21 @@ export default function AllocationBoard({ courseId, runId }: Props) {
                 <strong>{acceptedCount}</strong> accepted ·{" "}
                 <strong>{placedCount}</strong> placed ·{" "}
                 <strong>{unallocatedCount}</strong> unallocated
+                {leftCount > 0 ? (
+                  <>
+                    {" "}
+                    · <strong>{leftCount}</strong> left
+                  </>
+                ) : null}
+                {/* Cards in the pool that say "Gave their place back":
+                    nobody to place, so counted apart. Drawn only when there
+                    is somebody, so the line reads as it always has. */}
+                {gaveBackCount > 0 ? (
+                  <>
+                    {" "}
+                    · <strong>{gaveBackCount}</strong> gave their place back
+                  </>
+                ) : null}
               </p>
             </div>
             <div className={styles.railActions}>
@@ -1292,9 +1443,6 @@ export default function AllocationBoard({ courseId, runId }: Props) {
               >
                 {bulkMode ? "Done selecting" : "Select several"}
               </Button>
-              <Button size="sm" onClick={handlePublish} disabled={busy}>
-                Publish allocation
-              </Button>
             </div>
           </div>
 
@@ -1304,7 +1452,7 @@ export default function AllocationBoard({ courseId, runId }: Props) {
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={progressPct}
-            aria-valuetext={`${placedCount} of ${acceptedCount} accepted applicants placed`}
+            aria-valuetext={`${placedCount} of ${owedAGroup} accepted applicants placed`}
             aria-label="Accepted applicants placed in a group"
           >
             {/* scaleX, not width — a compositor-only property, and the bar sits
@@ -1317,8 +1465,9 @@ export default function AllocationBoard({ courseId, runId }: Props) {
 
           {everyonePlaced ? (
             <p className={styles.railSuccess}>
-              All {acceptedCount} accepted{" "}
-              {plural(acceptedCount, "applicant is", "applicants are")} placed.
+              All {owedAGroup} accepted{" "}
+              {plural(owedAGroup, "applicant is", "applicants are")} placed
+              {placedTail(leftCount, gaveBackCount)}.
               No one is in two groups.
             </p>
           ) : acceptedCount === 0 ? (
@@ -1328,18 +1477,18 @@ export default function AllocationBoard({ courseId, runId }: Props) {
             </p>
           ) : null}
 
-          {publishedAt ? (
-            <p className={styles.railNote}>
-              Published {formatWhen(publishedAt)}. Publishing again only emails
-              people placed since then — nobody gets a second copy.
-            </p>
-          ) : null}
-
-          {publishNote ? (
-            <p className={styles.railSuccess} role="status">
-              {publishNote}
-            </p>
-          ) : null}
+          {/* Publish: who it reaches, the last test, and the two buttons. */}
+          <AllocationPublish
+            summary={data.publish}
+            publishedAt={run.allocationPublishedAt}
+            busy={busy}
+            testing={testing}
+            testNote={testNote}
+            problem={publishProblem}
+            result={publishLines}
+            onTest={handleTest}
+            onPublish={handlePublish}
+          />
 
           {/* The V2-3 divergence disclosure. `role="status"`, not `alert`:
               nothing has gone wrong, the move already happened, and it must
@@ -1391,17 +1540,22 @@ export default function AllocationBoard({ courseId, runId }: Props) {
         {groups.length === 0 ? (
           <Card padding="lg">
             <h3 className={styles.emptyTitle}>No groups on this run yet</h3>
-            <p className={styles.muted}>
-              Add groups in the{" "}
-              <Link
-                className={styles.link}
-                href={`/admin/courses/${encodeURIComponent(courseId)}/runs/${encodeURIComponent(runId)}`}
-              >
-                run editor
-              </Link>{" "}
-              — each one needs a session time and a facilitator — and they will
-              appear here as columns to place people into.
-            </p>
+            {editorHref ? (
+              <p className={styles.muted}>
+                Add groups in the{" "}
+                <Link className={styles.link} href={editorHref}>
+                  run editor
+                </Link>
+                , each with a session time and a facilitator, and they will
+                appear here as columns to place people into.
+              </p>
+            ) : (
+              <p className={styles.muted}>
+                An admin adds the run’s groups in the run editor, each with a
+                session time, and they appear here as columns to place people
+                into.
+              </p>
+            )}
           </Card>
         ) : (
           <DndContext

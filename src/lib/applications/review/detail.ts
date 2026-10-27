@@ -24,6 +24,7 @@ import { gaveBackOf } from "../status/reasons";
 import { changeCount } from "../versions/kept";
 import { namedAsQuestions } from "../words";
 import { availabilityViewFor } from "./availabilityView";
+import { holdsFreedPlace } from "./board";
 import {
   aboutFactsHistory,
   addedChipText,
@@ -408,8 +409,13 @@ export function buildReview(input: {
 
   const decision = term.decisions.get(application.uid) ?? null;
   const entry = own(decision?.programmes, programmeId) ?? null;
-  // An invitation accepted is a place accepted: nobody decided it here.
-  const standing = byInvitation ? "accepted" : standingWith(decision, programmeId);
+  // A freed place accepted reads as the list reads it (`holdsFreedPlace`):
+  // the lead's Pool stays the record of what was decided, and the place is
+  // held all the same.
+  const freedPlace = !byInvitation && holdsFreedPlace(form, term, application, programmeId);
+  // An invitation accepted is a place accepted: nobody decided it here. So is
+  // a freed place.
+  const standing = byInvitation || freedPlace ? "accepted" : standingWith(decision, programmeId);
   const owes = owesDecision(ranked, decision, programmeId);
   // Somebody who has left the term holds no place, whatever was decided.
   const placement = isInTerm(application) ? placementFor(ranked, decision) : null;
@@ -548,6 +554,7 @@ export function buildReview(input: {
       owesDecision: owes,
       told: hasBeenTold(application),
       byInvitation,
+      freedPlace,
       kind: entry?.decision ?? null,
       poolReason: entry?.poolReason ?? null,
       couldSuitProgrammeId: entry?.couldSuitProgrammeId ?? null,

@@ -1,0 +1,2006 @@
+/* A programme's Overview (board wk-overview): the week card with its rail,
+   the sessions this week, what needs attention, who came by week and the
+   people. One column on a phone. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  min-width: 0;
+}
+
+.muted {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.arrow {
+  flex: none;
+}
+
+.card {
+  min-width: 0;
+  padding: 22px 24px 24px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.cardTitle,
+.sectionTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.sectionTitle {
+  margin-bottom: 14px;
+}
+
+.countBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--color-warning-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.textLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--color-accent-text);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.textLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.buttonLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.buttonLink:hover {
+  background: var(--color-surface-hover);
+}
+
+.textLink:focus-visible,
+.buttonLink:focus-visible,
+.remindButton:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+/* ── The week ─────────────────────────────────────────────────────────── */
+
+.weekCard {
+  min-width: 0;
+  padding: 24px 24px 26px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+}
+
+.weekTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px 24px;
+}
+
+.weekText {
+  min-width: 0;
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-live);
+}
+
+.weekTitleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  margin-top: 8px;
+}
+
+.weekTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.weekSpan {
+  font-family: var(--font-meta);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.theme {
+  margin: 6px 0 0;
+  font-size: 16px;
+  color: var(--color-text-body);
+}
+
+.rail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
+  gap: 8px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.railStep {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.railBar {
+  display: block;
+  height: 4px;
+  margin-bottom: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border);
+}
+
+.railDone .railBar {
+  background: var(--color-accent);
+}
+
+.railCurrent .railBar {
+  background: var(--color-live);
+}
+
+.railWeek,
+.railDate {
+  font-family: var(--font-meta);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.railCurrent .railWeek {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.railCurrent .railDate {
+  color: var(--color-live);
+}
+
+/* ── Sessions this week ───────────────────────────────────────────────── */
+
+.sessions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 16px;
+}
+
+.session {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 18px 18px 20px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.sessionWarn {
+  border-color: var(--color-warning-line);
+}
+
+.when {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.whenToday {
+  font-weight: 700;
+  color: var(--color-live);
+}
+
+.sessionGroup {
+  margin: 8px 0 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.where {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.facilitators {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.facilitator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.sessionFoot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.session .facilitators + .sessionFoot,
+.session .muted + .sessionFoot {
+  margin-top: 18px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-hover);
+  color: var(--color-text-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pillDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.pillOk {
+  border-color: var(--color-ok-line);
+  background: var(--color-success-soft);
+  color: var(--color-ok);
+}
+
+.pillWarn {
+  border-color: var(--color-warning-line);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.pillLive {
+  border-color: var(--color-live-line);
+  background: var(--color-live-soft);
+  color: var(--color-live);
+}
+
+.sessionLine,
+.sessionNote {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text-body);
+}
+
+.sessionNote {
+  color: var(--color-text-muted);
+}
+
+.remind {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.remindRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.remindButton {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.remindButton:hover {
+  background: var(--color-surface-hover);
+}
+
+.remindButton:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.remindCount {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.problem {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-danger-text);
+}
+
+.sent {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-ok);
+}
+
+/* ── Needs attention ──────────────────────────────────────────────────── */
+
+.items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.item:first-child {
+  border-top: 0;
+  padding-top: 4px;
+}
+
+.warnIcon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--color-warning);
+}
+
+.infoIcon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--color-accent-text);
+}
+
+.itemText {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.itemTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.itemDetail {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* ── Attendance by week, and the people ───────────────────────────────── */
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+.chart {
+  position: relative;
+  margin-top: 20px;
+  padding-left: 44px;
+}
+
+.gridLines {
+  position: absolute;
+  inset: 0 0 40px 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.gridLine {
+  display: block;
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-meta);
+  font-size: 11px;
+  line-height: 0;
+  color: var(--color-text-subtle);
+}
+
+.bars {
+  position: relative;
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.barColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.barTrack {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  height: 160px;
+}
+
+.bar {
+  position: relative;
+  width: 26px;
+  max-width: 100%;
+  border-radius: 3px 3px 0 0;
+  background: var(--color-accent);
+}
+
+.barSoFar {
+  border: 1px dashed var(--color-accent-line);
+  background: var(--color-accent-soft);
+}
+
+.barValue {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  margin-bottom: 4px;
+  transform: translateX(-50%);
+  font-family: var(--font-meta);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.barEmpty {
+  margin-bottom: 4px;
+  color: var(--color-text-subtle);
+  font-weight: 700;
+}
+
+.barLabel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 32px;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.barSoFarWord {
+  font-size: 11px;
+}
+
+.chartFrom {
+  margin: 16px 0 0;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.peopleCount {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 12px 0 0;
+  font-size: 18px;
+  color: var(--color-text);
+}
+
+.bigNumber {
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.peopleLine {
+  margin: 12px 0 0;
+  font-size: 15px;
+  color: var(--color-text-body);
+}
+
+/* The Updates card (wk-overview): each update's writer, its title as a link
+   to the Messages tab, and the staff list's line under it. */
+.updateList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.updateItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.updateBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.updateTitle {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.updateTitle:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.updateMeta {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* ── Who finished (board en-finish) ─────────────────────────────────────
+   A card leading the Overview once the run's last session is over. Its
+   table scrolls inside the card, never the page. */
+
+.wfCard {
+  min-width: 0;
+  padding: 24px 28px 22px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.wfHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 20px;
+}
+
+.wfHeadText {
+  flex: 1 1 360px;
+  min-width: 0;
+}
+
+.wfTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.wfSentence {
+  max-width: 46rem;
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+/* "Settings", inside the sentence over the list: a link in the line of text. */
+.wfSentenceLink {
+  color: var(--color-accent-text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.wfSentenceLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.wfSentenceLink:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+.wfHeadSide {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+/* "28 FINISHED · 3 NOT": upper case here, never in the words. */
+.wfCounts {
+  font-family: var(--font-meta);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--color-text);
+}
+
+.wfStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.wfStatusTick {
+  display: block;
+  flex: none;
+  color: var(--color-ok);
+}
+
+.wfStatusProblem {
+  white-space: normal;
+  color: var(--color-warning);
+}
+
+.wfScroll {
+  min-width: 0;
+  margin: 20px -16px 0;
+  overflow-x: auto;
+}
+
+.wfTable {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.wfCaption {
+  padding: 0 16px 10px;
+  caption-side: top;
+  text-align: left;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.wfTh {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.wfColGroup {
+  width: 130px;
+}
+
+.wfColCount {
+  width: 140px;
+}
+
+.wfColFinished {
+  width: 230px;
+}
+
+.wfTd {
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+  font-size: 15px;
+  color: var(--color-text);
+}
+
+.wfPerson {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.wfPersonText {
+  min-width: 0;
+}
+
+.wfName {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--color-text);
+}
+
+.wfLine {
+  margin-top: 1px;
+  font-size: 13px;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.wfFinishedCell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* A 44px target round a 40 by 24 track. */
+.wfSwitch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.wfSwitchInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.wfSwitchTrack {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+  transition: background var(--transition-fast);
+}
+
+.wfSwitchKnob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-text-soft);
+  transition: transform var(--transition-fast);
+}
+
+.wfSwitchInput:checked + .wfSwitchTrack {
+  background: var(--color-accent);
+}
+
+.wfSwitchInput:checked + .wfSwitchTrack .wfSwitchKnob {
+  background: white;
+  transform: translateX(16px);
+}
+
+.wfSwitchInput:focus-visible + .wfSwitchTrack {
+  box-shadow: var(--focus-ring);
+}
+
+.wfSwitchInput:disabled + .wfSwitchTrack {
+  opacity: 0.6;
+}
+
+.wfChanged {
+  font-size: 13px;
+  white-space: nowrap;
+  color: var(--color-accent-text);
+}
+
+.wfMoreCell {
+  padding: 4px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.wfMore {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent-text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wfMore:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.wfMore:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+.wfChevron,
+.wfChevronOpen {
+  display: block;
+  flex: none;
+  transition: transform var(--transition-fast);
+}
+
+.wfChevronOpen {
+  transform: rotate(180deg);
+}
+
+.wfLeftHeadCell {
+  padding: 18px 16px 6px;
+}
+
+.wfLeftHead {
+  font-family: var(--font-meta);
+  font-size: 12px;
+  line-height: 1.3;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.wfLeftName {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.wfMuted {
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.wfNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 14px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.wfNoteIcon {
+  display: block;
+  flex: none;
+  margin-top: 2px;
+}
+
+/* Week 1's "Mark ready", under its line in Needs attention. */
+.itemAction {
+  margin-top: var(--space-3);
+}
+
+/* Mark ready and Not ready: the button as wide as its words, its problem under it. */
+.markReady {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+/* Week 1 marked ready, before any group has met: the line and "Not ready". */
+.readyRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.readyLine {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+/* ── Certificates (board en-finish) ─────────────────────────────────────
+   The card is Who finished's own. The thumbnail is the certificate itself,
+   drawn at 760 pixels and made smaller, as the board draws it. */
+
+.ctBody {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px 28px;
+  margin-top: 20px;
+}
+
+.ctThumb {
+  display: block;
+  flex: none;
+  width: 232px;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  text-decoration: none;
+}
+
+.ctThumb:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.ctThumbZoom {
+  display: block;
+  width: 760px;
+  zoom: 0.3053;
+  pointer-events: none;
+}
+
+.ctSide {
+  flex: 1 1 300px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-top: 4px;
+}
+
+.ctEyebrow {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  line-height: 1.3;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.ctSubject {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 16px;
+  margin: 2px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.ctSubject .textLink {
+  min-height: 44px;
+  font-size: 15px;
+}
+
+.ctButtons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.ctButton {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: var(--radius-md);
+  box-sizing: border-box;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.ctButton:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.ctButtonQuiet {
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--color-border-strong);
+}
+
+.ctButtonQuiet:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.ctButtonMain {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  border: 1px solid var(--color-accent);
+}
+
+.ctButtonMain:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+/* Locked until a test reaches the presser: the board's dimmed accent. */
+.ctButtonMain:disabled {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-line);
+  color: var(--color-accent-text);
+  cursor: not-allowed;
+}
+
+.ctButtonQuiet:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* en-finish's row once the run is over: Certificates, and The after survey beside it. */
+.endRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 28px;
+  min-width: 0;
+}
+
+.endMain {
+  flex: 2 1 36rem;
+  min-width: 0;
+}
+
+.endSide {
+  flex: 1 1 18rem;
+}
+
+/* "23 of 31 have answered.", the count in the text's own colour. */
+.afterCount {
+  margin: 8px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.afterCount strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.ctLock,
+.ctFoot {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.ctIcon {
+  flex: none;
+  margin-top: 2px;
+}
+
+.ctLine {
+  margin: 2px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.ctWarn {
+  margin: 2px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-soft);
+}
+
+.ctSaid:empty {
+  display: none;
+}
+
+.ctSaid .ctLine {
+  color: var(--color-text-soft);
+}
+
+.ctFoot {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ctButton,
+  .wfSwitchTrack,
+  .wfSwitchKnob,
+  .wfChevron,
+  .wfChevronOpen {
+    transition: none;
+  }
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  /* On a phone the button takes the card's width: an easy target for a thumb. */
+  .markReady {
+    align-items: stretch;
+  }
+
+  .page {
+    gap: 22px;
+  }
+
+  .endRow {
+    gap: 22px;
+  }
+
+  .card,
+  .weekCard {
+    padding: 18px 16px 20px;
+  }
+
+  .weekTop {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .buttonLink {
+    justify-content: center;
+  }
+
+  .rail {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 14px;
+  }
+
+  .sessions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .item {
+    flex-wrap: wrap;
+  }
+
+  .item .buttonLink,
+  .item .textLink {
+    margin-left: 30px;
+  }
+
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .chart {
+    padding-left: 36px;
+  }
+
+  .bars {
+    gap: 6px;
+  }
+
+  .wfCard {
+    padding: 20px 16px 18px;
+  }
+
+  .wfTitle {
+    font-size: 20px;
+  }
+
+  .wfHeadSide {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .wfScroll {
+    margin: 16px -16px 0;
+  }
+
+  .wfLine {
+    white-space: normal;
+  }
+
+  /* Who finished, a card a row (en-finish draws no phone board): the person
+     and their Finished switch side by side, then their group, "came to" and
+     exercises under the name, each with its column's word, so no switch is
+     behind a sideways scroll. Every cell, word and control is the laptop
+     table's own, placed by the cells' classes; the switch keeps its 44px
+     target. */
+  .wfTable,
+  .wfTable > tbody,
+  .wfTable td,
+  .wfCaption {
+    display: block;
+  }
+
+  .wfTable {
+    min-width: 0;
+  }
+
+  /* Each cell says its column's word here; the headings stay for assistive
+     technology. */
+  .wfThead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .wfTable > tbody > tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 8px;
+    align-items: start;
+  }
+
+  /* A row for one person: a card, with a rule under it. */
+  .wfTable > tbody > tr:has(> .wfCellPerson) {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  /* "+3 more", "Left the programme" and "Nobody took part." take the width. */
+  .wfTable > tbody > tr > td[colspan] {
+    grid-column: 1 / -1;
+  }
+
+  .wfTd {
+    border-bottom: 0;
+  }
+
+  .wfTable .wfCellPerson,
+  .wfTable .wfCellGroup,
+  .wfTable .wfCellCame,
+  .wfTable .wfCellExercises,
+  .wfTable .wfCellFinished {
+    padding: 0 16px;
+  }
+
+  .wfTable .wfCellPerson {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .wfTable .wfCellGroup,
+  .wfTable .wfCellCame,
+  .wfTable .wfCellExercises {
+    grid-column: 1;
+    padding-left: calc(16px + 1.375rem + 12px);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+  }
+
+  .wfTable .wfCellGroup {
+    grid-row: 2;
+  }
+
+  .wfTable .wfCellCame {
+    grid-row: 3;
+  }
+
+  .wfTable .wfCellExercises {
+    grid-row: 4;
+  }
+
+  /* The column's word, as the laptop table's mono heading says it. */
+  .wfCellCame::before,
+  .wfCellExercises::before {
+    margin-right: 6px;
+    font-family: var(--font-meta);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .wfCellCame::before {
+    content: "Came to";
+  }
+
+  .wfCellExercises::before {
+    content: "Written answers";
+  }
+
+  /* Beside the name, at the top of the card. */
+  .wfTable .wfCellFinished {
+    grid-column: 2;
+    grid-row: 1 / span 4;
+    align-self: start;
+  }
+
+  .wfTable td.wfCellEmpty {
+    display: none;
+  }
+
+  .wfFinishedCell {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+
+  .wfChanged {
+    max-width: 7rem;
+    white-space: normal;
+    text-align: right;
+  }
+
+  .wfName,
+  .wfLeftName {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  /* Certificates: the thumbnail over the email, and the two presses at the
+     card's width, as the phone draws a long button. */
+  .ctBody {
+    flex-direction: column;
+  }
+
+  .ctButtons {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ctButton {
+    white-space: normal;
+  }
+
+  /* Get ready for week 1. */
+  .readyCard,
+  .readyChecklist {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .readyStepActionNoted {
+    max-width: none;
+  }
+}
+
+
+/* ══ Before any group has met: "Get ready for week 1" (boards st-overview and
+   st-overview-phone) ════════════════════════════════════════════════════
+   The checklist and who has not said when they are free on the left, the
+   places and the facilitators on the right, one column on a phone in the
+   same order. Every class here starts "ready" and is drawn by GetReady.tsx
+   and RemindFree.tsx alone. */
+
+.readyPage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 24px;
+  min-width: 0;
+}
+
+.readyMain {
+  display: flex;
+  flex: 3 1 540px;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+.readySide {
+  display: flex;
+  flex: 2 1 340px;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+.readyCard,
+.readyChecklist {
+  min-width: 0;
+  padding: 22px 24px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-sizing: border-box;
+}
+
+.readyChecklist {
+  padding: 24px 24px 10px;
+}
+
+.readyCardTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.readyLede {
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.readyCardText {
+  margin: 10px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.readyArrow {
+  display: block;
+  flex: none;
+}
+
+/* ── The steps ─────────────────────────────────────────────────────────── */
+
+.readySteps {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.readyStep {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.readyMark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-top: 1px;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.readyMark_done {
+  border: 1.5px solid var(--color-ok-line);
+  background: var(--color-success-soft);
+  color: var(--color-ok);
+}
+
+.readyMark_doing {
+  border: 1.5px solid var(--color-warning-line);
+  background: var(--color-warning-soft);
+}
+
+.readyMark_todo {
+  border: 1.5px solid var(--color-border-strong);
+  background: transparent;
+}
+
+.readyMarkDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-warning);
+}
+
+.readyStepBody {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  min-width: 0;
+}
+
+.readyStepText {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.readyStepTitle {
+  margin: 0;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-text);
+}
+
+.readyStepLine {
+  margin: 3px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.readyStepAction {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.readyStepActionNoted {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 230px;
+  min-width: 0;
+}
+
+.readyStepNote {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.readyTextLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--color-accent-text);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.readyTextLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.readyButtonLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.readyButtonLink:hover {
+  background: var(--color-surface-hover);
+}
+
+.readyTextLink:focus-visible,
+.readyButtonLink:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+/* ── Places ────────────────────────────────────────────────────────────── */
+
+.readyHeld {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.readyBigNumber {
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.readyHeldWords {
+  font-size: 16px;
+  color: var(--color-text-muted);
+}
+
+.readyBar {
+  height: 6px;
+  margin: 14px 0 6px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-hover);
+}
+
+.readyBarFill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+}
+
+.readyTallies {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.readyTally {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.readyTallyDot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.readyTallyDotOk {
+  background: var(--color-ok);
+}
+
+.readyTallyDotRing {
+  border: 1.5px solid var(--color-text-muted);
+}
+
+.readyTallyDotWarn {
+  background: var(--color-warning);
+}
+
+.readyTallyLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 15px;
+  color: var(--color-text);
+}
+
+.readyTallyNumber {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.readyGaveBack {
+  margin: 0 0 0 21px;
+  padding: 0 0 6px;
+  list-style: none;
+}
+
+.readyPerson {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+}
+
+.readyPersonText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.readyPersonName {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-text);
+}
+
+.readyPersonLine {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.readyFreed {
+  padding: 16px 18px 4px;
+  border: 1px solid var(--color-accent-line);
+  border-radius: var(--radius-row);
+  background: var(--color-accent-soft);
+}
+
+.readyFreedTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+.readyFreedText {
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text);
+}
+
+.readyWindowLine {
+  margin: 14px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+/* ── Facilitators ──────────────────────────────────────────────────────── */
+
+.readyFacilitators {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.readyFacilitator {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+}
+
+.readyFacilitatorText {
+  display: flex;
+  flex: 1 1 140px;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.readyFacilitatorName {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.readyFacilitatorGroup {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.readyChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.readyChipDot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.readyChipYes {
+  border-color: var(--color-ok-line);
+  background: var(--color-success-soft);
+  color: var(--color-ok);
+}
+
+.readyChipWaiting {
+  border-color: var(--color-warning-line);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.readyTraining {
+  margin: 6px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+/* ── Remind ────────────────────────────────────────────────────────────── */
+
+.readyRemind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 16px;
+}
+
+.readyRemindButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.readyRemindButton:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.readyRemindButton:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+.readyRemindButton:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.readyRemindCount {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.readyRemindResult {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.readyRemindedLine {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.readyRemindProblem {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-danger-text);
+}

@@ -60,6 +60,7 @@ import {
 import CollaboratorPicker from "./CollaboratorPicker";
 import CoverBrandingModal from "./CoverBrandingModal";
 import StepRail, { type EditorStep } from "./EditorSteps";
+import EventTabs from "./checkIn/EventTabs";
 import EventPreview from "./EventPreview";
 import { takeIncoming } from "./editorSync";
 import FormBuilder from "./FormBuilder";
@@ -1019,7 +1020,11 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
   const showRevert = canApprove && (status === "pending" || status === "approved");
   const showCancel = canApprove && status === "published";
   const showArchive = isAuthor || role === "admin";
-  const showDelete = (isAuthor || role === "admin") && status !== "published";
+  // The delete route's rule: an author deletes only an event never published
+  // (a cancelled one stays at its link); an admin, any that is not published.
+  const showDelete =
+    (isAuthor && status !== "published" && status !== "cancelled") ||
+    (role === "admin" && status !== "published");
 
   // What the preview prints. The place is asked of the one module that words
   // it, here, and handed over as a finished line: the preview is given
@@ -1122,6 +1127,14 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
             )}
           </>
         }
+      />
+
+      <EventTabs
+        eventId={event.id}
+        current="details"
+        showSignups={canSeeAttendees}
+        signups={event.rsvpCountConfirmed ?? undefined}
+        showCheckIn={status === "published"}
       />
 
       {(status === "pending" || status === "approved") && (

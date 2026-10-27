@@ -210,6 +210,54 @@ const PURE = {
  */
 const PUBLIC = new Map([
   [
+    "src/app/api/courses/calendar/[token]/sessions.ics/route.ts#GET",
+    {
+      touches: "finds whose calendar link the token is, then reads that account and their seats, groups and runs",
+      gate: "calendarLinkOwner(",
+      why:
+        "A person's calendar, fetched by their calendar app, which has no session to send: the random secret " +
+        "in the address is the gate. One equality on the token, and an unknown, replaced or malformed one reads " +
+        "nothing more; an account that does not stand reads no seat. It writes nothing, and every link that " +
+        "opens nothing answers the same empty calendar.",
+    },
+  ],
+  [
+    "src/app/api/surveys/answer/route.ts#POST",
+    {
+      touches: "finds whose survey row the secret in the link is, reads that person's survey, group and run, then keeps their answers once",
+      gate: "openLink(",
+      why:
+        "A survey answered from the personal link in an email, which has no session to send: the random secret " +
+        "is the gate. One equality on the token, and an unknown or malformed one reads nothing more; an in-memory " +
+        "per-IP throttle runs before it. The one write is the person's own answers, once, in a transaction on " +
+        "their own row.",
+    },
+  ],
+  [
+    "src/app/api/surveys/consent/route.ts#POST",
+    {
+      touches: "finds whose survey row the secret in the link is, reads that person's survey and their row on the survey that asks the consent, then changes that row's consent",
+      gate: "openLink(",
+      why:
+        "A follow-ups consent changed from the personal link in an email, which has no session to send: the " +
+        "random secret is the gate. One equality on the token, and an unknown or malformed one reads nothing " +
+        "more; an in-memory per-IP throttle runs before it. The one write is the person's own row, in a " +
+        "transaction.",
+    },
+  ],
+  [
+    "src/app/api/feedback/route.ts#POST",
+    {
+      touches: "finds the anonymous form the secret in the link opens, then keeps one answer: the three answers, the programme and the day",
+      gate: "formByToken(",
+      why:
+        "An answer to a programme's anonymous form, which reads no session by design: the random secret in " +
+        "the programme's one link is the gate. The body is checked first and touches no document; one " +
+        "equality on the token, and an unknown or malformed one reads nothing more; an in-memory per-address " +
+        "throttle runs before it. The one write is a new answer that names nobody.",
+    },
+  ],
+  [
     "src/app/api/events/[id]/calendar.ics/route.ts#GET",
     {
       touches: "reads one event",

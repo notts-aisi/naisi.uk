@@ -1,0 +1,336 @@
+/*
+  This term in numbers (board sv-term): three numbers in tiles, then the
+  term's events and its programmes, each a table in a card.
+
+  On a computer each table keeps its columns and, below the width its
+  columns need, scrolls inside its own card, never the page. On a phone
+  each row becomes a small card of its own: the event or programme first,
+  then each value under its column's name.
+*/
+
+.dot {
+  color: var(--color-text-faint);
+}
+
+/* "Download totals (CSV)": a quiet button, as the board draws it. */
+.download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  min-height: 2.75rem;
+  padding: 0 1.125rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--text-ui);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.download:hover {
+  background: var(--color-surface-hover);
+}
+
+.download:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+.downloadIcon {
+  display: block;
+  flex: none;
+}
+
+.line {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+}
+
+/* === The three numbers === */
+
+/* The page wrapper (AdminPage) spaces its blocks, so none here adds its own margin. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tile {
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 1.125rem var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.tileNumber {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 2.125rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.tileLabel {
+  display: block;
+  margin-top: var(--space-2);
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  line-height: 1.3;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.tileSub {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--text-caption);
+  line-height: 1.35;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.nobody {
+  margin: 0;
+}
+
+/* === The two tables, each in a card === */
+
+.card {
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 1.375rem 1.625rem 0.875rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+/* The programmes' card ends on its note, so it keeps a little more room under it. */
+.cardWithNote {
+  padding-bottom: 1.125rem;
+}
+
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+  margin-bottom: 0.625rem;
+}
+
+.cardTitle {
+  flex: 1 1 16rem;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.count {
+  flex: none;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.empty {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-ui);
+  color: var(--color-text-muted);
+}
+
+.scroll {
+  min-width: 0;
+  margin: 0 -0.875rem;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+/*
+  Below its minimum the table scrolls inside its card. The minimum is the
+  fixed columns (48.5rem for the events, 46rem for the programmes) and about
+  12.5rem for the event or programme, so a title wraps between words.
+*/
+.table {
+  width: 100%;
+  min-width: 61rem;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.table th[scope="col"] {
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-meta);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+  vertical-align: bottom;
+  color: var(--color-text-muted);
+}
+
+.table td,
+.table th[scope="row"] {
+  padding: 0.75rem 0.875rem;
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--text-ui);
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  vertical-align: top;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+/* The event or programme a row is about. */
+.table th[scope="row"] {
+  font-weight: 600;
+}
+
+.caption {
+  caption-side: bottom;
+  padding: 0.625rem 0.875rem 0;
+  font-size: var(--text-caption);
+  text-align: left;
+  color: var(--color-text-muted);
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+/*
+  Column widths, as the board sets them; the event and the programme take the
+  rest. The board's widths are of the cell's content, and every box here
+  counts its padding in its width, so each is the board's plus the cell's
+  0.875rem either side.
+*/
+.colDate { width: 7rem; }
+.colCame { width: 8rem; }
+.colAnswers { width: 8rem; }
+.colHow { width: 10.5rem; }
+.colNote { width: 14.875rem; }
+.colStarted { width: 5.75rem; }
+.colFinished { width: 5.75rem; }
+.colBoth { width: 7.75rem; }
+.colConsidering { width: 12.375rem; }
+.colAfter { width: 14.25rem; }
+
+/* === Phone: each row is a card === */
+@media (max-width: 48rem) { /* --bp-md */
+  .tiles {
+    gap: var(--space-3);
+  }
+
+  .card {
+    padding: var(--space-5) var(--space-4) var(--space-2);
+  }
+
+  .scroll {
+    margin: 0;
+    overflow-x: visible;
+  }
+
+  /* A column of cards, with the table's own note last, under them. */
+  .table {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .table tbody {
+    display: block;
+    min-width: 0;
+  }
+
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .table tr {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .table td,
+  .table th[scope="row"] {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    padding: 0;
+    border: 0;
+  }
+
+  /* The event or programme heads its card. */
+  .table th[scope="row"] {
+    order: -1;
+    margin-bottom: var(--space-1);
+  }
+
+  .table td:empty {
+    display: none;
+  }
+
+  .table td[data-label]::before {
+    content: attr(data-label);
+    flex: none;
+    width: 8.5rem;
+    font-family: var(--font-meta);
+    font-size: var(--text-xs);
+    line-height: 1.6;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
+  .caption {
+    display: block;
+    order: 1;
+    padding: var(--space-3) 0 0;
+  }
+}

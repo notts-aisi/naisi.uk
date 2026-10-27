@@ -1,15 +1,34 @@
 import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
+import {
+  formPlaceFactsFor,
+  type FormPlaceFacts,
+} from "@/lib/applications/handover/board";
+import {
+  loadPublishPlan,
+  pressBatch,
+  testWhen,
+  type TestState,
+} from "@/lib/courses/allocationPublish";
+import { shortSlotWords } from "@/lib/courses/facilitatorAsks/words";
+import { groupTagOf } from "@/lib/courses/programmeAttendance";
+import { firstNameOfUser } from "@/lib/courses/programmeLead";
+import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import type { WeekPlanEntry } from "@/lib/courses/weekPlan";
-import { normalizeCourseApplication } from "@/lib/firestore/courseApplications";
+import {
+  membershipKnownFromRow,
+  normalizeCourseApplication,
+  rowIsServedTo,
+} from "@/lib/firestore/courseApplications";
 import {
   courseEnrolmentId,
+  enrolmentIsPutBack,
   normalizeCourseEnrolment,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
 import {
+  compareGroupsByMeeting,
   normalizeCourseGroup,
   type GroupSession,
 } from "@/lib/firestore/courseGroups";
@@ -21,7 +40,8 @@ import { hasPaidMembership, normalizeUser } from "@/lib/firestore/users";
  * the run, its groups (with live member counts), and every ACCEPTED applicant
  * joined with their enrolment (if any).
  *
- * WHO MAY READ: admins ∪ the run's `trackLeadUids`. Allocation is a staffing
+ * WHO MAY READ: admins ∪ the run's `trackLeadUids` ∪ the lead of the
+ * programme that names the run (`runStaffingOf`). Allocation is a staffing
  * act — placing accepted people into groups — so it belongs to the people who
  * staff and steer the run, NOT to admissions reviewers (whose job ended at the
  * decision) and not to facilitators (who see only their own group's roster,
@@ -35,8 +55,21 @@ import { hasPaidMembership, normalizeUser } from "@/lib/firestore/users";
  * THE INVARIANT, visible here: `groupId` on each row is the single scalar off
  * the deterministic `courseEnrolments/{runId}__{uid}` doc, so a person appears
  * on the board exactly once and can be in at most one group by construction.
- * "Everyone placed" is a count of rows with a null/inactive placement — the
- * publish route refuses while that count is non-zero.
+ * "Everyone placed" is a count of rows with a null or inactive placement,
+ * leaving out anybody who has left the run (`enrolmentHasLeft`): the publish
+ * route refuses while that count is non-zero.
+ *
+ * SOMEBODY THE APPLICATION FORM PLACED HERE IS SEEN BY AN ADMIN AND BY THE
+ * LEAD OF THE PROGRAMME THAT NAMES THE RUN. A row an admin's hand-over wrote
+ * (`fromForm`) is for a person who applied on the term's form, where who may
+ * read an application is decided programme by programme, and being this
+ * run's track lead gives nobody that right. So such a row is listed for an
+ * admin, and for the lead of the programme whose hand-over wrote it, and for
+ * nobody else (`rowIsServedTo`). A track lead still opens the board and still
+ * sees everybody who applied to the run itself. For the rows from the form
+ * the payload also carries which groups the person can make, worked out from
+ * the week they painted on the form when the board is read: see
+ * `AllocRow.fromForm`.
  */
 
 // ---------------------------------------------------------------------------
@@ -52,6 +85,24 @@ export type AllocGroup = {
   sessionLabel: string;
   /** Names only — this board is shown to non-admin track leads too. */
   facilitatorNames: string[];
+  /**
+   * The same facilitators by uid, in the same order, so the Groups tab's
+   * Facilitators view can say who is ticked. A uid is an id, not an address.
+   */
+  facilitatorUids: string[];
+  /**
+   * What the programme's People in groups (board st-groups) heads a column
+   * with: the first names its facilitators go by ("Rahul", "Sofia"), in the
+   * same order; the group's letter as the People tab and the times picture
+   * write it ("C" for "Group C"); its weekly slot in the board's short form
+   * ("Thu 6pm", or "" with no day or time); and its room ("" for none yet).
+   * Staffing facts of the same tier as `sessionLabel` and `facilitatorNames`:
+   * a room is where the group meets, never a link.
+   */
+  facilitatorFirstNames: string[];
+  tag: string;
+  when: string;
+  room: string;
   /** The server-owned counter maintained by the allocation transaction. */
   memberCount: number;
   /**
@@ -80,7 +131,12 @@ export type AllocGroup = {
 export type AllocRow = {
   uid: string;
   displayName: string;
-  paidMembership: boolean;
+  /**
+   * The membership badge, read from the person's account. `null` is "not
+   * known": the account could not be read and the row carries no snapshot
+   * (`membershipKnownFromRow`). A card then draws no badge.
+   */
+  paidMembership: boolean | null;
   /** The session labels the applicant ticked, split back out of storage. */
   availability: string[];
   reviewerPreferredGroupId: string | null;
@@ -92,6 +148,77 @@ export type AllocRow = {
   enrolmentStatus: "none" | "active" | "withdrawn" | "removed";
   /** ISO 8601 — when the placement email for the current group was sent. */
   allocatedEmailAt: string | null;
+  /**
+   * What became of that email: handed over, held by this copy of the site,
+   * or stopped by the do-not-email list. Null for a stamp written before
+   * Publish kept this, which was a send.
+   */
+  allocatedEmailDelivery: "sent" | "held" | "suppressed" | null;
+  /**
+   * Set for somebody the application form placed on this run, null for
+   * somebody who applied to the run itself (whose `availability` above is
+   * the session labels they ticked).
+   *
+   * The form asks for a painted week, not for ticks against this run's
+   * sessions, so `availability` is empty for these people and this says
+   * instead, group by group, whether their week covers the group's whole
+   * session. `none-given` means they painted nothing, which is not the same
+   * as being able to make none; `not-on-file` means their application is no
+   * longer there to read. `holdsPlace` is false once they have given the
+   * place back on the form: nothing takes them off this board, so the card
+   * says so.
+   */
+  fromForm: FormPlaceFacts | null;
+  /**
+   * Staff put them back on the run after they left it, and they are on it
+   * still (`enrolmentIsPutBack`): their card no longer says they gave their
+   * place back, and Publish tells them. Present, and true, only then, so
+   * every other row is exactly as it was.
+   */
+  putBack?: true;
+};
+
+/**
+ * What a press of Publish would do now, for the board's Publish area: the
+ * number on its button, who it reaches, what it would refuse, and the last
+ * test. Worked out by `loadPublishPlan`, the plan Publish itself reads, so the
+ * button cannot promise a number the press does not send. Counts and names
+ * only: no address is in it.
+ */
+export type PublishSummary = {
+  /**
+   * The run takes its people from the application form and the viewer is
+   * neither an admin nor the lead of the programme that names it.
+   */
+  adminOnly: boolean;
+  /** Emails a press sends now. */
+  emails: number;
+  /** Of those, to people told their group. */
+  people: number;
+  /** Of those, to facilitators. */
+  facilitators: number;
+  /** Emails still owed past one press's cap. */
+  more: number;
+  /** Names owed an email with no address on file. */
+  noAddress: string[];
+  /** Groups with a facilitator waiting because nobody is placed there yet. */
+  emptyGroups: string[];
+  /** Why a press would be refused because an email cannot be written. */
+  refusals: string[];
+  /**
+   * How many people placed in a group and not told yet gave their place back
+   * on the form: their cards say "Gave their place back", and a press leaves
+   * them out. Present only when there is somebody, so a summary with nobody
+   * is exactly as it was before this was counted.
+   */
+  gaveBack?: number;
+  test: {
+    state: TestState;
+    /** "5:38pm", or "Mon 26 Oct at 5:38pm" on another day. Null with no test. */
+    when: string | null;
+    /** Null for the viewer's own test; the first name of whoever sent it otherwise. */
+    who: string | null;
+  };
 };
 
 export type AllocationPayload = {
@@ -105,6 +232,7 @@ export type AllocationPayload = {
   };
   groups: AllocGroup[];
   people: AllocRow[];
+  publish: PublishSummary;
 };
 
 // ---------------------------------------------------------------------------
@@ -227,13 +355,10 @@ export async function GET(
   const runData = runSnap.data() ?? {};
   const run = normalizeCourseRun(runSnap.id, runData);
 
-  const isAdmin = actor.role === "admin";
-  const isTrackLead = isNamedWithStanding(
-    actor,
-    "courseRuns.trackLeadUids",
-    run.trackLeadUids,
-  );
-  if (!isAdmin && !isTrackLead) {
+  // An admin, one of the run's track leads, or the lead of the programme that
+  // names the run, worked out from the form now (`runStaffingOf`).
+  const staffing = await runStaffingOf(db, actor, run);
+  if (!doesTrackLeadWork(staffing)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -247,24 +372,19 @@ export async function GET(
     db.collection("courseGroups").where("runId", "==", runId).limit(50).get(),
   ]);
 
-  const accepted = appSnap.docs
-    .map((d) => normalizeCourseApplication(d.id, d.data() ?? {}))
-    .filter((a) => a.status === "accepted");
+  // A row the application form put here is listed for an admin and for the
+  // lead of the programme whose hand-over wrote it: see the note at the top.
+  const rows = appSnap.docs.map((d) => normalizeCourseApplication(d.id, d.data() ?? {}));
+  const served = rows.filter((a) => rowIsServedTo(a, staffing));
+  const accepted = served.filter((a) => a.status === "accepted");
 
   // Archived groups are dropped: the board must not offer a column that no
-  // longer runs (the allocate route refuses them independently).
+  // longer runs (the allocate route refuses them independently). Monday
+  // first: the order every tab of a programme's page lists groups in.
   const groups = groupSnap.docs
     .map((d) => normalizeCourseGroup(d.id, d.data() ?? {}))
     .filter((g) => !g.archived)
-    .sort((a, b) => {
-      // Monday-first for display; `weekday` is stored Sunday-first.
-      const day = ((a.session.weekday + 6) % 7) - ((b.session.weekday + 6) % 7);
-      return (
-        day ||
-        a.session.startTimeLocal.localeCompare(b.session.startTimeLocal) ||
-        a.name.localeCompare(b.name)
-      );
-    });
+    .sort(compareGroupsByMeeting);
 
   // The join is by CONSTRUCTION, not by query: the enrolment doc id is
   // `courseEnrolmentId(runId, uid)`, so each accepted applicant's enrolment —
@@ -324,11 +444,13 @@ export async function GET(
     : [];
 
   const nameByUid = new Map<string, string>();
+  const firstNameByUid = new Map<string, string>();
   const paidByUid = new Map<string, boolean>();
   for (const doc of userDocs) {
     if (!doc.exists) continue;
     const data = doc.data() ?? {};
     nameByUid.set(doc.id, displayNameOf(data));
+    firstNameByUid.set(doc.id, firstNameOfUser(data));
     // Against the RUN's academic year, not today's — same reasoning as the P5
     // queue: the badge must not blank when `currentAcademicYear()` rolls over
     // mid-cycle on 1 August.
@@ -338,12 +460,23 @@ export async function GET(
     );
   }
 
+  // Which groups each person from the form can make, and whether they still
+  // hold their place there. Asked of the application system, which reads the
+  // week they painted and hands back only the answer.
+  const formFacts = await formPlaceFactsFor(
+    db,
+    staffing,
+    accepted.filter((a) => a.fromForm !== null),
+    groups.map((g) => ({ id: g.id, session: g.session })),
+  );
+
   const people: AllocRow[] = accepted.map((app) => {
     const enrolment = enrolmentByUid.get(app.uid) ?? null;
+    const fromForm = app.fromForm !== null ? (formFacts.get(app.uid) ?? null) : null;
     return {
       uid: app.uid,
       displayName: nameByUid.get(app.uid) ?? app.displayName ?? "NAISI member",
-      paidMembership: paidByUid.get(app.uid) ?? app.paidMembershipAtApply,
+      paidMembership: paidByUid.get(app.uid) ?? membershipKnownFromRow(app),
       availability: splitAvailability(app.availability),
       reviewerPreferredGroupId: app.reviewerPreferredGroupId ?? null,
       reviewerPreferredFacilitatorName: app.reviewerPreferredFacilitatorUid
@@ -353,6 +486,17 @@ export async function GET(
       groupId: enrolment?.groupId ?? null,
       enrolmentStatus: boardStatus(enrolment),
       allocatedEmailAt: iso(enrolment?.allocatedEmailAt),
+      allocatedEmailDelivery: enrolment?.allocatedEmailDelivery ?? null,
+      // Field by field, so nothing the application system adds later rides
+      // along to a browser.
+      fromForm: fromForm
+        ? {
+            availability: fromForm.availability,
+            canMakeGroupIds: fromForm.canMakeGroupIds,
+            holdsPlace: fromForm.holdsPlace,
+          }
+        : null,
+      ...(enrolment && enrolmentIsPutBack(enrolment) ? { putBack: true as const } : {}),
     };
   });
   // Unplaced first (the work), then alphabetical — the board reads as a queue.
@@ -360,6 +504,38 @@ export async function GET(
     const rank = (r: AllocRow) => (r.groupId && r.enrolmentStatus === "active" ? 1 : 0);
     return rank(a) - rank(b) || a.displayName.localeCompare(b.displayName);
   });
+
+  // What a press of Publish would do now, read through the plan Publish reads.
+  // A row this caller is not served holds the press for somebody who is. The
+  // plan is handed the facts the cards above were drawn from, so a card that
+  // says "Gave their place back" is somebody the press leaves out.
+  const plan = await loadPublishPlan(db, run, {
+    accepted,
+    adminOnly: served.length < rows.length,
+    formPlaces: formFacts,
+  });
+  const batch = pressBatch(plan);
+  let testedBy: string | null = null;
+  if (plan.test.byUid && plan.test.byUid !== actor.uid) {
+    const tester = await db.collection("users").doc(plan.test.byUid).get();
+    testedBy = tester.exists ? displayNameOf(tester.data() ?? {}).split(" ")[0] || "an admin" : "an admin";
+  }
+  const publish: PublishSummary = {
+    adminOnly: plan.adminOnly,
+    emails: batch.emails,
+    people: batch.people.length,
+    facilitators: batch.facilitators.length,
+    more: batch.more,
+    noAddress: batch.noAddress,
+    emptyGroups: plan.emptyGroups,
+    refusals: plan.refusals,
+    ...(plan.gaveBack.length > 0 ? { gaveBack: plan.gaveBack.length } : {}),
+    test: {
+      state: plan.test.state,
+      when: plan.test.at ? testWhen(plan.test.at) : null,
+      who: plan.test.state === "none" ? null : testedBy,
+    },
+  };
 
   const payload: AllocationPayload = {
     run: {
@@ -379,6 +555,11 @@ export async function GET(
       facilitatorNames: g.facilitatorUids.map(
         (uid) => nameByUid.get(uid) ?? "NAISI member",
       ),
+      facilitatorUids: [...g.facilitatorUids],
+      facilitatorFirstNames: g.facilitatorUids.map((uid) => firstNameByUid.get(uid) || "NAISI member"),
+      tag: groupTagOf(g.name),
+      when: shortSlotWords(g.session) ?? "",
+      room: g.session.location.trim(),
       memberCount: g.memberCount,
       // The autonomy triple, straight off the normalised doc plus the keys-only
       // subcollection read above. `normalizeCourseGroup` already coerces a
@@ -389,6 +570,7 @@ export async function GET(
       forkedWeekIds: forkedIdsByGroup.get(g.id) ?? [],
     })),
     people,
+    publish,
   };
 
   return NextResponse.json(payload);

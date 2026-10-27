@@ -211,6 +211,25 @@ describe("the shared loader reads JSX", () => {
       /no module at src\/lib\/worksheets\/thereIsNoSuchModule\.ts/,
     );
   });
+
+  test("a module's address does not grow with what it imports", async () => {
+    // Each module used to be a `data:` URL with the address of everything it
+    // imported written inside it, so an address held the whole graph beneath
+    // it and the largest suite ran out of memory while loading. A module is
+    // now a file named by its own text: its address is short, and the
+    // importer's is no longer than the module it imports.
+    const { loadTs } = createLoader();
+    const { address, imported } = await loadTs(join(TESTS_DIR, "fixtures", "ts-loader", "addressOfImporter.ts"));
+    for (const url of [address, imported]) {
+      assert.ok(url.startsWith("file:"), `${url.slice(0, 40)} is not a file's address`);
+      assert.ok(url.length < 400, `an address of ${url.length} characters`);
+    }
+    assert.notEqual(address, imported);
+    assert.ok(!address.includes(imported), "the importer's address holds the address of what it imports");
+    // The same text is the same module, as it was when an address was the text.
+    const again = await createLoader().loadTs(join(TESTS_DIR, "fixtures", "ts-loader", "address.ts"));
+    assert.equal(again.address, imported);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -349,6 +368,90 @@ const USERS = new Map([
       "running them says so",
   ],
   [
+    "applications-freed-places-person.test.mjs",
+    "executes the standing, the replies, every count of places, the account approval and the " +
+      "record kept at settling for a freed place, and renders the person's own page " +
+      "(StatusPage.tsx) to HTML, because whether a freed place reads as decision day's " +
+      "invitation is decided by the code that draws it",
+  ],
+  [
+    "applications-handover-member-area.test.mjs",
+    "executes the member area's own route and the gate every page under /learn/[runId] asks, " +
+      "for somebody an admin's hand-over put on a course run, and renders the run card (.tsx) " +
+      "to HTML, because that the hand-over is announced as nothing, and that the first thing " +
+      "the person is shown is their group, are only true if the route and the card say so",
+  ],
+  [
+    "course-hub-publish-facilitating-email.test.mjs",
+    "it composes the facilitators' email from its seed copy for every combination of what a group " +
+      "can lack, and reads the words around Publish, because which sentences go and which tokens " +
+      "are filled is only real when the composer runs. Only `server-only` is stubbed",
+  ],
+  [
+    "course-hub-attendance.test.mjs",
+    "renders a programme's Attendance tab and its layout (.tsx server components) and the grid itself to HTML as " +
+      "every kind of caller, and runs the CSV route, against a stored term in its third week, because who is a row, " +
+      "the marks, the counts and the line under the programme's name are decided by the pages as they run",
+  ],
+  [
+    "course-hub-overview.test.mjs",
+    "renders a programme's Overview tab (.tsx server component) and its tabs to HTML as every kind of caller, and " +
+      "runs the Remind route and the register reminder job, whose graph reaches the reminder's email template, " +
+      "because what needs attention and who is emailed are decided by the page, the route and the job as they run",
+  ],
+  [
+    "course-hub-progress-page.test.mjs",
+    "loads the progress page's own module (ProgressBody.tsx, a client component) and runs its count of each " +
+      "week against the overview route's own answer, because whether a week written as blocks counts This " +
+      "week's tasks, and a week written before them counts as it did, is decided by the page's code as it " +
+      "runs. Next's link, the browser's data hooks and database, the motion wrapper and the stylesheets are stubbed",
+  ],
+  [
+    "course-hub-lead-pages.test.mjs",
+    "renders a programme's Groups tab (People in groups, Facilitators) and Attendance tab (.tsx server components), the " +
+      "registers view and the allocation board itself to HTML, as every kind of caller, against a stored term, because " +
+      "who is handed the board, the run editor's link and the run's groups is decided by the pages as they run",
+  ],
+  [
+    "applications-handover-older-way-in.test.mjs",
+    "executes the older per-run apply route and renders its page (a .tsx server component) to " +
+      "HTML for a run a programme on the application form names, because whether that run " +
+      "takes an application is decided by reading the forms when the request arrives, and the " +
+      "route reaches the course email templates through the mail door it stubs",
+  ],
+  [
+    "course-hub-groups-go-out-day.test.mjs",
+    "renders the Groups tab's Sessions view and the programme's head (.tsx server components) to " +
+      "HTML for the lead, an admin and a reviewer, because whether the day groups go out is set where " +
+      "the run's groups are set up, and said in the head while it is ahead, is only right if the pages say so",
+  ],
+  [
+    "course-hub-week-one-before-groups.test.mjs",
+    "renders the run's layout, its week page, its home and its progress page (.tsx server components) " +
+      "as somebody holding a place before groups go out, because that week 1 opens to them and nothing " +
+      "else of the run does is decided by the pages as they run",
+  ],
+  [
+    "course-hub-when-free.test.mjs",
+    "renders the application page (a .tsx server component) and its When you're free card for somebody " +
+      "holding a place and for somebody told their group, because whether the card is drawn, and what it " +
+      "says, is decided by the page as it runs",
+  ],
+  [
+    "course-hub-group-published-pages.test.mjs",
+    "renders the facilitator's Home, the group page's roster, the run home's panel, the " +
+      "register, the review queue and the two group composers (.tsx) to HTML with their data " +
+      "hooks stood in, because what a facilitator reads before the people in their group have " +
+      "been told it is only right if each of those pages says so",
+  ],
+  [
+    "applications-handover-panel.test.mjs",
+    "renders a programme's Settings tab (a .tsx server component) for an admin, for the " +
+      "programme's lead and for a reviewer, against a database that records its reads, " +
+      "because whether the \"Course run\" panel is drawn, and whether anything was read to " +
+      "draw it, is decided by the page as it runs",
+  ],
+  [
     "applications-journey-in-term.test.mjs",
     "executes the contract's term arithmetic beside every builder and loader that counts with " +
       "it (the review list, the decision-day plan, the two editor loaders) on one stored term, " +
@@ -361,7 +464,39 @@ const USERS = new Map([
       "writer against one in-memory store, as one term from an empty form to a settled one, " +
       "because a disagreement between two parts of the application system exists only when " +
       "both run on the same documents; the mail door is stubbed to record and the email " +
-      "templates behind it are compiled for real",
+      "templates behind it are compiled for real. Its last chapter also executes the course " +
+      "routes a hand-over feeds (the older apply route, the allocation board, a placement and " +
+      "the member area), on the same documents",
+  ],
+  [
+    "course-hub-stage-one-journey.test.mjs",
+    "executes every route handler stage one of the course hub crosses (decision day, naming a run, " +
+      "the hand-over, the allocation board, a placement, Publish and its test, Remove, the run's own " +
+      "decide, freed places and their test, the member area, a group's roster and register) and the " +
+      "loaders behind the Groups tab, the freed-places page and the run gate, as one term on one " +
+      "in-memory store, and renders the person's own application page (.tsx) to HTML, because a seam " +
+      "between two of those pieces shows only when both run on the same documents; the mail door " +
+      "records, and the email templates behind it are compiled for real",
+  ],
+  [
+    "course-hub-stage-two-journey.test.mjs",
+    "executes every route handler stage two of the course hub crosses (updates and their emails, Publish and its test " +
+      "pressed by a programme's lead, a group's facilitators, Remove, the run's own decide, the registers and their " +
+      "finishing, Remind, the attendance CSV, pitching week's three routes, the member area and the unsubscribe page) and " +
+      "draws the lead's Messages, Attendance and Overview tabs, a facilitator's group page and the pitches list (.tsx " +
+      "server components), and the member's Updates and the pitching page, as one term on one in-memory store, because a " +
+      "seam between two of those pieces shows only when both run on the same documents; the mail door records, and the " +
+      "email templates behind it are compiled for real",
+  ],
+  [
+    "course-hub-stage-three-journey.test.mjs",
+    "executes every route handler leaving a placed run and who finished cross (the leave and its email, Remove, the " +
+      "registers and their finishing, Change a session, Remind, the attendance CSV, the rule and the switch for who " +
+      "finished, the exercises sent, the member area, the run's status and its destroy with its manifest) and draws the " +
+      "programme's head and its Overview, Attendance and Settings tabs, the run's page, the leaving confirmation, the notes " +
+      "and the reading list (.tsx server components), and the member's run home, card, programmes list and Home line, as " +
+      "one term on one in-memory store, because a seam between two of those pieces shows only when both run on the same " +
+      "documents; the mail door records, and the email templates behind it are compiled for real",
   ],
   [
     "applications-own-application.test.mjs",
@@ -664,6 +799,18 @@ const USERS = new Map([
       "the two-level JSX graph a hand-copied loader dies on",
   ],
   [
+    "event-check-ins.test.mjs",
+    "the account deletion cascade executed over check-in records with the cascade store, beside " +
+      "the check-in world's loader: the cascade's graph needs `CASCADE_FIRESTORE_STUB` rather " +
+      "than the world's store, and the shared loader is the rule for a new suite either way",
+  ],
+  [
+    "event-self-check-in.test.mjs",
+    "the RSVP email sender executed to read the check-in link it puts in a confirmation, with " +
+      "the real token module and the mail door recorded; its graph is not the check-in " +
+      "world's, so it gets a loader of its own, and the shared loader is the rule either way",
+  ],
+  [
     "event-editor-unsaved-edits.test.mjs",
     "it executes the two functions in `src/features/events/editorSync.ts` that decide, one field " +
       "at a time, whether the event editor keeps what somebody has typed when the event changes " +
@@ -716,6 +863,14 @@ const USERS = new Map([
     "it executes `send.ts` in-process to prove a recipient outside this copy of the site's " +
       "audience never reaches the transport and is logged as held, under a table of " +
       "environments; the transport, the renderer and the Admin SDK door are its only stubs",
+  ],
+  [
+    "email-senders.test.mjs",
+    "it executes `send.ts` in-process to prove the From line and the `emailSends` row carry the " +
+      "address the two-sender rule picks, for both senders and the fallback, and executes the two " +
+      "newsletter routes to prove each hands the newsletter's sender to every message; the " +
+      "transport, the renderer, the Admin SDK door, the session and the push leg are its stubs, " +
+      "and the routes import `NewsletterEmail`, a `.tsx`, which only the shared loader can read",
   ],
   [
     "email-suppression-chokepoint.test.mjs",
@@ -780,6 +935,34 @@ const USERS = new Map([
     "it executes `confirmUniEmailVerification.ts` against a fake Firestore to prove the confirming " +
       "caller must be the token's own account; the helper reaches `signedTokens` and the ownership " +
       "helper, both stubbed, and the shared loader is what compiles the TypeScript in-process",
+  ],
+  [
+    "programme-crest.test.mjs",
+    "it renders src/components/ProgrammeCrest.tsx in every theme on both sides of its cut and " +
+      "compares the drawing with a digest of the handoff and with the 32 files it shipped with, " +
+      "because what a crest looks like is decided by the JSX that runs; nothing is stubbed, the " +
+      "graph is the component and its keys",
+  ],
+  [
+    "programme-crest-settings.test.mjs",
+    "it drives the course crest route and the programme settings route as every caller, and the " +
+      "crest loaders against an in-memory store, with the session, the Admin SDK handle and the " +
+      "view-as guard stubbed, because who may set a crest and which one is read back are decided " +
+      "by the handlers and readers that run",
+  ],
+  [
+    "public-numbers-last-term.test.mjs",
+    "it renders the public course page on the server with the real public numbers fetcher reading an " +
+      "in-memory store and the page's other lookups handed in, because what the Last term block shows, " +
+      "and that nothing else of the published record reaches the HTML, is decided by the fetcher's " +
+      "projection and the page that run",
+  ],
+  [
+    "programme-crest-public-pages.test.mjs",
+    "it renders the public course page, /courses, /incubator and the application form's rank " +
+      "step on the server with the term and catalogue handed in and the real crest loader behind " +
+      "an in-memory store, because which crest each placement draws is decided by the pages' own " +
+      "JSX and the resolver they call",
   ],
   [
     "profile-study-changes.test.mjs",
@@ -851,6 +1034,56 @@ const USERS = new Map([
     "it executes `attribution.ts`, the pure function that turns a visitor-controlled query string " +
       "into a subscription's `source`, because the promise is about what the shipping code lets " +
       "through and a copy of its regular expression would prove nothing; nothing is stubbed",
+  ],
+  [
+    "course-hub-times-counting.test.mjs",
+    "executes the times picture's counting (src/lib/applications/handover/times.ts), the one " +
+      "reading of a painted week the allocation board shares (paintedWeek.ts) and the page's " +
+      "words, because who is counted at each start time and what the page says about them are " +
+      "only right if running them says so",
+  ],
+  [
+    "course-hub-times-page.test.mjs",
+    "renders a programme's Groups tab (a .tsx server component) and the tabbed layout over it " +
+      "as every kind of caller, through the real page gate, against a stored term and #67's " +
+      "hand-over, board and reply routes, because who is answered what, what is read before " +
+      "that is decided, and what is counted are decided by the page as it runs",
+  ],
+  [
+    "course-week-blocks-markdown.test.mjs",
+    "executes the week Markdown reader and writer, the id merge and the paste (src/lib/courses/weekBlocks/) " +
+      "on a synthetic week in the fellow guide's own shape and on its copy, because a week copied out and " +
+      "pasted back is the same week with the same ids only if running the two says so. Only `server-only` " +
+      "is stubbed",
+  ],
+  [
+    "course-week-blocks-compute.test.mjs",
+    "executes the week Markdown writer, the paste and the model's reading of a source " +
+      "(src/lib/courses/weekBlocks/) on every kind of source given what a notebook needs to run, because a " +
+      "week copied out and pasted back is the same week only if running the three says so. Only " +
+      "`server-only` is stubbed",
+  ],
+  [
+    "course-week-blocks-model.test.mjs",
+    "executes the week-blocks model (model.ts, prose.ts and due.ts in src/lib/courses/weekBlocks/), the " +
+      "course and week normalisers and templateWeekFields on a synthetic week holding every kind of block, " +
+      "breaking every cap once, because what a stored week reads back as and what stops one being stored " +
+      "are decided by the code that runs. Only `server-only` is stubbed",
+  ],
+  [
+    "course-week-blocks-public.test.mjs",
+    "renders the public week page (a .tsx server component), its block view and the week curriculum to " +
+      "HTML for a week written as blocks and for one written before them, because what a stranger is shown " +
+      "of a week, and that nothing behind sign-in reaches the page, is decided by the page as it runs. The " +
+      "fetcher, Next's link and navigation and the stylesheets are stubbed",
+  ],
+  [
+    "course-guide-format.test.mjs",
+    "executes a programme's Start here and Glossary model, its Markdown reader and writer (src/lib/courses/guide/) " +
+      "and the week reader's own reading of text on a synthetic Start here and Glossary in the fellow guide's " +
+      "shape, breaking every cap once, because what a pasted page reads as, what stops one being stored and " +
+      "that a copy pasted back is the same document are decided by the code that runs. Only `server-only` is " +
+      "stubbed",
   ],
   [
     "registration-status.test.mjs",
@@ -960,6 +1193,29 @@ const USERS = new Map([
       "because which tokens reach a reader is only real when the email is written and rendered. " +
       "`server-only`, `next/server`, the Admin SDK handle, the session, the view-as guard, the " +
       "standing check, the subscription, push and suppression doors and the mail door are stubbed",
+  ],
+  [
+    "surveys-items.test.mjs",
+    "it executes the survey item model, which reuses Worksheets' sanitiser and validators, with the template, " +
+      "the box's words, both emails, the totals (Worksheets' own counting) and the spreadsheet's layout, so the " +
+      "words tested are the ones that ship",
+  ],
+  [
+    "kairos-choice.test.mjs",
+    "it runs the account cascade over a stored Kairos choice, so its graph is the cascade, the member-record sweep " +
+      "and the choice's own module; the rest of the suite drives the survey routes and pages through the survey world",
+  ],
+  [
+    "surveys-deletion.test.mjs",
+    "it runs the account cascade and the form's destroy end to end over survey records, so its graph is both " +
+      "cascades, the member-record sweep and the survey modules; what is under test is what each leaves behind",
+  ],
+  [
+    "surveys-lead-tab.test.mjs",
+    "it draws the programme's tab bar (a .tsx client component) to HTML on a loader of its own, because which tab is " +
+      "open comes from Next's `useSelectedLayoutSegment`, which the leaving world's navigation does not answer, and " +
+      "whether the lead is handed a Surveys link is only real when the bar is drawn. `next/navigation`, `next/link` and " +
+      "the bar's stylesheet are stubbed",
   ],
 ]);
 

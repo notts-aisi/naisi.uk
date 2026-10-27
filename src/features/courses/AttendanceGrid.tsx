@@ -7,8 +7,8 @@ import CountedTextarea from "@/components/ui/CountedTextarea";
 import EmptyState from "@/components/ui/EmptyState";
 import MemberName from "@/components/ui/MemberName";
 import Modal from "@/components/ui/Modal";
-import SavedFlash, { type SaveState } from "@/components/ui/SavedFlash";
 import Skeleton from "@/components/ui/Skeleton";
+import { londonClockLabel } from "@/lib/courses/londonLabels";
 import {
   ATTENDANCE_LIMITS,
   ATTENDANCE_STATUS_LABEL,
@@ -17,7 +17,9 @@ import {
 import styles from "./AttendanceGrid.module.css";
 import ParticipantNoteDrawer from "./ParticipantNoteDrawer";
 import PushConfirm from "./PushConfirm";
+import { registerEndingWords } from "./registerEndingWords";
 import useAttendance, {
+  type AttendanceLeaver,
   type AttendanceMark,
   type AttendanceMember,
   type AttendanceSession,
@@ -52,13 +54,24 @@ import useAttendance, {
  * an escape hatch beside it: a mis-tap must be undoable with more taps, never
  * with a modifier key or a second control.
  *
- * ── THE DRAFT / PUSHED BOUNDARY IS THE SHAPE OF THIS SCREEN ─────────────────
- * A column is a draft until PUSH ATTENDANCE. Pushing locks it, rebuilds every
- * member's attendance record and mails the group about the next session, so a
- * pushed column renders as read-only for a facilitator and stays editable for
- * an admin, whose every change is logged. The confirm in front of the button
- * (`PushConfirm`) names who is emailed, that the register locks, and how many
- * people are about to be counted absent for want of a mark.
+ * ── THE DRAFT / FINISHED BOUNDARY IS THE SHAPE OF THIS SCREEN ───────────────
+ * A column is a draft until it is finished: "Finish the register" while next
+ * week's email is on its schedule (finishing then emails nobody), "Push
+ * attendance" while pushing still sends that email. Either locks it and
+ * rebuilds every member's attendance record, so a finished column renders as
+ * read-only for a facilitator and stays editable for an admin, whose every
+ * change is logged. The confirm in front of the button (`PushConfirm`) names
+ * who is emailed and how many, that the register locks, and how many people
+ * are about to be counted absent for want of a mark. Who is emailed is the
+ * route's answer for that register (`ending.pushEmails`), the one the push
+ * acts on, never worked out here from the columns.
+ *
+ * ── EVERY TAP SAVES, AND SAYS SO ────────────────────────────────────────────
+ * The status beside the legend reads "Saved 7:58pm" after each save, the time
+ * of the last one in London, so a facilitator can see their register is safe
+ * without finishing it. The foot under the grid is wk-register's: the session
+ * the button finishes, the button, and the words under it, every value read
+ * off a record by the route (`registerEndingWords`).
  *
  * ── MID-RUN JOINERS ─────────────────────────────────────────────────────────
  * Cells before a member's `joinedWeekNumber` are INERT: a dash, not an
@@ -126,6 +139,9 @@ const GLYPH: Record<AttendanceStatus, string> = {
  * 44px square reads as a gap in the table instead.
  */
 const UNMARKED_GLYPH = "·";
+
+/** Shared empty list of people who left. Read only by contract. */
+const NO_LEAVERS: AttendanceLeaver[] = [];
 
 const STATUS_CLASS: Record<AttendanceStatus, string> = {
   present: styles.isPresent,
@@ -275,9 +291,12 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
     group,
     sessions,
     members,
+    notYetTold,
+    leavers: givenLeavers,
     records,
     participantNotes,
     canEditPushed,
+    ending,
     loading,
     error,
     reload,
@@ -287,14 +306,20 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
     saveNote,
   } = useAttendance(groupId);
   const { toast, run: runAction, dismiss } = useActionToast();
+  // Who left the group, read only. Read as none when the data behind the
+  // register does not carry the list (a stand-in for the hook may not).
+  const leavers = givenLeavers ?? NO_LEAVERS;
 
-  const [saveState, setSaveState] = useState<SaveState>("idle");
+  /** A save in flight, so the status can say "Saving…" while it is. */
+  const [saving, setSaving] = useState(false);
+  /** When the last save landed. The status reads it as "Saved 7:58pm". */
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
   /**
-   * The route's OWN sentence for a refused single tap. `SavedFlash`'s error
-   * copy is deliberately generic ("your last change isn't stored"), which is
-   * right for an autosave and wrong here: this register refuses in specifics,
-   * "Ada hadn't joined the group in week 3", "This register has been pushed",
-   * and those sentences are the whole reason the facilitator can fix it.
+   * The route's OWN sentence for a refused single tap. A generic autosave
+   * error ("your last change isn't stored") is right elsewhere and wrong here:
+   * this register refuses in specifics, "Ada hadn't joined the group in week
+   * 3", "This register has been pushed", and those sentences are the whole
+   * reason the facilitator can fix it.
    */
   const [cellError, setCellError] = useState<string | null>(null);
 
@@ -369,7 +394,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
       const current = statusOf(session.sessionKey, member.uid);
       const next = nextStatus(current);
       setCellError(null);
-      setSaveState("saving");
+      setSaving(true);
       pop([cellKey(session.sessionKey, member.uid)]);
       try {
         const marks: AttendanceMark[] = [{ uid: member.uid, status: next }];
@@ -378,11 +403,12 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
         // reaches it because their cells are not buttons.
         if (session.pushedAt) await edit(session, marks);
         else await mark(session, marks);
-        setSaveState("saved");
+        setSavedAt(new Date());
       } catch (e) {
         // The hook has already put the cell back; this is the sentence.
-        setSaveState("idle");
         setCellError(e instanceof Error ? e.message : "That didn't go through.");
+      } finally {
+        setSaving(false);
       }
     },
     [edit, mark, pop, statusOf],
@@ -420,6 +446,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
       void runAction(
         async () => {
           await mark(session, targets);
+          setSavedAt(new Date());
         },
         {
           savingMessage: `Marking ${targets.length} present…`,
@@ -443,6 +470,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
           // a different door, and a facilitator never sees the button.
           if (session.pushedAt) await edit(session, [], { held: next });
           else await mark(session, [], { held: next });
+          setSavedAt(new Date());
         },
         {
           savingMessage: next ? "Marking the session as held…" : "Marking the session as not held…",
@@ -460,11 +488,12 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
       setCellError(null);
       if (session.pushedAt) await edit(session, [], { notes: text });
       else await mark(session, [], { notes: text });
+      setSavedAt(new Date());
     },
     [edit, mark],
   );
 
-  // ---- The push ------------------------------------------------------------
+  // ---- Finishing -----------------------------------------------------------
 
   const onPush = useCallback(async () => {
     if (!pushSession) return;
@@ -476,12 +505,16 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
       // Reported through the toast rather than inline: this is the one action
       // on the page that must not be continued past without being read.
       void runAction(async () => undefined, {
-        savingMessage: "Pushing…",
-        successMessage: result.alreadyPushed
-          ? "That register was already pushed, so nothing was sent again."
-          : result.sent > 0
-            ? `Register locked. ${result.sent} ${result.sent === 1 ? "person" : "people"} emailed about the next session.`
-            : `Register locked. ${result.reason ?? "No email was sent."}`,
+        savingMessage: result.scheduled ? "Finishing…" : "Pushing…",
+        successMessage: result.scheduled
+          ? result.alreadyPushed
+            ? "That register was already finished, so nothing changed."
+            : "Register finished. Everyone can see their mark, and nobody was emailed."
+          : result.alreadyPushed
+            ? "That register was already pushed, so nothing was sent again."
+            : result.sent > 0
+              ? `Register locked. ${result.sent} ${result.sent === 1 ? "person" : "people"} emailed about the next session.`
+              : `Register locked. ${result.reason ?? "No email was sent."}`,
       });
     } catch (e) {
       setCellError(e instanceof Error ? e.message : "The push didn't go through.");
@@ -547,7 +580,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
 
   // ---- States --------------------------------------------------------------
 
-  const hasGrid = members.length > 0 || sessions.length > 0;
+  const hasGrid = members.length > 0 || leavers.length > 0 || sessions.length > 0;
 
   if (loading && !hasGrid) return <GridSkeleton />;
 
@@ -564,7 +597,12 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
     );
   }
 
-  if (members.length === 0) {
+  if (members.length === 0 && leavers.length === 0) {
+    // Somebody is placed here and has not been told their group yet, so the
+    // register has no row for them until Publish emails them. The roster
+    // above it on the group page already says when the names come, and a
+    // register of nobody would only say it again.
+    if (notYetTold) return null;
     return (
       <EmptyState
         title="Nobody is in this group yet."
@@ -585,10 +623,16 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
   const pushTally = pushSession
     ? (tallies.get(pushSession.sessionKey) ?? { marked: 0, eligible: 0 })
     : { marked: 0, eligible: 0 };
-  const pushIndex = pushSession
-    ? sessions.findIndex((s) => s.sessionKey === pushSession.sessionKey)
-    : -1;
-  const nextAfterPush = pushIndex >= 0 ? (sessions[pushIndex + 1] ?? null) : null;
+  // What pressing it emails, as the route answered for this register. Never
+  // the next column: the columns are only the sessions that have started.
+  const pushEmail = pushSession ? (ending?.pushEmails?.[pushSession.sessionKey] ?? null) : null;
+
+  // How this register ends: which button, and the words under it. While the
+  // payload has not said, the page says what it always has.
+  const scheduled = ending?.scheduled === true;
+  const words = ending ? registerEndingWords(ending) : null;
+  const focus = ending?.focus ?? null;
+  const focusSession = focus ? (sessionByKey.get(focus.sessionKey) ?? null) : null;
 
   return (
     <div className={styles.root}>
@@ -614,7 +658,20 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
         </ul>
 
         <div className={styles.toolbarEnd}>
-          <SavedFlash state={saveState} />
+          {/* Every tap saves. Present from the first render so a screen reader
+              hears the change rather than a new region appearing. */}
+          <span className={styles.saved} role="status" aria-live="polite">
+            {saving ? (
+              "Saving…"
+            ) : savedAt ? (
+              <>
+                <span className={styles.savedCheck} aria-hidden="true">
+                  ✓
+                </span>
+                Saved {londonClockLabel(savedAt)}
+              </>
+            ) : null}
+          </span>
           <Button variant="ghost" size="sm" onClick={reload} disabled={loading}>
             {loading ? "Refreshing…" : "Refresh"}
           </Button>
@@ -646,11 +703,15 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
             refuses. The spec scopes a row and then counts columns instead. */}
         <table className={styles.table} data-testid="attendance-grid">
           <caption className={styles.caption}>
-            Attendance for {group?.name || "this group"} — {members.length}{" "}
+            Attendance for {group?.name || "this group"}: {members.length}{" "}
             {members.length === 1 ? "member" : "members"}, {sessions.length}{" "}
             {sessions.length === 1 ? "session" : "sessions"} so far. Each cell cycles
             through present, late, left early, absent, excused and back to not marked.
-            A pushed register is locked.
+            A finished register is locked.
+            {leavers.length > 0 &&
+              ` ${leavers.length === 1 ? "1 person" : `${leavers.length} people`} who left the group ${
+                leavers.length === 1 ? "is" : "are"
+              } listed last, read only, with the marks they had.`}
           </caption>
           <thead>
             <tr>
@@ -699,7 +760,9 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
                       <span className={styles.notHeld}>Not held</span>
                     )}
 
-                    {pushed && <span className={styles.pushed}>Pushed</span>}
+                    {pushed && (
+                      <span className={styles.pushed}>{scheduled ? "Finished" : "Pushed"}</span>
+                    )}
 
                     {/* The bulk gesture and the push itself belong to the
                         DRAFT column only: one is how a facilitator finishes
@@ -757,14 +820,18 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
                         className={`${styles.bulk} ${styles.pushButton}`}
                         data-testid="attendance-push"
                         onClick={() => setPushTarget(session.sessionKey)}
-                        aria-label={`Push the week ${session.weekNumber} register, which locks it and emails the group`}
+                        aria-label={
+                          scheduled
+                            ? `Finish the week ${session.weekNumber} register, which locks it and shows everyone their mark`
+                            : `Push the week ${session.weekNumber} register, which locks it and emails the group`
+                        }
                       >
-                        Push
+                        {words?.columnButton ?? "Push"}
                       </button>
                     )}
 
-                    {/* The recovery lane for a push whose mail failed after
-                        the register locked. Admin only, and it reaches THIS
+                    {/* The recovery lane for next week's email when it failed
+                        after it was claimed. Admin only, and it reaches THIS
                         group alone. */}
                     {pushed && canEditPushed && (
                       <button
@@ -774,7 +841,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
                         onClick={() => setResendTarget(session.sessionKey)}
                         aria-label={`Send the week ${session.weekNumber} reminder to this group again`}
                       >
-                        Resend reminder
+                        {scheduled ? "Resend next week’s email" : "Resend reminder"}
                       </button>
                     )}
                   </th>
@@ -806,7 +873,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
                         <span
                           className={styles.notYet}
                           role="img"
-                          aria-label={`Not in the group yet — joined in week ${member.joinedWeekNumber}${
+                          aria-label={`Not in the group yet: joined in week ${member.joinedWeekNumber}${
                             status ? `, recorded ${ATTENDANCE_STATUS_LABEL[status]}` : ""
                           }`}
                         >
@@ -834,7 +901,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
                             role="img"
                             aria-label={`${member.displayName}, week ${session.weekNumber}: ${
                               status ? ATTENDANCE_STATUS_LABEL[status] : "not marked"
-                            }. This register is pushed and locked.`}
+                            }. This register is finished and locked.`}
                           >
                             {status ? GLYPH[status] : UNMARKED_GLYPH}
                           </span>
@@ -886,9 +953,90 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
                 })}
               </tr>
             ))}
+            {/* SOMEBODY WHO LEFT THE GROUP (wk-fac-group's "Sam Whitfield,
+                Left Fri 13 Nov"), as the lead's Attendance tab lists them:
+                read only, with the marks they had. Their cells are never
+                buttons, they count in no tally above, and a session after
+                they left is blank, so nothing here chases them. */}
+            {leavers.map((leaver, index) => (
+              <tr
+                key={`left-${leaver.uid}`}
+                className={index === 0 ? `${styles.leaverRow} ${styles.leaverFirst}` : styles.leaverRow}
+              >
+                <th scope="row" className={styles.nameCell}>
+                  <span className={styles.leaverName}>
+                    <MemberName name={leaver.displayName} />
+                  </span>
+                  <span className={styles.leftNote}>{leaver.left}</span>
+                </th>
+                {sessions.map((session) => {
+                  const status = leaver.records[session.sessionKey] ?? null;
+                  const key = cellKey(session.sessionKey, leaver.uid);
+                  return (
+                    <td key={key} className={styles.cell}>
+                      {status ? (
+                        <span
+                          className={`${styles.cellButton} ${styles.cellLocked} ${STATUS_CLASS[status]}`}
+                          role="img"
+                          aria-label={`${leaver.displayName}, week ${session.weekNumber}: ${ATTENDANCE_STATUS_LABEL[status]}. ${leaver.left}.`}
+                        >
+                          {GLYPH[status]}
+                        </span>
+                      ) : (
+                        <span
+                          className={styles.leftBlank}
+                          role="img"
+                          aria-label={`${leaver.displayName}, week ${session.weekNumber}: no mark. ${leaver.left}.`}
+                        />
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
+
+      {/* THE FOOT: wk-register's ending. The session the button finishes, the
+          button, and the words under it, every value read off a record by the
+          route. Once there is nothing left to finish it says so instead. */}
+      {ending && focus && words && (
+        <section
+          className={styles.foot}
+          aria-labelledby="register-foot-title"
+          data-testid="register-ending"
+        >
+          <div className={styles.footHead}>
+            <h3 id="register-foot-title" className={styles.footTitle}>
+              Week {focus.weekNumber}
+              {focus.occurrence > 1 ? `, session ${focus.occurrence}` : ""} register
+            </h3>
+            {focus.line && <p className={styles.footLine}>{focus.line}</p>}
+          </div>
+          {!focus.finished && focusSession && (
+            <div className={styles.footAction}>
+              <button
+                type="button"
+                className={styles.finishButton}
+                onClick={() => setPushTarget(focusSession.sessionKey)}
+              >
+                {words.button}
+              </button>
+              <p className={styles.footEffect}>{words.effect}</p>
+            </div>
+          )}
+          {words.notes.length > 0 && (
+            <div className={styles.footNotes}>
+              {words.notes.map((note) => (
+                <p key={note} className={styles.footNote}>
+                  {note}
+                </p>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <PushConfirm
         open={pushSession !== null}
@@ -899,13 +1047,8 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
         groupName={group?.name ?? ""}
         eligible={pushTally.eligible}
         unmarked={Math.max(0, pushTally.eligible - pushTally.marked)}
-        nextLabel={
-          nextAfterPush
-            ? `week ${nextAfterPush.weekNumber}${
-                dateLabel(nextAfterPush.dateKey) ? ` on ${dateLabel(nextAfterPush.dateKey)}` : ""
-              }`
-            : null
-        }
+        email={pushEmail}
+        scheduled={scheduled}
       />
 
       {resendSession && (
@@ -917,14 +1060,17 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
         >
           <div className={styles.dialog}>
             <h2 className={styles.dialogTitle}>
-              Re-send the reminder after week {resendSession.weekNumber}
+              {scheduled ? "Re-send next week’s email" : "Re-send the reminder"} after week{" "}
+              {resendSession.weekNumber}
               {resendSession.occurrence > 1 ? `, session ${resendSession.occurrence}` : ""}?
             </h2>
             <p className={styles.dialogMeta}>
-              This group has already been sent (or claimed) this reminder. Use it when
-              the push locked the register but the email failed: everyone in{" "}
-              {group?.name || "this group"} gets the message again, and nobody outside
-              the group is emailed. The re-send is recorded against your name.
+              {scheduled
+                ? "Use it when next week’s email went out on its schedule and failed: "
+                : "This group has already been sent (or claimed) this reminder. Use it when the push locked the register but the email failed: "}
+              everyone in {group?.name || "this group"} gets the message again, and nobody
+              outside the group is emailed. The re-send is recorded against your name.
+              {scheduled ? " An email that hasn’t gone yet isn’t sent early." : ""}
             </p>
             <div className={styles.dialogActions}>
               <Button

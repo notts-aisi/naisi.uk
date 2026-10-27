@@ -249,6 +249,54 @@ when there was one: `qr:poster:fellowship`. The admin Subscriptions table shows
 and exports it. A public sign-up is double opt-in, so "started" and "confirmed"
 are different numbers and both are worth reading.
 
+## Drawing a code
+
+Every link's card in the console offers **Download PNG**, **Print an A4
+sign** and **Show full screen**. The server draws all three from the slug
+(`src/lib/qr/`): the `qr` package works out the squares, and the site writes
+them out as SVG and as a one-bit PNG with Node's own zlib. A code always
+encodes `NEXT_PUBLIC_APP_URL` + `/q/<slug>`, never the destination, so a
+printed code stays repointable; `tests/qr-codes.test.mjs` reads each PNG back
+with the package's own decoder.
+
+- `GET /api/links/<slug>/qr?format=png|svg&download=1` draws a link that
+  exists (a record, or a code on the printed list). Read-only.
+- `/signs/<slug>` is the A4 sign: the link's name, the code and the address
+  written out. It sits under the root layout alone, so nothing but the sheet
+  prints.
+- Who may draw which code is `codeForViewer` (`src/lib/qr/codeAccess.ts`):
+  admins any link; the people who run check-in an event's door code, and an
+  event survey's code while that survey takes answers.
+
+## Door codes
+
+An event's door code is a short link to its check-in page,
+`/events/<id>/check-in`, made on demand from the event's Check-in tab
+(`src/lib/events/doorCode.ts`). It is an ordinary record: the link whose
+destination is that page, found by one equality on `destination`, filed under
+the campaign "Check-in", with the same fields as every other link so the
+console can still change it. Its slug comes from the event's name
+("VR games night" is `vr-in`, then `vr-in-2`), never a slug somebody holds or
+a code that is on paper. Like every printed code it is never deleted. Switched
+off here, a scan of it lands on `/links`, as any switched-off code does, and
+the event's Check-in tab says so. Repointed elsewhere, it stops being the door
+code and the event can have a new one.
+
+## Survey codes
+
+The survey after an event has a short link of its own, to the event's survey
+page, `/events/<id>/survey` (`src/lib/surveys/events/code.ts`): made with the
+survey, filed under the campaign "Surveys", the same fields as every other
+link, its slug the door code's word with `-survey` ("VR games night" is
+`vr-survey`, then `vr-survey-2`). Admins draw it, download its PNG and show it
+full screen from the survey's Send tab, through the same image route as every
+code. While the survey takes answers, the people who may draw the event's door
+code (admins and SU-recognised committee, `runsCheckIn`) show it too, from
+the event's own Survey after tab, with its PNG and full screen and nothing
+else of the survey's (`surveyCodeAtEvent` in `src/lib/surveys/events/code.ts`,
+which the image route asks as well). One per event, never one per person, and
+never deleted.
+
 ## Checking a deploy
 
 ```sh

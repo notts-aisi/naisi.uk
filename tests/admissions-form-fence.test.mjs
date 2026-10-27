@@ -253,6 +253,12 @@ const OLDER_PLUMBING = [
  * whole point of the list.
  */
 const ROUND_SURFACES = {
+  "/(app)/admin/(admin-only)/surveys/kairos/[roundId]/[programmeId]": {
+    kind: "form",
+    why:
+      "the Kairos report for one programme of an application form. It reaches the round only through " +
+      "loadKairosProgramme, which starts from the form's own loader and answers null for a round that is not a form",
+  },
   "/(app)/admin/admissions/[roundId]": {
     kind: "older",
     page: {
@@ -302,6 +308,19 @@ const ROUND_SURFACES = {
       "starts from the form's own loader, so a round of the older kind has no programme and no " +
       "applications to list and the page says there is nothing here",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/applications/freed-places": {
+    kind: "form",
+    why:
+      "the page that offers a programme's freed places. It loads through loadOfferBoard, which " +
+      "starts from the form's own loader, so a round of the older kind has no programme here " +
+      "and the page says there is nothing here",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written": {
+    kind: "form",
+    why:
+      "the programme's lead's review page for the written answers of the run it names. It reaches the round only " +
+      "through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications/[uid]": {
     kind: "form",
     why:
@@ -315,11 +334,167 @@ const ROUND_SURFACES = {
       "of applications. It loads the programme through loadProgrammeForStaff, which starts " +
       "from the form's own loader, so a round of the older kind has no programme here to draw",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": {
+    kind: "form",
+    why:
+      "one programme's Groups tab, People in groups: the run's allocation board, the programme's lead's and an " +
+      "admin's. It reaches the round only through loadPeopleInGroups, which starts from the form's own loader and " +
+      "answers 'none' for a round that is not a form, and the page then says there is no programme here",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
+    kind: "form",
+    why:
+      "one programme's Groups tab, Publish's own page for the run it names. It reaches the round only through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions": {
+    kind: "form",
+    why:
+      "one programme's Groups tab, its Sessions view, each group's session in one week of the run it names. It " +
+      "reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' " +
+      "for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/times": {
+    kind: "form",
+    why:
+      "one programme's Groups tab, its Times view, the programme's lead's and an admin's. It reaches the round only " +
+      "through loadTimesPicture, which starts from the form's own loader and answers 'none' for a round that is not a " +
+      "form, and the page then says there is no programme here",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
+    kind: "form",
+    why:
+      "one programme's Groups tab, Publish's own page, the programme's lead's and an admin's. It reaches the round " +
+      "only through loadProgrammeRun and the getReady reader, each of which starts from the form's own loader and " +
+      "answers 'none' or null for a round that is not a form, and the page then says there is no programme here",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/facilitators": {
+    kind: "form",
+    why:
+      "one programme's Groups tab, its Facilitators view. It reaches the round only through loadProgrammeRun, which " +
+      "starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections": {
+    kind: "form",
+    why:
+      "the lead's and admins' reading of one group's reflections. It reaches the round only through openLeadDoor, " +
+      "which calls loadProgrammeRun, starting from the form's own loader and answering 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week": {
+    kind: "form",
+    why:
+      "the lead's and admins' view of one group's week. It reaches the round only through openLeadDoor, which calls " +
+      "loadProgrammeRun, starting from the form's own loader and answering 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance": {
+    kind: "form",
+    why:
+      "one programme's Attendance tab, every register of the run it names. It reaches the round only through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/people": {
+    kind: "form",
+    why:
+      "one programme's People tab, everyone who holds a place on it or gave it back. It reaches the round only " +
+      "through loadProgrammePeople, which starts from the form's own loader and answers 'none' for a round that " +
+      "is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview": {
+    kind: "form",
+    why:
+      "one programme's Overview tab, the week, sessions and registers of the run it names. It reaches the round " +
+      "only through loadProgrammeRun and the form's own loader, each of which answers 'none' or null for a round " +
+      "that is not a form, and the page then says there is no programme here",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview/certificates": {
+    kind: "form",
+    why:
+      "the preview of one certificate and its email, for a programme's lead and admins. It reaches the round " +
+      "only through loadCertificatesPreview, which starts from the form's own loader and answers 'none' for a " +
+      "round that is not a form, and the page then says there is no programme here",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/pitches": {
+    kind: "form",
+    why:
+      "the pitches from one programme's pitching week, for its lead and admins. It reaches the " +
+      "round only through loadProgrammePitches, which starts from the form's own loader and " +
+      "answers 'none' for a round that is not a form, and the page then says there is no programme here",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/messages": {
+    kind: "form",
+    why:
+      "one programme's Messages tab, the updates to the people on the run it names. It reaches the round only " +
+      "through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys": {
+    kind: "form",
+    why:
+      "a programme's Surveys tab, for its lead and admins. It reaches the round only through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]": {
+    kind: "form",
+    why:
+      "one of a programme's surveys' results, for its lead and admins. It reaches the round only " +
+      "through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams": {
+    kind: "form",
+    why:
+      "an incubator's Teams tab, for its lead and admins. It reaches the round only through " +
+      "loadProgrammeTeams, which starts from the form's own loader and answers 'none' for a round " +
+      "that is not a form, and the page then says there is no programme here",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams/[teamId]": {
+    kind: "form",
+    why:
+      "one team's page, read only, for an incubator's lead and admins. It reaches the round only through " +
+      "teamsGate, which starts from the form's own loader and answers 'none' for a round that is not a form, " +
+      "and the page then says there is no programme here",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/ratings": {
+    kind: "form",
+    why:
+      "one programme's Ratings, what each group's facilitators said about their fellows at the end. It reaches the " +
+      "round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round " +
+      "that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks": {
+    kind: "form",
+    why:
+      "one programme's Weeks tab, the weeks of the run it names, for its lead and admins. " +
+      "It reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form, and the page then says there is no programme here",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/copy": {
+    kind: "form",
+    why:
+      "Copy weeks from the course, a page of one programme's Weeks tab. " +
+      "It reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]": {
+    kind: "form",
+    why:
+      "one week's page on a programme's Weeks tab. " +
+      "It reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/preview": {
+    kind: "form",
+    why:
+      "Preview as a fellow, from a week's page on a programme's Weeks tab. " +
+      "It reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
     kind: "form",
     why:
       "one programme's settings, for its lead and for admins. It loads through loadSetup, " +
       "which starts from the form's own loader and finds nothing for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/anonymous-feedback": {
+    kind: "form",
+    why:
+      "one programme's answers to its anonymous keep, change and drop form, for its lead and admins. It reaches " +
+      "the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for " +
+      "a round that is not a form, and the page then says there is no programme here",
   },
   "/(public)/applications/[roundId]": {
     kind: "both",
@@ -331,6 +506,13 @@ const ROUND_SURFACES = {
       "stage by stage, which an application made on a form does not have. So to the older half " +
       "a form is a round that is not there, and it answers one that way before it reads a row " +
       "or draws anything",
+  },
+  "/(public)/applications/[roundId]/free": {
+    kind: "form",
+    why:
+      "changing when you're free, for somebody holding a place on a fellowship until groups go out. " +
+      "It reaches the round only through loadWhenFree, which starts from the form's own loader and " +
+      "answers null for a round that is not a form, and the page then sends the caller to their application page",
   },
   "/(public)/apply/[roundId]": {
     kind: "both",
@@ -375,6 +557,13 @@ const ROUND_SURFACES = {
       "records the applicant's reply to what decision day told them. It loads the round " +
       "through the form's own loader, which answers null for a round that is not a form, and " +
       "writes through recordReply, which is handed the form that loader returned",
+  },
+  "/api/admissions/forms/[roundId]/application/availability": {
+    kind: "form",
+    why:
+      "changes the week a place painted until groups go out. It loads the round through the form's " +
+      "own loader, which answers null for a round that is not a form, and writes through " +
+      "changeSentAvailability, which is handed the form that loader returned",
   },
   "/api/admissions/forms/[roundId]/application/send": {
     kind: "form",
@@ -435,6 +624,153 @@ const ROUND_SURFACES = {
     why:
       "names a programme's lead and reviewers through setProgrammeRoles, the one writer, " +
       "which asks whether the round is a form before its transaction and again inside it",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run": {
+    kind: "form",
+    why:
+      "names the course run a programme places people on, through setProgrammeRun, and reads " +
+      "the panel beside it through loadRunPanel. The writer is a transaction that reads the " +
+      "round and stops unless it is a form, and the panel starts from the form's own loader",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/hand-over": {
+    kind: "form",
+    why:
+      "hands the people who hold a place on a programme over to its course run, through " +
+      "handOverProgramme. It loads the round with the form's own loader before it reads " +
+      "anybody's application, and every transaction that writes a row reads the round again " +
+      "and stops unless it is a form",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places": {
+    kind: "form",
+    why:
+      "offers a programme's freed places after decision day, through offerFreedPlaces, and sends " +
+      "the emails still to go. Each press loads the round with the form's own loader before it " +
+      "reads anybody's application, and every transaction that writes reads the round again and " +
+      "stops unless it is a form",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places/test": {
+    kind: "form",
+    why:
+      "sends the admin a test of a freed-place email, through sendFreedPlaceTest, which loads " +
+      "the round with the form's own loader and finds nothing for a round that is not a form",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/attendance/export": {
+    kind: "form",
+    why:
+      "every register of the run a programme names, as a CSV for its lead and admins. It reaches the round only " +
+      "through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is " +
+      "not a form, so nothing is read, logged or handed over for one",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/registers/remind": {
+    kind: "form",
+    why:
+      "emails the facilitators of one group of the run a programme names about an unfinished register. It " +
+      "reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers " +
+      "'none' for a round that is not a form, so nobody is emailed for one",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/when-free/remind": {
+    kind: "form",
+    why:
+      "emails the people holding a place on a programme who have not said when they are free. It reaches the " +
+      "round only through loadProgrammeRun and the form's own loader, each of which answers 'none' or null for a " +
+      "round that is not a form, so nobody is emailed for one",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing": {
+    kind: "form",
+    why:
+      "records whether one person finished the run a programme names, through decideFinished. It " +
+      "reaches the round only through loadProgrammeRun, which starts from the form's own loader and " +
+      "answers 'none' for a round that is not a form, so nothing is written for one",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/certificates": {
+    kind: "form",
+    why:
+      "makes and emails a programme's certificates, through sendCertificates, which loads the round with the " +
+      "form's own loader and finds nothing for a round that is not a form, so nothing is made or sent for one",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/certificates/test": {
+    kind: "form",
+    why:
+      "sends the caller a test of the certificate email, through sendCertificateTest, which loads the round " +
+      "with the form's own loader and finds nothing for a round that is not a form",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask": {
+    kind: "form",
+    why:
+      "asks one person to facilitate a group of the run a programme names, through askToFacilitate, " +
+      "which reaches the round only through loadProgrammeRun and the form's own loader, and answers a " +
+      "round that is not a form as a programme that is not here",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask/test": {
+    kind: "form",
+    why:
+      "sends a test of the ask's email, through sendAskTest, which reaches the round as the ask does " +
+      "and finds nothing for a round that is not a form",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/remind": {
+    kind: "form",
+    why:
+      "reminds one person of their ask, through remindAsk, which reaches the round as the ask does " +
+      "and finds nothing for a round that is not a form",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/training": {
+    kind: "form",
+    why:
+      "sets the facilitators' training of the run a programme names, through setTraining, which " +
+      "reaches the round only through loadProgrammeRun and answers a round that is not a form as a " +
+      "programme that is not here",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing/rule": {
+    kind: "form",
+    why:
+      "sets the rule for who finished the run a programme names, through setFinishRule, which reaches " +
+      "the round only through loadProgrammeRun and answers a round that is not a form as a programme " +
+      "that is not here",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups-go-out": {
+    kind: "form",
+    why:
+      "sets the day groups go out on the run a programme names, reaching the round only through " +
+      "loadProgrammeRun, which answers a round that is not a form as a programme that is not here",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups": {
+    kind: "form",
+    why:
+      "adds a group to the run a programme names, from the Groups tab's Times view, reaching the round " +
+      "only through loadProgrammeRun, which answers a round that is not a form as a programme that is not here",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time": {
+    kind: "form",
+    why:
+      "changes one group's day and start on the run a programme names, from the Groups tab's Times view, " +
+      "reaching the round only through loadProgrammeRun, which answers a round that is not a form as a " +
+      "programme that is not here",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams": {
+    kind: "form",
+    why:
+      "makes and changes an incubator's teams, through actOnTeams. It loads the round with the " +
+      "form's own loader before it reads anybody's application or team, and answers a round that " +
+      "is not a form as a programme that is not here",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell": {
+    kind: "form",
+    why:
+      "emails everyone in an incubator's teams their team, through sendTeamEmails, which loads the " +
+      "round with the form's own loader and finds nothing for a round that is not a form",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell/test": {
+    kind: "form",
+    why:
+      "sends the caller a test of the team email, through sendTeamEmailTest, which loads the round " +
+      "with the form's own loader and finds nothing for a round that is not a form",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/hand-in": {
+    kind: "form",
+    why:
+      "sets an incubator's hand-in dates on the run its programme names. It loads the round through " +
+      "teamsGate, the form's own loader, before it reads or writes the run, and answers a round that is " +
+      "not a form as a programme that is not here",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/test-email": {
     kind: "form",
@@ -1203,6 +1539,42 @@ const ROUND_READERS = new Map([
     },
   ],
   [
+    "src/lib/applications/freedPlaces/offer.ts",
+    {
+      kind: "form",
+      asks: 2,
+      proof: ["const form = await loadForm(db, roundId);", "const formSnap = await tx.get(formRef(db, roundId));"],
+      why:
+        "the one writer of a freed place. Each press, resend and test starts from the form's own " +
+        "loader, which answers null for a round that is not a form; the press's transaction and " +
+        "each claim of an email still to go read the round again and ask before they write",
+    },
+  ],
+  [
+    "src/lib/applications/handover/handOver.ts",
+    {
+      kind: "form",
+      asks: 1,
+      proof: ["const form = await loadForm(db, roundId);", "await tx.get(formRef(db, roundId))"],
+      why:
+        "the hand-over of a programme's place holders to its course run. The press starts from " +
+        "the form's own loader, which answers null for a round that is not a form, and each " +
+        "transaction that creates rows reads the round again and asks before it writes",
+    },
+  ],
+  [
+    "src/lib/applications/handover/run.ts",
+    {
+      kind: "form",
+      asks: 2,
+      proof: ['.where("formVersion", "==", FORM_VERSION)', "const snap = await tx.get(roundRef);"],
+      why:
+        "the one writer of the course run a programme names. Its transaction reads the round " +
+        "and asks before it writes. To see whether another programme already names the run it " +
+        "asks the database for forms only, and asks each stored document the question again",
+    },
+  ],
+  [
     "src/lib/applications/roles.ts",
     {
       kind: "form",
@@ -1219,10 +1591,24 @@ const ROUND_READERS = new Map([
       asks: 0,
       proof: ["form: ApplicationForm,", "const roundRef = formRef(db, roundId);", "tx.update(roundRef, {"],
       why:
-        "the one writer of an applicant's reply. It reads no round itself. It is handed the " +
-        "form the reply route loaded with the form's own loader, which asks and answers null " +
-        "for a round that is not a form, and it touches the round only to move its counters in " +
+        "the one writer of an applicant's reply, and of the same reply made by leaving a run or by Remove. " +
+        "It reads no round itself. It is handed the form by the reply route, the one leave " +
+        "(lib/courses/leaveRun.ts) or Remove, each loaded with the form's own loader, which asks and answers " +
+        "null for a round that is not a form, and it touches the round only to move its counters in " +
         "the transaction that moves the application's status",
+    },
+  ],
+  [
+    "src/lib/applications/status/restore.ts",
+    {
+      kind: "form",
+      asks: 0,
+      proof: ["form: ApplicationForm,", "roundRef: formRef(db, roundId)", "tx.update(ref, update);"],
+      why:
+        "gives somebody put back on a run their place on the form again. It reads no round itself. It is " +
+        "handed the form by the allocate route, loaded with the form's own loader, which asks and answers " +
+        "null for a round that is not a form, and it touches the round only to move its counters in the " +
+        "transaction that puts them back",
     },
   ],
   [
@@ -2020,7 +2406,8 @@ const STUBS = new Map([
   ],
   [
     "@/lib/email/courseFacilitatorEmails",
-    "export const hasOptedOutOfCourseAnnouncements = () => false;\n" +
+    "export const resolveCohortAudience = async () => ({ members: [], skipped: 0, enrolledCount: 0, refusal: null });\n" +
+      "export const hasOptedOutOfCourseAnnouncements = () => false;\n" +
       "export const memberNameOf = () => '';",
   ],
   // The two routes that run a scheduler job by hand import the registry, and

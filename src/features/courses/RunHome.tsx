@@ -1,441 +1,394 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
+import ProgrammeMark from "@/components/ProgrammeMark";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
 import Skeleton from "@/components/ui/Skeleton";
-import DigitRoll from "@/components/motion/DigitRoll";
 import PageEnter from "@/components/motion/PageEnter";
-import { useMagneticPull } from "@/hooks/useMagneticPull";
+import { firstName, tilePartsOfDay } from "@/app/(app)/dashboard/homeWords";
 import FacilitatorGroupPanel from "./FacilitatorGroupPanel";
-import { weekHref } from "./links";
-import SessionCard from "./SessionCard";
-import WeekRail from "./WeekRail";
+import { ticketFacts } from "./sessionChange/cardFacts";
+import SessionNotice from "./sessionChange/SessionNotice";
+import RunUpdates from "./updates/RunUpdates";
 import { useRunOverview } from "./useRunOverview";
 import { useSyncTasks } from "./useSyncTasks";
-import { ATTENDANCE_STATUS_LABEL } from "@/lib/firestore/courseAttendance";
-import { weekDocId } from "@/lib/firestore/courses";
-import type { OverviewPayload } from "@/app/api/courses/runs/[runId]/overview/route";
-import type { WeekPlanEntry } from "@/lib/courses/weekPlan";
+import SessionTicket from "./weekly/SessionTicket";
+import ThisWeekCard from "./weekly/ThisWeekCard";
+import WeekList from "./weekly/WeekList";
+import YourGroup from "./weekly/YourGroup";
+import AboutThisCourse from "./AboutThisCourse";
+import CertificateCard from "./CertificateCard";
+import type { CertificateCardView } from "@/lib/courses/certificates/card";
+import type { GuideLinks } from "@/lib/courses/guide/model";
+import type { TeamCardView } from "@/lib/courses/teamPage/views";
+import { YOUR_TEAM, YOUR_TEAMS_PAGE } from "@/lib/courses/teamPage/words";
+import { useMaterialTicks } from "./weekly/useMaterialTicks";
+import AfterTheEnd, { type AfterEvent, type AfterSurvey, type KeepItem } from "./weekly/AfterTheEnd";
+import { weekHref } from "./links";
+import { weekRowsOf } from "./weekly/weekRows";
+import { boxesFilled } from "@/lib/courses/weekBlocks/progress";
+import { LEAVE_LINK } from "@/lib/courses/leavingWords";
+import { ENDED_SUB, ENDED_THANKS, FINISHED_SUB, hasEnded, youFinished } from "@/lib/courses/finishing/words";
+import {
+  MARKS_LEGEND_LABEL,
+  MARKS_LINE,
+  MARK_LETTER,
+  MARK_STATE_WORDS,
+  NOT_YET_MARK,
+  YOUR_MARKS,
+  KEEP_ACTION_PLAN,
+  afterLineParts,
+  eyebrowNamesTheDay,
+  groupLineWords,
+  keepWeeksWords,
+  readingListKeepWords,
+  hoursWords,
+  kindAndTermWords,
+  markWords,
+  sessionEyebrow,
+  weekOfWords,
+  withWords,
+} from "@/lib/courses/memberPageWords";
+import { slotWords } from "@/lib/courses/sessionChange/words";
+import { sessionWhenLabel } from "@/lib/courses/londonLabels";
+import { ATTENDANCE_STATUS_LABEL, type AttendanceStatus } from "@/lib/firestore/courseAttendance";
+import { londonDateKey } from "@/lib/courses/weekPlan";
+import type { OverviewPayload, OverviewWeekSchedule } from "@/app/api/courses/runs/[runId]/overview/route";
+import weekly from "./weekly/weekly.module.css";
 import styles from "./RunHome.module.css";
 
 /**
- * The run home: where am I, what do I do next, who am I doing it with.
+ * THE PROGRAMME HOME: where am I, what do I do next, who am I doing it with
+ * (boards st-programme before the first session and wk-programme once it has
+ * started, at 1440 and on a phone).
  *
- * One data source — `/api/courses/runs/[runId]/overview` — drives the whole
- * page, and it is the only fetch here on the common path (the facilitator
- * roster is a second, conditional one). Nothing on this page is live: the run's
- * shape, the cohort's week and the group's slot don't move while someone reads
- * them. The thing that DOES move under the reader — the member's own check-offs
- * — lives one route deeper, on the week page, where `useRunProgress` listens.
+ * One data source, `/api/courses/runs/[runId]/overview`, drives the page; the
+ * member's own ticks are live (`useMaterialTicks`), and their group's names
+ * come from the group's roster route (`YourGroup`).
  *
- * ── THE 3-STATE RULE ────────────────────────────────────────────────────────
- * Layout-matched Skeleton → EmptyState → PageEnter-wrapped content, mounted on
- * the FIRST render with data (the rule PageEnter's header states). It matters
- * more here than anywhere else in the learning space: the WeekRail's draw is a
- * mount-time animation, so a rail rendered against half-arrived data would
- * spend its one signature moment animating a placeholder.
- * ────────────────────────────────────────────────────────────────────────────
+ * WHAT A MEMBER TAKING PART SEES, in the boards' order: the head (the
+ * programme, their group with its day, time and room, with whom), the next
+ * session's ticket (tonight, a room changed this week, a session moved or
+ * cancelled as "Change a session" says), "This week" (or before the first
+ * session, week 1's readings to tick), the weeks with their dates and states
+ * (every published week open, to read ahead), their marks with no count
+ * (C26), the updates, their group, and the way out.
  *
- * Motion budget: the rail draw is the moment and everything else stays quiet —
- * a page entrance, a modest card stagger, one magnetic CTA. The plan's line for
- * this route is that boldness lives one route deeper and ends here.
+ * "Add to calendar" is on the ticket for somebody whose group it is, taking
+ * part or facilitating (st-calendar-phone: their own calendar link).
+ *
+ * WHAT IS NOT HERE, though the boards draw it: "Can’t make it" on the ticket.
+ * It does not exist yet, and the page draws no control for a feature that
+ * does not.
+ *
+ * STAFF (a facilitator, an admin) read the same head, ticket and weeks, every
+ * published week open, with their own panels below; no marks, no ticks.
+ *
+ * ONCE THE PROGRAMME IS OVER, somebody who took part reads the page boards
+ * en-after-phone and en-after-nofinish-phone draw (`AfterTheEnd`): told they
+ * finished only where their own finished record says so, their certificate,
+ * the survey at the end, what they keep, what's next, and then the weeks.
+ * Staff read the head's sentence over the page as before.
  */
 
 type Props = {
   runId: string;
-  /**
-   * From the server gate, not from the payload's `access` mirror. Used for one
-   * thing: whether the admissions panel renders.
-   */
+  /** From the server gate, not from the payload's `access` mirror: whether the admissions panel renders. */
   isAdmin: boolean;
   /**
-   * Whether this member may address the WHOLE cohort — a run facilitator, a
+   * Whether this member may address the WHOLE cohort: a run facilitator, a
    * track lead, or an admin. From the server gate for the same reason
    * `isAdmin` is: the payload's `access.isFacilitator` is true for someone who
    * merely holds one GROUP of the run, and a group facilitator is exactly who
-   * this lane excludes. Purely a link gate; `/learn/[runId]/email` re-derives
-   * it and the send route is the boundary.
+   * this lane excludes. A link gate; `/learn/[runId]/email` re-derives it and
+   * the send route is the boundary.
    */
   canEmailCohort: boolean;
+  /**
+   * Pitching week's card, worked out by the server page for somebody taking
+   * part (`pitchingCard`): its line, and whether pitching is still open. Null
+   * draws nothing.
+   */
+  pitching?: { lede: string; open: boolean } | null;
+  /**
+   * "Your team", worked out by the server page for somebody among a team's
+   * people who has been told their team (`teamCardFor`): the team's name and
+   * who else is in it, and the way to the team's page. Null draws nothing.
+   */
+  team?: TeamCardView | null;
+  /**
+   * Whether "Leave the programme" is drawn at the foot (wk-programme): the
+   * server page asks the leave route's own rule (`leavePathFor`), so the link
+   * is there exactly where the press would work.
+   */
+  canLeave?: boolean;
+  /**
+   * Said at the foot in place of "Leave the programme" for a facilitator who
+   * holds a place: they are taken off the group's facilitators first
+   * (`leavePathFor`'s `facilitating`). Null for everybody else.
+   */
+  leaveNote?: string | null;
+  /** The session's own uid, from the server gate: the ticks' row, and "(you)" in the group. */
+  uid?: string | null;
+  /**
+   * The programme's Start here and Glossary, from the server page: "About
+   * this course" (wk-programme) links each the run has, and is not drawn
+   * when it has neither.
+   */
+  guide?: GuideLinks | null;
+  /**
+   * The caller's own certificates on this run, from the server page
+   * (`readOwnCertificates`): "Your certificate" (en-after-phone) under the
+   * head. Empty for anybody sent none, and drawn nothing.
+   */
+  certificates?: CertificateCardView[];
+  /**
+   * The survey at the end as it stands for the caller (`endSurveyFor`), from
+   * the server page once their group's last session is over: theirs to
+   * answer, or sent. Null otherwise, and drawn only on the page once the
+   * programme is over.
+   */
+  endSurvey?: AfterSurvey | null;
+  /** Home's next event, as Home picks it, for What's next once the programme is over. */
+  nextEvent?: AfterEvent | null;
 };
 
 // ---------------------------------------------------------------------------
-// Constants + small helpers
+// The head's line under the title
 // ---------------------------------------------------------------------------
 
-/** Session-scoped, per-run: the rail draws once per run per browser session. */
-const RAIL_DRAWN_KEY_PREFIX = "naisi:rail-drawn:";
-
-/**
- * TODO(P8): real completed-week marks on the rail.
- *
- * A week is complete when every check-offable item in it is done, and the
- * denominator — the item count per week — is not in the overview payload
- * (`weeks` carries id/number/title/published/estimatedMinutes only). Deriving
- * it client-side means pulling every week doc, guide blocks and all, on the
- * page members open daily, to decorate a rail. That trade is wrong, and a
- * count guessed from progress rows alone would mark a week complete the moment
- * someone ticked one material — honest empty beats fake state.
- *
- * The fix is a field, not a fetch: P8 adds a per-week item count to the
- * overview payload's `weeks` entries, at which point this becomes a one-line
- * derivation over `useRunProgress`'s rows grouped by `weekNumber`.
- *
- * Shared empty array — read-only by contract, never mutated.
- */
-const NO_COMPLETED_WEEKS: number[] = [];
-
-/**
- * `timeZone: "UTC"` because a run's `startDate` is a civil date parsed at UTC
- * midnight — a date, not an instant, and re-zoning it can only move it. Module
- * scoped: constructing an `Intl.DateTimeFormat` is expensive relative to using
- * one (the `weekPlan.ts` precedent).
- */
-const START_DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
-  timeZone: "UTC",
-  day: "numeric",
-  month: "long",
-});
-
-function startDateLabel(startDate: string): string | null {
-  if (!startDate) return null;
-  const parsed = new Date(`${startDate}T00:00:00Z`);
-  return Number.isNaN(parsed.getTime()) ? null : START_DATE_FORMAT.format(parsed);
-}
-
-/**
- * The week the Continue CTA points at: the cohort's current week, the anchor
- * during a break or after the run, week 1 before it starts. `published` is read
- * from the run's own week index — an unauthored week has no doc at all, which
- * counts as not published.
- */
-type WeekTarget = { weekNumber: number; published: boolean; title: string };
-
-function weekTargetFor(overview: OverviewPayload): WeekTarget | null {
-  const current = overview.currentWeek;
-  if (!current) return null;
-  const number =
-    current.phase === "before"
-      ? 1
-      : (current.weekNumber ??
-        (current.anchorWeekNumber > 0 ? current.anchorWeekNumber : null));
-  if (number === null || number < 1) return null;
-  const doc = overview.weeks.find((w) => w.weekNumber === number);
-  return {
-    weekNumber: number,
-    published: doc?.published === true,
-    title: doc?.title ?? "",
-  };
-}
-
-/** The hero's big line: a rolling week counter, or a sentence. */
-type Headline =
-  | { kind: "week"; weekNumber: number; totalWeeks: number }
-  | { kind: "text"; text: string };
-
-function heroCopy(
-  overview: OverviewPayload,
-  target: WeekTarget | null,
-): { headline: Headline; sub: string } {
+/** The hero's sentence while there is no week to show: no date, a break, or the end. */
+function stateCopy(overview: OverviewPayload): { heading: string; line: string } | null {
   const { run, currentWeek } = overview;
-
-  // A run with no usable start date is a legitimate half-authored state, not an
-  // error — say so rather than inventing a week.
   if (!currentWeek) {
     return {
-      headline: { kind: "text", text: "Not scheduled yet" },
-      sub: "This run doesn't have a start date yet. It'll show up here the moment it's timetabled.",
+      heading: "Not scheduled yet",
+      line: "This run doesn't have a start date yet. It'll show up here the moment it's timetabled.",
     };
   }
-
-  if (currentWeek.phase === "before") {
-    const when = startDateLabel(run.startDate);
-    const parts: string[] = [];
-    if (run.totalWeeks > 0) parts.push(`${run.totalWeeks} weeks.`);
-    parts.push(
-      target?.published
-        ? "Week 1 is already open, if you want to read ahead."
-        : "Week 1 opens when the cohort starts.",
-    );
-    return {
-      headline: { kind: "text", text: when ? `Starts ${when}` : "Starts soon" },
-      sub: parts.join(" "),
-    };
-  }
-
+  // After the last week. "You finished" only where the member's own finished
+  // record says so (`overview.finished`, the one answer every page asks);
+  // everybody else, staff included, is told the course has ended, and nothing
+  // here claims they finished it.
   if (currentWeek.phase === "after") {
-    return {
-      headline: { kind: "text", text: "Course complete" },
-      sub: "The cohort has finished. Every week stays open — revisit whatever you like.",
-    };
+    const name = run.courseTitle.trim() || "This course";
+    return overview.finished
+      ? { heading: youFinished(name), line: FINISHED_SUB }
+      : { heading: hasEnded(name), line: ENDED_SUB };
   }
-
-  // Running. A break slot names itself and has no week number of its own, so it
-  // reads as the break and points back at the week it follows.
-  if (currentWeek.breakLabel) {
-    return {
-      headline: { kind: "text", text: currentWeek.breakLabel },
-      sub:
-        currentWeek.anchorWeekNumber > 0
-          ? `No new material this week. Week ${currentWeek.anchorWeekNumber} is still open if you're catching up.`
-          : "No new material this week.",
-    };
-  }
-
-  return {
-    headline: {
-      kind: "week",
-      weekNumber: currentWeek.weekNumber ?? currentWeek.anchorWeekNumber,
-      totalWeeks: run.totalWeeks,
-    },
-    // The week's own title is the best sub-line there is; without one the hero
-    // simply says less rather than repeating the headline in longer words.
-    sub: target?.title ?? "",
-  };
+  return null;
 }
 
-// ---------------------------------------------------------------------------
-// The rail (the signature draw)
-// ---------------------------------------------------------------------------
-
 /**
- * The once-per-session draw verdict for one run.
- *
- * Caller-owned by WeekRail's contract: the rail seeds its `drawing` state from
- * `animate` at mount and never re-reads it, so the verdict has to be settled
- * before the rail exists. Hence the split below.
- *
- * The READ is a lazy state initialiser, not an effect: an effect runs after
- * paint, which would leave the rail rendered final-state for a frame and then
- * unable to start (the prop flip lands too late). Reading storage in an
- * initialiser is safe here precisely because this hook lives in a component
- * that only ever mounts on the first render WITH data — never during SSR, so
- * there is no hydration mismatch to create.
- *
- * The WRITE is an effect, deliberately: React double-invokes initialisers in
- * dev StrictMode, and claiming the flag inside one would consume the one-shot
- * against itself so the draw never played locally. `setItem` is idempotent, so
- * the same double-invocation is harmless in the effect. The claim lands within
- * a frame of the draw starting — orders of magnitude faster than a navigation
- * away and back, which is the only thing it is racing.
- *
- * Mirrors the `naisi:from-signin` idiom in AppShell: sessionStorage, one key,
- * consumed on read, wrapped in try/catch because storage throws outright in
- * some embedded contexts.
+ * The head once the programme is over, for somebody who took part
+ * (en-after-phone, en-after-nofinish-phone): "You finished AGI Strategy."
+ * only where their own finished record says so (`overview.finished`), with
+ * the term, the group and its facilitators; otherwise "AGI Strategy has
+ * ended." with the board's thanks and the term and group. Never that they
+ * did not finish.
  */
-function useRailDrawOnce(runId: string): boolean {
-  const [animate] = useState(() => {
-    try {
-      return sessionStorage.getItem(`${RAIL_DRAWN_KEY_PREFIX}${runId}`) !== "1";
-    } catch {
-      // Storage unavailable: render final-state. A draw on every single visit
-      // is worse than no draw at all.
-      return false;
-    }
-  });
-
-  useEffect(() => {
-    if (!animate) return;
-    try {
-      sessionStorage.setItem(`${RAIL_DRAWN_KEY_PREFIX}${runId}`, "1");
-    } catch {
-      // Nothing to do — the read above already failed closed.
-    }
-  }, [animate, runId]);
-
-  return animate;
+function afterHeadOf(
+  overview: OverviewPayload,
+  name: string,
+  parts: { term: string; group: string; with: string },
+): { heading: string; finished: boolean; thanks: string | null; lineParts: string[] } {
+  return overview.finished
+    ? { heading: youFinished(name), finished: true, thanks: null, lineParts: afterLineParts(parts) }
+    : { heading: hasEnded(name), finished: false, thanks: ENDED_THANKS, lineParts: afterLineParts({ ...parts, with: "" }) };
 }
 
-type RailProps = {
-  runId: string;
-  plan: WeekPlanEntry[];
-  phase: "before" | "running" | "after";
-  anchorWeekNumber: number;
-  currentWeekNumber: number | null;
-};
-
 /**
- * Its own component so `useRailDrawOnce`'s initialiser runs at the rail's
- * mount rather than the page's, and so the callsite can `key` it by run: two
- * run ids share this route pattern, and a soft navigation between them
- * reconciles the same component instead of remounting it — without the key the
- * second run would inherit the first run's spent verdict.
+ * What they keep (en-after-phone), each thing linked to the page that holds
+ * it, and only once such a page exists, and only what the person has: the
+ * action plan (the one week whose fill-in boxes hold it), once they have
+ * written in at least one of its boxes, counted by the reader that counts
+ * filled boxes everywhere ("6 of 12 filled", `boxesFilled`) over the boxes
+ * the overview says they wrote in; and the reading list. The board's
+ * reflections, written answers with feedback, notes shared with the group
+ * and every week's Go further list have no page that holds them all yet:
+ * each is on its own week's page, under the weeks below.
  */
-function RunRail({
-  runId,
-  plan,
-  phase,
-  anchorWeekNumber,
-  currentWeekNumber,
-}: RailProps) {
-  const animate = useRailDrawOnce(runId);
-
-  return (
-    <WeekRail
-      plan={plan}
-      anchorWeekNumber={anchorWeekNumber}
-      phase={phase}
-      currentWeekNumber={currentWeekNumber}
-      completedWeekNumbers={NO_COMPLETED_WEEKS}
-      hrefForWeek={(weekNumber) => weekHref(runId, weekNumber)}
-      variant="full"
-      animate={animate}
-    />
-  );
+function keepOf(overview: OverviewPayload, runId: string): KeepItem[] {
+  const items: KeepItem[] = [];
+  const boxTasks = (week: OverviewPayload["weeks"][number]) =>
+    (week.thisWeek?.rows ?? []).flatMap((row) => (row.type === "task" && row.needs.fillInIds.length > 0 ? [row] : []));
+  const planWeeks = overview.weeks.filter((week) => week.published && boxTasks(week).length > 0);
+  const plan = planWeeks.length === 1 ? planWeeks[0] : null;
+  const filled = plan
+    ? boxTasks(plan).reduce((sum, row) => sum + boxesFilled(row.needs, (boxId) => row.written.includes(boxId)).filled, 0)
+    : 0;
+  if (plan && filled > 0) {
+    items.push({ title: KEEP_ACTION_PLAN, weeks: keepWeeksWords([plan.weekNumber]), href: weekHref(runId, plan.weekNumber) });
+  }
+  if (overview.run.totalWeeks > 0) {
+    items.push({ title: readingListKeepWords(overview.run.totalWeeks), weeks: null, href: `/learn/${encodeURIComponent(runId)}/reading` });
+  }
+  return items;
 }
 
 // ---------------------------------------------------------------------------
 // Loading state
 // ---------------------------------------------------------------------------
 
-/**
- * Layout-matched to the real page: eyebrow, headline, sub-line, CTA, the rail's
- * band, two cards. The rail block's numbers mirror WeekRail.module.css's
- * `.full .canvas` padding (2.25rem / 1.75rem) around `--rail-row` (2.75rem), so
- * arrival costs no reflow — which is the shift a skeleton exists to prevent.
- *
- * One announcement, not one per bar: `Skeleton`'s wrapper is its own live
- * region, so only the first carries a label and the rest pass an empty one.
- */
 function RunHomeSkeleton() {
   return (
-    <div className={styles.page}>
-      <div className={styles.hero}>
-        <Skeleton width="16rem" height="0.875rem" ariaLabel="Loading this course…" />
-        <Skeleton width="20rem" height="2.5rem" ariaLabel="" />
-        <Skeleton width="26rem" height="1.25rem" ariaLabel="" />
-        <Skeleton width="12rem" height="2.75rem" ariaLabel="" />
-      </div>
-      <div className={styles.railSkeleton}>
-        <Skeleton width="100%" height="2.75rem" radius="var(--radius-pill)" ariaLabel="" />
+    <div className={weekly.programme}>
+      <div className={weekly.head}>
+        <Skeleton width="12rem" height="0.875rem" ariaLabel="Loading this course…" />
+        <Skeleton width="20rem" height="2.25rem" ariaLabel="" />
+        <Skeleton width="24rem" height="1.25rem" ariaLabel="" />
       </div>
       <div className={styles.stack}>
-        <Skeleton width="100%" height="9rem" radius="var(--radius-lg)" ariaLabel="" />
-        <Skeleton width="100%" height="6rem" radius="var(--radius-lg)" ariaLabel="" />
+        <Skeleton width="100%" height="10rem" radius="var(--radius-lg)" ariaLabel="" />
+        <Skeleton width="100%" height="8rem" radius="var(--radius-lg)" ariaLabel="" />
       </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Your progress
+// Your marks (C26): one per session, a legend, and no count
 // ---------------------------------------------------------------------------
 
-/**
- * "SATURDAY 3 NOVEMBER", from a civil date key. Module scoped for the same
- * reason `START_DATE_FORMAT` is, and `timeZone: "UTC"` for the same reason:
- * these are dates, not instants, and re-zoning one can only move it.
- */
-const ATTENDANCE_DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
-  timeZone: "UTC",
-  weekday: "short",
-  day: "numeric",
-  month: "short",
-});
+type MarkKind = AttendanceStatus | "not-yet" | "not-marked" | "cancelled" | "did-not-happen";
 
-function attendanceDateLabel(dateKey: string): string | null {
-  if (!dateKey) return null;
-  const parsed = new Date(`${dateKey}T00:00:00Z`);
-  return Number.isNaN(parsed.getTime()) ? null : ATTENDANCE_DATE_FORMAT.format(parsed);
+const MARK_ORDER: MarkKind[] = [
+  "present",
+  "late",
+  "left-early",
+  "excused",
+  "absent",
+  "not-marked",
+  "cancelled",
+  "did-not-happen",
+  "not-yet",
+];
+
+const MARK_CLASS: Record<MarkKind, string> = {
+  present: weekly.markHere,
+  late: weekly.markHere,
+  "left-early": weekly.markHere,
+  excused: weekly.markExcused,
+  absent: weekly.markAway,
+  "not-marked": weekly.markNone,
+  cancelled: weekly.markNone,
+  "did-not-happen": weekly.markNone,
+  "not-yet": "",
+};
+
+function markWord(kind: MarkKind): string {
+  return kind in MARK_LETTER ? ATTENDANCE_STATUS_LABEL[kind as AttendanceStatus] : MARK_STATE_WORDS[kind as keyof typeof MARK_STATE_WORDS];
+}
+
+function markGlyph(kind: MarkKind): string {
+  if (kind in MARK_LETTER) return MARK_LETTER[kind as AttendanceStatus];
+  return kind === "not-yet" ? NOT_YET_MARK : "";
+}
+
+/** "3 Nov", the date under a mark: upper case by the stylesheet. */
+function shortDay(dateKey: string): string {
+  const parts = tilePartsOfDay(dateKey);
+  return parts ? `${parts.day} ${parts.month}` : "";
 }
 
 /**
- * THE MEMBER'S OWN RECORD, and the way into the progress page.
+ * THE MEMBER'S OWN MARKS: one per session of their group's, from the week
+ * they joined, and a legend. Nothing here counts them, says "in full", or
+ * says how many they came to: a member is never shown a target.
  *
- * Two things that had nowhere to live until now. `/learn/[runId]/progress`
- * shipped with no link to it from anywhere, and a member's own attendance was
- * readable by nobody: the registers are `read: if false`, so the only honest
- * route to it is the overview payload's projection.
- *
- * SESSIONS APPEAR ONLY ONCE PUSHED, and the copy says so, because the absence
- * of a row is otherwise indistinguishable from an absence. That gate is
- * server-side (`ownAttendanceSessions`); this component could not show an
- * unpushed mark if it tried.
- *
- * An unmarked cell in a pushed register reads "Not marked" rather than
- * "Absent". The ROLLUP counts it as an absence and the summary line reflects
- * that; the per-session row reports what was written down. Saying "absent" in
- * both places would turn a facilitator's slip into an accusation.
- *
- * A NULL `ownAttendance` is its own case, not an empty one. The route sends it
- * for a learner who has not been allocated to a group yet, and the standing
- * copy ("once your facilitator finishes each session's register") would name a
- * facilitator they have not got. That branch says what is actually next for
- * them instead.
+ * A mark shows once its register is finished, which the route decides
+ * (`ownAttendance?.sessions` holds finished registers only); until then the
+ * session is "Not yet". A session cancelled through "Change a session" reads
+ * as cancelled from the group's own record, and a register that says the
+ * session did not happen says so.
  */
-function ProgressPanel({
-  runId,
+function YourMarks({
   ownAttendance,
+  schedule,
+  joinedWeekNumber,
+  nextDateKey,
+  className,
 }: {
-  runId: string;
   ownAttendance: OverviewPayload["ownAttendance"];
+  schedule: OverviewWeekSchedule[];
+  joinedWeekNumber: number;
+  nextDateKey: string | null;
+  className?: string;
 }) {
-  const held = ownAttendance?.rollup.sessionsHeld ?? 0;
-  const inFull = ownAttendance?.rollup.attendedInFull ?? 0;
-  const sessions = ownAttendance?.sessions ?? [];
+  const marks = ownAttendance?.sessions ?? [];
+  const byWeek = new Map<number, (typeof marks)[number]>();
+  for (const session of marks) {
+    if (!byWeek.has(session.weekNumber)) byWeek.set(session.weekNumber, session);
+  }
+  const rows = schedule
+    .filter((week) => week.weekNumber >= Math.max(1, joinedWeekNumber))
+    .map((week) => {
+      const session = byWeek.get(week.weekNumber);
+      const kind: MarkKind = week.cancelled
+        ? "cancelled"
+        : !session
+          ? "not-yet"
+          : !session.held
+            ? "did-not-happen"
+            : (session.status ?? "not-marked");
+      return { week, kind, dateKey: week.dateKey || session?.dateKey || "" };
+    });
+  const used = new Set(rows.map((row) => row.kind));
 
   return (
-    <Card as="section" padding="md" className={styles.panel}>
-      <h3 className={styles.panelTitle}>Your progress</h3>
-
+    <section className={[weekly.card, className ?? ""].filter(Boolean).join(" ")} aria-labelledby="your-marks">
+      <div className={`${weekly.cardHead} ${weekly.cardHeadSpaced}`}>
+        <h2 id="your-marks" className={weekly.cardTitle}>
+          {YOUR_MARKS}
+        </h2>
+      </div>
       {ownAttendance === null ? (
-        /* No group yet. The route sends `ownAttendance: null` for exactly this
-           case, and the line above it must not name a facilitator this member
-           does not have one of: there is no room, no register and nobody to be
-           waiting on. Allocation is the thing that has to happen next, so that
-           is what the copy says. */
-        <p className={styles.panelNote}>
-          You&apos;ll be placed in a group soon; your attendance appears here
-          after that.
-        </p>
-      ) : held > 0 ? (
-        <p className={styles.panelNote}>
-          You have been at {inFull} of {held}{" "}
-          {held === 1 ? "session" : "sessions"} in full so far.
-        </p>
+        /* No group yet: there is no session, no register and no facilitator
+           to name. Allocation is what happens next, so that is what it says. */
+        <p className={weekly.cardLine}>You’ll be placed in a group soon. Your marks appear here after that.</p>
       ) : (
-        <p className={styles.panelNote}>
-          Your attendance appears here once your facilitator finishes each
-          session&apos;s register.
-        </p>
+        <>
+          {rows.length > 0 && (
+            <ol className={weekly.marks} role="list">
+              {rows.map(({ week, kind, dateKey }) => (
+                <li key={week.weekNumber} className={weekly.markItem}>
+                  <span
+                    className={[weekly.markBox, MARK_CLASS[kind]].filter(Boolean).join(" ")}
+                    role="img"
+                    aria-label={markWords(week.weekNumber, dateKey, markWord(kind))}
+                    title={markWord(kind)}
+                  >
+                    {markGlyph(kind)}
+                  </span>
+                  <span
+                    className={dateKey && dateKey === nextDateKey ? `${weekly.markDate} ${weekly.markDateNext}` : weekly.markDate}
+                    aria-hidden="true"
+                  >
+                    {shortDay(dateKey) || `W${week.weekNumber}`}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+          {used.size > 0 && (
+            <ul className={weekly.legend} aria-label={MARKS_LEGEND_LABEL}>
+              {MARK_ORDER.filter((kind) => used.has(kind)).map((kind) => (
+                <li key={kind} className={weekly.legendItem}>
+                  <span className={[weekly.markBox, weekly.markSmall, MARK_CLASS[kind]].filter(Boolean).join(" ")} aria-hidden="true">
+                    {markGlyph(kind)}
+                  </span>
+                  {markWord(kind)}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className={`${weekly.cardLine} ${weekly.marksLine}`}>{MARKS_LINE}</p>
+        </>
       )}
-
-      {sessions.length > 0 && (
-        <ul className={styles.attendance}>
-          {sessions.map((session) => {
-            const when = attendanceDateLabel(session.dateKey);
-            return (
-              <li key={session.sessionKey} className={styles.attendanceRow}>
-                <span className={styles.attendanceWhen}>
-                  Week {session.weekNumber}
-                  {when ? `, ${when}` : ""}
-                </span>
-                <span className={styles.attendanceMark}>
-                  {!session.held
-                    ? "Cancelled"
-                    : session.status
-                      ? ATTENDANCE_STATUS_LABEL[session.status]
-                      : "Not marked"}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      <Link
-        className={styles.panelLink}
-        href={`/learn/${encodeURIComponent(runId)}/progress`}
-      >
-        See your progress week by week
-        <span className={styles.arrow} aria-hidden="true">
-          →
-        </span>
-      </Link>
-    </Card>
+    </section>
   );
 }
 
@@ -443,65 +396,48 @@ function ProgressPanel({
 // RunHome
 // ---------------------------------------------------------------------------
 
-export default function RunHome({ runId, isAdmin, canEmailCohort }: Props) {
+export default function RunHome({
+  runId,
+  isAdmin,
+  canEmailCohort,
+  pitching = null,
+  team = null,
+  canLeave = false,
+  leaveNote = null,
+  guide = null,
+  uid = null,
+  certificates = [],
+  endSurvey = null,
+  nextEvent = null,
+}: Props) {
   const { data, error, reload } = useRunOverview(runId);
-
-  /*
-    THE one magnetic instance in the authed app. `useMagneticPull` is a
-    per-instance window mousemove listener plus a layout read per frame, so the
-    plan budgets exactly one across the whole learning space and spends it here:
-    the Continue CTA is the single action this page exists to get people to.
-    Constants are the plan's ({ radius: 90, strength: 0.14, cap: 6 }) — a
-    shorter reach and a gentler pull than the landing page's, because this is a
-    tool people use daily rather than a page they visit once. The hook opts
-    itself out under reduced motion and on coarse pointers.
-  */
-  const ctaRef = useMagneticPull<HTMLAnchorElement>({
-    radius: 90,
-    strength: 0.14,
-    cap: 6,
-  });
+  const [tickFailed, setTickFailed] = useState(false);
 
   /*
     The groups the caller FACILITATES, not merely the group on the payload.
-
-    The overview sends EVERY group this caller holds: their learner placement
+    The overview sends every group this caller holds: their learner placement
     first (if they have one), then each group they facilitate. Their placement
-    is their seat, not their post, so it is subtracted here, because otherwise
-    somebody who facilitates the run while sitting in group A would be told
-    "you facilitate A".
-
-    A LIST rather than the old single id, and that is the fix: someone running
-    two sessions is ordinary here, the payload used to send no group at all in
-    that case, and they were left with no link to any roster, register, review
-    queue or group email. One card each now.
+    is their seat, not their post, so it is subtracted here.
   */
   const placementGroupId = data?.enrolment?.groupId ?? null;
   const facilitatedGroups = data?.access.isFacilitator
     ? data.groups.filter((g) => g.id !== placementGroupId)
     : [];
 
+  // Somebody taking part, on an active enrolment, ticks; nobody else does.
+  const learner = data?.enrolment?.role === "learner" ? data.enrolment : null;
+  // Before the reader's group first meets (st-programme): the run's calendar
+  // may have begun, but this group's first session is still to come.
+  const firstNext = data?.group?.calendar.nextSession ?? null;
+  const beforeStart =
+    data?.currentWeek?.phase === "before" ||
+    (firstNext !== null && firstNext.dateKey === data?.group?.calendar.firstSessionDate);
+  const ticks = useMaterialTicks(runId, uid, 1, learner?.status === "active");
+
   /*
-    P10 — the primary mirror trigger. This page is the one a member opens when
-    they mean "my course", so it is where the anchor week most often first
-    lands on their My Work board. Fire-and-forget: no state, no spinner, no
-    error surface (see useSyncTasks' header).
-
-    The gate is an ACTIVE ENROLMENT, which is byte-for-byte the sync-tasks
-    route's own: learner or facilitator, and nothing else. Anything looser
-    would ask a question the route answers with 403 (an admin or a reviewer
-    reading over the cohort's shoulder has no enrolment to mirror), and
-    anything tighter would silently deny a facilitator the week's prep task
-    the route is willing to give them.
-
-    `access.isEnrolled` is deliberately NOT the gate: it stays true for a
-    `completed` enrolment, which has no live week, and it is a mirror of the
-    server's decision rather than the enrolment itself.
-
-    The anchor week is dedupe key material only (see useSyncTasks): it is never
-    sent, the route always recomputes the week server-side, and passing it is
-    what lets a tab left open across a week rollover notice the new week
-    instead of resting on a session-wide "already synced this run".
+    P10, the primary mirror trigger. The gate is an ACTIVE ENROLMENT, the
+    sync-tasks route's own: learner or facilitator, and nothing else. The
+    anchor week is dedupe key material only (see useSyncTasks): never sent.
   */
   useSyncTasks(
     runId,
@@ -525,218 +461,417 @@ export default function RunHome({ runId, isAdmin, canEmailCohort }: Props) {
   }
 
   const { run, currentWeek, group, access } = data;
-  // The card below is dated to the CURRENT slot, so it is told the CURRENT
-  // week's mode — the same `weekDocId(number)` doctrine, and the same
-  // fall-back-to-the-anchor rule the overview route resolves the slot fields
-  // with, so the room, the link and the "Online this week" chip on this card
-  // all describe one session. (`WeekView` asks the same map for the week the
-  // reader is actually on; one mode resolved server-side for everybody is the
-  // bug that made this a map.)
-  //
-  // Read off THE CARD'S OWN GROUP's week, not the page's. For the caller's own
-  // placement the two are the same week by construction (the payload resolves
-  // its top-level fields through exactly that group), and taking it from the
-  // card's own calendar is what keeps the mode, the date and the room on this
-  // card describing one session if they ever part company.
+  const now = new Date();
+  const todayKey = londonDateKey(now);
+  const programmeName = data.programme?.name || run.courseTitle;
+  const state = stateCopy(data);
+
+  // The week this card is about: this week by the reader's own group's
+  // calendar, read off THE CARD'S OWN GROUP so a facilitator of one group and
+  // a member of it read the same week.
   const cardCurrentWeek = group?.calendar.currentWeek ?? null;
-  const cardWeekNumber = cardCurrentWeek
-    ? (cardCurrentWeek.weekNumber ?? cardCurrentWeek.anchorWeekNumber)
-    : 0;
-  const cardSessionMode =
-    cardWeekNumber >= 1 ? (group?.sessionModes[weekDocId(cardWeekNumber)] ?? null) : null;
-  const target = weekTargetFor(data);
-  const { headline, sub } = heroCopy(data, target);
+  const calendarWeek = cardCurrentWeek ?? currentWeek;
+  const thisWeekNumber = beforeStart
+    ? (firstNext?.weekNumber ?? 1)
+    : calendarWeek
+      ? calendarWeek.phase === "before"
+        ? 1
+        : (calendarWeek.weekNumber ?? calendarWeek.anchorWeekNumber)
+      : 0;
+  const thisSchedule = data.weekSchedule.find((week) => week.weekNumber === thisWeekNumber) ?? null;
+  const thisDoc = data.weeks.find((week) => week.weekNumber === thisWeekNumber) ?? null;
 
-  const eyebrow = [run.courseTitle, run.label].filter(Boolean).join(" · ");
+  // The next session's ticket: its own day, time, room and link.
+  const facts = group ? ticketFacts(group) : null;
+  const facilitatorPeople = (group?.facilitatorNames ?? []).map((name, index) => ({
+    uid: `${group?.id ?? "group"}-${index}`,
+    name,
+    firstName: firstName(name) || name,
+  }));
+  const factsSchedule = facts ? data.weekSchedule.find((week) => week.weekNumber === facts.weekNumber) : undefined;
+  const ticketIsToday = facts !== null && facts.dateKey === todayKey;
+  const firstSessionDate = group?.calendar.firstSessionDate ?? "";
 
-  const ctaLabel = !target
-    ? ""
-    : currentWeek?.phase === "before"
-      ? "Preview week 1"
-      : currentWeek?.phase === "after" || currentWeek?.breakLabel
-        ? `Revisit week ${target.weekNumber}`
-        : `Continue week ${target.weekNumber}`;
+  // The head's line: "Group B · Tuesdays 6pm · Room C20 · with Rahul and
+  // Sofia", the group's USUAL slot and room: a week's own arrangement is the
+  // ticket's to say.
+  const groupLine = group
+    ? groupLineWords({
+        groupName: group.name,
+        slot: slotWords(group.usualSlot.weekday, group.usualSlot.startTimeLocal),
+        room: group.usualSlot.location,
+        with: withWords(facilitatorPeople.map((person) => person.firstName)),
+      })
+    : "";
+
+  const running = currentWeek?.phase === "running";
+  const chip =
+    running && currentWeek && !beforeStart
+      ? currentWeek.breakLabel
+        ? currentWeek.breakLabel
+        : weekOfWords(currentWeek.weekNumber ?? currentWeek.anchorWeekNumber, run.totalWeeks)
+      : null;
+
+  const rows = weekRowsOf(
+    data,
+    group?.calendar.nextSession?.weekNumber ?? null,
+    (ids) => ids.filter((id) => ticks.isDone(id)).length,
+    now,
+    { beforeFirstSession: beforeStart, takesPart: learner !== null },
+  );
+  const weekSource = {
+    groupId: data.enrolment?.groupId ?? group?.id ?? null,
+    forkedWeekIds: data.forkedWeekIds,
+  };
 
   const showAdmissions = access.isReviewer || access.isTrackLead || isAdmin;
-  /*
-    The week numbers each facilitator card picks its OWN materials link from.
-    Passed as a list rather than a resolved week because two groups a fortnight
-    apart must not share one: see FacilitatorGroupPanel's `publishedWeekNumbers`.
-  */
-  const publishedWeekNumbers = data.weeks
-    .filter((w) => w.published)
-    .map((w) => w.weekNumber);
+  const publishedWeekNumbers = data.weeks.filter((w) => w.published).map((w) => w.weekNumber);
+  const learnerGroup = learner && group && learner.groupId === group.id ? group : null;
+
+  // The phone's order, card by card, as the boards draw it.
+  const order = beforeStart
+    ? { ticket: weekly.order1, week: weekly.order2, group: weekly.order3, updates: weekly.order4, weeks: weekly.order5 }
+    : { ticket: weekly.order1, week: weekly.order2, updates: weekly.order3, marks: weekly.order4, weeks: weekly.order5, group: weekly.order6 };
+
+  // The ticket's words (wk-changes): a session covering a cancelled week
+  // names its day in the eyebrow, "Tue 1 Dec · weeks 4 and 5", and its
+  // heading then says only the hours; an online week ends "· online". The
+  // group's last session is "Your last session" before its day.
+  const lastSessionDate = group?.calendar.lastSessionDate ?? "";
+  const eyebrowInput = facts
+    ? {
+        isToday: ticketIsToday,
+        isFirst: facts.dateKey === firstSessionDate,
+        isLast: lastSessionDate !== "" && facts.dateKey === lastSessionDate,
+        startTimeLocal: facts.startTimeLocal,
+        weekNumbers: facts.weekNumbers,
+        dateKey: facts.dateKey,
+        online: facts.mode === "virtual",
+      }
+    : null;
+  const ticket =
+    group?.sessionNotice || facts ? (
+      <div className={order.ticket}>
+        <div className={styles.stack}>
+          {group?.sessionNotice && <SessionNotice notice={group.sessionNotice} />}
+          {facts && eyebrowInput && (
+            <SessionTicket
+              facts={facts}
+              eyebrow={sessionEyebrow(eyebrowInput)}
+              heading={
+                (eyebrowNamesTheDay(eyebrowInput)
+                  ? ""
+                  : sessionWhenLabel(
+                      { weekday: -1, startTimeLocal: facts.startTimeLocal, durationMinutes: facts.durationMinutes },
+                      facts.dateKey,
+                    )) || hoursWords(facts.startTimeLocal, facts.durationMinutes)
+              }
+              roomChanged={factsSchedule?.roomChanged === true}
+              facilitators={facilitatorPeople}
+              calendar={learnerGroup !== null || access.isFacilitator}
+            />
+          )}
+        </div>
+      </div>
+    ) : null;
+
+  const weekCard =
+    learner && thisWeekNumber >= 1 && (running || beforeStart) ? (
+      <ThisWeekCard
+        className={order.week}
+        runId={runId}
+        variant={beforeStart ? "before-first" : "this-week"}
+        weekNumber={thisWeekNumber}
+        title={thisDoc?.title ?? ""}
+        slotStartKey={thisSchedule?.slotStartKey || null}
+        countableIds={thisDoc?.countableIds ?? []}
+        thisWeek={thisDoc?.thisWeek ?? null}
+        open={thisSchedule?.open ?? false}
+        breakLabel={calendarWeek?.breakLabel ?? null}
+        weekSource={weekSource}
+        ticks={ticks}
+        showTicks={learner !== null}
+        onTickFailed={() => setTickFailed(true)}
+      />
+    ) : null;
+
+  const weekList = (
+    <WeekList
+      className={order.weeks}
+      runId={runId}
+      rows={rows}
+      beforeStart={beforeStart}
+      progressHref={`/learn/${encodeURIComponent(runId)}/progress`}
+      showProgress={learner !== null}
+    />
+  );
+
+  const yourGroup =
+    learnerGroup && learner ? (
+      <YourGroup
+        className={order.group}
+        groupId={learnerGroup.id}
+        groupName={learnerGroup.name}
+        selfUid={uid}
+        namesOnly={beforeStart}
+      />
+    ) : null;
+
+  const bar = (
+    <div className={`${weekly.bar} ${weekly.phoneBar}`}>
+      <div className={weekly.barStart}>
+        <Link href="/learn" className={weekly.back}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={weekly.icon}>
+            <path d="M15 6l-6 6 6 6" />
+          </svg>
+          <span>My programmes</span>
+        </Link>
+      </div>
+      <div className={weekly.barTitle}>{programmeName}</div>
+      <div className={weekly.barEnd} />
+    </div>
+  );
+
+  // THE PROGRAMME PAGE ONCE IT IS OVER, for somebody who took part in it
+  // (en-after-phone, en-after-nofinish-phone). Somebody who left never
+  // reaches this page: theirs says they left.
+  if (currentWeek?.phase === "after" && access.isEnrolled && data.enrolment?.role === "learner") {
+    const head = afterHeadOf(data, programmeName, {
+      term: run.label,
+      group: learnerGroup?.name ?? "",
+      with: withWords(facilitatorPeople.map((person) => person.firstName)),
+    });
+    return (
+      <PageEnter className={weekly.programme}>
+        {bar}
+        <AfterTheEnd
+          {...head}
+          certificates={certificates}
+          endSurvey={endSurvey}
+          keep={keepOf(data, runId)}
+          whatsNext={data.whatsNext}
+          nextEvent={nextEvent}
+        >
+          {weekList}
+          <FacilitatedPanels
+            runId={runId}
+            groups={facilitatedGroups}
+            publishedWeekNumbers={publishedWeekNumbers}
+            canEmailCohort={canEmailCohort}
+          />
+        </AfterTheEnd>
+      </PageEnter>
+    );
+  }
 
   return (
-    <PageEnter className={styles.page}>
-      <header className={styles.hero}>
-        {eyebrow && <p className={styles.eyebrow}>{eyebrow}</p>}
+    <PageEnter className={weekly.programme}>
+      {bar}
 
-        {headline.kind === "week" ? (
-          <h1 className={styles.title}>
-            Week{" "}
-            {/* DigitRoll rolls the leading number and renders any suffix
-                static, so "3 of 8" animates the 3 and leaves "of 8" still —
-                the counter, not the sentence. */}
-            <DigitRoll
-              value={
-                headline.totalWeeks > 0
-                  ? `${headline.weekNumber} of ${headline.totalWeeks}`
-                  : String(headline.weekNumber)
-              }
-            />
-          </h1>
-        ) : (
-          <h1 className={styles.title}>{headline.text}</h1>
-        )}
-
-        {sub && <p className={styles.sub}>{sub}</p>}
-
-        {target && (
-          <div className={styles.actions}>
-            {target.published ? (
-              // <Button> renders a real <button> and takes no href, so the
-              // navigation target gets the styling rather than the component
-              // (the CourseCTA / SessionCard call).
-              <Link
-                ref={ctaRef}
-                className={styles.cta}
-                href={weekHref(runId, target.weekNumber)}
-              >
-                {ctaLabel}
-              </Link>
-            ) : (
-              <>
-                {/* A disabled control with no stated reason is a dead end, so
-                    the note carries the why. An anchor cannot be disabled;
-                    this is the one place the real Button belongs. */}
-                <Button disabled>{ctaLabel}</Button>
-                <p className={styles.ctaNote}>
-                  Week {target.weekNumber} isn&apos;t published yet.
-                </p>
-              </>
-            )}
+      <header className={`${weekly.head} ${styles.headWithCrest}`}>
+        {/* The programme's crest (or the emblem in its place), decorative
+            beside its name: `shownCrest` is the route's answer from the
+            crest resolver. Beside the words at 1440, above them on a phone. */}
+        <ProgrammeMark shown={data.shownCrest} size={128} />
+        <div className={styles.headWords}>
+          {kindAndTermWords(data.programme?.kind ?? null, run.label) && (
+            <p className={weekly.eyebrow}>{kindAndTermWords(data.programme?.kind ?? null, run.label)}</p>
+          )}
+          <div className={weekly.titleRow}>
+            <h1 className={weekly.title}>{run.courseTitle || programmeName}</h1>
+            {chip && <span className={weekly.weekChip}>{chip}</span>}
           </div>
-        )}
+          {groupLine && <p className={weekly.groupLine}>{groupLine}</p>}
+          {state && (
+            <>
+              <p className={weekly.stateHeading}>{state.heading}</p>
+              <p className={weekly.stateLine}>{state.line}</p>
+            </>
+          )}
+        </div>
       </header>
 
-      {run.weekPlan.length > 0 && (
-        <RunRail
-          key={runId}
-          runId={runId}
-          plan={run.weekPlan}
-          phase={currentWeek?.phase ?? "before"}
-          anchorWeekNumber={currentWeek?.anchorWeekNumber ?? 0}
-          currentWeekNumber={currentWeek?.weekNumber ?? null}
-        />
+      {tickFailed && (
+        <p className={weekly.tickError} role="alert">
+          That tick didn’t save, so it has been undone. Check your connection and try again.
+        </p>
       )}
 
-      {/* Below the fold: quiet cards, a modest stagger, no second moment.
-          Headings here are h3 to match SessionCard's own — one consistent tier
-          under the page's h1, rather than a mix this page would have to invent
-          an h2 to justify. */}
-      <div className={`${styles.stack} ${styles.staggered}`}>
-        {group && (
-          /* Dated by THIS group's own calendar, which for the caller's own
-             placement is also the calendar the hero above was resolved from.
-             Reading it off `group.calendar` rather than off `currentWeek` is
-             what keeps that true when the two ever part company. */
-          <SessionCard
-            group={group}
-            slotStartKey={group.calendar.currentWeek?.slotStartKey ?? null}
-            mode={cardSessionMode}
-            title={
-              group.calendar.currentWeek?.phase === "before"
-                ? "Your first session"
-                : undefined
-            }
-          />
-        )}
+      <div className={weekly.columns}>
+        <div className={weekly.colMain}>
+          <CertificateCard certificates={certificates} />
+          {ticket}
+          {weekCard}
+          {!beforeStart && weekList}
+        </div>
 
-        {/* Learners only. A facilitator has no attendance of their own, and an
-            admin or reviewer reading over the cohort's shoulder has no row on
-            this run at all. `access.isEnrolled` covers a completed enrolment
-            too, deliberately: a finished cohort is the member's own history and
-            their record is exactly what they may still want. */}
-        {access.isEnrolled && (
-          <ProgressPanel runId={runId} ownAttendance={data.ownAttendance} />
-        )}
+        <div className={weekly.colSide}>
+          {pitching && (
+            /* Pitching week, for somebody taking part, from the moment the week
+               is published until the end of their group's session day in it. */
+            <Card as="section" padding="md" className={`${styles.panel} ${weekly.order2}`}>
+              <h3 className={styles.panelTitle}>Pitching week</h3>
+              <p className={styles.panelNote}>{pitching.lede}</p>
+              <Link className={styles.panelLink} href={`/learn/${encodeURIComponent(runId)}/pitching`}>
+                {pitching.open ? "Pitch and pick" : "See the pitches"}
+                <span className={styles.arrow} aria-hidden="true">
+                  →
+                </span>
+              </Link>
+            </Card>
+          )}
 
-        {/* One card per group they hold. A single card renders exactly as it
-            always did; two or three simply stack, because this column already
-            stacks everything else on the page. The cohort-wide links ride on
-            the FIRST card only, because they address the run and not a room, so
-            repeating them per group would be three copies of one lane. */}
-        {facilitatedGroups.map((facilitated, index) => (
-          <FacilitatorGroupPanel
-            key={facilitated.id}
-            runId={runId}
-            group={facilitated}
-            publishedWeekNumbers={publishedWeekNumbers}
-            showCohortLinks={canEmailCohort && index === 0}
-          />
-        ))}
+          {team && (
+            /* Their team (in-team): from the moment they are told it, while
+               they take part. The page is the team's own. */
+            <Card as="section" padding="md" className={`${styles.panel} ${weekly.order2}`}>
+              <h3 className={styles.panelTitle}>{YOUR_TEAM}</h3>
+              <p className={styles.panelNote}>{team.line}</p>
+              <Link className={styles.panelLink} href={`/learn/${encodeURIComponent(runId)}/team`}>
+                {YOUR_TEAMS_PAGE}
+                <span className={styles.arrow} aria-hidden="true">
+                  →
+                </span>
+              </Link>
+            </Card>
+          )}
 
-        {canEmailCohort && facilitatedGroups.length === 0 && (
-          /* The same link as in the facilitator panel above, for the people
-             that panel never renders for — a run facilitator, track lead or
-             admin who holds no group of their own. Without it the announcement
-             lane would be reachable only by typing the URL, which is how the
-             lane shipped dark in the first place. */
-          <Card as="section" padding="md" className={styles.panel}>
-            <h3 className={styles.panelTitle}>Cohort announcements</h3>
-            <p className={styles.panelNote}>
-              One message to everyone subscribed to this run&apos;s channel.
-              Announcements only — anything a single group needs goes out from
-              that group&apos;s own page instead.
-            </p>
-            <Link
-              className={styles.panelLink}
-              href={`/learn/${encodeURIComponent(runId)}/email`}
-            >
-              Email the whole cohort
-              <span className={styles.arrow} aria-hidden="true">
-                →
-              </span>
-            </Link>
+          {/* Learners only. A facilitator has no marks of their own, and an
+              admin reading over the cohort's shoulder has no row on this run
+              at all. `access.isEnrolled` covers a completed enrolment too: a
+              finished cohort is the member's own history. */}
+          {access.isEnrolled && !beforeStart && (
+            <YourMarks
+              className={order.marks}
+              ownAttendance={data.ownAttendance}
+              schedule={data.weekSchedule}
+              joinedWeekNumber={data.enrolment?.joinedWeekNumber ?? 1}
+              nextDateKey={facts?.dateKey ?? null}
+            />
+          )}
 
-            {/* The weekly nudge lives in the same lane and behind the same
-                gate. It is prepared for you and sent by you: there is no
-                scheduler here, so nothing goes out until someone presses the
-                button on that page. */}
-            <Link
-              className={styles.panelLink}
-              href={`/learn/${encodeURIComponent(runId)}/nudge`}
-            >
-              Send this week&apos;s nudge
-              <span className={styles.arrow} aria-hidden="true">
-                →
-              </span>
-            </Link>
-          </Card>
-        )}
+          {beforeStart && yourGroup}
 
-        {showAdmissions && (
-          /* Reviewers, track leads and admins only. A plain learner must never
-             see a route into the applications of the run they are sitting in. */
-          <Card as="section" padding="md" className={styles.panel}>
-            <h3 className={styles.panelTitle}>Admissions</h3>
-            <p className={styles.panelNote}>
-              Applications to this run are reviewed in their own queue, separate
-              from the cohort.
-            </p>
-            <Link
-              className={styles.panelLink}
-              href={`/learn/${encodeURIComponent(runId)}/admissions`}
-            >
-              Open the admissions queue
-              <span className={styles.arrow} aria-hidden="true">
-                →
-              </span>
-            </Link>
-          </Card>
-        )}
+          {/* Updates the people running the programme wrote to the reader
+              (Q18), read by their own route: what the reader is shown is the
+              route's decision, and a reader shown nothing is drawn nothing. */}
+          <div className={order.updates}>
+            <RunUpdates runId={runId} />
+          </div>
+
+          {!beforeStart && yourGroup}
+          {beforeStart && weekList}
+
+          {/* Start here and the Glossary (wk-programme), after the group. */}
+          <AboutThisCourse runId={runId} links={guide} className={weekly.order7} />
+
+          {/* One card per group they facilitate. The cohort-wide links ride on
+              the FIRST card only, because they address the run and not a room. */}
+          {facilitatedGroups.map((facilitated, index) => (
+            <div key={facilitated.id} className={weekly.order7}>
+              <FacilitatorGroupPanel
+                runId={runId}
+                group={facilitated}
+                publishedWeekNumbers={publishedWeekNumbers}
+                showCohortLinks={canEmailCohort && index === 0}
+              />
+            </div>
+          ))}
+
+          {canEmailCohort && facilitatedGroups.length === 0 && (
+            /* The same link as in the facilitator panel, for the people that
+               panel never renders for: a run facilitator, track lead or admin
+               who holds no group of their own. */
+            <Card as="section" padding="md" className={`${styles.panel} ${weekly.order7}`}>
+              <h3 className={styles.panelTitle}>Cohort announcements</h3>
+              <p className={styles.panelNote}>
+                One message to everyone subscribed to this run&apos;s channel. Announcements only: anything a single
+                group needs goes out from that group&apos;s own page instead.
+              </p>
+              <Link className={styles.panelLink} href={`/learn/${encodeURIComponent(runId)}/email`}>
+                Email the whole cohort
+                <span className={styles.arrow} aria-hidden="true">
+                  →
+                </span>
+              </Link>
+              {/* The weekly nudge lives in the same lane and behind the same
+                  gate: prepared for you and sent by you. */}
+              <Link className={styles.panelLink} href={`/learn/${encodeURIComponent(runId)}/nudge`}>
+                Send this week&apos;s nudge
+                <span className={styles.arrow} aria-hidden="true">
+                  →
+                </span>
+              </Link>
+            </Card>
+          )}
+
+          {showAdmissions && (
+            /* Reviewers, track leads and admins only. A plain learner must never
+               see a route into the applications of the run they are sitting in. */
+            <Card as="section" padding="md" className={`${styles.panel} ${weekly.order7}`}>
+              <h3 className={styles.panelTitle}>Admissions</h3>
+              <p className={styles.panelNote}>
+                Applications to this run are reviewed in their own queue, separate from the cohort.
+              </p>
+              <Link className={styles.panelLink} href={`/learn/${encodeURIComponent(runId)}/admissions`}>
+                Open the admissions queue
+                <span className={styles.arrow} aria-hidden="true">
+                  →
+                </span>
+              </Link>
+            </Card>
+          )}
+        </div>
       </div>
+
+      {/* At the foot, as wk-programme draws it: the way out, behind its own
+          confirmation page. Only for somebody taking part who can leave by
+          themselves (see `canLeave`). */}
+      {canLeave && access.isEnrolled && (
+        <div className={weekly.foot}>
+          <Link className={weekly.footLink} href={`/learn/${encodeURIComponent(runId)}/leave`}>
+            {LEAVE_LINK}
+          </Link>
+        </div>
+      )}
+      {/* A facilitator who holds a place: why there is no way out here, and
+          who gives them one. */}
+      {!canLeave && leaveNote && access.isEnrolled && (
+        <div className={weekly.foot}>
+          <p className={weekly.footNote}>{leaveNote}</p>
+        </div>
+      )}
     </PageEnter>
+  );
+}
+
+/**
+ * Once the programme is over, a facilitator who took part keeps a card for
+ * each group they facilitate after the weeks, as on every week; the
+ * cohort-wide links ride on the first card only.
+ */
+function FacilitatedPanels({
+  runId,
+  groups,
+  publishedWeekNumbers,
+  canEmailCohort,
+}: {
+  runId: string;
+  groups: OverviewPayload["groups"];
+  publishedWeekNumbers: number[];
+  canEmailCohort: boolean;
+}) {
+  return (
+    <>
+      {groups.map((facilitated, index) => (
+        <FacilitatorGroupPanel
+          key={facilitated.id}
+          runId={runId}
+          group={facilitated}
+          publishedWeekNumbers={publishedWeekNumbers}
+          showCohortLinks={canEmailCohort && index === 0}
+        />
+      ))}
+    </>
   );
 }

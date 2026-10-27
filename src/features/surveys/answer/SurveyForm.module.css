@@ -1,0 +1,494 @@
+/*
+  The survey's questions, a page at a time (sv-before-phone).
+
+  Phone first: one column at every width, every control at least 44px tall,
+  nothing wider than the screen. The laptop shape is the phone shape with
+  more room around it.
+*/
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.page[hidden] {
+  display: none;
+}
+
+.pageHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.pageOf {
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.section {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.section:focus {
+  outline: none;
+}
+
+.section:focus-visible {
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+.question {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  display: flex;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.number {
+  flex: none;
+  color: var(--color-accent-text);
+  font-size: var(--text-sm);
+  line-height: 1.9;
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.scale {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.lineLabel {
+  padding: 0;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-ui);
+  color: var(--color-text-body);
+  overflow-wrap: anywhere;
+}
+
+/* One column per point up to seven, so a 1 to 7 scale stays on one line on a
+   phone (at least 44px a point at 390 wide); more points (0 to 10) take two
+   rows of six. `--points` is set on the element from the scale's size. */
+.points {
+  display: grid;
+  grid-template-columns: repeat(var(--points, 5), minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.points[data-many] {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.point {
+  position: relative;
+  display: block;
+  min-height: 2.75rem;
+  cursor: pointer;
+}
+
+/* The radio is real and keeps focus and the keyboard; the face is drawn. */
+.pointInput {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.pointFace {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-weight: 600;
+  font-size: var(--text-ui);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.pointInput:checked + .pointFace {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.pointInput:focus-visible + .pointFace {
+  box-shadow: var(--focus-ring);
+}
+
+.ends {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.back,
+.next,
+.send {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 2.75rem;
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.back {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.next {
+  margin-left: auto;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.send {
+  flex: 1 1 12rem;
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.send:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.back:focus-visible,
+.next:focus-visible,
+.send:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.finish {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.closing {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.testLine {
+  margin: 0;
+  flex: 1 1 12rem;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.error {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-danger-line);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+  font-size: var(--text-sm);
+}
+
+.sent {
+  padding: var(--space-6);
+  border: 1px solid var(--color-ok-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-success-soft);
+}
+
+.sentLine {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* A line under a question's words, and an earlier answer shown above it. */
+.piped {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--color-border-strong);
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: var(--color-text-body);
+  overflow-wrap: anywhere;
+}
+
+/* A described point: its number beside its words. */
+.pointRow {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+}
+
+.pointNumber {
+  flex: none;
+  min-width: 1.25rem;
+  font-family: var(--font-meta);
+  font-weight: 600;
+  color: var(--color-accent-text);
+}
+
+.menu {
+  width: 100%;
+  min-height: 2.75rem;
+}
+
+/* "Which mattered most", under the boxes it picks from. */
+.most {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.mostLegend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.anchors {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.anchors li {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.anchorAt {
+  flex: none;
+  min-width: 1.25rem;
+  font-family: var(--font-meta);
+  font-weight: 600;
+  color: var(--color-text-body);
+}
+
+/* A share from 0 to 100%: a slider for a finger, and the typed box that is the answer. */
+.percent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.percentRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.slider {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 2.75rem;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.slider[data-unset] {
+  opacity: 0.45;
+}
+
+.slider:disabled {
+  cursor: default;
+}
+
+.percentBox {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.percentInput,
+.numberInput {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  width: 5.5rem;
+  min-height: 2.75rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-ui);
+}
+
+.percentInput:focus-visible,
+.numberInput:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.percentSign {
+  font-weight: 600;
+  color: var(--color-text-body);
+}
+
+.endsLine {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* A consent block: its statement as text, then boxes, unticked. */
+.consent {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.consentLegend {
+  padding: 0 var(--space-1);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.consentStatement {
+  margin: 0;
+  font-size: var(--text-ui);
+  color: var(--color-text-body);
+  overflow-wrap: anywhere;
+}
+
+/* "You can quote this, without my name", under a long answer: 4px under the
+   box as the boards draw it, where the question's own gap would leave 12px.
+   The row is OptionRow's plain one, its 44px target intact. */
+.quote {
+  margin-top: calc(var(--space-1) - var(--space-3));
+  min-width: 0;
+}
+
+/* Under the Kairos box: what saying no does and does not change. */
+.kairosAfter {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 48rem) {
+  .title {
+    font-size: var(--text-base);
+  }
+
+  .points {
+    gap: 0.375rem;
+  }
+}

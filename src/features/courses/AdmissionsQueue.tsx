@@ -555,9 +555,13 @@ function ApplicationCard({
           <div className={styles.identityBadges}>
             {/* A badge for context at review. It gates nothing, here or in the
                 route — a run does not require paid membership. */}
-            <Badge tone={row.paidMembership ? "success" : "warning"}>
-              {row.paidMembership ? paidLabel : "Unpaid"}
-            </Badge>
+            {/* Drawn only when it is known: a row that could say nothing about
+                membership gets no badge, never "Unpaid". */}
+            {row.paidMembership !== null && (
+              <Badge tone={row.paidMembership ? "success" : "warning"}>
+                {row.paidMembership ? paidLabel : "Unpaid"}
+              </Badge>
+            )}
           </div>
           {/* Admins only. Non-admin reviewers get `email: null` from the route,
               so there is nothing to render even if this branch were forced. */}
@@ -693,8 +697,11 @@ function ApplicationCard({
 
           {rejecting ? (
             <div className={styles.rejectBox}>
+              {/* The reason stays on the row (`decidedReason`), shown on this
+                  list, and the decide route hands the email nothing of it, so
+                  this box never says it is sent. */}
               <label className={styles.fieldLabel} htmlFor={reasonId}>
-                Reason (optional — included in their email)
+                Reason (optional). It stays on this list and is never emailed.
               </label>
               <Textarea
                 id={reasonId}
@@ -703,7 +710,7 @@ function ApplicationCard({
                 rows={3}
                 maxLength={APPLICATION_FIELD_LIMITS.decidedReason}
                 disabled={busy}
-                placeholder="Kept short and kind — they will read this."
+                placeholder="Why, for whoever opens this list next."
               />
               <div className={styles.actions}>
                 <Button

@@ -58,6 +58,13 @@ export type CourseDroppedOutEmailOptions = {
    * `{feedbackUrl}` token for an admin who prefers it inline.
    */
   feedbackUrl: string;
+  /**
+   * The programme's leaving survey (Q46), when it reached them as they left:
+   * their own link, whole, and the line around it. Linked in place of the
+   * outside form, and offered as the `{feedbackUrl}` token too. Null or
+   * absent when there is none.
+   */
+  survey?: { href: string; before: string; text: string; after: string } | null;
   /** The member's uid, the deliverability log's actor. */
   uid: string;
   /** Run id, the deliverability log's reference, so a run's mail is greppable. */
@@ -104,7 +111,8 @@ export async function sendCourseDroppedOutEmail(
       // literal if an admin puts it in the copy, which is the house
       // convention for a value that should not have been asked for.
       startDate: "",
-      feedbackUrl: opts.feedbackUrl,
+      // The leaving survey, when it reached them, is the feedback link.
+      feedbackUrl: opts.survey?.href ?? opts.feedbackUrl,
     }),
   };
   delete tokens.startDate;
@@ -119,6 +127,7 @@ export async function sendCourseDroppedOutEmail(
       subject: personalisedSubject,
       blocks: personalisedBlocks,
       feedbackUrl: opts.feedbackUrl,
+      survey: opts.survey ?? null,
       preheader: personalisedSubject,
     }),
     fromName,

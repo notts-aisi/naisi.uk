@@ -4,10 +4,13 @@ import { sendCourseApplicationEmail } from "@/lib/email/courseApplicationEmails"
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { runStaffingOf } from "@/lib/courses/runStaffing";
 import { COURSE_TZ } from "@/lib/courses/weekPlan";
 import {
   APPLICATION_FIELD_LIMITS,
   courseApplicationId,
+  normalizeCourseApplication,
+  rowIsServedTo,
   type CourseApplicationStatus,
 } from "@/lib/firestore/courseApplications";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
@@ -121,7 +124,11 @@ export async function POST(req: Request, ctx: Ctx) {
   }
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
 
-  const isAdmin = actor.role === "admin";
+  // Who is asking, as far as the rows go: an admin, or the lead of the
+  // programme that names the run (`runStaffingOf`). Neither of those is a
+  // reason to pass this gate, which stays the run's own reviewers and admins.
+  const staffing = await runStaffingOf(db, actor, run);
+  const isAdmin = staffing.isAdmin;
   const isReviewer = isNamedWithStanding(
     actor,
     "courseRuns.admissionsReviewerUids",
@@ -146,6 +153,14 @@ export async function POST(req: Request, ctx: Ctx) {
       // The doc id is built from (runId, uid), so this can only fail if a doc
       // was written by hand. Fail closed rather than decide the wrong row.
       if (existing.uid !== uid || existing.runId !== runId) {
+        throw new DecideError("Application not found", 404);
+      }
+
+      // A row the application form put here is served to an admin and to the
+      // lead of the programme whose hand-over wrote it (`rowIsServedTo`). The
+      // run's own reviewer is answered as for a row that is not there, so the
+      // answer says nothing about who the form placed.
+      if (!rowIsServedTo(normalizeCourseApplication(snap.id, existing), staffing)) {
         throw new DecideError("Application not found", 404);
       }
 

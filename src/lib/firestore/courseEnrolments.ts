@@ -30,6 +30,16 @@ export const ENROLMENT_STATUS_LABEL: Record<CourseEnrolmentStatus, string> = {
 /**
  * Facilitators get a `role: "facilitator"` enrolment when assigned to a
  * group, so "every run you touch" on /learn is one query over enrolments.
+ *
+ * A FACILITATOR WHO HOLDS A PLACE on the run is one of its fellows too, and
+ * their row is a LEARNER'S: their place, in the group they facilitate,
+ * counted, marked on its register and counted towards who finished like
+ * everybody else's. Their facilitating lives on the group
+ * (`courseGroups.facilitatorUids`), never on the row. Still one row per
+ * person per run: somebody made a facilitator before anybody placed them has
+ * a facilitator's row, and the board's placement turns that row into their
+ * learner's (`POST /api/courses/runs/[runId]/allocate`), in the group they
+ * facilitate and no other.
  */
 export type CourseEnrolmentRole = "learner" | "facilitator";
 
@@ -73,8 +83,8 @@ export const EMPTY_ATTENDANCE_ROLLUP: EnrolmentAttendanceRollup = {
 };
 
 export const ENROLMENT_LIMITS = {
-  /** Free text a member types when they drop out. Optional, and never shown
-      back to the cohort: it goes to the staff review surface only. */
+  /** Free text a member types when they leave. Optional, and never shown
+      back to the cohort: the programme's lead and admins read it. */
   dropOutReason: 500,
 } as const;
 
@@ -112,13 +122,33 @@ export type CourseEnrolmentDoc = {
       (`courseRuns.submissionExerciseRef`). */
   submissionDone: boolean;
   /**
-   * When the member dropped out themselves. Self-service drop-out is
-   * IRREVERSIBLE by decision: it frees the seat and stops the nudges, and
-   * coming back is a new enrolment rather than an undo. Null on every
-   * enrolment that has not been dropped.
+   * WHEN THEY LEFT THE RUN: by themselves (the enrol route's leave, which
+   * cannot be undone by the person taking it), or taken off by staff (the
+   * remove route). Somebody who left by themselves is never removed (the
+   * remove route refuses them), so the day they left stays. Every page that
+   * says "Left Fri 13 Nov" reads it from here, and
+   * putting somebody back (reinstate, or a placement on the board) clears it.
+   * Null on every enrolment that has not left, and on a row removed before
+   * the remove route recorded the day.
    */
   droppedOutAt: Date | null;
-  /** Optional free text from the drop-out form (see `ENROLMENT_LIMITS`). */
+  /**
+   * WHEN STAFF LAST PUT THEM BACK on the run after they had left it (by
+   * themselves or by Remove), where the application form had no place to
+   * give them again: the allocate route writes it as it brings the seat back.
+   * Putting somebody back is a deliberate act on a card that says they left,
+   * so from then on they are not somebody who gave their place back
+   * (`gaveTheirPlaceBack` in `src/lib/courses/placeGivenBack.ts`), and the
+   * next Publish tells them their group. Where the form's place could be
+   * given to them again it is, and the form says they hold it, so this is
+   * cleared instead. Null on a seat never put back, or put back with its place.
+   */
+  putBackAt: Date | null;
+  /**
+   * Optional free text from the leave form (see `ENROLMENT_LIMITS`). Read by
+   * the programme's lead and admins (the programme's Overview), and by nobody
+   * else; the leave form says so.
+   */
   dropOutReason: string | null;
   /**
    * True when the member enrolled themselves on an OPEN-mode run, false when
@@ -148,8 +178,20 @@ export type CourseEnrolmentDoc = {
    * email and everyone already told does not get it twice. The allocate route
    * clears it whenever `groupId` changes — the stamp certifies "emailed about
    * their current group", and a move invalidates that.
+   *
+   * It is also what lets a placement be SHOWN: an allocated seat without it
+   * is somebody nobody has told yet, and `placementIsTold` below keeps it to
+   * the board until Publish has.
    */
   allocatedEmailAt?: Date | null;
+  /**
+   * What became of that email, written beside the stamp by Publish: handed
+   * to the mail provider, held because this copy of the site may not write
+   * to the address, or stopped by the do-not-email list. Absent on a stamp
+   * written before Publish recorded it. Read only beside the stamp: a move
+   * clears the stamp and leaves this for the next Publish to overwrite.
+   */
+  allocatedEmailDelivery?: "sent" | "held" | "suppressed";
   createdAt?: Date | null;
   updatedAt?: Date | null;
 };
@@ -163,6 +205,79 @@ export type CourseEnrolmentDoc = {
  */
 export function courseEnrolmentId(runId: string, uid: string): string {
   return `${runId}__${uid}`;
+}
+
+/**
+ * WHETHER AN ENROLMENT HAS LEFT THE RUN: withdrawn by its owner, or removed
+ * by staff. Somebody who has left keeps their row on the run's own list,
+ * where it may still say Accepted (changing that is an admin's step), so
+ * every reader that counts who is still to place asks this first: the
+ * allocation board names them as having left, Publish does not wait for
+ * them, and the Attendance tab and the Overview list them as "Left".
+ *
+ * Takes the bare status, so the board's own row (whose status may also be
+ * "none", for somebody with no enrolment yet) asks the same question.
+ */
+export function enrolmentHasLeft(status: string): boolean {
+  return status === "withdrawn" || status === "removed";
+}
+
+/**
+ * WHETHER STAFF HAVE PUT THIS SEAT BACK ON THE RUN since it left, and it is
+ * on the run still (`putBackAt`, written by the allocate route as it brings
+ * the seat back). The allocation board's row and Publish's plan both read it
+ * here, and hand it to `gaveTheirPlaceBack` (`src/lib/courses/placeGivenBack.ts`):
+ * somebody put back is not somebody who gave their place back. A seat that
+ * has left again is not back.
+ */
+export function enrolmentIsPutBack(enrolment: Pick<CourseEnrolmentDoc, "putBackAt" | "status">): boolean {
+  return enrolment.putBackAt !== null && !enrolmentHasLeft(enrolment.status);
+}
+
+/**
+ * WHETHER A PLACEMENT HAS BEEN TOLD, and so may be shown.
+ *
+ * A placement is somebody's seat in a group. Who may learn of it depends on
+ * whether its owner has been told:
+ *
+ *  - A seat somebody took for themselves on an open run is theirs from the
+ *    moment they take it: they chose the group (`selfEnrolled`).
+ *  - A seat an admin allocated is told when Publish has emailed its owner the
+ *    group they are in NOW (`allocatedEmailAt`). Until then it is the board's
+ *    working copy: moving people around on the board tells nobody anything.
+ *    A move clears the stamp, so somebody moved after Publish is untold again
+ *    until Publish is pressed again and emails them their new group.
+ *  - A facilitator's own enrolment is not a placement in a group, and is
+ *    always told: a facilitator sees the group they run, its day, time and
+ *    room from the moment they are added.
+ *
+ * An untold placement is shown to nobody but an admin (`placementIsShownTo`).
+ * Its owner reads their member area as they did before they were placed, the
+ * group's facilitators and other members are not shown their name, and no
+ * email or notification about their group reaches them.
+ *
+ * Every reader of placements asks one of these two functions;
+ * `tests/course-hub-group-published-readers.test.mjs` lists them all.
+ */
+export function placementIsTold(
+  enrolment: Pick<CourseEnrolmentDoc, "role" | "selfEnrolled" | "allocatedEmailAt">,
+): boolean {
+  if (enrolment.role !== "learner") return true;
+  if (enrolment.selfEnrolled) return true;
+  return enrolment.allocatedEmailAt instanceof Date;
+}
+
+/**
+ * Whether one placement may be shown to one viewer: to an admin always (the
+ * admin places people, and sees the board), and to anybody else, its owner
+ * included, only once it has been told. The viewer is the session's own
+ * role, so an admin viewing the site as a member is the member here.
+ */
+export function placementIsShownTo(
+  enrolment: Pick<CourseEnrolmentDoc, "role" | "selfEnrolled" | "allocatedEmailAt">,
+  viewer: { isAdmin: boolean },
+): boolean {
+  return viewer.isAdmin || placementIsTold(enrolment);
 }
 
 type Raw = Record<string, unknown>;
@@ -215,6 +330,7 @@ export function normalizeCourseEnrolment(id: string, data: Raw): CourseEnrolment
     attendance: asAttendanceRollup(data.attendance),
     submissionDone: data.submissionDone === true,
     droppedOutAt: tsToDate(data.droppedOutAt),
+    putBackAt: tsToDate(data.putBackAt),
     dropOutReason:
       typeof data.dropOutReason === "string" && data.dropOutReason
         ? data.dropOutReason.slice(0, ENROLMENT_LIMITS.dropOutReason)
@@ -236,5 +352,9 @@ export function normalizeCourseEnrolment(id: string, data: Raw): CourseEnrolment
   }
   const allocatedEmailAt = tsToDate(data.allocatedEmailAt);
   if (allocatedEmailAt) doc.allocatedEmailAt = allocatedEmailAt;
+  const delivery = data.allocatedEmailDelivery;
+  if (delivery === "sent" || delivery === "held" || delivery === "suppressed") {
+    doc.allocatedEmailDelivery = delivery;
+  }
   return doc;
 }

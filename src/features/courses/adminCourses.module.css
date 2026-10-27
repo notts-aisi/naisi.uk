@@ -195,6 +195,19 @@
   grid-column: 1 / -1;
 }
 
+/* The course's crest beside its box, as the /courses card draws it. */
+.crestRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.crestField {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 24rem;
+}
+
 .formActions {
   display: flex;
   align-items: center;

@@ -1,0 +1,210 @@
+/* "A survey for you": a raised card with the accent's line, as the cards
+   beside it on Home and My programmes are drawn (OnItsWay): what it is in
+   mono upper case, the survey's title, its programme, how long and when it
+   closes, and "Answer" in the accent's text colour, a 44px target. */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 18px 18px 10px;
+  border: 1px solid var(--color-accent-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-live);
+  overflow-wrap: anywhere;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* One part of that line ("Closes Wed 4 Nov"): it moves to the next line
+   whole, and wraps inside only when it is wider than the card. */
+.part {
+  display: inline-block;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 20px;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--color-accent-text);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.link:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* The leaving survey's card on the page that says somebody left
+   (wk-left-phone): a surface card, the heading and "Answer" on one row,
+   the line under them. */
+.leavingCard {
+  min-width: 0;
+  padding: 8px 16px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.leavingHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.leavingTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-wrap: balance;
+}
+
+.leavingLine {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text-soft);
+  overflow-wrap: anywhere;
+}
+
+/* The survey at the end (Q48 B). On Home in the last week a surface card
+   (wk-lastweek-phone); on the programme page once it is over a section with
+   no card around it (en-after-phone, en-after-nofinish-phone). */
+.endCard {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.endSection {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.endTitle {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-wrap: balance;
+}
+
+.endLine {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.endMuted {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.endSmall {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Its button: the width of the card, as the boards draw it, a 44px target. */
+.endButton {
+  appearance: none;
+  -webkit-appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-top: 12px;
+  padding: 0 18px;
+  border-radius: var(--radius-md);
+  box-sizing: border-box;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  text-decoration: none;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-strong);
+}
+
+.endButton:hover {
+  background: var(--color-surface-hover);
+}
+
+.endButton:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+@media (max-width: 48rem) {
+  .card {
+    padding: 16px 16px 8px;
+  }
+
+  .title {
+    font-size: 20px;
+  }
+}

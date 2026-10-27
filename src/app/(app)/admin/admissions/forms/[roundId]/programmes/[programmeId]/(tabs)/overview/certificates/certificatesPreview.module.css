@@ -1,0 +1,81 @@
+/*
+  The lead's preview of one certificate and the email that sends it, under
+  the programme's tabs. The certificate draws itself (CertificateFace); the
+  email is laid out in a frame of its own, as it will arrive.
+*/
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  min-width: 0;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  min-height: 44px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-accent-text);
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.section {
+  min-width: 0;
+  scroll-margin-top: var(--space-6);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.note {
+  max-width: 46rem;
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.certificate {
+  margin-top: 20px;
+}
+
+.subject {
+  margin: 6px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* The email is light, as it arrives, on its own white card. */
+.email {
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  height: 720px;
+  margin-top: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: #ffffff;
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .email {
+    height: 640px;
+  }
+}

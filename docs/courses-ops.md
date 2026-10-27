@@ -9,9 +9,10 @@ deployed in.
 > now also carries the draft course and run reads, the membership cutover, the
 > SU list import and the logged export.
 
-> continues with PUSH ATTENDANCE, which is the one human action the weekly
-> emails hang off, and the membership cutover, import and export. Later PRs
-> extend it with the rules-and-indexes deploy order.
+> continues with FINISHING A REGISTER and next week's email, which goes when
+> the register is pushed or, once its job is switched on, on a schedule, and
+> the membership cutover, import and export. Later PRs extend it with the
+> rules-and-indexes deploy order.
 
 ---
 
@@ -171,19 +172,24 @@ a later PR is never silently off on an environment nobody has touched the panel
 on.
 
 The exception is declared in the registry as `enabledByDefault: false` and is
-set on four jobs: `admissions-deadline-reminders`, `admissions-stage-release`,
+set on every job that emails people: `admissions-deadline-reminders`,
+`admissions-stage-release`, `application-invitation-reminders`,
+`courses-next-week-email`, `courses-register-reminders`,
 `worksheet-due-reminders` and `event-announcements`. A job that emails a live
 audience must not arm itself the moment it deploys, so each ships dark and the
 owner switches it on from the panel, per environment. The panel says so on the
 job's row.
 
-`event-announcements` carries one extra condition, and it is the only job whose
-switch changes what a REQUEST does: `POST /api/events/[id]/publish` reads it to
-decide whether to send the new-event announcement inline or queue it (see
-docs/notifications.md). So it may only be armed where the tick is actually
-armed. On a backend with a `SCHEDULER_SECRET` and nothing calling it, turning
-this on would take every publish off the inline path and queue announcements
-nobody ever delivers.
+`event-announcements` carries one extra condition, and so does
+`courses-next-week-email`: they are the two jobs whose switch changes what a
+REQUEST does. `POST /api/events/[id]/publish` reads the first to decide whether
+to send the new-event announcement inline or queue it (see
+docs/notifications.md). `POST /api/courses/groups/[groupId]/attendance/push`
+reads the second to decide whether finishing a register still sends the
+group's next-week email (see "Finishing a register" below). So each may only be
+armed where the tick is actually armed. On a backend with a `SCHEDULER_SECRET`
+and nothing calling it, turning either on would take the send off the request
+and leave it with a job nobody runs.
 `courses-unmarked-registers` is NOT on that list (it raises tasks rather than
 mail), so it must be switched off on the panel before a deploy reaches an
 environment with real facilitators and re-armed only once dev has shown it
@@ -237,6 +243,7 @@ Marker families and where they live:
 | `remind__` | `{roundId}__{uid}__{dueAtKey}` | admissions deadline reminders |
 | `stagerel__` | `{roundId}__{stageId}__{uid}` | application stage release notices (one per recipient; the `{roundId}__{stageId}` form, with no uid, is the stale verdict for a whole stage) |
 | `unmarked__` | `{groupId}__{sessionKey}` | unmarked-register follow-ups |
+| `regremind__` | `{groupId}__{sessionKey}__{uid}` | the one reminder each facilitator gets about an unfinished register |
 | `breakret__` | `{runId}__{groupId}__{slotStartKey}` | back-after-the-break notices |
 | `wsremind__` | `{circulationId}__{uid}__{dueKey}` | worksheet due-soon reminders (not a courses job, but it shares this collection, so an operator sweeping markers meets it here) |
 | `evannounce__` | `{eventId}__{email\|push}__{recipientKey}` | queued new-event announcements (not a courses job either; one marker per recipient per leg, and `recipientKey` is `u{uid}` for a member or `g{hash}` for a guest row, never an address) |
@@ -244,6 +251,15 @@ Marker families and where they live:
 House rule: **scheduler-tick markers live in `schedulerMarkers`; human-triggered
 course send markers stay in `courseNudges`.** The facilitator's attendance push
 is a human action and keeps its `gnudge__` marker where it is.
+
+One tick job claims a `courseNudges` marker, on purpose: `courses-next-week-email`
+claims the SAME `gnudge__{runId}__{groupId}__{slotStartKey}` document the push
+claims, because the two are two lanes of one email and the claim that keeps
+them from both sending has to be one document. The marker says which lane
+took it (`via: "push"` with `sentByUid`, or `via: "schedule"` with
+`sentByJob`). It never reaches **Stuck sends**: a scheduled send that failed
+part way is recovered the way a push's is, by an admin's **Resend** on the
+register (see "Finishing a register").
 
 ### The registered jobs
 
@@ -495,20 +511,89 @@ safe. The heartbeat is somewhere in the middle now; a tick that runs out of
 budget before reaching it still writes a receipt with its row on it, marked
 skipped, so "is the scheduler running" is still answered by the panel.
 
+#### `courses-next-week-email`
+
+Sends each group next week's time, room and reading a set number of days
+before each of its sessions (`nextWeekEmailDaysBefore`, 2 by default, set under
+Course settings), at that session's own time of day in London, whatever
+happens to the register. **Ships switched off.** While it is off, finishing a
+register (then called Push attendance) sends the email instead; switching it
+on moves the email here and makes the register's button "Finish the register",
+which emails nobody. See "Finishing a register" below for how the two lanes
+never both send.
+
+| | |
+| --- | --- |
+| Claim | `courseNudges/gnudge__{runId}__{groupId}__{slotStartKey}`, shared with the push |
+| Due | from the send instant until the session starts; the group's first session never |
+| Runs scanned | status `applications-open`, `applications-closed` or `running`; archived groups skipped |
+| Recipients | the group's members on the run's cohort channel, opt-outs and suppression honoured: the push's audience |
+| Held card | `tasks/course-register__{runId}__{groupId}__{sessionKey}__email`, for the run's lead and every admin |
+| Config | `nextWeekEmailDaysBefore` (2), `weeklyFeedbackUrl` |
+
+**Days on the calendar, the session's own wall clock.** Two days before a
+Tuesday 6pm session is the Sunday at 6pm, on either side of a clock change.
+Counting 48 elapsed hours would send at 5pm or 7pm on the weekend the clocks
+move.
+
+**Held, not skipped.** Every tick between the send instant and the session's
+start asks again, so:
+
+- a week that is not **published** holds the email (published stands in for a
+  week being ready), and the first tick after it is published sends it, if the
+  session is still ahead;
+- a week published only after its session has started is never sent about;
+- an email with an **empty value** the template uses (the group's room, the
+  week's reading, its title or summary) is held whole rather than sent without
+  the sentence, and one card goes on the boards of the programme's lead and the
+  admins saying what is missing. Filling it in sends the email on the next tick
+  and archives the card. The weekly feedback form and a recipient's name are
+  the two values an email may go without.
+
+**Never a meeting link.** An online week says "Online"; a room with a link in
+it is not printed, which holds the email until the room is a room.
+
+**It may only be switched on where the scheduler is running**, because
+switching it on also stops the push from sending. Prove it on dev with **Run
+now** on a run whose next session is inside the window, then switch it on.
+
+#### `courses-register-reminders`
+
+Emails a group's facilitators ONCE when a session's register is still not
+finished `unmarkedRegisterGraceHours` (36 by default) after the session ENDED.
+**Ships switched off.** Each facilitator's own "Tasks and worksheets" email
+switch is its off switch; a facilitator whose account no longer has standing
+is skipped.
+
+| | |
+| --- | --- |
+| Marker | `schedulerMarkers/regremind__{groupId}__{sessionKey}__{uid}`, one per facilitator |
+| Window | sessions whose END is between the hours and the hours plus 24 |
+| Runs scanned | status `applications-open`, `applications-closed` or `running`; archived groups skipped |
+| `maxLateHours` | 72 |
+| Config | `unmarkedRegisterGraceHours` (36) |
+
+A skipped facilitator is stamped on their marker with the reason (`opted-out`,
+`no-standing`, `no-address`, `suppressed`), so "why did Sofia not get it" is a
+marker to read rather than a log to search.
+
 #### `courses-unmarked-registers`
 
-Raises a committee task for every group whose register is still unpushed once
-the grace has passed. Assigned to every admin, `committee` visibility,
-`source: "course-register"`, due at the session's end plus the grace.
+Raises a task for every group whose register is still not finished
+`registerTaskHours` (60 by default) after the session ended. Assigned to the
+lead of the programme that names the run, while that account still meets the
+bar a lead is appointed behind, and to every admin; a run no programme names
+goes to the admins alone. `committee` visibility, `source: "course-register"`,
+due at the session's end plus the hours, born notified so it emails nobody.
 
 | | |
 | --- | --- |
 | Marker | `schedulerMarkers/unmarked__{groupId}__{sessionKey}` |
 | Task id | `tasks/course-register__{runId}__{groupId}__{sessionKey}` |
-| Window | sessions whose END is between the grace and the grace plus 24 hours |
+| Window | sessions whose END is between the task's hours and those hours plus 24 |
 | Runs scanned | status `applications-open`, `applications-closed` or `running` |
 | `maxLateHours` | 72 |
-| Config | `unmarkedRegisterGraceHours` (36), `unmarkedScanBudgetMs` (12000), `maxFollowUpTasksPerTick` (25) |
+| Config | `registerTaskHours` (60), `unmarkedScanBudgetMs` (12000), `maxFollowUpTasksPerTick` (25) |
 
 **The window is a band, not a threshold.** "Older than the grace" would
 re-derive every unmarked session of the whole term on every tick; the marker
@@ -568,9 +653,10 @@ per-job default-off flag of its own yet, so the first tick after a deploy runs
 it for real against whatever cohorts are live. Turn it off on the site status
 page **before** the deploy reaches an environment with real facilitators on it,
 and only turn it back on once dev has shown all four scenarios: a session
-crossing the 40-hour mark raising exactly one card; a second tick over the same
-session raising none; a push archiving the card it raised; and a task id that
-is already taken going to the `__alt` fallback rather than overwriting anything.
+crossing the 64-hour mark raising exactly one card; a second tick over the same
+session raising none; finishing the register archiving the card it raised; and
+a task id that is already taken going to the `__alt` fallback rather than
+overwriting anything.
 
 ### Budget, re-arm, and the Cloud Run caveat
 
@@ -799,138 +885,195 @@ deploy, the symptom is a `permission-denied` on a `courses`, `courseRuns` or
 `draftCourse` or `approveCourse`, followed by whether the failing read is an
 unfiltered list, and then whether the document exists at all (consequence 3).
 
-## PUSH ATTENDANCE, and the two sends around it
+## FINISHING A REGISTER, and next week's email
 
-### What the push does, in the order it does it
+A facilitator marks their register during the session, and every tap saves:
+the page says "Saved 7:58pm" after each one. Nothing has left the building at
+that point: the register is a draft and nobody outside the room can see it.
+The button under it ends the register, and **what it is called and what it
+does depend on one switch**, the `courses-next-week-email` job's on Site
+status:
 
-A facilitator marks their register during the session, saving as often as they
-like. Nothing has left the building at that point: the register is a draft and
-nobody outside the room can see it. Pressing **Push attendance** does three
-things, and the order is the design:
+| The switch | The button | What pressing it does |
+| --- | --- | --- |
+| Off (how it ships) | **Push attendance** | locks the register, rebuilds everyone's totals, shows people their marks, closes the follow-up card, and emails the group about its next session |
+| On | **Finish the register** | the same, and emails NOBODY: the job sends next week's email a set time before each session, whatever happens to the register |
+
+The register's page says which, in the board's words, every value read from
+records: the group, when next week's email goes, who is reminded and who gets
+a task if nobody finishes.
+
+While the push sends the email, the page also says what each press will email
+before anybody presses. The foot under the register and the confirm in front
+of its button read one answer, which the register's GET works out for every
+register on the page from the push's own decision (`src/lib/courses/pushEmail.ts`):
+the session after the one being finished, in the group's whole schedule with
+each week's changes applied, and whether its email can go and to how many. So
+the confirm names the group and how many it reaches ("Everyone in Group B gets
+one email about week 4 on Tue 10 Nov: 3 people.", or "2 of the 3 people in
+Group B get one email ..." when somebody has switched course emails off or
+their address is suppressed), says that the email about a cancelled session
+tells them it is off, and says why nobody is emailed when nobody is: the
+group's last session, a week not published yet ("Nobody is emailed: week 4
+isn’t published yet, so the group won’t be sent a reminder."), an email that
+has already gone, nobody in the group set up to receive email. The push asks
+the same decision again when it is pressed, so a week published after the
+page was read is sent about, and the push's answer says what happened.
+
+### What finishing does, in the order it does it
 
 1. **One transaction** stamps `pushedAt` and `pushedByUid` on the register, and
    recomputes every member's `courseEnrolments.attendance` rollup IN FULL from
-   that group's pushed registers. Never a delta: a mirror that can be rebuilt
+   that group's finished registers. Never a delta: a mirror that can be rebuilt
    from its source cannot drift from it.
-2. **The send marker is claimed by a standalone `.create()` OUTSIDE that
-   transaction**, at `courseNudges/gnudge__{runId}__{groupId}__{nextSlotStartKey}`
-   (plus a `-{occurrence}` suffix from a week's second session onwards, so a
-   group meeting twice inside one slot gets two reminders rather than one).
-   A create collision inside a transaction aborts the whole transaction, so
-   claiming it there would unlock a register because an email had already gone.
-3. **The group is emailed** about its next session, one message each, carrying
-   the next week's material and the weekly feedback link.
+2. **The follow-up card closes**, if the scheduler raised one.
+3. **Only while the switch is off**, the group is emailed about its next
+   session: the send marker is claimed by a standalone `.create()` OUTSIDE that
+   transaction, at `courseNudges/gnudge__{runId}__{groupId}__{nextSlotStartKey}`
+   (plus a `-{occurrence}` suffix from a week's second session onwards), and
+   then one message goes to each member. A create collision inside a
+   transaction aborts the whole transaction, so claiming it there would unlock
+   a register because an email had already gone.
 
 The consequence worth knowing on the night: **a send failure leaves the
 register locked and the figures correct**. A second press is an idempotent 200
-that sends nothing, and the mail is recovered by an admin (below) rather than by
-pushing again.
+that sends nothing, and the mail is recovered by an admin (below) rather than
+by pressing again.
 
-### After the push
+### The push and the schedule never both send
+
+Two things hold it, and either alone would:
+
+1. **The switch.** The push route and the tick read the same switch through
+   one function (`nextWeekEmailIsScheduled`): the push sends only while it is
+   off, and the tick runs the job only while it is on. A switch read that fails
+   in the push route is taken as "off", the direction that still sends.
+2. **One claim.** Both lanes claim the same `gnudge__` document with
+   `.create()` before the first message. A switch flipped between a push and a
+   tick finds the claim taken and sends nothing; the run's catch-up send reads
+   the same family before it sends.
+
+`tests/course-register-ends.test.mjs` holds both: the push after the schedule
+has sent, and the schedule after the push has sent, each send nothing.
+
+**Turning the schedule on is the whole switch-over.** Do it only where the
+scheduler is running (a backend whose tick is armed), because it also stops the
+push from sending. Prove it on dev first with **Run now**.
+
+### After finishing
 
 The register is admin-only. An admin corrects it from the same grid: marks, the
 **Didn't happen** switch and the session note all stay available to them on a
-pushed column, and every change appends its own `courseAudit` row with the
+finished column, and every change appends its own `courseAudit` row with the
 before and the after. Participant notes stay open to the facilitator,
 deliberately: they are usually written after the session rather than during it.
 
-The push is also what makes the session visible to the LEARNER. Their own row
+Finishing is also what makes the session visible to the LEARNER. Their own row
 appears on their course home (the **Your progress** card) as soon as the
-register is pushed, and not before: `courseAttendance` stays `read: if false`,
+register is finished, and not before: `courseAttendance` stays `read: if false`,
 and the only route to a member's own mark is the overview payload's
 `ownAttendance`, which drops any register with no `pushedAt`. So a register a
 facilitator is halfway through saving shows nobody anything, and a session
-nobody ever pushed simply does not appear on any member's list.
+nobody ever finished simply does not appear on any member's list.
 
-A cell left blank in a PUSHED register reads "Not marked" on that list, while
+A cell left blank in a FINISHED register reads "Not marked" on that list, while
 the summary line above it (and the reviewer's figures, and any completion bar)
 counts it as an absence. That disagreement is deliberate: the count has to
 treat a finished register as finished, and the row should not turn a
 facilitator's slip into an accusation. If a member reports a wrong mark, an
 admin corrects the register and the figures follow.
 
-### Recovering a push whose email failed
+### Recovering a send that failed
 
 The register locks and the figures move BEFORE the first message goes out, so a
 transport failure leaves a locked register and an unmailed group. The marker is
-already claimed, so pressing **Push** again reports "already pushed" and sends
-nothing. That is the correct default, and it is why there is a second lane.
+already claimed, so pressing again reports "already" and sends nothing. That is
+the correct default, and it is why there is a second lane.
 
-**Resend reminder** sits on a pushed column for admins only. It re-sends this
-group's reminder and **nobody else's**, and it records the re-send on the
-group's marker exactly as the run-level catch-up records its own forces
-(`forceCount`, `lastForcedAt`, `lastForcedByUid`, and an entry in `forces`
-naming the marker it went over). Use it when a facilitator reports "I pushed and
-nobody got the email".
+**Resend** sits on a finished column for admins only ("Resend reminder" while
+the push sends the email, "Resend next week's email" once it is on its
+schedule). It re-sends this group's email and **nobody else's**, and it records
+the re-send on the group's marker exactly as the run-level catch-up records its
+own forces (`forceCount`, `lastForcedAt`, `lastForcedByUid`, and an entry in
+`forces` naming the marker it went over). Use it when a facilitator reports
+"nobody got the email". While the email is on its schedule, Resend only ever
+re-sends an email that has gone: it never sends one early, and it holds the
+schedule's rule, whole or not at all.
 
 Reach for the run-wide catch-up only when the whole cohort is owed the send. It
 mails **every** group of the run, so using it to fix one group mails every other
 group twice.
 
 What can and cannot fail after the claim, so the failure a report describes can
-be placed: the config read and the email template are resolved BEFORE the marker
-is claimed, so the only thing left that can fail after it is the transport
-itself.
+be placed: the settings, the template, the week and the audience are all read
+BEFORE the marker is claimed, so the only thing left that can fail after it is
+the transport itself.
 
-### The two sends, and which is which
+### The sends, and which is which
 
 | Send | Who presses it | When |
 | --- | --- | --- |
-| The weekly reminder | the group's facilitator, by pushing the register | after every session |
+| Next week's email, while the schedule is off | the group's facilitator, by pushing the register | after every session |
+| Next week's email, while the schedule is on | the `courses-next-week-email` job | `nextWeekEmailDaysBefore` days before each session after the first |
 | The run-wide catch-up | an admin, from the run's nudge page | the session-1 welcome, and recovery |
 
-**The session-1 welcome has to be sent by hand.** No push exists before a run's
-first session, so nothing in the group lane can produce it. Send it from the
-run's nudge page before the first week. This is not a gap waiting to be closed
-with a "first session" branch on the push: that would need its own idempotency
-marker for a send that happens once per run, and the catch-up lane already has
-one.
+**The session-1 welcome has to be sent by hand.** Neither lane sends anything
+about a group's first session: nothing was finished before it, and the
+schedule leaves it to the email Publish sends. Send it from the run's nudge
+page before the first week if a welcome is wanted.
 
 **The catch-up reads the group markers before it sends.** If any group has
-already had this week's reminder from its own push, the run-wide send is
-refused unless an admin forces it, and a force records the group markers it
-overrode on its own marker. A cohort mailed twice in one week is on the record
-either way.
+already had this week's email from either lane, the run-wide send is refused
+unless an admin forces it, and a force records the group markers it overrode on
+its own marker. A cohort mailed twice in one week is on the record either way.
 
 **Residual risk: a mid-term `startDate` edit.** The run's own marker family is
 checked across a span of six days either side of the slot, so nudging the same
 calendar week twice is caught even after the dates move. The group markers are
 checked at the CURRENT slot key only. So if a run's `startDate` is edited part
-way through the term, the group markers a push wrote sit under neighbouring
-keys, the catch-up finds none, and it can mail those groups a second time with
-no force recorded anywhere. Remedy: after editing a live run's `startDate`,
-treat the run-wide catch-up as unavailable for that week. If a group is owed a
-reminder, use **Resend reminder** on that group's pushed column, which is keyed
-on the group's own next session and is recorded on the group's own marker.
+way through the term, the group markers either lane wrote sit under
+neighbouring keys, the catch-up finds none, and it can mail those groups a
+second time with no force recorded anywhere. Remedy: after editing a live run's
+`startDate`, treat the run-wide catch-up as unavailable for that week. If a
+group is owed its email, use **Resend** on that group's finished column, which
+is keyed on the group's own next session and is recorded on the group's own
+marker.
 
-### If a facilitator never presses it
+### If nobody finishes it
 
-Their group loses its reminder as well as its register, and every member of
-that group carries a session in a denominator reviewers will read as a
-shortfall.
+The group's record waits, and so (while the schedule is off) does its email.
 
-**The board tells you.** Once the grace has passed
-(`config/courses.unmarkedRegisterGraceHours`, default 36) the
-`courses-unmarked-registers` job raises a committee task naming the group, the
-course and the session, assigned to every admin, saying what is waiting on the
-press and what to do about it. Pushing the register archives the card.
+**First, the facilitators are reminded.** `unmarkedRegisterGraceHours` (36 by
+default) after the session ENDS, the `courses-register-reminders` job emails
+each of the group's facilitators once, naming the register and the button.
+It ships switched off.
 
-That does not make the chase automatic, only visible. The card asks an admin to
-go and talk to the facilitator, so brief facilitators on the push **before**
-their first session rather than after, and watch the volume in the first
-fortnight: with three streams, three fellowships and several groups each, a
-quiet week can put a dozen identical cards on every admin's board, and a board
+**Then the lead and admins get a task.** `registerTaskHours` (60 by default)
+after the session ends, `courses-unmarked-registers` raises a card for the
+lead of the programme that names the run and every admin, saying what is
+waiting on the press and what to do about it. Finishing the register archives
+the card. The card emails nobody, so watch the board in the first fortnight:
+with several groups a quiet week can put a dozen cards on it, and a board
 people mute is a board that stops working.
 
 ### The knobs
 
-Both live on the site status page, under Course settings:
+All live on the site status page, under Course settings:
 
-- **Weekly feedback form** (`config/courses.weeklyFeedbackUrl`). Rides the
-  reminder as `{feedbackUrl}`. Leave it empty and the paragraph carrying it is
-  dropped from the email whole, which is a complete state rather than a broken
-  one.
-- **Unmarked register grace period**, above.
+- **Next week's email: days before each session**
+  (`config/courses.nextWeekEmailDaysBefore`, 2). Whole days, 1 to 6, at the
+  session's own time of day. Read only while the schedule is on.
+- **Weekly feedback form** (`config/courses.weeklyFeedbackUrl`). Rides next
+  week's email as `{feedbackUrl}`. Leave it empty and the paragraph carrying it
+  is dropped from the email whole, which is a complete state rather than a
+  broken one: it is one of the two values an email may go without.
+- **Unfinished register: reminder to facilitators after (hours)**
+  (`unmarkedRegisterGraceHours`, 36). The key is older than the reminder: it
+  used to be when the admins' task was raised, and kept its name and number
+  when the task moved later.
+- **Unfinished register: task for the lead and admins after (hours)**
+  (`registerTaskHours`, 60). Always later than the reminder; the panel refuses
+  a value that is not.
 
 Two more sit on `config/courses` with no editor, because they are scheduler
 cost dials rather than product settings: `unmarkedScanBudgetMs` (12000, the
@@ -939,17 +1082,1630 @@ cards raised in one tick). Set them from the Firestore console if a scan is
 consistently reporting `hasMore`. Missing means the default, always.
 
 `unmarkedScanBudgetMs` is a share of the 28s the tick hands its whole job list,
-and it is meant to **shrink as jobs are added**. Today one real job runs, so 12s
-is generous; with the admissions and break-return jobs registered alongside it,
-a scan allowed to spend most of the list's budget is a scan that starves every
-job after it. Rule of thumb when raising it: the sum of the jobs' own budgets
-should stay under 28s.
+and it is meant to **shrink as jobs are added**. The two register jobs added
+beside it carry their own fixed budgets (10s for next week's email, 8s for the
+reminders), and every job checks what the tick has left before it starts, so a
+slow one costs the jobs after it a quarter of an hour, never an email.
 
 ### A cancelled session
 
-Use the **Didn't happen** switch on the column, then push as normal. A session
-marked not held leaves every denominator rather than counting as a room full of
-absences, and the group still gets its reminder about the next one.
+Use the **Didn't happen** switch on the column, then finish as normal. A
+session marked not held leaves every denominator rather than counting as a room
+full of absences, and it is never chased. Next week's email goes either way:
+the push sends it while the schedule is off, and the schedule sends it on time
+while it is on.
+
+A session cancelled ahead of time, through "Change a session", is never chased
+either, and its own email says it is off: see Changing a session. Its column
+reads **Not held** and its register needs nothing: a mark, the switch, a note
+and the push are each refused. To hold it after all, use Hold it as usual in
+Change a session.
+
+## Placing a term's accepted people on a course run
+
+The term's application form decides who holds a place on each programme
+(see [docs/applications.md](applications.md), "From the form onto a course
+run"). Groups are formed on a course run's allocation board. This is the
+order the two are joined in. Steps 1 to 4 are an admin's. From step 5 on,
+the programme's lead does it too, on the run their programme names, from
+the programme's own page (see "A programme's lead on the run their
+programme names" below).
+
+### The order
+
+1. **Make the run, and leave it a draft.** One run per programme, on the
+   course the programme is tied to, with its groups: a weekday, a start
+   time, a length, a room and facilitators for each.
+2. **Name the run on the programme.** Admin, Admissions, the form, the
+   programme, Settings, "Course run". From this moment the run's own apply
+   page (`/courses/<course>/apply`) refuses for everybody, whatever the
+   run's status and dates say.
+3. **Move the run on from draft.** A run can only leave draft by way of
+   "applications open". Because step 2 came first, nothing can be applied
+   for while it is there. Step 4 refuses a run that is still a draft.
+4. **After decisions have been sent, press "Hand over".** On the same panel.
+   Everybody who holds a place on the programme gets a row on the run's own
+   list. Nobody is emailed and nobody is put in a group.
+5. **Open the allocation board** (the panel links to it, and the
+   programme's Groups tab draws it as People in groups) and put people in
+   groups. Each card says which groups that person can make, from the week
+   they painted on the form, or that they gave no availability.
+6. **Publish** from the board when everybody is in a group. That is the
+   email that tells each person their group, and the first email anybody
+   gets after decision day. First press **Send a test to me**: it sends you
+   the first person's "your group" email and the first facilitator's
+   "You're facilitating" email exactly as Publish would, marked as a test,
+   and Publish stays locked until a test of the wording in force has reached
+   you. The button then says how many emails a press sends ("Publish and send
+   37 emails"), the confirmation says the same number, and afterwards the
+   board says what became of every email: sent, held, on the do-not-email
+   list, failed (named, and tried again by the next press) or no address
+   (named).
+
+### Things worth knowing before you do it
+
+- **Press "Hand over" again whenever somebody new has a place.** Somebody
+  who accepts an invitation after the first press is added by the next one.
+  Pressing it twice writes nothing twice: a press that finds everybody
+  already there says so and changes nothing.
+- **A run has to start with no applications of its own.** A run that
+  already took applications through its own page cannot be named. Make a
+  new run for the term.
+- **One run, one programme.** A run another programme already names cannot
+  be named again.
+- **Once anybody has been handed over, the run cannot be changed** on the
+  programme. Check the run before the first press.
+- **A track lead on such a run is not shown these people.** The board, the
+  run's own applications page and Publish serve somebody the form placed to
+  an admin and to the lead of the programme that names the run, and to
+  nobody else. A track lead still edits the run, staffs its groups and sees
+  everybody who applied to the run itself. A row the form wrote is one an
+  admin or that lead places and publishes: a track lead who presses
+  Publish, or its test, on such a run is told so and nothing happens. The
+  run's own counts do include
+  them, as numbers: the run's applications page shows a track lead "8
+  accepted" above an empty list.
+- **The "Paid" or "Unpaid" badge on a card is the membership record's.** It
+  is read from the person's account when the board is drawn, against the
+  run's academic year, so it says what the membership record says that day.
+  It is not what they answered on the form about Students' Union
+  membership. A card with no badge means the account could not be read.
+- **A hand-over shows the person nothing.** Their member area reads as it
+  did before the press, and their own application page says what comes
+  next for their kind of programme. Nothing on a run is announced to them
+  because of the row, whatever is done to it on the run's applications
+  page.
+- **Nobody sees their group until Publish has emailed it to them.** The
+  first placement on the board makes the place on the run, but the place is
+  the board's working copy until Publish tells its owner: until then their
+  member area reads as it did before, the run stays shut to them, and the
+  group's facilitators and other members are not shown their name. A
+  facilitator sees their group's day, time and room from the moment they
+  are added, and reads "You’ll see your group’s names when groups go out."
+  where the names will be. Moving people around on the board emails nobody
+  and shows nobody anything.
+- **After Publish, press Publish again straight away after any move.** A
+  move clears the person's "Emailed" mark, so until Publish is pressed
+  again the person moved reads nothing of the run, is on neither group's
+  roster or register, and gets none of the group's mail. Publish emails just
+  them, and then they see their new group. The same goes for anybody placed
+  late.
+- **Publish never emails somebody who gave their place back.** Somebody
+  placed and not told yet who replies "I can’t make it" keeps their seat
+  until somebody Removes it, and their card says "Gave their place back".
+  Publish asks the card's own question of the card's own facts
+  (`gaveTheirPlaceBack` in `src/lib/courses/placeGivenBack.ts`), so its
+  button does not count them, "Send a test to me" never shows their email,
+  and a press neither emails them nor marks them as told; the facilitators'
+  email does not count them either. The Publish area and the confirmation
+  say how many ("1 person gave their place back, so they aren’t emailed.
+  Remove them to free their seat."). See "When somebody gives their place
+  back" below.
+- **What each person's email says: the board's words.** "Your AGI Strategy
+  group: Tuesdays at 6pm": the group, its weekly time and room (or that it
+  meets online, and that the link is on their programme's page), the day it
+  meets from, how long its sessions last (the group's own length), its
+  facilitators by first name, how many are in it (as their roster will show
+  them: the reader among them, never somebody untold), how long week 1 takes,
+  a button to their programme's page, and the lead's sign-off, or NAISI's
+  when no lead stands. Week 1's time is its This week's "In all" on a week
+  written in blocks, or its readings' own minutes added up on a week written
+  before them, read through one function (`weekReadingTime` in
+  `src/lib/courses/weekTime.ts`) from week 1 as the group's people read it.
+  A sentence whose value has no record is left out whole: no room, no
+  facilitator, a group of one, no length, and week 1 not published, with no
+  time, or already behind a group that has met. Somebody told after their
+  group first met is told its next session. Wording saved in Email designs
+  before these words is what sends while it is saved: press "Reset to
+  default" on "Placed in a group", then Save, and check its button, to take
+  them.
+- **An incubator's people are sent their own email.** When the programme
+  that names the run is an incubator, Publish sends its people "Placed on an
+  incubator" in place of "Placed in a group": the weekly session (day, time
+  and where), the date of the first session, who runs it (the programme's
+  lead) and a button to their programme's page. It never says "group": an
+  incubator's people are never told about one. Its wording is in Email
+  designs beside "Placed in a group", with its own test send there; a
+  fellowship's run, and a run no programme names, are sent "Placed in a
+  group" as before.
+- **Each facilitator is told once a group, at Publish.** "You're
+  facilitating" goes to every facilitator of every group with somebody in
+  it, in the board's words: the group's weekly time, where it meets (inside
+  that sentence, and left out of it when no room is set), its first and last
+  session on the group's own calendar, who else facilitates it, how many in
+  it have been told their group and that their names are on the group page,
+  and a button to their group page, signed by the lead of the programme that
+  names the run, or by NAISI when no lead stands, as the group email is
+  (wording for "You're facilitating" saved in Email designs before 26
+  October 2026 has no `{naisiSignOff}` and says nothing in its place, until
+  the token is added in a paragraph of its own or the wording is reset to
+  the default). The board's "and week 1’s guide" is said only while the
+  facilitator's group page shows it: the group's next session is its week
+  1 and week 1 of the course's facilitator guide has its session plan or
+  its notes (load it before Publish to have it said). That number counts only the people
+  told by the end of the press, so it is the number of names on their
+  roster: somebody with no address on file, or whose email failed, is
+  counted once a later press tells them. Never a meeting link: an online
+  group is told the link is on the group page. A facilitator added later is
+  told by the next press. A group with nobody in it waits, and the board
+  says so; so does a group nobody in which can be told yet (the board names
+  whoever has no address, and a press whose every send to the group failed
+  counts the facilitators' email as still to send). The lead who signs it
+  is never sent it, whatever group they facilitate (an incubator's lead
+  facilitates its one group), and the button's count leaves them out. Its
+  wording is in Email designs as "You're facilitating", beside "Placed in a
+  group".
+- **A changed wording needs a fresh test.** Saving either of the two emails
+  a run sends in Email designs ("You're facilitating", and "Placed in a
+  group" or, on a run an incubator names, "Placed on an incubator") locks
+  its Publish again until somebody sends themselves a test. A test that this
+  copy of the site held, or that went to an address on the do-not-email
+  list, reached nobody and does not count.
+- **Do not destroy the form while its people are waiting for a group.**
+  Until somebody is in a group, their member area knows they hold a place
+  only from their application. Destroy the form in between and it tells
+  them they are not on a programme, though they are still on the run's
+  list and the board still places them. Put everybody in a group first.
+- **Nothing is deployed for any of this.** No rule and no index changes.
+  The rows are written by routes into a collection that was already shut to
+  every browser write, and read back by one equality on `runId`. Publish's
+  test record, its once-only facilitator markers and the hold one press keeps
+  on the run live in `courseNudges`, which is shut to browsers too, and each
+  carries `runId`, so destroying the run clears them.
+
+### When somebody gives their place back
+
+Before the hand-over, they are simply not handed over.
+
+**Once Publish has told them their group**, "I can’t make it" on their
+application page is leaving the programme (Q12): it takes them out of their
+group at once, exactly as "Leave the programme" does (the next section), so
+there is nothing to do on the board. Their application page no longer
+offers the button by then: it points them to their programme's page, where
+leaving is, and the reply only reaches somebody whose page was open from
+before. Their row on the run's own list can still be changed from Accepted
+(step 2 below), but nothing waits for it: Publish waits for nobody who has
+left.
+
+**Before that** (handed over and not placed, or placed and not told yet),
+nothing takes them off the run. The panel names them under "No longer hold
+a place", and their card on the board says "Gave their place back". Once
+they are removed it lists them under "Taken off the programme" instead, as
+it lists somebody who left under "Left the programme": nothing is left to do
+for either. Then, by hand:
+
+1. on the board, **Remove** them if they are in a group. That frees the
+   seat. Publish leaves them out whether or not this comes first: a press
+   does not email them, count them on its button or mark them as told, and
+   the Publish area says how many are waiting to be removed;
+2. on the run's own applications page, change their row from Accepted. A
+   row the form wrote carries no address, so that page emails nobody about
+   it. Nothing waits for this step: Publish waits for nobody whose card says
+   "Gave their place back", in a group or not, and the board counts
+   somebody in Unallocated whose card says it apart from the people still
+   to place ("1 gave their place back" at the end of the rail's numbers).
+   This step is an admin's (or the run's admissions reviewer's): the
+   programme's lead does step 1 from the Groups tab and asks an admin for
+   this one.
+
+Their own application page says they gave the place back as soon as they
+reply, and, for somebody who left their group, that they left the programme
+and when.
+
+### When somebody leaves the programme
+
+Somebody taking part leaves from their programme page: "Leave the
+programme" at its foot opens a confirmation page, which says what leaving
+does, asks why (optional: the programme's lead and admins read it, on the
+Overview) and asks for the course's title, typed exactly. It is the leave an
+open run's session picker has always offered, for a run the form placed them
+on too. Somebody who applied to the run itself is still told to ask the
+team, and an admin uses Remove.
+
+The same leave has a second door: "I can’t make it" on the application page
+of somebody in a group Publish has told them about (the section above). It
+is asked twice and asks why from a short list, and leaves exactly as the
+first door does, with the words of what they chose as the reason. Whatever
+the first door refuses, it refuses in the same words. Both doors are one
+function (`leaveRun` in `src/lib/courses/leaveRun.ts`), so they cannot
+come to write different things.
+
+Leaving closes when the run's last session is over, the moment who finished
+opens: the programme page draws no link, the confirmation sends anybody who
+opens it back to the programme page, and a press is refused with a sentence
+that says the programme has ended and where to write. Somebody who finished
+keeps their record, and no place on the form goes back after the end.
+
+- They leave their group at once. Their row keeps the group, Publish's stamp
+  and the day they left (`droppedOutAt`), with the reason (`dropOutReason`).
+- Their place on the form goes back exactly as "I can’t make it" gives it,
+  in the same transaction (see "Leaving the programme gives the place back"
+  in `docs/applications.md`). After the end of week 1 no freed place can be
+  offered for it.
+- They come off the cohort's mailing list, their weekly cards leave their
+  tasks, one line is logged ("Left the course.": the log of course actions
+  outlives the account, so it says what was done and never what they said;
+  their reason stays with their seat), and one email goes to them and
+  nobody else (the "Left a course" template in Email designs). When the
+  programme has an open leaving survey, their own row on it is made as they
+  leave, and the email links their own link to it in place of the outside
+  form in Settings, which it offers otherwise (`docs/surveys.md`, "The
+  leaving survey").
+- Publish waits for nobody who has left.
+- They keep nothing of the programme. Its page now says only that they left
+  and when, with the leaving survey's card while it is theirs to answer and
+  the society's address in case it was a mistake, and the notes and reading
+  list pages say the same; My programmes has a card that
+  says they left and links to it. Their marks, notes and reflections stay
+  where they are, for the programme's lead and admins, and the notes they
+  shared stay with their group, but none of it is shown to them. Nothing else
+  of the run opens to them either: not the group's names, its updates, its
+  sessions or its registers.
+
+Their facilitators' register lists them last, read only, with the marks
+they had, "Left" and the day, and refuses a mark for them; the lead's
+Attendance tab, its CSV and the Overview say the same. **Remove** records
+the day too, so both kinds of leaving show it, and it gives a place the
+application form gave them back, exactly as leaving does and with no
+reason (nothing goes back after the run's last session). Their application
+page then says "Taken off the programme" and the day, and the form's count
+of places held drops. Somebody who left by
+themselves is not offered Remove on the board, and the Remove route refuses
+them in a sentence with the day they left ("They left on Tue 17 Nov, so
+their seat is already free and there’s nothing to remove."), writing
+nothing. Somebody removed does not get the page that says they left: the
+run closes to them.
+
+To put somebody back, an admin or the programme's lead places them again on
+the board and presses Publish, which emails them: placing them clears the
+day, the reason and Publish's stamp, and gives them back the place on the
+form that leaving or Remove gave up, in the same transaction
+(`readPlaceToRestore` and `restorePlaces` in
+`src/lib/applications/status/record.ts`). Their application holds the place
+again, with no reply on record and no reason, and the form's count of places
+held goes back up, so their own page, My programmes, People, the Course run
+panel and the count of free places all say they hold a place. Where the form
+has no such place to give (it was not given back on that programme), the seat
+records when they were put back instead (`putBackAt`), as before. Either way
+their card stops saying "Gave their place back" while they are back, so
+Publish tells them; if they leave again, or say "I can’t make it" before the
+next Publish, it says so again.
+
+### What is logged
+
+Each press that puts anybody on a run appends one line to the course log
+(`courseAudit`, kind `run-hand-over`), keyed to the run: who pressed, which
+programme, and how many people. It names none of them. Destroying the run
+clears it with the run's other lines.
+
+## A programme's lead on the run their programme names
+
+Each programme's lead does, for their own programme, what an admin does from
+the allocation board on: they place its people, staff its groups and publish
+them. Everything is reached from the programme's own page, which they
+already open; nothing under `/admin/courses` is needed.
+
+### What the lead does, and where
+
+- **Groups tab, People in groups**: the run's allocation board, the same
+  board and routes an admin's mount uses. Place, move and remove people,
+  send the test and press Publish, with the same test lock and the same
+  count on the button.
+- **Groups tab, Times**: the times picture.
+- **Groups tab, Facilitators**: who facilitates each group, the people who
+  said on the form they would like to facilitate the programme, and asking
+  them (see "Asking people to facilitate" below). Each group can still be
+  changed by hand: the list to pick from is names only, a change emails
+  nobody, and somebody added after groups have gone out is told by the next
+  press of Publish.
+- **Overview tab**: the run's week, each group's session this week and its
+  register, what needs attention, who came by week and how many are taking
+  part (see "The lead's Overview and Attendance" below).
+- **Attendance tab**: every register of the run as one grid, By person or
+  By week, read only, with Download CSV. Marking stays with the group's
+  facilitators and admins. Under the grid, the notes each group's
+  facilitators share (see "A facilitator's week" below), read only. The
+  register's own notes, on a person or on a session, are not sent to the
+  lead: the register's GET leaves them out for a caller it admits only as
+  the lead, and keeps the marks.
+- **People tab**: everyone who holds a place on the programme or gave it
+  back, with filters and their counts (Everyone, Coming, Haven't said, Not
+  said when they're free, Gave their place back, Invited), a search over
+  names and degrees, and per person their group, whether they have said they
+  are coming and on which day, when they are free as fit marks against the
+  run's groups, and where the place stands (with the reason and the day for
+  a place given back, "Left the programme" with the day for somebody who
+  left the run by themselves, and "Taken off the programme" with the day for
+  somebody staff took off it, as the Course run panel and their own page say
+  it). Read only, from `src/lib/applications/people/`. Who holds a
+  place is the hand-over's own test, so the tab's number is the times
+  picture's and Publish's people; "said they are coming" is one reading
+  (`comingReplyOf`) that a facilitator's Home asks too. A row is somebody
+  whose application the viewer may open, so the lead meets an invitation to
+  somebody who did not rank the programme only once they accept. No email
+  address, access requirement, answer or leaver's reason is on it.
+- **Applications tab, Offer freed places** (see the next section).
+- Everything else a run's track lead may do on the run, through the same
+  routes: the run's own applications queue, putting somebody back on the
+  run, copying weeks, a note on a material, the retrospective, a group's
+  week, the run's email and its week nudge. Their doors under `/learn` stay
+  the cohort's; the programme's page is the lead's.
+
+### What stays an admin's
+
+Naming the run and the hand-over (the Settings tab's Course run panel),
+adding groups and changing a group's day, time or room (the run editor),
+changing a row on the run's own applications page, and correcting a
+finished register.
+
+### How it is decided
+
+The lead's power is worked out from the form each time it is used: the
+programme whose `runId` names the run, that programme's `leadUid`, and that
+account still meeting the bar a lead is appointed behind (an admin or
+SU-recognised committee). Nothing is copied onto the run: the run's
+`trackLeadUids` stay who an admin named. So a lead who is replaced, whose
+account changes, or whose programme stops naming the run has none of it at
+the next request, and the new lead has it at once. A lead of one programme
+is nobody on another programme's run, and a programme's reviewers gain
+nothing. Nothing is deployed for any of this: no rule and no index changes.
+
+### The lead's Overview and Attendance
+
+Both tabs, and the line under the programme's name once the run is under
+way ("Running · week 3 of 6", how many are taking part in how many groups,
+the day of the last sessions), are worked out on the server from the run's
+own records, once, by `src/lib/courses/programmeAttendance.ts`, so every
+number agrees between them and the CSV.
+
+- **Who is a row** follows the register: the lead sees the people Publish
+  has told; an admin sees everybody placed. Somebody who left (withdrawn,
+  or taken off the run) stays listed with the marks they had, only in the
+  group whose register marked them; somebody who left before any register
+  marked them is nobody's row.
+- **"Came"** counts present, late and left early; excused and absent count
+  in "of". A mark saved on a register not finished yet counts, drawn with a
+  ring. A session the register says did not happen counts for nobody.
+- **Download CSV** is logged in the export log before the file is handed
+  over, and refused when the log cannot be written. It holds group, name,
+  each week's mark in words, "Came" and "Of", and when somebody left: never
+  an address or a note.
+- **Needs attention** lists what the records say, and each item goes with
+  its record: somebody absent at two sessions in a row without saying, a
+  week not published that a group has reached, a register not finished
+  once its session has ended (with the reminder's and the task's times from
+  Course settings and their jobs' switches), and somebody who left. Once the
+  run's last session is over it chases nobody's absences, and the
+  Attendance grid draws no "in a row": there is no session left to miss.
+- **Updates** shows the two newest updates on the run, each with the line the
+  Messages tab gives it (who wrote it, who it was to, the day, what its email
+  did), and "Write an update". Both lead to the Messages tab.
+- **Remind** emails the register reminder to that group's facilitators
+  only, after a confirm with the count, and claims the reminder job's own
+  marker for each, so a facilitator hears about one register once, whether
+  the press or the job comes first. It works while the job is switched off:
+  the press is a person's decision. A facilitator who has turned off their
+  "Tasks and worksheets" emails is not offered.
+
+## Asking people to facilitate
+
+Boards st-facilitators and st-fac-ask-phone (Q6 option B: "Ask, then
+train"). The programme's lead, or an admin, asks somebody who said on the
+application form that they would like to facilitate; they get one email and
+say yes or no on the site; training is a dated session with a room.
+
+### Who can be asked
+
+The Groups tab's Facilitators view lists everybody whose application said
+yes to facilitating and chose this programme or "Either" (read from the
+form's own facilitator questions, whatever they are called), with their
+answers to those questions and nothing else of the application. The viewer's
+own application is never listed. Asking opens once decision day has been
+sent. Somebody holding a place on the programme can be asked: a facilitator
+can be one of its fellows too, in the group they facilitate (the rule that
+nobody facilitates a programme they take part in was lifted on 26 October
+2026). Somebody invited to it and not yet answered is asked once they have
+answered, and only an approved account can facilitate. Somebody taking part
+in another programme can be asked.
+
+### A facilitator who holds a place
+
+A facilitator who holds a place on the run is one of its fellows: a
+learner's row in a group, like everybody else's, beside their name on the
+group's facilitators. They SIT IN THE GROUP THEY FACILITATE. So every
+appointment, by an answer or by hand, asks where the person sits first
+(`seatFor` in
+`src/lib/courses/groupFacilitators.ts`):
+
+- in that group already: nothing moves;
+- in no group yet (handed over and never placed, or taken out of their
+  group on People in groups): the appointment places them in that group, in
+  the same transaction, as the board's own placement would, and the group's
+  count of people moves with them. By hand, the saved sentence names them;
+- in another group: nothing is saved. The board decides where people sit,
+  so they are moved on People in groups first, or made a facilitator of
+  their own group. Asking them for another group is refused before any
+  email, with both groups named;
+- a group with no room left for somebody it would place saves nothing;
+- holding no place on the run: a facilitator's row, as before.
+
+The person asked is never told where staff have placed them: a yes that
+cannot be placed is answered with one sentence that names only the group
+they were asked about. A yes from somebody holding a place who has not been
+handed over yet waits until they have. A row on the run's list that the
+application form wrote is placed only by an admin or the programme's lead,
+so a track lead adding that person saves nothing. Taking a facilitator off a
+group leaves their place where it is.
+
+Everywhere else the hub treats them as both:
+
+- **The board** places them in the group they facilitate and no other, and
+  will not move them to another group while they facilitate theirs (the
+  refusal's reason is `facilitates-another-group`): change who facilitates
+  first, on the Facilitators view, then move them. Somebody made a
+  facilitator before anybody placed them has a facilitator's row; the
+  board's placement turns it into their learner's row, on the group's clock
+  and counted. Their card says "Facilitates Group A", and warns when it sits
+  anywhere else.
+- **Publish** sends them both of its emails: "placed in a group", which
+  names the group's other facilitators and never them (or leaves that line
+  out when there is nobody else), and "You're facilitating", which counts
+  the group's people as their roster shows them, themselves included. The
+  button counts every email.
+- **The register** lists them with the group's people. Whoever takes the
+  register marks them, a co-facilitator or they themselves while they run
+  the session; the lead reads it and marks nothing.
+- **Who finished** lists and counts them like everybody in the group, and
+  they are sent both certificates once those are built.
+- **Their own coursework** is read and reviewed by the programme's lead and
+  admins, and by nobody who facilitates, themselves included: one rule that
+  every kind of answer asks (`facilitatesOnRun` and
+  `readsFacilitatorsOwnWork` in `src/lib/courses/writtenAnswers/access.ts`).
+  The lead gives feedback on a written answer from the Attendance tab's
+  Written answers card. The summer's review queue and the group page's To
+  review leave their exercise answers out for everybody else who
+  facilitates, and the review route refuses everybody else's verdict.
+- **Leaving and Remove**: while they facilitate a live group of the run,
+  "Leave the programme" and "I can't make it" are refused with one sentence,
+  their programme page says it where the way out would be, and Remove is
+  refused too. The programme's lead or an admin takes them off the group's
+  facilitators first (their place stays), and then they leave or are
+  removed like anybody else.
+- **The hub and Home**: the hub reads the facilitator role off the groups
+  that name them as well as off their row, so their run carries both roles
+  and Home is the facilitator's Home, with one line to their own week on
+  the programme's page. Before Publish tells them their own place, their
+  run reaches them as any facilitator's does, with no seat on it.
+- **Writing to the group**: the group email and the group notice go to
+  everybody in the group but whoever sends them, so a facilitator who holds
+  a place is never sent their own message.
+- **The week pages** open every published week to them, as to any
+  facilitator (they run the sessions), and their own ticks and answers are
+  recorded through their learner's row.
+- **A run anyone can join**: they keep the session they run. Changing it is
+  refused while they facilitate a live group of the run (changing stream
+  within it is not); staff take them off the group's facilitators first.
+
+### Asking
+
+"Ask to facilitate…" picks the group and the day and time to answer by,
+shows the email as it will read, and holds the ask until "Send a test to
+me" has reached whoever is asking for that day and time (another day or time
+asks for a new test). The ask emails that one person, from NAISI, replies to
+ai-safety@uonsu.com, signed by the programme's lead. It names the group's
+weekly time, its room (left out while it has none), its first session and
+weeks on its own calendar, its size, the training (left out while none is
+set) and the day and time to answer by. It is written whole or not at all:
+a group with no day and time, or nothing still to come, cannot be asked for.
+An email that fails takes the ask back with it.
+
+"Remind" sends the ask again under a line saying it is a reminder, to that
+person only, while the ask is waiting: at most three times, twelve hours
+apart. "Ask someone else" asks another person for the same place; whoever
+says yes first takes it, and the other ask closes.
+
+### The answer
+
+"Say yes or no" opens `/learn/facilitate/<ask>`, for the person asked,
+signed in, and nobody else (anybody else is told the page is somebody
+else's). Yes puts them on the group as a facilitator through the same code
+the run editor's group card uses (`src/lib/courses/groupFacilitators.ts`),
+in one transaction with the answer, places them in the group when they hold
+a place and sit in no group yet (above), and records who asked them and when
+they agreed in the group's `facilitatorAppointments`. Somebody invited to the
+programme answers that invitation before their yes is taken. No is
+recorded. After the
+day and time to answer by, or once somebody else has the place, the page
+says so and nothing can be answered. Nobody is emailed by an answer: groups
+going out (Publish) tells the new facilitator their group, as it tells
+everybody, and until then they see no names.
+
+### The training
+
+A setting of the run on the programme's Settings tab, for the lead and
+admins: a day, a time and a room, all three, or none. There is no default.
+
+### What is kept
+
+`courseFacilitating`, server only: each ask (who, which group, by when, the
+answer, the email exactly as it went), the run's training and the last test.
+Destroying the run drains it; deleting an account deletes every ask sent to
+it, and clears the account's uid where it asked somebody or set the training.
+
+## Updates on a run
+
+An update is a short post to the people on a run: everyone, one group, or
+the facilitators. It is kept for them on the site and, with "Also email it"
+on, emailed to each of them too. The code is under `src/lib/courses/updates/`
+and one route, `/api/courses/runs/[runId]/updates`.
+
+### Who writes, and where
+
+- **The programme's lead and admins**: the programme page's Messages tab.
+  To offers everyone, each live group and the facilitators, each with how
+  many people it is to. Below the composer, every update on the run, with
+  who it was to and what its email did.
+- **A group's facilitators**: "Write to Group B (8)" on their group's page,
+  which opens the composer for that group alone.
+- **A run's track leads** may write as the lead does, through the same
+  route; no page offers it to them yet.
+
+### Who reads, and where
+
+- A member of the run reads the updates to everyone and to their own group,
+  under Updates on the programme's page, once Publish has told them their
+  group. Three show first; "Show older updates" shows the rest.
+- A group's facilitators read the updates to everyone, to the facilitators
+  and to their own groups. Their group's page lists that group's.
+- The lead, the track leads and admins read them all, on the Messages tab.
+- Nobody else: not a reviewer, not somebody Publish has not told, not
+  somebody who left. An update to one group is never shown to another
+  group's people.
+
+### The email
+
+- A notice (docs/notifications.md): it reaches each person whatever their
+  course email switch says, and says so at its top. To everyone and to a
+  group it goes to the run's cohort list, so somebody who unsubscribed from
+  that list reads the update on the site and is not emailed; to the
+  facilitators it goes to each one's own address. The suppression list
+  always applies.
+- The number on the switch and the button is the number the press emails.
+  If it has changed by the time of the press, the press is refused with the
+  new number and nothing is posted.
+- Replies go to ai-safety@uonsu.com. The email carries no meeting link of its
+  own; what goes out is the title and the message as typed.
+- "Send a test to me" emails the presser alone, marked [TEST], and posts
+  nothing. Ten an hour.
+- Caps, on counters of their own: three emailed updates an hour per writer
+  and audience, ten a day per audience; ten an hour posted without an email.
+  The existing "Email the group" and run email composers keep their own.
+
+### What the list says about an email
+
+"Emailed to N" counts the messages handed to the mail service. "N held"
+means this copy of the site does not email those addresses (every address on
+a staging copy). "Email not finished" means the send began and its result
+was never written: the request was cut off part way, so some people may
+have it and some may not. The send log in Deliverability says who.
+
+### Deleting
+
+Destroying the run deletes its updates (the dialog counts them as Updates).
+Deleting somebody's account leaves the updates they wrote: they belong to
+the run and the people they were to. Such an update shows its writer as
+NAISI.
+
+## A facilitator's week: the group page, the register and Home
+
+Boards wk-fac-group (and its phone copy) and wk-fac-home-phone. Everything a
+facilitator reads about their group is worked out on the server by
+`src/lib/courses/facilitatorGroup.ts`, from the records the lead's tabs read
+(`programmeAttendance.ts`), so the two never tell different stories.
+
+### The group page, `/learn/[runId]/group/[groupId]`
+
+For the group's live facilitators and admins (the same gate as before).
+The head (the group, its week, its programme, its usual day, time and room,
+the other facilitators), "Write to Group B (7)" and "Change a session", the
+next session as a ticket with how many are expected and "Take the register",
+"Your group" with each FINISHED register's mark (a register not finished is
+the facilitator's draft and shows nothing here) and who left, last, with the
+day, "Registers" with how many came, "To review" (an answer sent and not
+reviewed, a row per person per week, each "Review" opening the review queue
+on that week), the updates, the pace against the programme, and the notes.
+Once every session is over, the ticket's place says there are no more.
+
+Not drawn, though the board draws them: who can't make it tonight (2.4 is
+not built) and a facilitator guide (no record holds one).
+
+### The register, `/learn/[runId]/group/[groupId]/register`
+
+The register is a page of its own (board wk-register), behind the register's
+own gate. "Take the register" and each register's "See it" lead there. The
+grid is the one the group page used to hold. Before Publish has told anybody
+their group the page says when the names come.
+
+### Notes for the group's facilitators
+
+`courseGroupNotes`: one document per note (run, group, writer, words, day).
+Written only by `POST /api/courses/groups/[groupId]/notes`, and only by a
+live facilitator of the group; read only on the server, by the group page
+(its facilitators and admins) and the programme's Attendance tab (its lead
+and admins). Nobody else, and no browser: the rules refuse every client.
+An empty note, or one over 2,000 characters, is refused with a sentence.
+Destroying the run deletes its groups' notes (the dialog counts them);
+deleting the writer's account deletes every note they wrote.
+
+### Home
+
+For a facilitator: the next session's ticket with how many are expected,
+"Take the register", this week's theme and what waits for a review, when
+next week's email goes while it is on its schedule (nothing while the push
+still sends it), and a line for somebody who left recently, said by name,
+until the first session after they left is over. What only the group's
+facilitators are told comes from `GET /api/courses/groups/[groupId]/summary`,
+behind the group page's gate.
+
+On every day before the day of the group's first session, Home is the board
+st-fac-before-phone's instead: the first session as a ticket with "Open your
+group", Who's coming, and Say hello (the way to write an update to the group,
+with how many it emails, while anybody in it has been told). Who's coming is
+the one thing a facilitator sees from applications (privacy policy version
+7): each person in the group by first name, and whether they have said they
+are coming, read by `src/lib/courses/whosComing.ts` and handed by the summary
+only to a live facilitator of the group, only before the first session's
+day, and only about the people Publish has told. Never a reason; somebody who
+gave their place back is not in it. From the first session's day, Home is the
+weekly Home above.
+
+## Changing a session
+
+One week's session of one group can be held online, moved for that week only,
+cancelled with the group keeping pace, or cancelled with the rest of the
+group's weeks pushed back a week; a changed session can be put back as usual.
+The code is `src/lib/courses/sessionChange/` and one route,
+`/api/courses/groups/[groupId]/session/change`.
+
+### Who, and where
+
+- **The programme's lead and admins**: the Groups tab's Sessions view, one week
+  of the run with each group's session in it. `?week=5` shows another week.
+- **A group's facilitators**: "Change a session" on their group's page, which
+  lists the group's sessions from today.
+- **A run's track leads** may change a session through the same route; the
+  Sessions view is the lead's and admins', as the tab's other views are.
+- Nobody else. A session that has started cannot be changed: it is the
+  register's.
+
+### What each one does
+
+- **Hold it online**: same day and time, the week switched online. Only for a
+  group with a join link; the link is on the group's programme page, never in
+  an email.
+- **Move it**: that week's day (within its week), time and room. A moved
+  session meets in its room, so an online switch for that week goes.
+- **Cancel it, and keep pace**: nobody meets that evening, the week's reading
+  stays open, the next session covers both weeks, and the group finishes when
+  it would have (or a week sooner, when the cancelled session was its last).
+- **Cancel it, and push the rest back a week**: a "No session this week" break
+  goes into the group's own plan where the week was, so it and every week
+  after it move back one week, and the group finishes a week later. From then
+  on the group keeps its own plan, as after Add break in the pace editor.
+- **Hold it as usual** (for a session changed one of the first three ways):
+  back to the group's weekly slot and room.
+
+A cancellation is of one evening: if the run is re-dated, or the group
+re-paced, so that the week's session falls on another date, the week is held
+on its new date.
+
+### Telling the group
+
+With "Tell the group" on (as it opens), the button says how many people it
+emails, and the press posts an update to the group through the updates route,
+emailed to them as any update to a group is (see Updates on a run): the reason
+the group was given and what is now true. If the change went through and the
+update did not, the dialog says so and offers to tell the group again. The
+reason and a moved room are refused if they hold a link.
+
+The group's programme page shows a cancelled evening as "No session tonight"
+(before the day, "No session on Tue 24 Nov"), with the reason and when the
+group meets next, until that evening has passed.
+
+### What else follows
+
+- **Next week's email** about a cancelled session says it is off, why, and when
+  the group meets next, and leaves out when and where the group meets; the email
+  about the session after it says it covers both weeks. A moved session's email
+  names its new day, time and room, and an online one says Online.
+- **The register chase** skips a cancelled session: no reminder, no task. Its
+  register still has a column, which reads Not held and takes nothing, and the
+  register's foot is about another session.
+- **Everybody's figures** leave it out: the lead's tabs, the stored figures on
+  each person's row and their own marks, and Home's attendance reads the week
+  as no session.
+- **The run's catch-up email** names no cancelled evening.
+
+### Rules
+
+`courseGroups.sessionChanges` is server-owned like `sessionModes`: only the
+change route writes it, and no client lane may set it, change it or create a
+group carrying it.
+
+## Add to calendar
+
+One private link per person, which their calendar app subscribes to and
+fetches again by itself, so a moved, online or cancelled session reaches
+their calendar without them doing anything (board st-calendar-phone). The
+record is `src/lib/firestore/calendarLinks.ts`; making, finding, replacing
+and deleting a link is `src/lib/courses/calendarLink.ts`; what a link's
+calendar holds is `src/lib/courses/calendarFeed.ts`; the file is
+`src/lib/events/ics.ts`.
+
+### Where people find it
+
+"Add to calendar" is on the session ticket of the programme page and of
+Home, for whoever's group the ticket is: a member Publish has told, or one of
+the group's facilitators. An online week's ticket carries Join online in its
+place. The dialog says how many sessions the link adds and when, and has four
+buttons: Apple Calendar (the link's `webcal:` address, which an iPhone or a
+Mac subscribes to), Google Calendar and Outlook (each one's own "add a
+calendar from a link"; Outlook is Microsoft 365, the university's, and
+somebody with a personal Outlook.com account adds the copied link instead),
+and Copy the link. Under the board's note, "Get a new link" replaces it.
+
+### What the calendar holds
+
+Every session of every group Publish has told the person about, and of every
+group they facilitate, dated as the site dates it, with each week's move,
+online week and cancellation applied. A seat counts from the week its owner
+joined; a seat that left (by themselves, or taken off by staff) keeps only
+the sessions that started before the day it left. A draft or cancelled run, a
+run being destroyed and an archived group add nothing, and nothing at all is
+shown while the account does not stand.
+
+Each session says its day and time, its programme and group ("AGI Strategy ·
+Group B") and that week's room. An online week says "Join on naisi.uk" with a
+link to the person's programme page, where Join online is. The meeting link,
+anybody's name and anybody's address are never in it. An evening cancelled
+through Change a session stays, marked cancelled; a week pushed back moves.
+Each session keeps the same id from one fetch to the next, and its sequence
+number grows with every change, so a calendar moves the entry it holds rather
+than adding a second.
+
+### The link
+
+`calendarLinks/{uid}`: `{ uid, token, createdAt }`, made the first time the
+person opens the dialog and the same every time after. "Get a new link"
+writes a new token over it, and the old link opens nothing from that moment.
+The link is deleted with the person's account.
+
+Every link that opens nothing (never made, mistyped, replaced, deleted, an
+account that does not stand) answers the same empty calendar, never a 404:
+a calendar app that holds a replaced link keeps its last copy when the link
+stops answering, and an empty answer empties that copy on its next fetch. A
+failure of ours (the database unreachable) answers 503 with Retry-After, so
+calendars keep what they had. The token is never written to a log line.
+
+### How often a calendar looks
+
+The file asks to be fetched again every hour, which Apple Calendar and
+Outlook heed. Google Calendar fetches on its own schedule, which can be many
+hours, so a change can take that long to reach a Google calendar; the
+programme page and the update the group is sent say it first. Nothing caches
+the file on the way (`private, no-store`).
+
+### If somebody's link has got out
+
+They open the dialog and press "Get a new link"; every calendar holding the
+old one empties on its next fetch. If they cannot open the dialog (they have
+left the programme), deleting their `calendarLinks/{uid}` document does the
+same.
+
+### Rules
+
+`calendarLinks` refuses every browser, its owner's and admins' included: the
+link route shows the owner their link, and the feed route reads it on the
+server.
+
+## Offering a place somebody gave back
+
+A place given back after decision day can be offered, on the site, to
+somebody who was told "No offer this time" and ranked that programme (see
+[docs/applications.md](applications.md), "A place given back after decision
+day"). It uses decision day's invitation and its Accept, with an email of its
+own, and it is the job of an admin or the programme's lead. A lead who is
+not an admin is shown a person's score once their own review of that
+application is done, as on every other list of applications.
+
+The window is from the send until the end of week 1 of the course run the
+programme names: midnight in London at the end of the last day of the week
+its plan numbers 1. The page says the day. After it, nobody new can be
+offered a place, and the page and the route say so.
+
+### The order
+
+1. **Take the person who gave the place back off the run**, as above ("When
+   somebody gives their place back"). The place is free from the moment they
+   reply; this only tidies the board.
+2. **Open the programme's Applications tab** and press "Offer freed places",
+   under the count of places left. It is drawn once decisions have gone out.
+3. **Pick who to offer a place to.** The list is the people told "No offer
+   this time" who ranked the programme and whom it pooled, with their score,
+   when they are free and which groups they can make. For each one picked,
+   choose the group whose time their email names: only groups whose whole
+   session they can make, with a seat, are offered.
+4. **Choose "Invitations accepted by"**, the day the email asks them to
+   accept by. There is no default.
+5. **Press "Send a test to me".** The first person's real email arrives at
+   your own address, marked as a test. Read it.
+6. **Press "Send N invitations".** It is refused until a test for the same
+   day to accept by has reached you.
+7. **When somebody accepts** (on their own application page, as on decision
+   day), press **Hand over** on the programme's Settings tab: it adds only
+   who is missing. Put them in the group their email named on the allocation
+   board, then press **Publish**, which emails only them.
+8. **When somebody says no thanks**, the place is free again: offer it to
+   somebody else while the window is open.
+
+### Things worth knowing before you do it
+
+- **The day to accept by is not a wall**, as on decision day: somebody who
+  accepts late still has the place. The window closing stops new offers,
+  not replies.
+- **An unanswered offer keeps its place**, and a seat in the group its email
+  named, until it is answered. The page counts both.
+- **The daily invitation reminder does not remind a freed place.** Chase it
+  by hand if you need to; the page lists every offer and where it stands.
+- **An email that did not go** is listed as "Email still to go" with a button
+  that sends it. One nobody can vouch for is never sent again: the person can
+  still read their offer on their own page.
+- **Decision day's page does not change.** It reports what decision day
+  sent, so somebody offered a freed place is still under "No offer this
+  time" there.
+- **Settle the term after the window has closed.** A settled form offers
+  nothing, and settling writes each person's record of the term, which then
+  says "no-offer, then invited" for somebody who was offered a freed place.
+- **Nothing is deployed for any of this.** No rule and no index changes: the
+  offer is written by a route onto the person's own application, in a
+  collection already shut to every browser.
+
+### What is logged
+
+Each press appends one line to the course log (`courseAudit`, kind
+`application-freed-places-offered`), keyed to the form: who pressed, how
+many places, on which programme and the day to accept by. It names nobody
+offered one. A test leaves no line: it is recorded on the form instead.
+
+## Pitching week
+
+An incubator's pitching week: each person in a group pitches a paper and a
+twist, alone or with one partner from their own group, then says which of
+their group's other pitches they would join, up to a limit, before their
+group's session that week starts. The lead makes teams from that on the
+programme's Teams tab (see Teams, below). The code is
+`src/lib/courses/pitching/`.
+
+### Setting it up
+
+1. **Tick the week.** In the run editor, open the week, and under Week
+   details switch on **This is pitching week**, then save. It is off by
+   default and there is no week number anywhere in the code: the run's
+   pitching week is the lowest-numbered week ticked. The run editor's
+   Pitching week section says which week is ticked, and asks you to untick
+   any others.
+2. **Set the run's numbers**, in that Pitching week section of the run
+   editor: how many pitches a person may pick, the smallest and largest a
+   team may be, and the day the teams are made. Each is blank until somebody
+   types it, and nothing stands in for a blank one: the sentence it would
+   fill is left out. With no pick limit, people can pitch and nobody can
+   pick.
+3. **Publish the week.** Pitching opens to a group once the ticked week is
+   published, and closes, for each group, at the start of that group's
+   session in that week, from the group's own calendar: a group that meets
+   on another day, or whose session that week has moved, closes at its own
+   time. A week the group's calendar cannot date (no start time) never
+   opens. Times are London's.
+
+### What people see
+
+- **Somebody taking part** (a live seat in one of the run's groups, told by
+  Publish, whose account still stands) sees a card on the programme's home
+  from the moment the week is published until the end of their group's
+  session day in it, and a page, `/learn/<run>/pitching`: their own pitch,
+  their own group's pitches with who pitched each (names only, as the group
+  already sees them), "I’d join this" on each, and how many they have
+  picked of their limit. After the close, everything on the page is read
+  only, and both routes refuse.
+- **Nobody is told who picked what.** A person sees only which pitches they
+  picked themselves. The programme's lead and admins see how many would
+  join each pitch, most first, on the programme's Groups tab under
+  **Pitches** (`.../programmes/<programme>/groups/pitches`), and nobody who
+  picked is named there. A pick counts while its owner is still in that
+  pitch's group, told, with an account that stands.
+- **Facilitators, the lead and admins do not take part**: the page sends
+  them back to the run's home. A reviewer of the programme is told the list
+  is the lead's and admins'.
+
+### Things worth knowing
+
+- **One pitch each.** Saving again changes the one you have. Either person
+  on a pitch may change its words; only the one who sent it chooses or
+  changes the partner. A partner taken off a pitch may pitch again.
+- **The paper** is one of the week's readings, as the group has the week, or
+  typed in. The pitch keeps the reading's title as it was when pitched.
+- **Copying weeks does not carry the tick.** Copying a curriculum in from a
+  template or another run, and a group's own copy of a week, leave pitching
+  week unticked: tick it again on the run's week.
+- **Somebody moved to another group** after pitching keeps their pitch in the
+  old group, and their picks there stop counting.
+- **Deleting an account** takes the person off pitching week: a pitch only
+  they pitched is deleted, one they pitched with a partner stays the
+  partner's, and their name comes off every list of who would join a pitch.
+  **Destroying the run** deletes its pitches, and the destroy dialog counts
+  them as "Pitches".
+- **Nobody is emailed** by any of this.
+- **Deploy**: one new rules block, `coursePitches` shut to every browser
+  (the routes are the only writers and readers). No index.
+
+## Pathways, cases and talks
+
+A week written as blocks can hold a **Choose one** (packs to read, such as
+week 3's pathways) and a **talk** (the case study, given out at the end of
+the session before, or a pitch). Who settles which pack a person has is the
+week's own (`givenBy`, from the guide's words): each person picks on the
+week page, or a facilitator hands the slips out on paper and types the draw
+in. The record is `coursePacksAndCases`, one per person per Choose one or
+talk; the code is `src/lib/courses/packsAndCases/`.
+
+### Typing in the draw
+
+1. **After the session**, the group page shows the spread for the week the
+   group meets next ("Pathways in Group B": each pathway with who has it,
+   and who has nothing yet) and links to the draw page, "Change pathways and
+   cases" (`/learn/draw/<group>?week=<n>`).
+2. **Copy the slips in.** Each person in the group has a row, the group's
+   facilitators included (they take part too): their pathway, then their
+   case. A case list offers only that pathway's cases. A case with a content
+   note is never in a list: it stays out of the draw.
+3. **Swaps** go through the group's facilitators: "Swap two people" swaps
+   everything two people have; Save keeps it. Changing somebody's pathway
+   takes back a case the new one does not offer.
+4. **Save** writes only what changed. Nobody is emailed: each person sees
+   theirs on that week's page.
+
+### Who sees what
+
+- **The group's live facilitators, the programme's lead and admins** type
+  and read the draw. The lead has no link to the draw page yet: open it by
+  its address. Nobody else in the group sees anybody's.
+- **The person** sees their own pack and case on the week page, their case
+  on the programme page's This week card, and their own pack among Home's
+  rows to tick.
+- **A pick** is the person's work for the week: This week's work's reader
+  (`weekWorkOf`) hands it to the group's facilitators, the lead and admins,
+  and leaves a facilitator's own pick blank for their co-facilitators. No
+  page draws that table yet. A pick can change until the person's group's
+  session for that week starts.
+- **"Ready for my talk"** is the person's own: no page shows it to anybody
+  else. It waits for a case on a case study, and a case changed or taken
+  back clears it.
+
+### Things worth knowing
+
+- **Done counts the pack the person has**, ticked as one, and the talk once
+  they mark themselves ready; until a pack is given out, the task is not
+  done.
+- **Somebody who left** is in no draw and is shown nothing; their records
+  stay for the lead and admins.
+- **Deleting an account** deletes the person's records. **Destroying the
+  run** deletes them all, and the destroy dialog counts them as "Packs,
+  cases and ready marks".
+- **Deploy**: one new rules block, `coursePacksAndCases` shut to every
+  browser (two routes are the only writers, and pages read on the server).
+  No index.
+
+## Pairs for a session in pairs
+
+A week asks for pairs when its In the session block's "Before you come"
+says people are paired (Technical AI Safety's week 5: hands-on, in pairs,
+with at least one laptop in each pair), and asks who is bringing a laptop
+when the same words name one. The week's own words decide (`pairsAskOf`);
+no week number is in code, and a group's own copy of the week decides for
+that group. The record is `coursePairs`, one per person per group per
+session in pairs: which pair they are in, and whether they are bringing a
+laptop. The code is `src/lib/courses/pairs/`.
+
+### Pairing a group
+
+1. **Before the session**, the group page shows "Pairs in Group B" for the
+   week the group meets next, when that week asks: each pair with who is in
+   it and who is bringing a laptop, and the check that every pair has one.
+   It links to the pairs page, "Pair people up", then "Change pairs and
+   laptops" (`/learn/pairs/<group>?week=<n>`).
+2. **Pair everybody.** Each person in the group has a row, the group's
+   facilitators included (they take part too, so a facilitator can pair
+   themselves): a "Pair" select (Pair 1, Pair 2 and so on, or "Not paired
+   yet"), and "Bringing a laptop" on a week that asks. Two or three people
+   given one number are a pair.
+3. **The check.** The pairs as they stand sit above the rows: a pair with
+   nobody bringing a laptop is said ("Pair 2 has no laptop yet."), and so is
+   anybody not paired yet. It is a check, never a refusal: Save still saves.
+4. **Save** writes only what changed. A save that would leave one person
+   alone in a pair, or put four in one, is refused with a sentence. Nobody
+   is emailed: each person sees their pair on that week's page.
+
+### Who sees what
+
+- **The group's live facilitators, the programme's lead and admins** type
+  them and see every pair, on the pairs page; the group's facilitators and
+  admins also on the group page. The lead (and an admin) reaches it from the
+  Sessions view of the programme's Groups tab: each group's session in a
+  week that asks for pairs, by the group's own copy of the week, has
+  "Pairs and laptops" (or "Pairs") under "Change a session", to that group's
+  pairs page for that week.
+- **Each person** sees their own pair on that week's page, under the
+  guide's "Before you come": who they are paired with, by first name, and
+  who in their pair is bringing a laptop ("You’re paired with Kofi.",
+  "Kofi is bringing a laptop."). Before they are paired, the guide's words
+  alone. Nobody else in the group sees their pair.
+- **A facilitator paired in two groups** sees each, with the group named.
+
+### Things worth knowing
+
+- **Somebody who left** is in no pair, and nobody is shown them as a
+  partner; their record stays until the account or the run goes. A pair
+  left with one person says so on the pairs page, and does not stop the
+  facilitators saving anything else.
+- **Somebody who moves group** is in no pair of the new group until its
+  facilitators pair them.
+- **Deleting an account** deletes the person's records; a partner's record
+  names nothing of them. **Destroying the run** deletes them all, and the
+  destroy dialog counts them as "Pairs and laptops".
+- **Deploy**: one new rules block, `coursePairs` shut to every browser (one
+  route is the only writer, and pages read on the server). No index.
+
+## Teams
+
+An incubator meets as one weekly group, and its people work in small teams
+inside it. The programme's lead (or an admin) makes the teams on the
+programme page's **Teams** tab, in one of two ways, moves people between
+them, and tells everyone their team by email. The weekly session stays as it
+is. The code is `src/lib/courses/teams/` (the record, the making, the words)
+and `src/lib/applications/handover/teams*.ts` (who may, the tab, the writes,
+the email); the agenda's answers are read by
+`src/lib/applications/handover/agenda.ts`.
+
+### Setting it up
+
+In the run editor's **Pitching week** section, by whoever may edit the run
+(an admin, a course approver, the run's drafter or its track lead; a
+programme's lead who is none of these asks an admin):
+
+1. **Teams are made from**: the pitches from pitching week, or the agenda
+   people ranked on the application form. It has no default, and the Teams
+   tab makes no team until it is set.
+2. **Smallest team** and **Largest team**: teams are made within them. With
+   no sizes set, nothing is made.
+3. **Teams are made on**: the day the teams are due. The programme's head
+   says "Teams by" that day on every tab, and the Teams tab says "You can
+   change them until" it, up to and on that day. Nothing locks the teams
+   after it: the lead can still move somebody who leaves or joins late.
+
+### Who takes part, and who sees what
+
+- **Taking part** is a live seat in one of the run's groups that Publish has
+  told, with an account that stands, the same rule pitching week keeps, for
+  an admin too. Somebody placed and not yet told is put in no team, named
+  nowhere and emailed nothing. Somebody who leaves, moves to another group,
+  or whose account no longer stands drops off their team at once.
+- **A team works inside one group.** It is made from the people of one
+  group, and a person moves only between their own group's teams.
+- **The tab is the lead's and admins'.** A reviewer of the programme is told
+  so; the run's track lead, a group's facilitator and the people taking part
+  never reach it. The email tells each person their team, and from then on
+  their team's page is theirs (see A team's page and its hand-in, below).
+- **What each person ranked** on the form ("1st: Compute governance") is read
+  only for the lead and admins, only for a run whose teams come from the
+  agenda, and only from an application the caller may read.
+
+### From the pitches
+
+Each pitch from pitching week is listed with how many would join it, who
+pitched it and its twist, with **Make it a team**. Pressing it makes a team
+named after the pitch, with its project line ("Replicate [the paper], then:
+[the twist]"), of:
+
+- the people who pitched it, taken out of any team they were in (a pitch's
+  pitchers belong to its team);
+- then the people who said they would join it and are in no team yet, the
+  ones who picked fewest pitches first, then by name, up to the largest team.
+
+It is refused when the team would be smaller than the smallest, and a pitch
+is a team once. Once any team exists, a pitch with none says **Not taken
+forward**, and can still be made a team.
+
+### From the agenda
+
+The agenda is the first question that asks for a ranking among the
+programme's own question sets on the form (the questions only its applicants
+were asked). **Make teams from first choices** (while the run has no team)
+makes each group's teams from its own people: in rounds by rank, each item
+takes people up to the largest team, the people who ranked fewest items first
+where more ask than it has room for, and somebody turned away tries their next
+choice; then a team below the smallest is let go, one at a time (the smallest,
+then the one fewest put first, then the one fewest ranked at all), and its
+people try their next choices. Somebody who ranked nothing, or whose choices
+all filled, is left in no team for the lead to place. To make them again from
+first choices, remove every team first.
+
+### Changing them
+
+- **Move to…** beside each person is a menu of their group's other teams and
+  **No team**. A move may take a team past the largest size or below the
+  smallest; the team's card says so.
+- **Remove team** puts its people in no team, and its pitch can be made a
+  team again.
+
+### Telling everyone their team
+
+- **Send a test to me** first: the first person's email, marked as a test,
+  to the address on your own session. Nothing else goes until a test of
+  yours has reached you (a test this copy of the site held, or the
+  do-not-email list stopped, does not count). Each presser sends their own.
+- **Tell everyone their team** says how many people it emails. Each person in
+  a team gets their team's name, its project line and their teammates' names,
+  never an address, signed with the lead's first name; replies go to
+  ai-safety@uonsu.com. The press sends the number back, and is refused with
+  the new number if the teams changed under it.
+- **Pressing again** emails only the people whose team changed: each email's
+  facts (the team, its name and project line, and who else is in it) are
+  stored on the team as a fingerprint when it goes, and a person is owed an
+  email when theirs would now say something else. So after a move, the person
+  moved and the people of the two teams are told again, and nobody else.
+  Somebody moved to no team is not emailed.
+- A send that fails stays owed and the next press tries it; one held by this
+  copy of the site, or stopped by the do-not-email list, is settled. Somebody
+  with no address on file is named on the tab and not emailed. One press at a
+  time on a run.
+- Every email is written before any is sent: one that cannot be written whole
+  (a team with no name) stops the press, and nothing goes.
+
+### Deleting
+
+- **Deleting an account** takes the person off every team and off its record
+  of who was told; the team stays with whoever else is in it. Their test
+  markers go too.
+- **Destroying the run** deletes its teams, and the destroy dialog counts
+  them as "Teams". The email's markers in `courseNudges` carry the run and
+  go with it.
+
+### Deploy
+
+One new rules block, `courseTeams` shut to every browser (the teams routes
+are the only writers and readers). No index: every query is one equality or
+one `array-contains`. The run's `teamsFrom` rides the run editor's existing
+write, and the run's rules cap no key set, so it needs nothing.
+
+## A team's page and its hand-in
+
+Each of an incubator's teams has a page of its own,
+`/learn/<run>/team`, reached from "Your team" on the programme's page: the
+team and its people with the group's slot and room, the project from its
+pitch, the group's next session, this week's check-in, the team's links, the
+hand-in and the weeks across both terms. The hand-in has its own page,
+`/learn/<run>/team/hand-in`. The code is `src/lib/courses/teamPage/` (the
+record, who reads and writes, what each page shows, the words) and
+`src/features/courses/team/`.
+
+### Setting it up
+
+On the programme's **Teams** tab, under the teams, **Hand-ins**: the day
+hand-ins are due and the week whose session is the showcase. Both are
+blank until the lead or an admin sets them, and nothing stands in for a
+blank one: the sentence it would fill is left out, and with no due day the
+hand-in stays open. A team can hand in and change it until 23:59 in London
+on the due day. The showcase is that week's session as each team's group
+holds it, so a showcase held in another room or at another time is a change
+to that week's session (Changing a session), which tells the group.
+
+The page's calendar is the run's own: an incubator that meets for seven
+weeks this term and three in February has a week plan of weeks 1 to 7,
+seven breaks and weeks 8 to 10 (the run editor's week plan; an admin can
+add breaks and weeks at the end of a running run). "The weeks" splits the
+taught weeks at the breaks and says where this term ends and when the next
+meets.
+
+### Who reads and writes what
+
+- **The team's people** read and write their team's page: somebody among a
+  team's people now (a live seat in the team's group, told by Publish, on an
+  account that stands) who has been told their team by its email. Somebody
+  moved into a team sees it once the next "Tell everyone their team" has
+  told them. A facilitator who holds a place is in a team like anybody.
+- **Anybody in the team can change anything on it**: this week's check-in
+  (one per team per week, for the week the team's group is in now), the
+  links (up to twelve, https only), and the one hand-in (a link, a summary
+  of up to 200 words, who did what if the team wants), behind the box "I've
+  shared this with ..." that whoever presses ticks. The page says beside
+  each that the team, the programme's lead and admins see it.
+- **The programme's lead and admins** read every team's hand-in on the
+  Teams tab, and each team's page, with every week's check-in and who last
+  saved it, from "Read the team's page". They write nothing on it.
+- **Nobody else**: not another team, somebody in no team, somebody who
+  left, a facilitator who holds no place, a track lead or a reviewer.
+- Nothing is emailed by any of it.
+
+### Things worth knowing
+
+- **What a team writes is the team's.** Each entry records who saved it
+  last. Somebody who leaves stops reading and writing at once, and what they
+  wrote stays with the team. Deleting an account takes its uid off what it
+  saved, and the words stay (`clearCourseTeamEntries`).
+- **A removed team's page** is not deleted with it: its entries stay, read
+  by nobody, until the run is destroyed.
+- **Destroying the run** deletes every team's page, and the destroy dialog
+  counts them as "Team pages".
+- **Not drawn yet**, though the boards draw them: "food provided" beside the
+  slot and "Pairs tonight" on the session. No record holds either.
+
+### Deploy
+
+One new rules block, `courseTeamEntries` shut to every browser (the team
+page routes are the only writers, and the server the only reader). No index:
+every query is one equality. The run's `teamHandIn` is written by the Teams
+tab's route.
+
+## Routes and deadlines
+
+Technical AI Safety's week 6 ends with "Where to go next": routes a fellow
+could take next (a sprint, a fellowship, a grant), in two tables, under a
+line saying when somebody last checked them. Deadlines pass, so the list is a
+record on the course (`CourseDoc.routes`, `src/lib/courses/routes/`), kept in
+one place and read wherever it is needed.
+
+### Where it is set
+
+The course's page in the admin area (`/admin/courses/<course>`), the card
+"Routes and deadlines". Admins only: anybody else who can open the course sees
+the list and that an admin changes it. The card's box holds the list as text
+in the guide's own shape; change it there, or paste the guide's section in,
+then Read it, check what it found, and Save. "Take them off" puts the guide's
+own tables back on the week.
+
+The shape (`docs/course-weeks.md`, "A section of routes"):
+
+- the first line is the day they were checked: "Checked on 25 October 2026.";
+- each group is its heading in bold, then its table;
+- a table's first column is Route (the route's name as its link), then What
+  it is, and, where you want them, Who it suits, Deadline (a day such as
+  1 November 2026, or Rolling) and Next round;
+- anything after the last table (the guide's line on funding) is kept.
+
+The guide's own tables have no Deadline column, so pasted as they are no
+route has a deadline. Add the column for the routes whose round closes on a
+known day.
+
+### Where it shows
+
+- **The week that asks for it.** A week whose section has a table with Route
+  as its first column (week 6's "Where to go next") shows the course's list
+  there in place of what the guide wrote, on every run of the course, for
+  everybody who opens the week. Until the course has a list, the guide's
+  tables show as written.
+- **A route past its deadline says so**: "Closed on Fri 20 Nov", worked out
+  from the day it is in London. A route still to close says "Apply by ...",
+  a rolling one "Rolling".
+- **The facilitators' notes.** "Opportunities to mention this week" is to read
+  the same list, leaving out what has closed (`openRoutes`), once the
+  facilitator guide is on the site.
+
+### Keeping it true
+
+Around the start of week 6, check each route's own page, change what has
+moved, and change the "Checked on" day: it is what a fellow reads first.
+
+### Rules
+
+The field is written only by its route (`/api/courses/[courseId]/routes`,
+admins, view-as refused); the rules keep every browser write off it, admins'
+included.
+
+## Sealed predictions
+
+On paper, each fellow fills in a credence card in session 1, seals it in an
+envelope and opens it in session 6, after filling in the same card again. On
+the site the card is a record on the course (`CourseDoc.predictionCard`,
+`src/lib/courses/predictions/`), and each person's two cards are one record
+of theirs on the run (`coursePredictions`, `src/lib/firestore/coursePredictions.ts`).
+
+### Where it is set
+
+The course's page in the admin area (`/admin/courses/<course>`), the card
+"Sealed predictions". Admins only. Say the week it is filled in and sealed in
+and the week it opens in, paste the card as the session plans print it, then
+Read it, check what it found, and Save. "Take it off" stops every week
+showing a card; the cards people filled in are kept, and admins can still
+open them.
+
+The shape (`src/lib/courses/predictions/cardText.ts`):
+
+- the first line is the card's heading, kept as printed; when it says
+  "sealed until week N", N has to be the week it opens in;
+- a "Name:" line is left out;
+- a line before the first question that is not one is the line under the
+  heading;
+- each question is numbered, or ends in a blank or a colon: a blank and a %
+  sign (`____%`) asks for a percentage, a blank alone with the ends in
+  brackets (`(0 = not at all, 10 = completely) ____`) a number on that
+  scale, a colon and no blank a sentence. A number answer may have one
+  decimal place.
+
+A person's card keeps a copy of the questions from their first answer, so
+saving a new card changes nothing anybody has started.
+
+### Where it shows
+
+No line of a week's Markdown places it, so the guides paste as written. On the
+week it is sealed in and the week it opens in, the card goes after In the
+session when the week has one, otherwise before Go further and the hands-on
+route, otherwise at the end of the week.
+
+- **The week it is sealed in.** Somebody taking part (a live, told place, or a
+  facilitator of a live group, as themselves) answers on their own; each
+  answer saves as they type. "Seal my predictions" asks first, then seals it:
+  from then nothing changes it and its answers are never handed back, to its
+  owner either, until their group's session before the week it opens in has
+  ended and they open it there. A card never sealed shuts for good once that
+  session has ended; its owner can still read it on the week it was filled in
+  on.
+- **The week it opens in.** Once the card has opened, the same questions
+  again first, saving as they type, then "Open my sealed card": both cards
+  side by side, with how each number moved, and neither changes again.
+  Somebody who sealed nothing answers again with nothing to open.
+- **When a card opens to them.** Their group's own clock, for everybody with a
+  card: straight after their group's session before the week it opens in
+  (`cardOpenTo`, `src/lib/courses/weekOpening.ts`). Everybody reads every
+  published week at once (Zach, 27 October 2026), so the week a card opens in
+  can be read early, but the card opens with their group and never before.
+  The card is filled in once the week it is sealed in is published for them.
+
+### Who reads a card
+
+Its owner, and admins at any time. Nobody else: not the group's facilitators
+(a facilitator who holds a place included), not the programme's lead, not
+another fellow. An admin opens one from the run's page in the admin area, the
+panel "Sealed predictions": it lists who has a card and where it stands, never
+an answer, and "Open card" records the opening before anything of the card is
+read (`recordOpenings`, `src/lib/firestore/recordOpenings.ts`), refusing to open
+it when the record cannot be written. An admin cannot open their own card
+there. Nothing of a card is shown in a view-as session.
+
+### Deleting
+
+Deleting an account deletes that person's cards. The records of admins opening
+a card stay, in both directions, as the log of course actions does: they hold
+ids, the opening admin's name and when, never what a card said. Destroying a
+run deletes its cards and the records of opening them.
+
+### Rules
+
+`coursePredictions` and `recordOpenings` are shut to every browser, admins
+included: the routes on the Admin SDK are their only readers and writers. The
+course's `predictionCard` is written only by its route
+(`/api/courses/[courseId]/predictions`, admins, view-as refused); the rules keep
+every browser write off it, admins' included.
+
+## Who finished
+
+Once a programme's last session is over, its lead (or an admin) says who
+finished it. The site ticks everybody who came to at least the run's rule,
+the lead changes any they disagree with, and a member's own pages say they
+finished only where their record says so: everybody else is told the
+programme has ended. The code is `src/lib/courses/finishing/` (the record,
+the suggestion, the list, the words) and
+`src/lib/applications/handover/finishingAct.ts` (who may, and the writes).
+
+### Setting the rule
+
+On the programme's **Settings** tab, the **Who finished** card, for a
+programme that names a run: **Came to at least [ ] sessions**, of the
+sessions their group held. Somebody whose group held fewer than that while
+they were in it (a session was cancelled, or they joined after the start)
+meets the rule by coming to every session it held; a group that held none
+while they were in it meets nobody's. There is no default: with no number
+the site ticks nobody, and the lead ticks people by hand. A number above the most
+sessions any of the run's groups is due to hold is refused. It can be set or
+changed at any time, before the end or after it. Only the lead and admins are
+ever shown it: no member's page and no member's payload carries it.
+
+### What counts
+
+- **Came** is the Attendance tab's own count: present, late and left early,
+  on the registers of the person's group, from the week they joined. Excused
+  counts in "of" and never as came. A session cancelled through Change a
+  session, or a register that says it was not held, counts for nobody, and
+  the list says so under it ("Group B met 5 times. Its session on Tue 24 Nov
+  was cancelled, and it doesn’t count against anyone.").
+- **The end** is the end of the run's last session: the latest end among its
+  groups' dated sessions, a cancelled one left out. Before then the Overview
+  has no list (its People card says when it can be done), a switch is
+  refused, and nobody is told they finished.
+- **Written answers** beside each person are the ones set on the weeks their group
+  was taught (its own copy of a week where it has one), published weeks only,
+  and how many of those they sent.
+
+### The list
+
+It leads the **Overview** once the last session is over, above the rest of
+the page: everybody who took part (the lead sees the people Publish told, an
+admin everybody placed), fewest sessions first, each with a **Finished**
+switch. While there is no rule the sentence over the list says so, and its
+"Settings" leads to the rule's card. A switch saves at once. A change is stored only where it disagrees
+with the rule, with who made it and when, and is marked "Changed by you" (or
+by whoever made it); putting a switch back to what the rule says removes the
+change, so a register corrected afterwards still counts for that person.
+Somebody who left is listed under **Left the programme** with the day they
+left, and has no switch: they are never "not finished". On a phone the list
+is a card a row, each switch beside the person's name, so none is behind a
+sideways scroll.
+
+A register that is still not finished after the last session changes who
+came: Needs attention, lower on the same page, names it.
+
+### What members see
+
+Each member's run home, their card on My programmes and Home ask their own
+record (`finishedForMember`): "You finished [course]." and "Finished" where it
+says so, "[course] has ended." and "Ended" for everybody else, staff
+included. Nobody is told they did not finish, and no page names the rule. The
+programme's head reads "Finished · [the last session's day]" and how many
+stayed to the end, from the moment that session ends.
+
+### Deleting
+
+- **Deleting an account** deletes the lead's decisions about that person; on
+  decisions they made about other people, who made them is cleared and the
+  decision stays.
+- **Destroying the run** deletes its rule and decisions, and the destroy
+  dialog counts them as "Who finished".
+
+### Deploy
+
+One new rules block, `courseFinishing` shut to every browser (the two
+finishing routes are the only writers, and only the server reads it). No
+index: every query is one equality on one field.
+
+## Certificates
+
+When a programme ends, its lead (or an admin) sends a certificate to
+everybody its record says finished and to each of its facilitators, from the
+Overview. Each is a page at `naisi.uk/c/<code>`, private until its owner turns
+its link on, and a PDF its owner downloads. Privacy policy version 7
+("Certificates" and "Retention") is the contract. The code is
+`src/lib/courses/certificates/` (the record, the words, the page's reads, the
+send, the PDF), the page `src/app/(public)/c/[code]/`, the section
+`src/features/applications/overview/CertificatesSection.tsx` and the card
+`src/features/courses/CertificateCard.tsx`.
+
+### Before it goes out
+
+- **The credit line.** Every certificate of a course prints the course's
+  credit line after its weeks ("6 weeks · based on the BlueDot Impact
+  curriculum"). It is set on the course's own page in the course editor,
+  **Credit on certificates**, typed as it prints after the dot (so it starts
+  with a small letter), and empty for none. The programme's Settings show it
+  read-only, first letter in capitals, with a link to the course's page for
+  somebody that page opens for. A change reaches certificates sent after it:
+  each certificate keeps the words it was issued with.
+- **Who finished** is said on the Overview first (above). The send reads the
+  record as it is when the button is pressed.
+
+### Sending
+
+The **Certificates** card follows Who finished on the Overview once the last
+session is over: who they go to ("28 people who finished and 5
+facilitators."), a smaller copy of one person's certificate, the email's
+subject, and two buttons.
+
+1. **Send a test to me** emails the presser the first person's email, marked
+   `[TEST]`, at the address on their own session. Its button opens the lead's
+   preview (nothing is made by a test). Only a test that arrived unlocks the
+   send, and each presser needs their own.
+2. **Send 33 certificates** makes each certificate (private, with a code of
+   its own) and emails each person, one email a person: a facilitator who
+   held a place and finished gets both certificates in one email, a button
+   to each. The button counts certificates and the line under it counts
+   people; both numbers are checked again when it is pressed, and a press is
+   refused with the new numbers if either moved. One press at a time on a
+   run; two presses at once send one batch.
+3. **Send N more** reaches only people without theirs: somebody ticked later,
+   or an email that failed. A send held by a copy of the site that does not
+   email that address, or stopped by the do-not-email list, is not tried
+   again.
+
+Who is sent one: the people the record says finished, as the presser's own
+list shows them (a lead sees the people Publish told, an admin everybody
+placed), whose account still stands; and each facilitator of a group
+anybody was in, held to their standing, once however many groups they ran.
+Somebody who did not finish is sent nothing and is not told. Somebody with
+no email address on file is named under the buttons and not counted. A
+certificate whose name, term or weeks cannot be written stops the press,
+naming the person, and nothing is sent.
+
+The preview (the thumbnail, and **Preview** beside the subject) shows one
+person's certificate page as its owner will see it, link off, and the email
+laid out as it will arrive. Nothing is made or sent by opening it.
+
+### After it goes out
+
+- **The page.** Its owner, signed in as themselves, sees the certificate and
+  **Download PDF**, **Add to LinkedIn**, the switch **Anyone with the link
+  can see it**, and **Copy link**. Anybody else sees it, with "Check it at
+  naisi.uk/c/…", only while its link is on. A link that is off, a code that
+  opens nothing and one that cannot be a code all get one calm page, the
+  same in every case. An admin viewing as the owner is not the owner. The
+  page is never indexed and nothing public links to it.
+- **The PDF** is the page's certificate on an A4 page, landscape, saved as
+  `naisi-certificate-<code>.pdf`, for its owner alone, whether or not the
+  link is on; it carries the check line only while the link is on.
+- **Add to LinkedIn** opens LinkedIn's own "add a certification" form with
+  the certificate's title, its year and month, and its page's address,
+  nothing else. LinkedIn may not fill its form in from the address; people
+  then type the title and date themselves.
+- **The programme page** shows its owner "Your certificate" under the head:
+  the certificate made smaller, the day it was issued, who can see it, **See
+  your certificate** and **Add to LinkedIn**. Nothing for anybody sent none.
+- **Who finished keeps the certificate's word.** Once somebody has a
+  certificate for finishing, neither their switch nor a stricter rule can
+  mark them not finished; both are refused with a sentence. To change it the
+  certificate has to be withdrawn first, by hand (below).
+
+### Withdrawing one
+
+There is no button. An admin deletes the certificate's document in
+`courseCertificates` (its id is `<runId>__<uid>__<kind>`); its page then shows
+the calm page to everybody. Do this when its owner asks, or when a
+certificate was sent in error, and tell its owner.
+
+### Deleting
+
+- **Deleting an account** deletes its certificates whose link is off; one
+  whose link is on stays, without its owner, and goes on showing what it was
+  issued with (policy v7, Retention). The markers of tests the account sent
+  go too.
+- **Destroying the run** deletes its certificates whose link is off and keeps
+  those whose link is on, without the run; the destroy dialog counts both.
+
+### Deploy
+
+- One new rules block, `courseCertificates` shut to every browser (the send,
+  the owner's switch and the two deletions write it; only the server reads
+  it). No index: every query is one equality on one field.
+- PDFKit runs outside the server bundle (`serverExternalPackages` in
+  `next.config.ts`), and the PDF's fonts are traced into its route
+  (`outputFileTracingIncludes`). The fonts are in
+  `src/lib/courses/certificates/fonts/`, each beside its licence.
 
 ## Cutover: membership periods
 
@@ -1104,6 +2860,14 @@ Things worth knowing before you do it:
 - **The runs are untouched.** A round feeds course runs, and the runs outlive
   it. Somebody sitting on a cohort keeps their place when the intake that put
   them there is destroyed.
+- **People an application form handed over to a run, and who are not in a
+  group yet, are then told they are on nothing.** Their rows stay on the
+  run and the board still places them, but until each is in a group their
+  member area knows they hold a place only from the application the destroy
+  removes. So Home and the list of their programmes say "not on a programme
+  yet" to them until they are placed. Put everybody in a group before
+  destroying a form whose people are on a run ("Placing a term's accepted
+  people on a course run").
 - **Two logs survive.** `emailSends` (what was sent to whom) and `dataExports`
   (which spreadsheets were downloaded, and by whom) are append-only records that
   outlive what they describe. The manifest counts both and marks them kept.

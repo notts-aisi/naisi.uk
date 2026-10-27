@@ -1666,7 +1666,64 @@ service cloud.firestore {
           // than born client-writable, which is the way round that gets
           // noticed.
           && request.resource.data.get('archived', false)
-            == resource.data.get('archived', false);
+            == resource.data.get('archived', false)
+          // The crest is an admin's to set, through its own route, so every
+          // other writer carries it through as it was.
+          && request.resource.data.get('crest', null)
+            == resource.data.get('crest', null);
+      }
+      // When written work set for "the day before" a session is due
+      // (CourseDoc.dayBeforeDueTime in src/lib/firestore/courses.ts): absent
+      // or null for the end of that day, or a London time "HH:MM" from 00:00
+      // to 23:59, the one shape isClockTime reads. Held for every writer,
+      // admins included, so a stored value is always one the readers take;
+      // the course editor writes null or a time and nothing else.
+      function courseDayBeforeOk() {
+        return request.resource.data.get('dayBeforeDueTime', null) == null
+          || (request.resource.data.dayBeforeDueTime is string
+              && request.resource.data.dayBeforeDueTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$'));
+      }
+      // The programme crest a course carries: one of the four keys in
+      // src/lib/crests/keys.ts, or none. Set by an admin through
+      // /api/courses/[courseId]/crest (Admin SDK); a client write is held to
+      // the shape whoever makes it.
+      function courseCrestOk() {
+        return !('crest' in request.resource.data)
+          || request.resource.data.crest == null
+          || request.resource.data.crest in ['agi-strategy', 'technical-ai-safety', 'governance-macrostrategy', 'alignment'];
+      }
+      // A course's rubric for written answers (CourseDoc.rubric in
+      // src/lib/firestore/courses.ts) is the server's: its route
+      // (/api/courses/[courseId]/rubric) holds a pasted table to
+      // rubricProblems, rows by levels a rule cannot walk, and only an admin
+      // may save one. No browser writes it, admins included; the course
+      // editor's own writes never carry it.
+      function courseRubricUntouched() {
+        return resource == null
+          ? !request.resource.data.keys().hasAny(['rubric'])
+          : !request.resource.data.diff(resource.data).affectedKeys().hasAny(['rubric']);
+      }
+      // A course's routes and deadlines (CourseDoc.routes in
+      // src/lib/firestore/courses.ts) are the server's: their route
+      // (/api/courses/[courseId]/routes) reads a pasted list against
+      // courseRoutesProblems, groups of rows a rule cannot walk, and only an
+      // admin may save one. No browser writes the field, admins included; the
+      // course editor's own writes never carry it.
+      function courseRoutesUntouched() {
+        return resource == null
+          ? !request.resource.data.keys().hasAny(['routes'])
+          : !request.resource.data.diff(resource.data).affectedKeys().hasAny(['routes']);
+      }
+      // A course's card for sealed predictions (CourseDoc.predictionCard in
+      // src/lib/firestore/courses.ts) is the server's: its route
+      // (/api/courses/[courseId]/predictions) reads a pasted card against
+      // predictionCardProblems, a list of questions a rule cannot walk, and
+      // only an admin may save one. No browser writes it, admins included;
+      // the course editor's own writes never carry it.
+      function coursePredictionCardUntouched() {
+        return resource == null
+          ? !request.resource.data.keys().hasAny(['predictionCard'])
+          : !request.resource.data.diff(resource.data).affectedKeys().hasAny(['predictionCard']);
       }
 
       // ---- V3 W3 PR20: draft reads ---------------------------------------
@@ -1731,9 +1788,14 @@ service cloud.firestore {
         // its first real destroy.
         && request.resource.data.get('destroying', false) == false
         && request.resource.data.get('destroyAuditId', '') == ''
-        && request.resource.data.get('archived', false) == false;
+        && request.resource.data.get('archived', false) == false
+        && request.resource.data.get('crest', null) == null
+        && courseDayBeforeOk()
+        && courseRubricUntouched()
+        && courseRoutesUntouched()
+        && coursePredictionCardUntouched();
 
-      allow update: if isAdmin()
+      allow update: if courseCrestOk() && courseDayBeforeOk() && courseRubricUntouched() && courseRoutesUntouched() && coursePredictionCardUntouched() && (isAdmin()
         || (
           (canApproveCourse() || isCourseCollaborator()
             || (canDraftCourse() && isOwnCourse()))
@@ -1752,7 +1814,7 @@ service cloud.firestore {
             request.resource.data.status == resource.data.status
             || canApproveCourse()
           )
-        );
+        ));
 
       // Deletion cascades runs/weeks/groups/progress — far too much blast
       // radius for a client write. The destroy routes (Admin SDK) own it:
@@ -1935,7 +1997,22 @@ service cloud.firestore {
           && request.resource.data.get('enrolledCount', 0)
             == resource.data.get('enrolledCount', 0)
           && request.resource.data.get('submissionExerciseRef', {})
-            == resource.data.get('submissionExerciseRef', {});
+            == resource.data.get('submissionExerciseRef', {})
+          // THE DAY GROUPS GO OUT and AN INCUBATOR'S HAND-IN DATES. Each is a
+          // date every person on the run is told, set by the programme's lead
+          // or an admin through its programme tab's route on the Admin SDK
+          // (`.../programmes/[programmeId]/groups-go-out` on the Groups tab,
+          // `.../programmes/[programmeId]/teams/hand-in` on the Teams tab). The
+          // run editor writes neither, so the drafter-owner, an approver and a
+          // track lead, who edit the run from the browser all term, may not
+          // change either from there. Both sides default, so a run that has
+          // never had one compares equal and passes: the groups route stores
+          // null to clear its day and the hand-in route always stores the
+          // whole map, and neither deletes.
+          && request.resource.data.get('groupsGoOutOn', null)
+            == resource.data.get('groupsGoOutOn', null)
+          && request.resource.data.get('teamHandIn', {})
+            == resource.data.get('teamHandIn', {});
       }
 
       // ---- V3 W1 PR5: courses open mode ---------------------------------
@@ -2019,6 +2096,16 @@ service cloud.firestore {
             == resource.data.get('weekPlan', []);
       }
 
+      // A programme's Start here and Glossary are the server's, for every writer,
+      // admins included: the guide route holds each to its check
+      // (src/lib/courses/guide/model.ts), nested lists a rule cannot walk, and
+      // every copy of a run's curriculum goes through Admin SDK routes.
+      function runGuideUntouched() {
+        return resource == null
+          ? !request.resource.data.keys().hasAny(['startHere', 'glossary'])
+          : !request.resource.data.diff(resource.data).affectedKeys().hasAny(['startHere', 'glossary']);
+      }
+
       // Content caps shared by create and update. `startDate` must be a
       // civil "YYYY-MM-DD" — the week maths (weekPlan.ts) runs on civil
       // dates so DST can't shift week boundaries, and a malformed date here
@@ -2059,7 +2146,17 @@ service cloud.firestore {
           && request.resource.data.get('cohort', {}).get('term', 'autumn')
             in ['autumn', 'spring', 'summer']
           && request.resource.data.get('cohort', {}).get('year', 2026) is int
-          && request.resource.data.get('cohort', {}).get('number', 1) is int;
+          && request.resource.data.get('cohort', {}).get('number', 1) is int
+          // The day groups go out (`groupsGoOutOn`): null, or a civil
+          // "YYYY-MM-DD" date in London, as its route writes it. Absent reads
+          // as null. Every sentence that names the day reads only a whole
+          // date. A stored value of any other shape would refuse every later
+          // non-admin edit of the run, which is why only that route writes
+          // it, and only these two shapes.
+          && (request.resource.data.get('groupsGoOutOn', null) == null
+            || (request.resource.data.get('groupsGoOutOn', null) is string
+              && request.resource.data.get('groupsGoOutOn', null)
+                .matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')));
       }
 
       // ---- V3 W3 PR20: draft reads ---------------------------------------
@@ -2175,7 +2272,8 @@ service cloud.firestore {
         && request.resource.data.get('streams', []).size() == 0
         && request.resource.data.get('enrolledCount', 0) == 0
         && request.resource.data.get('submissionExerciseRef', {}) == {}
-        && runContentOk();
+        && runContentOk()
+        && runGuideUntouched();
 
       // Status moves (applications-open, running, cancelled, ...) change what
       // the world sees and what the apply route accepts — approve-gated, same
@@ -2183,7 +2281,7 @@ service cloud.firestore {
       // label, the dates, the application form, and the week plan while the
       // run is still a draft) but is NOT an approver, and once the run is out
       // of draft the plan itself is pinned by weekPlanLockRespected().
-      allow update: if isAdmin()
+      allow update: if runGuideUntouched() && (isAdmin()
         || (
           (canApproveCourse() || isRunTrackLead()
             || (canDraftCourse() && isOwnRun()))
@@ -2202,7 +2300,7 @@ service cloud.firestore {
           // V3 W1 PR5: and even an approver may only make a move the table
           // allows. See runStatusMoveAllowed().
           && runStatusMoveAllowed()
-        );
+        ));
 
       allow delete: if false;
 
@@ -2210,6 +2308,27 @@ service cloud.firestore {
       match /weeks/{weekId} {
         function run() {
           return get(/databases/$(database)/documents/courseRuns/$(runId)).data;
+        }
+        // "Questions to think about" (C29): at most five, each a line of
+        // text of 1 to 160 characters (COURSE_FIELD_LIMITS.maxWeekQuestions
+        // and .weekQuestion in src/lib/firestore/courses.ts; keep the three in
+        // step). A rule cannot loop, so each of the five places is checked by
+        // its index, and a list shorter than an index passes that index's
+        // check. A week with none, or written before the field, holds [].
+        function weekQuestionOk(questions, i) {
+          return questions.size() <= i
+            || (questions[i] is string
+                && questions[i].size() > 0
+                && questions[i].size() <= 160);
+        }
+        function weekQuestionsOk(questions) {
+          return questions is list
+            && questions.size() <= 5
+            && weekQuestionOk(questions, 0)
+            && weekQuestionOk(questions, 1)
+            && weekQuestionOk(questions, 2)
+            && weekQuestionOk(questions, 3)
+            && weekQuestionOk(questions, 4);
         }
         // Who may author curriculum in THIS run: admin, any approver, the
         // run's drafter-owner, or one of its track leads. Resolved against
@@ -2222,6 +2341,20 @@ service cloud.firestore {
             || (isSignedIn() && request.auth.uid in run().get('trackLeadUids', [])
                 && isApprovedAccount());
         }
+        // A week's blocks and its Ready are the server's, for every writer,
+        // admins included. The blocks route reads a paste against the answers
+        // people have given (rows no browser may read) and holds the blocks to
+        // weekBlocksProblems in src/lib/courses/weekBlocks/model.ts, nested
+        // lists a rule cannot walk. Ready is set only through a route. Copies
+        // of a week go through Admin SDK routes. The week editor's own writes
+        // (ensureWeekDoc, saveWeek) never carry any of these keys, so a
+        // create without them, and an update that leaves them as stored, pass.
+        function serverOnlyWeekFieldsUntouched() {
+          return resource == null
+            ? !request.resource.data.keys().hasAny(['blocks', 'ready', 'readyAt', 'readyByUid'])
+            : !request.resource.data.diff(resource.data).affectedKeys()
+                .hasAny(['blocks', 'ready', 'readyAt', 'readyByUid']);
+        }
 
         allow read: if isSignedIn();
 
@@ -2232,6 +2365,7 @@ service cloud.firestore {
         // plus the weekNumber bounds keep a typo'd editor write from minting
         // an unaddressable week.
         allow create, update: if canEditRun()
+          && serverOnlyWeekFieldsUntouched()
           && weekId.matches('^w[0-9][0-9]$')
           && request.resource.data.weekNumber is int
           && request.resource.data.weekNumber >= 1
@@ -2241,7 +2375,8 @@ service cloud.firestore {
           && request.resource.data.get('guideBlocks', []).size() <= 40
           && request.resource.data.get('materials', []).size() <= 30
           && request.resource.data.get('exercises', []).size() <= 15
-          && request.resource.data.get('checklist', []).size() <= 15;
+          && request.resource.data.get('checklist', []).size() <= 15
+          && weekQuestionsOk(request.resource.data.get('questions', []));
 
         // Destroying authored content outranks editing it: a drafter or
         // track lead can blank a week's fields but not remove the doc.
@@ -2329,6 +2464,16 @@ service cloud.firestore {
       function groupSessionModesUnchanged() {
         return request.resource.data.get('sessionModes', {})
           == resource.data.get('sessionModes', {});
+      }
+      // `sessionChanges` (Q25) is the record of what "Change a session" did
+      // and why: an evening that is off, a week moved or held online, the
+      // reason its group reads. Server-owned like `sessionModes`: the change
+      // route is its one writer, so a cancellation a group acts on, and the
+      // reason it reads, only ever come from the press that also told them.
+      // One whole-map comparison, as for `sessionModes`.
+      function groupSessionChangesUnchanged() {
+        return request.resource.data.get('sessionChanges', {})
+          == resource.data.get('sessionChanges', {});
       }
       // Caps mirror GROUP_FIELD_LIMITS (courseGroups.ts) — the session fields
       // are client-editable by facilitators, so these ARE the boundary.
@@ -2421,6 +2566,7 @@ service cloud.firestore {
         && request.resource.data.get('paceStartDate', null) == null
         && request.resource.data.get('paceWeekPlan', null) == null
         && request.resource.data.get('sessionModes', {}).size() == 0
+        && request.resource.data.get('sessionChanges', {}).size() == 0
         // V3 W1 PR5: the birth pins for the two fields added to
         // groupPinnedFieldsUnchanged(). Update only PINS them, so without
         // these a group could be BORN tagged to a stream the enrol route
@@ -2442,6 +2588,7 @@ service cloud.firestore {
           (canApproveCourse() || isParentRunTrackLead() || isGroupFacilitator())
           && groupPinnedFieldsUnchanged()
           && groupSessionModesUnchanged()
+          && groupSessionChangesUnchanged()
           && groupContentOk()
         );
 
@@ -2478,15 +2625,30 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // === told placements ===
+    // Whether a courseEnrolments row is a placement its owner has been told:
+    // a facilitator's row, a seat they took on an open run, or one Publish
+    // has emailed them about (a move deletes that stamp). The pages keep the
+    // same rule in `placementIsTold` (src/lib/firestore/courseEnrolments.ts),
+    // and course-placements-told.test.mjs fails if the two differ. Read each
+    // field with its default, as the normaliser does.
+    function isToldPlacement(row) {
+      return row.get('role', 'learner') == 'facilitator'
+        || row.get('selfEnrolled', false) == true
+        || row.get('allocatedEmailAt', null) is timestamp;
+    }
+
     // === courseEnrolments ===
     // The no-double-placement invariant lives in this collection's doc id
     // (one per (run, uid)) and its single scalar groupId — which is exactly
     // why clients can never write: a client-side "move groups" would bypass
-    // the allocation transaction that keeps memberCount honest. Own-row read
-    // powers the /learn hub's "your runs" view.
+    // the allocation transaction that keeps memberCount honest. An admin
+    // reads every row; anybody else only their own, once it is told.
     match /courseEnrolments/{docId} {
       allow read: if isAdmin()
-        || (isSignedIn() && resource.data.uid == request.auth.uid);
+        || (isSignedIn()
+            && resource.data.uid == request.auth.uid
+            && isToldPlacement(resource.data));
       allow write: if false;
     }
 
@@ -2508,10 +2670,14 @@ service cloud.firestore {
       // The enrolment ROW is an authority like a named array is, so it carries
       // the roster floor too: `courseProgress` is the single client-direct
       // member write in this feature and it hangs off this predicate.
+      // It must also be told: nobody, an admin included, writes progress on
+      // a run Publish has not told them they are on.
       function isEnrolledActive(runId) {
         return exists(/databases/$(database)/documents/courseEnrolments/$(runId + '__' + request.auth.uid))
           && get(/databases/$(database)/documents/courseEnrolments/$(runId + '__' + request.auth.uid))
                .data.status == 'active'
+          && isToldPlacement(
+               get(/databases/$(database)/documents/courseEnrolments/$(runId + '__' + request.auth.uid)).data)
           && isApprovedAccount();
       }
       // The full shape contract, shared by create and update:
@@ -2798,6 +2964,80 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // === coursePitches ===
+    // Pitching week's pitches (src/lib/courses/pitching/model.ts): what each
+    // person or pair pitched, and who said they would join it. Written only by
+    // the two pitching routes and read only on the server, which decide who
+    // is shown what: a person their own picks and nobody else's, the lead and
+    // admins how many would join each, and the people of a team made from
+    // one. So every browser is refused, admins included, and a row's own
+    // pitcher too.
+    match /coursePitches/{pitchId} {
+      allow read, write: if false;
+    }
+
+    // === courseTeams ===
+    // An incubator's teams (src/lib/courses/teams/model.ts): each team's
+    // name, project line and people, and a fingerprint of what each of them
+    // was last emailed. Written only by the teams routes and read only on the
+    // server, which decide who is shown what: the programme's lead and admins
+    // see the teams on the Teams tab, and each person is told their own by
+    // email. So every browser is refused, admins included, and a team's own
+    // people too.
+    match /courseTeams/{teamId} {
+      allow read, write: if false;
+    }
+
+    // === courseTeamEntries ===
+    // What an incubator's teams write on their pages
+    // (src/lib/courses/teamPage/model.ts): each week's check-in, the team's
+    // links and its one hand-in. Written only by the team page routes on the
+    // Admin SDK, for somebody among a team's people who has been told their
+    // team, and read only on the server, which decides who reads which
+    // team's page: the team, the programme's lead and admins. So every
+    // browser is refused, admins and a team's own people included.
+    match /courseTeamEntries/{entryId} {
+      allow read, write: if false;
+    }
+
+    // === courseFinishing ===
+    // Who finished a programme (src/lib/courses/finishing/model.ts): a run's
+    // rule (the least number of sessions somebody must have come to) and the
+    // programme lead's decisions about who finished. Written only by the two
+    // routes under
+    // /api/admissions/forms/[roundId]/programmes/[programmeId]/finishing and
+    // read only on the server: the lead and admins are shown the rule and the
+    // list, and each member is told only whether they finished, through their
+    // own pages' payloads. So every browser is refused, admins and the person
+    // a decision is about included.
+    match /courseFinishing/{docId} {
+      allow read, write: if false;
+    }
+
+    // === courseCertificates ===
+    // Certificates (src/lib/courses/certificates/model.ts): written only on the
+    // server, by the certificate send, the owner's switch and the two deletion
+    // cascades, and read only on the server: the page at /c/<code> decides who
+    // sees what. So every browser is refused, admins and a certificate's own
+    // owner included.
+    match /courseCertificates/{certificateId} {
+      allow read, write: if false;
+    }
+
+    // === courseFacilitating ===
+    // Asking people to facilitate (src/lib/courses/facilitatorAsks/model.ts):
+    // each ask, with the person's answer and the email as it went, the run's
+    // facilitators' training and the last test of the ask's email. Written
+    // only by the routes under
+    // /api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators
+    // and /api/courses/facilitator-asks/[askId]/answer, and read only on the
+    // server: the lead and admins are shown the view, and the person asked is
+    // shown their own ask on its page. So every browser is refused, admins and
+    // the person an ask is about included.
+    match /courseFacilitating/{docId} {
+      allow read, write: if false;
+    }
+
     // ==================== V3 W1 PR5: courses open mode ====================
     //
     // === courseAudit ===
@@ -2838,6 +3078,203 @@ service cloud.firestore {
     // .ts for the retention decision (audits survive account deletion, as
     // impersonations and courseDeletions already do) and the kind union.
     match /courseAudit/{auditId} {
+      allow read, write: if false;
+    }
+
+    // === courseUpdates ===
+    // A run's updates (src/lib/firestore/courseUpdates.ts): what its lead, an
+    // admin or a group's facilitator wrote to everyone on the run, one group
+    // or the facilitators, and what each one's email did. Written only by the
+    // updates route on the Admin SDK and read only on the server, through
+    // src/lib/courses/updates/readers.ts, which decides who is shown which
+    // update: an update to one group is never shown to another group's
+    // people. So every browser is refused, admins included, the writer of an
+    // update and the people it is to as well.
+    match /courseUpdates/{updateId} {
+      allow read, write: if false;
+    }
+
+    // === courseGroupNotes ===
+    // The notes a group's facilitators share (C30,
+    // src/lib/firestore/courseGroupNotes.ts): written only by the notes route
+    // on the Admin SDK, by a live facilitator of the group, and read only on
+    // the server by the group page and the programme's Attendance tab, after
+    // their own gates. So every browser is refused, admins, the programme's
+    // lead and a note's own writer included.
+    match /courseGroupNotes/{noteId} {
+      allow read, write: if false;
+    }
+
+    // === courseFacilitatorGuide ===
+    // A course's facilitator guide: each week's session plan and notes, and
+    // the course's own documents for its facilitators
+    // (src/lib/firestore/courseFacilitatorGuide.ts). Written only by the
+    // loader's route on the Admin SDK, an admin's, and read only on the
+    // server by the guide's pages and routes after the guide's own gate.
+    // Nobody taking part ever reads it, so every browser is refused, admins,
+    // the programme's lead and a group's facilitators included.
+    match /courseFacilitatorGuide/{docId} {
+      allow read, write: if false;
+    }
+
+    // === courseGroupSharedNotes ===
+    // The notes a group's people and facilitators share with the group on
+    // its week pages (C29, src/lib/firestore/courseGroupSharedNotes.ts):
+    // written only by the shared notes routes on the Admin SDK (one adds a
+    // note for the group's people and its live facilitators, one deletes a
+    // note for the person who wrote it), and read only on the server through
+    // src/lib/courses/sharedNotes/readers.ts, which decides who reads which
+    // group's notes: a group's notes never reach another group. So every
+    // browser is refused, admins, the programme's lead, the group's own
+    // people and a note's own writer included.
+    match /courseGroupSharedNotes/{noteId} {
+      allow read, write: if false;
+    }
+
+    // === coursePacksAndCases ===
+    // What each person has in a week's packs and talks (plan item 8, Q32 A,
+    // src/lib/firestore/coursePacksAndCases.ts): the pack they picked or were
+    // given, the case they were given, and their own "Ready for my talk".
+    // Written only by two routes on the Admin SDK (a person's own pick and
+    // ready box, and the draw a group's facilitators, the programme's lead or
+    // an admin type in), and read only on the server through
+    // src/lib/courses/packsAndCases/readers.ts, after each page's own gate.
+    // So every browser is refused, the person a record is about, the group's
+    // facilitators, the programme's lead and admins included: a client read
+    // would hand a fellow somebody else's case, and a co-facilitator a
+    // facilitator's own pick or ready box.
+    match /coursePacksAndCases/{recordId} {
+      allow read, write: if false;
+    }
+
+    // === coursePairs ===
+    // Each person's place in a group's pairs for a session in pairs
+    // (src/lib/firestore/coursePairs.ts): which pair they are in and whether
+    // they are bringing a laptop. Written only by the pairs route on the Admin
+    // SDK (the group's live facilitators, the programme's lead or an admin),
+    // and read only on the server through src/lib/courses/pairs/readers.ts,
+    // after each page's own gate. So every browser is refused, the person a
+    // record is about, their partners, the group's facilitators, the
+    // programme's lead and admins included: a client read would hand a fellow
+    // another pair, and anybody the group's laptops.
+    match /coursePairs/{recordId} {
+      allow read, write: if false;
+    }
+
+    // === coursePredictions ===
+    // Each person's sealed predictions on a run (src/lib/firestore/coursePredictions.ts):
+    // both cards' answers, when the first was sealed and when it was opened.
+    // Written only by one route on the Admin SDK, in the owner's own name, and read
+    // only on the server: the owner's own card through src/lib/courses/predictions/own.ts,
+    // which never hands back a sealed card's answers before its owner opens it, and an
+    // admin's through the opening route, which records the opening first. So every
+    // browser is refused, the owner and admins included: a client read would hand a
+    // sealed card back to its owner before it opens, and an admin's read would go
+    // unrecorded.
+    match /coursePredictions/{recordId} {
+      allow read, write: if false;
+    }
+
+    // === recordOpenings ===
+    // One row each time an admin opened one person's confidential record
+    // (src/lib/firestore/recordOpenings.ts): a sealed predictions card, keyed
+    // to its run, or one person's survey answers, keyed to the surveys and
+    // never to a run. Who opened it, whose it was by an id, and when. Append-only,
+    // written only by the Admin SDK before the record is read, and read by no
+    // browser, admins included, as courseAudit: an audit its own actor can
+    // amend is not an audit.
+    match /recordOpenings/{openingId} {
+      allow read, write: if false;
+    }
+
+    // === kairosChoices ===
+    // Whether a person's name and programme record go to Kairos (one document
+    // per person, src/lib/kairos/model.ts): absent means shared. Written only
+    // by the profile's route and the survey answer routes on the Admin SDK,
+    // read only on the server. Every browser is refused, its owner's included.
+    match /kairosChoices/{uid} {
+      allow read, write: if false;
+    }
+
+    // === programmeRatings ===
+    // What a group's facilitators, the programme's lead and admins say about
+    // each fellow at a programme's end, and each run's sheet
+    // (src/lib/ratings/model.ts). Written only by the ratings route on the
+    // Admin SDK and read only on the server. Every browser is refused: a
+    // readable rating would show somebody what was said about them.
+    match /programmeRatings/{ratingId} {
+      allow read, write: if false;
+    }
+
+    // === calendarLinks ===
+    // One private calendar link per person (Add to calendar,
+    // src/lib/firestore/calendarLinks.ts): the secret a calendar app fetches
+    // the person's sessions with. Written only by the link route on the
+    // Admin SDK, and read only by it and the feed route, on the server. So
+    // every browser is refused, the link's own owner and admins included: a
+    // readable token is a readable calendar, and the owner is shown their
+    // link by the link route.
+    match /calendarLinks/{uid} {
+      allow read, write: if false;
+    }
+
+    // === surveys, surveyPeople, surveyAnswers ===
+    // Surveys (docs/surveys.md, src/lib/firestore/surveys.ts): a survey, the
+    // people it is for (with the secret in each one's personal link), and each
+    // person's answers. Written only by the survey routes on the Admin SDK and
+    // read only on the server: the admins' pages, the answer page and its
+    // routes. So every browser is refused, admins and a row's own person
+    // included: a readable people row is a readable secret, and a readable
+    // answer names who said what.
+    match /surveys/{surveyId} {
+      allow read, write: if false;
+    }
+    match /surveyPeople/{rowId} {
+      allow read, write: if false;
+    }
+    match /surveyAnswers/{answerId} {
+      allow read, write: if false;
+    }
+
+    // === eventCheckIns ===
+    // Check-in (src/lib/firestore/eventCheckIns.ts): who came to an event, how
+    // and when, and a walk-in's email for that event's survey. Written only by
+    // the check-in routes on the Admin SDK and read only on the server, where
+    // names go only to admins and SU-recognised committee. So every browser is
+    // refused, admins and the person themselves included: a readable record
+    // names who came to which event.
+    match /eventCheckIns/{checkInId} {
+      allow read, write: if false;
+    }
+
+    // === anonymousFeedbackForms, anonymousFeedbackWaiting, anonymousFeedback ===
+    // The anonymous keep, change and drop form (docs/surveys.md,
+    // src/lib/anonymousFeedback/model.ts): each programme's form with the
+    // secret in its one link, each answer as it came in, and each answer as it
+    // is kept. Written only by the form's route, the survey routes that open
+    // and close it, the night's move and a run's destroy, on the Admin SDK, and
+    // read only on the server. So every browser is refused, admins and the
+    // programme's lead included: a readable form is a readable link, and a
+    // browser read of an answer would hand over the database's own time on it.
+    match /anonymousFeedbackForms/{surveyId} {
+      allow read, write: if false;
+    }
+    match /anonymousFeedbackWaiting/{answerId} {
+      allow read, write: if false;
+    }
+    match /anonymousFeedback/{answerId} {
+      allow read, write: if false;
+    }
+
+    // === publicNumbers ===
+    // What a programme's public page shows of how its last term went, the
+    // "Last term" block (src/lib/publicNumbers/model.ts): the figures, words
+    // and bases an admin published, the ticked quotes' words, the term, and
+    // when and by whom. Written only by the publish route and deleted only by
+    // Take it down, both an admin's on the Admin SDK, and read only on the
+    // server: the public page through a fetcher that projects what the block
+    // draws. Every browser is refused, an admin's included.
+    match /publicNumbers/{recordId} {
       allow read, write: if false;
     }
 

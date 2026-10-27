@@ -8,6 +8,13 @@
  * chokepoint, the only two ways to reach Firestore, the id restatements, the
  * account helper, and where scratch files live.
  *
+ * A world several specs stand on (a term after decision day, say) is a HELPER
+ * MODULE in a subdirectory (`worlds/`), never beside this file: the runner and
+ * the coverage map read every `.mjs` here as a spec. A helper exports no
+ * `SPEC`, is imported by at least one spec module, and reaches Firestore
+ * through this file like everything else; `tests/funnel-harness-guards.test.mjs`
+ * holds all three.
+ *
  * ## Why the fence lives here rather than in each module
  *
  * `tests/e2e-no-privilege-grants.test.mjs` holds the AUTH harness to three
@@ -21,7 +28,9 @@
  *
  *   - Every collection any fixture may address is a literal in
  *     `FIXTURE_COLLECTIONS`, checked by `assertFixtureCollection()` before any
- *     credential is obtained.
+ *     credential is obtained. One document family off that list has a door
+ *     of its own: a fixture group's register reminder marker, one at a time,
+ *     through `registerReminderMarkerDoc()`.
  *   - No fixture creates a privileged identity. Accounts are the auth
  *     harness's own `createHarnessUser` plus its `seedPendingUserDoc`, whose
  *     role is the hard-coded literal "pending". There is no code path in this
@@ -55,7 +64,11 @@ import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:
 import { dirname, join } from "node:path";
 import { getFirestore } from "firebase-admin/firestore";
 import { adminApp, adminAuth, createHarnessUser } from "../e2e/lib/admin.mjs";
-import { createLedger, seedPendingUserDoc } from "../e2e/lib/firestore.mjs";
+import {
+  DEFAULT_FIXTURE_NAMES,
+  createLedger,
+  seedPendingUserDoc,
+} from "../e2e/lib/firestore.mjs";
 import { REPO_ROOT, loadEnv, runId } from "../e2e/lib/env.mjs";
 
 /** Per-run id. Re-exported so a fixture module needs one import, not two. */
@@ -311,12 +324,59 @@ export const FIXTURE_COLLECTIONS = [
   "memberships",
   // The event an RSVP spec creates so a guest has something to book.
   "events",
+  // What decision day decided about each person on a fixture's own
+  // application form, one document per person (`<formId>__<uid>`). A term
+  // after decision day needs them: who holds a place is read from them and
+  // from the person's own application together, so a hand-over has nobody to
+  // hand over without them. Written only for a fixture's own form.
+  "admissionDecisions",
+  // The updates on a fixture's course run (`runId` on every one). A term three
+  // weeks in carries one from its first week, which the seed writes; the
+  // updates route writes the ones a spec posts.
+  "courseUpdates",
 
   // ── Swept: created by the routes the specs drive ──────────────────────────
   "admissionApplications",
   "admissionApplicationPrivate",
+  // The rows a hand-over writes onto a course run's own applications list
+  // (`<runId>__<uid>`), one per person handed over, which the allocation board
+  // reads. Written by the hand-over route and nothing else a spec drives.
+  "courseApplications",
+  // An incubator's pitching week: one row per pitch (`runId` on every one),
+  // the picks of who would join it included. Written by the two pitching
+  // routes a member presses, and by nothing a fixture seeds.
+  "coursePitches",
+  // An incubator's teams, made from the pitches on the programme's Teams tab
+  // (`runId` on every one), with what each person was told by email. Written
+  // by the teams routes the lead presses, and by nothing a fixture seeds.
+  "courseTeams",
+  // A programme's surveys: the survey an admin makes from a template (one per
+  // stage, the form's id on every one as `roundId`), who it was sent to with
+  // each person's own link, and each person's answers, kept once. Written by
+  // the survey routes a spec drives (make, edit, test, send, remind, answer,
+  // change a consent, close), and by nothing a fixture seeds. Found by the
+  // form, then by each survey's id.
+  "surveys",
+  "surveyPeople",
+  "surveyAnswers",
+  // A person's Kairos choice, one document keyed by their uid. A survey's
+  // answer route writes it only when the person changed the box on the form,
+  // so a fixture account's is counted, and removed, by that uid.
+  "kairosChoices",
   "courseEnrolments",
   "courseProgress",
+  // A person's own rows on a week written as blocks: each reflection box they
+  // write in is one row (`runId` on every one), written by the reflection
+  // route, by somebody holding a place on week 1 before groups go out too.
+  // Written by nothing a fixture seeds.
+  "courseExerciseResponses",
+  // The end of a programme: who finished (the run's rule, set on the
+  // programme's Settings tab, and the lead's decisions on its Overview, each
+  // with `runId` on it), and the certificates the Overview's send makes, one
+  // a person and kind (`runId` on each). Written by those routes and the
+  // owner's switch, and by nothing a fixture seeds.
+  "courseFinishing",
+  "courseCertificates",
   "courseAudit",
   "subscriptions",
   "subscriptionEvents",
@@ -332,6 +392,13 @@ export const FIXTURE_COLLECTIONS = [
   // asserts the rows, so the rows are the evidence, and evidence a fixture
   // creates is evidence a fixture counts back to zero.
   "emailSends",
+  // The download log. An attendance CSV a spec downloads writes one row before
+  // the file is handed over, keyed to the fixture's run (`scope.runId`). The
+  // product keeps these rows when it destroys a run, because they are the
+  // record that real people's data left the platform; a fixture's row records
+  // a download of a fixture's own throwaway people, so it is evidence of the
+  // kind `emailSends` is, and counted back to zero the same way.
+  "dataExports",
   // Attendee rows the RSVP flow creates against a fixture event.
   "eventRsvps",
   // The magic-link tokens /api/register and /api/verify-email/send mint, and
@@ -463,6 +530,53 @@ export function membershipConfigDoc() {
 }
 
 /**
+ * The scheduler's own collection. NOT on `FIXTURE_COLLECTIONS`, and it must
+ * stay off it: `assertFixtureCollection` refuses it, and so do `fixtureDoc`
+ * and `fixtureQuery`, because it holds every job's bookkeeping and no fixture
+ * may list, read or edit it as a collection.
+ */
+export const REGISTER_REMINDER_MARKERS = "schedulerMarkers";
+
+/** A fixture's own group id: `fixtureId("e2e-...", runId)`, a base36 run id at the end. */
+const FIXTURE_GROUP_ID = /^e2e-[a-z0-9-]+__[a-z0-9]{8,32}$/;
+/** A week's session key, as the register and the reminder build it: "w03", "w03-2". */
+const SESSION_KEY = /^w\d{2,3}(?:-\d)?$/;
+/** An account uid: letters and digits only, so it can never carry a separator. */
+const ACCOUNT_UID = /^[A-Za-z0-9]{1,128}$/;
+
+/**
+ * ONE marker a driven route writes into the scheduler's collection, and the
+ * only way any fixture reaches it: the register reminder's claim for one
+ * facilitator of one session of a FIXTURE'S OWN group,
+ * `regremind__{groupId}__{sessionKey}__{uid}` (`registerReminderMarker` in
+ * src/lib/firestore/schedulerMarkers.ts, restated).
+ *
+ * A lead's Remind claims it before it emails the facilitator and keeps it
+ * afterwards, for 180 days, so a spec that presses Remind leaves one behind
+ * unless its teardown removes it, and a manifest that did not count it would
+ * read zero by looking somewhere else. So the fixture addresses it, one
+ * document at a time, by an id it builds from its own ledger: never a query,
+ * never another family, never a group a fixture did not make. Every part is
+ * checked before any credential is obtained, as `assertFixtureCollection`
+ * checks a collection.
+ */
+export function registerReminderMarkerDoc({ groupId, sessionKey, uid }) {
+  if (!FIXTURE_GROUP_ID.test(String(groupId))) {
+    throw new Error(
+      `REFUSING to address a reminder marker for group ${JSON.stringify(groupId)}: not a fixture's ` +
+        "own group. A fixture reaches the scheduler's markers only for groups it made.",
+    );
+  }
+  if (!SESSION_KEY.test(String(sessionKey))) {
+    throw new Error(`REFUSING to address a reminder marker for session ${JSON.stringify(sessionKey)}: not a session key.`);
+  }
+  if (!ACCOUNT_UID.test(String(uid))) {
+    throw new Error(`REFUSING to address a reminder marker for account ${JSON.stringify(uid)}: not an account uid.`);
+  }
+  return db().collection(REGISTER_REMINDER_MARKERS).doc(`regremind__${groupId}__${sessionKey}__${uid}`);
+}
+
+/**
  * Refuses every project that is not dev.
  *
  * `loadEnv()` already asserts the project id, so calling it IS the check;
@@ -544,12 +658,18 @@ export function subscriptionId(email, channel) {
  * ordinary `npm run dev` ports, whose server this harness did not start. A
  * run pointed there with suppression off would hand `.invalid` addresses to a
  * real sender.
+ *
+ * `names` is `{ preferred, display }`, for a spec that has to tell several
+ * accounts apart on one screen. Left out, the account is "E2E Harness" as
+ * every fixture account always was. A name grants nothing; the role is still
+ * the seeder's hard-coded `pending`.
  */
 export async function createFixtureUser({
   runId: fixtureRunId,
   index,
   suppress = true,
   legacyConsent = false,
+  names = DEFAULT_FIXTURE_NAMES,
 }) {
   // Chosen here and not by the caller, so that no fixture can build one out
   // of something the run prints.
@@ -575,11 +695,14 @@ export async function createFixtureUser({
   // of a member from before the field existed, so the account meets the
   // re-consent gate on a production build. Off by default: only a spec that
   // means to drive the gate asks for it. See `seedPendingUserDoc`.
+  // `names` is the account's name, for a spec that tells several people apart
+  // on one screen. The seeder refuses anything but a short line of words.
   await seedPendingUserDoc(ledger, {
     uid: account.uid,
     email: account.email,
     universityEmail: "",
     legacyConsent,
+    names,
   });
   let suppressionId = null;
   if (suppress) {

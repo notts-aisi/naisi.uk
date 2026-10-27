@@ -50,6 +50,7 @@ import {
   FIXTURE_SUBCOLLECTIONS,
   HARNESS_LOCAL_ORIGIN,
   RECAPTCHA_SKIP_REASON,
+  REGISTER_REMINDER_MARKERS,
   STATE_DIR,
   applicationId,
   assertFixtureCollection,
@@ -61,6 +62,7 @@ import {
   fixtureQuery,
   mailIsCaught,
   markerPath,
+  registerReminderMarkerDoc,
   stateDir,
   statePath,
   subscriptionId,
@@ -100,8 +102,24 @@ const HARNESS_FILES = [
   ...walkMjs(SPECS_DIR),
 ].filter((path) => existsSync(path));
 
-/** The fixture modules, which are the spec modules: everything but core. */
-const FIXTURE_MODULES = walkMjs(FIXTURES_DIR).filter((path) => path !== CORE);
+/**
+ * The spec modules: every `.mjs` directly in `scripts/e2e-fixtures/` but core.
+ * Exactly the files the runner (`discoverSpecs` in scripts/run-e2e.mjs) and
+ * the coverage map read, and no others: a module in a subdirectory is never
+ * discovered, so holding it to the SPEC contract would pass a spec that can
+ * never run.
+ */
+const FIXTURE_MODULES = walkMjs(FIXTURES_DIR).filter(
+  (path) => path !== CORE && dirname(path) === FIXTURES_DIR,
+);
+
+/**
+ * The helper modules: every `.mjs` in a subdirectory of `scripts/e2e-fixtures/`,
+ * a world several specs stand on. Each is held to the fence like every other
+ * harness file (it is in HARNESS_FILES), to exporting no SPEC, to being
+ * imported by a spec module, and to the namespace check before any delete.
+ */
+const HELPER_MODULES = walkMjs(FIXTURES_DIR).filter((path) => dirname(path) !== FIXTURES_DIR);
 
 const rel = (path) => relative(REPO_ROOT, path).split("\\").join("/");
 
@@ -163,6 +181,13 @@ const FORBIDDEN_PRIVILEGE = [
   /\brunFacilitatorUids["'`]?\s*:\s*\[\s*[^\]\s]/,
   /\badmissionsReviewerUids["'`]?\s*:\s*\[\s*[^\]\s]/,
   /\bfacilitatorUids["'`]?\s*:\s*\[\s*[^\]\s]/,
+  // A programme's lead and a run's track leads. Naming either would be
+  // minting the authority over a programme or a run that the browser specs
+  // drive around: a lead decides, places and publishes. A fixture writes
+  // `leadUid: null` and `trackLeadUids: []`, and an admin names anybody on
+  // the real pages.
+  /\bleadUid["'`]?\s*:(?!\s*null\b)/,
+  /\btrackLeadUids["'`]?\s*:\s*\[\s*[^\]\s]/,
 ];
 
 function sourceOf(file) {
@@ -232,6 +257,38 @@ test("the role pattern still bites on every spelling it is meant to refuse", () 
     'the role pattern refuses role: "pending", which seedPendingUserDoc has to be ' +
       "able to write.",
   );
+});
+
+test("the lead patterns bite on every way of naming a lead, and let nobody through", () => {
+  // The negative control for the two lead patterns, as for the role pattern
+  // above: a programme's lead and a run's track leads, in every quoting style
+  // and from a variable, refused; the one shape a fixture writes, admitted.
+  const named = (spelling) => FORBIDDEN_PRIVILEGE.some((pattern) => pattern.test(spelling));
+  for (const spelling of [
+    'leadUid: "uid1"',
+    "leadUid: 'uid1'",
+    "leadUid: `uid1`",
+    '"leadUid": "uid1"',
+    "leadUid: state.adminUid",
+    "leadUid:admin.uid",
+    'programmes: { p: { leadUid: "uid1" } }',
+    'trackLeadUids: ["uid1"]',
+    "trackLeadUids: [state.adminUid]",
+    '"trackLeadUids": [ "uid1" ]',
+  ]) {
+    assert.ok(
+      named(spelling),
+      `no privilege pattern refuses ${JSON.stringify(spelling)}. A fixture that names a lead mints ` +
+        "the authority over a programme or a run; an admin names one on the real pages.",
+    );
+  }
+  for (const spelling of ["leadUid: null", "leadUid:null", '"leadUid": null', "trackLeadUids: []", "trackLeadUids: [ ]"]) {
+    assert.ok(
+      !named(spelling),
+      `a privilege pattern refuses ${JSON.stringify(spelling)}, the shape of a programme with no lead ` +
+        "and a run with no track lead, which a fixture has to be able to write.",
+    );
+  }
 });
 
 test("assertFixtureCollection refuses everything off the fixture's list", () => {
@@ -311,7 +368,12 @@ test("the browser harness routes every collection access through the chokepoint"
   // guarded seeder and deleted by address under the namespace check on the
   // account it belongs to. Every other file in the harness must not call
   // `.collection(` at all, so a spec module cannot grow a second way in.
-  const ALLOWED_IN_CORE = ['"users"', "collection"];
+  //
+  // One more, and only in one function: `REGISTER_REMINDER_MARKERS`, the
+  // scheduler's collection, reached by `registerReminderMarkerDoc` for one
+  // reminder marker of a fixture's own group at a time. The test after this
+  // one pins its value, that it is called once, and what the door refuses.
+  const ALLOWED_IN_CORE = ['"users"', "collection", "REGISTER_REMINDER_MARKERS"];
   for (const file of HARNESS_FILES) {
     const source = codeOf(file);
     for (const match of source.matchAll(/\.collection\(\s*([^)]*)\)/g)) {
@@ -347,6 +409,51 @@ test("the browser harness routes every collection access through the chokepoint"
     ["stages", "weeks", "questionSets"],
     "a subcollection joined the list. Add it to the pin above in the same change, " +
       "so the value stays readable off the source.",
+  );
+});
+
+test("the scheduler's collection is reached only for a fixture group's reminder markers, one at a time", () => {
+  // A lead's Remind claims a marker in `schedulerMarkers` and keeps it for 180
+  // days, so a spec that presses it has a row to count and remove. The
+  // collection stays OFF the fixture's list (the refusal test above still
+  // names it) and is reachable through one door that builds one marker's id
+  // from parts it checks. Behavioural first: every refusal throws before a
+  // credential is obtained, which is also why this runs offline.
+  for (const parts of [
+    { groupId: "grp1", sessionKey: "w03", uid: "abc123" },
+    { groupId: "real-group__abcdefgh", sessionKey: "w03", uid: "abc123" },
+    { groupId: "e2e-term-group-b__ABCDEFGH", sessionKey: "w03", uid: "abc123" },
+    { groupId: "e2e-term-group-b__abc", sessionKey: "w03", uid: "abc123" },
+    { groupId: "e2e-term-group-b__abcdefgh/x", sessionKey: "w03", uid: "abc123" },
+    { groupId: "e2e-term-group-b__abcdefgh", sessionKey: "w3", uid: "abc123" },
+    { groupId: "e2e-term-group-b__abcdefgh", sessionKey: "w03__x", uid: "abc123" },
+    { groupId: "e2e-term-group-b__abcdefgh", sessionKey: "w03", uid: "a__b" },
+    { groupId: "e2e-term-group-b__abcdefgh", sessionKey: "w03", uid: "a/b" },
+    { groupId: "e2e-term-group-b__abcdefgh", sessionKey: "w03", uid: "" },
+  ]) {
+    assert.throws(
+      () => registerReminderMarkerDoc(parts),
+      `registerReminderMarkerDoc accepted ${JSON.stringify(parts)}. The door addresses a reminder ` +
+        "marker of a fixture's own group, for a session key and an account uid, and nothing else.",
+    );
+  }
+  assert.throws(
+    () => assertFixtureCollection(REGISTER_REMINDER_MARKERS),
+    "the scheduler's collection joined the fixture list. It is reachable through its one door only.",
+  );
+
+  // Then the source: the constant's value, one call, inside the door, and an
+  // id built of the reminder family's own prefix and nothing a caller chooses.
+  const core = codeOf(CORE);
+  assert.equal(REGISTER_REMINDER_MARKERS, "schedulerMarkers", "the door's collection is not the scheduler's");
+  assert.match(core, /export const REGISTER_REMINDER_MARKERS = "schedulerMarkers";/);
+  const calls = [...core.matchAll(/\.collection\(\s*REGISTER_REMINDER_MARKERS\s*\)/g)];
+  assert.equal(calls.length, 1, "the scheduler's collection is reached from more than one place in core.mjs");
+  const door = core.slice(core.indexOf("export function registerReminderMarkerDoc("));
+  const end = door.indexOf("\n}\n");
+  assert.ok(
+    door.slice(0, end).includes(".collection(REGISTER_REMINDER_MARKERS).doc(`regremind__${groupId}__${sessionKey}__${uid}`)"),
+    "the scheduler's collection is reached outside registerReminderMarkerDoc, or for another family of markers",
   );
 });
 
@@ -388,6 +495,35 @@ test("the funnel fixture declares every collection its teardown must drain", () 
     // which is why they have to be reachable from it at all.
     "emailVerifications",
     "registrations",
+    // The course hub's term after decision day: what decision day decided
+    // about each person (seeded), and the rows a hand-over writes onto the
+    // course run's own list, which the allocation board reads.
+    "admissionDecisions",
+    "courseApplications",
+    // The same term three weeks in: the run's updates (one seeded from week 1,
+    // the rest posted by the updates route), and the download log's row the
+    // attendance CSV writes before it hands the file over.
+    "courseUpdates",
+    "dataExports",
+    // The end of a programme: the rule for who finished and the lead's
+    // decisions, and the certificates the send makes.
+    "courseFinishing",
+    "courseCertificates",
+    // An incubator in its pitching week: the pitches (and the picks on them)
+    // the two pitching routes write, and the teams the teams route makes from
+    // them, with who was told their team.
+    "coursePitches",
+    "courseTeams",
+    // Week 1 before groups go out: the reflection boxes somebody holding a
+    // place writes in on a week written as blocks, one row each.
+    "courseExerciseResponses",
+    // A programme's before survey: the survey the admin makes, who it was
+    // sent to with their own links, the answers the answer routes keep, and
+    // the Kairos choice an answer keeps when the person changed its box.
+    "surveys",
+    "surveyPeople",
+    "surveyAnswers",
+    "kairosChoices",
   ]) {
     assert.ok(
       FIXTURE_COLLECTIONS.includes(required),
@@ -402,8 +538,9 @@ test("every fixture checks the account namespace before it deletes anything", ()
   // subscription row, its event lines, the send log). The refusal that stops a
   // tampered or stale ledger deleting a real person's data is only a refusal
   // while it runs BEFORE those sweeps, so the check comes ahead of every
-  // address-keyed delete.
-  for (const file of FIXTURE_MODULES) {
+  // address-keyed delete. A helper module holding a world's teardown is held
+  // to the same order as a spec module holding one.
+  for (const file of [...FIXTURE_MODULES, ...HELPER_MODULES]) {
     const source = codeOf(file);
     // Creating an account is not the only way to own one. The sign-up fixture
     // seeds NO accounts at all: it decides the addresses and lets /api/register
@@ -837,6 +974,33 @@ test("every spec module exports a SPEC the runner can use", async () => {
       spec.covers.routes.length + spec.covers.pages.length > 0,
       `${where}: covers is empty, so this spec claims to cover nothing and the coverage ` +
         "map would silently lose it.",
+    );
+  }
+});
+
+test("a helper module is a world for specs, never a spec of its own", async () => {
+  // A module in a subdirectory is not discovered by the runner or read by the
+  // coverage map, so a SPEC there would be a spec that never runs and a map
+  // entry nobody can see. And a helper no spec imports is fixture code nothing
+  // drives, which still sits inside the fence for nobody's benefit.
+  const specSources = FIXTURE_MODULES.map((file) => ({ file, code: codeOf(file) }));
+  for (const helper of HELPER_MODULES) {
+    const where = rel(helper);
+    const mod = await import(pathToFileURL(helper).href);
+    assert.equal(
+      mod.SPEC,
+      undefined,
+      `${where} exports a SPEC, but the runner only discovers spec modules directly in ` +
+        "scripts/e2e-fixtures/. Move it up beside core.mjs, or make it a helper that a spec builds on.",
+    );
+    const importers = specSources.filter(({ file, code }) => {
+      const wanted = `./${relative(dirname(file), helper).split("\\").join("/")}`;
+      return [...code.matchAll(/\bfrom\s+["']([^"']+)["']/g)].some((m) => m[1] === wanted);
+    });
+    assert.ok(
+      importers.length > 0,
+      `${where} is imported by no spec module beside core.mjs. A helper exists for the specs ` +
+        "that stand on it; delete it, or import it from the spec that needs it.",
     );
   }
 });

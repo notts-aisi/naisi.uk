@@ -46,6 +46,18 @@ export type EmailSendKind =
   // left get their confirmation" is a question the deliverability tab has to
   // answer without reading subject lines.
   | "course-enrolment"
+  // The one short "feedback is waiting" email (Q34 B): a facilitator, the
+  // programme's lead or an admin has sent feedback on somebody's own written
+  // answer, and this tells that person it is on the site. Its own kind so
+  // "was Amara told the feedback was waiting" is answerable without reading
+  // subject lines, apart from the enrolment and admissions mail.
+  | "course-feedback"
+  // A programme's certificates (board en-finish): one email a person, with a
+  // button to each certificate they are sent, from the lead's or an admin's
+  // press. Its own kind so "did everybody who finished get their
+  // certificate" is answerable without reading subject lines; its
+  // `referenceId` is the RUN id. Its test goes as `course-test`.
+  | "course-certificate"
   // The ADMISSIONS lifecycle (V3): everything NAISI sends somebody about their
   // application to a round. Kept apart from `course-application`, which means
   // the V2 per-run funnel this replaces, because the deliverability tab has to
@@ -117,7 +129,16 @@ export type EmailSendSurface =
   | "event-cancel"
   | "course-group"
   | "course-room"
-  | "course-run";
+  | "course-run"
+  // A programme survey and its reminder (docs/surveys.md), to everybody
+  // holding a place on the programme it is about.
+  | "course-survey"
+  // A programme's follow-up survey at 6 or 12 months and its reminder, to the
+  // people who said yes to follow-ups on its before survey.
+  | "course-follow-up"
+  // The survey after an event and its reminder (docs/surveys.md), to the
+  // people who came to it or signed up for it.
+  | "event-survey";
 
 export type EmailSend = {
   messageId: string;

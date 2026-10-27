@@ -27,6 +27,23 @@
   height: 100%;
 }
 
+/* The run's crest (or the emblem in its place) beside its name and term.
+   The names wrap beside the mark rather than pushing the card wider. */
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.names {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
 .title {
   margin: 0;
   font-size: var(--text-lg);

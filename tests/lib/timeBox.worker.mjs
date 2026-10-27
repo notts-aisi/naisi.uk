@@ -1,6 +1,8 @@
 /**
- * The worker half of `timeBox.mjs`. It does one piece of work and reports how
- * long it took, or it is terminated by the test that started it.
+ * The worker half of `timeBox.mjs`. It builds its input and loads what it
+ * needs, says it is ready (the parent's limit starts then), does one piece of
+ * work and reports how long the work alone took, or it is terminated by the
+ * test that started it.
  */
 import { parentPort, workerData } from "node:worker_threads";
 import { createLoader } from "./tsLoader.mjs";
@@ -28,6 +30,9 @@ if (work.kind === "call") {
 } else {
   throw new Error(`timeBox: no such kind of work as ${JSON.stringify(work.kind)}`);
 }
+
+// Everything the work needs is here: the parent counts its limit from now.
+parentPort.postMessage({ ready: true });
 
 const started = performance.now();
 const result = run();

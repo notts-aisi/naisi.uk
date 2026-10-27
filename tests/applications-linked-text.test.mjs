@@ -828,6 +828,13 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/features/applications/people/ProgrammePeople.tsx",
+    {
+      built: ["item.href", "row.applicationHref", "row.groupsHref"],
+      from: "the People tab's More menu: the person's application on the programme's review screen and People in groups, each built on the server from the programme's own path and, for the application, the person's uid, encoded",
+    },
+  ],
+  [
     "src/features/applications/apply/AboutStep.tsx",
     { built: ["email.profileHref", "email.profileHref"], from: "the profile page's fixed path, handed in by the form" },
   ],
@@ -885,6 +892,20 @@ const BUILT = new Map([
     { built: ["termPath(roundId)", "termPath(roundId)"], from: "the term's own page, from the form's id" },
   ],
   [
+    "src/features/applications/editor/CertificateCredit.tsx",
+    {
+      built: ["changeHref"],
+      from: "the course's own page in the course editor, from the id of the course the programme is tied to, encoded, for somebody that page opens for",
+    },
+  ],
+  [
+    "src/features/applications/editor/RunHandOver.tsx",
+    {
+      built: ["panel.boardPath", "panel.listPath", "person.applicationPath"],
+      from: "paths the server built for an admin's panel, each from the ids of stored documents and encoded: a course run's allocation board and its own applications list, and one person's application on the review screen. Nothing anybody typed is in one",
+    },
+  ],
+  [
     "src/features/applications/editor/FormEditor.tsx",
     { built: ["homeHref", "homeHref"], from: "the term's own page, handed in by the page that draws the editor" },
   ],
@@ -898,6 +919,102 @@ const BUILT = new Map([
   [
     "src/features/applications/editor/ProgrammeTabs.tsx",
     { built: ["`${base}/${tab.segment}`"], from: "a programme's own pages: its path and one of the tabs listed in the file" },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview/page.tsx",
+    {
+      built: ["`${programmePath}/applications`"],
+      from: "the programme's own Applications tab, for a reviewer told the Overview is not theirs: made from the form's and the programme's ids in the address, encoded",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview/certificates/page.tsx",
+    {
+      built: ["`${programmePathOf(roundId, programmeId)}/applications`", "overview"],
+      from: "the programme's own Applications tab, for a reviewer told the certificates are not theirs, and its Overview to go back to: each made from the form's and the programme's ids in the address, encoded",
+    },
+  ],
+  [
+    "src/features/applications/overview/CertificatesSection.tsx",
+    {
+      built: ["model.preview.href", "model.email.href"],
+      from: "the preview of the programme's certificates and of its email, which `previewPathOf` builds on the server from the form's and the programme's ids, encoded",
+    },
+  ],
+  [
+    "src/features/applications/overview/ProgrammeOverview.tsx",
+    {
+      built: [
+        "week.open.href",
+        "session.seeIt",
+        "item.link.href",
+        "item.link.href",
+        "`${programmePath}/attendance`",
+        "`${programmePath}/messages`",
+        "`${programmePath}/messages`",
+        "`${programmePath}/setup#who-finished`",
+        "`${programmePath}/surveys`",
+      ],
+      from:
+        "the programme's own path and the run's own ids, worked out on the server by buildProgrammeOverview: its " +
+        "Attendance tab, with a group's id to open on, its Messages tab (Write an update, and each update's title), " +
+        "its Settings tab at the card for who finished (Set who counts as finished, before the end and while " +
+        "there is no rule), for an admin the week's editor under /admin/courses, and its Surveys tab (the after " +
+        "survey's way to its results). Nothing anybody typed",
+    },
+  ],
+  [
+    "src/features/applications/weeks/WeeksList.tsx",
+    {
+      built: ["copyWeeksPath(roundId, programmeId)", "weeksPath(roundId, programmeId, week.weekId)"],
+      from: "the Weeks tab's own paths (src/lib/courses/weeksTab/paths.ts), made from the form's and the programme's ids and a week's document id, each encoded",
+    },
+  ],
+  [
+    "src/features/applications/weeks/WeeksNotYours.tsx",
+    {
+      built: ["`${programmePath(roundId, programmeId)}/applications`"],
+      from: "the programme's own Applications tab, for a reviewer told Weeks is not theirs: made from the form's and the programme's ids in the address, encoded",
+    },
+  ],
+  [
+    "src/features/applications/weeks/WeekPageView.tsx",
+    {
+      built: [
+        "page.guide.href",
+        "weekEditorPath(page.courseId, runId, week.weekId)",
+        "weekPreviewPath(roundId, programmeId, week.weekId)",
+      ],
+      from: "the week's preview on the Weeks tab, the week's page of the course's facilitator guide (facilitatorGuidePath) and, for an admin, the run's week editor, each made from ids the page read and encoded",
+    },
+  ],
+  [
+    "src/features/applications/weeks/WeekControls.tsx",
+    {
+      built: ["`${previewHref}?group=${encodeURIComponent(group.id)}`"],
+      from: "the week's preview on the Weeks tab, with one of the run's groups' ids, encoded",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/copy/page.tsx",
+    {
+      built: ["weeksPath(view.roundId, view.programmeId)"],
+      from: "the way back to the Weeks tab, made from the form's and the programme's ids, each encoded",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/preview/page.tsx",
+    {
+      built: ["weeksPath(view.roundId, view.programmeId, weekId)"],
+      from: "the way back to the week's page on the Weeks tab, made from the form's and the programme's ids and the week's document id, each encoded",
+    },
+  ],
+  [
+    "src/features/applications/groups/GroupsViews.tsx",
+    {
+      built: ["groupsViewPath(roundId, programmeId, view)"],
+      from: "the Groups tab's own path, made from the form's and the programme's ids, encoded, and one of the views listed in the file",
+    },
   ],
   [
     "src/features/applications/editor/Refusals.tsx",
@@ -930,8 +1047,10 @@ const BUILT = new Map([
   [
     "src/features/applications/review/ApplicationsBoard.tsx",
     {
-      built: ["`${listPath}/${nextUid}`", "`${listPath}/${row.uid}`", "href"],
-      from: "a programme's list of applications, and one application by its owner's account id",
+      built: ["`${listPath}/${nextUid}`", "`${listPath}/${row.uid}`", "freedPlacesPath", "href"],
+      from:
+        "a programme's list of applications, one application by its owner's account id, and the " +
+        "programme's freed-places page, which the list's own page builds from the form's and the programme's ids",
     },
   ],
   [
@@ -949,7 +1068,7 @@ const BUILT = new Map([
   [
     "src/features/applications/status/StatusPage.tsx",
     {
-      built: ["EVENTS", "EVENTS", "HUB", "`mailto:${CONTACT}`", "applyHref", "applyHref", "applyHref"],
+      built: ["EVENTS", "EVENTS", "EVENTS", "HUB", "`mailto:${CONTACT}`", "applyHref", "applyHref", "applyHref"],
       from: "constants in the file (two pages of this site and the society's own address), and the form's page from its id",
     },
   ],
@@ -958,6 +1077,13 @@ const BUILT = new Map([
     {
       built: ["joinReturnFor(bare[1])", "marked"],
       from: "the form's own address with its mark, built from an id alone after the whole shape of a return address has matched",
+    },
+  ],
+  [
+    "src/lib/applications/freedPlaces/words.ts",
+    {
+      built: ["input.link", "input.link"],
+      from: "a freed-place email's two buttons, both the person's own application page, from the address the offer's writer builds for the form",
     },
   ],
   [
@@ -1000,6 +1126,27 @@ const BUILT = new Map([
     {
       built: ["`${base}/setup`", "`${home}/form`", "card?.action.href ?? `${base}/applications`"],
       from: "pages of this term: the term's own path and a programme's id",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions/page.tsx",
+    {
+      built: ["`${here}?week=${n}`"],
+      from: "the Sessions view's own path (groupsViewPath, from the form's and the programme's ids) and a taught week's number from the run's plan. Nothing anybody typed",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance/page.tsx",
+    {
+      built: ["`${writtenPath}?group=${encodeURIComponent(group.id)}`"],
+      from: "the programme's own review page for written answers (its path from the form's and the programme's ids, encoded) and a live group's id. Nothing anybody typed",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written/page.tsx",
+    {
+      built: ["`${programmePath}/attendance`", "`${programmePath}/written?group=${encodeURIComponent(candidate.id)}`"],
+      from: "the way back to the programme's own Attendance tab, and this page for each of the run's live groups (the lead's choice of group): its path from the form's and the programme's ids in the address, encoded, and a live group's id. Nothing anybody typed",
     },
   ],
   [

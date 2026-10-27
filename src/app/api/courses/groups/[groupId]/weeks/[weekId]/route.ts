@@ -4,6 +4,7 @@ import { groupWeekRef } from "@/lib/courses/groupResolve";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { runStaffingOf } from "@/lib/courses/runStaffing";
 import {
   normalizeCourseGroup,
   normalizeGroupWeek,
@@ -11,6 +12,7 @@ import {
 import {
   COURSE_FIELD_LIMITS,
   normalizeCourseRun,
+  oneLineQuestion,
   sanitizeChecklist,
   sanitizeExercises,
   sanitizeMaterials,
@@ -33,12 +35,14 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  *
  * ── THE FACILITATOR TRUST BOUNDARY (decision 5), SERVER-ENFORCED ────────────
  * Facilitators may edit TEXT-SAFE fields including links: `materials`,
- * `exercises`, `checklist`, `summary`, `estimatedMinutes`, `published`.
+ * `exercises`, `checklist`, `questions`, `summary`, `estimatedMinutes`,
+ * `published`.
  * `guideBlocks` — the `dangerouslySetInnerHTML` surface — is NEVER accepted
  * from a facilitator: a request carrying the key is REFUSED outright (403),
  * not silently stripped, because a probe at a trust boundary deserves an
- * answer the sender can see. Admins and the run's track leads edit forks
- * through this same route WITH `guideBlocks` — the handler branches on role,
+ * answer the sender can see. Admins, the run's track leads and the lead of
+ * the programme that names the run edit forks through this same route WITH
+ * `guideBlocks`, and the handler branches on role,
  * so the boundary holds against a crafted request whatever the UI offers.
  * `title` and `weekNumber` are accepted from nobody here: the week's name and
  * number stay canonical-shaped so the rail, the mirror ids and the register
@@ -77,7 +81,8 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  *
  * ── WHO MAY EDIT ────────────────────────────────────────────────────────────
  * A facilitator of THIS group while it is LIVE, ∪ the parent run's track
- * leads (live group, trusted tier), ∪ admins (trusted tier, archived
+ * leads and the lead of the programme that names the run (live group,
+ * trusted tier, `runStaffingOf`), ∪ admins (trusted tier, archived
  * included). AUTHORIZATION BEFORE EXISTENCE: missing, archived and
  * someone-else's group collapse onto ONE indistinguishable 403.
  *
@@ -102,9 +107,35 @@ const ALLOWED_KEYS = new Set([
   "materials",
   "exercises",
   "checklist",
+  "questions",
   "guideBlocks",
   "acknowledgeOrphans",
 ]);
+
+/**
+ * A group's "Questions to think about" (C29), checked whole: a list of at
+ * most `maxWeekQuestions` lines of text, none empty, none over
+ * `weekQuestion` characters, each kept as one line. Plain text, so a
+ * facilitator may write them, as they write the checklist. Returns the list
+ * to store, or the sentence to answer with.
+ */
+function questionsFrom(raw: unknown): { ok: true; questions: string[] } | { ok: false; error: string } {
+  if (!Array.isArray(raw)) return { ok: false, error: "questions must be a list." };
+  if (raw.length > LIMITS.maxWeekQuestions) {
+    return { ok: false, error: `A week holds at most ${LIMITS.maxWeekQuestions} questions.` };
+  }
+  const questions: string[] = [];
+  for (const [index, entry] of raw.entries()) {
+    if (typeof entry !== "string") return { ok: false, error: "Each question must be text." };
+    const line = oneLineQuestion(entry);
+    if (!line) return { ok: false, error: `Question ${index + 1} is empty. Write it, or remove it.` };
+    if (line.length > LIMITS.weekQuestion) {
+      return { ok: false, error: `Questions must be ${LIMITS.weekQuestion} characters or fewer.` };
+    }
+    questions.push(line);
+  }
+  return { ok: true, questions };
+}
 
 /**
  * Refusals travel out of the transaction as a typed sentinel and are mapped
@@ -220,9 +251,12 @@ export async function PATCH(
     const run = runSnap.exists
       ? normalizeCourseRun(runSnap.id, runSnap.data() ?? {})
       : null;
-    isLead = Boolean(
-      run && isNamedWithStanding(actor, "courseRuns.trackLeadUids", run.trackLeadUids),
-    );
+    // A run's track lead, or the lead of the programme that names the run
+    // (`runStaffingOf`): the trusted tier below.
+    if (run) {
+      const staffing = await runStaffingOf(db, actor, run);
+      isLead = staffing.isTrackLead || staffing.leadOf !== null;
+    }
   }
   const facilitatesLiveGroup = Boolean(
     group &&
@@ -367,6 +401,13 @@ export async function PATCH(
     }
     incoming.checklist = checklist;
     patch.checklist = checklist;
+  }
+
+  if ("questions" in body) {
+    // Nothing references a question, so removing one strands no member's work.
+    const checked = questionsFrom(body.questions);
+    if (!checked.ok) return fieldError(checked.error);
+    patch.questions = checked.questions;
   }
 
   if ("guideBlocks" in body) {

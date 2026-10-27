@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import ProgrammeMark from "@/components/ProgrammeMark";
 import Card from "@/components/ui/Card";
 import Chip, { type ChipTone } from "@/components/ui/Chip";
 import ProgressRing from "@/components/ui/ProgressRing";
 import type { MyRunEntry, MyRunMembership } from "@/app/api/courses/me/route";
+import { endedWord } from "@/lib/courses/finishing/words";
 import { COURSE_RUN_STATUS_LABEL } from "@/lib/firestore/courses";
 import styles from "./RunCard.module.css";
 
@@ -112,7 +114,13 @@ function statusLine(entry: Props["entry"]): string {
   if (entry.status === "cancelled") return "Cancelled";
 
   const week = entry.currentWeek;
-  if (!week) return COURSE_RUN_STATUS_LABEL[entry.status];
+  // Once a run is over, "Finished" only where the member's own finished
+  // record says so (`entry.finished`); for everybody else it has "Ended".
+  if (!week) {
+    return entry.status === "completed"
+      ? endedWord(entry.finished === true)
+      : COURSE_RUN_STATUS_LABEL[entry.status];
+  }
 
   if (week.phase === "before") {
     if (!entry.startDate) return "Starts soon";
@@ -122,7 +130,7 @@ function statusLine(entry: Props["entry"]): string {
       : `Starts ${START_DATE_FORMAT.format(parsed)}`;
   }
 
-  if (week.phase === "after") return "Completed";
+  if (week.phase === "after") return endedWord(entry.finished === true);
 
   // Running. A break slot has no week number — it names itself ("Reading
   // week") and anchors to the week before it, which is why the fallback uses
@@ -162,9 +170,10 @@ export default function RunCard({ entry }: Props) {
    * The offer note is a promise about a cohort that is still ahead of them, so
    * it is withdrawn the moment the cohort isn't. Three ways a run stops being
    * ahead, and the calendar one matters as much as the status: `statusLine`
-   * already reports a run whose last week has passed as "Completed" whatever
-   * the status field still says, and a card that reads "Completed / your group
-   * will appear here" is the same class of lie this component exists to end.
+   * already reports a run whose last week has passed as over ("Ended", or
+   * "Finished" for somebody who finished it) whatever the status field still
+   * says, and a card that reads "Ended / your group will appear here" is the
+   * same class of lie this component exists to end.
    * The CHIP survives all three — they did hold a place, and the card is the
    * only record of it they have.
    */
@@ -173,15 +182,18 @@ export default function RunCard({ entry }: Props) {
     entry.status !== "completed" &&
     week?.phase !== "after";
 
-  const card = (
-    <Card
-      as="article"
-      padding="md"
-      interactive={linked}
-      className={[styles.card, offer ? styles.offer : ""].filter(Boolean).join(" ")}
-    >
-      <h3 className={styles.title}>{entry.courseTitle}</h3>
-      {meta && <p className={styles.meta}>{meta}</p>}
+  const className = [styles.card, offer ? styles.offer : ""].filter(Boolean).join(" ");
+  const body = (
+    <>
+      {/* The run's crest (or the emblem in its place), decorative beside its
+          name: `shownCrest` is the route's answer from the crest resolver. */}
+      <div className={styles.head}>
+        <ProgrammeMark shown={entry.shownCrest} size={44} />
+        <div className={styles.names}>
+          <h3 className={styles.title}>{entry.courseTitle}</h3>
+          {meta && <p className={styles.meta}>{meta}</p>}
+        </div>
+      </div>
 
       {(roles.length > 0 || offer) && (
         <div className={styles.chips}>
@@ -218,16 +230,28 @@ export default function RunCard({ entry }: Props) {
       {entry.groupName && <p className={styles.group}>{entry.groupName}</p>}
 
       {offer && showOfferNote && <p className={styles.note}>{offer.note}</p>}
-    </Card>
+    </>
   );
 
   // An offer opens onto nothing (see the module comment), so it is rendered as
-  // the bare card rather than wrapped in an anchor to a route that redirects.
-  if (!linked) return card;
+  // the bare card, an article, rather than wrapped in an anchor to a route
+  // that redirects.
+  if (!linked) {
+    return (
+      <Card as="article" padding="md" className={className}>
+        {body}
+      </Card>
+    );
+  }
 
+  // Inside its link the card is a div, never an article: a link whose content
+  // is an article has no accessible name in Chromium, so the card would be an
+  // unnamed link (`tests/link-wraps-no-article.test.mjs` holds the tree to it).
   return (
     <Link href={`/learn/${encodeURIComponent(entry.runId)}`} className={styles.link}>
-      {card}
+      <Card as="div" padding="md" interactive className={className}>
+        {body}
+      </Card>
     </Link>
   );
 }

@@ -1,6 +1,6 @@
 import { formatRoundDate } from "@/lib/admissions/window";
 import { formatRunStartShort } from "@/lib/courses/window";
-import { placeNextWords } from "../decisionDay/emailCopy";
+import { comingHelps, placeNextWords } from "../decisionDay/emailCopy";
 import { own } from "../keys";
 import type { ApplicationContent, ProgrammeKind } from "../model";
 import { EITHER_OPTION, contentForSend } from "../validate";
@@ -39,6 +39,51 @@ import { standingOf, type PlaceVia } from "./standing";
  */
 
 export type StepState = "done" | "now" | "next";
+
+/**
+ * WHAT THE RUN THE PLACE'S PROGRAMME NAMES SAYS ABOUT THE PERSON, worked out
+ * on the server from the course side (`readPlaceOnRun` in
+ * `src/lib/courses/placeOnRun.ts`) and handed in. Null when it says nothing:
+ * no run, not in a group Publish has told them about, never left one and
+ * never taken off one. Only these few facts cross over, so the view stays
+ * pure.
+ */
+export type RunFacts =
+  /** In a group Publish has told them about. */
+  | {
+      kind: "in-a-group";
+      /** Their programme's page is `/learn/<runId>`. */
+      runId: string;
+      /** "Group B", or null when the record names none. */
+      groupName: string | null;
+      /**
+       * What giving the place back now is: leaving, from their programme's
+       * page (`open`); a seat the team takes them off (`ask-the-team`); or
+       * nothing at all, because the run's last session is over (`ended`).
+       */
+      leave: "open" | "ask-the-team" | "ended";
+    }
+  /** Left that run by their own act, by either door. */
+  | {
+      kind: "left";
+      runId: string;
+      /** "Tue 17 Nov", or null when no day is on record. */
+      leftOnLabel: string | null;
+    }
+  /** Taken off that run by staff, and the place was not one they gave back themselves. */
+  | {
+      kind: "removed";
+      /** "Tue 27 Oct", or null when no day is on record. */
+      removedOnLabel: string | null;
+    };
+
+/** A place's group, once Publish has told them it: what the page says in place of "I can’t make it". */
+export type InGroupView = {
+  runId: string;
+  /** "Group B". Never set for an incubator: its people are told of no group. */
+  groupName: string | null;
+  leave: "open" | "ask-the-team" | "ended";
+};
 
 /** One of the three steps: its name, the day beside it, and where it stands. */
 export type StatusStep = { name: string; when: string | null; state: StepState };
@@ -91,13 +136,62 @@ export type StatusView =
        * week. The words are the decision email's own (`placeNextWords`).
        */
       next: string;
+      /**
+       * Why saying "I'm coming" helps, for the same kind: the line under the
+       * button, after "Optional.". The decision email's own sentence
+       * (`comingHelps`), so an incubator's people never read about groups.
+       */
+      comingHelps: string;
       saidComing: boolean;
+      /**
+       * Their group, once Publish has told them it. Then the page offers no
+       * "I’m coming" and no "I can’t make it": it points them to their
+       * programme's page, where leaving is, and says what giving the place
+       * back now means. Absent until then, so the view of every place before
+       * groups go out is the one it always was.
+       */
+      inGroup?: InGroupView;
+    }
+  /**
+   * Left the programme, by "Leave the programme" or by "I can’t make it" once
+   * they were in a group: either way, leaving gave the place back.
+   */
+  | {
+      kind: "left";
+      label: string;
+      decidedLabel: string | null;
+      programme: ViewProgramme | null;
+      /** Their programme's page, which says they left, and when, and nothing more. */
+      runId: string;
+      /** "Tue 17 Nov", or null when no day is on record. */
+      leftOnLabel: string | null;
+    }
+  /**
+   * Taken off the programme by staff (Remove on the allocation board), which
+   * gave the place on the form back with it. Never "You’ve told us you can’t
+   * make it": they did not say it. No way to their programme's page: the run
+   * closes to somebody taken off it.
+   */
+  | {
+      kind: "removed";
+      label: string;
+      decidedLabel: string | null;
+      programme: ViewProgramme | null;
+      /** "Tue 27 Oct", or null when no day is on record. */
+      removedOnLabel: string | null;
     }
   /** Invited, not answered: the invitation card of `ap-outcomes`. */
   | {
       kind: "invitation";
       label: string;
       decidedLabel: string | null;
+      /**
+       * A freed place: offered after decision day, from a place somebody
+       * gave back, to somebody decision day told "No offer this time". It is
+       * a programme they ranked, so the card does not say it is a fit for
+       * something "instead". False for decision day's own invitation.
+       */
+      freed: boolean;
       programme: ViewProgramme | null;
       /** "the Research incubator", or "the A and the B": what they applied for. */
       appliedFor: string | null;
@@ -251,7 +345,8 @@ function decidedLabelOf(form: ApplicantForm, application: ApplicantApplication):
  * What the page shows this person. `today` is the civil date in London
  * ("2026-10-25"), which is what a reply-by day is compared with.
  * `replyByIsADeadline` is the reply route's own switch, taken from the same
- * constant unless a test says otherwise.
+ * constant unless a test says otherwise. `run` is what the run the place's
+ * programme names says about them (`RunFacts`), or null for nothing.
  */
 export function statusViewFor(
   form: ApplicantForm,
@@ -259,6 +354,7 @@ export function statusViewFor(
   application: ApplicantApplication | null,
   today: string,
   replyByIsADeadline: boolean = REPLY_BY_IS_A_DEADLINE,
+  run: RunFacts | null = null,
 ): StatusView {
   const label = form.label;
   if (!application) {
@@ -298,9 +394,55 @@ export function statusViewFor(
   const decidedLabel = decidedLabelOf(form, application);
   const applied = sent ? ranked(form, sent) : [];
 
+  // Somebody who left the programme, by either door, gave the place back by
+  // leaving: the page says they left, and when, and never that they told us
+  // they could not make it. Read for a place still held too, so a leave that
+  // could not give the place back still reads as one.
+  if (
+    run?.kind === "left" &&
+    (standing.kind === "place" || (standing.kind === "released" && standing.how === "cant-make-it"))
+  ) {
+    return {
+      kind: "left",
+      label,
+      decidedLabel,
+      programme: viewProgramme(programmeOn(form, standing.programmeId)),
+      runId: run.runId,
+      leftOnLabel: run.leftOnLabel,
+    };
+  }
+
+  // Somebody staff took off the programme: Remove gave the place back, with
+  // no reason, so the page says they were taken off, and when, and never
+  // that they told us they could not make it. Read for a place still held
+  // too (nothing goes back once the run's last session is over), as a leave
+  // is.
+  if (
+    run?.kind === "removed" &&
+    (standing.kind === "place" || (standing.kind === "released" && standing.how === "cant-make-it"))
+  ) {
+    return {
+      kind: "removed",
+      label,
+      decidedLabel,
+      programme: viewProgramme(programmeOn(form, standing.programmeId)),
+      removedOnLabel: run.removedOnLabel,
+    };
+  }
+
   if (standing.kind === "place") {
     const placedOn = programmeOn(form, standing.programmeId);
     const next = placeNextWords(placedOn?.kind ?? null);
+    const inGroup: InGroupView | null =
+      run?.kind === "in-a-group"
+        ? {
+            runId: run.runId,
+            // An incubator's people are told of no group, so the page is
+            // never handed one to name.
+            groupName: placedOn?.kind === "incubator" ? null : run.groupName,
+            leave: run.leave,
+          }
+        : null;
     return {
       kind: "place",
       label,
@@ -310,7 +452,9 @@ export function statusViewFor(
       // The page of somebody their own ranking placed has room for the whole
       // sentence. The card of somebody who accepted an invitation has a line.
       next: standing.via === "ranking" ? next.page : next.card,
+      comingHelps: comingHelps(placedOn?.kind ?? null),
       saidComing: standing.saidComing,
+      ...(inGroup ? { inGroup } : {}),
     };
   }
   if (standing.kind === "invitation") {
@@ -319,6 +463,9 @@ export function statusViewFor(
       kind: "invitation",
       label,
       decidedLabel,
+      // An invitation beside "No offer this time" is a freed place: decision
+      // day's own is always beside an invitation result (`standingOf`).
+      freed: application.result?.kind === "no-offer",
       programme: viewProgramme(programmeOn(form, standing.programmeId)),
       appliedFor: applied.length > 0 ? inWords(applied.map((programme) => `the ${programme.name}`)) : null,
       replyByLabel: formatRunStartShort(standing.replyBy) ?? null,

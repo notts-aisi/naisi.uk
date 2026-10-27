@@ -20,6 +20,16 @@ export const COURSE_TEMPLATE_IDS = [
   "course-application-waitlisted",
   "course-application-rejected",
   "course-allocated",
+  // The email an incubator's people are sent when groups go out, in place of
+  // the one above: the weekly session, and never a group. Publish chooses it
+  // by the kind of the programme that names the run. Written by
+  // `composeIncubatorStartEmail` (`src/lib/courses/incubatorStartEmail.ts`)
+  // under the placement email's rules.
+  "course-allocated-incubator",
+  // The email each facilitator of a group is sent when groups go out, beside
+  // the placement email. Written by `composeFacilitatingEmail`
+  // (`src/lib/courses/facilitatingEmail.ts`) under the placement email's rules.
+  "course-facilitating",
   "course-week-nudge",
   "course-dropped-out",
   // The ADMISSIONS lifecycle (V3). Same collection and same editor as the
@@ -56,6 +66,8 @@ export type CourseTemplateTrigger =
   | "waitlisted"
   | "rejected"
   | "allocated"
+  | "allocated-incubator"
+  | "facilitating"
   | "week-nudge"
   | "dropped-out"
   | "admissions-submitted"
@@ -75,6 +87,8 @@ export const COURSE_TEMPLATE_TRIGGER: Record<CourseTemplateId, CourseTemplateTri
   "course-application-waitlisted": "waitlisted",
   "course-application-rejected": "rejected",
   "course-allocated": "allocated",
+  "course-allocated-incubator": "allocated-incubator",
+  "course-facilitating": "facilitating",
   "course-week-nudge": "week-nudge",
   "course-dropped-out": "dropped-out",
   "admissions-submitted": "admissions-submitted",
@@ -162,7 +176,7 @@ export type CourseTokenMap = {
   groupName?: string;
   /** Comma-joined display names, e.g. "Priya and Sam". */
   facilitatorNames?: string;
-  /** Human-formatted first session, e.g. "Tuesday 7 October, 6pm". */
+  /** Human-formatted first session, e.g. "Tue 7 Oct, 6pm". */
   firstSessionWhen?: string;
   /**
    * Where that first session is: the room, or "Online" for a group that
@@ -293,6 +307,8 @@ export const COURSE_DEFAULT_LABELS: Record<CourseTemplateId, string> = {
   "course-application-waitlisted": "Course application waitlisted",
   "course-application-rejected": "Course application rejected",
   "course-allocated": "Placed in a group",
+  "course-allocated-incubator": "Placed on an incubator",
+  "course-facilitating": "You’re facilitating",
   "course-week-nudge": "Weekly reminder",
   "course-dropped-out": "Left a course",
   "admissions-submitted": "Application received",
@@ -366,32 +382,131 @@ export const courseTemplateDefaults: Record<
     ],
   },
   /**
-   * The placement email. `composePlacementEmail` fills it
+   * The placement email, in the words of board st-emails ("Your AGI Strategy
+   * group: Tuesdays at 6pm"). `composePlacementEmail` fills it
    * (`src/lib/courses/placementEmail.ts`), and that file's rule shapes this
    * copy, so an editor should know it before rewriting:
    *
-   *  - `{groupName}` and `{firstSessionWhen}` are what the email is for.
-   *    Publishing is refused for a group that lacks either.
-   *  - `{facilitatorNames}` and `{firstSessionWhere}` can be missing: a group
-   *    formed in a hurry may have no facilitator or no room yet. EACH SITS IN
-   *    A PARAGRAPH OF ITS OWN, because that paragraph is left out whole for a
-   *    group with nothing to put in it. Neither may go in the subject, or in
-   *    a paragraph with the group's name or its first session.
+   *  - `{groupName}`, `{weeklySlot}`, `{firstSession}` and `{programmeUrl}`
+   *    are what the email is for. Publishing is refused for a group that
+   *    lacks one.
+   *  - `{place}`, `{placeNote}`, `{sessionLength}`, `{yourFacilitators}` and
+   *    `{groupSize}` are INLINE: each is worded to stand in its sentence or to
+   *    go from it ("in Hallward B12", "Sessions last 2 hours."), so the room,
+   *    the length, the facilitators and the size are said where the board
+   *    says them, and a group with no room yet reads "You’ll meet on Tuesdays
+   *    at 6pm, starting Tue 3 Nov." A paragraph left with nothing in it goes.
+   *  - `{weekOneTime}` and the two sign-offs (`{leadName}` with
+   *    `{programmeName}`, or `{naisiSignOff}`) can be missing: no time for
+   *    week 1, a group that has already met, no lead. EACH SITS IN A
+   *    PARAGRAPH OF ITS OWN, left out whole when there is nothing to put in
+   *    it. Exactly one of the two sign-offs is ever there.
    *  - A token outside that file's list is refused at publish, with a
    *    sentence naming it.
+   *
+   * Not said: the board's "Can’t make a session? Tell Rahul and Sofia from
+   * your programme page.", because telling a group's facilitators about one
+   * session is not built yet; the line goes in with that feature. The button
+   * is a link styled as one, in the colours of the decision-day emails' main
+   * button. No meeting link is ever filled in: an online group is told the
+   * link is on the programme's page.
    */
   "course-allocated": {
     label: COURSE_DEFAULT_LABELS["course-allocated"],
-    subject: "Your {courseTitle} group: first session {firstSessionWhen}",
+    subject: "Your {programmeName} group: {weeklySlot}",
     blocks: [
-      h("You've been placed, {firstName}"),
       rt(
-        "<p>You're in <strong>{groupName}</strong> for {courseTitle} ({runLabel}).</p>" +
-          "<p>Your group is facilitated by {facilitatorNames}.</p>" +
-          "<p>Your first session is <strong>{firstSessionWhen}</strong>.</p>" +
-          "<p>Where: {firstSessionWhere}</p>" +
-          "<p>Everything you need is in the learning space on the website: the week's reading, your group's details and your progress.</p>" +
-          "<p>Do the first week's reading before you come; the sessions work best when everyone arrives with opinions.</p>",
+        "<p>Hi {firstName},</p>" +
+          "<p>You’re in {groupName}. You’ll meet on {weeklySlot} {place}, starting {firstSession}. {sessionLength} {placeNote}</p>" +
+          "<p>{yourFacilitators} {groupSize}</p>" +
+          "<p>Week 1’s reading takes {weekOneTime}. Have a look before {firstSessionDay}.</p>" +
+          '<p><a href="{programmeUrl}" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#6a82ff;color:#050810;font-weight:600;text-decoration:none">Open your programme</a></p>' +
+          '<p>{leadName}<br /><span style="color:#71717a">{programmeName} lead, NAISI</span></p>' +
+          "<p>{naisiSignOff}</p>",
+      ),
+    ],
+  },
+  /**
+   * The email an incubator's people are sent at Publish, in place of the one
+   * above, when the programme that names the run is an incubator.
+   * `composeIncubatorStartEmail` fills it
+   * (`src/lib/courses/incubatorStartEmail.ts`) by the placement email's
+   * rules. An incubator is one weekly session for everybody on it, and its
+   * people are never told the word "group": nothing here says it, and no
+   * token this email fills can, because none holds a group's name or who
+   * facilitates it. `tests/applications-place-next-words.test.mjs` reads this
+   * copy for the word. Three things shape it:
+   *
+   *  - `{weeklySlot}`, `{firstSession}` and `{programmeUrl}` are what the
+   *    email is for. Publishing is refused for a run that lacks one.
+   *  - `{where}` and `{leadName}` can be missing: no room yet, or a programme
+   *    with no lead. EACH SITS IN A PARAGRAPH OF ITS OWN (the lead's name
+   *    twice: who runs the sessions, and the sign-off), because that
+   *    paragraph is left out whole when there is nothing to put in it. Neither
+   *    may go in the subject.
+   *  - The button is a link styled as one, in the colours of the decision-day
+   *    emails' main button. No meeting link is ever filled in: an online
+   *    session is told the link is on the programme's page.
+   */
+  "course-allocated-incubator": {
+    label: COURSE_DEFAULT_LABELS["course-allocated-incubator"],
+    subject: "Your {programmeName} sessions: {weeklySlot}",
+    blocks: [
+      rt(
+        "<p>Hi {firstName},</p>" +
+          "<p>You’ll meet on {weeklySlot}, starting {firstSession}.</p>" +
+          "<p>Where: {where}</p>" +
+          "<p>{leadName} runs the sessions.</p>" +
+          "<p>Week 1 is on your programme’s page.</p>" +
+          '<p><a href="{programmeUrl}" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#6a82ff;color:#050810;font-weight:600;text-decoration:none">Open your programme</a></p>' +
+          '<p>{leadName}<br /><span style="color:#71717a">{programmeName} lead, NAISI</span></p>',
+      ),
+    ],
+  },
+  /**
+   * The facilitators' email, sent at Publish to each facilitator of each
+   * group with somebody in it, in the words of board st-emails ("You’re
+   * facilitating Group B: Tuesdays at 6pm"). `composeFacilitatingEmail`
+   * fills it (`src/lib/courses/facilitatingEmail.ts`) by the placement
+   * email's rules, so the same three things shape this copy:
+   *
+   *  - `{groupName}`, `{weeklySlot}`, `{firstSession}`, `{lastSession}`,
+   *    `{groupSize}` and `{groupUrl}` are what the email is for. Publishing is
+   *    refused for a group that lacks one.
+   *  - `{place}`, `{placeNote}` and `{facilitatingWith}` are INLINE: worded to
+   *    stand in the sentence or go from it ("in Hallward B12", "You’re
+   *    facilitating with Sofia."), so a group with no room yet reads "Group B
+   *    meets on Tuesdays at 6pm, from Tue 3 Nov to Tue 8 Dec." and somebody
+   *    facilitating alone is told nobody beside them.
+   *  - `{leadName}` and `{programmeName}` can be missing: a run no programme
+   *    names, a programme with no lead. They share the sign-off, which is
+   *    left out whole when there is nothing to put in it, and then
+   *    `{naisiSignOff}` signs it NAISI in a paragraph of its own, as the
+   *    group email does. Exactly one of the two sign-offs is ever there.
+   *  - `{groupSize}` and `{namesOnPage}` are whole sentences ("There are 8
+   *    people in the group. Their names are on your group page."), so a
+   *    group of one reads right. `{namesOnPage}` says the board's "Their
+   *    names and week 1’s guide are on your group page." only while the
+   *    facilitator's group page shows that guide: the group has not met yet
+   *    and week 1 of the course's facilitator guide has its session plan or
+   *    its notes (Publish's plan asks).
+   *
+   * The button is a link styled as one, in the colours of the decision-day
+   * emails' main button. No meeting link is ever filled in: an online group
+   * is told the link is on the group page.
+   */
+  "course-facilitating": {
+    label: COURSE_DEFAULT_LABELS["course-facilitating"],
+    subject: "You’re facilitating {groupName}: {weeklySlot}",
+    blocks: [
+      rt(
+        "<p>Hi {firstName},</p>" +
+          "<p>{groupName} meets on {weeklySlot} {place}, from {firstSession} to {lastSession}. {placeNote} {facilitatingWith}</p>" +
+          "<p>{groupSize} {namesOnPage}</p>" +
+          '<p><a href="{groupUrl}" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#6a82ff;color:#050810;font-weight:600;text-decoration:none">Open your group</a></p>' +
+          "<p>Take the register on your phone during the session.</p>" +
+          '<p>{leadName}<br /><span style="color:#71717a">{programmeName} lead, NAISI</span></p>' +
+          "<p>{naisiSignOff}</p>",
       ),
     ],
   },

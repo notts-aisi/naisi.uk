@@ -666,7 +666,9 @@ describe("what a visitor's page is handed", () => {
       for (const each of term.programmes) {
         assert.deepEqual(
           Object.keys(each).sort(),
-          ["courseId", "facts", "id", "kind", "name", "pitch", "runId", "shortName", "starts"],
+          // A programme's own crest is named on purpose: it is drawn beside the programme's
+          // name on every public page, so a visitor sees it either way.
+          ["courseId", "crest", "facts", "id", "kind", "name", "pitch", "runId", "shortName", "starts"],
           stage,
         );
       }
@@ -694,6 +696,7 @@ describe("what a visitor's page is handed", () => {
       starts: "w/c 18 Jan",
       courseId: AGI_COURSE,
       runId: "run-agi-spring",
+      crest: null,
     };
     const incubator = {
       id: "research-incubator",
@@ -705,6 +708,7 @@ describe("what a visitor's page is handed", () => {
       starts: "w/c 25 Jan",
       courseId: null,
       runId: null,
+      crest: null,
     };
     for (const [stage, [stored, now]] of Object.entries(AT_EACH_STAGE)) {
       assert.deepEqual((await find({ [FORM_ID]: stored }, now)).programmes, [agi, incubator], stage);
@@ -944,13 +948,16 @@ describe("a page any visitor can load may import it", () => {
       .map(rel)
       .sort();
     assert.deepEqual(users, [READER, LOOKUP].sort());
-    // And the module it comes from still exports what it did, with that one more.
+    // And the module it comes from still exports what it did, with that one
+    // more, and one lookup that answers a yes or a no about a course run
+    // (`runTakesPeopleFromForm`) and hands nothing of a form to anybody.
     assert.deepEqual(Object.keys(openForm).sort(), [
       "applyPathFor",
       "findFormsByCourse",
       "findOpenForm",
       "openFormSpeaksFor",
       "readForms",
+      "runTakesPeopleFromForm",
     ]);
   });
 });
@@ -1111,7 +1118,8 @@ describe("the strip's dates, for each stage", () => {
     assert.deepEqual(rows({ stage: "open" }), [CLOSE, DECISIONS, START]);
     const CLOSED = ["Applications closed", "Sun 18 Oct", "23:59"];
     assert.deepEqual(rows({ stage: "closed" }), [CLOSED, DECISIONS, START]);
-    assert.deepEqual(rows({ stage: "running" }), [CLOSED, DECISIONS, START]);
+    // A9: once decisions have gone out, the day they were due by is not offered as still to come.
+    assert.deepEqual(rows({ stage: "running" }), [CLOSED, START]);
     assert.deepEqual(rows({ stage: "none" }), []);
   });
 
@@ -1122,7 +1130,8 @@ describe("the strip's dates, for each stage", () => {
     assert.equal(rows({ stage: "before", showOpening: true }).length, 4);
     // Once applications have closed there is no opening to tell of.
     assert.equal(rows({ stage: "closed", showOpening: true }).length, 3);
-    assert.equal(rows({ stage: "running", showOpening: true }).length, 3);
+    // ...and once decisions have gone out, no day they were due by either (A9): the close and the start.
+    assert.deepEqual(rows({ stage: "running", showOpening: true }), [["Applications closed", "Sun 18 Oct", "23:59"], START]);
     assert.deepEqual(rows({ stage: "before", showOpening: true, opensAt: null }), [CLOSE, DECISIONS, START]);
   });
 
@@ -1271,7 +1280,8 @@ describe("from a stored form to the words on the page", () => {
     running.programmes["research-incubator"].starts = "w/c 18 Jan";
     const page = await drawn({ [FORM_ID]: running }, new Date("2026-11-10T12:00:00Z"));
     assert.equal(page.line, "Running now");
-    assert.deepEqual(page.dates, ["Applications closed Sun 18 Oct", "Decisions by Fri 23 Oct", "Programmes start w/c 18 Jan"]);
+    // A9: decisions went out on Fri 23 Oct, so the strip no longer offers that day as still to come.
+    assert.deepEqual(page.dates, ["Applications closed Sun 18 Oct", "Programmes start w/c 18 Jan"]);
     assert.equal(page.link, "");
   });
 

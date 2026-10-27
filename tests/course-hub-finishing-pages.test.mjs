@@ -1,0 +1,455 @@
+/**
+ * Who finished on the programme's own pages, as every kind of caller: the
+ * Overview's section (board en-finish), the line before the end, the rule's
+ * card on Settings, and the head over the tabs.
+ *
+ *   /admin/admissions/forms/[roundId]/programmes/[programmeId]/overview
+ *   /admin/admissions/forms/[roundId]/programmes/[programmeId]/setup
+ *   the programme's layout (the line under its name)
+ *
+ * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
+ *
+ * ## What this guards
+ *
+ *  1. THE SECTION once the last session is over, leading the Overview, in
+ *     the board's words: the rule's sentence, the counts, "Fewest sessions
+ *     first", a row per person with their group, came to, exercises, what
+ *     they missed or were excused, and a Finished switch labelled with their
+ *     name, "Changed by you" beside the lead's own change; then "Left the
+ *     programme" with the day each left and no switch; then the note on a
+ *     cancelled session. A lead sees the people Publish told; an admin
+ *     everybody placed, ten rows and "+1 more".
+ *  2. BEFORE THE END the Overview has no section, and its People card says
+ *     when it can be done, with the way to Settings while there is no rule.
+ *  3. THE RULE'S CARD on Settings, for the lead and admins, holding the
+ *     number; nobody else is drawn it, and a lead's page reads nothing of the
+ *     run beyond the rule's own document.
+ *  4. THE HEAD: "Finished · Wed 9 Dec" and how many stayed to the end, from the
+ *     last session's end; before it, the running line.
+ *  5. The switches are not pressable before the page is live, no address
+ *     reaches any of it, and drawing a page writes nothing.
+ *  6. ABSENCES: Needs attention names each run of absences, and the grid
+ *     marks it "in a row", until the run's last session is over; from that
+ *     moment neither chases anybody, since there is no session left to miss.
+ *  7. ON A PHONE (en-finish draws no phone board): a card a row, each person's
+ *     switch beside their name and never behind a sideways scroll, at its
+ *     44px target, and the laptop table as it was. Read from the cells' own
+ *     classes as drawn and from the stylesheet's phone block, since no
+ *     browser runs here.
+ *
+ * Real: the pages, the layout, the section's component, the libraries. Faked:
+ * the session, the Admin SDK handle, `next/link`, `next/navigation`, the
+ * stylesheets and the clock.
+ */
+import { beforeEach, describe, mock, test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  AGI,
+  BEFORE,
+  END,
+  LAST_ENDS,
+  ROUND,
+  RULE,
+  RUN,
+  decision,
+  decisionPath,
+  makeFinishWorld,
+  rulePath,
+  textOf,
+} from "./lib/finishWorld.mjs";
+
+mock.timers.enable({ apis: ["Date"], now: END });
+
+const made = await makeFinishWorld("__finishPages");
+const { world, reset, pages, renderPage, head, everything, lib } = made;
+
+const PATH = `/admin/admissions/forms/${ROUND}/programmes/${AGI}`;
+
+beforeEach(() => {
+  mock.timers.setTime(END.getTime());
+  reset();
+  world.db.seed(rulePath, RULE(4));
+  world.db.seed(decisionPath("kofi"), decision("kofi", true, "claudia"));
+});
+
+/** The section's own HTML, cut out of the Overview. */
+function sectionHtml(html) {
+  const start = html.indexOf('aria-labelledby="who-finished"');
+  if (start < 0) return "";
+  const open = html.lastIndexOf("<section", start);
+  const close = html.indexOf("</section>", start);
+  return html.slice(open, close + "</section>".length);
+}
+
+/** Each row of the section: [name, group, came to, exercises, line, checked, mark]. */
+function rowsOf(html) {
+  const body = sectionHtml(html);
+  const rows = [];
+  for (const match of body.matchAll(/<tr>([\s\S]*?)<\/tr>/g)) {
+    const row = match[1];
+    const label = /aria-label="Finished: ([^"]+)"/.exec(row);
+    if (!label) continue;
+    const cells = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((cell) => textOf(cell[1]));
+    rows.push({
+      name: label[1],
+      cells,
+      checked: /<input[^>]*checked=""/.test(row),
+      changed: /Changed by you/.test(row) ? "Changed by you" : null,
+    });
+  }
+  return rows;
+}
+
+// ---------------------------------------------------------------------------
+// 1. The section
+// ---------------------------------------------------------------------------
+
+describe("1. the section, once the last session is over", () => {
+  test("leads the Overview in the board's words, for the lead", async () => {
+    const drawn = await renderPage(pages.overview, "claudia");
+    const text = drawn.text;
+    assert.ok(text.startsWith("Who finished We’ve ticked everyone who came to at least 4 of 6 sessions. Change any you disagree with. Only you and admins see this rule. 6 finished · 4 not Saved Fewest sessions first Name Group Came to Written answers Finished"), text.slice(0, 400));
+    // The rest of the Overview stays below it.
+    assert.ok(text.indexOf("Who finished") < text.indexOf("Sessions this week"));
+    assert.match(text, /Needs attention/);
+  });
+
+  test("a row per person, fewest sessions first, each switch labelled with their name", async () => {
+    const rows = rowsOf((await renderPage(pages.overview, "claudia")).html);
+    assert.deepEqual(
+      rows.map((row) => [row.name, row.cells.slice(1, 4).join(" | "), row.checked, row.changed]),
+      [
+        ["Freya Thompson", "Group D | 1 of 6 | 2 of 6", false, null],
+        ["Bea Lindqvist", "Group A | 2 of 6 | 2 of 6", false, null],
+        ["Farah Hussain", "Group B | 3 of 5 | 1 of 6", false, null],
+        ["Kofi Asante", "Group B | 3 of 5 | 6 of 6", true, "Changed by you"],
+        ["Tariq Mensah", "Group A | 3 of 6 | 0 of 6", false, null],
+        ["Dev Patel", "Group A | 4 of 6 | 4 of 6", true, null],
+        ["Chloe Nguyen", "Group B | 5 of 5 | 6 of 6", true, null],
+        ["Yasmin Farouk", "Group D | 5 of 6 | 4 of 6", true, null],
+        ["Amara Okafor", "Group A | 6 of 6 | 6 of 6", true, null],
+        ["Hamza Qureshi", "Group C | 6 of 6 | 6 of 7", true, null],
+      ],
+    );
+    assert.deepEqual(
+      rows.slice(0, 4).map((row) => row.cells[0].replace(/^[A-Z]{2} /, "")),
+      [
+        "Freya Thompson Missed weeks 2, 3, 4, 5 and 6",
+        "Bea Lindqvist Excused in week 2. Missed weeks 4, 5 and 6.",
+        "Farah Hussain Missed weeks 5 and 6",
+        "Kofi Asante Excused in weeks 1 and 3",
+      ],
+    );
+  });
+
+  test("the switches are real switches, not pressable until the page is live", async () => {
+    let html = sectionHtml((await renderPage(pages.overview, "claudia")).html);
+    const inputs = [...html.matchAll(/<input[^>]*>/g)].map((match) => match[0]);
+    assert.equal(inputs.length, 10);
+    for (const input of inputs) {
+      assert.match(input, /type="checkbox"/);
+      assert.match(input, /role="switch"/);
+      assert.match(input, /disabled=""/);
+    }
+    world.ui.hydrated = true;
+    html = sectionHtml((await renderPage(pages.overview, "claudia")).html);
+    assert.ok([...html.matchAll(/<input[^>]*>/g)].every((match) => !/disabled=""/.test(match[0])));
+  });
+
+  test("somebody who left is listed apart as having left, with no switch, never as not finished", async () => {
+    const html = sectionHtml((await renderPage(pages.overview, "claudia")).html);
+    const left = textOf(html.slice(html.indexOf("Left the programme")));
+    assert.match(left, /^Left the programme OH Omar Haddad Group B Left SW Sam Whitfield Group A Left Fri 6 Nov/);
+    assert.doesNotMatch(html, /Finished: (Sam Whitfield|Omar Haddad)/);
+    assert.match(textOf(html), /6 finished · 4 not/);
+  });
+
+  test("the note under the list says how many times Group B met and that its cancelled session counts against nobody", async () => {
+    const text = textOf(sectionHtml((await renderPage(pages.overview, "claudia")).html));
+    assert.ok(text.endsWith("Group B met 5 times. Its session on Tue 24 Nov was cancelled, and it doesn’t count against anyone."), text.slice(-200));
+  });
+
+  test("an admin sees everybody placed, Una whom Publish never told among them: ten rows, then +1 more", async () => {
+    const html = sectionHtml((await renderPage(pages.overview, "zach")).html);
+    assert.match(textOf(html), /7 finished · 4 not/);
+    assert.equal(rowsOf(html).length, 10);
+    assert.match(html, /aria-expanded="false"[^>]*><span>\+1 more<\/span>/);
+    assert.match(textOf(html), /Kofi Asante Excused in weeks 1 and 3 Group B 3 of 5 6 of 6 Changed by Claudia/);
+    // The lead never sees her.
+    assert.doesNotMatch(sectionHtml((await renderPage(pages.overview, "claudia")).html), /Una Byrne/);
+  });
+
+  // "Settings" in this sentence is a link to the rule's card, as the People
+  // card's "Set who counts as finished" is before the end; until the walk of
+  // stage three's fixes it was plain text (H11). The words are unchanged: the
+  // text read here has a gap where the link's tags were.
+  test("with no rule, the sentence says so, leads to the rule's card, and nobody is ticked but by hand", async () => {
+    world.db.seed(rulePath, { kind: "gone" });
+    const html = sectionHtml((await renderPage(pages.overview, "claudia")).html);
+    assert.match(textOf(html), /^Who finished There’s no rule for who finished yet, so we haven’t ticked anybody\. Set one in Settings , or tick people yourself\. Only you and admins see this\. 1 finished · 9 not/);
+    assert.ok(
+      html.includes(
+        `<p class="wfSentence">There’s no rule for who finished yet, so we haven’t ticked anybody. Set one in <a href="${PATH}/setup#who-finished" class="wfSentenceLink">Settings</a>, or tick people yourself. Only you and admins see this.</p>`,
+      ),
+      html.slice(0, 600),
+    );
+  });
+
+  test("with a rule, the sentence has no link: the rule is set", async () => {
+    const html = sectionHtml((await renderPage(pages.overview, "claudia")).html);
+    assert.match(html, /<p class="wfSentence">We’ve ticked everyone who came to at least 4 of 6 sessions\. Change any you disagree with\. Only you and admins see this rule\.<\/p>/);
+  });
+
+  test("a reviewer, the lead of another programme and everybody else are drawn no section", async () => {
+    assert.doesNotMatch((await renderPage(pages.overview, "lloyd")).html, /who-finished/);
+    assert.match((await renderPage(pages.overview, "tess")).text, /There is no programme here/);
+    for (const who of ["yusuf", "rahul", "amara", "bea", "sam", null]) {
+      assert.equal((await renderPage(pages.overview, who)).to, "/dashboard", String(who));
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2. Before the end
+// ---------------------------------------------------------------------------
+
+describe("2. before the last session is over", () => {
+  test("there is no section, and the People card says when it can be done", async () => {
+    mock.timers.setTime(BEFORE.getTime());
+    const drawn = await renderPage(pages.overview, "claudia");
+    assert.equal(sectionHtml(drawn.html), "");
+    assert.match(drawn.text, /People \d+ taking part .* You can say who finished once the last session is over, on Wed 9 Dec\./);
+    assert.doesNotMatch(drawn.html, /setup#who-finished/, "a run with a rule was sent to set one");
+  });
+
+  test("with no rule yet, it leads to Settings to set one", async () => {
+    mock.timers.setTime(BEFORE.getTime());
+    world.db.seed(rulePath, { kind: "gone" });
+    const drawn = await renderPage(pages.overview, "claudia");
+    assert.match(drawn.html, new RegExp(`<a href="${PATH}/setup#who-finished"[^>]*>Set who counts as finished`));
+  });
+
+  test("weeks before, the same line, from the same record", async () => {
+    mock.timers.setTime(new Date("2026-11-17T12:00:00Z").getTime());
+    assert.match((await renderPage(pages.overview, "zach")).text, /You can say who finished once the last session is over, on Wed 9 Dec\./);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. The rule's card
+// ---------------------------------------------------------------------------
+
+describe("3. the rule's card on Settings", () => {
+  test("the lead and an admin are drawn it, holding the number", async () => {
+    for (const who of ["claudia", "zach"]) {
+      const drawn = await renderPage(pages.setup, who);
+      assert.match(drawn.html, /<section id="who-finished"/, who);
+      assert.match(drawn.text, /Who finished Saved Came to at least sessions Of the sessions their group held: a cancelled session doesn’t count against anyone\. After the last session, we tick everyone who came to this many, and you can change any\. Only you and admins see this\./);
+      assert.match(drawn.html, /<input[^>]*inputMode="numeric"[^>]*value="4"|<input[^>]*value="4"[^>]*inputMode="numeric"/);
+    }
+  });
+
+  test("a lead's page reads the rule's own document and nothing of the run", async () => {
+    const drawn = await renderPage(pages.setup, "claudia");
+    assert.ok(drawn.reads.includes("courseFinishing"));
+    assert.ok(!drawn.reads.includes("courseRuns"), "a lead's Settings read the run");
+    assert.ok(!drawn.reads.includes("courseEnrolments"));
+  });
+
+  test("an empty box is no rule; a programme with no run has no card", async () => {
+    world.db.seed(rulePath, { kind: "gone" });
+    assert.match((await renderPage(pages.setup, "claudia")).html, /<input[^>]*value=""[^>]*>|<input(?![^>]*value=)[^>]*inputMode="numeric"/);
+    world.db.poke(`admissionRounds/${ROUND}`, { [`programmes.${AGI}.runId`]: null });
+    assert.doesNotMatch((await renderPage(pages.setup, "claudia")).html, /who-finished/);
+  });
+
+  test("a reviewer is told the settings are the lead's, and nobody else is drawn the rule", async () => {
+    const lloyd = await renderPage(pages.setup, "lloyd");
+    assert.doesNotMatch(lloyd.html, /who-finished|Came to at least/);
+    assert.match((await renderPage(pages.setup, "tess")).text, /There is no programme here/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. The head
+// ---------------------------------------------------------------------------
+
+describe("4. the line under the programme's name", () => {
+  // en-finish v21 says "stayed to the end" where v19 said "took part": the
+  // same count, which leaves out everybody who left.
+  test("once the last session is over: Finished with its day, and how many stayed to the end", async () => {
+    assert.match(await head("claudia"), /AGI Strategy Fellowship Finished · Wed 9 Dec C Lead: Claudia · 10 stayed to the end (Overview|Interest)/);
+    assert.match(await head("zach"), /Finished · Wed 9 Dec C Lead: Claudia · 11 stayed to the end/);
+  });
+
+  test("from the moment that session ends, and not a minute before", async () => {
+    mock.timers.setTime(new Date("2026-12-09T14:59:00Z").getTime());
+    assert.match(await head("claudia"), /Running · week 6 of 6 C Lead: Claudia · 10 taking part in 4 groups · Last sessions Wed 9 Dec/);
+    mock.timers.setTime(new Date("2026-12-09T15:00:00Z").getTime());
+    assert.match(await head("claudia"), /Finished · Wed 9 Dec C Lead: Claudia · 10 stayed to the end/);
+  });
+
+  test("a reviewer keeps the form's own line", async () => {
+    const said = await head("lloyd");
+    assert.doesNotMatch(said, /Finished|stayed to the end|took part/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. Nothing leaks, nothing is written
+// ---------------------------------------------------------------------------
+
+describe("5. no address, no write", () => {
+  test("drawing every page writes nothing and names nobody by address", async () => {
+    for (const who of ["claudia", "zach"]) {
+      const before = everything();
+      for (const page of [pages.overview, pages.setup]) {
+        const drawn = await renderPage(page, who);
+        assert.doesNotMatch(drawn.html, /@example\.com|@students/, who);
+      }
+      await head(who);
+      assert.equal(everything(), before, `${who}'s pages wrote something`);
+    }
+  });
+
+});
+
+// ---------------------------------------------------------------------------
+// 6. Absences, once there is nothing left to miss
+// ---------------------------------------------------------------------------
+
+describe("6. once the last session is over, nobody's absences are chased", () => {
+  /** Needs attention's runs of absences, as the lead reads them: [name, how many]. */
+  const chased = (text) =>
+    [...text.matchAll(/(\S+ \S+) has missed (\d+) sessions in a row without saying/g)].map((match) => [match[1], Number(match[2])]);
+
+  /** The Attendance grid's "in a row" badges, as `viewer` is drawn them: [name, how many]. */
+  async function badges(viewer) {
+    const records = await lib.attendance.readRunRecords(world.courseDb, RUN.agi);
+    return lib.attendance
+      .buildRunAttendance(records, viewer, new Date())
+      .groups.flatMap((group) => group.people.filter((person) => person.absentInARow > 0).map((person) => [person.name, person.absentInARow]));
+  }
+
+  test("before it, Needs attention names each run of absences, and the grid marks them", async () => {
+    mock.timers.setTime(BEFORE.getTime());
+    const runs = [["Freya Thompson", 5], ["Farah Hussain", 2], ["Bea Lindqvist", 3]];
+    assert.deepEqual(chased((await renderPage(pages.overview, "claudia")).text), runs);
+    assert.deepEqual(await badges({ isAdmin: false }), runs);
+  });
+
+  test("from the moment it ends, neither chases anybody, for the lead or an admin", async () => {
+    mock.timers.setTime(LAST_ENDS.getTime());
+    for (const who of ["claudia", "zach"]) {
+      const text = (await renderPage(pages.overview, who)).text;
+      assert.deepEqual(chased(text), [], who);
+      assert.doesNotMatch(text, /in a row/, who);
+    }
+    assert.deepEqual(await badges({ isAdmin: false }), []);
+    assert.deepEqual(await badges({ isAdmin: true }), []);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. On a phone
+// ---------------------------------------------------------------------------
+
+describe("7. on a phone, a card a row, each switch beside its person's name", () => {
+  const STYLESHEET = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "..", "src", "features", "applications", "overview", "ProgrammeOverview.module.css"),
+    "utf8",
+  ).replace(/\/\*[\s\S]*?\*\//g, "");
+
+  /** The stylesheet's top-level blocks: `{ prelude, body }`, nested blocks left in their parent's body. */
+  function blocks(css) {
+    const out = [];
+    let depth = 0;
+    let open = 0;
+    let from = 0;
+    for (let i = 0; i < css.length; i += 1) {
+      if (css[i] === "{") {
+        if (depth === 0) open = i;
+        depth += 1;
+      } else if (css[i] === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          out.push({ prelude: css.slice(from, open).trim(), body: css.slice(open + 1, i) });
+          from = i + 1;
+        }
+      }
+    }
+    return out;
+  }
+
+  /** Every selector of some flat rules, with the declarations it is given: `{ selector: { property: value } }`. */
+  function rules(body) {
+    const out = {};
+    for (const { prelude, body: declared } of blocks(body)) {
+      for (const selector of prelude.split(",").map((part) => part.trim().replace(/\s+/g, " "))) {
+        out[selector] ??= {};
+        for (const declaration of declared.split(";")) {
+          const at = declaration.indexOf(":");
+          if (at > 0) out[selector][declaration.slice(0, at).trim()] = declaration.slice(at + 1).trim();
+        }
+      }
+    }
+    return out;
+  }
+
+  const unconditional = rules(blocks(STYLESHEET).filter((block) => !block.prelude.startsWith("@")).map((block) => `${block.prelude}{${block.body}}`).join("\n"));
+  const phoneBlocks = blocks(STYLESHEET).filter((block) => block.prelude === "@media (max-width: 48rem)");
+  const phone = rules(phoneBlocks.map((block) => block.body).join("\n"));
+
+  /** The classes of each cell of each row of the section, as drawn: [first cell's text, [classes of every cell]]. */
+  function cellsOf(html) {
+    return [...sectionHtml(html).matchAll(/<tr>([\s\S]*?)<\/tr>/g)]
+      .map((match) => [...match[1].matchAll(/<td class="([^"]*)"[^>]*>([\s\S]*?)<\/td>/g)])
+      .filter((cells) => cells.length === 5)
+      .map((cells) => [textOf(cells[0][2]).replace(/^[A-Z]{2} /, "").split(" ").slice(0, 2).join(" "), cells.map((cell) => cell[1])]);
+  }
+
+  test("every row's cells are drawn with the places the phone layout gives them, and the headings stay for assistive technology", async () => {
+    const html = (await renderPage(pages.overview, "claudia")).html;
+    const rows = cellsOf(html);
+    const person = ["wfTd wfCellPerson", "wfTd wfCellGroup", "wfTd wfCellCame", "wfTd wfCellExercises", "wfTd wfCellFinished"];
+    const left = ["wfTd wfCellPerson", "wfTd wfCellGroup", "wfTd wfCellEmpty", "wfTd wfCellEmpty", "wfTd wfCellFinished"];
+    assert.equal(rows.length, 12);
+    for (const [name, classes] of rows) {
+      assert.deepEqual(classes, ["Omar Haddad", "Sam Whitfield"].includes(name) ? left : person, name);
+    }
+    assert.match(sectionHtml(html), /<thead class="wfThead"><tr><th scope="col" class="wfTh">Name<\/th>/);
+  });
+
+  test("on a phone the table is no wider than the screen, and each switch sits in the column beside the name, at its 44px target", () => {
+    assert.equal(phoneBlocks.length, 1, "one phone block, the house's 48rem");
+    // The laptop table, as drawn: wide, in its own scroller.
+    assert.equal(unconditional[".wfTable"]["min-width"], "760px");
+    assert.equal(unconditional[".wfScroll"]["overflow-x"], "auto");
+    // The switch's target, on every screen.
+    assert.deepEqual([unconditional[".wfSwitch"]["min-width"], unconditional[".wfSwitch"]["min-height"]], ["44px", "44px"]);
+    // On a phone: no minimum width, a grid a row, the person in the first
+    // column and their switch in the second, from the first line down.
+    assert.equal(phone[".wfTable"]["min-width"], "0");
+    assert.equal(phone[".wfTable > tbody > tr"].display, "grid");
+    assert.equal(phone[".wfTable > tbody > tr"]["grid-template-columns"], "minmax(0, 1fr) auto");
+    assert.deepEqual([phone[".wfTable .wfCellPerson"]["grid-column"], phone[".wfTable .wfCellPerson"]["grid-row"]], ["1", "1"]);
+    assert.deepEqual(
+      [phone[".wfTable .wfCellFinished"]["grid-column"], phone[".wfTable .wfCellFinished"]["grid-row"], phone[".wfTable .wfCellFinished"]["align-self"]],
+      ["2", "1 / span 4", "start"],
+    );
+    for (const [cell, row] of [[".wfTable .wfCellGroup", "2"], [".wfTable .wfCellCame", "3"], [".wfTable .wfCellExercises", "4"]]) {
+      assert.deepEqual([phone[cell]["grid-column"], phone[cell]["grid-row"]], ["1", row], cell);
+    }
+    assert.equal(phone[".wfTable td.wfCellEmpty"].display, "none");
+    // Each cell says its column's word, and the headings are hidden from
+    // sight only, never from assistive technology.
+    assert.equal(phone[".wfCellCame::before"].content, '"Came to"');
+    // The column is the written answers (en-finish v21), never "exercises" (K6).
+    assert.equal(phone[".wfCellExercises::before"].content, '"Written answers"');
+    assert.equal(phone[".wfThead"].position, "absolute");
+    assert.notEqual(phone[".wfThead"].display, "none");
+  });
+});

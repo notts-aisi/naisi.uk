@@ -1,0 +1,48 @@
+/* Pitching week's settings, in the run editor. The type and spacing follow
+   RunEditor.module.css so the section reads as one of the page's own. */
+
+.title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  margin: 0 0 var(--space-3);
+  color: var(--color-text);
+}
+
+.hint {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 36rem;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+.error {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+}
+
+@media (max-width: 48rem) {
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

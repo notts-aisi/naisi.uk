@@ -36,9 +36,14 @@ import {
 } from "@/lib/firestore/schedulerMarkers";
 import { admissionsRemindersJob } from "./jobs/admissionsReminders";
 import { admissionsStageReleaseJob } from "./jobs/admissionsStageRelease";
+import { anonymousFeedbackMoveJob } from "./jobs/anonymousFeedbackMove";
 import { applicationInvitationRemindersJob } from "./jobs/applicationInvitationReminders";
 import { eventAnnouncementsJob } from "./jobs/eventAnnouncements";
+import { eventCheckInsTidyJob } from "./jobs/eventCheckInsTidy";
 import { heartbeatJob } from "./jobs/heartbeat";
+import { nextWeekEmailJob } from "./jobs/nextWeekEmail";
+import { registerRemindersJob } from "./jobs/registerReminders";
+import { surveyNamesOffJob } from "./jobs/surveyNamesOff";
 import { unmarkedRegistersJob } from "./jobs/unmarkedRegisters";
 import { worksheetDueRemindersJob } from "./jobs/worksheetDueReminders";
 
@@ -46,14 +51,20 @@ import { worksheetDueRemindersJob } from "./jobs/worksheetDueReminders";
  * Every job id the platform will register. The union is complete ahead of the
  * handlers on purpose (see the module comment).
  *
- * `week-lock-notices` is deliberately absent: the facilitator's attendance
- * push already carries the next-week email, so a second notice would be a
- * duplicate with worse timing.
+ * `week-lock-notices` is deliberately absent: next week's email (sent by the
+ * register's push, or on its schedule by `courses-next-week-email`) already
+ * tells a group about its week, so a second notice would be a duplicate with
+ * worse timing.
  */
 export const SCHEDULER_JOB_IDS = [
   "heartbeat",
   "admissions-deadline-reminders",
   "admissions-stage-release",
+  // The anonymous keep, change and drop form's night move (docs/surveys.md):
+  // a day's answers into the record kept, which holds the day and not the
+  // time. It emails nobody, so it registers on: the form and the privacy
+  // policy say the move happens.
+  "anonymous-feedback-move",
   // The daily reminder for an invitation nobody has answered
   // (docs/applications.md). It emails people, so it registers with
   // `enabledByDefault: false`. The decision-day page looks this id up on the
@@ -62,12 +73,30 @@ export const SCHEDULER_JOB_IDS = [
   "application-invitation-reminders",
   "courses-unmarked-registers",
   "courses-break-return",
+  // Next week's email on a schedule (wk-register, option B). Its switch is
+  // load-bearing in two places: the tick runs it, and the attendance push
+  // reads it to decide whether pushing still sends the email
+  // (`nextWeekEmailSchedule.ts`). It emails whole groups, so it registers with
+  // `enabledByDefault: false`.
+  "courses-next-week-email",
+  // The one reminder to a group's facilitators when a register is still not
+  // finished. It emails people, so it registers with `enabledByDefault: false`.
+  "courses-register-reminders",
   // The queued new-event announcement (docs/notifications.md). Publishing
   // consults THIS switch to decide between sending inline and queueing, so
   // the id is load-bearing in two places rather than one: rename it after it
   // has shipped and the publish route starts reading a switch nobody set.
   "event-announcements",
+  // Walk-ins' emails deleted a week after their event, and names off an
+  // event's check-ins a year after it (`src/lib/events/checkIns.ts`). It
+  // emails nobody, so it registers on: the privacy policy's promise rests on
+  // it running.
+  "event-check-ins-tidy",
   "newsletter-drain",
+  // Names come off confidential survey answers two years after the programme
+  // (docs/surveys.md). It emails nobody, so it registers on: the privacy
+  // policy's promise rests on it running.
+  "surveys-names-off",
   // Worksheet due-soon reminders (docs/worksheets.md). The id was reserved
   // here ahead of its handler for the reason the header gives: the panel and
   // `config/scheduler` key on these strings, so the id had to be the one the
@@ -219,10 +248,15 @@ export function policyFor(job: JobRegistration): MarkerPolicy {
 export const JOBS: readonly JobRegistration[] = [
   admissionsRemindersJob,
   admissionsStageReleaseJob,
+  anonymousFeedbackMoveJob,
   applicationInvitationRemindersJob,
+  nextWeekEmailJob,
+  registerRemindersJob,
   unmarkedRegistersJob,
   eventAnnouncementsJob,
+  eventCheckInsTidyJob,
   heartbeatJob,
+  surveyNamesOffJob,
   worksheetDueRemindersJob,
 ];
 

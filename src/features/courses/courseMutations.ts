@@ -9,26 +9,31 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
+import type { CrestKey } from "@/lib/crests/keys";
 import { getClientAuth, getClientDb } from "@/lib/firebase/client";
 import { slugId } from "@/lib/firestore/slugId";
 import { isValidDateKey, type WeekPlanEntry } from "@/lib/courses/weekPlan";
 import { cohortError, type RunCohort } from "@/lib/courses/cohortLabel";
+import { normalizeTeamsFrom, type TeamsFrom } from "@/lib/courses/teams/model";
+import { isClockTime } from "@/lib/courses/weekBlocks/model";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
 import type { FormQuestion } from "@/lib/firestore/events";
 import {
   COURSE_FIELD_LIMITS,
   EMPTY_APPLICATION_COUNTS,
   courseRunChannel,
+  emptyWeekFields,
+  pitchSettingsError,
+  sanitizeWeekQuestions,
+  storedPitchSettings,
   weekDocId,
-  type ChecklistItem,
   type CourseEnrolMode,
   type CourseRunStatus,
   type CourseRunStream,
   type CourseStatus,
   type CourseTrack,
   type CourseWeekDoc,
-  type Exercise,
-  type Material,
+  type RunPitchSettings,
 } from "@/lib/firestore/courses";
 import {
   GROUP_FIELD_LIMITS,
@@ -145,6 +150,10 @@ export type CoursePatch = Partial<{
   track: CourseTrack;
   level: CourseLevel;
   estimatedWeeklyHours: number | null;
+  /** "HH:MM" London, or null for the end of the day (`CourseDoc.dayBeforeDueTime`). */
+  dayBeforeDueTime: string | null;
+  /** The credit line every certificate of the course carries ("based on the BlueDot Impact curriculum"), or "" for none. */
+  credit: string;
   /** Requires `approveCourse` (rules gate every status move). */
   status: CourseStatus;
   showcaseRunId: string | null;
@@ -174,6 +183,13 @@ export async function updateCourse(courseId: string, patch: CoursePatch): Promis
   }
   if (patch.estimatedWeeklyHours !== undefined) {
     out.estimatedWeeklyHours = positiveIntOrNull(patch.estimatedWeeklyHours);
+  }
+  if (patch.dayBeforeDueTime !== undefined) {
+    // Stored only in the one shape the readers accept: a real null otherwise.
+    out.dayBeforeDueTime = isClockTime(patch.dayBeforeDueTime) ? patch.dayBeforeDueTime : null;
+  }
+  if (patch.credit !== undefined) {
+    out.credit = capped(patch.credit, COURSE_FIELD_LIMITS.credit);
   }
   if (patch.status !== undefined) out.status = patch.status;
   if (patch.showcaseRunId !== undefined) {
@@ -283,6 +299,10 @@ export type CourseRunPatch = Partial<{
    */
   cohort: RunCohort | null;
   startHereBlocks: Block[];
+  /** Pitching week's settings, stored whole (`storedPitchSettings`). */
+  pitchSettings: RunPitchSettings;
+  /** How the run's teams are made, or null for nobody has said. Stored as written, or null. */
+  teamsFrom: TeamsFrom | null;
 }>;
 
 export async function updateRun(runId: string, patch: CourseRunPatch): Promise<void> {
@@ -346,6 +366,15 @@ export async function updateRun(runId: string, patch: CourseRunPatch): Promise<v
       0,
       COURSE_FIELD_LIMITS.maxStartHereBlocks,
     );
+  }
+  if (patch.pitchSettings !== undefined) {
+    const error = pitchSettingsError(patch.pitchSettings);
+    if (error) throw new Error(error);
+    out.pitchSettings = storedPitchSettings(patch.pitchSettings);
+  }
+  if (patch.teamsFrom !== undefined) {
+    // One of the two ways, or null: never a string the reader would not keep.
+    out.teamsFrom = normalizeTeamsFrom(patch.teamsFrom);
   }
 
   if (Object.keys(out).length === 0) return;
@@ -418,8 +447,10 @@ function assertGroupCapacity(
 /**
  * Create a group inside `run`. `facilitatorUids` and `memberCount` start
  * empty/zero (rule-enforced): facilitators arrive via
- * `setGroupFacilitators()` and the count moves only inside the allocation
- * transaction, so it can never drift from the enrolment docs it summarises.
+ * `setGroupFacilitators()` and the count moves only inside a server
+ * transaction that writes the placement it counts (the allocation board's, or
+ * an appointment that places a facilitator who holds a place), so it can never
+ * drift from the enrolment docs it summarises.
  *
  * `run.enrolMode` is required because an open-mode run's groups MUST carry a
  * capacity; see `assertGroupCapacity`.
@@ -595,18 +626,23 @@ export async function assignRunRoles(
 
 /**
  * Replace a group's facilitators. The route also upserts / retires the
- * matching `role: "facilitator"` enrolment rows, which is why this can't be a
- * client write.
+ * matching `role: "facilitator"` enrolment rows, and places in this group
+ * anybody added who holds a place on the run and sits in no group yet, which
+ * is why this can't be a client write. Answers the names of those it placed.
  */
 export async function setGroupFacilitators(
   groupId: string,
   uids: string[],
-): Promise<void> {
-  await postJson(
+): Promise<{ placed: string[] }> {
+  const answered = await postJson<{ placed?: unknown }>(
     `/api/courses/groups/${groupId}/facilitators`,
     { uids },
     "Couldn't update this group's facilitators.",
   );
+  const placed = Array.isArray(answered?.placed)
+    ? answered.placed.filter((name): name is string => typeof name === "string")
+    : [];
+  return { placed };
 }
 
 /** Move a run along its lifecycle. The allowed-transition table is server-side. */
@@ -668,6 +704,21 @@ export async function publishCourse(
     { showcaseRunId },
     "Couldn't publish this course.",
   );
+}
+
+/**
+ * Set or clear the programme crest a course carries. Admin only, and the one
+ * writer of `courses/{id}.crest`: the rules keep the field as it was on every
+ * client write that is not an admin's, so `updateCourse` never sends it.
+ */
+export async function saveCourseCrest(courseId: string, crest: CrestKey | null): Promise<void> {
+  const res = await fetch(`/api/courses/${encodeURIComponent(courseId)}/crest`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ crest }),
+  });
+  const parsed = (await res.json().catch(() => ({}))) as { error?: string };
+  if (!res.ok) throw new Error(parsed.error ?? "Couldn’t change this course’s crest.");
 }
 
 // ---- Weeks (curriculum content) ----
@@ -765,15 +816,7 @@ export async function ensureWeekDoc(
   if (existing.exists()) return;
 
   await setDoc(ref, {
-    weekNumber: n,
-    title: "",
-    summary: "",
-    guideBlocks: [] as Block[],
-    materials: [] as Material[],
-    exercises: [] as Exercise[],
-    checklist: [] as ChecklistItem[],
-    estimatedMinutes: null,
-    published: false,
+    ...emptyWeekFields(n),
     updatedAt: serverTimestamp(),
     updatedByUid: uid,
   });
@@ -825,10 +868,16 @@ export async function saveWeek(
   if (patch.checklist !== undefined) {
     out.checklist = patch.checklist.slice(0, COURSE_FIELD_LIMITS.maxChecklistItems);
   }
+  if (patch.questions !== undefined) {
+    // Written as the week keeps them (one line each, blanks dropped, inside
+    // the limits), so what the rules check is what the week page draws.
+    out.questions = sanitizeWeekQuestions(patch.questions);
+  }
   if (patch.estimatedMinutes !== undefined) {
     out.estimatedMinutes = positiveIntOrNull(patch.estimatedMinutes);
   }
   if (patch.published !== undefined) out.published = patch.published === true;
+  if (patch.pitching !== undefined) out.pitching = patch.pitching === true;
 
   if (Object.keys(out).length === 0) return;
   out.updatedAt = serverTimestamp();

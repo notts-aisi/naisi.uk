@@ -198,11 +198,18 @@ const {
   courseNudgeTokensFrom,
   courseWeekPrepLine,
   courseWeekUrl,
+  emptyNudgeValues,
+  groupNudgeFacts,
   groupNudgeMarkerId,
+  groupNudgeTokens,
+  joinWords,
+  missingNudgeValueWords,
   nudgeMarkerId,
+  nudgeTokensUsed,
   nudgeWeekMarkerIds,
   renderCourseNudge,
   COURSE_NUDGE_TOKEN_KEYS,
+  NUDGE_TOKENS_AN_EMAIL_MAY_GO_WITHOUT,
 } = await loadTs("lib/email/courseNudgeEmail.ts");
 const { courseTemplateDefaults } = await loadTs("lib/firestore/courseEmails.ts");
 const { weekDocId } = await loadTs("lib/firestore/courses.ts");
@@ -235,7 +242,7 @@ function fullInput(overrides = {}) {
     weekTitle: "Goal misgeneralisation",
     weekSummary:
       "Why a system that learned the right thing in training can still pursue the wrong one when the world shifts.",
-    sessionWhen: "Tuesday 21 October, 18:00–19:30",
+    sessionWhen: "Tue 21 Oct, 6pm to 7:30pm",
     sessionWhere: "Hallward Library, B12",
     weekPrep:
       "There are four things to read or watch and one exercise to write up this week, about 2 hours in total.",
@@ -728,7 +735,7 @@ test("a member with no session gets no session sentence", () => {
 
 test("a session with a time but no room keeps the sentence and closes it up", () => {
   const body = bodyOf(renderSeed({ sessionWhere: "" }));
-  assert.match(body, /Your group meets Tuesday 21 October, 18:00–19:30\./);
+  assert.match(body, /Your group meets Tue 21 Oct, 6pm to 7:30pm\./);
   assert.doesNotMatch(body, /,\s*\./);
 });
 
@@ -1089,6 +1096,11 @@ test("courseNudgeTokensFrom coerces an admin sample map under the same rules", (
   assert.equal("notATokenHere" in tokens, false);
 });
 
+// Since the walk of stage two's fixes (G6) a session is written the way the
+// placement email writes a first session, "Tue 3 Nov, 6pm", with its end
+// added and no dash of either kind: until then it read "Tuesday 20 October,
+// 18:00" and the end time after a dash. The shape is still a date, a comma
+// and a time, so wording saved around the token reads as a sentence.
 test("courseNudgeSessionWhen reads as a date when it has one, a habit when it doesn't", () => {
   const session = {
     weekday: 2,
@@ -1098,11 +1110,19 @@ test("courseNudgeSessionWhen reads as a date when it has one, a habit when it do
     meetingUrl: null,
     notes: "",
   };
-  assert.equal(
-    courseNudgeSessionWhen(session, "2026-10-20"),
-    "Tuesday 20 October, 18:00–19:30",
-  );
-  assert.equal(courseNudgeSessionWhen(session, null), "Tuesdays 18:00–19:30");
+  assert.equal(courseNudgeSessionWhen(session, "2026-10-20"), "Tue 20 Oct, 6pm to 7:30pm");
+  assert.equal(courseNudgeSessionWhen(session, null), "Tuesdays, 6pm to 7:30pm");
+  // Midday, a morning, minutes past the hour, and a session that runs past midnight.
+  assert.equal(courseNudgeSessionWhen({ ...session, startTimeLocal: "12:00", durationMinutes: 60 }, "2026-10-20"), "Tue 20 Oct, 12pm to 1pm");
+  assert.equal(courseNudgeSessionWhen({ ...session, startTimeLocal: "09:15", durationMinutes: 45 }, "2026-10-20"), "Tue 20 Oct, 9:15am to 10am");
+  assert.equal(courseNudgeSessionWhen({ ...session, startTimeLocal: "23:00", durationMinutes: 120 }, "2026-10-20"), "Tue 20 Oct, 11pm to 1am");
+  // A session with no length names when it starts, and nothing it does not know.
+  assert.equal(courseNudgeSessionWhen({ ...session, durationMinutes: 0 }, "2026-10-20"), "Tue 20 Oct, 6pm");
+  // A time that is not a time of day is no time at all: the sentence goes.
+  assert.equal(courseNudgeSessionWhen({ ...session, startTimeLocal: "6pm" }, "2026-10-20"), "");
+  for (const when of [courseNudgeSessionWhen(session, "2026-10-20"), courseNudgeSessionWhen(session, null)]) {
+    assert.doesNotMatch(when, /[\u2013\u2014]/, when);
+  }
   // No time set at all: "" is what makes the whole sentence disappear.
   assert.equal(courseNudgeSessionWhen({ ...session, startTimeLocal: "" }, "2026-10-20"), "");
   assert.equal(courseNudgeSessionWhen(null, "2026-10-20"), "");
@@ -1260,3 +1280,117 @@ test("courseNudgeSessionDateKey agrees with the session resolver", () => {
     }
   }
 });
+
+// ---------------------------------------------------------------------------
+// Whole or not at all (next week's email on its schedule)
+// ---------------------------------------------------------------------------
+
+/** One group's facts for week 4, everything filled in. */
+function groupFacts(over = {}) {
+  return groupNudgeFacts({
+    courseTitle: "AGI Strategy Fellowship",
+    runLabel: "Autumn 2026",
+    runId: "run1",
+    appUrl: "https://naisi.example",
+    feedbackUrl: "",
+    session: {
+      weekNumber: 4,
+      dateKey: "2026-11-24",
+      session: {
+        weekday: 2,
+        startTimeLocal: "18:00",
+        durationMinutes: 120,
+        location: "Room C20",
+        meetingUrl: "https://meet.example.com/abc",
+        notes: "",
+      },
+    },
+    mode: null,
+    week: {
+      title: "Week 4 theme",
+      summary: "What week 4 is about.",
+      materials: [{ optional: false }],
+      exercises: [],
+      estimatedMinutes: 75,
+    },
+    ...over,
+  });
+}
+
+test("the seed template uses the tokens the email is about, and two it may go without", () => {
+  const used = nudgeTokensUsed(SEED);
+  for (const key of ["weekTitle", "sessionWhen", "sessionWhere", "weekPrep", "weekUrl"]) {
+    assert.ok(used.includes(key), `${key} is a fact the email carries`);
+  }
+  assert.deepEqual([...NUDGE_TOKENS_AN_EMAIL_MAY_GO_WITHOUT].sort(), ["feedbackUrl", "firstName"]);
+  // Every one of them is a real token: a typo in the template is not counted.
+  assert.ok(used.every((key) => COURSE_NUDGE_TOKEN_KEYS.includes(key)));
+  assert.deepEqual(nudgeTokensUsed({ subject: "{weekTtile}", blocks: [] }), []);
+});
+
+test("a whole group's email has no empty value, with no feedback form set", () => {
+  assert.deepEqual(emptyNudgeValues(SEED, groupNudgeTokens(groupFacts())), []);
+});
+
+test("an empty room, reading, time or summary is a value the email is missing", () => {
+  const roomless = groupFacts();
+  roomless.sessionWhere = "";
+  assert.deepEqual(emptyNudgeValues(SEED, groupNudgeTokens(roomless)), ["sessionWhere"]);
+
+  const readingless = groupFacts({
+    week: { title: "Week 4 theme", summary: "x", materials: [], exercises: [], estimatedMinutes: null },
+  });
+  assert.deepEqual(emptyNudgeValues(SEED, groupNudgeTokens(readingless)), ["weekPrep"]);
+
+  const timeless = groupFacts();
+  timeless.sessionWhen = "";
+  // No time takes the room with it, by the pairing rule: both are missing.
+  assert.deepEqual(
+    emptyNudgeValues(SEED, groupNudgeTokens(timeless)).sort(),
+    ["sessionWhen", "sessionWhere"],
+  );
+  assert.deepEqual(
+    missingNudgeValueWords(["sessionWhere", "weekPrep", "weekSummary"], 4),
+    ["the group’s room", "week 4’s reading", "week 4’s summary"],
+  );
+  assert.equal(joinWords(["the group’s room", "week 4’s reading"]), "the group’s room and week 4’s reading");
+});
+
+test("a template that does not use a value is not held for it", () => {
+  const template = { subject: "Week {weekNumber}", blocks: [{ id: "b", type: "richText", html: "<p>{weekTitle}</p>" }] };
+  const roomless = groupFacts();
+  roomless.sessionWhere = "";
+  assert.deepEqual(emptyNudgeValues(template, groupNudgeTokens(roomless)), []);
+});
+
+test("an online week says Online and never the meeting link", () => {
+  const online = groupFacts({ mode: "virtual" });
+  assert.equal(online.sessionWhere, "Online");
+  const rendered = renderCourseNudge(SEED, groupNudgeTokens(online));
+  assert.doesNotMatch(JSON.stringify(rendered), /meet\.example\.com/);
+  // A room holding a link prints no room at all, which the check then holds.
+  const room = groupNudgeFacts({
+    courseTitle: "C",
+    runLabel: "R",
+    runId: "run1",
+    appUrl: "https://naisi.example",
+    feedbackUrl: "",
+    mode: null,
+    week: { title: "T", summary: "S", materials: [{}], exercises: [], estimatedMinutes: 30 },
+    session: {
+      weekNumber: 4,
+      dateKey: "2026-11-24",
+      session: {
+        weekday: 2,
+        startTimeLocal: "18:00",
+        durationMinutes: 120,
+        location: "zoom.example.com/j/123456789",
+        meetingUrl: null,
+        notes: "",
+      },
+    },
+  });
+  assert.equal(room.sessionWhere, "");
+  assert.deepEqual(emptyNudgeValues(SEED, groupNudgeTokens(room)), ["sessionWhere"]);
+});
+

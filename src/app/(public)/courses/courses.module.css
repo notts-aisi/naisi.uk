@@ -60,6 +60,20 @@
   margin: 0;
 }
 
+/* The programme's crest (or the emblem in its place) beside its name. */
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* A long name wraps beside the crest rather than pushing the card wider. */
+.cardHead > .cardTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .cardTitle {
   margin: 0;
   font-family: var(--font-display);

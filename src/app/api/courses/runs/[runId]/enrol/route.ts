@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser, type SessionUser } from "@/lib/firebase/session";
+import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { enrolWindow, isEnrolOpen } from "@/lib/courses/enrolWindow";
 import { joinedWeekFor } from "@/lib/courses/groupResolve";
@@ -10,11 +11,10 @@ import {
   fetchGroupPicker,
   type GroupPickerOption,
 } from "@/features/courses/fetchGroupPicker";
-import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
-import { readCoursesConfig } from "@/lib/firestore/config";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
+  placementIsShownTo,
   ENROLMENT_LIMITS,
   type CourseEnrolmentStatus,
 } from "@/lib/firestore/courseEnrolments";
@@ -22,15 +22,16 @@ import {
   groupFullError,
   normalizeCourseGroup,
 } from "@/lib/firestore/courseGroups";
-import { courseTaskId, MIRRORED_TASK_SOURCE } from "@/lib/firestore/courseTasks";
+import { leavePathFor } from "@/lib/courses/leaving";
+import { leaveRun, type LeaveResult } from "@/lib/courses/leaveRun";
+import { leaveClosedLine } from "@/lib/courses/leavingWords";
 import {
   courseRunChannel,
   normalizeCourseRun,
   type CourseRunDoc,
 } from "@/lib/firestore/courses";
-import { unsubscribe, subscribe } from "@/lib/firestore/subscriptions";
+import { subscribe } from "@/lib/firestore/subscriptions";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
-import { sendCourseDroppedOutEmail } from "@/lib/email/courseEnrolmentEmails";
 import {
   DEFAULT_PAUSED_MESSAGE,
   DEFAULT_SITE_NOTICE,
@@ -45,7 +46,9 @@ import {
  *   GET:    the session slots on offer plus the caller's own row (if any)
  *   POST:   take a seat in one of them
  *   PATCH:  move to a different session, or change stream
- *   DELETE: drop out. IRREVERSIBLE.
+ *   DELETE: leave. IRREVERSIBLE. Written by `leaveRun`
+ *           (`src/lib/courses/leaveRun.ts`), which the reply route's
+ *           "I can’t make it" also takes for somebody in a group.
  *
  * ── WHY A ROUTE AND NOT A CLIENT-DIRECT WRITE ───────────────────────────────
  * `courseEnrolments` is `allow write: if false` and it stays that way. Three
@@ -103,14 +106,6 @@ const RL_UID_MAX = 10;
  * ceiling, because it costs a group query and a document read.
  */
 const RL_READ_UID_MAX = 60;
-
-/**
- * How many weeks back the drop-out sweep looks for this member's mirrored My
- * Work cards. The mirror is created lazily, one card per cohort week, so the
- * most a live run can have produced is one per week of its plan; 60 is
- * `weekDocId`'s own ceiling and therefore covers every run that can exist.
- */
-const MAX_MIRROR_WEEKS = 60;
 
 type Db = NonNullable<ReturnType<typeof getAdminDb>>;
 
@@ -334,8 +329,15 @@ export async function GET(_req: Request, ctx: Ctx) {
   if (snap.exists) {
     const row = normalizeCourseEnrolment(snap.id, snap.data() ?? {});
     // Belt to the doc id's brace: a hand-made document at a guessable path
-    // must not be reported as this caller's enrolment.
-    if (row.uid === user.uid && row.runId === runId) {
+    // must not be reported as this caller's enrolment. Nor is a seat an admin
+    // allocated and Publish has not told them about yet: it is reported as
+    // no row, as it was before they were placed. A seat somebody took here
+    // for themselves is theirs at once.
+    if (
+      row.uid === user.uid &&
+      row.runId === runId &&
+      placementIsShownTo(row, { isAdmin: user.role === "admin" })
+    ) {
       enrolment = {
         groupId: row.groupId,
         streamId: row.streamId,
@@ -594,6 +596,14 @@ async function subscribeToCohort(db: Db, runId: string, user: SessionUser) {
  * sign-ups", and someone already holding a seat swapping Tuesday for Thursday
  * is not a new sign-up.
  */
+/**
+ * NOT DRAWN. A session change from a facilitator who holds a place on an open
+ * run: they run their group's sessions, so staff change which group that is.
+ */
+function facilitatingSessionError(groupName: string): string {
+  return `You facilitate ${groupName}, so your session is the one you run. Ask an admin to change which group you facilitate.`;
+}
+
 export async function PATCH(req: Request, ctx: Ctx) {
   const blocked = await assertNotImpersonating();
   if (blocked) return blocked;
@@ -643,11 +653,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
   try {
     await db.runTransaction(async (tx) => {
-      const [runSnap, targetSnap, existingSnap] = await tx.getAll(
-        db.collection("courseRuns").doc(runId),
-        targetRef,
-        enrolmentRef,
-      );
+      const [[runSnap, targetSnap, existingSnap], runGroupsSnap] = await Promise.all([
+        tx.getAll(db.collection("courseRuns").doc(runId), targetRef, enrolmentRef),
+        // Who facilitates the run's groups: one equality on one field.
+        tx.get(db.collection("courseGroups").where("runId", "==", runId)),
+      ]);
 
       if (!runSnap.exists) throw new EnrolError("Course run not found.", 404);
       const freshRun = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
@@ -691,6 +701,21 @@ export async function PATCH(req: Request, ctx: Ctx) {
       streamId = stream.streamId;
 
       const movingGroup = row.groupId !== groupId;
+
+      // A FACILITATOR WHO HOLDS A PLACE SITS IN THE GROUP THEY FACILITATE:
+      // their session is the one they run, and only staff change which group
+      // that is. Changing stream within it is still theirs to do.
+      const facilitated = runGroupsSnap.docs
+        .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
+        .find(
+          (each) =>
+            each.runId === runId &&
+            !each.archived &&
+            isNamedWithStanding(user, "courseGroups.facilitatorUids", each.facilitatorUids),
+        );
+      if (movingGroup && facilitated) {
+        throw new EnrolError(facilitatingSessionError(facilitated.name.trim() || "a group"), 409);
+      }
 
       // Capacity is only asked when the seat is actually new. Re-saving the
       // same session to change stream must not be refused by the group the
@@ -744,30 +769,51 @@ export async function PATCH(req: Request, ctx: Ctx) {
 }
 
 // ---------------------------------------------------------------------------
-// DELETE: drop out
+// DELETE: leave
 // ---------------------------------------------------------------------------
 
 /**
  * Leave the course. IRREVERSIBLE, by decision: the seat is freed, the nudges
- * stop, and coming back is a new enrolment somebody else has to make.
+ * stop, and coming back is something somebody else has to do.
  *
  * Behind a TYPED CONFIRMATION of the course title, the same ritual the destroy
  * routes use and for the same reason: this is the one member-facing action on
  * the courses surface that cannot be undone by the person taking it, and a
  * mis-tapped button on a phone must not be able to do it.
  *
- * OPEN-MODE RUNS ONLY. A seat that came out of admissions has a
- * `courseApplications` row behind it that would still read "accepted" after
- * the enrolment went away, which leaves the allocation board holding a
- * placeless accepted applicant and blocks allocation publish. Reconciling the
- * two is real work with no owner yet, so the route refuses rather than
- * offering a repair it cannot perform: an admissions cohort member asks staff,
- * who use the remove route.
+ * ONE LEAVE, TWO DOORS. This is the door on the programme page. The other is
+ * "I can’t make it" on the application page of somebody in a group Publish
+ * has told them about (the reply route). Both ask the same function whether
+ * the person may leave (`leavePathFor`, `src/lib/courses/leaving.ts`) and the
+ * same function writes what leaving writes (`leaveRun`,
+ * `src/lib/courses/leaveRun.ts`), so the two cannot come to differ:
+ *  - an OPEN run, the seat the person took;
+ *  - a run THE TERM'S APPLICATION FORM PLACES PEOPLE ON, for somebody whose
+ *    place came from the form. Their place on the form is given back in the
+ *    same transaction, exactly as "I can’t make it" gives it back, with no
+ *    reason on the application. Their row on the run's own list stays as it
+ *    is: Publish no longer waits for somebody who has left
+ *    (`enrolmentHasLeft`), and the board names them as having left.
+ * Anybody else on a run that takes people by placement (they applied to the
+ * run itself) is told to ask the team, who use the remove route.
  *
- * The way back is the reinstate route (admins and the run's track leads),
- * which flips this row to active in the group it names and re-increments both
- * counters. It is the only way back: the enrolment row is still sitting at
- * the deterministic id, so nothing here can create a second one.
+ * NOBODY LEAVES ONCE THE RUN'S LAST SESSION IS OVER, the moment who finished
+ * opens: the same function draws that line, the press is refused in a
+ * sentence that says so, and nothing is written. Somebody who finished keeps
+ * their finished record, and no place on the form goes back after the end.
+ *
+ * A PLACEMENT PUBLISH HAS NOT TOLD ITS OWNER ABOUT cannot be left: it is
+ * answered as no seat at all, as the GET above answers it, because the run is
+ * shut to them and saying anything else would tell them they are placed.
+ *
+ * WHAT LEAVING KEEPS, AND WHO IS TOLD: see `leaveRun`. The row keeps its group
+ * and Publish's stamp; nobody is emailed but the person who left.
+ *
+ * The way back for an open run is the reinstate route (admins and the run's
+ * track leads), which flips this row to active in the group it names and
+ * re-increments both counters; for a run the form placed them on, an admin
+ * places them again on the board. Either way it is the same row: it is still
+ * sitting at the deterministic id, so nothing here can create a second one.
  */
 export async function DELETE(req: Request, ctx: Ctx) {
   const blocked = await assertNotImpersonating();
@@ -802,14 +848,12 @@ export async function DELETE(req: Request, ctx: Ctx) {
   if (!run) {
     return NextResponse.json({ error: "Course run not found." }, { status: 404 });
   }
-  if (run.enrolMode !== "open") {
-    return NextResponse.json(
-      {
-        error:
-          "Leaving this course isn't something you can do yourself. Email the team and we'll sort it out with you.",
-      },
-      { status: 409 },
-    );
+  const now = new Date();
+  // Open, or a place the form gave them, until the run's last session is
+  // over; anybody else asks the team.
+  const answer = await leavePathFor(db, run, user.uid, now);
+  if ("closed" in answer) {
+    return NextResponse.json({ error: leaveClosedLine(answer, run.courseTitle) }, { status: 409 });
   }
 
   // An unnamed course cannot be confirmed by name: with an empty title the
@@ -837,209 +881,20 @@ export async function DELETE(req: Request, ctx: Ctx) {
       ? body.reason.trim().slice(0, ENROLMENT_LIMITS.dropOutReason)
       : null;
 
-  const enrolmentRef = db
-    .collection("courseEnrolments")
-    .doc(courseEnrolmentId(runId, user.uid));
-
-  let leftGroupId: string | null = null;
-  // Whether THIS request is the one that took them off, as opposed to a
-  // double-tapped confirm arriving after the first has committed. Everything
-  // after the commit (the audit row, the unsubscribe, the task sweep, the
-  // email) hangs off it, so a second tap is a quiet 200 rather than a second
-  // confirmation email about a course somebody left a moment ago.
-  let dropped = false;
-
+  let left: LeaveResult;
   try {
-    await db.runTransaction(async (tx) => {
-      // Reset per attempt: Firestore retries a contended transaction, and a
-      // flag carried over from a discarded attempt would report work that
-      // never committed.
-      dropped = false;
-      const snap = await tx.get(enrolmentRef);
-      if (!snap.exists) {
-        throw new EnrolError("You're not signed up for this course.", 404);
-      }
-      const row = normalizeCourseEnrolment(snap.id, snap.data() ?? {});
-      if (row.uid !== user.uid || row.runId !== runId) {
-        throw new EnrolError("You're not signed up for this course.", 404);
-      }
-      if (row.role !== "learner") {
-        throw new EnrolError(
-          "You're on this course as a facilitator. Ask an admin to stand you down.",
-          409,
-        );
-      }
-      // Idempotent: a double-tapped confirm must not decrement a counter
-      // twice, and must not read as a failure to the member.
-      if (row.status === "withdrawn") return;
-      if (row.status !== "active") {
-        throw new EnrolError("You're not on this course any more.", 409);
-      }
-
-      leftGroupId = row.groupId;
-      dropped = true;
-
-      tx.update(enrolmentRef, {
-        status: "withdrawn" satisfies CourseEnrolmentStatus,
-        droppedOutAt: FieldValue.serverTimestamp(),
-        // Stored as a real null rather than omitted, so a later drop-out
-        // form that collects nothing overwrites an earlier value rather
-        // than leaving a stale sentence attached to the row.
-        dropOutReason: reason,
-        // The stamp certifies "emailed about their current group"; there is
-        // no current placement any more.
-        allocatedEmailAt: FieldValue.delete(),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-      // `groupId` is KEPT. `memberCount` counts enrolments that are both
-      // active AND grouped (the allocate route's definition), so a withdrawn
-      // row holds no seat whatever its `groupId` says, and keeping it is what
-      // lets a facilitator see which of their sessions someone left.
-      if (row.groupId) {
-        tx.update(db.collection("courseGroups").doc(row.groupId), {
-          memberCount: FieldValue.increment(-1),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-      }
-      // `enrolledCount` counts SELF-ENROLLED active rows only, which is the
-      // narrower condition the account-deletion sweep already uses. An
-      // allocated learner on a run that has since been flipped to open mode
-      // was never counted by it, and uncounting them here would drive the
-      // number negative and then wedge the enrol-mode route, which reads it
-      // as "is anybody on this run".
-      if (row.selfEnrolled) {
-        tx.update(db.collection("courseRuns").doc(runId), {
-          enrolledCount: FieldValue.increment(-1),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-      }
-    });
+    left = await leaveRun(db, { run, path: answer.path, user, reason, now });
   } catch (err) {
-    if (err instanceof EnrolError) {
-      return NextResponse.json({ error: err.message }, { status: err.status });
-    }
     console.error("[courses enrol] drop-out failed", runId, user.uid, err);
     return NextResponse.json(
       { error: "Couldn't take you off the course just now. Please try again." },
       { status: 500 },
     );
   }
-
-  const config = await readCoursesConfig(db).catch(() => null);
-  const feedbackUrl = config?.dropOutFeedbackUrl ?? "";
-
-  // A repeat of an already-committed drop-out: the answer is the same, and
-  // the feedback link is still worth handing back, but nothing is written or
-  // sent a second time.
-  if (!dropped) return NextResponse.json({ ok: true, feedbackUrl });
-
-  // ── Everything after the commit is best effort ────────────────────────────
-  // The member has left; none of the tidying below may turn that into an
-  // error they see. Each step logs its own failure.
-
-  // The audit row goes AFTER the commit, and that is a deliberate departure
-  // from the enrol-mode route's audit-first ordering. There the actor is an
-  // admin and a spare row is harmless; here a row saying a member left when
-  // they did not would send a facilitator chasing somebody who is still in
-  // the room. The enrolment document is itself a durable record (status,
-  // `droppedOutAt`, `dropOutReason`), so this row is the searchable index of
-  // the event rather than its only trace.
-  try {
-    await db.collection(COURSE_AUDIT_COLLECTION).add({
-      kind: "enrolment-dropout",
-      runId,
-      groupId: leftGroupId,
-      subjectUid: user.uid,
-      actorUid: user.uid,
-      actorName: user.displayName ?? "",
-      targetLabel: run.label || runId,
-      detail: reason
-        ? `Left the course. Reason given: ${reason}`
-        : "Left the course. No reason given.",
-      at: FieldValue.serverTimestamp(),
-    });
-  } catch (err) {
-    console.error("[courses enrol] drop-out audit row failed", runId, user.uid, err);
+  if (left.kind === "refused") {
+    return NextResponse.json({ error: left.error }, { status: left.status });
   }
-
-  await unsubscribeFromCohort(db, runId, user);
-  await deleteMirroredTasks(db, run, user.uid);
-
-  if (user.email) {
-    // Fire and forget, the RSVP-submit pattern: the member must not wait on
-    // SMTP to see their own confirmation.
-    void sendCourseDroppedOutEmail({
-      to: user.email,
-      name: user.displayName?.trim() || "NAISI member",
-      courseTitle: run.courseTitle,
-      runLabel: run.label,
-      feedbackUrl,
-      uid: user.uid,
-      runId,
-    }).catch((err) => {
-      console.error("[courses enrol] drop-out email failed", runId, user.uid, err);
-    });
-  }
-
-  return NextResponse.json({ ok: true, feedbackUrl });
-}
-
-/** Stop the cohort mail. Non-fatal: the row may not even exist. */
-async function unsubscribeFromCohort(db: Db, runId: string, user: SessionUser) {
-  if (!user.email) return;
-  try {
-    await unsubscribe(db, {
-      email: user.email,
-      channel: courseRunChannel(runId),
-      actor: {
-        kind: "member",
-        uid: user.uid,
-        label: user.displayName?.trim() || "NAISI member",
-      },
-    });
-  } catch (err) {
-    console.warn("[courses enrol] cohort unsubscribe failed", runId, user.uid, err);
-  }
-}
-
-/**
- * Clear this member's mirrored My Work cards for the run they just left.
- *
- * ADDRESSED BY DETERMINISTIC ID, never by query. `courseTaskId(runId, week,
- * uid)` names every card the mirror can have created, one per cohort week, so
- * the sweep is a bounded `getAll` over the run's own week plan rather than a
- * three-filter query that would need a composite index on `tasks`.
- *
- * Each candidate is VERIFIED before it is deleted: the doc must carry the
- * mirror's `source` and list this member as a completer. A task's id says
- * nothing about who made it, so the id alone is never trusted.
- *
- * `recursiveDelete` rather than a plain delete: a mirror behaves like a
- * personal task, so it can carry comments and activity, and a parent-doc
- * delete leaves subcollections behind.
- */
-async function deleteMirroredTasks(db: Db, run: CourseRunDoc, uid: string) {
-  try {
-    const weekCount = Math.min(
-      MAX_MIRROR_WEEKS,
-      run.weekPlan.filter((e) => e.kind === "week").length,
-    );
-    if (weekCount === 0) return;
-    const refs = Array.from({ length: weekCount }, (_, i) =>
-      db.collection("tasks").doc(courseTaskId(run.id, i + 1, uid)),
-    );
-    const snaps = await db.getAll(...refs);
-    for (const snap of snaps) {
-      if (!snap.exists) continue;
-      const data = snap.data() ?? {};
-      const isOurMirror =
-        data.source === MIRRORED_TASK_SOURCE &&
-        Array.isArray(data.completerUids) &&
-        (data.completerUids as unknown[]).includes(uid);
-      if (!isOurMirror) continue;
-      await db.recursiveDelete(snap.ref);
-    }
-  } catch (err) {
-    console.warn("[courses enrol] mirrored task cleanup failed", run.id, uid, err);
-  }
+  // A repeat of an already-committed leave answers the same, with the
+  // feedback link, and has written and sent nothing (`left.dropped`).
+  return NextResponse.json({ ok: true, feedbackUrl: left.feedbackUrl });
 }

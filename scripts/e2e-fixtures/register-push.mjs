@@ -366,6 +366,9 @@ function enrolmentDoc({ runIdValue, courseIdValue, uid, groupIdValue, now, regis
     dropOutReason: null,
     selfEnrolled: false,
     applicationId: null,
+    // Publish has told them their group (`placementIsTold`): a placement
+    // nobody has told gets no cohort mail, and this spec counts the reminder.
+    allocatedEmailAt: now,
     // WEEK 1, which is what makes every column markable. See the header.
     joinedWeekNumber: 1,
     createdAt: now,
@@ -788,6 +791,12 @@ export const SPEC = {
    * rows, 1 nudge marker, 1 send throttle, 6 sends, 3 enrolments, 3
    * subscriptions, 3 accounts and their documents, the course, run, group and
    * week), and the manifest read zero afterwards.
+   *
+   * CHANGED on 2026-10-24 for the register's two endings (wk-register): the
+   * spec now reads which ending the target is in and asserts that one. That
+   * change was written against this harness and not run here; the pull
+   * request's end-to-end job is its first run. With next week's email on its
+   * schedule on the target, no marker and no send exist to tear down.
    */
   status: "verified",
   seed,

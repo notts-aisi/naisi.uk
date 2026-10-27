@@ -15,6 +15,7 @@ import {
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
+  placementIsShownTo,
 } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { buildMirroredTask, courseTaskId } from "@/lib/firestore/courseTasks";
@@ -25,6 +26,8 @@ import {
 } from "@/lib/firestore/courses";
 import { TASK_FIELD_LIMITS } from "@/lib/firestore/tasks";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
+import { weekChecklistItems, weekSummaryText } from "@/lib/courses/weekBlocks/reader";
 
 /**
  * Lazy task mirroring — projecting the cohort's CURRENT week into the caller's
@@ -119,6 +122,17 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * different documents, and the high-water mark lives on the member's own
  * enrolment. Nothing about the guarantee depends on the cohort agreeing about
  * what week it is.
+ *
+ * ── A WEEK WRITTEN AS BLOCKS IS NOT MIRRORED ────────────────────────────────
+ * (A default taken for Zach, 27 October 2026.) Such a week's work is This
+ * week's tasks, which Home's programme card, the programme page and the week
+ * page already show and count. A weekly card in My work beside them is a
+ * second record nothing closes (this projection is one way), so Home said a
+ * week was done and, below it, that the same week was open with a deadline.
+ * So the route answers that there is nothing to mirror for a week written as
+ * blocks, writes nothing, and stamps no mark; a week written before blocks
+ * keeps its card as it always has. A card already made stays, as every card
+ * does, until its owner dismisses it.
  */
 
 // ---------------------------------------------------------------------------
@@ -265,7 +279,10 @@ export async function POST(
       enrolment.status !== "active" ||
       // ... and the roster floor under the row itself, as everywhere else
       // an enrolment is read as an authority.
-      !isNamedWithStanding(actor, "courseEnrolments.uid", enrolment.uid)
+      !isNamedWithStanding(actor, "courseEnrolments.uid", enrolment.uid) ||
+      // A placement Publish has not told its owner about puts nothing in
+      // their tasks: a weekly card would name the run before Publish does.
+      !placementIsShownTo(enrolment, { isAdmin: actor.role === "admin" })
     ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -370,6 +387,9 @@ export async function POST(
     // no checklist is worse than no card, and the high-water mark is left
     // unstamped so the mirror appears on the first mount after publication.
     if (!week || !week.published) return nothingToMirror();
+    // A week written as blocks is counted by This week's tasks on Home and
+    // its pages, never by a card here (see the note at the top).
+    if (isBlockWeek(week)) return nothingToMirror();
 
     // Due at the end of the CURRENT slot, 23:59 Europe/London. The slot is the
     // one the cohort is in right now rather than the anchor week's own slot:
@@ -396,11 +416,13 @@ export async function POST(
       weekNumber,
       uid: actor.uid,
       title: `${courseTitle} — Week ${weekNumber}`.slice(0, TASK_FIELD_LIMITS.title),
-      description: week.summary.slice(0, TASK_FIELD_LIMITS.description),
+      // Through the one reader, so a block week's card says what its Why this
+      // week says and mirrors its checklist blocks' items.
+      description: weekSummaryText(week).slice(0, TASK_FIELD_LIMITS.description),
       // A published week with no `mirrorToMyWork` items still earns a card: the
       // task IS the weekly nudge (source `fellowship-reminder`), and the
       // checklist is a bonus rather than its reason to exist.
-      checklist: week.checklist,
+      checklist: weekChecklistItems(week),
       dueDate,
       now,
     });

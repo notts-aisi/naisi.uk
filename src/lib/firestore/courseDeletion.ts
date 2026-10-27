@@ -14,8 +14,28 @@ import {
   type CourseDoc,
   type CourseRunDoc,
 } from "./courses";
+import { PITCHES_COLLECTION } from "@/lib/courses/pitching/model";
+import { FACILITATING_COLLECTION } from "@/lib/courses/facilitatorAsks/model";
+import { CERTIFICATES_COLLECTION } from "@/lib/courses/certificates/model";
+import { FINISHING_COLLECTION } from "@/lib/courses/finishing/model";
+import { RATINGS_COLLECTION } from "@/lib/ratings/model";
+import { TEAM_ENTRIES_COLLECTION } from "@/lib/courses/teamPage/model";
+import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
 import { COURSE_AUDIT_COLLECTION } from "./courseAudit";
 import { COURSE_PAGES_COLLECTION } from "./coursePages";
+import { countCourseGuide, courseGuideRefs } from "@/lib/courses/facilitatorGuide/store";
+import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
+import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
+import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
+import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
+import { RECORD_OPENINGS_COLLECTION } from "./recordOpenings";
+import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
+import { COURSE_UPDATES_COLLECTION } from "./courseUpdates";
+import {
+  ANONYMOUS_ANSWERS_COLLECTION,
+  ANONYMOUS_FORMS_COLLECTION,
+  ANONYMOUS_WAITING_COLLECTION,
+} from "@/lib/anonymousFeedback/model";
 // The ONLY two `tasks.source` values a run's cascade may delete. See
 // drainSourcedTasks for why the filter takes both halves of the predicate.
 import {
@@ -157,6 +177,66 @@ export type RunDestroyCounts = {
    * be told that the team's written assessment of it goes too.
    */
   materialNotes: number;
+  /**
+   * `coursePitches` rows: pitching week's pitches on this run, each with who
+   * pitched it and who said they would join it (`src/lib/courses/pitching/`).
+   * Member-authored text, keyed by `runId` on the row like every other leaf
+   * here, and it dies with the run: a pitch names a week and a group this
+   * cascade deletes.
+   */
+  pitches: number;
+  /**
+   * `courseTeams` rows: an incubator's teams on this run, each with its
+   * people and what each of them was told (`src/lib/courses/teams/`). Keyed
+   * by `runId` on the row like every other leaf here, and it dies with the
+   * run: a team names a group this cascade deletes.
+   */
+  teams: number;
+  /**
+   * `courseTeamEntries` rows: what an incubator's teams wrote on their pages
+   * on this run, each week's check-in, the team's links and its hand-in
+   * (`src/lib/courses/teamPage/`). Member-authored text, keyed by `runId` on
+   * the row like every other leaf here, and it dies with the run: an entry
+   * names a team this cascade deletes.
+   */
+  teamEntries: number;
+  /**
+   * `courseFinishing` rows: the run's rule for who finished and the lead's
+   * decisions about who did (`src/lib/courses/finishing/`). Keyed by `runId`
+   * on the row like every other leaf here, and it dies with the run: a
+   * decision names a person's place on a run this cascade deletes.
+   */
+  finishing: number;
+  /**
+   * `courseFacilitating` rows: the asks to facilitate the run's groups, with
+   * each person's answer, and the run's training and test record
+   * (`src/lib/courses/facilitatorAsks/`). Keyed by `runId` on the row like
+   * every other leaf here, and it dies with the run: an ask names a group
+   * this cascade deletes.
+   */
+  facilitating: number;
+  /**
+   * `programmeRatings` rows: the ratings each group's facilitators, the
+   * programme's lead and admins gave the fellows at the run's end, and the
+   * run's sheet (`src/lib/ratings/`). Keyed by `runId` on the row like every
+   * other leaf here, and they die with the run: a rating names a place on a
+   * run this cascade deletes.
+   */
+  ratings: number;
+  /**
+   * `courseCertificates` rows for this run whose link is OFF
+   * (`src/lib/courses/certificates/`): nobody but each owner could open them,
+   * and they die with the run, as a certificate whose link is off dies with
+   * its owner's account.
+   */
+  certificates: number;
+  /**
+   * `courseCertificates` rows for this run whose link is ON: NOT deleted. The
+   * privacy policy keeps a certificate whose link is on for the people its
+   * owner gave the link to, so each loses its run (`runId` cleared) and its
+   * page goes on showing what it was issued with.
+   */
+  certificatesKept: number;
   mirroredTasks: number;
   /**
    * `tasks` carrying `source: "course-register"` and pointing at this run: the
@@ -220,6 +300,72 @@ export type RunDestroyCounts = {
    */
   auditRows: number;
   /**
+   * `courseUpdates` rows: the updates written to this run's people, a group
+   * of them or its facilitators (`src/lib/courses/updates/`), each with what
+   * its email did. Staff writing, keyed by `runId` on the row like every
+   * other leaf here, and it dies with the run: an update names the run, and
+   * often one of the groups this cascade deletes, and nothing can show it
+   * once they are gone. The emails it sent stay in the delivery log, which
+   * is counted below and never deleted.
+   */
+  updates: number;
+  /**
+   * `courseGroupNotes` rows: the notes each group's facilitators share (C30,
+   * `src/lib/firestore/courseGroupNotes.ts`). Staff writing about the run's
+   * groups, keyed by `runId` on the row like every other leaf here, and it
+   * dies with the run: a note is about a group this cascade deletes, and
+   * nothing can show it once the group is gone.
+   */
+  groupNotes: number;
+  /**
+   * `courseGroupSharedNotes` rows: the notes a group's people and
+   * facilitators share with the group (C29,
+   * `src/lib/firestore/courseGroupSharedNotes.ts`). Keyed by `runId` on the
+   * row like every other leaf here, and it dies with the run: a note is
+   * shared with a group this cascade deletes, and nothing can show it once
+   * the group is gone.
+   */
+  groupSharedNotes: number;
+  /**
+   * `coursePacksAndCases` rows: what each person had in this run's weeks'
+   * packs and talks, the pack picked or given, the case given and their own
+   * "Ready for my talk" (`src/lib/firestore/coursePacksAndCases.ts`). Keyed
+   * by `runId` on the row like every other leaf here, and it dies with the
+   * run: each record names a block of a week this cascade deletes.
+   */
+  packsAndCases: number;
+  /**
+   * `coursePairs` rows: who was paired with whom for a session in pairs, and
+   * who was bringing a laptop (`src/lib/firestore/coursePairs.ts`). Keyed by
+   * `runId` on the row like every other leaf here, and it dies with the run:
+   * each record names a group and a block of a week this cascade deletes.
+   */
+  pairs: number;
+  /**
+   * The anonymous keep, change and drop form of the programme that names
+   * this run (`src/lib/anonymousFeedback/`): the form's own record, which
+   * holds its one link, and every answer to it, waiting for the night's move
+   * or kept. Each is keyed by `runId` on the row like every other leaf here,
+   * and goes with the run, as the run's other records do. Nothing in them
+   * names a person, so nothing else ever deletes them.
+   */
+  anonymousFeedback: number;
+  /**
+   * `coursePredictions` rows: each person's sealed predictions on this run,
+   * both cards (`src/lib/firestore/coursePredictions.ts`). Keyed by `runId`
+   * on the row like every other leaf here, and it dies with the run: it is
+   * that person's own record of the run.
+   */
+  predictions: number;
+  /**
+   * `recordOpenings` rows keyed to this run: each time an admin opened
+   * somebody's sealed predictions card on it
+   * (`src/lib/firestore/recordOpenings.ts`). They die with the run because
+   * the cards they are about do, as `courseAudit`'s rows do; deleting an
+   * account takes none of them.
+   */
+  recordOpenings: number;
+  /**
    * `schedulerMarkers` rows this run owns: the send-dedupe markers the
    * scheduler tick writes before it sends anything.
    *
@@ -278,6 +424,16 @@ export type CourseDestroyCounts = {
    * because a committee member closed their account.
    */
   coursePages: number;
+  /**
+   * `courseFacilitatorGuide`, the course's facilitator guide: each week's
+   * session plan and notes, and the course's own documents
+   * (`src/lib/firestore/courseFacilitatorGuide.ts`). DESTROYED with the
+   * course, in the same final batch as its page: course material for a course
+   * that is about to stop existing, keyed by its id, so a document left behind
+   * would be read by nobody and inherited by the next course at that id. It
+   * holds nothing personal, so it is not part of the per-account sweep.
+   */
+  facilitatorGuide: number;
   /**
    * `courseTemplates` snapshots whose provenance names this course. NOT
    * deleted: templates are frozen snapshots (v2 decision 2) and orphaned
@@ -431,6 +587,79 @@ async function drainQuery(
     budget.remaining -= snap.size;
 
     // Fewer rows than asked for = the query has no more matches.
+    if (snap.size < limit) return { deleted, drained: true };
+  }
+  return { deleted, drained: false };
+}
+
+/**
+ * Several drains as one stage, in the order given: each runs only once the
+ * one before it has drained, and the stage has drained when the last has.
+ */
+async function drainInOrder(drains: Array<() => Promise<DrainResult>>): Promise<DrainResult> {
+  let deleted = 0;
+  for (const drain of drains) {
+    const part = await drain();
+    deleted += part.deleted;
+    if (!part.drained) return { deleted, drained: false };
+  }
+  return { deleted, drained: true };
+}
+
+/**
+ * The run's certificates, by whether their link is on: the manifest's two
+ * counters. One equality on `runId`; the link is read in memory.
+ */
+async function countCertificates(db: Firestore, runId: string): Promise<{ off: number; on: number }> {
+  const snap = await db.collection(CERTIFICATES_COLLECTION).where("runId", "==", runId).select("linkOn").get();
+  let on = 0;
+  for (const doc of snap.docs) if ((doc.data() ?? {}).linkOn === true) on += 1;
+  return { off: snap.docs.length - on, on };
+}
+
+/**
+ * THE CERTIFICATES STAGE, the privacy policy's rule for them on a run that is
+ * destroyed. A page at a time of the run's certificates: one whose link is
+ * off is deleted (counted as this stage's), one whose link is on keeps
+ * everything it shows and loses its run (`runId` cleared, counted under
+ * `certificatesKept`). Either way it leaves the query, so every page is new.
+ */
+async function drainCertificates(
+  db: Firestore,
+  runId: string,
+  budget: Budget,
+  extraTotals: Record<string, number>,
+): Promise<DrainResult> {
+  let deleted = 0;
+  let prevFirstId: string | null = null;
+  while (budget.remaining > 0) {
+    const limit = Math.min(DESTROY_PAGE_SIZE, budget.remaining);
+    const snap = await db.collection(CERTIFICATES_COLLECTION).where("runId", "==", runId).limit(limit).get();
+    if (snap.empty) return { deleted, drained: true };
+
+    const firstId = snap.docs[0].id;
+    if (firstId === prevFirstId) {
+      throw new Error(
+        "courseDeletion: certificate page did not shrink after a committed write, aborting rather than looping",
+      );
+    }
+    prevFirstId = firstId;
+
+    const batch = db.batch();
+    let kept = 0;
+    for (const d of snap.docs) {
+      if ((d.data() ?? {}).linkOn === true) {
+        kept += 1;
+        batch.update(d.ref, { runId: null, runGoneAt: FieldValue.serverTimestamp() });
+      } else {
+        batch.delete(d.ref);
+      }
+    }
+    await batch.commit();
+    deleted += snap.size - kept;
+    extraTotals.certificatesKept = (extraTotals.certificatesKept ?? 0) + kept;
+    budget.remaining -= snap.size;
+
     if (snap.size < limit) return { deleted, drained: true };
   }
   return { deleted, drained: false };
@@ -884,11 +1113,26 @@ export async function countRunDestroyTargets(
     exerciseResponses,
     attendanceRegisters,
     materialNotes,
+    pitches,
+    teams,
+    teamEntries,
+    finishing,
+    facilitating,
+    ratings,
+    certificateCounts,
     mirroredTasks,
     registerTasks,
     subscriptionRows,
     admissionSeatOffers,
     auditRows,
+    updates,
+    groupNotes,
+    groupSharedNotes,
+    packsAndCases,
+    pairs,
+    anonymousFeedbackCounts,
+    predictions,
+    recordOpenings,
     schedulerMarkerCounts,
     emailSendCounts,
     exportCounts,
@@ -906,6 +1150,21 @@ export async function countRunDestroyTargets(
     countAgg(
       db.collection(COURSE_MATERIAL_NOTES_COLLECTION).where("runId", "==", runId),
     ),
+    // The same single equality the pitches stage drains on.
+    countAgg(db.collection(PITCHES_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the teams stage drains on.
+    countAgg(db.collection(TEAMS_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the team entries stage drains on.
+    countAgg(db.collection(TEAM_ENTRIES_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the finishing stage drains on.
+    countAgg(db.collection(FINISHING_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the facilitating stage drains on.
+    countAgg(db.collection(FACILITATING_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the ratings stage drains on.
+    countAgg(db.collection(RATINGS_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the certificates stage pages on, split by the
+    // link in memory: a run has at most a few hundred.
+    countCertificates(db, runId),
     // Both halves of the mirror predicate, exactly as drainSourcedTasks
     // deletes them: a manifest that counted on the pointer alone would
     // promise to destroy rows the cascade (rightly) leaves alone.
@@ -939,6 +1198,27 @@ export async function countRunDestroyTargets(
     // auto-id and is never parsed), so this is the same single-equality shape
     // as the leaves above and is served by the automatic single-field index.
     countAgg(db.collection(COURSE_AUDIT_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the updates stage drains on.
+    countAgg(db.collection(COURSE_UPDATES_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the group notes stage drains on.
+    countAgg(db.collection(COURSE_GROUP_NOTES_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the group shared notes stage drains on.
+    countAgg(db.collection(COURSE_GROUP_SHARED_NOTES_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the packs and cases stage drains on.
+    countAgg(db.collection(COURSE_PACKS_AND_CASES_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the pairs stage drains on.
+    countAgg(db.collection(COURSE_PAIRS_COLLECTION).where("runId", "==", runId)),
+    // The same single equality, on each of the three collections the
+    // anonymous form stage drains.
+    Promise.all(
+      [ANONYMOUS_FORMS_COLLECTION, ANONYMOUS_WAITING_COLLECTION, ANONYMOUS_ANSWERS_COLLECTION].map((collection) =>
+        countAgg(db.collection(collection).where("runId", "==", runId)),
+      ),
+    ),
+    // The same single equality the predictions stage drains on.
+    countAgg(db.collection(COURSE_PREDICTIONS_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the openings stage drains on.
+    countAgg(db.collection(RECORD_OPENINGS_COLLECTION).where("runId", "==", runId)),
     Promise.all(markerCountPromises),
     Promise.all(emailCountPromises),
     Promise.all(exportCountPromises),
@@ -953,11 +1233,27 @@ export async function countRunDestroyTargets(
     exerciseResponses,
     attendanceRegisters,
     materialNotes,
+    pitches,
+    teams,
+    teamEntries,
+    finishing,
+    facilitating,
+    ratings,
+    certificates: certificateCounts.off,
+    certificatesKept: certificateCounts.on,
     mirroredTasks,
     registerTasks,
     subscriptionRows,
     admissionSeatOffers,
     auditRows,
+    updates,
+    groupNotes,
+    groupSharedNotes,
+    packsAndCases,
+    pairs,
+    anonymousFeedback: anonymousFeedbackCounts.reduce((a, b) => a + b, 0),
+    predictions,
+    recordOpenings,
     schedulerMarkers: schedulerMarkerCounts.reduce((a, b) => a + b, 0),
     emailSendRows: emailSendCounts.reduce((a, b) => a + b, 0),
     dataExportRows: exportCounts.reduce((a, b) => a + b, 0),
@@ -1372,6 +1668,62 @@ export async function destroyRunCascade(
         ),
     },
     {
+      key: "pitches",
+      // Pitching week's pitches and who would join each: member-authored, a
+      // leaf keyed by `runId`. The only writers are the pitching routes, which
+      // refuse anybody without a live seat on the run, so the row is drained
+      // here, before the enrolments that open that door.
+      drain: () => drainQuery(db, PITCHES_COLLECTION, byRunId(PITCHES_COLLECTION), budget),
+    },
+    {
+      key: "teams",
+      // An incubator's teams: a leaf keyed by `runId`, written only by the
+      // teams routes, which refuse a run being destroyed. Drained with the
+      // pitches the teams were made from, before the enrolments.
+      drain: () => drainQuery(db, TEAMS_COLLECTION, byRunId(TEAMS_COLLECTION), budget),
+    },
+    {
+      key: "teamEntries",
+      // What the teams wrote on their pages: a leaf keyed by `runId`, written
+      // only by the team page routes, which ask for a live seat on a run that
+      // is not being destroyed. Drained with the teams they were written by,
+      // before the enrolments.
+      drain: () => drainQuery(db, TEAM_ENTRIES_COLLECTION, byRunId(TEAM_ENTRIES_COLLECTION), budget),
+    },
+    {
+      key: "finishing",
+      // Who finished: the run's rule and the lead's decisions, a leaf keyed
+      // by `runId`, written only by the finishing routes, which read the run
+      // (and so find nothing once it is being destroyed). Drained before the
+      // enrolments the decisions are about.
+      drain: () => drainQuery(db, FINISHING_COLLECTION, byRunId(FINISHING_COLLECTION), budget),
+    },
+    {
+      key: "facilitating",
+      // The asks to facilitate the run's groups, each person's answer, the
+      // training and the test record: a leaf keyed by `runId`, written only
+      // by the facilitator asks' routes, which read the run (and so find
+      // nothing once it is being destroyed). Drained before the groups and
+      // enrolments an ask is about.
+      drain: () => drainQuery(db, FACILITATING_COLLECTION, byRunId(FACILITATING_COLLECTION), budget),
+    },
+    {
+      key: "ratings",
+      // The ratings given at the run's end and the run's sheet: a leaf keyed
+      // by `runId`, written only by the ratings route, which reads the run's
+      // records (and so finds nothing once it is being destroyed). Drained
+      // before the enrolments the ratings are about.
+      drain: () => drainQuery(db, RATINGS_COLLECTION, byRunId(RATINGS_COLLECTION), budget),
+    },
+    {
+      key: "certificates",
+      // Certificates for the run: one whose link is off is deleted, one whose
+      // link is on loses its run and stays (see drainCertificates). Written
+      // only by the certificate send, which reads the run and so finds nothing
+      // once it is being destroyed.
+      drain: () => drainCertificates(db, runId, budget, totals),
+    },
+    {
       key: "enrolments",
       drain: () => drainQuery(db, "courseEnrolments", byRunId("courseEnrolments"), budget),
     },
@@ -1445,6 +1797,91 @@ export async function destroyRunCascade(
           byRunId(COURSE_AUDIT_COLLECTION),
           budget,
         ),
+    },
+    {
+      key: "updates",
+      // A run's updates: staff writing, a leaf keyed by `runId`, drained with
+      // the other leaves and BEFORE the groups an update to one group names.
+      // `write: if false` to every client, and the updates route refuses a
+      // run carrying the destroy marker, so nothing recreates one behind the
+      // cascade.
+      drain: () =>
+        drainQuery(db, COURSE_UPDATES_COLLECTION, byRunId(COURSE_UPDATES_COLLECTION), budget),
+    },
+    {
+      key: "groupNotes",
+      // The notes each group's facilitators share: staff writing, a leaf
+      // keyed by `runId`, drained with the other leaves and BEFORE the groups
+      // each note is about. `write: if false` to every client, and the notes
+      // route refuses a run carrying the destroy marker, so nothing recreates
+      // one behind the cascade.
+      drain: () =>
+        drainQuery(db, COURSE_GROUP_NOTES_COLLECTION, byRunId(COURSE_GROUP_NOTES_COLLECTION), budget),
+    },
+    {
+      key: "groupSharedNotes",
+      // The notes a group's people and facilitators share with the group: a
+      // leaf keyed by `runId`, drained with the other leaves and BEFORE the
+      // groups each note is shared with. `write: if false` to every client,
+      // and the shared notes route refuses a run carrying the destroy marker,
+      // so nothing recreates one behind the cascade.
+      drain: () =>
+        drainQuery(
+          db,
+          COURSE_GROUP_SHARED_NOTES_COLLECTION,
+          byRunId(COURSE_GROUP_SHARED_NOTES_COLLECTION),
+          budget,
+        ),
+    },
+    {
+      key: "packsAndCases",
+      // What each person had in the weeks' packs and talks: a leaf keyed by
+      // `runId`, drained with the other leaves and BEFORE the weeks whose
+      // blocks each record names. `write: if false` to every client, and
+      // both routes that write it refuse a run carrying the destroy marker,
+      // so nothing recreates one behind the cascade.
+      drain: () =>
+        drainQuery(db, COURSE_PACKS_AND_CASES_COLLECTION, byRunId(COURSE_PACKS_AND_CASES_COLLECTION), budget),
+    },
+    {
+      key: "pairs",
+      // Who was paired with whom for a session in pairs: a leaf keyed by
+      // `runId`, drained with the other leaves and BEFORE the groups and the
+      // weeks each record names. `write: if false` to every client, and the
+      // pairs route refuses a run carrying the destroy marker, so nothing
+      // recreates one behind the cascade.
+      drain: () => drainQuery(db, COURSE_PAIRS_COLLECTION, byRunId(COURSE_PAIRS_COLLECTION), budget),
+    },
+    {
+      key: "anonymousFeedback",
+      // The anonymous keep, change and drop form: three leaves keyed by
+      // `runId`, drained in this order. The form's own record goes first,
+      // which closes its link, so no answer can arrive behind the cascade;
+      // then the answers waiting for the night's move, whose move reads each
+      // one again and so never writes one back; then the answers kept.
+      drain: () =>
+        drainInOrder(
+          [ANONYMOUS_FORMS_COLLECTION, ANONYMOUS_WAITING_COLLECTION, ANONYMOUS_ANSWERS_COLLECTION].map(
+            (collection) => () => drainQuery(db, collection, byRunId(collection), budget),
+          ),
+        ),
+    },
+    {
+      key: "predictions",
+      // Each person's sealed predictions: a leaf keyed by `runId`. `write: if
+      // false` to every client, and the one route that writes it refuses a
+      // run carrying the destroy marker, so nothing recreates one behind the
+      // cascade.
+      drain: () =>
+        drainQuery(db, COURSE_PREDICTIONS_COLLECTION, byRunId(COURSE_PREDICTIONS_COLLECTION), budget),
+    },
+    {
+      key: "recordOpenings",
+      // Each time an admin opened a card on this run, after the cards
+      // themselves: the opening route refuses a run carrying the destroy
+      // marker, so no row is added behind the cascade.
+      drain: () =>
+        drainQuery(db, RECORD_OPENINGS_COLLECTION, byRunId(RECORD_OPENINGS_COLLECTION), budget),
     },
     {
       key: "groups",
@@ -1559,7 +1996,7 @@ export async function countCourseDestroyTargets(
   db: Firestore,
   course: CourseDoc,
 ): Promise<CourseDestroyCounts> {
-  const [runs, templates, pageSnap] = await Promise.all([
+  const [runs, templates, pageSnap, facilitatorGuide] = await Promise.all([
     countAgg(db.collection("courseRuns").where("courseId", "==", course.id)),
     // Ships in V2-2; counting the empty collection reads 0 until then.
     countAgg(db.collection("courseTemplates").where("courseId", "==", course.id)),
@@ -1567,8 +2004,9 @@ export async function countCourseDestroyTargets(
     // there is exactly one candidate and a query would cost more to learn
     // less.
     db.collection(COURSE_PAGES_COLLECTION).doc(course.id).get(),
+    countCourseGuide(db, course.id),
   ]);
-  return { runs, templates, coursePages: pageSnap.exists ? 1 : 0 };
+  return { runs, templates, coursePages: pageSnap.exists ? 1 : 0, facilitatorGuide };
 }
 
 /**
@@ -1714,15 +2152,22 @@ export async function destroyCourseCascade(
     // count and not the delete is what branches on it.
     const pageRef = db.collection(COURSE_PAGES_COLLECTION).doc(courseId);
     const pageSnap = await pageRef.get();
+    // The facilitator guide rides in the same final batch, for the page's
+    // reason: a handful of documents keyed by this course (the course's four
+    // and two a week, far under a batch's 500), each gone with it or not at
+    // all. Its addresses only are read.
+    const guideRefs = await courseGuideRefs(db, courseId);
 
     const totals: Record<string, number> = { courses: 1 };
     if (pageSnap.exists) totals.coursePages = 1;
+    if (guideRefs.length > 0) totals.facilitatorGuide = guideRefs.length;
     const finalBatch = db.batch();
     finalBatch.update(auditRef, {
       ...auditIncrements(totals),
       ...PASS_LEASE_RELEASED,
       completedAt: FieldValue.serverTimestamp(),
     });
+    for (const ref of guideRefs) finalBatch.delete(ref);
     finalBatch.delete(pageRef);
     finalBatch.delete(courseRef);
     await finalBatch.commit();

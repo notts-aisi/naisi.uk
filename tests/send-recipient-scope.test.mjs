@@ -233,17 +233,99 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
-    "src/app/api/courses/groups/[groupId]/attendance/push/route.ts#local:recipients",
+    "src/lib/courses/nextWeekEmail.ts#local:recipients",
     {
       reads: 1,
       origin: "assembled",
       sourceOutsideScan:
-        "Built from the group's own `courseEnrolments` rows by a query this route runs, and " +
-        "each uid comes off a document id rather than a recipient-shaped field, so there is " +
-        "nothing for the scan to name as its source.",
+        "Built by `resolveCohortAudience` from the run's cohort channel intersected with the " +
+        "group's own active `courseEnrolments` rows, and each uid comes off a document rather " +
+        "than a recipient-shaped field, so there is nothing for the scan to name as its source.",
       why:
-        "The members of the group whose register is being taken, resolved from its enrolment " +
-        "rows and never from anything the request carried.",
+        "The members of one group, for next week's email: the push lane and the schedule both " +
+        "send through here, and neither takes a recipient from a request.",
+    },
+  ],
+  [
+    "src/lib/applications/handover/teamsTell.ts#team.memberUids",
+    {
+      reads: 1,
+      origin: "roster",
+      writtenBy: "src/lib/applications/handover/teamsAct.ts",
+      why:
+        "Whether the person whose team email just went is still in that team when what they were " +
+        "told is recorded on it. It sends nothing. A team's people are written by the teams route, " +
+        "which puts in only people taking part in the team's own group.",
+    },
+  ],
+  [
+    "src/lib/courses/facilitatorAsks/act.ts#group.facilitatorUids",
+    {
+      reads: 1,
+      origin: "roster",
+      writtenBy: "src/lib/courses/groupFacilitators.ts",
+      why:
+        "Whether the person to be asked already facilitates one of the run's groups, which means " +
+        "they are not asked again. It decides nothing about who an email goes to: an ask and a " +
+        "reminder email only the one person the request names, at their own account's address.",
+    },
+  ],
+  [
+    "src/lib/applications/handover/teamsTell.ts#member.teammateUids",
+    {
+      reads: 1,
+      origin: "derived",
+      derivedFrom: ["src/lib/applications/handover/teamsTell.ts#team.memberUids"],
+      why:
+        "The other people in a person's team, named in their email: the team's stored people who " +
+        "still take part (`membersAsTold`). Names only; each email goes to its own person's address.",
+    },
+  ],
+  [
+    "src/lib/scheduler/jobs/registerReminders.ts#group.facilitatorUids",
+    {
+      reads: 3,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "The facilitators of the group whose register is unfinished, each reminded once, " +
+        "each held to the standing the role is appointed behind before the email goes.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts#body.uid",
+    {
+      reads: 2,
+      origin: "caller",
+      filteredBy: "if (!runData || !owner || !role?.mayReview) return NextResponse.json({ error: \"Forbidden\" }, { status: 403 });",
+      why:
+        "The PERSON whose written answer the caller opens, reopens or gives feedback on, named by uid. " +
+        "The one gate (writtenReviewRole) refuses, before anything is read, everybody whose answer the " +
+        "caller may not review, and the one email goes to that person's own account address, never " +
+        "to an address in the body.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts#group.facilitatorUids",
+    {
+      reads: 1,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "Whether the answer's owner facilitates a group of the run, only to read the week as they " +
+        "read it. It names no recipient: the one message goes to the owner the gate names.",
+    },
+  ],
+  [
+    "src/lib/courses/registerRemind.ts#group.facilitatorUids",
+    {
+      reads: 2,
+      origin: "roster",
+      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      why:
+        "The facilitators of one group of the run a programme names, for its lead's Remind: " +
+        "each held to the standing the role is appointed behind, and asked for an address and " +
+        "their own email switch, by the reminder job's resolveFacilitator before the email goes.",
     },
   ],
   [
@@ -289,23 +371,32 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
-    "src/app/api/courses/runs/[runId]/allocation/publish/route.ts#group.facilitatorUids",
+    "src/app/api/courses/runs/[runId]/allocation/publish/route.ts#local:peopleRecipients",
     {
-      reads: 2,
-      origin: "roster",
-      writtenBy: "src/app/api/courses/groups/[groupId]/facilitators/route.ts",
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "The people `loadPublishPlan` (src/lib/courses/allocationPublish.ts) found owed their group's email: " +
+        "the run's accepted rows this caller is served, each with an active enrolment in a group, no " +
+        "`allocatedEmailAt` and no card that says they gave their place back (`gaveTheirPlaceBack`), at the " +
+        "account's own address. The plan sends nothing, so the scan does not read it.",
       why:
-        "The facilitators of the group an accepted applicant lands in, added to the audience " +
-        "so the people running a session are told who is joining it, and named in the email " +
-        "body.",
+        "Each person placed in a group and not yet told, emailed their own group once. Nothing in the " +
+        "request names a recipient: the body carries only how many emails the board showed.",
     },
   ],
   [
-    "src/app/api/courses/runs/[runId]/allocation/publish/route.ts#run.trackLeadUids",
+    "src/app/api/courses/runs/[runId]/allocation/publish/route.ts#local:facilitatorRecipients",
     {
       reads: 1,
-      origin: "gate",
-      why:"Whether the CALLER may publish an allocation. Not an audience.",
+      origin: "assembled",
+      sourceOutsideScan:
+        "The facilitators `loadPublishPlan` found owed their email: `facilitatorUids` of each live group on " +
+        "the run with somebody placed in it (written by src/app/api/courses/groups/[groupId]/facilitators/route.ts), " +
+        "less those with a `facilitating__` marker in courseNudges, at each account's own address.",
+      why:
+        "Each facilitator of a group with people in it, told once per group that they are facilitating it. " +
+        "The request names nobody.",
     },
   ],
   [
@@ -333,13 +424,13 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
-    "src/app/api/courses/runs/[runId]/enrol/route.ts#data.completerUids",
+    "src/lib/courses/leaveRun.ts#data.completerUids",
     {
       reads: 2,
       origin: "record",
       why:
-        "Read off an existing mirrored task to ask whether this member is already on it, so a " +
-        "re-sync does not duplicate one. Not a recipient list.",
+        "Read off a mirrored week card to check it is the leaving member's own before the leave " +
+        "deletes it, since a card's id says nothing about who made it. Not a recipient list.",
     },
   ],
   [
@@ -353,6 +444,41 @@ const RECIPIENT_SOURCES = new Map([
       why:
         "The weekly nudge's audience, resolved the same way from the run's own enrolment " +
         "rows.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/updates/route.ts#audience.recipients",
+    {
+      reads: 5,
+      origin: "assembled",
+      sourceOutsideScan:
+        "Built by updateEmailAudience (src/lib/courses/updates/audience.ts): for everyone or one group, the " +
+        "shared cohort-audience helper over the run's own enrolment rows, the group named by the update and " +
+        "checked to be one of the run's live groups; for the facilitators, the facilitatorUids of the run's " +
+        "live groups (written by src/app/api/courses/groups/[groupId]/facilitators/route.ts), each held to " +
+        "their bar. Nothing in the request names a recipient.",
+      why:
+        "Who an update's email reaches, counted by the same function the composer's number comes from; " +
+        "the request carries only who the update is to and that number.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/updates/route.ts#group.facilitatorUids",
+    {
+      reads: 1,
+      origin: "gate",
+      why:
+        "Whether the CALLER facilitates a live group of the run, which lets them write to that group. " +
+        "The audience comes from updateEmailAudience.",
+    },
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/updates/route.ts#local:recipients",
+    {
+      reads: 1,
+      origin: "derived",
+      derivedFrom: ["src/app/api/courses/runs/[runId]/updates/route.ts#audience.recipients"],
+      why: "The same audience, kept for the dispatch once every refusal has passed.",
     },
   ],
   [
@@ -822,16 +948,6 @@ const RECIPIENT_SOURCES = new Map([
       reads: 1,
       origin: "gate",
       why:"Whether the CALLER may address a whole run. Not an audience.",
-    },
-  ],
-  [
-    "src/lib/email/courseFacilitatorEmails.ts#run.trackLeadUids",
-    {
-      reads: 1,
-      origin: "gate",
-      why:
-        "The other half of the same question about the caller: a track lead may address the " +
-        "run they lead.",
     },
   ],
   [

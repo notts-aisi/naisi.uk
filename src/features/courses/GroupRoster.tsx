@@ -7,6 +7,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import InitialsChip from "@/components/ui/InitialsChip";
 import MemberName from "@/components/ui/MemberName";
 import Skeleton from "@/components/ui/Skeleton";
+import { NAMES_WHEN_GROUPS_GO_OUT } from "./groupNamesWords";
 import { useGroupRoster, type RosterPerson } from "./useGroupRoster";
 import styles from "./GroupRoster.module.css";
 
@@ -89,7 +90,12 @@ function PeopleList({ people, label }: { people: readonly RosterPerson[]; label:
 // ---------------------------------------------------------------------------
 
 export default function GroupRoster({ groupId, groupName }: Props) {
-  const { group, facilitators, members, loading, error, reload } = useGroupRoster(groupId);
+  const { group, facilitators, members, notYetTold, loading, error, reload } =
+    useGroupRoster(groupId);
+  // Nobody listed yet, and somebody placed here who has not been told their
+  // group: the names come when Publish emails them, and a count of nobody
+  // would read as an empty group.
+  const namesToCome = members.length === 0 && notYetTold;
 
   return (
     <Card
@@ -107,7 +113,7 @@ export default function GroupRoster({ groupId, groupName }: Props) {
           reason: they label a list, they are not another tier of the page. */}
       <header className={styles.head}>
         <h3 className={styles.title}>Who is in this group</h3>
-        {group && (
+        {group && !namesToCome && (
           <Chip size="sm" tone="neutral">
             {members.length} {members.length === 1 ? "member" : "members"}
           </Chip>
@@ -120,7 +126,7 @@ export default function GroupRoster({ groupId, groupName }: Props) {
       </header>
 
       <p className={styles.note}>
-        Names only. Nobody&apos;s email address appears on this page — to reach the
+        Names only. Nobody&apos;s email address appears on this page. To reach the
         group, use the email composer, which looks the addresses up when it sends
         and never shows them.
       </p>
@@ -155,7 +161,9 @@ export default function GroupRoster({ groupId, groupName }: Props) {
 
           <section className={styles.section}>
             <p className={styles.sectionTitle}>Members</p>
-            {members.length === 0 ? (
+            {namesToCome ? (
+              <EmptyState title={NAMES_WHEN_GROUPS_GO_OUT} />
+            ) : members.length === 0 ? (
               <EmptyState
                 title={`No one is placed in ${groupName || "this group"} yet`}
                 body="Places are allocated by an admin before the run starts. Everyone allocated here shows up on this list, in the register below, and in the review queue."

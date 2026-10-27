@@ -349,3 +349,49 @@ describe("courseGroups — the sessionModes map is server-owned", () => {
     );
   });
 });
+
+describe("courseGroups: the sessionChanges map is server-owned", () => {
+  const CANCELLED = {
+    w04: { kind: "cancelled", reason: "Both away.", dateKey: "2026-10-27", byUid: "facil", at: new Date() },
+  };
+
+  it("GUARD: a facilitator, an approver and a track lead cannot set, change or clear a week's change", async () => {
+    await seedCast();
+    await seed(async (db) => {
+      await db.collection("courseRuns").doc("run1").set(runDoc("run1", { trackLeadUids: ["lead"] }));
+      await db.collection("courseGroups").doc("g1").set(groupDoc({ facilitatorUids: ["facil"] }));
+    });
+    for (const uid of ["facil", "approver", "lead"]) {
+      await assertFails(
+        (await asUser(uid)).collection("courseGroups").doc("g1").update({ sessionChanges: CANCELLED }),
+      );
+    }
+    await clearData();
+    await seedCast();
+    await seedGroup({ facilitatorUids: ["facil"], sessionChanges: CANCELLED });
+    const again = await asUser("facil");
+    await assertFails(again.collection("courseGroups").doc("g1").update({ "sessionChanges.w04.reason": "Changed." }));
+    await assertFails(again.collection("courseGroups").doc("g1").update({ sessionChanges: {} }));
+  });
+
+  it("GUARD: the ordinary session edit still lands beside a stored change", async () => {
+    await seedCast();
+    await seedGroup({ facilitatorUids: ["facil"], sessionChanges: CANCELLED });
+    await assertSucceeds(
+      (await asUser("facil")).collection("courseGroups").doc("g1").update({ sessionOverrides: { w05: { location: "B52" } } }),
+    );
+  });
+
+  it("GUARD: a group cannot be born carrying a change", async () => {
+    await seedCast();
+    await assertFails(
+      (await asUser("approver")).collection("courseGroups").doc("g2").set(groupDoc({ sessionChanges: CANCELLED })),
+    );
+  });
+
+  it("GUARD: the admin client lane bypasses the pin, as for memberCount", async () => {
+    await seedCast();
+    await seedGroup({ sessionChanges: CANCELLED });
+    await assertSucceeds((await asUser("admin1")).collection("courseGroups").doc("g1").update({ sessionChanges: {} }));
+  });
+});

@@ -92,6 +92,8 @@ const { loadTs } = createLoader({
     ["@/lib/email/send", "export async function sendEmail() {\n  throw new Error('this suite sends nothing');\n}"],
     ["./form.module.css", STYLES],
     ["./rank.module.css", STYLES],
+    // The Rank step draws each programme's crest, or the emblem in its place.
+    ["./BrandMark.module.css", STYLES],
     ["./check.module.css", STYLES],
     ["./parts.module.css", STYLES],
     ["./ReviewScreen.module.css", STYLES],

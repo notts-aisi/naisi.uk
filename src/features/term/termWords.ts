@@ -164,6 +164,10 @@ export type TermDateCell = {
  *
  * The close is "Applications close" while it is still ahead and
  * "Applications closed" once the stage says it has been.
+ *
+ * The day everybody hears is offered only while decisions are still to come:
+ * once they have gone out (`running`), "Decisions by" with that day would
+ * offer a past day as still to come, so the strip has no cell for it (A9).
  */
 export function termDateCells(facts: TermDatesFacts): TermDateCell[] {
   const { stage, opensAt, closesAt } = facts;
@@ -199,7 +203,7 @@ export function termDateCells(facts: TermDatesFacts): TermDateCell[] {
     });
   }
 
-  const decisions = facts.decisionsByDate ? termCivilDay(facts.decisionsByDate) : null;
+  const decisions = facts.decisionsByDate && stage !== "running" ? termCivilDay(facts.decisionsByDate) : null;
   if (decisions) {
     cells.push({
       key: "decisions",

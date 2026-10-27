@@ -1,7 +1,11 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import { readPlaceOnRun } from "@/lib/courses/placeOnRun";
 import { londonDateKey } from "@/lib/courses/weekPlan";
+import { formatRunStartShort } from "@/lib/courses/window";
 import { isId } from "../keys";
+import type { ApplicationDoc } from "../model";
+import type { ApplicationForm } from "../normalise";
 import { loadForm, loadOwnApplication, loadQuestionSets } from "../repo";
 import { orderedSets } from "../sections";
 import {
@@ -10,7 +14,8 @@ import {
   projectQuestionSetForApplicant,
 } from "../applicant/project";
 import { isFormVisible } from "../applicant/window";
-import { statusViewFor, type StatusView } from "./view";
+import { standingOf } from "./standing";
+import { statusViewFor, type RunFacts, type StatusView } from "./view";
 import { listWordsFor, type ListWords } from "./words";
 
 /**
@@ -28,6 +33,17 @@ import { listWordsFor, type ListWords } from "./words";
  * Somebody who APPLIED on that form is different. They know it exists, and
  * what they sent and what they were told are still theirs to read, so they
  * get their page whatever has happened to the form since.
+ *
+ * ## Once their place is a group
+ *
+ * For a place they hold, or one they gave back by saying they can't make
+ * it, the run their programme names is asked one thing (`readPlaceOnRun`):
+ * whether Publish has told them a group there, whether they have left it, or
+ * whether staff took them off it. Only the answer's few facts reach the view
+ * (`RunFacts`): the run's id for a link, the group's name they were emailed,
+ * whether leaving is open to them, and the day they left or were taken off.
+ * Their own seat is the only one read, and nothing of it is read for anybody
+ * else's page.
  */
 
 export type LoadedStatus = {
@@ -47,6 +63,7 @@ export async function loadStatus(
   const application = await loadOwnApplication(db, form, uid);
   if (!application && !isFormVisible(form, now)) return null;
   const sets = orderedSets(form, await loadQuestionSets(db, roundId));
+  const run = application ? await runFactsFor(db, form, application, uid, now) : null;
   return {
     roundId: form.round.id,
     view: statusViewFor(
@@ -54,8 +71,58 @@ export async function loadStatus(
       sets.map(projectQuestionSetForApplicant),
       application ? projectApplicationForOwner(application) : null,
       londonDateKey(now),
+      undefined,
+      run,
     ),
   };
+}
+
+/**
+ * What the run the place's programme names says about this person, for their
+ * own page: asked only for a place they hold, or one they gave back by saying
+ * they can't make it, which is how leaving gives it back.
+ *
+ * TAKEN OFF BY STAFF is said only when they did not give the place back
+ * themselves. A reply that gives a place back always carries its reason
+ * (`recordReply` refuses one without), and leaving and Remove write none, so
+ * a place with a reason on it is one they gave back before staff took them
+ * off, and their page says what they told us, as it did.
+ */
+async function runFactsFor(
+  db: Firestore,
+  form: ApplicationForm,
+  application: ApplicationDoc,
+  uid: string,
+  now: Date,
+): Promise<RunFacts | null> {
+  const standing = standingOf(application);
+  const holds = standing.kind === "place";
+  const gaveItBack = standing.kind === "released" && standing.how === "cant-make-it";
+  const programmeId = holds || gaveItBack ? standing.programmeId : null;
+  if (!programmeId) return null;
+  const onRun = await readPlaceOnRun(db, form, programmeId, uid, now);
+  if (onRun.kind === "left") {
+    return {
+      kind: "left",
+      runId: onRun.runId,
+      leftOnLabel: onRun.leftOn ? (formatRunStartShort(londonDateKey(onRun.leftOn)) ?? null) : null,
+    };
+  }
+  if (onRun.kind === "removed" && application.releaseReason === null) {
+    return {
+      kind: "removed",
+      removedOnLabel: onRun.removedOn ? (formatRunStartShort(londonDateKey(onRun.removedOn)) ?? null) : null,
+    };
+  }
+  if (onRun.kind === "in-a-group" && holds) {
+    return {
+      kind: "in-a-group",
+      runId: onRun.run.id,
+      groupName: onRun.groupName,
+      leave: "path" in onRun.leave ? "open" : onRun.leave.closed === "ended" ? "ended" : "ask-the-team",
+    };
+  }
+  return null;
 }
 
 /**

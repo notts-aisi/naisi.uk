@@ -80,6 +80,22 @@
   margin-left: auto;
 }
 
+/* "Saved 7:58pm" after every tap (wk-register, option B). Green and with a
+   tick, so the colour is never the only signal; empty until the first save. */
+.saved {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-ok);
+  white-space: nowrap;
+}
+
+.savedCheck {
+  font-weight: 700;
+}
+
 .error {
   margin: 0;
   font-size: var(--text-sm);
@@ -501,6 +517,42 @@
    remove a keyframe's from-state — so the pop is answered explicitly here per
    house convention. */
 
+/* === Somebody who left the group: read only =============== */
+/* Listed last, under a dashed rule, in the muted colour wk-fac-group draws a
+   leaver in, with "Left Fri 13 Nov" under the name. Their cells are spans,
+   never buttons, and a session after they left is an empty cell. */
+
+.leaverFirst > th,
+.leaverFirst > td {
+  border-top: 1px dashed var(--color-border-strong);
+}
+
+.leaverRow > .nameCell {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.leaverName {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leftNote {
+  display: block;
+  font-size: var(--text-caption);
+  font-weight: 400;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leftBlank {
+  display: inline-block;
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .glyphPop {
     animation: none;
@@ -508,13 +560,118 @@
 
   .glyph,
   .cellButton,
-  .bulk {
+  .bulk,
+  .finishButton {
     transition: none;
   }
 
   .cellButton:active .glyph {
     transform: scale(1);
   }
+}
+
+/* === The foot: how the register ends ======================
+   wk-register's bottom bar, under the grid: the session the button finishes,
+   the button, the line under it and the notes about next week's email and
+   who is chased. Bounded in width on a laptop, so the button reads as one
+   action rather than a bar across the page; full width on a phone, as drawn. */
+
+.foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 28rem;
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.footHead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.footTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-md, 1rem);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text);
+}
+
+.footLine {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.footAction {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* The one irreversible action on the page, filled with the accent. Its
+   colours come from this class, never the browser's: Safari paints a bare
+   button grey. */
+.finishButton {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0 var(--space-6);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font: inherit;
+  font-size: var(--text-md, 1rem);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur-quick) var(--ease-naisi);
+}
+
+.finishButton:hover {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.finishButton:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
+.footEffect {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  text-align: center;
+  text-wrap: balance;
+}
+
+.footNotes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.footNote {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
 }
 
 /* === Mobile ===============================================
@@ -577,5 +734,10 @@
 
   .dialogActions > * {
     width: 100%;
+  }
+
+  /* As drawn on the phone: the foot takes the full width under the grid. */
+  .foot {
+    max-width: none;
   }
 }

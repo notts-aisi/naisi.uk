@@ -21,6 +21,17 @@ import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
  * a reviewer to the run home would be the only thing standing between the
  * admissions lane and the cohort).
  *
+ * Somebody who LEFT the run themselves passes too (`hasLeft`), for the one
+ * thing still theirs: the page that tells them they left, which the run home
+ * draws, and the notes and reading list pages draw in their own stead. Every
+ * cohort surface still narrows to `canLearn`, which leaving takes away.
+ *
+ * Somebody HOLDING A PLACE whom Publish has not told yet passes too, once
+ * week 1 is ready (`beforeGroups`, week 1's door, Q35 B), for week 1's page
+ * and nothing else: the week page draws week 1 for them, and every other
+ * page here, the run home included, narrows to `canLearn` (or its own
+ * predicate) and sends them away.
+ *
  * Redirects, never 403s: a member who guesses a run id learns nothing about
  * whether that run exists.
  */
@@ -50,7 +61,11 @@ export default async function RunLayout({
   }
 
   const hasRunRole =
-    access.canLearn || access.isReviewer || access.isTrackLead;
+    access.canLearn ||
+    access.isReviewer ||
+    access.isTrackLead ||
+    access.hasLeft ||
+    Boolean(access.beforeGroups);
   if (!hasRunRole) redirect("/learn");
 
   return <>{children}</>;

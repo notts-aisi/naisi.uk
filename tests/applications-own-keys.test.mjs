@@ -465,6 +465,7 @@ const CONTRACT = {
       for (const user of [ADMIN, LEAD]) assert.equal(access.canEditProgramme(user, FORM, name), false);
     },
     canRunTerm: "decided by the caller's role alone",
+    opensProgrammeGroups: "decided from the role roleOnProgramme has already answered, and takes no id",
   },
   "decisions.ts": {
     standingWith: (name) => {

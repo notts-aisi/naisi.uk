@@ -48,6 +48,47 @@ const E2E_DIR = join(REPO_ROOT, "scripts", "e2e");
 const PERSONA_MODULE = join(E2E_DIR, "lib", "personas.mjs");
 
 /**
+ * THE SAME EXCEPTION, ON THE SAME TERMS, for the battery's world: the records
+ * the persona battery's second pass asks about (two programmes, each with a
+ * running run, its groups, its places and a survey, one led and staffed by
+ * personas and one by accounts that are none of them). It writes authority
+ * over records (a programme's lead, a group's facilitators) and the other
+ * programme's accounts' roles, so it needs the exception too, and it gets it
+ * only by meeting the same three checks: every exported function starts with
+ * `assertEmulator()`, which it must import from the persona module rather
+ * than define (one loopback test, not two that can drift), and its refusal
+ * is executed. The collections it writes are on a list of their own below,
+ * and no other file under scripts/e2e may address them.
+ */
+const WORLD_MODULE = join(E2E_DIR, "lib", "personaWorld.mjs");
+
+/** The files that write only to an emulator, and may spell a privilege for that reason alone. */
+const EMULATOR_MODULES = [PERSONA_MODULE, WORLD_MODULE];
+
+/**
+ * What the world module writes, each with the reason, to the emulator only.
+ * Every other file under scripts/e2e stays on `ALLOWED_COLLECTIONS`: this
+ * list widens nothing that can reach the dev project, because nothing in the
+ * world module can run without the loopback emulator (checked below by
+ * executing it).
+ */
+const EMULATOR_WORLD_COLLECTIONS = {
+  users: "the other programme's lead, facilitator and participant, who are none of the personas",
+  courses: "each programme's course, published",
+  courseRuns: "each programme's run, three weeks in and running",
+  weeks: "each run's published weeks, the subcollection under courseRuns",
+  courseGroups: "each run's two groups, one with a facilitator who also holds a place in it",
+  courseEnrolments: "each person's place in a group, told by Publish",
+  courseApplications: "each person's row on the run's own list, as the hand-over writes it",
+  admissionRounds: "each application form, its programme naming the run and its lead",
+  admissionApplications: "each person's accepted application",
+  admissionDecisions: "what each programme decided about each person",
+  surveys: "each programme's before survey",
+  surveyPeople: "who each survey was sent to",
+  courseFacilitating: "each programme's open ask to its participant to facilitate the run's second group",
+};
+
+/**
  * Privilege-granting shapes, in both bare-identifier and quoted-key spellings
  * (a .mjs file building a JSON body naturally writes `"role": "admin"`), plus
  * assignment from a variable.
@@ -112,8 +153,9 @@ test("the e2e harness never grants a role, permission, or admin-set tag", () => 
   const files = sourceFiles(E2E_DIR);
   assert.ok(files.length > 0, `expected harness sources under ${E2E_DIR}`);
   assert.ok(files.includes(PERSONA_MODULE), "the persona module has moved; update PERSONA_MODULE");
+  assert.ok(files.includes(WORLD_MODULE), "the persona battery's world has moved; update WORLD_MODULE");
   for (const file of files) {
-    if (file === PERSONA_MODULE) continue; // the one exception, held to its own terms below
+    if (EMULATOR_MODULES.includes(file)) continue; // the emulator-only exception, held to its own terms below
     const source = readFileSync(file, "utf8");
     for (const pattern of FORBIDDEN_PRIVILEGE) {
       assert.ok(
@@ -129,11 +171,14 @@ test("the e2e harness never grants a role, permission, or admin-set tag", () => 
 test("the e2e harness only ever addresses allowlisted Firestore collections", () => {
   for (const file of sourceFiles(E2E_DIR)) {
     const source = readFileSync(file, "utf8");
+    // The world module writes the emulator only, to its own declared list;
+    // every other file, the persona module included, is held to the three.
+    const allowed = file === WORLD_MODULE ? Object.keys(EMULATOR_WORLD_COLLECTIONS) : ALLOWED_COLLECTIONS;
     for (const match of source.matchAll(/\.collection\(\s*["'`]([^"'`]+)["'`]/g)) {
       assert.ok(
-        ALLOWED_COLLECTIONS.includes(match[1]),
+        allowed.includes(match[1]),
         `${relative(REPO_ROOT, file)} addresses collection ${JSON.stringify(match[1])} — ` +
-          `the harness may only reach ${ALLOWED_COLLECTIONS.join(", ")}. Any other ` +
+          `it may only reach ${allowed.join(", ")}. Any other ` +
           "collection is out of bounds for it.",
       );
     }
@@ -222,6 +267,14 @@ test("the persona module refuses to run without a loopback Firestore emulator", 
     assert.throws(() => personas.assertEmulator(), /REFUSING/);
     await assert.rejects(() => personas.withPersona("guard", "admin"), /REFUSING/);
     assert.throws(() => personas.personaOrigin(), /REFUSING/);
+    // The world refuses on the same test, before it reads a persona or writes anything.
+    const world = await import(pathToFileURL(WORLD_MODULE).href);
+    const people = { lead: { uid: "guard-lead" }, facilitator: { uid: "guard-facilitator" }, participant: { uid: "guard-participant" } };
+    await assert.rejects(() => world.seedPersonaWorld("guard", people), /REFUSING/);
+    await assert.rejects(() => world.disposePersonaWorld([]), /REFUSING/);
+    process.env.FIRESTORE_EMULATOR_HOST = "firestore.googleapis.com:443";
+    await assert.rejects(() => world.seedPersonaWorld("guard", people), /REFUSING/);
+    delete process.env.FIRESTORE_EMULATOR_HOST;
     process.env.FIRESTORE_EMULATOR_HOST = "firestore.googleapis.com:443";
     assert.throws(() => personas.assertEmulator(), /REFUSING/);
     process.env.FIRESTORE_EMULATOR_HOST = "10.0.0.5:8080";
@@ -234,22 +287,33 @@ test("the persona module refuses to run without a loopback Firestore emulator", 
   }
 });
 
-test("every exported function in the persona module starts by asserting the emulator", () => {
-  const raw = readFileSync(PERSONA_MODULE, "utf8");
-  const source = stripSource(raw);
-  const scope = moduleScope(source, stripSource(raw, { keepStrings: true }));
-  const exported = [...source.matchAll(/export\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/g)].map((m) => m[1]);
-  assert.ok(exported.length >= 3, "the persona module exports fewer functions than expected");
-  for (const name of exported) {
-    if (name === "assertEmulator") continue;
-    const body = scope.locals.get(name)?.text ?? "";
-    const first = body.split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? "";
-    assert.equal(
-      first,
-      "assertEmulator();",
-      `${name}() in scripts/e2e/lib/personas.mjs must call assertEmulator() before anything else.`,
-    );
+test("every exported function in the emulator-only modules starts by asserting the emulator", () => {
+  for (const [file, least] of [
+    [PERSONA_MODULE, 3],
+    [WORLD_MODULE, 2],
+  ]) {
+    const raw = readFileSync(file, "utf8");
+    const source = stripSource(raw);
+    const scope = moduleScope(source, stripSource(raw, { keepStrings: true }));
+    const exported = [...source.matchAll(/export\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/g)].map((m) => m[1]);
+    assert.ok(exported.length >= least, `${relative(REPO_ROOT, file)} exports fewer functions than expected`);
+    // A function may only be exported as a declaration, so every one is read here.
+    assert.doesNotMatch(source, /export\s+(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*=\s*(?:async\s*)?(?:\(|function)/, `${relative(REPO_ROOT, file)} exports a function as a variable, which this check cannot read`);
+    for (const name of exported) {
+      if (name === "assertEmulator") continue;
+      const body = scope.locals.get(name)?.text ?? "";
+      const first = body.split("\n").map((l) => l.trim()).find((l) => l.length > 0) ?? "";
+      assert.equal(
+        first,
+        "assertEmulator();",
+        `${name}() in ${relative(REPO_ROOT, file)} must call assertEmulator() before anything else.`,
+      );
+    }
   }
-  // The refusal is a test on the value, not on presence alone.
-  assert.match(source, /LOOPBACK_EMULATOR\s*=\s*\/\^\(127\\\.0\\\.0\\\.1\|localhost\)/, "the loopback pattern has changed shape");
+  // The refusal is a test on the value, not on presence alone, and there is one of it.
+  const persona = stripSource(readFileSync(PERSONA_MODULE, "utf8"));
+  assert.match(persona, /LOOPBACK_EMULATOR\s*=\s*\/\^\(127\\\.0\\\.0\\\.1\|localhost\)/, "the loopback pattern has changed shape");
+  const world = readFileSync(WORLD_MODULE, "utf8");
+  assert.match(world, /import\s*\{\s*assertEmulator\s*\}\s*from\s*["']\.\/personas\.mjs["']/, "the world must take assertEmulator from the persona module");
+  assert.doesNotMatch(stripSource(world), /function\s+assertEmulator\b|LOOPBACK_EMULATOR/, "the world must not define a loopback test of its own");
 });

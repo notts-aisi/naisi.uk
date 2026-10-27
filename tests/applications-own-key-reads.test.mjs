@@ -214,6 +214,48 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/crests/runs.ts",
+    {
+      why: "the crest a course run shows: it reads the programme that names the run, by the programme id `namingProgrammeIn` found on that form's own programmeIds, to take its crest",
+    },
+  ],
+  [
+    "src/lib/courses/programmeLead.ts",
+    {
+      why: "the one answer to who leads the programme that names a course run: it reads each form's programmes by the ids on that form's own programmeIds, to find the programme whose runId names the run and take its lead",
+    },
+  ],
+  [
+    "src/lib/courses/facilitatorAsks/",
+    {
+      why: "asking people to facilitate: it reads a form's programmes by the programme id an ask or a request names, and each applicant's answers by the facilitator question ids of the form's own question sets",
+    },
+  ],
+  [
+    "src/lib/courses/certificates/send.ts",
+    {
+      why: "sending a programme's certificates: it reads a form's programmes by the programme id the request's address names, to take the run it names, its whole and short names for the certificates and the email, and who may press",
+    },
+  ],
+  [
+    "src/lib/courses/placeOnRun.ts",
+    {
+      why: "where a place on the form stands on the run its programme names: it reads the form's programmes by the programme id of the place the person's own application holds, to take the run that programme names",
+    },
+  ],
+  [
+    "src/lib/courses/getReady/read.ts",
+    {
+      why: "Get ready for week 1 and Publish's readiness check read a form's programmes by the programme id of the page they were reached by, which loadProgrammeRun has found on that form, to take its places, kind and short name",
+    },
+  ],
+  [
+    "src/lib/courses/weekOne/",
+    {
+      why: "week 1's door before groups go out and the cards it words: each reads a form's programmes by an id on that form's own programmeIds (the door the one namingProgrammeIn found, the cards each one in turn), to take the programme's kind, short name, course and run",
+    },
+  ],
+  [
     "src/lib/firestore/memberRecords.ts",
     {
       why: "builds the kept member record: it reads a form's programmes by a programme id off the application, and a review's scores by a criterion id off the round",
@@ -247,6 +289,12 @@ const HELD = new Map([
     "src/app/api/worksheets/",
     {
       why: "the poll results route reads the caller's own worksheet response by the question id in the request",
+    },
+  ],
+  [
+    "src/lib/surveys/",
+    {
+      why: "a survey's answers, read by a question, option or line id taken from the survey's own items (the answers a route accepts, the totals, the spreadsheet), and a form's programmes by the programme id a survey or its New survey request names",
     },
   ],
   [

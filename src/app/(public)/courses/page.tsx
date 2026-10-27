@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import ProgrammeMark from "@/components/ProgrammeMark";
 import Chip from "@/components/ui/Chip";
 import {
   listPublishedCourses,
@@ -8,6 +9,7 @@ import {
 } from "@/features/courses/fetchCourses";
 import CourseFaq from "@/features/courses/CourseFaq";
 import CourseVisual from "@/features/courses/CourseVisual";
+import { fetchCourseCrests } from "@/features/courses/fetchCrests";
 import { applicationStateTone, applicationStateWords } from "@/features/courses/stateWords";
 import {
   formatRunStartShort,
@@ -32,6 +34,7 @@ import TermApplyLink from "@/features/term/TermApplyLink";
 import TermDates from "@/features/term/TermDates";
 import TermStatusLine from "@/features/term/TermStatusLine";
 import { sharedStart, termCivilDay, termDeadline } from "@/features/term/termWords";
+import { crestForCourse, crestForProgramme, type HoldsCrest, type ShownCrest } from "@/lib/crests/resolve";
 import { incubatorTeaserWords, oneFormWords } from "../incubator/incubatorWords";
 import { FELLOWSHIP_QUESTIONS } from "./questions";
 import styles from "./courses.module.css";
@@ -55,6 +58,10 @@ import styles from "./courses.module.css";
  *    is drawn only for a course the published list holds.
  * 3. NO DATE IS WRITTEN HERE. Every day on the page comes from the term or
  *    from a course's own round or run, formatted in London's time.
+ * 4. A CARD'S CREST IS THE RESOLVER'S ANSWER (`src/lib/crests/resolve.ts`):
+ *    for one of the term's programmes, its own crest, else its course's;
+ *    for a course on no form, the course's; else the NAISI emblem. Drawn at
+ *    64px beside the name, so it is decorative.
  */
 
 export const metadata: Metadata = {
@@ -73,6 +80,9 @@ const MAILING_LIST = "/#stay-in-touch";
 export default async function FellowshipsPage() {
   const [term, entries] = await Promise.all([fetchPublicTerm(), listPublishedCourses()]);
   const { stage, opensAt, closesAt, decisionsByDate, applyPath } = term;
+  // The course behind each of the term's programmes, whatever its status, so
+  // a programme shows the same crest here as everywhere else it is named.
+  const programmeCourses = await fetchCourseCrests(term.programmes.map((programme) => programme.courseId));
 
   const byCourse = new Map(entries.map((entry) => [entry.course.id, entry]));
   const fellowships = term.programmes.filter((programme) => programme.kind === "fellowship");
@@ -169,11 +179,12 @@ export default async function FellowshipsPage() {
               {fellowships.map((programme) => (
                 <ProgrammeCard
                   key={programme.id}
-                  {...programmeCard(programme, byCourse.get(programme.courseId ?? "") ?? null, {
-                    stage,
-                    opensAt,
-                    closesAt,
-                  })}
+                  {...programmeCard(
+                    programme,
+                    byCourse.get(programme.courseId ?? "") ?? null,
+                    programmeCourses.get(programme.courseId ?? ""),
+                    { stage, opensAt, closesAt },
+                  )}
                 />
               ))}
             </div>
@@ -301,6 +312,8 @@ export default async function FellowshipsPage() {
 /** What one card prints. Plain fields, so a card can never be handed a document. */
 type CardProps = {
   name: string;
+  /** The resolver's answer: the crest beside the name, or null for the NAISI emblem. */
+  shownCrest: ShownCrest;
   pitch: string;
   /** The line of metadata over the picture: "6 weeks · ~5 hrs a week". */
   facts: string;
@@ -320,6 +333,7 @@ type CardProps = {
 
 function ProgrammeCard({
   name,
+  shownCrest,
   pitch,
   facts,
   seed,
@@ -341,7 +355,10 @@ function ProgrammeCard({
           </Chip>
           {level ? <Chip>{level}</Chip> : null}
         </p>
-        <h3 className={styles.cardTitle}>{name}</h3>
+        <div className={styles.cardHead}>
+          <ProgrammeMark shown={shownCrest} size={64} />
+          <h3 className={styles.cardTitle}>{name}</h3>
+        </div>
         {pitch ? <p className={styles.cardPitch}>{pitch}</p> : null}
         <FactRows rows={rows} />
         {href ? (
@@ -412,11 +429,13 @@ const kept = (rows: (FactRow | null)[]): FactRow[] => rows.filter((r): r is Fact
 function programmeCard(
   programme: PublicTermProgramme,
   entry: CourseCatalogueEntry | null,
+  course: HoldsCrest,
   term: { stage: PublicTermStage; opensAt: Date | null; closesAt: Date | null },
 ): CardProps {
   const words = entry ? courseWords(entry) : programmeWords(term, programme.starts);
   return {
     name: programme.name,
+    shownCrest: crestForProgramme(programme, course),
     pitch: programme.pitch || entry?.course.tagline || "",
     facts: programme.facts,
     seed: entry?.visual.seed ?? programme.id,
@@ -442,6 +461,7 @@ function courseCard(entry: CourseCatalogueEntry): CardProps {
   const words = courseWords(entry);
   return {
     name: course.title || "Untitled course",
+    shownCrest: crestForCourse(course),
     pitch: course.tagline,
     facts: course.estimatedWeeklyHours ? weeklyHoursWords(course.estimatedWeeklyHours) : "",
     seed: entry.visual.seed,

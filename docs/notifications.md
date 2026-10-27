@@ -182,8 +182,8 @@ is that helper inverted, for the loops that hold a raw document and are asking
 | --- | --- | --- |
 | `newsletter` | `POST /api/newsletter/[id]/send`, the only sender that addresses this row | the same send, alongside its email loop |
 | `events` | the new-event announcement, on publish, inline or queued to the `event-announcements` job | the same announcement |
-| `courses` | the cohort announcement composer, the weekly session nudge, the run catch-up nudge, the admissions deadline reminder job, the admissions stage-release job, the daily invitation reminder job | an admissions decision, an allocation publish, the stage release |
-| `tasks` | the five `/api/tasks/[id]/*` senders, the four worksheet circulation messages, the worksheet due-soon reminder | a mirror beside each of those |
+| `courses` | the cohort announcement composer, the weekly session nudge (pushed from a register, or on its schedule by `courses-next-week-email`), the run catch-up nudge, the admissions deadline reminder job, the admissions stage-release job, the daily invitation reminder job | an admissions decision, an allocation publish, the stage release |
+| `tasks` | the five `/api/tasks/[id]/*` senders, the four worksheet circulation messages, the worksheet due-soon reminder, the register reminder to a group's facilitators (`courses-register-reminders`) | a mirror beside each of those but the register reminder, which is email only |
 
 **The two opt-in rows share one push audience shape**, in
 `sendPushToRowAudience` (`src/lib/push/rowAudience.ts`): every account with a
@@ -312,6 +312,21 @@ preference at all.
 | `course-group` | `POST /api/courses/groups/[groupId]/email` | admins, and a facilitator of THIS group while it is live | the group's active members |
 | `course-room` | `POST /api/courses/groups/[groupId]/notice` | the same gate | the same members |
 | `course-run` | `POST /api/courses/runs/[runId]/email` with `asNotice: true` | admins, and the run's `runFacilitatorUids` or `trackLeadUids` | the run's cohort channel, keeping the members whose `courses` row is a stored false |
+| `course-run` | `POST /api/courses/runs/[runId]/updates`, an update to everyone or to the facilitators | admins, the run's `trackLeadUids` and the lead of the programme that names the run | to everyone: the run's cohort channel as above; to the facilitators: the facilitators of the run's live groups who still meet their bar, at their own addresses |
+| `course-group` | `POST /api/courses/runs/[runId]/updates`, an update to one group | the same, and a facilitator of that group while it is live | that group's members on the run's cohort channel, keeping the stored falses |
+| `course-survey` | `POST /api/surveys/[surveyId]/send` and `.../remind` (docs/surveys.md) | admins | everybody holding a place on the survey's programme, each at their account's address with their own link; the reminder to those of them who have not answered |
+| `course-follow-up` | the same two routes, for a follow-up survey at 6 or 12 months (docs/surveys.md) | admins | everybody whose row on the programme's before survey says yes to follow-ups now, each with their own link; the reminder to those of them who have not answered |
+| `event-survey` | the same two routes, for the survey after an event (docs/surveys.md) | admins | the people who came to the event (each with an email: an account at its own address, a guest or a walk-in at the address they gave the event) or everybody whose sign-up was confirmed, less anybody who already answered with the QR code, each with their own link; the reminder to those it reached who have not answered |
+
+An update (Q18) is kept on the site as well as emailed, and its email is a
+notice for the reason the group email is one: the lead of a programme, an
+admin or a group's facilitator is writing to the people they run it for. It
+is email only, with no push leg, and it reuses the two course surfaces
+rather than adding a third, so the marker says "you are on this course" or
+"you are in this course group" as it does for the composers beside it. Its
+"Send a test to me" is `course-test` to the presser alone, as theirs is.
+Who reads an update on the site is decided apart from who is emailed it, in
+`src/lib/courses/updates/readers.ts`.
 
 The event broadcast gate is wider than it was, on purpose: until this lane landed
 the committee member who organised an event could not mail its attendees unless
@@ -353,6 +368,7 @@ to be rationed like any other send.
 | course group email | 3 | 10 | 100 members, refused |
 | course room notice | **none** | 10 | 100 members, refused |
 | course run notice | 3 | 10 | 200 recipients, refused |
+| course update | 3, per (writer, audience) | 10, its own counter | 200 recipients, refused |
 
 **Two lanes omit the hourly window, for the same reason.** The room notice has to
 survive the evening where the room changes twice and the mode flips once, which
@@ -385,7 +401,7 @@ There is no unsubscribe footer and no `List-Unsubscribe` header, and
 something that cannot be switched off is the one dishonest thing this lane could
 ship.
 
-The `emailSends` receipt carries `kind: "notice"` plus `surface`, one of the five
+The `emailSends` receipt carries `kind: "notice"` plus `surface`, one of the eight
 strings above, so the deliverability tab can answer "how much un-switch-off-able
 mail went out, and from where" without reading subject lines. Both are set by
 `sendNotice` alone. The older `course-notice` kind stays defined for the room
@@ -689,6 +705,35 @@ Not covered, on purpose: the sign-in provider's own verification and
 password-reset mail (sent by the provider to the address the person typed), and
 web push (it reaches only devices that subscribed on that copy of the site).
 
+## Which address mail comes from
+
+There are two, so somebody reading their inbox can tell the newsletter from
+everything else the site sends, and filter either.
+
+| What is sent | Comes from |
+| --- | --- |
+| An issue of the newsletter, and its test send | `NEWSLETTER_FROM_EMAIL` (newsletter@naisi.uk) |
+| Everything else: confirmations, reminders, and every event, course, task and admissions message | `SMTP_FROM_EMAIL` (notifications@naisi.uk) |
+
+Both are set in `apphosting.yaml`, which both backends read. `sendEmail()`
+picks between them (`fromAddressFor` in `src/lib/email/send.ts`): a call that
+passes `sender: "newsletter"` comes from the newsletter's address, and every
+other call from the default. With `NEWSLETTER_FROM_EMAIL` unset or blank the
+newsletter comes from `SMTP_FROM_EMAIL` too, so a copy of the site that has
+not set it (a laptop, the test harness) sends exactly as it did before. Both
+carry the same display name (`SMTP_FROM_NAME`, or a call's own `fromName`),
+and replies to either go to `EMAIL_DEFAULT_REPLY_TO`.
+
+The rule a maintainer keeps: only the newsletter's own two routes
+(`POST /api/newsletter/[id]/send` and its test send) pass
+`sender: "newsletter"`, and nothing else in `src` reads
+`NEWSLETTER_FROM_EMAIL` or names either address. `tests/email-senders.test.mjs`
+walks the tree for it, which is why every call to `sendEmail` writes its
+arguments out where it is made: a call handed a variable or a spread is one
+the walk cannot read, and the guard fails it rather than guessing. The course
+announcement renders the newsletter's template and still comes from the
+default address, because the template is how a message looks, not who sent it.
+
 ## Adding a sender
 
 1. **Register it** in `tests/notification-classification.test.mjs` with a class,
@@ -710,6 +755,9 @@ web push (it reaches only devices that subscribed on that copy of the site).
    grid marker at all. It is a per-file rule because two files genuinely carry
    both lanes.
 4. **A file whose entries are all transactional must reference neither.**
+5. **Leave `sender` out.** A new send comes from `SMTP_FROM_EMAIL` like every
+   other message; only an issue of the newsletter passes `sender: "newsletter"`
+   (see "Which address mail comes from").
 
 ## Deliberately not built
 

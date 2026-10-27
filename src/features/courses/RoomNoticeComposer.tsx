@@ -10,6 +10,8 @@ import { Field } from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
 import Skeleton from "@/components/ui/Skeleton";
 import type { GroupSessionMode } from "@/lib/firestore/courseGroups";
+import { NAMES_WHEN_GROUPS_GO_OUT } from "./groupNamesWords";
+import { ONLINE_NOTICE_LINK_LINE } from "@/lib/courses/sessionChange/words";
 import { groupNoticeUrl } from "./useGroupWeeks";
 import { useGroupRoster } from "./useGroupRoster";
 import styles from "./RoomNoticeComposer.module.css";
@@ -79,7 +81,6 @@ type Props = {
     /** Null when no week-level mode is set — the usual arrangement stands. */
     mode: GroupSessionMode | null;
     location: string;
-    meetingUrl: string | null;
   } | null;
 };
 
@@ -110,21 +111,24 @@ function people(n: number): string {
 
 /**
  * The sentence the switch implies, written out. Deliberately complete on its
- * own — a member reading it in a notification with no context should know where
+ * own: a member reading it in a notification with no context should know where
  * to be and when.
+ *
+ * NEVER THE MEETING LINK (Q23). This notice is an email, and an email can be
+ * forwarded; the link lives on the group's programme page, behind sign-in. So
+ * the composer is not handed the link at all, and an online week's wording
+ * says where the link is instead. `tests/course-hub-meeting-link-guard.test.mjs`
+ * holds the tree to that.
  */
-function prefillFor(session: Props["session"]): string {
+export function prefillFor(session: Props["session"]): string {
   // No week-level mode set means nothing has changed this week, so there is
-  // nothing to announce — the facilitator writes their own notice instead of
+  // nothing to announce: the facilitator writes their own notice instead of
   // being handed a sentence that asserts a switch that never happened.
   if (!session || session.mode === null) return "";
 
   const when = session.slotLabel ? ` We're still meeting ${session.slotLabel}.` : "";
   if (session.mode === "virtual") {
-    const where = session.meetingUrl
-      ? ` Join here: ${session.meetingUrl}`
-      : " I'll send the joining link separately.";
-    return `${session.weekLabel}: we're meeting online this week rather than in person.${where}${when}`;
+    return `${session.weekLabel}: we're meeting online this week rather than in person. ${ONLINE_NOTICE_LINK_LINE}${when}`;
   }
   const where = session.location
     ? ` We're in ${session.location}.`
@@ -287,7 +291,9 @@ export default function RoomNoticeComposer({
             </>
           ) : count === 0 ? (
             <p className={styles.recipientsBlocked}>
-              No one is placed in {groupName} yet, so there is nobody to tell.
+              {roster.notYetTold
+                ? `${NAMES_WHEN_GROUPS_GO_OUT} There is nobody to tell until then.`
+                : `No one is placed in ${groupName} yet, so there is nobody to tell.`}
             </p>
           ) : (
             <>
@@ -342,8 +348,8 @@ export default function RoomNoticeComposer({
             </Button>
             <span className={styles.prefillNote}>
               {session?.mode === "virtual"
-                ? "Written from this week being online — it carries the joining link."
-                : "Written from this week being in person — it carries the room."}
+                ? "Written from this week being online. It says where the joining link is, and never carries the link."
+                : "Written from this week being in person. It carries the room."}
             </span>
           </div>
         )}

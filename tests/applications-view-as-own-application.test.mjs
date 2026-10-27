@@ -91,6 +91,7 @@ const OWN_READS = {
   loadHoldsPlace: "@/lib/applications/status/load",
   loadStatusRows: "@/lib/admissions/statusHubData",
   loadStatusRowForRound: "@/lib/admissions/statusHubData",
+  loadWhenFree: "@/lib/applications/status/whenFree",
 };
 
 const GUARD_FIRST = /^\{\s*const blocked = await assertNotImpersonating\(\);\s*if \(blocked\) return blocked;/;
@@ -123,6 +124,10 @@ const HELD = {
     how: "refuses-first",
     why: "a reply answers with where the application stands afterwards",
   },
+  "app/api/admissions/forms/[roundId]/application/availability/route.ts#PUT": {
+    how: "refuses-first",
+    why: "a change of when they're free answers with the application as it now stands",
+  },
   "app/api/admissions/applications/me/route.ts#GET": {
     how: "refuses-first",
     why: "every application the caller has, which is what the list page draws",
@@ -151,6 +156,11 @@ const HELD = {
     how: "notice-first",
     leaves: 'if (markerIsLive(await getImpersonator(), uid)) return "unknown";',
     why: "whether the member holds a place, which Home and the list of their programmes ask before they say a member is on nothing",
+  },
+  "app/(public)/applications/[roundId]/free/page.tsx#WhenYoureFreePage": {
+    how: "notice-first",
+    leaves: "if (markerIsLive(await getImpersonator(), user.uid)) {",
+    why: "the form's own editor for when the caller is free, which opens on the week their application holds",
   },
   "app/(public)/applications/[roundId]/page.tsx#ApplicationDetailPage": {
     how: "after-the-form",
@@ -285,13 +295,13 @@ const BOX =
  */
 const HOME_FORM = (name) =>
   `export default function ${name}(props) {\n` +
-  `  globalThis.__viewAsOwn.handed.${name} = { holdsNoPlace: props.holdsNoPlace, names: Object.keys(props).sort() };\n` +
+  `  globalThis.__viewAsOwn.handed.${name} = { holdsNoPlace: props.holdsNoPlace, beforeGroups: props.beforeGroups, surveys: props.surveys, names: Object.keys(props).sort() };\n` +
   "  return globalThis.__viewAsOwn.createElement('div', null, props.applications, props.nothingYet);\n" +
   "}";
 /** The list of somebody's runs: it draws what it is handed to stand where its empty state would, and nothing else here is about an application. */
 const LEARN_HUB =
-  "export default function LearnHub({ instead }) {\n" +
-  "  globalThis.__viewAsOwn.handed.LearnHub = { instead: instead !== null };\n" +
+  "export default function LearnHub({ instead, beforeGroups }) {\n" +
+  "  globalThis.__viewAsOwn.handed.LearnHub = { instead: instead !== null, beforeGroups };\n" +
   "  return globalThis.__viewAsOwn.createElement('div', null, instead);\n" +
   "}";
 
@@ -665,9 +675,19 @@ describe("whether a member holds a place is asked for the member, and for nobody
     status: "accepted",
     result: { kind: "accepted", programmeId: AGI, publishedAt: new Date("2026-10-23T11:00:00+01:00"), email: "sent" },
   });
-  /** Everything Home's form for a member is handed, by name. One of them is about a place, and it is one answer. */
+  /**
+   * Everything Home's form for a member is handed, by name. Two are about a
+   * place: whether it may say they are on nothing (one answer), and the cards
+   * week 1's door words for a place held before groups go out (Q13 B, held
+   * in tests/applications-place-in-the-member-area.test.mjs, MAY_SHOW). In
+   * every world here no programme names a run, so the second is always empty,
+   * and in a view-as session it is empty whatever is held. And the survey
+   * cards (`surveysWaitingFor`, Q50 B), empty in every world here, where
+   * nobody was sent a survey, and read for nobody in a view-as session.
+   */
   const HANDED_TO_HOME = [
     "applications",
+    "beforeGroups",
     "comingUpCards",
     "comingUpRows",
     "finishProfile",
@@ -675,17 +695,21 @@ describe("whether a member holds a place is asked for the member, and for nobody
     "holdsNoPlace",
     "invite",
     "nothingYet",
+    "surveys",
     "termCard",
   ];
   /** Home: whether it was told the member holds no place, and what its card of applications names. */
   const home = async () => {
     renderToStaticMarkup(await DashboardPage());
     assert.deepEqual(world.handed.HomeMember.names, HANDED_TO_HOME, "Home is handed something else");
+    assert.deepEqual(world.handed.HomeMember.beforeGroups, [], "Home is handed a card where no programme names a run");
+    assert.deepEqual(world.handed.HomeMember.surveys, [], "Home is handed a survey card where nobody was sent a survey");
     return { holdsNoPlace: world.handed.HomeMember.holdsNoPlace, rows: world.handed.YourApplications.rows };
   };
   /** The list of programmes: what it has drawn where its empty state would be. */
   const learn = async () => {
     renderToStaticMarkup(await LearnPage());
+    assert.deepEqual(world.handed.LearnHub.beforeGroups, [], "the list of programmes is handed a card where no programme names a run");
     if (!world.handed.LearnHub.instead) return "nothing";
     return world.handed.YourApplications?.rows === null ? "the way to the list, naming nothing" : "something else";
   };

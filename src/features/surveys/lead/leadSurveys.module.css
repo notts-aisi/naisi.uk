@@ -1,0 +1,580 @@
+/*
+  A programme lead's Surveys tab (board sv-programme): cards in rows that
+  wrap. On a computer, What changed and its beliefs card sit beside the
+  programme's surveys, then How it went beside The weeks, then the
+  facilitator line and what people wrote, each the whole width. On a phone
+  every card is the whole width, one under the other.
+
+  The bars are one quiet colour, whatever they count: what people believe or
+  say is reported, never marked as good or bad.
+*/
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  align-items: stretch;
+  min-width: 0;
+}
+
+.main {
+  flex: 1 1 35rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.side {
+  flex: 0 1 23.75rem;
+  min-width: 0;
+  display: grid;
+}
+
+.whole {
+  flex: 1 1 100%;
+  min-width: 0;
+  display: grid;
+}
+
+.half {
+  flex: 1 1 26.25rem;
+  min-width: 0;
+  display: grid;
+}
+
+/* === A card === */
+
+.card {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 1.375rem 1.625rem 1.625rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+}
+
+.cardHeadText {
+  flex: 1 1 16.25rem;
+  min-width: 0;
+}
+
+.cardTitle,
+.cardTitleSmall {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-xl);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-wrap: balance;
+}
+
+.cardTitleSmall {
+  font-size: var(--text-lg);
+}
+
+.cardLine {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.subTitle {
+  margin: 0.375rem 0 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.0625rem;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  text-wrap: balance;
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.headCount {
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.groupLabel {
+  margin: 0.875rem 0 0.375rem;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  line-height: 1.3;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.caption {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.icon {
+  display: block;
+  flex: none;
+}
+
+/* A link with an arrow after it, at least 44px tall. */
+.arrowLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.75rem;
+  color: var(--color-accent-text);
+  text-decoration: none;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.arrowLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.arrowLink:focus-visible,
+.moreSummary:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* === What changed === */
+
+.measure {
+  padding: var(--space-4) 0;
+}
+
+.measure + .measure {
+  border-top: 1px solid var(--color-border);
+}
+
+.measureRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-5);
+  margin: 0.375rem 0 0;
+}
+
+.measureLabel {
+  flex: 1 1 17.5rem;
+  min-width: 0;
+  font-size: var(--text-ui);
+  line-height: 1.45;
+  color: var(--color-text);
+}
+
+.measureFigure {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.figure {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.figureOf {
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.measureLine {
+  margin: 0.125rem 0 0;
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* === This programme's surveys === */
+
+.rows {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rowItem {
+  padding: 0.875rem 0;
+}
+
+.rowItem + .rowItem,
+.also {
+  border-top: 1px solid var(--color-border);
+}
+
+.also {
+  margin-top: 0;
+}
+
+.rowHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+}
+
+.rowName {
+  min-width: 0;
+  font-size: var(--text-ui);
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.rowLine {
+  margin: 0.125rem 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* === How it went, The weeks, the facilitator line === */
+
+.question + .question {
+  margin-top: var(--space-6);
+}
+
+.question {
+  margin-top: 1.125rem;
+}
+
+.questionTitle {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-text);
+}
+
+.questionLine {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-3);
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.average {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 0.875rem;
+}
+
+.averageFigure {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-text);
+}
+
+.averageWords {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.bars,
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bar {
+  display: grid;
+  grid-template-columns: minmax(0, 6.875rem) minmax(3.75rem, 1fr) 4.25rem;
+  gap: var(--space-3);
+  align-items: center;
+  min-height: 1.75rem;
+}
+
+.barLabel,
+.lineLabel {
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: 1.35;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.track {
+  display: block;
+  height: 0.75rem;
+  border-radius: 0.375rem;
+  background: var(--color-surface-hover);
+  overflow: hidden;
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: 0.375rem;
+  background: var(--color-accent);
+}
+
+.barCount {
+  font-family: var(--font-meta);
+  font-size: var(--text-caption);
+  color: var(--color-text);
+  white-space: nowrap;
+  text-align: right;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: minmax(0, 14.75rem) minmax(3.75rem, 1fr) 2rem 5.25rem;
+  gap: var(--space-3);
+  align-items: center;
+  min-height: 1.875rem;
+}
+
+.lineMean {
+  font-family: var(--font-meta);
+  font-size: var(--text-caption);
+  color: var(--color-text);
+  text-align: right;
+}
+
+.lineCount {
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.sources {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.source {
+  display: grid;
+  grid-template-columns: 3.625rem minmax(0, 1fr) 2rem 4.75rem;
+  gap: var(--space-3);
+  align-items: baseline;
+  padding: 0.5625rem 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.sourceWeek {
+  font-family: var(--font-meta);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.sourceTitle {
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.sourceAverage {
+  font-family: var(--font-meta);
+  font-size: var(--text-caption);
+  color: var(--color-text);
+  text-align: right;
+}
+
+.sourceCount {
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* "Your facilitators don’t see this": a quiet box, as the board draws it. */
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  margin: 0.875rem 0 1.125rem;
+  padding: var(--space-3) 0.875rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.note > .icon {
+  margin-top: 0.125rem;
+  color: var(--color-accent-text);
+}
+
+/* === In their words === */
+
+.words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6) 2.25rem;
+  margin-top: 1.125rem;
+}
+
+.wordsColumn {
+  flex: 1 1 23.75rem;
+  min-width: 0;
+}
+
+.wordsHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin-bottom: 0.875rem;
+}
+
+.wordsHead .subTitle {
+  margin: 0;
+}
+
+.comments {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.comment {
+  padding: 0.875rem 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.comments > .comment:first-child {
+  padding-top: 0;
+}
+
+.comment + .comment {
+  border-top: 1px solid var(--color-border);
+}
+
+.more {
+  border-top: 1px solid var(--color-border);
+}
+
+.more > .comments > .comment:first-child {
+  padding-top: 0.875rem;
+}
+
+/* "See all 18": the browser's own disclosure, so it opens before any script arrives. */
+.moreSummary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.75rem;
+  color: var(--color-accent-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.moreSummary::-webkit-details-marker {
+  display: none;
+}
+
+.more[open] > .moreSummary .icon {
+  transform: rotate(180deg);
+}
+
+@media (max-width: 48rem) {
+  .tab,
+  .row,
+  .main {
+    gap: var(--space-4);
+  }
+
+  .side,
+  .half {
+    flex: 1 1 100%;
+  }
+
+  .card {
+    padding: 1.125rem var(--space-4) 1.25rem;
+  }
+
+  /* Each line's words above its bar, the bar beside its average and count. */
+  .line {
+    grid-template-columns: minmax(3.75rem, 1fr) 2rem 5.25rem;
+    row-gap: 0.25rem;
+  }
+
+  .lineLabel {
+    grid-column: 1 / -1;
+  }
+
+  .bar {
+    grid-template-columns: minmax(0, 5.5rem) minmax(3rem, 1fr) 4.25rem;
+  }
+
+  .source {
+    grid-template-columns: 3.625rem minmax(0, 1fr) 2rem;
+  }
+
+  .sourceCount {
+    grid-column: 2 / -1;
+  }
+
+  .words {
+    gap: var(--space-6);
+  }
+}

@@ -216,8 +216,8 @@ export async function POST(
   const eventTitle = (event.title ?? "NAISI event").toString();
   const eventPath = `/events/${encodeURIComponent(eventId)}`;
   const instagramHandle = process.env.NAISI_INSTAGRAM_HANDLE || "notts.ai.safety";
-  // Fall back to the monitored Reply-To inbox, never the send-only
-  // SMTP_FROM_EMAIL (newsletter@naisi.uk has no receiving MX).
+  // Fall back to the monitored Reply-To inbox, never the address mail is
+  // sent from (SMTP_FROM_EMAIL): replies are read at the Reply-To.
   const contactEmail =
     process.env.NAISI_CONTACT_EMAIL ||
     process.env.EMAIL_DEFAULT_REPLY_TO ||

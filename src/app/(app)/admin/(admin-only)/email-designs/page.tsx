@@ -117,6 +117,8 @@ const COURSE_TRIGGER_LABELS: Record<CourseTemplateTrigger, string> = {
   waitlisted: "On waitlist",
   rejected: "On reject",
   allocated: "On placement",
+  "allocated-incubator": "On placement, for an incubator",
+  facilitating: "On placement, to facilitators",
   "week-nudge": "Each week",
   "dropped-out": "On leaving",
   "admissions-submitted": "On submitting",

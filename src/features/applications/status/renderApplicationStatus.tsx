@@ -9,6 +9,7 @@ import type { SessionUser } from "@/lib/firebase/session";
 import { loadForm } from "@/lib/applications/repo";
 import { formIsThere, loadStatus } from "@/lib/applications/status/load";
 import type { StatusView } from "@/lib/applications/status/view";
+import { loadWhenFree } from "@/lib/applications/status/whenFree";
 import { closedOnLabel } from "../apply/closedOn";
 import StatusPage from "./StatusPage";
 import styles from "./status.module.css";
@@ -123,6 +124,8 @@ export async function renderApplicationStatus({
 
   const loaded = await loadStatus(db, roundId, user.uid, now);
   if (!loaded) return null;
+  // "When you’re free" (Q7), for a place before Publish has told them their group.
+  const free = loaded.view.kind === "place" && !loaded.view.inGroup ? await loadWhenFree(db, loaded.roundId, user.uid, now) : null;
 
   return (
     <ApplicationsRoot className={root}>
@@ -130,6 +133,7 @@ export async function renderApplicationStatus({
         roundId={loaded.roundId}
         view={await withHonestClosingDay(db, loaded.roundId, loaded.view, now)}
         viewingAs={viewingAs}
+        free={free}
       />
     </ApplicationsRoot>
   );

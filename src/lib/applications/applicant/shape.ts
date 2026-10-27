@@ -53,6 +53,9 @@ function programmeShape(programme: ApplicantProgramme): ProgrammeSettings {
     useScores: false,
     runId: null,
     courseId: null,
+    // No rule the form runs reads a crest, and an applicant is never sent one
+    // in this shape: what a programme shows is resolved on the server.
+    crest: null,
     emailWording: {},
   };
 }

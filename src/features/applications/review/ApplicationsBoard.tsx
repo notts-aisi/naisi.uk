@@ -47,13 +47,19 @@ type Props = {
   listPath: string;
   /** The route this list reads from and posts decisions to. */
   apiPath: string;
+  /**
+   * The "Offer freed places" page, for somebody who may offer them once
+   * decisions have gone out (`offersFreedPlaces`), or null. Drawn under the
+   * number of places left, which is where a place given back shows.
+   */
+  freedPlacesPath?: string | null;
 };
 
 function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-export default function ApplicationsBoard({ board, listPath, apiPath }: Props) {
+export default function ApplicationsBoard({ board, listPath, apiPath, freedPlacesPath = null }: Props) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [query, setQuery] = useState<ListQuery>(DEFAULT_QUERY);
@@ -205,6 +211,13 @@ export default function ApplicationsBoard({ board, listPath, apiPath }: Props) {
                       progress.invited === 1 ? "an invitation" : "invitations"
                     }`
                   : "")
+              }
+              action={
+                freedPlacesPath ? (
+                  <Link className={styles.meterAction} href={freedPlacesPath}>
+                    Offer freed places
+                  </Link>
+                ) : null
               }
             />
           )}
@@ -500,12 +513,15 @@ function Meter({
   label,
   value,
   note,
+  action = null,
 }: {
   figure: string;
   label: string;
   /** How full the bar is, from 0 to 1. */
   value: number;
   note: string;
+  /** A way on from this number, drawn under its note. */
+  action?: ReactNode;
 }) {
   const percent = Math.round(Math.min(1, Math.max(0, value)) * 100);
   return (
@@ -525,6 +541,7 @@ function Meter({
         <div className={styles.meterFill} style={{ width: `${percent}%` }} />
       </div>
       <div className={styles.meterNote}>{note}</div>
+      {action}
     </div>
   );
 }
@@ -794,8 +811,10 @@ function Row({
               </div>
             ) : null}
           </div>
-        ) : row.byInvitation ? (
-          // In the programme by an invitation they accepted. Nothing to decide.
+        ) : row.byInvitation || row.freedPlace ? (
+          // In the programme by an invitation they accepted: one to a
+          // programme they did not rank, or a freed place on one they did.
+          // Nothing to decide.
           <div>
             <StandingChip standing="accepted" />
             <div className={styles.sub}>Accepted an invitation</div>

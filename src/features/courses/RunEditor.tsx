@@ -54,8 +54,11 @@ import {
   type CurriculumSource,
 } from "./useTemplates";
 import GroupEditor, { NewGroupForm } from "./GroupEditor";
+import PitchSettingsEditor from "./pitching/PitchSettingsEditor";
 import RolePickers from "./RolePickers";
+import GuideLoader from "./GuideLoader";
 import RunDangerZone from "./RunDangerZone";
+import SealedPredictionsPanel from "./SealedPredictionsPanel";
 import SaveTemplateDialog from "./SaveTemplateDialog";
 import TemplatePicker, { type TemplatePickerGroup } from "./TemplatePicker";
 import WeekPlanBuilder from "./WeekPlanBuilder";
@@ -1363,6 +1366,31 @@ export default function RunEditor({ courseId, runId }: Props) {
         </div>
       </Card>
 
+      {/* ---- Start here and the Glossary ----
+          The programme's two pages of the guide that are not weeks, beside
+          its weeks: each loaded by pasting the guide's Markdown, admins only
+          as a week is (the route refuses everybody else). */}
+      {isAdmin && (
+        <>
+          <GuideLoader runId={runId} doc="start-here" />
+          <GuideLoader runId={runId} doc="glossary" />
+        </>
+      )}
+
+      {/* ---- Pitching week ----
+          The run's half of an incubator's pitching week: how many pitches a
+          person may pick, team sizes and the day teams are made. Which week
+          it is stays a tick on that week's own details. */}
+      <PitchSettingsEditor
+        runId={runId}
+        settings={run.pitchSettings}
+        teamsFrom={run.teamsFrom}
+        weekPlan={run.weekPlan}
+        weeks={weeks}
+        runAction={runAction}
+        onSaved={reload}
+      />
+
       {/* ---- Groups and roles ----
           One child, two mount forms: the roster read that both sections need
           is only issued by the viewers the `users` rule admits. The note on
@@ -1381,6 +1409,12 @@ export default function RunEditor({ courseId, runId }: Props) {
           membersLoading={role === null}
         />
       )}
+
+      {/* ---- Sealed predictions ----
+          Admins only: who has a card on this run, and opening one, each
+          opening recorded before the card is read (the routes refuse
+          everybody else, a programme's lead included). */}
+      {isAdmin && <SealedPredictionsPanel runId={runId} />}
 
       {/* ---- Archive + destroy ----
           Last on the page by design: the end-of-life controls sit after

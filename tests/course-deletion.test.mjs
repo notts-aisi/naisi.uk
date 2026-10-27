@@ -251,6 +251,37 @@ const RUN_COUNT_KEYS = [
   // curriculum (V2-2). It is on the manifest because the cascade has a stage
   // for it, so the dialog names every collection the destroy takes.
   "materialNotes",
+  // `coursePitches`, pitching week's pitches and who would join each
+  // (src/lib/courses/pitching/). Member-authored, keyed by `runId`, and on
+  // the manifest because the cascade has a stage for it.
+  "pitches",
+  // `courseTeams`, an incubator's teams and who has been told theirs
+  // (src/lib/courses/teams/). Keyed by `runId`, and on the manifest because
+  // the cascade has a stage for it.
+  "teams",
+  // `courseTeamEntries`, what an incubator's teams write on their pages: each
+  // week's check-in, the team's links and its hand-in
+  // (src/lib/courses/teamPage/). Member-authored, keyed by `runId`, and on the
+  // manifest because the cascade has a stage for it.
+  "teamEntries",
+  // `courseFinishing`, who finished: the run's rule and the lead's decisions
+  // (src/lib/courses/finishing/). Keyed by `runId`, and on the manifest
+  // because the cascade has a stage for it.
+  "finishing",
+  // `courseFacilitating`, the asks to facilitate the run's groups, each
+  // person's answer, the training and the test record
+  // (src/lib/courses/facilitatorAsks/). Keyed by `runId`, and on the manifest
+  // because the cascade has a stage for it.
+  "facilitating",
+  // `programmeRatings`, the ratings given at the run's end and its sheet
+  // (src/lib/ratings/). Keyed by `runId`, and on the manifest because the
+  // cascade has a stage for it.
+  "ratings",
+  // `courseCertificates` (src/lib/courses/certificates/): a run's certificates
+  // whose link is off die with it; those whose link is on are kept and lose
+  // the run. Two counters because the two have different fates.
+  "certificates",
+  "certificatesKept",
   "mirroredTasks",
   // The SECOND sweep on `tasks`, for the source the unmarked-register
   // scheduler job mints (V3 W2 PR25). Counted separately from the mirrors
@@ -271,6 +302,39 @@ const RUN_COUNT_KEYS = [
   // reason materialNotes was: an unlisted collection means the dialog lies
   // about what a destroy takes.
   "auditRows",
+  // `courseUpdates`, the updates written to a run's people (Q18). Staff
+  // writing keyed by `runId`, added to the manifest in the same change that
+  // gave the cascade a stage for it, as auditRows was.
+  "updates",
+  // `courseGroupNotes`, the notes each group's facilitators share (C30).
+  // Staff writing keyed by `runId`, added to the manifest in the same change
+  // that gave the cascade a stage for it, as updates was.
+  "groupNotes",
+  // `courseGroupSharedNotes`, the notes a group's people and facilitators
+  // share with the group (C29). Keyed by `runId`, added to the manifest in the
+  // same change that gave the cascade a stage for it, as groupNotes was.
+  "groupSharedNotes",
+  // `coursePacksAndCases`, what each person had in the weeks' packs and
+  // talks (plan item 8). Keyed by `runId`, added to the manifest in the same
+  // change that gave the cascade a stage for it, as groupSharedNotes was.
+  "packsAndCases",
+  // `coursePairs`, who was paired with whom for a session in pairs and who
+  // was bringing a laptop. Keyed by `runId`, added to the manifest in the same
+  // change that gave the cascade a stage for it, as packsAndCases was.
+  "pairs",
+  // The programme's anonymous keep, change and drop form and every answer to
+  // it (src/lib/anonymousFeedback/), three collections keyed by `runId` and
+  // drained by one stage, added to the manifest in the same change that gave
+  // the cascade that stage, as groupSharedNotes was.
+  "anonymousFeedback",
+  // `coursePredictions`, each person's sealed predictions on the run. Keyed
+  // by `runId`, added to the manifest in the same change that gave the
+  // cascade a stage for it, as packsAndCases was.
+  "predictions",
+  // `recordOpenings` keyed to the run, each time an admin opened a card on
+  // it. Keyed by `runId`, added with its stage in the same change; it dies
+  // with the run, as `auditRows` does, never retained like `dataExportRows`.
+  "recordOpenings",
   // `schedulerMarkers`, the scheduler tick's claim-before-send markers.
   // Added with the tick itself, under the house rule that a PR adding a
   // collection adds it to the manifest AND the cascade in that same PR. Two
@@ -287,8 +351,12 @@ const RUN_COUNT_KEYS = [
   // rather than as "survives".
   "dataExportRows",
 ];
-/** `CourseDestroyCounts`, mirrored. */
-const COURSE_COUNT_KEYS = ["runs", "coursePages", "templates"];
+/**
+ * `CourseDestroyCounts`, mirrored. `facilitatorGuide` is the course's
+ * facilitator guide (`courseFacilitatorGuide`), deleted in the course's final
+ * batch with its page, and on the manifest because the cascade deletes it.
+ */
+const COURSE_COUNT_KEYS = ["runs", "coursePages", "facilitatorGuide", "templates"];
 
 /** Counters whose rows SURVIVE the cascade — never part of the death toll. */
 const SURVIVING_COUNT_KEYS = [
@@ -296,6 +364,8 @@ const SURVIVING_COUNT_KEYS = [
   "dataExportRows",
   "templates",
   "admissionSeatOffers",
+  // A certificate whose link is on stays, without its run (privacy policy v7, Retention).
+  "certificatesKept",
 ];
 
 test("MODEL — the manifest count vocabulary is the same on both sides of the wire", () => {
@@ -338,15 +408,20 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   const counts = Object.fromEntries(
     [...RUN_COUNT_KEYS, ...COURSE_COUNT_KEYS].map((k) => [k, 10]),
   );
-  // Nineteen counters at ten rows each: fifteen that die, `materialNotes`,
-  // `auditRows`, `schedulerMarkers`, the V3 `coursePages` and the V3 W2
-  // `registerTasks` among them, plus the four survivors
-  // (`admissionSeatOffers` is released, `dataExportRows` is retained).
-  assert.equal(sumCounts(counts), 190);
+  // Thirty-six counters at ten rows each: thirty-one that die,
+  // `materialNotes`, `auditRows`, `schedulerMarkers`, the V3 `coursePages`,
+  // the V3 W2 `registerTasks`, the course hub's `pitches`, `updates`,
+  // `groupNotes`, `groupSharedNotes`, `packsAndCases`, `pairs`, `teams`,
+  // `teamEntries`, `finishing`, `facilitating`, `ratings`, `certificates`,
+  // `anonymousFeedback`, `predictions` and `recordOpenings`, and the course's
+  // `facilitatorGuide` among them, plus the five survivors
+  // (`admissionSeatOffers` is released, `dataExportRows` is retained,
+  // `certificatesKept` stays without its run).
+  assert.equal(sumCounts(counts), 360);
   // The progress denominator counts only what actually dies, so a large
   // retained counter cannot inflate it into a bar that never fills. Adding a
   // survivor must not move this number; adding a DESTROYED counter must.
-  assert.equal(destroyedTotal(counts), 150);
+  assert.equal(destroyedTotal(counts), 310);
 });
 
 test("MODEL — every key the cascade can report has copy, including the ones the manifest never shows", () => {
@@ -503,6 +578,30 @@ test("MODEL — the cascade's declared stage order is the one the contract needs
     // gate to shut (rules deny every client write to courseMaterialNotes), so
     // its position here is consistency, not necessity.
     "materialNotes",
+    // Pitching week's pitches: a run-keyed leaf like the four above, and the
+    // pitching routes refuse anybody without a live seat, so it drains before
+    // the enrolments that open them.
+    "pitches",
+    // An incubator's teams: a run-keyed leaf, drained with the pitches they
+    // were made from, before the enrolments.
+    "teams",
+    // What the teams wrote on their pages: a run-keyed leaf, drained with the
+    // teams that wrote it, before the enrolments.
+    "teamEntries",
+    // Who finished: the run's rule and the lead's decisions, a run-keyed leaf
+    // drained before the enrolments the decisions are about.
+    "finishing",
+    // The asks to facilitate the run's groups: a run-keyed leaf, every ask
+    // names a group and a person, so it drains before the enrolments and the
+    // groups.
+    "facilitating",
+    // The ratings given at the run's end: a run-keyed leaf drained before the
+    // enrolments the ratings are about.
+    "ratings",
+    // A run's certificates: a run-keyed leaf. One whose link is off is
+    // deleted and one whose link is on is kept without the run, before the
+    // enrolments, with the other leaves.
+    "certificates",
     "enrolments",
     "applications",
     // Immediately after the seat rows it points at: until those are deleted,
@@ -525,6 +624,31 @@ test("MODEL — the cascade's declared stage order is the one the contract needs
     // to every client, so nothing can recreate a row behind the cascade and
     // its position is consistency rather than necessity.
     "auditRows",
+    // The run's updates: a run-keyed leaf like auditRows, and an update to one
+    // group names that group, so it goes before the groups.
+    "updates",
+    // The notes each group's facilitators share: a run-keyed leaf, and every
+    // note names its group, so it goes before the groups too.
+    "groupNotes",
+    // The notes a group's people and facilitators share with it: a run-keyed
+    // leaf, every note names its group, so it goes before the groups too.
+    "groupSharedNotes",
+    // What each person had in the weeks' packs and talks: a run-keyed leaf,
+    // every record names a block of a week, so it goes before the weeks.
+    "packsAndCases",
+    // Who was paired with whom for a session in pairs: a run-keyed leaf,
+    // every record names a group and a block of a week, so it goes before both.
+    "pairs",
+    // The anonymous keep, change and drop form and its answers: three
+    // run-keyed leaves in one stage, the form's record first so its link
+    // closes before its answers go. They name no group, so the position is
+    // consistency with the other leaves rather than necessity.
+    "anonymousFeedback",
+    // Each person's sealed predictions: a run-keyed leaf that names no group
+    // or week, drained with the other leaves.
+    "predictions",
+    // The records of admins opening a card, after the cards they are about.
+    "recordOpenings",
     "groups",
     "weeks",
   ]);
@@ -569,6 +693,18 @@ test("MODEL — leaf before index: every dependent stage precedes the one that n
       // would find nothing at all if the groups had already gone.
       "schedulerMarkers",
       "subscriptionRows",
+      // An update to one group names it by `groupId`.
+      "updates",
+      // Every facilitators' note names its group by `groupId`.
+      "groupNotes",
+      // Every note shared with a group names it by `groupId`.
+      "groupSharedNotes",
+      // Every record names a block of a week by its id.
+      "packsAndCases",
+      // Every pair record names its group by `groupId` and a block of a week by its id.
+      "pairs",
+      // Every rating names the group it was given in by `groupId`.
+      "ratings",
     ]) {
       assert.ok(
         stageAt(dependent) < stageAt(container),

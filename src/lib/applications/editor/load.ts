@@ -1,6 +1,8 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import type { SessionUser } from "@/lib/firebase/session";
+import { courseCrests } from "@/lib/crests/load";
+import { crestForCourse } from "@/lib/crests/resolve";
 import { ROUNDS_COLLECTION } from "@/lib/firestore/admissionRounds";
 import { canEditProgramme, canRunTerm, canSeeForm, roleOnProgramme } from "../access";
 import { isInTerm, tallyTerm, type TermTally } from "../decisions";
@@ -237,12 +239,15 @@ export async function loadSetup(
   if (loaded.role === "reviewer" || !canEditProgramme(user, loaded.form, programmeId)) {
     return { status: "not-yours" };
   }
-  const [sets, candidates, courses, scoresHeld] = await Promise.all([
+  const [sets, candidates, courses, scoresHeld, tiedCourse] = await Promise.all([
     loadQuestionSets(db, loaded.form.round.id),
     eligibleReviewers(db),
     listCourseChoices(db, loaded.programme.courseId, readsCourseDrafts(user)),
     // Only somebody who is not an admin can be held, so only they are asked.
     canRunTerm(user) ? false : reviewingBegunOn(db, loaded.form, programmeId),
+    // The tied course's crest, so Settings shows what the programme shows
+    // without one of its own. Read the way every page reads it.
+    courseCrests(db, [loaded.programme.courseId]),
   ]);
   return {
     status: "ok",
@@ -255,6 +260,7 @@ export async function loadSetup(
         role: loaded.role,
         candidates,
         courses,
+        courseCrest: crestForCourse(tiedCourse.get(loaded.programme.courseId ?? "")),
         applications: loaded.applications,
         scoresHeld,
       },

@@ -16,6 +16,12 @@ type Props = {
    * href safe to say.
    */
   feedbackUrl: string;
+  /**
+   * The programme's leaving survey (Q46), when it reached them as they left:
+   * their own link and the line around it, drawn in place of the outside
+   * form's. Null when there is none.
+   */
+  survey?: { href: string; before: string; text: string; after: string } | null;
   preheader?: string;
 };
 
@@ -23,7 +29,10 @@ type Props = {
  * The confirmation someone gets after leaving a course.
  *
  * Structurally `ApplicationEmail` (admin-authored blocks through the shared
- * chrome) with one addition: an OPTIONAL feedback footer.
+ * chrome) with one addition: an OPTIONAL feedback footer. When the
+ * programme's leaving survey reached the person as they left (Q46), the
+ * footer links their own link to it, in words that say it is confidential,
+ * and the outside form is not offered beside it.
  *
  * ── WHY THE LINK IS A COMPONENT PROP AND NOT A BODY TOKEN ────────────────────
  * `personaliseBlocks` leaves an unresolved `{token}` LITERAL, which is the
@@ -51,6 +60,7 @@ export default function CourseDroppedOutEmail({
   subject,
   blocks,
   feedbackUrl,
+  survey = null,
   preheader,
 }: Props) {
   return (
@@ -58,7 +68,15 @@ export default function CourseDroppedOutEmail({
       subject={subject}
       preheader={preheader}
       footerSlot={
-        feedbackUrl ? (
+        survey ? (
+          <Text style={emailFooterTextStyle}>
+            {survey.before}{" "}
+            <Link href={survey.href} style={emailLinkStyle}>
+              {survey.text}
+            </Link>
+            {survey.after}
+          </Text>
+        ) : feedbackUrl ? (
           <Text style={emailFooterTextStyle}>
             If you have two minutes, we&apos;d really like to know what got in
             the way:{" "}

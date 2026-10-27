@@ -1,0 +1,21 @@
+# Firebase App Hosting configuration for the dev backend only.
+# Docs: https://firebase.google.com/docs/app-hosting/configure
+#
+# App Hosting layers apphosting.<environment>.yaml over apphosting.yaml for a
+# backend whose Environment name is <environment>. The dev backend's is "dev";
+# no other backend may carry that name, and the production backend does not.
+#
+# Everything else the dev backend changes is set in its console settings. This
+# file holds the one setting the console cannot keep: a secret only the running
+# server may read, which a save of the console's settings drops.
+
+env:
+  # The end-to-end harness's reCAPTCHA bypass (src/lib/recaptcha/bypass.ts).
+  # The value is in the dev project's Secret Manager under this name. A
+  # backend resolves the name in its own project's Secret Manager, so the name
+  # gives nothing to a backend whose project holds no such secret.
+  # tests/recaptcha-bypass.test.mjs holds that this is the only configuration
+  # file that names it, and only this way.
+  - variable: E2E_RECAPTCHA_BYPASS_SECRET
+    secret: E2E_RECAPTCHA_BYPASS_SECRET
+    availability: [RUNTIME]

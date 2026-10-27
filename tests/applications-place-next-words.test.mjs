@@ -10,7 +10,10 @@
  * are emailed their group and when it meets. An incubator is not run that
  * way, and its people are told only that an email about the first week is
  * coming. The sentence is written once for each kind (`placeNextWords` in
- * `src/lib/applications/decisionDay/emailCopy.ts`), and seven things have to
+ * `src/lib/applications/decisionDay/emailCopy.ts`), and so is the one that
+ * says why pressing "I'm coming" helps (`comingHelps`): for a fellowship it
+ * helps us plan groups, and an incubator's people are told only that it helps
+ * us plan (the owner's decision of 24 October 2026). Nine things have to
  * hold:
  *
  *  1. THE WORDS OF EACH KIND. A fellowship's are pinned in the three places
@@ -22,7 +25,11 @@
  *     kind is told and nothing the other kind is told.
  *  3. AN INCUBATOR'S PEOPLE ARE PROMISED NO GROUP: nothing about a small
  *     group, a facilitator, a campus or a group that meets, in the email, on
- *     the page or on the steps.
+ *     the page or on the steps. And they never read the word "group" at all
+ *     about a place or an invitation on an incubator: the standard emails and
+ *     every state of their own page are drawn for real and scanned for the
+ *     word itself, the line under "I'm coming" included, because a sentence
+ *     can name a group in words no list of phrases foresees.
  *  4. A PROGRAMME'S OWN WORDING STILL WINS, part by part, whatever its kind.
  *  5. THE LAST OF THE THREE STEPS is "Meet your group" only for somebody who
  *     can end up nowhere but a fellowship.
@@ -30,6 +37,23 @@
  *     takes them from the email's table.
  *  7. THE SENTENCES ARE TYPED IN ONE FILE. Every source file is read for
  *     them, so a new screen or a new email cannot come to say its own.
+ *  8. WHY "I'M COMING" HELPS, FOR EACH KIND. Each kind's sentence is pinned.
+ *     The real email builder and the real page are run for somebody holding
+ *     a place of each kind: the email's paragraph about replying and the line
+ *     under the button say that kind's sentence and not the other's. A
+ *     programme's own "You're in" body still replaces the email's paragraph
+ *     with the rest, and the page, which has no programme wording, keeps its
+ *     kind's line.
+ *  9. THE EMAIL PUBLISH SENDS THEM NAMES NO GROUP EITHER. When groups go out,
+ *     the people of a run an incubator names are sent "Placed on an
+ *     incubator" (`src/lib/courses/incubatorStartEmail.ts`) in place of
+ *     "Placed in a group" (the walk of stage one, October 2026). Its seed copy
+ *     is composed for real, with every value a run can lack and every way a
+ *     place can be said, and scanned for the word and for everything else an
+ *     incubator's people are never told. No token it fills can carry a
+ *     group's name or who facilitates one, and wording that asks for one is
+ *     refused. Publish chooses it by the programme's kind, and the push that
+ *     mirrors it names no group.
  *
  * The send, the preview before it, the test an admin sends and a programme's
  * own test all compose through `composeDecisionEmail`:
@@ -71,6 +95,9 @@ const model = await loadTs(join("lib", "applications", "model.ts"));
 const normalise = await loadTs(join("lib", "applications", "normalise.ts"));
 const project = await loadTs(join("lib", "applications", "applicant", "project.ts"));
 const { default: StatusPage } = await loadTs(join("features", "applications", "status", "StatusPage.tsx"));
+// The email an incubator's people are sent when Publish goes out, and its seed copy.
+const incubatorStart = await loadTs(join("lib", "courses", "incubatorStartEmail.ts"));
+const courseEmails = await loadTs(join("lib", "firestore", "courseEmails.ts"));
 
 // ---------------------------------------------------------------------------
 // One stored form, with a programme of each kind
@@ -178,6 +205,42 @@ const placedByInvitation = (programmeId) =>
     [programmeId === FELLOWSHIP ? INCUBATOR : FELLOWSHIP],
   );
 
+/** Placed by their own ranking, and has pressed "I’m coming". */
+const saidComing = (programmeId) =>
+  applicationWith(
+    {
+      status: "accepted",
+      result: { kind: "accepted", programmeId, publishedAt: "2026-10-23T11:00:00.000Z" },
+      invitation: null,
+      attendance: { answer: "coming", answeredAt: "2026-10-23T12:00:00.000Z" },
+    },
+    [programmeId],
+  );
+
+/** Ranked the other programme and was invited to this one, with no answer yet. */
+const invitedTo = (programmeId) =>
+  applicationWith(
+    {
+      status: "invited",
+      result: { kind: "invited", programmeId, publishedAt: "2026-10-23T11:00:00.000Z" },
+      invitation: { programmeId, replyBy: "2026-10-25", response: null, respondedAt: null },
+      attendance: null,
+    },
+    [programmeId === FELLOWSHIP ? INCUBATOR : FELLOWSHIP],
+  );
+
+/** Placed by their own ranking, and gave the place back. */
+const gaveBack = (programmeId) =>
+  applicationWith(
+    {
+      status: "withdrawn",
+      result: { kind: "accepted", programmeId, publishedAt: "2026-10-23T11:00:00.000Z" },
+      invitation: null,
+      attendance: { answer: "cant-make-it", answeredAt: "2026-10-23T12:00:00.000Z" },
+    },
+    [programmeId],
+  );
+
 const viewOf = (application, form = FORM) =>
   view.statusViewFor(project.projectFormForApplicant(form, NOW), [], application, TODAY);
 
@@ -212,6 +275,41 @@ const TOLD = {
 
 /** What an incubator's people are never told, wherever they read it. */
 const NOT_AN_INCUBATOR = /small group|facilitator|campus|your group|when it meets/i;
+
+/**
+ * The word itself, in any form. An incubator has no groups, so nothing its
+ * people read about a place or an invitation on one says it, whatever the
+ * sentence around it.
+ */
+const A_GROUP = /group/i;
+
+/** Why saying "I’m coming" helps, for each kind: said after "Optional." under the button. */
+const COMING_LINE = {
+  fellowship: "It helps us plan groups.",
+  incubator: "It helps us plan.",
+};
+
+/** The standard "You're in" email's paragraph about replying, around one kind's line. */
+const replyParagraph = (line) =>
+  `You don’t need to reply. If you’re coming, tap the button. ${line} ` +
+  "If you can’t make it, tell us and we’ll give your place to someone else.";
+
+/** The standard invitation to a programme, for somebody who ranked the other one. */
+function invitationFor(programmeId) {
+  return copy.composeDecisionEmail({
+    outcome: { kind: "invited", programmeId },
+    firstName: "Chloe",
+    form: FORM,
+    ranked: [programmeId === FELLOWSHIP ? INCUBATOR : FELLOWSHIP],
+    leadNames: { [FELLOWSHIP]: "Claudia", [INCUBATOR]: "Tess" },
+    replyBy: "Sun 25 Oct",
+    links: { application: `https://staging.example.com/applications/${ROUND}`, events: "https://staging.example.com/events" },
+  });
+}
+
+/** Every word of one composed email a person reads. */
+const wordsOf = (email) =>
+  [email.subject, email.greeting, ...email.paragraphs, ...email.buttons.map((button) => button.label), email.signOff.role].join(" ");
 
 // ---------------------------------------------------------------------------
 // 1. The words of each kind
@@ -330,6 +428,53 @@ describe("the standard email and the person's own page say the same thing, for e
     assert.doesNotMatch(INCUBATOR_SENTENCE, NOT_AN_INCUBATOR);
   });
 
+  test("an incubator's people never read the word group, in any standard email or on any state of their page", () => {
+    const emails = {
+      "You're in": emailFor(INCUBATOR),
+      "the invitation": invitationFor(INCUBATOR),
+      "the invitation's reminder": copy.composeInvitationReminder(
+        {
+          outcome: { kind: "invited", programmeId: INCUBATOR },
+          firstName: "Chloe",
+          form: FORM,
+          ranked: [FELLOWSHIP],
+          leadNames: { [FELLOWSHIP]: "Claudia", [INCUBATOR]: "Tess" },
+          replyBy: "Sun 25 Oct",
+          links: { application: `https://staging.example.com/applications/${ROUND}`, events: "https://staging.example.com/events" },
+        },
+        { replyBy: "Sun 25 Oct", lastDay: false },
+      ),
+    };
+    for (const [name, email] of Object.entries(emails)) {
+      assert.ok(email, `${name}: no email was composed`);
+      assert.doesNotMatch(wordsOf(email), A_GROUP, `${name}: ${wordsOf(email)}`);
+    }
+    const pages = {
+      "placed, nothing said": placedByRanking(INCUBATOR),
+      "placed, said coming": saidComing(INCUBATOR),
+      "placed by an invitation they accepted": placedByInvitation(INCUBATOR),
+      "invited, not answered": invitedTo(INCUBATOR),
+      "gave the place back": gaveBack(INCUBATOR),
+    };
+    for (const [name, application] of Object.entries(pages)) {
+      const page = pageOf(application);
+      assert.doesNotMatch(page, A_GROUP, `${name}: ${page}`);
+    }
+    // The state that draws the line under "I’m coming" was drawn with it.
+    assert.ok(pageOf(placedByRanking(INCUBATOR)).includes(`I’m coming Optional. ${COMING_LINE.incubator} I can’t make it`));
+  });
+
+  test("the scanner for the word sees it in a fellowship's line under I’m coming, on the page and in the email", () => {
+    // So the scan above reads the line under the button and the paragraph
+    // about replying: the same scan, run on a fellowship, finds the word there.
+    const page = pageOf(placedByRanking(FELLOWSHIP));
+    const line = page.slice(page.indexOf("I’m coming"), page.indexOf("I can’t make it"));
+    assert.equal(line, `I’m coming Optional. ${COMING_LINE.fellowship} `);
+    assert.match(line, A_GROUP);
+    assert.match(emailFor(FELLOWSHIP).paragraphs[1], A_GROUP);
+    assert.doesNotMatch(COMING_LINE.incubator, A_GROUP);
+  });
+
   test("an incubator with no start written down still says only its own sentence", () => {
     const form = formWith({ [INCUBATOR]: { starts: "" } });
     assert.equal(emailFor(INCUBATOR, form).paragraphs[0], `You’re in the Research Incubator. ${INCUBATOR_SENTENCE}`);
@@ -430,7 +575,9 @@ describe("the page draws the view's words, and the view takes them from the emai
 
   test("the view asks the email's own function, with the kind of the programme the place is on", () => {
     const code = codeOf("lib", "applications", "status", "view.ts");
-    assert.ok(code.includes('import { placeNextWords } from "../decisionDay/emailCopy";'));
+    // Both of the email's functions, from the one module: what comes next,
+    // and why "I’m coming" helps (the line under the button).
+    assert.ok(code.includes('import { comingHelps, placeNextWords } from "../decisionDay/emailCopy";'));
     assert.ok(code.includes("const next = placeNextWords(placedOn?.kind ?? null);"));
     assert.ok(code.includes('next: standing.via === "ranking" ? next.page : next.card,'));
   });
@@ -438,6 +585,23 @@ describe("the page draws the view's words, and the view takes them from the emai
   test("the email asks the same function, with the kind of the programme it is about", () => {
     const code = codeOf("lib", "applications", "decisionDay", "emailCopy.ts");
     assert.ok(code.includes("placeNextWords(programme.kind).email,"));
+  });
+
+  test("the line under I’m coming is the view's, and the view and the email ask comingHelps with the place's kind", () => {
+    // The view asks with the very kind it asks placeNextWords with.
+    const shown = codeOf("lib", "applications", "status", "view.ts");
+    assert.ok(shown.includes("comingHelps: comingHelps(placedOn?.kind ?? null),"));
+    // The page hands the view's line to both places a place is drawn, and the
+    // buttons print what they are handed after "Optional.".
+    const page = codeOf("features", "applications", "status", "StatusPage.tsx");
+    assert.equal(page.split("helps={view.comingHelps}").length - 1, 2);
+    const buttons = codeOf("features", "applications", "status", "ReplyButtons.tsx");
+    assert.ok(buttons.includes("<p className={styles.note}>Optional. {helps}</p>"));
+    assert.equal(buttons.split("{helps}").length - 1, 1);
+    // The email's paragraph about replying asks with the kind of the programme it is about.
+    const email = codeOf("lib", "applications", "decisionDay", "emailCopy.ts");
+    assert.ok(email.includes("acceptedReply(programme.kind),"));
+    assert.ok(email.includes("`You don’t need to reply. If you’re coming, tap the button. ${comingHelps(kind)} ` +"));
   });
 });
 
@@ -454,8 +618,16 @@ const TABLE_REASON = "the one table of what somebody with a place is told, a row
  */
 const TYPED_IN = {
   "small group with a facilitator": { [TABLE]: TABLE_REASON },
-  "your group and when it meets": { [TABLE]: TABLE_REASON },
+  "your group and when it meets": {
+    [TABLE]: TABLE_REASON,
+    "src/lib/courses/groupsGoOut.ts":
+      "st-week1-phone's line for week 1 before groups go out, said only for a fellowship's place (an incubator's is its first sentence alone), with the run's planned day",
+  },
   "how the first week works": { [TABLE]: TABLE_REASON },
+  // Both kinds' line under "I’m coming" carry it, so one entry holds both.
+  "helps us plan": {
+    [TABLE]: "`comingHelps`, the one table of why saying I’m coming helps, a row to each kind of programme",
+  },
   "Meet your group": {
     "src/lib/applications/status/view.ts":
       "`lastStepName`, which says it only to somebody who ranked nothing but fellowships",
@@ -498,7 +670,7 @@ describe("the sentences are typed in one file", () => {
       assert.deepEqual(
         unregistered,
         [],
-        `"${phrase}" is typed in a file that is not registered. Take the words from placeNextWords or lastStepName, ` +
+        `"${phrase}" is typed in a file that is not registered. Take the words from placeNextWords, comingHelps or lastStepName, ` +
           "or register the file with the reason its copy cannot come to disagree.",
       );
       const stale = Object.keys(allowed).filter((file) => !found[phrase].includes(file));
@@ -508,4 +680,178 @@ describe("the sentences are typed in one file", () => {
       }
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// 8. Why saying "I'm coming" helps, for each kind
+// ---------------------------------------------------------------------------
+
+describe("why saying I’m coming helps, in the words of each kind", () => {
+  test("a fellowship's line and an incubator's, word for word", () => {
+    // A fellowship's people are put into groups, so theirs is the line the
+    // page and the email always had. An incubator has none, so its line says
+    // only that it helps us plan (the owner's decision of 24 October 2026).
+    assert.equal(copy.comingHelps("fellowship"), "It helps us plan groups.");
+    assert.equal(copy.comingHelps("incubator"), "It helps us plan.");
+    for (const kind of KINDS) assert.equal(copy.comingHelps(kind), COMING_LINE[kind]);
+  });
+
+  test("every kind of programme has a line, and it is a sentence", () => {
+    assert.deepEqual([...model.PROGRAMME_KINDS].sort(), Object.keys(COMING_LINE).sort(), "a kind of programme has no line here");
+    for (const kind of model.PROGRAMME_KINDS) assert.match(copy.comingHelps(kind), /^[A-Z].*\.$/, kind);
+  });
+
+  test("a place on a programme the form no longer carries reads a fellowship's line, and so does a name no kind has", () => {
+    assert.equal(copy.comingHelps(null), COMING_LINE.fellowship);
+    for (const name of ["constructor", "toString", "__proto__", "hasOwnProperty", ""]) {
+      assert.equal(copy.comingHelps(name), COMING_LINE.fellowship, JSON.stringify(name));
+    }
+    assert.equal(viewOf(placedByRanking("left-the-form")).comingHelps, COMING_LINE.fellowship);
+  });
+
+  for (const kind of KINDS) {
+    const other = kind === "fellowship" ? "incubator" : "fellowship";
+    const id = ID_OF[kind];
+
+    test(`${kind}: the email's paragraph about replying and the line under the button say its line`, () => {
+      // The real email builder, for somebody holding a place of this kind.
+      const email = emailFor(id);
+      assert.equal(email.paragraphs[1], replyParagraph(COMING_LINE[kind]));
+      assert.ok(!wordsOf(email).includes(COMING_LINE[other]), `the email says the other kind's line: ${wordsOf(email)}`);
+
+      // The real page, drawn for the same person before they have answered.
+      assert.equal(viewOf(placedByRanking(id)).comingHelps, COMING_LINE[kind]);
+      const page = pageOf(placedByRanking(id));
+      assert.ok(
+        page.includes(`I’m coming Optional. ${COMING_LINE[kind]} I can’t make it This frees your place for someone else.`),
+        page,
+      );
+      assert.ok(!page.includes(COMING_LINE[other]), `the page says the other kind's line: ${page}`);
+    });
+
+    test(`${kind}: the line is drawn only while there is an "I’m coming" to press`, () => {
+      // Once they have said so, and on the card of an accepted invitation,
+      // the button is gone and so is the line. The view carries it all the same.
+      for (const application of [saidComing(id), placedByInvitation(id)]) {
+        assert.equal(viewOf(application).comingHelps, COMING_LINE[kind]);
+        const page = pageOf(application);
+        assert.ok(!page.includes("Optional."), page);
+        assert.ok(!page.includes(COMING_LINE[kind]), page);
+      }
+    });
+
+    test(`${kind}: a programme's own body replaces the paragraph about replying, and the page keeps its kind's line`, () => {
+      // A body a lead wrote replaces BOTH standard paragraphs, this line with
+      // the rest, exactly as before. The page has no programme wording.
+      const form = formWith({ [id]: { emailWording: { accepted: { subject: "", body: "Our own words.\n\nSee you there." } } } });
+      const email = emailFor(id, form);
+      assert.deepEqual(email.paragraphs, ["Our own words.", "See you there."]);
+      assert.ok(!wordsOf(email).includes("helps us plan"), wordsOf(email));
+      assert.deepEqual(email.buttons.map((button) => button.label), ["I’m coming", "I can’t make it"]);
+      const page = pageOf(placedByRanking(id), form);
+      assert.ok(page.includes(`I’m coming Optional. ${COMING_LINE[kind]} I can’t make it`), page);
+    });
+
+    test(`${kind}: a programme's own subject alone keeps the standard body, with its kind's line`, () => {
+      const form = formWith({ [id]: { emailWording: { accepted: { subject: "Welcome aboard", body: "" } } } });
+      const email = emailFor(id, form);
+      assert.equal(email.subject, "Welcome aboard");
+      assert.equal(email.paragraphs[1], replyParagraph(COMING_LINE[kind]));
+    });
+  }
+
+  test("one programme's own wording changes neither line of the other", () => {
+    const form = formWith({ [FELLOWSHIP]: { emailWording: { accepted: { subject: "", body: "Our own words." } } } });
+    assert.equal(emailFor(INCUBATOR, form).paragraphs[1], replyParagraph(COMING_LINE.incubator));
+    assert.ok(pageOf(placedByRanking(INCUBATOR), form).includes(`Optional. ${COMING_LINE.incubator}`));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. The email Publish sends an incubator's people
+// ---------------------------------------------------------------------------
+
+describe("the email Publish sends an incubator's people names no group either", () => {
+  const SEED = courseEmails.courseTemplateDefaults["course-allocated-incubator"];
+  /** A person on an incubator's run, as Publish's plan tells the email about them. */
+  const FACTS = {
+    name: "Chloe Martin",
+    courseTitle: "Research Incubator",
+    runLabel: "Autumn 2026",
+    programmeName: "Research incubator",
+    weeklySlot: "Mondays at 5pm",
+    firstSession: "Mon 2 Nov",
+    where: { kind: "room", room: "Room B5" },
+    leadName: "Tess",
+    programmeUrl: "https://staging.example.com/learn/research-incubator-autumn-2026",
+  };
+  /** Every way the email can say where the session is, and saying nothing. */
+  const WHERE = [
+    { kind: "room", room: "Room B5" },
+    { kind: "online", linkOnPage: true },
+    { kind: "online", linkOnPage: false },
+    { kind: "on-page" },
+    { kind: "room", room: "https://meet.example/j/8675309?pwd=opensesame" },
+    null,
+  ];
+  /** Every word of one composed email a person reads: its subject, then its text. */
+  const wordsOfEmail = (email) => `${email.subject} ${textOf(email.blocks.map((block) => block.html ?? block.text ?? "").join(" "))}`;
+
+  test("its seed copy, with every value a run can lack and every way a place is said: never the word, and nothing only a fellowship is told", () => {
+    let read = 0;
+    for (const where of WHERE) {
+      for (const leadName of ["Tess", null]) {
+        const email = incubatorStart.composeIncubatorStartEmail(SEED, { ...FACTS, where, leadName });
+        assert.equal(email.ok, true, JSON.stringify({ where, leadName }));
+        const words = wordsOfEmail(email);
+        assert.doesNotMatch(words, A_GROUP, words);
+        assert.doesNotMatch(words, NOT_AN_INCUBATOR, words);
+        read += 1;
+      }
+    }
+    assert.equal(read, WHERE.length * 2);
+  });
+
+  test("it says what an incubator's people are owed: the weekly session, the day it starts, who runs it, and their programme's page", () => {
+    const email = incubatorStart.composeIncubatorStartEmail(SEED, FACTS);
+    assert.equal(email.subject, "Your Research incubator sessions: Mondays at 5pm");
+    assert.equal(
+      textOf(email.blocks.map((block) => block.html).join(" ")),
+      "Hi Chloe, You’ll meet on Mondays at 5pm, starting Mon 2 Nov. Where: Room B5 Tess runs the sessions. " +
+        "Week 1 is on your programme’s page. Open your programme Tess Research incubator lead, NAISI",
+    );
+  });
+
+  test("no token it fills can carry a group's name or who facilitates one, and wording that asks for one is refused", () => {
+    for (const token of incubatorStart.INCUBATOR_START_TOKENS) assert.doesNotMatch(token, /group|facilitat/i, token);
+    for (const token of ["groupName", "facilitatorNames", "coFacilitators", "groupSize", "groupUrl"]) {
+      const asking = { subject: "Your sessions", blocks: [{ id: "b", type: "richText", html: `<p>{${token}}</p>` }] };
+      assert.deepEqual(
+        incubatorStart.composeIncubatorStartEmail(asking, FACTS),
+        { ok: false, problems: [{ kind: "unknown-token", tokens: [token] }] },
+        token,
+      );
+    }
+  });
+
+  test("the scanners find the word in what a fellowship's people are sent at Publish", () => {
+    // So the scan above reads the email: the same scan, run on the seed copy
+    // of "Placed in a group", finds the word.
+    const fellowship = courseEmails.courseTemplateDefaults["course-allocated"];
+    const words = `${fellowship.subject} ${textOf(fellowship.blocks.map((block) => block.html ?? block.text ?? "").join(" "))}`;
+    assert.match(words, A_GROUP);
+  });
+
+  test("Publish chooses it by the kind of the programme that names the run, and its push names no group", () => {
+    const plan = codeOf("lib", "courses", "allocationPublish.ts");
+    assert.ok(plan.includes('const incubator = naming.kind === "incubator";'), "the plan no longer asks the kind");
+    assert.ok(plan.includes("const templates = { allocated: incubator ? onAnIncubator : inAGroup, facilitating };"));
+    // The placement email is written for its reader (`row.uid`), so it names
+    // the group's facilitators other than them (a facilitator who holds a
+    // place is in the group they facilitate); the choice between the two
+    // emails is still made here, by the kind alone.
+    assert.ok(plan.includes("email: incubator ? writeIncubatorStart(group, name) : writePlacement(group, name, row.uid),"));
+    const route = codeOf("app", "api", "courses", "runs", "[runId]", "allocation", "publish", "route.ts");
+    assert.ok(route.includes("body: plan.incubator ? `${run.courseTitle}: the details are in your email.` :"), "the push to an incubator's people");
+  });
 });

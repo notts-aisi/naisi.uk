@@ -7,10 +7,12 @@ import { getCurrentUser, type SessionUser } from "@/lib/firebase/session";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
+  placementIsShownTo,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
-import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
+import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
+import { weekOneDoorFor, type PlaceBeforeGroups } from "@/lib/courses/weekOne/door";
 
 /**
  * The learning space's server-side gate: who is asking, which run, and what
@@ -55,6 +57,10 @@ export type RunAccess = {
    * `status === "active"` is also the write gate: the courseProgress rules
    * require an active enrolment, so a `completed` run is read-only by
    * construction. Check-off UI keys off that, not off `isEnrolled`.
+   *
+   * NULL FOR A PLACEMENT PUBLISH HAS NOT TOLD ITS OWNER ABOUT
+   * (`placementIsShownTo`): until then the run reads to them exactly as it did
+   * before they were placed, which is with no row at all.
    */
   enrolment: CourseEnrolmentDoc | null;
   isAdmin: boolean;
@@ -65,6 +71,36 @@ export type RunAccess = {
   isTrackLead: boolean;
   /** May see cohort surfaces: the run home, weeks, progress. */
   canLearn: boolean;
+  /**
+   * LEFT THE RUN THEMSELVES, after it was theirs to see: their own learner
+   * row, withdrawn, shown to them (`placementIsShownTo`: leaving keeps
+   * Publish's stamp), on an account that still stands. They are shown one
+   * thing here: the page that says they left, and when. Nothing else of the
+   * run opens to them: not their marks, notes or reflections, not the
+   * reading list, not the group's people, its updates, its sessions or its
+   * registers. Somebody staff removed is not this: the run closes to them as
+   * it always has.
+   */
+  hasLeft: boolean;
+  /**
+   * The run's groups that are not archived, as the gate read them (one
+   * equality on `runId`). A page that has to know when a member's own week
+   * opens reads their group's calendar from here rather than reading again.
+   */
+  groups: CourseGroupDoc[];
+  /**
+   * WEEK 1 BEFORE GROUPS GO OUT (Q35 B): the place this person holds on the
+   * programme that names the run, when week 1's door is open to them
+   * (`weekOneDoorFor`, the one answer) and they have no other way in. Null
+   * for everybody else, and never set beside `canLearn` or `hasLeft`.
+   *
+   * IT OPENS WEEK 1 OF THIS RUN AND NOTHING ELSE. The layout lets them in;
+   * the week page draws week 1 for them and redirects every other week; every
+   * other page under the run narrows to `canLearn` (or its own predicate) and
+   * sends them away, as before. A page that opens to exactly the people
+   * week 1 opens to asks `canLearn || beforeGroups !== null`.
+   */
+  beforeGroups: PlaceBeforeGroups | null;
 };
 
 /**
@@ -125,10 +161,17 @@ export const getRunAccess = cache(
     if (runRaw.destroying === true) return null;
 
     const run = normalizeCourseRun(runSnap.id, runRaw);
+    const isAdmin = user.role === "admin";
 
-    const enrolment: CourseEnrolmentDoc | null = enrolSnap.exists
+    const stored: CourseEnrolmentDoc | null = enrolSnap.exists
       ? normalizeCourseEnrolment(enrolSnap.id, enrolSnap.data() ?? {})
       : null;
+    // A placement nobody has told its owner about is not there for them: the
+    // run stays shut and every page under it redirects, as it did before an
+    // admin placed them. Publish's email is what opens it. The one change,
+    // on purpose (Q35 B): week 1 alone, through its door (`beforeGroups`).
+    const enrolment =
+      stored && placementIsShownTo(stored, { isAdmin }) ? stored : null;
     // Withdrawn / removed enrolments lose access the moment they are written,
     // whatever the member's open tab still shows. `completed` keeps reading:
     // a finished cohort is the member's own history, and the overview route
@@ -145,16 +188,20 @@ export const getRunAccess = cache(
 
     // Archived groups no longer staff anyone — same filter the overview route
     // applies before it resolves its group card.
-    const facilitatesGroup = groupSnap.docs
+    const groups = groupSnap.docs
       .map((d) => normalizeCourseGroup(d.id, d.data() ?? {}))
-      .some(
-        (g) =>
-          !g.archived &&
-          isNamedWithStanding(user, "courseGroups.facilitatorUids", g.facilitatorUids),
-      );
+      .filter((g) => !g.archived);
+    const facilitatesGroup = groups.some((g) =>
+      isNamedWithStanding(user, "courseGroups.facilitatorUids", g.facilitatorUids),
+    );
 
-    const isAdmin = user.role === "admin";
     const isEnrolled = live?.role === "learner";
+    const hasLeft = Boolean(
+      enrolment &&
+        enrolment.role === "learner" &&
+        enrolment.status === "withdrawn" &&
+        isNamedWithStanding(user, "courseEnrolments.uid", enrolment.uid),
+    );
     // Three routes to facilitation, matching the overview route: a facilitator
     // enrolment, named on the run itself, or holding a group. The one
     // deliberate difference is that a `completed` facilitator enrolment still
@@ -179,6 +226,10 @@ export const getRunAccess = cache(
       run.trackLeadUids,
     );
 
+    const canLearn = isEnrolled || isFacilitator || isAdmin;
+    // Week 1's door, asked only of somebody with no other way in.
+    const door = canLearn || hasLeft ? null : await weekOneDoorFor(db, user, run.id);
+
     return {
       user,
       run,
@@ -188,7 +239,42 @@ export const getRunAccess = cache(
       isFacilitator,
       isReviewer,
       isTrackLead,
-      canLearn: isEnrolled || isFacilitator || isAdmin,
+      canLearn,
+      hasLeft,
+      groups,
+      beforeGroups: door?.open ? door.place : null,
     };
   },
 );
+
+/** The most of a person's own course rows the list of runs they left reads. */
+const MAX_OWN_ENROLMENTS = 50;
+
+/**
+ * THE RUNS THE CALLER LEFT THEMSELVES, for the card on My programmes that
+ * says so. One equality on the caller's own rows; then, for each withdrawn
+ * learner row, the gate above, so a run is listed exactly where its own page
+ * says the caller left it (`hasLeft`), and never for a seat staff removed, a
+ * placement nobody told them about, or a run being destroyed. Empty with no
+ * session.
+ */
+export const getLeftRuns = cache(async (): Promise<RunAccess[]> => {
+  const user = await getSessionUser();
+  if (!user) return [];
+  const db = getAdminDb();
+  if (!db) return [];
+  const snap = await db
+    .collection("courseEnrolments")
+    .where("uid", "==", user.uid)
+    .limit(MAX_OWN_ENROLMENTS)
+    .get();
+  const runIds = new Set<string>();
+  for (const doc of snap.docs) {
+    const row = normalizeCourseEnrolment(doc.id, doc.data() ?? {});
+    if (row.uid === user.uid && row.role === "learner" && row.status === "withdrawn" && row.runId) {
+      runIds.add(row.runId);
+    }
+  }
+  const accesses = await Promise.all([...runIds].map((runId) => getRunAccess(runId)));
+  return accesses.filter((access): access is RunAccess => access !== null && access.hasLeft);
+});

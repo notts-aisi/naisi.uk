@@ -3,18 +3,24 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/auth/AuthProvider";
+import ProgrammeMark from "@/components/ProgrammeMark";
+import { CREST_KEYS, crestName, type CrestKey } from "@/components/ProgrammeCrest";
 import ActionToast, { useActionToast } from "@/components/ui/ActionToast";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import CountedTextarea from "@/components/ui/CountedTextarea";
 import { Field, Input } from "@/components/ui/Input";
+import TimeField from "@/components/ui/TimeField";
 import Modal from "@/components/ui/Modal";
 import ResponsiveSelect, {
   type ResponsiveSelectOption,
 } from "@/components/ui/ResponsiveSelect";
 import { AdminLoadingBar, AdminPage } from "@/features/admin/adminList";
 import BlockEditor from "@/components/blocks/BlockEditor";
+import { crestForCourse } from "@/lib/crests/resolve";
+import { facilitatorGuideAdminPath } from "@/lib/courses/facilitatorGuide/model";
 import { isValidDateKey } from "@/lib/courses/weekPlan";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
 import {
@@ -35,9 +41,12 @@ import {
   runStatusTone,
   taughtWeekCount,
 } from "./AdminCourseList";
-import { createRun, publishCourse, updateCourse } from "./courseMutations";
+import { createRun, publishCourse, saveCourseCrest, updateCourse } from "./courseMutations";
 import CourseDangerZone from "./CourseDangerZone";
+import CourseRubricCard from "./CourseRubricCard";
 import { useCourseRuns, useCourses } from "./useAdminCourses";
+import CourseRoutesCard from "./CourseRoutesCard";
+import CoursePredictionsCard from "./CoursePredictionsCard";
 import styles from "./adminCourses.module.css";
 
 /**
@@ -51,6 +60,10 @@ type MetaDraft = {
   track: CourseTrack;
   level: string;
   weeklyHours: string;
+  /** "" for by the end of the day before; "HH:MM" for a time on it. */
+  dayBeforeDueTime: string;
+  /** The line every certificate of this course carries after its weeks. */
+  credit: string;
   summaryBlocks: Block[];
 };
 
@@ -62,6 +75,8 @@ function metaFromCourse(course: CourseDoc | null): MetaDraft {
     level: course?.level ?? "",
     weeklyHours:
       course?.estimatedWeeklyHours != null ? String(course.estimatedWeeklyHours) : "",
+    dayBeforeDueTime: course?.dayBeforeDueTime ?? "",
+    credit: course?.credit ?? "",
     summaryBlocks: course?.summaryBlocks ?? [],
   };
 }
@@ -73,9 +88,17 @@ function sameMeta(a: MetaDraft, b: MetaDraft): boolean {
     a.track === b.track &&
     a.level === b.level &&
     a.weeklyHours === b.weeklyHours &&
+    a.dayBeforeDueTime === b.dayBeforeDueTime &&
+    a.credit === b.credit &&
     JSON.stringify(a.summaryBlocks) === JSON.stringify(b.summaryBlocks)
   );
 }
+
+/** The course's two ways of reading "the day before" (`CourseDoc.dayBeforeDueTime`). */
+const DAY_BEFORE_OPTIONS: ResponsiveSelectOption<"end" | "time">[] = [
+  { value: "end", label: "By the end of the day before" },
+  { value: "time", label: "By a time on the day before" },
+];
 
 export default function CourseEditor({ courseId }: { courseId: string }) {
   const router = useRouter();
@@ -108,6 +131,32 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
   const meta = useMemo<MetaDraft>(() => ({ ...base, ...draft }), [base, draft]);
   const dirty = !sameMeta(meta, base);
   const patch = (p: Partial<MetaDraft>) => setDraft((d) => ({ ...d, ...p }));
+
+  // --- The crest: an admin's to set, through its own route ---
+  // Shown to everybody who can open this page, and changed only by an admin:
+  // the rules keep the field as it was on every other write. The value shown
+  // is the last one picked until a reload brings the stored one back, and the
+  // stored one again if the save is refused.
+  const { role } = useAuth();
+  const isAdmin = role === "admin";
+  const [crestPicked, setCrestPicked] = useState<CrestKey | null | undefined>(undefined);
+
+  async function handleCrest(next: CrestKey | null) {
+    if (!isAdmin) return;
+    setCrestPicked(next);
+    await runAction(
+      async () => {
+        try {
+          await saveCourseCrest(courseId, next);
+        } catch (err) {
+          setCrestPicked(undefined);
+          throw err;
+        }
+        reload();
+      },
+      { savingMessage: "Saving the crest…", successMessage: "Crest saved" },
+    );
+  }
 
   // --- Publish control ---
   const [showcaseChoice, setShowcaseChoice] = useState<string | null>(null);
@@ -180,6 +229,12 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
       hours = Math.round(parsed);
     }
     const tagline = meta.tagline.trim();
+    const dayBeforeDueTime = meta.dayBeforeDueTime === "" ? null : meta.dayBeforeDueTime;
+    if (dayBeforeDueTime !== null && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(dayBeforeDueTime)) {
+      setMetaError("Give the time written work is due as hours and minutes, like 12:00.");
+      return;
+    }
+    const credit = meta.credit.trim();
     setMetaError(null);
     await runAction(
       async () => {
@@ -189,6 +244,8 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
           track: meta.track,
           level: meta.level,
           estimatedWeeklyHours: hours,
+          dayBeforeDueTime,
+          credit,
           summaryBlocks: meta.summaryBlocks,
         });
         setSaved({
@@ -197,6 +254,8 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
           track: meta.track,
           level: meta.level,
           weeklyHours: hours == null ? "" : String(hours),
+          dayBeforeDueTime: dayBeforeDueTime ?? "",
+          credit,
           summaryBlocks: meta.summaryBlocks,
         });
         setDraft({});
@@ -305,6 +364,12 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
     );
   }
 
+  const crestChoice = crestPicked === undefined ? course.crest : crestPicked;
+  const crestOptions: ResponsiveSelectOption[] = [
+    { value: "", label: "No crest" },
+    ...CREST_KEYS.map((key) => ({ value: key, label: crestName(key) })),
+  ];
+
   const published = course.status === "published";
   const publishQuestion = published
     ? `Update the public curriculum preview for “${course.title}”?`
@@ -410,6 +475,47 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
                     disabled={saving}
                   />
                 </Field>
+
+                <Field
+                  id="course-day-before"
+                  label="Written work due the day before a session"
+                  hint="For a week whose written work is due the day before its session. Each group’s own dates come from its calendar."
+                >
+                  <ResponsiveSelect<"end" | "time">
+                    value={meta.dayBeforeDueTime === "" ? "end" : "time"}
+                    onChange={(choice) =>
+                      patch({ dayBeforeDueTime: choice === "end" ? "" : meta.dayBeforeDueTime || "12:00" })
+                    }
+                    options={DAY_BEFORE_OPTIONS}
+                    ariaLabel="Written work due the day before a session"
+                    disabled={saving}
+                  />
+                </Field>
+                {meta.dayBeforeDueTime !== "" && (
+                  <Field id="course-day-before-time" label="Due by, on the day before">
+                    <TimeField
+                      value={meta.dayBeforeDueTime}
+                      onChange={(dayBeforeDueTime) => patch({ dayBeforeDueTime })}
+                      disabled={saving}
+                    />
+                  </Field>
+                )}
+
+                <div className={styles.formSpan}>
+                  <Field
+                    id="course-credit"
+                    label="Credit on certificates"
+                    hint="Follows the weeks on each certificate of this course, after a dot, as in “6 weeks · based on the BlueDot Impact curriculum”, so start it as it reads there. Leave it empty for none. A change reaches certificates sent after it."
+                  >
+                    <Input
+                      id="course-credit"
+                      value={meta.credit}
+                      onChange={(e) => patch({ credit: e.target.value })}
+                      maxLength={COURSE_FIELD_LIMITS.credit}
+                      disabled={saving}
+                    />
+                  </Field>
+                </div>
               </div>
 
               <div>
@@ -462,6 +568,46 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
           </section>
         </Card>
 
+        {/* === Crest === */}
+        <Card padding="lg">
+          <section className={styles.section} aria-labelledby="course-crest-title">
+            <div className={styles.sectionHead}>
+              <h2 id="course-crest-title" className={styles.sectionTitle}>
+                Crest
+              </h2>
+              <p className={styles.sectionHint}>
+                Beside the course’s name on /courses and at the top of its page.
+              </p>
+            </div>
+            <div className={styles.crestRow}>
+              <ProgrammeMark shown={crestForCourse({ crest: crestChoice })} size={64} />
+              <div className={styles.crestField}>
+                <Field
+                  id="course-crest"
+                  label="Crest"
+                  hint={
+                    isAdmin
+                      ? "A programme on the application form can carry its own, which shows in its place. With neither, the NAISI emblem shows."
+                      : "Only an admin can change the crest."
+                  }
+                >
+                  <ResponsiveSelect
+                    id="course-crest"
+                    value={crestChoice ?? ""}
+                    onChange={(value) => void handleCrest(CREST_KEYS.find((key) => key === value) ?? null)}
+                    options={crestOptions}
+                    ariaLabel="Crest"
+                    disabled={saving || !isAdmin}
+                  />
+                </Field>
+              </div>
+            </div>
+          </section>
+        </Card>
+
+        {/* === The rubric for written answers === */}
+        <CourseRubricCard key={`rubric-${course.id}`} courseId={course.id} stored={course.rubric} isAdmin={isAdmin} />
+
         {/* === Publish === */}
         <Card padding="lg">
           <section className={styles.section}>
@@ -511,6 +657,24 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
             </div>
           </section>
         </Card>
+
+        {/* === Facilitator guide === */}
+        {/* Loading the facilitator guide is an admin's job for now (Q39); its page
+            and route refuse everyone else. */}
+        {isAdmin && (
+          <Card padding="lg">
+            <section className={styles.section}>
+              <div className={styles.sectionHead}>
+                <h2 className={styles.sectionTitle}>Facilitator guide</h2>
+                <p className={styles.sectionHint}>
+                  Each week’s session plan and notes, and the course’s own documents, for its facilitators, its
+                  programme’s lead and admins only.{" "}
+                  <Link href={facilitatorGuideAdminPath(courseId)}>Load the facilitator guide</Link>
+                </p>
+              </div>
+            </section>
+          </Card>
+        )}
 
         {/* === Runs === */}
         <Card padding="lg">
@@ -680,6 +844,12 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
             )}
           </section>
         </Card>
+
+        {/* === Routes and deadlines (the routes a week that lists them shows) === */}
+        <CourseRoutesCard key={`routes-${course.id}`} courseId={course.id} stored={course.routes} />
+
+        {/* === Sealed predictions (the card a week asks, sealed and opened later) === */}
+        <CoursePredictionsCard key={`predictions-${course.id}`} courseId={course.id} stored={course.predictionCard} />
 
         {/* === Archive + destroy ===
             Last on the page by design: end-of-life controls sit after

@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/firebase/session";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
+  placementIsShownTo,
 } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 
@@ -31,6 +32,12 @@ import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
  * (group docs carry the meeting link), so this route is the only way a roster
  * reaches a member at all. The meeting link deliberately does NOT travel here
  * — the run overview owns the session card.
+ *
+ * A NAME IS LISTED ONCE ITS OWNER HAS BEEN TOLD THEIR GROUP. An admin's
+ * placement is the board's until Publish emails the person their group
+ * (`placementIsShownTo`), so before then the group's facilitators and its
+ * other members are not shown that name, and the person themselves cannot
+ * open this roster. An admin is shown everybody placed.
  */
 
 // ---------------------------------------------------------------------------
@@ -41,8 +48,20 @@ export type GroupRosterPayload = {
   group: { id: string; name: string };
   /** Names only. */
   facilitators: Array<{ uid: string; displayName: string }>;
-  /** Active members only — names only. */
+  /**
+   * Active members whose placement has been told (everybody placed, for an
+   * admin). Names only. A group send reaches exactly these people, so this
+   * list is also the count a composer states.
+   */
   members: Array<{ uid: string; displayName: string }>;
+  /**
+   * True for a facilitator of the group when somebody placed in it is left
+   * out of `members` because Publish has not told them their group yet. It
+   * is how a facilitator's page tells "your names come when groups go out"
+   * from "nobody is placed here". Never true for an admin, who is shown
+   * everybody, or for a member.
+   */
+  notYetTold: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -113,7 +132,9 @@ export async function GET(
         // This payload is other members' display names, which is the tier
         // the users lockdown restricts; the row that opens it carries the
         // same floor as every other enrolment gate.
-        isNamedWithStanding(actor, "courseEnrolments.uid", own.uid);
+        isNamedWithStanding(actor, "courseEnrolments.uid", own.uid) &&
+        // And a member reads their group once they have been told it.
+        placementIsShownTo(own, { isAdmin });
     }
     if (!isGroupMember) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -132,9 +153,12 @@ export async function GET(
     .limit(100)
     .get();
 
-  const memberUids = memberSnap.docs
-    .map((d) => normalizeCourseEnrolment(d.id, d.data() ?? {}).uid)
-    .filter(Boolean);
+  const placed = memberSnap.docs
+    .map((d) => normalizeCourseEnrolment(d.id, d.data() ?? {}))
+    .filter((e) => Boolean(e.uid));
+  // Somebody Publish has not told is not named here to anybody but an admin.
+  const shown = placed.filter((e) => placementIsShownTo(e, { isAdmin }));
+  const memberUids = shown.map((e) => e.uid);
 
   // One `getAll` for every name the payload needs — facilitators and members
   // together, de-duplicated (a facilitator's own enrolment carries a null
@@ -161,6 +185,7 @@ export async function GET(
       .sort(
         (a, b) => a.displayName.localeCompare(b.displayName) || a.uid.localeCompare(b.uid),
       ),
+    notYetTold: isGroupFacilitator && shown.length < placed.length,
   };
 
   return NextResponse.json(payload);

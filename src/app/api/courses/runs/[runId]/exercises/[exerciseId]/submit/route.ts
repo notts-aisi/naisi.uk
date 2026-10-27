@@ -7,16 +7,20 @@ import { resolveWeekDoc } from "@/lib/courses/groupResolve";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
+  placementIsShownTo,
 } from "@/lib/firestore/courseEnrolments";
 import {
   EXERCISE_LIMITS,
   exerciseResponseId,
+  isOwnBoxResponse,
+  isReflectionResponse,
   normalizeExerciseResponse,
   type CourseExerciseResponseDoc,
   type ExerciseReviewStatus,
 } from "@/lib/firestore/courseExercises";
 import { validateSubmissionUrl } from "@/lib/firestore/courses";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import type { WrittenAnswerWire } from "@/lib/courses/writtenAnswers/wire";
 
 /**
  * A member saving or submitting ONE weekly exercise. This route is the only
@@ -92,7 +96,15 @@ export type ExerciseResponseWire = {
    * (see the assignment in POST below).
    */
   weekNumber: number;
+  /** The exercise's id, or on a reflection the prompt's id, or on a fill-in box the box's id. */
   exerciseId: string;
+  /**
+   * Present only on a reflection or a fill-in box (`courseExercises.ts`,
+   * "Three kinds of row"), which only its writer's own reads carry: the
+   * my-exercises route and the box's own route. Absent on every exercise
+   * answer, so the review queue's rows read exactly as before.
+   */
+  kind?: "reflection" | "fillIn";
   /** Server-asserted from the exercise definition — never the client's word. */
   responseType: "text" | "link";
   /** Non-null only on a `"text"` exercise. Plain text, rendered as text nodes. */
@@ -107,6 +119,13 @@ export type ExerciseResponseWire = {
   reviewerComment: string | null;
   /** ISO 8601, or null on a row nobody has acted on. */
   reviewedAt: string | null;
+  /**
+   * Present only on a block week's written answer, which only its writer's
+   * own reads carry (`src/lib/courses/writtenAnswers/wire.ts`): its boxes,
+   * its count of words, when it was first sent, whether one of its reviewers
+   * has opened it, and the feedback on it. Never whether it was late.
+   */
+  written?: WrittenAnswerWire;
 };
 
 // ---------------------------------------------------------------------------
@@ -230,7 +249,9 @@ export async function POST(
     enrolment.role !== "learner" ||
     // The row is an authority the allocation route wrote for an approved
     // account, so that account's standing is checked again here.
-    !isNamedWithStanding(actor, "courseEnrolments.uid", enrolment.uid)
+    !isNamedWithStanding(actor, "courseEnrolments.uid", enrolment.uid) ||
+    // A placement Publish has not told its owner about opens nothing yet.
+    !placementIsShownTo(enrolment, { isAdmin: actor.role === "admin" })
   ) {
     // Deliberately specific rather than a bare "Forbidden": the week page shows
     // the exercises section to facilitators and admins too, and the honest
@@ -377,6 +398,17 @@ export async function POST(
   try {
     existing = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
+      // A reflection's row is never an answer's to write over (its id names a
+      // prompt, so the definition check above already refuses it; this says
+      // so where the write happens).
+      if (snap.exists && isReflectionResponse(snap.data() ?? {})) {
+        throw new SubmitError("That box is a reflection, not an answer.", 409);
+      }
+      // Nor is a fill-in box's row (its id names a box, which the definition
+      // check refuses as well): every box its writer fills in is left alone.
+      if (snap.exists && isOwnBoxResponse(snap.data() ?? {})) {
+        throw new SubmitError("That box is one you fill in, not an answer.", 409);
+      }
       const prior = snap.exists
         ? normalizeExerciseResponse(id, snap.data() ?? {})
         : null;

@@ -72,6 +72,14 @@ rather than the record.
 | `membership-console` | The membership year: periods, the current-period pointer, the roster and a grant. | Yes | Both |
 | `member-journey` | What an approved member actually does: approval on the Approvals page, the profile and its notification preferences, the membership read, and enrolling on a course. | Yes | Both |
 | `register-push` | The facilitator's register: the roster, marking attendance and pushing it, with the participant notes beside it. | Yes | Both |
+| `course-hub-groups-go-out` | Groups going out on a term just after decision day: the admin names the course run on the programme's Settings tab, moves it on from draft, hands the people holding a place over (a second press writes nothing), reads the Times view, places each person with the Move to menu, appoints a facilitator, sends the test of Publish's emails and presses Publish with its count. The person placed sees their group and first session, a person moved after Publish sees nothing until Publish again emails only them, and the facilitator sees their roster and register. Every email is held to the board's words and checked for the meeting link. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because the test of Publish's emails goes to the admin's own address |
+| `course-hub-lead-week-three` | The lead's third week on the same term, three weeks in (places told, registers marked, one left unfinished, week 1's update): the admin names the running run and hands its people over, appoints a facilitator, reads the Overview (the week, this week's sessions and registers, what needs attention, the newest update), presses Remind and reads its email, reads the Attendance grid and downloads its CSV through the download log, sends a test of an update to one group and posts it with the count on its button. A member of that group reads it on their programme page and a member of the other group does not; every email is held to its words and checked for the meeting link. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because the update's test goes to the admin's own address |
+| `course-hub-facilitators-week` | A facilitator's week on the same term, three weeks in, with one group's register for the week never opened: the admin appoints the group's facilitator on the Facilitators view, and the facilitator, signed in as themselves, opens the group's page (the roster, this week's session, the register), marks the register in every state it offers, finishes it in the words of the target's ending (it then locks against them), and moves next week's session with a reason and the count on its button. A member reads their own marks only once the register is finished, both members read the change on their programme page, the update's email reaches exactly the group, word for word, with no meeting link, and the lead's Overview and Sessions view show the register finished and the session moved. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because it reads the update's email out of each member's mailbox |
+| `course-hub-incubator-pitching-and-teams` | An incubator's pitching week and its teams on the same term, at a point of its own: the form's one programme is an incubator three weeks into its run, its one weekly group of five told by Publish, and week 3 its pitching week. The admin approves the five and names the run on the programme's Settings tab; three of them pitch (alone on one of the week's readings, as a pair on a paper typed in, alone again), read each other's pitches and pick the ones they would join up to the limit, and a pick past it is refused in the page's words; the pitching read answers what each page drew and refuses the lead; the lead's Pitches view counts who would join each and names nobody who picked; on the Teams tab the lead makes teams from two pitches, moves the one person left over with the Move to… menu, sends the team email's test to themselves and tells everyone with the count on its button. Each person's email names their own team, word for word, and nobody else's, and no email carries the meeting link. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because the team email's test goes to the admin's own address |
+| `course-hub-leaving` | Leaving the programme by both doors, on the same term in week 4 (every register so far finished) and on a second run past its last session. One person leaves from their programme page: a title typed wrong is refused by the page and by the route, and they read the page that says they left and when, and nothing else, at the notes and reading list addresses too, with their group and its link gone from their programme page and Home, and a card on My programmes that says only that they left. A second gives the place back with "I can’t make it" on an application page opened before their place became a group, which a fresh look no longer offers. The leave's email is read word for word, with no reason and no link; the facilitator sees both last with the day on Home, the group page and a read only register; the lead reads each reason on the Overview and nowhere else, and the grid, its CSV, the board and Remove treat both as left. On the run past its end neither door offers leaving, and a press is refused in leaving's words. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because each leave's email is read out of the leaver's mailbox |
+| `course-hub-week-one-before-groups` | Week 1 before groups go out, on the same term just after decision day with its weeks 2 to 6 published and week 1 not written. The admin names the run and moves it on from draft, sets the day groups go out and loads Start here and the Glossary; as the programme's lead, writes week 1 on the Weeks tab (a synthetic week in the guide's shape, read, saved as a draft, which makes its page, previewed as a fellow) and marks it ready, which publishes it. A person holding a place reads only that their group is on its way until then, and then opens week 1 from Home and My programmes before anybody is handed over, reads Start here and the Glossary from it (its find box filters by a term's definition too), ticks a source and writes a reflection that are there after a reload, and finds week 2 and the groups shut. Somebody who gives their place back and somebody who never held one are refused in the pages' and the routes' words. After the hand-over, placing and Publish with its test, week 1 gives the group's due day with the tick and the reflection kept, and no email carries the meeting link. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because Publish's test goes to the admin's own address |
+| `course-hub-before-survey` | A programme's before survey on the term's first day, Publish having told everybody their group and no group met yet. The admin names the run, appoints a facilitator, makes the survey from its template on New survey (which then offers no second), changes its words, sends a test to themselves (read word for word, its link keeping nothing) and emails everybody holding a place their own link, after which the questions are fixed. One person answers every kind of question through their link signed out, the percentage by keyboard, and stops the follow-ups on the page that says they answered; one answers from the card on Home; one answers signed in inside the programme. The lead's results give totals with n and the response rate and the comments with no name; the facilitator is refused them and the download; Who answered and the download with names agree and the download is logged; the reminder, after its own test, reaches only the person who has not answered; Close it now ends it. No email carries an answer or the meeting link. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because the tests go to the admin's own address and each person's link is read out of their mailbox |
+| `course-hub-programme-end` | A programme's end, on the same term at two points of its own: its last week, with its one group's last session tonight, and past its run's last session, with every register finished and somebody who left in week 3. In the last week the admin names the run, appoints the group's facilitator, makes the survey at the end from its template, sends a test to themselves and emails the person holding a place, whose Home then says tonight is the last session with the survey at the end under it, after tonight and what's next. After the last session the admin, as the programme's lead, sets the rule for who finished on Settings, appoints a facilitator, and on the Overview reads who finished by the rule with the person who left apart, ticks one more with the counts and the list agreeing, previews the first certificate and its email, sends a test to themselves and then the certificates, one email a person as the button says. The person who finished reads that they did, their certificate and what they keep, turns its link on and downloads its PDF; a stranger reads only what the certificate says and is refused the PDF, and a certificate whose link is off shows the same calm page as a code nobody has; the person who did not finish reads that the programme has ended and nothing about finishing; the person who left reads only that they left. No email carries the meeting link. | Yes | Caught-mail modes only: it declares `requiresCaughtMail`, because the survey's and the certificates' tests go to the admin's own address and each certificate email is read out of its owner's mailbox |
 | `events-rsvp` | A guest RSVP against a real event, through the public event page to the submitted confirmation. | Yes | Both |
 
 ## Safety properties
@@ -88,11 +96,13 @@ These are deliberate and enforced, not aspirational:
   Auth users, or (in the Phase 2+ batteries) users with a seeded document
   whose role is hard-coded to `pending` — the lowest role there is, which
   grants access to nothing. The design brief caps any future fixture ladder at
-  `member`. The one place a role above `pending` is ever written is
-  `lib/personas.mjs`, for the per-persona route battery, and it can only write
-  it to a **Firestore emulator**: every exported function there refuses first
-  unless `FIRESTORE_EMULATOR_HOST` names a loopback host, the fence guard
-  imports the module with the variable unset and proves the refusal, and the
+  `member`. The only places a role above `pending` is ever written are
+  `lib/personas.mjs` and `lib/personaWorld.mjs` (the records the personas hold
+  roles on), for the per-persona route battery, and they can only write to a
+  **Firestore emulator**: every exported function in both refuses first
+  unless `FIRESTORE_EMULATOR_HOST` names a loopback host (the world takes that
+  test from the persona module rather than keeping its own), the fence guard
+  imports both modules with the variable unset and proves the refusal, and the
   elevated personas' Auth accounts on dev are bare harness accounts with no
   document at all. `run.mjs` starts that emulator and a second copy of the
   build on `:3101` pointed at it, and kills both with the run. See "The
@@ -102,7 +112,10 @@ These are deliberate and enforced, not aspirational:
   line at "no Firestore handle at all"; Phase 2 needed reads/seeds to prove the
   two-phase stamp, and Phase 3 added *delete-only* access to the signup tracker
   so route-created accounts don't leave ghost rows. Every write is namespaced
-  to harness accounts and ledgered for teardown. Enforced offline by
+  to harness accounts and ledgered for teardown. The one file held to a list
+  of its own is `lib/personaWorld.mjs`, which writes the persona battery's
+  records to the emulator only and nowhere else; its collections are declared,
+  each with its reason, in the fence guard. Enforced offline by
   `tests/e2e-no-privilege-grants.test.mjs` under `npm test`, which also calls
   the real `assertTarget()` against a battery of production spellings
   (userinfo tricks, trailing dots, `www.`, uppercase) rather than
@@ -315,9 +328,28 @@ removes the matches and the matching harness accounts, through the same doors
 as a fixture. The run ids are in the cancelled job's log, on the `Seeding
 fixture <id>` lines.
 
-**A spec module is one file.** Everything under `scripts/e2e-fixtures/` except
-`core.mjs` exports a single object named `SPEC`, and the runner discovers it by
-walking the directory, so a new spec is added by adding a file:
+**A spec module is one file.** Everything directly in `scripts/e2e-fixtures/`
+except `core.mjs` exports a single object named `SPEC`, and the runner discovers
+it by walking the directory, so a new spec is added by adding a file. A world
+several specs stand on (the course hub's term after decision day,
+`worlds/course-hub-term.mjs`) is a helper module in a subdirectory, which the
+runner does not walk: it exports no `SPEC`, a spec module imports it, and
+`tests/funnel-harness-guards.test.mjs` holds both. A world can be asked for at
+a point: the course hub's term exists just after decision day
+(`decisions-sent`), three weeks into its run (`week-three`), three weeks in with
+one group's register for the week never opened (`week-three-unmarked`),
+with an incubator as the form's one programme, three weeks in and in its
+pitching week (`pitching-week`), in week 4 with every register so far
+finished and a fourth person in Group A (`week-four`), past its run's last
+session (`after-the-end`), just after decision day with weeks 2 to 6
+published and week 1 not written yet (`before-groups`), and on its run's
+first day, Publish having told everybody their group and no group met yet
+(`first-day`). The end of a programme is read at two more points: in its
+last week, with its one group's last session late on the seed's own day
+(`last-week`), and past its run's last session with every register finished
+and somebody who left in week 3 (`programme-over`). A spec that needs two
+points at once asks for both (`seedTerms`): each is a term of its own, keyed on the run id and a
+letter. A spec module looks like this:
 
 ```js
 export const SPEC = {
@@ -588,6 +620,12 @@ files, and asserts the walk found the four that must always be in it:
   `config/membership` is addressable, only through `membershipConfigDoc()`, so
   a membership spec can move the current-period pointer and put it back
   without any fixture going near the scheduler cursors or the task email copy.
+  The scheduler's markers are narrower still. `schedulerMarkers` is on no list
+  and every chokepoint refuses it; `registerReminderMarkerDoc()` addresses one
+  register reminder marker of a fixture's own group, by an id it builds from a
+  fixture group id, a session key and an account uid, so a spec that presses a
+  lead's Remind can count and remove the marker the press keeps. The guard pins
+  that door and refuses everything else through it.
 - **Every spec module declares what it covers.** The guard imports every
   module in `scripts/e2e-fixtures/`, checks the `SPEC` shape, checks the names
   are unique, checks the step names in the spec file equal `SPEC.steps` in
@@ -667,12 +705,38 @@ keys off the origin rather than off the flag.
 
 The standing red team. Every route under `src/app/api` and every page under
 `src/app/(app)` is requested as every persona (`anonymous`, `pending`,
-`rejected`, `member`, non-SU `committee`, `suCommittee`, `admin`, and a plain
-member holding each `permissions` key), and the answer is held to
+`rejected`, `member`, non-SU `committee`, `suCommittee`, `admin`, a plain
+member holding each `permissions` key, and three who hold a role on a record:
+`lead`, `facilitator` and `participant`), and the answer is held to
 `tests/persona-route-gates.registry.mjs`, the answer key a person wrote, cell
 by cell, with a reason per entry. Ids address nothing and bodies are empty, so
 what is asserted is each gate's answer to each persona and never a handler's
 work; a 2xx JSON body is also held to the `fields` list the entry allows.
+
+**The second pass: records somebody holds a role on.** Ids that address
+nothing never show whether a programme's lead can reach another programme's
+records, or a facilitator another group's. So `lib/personaWorld.mjs` writes
+two programmes to the same emulator after the personas exist: THEIRS, led by
+the `lead` persona (SU-recognised committee, flagged as appointed, the bar a
+lead stands behind), whose run is three weeks in with two groups, the
+`facilitator` facilitating the first and holding a place in it and the
+`participant` in the second, three published weeks, a before survey sent to
+both and the lead's open ask to the participant to facilitate; and ANOTHER, the same shapes led and staffed by accounts that are
+none of the personas. Every course hub route and page with a segment the
+world fills (`asksBothSets` in the registry: walked from the address, never
+listed) is asked again by every persona with each programme's ids and held to
+its two columns, `REAL_ROUTES` and `REAL_PAGES`. A mutating route is sent an
+empty body, unless its columns carry a whole `realDrive.body` to reach a gate
+that checks the body first, and then every admitted cell is `ACTS`; a GET is
+sent its `realDrive` query where a week or a person is required to reach the
+gate; a cell the registry marks `ACTS` (the gate admits the persona and
+nothing would stop the request) is not sent, so no write lands. Redirects to a real run are read back into key shape, and the
+calm "not here" states a page draws in place of itself (`STATES`) are read as
+words, because the refusal and the page are both a 200; that reading is
+`lib/personaCells.mjs`, which reads and writes nothing, so the offline guard
+holds it to its rules. `dispose()` deletes every document the world wrote,
+before the personas are removed, reads every path again and returns what is
+left, and the battery fails unless that is nothing.
 
 **Where the elevated roles live.** The battery needs the personas the fence
 forbids, so `run.mjs` starts a Firestore emulator (a Java process, through the
@@ -712,8 +776,10 @@ retry says so rather than passing quietly, and `getCurrentUser` logs a
 verification failure that is not the cookie's own doing.
 
 **Re-keying the registry.** `E2E_PERSONA_RECORD=<path>` writes what was
-observed as JSON instead of asserting. Diff it against the registry, read the
-diff as a list of decisions, and edit the registry; the offline guard
+observed as JSON instead of asserting, the second pass included (it sends a
+cell only where the registry already has the key's columns, so a recording
+never lands a write the registry has not ruled on). Diff it against the
+registry, read the diff as a list of decisions, and edit the registry; the offline guard
 `tests/persona-route-gates.test.mjs` then holds the tree and the registry to
 each other in both directions on every `npm test`, so a new route fails on
 arrival until somebody writes down what every persona should get.
@@ -819,7 +885,9 @@ Read this before trusting a passing run.
   `E2E_RECAPTCHA_BYPASS_SECRET` (in `.env.e2e.secrets.local` or the
   environment), `armRecaptcha` presents it to the gate's harness bypass
   (`src/lib/recaptcha/bypass.ts`), which needs the target to hold the same
-  value; the steps then run and the runner stops accepting skips. In local
+  value (the dev backend reads it from the dev project's Secret Manager,
+  named in `apphosting.dev.yaml`); the steps then run and the runner stops
+  accepting skips. In local
   mode they always run.
 - **Email coverage is the three auth templates only** — `VerifyLoginEmail`,
   `VerifyUniEmail`, `AlreadyRegisteredEmail`, exercised through their real

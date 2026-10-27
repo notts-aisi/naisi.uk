@@ -1,6 +1,8 @@
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
-import { getCurrentUser } from "@/lib/firebase/session";
+import { getCurrentUser, type SessionUser } from "@/lib/firebase/session";
+import { beforeGroupsCardsFor, type BeforeGroupsCard } from "@/lib/courses/weekOne/cards";
+import { surveysWaitingFor, type SurveyCard } from "@/lib/surveys/waiting";
 import { loadStatusRows } from "@/lib/admissions/statusHubData";
 import { formatSiteDate } from "@/lib/datetime/siteTime";
 import YourApplications, {
@@ -36,11 +38,18 @@ import styles from "./home.module.css";
  * person's own page and on the list of their applications, and the card here
  * is only the way to them. One thing is asked about it all the same.
  * Somebody decision day gave a place has no run until they are put on one,
- * and a member with no run is told "You’re not on a programme yet." So the
+ * and a member with no run is told "You’re not on a programme." So the
  * page asks `holdsPlace` (yes, no, or could not tell) and hands the member's
  * Home one thing: whether it may say that sentence. It may only on a "no".
- * Nothing in this file reads what became of an application, and nothing it
- * hands on says which programme, or that there is a place at all.
+ * Nothing in this file reads what became of an application.
+ *
+ * ONE THING MORE MAY BE SAID FOR A PLACE THE MEMBER HOLDS, and only what
+ * `MAY_SHOW` in `tests/applications-place-in-the-member-area.test.mjs`
+ * lists: before groups go out, "Your group’s on its way" with their
+ * programme's name, when the group email comes and the way to week 1 once it
+ * is open (Q13 B, Q35 B). It is worked out by week 1's door, never from what
+ * this page reads of their applications. And "A survey for you" for each
+ * survey waiting for them (Q50 B), which `surveysWaitingFor` alone decides.
  */
 
 /**
@@ -77,6 +86,46 @@ async function applicationsOf(uid: string, viewingAs: boolean): Promise<YourAppl
 /** The answer about a place when the member's applications could not be read. */
 const COULD_NOT_TELL: HoldsPlace = "unknown";
 
+const NO_CARDS: BeforeGroupsCard[] = [];
+
+/**
+ * "YOUR GROUP’S ON ITS WAY" (Q13 B, board st-waiting) for each place the
+ * member holds before groups go out, with "Week 1 is open" once week 1's
+ * door is open to them (Q35 B). Who gets one, and every word on it, is
+ * `beforeGroupsCardsFor`'s, which asks week 1's door. A read that fails
+ * draws no card and says nothing either way. What a card may say is held by
+ * `tests/applications-place-in-the-member-area.test.mjs` (`MAY_SHOW`).
+ */
+async function onItsWayCards(user: SessionUser, now: Date): Promise<BeforeGroupsCard[]> {
+  const db = getAdminDb();
+  if (!db) return NO_CARDS;
+  try {
+    return await beforeGroupsCardsFor(db, user, now);
+  } catch (err) {
+    console.warn("[dashboard] could not read whether groups are on their way", err);
+    return NO_CARDS;
+  }
+}
+
+const NO_SURVEYS: SurveyCard[] = [];
+
+/**
+ * "A SURVEY FOR YOU" (Q50 B) for each survey waiting for the member: open,
+ * sent to them and still theirs, and not answered, as `surveysWaitingFor`
+ * says, with the one closing soonest first. Never how many others have
+ * answered. A read that fails draws no card and says nothing either way.
+ */
+async function surveyCards(user: SessionUser, now: Date): Promise<SurveyCard[]> {
+  const db = getAdminDb();
+  if (!db) return NO_SURVEYS;
+  try {
+    return await surveysWaitingFor(db, user, now);
+  } catch (err) {
+    console.warn("[dashboard] could not read the surveys waiting for this member", err);
+    return NO_SURVEYS;
+  }
+}
+
 /** "Morning", "Afternoon" or "Evening", by the site's own clock. */
 function partOfDay(now: Date): string {
   const hour = Number(formatSiteDate(now, { hour: "2-digit" }));
@@ -91,13 +140,17 @@ export default async function DashboardPage() {
   const viewingAs = markerIsLive(await getImpersonator(), user?.uid ?? null);
   const applications = user ? await applicationsOf(user.uid, viewingAs) : [];
   const now = new Date();
-  const [term, events, steps, held] = await Promise.all([
+  const [term, events, steps, held, cards, surveys] = await Promise.all([
     fetchPublicTerm(now),
     homeEvents(now),
     user ? profileSteps(user.uid) : null,
     // Whether they hold a place, asked of the rounds just listed. When that
     // list could not be read the page cannot tell, and says nothing either way.
     user && applications ? holdsPlace(user.uid, applications.map((row) => row.roundId)) : COULD_NOT_TELL,
+    // "Your group’s on its way" (Q13 B), with "Week 1 is open" (Q35 B).
+    user && !viewingAs ? onItsWayCards(user, now) : NO_CARDS,
+    // "A survey for you" (Q50 B). Nothing of the member's is read in a view-as session.
+    user && !viewingAs ? surveyCards(user, now) : NO_SURVEYS,
   ]);
   const given = firstName(user?.displayName);
 
@@ -142,6 +195,8 @@ export default async function DashboardPage() {
           applications={yourApplications}
           nothingYet={nothingYet}
           holdsNoPlace={held === "no"}
+          beforeGroups={cards}
+          surveys={surveys}
           finishProfile={<FinishProfile steps={steps} />}
         />
       )}

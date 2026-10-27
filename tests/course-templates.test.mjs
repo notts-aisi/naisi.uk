@@ -327,6 +327,8 @@ test("GUARD §1.3 templateWeekFields carries content but not the audit stamp", (
     "guideBlocks",
     "materials",
     "published",
+    // "Questions to think about" (C29) are a week's content, and travel with it.
+    "questions",
     "summary",
     "title",
     "weekNumber",
@@ -801,7 +803,10 @@ test("MODEL §5.4 the note route derives weekNumber and byName server-side", () 
   // The client's weekNumber is validated for shape and then DISCARDED: a note
   // filed against a week the material is not in would never render.
   assert.match(NOTES_CODE, /const claimedWeek = body\.weekNumber;/);
-  assert.match(NOTES_CODE, /week\.materials\.some\(\(m\) => m\.id === itemId\)/);
+  // The week is found through the one reader of a week's sources, so a
+  // source in a block week's parts or packs is found the way a material is
+  // (the coursework's blocks): the same derivation, for both shapes of week.
+  assert.match(NOTES_CODE, /weekSources\(week\)\.some\(\(source\) => source\.id === itemId\)/);
   assert.match(NOTES_CODE, /weekNumber = week\.weekNumber;/);
   // The refusal for an id that is in NO week the caller can note on. Widened
   // in V2-3 when the scan gained the group forks (see the group-first scan
@@ -816,7 +821,10 @@ test("MODEL §5.4 the note route derives weekNumber and byName server-side", () 
   assert.match(NOTES_CODE, /byName: displayNameOf\(actorSnap\.data\(\) \?\? \{\}\)/);
   assert.equal(/body\.byName/.test(NOTES_CODE), false);
   // One indistinguishable 403 covering both "no such run" and "not yours".
-  assert.match(NOTES_CODE, /runSnap\.exists &&\s*\(actor\.role === "admin"/);
+  // The trusted tier opens with the one gate a track lead passes (an admin is
+  // in it), asked only of a run that exists.
+  assert.match(NOTES_CODE, /runSnap\.exists &&\s*\(\(staffing !== null && doesTrackLeadWork\(staffing\)\)/);
+  assert.match(NOTES_CODE, /const staffing = runSnap\.exists\s*\?\s*await runStaffingOf\(/);
   assert.equal((NOTES_CODE.match(/error: "Forbidden"/g) ?? []).length, 1);
   assert.equal(/error: "Run not found"/.test(NOTES_CODE), false);
   // The group lookup is a bounded field-masked scan, not an array-contains

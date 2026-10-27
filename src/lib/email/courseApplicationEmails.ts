@@ -45,10 +45,25 @@ import { sendEmail } from "./send";
  *
  * THE PLACEMENT EMAIL (`allocated`) IS SENT AS COMPOSED, AND NO OTHER WAY. The
  * allocation publish route writes it with `composePlacementEmail`
- * (`src/lib/courses/placementEmail.ts`), which fills every token or says why
- * it cannot, and hands the finished subject and blocks to this function.
+ * (`src/lib/courses/placementEmail.ts`), or for the people of a run an
+ * incubator names with `composeIncubatorStartEmail`
+ * (`src/lib/courses/incubatorStartEmail.ts`), each of which fills every token
+ * or says why it cannot, and hands the finished subject and blocks to this
+ * function.
  * Nothing here fills a token for that kind, and a placement email that still
- * carries one is refused rather than sent.
+ * carries one is refused rather than sent. The facilitators' email that goes
+ * beside it at Publish (`facilitating`, written by `composeFacilitatingEmail`)
+ * is sent the same way, under the same refusal.
+ *
+ * A COMPOSED EMAIL CAN BE A TEST: the same words to the address of whoever
+ * pressed "Send a test to me", marked in its subject the way decision day
+ * marks one, and logged as `course-test` so the deliverability tab can tell
+ * it from the real thing.
+ *
+ * EVERY SEND SAYS WHAT HAPPENED. The mail door can hand an email to the
+ * provider, hold it (this copy of the site may not write to that address) or
+ * drop it (the address is on the do-not-email list), and the answer comes
+ * back so Publish can say which. A send that fails throws, as before.
  */
 
 /**
@@ -59,40 +74,59 @@ import { sendEmail } from "./send";
  * sends nothing, so a double-clicked Accept can't mail twice. `allocated` is
  * fired by the allocation publish route
  * (/api/courses/runs/[runId]/allocation/publish) once per placement, guarded
- * by `courseEnrolments.allocatedEmailAt`.
+ * by `courseEnrolments.allocatedEmailAt`, and `facilitating` by the same
+ * press once per facilitator per group, guarded by a marker in
+ * `courseNudges` (`src/lib/courses/allocationPublish.ts`).
  */
 export type CourseApplicationEmailKind =
   | "submitted"
   | "accepted"
   | "waitlisted"
   | "rejected"
-  | "allocated";
+  | "allocated"
+  | "facilitating";
 
-const TEMPLATE_FOR_KIND: Record<CourseApplicationEmailKind, CourseTemplateId> = {
+/** The two emails Publish writes with a composer and hands over finished. */
+export type ComposedCourseEmailKind = "allocated" | "facilitating";
+
+const TEMPLATE_FOR_KIND: Record<Exclude<CourseApplicationEmailKind, ComposedCourseEmailKind>, CourseTemplateId> = {
   submitted: "course-application-submitted",
   accepted: "course-application-accepted",
   waitlisted: "course-application-waitlisted",
   rejected: "course-application-rejected",
-  allocated: "course-allocated",
 };
 
-/** The placement email, already written. See the module comment. */
+/** What became of one email the mail door was handed. */
+export type CourseEmailDelivery =
+  /** Handed to the mail provider. */
+  | "sent"
+  /** This copy of the site may not write to that address, so nothing went. */
+  | "held"
+  /** The address is on the do-not-email list, so nothing went. */
+  | "suppressed";
+
+/** The placement email or the facilitators' email, already written. See the module comment. */
 export type ComposedCourseEmailOptions = {
-  kind: "allocated";
-  /** Deliverable address: the placed person's own. */
+  kind: ComposedCourseEmailKind;
+  /** Deliverable address: the recipient's own, or for a test the address on the presser's session. */
   to: string;
-  /** The subject and blocks `composePlacementEmail` returned for this person. */
+  /** The subject and blocks the composer returned for this person. */
   composed: { subject: string; blocks: Block[] };
   /** The template's own sender name, when an admin set one. */
   fromName?: string;
-  /** The placed person's uid, recorded as the deliverability log's actor. */
+  /**
+   * The recipient's uid, recorded as the deliverability log's actor. For a
+   * test, the uid of whoever pressed "Send a test to me".
+   */
   uid: string;
   /** Run id, the deliverability log's reference. */
   runId: string;
+  /** A rehearsal to the presser's own address: marked in the subject and logged as `course-test`. */
+  test?: boolean;
 };
 
 export type CourseApplicationEmailOptions = {
-  kind: Exclude<CourseApplicationEmailKind, "allocated">;
+  kind: Exclude<CourseApplicationEmailKind, ComposedCourseEmailKind>;
   /** Deliverable address — sourced from the SESSION at the call site, never a body field. */
   to: string;
   /** The applicant's display name; drives the {preferredName} / {firstName} tokens. */
@@ -149,38 +183,55 @@ function printedText(block: Block): string {
   return "";
 }
 
+/** How a test's subject is marked: the way decision day marks one. */
+export function courseTestSubject(subject: string): string {
+  return `[TEST] ${subject}`;
+}
+
+function isComposed(
+  opts: CourseApplicationEmailOptions | ComposedCourseEmailOptions,
+): opts is ComposedCourseEmailOptions {
+  return opts.kind === "allocated" || opts.kind === "facilitating";
+}
+
 export async function sendCourseApplicationEmail(
   opts: CourseApplicationEmailOptions | ComposedCourseEmailOptions,
-): Promise<void> {
-  const written = opts.kind === "allocated" ? asComposed(opts) : await filledFromTemplate(opts);
+): Promise<CourseEmailDelivery> {
+  const written = isComposed(opts) ? asComposed(opts) : await filledFromTemplate(opts);
+  const test = isComposed(opts) && opts.test === true;
+  const subject = test ? courseTestSubject(written.subject) : written.subject;
 
-  await sendEmail({
+  const result = await sendEmail({
     to: opts.to,
-    subject: written.subject,
+    subject,
     react: ApplicationEmail({
-      subject: written.subject,
+      subject,
       blocks: written.blocks,
-      preheader: written.subject,
+      preheader: subject,
     }),
     fromName: written.fromName,
-    kind: "course-application",
+    kind: test ? "course-test" : "course-application",
     actorUid: opts.uid,
     referenceId: opts.runId,
   });
+  if (result.delivered.length > 0) return "sent";
+  return result.held.length > 0 ? "held" : "suppressed";
 }
 
 /**
- * The placement email, exactly as it was written for this person.
+ * The placement email or the facilitators' email, exactly as it was written
+ * for this person.
  *
- * The composer's own promise is asked once more at the door: a placement
- * email with a token still in it is not sent. The caller's send fails, which
- * leaves that person unstamped, so a later publish reaches them.
+ * The composer's own promise is asked once more at the door: an email with a
+ * token still in it is not sent. The caller's send fails, which leaves that
+ * person untold, so a later publish reaches them.
  */
 function asComposed(opts: ComposedCourseEmailOptions): CourseEmailTemplate {
   const { subject, blocks } = opts.composed;
   const left = unfilledTokens([subject, ...blocks.map(printedText)].join("\n"));
   if (left.length > 0) {
-    throw new Error(`placement email not sent: unfilled ${left.map((token) => `{${token}}`).join(", ")}`);
+    const what = opts.kind === "facilitating" ? "facilitators' email" : "placement email";
+    throw new Error(`${what} not sent: unfilled ${left.map((token) => `{${token}}`).join(", ")}`);
   }
   return { subject, blocks, fromName: opts.fromName };
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdminDb, getAdminStorage } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { deleteEventCheckIns } from "@/lib/events/checkIns";
 import { canDraftEvent } from "@/lib/firestore/users";
 
 type Ctx = RouteContext<"/api/events/[id]/delete">;
@@ -43,12 +44,14 @@ export async function POST(_req: Request, ctx: Ctx) {
   const event = snap.data() ?? {};
 
   // Who may delete: admins always; otherwise the author, holding
-  // `draftEvent`, on an event that is not published. A published event has
-  // attendees who were told it exists — it gets cancelled, not deleted.
+  // `draftEvent`, on an event that was never published. A published event has
+  // attendees who were told it exists, and a cancelled one is the same event
+  // after those attendees were told: it gets cancelled, not deleted, and
+  // stays at its link with its sign-ups and check-ins.
   const isAuthor = isNamedWithStanding(viewer, "events.authorUid", event.authorUid);
   const canDraft = canDraftEvent(viewer);
-  const canDelete =
-    viewer.role === "admin" || (canDraft && isAuthor && event.status !== "published");
+  const neverPublished = event.status !== "published" && event.status !== "cancelled";
+  const canDelete = viewer.role === "admin" || (canDraft && isAuthor && neverPublished);
   if (!canDelete) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -75,6 +78,19 @@ export async function POST(_req: Request, ctx: Ctx) {
 
   // 2. Storage images. Best-effort. The prefix is derived from the event id
   //    here and never read from a stored field.
+  // Who came goes with the event. The door code, if it had one, stays: a
+  // short link is never deleted, and its check-in page says the event is gone.
+  let checkInsDeleted = 0;
+  try {
+    checkInsDeleted = await deleteEventCheckIns(db, eventId);
+  } catch (err) {
+    console.error("[events/delete] check-in delete failed:", eventId, err);
+    return NextResponse.json(
+      { error: "Couldn't remove who came to this event; its RSVPs are gone but nothing else was deleted." },
+      { status: 500 },
+    );
+  }
+
   let imagesDeleted = 0;
   let storageWarning: string | undefined;
   const storage = getAdminStorage();
@@ -103,6 +119,7 @@ export async function POST(_req: Request, ctx: Ctx) {
   return NextResponse.json({
     ok: true,
     rsvpsDeleted,
+    checkInsDeleted,
     imagesDeleted,
     ...(storageWarning ? { warning: storageWarning } : {}),
   });

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import {
   courseEnrolmentId,
@@ -21,9 +21,10 @@ import { subscribe } from "@/lib/firestore/subscriptions";
  * row flips to `active` and the two counters it was holding go back up, in
  * one transaction.
  *
- * WHO MAY REINSTATE: admins and the run's `trackLeadUids`, the same gate the
- * remove route uses. Reinstating is the exact inverse of removing, so it
- * belongs to the same people.
+ * WHO MAY REINSTATE: admins, the run's `trackLeadUids` and the lead of the
+ * programme that names the run (`runStaffingOf`), the same gate the remove
+ * route uses. Reinstating is the exact inverse of removing, so it belongs to
+ * the same people.
  *
  * ## Why this route had to exist
  *
@@ -94,13 +95,9 @@ export async function POST(_req: Request, ctx: Ctx) {
   }
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
 
-  const isAdmin = actor.role === "admin";
-  const isTrackLead = isNamedWithStanding(
-    actor,
-    "courseRuns.trackLeadUids",
-    run.trackLeadUids,
-  );
-  if (!isAdmin && !isTrackLead) {
+  const staffing = await runStaffingOf(db, actor, run);
+  const isAdmin = staffing.isAdmin;
+  if (!doesTrackLeadWork(staffing)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -255,7 +252,7 @@ export async function POST(_req: Request, ctx: Ctx) {
         actor: {
           kind: isAdmin ? "admin" : "member",
           uid: actor.uid,
-          label: actor.displayName?.trim() || (isAdmin ? "Admin" : "Track lead"),
+          label: actor.displayName?.trim() || (isAdmin ? "Admin" : staffing.leadOf ? "Programme lead" : "Track lead"),
         },
         inboxProven: true,
         name: typeof name === "string" && name ? name : undefined,

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import ProgrammeMark from "@/components/ProgrammeMark";
 import BlockView from "@/features/events/BlockView";
 import {
   COURSE_TRACK_LABELS,
@@ -26,6 +27,7 @@ import {
 import { fetchCoursePage } from "@/features/courses/fetchCoursePage";
 import type { PublicCoursePage } from "@/lib/firestore/coursePages";
 import { cohortLabel } from "@/lib/courses/cohortLabel";
+import { crestForCourse, crestForProgramme } from "@/lib/crests/resolve";
 import { linkPreviewImages } from "@/lib/linkPreviewCard";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import {
@@ -44,7 +46,10 @@ import CourseFaq from "@/features/courses/CourseFaq";
 import JourneyStrip from "@/features/courses/JourneyStrip";
 import { applicationStateTone, applicationStateWords } from "@/features/courses/stateWords";
 import WeeklyThemes from "@/features/courses/WeeklyThemes";
+import PublicBlockWeek from "@/features/courses/PublicBlockWeek";
 import WeekCurriculum from "@/features/courses/WeekCurriculum";
+import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
+import { publicBlockWeek } from "@/lib/courses/weekBlocks/publicWeek";
 import {
   fetchGroupPicker,
   type GroupPickerOption,
@@ -59,6 +64,8 @@ import SectionHead from "@/features/programmes/SectionHead";
 import { SESSION_TIMES, weeklyHoursWords } from "@/features/programmes/words";
 import shared from "@/features/programmes/programme.module.css";
 import { fetchPublicTerm } from "@/features/term/fetchPublicTerm";
+import LastTermBlock from "@/features/publicNumbers/LastTermBlock";
+import { fetchLastTerm } from "@/lib/publicNumbers/fetch";
 import styles from "./course.module.css";
 
 /**
@@ -115,6 +122,17 @@ import styles from "./course.module.css";
  * line about where its curriculum comes from. Both come from
  * `fetchPublicTerm`, which decides what a visitor may be told. Nothing about
  * applying is read from it here: that stays with the two lookups below.
+ *
+ * THE CREST beside the title is the resolver's answer
+ * (`src/lib/crests/resolve.ts`): the programme's own when one of the term's
+ * programmes is tied to this course, else this course's, else the NAISI
+ * emblem. 128px, decorative: the course's name is the heading beside it.
+ *
+ * LAST TERM. While an admin has published numbers and quotes for a programme
+ * tied to this course (sv-public), the latest term's are a section of their
+ * own after the sample week, drawn from the published record alone
+ * (`fetchLastTerm`, which hands the block the fields it draws and nothing
+ * else). Nothing published, no section: the page reads as it did.
  */
 
 // Run status, the round's window and the published-week set all change without
@@ -181,11 +199,12 @@ export default async function PublicCoursePage({
   const { courseId } = await params;
   // Independent reads go together. An unpublished course throws the other two
   // away, which is cheaper than serialising them on every hit.
-  const [found, runSet, page, term] = await Promise.all([
+  const [found, runSet, page, term, lastTerm] = await Promise.all([
     getPublishedCourse(courseId),
     getCourseRunSet(courseId),
     fetchCoursePage(courseId),
     fetchPublicTerm(),
+    fetchLastTerm(courseId),
   ]);
   // A draft or unknown course is a 404 either way, so a draft URL leaks
   // nothing about whether the course exists.
@@ -260,6 +279,7 @@ export default async function PublicCoursePage({
   const programme = term.programmes.find((p) => p.courseId === course.id) ?? null;
   const onTheForm = programme !== null || Boolean(speakingRound?.form);
   const fellowship = programme?.kind === "fellowship";
+  const shownCrest = programme ? crestForProgramme(programme, course) : crestForCourse(course);
   const eyebrow = programme
     ? [programmeKindWord(programme.kind), term.label].filter(Boolean).join(" · ")
     : [COURSE_TRACK_LABELS[course.track], cohort].filter(Boolean).join(" · ");
@@ -351,14 +371,24 @@ export default async function PublicCoursePage({
                 ? `About ${course.estimatedWeeklyHours} ${course.estimatedWeeklyHours === 1 ? "hour" : "hours"}.`
                 : "A sample week"
             }
-            lede={`Week ${sampleWeek.weekNumber} in full, exactly as the cohort reads it. Every other week is published too.`}
+            lede={
+              // A block week's public page holds back what is behind sign-in (Q40), so it
+              // is not the week in full, and the line says what it is instead.
+              isBlockWeek(sampleWeek)
+                ? `Week ${sampleWeek.weekNumber}: why it matters, what you’ll be able to do after it, and what you’ll read and watch. Every other week is published too.`
+                : `Week ${sampleWeek.weekNumber} in full, exactly as the cohort reads it. Every other week is published too.`
+            }
             space="tight"
           />
           <div className={styles.sample}>
             {/* NO optional props. `WeekCurriculum` renders its public output
                 only when every render prop is absent, and that output is the
                 diff-frozen contract the week page also depends on. */}
-            <WeekCurriculum week={sampleWeek} />
+            {isBlockWeek(sampleWeek) ? (
+              <PublicBlockWeek week={publicBlockWeek(sampleWeek.blocks)} />
+            ) : (
+              <WeekCurriculum week={sampleWeek} />
+            )}
           </div>
           <p className={styles.sampleMore}>
             <Link
@@ -371,6 +401,16 @@ export default async function PublicCoursePage({
           </p>
         </>
       ),
+    });
+  }
+
+  // Last term: what an admin published from the programme's own surveys.
+  // The quotes' cards take the ground the section does not, so they stand off it.
+  if (lastTerm) {
+    sections.push({
+      key: "last-term",
+      labelledBy: "last-term-heading",
+      body: <LastTermBlock {...lastTerm} headingId="last-term-heading" ground={sections.length % 2 === 0 ? "floor" : "raised"} />,
     });
   }
 
@@ -436,10 +476,15 @@ export default async function PublicCoursePage({
 
         <div className={styles.hero}>
           <header className={styles.heroMain}>
-            {eyebrow ? <p className={`meta ${shared.heroEyebrow}`}>{eyebrow}</p> : null}
-            <h1 className={`${shared.pageTitle} ${shared.pageTitleCompact}`}>
-              {course.title || "Untitled course"}
-            </h1>
+            <div className={styles.heroHead}>
+              <ProgrammeMark shown={shownCrest} size={128} />
+              <div className={styles.heroNames}>
+                {eyebrow ? <p className={`meta ${shared.heroEyebrow}`}>{eyebrow}</p> : null}
+                <h1 className={`${shared.pageTitle} ${shared.pageTitleCompact}`}>
+                  {course.title || "Untitled course"}
+                </h1>
+              </div>
+            </div>
             {lede ? <p className={shared.pageLede}>{lede}</p> : null}
             {chips.length > 0 ? (
               <ul className={shared.factChips}>

@@ -5,11 +5,15 @@ import { memberCurrentWeek, resolveCalendar } from "@/lib/courses/groupResolve";
 import { readMirrorPlan, type RegisterOverride } from "@/lib/courses/attendanceMirror";
 import {
   gateGroupRegister,
+  gateGroupRegisterRead,
   isAddressableId,
   loadMirrorMembers,
   loadRegisterMembers,
   type RegisterMember,
 } from "@/lib/courses/registerAccess";
+import { didNotHappenLine, leaversOfGroup, readRunRecords } from "@/lib/courses/programmeAttendance";
+import { fullNameOfUser } from "@/lib/courses/programmeLead";
+import { readRegisterEnding, type RegisterEnding } from "@/lib/courses/registerEnding";
 import {
   resolveSessions,
   sessionInstants,
@@ -22,6 +26,7 @@ import {
   ATTENDANCE_STATUSES,
   ATTENDANCE_STATUS_LABEL,
   attendanceDocId,
+  normalizeCourseAttendance,
   type AttendanceStatus,
 } from "@/lib/firestore/courseAttendance";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
@@ -40,8 +45,9 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * `courseAttendance` is `read/write: if false` in firestore.rules, so no
  * client ever touches it. This file and its two siblings (`attendance/push`,
  * `participant-notes`) are the only paths to the data in either direction.
- * The access rule lives in `src/lib/courses/registerAccess.ts` so all four
- * verbs answer to one predicate.
+ * The access rule lives in `src/lib/courses/registerAccess.ts`: every write
+ * answers to `gateGroupRegister`, and this GET to `gateGroupRegisterRead`,
+ * which also lets the lead of the programme that names the run read.
  *
  * ── A COLUMN IS A SESSION, NOT A WEEK ───────────────────────────────────────
  * Columns come from `resolveSessions`, so a group that meets twice in a week
@@ -49,11 +55,12 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * own push. For every group that meets once, which is all of them today, the
  * columns and the register ids are exactly what they were.
  *
- * ── THE DRAFT / PUSHED BOUNDARY ─────────────────────────────────────────────
+ * ── THE DRAFT / FINISHED BOUNDARY ───────────────────────────────────────────
  * A register is a DRAFT the facilitator saves as often as they like during the
- * session, and PUSH ATTENDANCE is the state change: the register locks, the
- * enrolment rollups are recomputed from it, and the group's next-session
- * reminder goes out. After that:
+ * session, and finishing it (the push route: "Finish the register" while next
+ * week's email is on its schedule, "Push attendance" while the push still
+ * sends that email) is the state change: the register locks and the enrolment
+ * rollups are recomputed from it. After that:
  *  · POST REFUSES. A facilitator who needs a mark changed asks an admin, and
  *    the reason is not procedural: the push is what mailed the group and moved
  *    the numbers a reviewer reads, so a quiet edit afterwards would leave the
@@ -77,6 +84,14 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * facilitator to mark a room full of people absent from a class that never
  * happened. Column TITLES resolve group-first too, so a week the facilitator
  * has forked and renamed reads under the name their members see.
+ *
+ * ── A SESSION CANCELLED THROUGH "CHANGE A SESSION" ─────────────────────────
+ * Its column reads as not held, as the lead's tabs and the register jobs
+ * read it, whatever its register says, and its register needs nothing: a
+ * mark, the held switch, a note and an admin's correction are refused in the
+ * register's words for a session that did not happen (the push route refuses
+ * it the same way). Putting the session back is "Change a session"'s own
+ * "Hold it as usual", never the register's switch.
  */
 
 // ---------------------------------------------------------------------------
@@ -94,9 +109,16 @@ export type AttendanceSession = {
   title: string;
   /** Civil date of the session, or "" when the calendar cannot resolve one. */
   dateKey: string;
-  /** False = the session did not happen. Out of every denominator. */
+  /**
+   * False = the session did not happen: its register says so, or it was
+   * cancelled through "Change a session". Out of every denominator.
+   */
   held: boolean;
-  /** The facilitator's note on the session as a whole. */
+  /**
+   * The facilitator's note on the session as a whole. "" for a caller the
+   * gate admits only as the programme's lead: a register's notes are the
+   * group's facilitators' and admins' (C30).
+   */
   notes: string;
   /** ISO instant of PUSH ATTENDANCE, or null while this is still a draft. */
   pushedAt: string | null;
@@ -109,8 +131,26 @@ export type AttendancePayload = {
    * `columnsFor`). Breaks carry no week and no session, so they never appear.
    */
   sessions: AttendanceSession[];
-  /** The grid's ROWS: active members of the group, name-sorted. Names only. */
+  /**
+   * The grid's ROWS: active members of the group, name-sorted. Names only.
+   * For anybody but an admin, only people Publish has told their group.
+   */
   members: RegisterMember[];
+  /**
+   * True when somebody placed in the group is not a row yet because Publish
+   * has not told them their group. Never true for an admin.
+   */
+  notYetTold: boolean;
+  /**
+   * SOMEBODY WHO LEFT THE GROUP, read only, as wk-fac-group draws "Sam
+   * Whitfield, Left Fri 13 Nov": the people the lead's Attendance tab lists
+   * in this group as having left (`leaversOfGroup`, the grid's own rule, so
+   * the two agree), by their whole names as the lead's tabs name them,
+   * name-sorted, each with the marks this group's registers hold for them. They are NOT rows of the register: nobody can mark them
+   * (a write's marks are checked against `members`), they count in no tally,
+   * and nothing chases a session after they left, which is blank.
+   */
+  leavers: AttendanceLeaver[];
   /**
    * The marks, `sessionKey -> uid -> status`. Sparse in BOTH directions: an
    * absent key means "not marked", which is a real and common state (nobody
@@ -119,13 +159,36 @@ export type AttendancePayload = {
   records: Record<string, Record<string, AttendanceStatus>>;
   /**
    * Post-session notes about individual participants, `sessionKey -> uid ->
-   * note`. PERSONAL DATA ABOUT A NAMED STUDENT: served only to the people this
-   * route's gate admits, never to the cohort and never to the member it is
-   * about. The drawer that renders them says so in as many words.
+   * note`. PERSONAL DATA ABOUT A NAMED STUDENT: served only to the group's
+   * live facilitators and admins (`readsNotes` on the gate's answer), never
+   * to the programme's lead, the cohort or the member it is about. Empty for
+   * the lead, who reads the marks. The drawer that renders them says so in as
+   * many words.
    */
   participantNotes: Record<string, Record<string, string>>;
   /** True when the caller may correct a register that is already pushed. */
   canEditPushed: boolean;
+  /**
+   * How this register ends, every value from a record: which button it is,
+   * the session it finishes, when next week's email goes and who is chased if
+   * nobody finishes. The page words it (`registerEndingWords.ts`).
+   */
+  ending: RegisterEnding;
+};
+
+/** Somebody who left the group, as the register lists them: read only. */
+export type AttendanceLeaver = {
+  uid: string;
+  /**
+   * Their whole name, as the lead's tabs and wk-fac-group name somebody who
+   * left: never an address. The register's own rows keep the name each
+   * person goes by.
+   */
+  displayName: string;
+  /** "Left Fri 13 Nov", or "Left" when the day is not on record. */
+  left: string;
+  /** Their marks on this group's registers, `sessionKey -> status`. */
+  records: Record<string, AttendanceStatus>;
 };
 
 /** POST's answer. `marked` counts cells written, including cells cleared. */
@@ -369,9 +432,9 @@ async function prepareWrite(
   const target = parseSessionTarget(body);
   if (!target.ok) return fail(target.error, 400);
 
-  const [runSnap, members] = await Promise.all([
+  const [runSnap, { members }] = await Promise.all([
     db.collection("courseRuns").doc(gated.runId).get(),
-    loadRegisterMembers(db, gated.runId, groupId),
+    loadRegisterMembers(db, gated.runId, groupId, { isAdmin: gated.isAdmin }),
   ]);
   if (!runSnap.exists) return fail("Run not found", 404);
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
@@ -409,6 +472,20 @@ async function prepareWrite(
   };
 }
 
+/**
+ * A session cancelled through "Change a session" met nobody: its register
+ * needs nothing, and nothing written to it could count. Each write verb asks
+ * this once its own gate has answered, so a refusal it gave before still
+ * comes first.
+ */
+function cancelledSessionRefusal(ctx: WriteContext): NextResponse | null {
+  if (!ctx.session.cancelled) return null;
+  return NextResponse.json(
+    { error: didNotHappenLine(ctx.group.name.trim() || "This group", ctx.session.dateKey) },
+    { status: 409 },
+  );
+}
+
 // ---------------------------------------------------------------------------
 // GET
 // ---------------------------------------------------------------------------
@@ -440,21 +517,32 @@ export async function GET(
     );
   }
 
-  const gated = await gateGroupRegister(groupId, actor, db);
+  // Reading is one person wider than marking: the lead of the programme
+  // that names the run reads every register of it (`gateGroupRegisterRead`),
+  // its marks and none of its notes (`readsNotes`).
+  const gated = await gateGroupRegisterRead(groupId, actor, db);
   if (!gated.ok) {
     return NextResponse.json({ error: gated.error }, { status: gated.status });
   }
   const { group, runId } = gated;
+  const now = new Date();
 
-  const [runSnap, members] = await Promise.all([
+  // The run's records too, for who left this group: the lead's grid works
+  // that out from the whole run (somebody staff took off is listed where a
+  // register last marked them), and the register asks the same function.
+  const [runSnap, { members, notYetTold }, runRecords] = await Promise.all([
     db.collection("courseRuns").doc(runId).get(),
-    loadRegisterMembers(db, runId, groupId),
+    loadRegisterMembers(db, runId, groupId, { isAdmin: gated.isAdmin }),
+    readRunRecords(db, runId),
   ]);
   if (!runSnap.exists) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
+  const leaving = runRecords ? leaversOfGroup(runRecords, groupId, now) : [];
+  const leaverMarks = new Map(leaving.map((leaver) => [leaver.uid, {} as Record<string, AttendanceStatus>]));
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
-  const columns = columnsFor(run, group, resolveSessions(run, group), requestedWeek);
+  const sessions = resolveSessions(run, group);
+  const columns = columnsFor(run, group, sessions, requestedWeek);
 
   // Three `getAll`s, one round trip: the canonical week docs (titles only),
   // this group's forked copies of the same weeks, and the registers
@@ -513,16 +601,26 @@ export async function GET(
     const raw = (data.records ?? {}) as Record<string, unknown>;
     const week: Record<string, AttendanceStatus> = {};
     for (const [uid, status] of Object.entries(raw)) {
-      // THE ROSTER IS THE FILTER: a mark left behind by someone since removed
-      // from the group has no row to sit in, and shipping their uid would hand
-      // out an identifier for a person no longer in this facilitator's group.
-      if (!memberUids.has(uid)) continue;
       if (!ATTENDANCE_STATUSES.includes(status as AttendanceStatus)) continue;
+      // Somebody who left the group: their marks are theirs to keep, read
+      // only, beside the register and never in it.
+      const left = leaverMarks.get(uid);
+      if (left) {
+        left[column.sessionKey] = status as AttendanceStatus;
+        continue;
+      }
+      // THE ROSTER IS THE FILTER: a mark left behind by someone no longer in
+      // the group, and not listed as having left it, has no row to sit in,
+      // and shipping their uid would hand out an identifier for a person no
+      // longer in this facilitator's group.
+      if (!memberUids.has(uid)) continue;
       week[uid] = status as AttendanceStatus;
     }
     if (Object.keys(week).length > 0) records[column.sessionKey] = week;
 
-    const rawNotes = (data.participantNotes ?? {}) as Record<string, unknown>;
+    // A register's notes go to the group's facilitators and admins only: a
+    // caller the gate admits as the programme's lead is sent none of them.
+    const rawNotes = (gated.readsNotes ? (data.participantNotes ?? {}) : {}) as Record<string, unknown>;
     const notes: Record<string, string> = {};
     for (const [uid, note] of Object.entries(rawNotes)) {
       if (!memberUids.has(uid)) continue;
@@ -531,16 +629,35 @@ export async function GET(
     }
     if (Object.keys(notes).length > 0) participantNotes[column.sessionKey] = notes;
 
-    const pushedAt = data.pushedAt as { toDate?: () => Date } | undefined;
+    // Through the collection's own reader, which takes a stored Timestamp
+    // and a Date alike.
+    const pushedAt = normalizeCourseAttendance(snap.id, data).pushedAt;
     stateByKey.set(column.sessionKey, {
       held: data.held !== false,
-      notes: typeof data.notes === "string" ? data.notes : "",
-      pushedAt:
-        pushedAt && typeof pushedAt.toDate === "function"
-          ? pushedAt.toDate().toISOString()
-          : null,
+      notes: gated.readsNotes && typeof data.notes === "string" ? data.notes : "",
+      pushedAt: pushedAt ? pushedAt.toISOString() : null,
     });
   }
+
+  const ending = await readRegisterEnding(db, {
+    run,
+    group,
+    sessions,
+    columns: columns.map((session) => ({
+      session,
+      finished: Boolean(stateByKey.get(session.sessionKey)?.pushedAt),
+    })),
+    now,
+  });
+
+  const leavers: AttendanceLeaver[] = leaving
+    .map((leaver) => ({
+      uid: leaver.uid,
+      displayName: fullNameOfUser(runRecords?.accounts.get(leaver.uid) ?? {}),
+      left: leaver.left,
+      records: leaverMarks.get(leaver.uid) ?? {},
+    }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName) || a.uid.localeCompare(b.uid));
 
   const payload: AttendancePayload = {
     group: { id: group.id, name: group.name },
@@ -554,16 +671,21 @@ export async function GET(
         title: titleByWeekId.get(c.weekId) ?? "",
         dateKey: c.dateKey,
         // A session with no register yet HELD, which is the same default the
-        // normaliser applies: nobody has said otherwise.
-        held: state?.held ?? true,
+        // normaliser applies: nobody has said otherwise. A session cancelled
+        // through "Change a session" did not happen, whatever its register
+        // says, as the lead's tabs and the register jobs read it.
+        held: !c.cancelled && (state?.held ?? true),
         notes: state?.notes ?? "",
         pushedAt: state?.pushedAt ?? null,
       };
     }),
     members,
+    notYetTold,
+    leavers,
     records,
     participantNotes,
     canEditPushed: gated.isAdmin,
+    ending,
   };
 
   return NextResponse.json(payload);
@@ -592,6 +714,8 @@ export async function POST(
   const { groupId } = await ctx.params;
   const prepared = await prepareWrite(groupId, req);
   if (!prepared.ok) return prepared.response;
+  const cancelled = cancelledSessionRefusal(prepared.ctx);
+  if (cancelled) return cancelled;
   const { actor, db, runId, session, members, body } = prepared.ctx;
 
   const parsedMarks = parseMarks(body.marks);
@@ -742,6 +866,8 @@ export async function PATCH(
       { status: 403 },
     );
   }
+  const cancelled = cancelledSessionRefusal(prepared.ctx);
+  if (cancelled) return cancelled;
 
   const parsedMarks = parseMarks(body.marks);
   if (!parsedMarks.ok) {

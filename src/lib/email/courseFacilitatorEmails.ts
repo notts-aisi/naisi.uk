@@ -2,6 +2,7 @@ import "server-only";
 import { Timestamp, type Firestore } from "firebase-admin/firestore";
 import ApplicationEmail from "@/emails/ApplicationEmail";
 import NewsletterEmail from "@/emails/NewsletterEmail";
+import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { wantsEmailForProfile } from "@/lib/email/preferences";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
@@ -9,6 +10,7 @@ import { getCurrentUser, type SessionUser } from "@/lib/firebase/session";
 import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
+  placementIsTold,
 } from "@/lib/firestore/courseEnrolments";
 import {
   courseRunChannel,
@@ -154,7 +156,8 @@ export type RunStaffGate =
 
 /**
  * WHO MAY ADDRESS A WHOLE RUN: the run's `runFacilitatorUids` ∪ its
- * `trackLeadUids` ∪ admins. Facilitating ONE GROUP of the run is deliberately
+ * `trackLeadUids` ∪ the lead of the programme that names the run
+ * (`runStaffingOf`) ∪ admins. Facilitating ONE GROUP of the run is deliberately
  * not enough — a group facilitator mails their own room through the group
  * route; addressing the whole cohort is a run-level act. Admissions reviewers
  * get nothing here: admissions is a separate lane from the cohort (locked
@@ -186,6 +189,8 @@ export async function gateRunStaff(runId: string): Promise<RunStaffGate> {
     : null;
 
   const isAdmin = actor.role === "admin";
+  // A track lead's place here is shared with the lead of the programme that
+  // names the run (`runStaffingOf`).
   const staffsRun = Boolean(
     run &&
       (isNamedWithStanding(
@@ -193,7 +198,7 @@ export async function gateRunStaff(runId: string): Promise<RunStaffGate> {
         "courseRuns.runFacilitatorUids",
         run.runFacilitatorUids,
       ) ||
-        isNamedWithStanding(actor, "courseRuns.trackLeadUids", run.trackLeadUids)),
+        doesTrackLeadWork(await runStaffingOf(db, actor, run))),
   );
   if (!isAdmin && !staffsRun) {
     return { ok: false, status: 403, error: "Forbidden" };
@@ -429,6 +434,14 @@ export const MAX_COHORT_CHANNEL_ROWS = 500;
  * SUPPRESSION IS APPLIED HERE, not at the call site, so a preview's count and
  * the send's count are the same number.
  *
+ * A PLACEMENT PUBLISH HAS NOT TOLD IS NOT IN THE COHORT YET. Somebody moved to
+ * another group after Publish keeps their row on the channel, and every lane
+ * here can name their group's time and place (the reminder after a register,
+ * the week nudge). So an enrolment that is not told (`placementIsTold`) is
+ * left out like a member of another group: not this send's audience, and not
+ * counted as skipped. Publish emailing them their new group is what puts them
+ * back.
+ *
  * `notifications.categories.courses` is an OPT-OUT row: nothing sets it on
  * placement, so requiring it to be true would empty the audience on day one.
  * That is not what the toggle is for: the OPT-IN is the subscription row (you
@@ -455,6 +468,8 @@ export async function resolveCohortAudience(
    * dropped.
    */
   let otherGroups = 0;
+  /** Placed, and not told their group yet: see the note above. */
+  let notYetTold = 0;
 
   const rows = await findRecipientsForChannel(db, channel);
   // Refuse rather than slice. A `slice()` here would be a silent truncation
@@ -552,10 +567,22 @@ export async function resolveCohortAudience(
         otherGroups += 1;
         continue;
       }
+      if (!placementIsTold(enrolment)) {
+        notYetTold += 1;
+        continue;
+      }
       enrolled.push({ ...p, groupId: enrolment.groupId });
     }
   }
-  const notEnrolled = memberPending.length - enrolled.length - otherGroups;
+  if (notYetTold > 0) {
+    // Counts only, never addresses.
+    console.log(
+      `[${lane.logTag}] placed and not yet told their group, left out`,
+      runId,
+      notYetTold,
+    );
+  }
+  const notEnrolled = memberPending.length - enrolled.length - otherGroups - notYetTold;
   if (notEnrolled > 0) {
     skipped += notEnrolled;
     // Counts only, never addresses. A stale row (someone left and the remove

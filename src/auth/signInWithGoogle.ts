@@ -218,6 +218,8 @@ export async function completeRegistration(profile: {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ matrix }),
+    // Sent without waiting, so it has to outlive the page: tests/fetch-keepalive.test.mjs.
+    keepalive: true,
   }).catch((err) => {
     console.warn("[subscriptions sync] fire-and-forget failed", err);
   });
@@ -227,6 +229,8 @@ export async function completeRegistration(profile: {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ templateId: "application-submitted", uid: user.uid }),
+    // Sent without waiting, so it has to outlive the page: tests/fetch-keepalive.test.mjs.
+    keepalive: true,
   }).catch((err) => {
     console.warn("[submission email] fire-and-forget failed", err);
   });

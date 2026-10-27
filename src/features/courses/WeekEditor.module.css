@@ -106,6 +106,57 @@
   align-items: start;
 }
 
+/* Ready: its title, what it opens, and the press (or what it is now). */
+.readyCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.readyTitle {
+  margin: 0;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.readyControl {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+/* "Mark ready" and "Not ready": an outlined button at the 44px floor, its
+   colours its own so Safari paints nothing over it. */
+.readyButton {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 2.75rem;
+  padding: 0.5rem 1.125rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.readyButton:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.readyButton:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.readyButton:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
 /* The switch is not a Field, so it needs the label's top offset to line up
    with the number input beside it. */
 .switchCell {

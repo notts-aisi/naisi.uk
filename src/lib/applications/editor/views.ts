@@ -1,3 +1,4 @@
+import type { CrestKey } from "@/lib/crests/keys";
 import { formatRoundDate, formatRoundDeadline, roundWindowState } from "@/lib/admissions/window";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { formatRunStartShort } from "@/lib/courses/window";
@@ -440,6 +441,14 @@ export type ProgrammeSetupView = {
   courseId: string | null;
   /** The courses this caller can pick, and the current one whatever has become of it. */
   courses: CourseChoiceView[];
+  /** The crest this programme carries itself, or null for none. Only an admin may change it. */
+  crest: CrestKey | null;
+  /**
+   * The crest stored on the course this programme is tied to, or null for
+   * none (or no course), so the page can show what the programme shows
+   * without its own: `crestForProgramme` with this as the course.
+   */
+  courseCrest: CrestKey | null;
   /** The caller's role: only a lead or an admin is given this view. */
   role: "admin" | "lead";
   lead: PersonView | null;
@@ -459,6 +468,8 @@ export type SetupContext = StaffContext & {
   candidates: readonly CandidateView[];
   /** The "Course page" picker's entries, from `listCourseChoices`. */
   courses: readonly CourseChoiceView[];
+  /** The crest stored on the course the programme is tied to, or null. */
+  courseCrest: CrestKey | null;
   /** People whose sent application ranks this programme. */
   applications: number;
   /**
@@ -523,6 +534,8 @@ export function projectProgrammeForSetup(
       standing: course.standing,
       selectable: course.selectable,
     })),
+    crest: programme.crest,
+    courseCrest: context.courseCrest,
     role: context.role,
     lead: programme.leadUid ? personView(programme.leadUid, context) : null,
     reviewers: programme.reviewerUids.map((uid) => personView(uid, context)),

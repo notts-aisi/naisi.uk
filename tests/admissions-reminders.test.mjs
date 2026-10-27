@@ -80,7 +80,8 @@ const STUBS = new Map([
   ],
   [
     "@/lib/email/courseFacilitatorEmails",
-    "export const hasOptedOutOfCourseAnnouncements = (data) =>\n" +
+    "export const resolveCohortAudience = async () => ({ members: [], skipped: 0, enrolledCount: 0, refusal: null });\n" +
+      "export const hasOptedOutOfCourseAnnouncements = (data) =>\n" +
       "  data?.profile?.notifications?.categories?.courses === false;\n" +
       "export const memberNameOf = (data) =>\n" +
       "  (typeof data?.profile?.preferredName === 'string' && data.profile.preferredName) ||\n" +

@@ -41,6 +41,11 @@ import { parseResendMessageId } from "./resendMessageId";
  * dropped, with a row at status `held`. Suppression is asked first on purpose:
  * an address the provider has told us not to write to is suppressed on every
  * copy of the site, and its row should say so wherever it was tried.
+ *
+ * WHICH ADDRESS A MESSAGE COMES FROM is decided here as well, by
+ * `fromAddressFor` below: an issue of the newsletter comes from the
+ * newsletter's own address and every other message from the default one, so
+ * somebody reading their inbox can tell the two apart and filter either.
  */
 
 /** What a send reports back. Fields are added here, never removed: callers read them. */
@@ -67,6 +72,12 @@ type SendArgs = {
   replyTo?: string;
   /** Override the display name in the From header (e.g. "NAISI Events"). */
   fromName?: string;
+  /**
+   * Which address the message comes from. Leave it out for every message but
+   * one kind: an issue of the newsletter and its test send pass "newsletter".
+   * See {@link fromAddressFor}.
+   */
+  sender?: EmailSender;
   /** Category for the deliverability dashboard. Defaults to 'unknown'. */
   kind?: EmailSendKind;
   /**
@@ -99,6 +110,35 @@ type SendArgs = {
     contentType?: string;
   }>;
 };
+
+/**
+ * The one sender a call can choose. A call that chooses none comes from the
+ * default address.
+ */
+export type EmailSender = "newsletter";
+
+/**
+ * The address a message comes from. There are two:
+ *
+ *  - every message, unless it says otherwise: `SMTP_FROM_EMAIL`, or
+ *    `SMTP_USER` when that is unset;
+ *  - an issue of the newsletter and its test send (`sender: "newsletter"`):
+ *    `NEWSLETTER_FROM_EMAIL`, or the default when that is unset or blank, so
+ *    a copy of the site that has not set it sends exactly as it did before.
+ *
+ * The rule a maintainer keeps: only the newsletter's own sends pass
+ * `sender: "newsletter"`, and nothing else in `src` reads
+ * `NEWSLETTER_FROM_EMAIL`. `tests/email-senders.test.mjs` walks the tree for
+ * both.
+ */
+export function fromAddressFor(
+  sender: EmailSender | undefined,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string | undefined {
+  const fallback = env.SMTP_FROM_EMAIL ?? env.SMTP_USER;
+  if (sender !== "newsletter") return fallback;
+  return env.NEWSLETTER_FROM_EMAIL?.trim() || fallback;
+}
 
 let cached: Transporter | null = null;
 
@@ -137,6 +177,7 @@ export async function sendEmail({
   react,
   replyTo,
   fromName,
+  sender,
   kind,
   surface,
   actorUid,
@@ -145,7 +186,7 @@ export async function sendEmail({
   attachments,
 }: SendArgs): Promise<SendResult> {
   const displayName = fromName ?? process.env.SMTP_FROM_NAME ?? "NAISI";
-  const fromEmail = process.env.SMTP_FROM_EMAIL ?? process.env.SMTP_USER;
+  const fromEmail = fromAddressFor(sender);
   if (!fromEmail) throw new Error("SMTP_FROM_EMAIL or SMTP_USER must be set.");
 
   const db = getAdminDb();

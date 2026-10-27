@@ -6,9 +6,18 @@ import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import shared from "@/features/applications/editor/editor.module.css";
 import styles from "@/features/applications/editor/ProgrammeFrame.module.css";
 import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
+import { opensProgrammeGroups } from "@/lib/applications/access";
 import { loadProgrammeForStaff } from "@/lib/applications/editor/load";
 import { applicationFormPath } from "@/lib/applications/editor/olderRounds";
+import { readTeamsTab } from "@/lib/applications/handover/teamsLoad";
+import { countPlaceHolders } from "@/lib/applications/people/load";
 import { stageSummaryFor } from "@/lib/applications/lifecycle/view";
+import { readRunEndById } from "@/lib/courses/finishing/record";
+import { groupsGoOutDay } from "@/lib/courses/groupsGoOut";
+import { readGroupsGoOut } from "@/lib/courses/groupsGoOutRead";
+import { countRunGroups, readRunHeader } from "@/lib/courses/programmeAttendance";
+import { londonDateKey } from "@/lib/courses/weekPlan";
+import { countRunWeeks } from "@/lib/courses/weeksTab/load";
 import { formatRunStartShort } from "@/lib/courses/window";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
@@ -18,8 +27,9 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * term is, who leads it, and the tabs.
  *
  * WHICH PAGES THAT IS. This file is in a route group, `(tabs)`, which adds
- * nothing to an address. The pages inside the group (Settings, and the list
- * of applications) are drawn under this head. The single application at
+ * nothing to an address. The pages inside the group (Settings, the list of
+ * applications, People, Groups with its three views, and Attendance) are
+ * drawn under this head. The single application at
  * `applications/[uid]` is OUTSIDE the group on purpose: it is a screen of its
  * own, drawn with no programme head and no tabs, so it must not inherit this
  * layout. A page that should carry the tabs goes inside `(tabs)`; one that
@@ -34,6 +44,35 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  *
  * The dates in the head are the form's own. They are the same for every
  * programme on it.
+ *
+ * ONCE THE RUN IS UNDER WAY the head says what the wk boards draw under the
+ * name: "Running · week 3 of 6", then "31 taking part in 4 groups" and "Last
+ * sessions Wed 9 Dec", in place of the term's stage, the places and the day
+ * everybody hears. From the run's own records (`readRunHeader`), for the
+ * lead and admins, who open the run's tabs; a reviewer keeps the form's line.
+ * Before the run's first day the form's line stays.
+ *
+ * ONCE THE RUN'S LAST SESSION IS OVER the chip reads "Finished · Wed 9 Dec",
+ * the day of that session (`readRunEndById`, the moment the lead can say who
+ * finished), and the line says how many "stayed to the end" (board en-finish,
+ * v21): the same people the running line counted as taking part, which
+ * leaves out everybody who left.
+ *
+ * Before the run is under way, the head says "Groups go out Wed 28 Oct" for
+ * the lead and admins, from the run's own setting (`groupsGoOutOn`, set on
+ * the Groups tab), while that day is today or later.
+ *
+ * An incubator's head also says "Teams by", the day its run's teams are made
+ * (the run's own setting, `readTeamsTab`), as its last fact.
+ *
+ * The People tab's count is how many hold a place on the programme now
+ * (`countPlaceHolders`), worked out for an admin and the lead alone, who are
+ * the two the tab opens for, and only once decisions have gone out. The
+ * Weeks tab's is how many weeks the run's plan has (`countRunWeeks`), for the
+ * same two. The Groups tab's is how many groups the run has that still meet
+ * once the programme names a run (`countRunGroups`, the number the head's
+ * "in 3 groups" says), for the same two; the form's planned number of groups
+ * before a run is named, and for a reviewer.
  */
 export default async function ProgrammeLayout({
   children,
@@ -48,7 +87,37 @@ export default async function ProgrammeLayout({
   if (!loaded) return <NoProgrammeHere roundId={roundId} />;
 
   const { form, programme, context, role, applications } = loaded;
-  const state = programme.closed
+  const runHeader =
+    db && programme.runId && opensProgrammeGroups(role)
+      ? await readRunHeader(db, programme.runId, { isAdmin: role === "admin" }, context.now)
+      : null;
+  // "Finished · Wed 9 Dec" once the last session is over, from the run's own sessions.
+  const runEnd = db && runHeader && programme.runId ? await readRunEndById(db, programme.runId, context.now) : null;
+  const finishedOn = runEnd?.over ? runEnd.lastDay : null;
+  // An incubator's Teams tab and the day its teams are made; null for a fellowship.
+  const teamsTab = db ? await readTeamsTab(db, programme) : null;
+  // How many hold a place, beside People: for the two who open it.
+  const people = db && opensProgrammeGroups(role) ? await countPlaceHolders(db, form, programme.id) : null;
+  // How many weeks the run's plan has, beside Weeks: for the same two, while the programme names a run.
+  const weeks = db && programme.runId && opensProgrammeGroups(role) ? await countRunWeeks(db, programme.runId) : null;
+  // How many groups, beside Groups: the run's own that still meet, for the same
+  // two, once the programme names a run (the head's "in 3 groups", counted the
+  // same way); the form's planned number otherwise.
+  const runGroups = runHeader
+    ? runHeader.groups
+    : db && programme.runId && opensProgrammeGroups(role)
+      ? await countRunGroups(db, programme.runId)
+      : null;
+  // Before the run is under way, the day groups go out, for the lead and admins.
+  const groupsGoOut =
+    db && programme.runId && opensProgrammeGroups(role) && !runHeader
+      ? groupsGoOutDay(await readGroupsGoOut(db, programme.runId), londonDateKey(context.now))
+      : null;
+  const state = finishedOn
+    ? { label: `Finished · ${finishedOn}`, live: false, tone: "neutral" as const }
+    : runHeader
+    ? { label: runHeader.chip, live: runHeader.live, tone: runHeader.live ? ("live" as const) : ("neutral" as const) }
+    : programme.closed
     ? { label: "Closed", live: false, tone: "neutral" as const }
     : (() => {
         // The same chip the term's own page draws, so a programme never reads
@@ -87,17 +156,51 @@ export default async function ProgrammeLayout({
       </span>,
     );
   }
-  if (places) {
+  if (runHeader && finishedOn) {
+    facts.push(
+      <span className={styles.metaItem} key="stayed">
+        {`${runHeader.takingPart} stayed to the end`}
+      </span>,
+    );
+  } else if (runHeader) {
+    facts.push(
+      <span className={styles.metaItem} key="taking-part">
+        {`${runHeader.takingPart} taking part in ${runHeader.groups} ${runHeader.groups === 1 ? "group" : "groups"}`}
+      </span>,
+    );
+    if (runHeader.lastSession) {
+      facts.push(
+        <span className={styles.metaItem} key="last">
+          Last sessions <strong>{runHeader.lastSession}</strong>
+        </span>,
+      );
+    }
+  }
+  if (places && !runHeader) {
     facts.push(
       <span className={styles.metaItem} key="places">
         {places}
       </span>,
     );
   }
-  if (hears) {
+  if (hears && !runHeader) {
     facts.push(
       <span className={styles.metaItem} key="hears">
         Everyone hears <strong>{hears}</strong>
+      </span>,
+    );
+  }
+  if (groupsGoOut) {
+    facts.push(
+      <span className={styles.metaItem} key="groups-go-out">
+        Groups go out <strong>{groupsGoOut}</strong>
+      </span>,
+    );
+  }
+  if (teamsTab?.teamsBy) {
+    facts.push(
+      <span className={styles.metaItem} key="teams-by">
+        Teams by <strong>{teamsTab.teamsBy}</strong>
       </span>,
     );
   }
@@ -134,8 +237,12 @@ export default async function ProgrammeLayout({
       <ProgrammeTabs
         base={`${home}/programmes/${programme.id}`}
         applications={applications}
-        groups={programme.groupCount}
+        people={people}
+        groups={runGroups ?? programme.groupCount}
         canEdit={role === "admin" || role === "lead"}
+        groupsOpen={opensProgrammeGroups(role)}
+        teams={teamsTab ? { count: teamsTab.count } : null}
+        weeks={weeks}
       />
       {children}
     </ApplicationsRoot>

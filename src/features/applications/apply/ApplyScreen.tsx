@@ -9,6 +9,8 @@ import { projectFormForApplicant } from "@/lib/applications/applicant/project";
 import { loadApplicantView, loadVisibleForm } from "@/lib/applications/applicant/store";
 import type { ApplicantApplication, ApplicantForm } from "@/lib/applications/applicant/types";
 import { loadForm } from "@/lib/applications/repo";
+import { formCrests } from "@/lib/crests/load";
+import type { ShownCrest } from "@/lib/crests/resolve";
 import ApplicationForm from "./ApplicationForm";
 import { closedOnLabel } from "./closedOn";
 import JoinStep from "./JoinStep";
@@ -303,6 +305,17 @@ export async function renderApplicationForm({
   const stored = view.form.windowState === "closed" ? await loadForm(db, roundId) : null;
   const closedOn = closedOnLabel(stored?.round.closesAt ?? null, view.form.closesLabel, now);
 
+  // Only an open form draws the Rank step, so only an open form asks what
+  // each programme shows beside its name: the crest resolver's answer, worked
+  // out here so only the keys reach the page. A read that fails draws the
+  // NAISI emblem in each crest's place and never stops the form.
+  const shownCrests: Record<string, ShownCrest> =
+    view.form.windowState === "open"
+      ? await loadForm(db, roundId)
+          .then((form) => (form ? formCrests(db, form) : {}))
+          .catch(() => ({}))
+      : {};
+
   return (
     <ApplicationsRoot className={`${styles.tokens} ${styles.root}`}>
       {view.form.windowState === "open" ? (
@@ -314,6 +327,7 @@ export async function renderApplicationForm({
           initialStep={isStepId(step) ? step : null}
           pending={user.role === "pending"}
           viewingAs={viewingAs}
+          shownCrests={shownCrests}
         />
       ) : view.form.windowState === "not-yet" ? (
         <NotYet form={view.form} signedIn returnTo={returnTo} />

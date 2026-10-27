@@ -23,6 +23,7 @@ import { isSuppressed } from "@/lib/firestore/suppression";
 import { formatSiteDate, isSameSiteDay } from "@/lib/datetime/siteTime";
 import { own } from "@/lib/applications/keys";
 import {
+  baseUrl,
   cancelUrl as buildCancelUrl,
   changeUrl as buildChangeUrl,
   signRsvpToken,
@@ -197,11 +198,18 @@ export async function sendRsvpEmail({
     // Build self-service links when we have the ids + email for the token.
     let cancelUrl: string | undefined;
     let changeUrl: string | undefined;
+    // Somebody holding a place can check themselves in at the door from this
+    // email: the link carries their sign-up and its token, so it works with
+    // no account.
+    let checkInUrl: string | undefined;
     if (event.id && rsvpId) {
       try {
         const token = signRsvpToken(rsvpId, to);
         cancelUrl = buildCancelUrl(event.id, rsvpId, token);
         changeUrl = buildChangeUrl(event.id, rsvpId, token);
+        if (holder) {
+          checkInUrl = `${baseUrl()}/events/${event.id}/check-in?r=${encodeURIComponent(rsvpId)}&t=${encodeURIComponent(token)}`;
+        }
       } catch (err) {
         // EVENTS_TOKEN_SECRET missing — log + omit links rather than fail the send.
         console.warn("[rsvp email] skipping self-service links:", err);
@@ -274,6 +282,7 @@ export async function sendRsvpEmail({
         icsUrl,
         cancelUrl,
         changeUrl,
+        checkInUrl,
         instagramHandle:
           process.env.NAISI_INSTAGRAM_HANDLE || "notts.ai.safety",
         // Fall back to the default Reply-To address, never the From address

@@ -1,12 +1,21 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
+import type { ApplicationForm } from "@/lib/applications/normalise";
+import { loadForm } from "@/lib/applications/repo";
+import { readPlaceToRestore, restorePlaces, type PlaceToRestore } from "@/lib/applications/status/restore";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { joinedWeekFor } from "@/lib/courses/groupResolve";
-import { courseApplicationId } from "@/lib/firestore/courseApplications";
+import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
+import {
+  courseApplicationId,
+  normalizeCourseApplication,
+  rowIsServedTo,
+  type CourseApplicationDoc,
+} from "@/lib/firestore/courseApplications";
 import {
   courseEnrolmentId,
+  enrolmentHasLeft,
   normalizeCourseEnrolment,
 } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
@@ -15,11 +24,35 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 
 /**
  * Place accepted applicants into groups — the write half of the allocation
- * board, and the ONLY writer of learner placements.
+ * board, and the writer of learner placements. The one other place a learner
+ * is placed is an appointment of a facilitator who holds a place and sits in
+ * no group yet: `src/lib/courses/groupFacilitators.ts` places them in the
+ * group they facilitate, with the row this route's first placement writes,
+ * counted the same way, and never moves anybody from one group to another.
  *
- * WHO MAY ALLOCATE: admins ∪ the run's `trackLeadUids` (the people who staff
- * the run). Admissions reviewers decided WHO gets in; this route decides
- * WHERE they sit, and the two powers are deliberately separate.
+ * WHO MAY ALLOCATE: admins ∪ the run's `trackLeadUids` ∪ the lead of the
+ * programme that names the run (`runStaffingOf`): the people who staff the
+ * run. Admissions reviewers decided WHO gets in; this route decides WHERE
+ * they sit, and the two powers are deliberately separate.
+ *
+ * SOMEBODY THE APPLICATION FORM PLACED ON THIS RUN IS PLACED BY AN ADMIN OR
+ * BY THE LEAD OF THE PROGRAMME THAT NAMES IT. A row an admin's hand-over
+ * wrote (`fromForm`) is served to those two on every staff route
+ * (`rowIsServedTo`), so a track lead who sends that person's uid is answered
+ * exactly as for somebody with no accepted application at all, and learns
+ * nothing from the answer.
+ *
+ * PUTTING SOMEBODY BACK GIVES THEM THEIR PLACE ON THE FORM AGAIN. Leaving the
+ * run and Remove each give the place on the application form back, so
+ * placing a seat that has left (`withdrawn` or `removed`) back on the run
+ * gives that place to its person again, in the same transaction
+ * (`readPlaceToRestore` and `restorePlaces` in
+ * `src/lib/applications/status/restore.ts`), for a row the form wrote on the
+ * run's list: their own page, the programme's lists of its people and every
+ * count of places then say they hold a place, each through the reading it
+ * already makes. Where the form has no such place to give (it was not given
+ * back on that programme, or the round is not a form any more), the seat
+ * records when it was put back instead (`putBackAt`), as it always has.
  *
  * ── WHY THERE IS NO UNIQUENESS SEARCH ───────────────────────────────────────
  * Double-placement is structurally impossible, so nothing here queries for
@@ -39,6 +72,22 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
  * Placements are processed in chunks of ≤100, each chunk one transaction, so
  * a board-wide "auto-place all" stays inside Firestore's transaction limits
  * while a single drag is still one tiny atomic commit.
+ *
+ * ── A FACILITATOR WHO HOLDS A PLACE SITS IN THE GROUP THEY FACILITATE ───────
+ * A facilitator can be one of the run's fellows too. So a placement asks
+ * which of the run's live groups the person facilitates (the run's groups,
+ * one equality, read in the transaction):
+ *  · somebody who facilitates a group is placed in THAT group and no other,
+ *    and is never moved out of it to another (`facilitates-another-group`):
+ *    who facilitates a group changes on its Facilitators view, and only then
+ *    does the board move them;
+ *  · somebody whose row on the run is a FACILITATOR'S (they were made a
+ *    facilitator before anybody placed them) is placed by turning that row
+ *    into a learner's: their place, on the group's own clock, counted like
+ *    any first placement. The row keeps its id, so it is still the one row
+ *    the person has on the run. Their facilitating is unchanged, because it
+ *    lives on the group (`facilitatorUids`), not on the row.
+ * ────────────────────────────────────────────────────────────────────────────
  */
 
 type Ctx = { params: Promise<{ runId: string }> };
@@ -58,6 +107,9 @@ const MAX_PLACEMENTS = 500;
  *  - "group-not-found": target group missing or belongs to another run
  *  - "group-archived": target group is archived
  *  - "group-full":     placing would exceed the group's capacity
+ *  - "facilitates-another-group": they facilitate one of the run's other
+ *    live groups, and somebody who holds a place sits in the group they
+ *    facilitate
  */
 type Rejection = { uid: string; reason: string };
 
@@ -123,18 +175,24 @@ export async function POST(req: Request, ctx: Ctx) {
   }
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
 
-  const isAdmin = actor.role === "admin";
-  const isTrackLead = isNamedWithStanding(
-    actor,
-    "courseRuns.trackLeadUids",
-    run.trackLeadUids,
-  );
-  if (!isAdmin && !isTrackLead) {
+  const staffing = await runStaffingOf(db, actor, run);
+  if (!doesTrackLeadWork(staffing)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   let placed = 0;
   const rejected: Rejection[] = [];
+
+  // Each form a seat that has left may get its place back on, read once for
+  // the request and outside its transactions, as leaving and Remove read it.
+  const forms = new Map<string, Promise<ApplicationForm | null>>();
+  const formOf = (roundId: string): Promise<ApplicationForm | null> => {
+    const known = forms.get(roundId);
+    if (known) return known;
+    const loading = loadForm(db, roundId);
+    forms.set(roundId, loading);
+    return loading;
+  };
 
   for (let i = 0; i < placements.length; i += CHUNK_SIZE) {
     const chunk = placements.slice(i, i + CHUNK_SIZE);
@@ -167,14 +225,26 @@ export async function POST(req: Request, ctx: Ctx) {
           db.collection("courseGroups").doc(id),
         );
 
-        const [enrolmentSnaps, applicationSnaps, targetGroupSnaps] =
+        const [enrolmentSnaps, applicationSnaps, targetGroupSnaps, runGroupsSnap] =
           await Promise.all([
             tx.getAll(...enrolmentRefs),
             tx.getAll(...applicationRefs),
             targetGroupRefs.length
               ? tx.getAll(...targetGroupRefs)
               : Promise.resolve([]),
+            // Who facilitates which of the run's live groups: one equality on
+            // one field, read in the transaction so an appointment made while
+            // this runs makes it run again.
+            tx.get(db.collection("courseGroups").where("runId", "==", runId)),
           ]);
+        const facilitatedBy = new Map<string, string[]>();
+        for (const doc of runGroupsSnap.docs) {
+          const group = normalizeCourseGroup(doc.id, doc.data() ?? {});
+          if (group.runId !== runId || group.archived) continue;
+          for (const uid of group.facilitatorUids) {
+            facilitatedBy.set(uid, [...(facilitatedBy.get(uid) ?? []), group.id]);
+          }
+        }
 
         const enrolmentByUid = new Map(
           chunk.map((p, idx) => [p.uid, enrolmentSnaps[idx]] as const),
@@ -203,6 +273,39 @@ export async function POST(req: Request, ctx: Ctx) {
           [...sourceGroupIds].forEach((id, idx) => groupById.set(id, snaps[idx]));
         }
 
+        // Each person's row on the run's list, when it is one this caller may
+        // place: accepted, and served to them. Only ACCEPTED applicants may be
+        // placed, so allocation follows admissions and never sidesteps it. (Direct
+        // enrolment without an application is a different, future path.) A row
+        // the application form put here is placed by an admin or by the lead of
+        // the programme whose hand-over wrote it, and anybody else is told what
+        // they would be told about a uid with no accepted row.
+        const servedRowByUid = new Map<string, CourseApplicationDoc>();
+        for (const { uid } of chunk) {
+          const appSnap = applicationByUid.get(uid);
+          const application = appSnap?.exists
+            ? normalizeCourseApplication(appSnap.id, appSnap.data() ?? {})
+            : null;
+          if (application && application.status === "accepted" && rowIsServedTo(application, staffing)) {
+            servedRowByUid.set(uid, application);
+          }
+        }
+
+        // Third read phase, still before any write: the place on the form each
+        // seat that has left gets back when it is put back (see the note at the
+        // top), for a served row the form wrote. Null where there is none to give.
+        const placeToRestoreByUid = new Map<string, PlaceToRestore>();
+        for (const { uid } of chunk) {
+          const row = servedRowByUid.get(uid);
+          const seatSnap = enrolmentByUid.get(uid);
+          if (!row?.fromForm || !seatSnap?.exists) continue;
+          if (!enrolmentHasLeft(normalizeCourseEnrolment(seatSnap.id, seatSnap.data() ?? {}).status)) continue;
+          const form = await formOf(row.fromForm.roundId);
+          const place = form ? await readPlaceToRestore(tx, db, form, uid, row.fromForm.programmeId) : null;
+          if (place) placeToRestoreByUid.set(uid, place);
+        }
+        const restoring: PlaceToRestore[] = [];
+
         // ── Decide, then write ────────────────────────────────────────────
         // Counter deltas accumulate per group and are written ONCE per group
         // at the end. `memberCount` counts enrolments that are BOTH active
@@ -225,12 +328,9 @@ export async function POST(req: Request, ctx: Ctx) {
         for (const placement of chunk) {
           const { uid, groupId } = placement;
 
-          // Only ACCEPTED applicants may be placed — allocation follows
-          // admissions, never sidesteps it. (Direct enrolment without an
-          // application is a different, future path.)
-          const appSnap = applicationByUid.get(uid);
-          const appStatus = appSnap?.exists ? (appSnap.data() ?? {}).status : null;
-          if (appStatus !== "accepted") {
+          // A row this caller may place, accepted and served to them (read
+          // above), or the answer for a uid with no accepted row.
+          if (!servedRowByUid.has(uid)) {
             chunkRejected.push({ uid, reason: "not-accepted" });
             continue;
           }
@@ -265,6 +365,19 @@ export async function POST(req: Request, ctx: Ctx) {
             .collection("courseEnrolments")
             .doc(courseEnrolmentId(runId, uid));
 
+          // A facilitator who holds a place sits in the group they
+          // facilitate: placed there, or nowhere yet, and never in another.
+          const facilitates = facilitatedBy.get(uid) ?? [];
+          if (groupId && facilitates.length > 0 && !facilitates.includes(groupId)) {
+            chunkRejected.push({ uid, reason: "facilitates-another-group" });
+            continue;
+          }
+          // A facilitator's row is the row of somebody nobody has placed yet:
+          // taking them out of a group is nothing to do, and putting them in
+          // one turns the row into their place (below).
+          const facilitatorRow = enrolment !== null && enrolment.role === "facilitator";
+          if (facilitatorRow && !groupId) continue;
+
           // Whether this enrolment currently holds a counted seat.
           const wasCounted =
             enrolment !== null &&
@@ -273,9 +386,11 @@ export async function POST(req: Request, ctx: Ctx) {
 
           // Already exactly where they're being placed — nothing to do. (An
           // inactive enrolment "in" the same group still falls through to be
-          // reactivated below.)
+          // reactivated below, and so does a facilitator's row, which is
+          // nobody's place yet.)
           if (
             enrolment &&
+            !facilitatorRow &&
             enrolment.groupId === groupId &&
             enrolment.status === "active"
           ) {
@@ -338,11 +453,47 @@ export async function POST(req: Request, ctx: Ctx) {
             status: "active",
             updatedAt: FieldValue.serverTimestamp(),
           };
+          if (facilitatorRow && targetGroup) {
+            // THEIR FIRST PLACE, on the row they already have: a learner's,
+            // from their row on the run's list, on THEIR group's clock, as a
+            // first placement writes it. A retired facilitator's row
+            // ("removed") is no leaver, so nothing of leaving is touched.
+            patch.role = "learner";
+            patch.applicationId = courseApplicationId(runId, uid);
+            patch.joinedWeekNumber = joinedWeekFor(run, targetGroup);
+          }
           if (enrolment.groupId !== groupId) {
             // The stamp certifies "emailed about their CURRENT group"; a
             // changed placement invalidates it, so the next publish emails
             // them about the new group.
             patch.allocatedEmailAt = FieldValue.delete();
+          }
+          if (!facilitatorRow && enrolmentHasLeft(enrolment.status)) {
+            // SOMEBODY WHO LEFT, PUT BACK. Leaving keeps the group and
+            // Publish's stamp (they were told about it, and it shows them
+            // the page that says they left), so a re-placement in that same
+            // group would otherwise read as told at once. Coming back earns
+            // a fresh placement email from the next Publish, as it always
+            // has, and the day they left and why go with the leaving: on an
+            // active row they would read as current to every later reader.
+            patch.allocatedEmailAt = FieldValue.delete();
+            patch.droppedOutAt = null;
+            patch.dropOutReason = null;
+            // THEIR PLACE ON THE FORM IS THEIRS AGAIN (`restorePlaces`, after
+            // this loop), so the form says they hold it and the seat keeps no
+            // record that it was put back: a later "I can’t make it" then
+            // reads as it does for anybody placed. Where the form has no place
+            // to give them, the seat records when they were put back instead,
+            // a deliberate act on a card that says they left, so their card
+            // stops saying they gave their place back and the next Publish
+            // tells them (`putBackAt` on the enrolment's type says who reads it).
+            const place = placeToRestoreByUid.get(uid);
+            if (place) {
+              restoring.push(place);
+              patch.putBackAt = FieldValue.delete();
+            } else {
+              patch.putBackAt = FieldValue.serverTimestamp();
+            }
           }
           tx.update(enrolmentRef, patch);
           if (wasCounted && enrolment.groupId) bumpDelta(enrolment.groupId, -1);
@@ -358,6 +509,9 @@ export async function POST(req: Request, ctx: Ctx) {
             updatedAt: FieldValue.serverTimestamp(),
           });
         }
+        // And each place on the form a seat put back gets again, with its
+        // form's counters, in the same transaction as the seat.
+        if (restoring.length > 0) restorePlaces(tx, restoring);
 
         return { placed: chunkPlaced, rejected: chunkRejected };
       });

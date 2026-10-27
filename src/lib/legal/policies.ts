@@ -55,7 +55,20 @@ export const POLICIES: Record<
     // policy does. That reverses a promise v5 made, which is a material
     // change, so it moved the version and every member is asked again at
     // their next sign-in. It also says who reads an application, what is kept
-    // beside it and what decision day sends.
+    // beside it and what decision day sends. It is frozen in its turn: a
+    // digest holds the file, and it renders unchanged at /privacy/v/6.
+    //
+    // v7 is the course hub's version: a programme while it runs and when it
+    // ends. v6 said a person mints their own certificate and nothing is
+    // issued unless they choose to. Under v7 certificates are sent to the
+    // people who finished and to facilitators, each private until its owner
+    // turns the link on. That takes back a promise v6 made, which is a
+    // material change, so it moved the version and every member is asked
+    // again the next time they open the member area. It also says what a
+    // programme's lead sees, pitching week and teams on an incubator, what
+    // leaving does and who reads the reason, a place that comes back, how who
+    // finished is recorded, that facilitators see names only, and that a
+    // programme's attendance is a third logged download.
     //
     // Keep this comment ABOVE `versions:`, never between the `[` and the first
     // `{`: tests/funnel-harness-guards.test.mjs reads the current version out
@@ -63,6 +76,7 @@ export const POLICIES: Record<
     // so a comment sitting there leaves the guard unable to read the very
     // number it exists to pin. Anywhere else in the file is fine.
     versions: [
+      { version: 7, lastUpdated: "27 October 2026" },
       { version: 6, lastUpdated: "7 October 2026" },
       { version: 5, lastUpdated: "7 September 2026" },
       { version: 4, lastUpdated: "6 September 2026" },

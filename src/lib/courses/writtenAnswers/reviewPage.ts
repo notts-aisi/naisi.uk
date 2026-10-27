@@ -1,0 +1,310 @@
+import "server-only";
+import type { Firestore } from "firebase-admin/firestore";
+import type { SessionUser } from "@/lib/firebase/session";
+import {
+  normalizeCourseEnrolment,
+  placementIsShownTo,
+  type CourseEnrolmentDoc,
+} from "@/lib/firestore/courseEnrolments";
+import { exerciseResponseId, isReflectionResponse } from "@/lib/firestore/courseExercises";
+import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import { normalizeCourse, weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
+import { memberCurrentWeek, resolveCalendar, resolveWeekDoc } from "../groupResolve";
+import { firstNameOfUser, fullNameOfUser } from "../programmeLead";
+import { rubricOf, type CourseRubric } from "../rubric";
+import { resolveSessions } from "../sessions";
+import { dueMoment, isLate } from "../weekBlocks/due";
+import { isBlockWeek, partsOf, type When, type WordRange } from "../weekBlocks/model";
+import type { Prose } from "../weekBlocks/prose";
+import { weekWrittenAnswers } from "../weekBlocks/reader";
+import { londonDateKey } from "../weekPlan";
+import {
+  liveGroupsOf,
+  reviewableIn,
+  reviewerFactsOf,
+  writtenReviewRole,
+  type OwnerFacts,
+  type ReviewRole,
+  type ReviewerFacts,
+} from "./access";
+import {
+  answerNameOf,
+  answerState,
+  isWordCountedAnswer,
+  readWrittenAnswer,
+  type AnswerState,
+  type WrittenAnswerRecord,
+} from "./model";
+
+/**
+ * WHAT THE REVIEW PAGE SHOWS (boards wk-review, wk-review-phone), worked
+ * out on the server once, after the page's gate, for the group's
+ * facilitators' page and the lead's page alike.
+ *
+ * Every person on it is somebody the reader may review, by the one gate
+ * (`reviewableIn`, `writtenReviewRole`): for a facilitator, the group's
+ * fellows but its facilitators; for the lead and admins, those and the
+ * group's facilitators' own answers. Grouped as the board draws: "To give
+ * feedback on" (sent, opened or not, with no feedback yet), "Feedback sent",
+ * "Not sent yet" (a draft, or nothing). "Late" travels here, to staff, and
+ * nowhere a writer reads.
+ *
+ * Reads: the run's groups and the reader's standing (the gate's), the run's
+ * enrolments by one equality, the group's own copy of the week, each
+ * person's row by its id, the names, and the course's rubric. No query needs
+ * a declared index.
+ */
+
+export type ReviewPerson = {
+  uid: string;
+  /** The whole name, as the board lists people. */
+  name: string;
+  firstName: string;
+  state: AnswerState;
+  /** ISO 8601: first sent, never moved; null for a draft or nothing. */
+  firstSentAt: string | null;
+  /** First sent after the group's due moment. Staff only. */
+  late: boolean;
+  words: number;
+  openedAt: string | null;
+  openedByUid: string | null;
+  openedByName: string | null;
+  feedbackByUid: string | null;
+  feedbackByName: string | null;
+  /** Their own answer as somebody who facilitates a group of the run: the lead's and admins'. */
+  facilitates: boolean;
+};
+
+export type ReviewSelected = {
+  person: ReviewPerson;
+  /** An answer of one box. */
+  text: string;
+  /** An answer in labelled boxes, box id to words, or null. */
+  boxes: Record<string, string> | null;
+  editedAt: string | null;
+  reopenedAt: string | null;
+  feedback: { levels: Array<{ row: string; level: string; descriptor: string }>; comment: string; sentAt: string | null } | null;
+  /** What the reader may do with this answer. */
+  role: ReviewRole;
+  /** The first names of the people whose opening locks it, for "can still change it until …". */
+  lockers: string[];
+};
+
+export type ReviewPageModel = {
+  runId: string;
+  group: { id: string; name: string };
+  weekNumber: number;
+  weekId: string;
+  /** The group's taught weeks, in its own plan order. */
+  weeks: number[];
+  /** The week's written answer, or null when the week has none. */
+  answer: {
+    id: string;
+    prompt: Prose;
+    boxes: Array<{ id: string; label: string; hint: string }>;
+    words: WordRange | null;
+    due: When;
+    /** "your threat model". */
+    answerName: string;
+  } | null;
+  rubric: CourseRubric | null;
+  toGive: ReviewPerson[];
+  feedbackSent: ReviewPerson[];
+  notSent: ReviewPerson[];
+  selected: ReviewSelected | null;
+  viewer: { uid: string; firstName: string };
+  /** Today in London, for "at 9:58am" against "on Tue 17 Nov at 9:58am". */
+  todayKey: string;
+};
+
+/** Every told placement on the run, as the gate reads an owner. */
+function ownersOf(
+  enrolments: readonly CourseEnrolmentDoc[],
+  liveGroups: readonly CourseGroupDoc[],
+  viewer: { isAdmin: boolean },
+): OwnerFacts[] {
+  const live = new Set(liveGroups.map((group) => group.id));
+  return enrolments
+    .filter(
+      (enrolment) =>
+        enrolment.role === "learner" &&
+        (enrolment.status === "active" || enrolment.status === "completed") &&
+        enrolment.groupId !== null &&
+        live.has(enrolment.groupId) &&
+        placementIsShownTo(enrolment, viewer),
+    )
+    .map((enrolment) => ({ uid: enrolment.uid, placedGroupId: enrolment.groupId }));
+}
+
+/** The week the page opens on when none is asked for: the group's own, or its first taught week. */
+function defaultWeek(run: CourseRunDoc, group: CourseGroupDoc, weeks: readonly number[], now: Date): number {
+  let week = weeks[0] ?? 1;
+  try {
+    const current = memberCurrentWeek(run, group, now);
+    const target = current.weekNumber ?? (current.anchorWeekNumber > 0 ? current.anchorWeekNumber : null);
+    if (target !== null && weeks.includes(target)) week = target;
+  } catch {
+    // A calendar with no usable start date: the first taught week stands.
+  }
+  return week;
+}
+
+/**
+ * The review page for one group, as `actor` may see it. `askedWeek` and
+ * `askedPerson` come from the address and are checked here: a week the
+ * group does not teach, or somebody the reader may not review, is ignored.
+ */
+export async function loadWrittenReview(
+  db: Firestore,
+  actor: SessionUser,
+  run: CourseRunDoc,
+  group: CourseGroupDoc,
+  askedWeek: number | null,
+  askedPerson: string | null,
+  now: Date,
+  given?: { liveGroups: CourseGroupDoc[]; facts: ReviewerFacts },
+): Promise<ReviewPageModel> {
+  const liveGroups = given?.liveGroups ?? (await liveGroupsOf(db, run.id));
+  const facts = given?.facts ?? (await reviewerFactsOf(db, actor, run.id));
+  const weeks = resolveCalendar(run, group).weekPlan.flatMap((entry) => (entry.kind === "week" ? [entry.weekNumber] : []));
+  const weekNumber = askedWeek !== null && weeks.includes(askedWeek) ? askedWeek : defaultWeek(run, group, weeks, now);
+  const weekId = weekDocId(weekNumber);
+
+  const [enrolSnap, resolved, courseSnap] = await Promise.all([
+    db.collection("courseEnrolments").where("runId", "==", run.id).get(),
+    resolveWeekDoc(db, run.id, group.id, weekId),
+    run.courseId ? db.collection("courses").doc(run.courseId).get() : Promise.resolve(null),
+  ]);
+  const enrolments = enrolSnap.docs.map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {}));
+  const owners = ownersOf(enrolments, liveGroups, { isAdmin: facts.isAdmin });
+  const people = reviewableIn(actor, facts, group, owners, liveGroups);
+  const rubric = courseSnap?.exists ? rubricOf(normalizeCourse(courseSnap.id, courseSnap.data() ?? {})) : null;
+  const dayBeforeTime = courseSnap?.exists ? normalizeCourse(courseSnap.id, courseSnap.data() ?? {}).dayBeforeDueTime : null;
+
+  const week = resolved.week;
+  const block = week && isBlockWeek(week) ? (weekWrittenAnswers(week)[0] ?? null) : null;
+  const fullBlock =
+    week && isBlockWeek(week) && block
+      ? (partsOf(week.blocks).flatMap((part) => part.blocks).find((child) => child.id === block.id) ?? null)
+      : null;
+  const part = week && isBlockWeek(week) && block ? (partsOf(week.blocks).find((candidate) => candidate.id === block.partId) ?? null) : null;
+  const answer =
+    block && fullBlock && fullBlock.type === "writtenAnswer"
+      ? {
+          id: block.id,
+          prompt: fullBlock.prompt,
+          boxes: fullBlock.boxes.map((box) => ({ id: box.id, label: box.label, hint: box.hint })),
+          words: fullBlock.words,
+          due: fullBlock.due,
+          answerName: answerNameOf(part?.title ?? ""),
+        }
+      : null;
+
+  // Each person's row, by its id: nobody's but theirs.
+  const records = new Map<string, WrittenAnswerRecord>();
+  if (answer && people.length > 0) {
+    const snaps = await db.getAll(
+      ...people.map((owner) => db.collection("courseExerciseResponses").doc(exerciseResponseId(run.id, owner.uid, weekId, answer.id))),
+    );
+    snaps.forEach((snap, index) => {
+      const data = snap.exists ? ((snap.data() ?? {}) as Record<string, unknown>) : null;
+      if (data && !isReflectionResponse(data) && isWordCountedAnswer(data) && data.uid === people[index].uid) {
+        records.set(people[index].uid, readWrittenAnswer(data));
+      }
+    });
+  }
+
+  // Names: the people, and whoever opened, reopened or sent feedback.
+  const nameUids = new Set<string>([actor.uid, ...people.map((owner) => owner.uid)]);
+  for (const record of records.values()) {
+    for (const uid of [record.openedByUid, record.reopenedByUid, record.feedback?.byUid ?? ""]) if (uid) nameUids.add(uid);
+  }
+  for (const uid of group.facilitatorUids) nameUids.add(uid);
+  const userSnaps = await db.getAll(...[...nameUids].map((uid) => db.collection("users").doc(uid)));
+  const fullName = new Map<string, string>();
+  const firstName = new Map<string, string>();
+  for (const snap of userSnaps) {
+    if (!snap.exists) continue;
+    const data = (snap.data() ?? {}) as Record<string, unknown>;
+    fullName.set(snap.id, fullNameOfUser(data));
+    firstName.set(snap.id, firstNameOfUser(data) || fullNameOfUser(data));
+  }
+
+  const due = answer ? dueMoment(resolveSessions(run, group), weekNumber, answer.due, dayBeforeTime) : null;
+  const personOf = (owner: OwnerFacts): ReviewPerson => {
+    const record = records.get(owner.uid) ?? null;
+    const facilitates = liveGroups.some((candidate) => candidate.facilitatorUids.includes(owner.uid));
+    return {
+      uid: owner.uid,
+      name: fullName.get(owner.uid) ?? "NAISI member",
+      firstName: firstName.get(owner.uid) ?? "NAISI member",
+      state: answerState(record),
+      firstSentAt: record?.firstSentAt ? record.firstSentAt.toISOString() : null,
+      late: record?.firstSentAt ? isLate(record.firstSentAt, due) : false,
+      words: record?.words ?? 0,
+      openedAt: record?.openedAt ? record.openedAt.toISOString() : null,
+      openedByUid: record?.openedAt ? record.openedByUid || null : null,
+      openedByName: record?.openedAt && record.openedByUid ? (firstName.get(record.openedByUid) ?? null) : null,
+      feedbackByUid: record?.feedback?.byUid || null,
+      feedbackByName: record?.feedback?.byUid ? (firstName.get(record.feedback.byUid) ?? null) : null,
+      facilitates,
+    };
+  };
+  const all = people.map(personOf);
+  const bySent = (a: ReviewPerson, b: ReviewPerson) =>
+    (a.firstSentAt ?? "").localeCompare(b.firstSentAt ?? "") || a.name.localeCompare(b.name);
+  const toGive = all.filter((person) => person.state === "sent" || person.state === "opened").sort(bySent);
+  const feedbackSent = all.filter((person) => person.state === "feedback").sort(bySent);
+  const notSent = all
+    .filter((person) => person.state === "draft" || person.state === "not-started")
+    .sort((a, b) => (a.state === b.state ? a.name.localeCompare(b.name) : a.state === "draft" ? -1 : 1));
+
+  // Who is open on the page: the one asked for, if the reader may review
+  // them and they sent something; else the first waiting, else the first
+  // with feedback.
+  const readable = [...toGive, ...feedbackSent];
+  const chosen =
+    (askedPerson ? readable.find((person) => person.uid === askedPerson) : undefined) ?? toGive[0] ?? feedbackSent[0] ?? null;
+  let selected: ReviewSelected | null = null;
+  if (chosen && answer) {
+    const record = records.get(chosen.uid) ?? null;
+    const owner = people.find((candidate) => candidate.uid === chosen.uid) as OwnerFacts;
+    const role = writtenReviewRole(actor, facts, owner, liveGroups);
+    // Whose opening locks it: the group's facilitators for a fellow, the lead and admins for a facilitator.
+    const lockers = chosen.facilitates
+      ? []
+      : group.facilitatorUids.filter((uid) => uid !== chosen.uid).map((uid) => firstName.get(uid) ?? "").filter(Boolean);
+    selected = {
+      person: chosen,
+      text: record?.text ?? "",
+      boxes: record?.boxes ?? null,
+      editedAt: record?.editedAt ? record.editedAt.toISOString() : null,
+      reopenedAt: record?.reopenedAt ? record.reopenedAt.toISOString() : null,
+      feedback: record?.feedback
+        ? {
+            levels: record.feedback.levels,
+            comment: record.feedback.comment,
+            sentAt: record.feedback.sentAt ? record.feedback.sentAt.toISOString() : null,
+          }
+        : null,
+      role,
+      lockers,
+    };
+  }
+
+  return {
+    runId: run.id,
+    group: { id: group.id, name: group.name.trim() || "Your group" },
+    weekNumber,
+    weekId,
+    weeks,
+    answer,
+    rubric,
+    toGive,
+    feedbackSent,
+    notSent,
+    selected,
+    viewer: { uid: actor.uid, firstName: firstName.get(actor.uid) ?? "" },
+    todayKey: londonDateKey(now),
+  };
+}

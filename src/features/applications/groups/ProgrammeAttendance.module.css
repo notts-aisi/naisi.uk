@@ -1,0 +1,574 @@
+/* Every register of a programme's run as one grid (board wk-attendance): a
+   toolbar (By person or By week, the group filter, Download CSV), the grid
+   in a card that scrolls inside itself and never the page, the legend and
+   what people see. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+}
+
+.toggles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  min-width: 0;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.segment {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.segment:hover {
+  color: var(--color-text);
+}
+
+.segment:focus-visible,
+.round:focus-visible,
+.more:focus-visible,
+.downloadButton:focus-visible,
+.scroll:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+.segmentCurrent {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.filter {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.filterLabel {
+  margin-right: 4px;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.round {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.round:hover {
+  color: var(--color-text);
+}
+
+.roundCurrent {
+  border-color: var(--color-accent-line);
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.download {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.downloadButton {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.downloadButton:hover {
+  background: var(--color-surface-hover);
+}
+
+.downloadButton:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.problem {
+  font-size: 13px;
+  color: var(--color-danger-text);
+}
+
+/* ── The grid ─────────────────────────────────────────────────────────── */
+
+.scroll {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.table {
+  width: 100%;
+  min-width: 52rem;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.nameHead,
+.weekHead,
+.cameHead {
+  padding: 14px 12px 10px;
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-meta);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  vertical-align: bottom;
+}
+
+.nameHead {
+  min-width: 15rem;
+  text-align: left;
+}
+
+.weekHead {
+  text-align: center;
+}
+
+.cameHead {
+  text-align: right;
+}
+
+.weekHead > span,
+.thisWeek {
+  display: block;
+}
+
+.weekNow {
+  color: var(--color-text);
+}
+
+.thisWeek {
+  margin-top: 2px;
+  color: var(--color-live);
+}
+
+.groupRow {
+  background: var(--color-bg-elevated);
+}
+
+.groupHead {
+  padding: 12px;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  font-weight: 400;
+}
+
+.groupName {
+  display: block;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.groupLine {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.dateCell {
+  padding: 12px 8px;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  text-align: center;
+  vertical-align: middle;
+}
+
+.date {
+  display: block;
+  font-family: var(--font-meta);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.tag {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-meta);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.tagLive {
+  color: var(--color-live);
+}
+
+.tagWarn {
+  color: var(--color-warning);
+}
+
+.person {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.personInner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+}
+
+.personText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.personName {
+  overflow-wrap: anywhere;
+}
+
+.leftLine {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.leftRow .personName {
+  color: var(--color-text-muted);
+}
+
+.inARow {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--color-warning-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.cell {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: center;
+  vertical-align: middle;
+}
+
+.came {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: right;
+  white-space: nowrap;
+  color: var(--color-text);
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  font-family: var(--font-meta);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.present {
+  border-color: var(--color-ok-line);
+  background: var(--color-success-soft);
+  color: var(--color-ok);
+}
+
+.late,
+.leftEarly {
+  border-color: var(--color-warning-line);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.excused {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
+  color: var(--color-text-muted);
+}
+
+.absent {
+  border-color: var(--color-danger-line);
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+}
+
+/* A mark on a register saved and not finished yet: ringed. */
+.saved {
+  box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 3px var(--color-warning-line);
+}
+
+/* A mark from before somebody left: dashed and quiet. */
+.beforeLeft {
+  border-style: dashed;
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+.today {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border: 1.5px dashed var(--color-live-line);
+  border-radius: 7px;
+  vertical-align: middle;
+}
+
+.notYet {
+  display: inline-block;
+  min-width: 24px;
+  color: var(--color-text-subtle);
+  font-weight: 700;
+}
+
+.blank {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+}
+
+.moreRow,
+.emptyRow {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.more {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.more:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.totalRow {
+  background: var(--color-bg-elevated);
+}
+
+.total {
+  padding: 12px 8px;
+  border-top: 1px solid var(--color-border);
+  text-align: center;
+}
+
+.percent {
+  display: block;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.soFar {
+  display: block;
+  font-family: var(--font-meta);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.weekCell {
+  padding: 8px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: center;
+}
+
+.weekSaid {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.thisWeekRow {
+  font-family: var(--font-meta);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-live);
+}
+
+/* ── Legend, and what people see ─────────────────────────────────────── */
+
+.legendRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 20px;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legendNote {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.note,
+.card {
+  padding: 20px 22px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.noteTitle {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.noteText,
+.muted {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-body);
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .download {
+    align-items: stretch;
+  }
+
+  .downloadButton {
+    justify-content: center;
+  }
+
+  .nameHead {
+    min-width: 11rem;
+  }
+
+  .note,
+  .card {
+    padding: 16px;
+  }
+}

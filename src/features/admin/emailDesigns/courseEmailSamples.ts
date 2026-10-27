@@ -19,11 +19,99 @@ export const COURSE_PREVIEW_SAMPLE = {
   courseTitle: "AI Safety Fundamentals",
   runLabel: "Autumn 2026",
   startDate: "Monday 6 October",
-  groupName: "Tuesday 6pm — Group B",
+  groupName: "Group B",
   facilitatorNames: "Priya and Sam",
-  firstSessionWhen: "Tuesday 7 October, 6pm",
+  firstSessionWhen: "Tue 7 Oct, 6pm",
   firstSessionWhere: "Hallward Library, B12",
   feedbackUrl: "https://example.com/naisi-course-feedback",
+} as const;
+
+/**
+ * Sample values for the placement email's own tokens, the ones its seed copy
+ * says in the board's words ("Your AGI Strategy group: Tuesdays at 6pm").
+ * Shaped like a real send, as the facilitators' are: `place` is a room (the
+ * email says "in Hallward Library, B12"), `sessionLength` the group's length
+ * in minutes, `yourFacilitators` first names with commas between them and
+ * `groupSize` a count, each of which the email turns into its sentence.
+ * `placeNote` and `naisiSignOff` follow from the room and the lead, as they
+ * do on a send, so a sample for them is never read.
+ *
+ * Hard-coded for the same reason the facilitators' are: the token NAMES are
+ * the contract, and `PLACEMENT_TOKENS` in `src/lib/courses/placementEmail.ts`
+ * is their source of truth. `tests/email-unfilled-tokens.test.mjs` fails if
+ * the two drift apart.
+ */
+export const COURSE_PLACEMENT_PREVIEW_SAMPLE = {
+  programmeName: "AI Safety Fundamentals",
+  weeklySlot: "Tuesdays at 6pm",
+  firstSession: "Tue 7 Oct",
+  firstSessionDay: "Tuesday",
+  programmeUrl: "https://naisi.uk/learn/asf-autumn-2026",
+  weekOneTime: "about 75 minutes",
+  leadName: "Jordan",
+  naisiSignOff: "",
+  place: "Hallward Library, B12",
+  placeNote: "",
+  sessionLength: "120",
+  yourFacilitators: "Priya, Sam",
+  groupSize: "8",
+} as const;
+
+/**
+ * Sample values for the facilitators' email ("You’re facilitating"), whose
+ * tokens no other course template resolves. Shaped like a real send: the
+ * weekly slot and the two dates are the words Publish writes ("Tuesdays at
+ * 6pm", "Tue 3 Nov"), `groupSize` is the count the email turns into its
+ * sentence, and `where` is a room, never a meeting link. The names are made
+ * up, as every sample here is.
+ *
+ * Hard-coded rather than imported from the composer's module for the same
+ * reason the nudge's are: the token NAMES are the contract, and
+ * `FACILITATING_TOKENS` in `src/lib/courses/facilitatingEmail.ts` is their
+ * source of truth. `tests/email-unfilled-tokens.test.mjs` fails if the two
+ * drift apart.
+ */
+export const COURSE_FACILITATING_PREVIEW_SAMPLE = {
+  groupName: "Group B",
+  weeklySlot: "Tuesdays at 6pm",
+  firstSession: "Tue 7 Oct",
+  lastSession: "Tue 11 Nov",
+  groupSize: "8",
+  groupUrl: "https://naisi.uk/learn/asf-autumn-2026/group/group-b",
+  where: "Hallward Library, B12",
+  coFacilitators: "Sam",
+  leadName: "Jordan",
+  programmeName: "AI Safety Fundamentals",
+  // The board's tokens follow from the samples above, as a send's follow
+  // from its facts (`facilitatingFactsFromSample`), so these are never read:
+  // NAISI's sign-off from the lead, as on the placement email.
+  naisiSignOff: "",
+  namesOnPage: "",
+  place: "",
+  placeNote: "",
+  facilitatingWith: "",
+} as const;
+
+/**
+ * Sample values for the email an incubator's people are sent at Publish
+ * ("Placed on an incubator"), whose tokens no other course template
+ * resolves. Shaped like a real send: the weekly slot and the first session
+ * are the words Publish writes ("Mondays at 5pm", "Mon 2 Nov"), `where` is a
+ * room, never a meeting link, and `programmeUrl` is the programme's page in
+ * the member area. The names are made up, as every sample here is.
+ *
+ * Hard-coded for the same reason the facilitators' are: the token NAMES are
+ * the contract, and `INCUBATOR_START_TOKENS` in
+ * `src/lib/courses/incubatorStartEmail.ts` is their source of truth.
+ * `tests/email-unfilled-tokens.test.mjs` fails if the two drift apart.
+ */
+export const COURSE_INCUBATOR_PREVIEW_SAMPLE = {
+  programmeName: "Research incubator",
+  weeklySlot: "Mondays at 5pm",
+  firstSession: "Mon 6 Oct",
+  where: "Hallward Library, B12",
+  leadName: "Jordan",
+  programmeUrl: "https://naisi.uk/learn/research-incubator-autumn-2026",
 } as const;
 
 /**
@@ -53,7 +141,7 @@ export const COURSE_NUDGE_PREVIEW_SAMPLE = {
   weekTitle: "Goal misgeneralisation",
   weekSummary:
     "Why a system that learned the right thing in training can still pursue the wrong one when the world shifts.",
-  sessionWhen: "Tuesday 21 October, 18:00–19:30",
+  sessionWhen: "Tue 21 Oct, 6pm to 7:30pm",
   sessionWhere: "Hallward Library, B12",
   weekPrep:
     "There are four things to read or watch and one exercise to write up this week, about 2 hours in total.",
@@ -245,6 +333,31 @@ export function courseTemplateUsesGroupTokens(templateId: CourseTemplateId): boo
 }
 
 /**
+ * Templates whose send path resolves the facilitators' tokens. One: the email
+ * Publish sends each facilitator, written by `composeFacilitatingEmail`.
+ */
+export const COURSE_FACILITATING_TOKEN_TEMPLATES: readonly CourseTemplateId[] = [
+  "course-facilitating",
+];
+
+export function courseTemplateUsesFacilitatingTokens(templateId: CourseTemplateId): boolean {
+  return COURSE_FACILITATING_TOKEN_TEMPLATES.includes(templateId);
+}
+
+/**
+ * Templates whose send path resolves the incubator's tokens. One: the email
+ * Publish sends the people of a run an incubator names, written by
+ * `composeIncubatorStartEmail`. It resolves none of the group tokens.
+ */
+export const COURSE_INCUBATOR_TOKEN_TEMPLATES: readonly CourseTemplateId[] = [
+  "course-allocated-incubator",
+];
+
+export function courseTemplateUsesIncubatorTokens(templateId: CourseTemplateId): boolean {
+  return COURSE_INCUBATOR_TOKEN_TEMPLATES.includes(templateId);
+}
+
+/**
  * Templates whose send path resolves the week-scoped tokens. One today; the
  * predicate exists so the editor and the preview ask the same question the
  * group-token pair does, rather than string-matching an id in two places.
@@ -323,6 +436,30 @@ export function courseSampleTokens(
     return out;
   }
 
+  if (courseTemplateUsesFacilitatingTokens(templateId)) {
+    // Its own map, as Publish's plan builds it: the facilitator's name, the
+    // course and run, and the group's own facts. Nothing of a placement.
+    return {
+      courseTitle: COURSE_PREVIEW_SAMPLE.courseTitle,
+      runLabel: COURSE_PREVIEW_SAMPLE.runLabel,
+      firstName: firstWord(name),
+      preferredName: name,
+      ...COURSE_FACILITATING_PREVIEW_SAMPLE,
+    };
+  }
+
+  if (courseTemplateUsesIncubatorTokens(templateId)) {
+    // Its own map, as Publish's plan builds it for an incubator's people: the
+    // person's name, the course and run, and the weekly session. No group.
+    return {
+      courseTitle: COURSE_PREVIEW_SAMPLE.courseTitle,
+      runLabel: COURSE_PREVIEW_SAMPLE.runLabel,
+      firstName: firstWord(name),
+      preferredName: name,
+      ...COURSE_INCUBATOR_PREVIEW_SAMPLE,
+    };
+  }
+
   if (courseTemplateUsesWeekTokens(templateId)) {
     return {
       courseTitle: COURSE_PREVIEW_SAMPLE.courseTitle,
@@ -356,5 +493,7 @@ export function courseSampleTokens(
       ...group,
       ...feedback,
     }),
+    // The board's tokens, which only the placement email fills.
+    ...(courseTemplateUsesGroupTokens(templateId) ? COURSE_PLACEMENT_PREVIEW_SAMPLE : {}),
   };
 }

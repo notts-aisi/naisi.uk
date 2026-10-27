@@ -1050,6 +1050,11 @@ test("GUARD: a garbled stored mark reads as unmarked, and no uid reads as nothin
 
 const RUN_HOME = src("features", "courses", "RunHome.tsx");
 const GROUP_PANEL = src("features", "courses", "FacilitatorGroupPanel.tsx");
+// Since the programme home was drawn to boards st-programme and wk-programme,
+// its ticket, its week card and its list of weeks are components of their own.
+const CARD_FACTS = src("features", "courses", "sessionChange", "cardFacts.ts");
+const WEEK_LIST = src("features", "courses", "weekly", "WeekList.tsx");
+const THIS_WEEK_CARD = src("features", "courses", "weekly", "ThisWeekCard.tsx");
 
 test("GUARD: every card on the run home reads its OWN group's calendar", () => {
   // The facilitator card is a component precisely because each one needs its
@@ -1064,23 +1069,36 @@ test("GUARD: every card on the run home reads its OWN group's calendar", () => {
   assert.doesNotMatch(GROUP_PANEL, /targetWeekNumber: number \| null/);
 
   // The session card is dated by its own group too, not by the page's week.
-  assert.match(RUN_HOME, /slotStartKey=\{group\.calendar\.currentWeek\?\.slotStartKey \?\? null\}/);
+  // Since the restyle (boards wk-programme, st-programme) the card is the
+  // ticket for the group's NEXT session, read off that group's own calendar
+  // (`ticketFacts(group)`, the next session's own day, time and room), and
+  // "This week" is dated by the reader's own calendar's entry for the week,
+  // which the overview resolves through the same group.
+  assert.match(RUN_HOME, /const facts = group \? ticketFacts\(group\) : null;/);
+  assert.match(CARD_FACTS, /const next = group\.calendar\.nextSession;/);
+  assert.match(RUN_HOME, /slotStartKey=\{thisSchedule\?\.slotStartKey \|\| null\}/);
   assert.match(RUN_HOME, /const cardCurrentWeek = group\?\.calendar\.currentWeek \?\? null;/);
 });
 
 test("GUARD: the run home links the progress page and shows own attendance", () => {
   // /learn/[runId]/progress shipped with no link to it from anywhere. This is
-  // the link, and it sits on the same card as the member's own record.
+  // the link: since the restyle (boards wk-programme, st-programme) it sits at
+  // the foot of the programme's weeks, for somebody taking part.
   assert.match(RUN_HOME, /\/progress`\}/);
-  assert.match(RUN_HOME, /<ProgressPanel runId=\{runId\} ownAttendance=\{data\.ownAttendance\} \/>/);
+  assert.match(RUN_HOME, /showProgress=\{learner !== null\}/);
+  assert.match(WEEK_LIST, /\{showProgress && \(/);
+  // The member's own record is "Your marks" (C26: one mark a session, no
+  // count), handed the overview's own projection of their registers.
+  assert.match(RUN_HOME, /<YourMarks[\s\S]{0,200}ownAttendance=\{data\.ownAttendance\}/);
   // Learners only: a facilitator has no attendance of their own.
-  assert.match(RUN_HOME, /\{access\.isEnrolled && \(/);
-  // An unmarked cell reads as unmarked, never as an absence, on the row that
-  // reports what was written down. (The rollup counts it as an absence, which
-  // is what the summary line above the list is built from.)
-  assert.match(RUN_HOME, /: "Not marked"/);
-  // And the copy says why a session might be missing from the list at all.
-  assert.match(RUN_HOME, /once your facilitator finishes each/);
+  assert.match(RUN_HOME, /\{access\.isEnrolled && !beforeStart && \(/);
+  // An unmarked cell reads as unmarked, never as an absence, on the mark that
+  // reports what was written down: the words module's "Not marked".
+  assert.match(RUN_HOME, /: \(session\.status \?\? "not-marked"\)/);
+  assert.match(src("lib", "courses", "memberPageWords.ts"), /"not-marked": "Not marked"/);
+  // And the copy says who fills the marks in, and when (the board's line).
+  assert.match(RUN_HOME, /\{MARKS_LINE\}/);
+  assert.match(src("lib", "courses", "memberPageWords.ts"), /MARKS_LINE = "Your facilitators fill these in after each session\."/);
   // A learner with no group yet gets their own sentence: the standing copy
   // names a facilitator they have not got one of.
   assert.match(RUN_HOME, /ownAttendance === null \? \(/);
@@ -1094,11 +1112,20 @@ test("GUARD: one spelling of a week URL, shared by both surfaces", () => {
   const LINKS = src("features", "courses", "links.ts");
   assert.match(LINKS, /export function weekHref\(runId: string, weekNumber: number\)/);
   assert.match(LINKS, /\/learn\/\$\{encodeURIComponent\(runId\)\}\/weeks\/\$\{weekNumber\}/);
-  for (const file of [RUN_HOME, GROUP_PANEL]) {
+  // The run home's week links are drawn by its list of weeks and its week
+  // card since the restyle (boards wk-programme, st-programme), which import
+  // the one spelling from beside them; the run home itself spells none.
+  for (const file of [GROUP_PANEL]) {
     assert.match(file, /from "\.\/links"/);
     assert.match(file, /weekHref\(runId, /);
     assert.doesNotMatch(file, /\/weeks\/\$\{[a-zA-Z]/);
   }
+  for (const file of [WEEK_LIST, THIS_WEEK_CARD]) {
+    assert.match(file, /from "\.\.\/links"/);
+    assert.match(file, /weekHref\(runId, /);
+    assert.doesNotMatch(file, /\/weeks\/\$\{[a-zA-Z]/);
+  }
+  assert.doesNotMatch(RUN_HOME, /\/weeks\/\$\{[a-zA-Z]/);
 });
 
 test("GUARD: the progress page is linked from the run's sub nav too", () => {

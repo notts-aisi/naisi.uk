@@ -9,7 +9,9 @@ import Chip from "@/components/ui/Chip";
 import EmptyState from "@/components/ui/EmptyState";
 import ProgressBar from "@/components/ui/ProgressBar";
 import Skeleton from "@/components/ui/Skeleton";
+import type { OverviewPayload } from "@/app/api/courses/runs/[runId]/overview/route";
 import { getClientDb } from "@/lib/firebase/client";
+import { handedTasksDone } from "@/lib/courses/weekBlocks/progress";
 import { normalizeCourseWeek } from "@/lib/firestore/courses";
 import useRunOverview from "@/features/courses/useRunOverview";
 import useRunProgress from "@/features/courses/useRunProgress";
@@ -54,6 +56,14 @@ import styles from "./ProgressBody.module.css";
  *
  * Optional materials are excluded from every denominator — that is the
  * meaning of the flag (see `Material.optional`), not a choice made here.
+ *
+ * ── A WEEK WRITTEN AS BLOCKS COUNTS ITS TASKS ───────────────────────────────
+ * Such a week has no materials or checklist of its own: its count is This
+ * week's tasks, which the overview hands with what each one needs
+ * (`weeks[].thisWeek`), worked out where "done" is decided for every page
+ * (`handedTasksDone` in `src/lib/courses/weekBlocks/progress.ts`, as the
+ * programme page and Home count them). A week written before blocks counts its
+ * readings and checklist items, as it always has.
  * ────────────────────────────────────────────────────────────────────────────
  */
 
@@ -154,7 +164,7 @@ function useRunWeekItems(runId: string, source: WeekSource | null): WeekItems {
   return { byWeek: state.byWeek, loading: false, error: state.error };
 }
 
-type WeekRow = {
+export type WeekRow = {
   weekNumber: number;
   title: string;
   total: number;
@@ -163,6 +173,44 @@ type WeekRow = {
   counted: boolean;
   isCurrent: boolean;
 };
+
+/**
+ * One row per published week, counted as the module note says: a week written
+ * as blocks by This week's tasks, through `handedTasksDone`, the one place
+ * "done" is worked out; any other week by its own readings and checklist items.
+ * Pure, so the page and a test count the same week the same way.
+ */
+export function progressRows(input: {
+  weeks: OverviewPayload["weeks"];
+  currentWeekNumber: number | null;
+  /** Each week's readings and checklist items, by week number (empty for a week written as blocks). */
+  byWeek: ReadonlyMap<number, readonly string[]>;
+  byItemId: ReadonlyMap<string, { completed: boolean }>;
+  joinedWeek: number;
+}): WeekRow[] {
+  const { byWeek, byItemId, joinedWeek, currentWeekNumber } = input;
+  return input.weeks
+    .filter((week) => week.published)
+    .map((week) => {
+      const items = byWeek.get(week.weekNumber) ?? [];
+      let completed = 0;
+      for (const itemId of items) {
+        if (byItemId.get(itemId)?.completed) completed += 1;
+      }
+      const tasks = (week.thisWeek?.rows ?? []).flatMap((row) => (row.type === "task" ? [row] : []));
+      const byTasks = week.thisWeek
+        ? handedTasksDone(tasks, (itemId) => byItemId.get(itemId)?.completed === true)
+        : null;
+      return {
+        weekNumber: week.weekNumber,
+        title: week.title,
+        total: byTasks ? byTasks.of : items.length,
+        completed: byTasks ? byTasks.done : completed,
+        counted: week.weekNumber >= joinedWeek,
+        isCurrent: week.weekNumber === currentWeekNumber,
+      };
+    });
+}
 
 const SKELETON_ROWS = 4;
 
@@ -201,23 +249,7 @@ export default function ProgressBody({ runId }: Props) {
   const rows: WeekRow[] = useMemo(() => {
     if (!data) return [];
     const currentWeekNumber = data.currentWeek?.weekNumber ?? null;
-    return data.weeks
-      .filter((week) => week.published)
-      .map((week) => {
-        const items = byWeek.get(week.weekNumber) ?? [];
-        let completed = 0;
-        for (const itemId of items) {
-          if (byItemId.get(itemId)?.completed) completed += 1;
-        }
-        return {
-          weekNumber: week.weekNumber,
-          title: week.title,
-          total: items.length,
-          completed,
-          counted: week.weekNumber >= joinedWeek,
-          isCurrent: week.weekNumber === currentWeekNumber,
-        };
-      });
+    return progressRows({ weeks: data.weeks, currentWeekNumber, byWeek, byItemId, joinedWeek });
   }, [data, byWeek, byItemId, joinedWeek]);
 
   const totals = useMemo(() => {

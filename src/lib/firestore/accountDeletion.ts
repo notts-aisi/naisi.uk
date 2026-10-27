@@ -7,7 +7,29 @@ import {
   type QueryDocumentSnapshot,
   type QuerySnapshot,
 } from "firebase-admin/firestore";
+import { deleteCalendarLink } from "@/lib/courses/calendarLink";
+import { deleteKairosChoice } from "@/lib/kairos/choice";
+import { deleteRatingsForAccount } from "@/lib/ratings/store";
+import { takeCheckInNamesOffForAccount } from "@/lib/events/checkIns";
+import { takeNamesOffForAccount } from "@/lib/surveys/namesOff";
+import { FACILITATING_COLLECTION } from "@/lib/courses/facilitatorAsks/model";
+import { CERTIFICATES_COLLECTION } from "@/lib/courses/certificates/model";
+import {
+  CERTIFICATE_MARKERS,
+  CERTIFICATES_PRESS_KIND,
+  CERTIFICATES_TEST_KIND,
+} from "@/lib/courses/certificates/markers";
+import { FINISHING_COLLECTION } from "@/lib/courses/finishing/model";
+import { PITCHES_COLLECTION } from "@/lib/courses/pitching/model";
+import { TEAM_ENTRIES_COLLECTION } from "@/lib/courses/teamPage/model";
+import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
+import { TEAMS_MARKERS, TEAMS_TEST_KIND } from "@/lib/courses/teams/told";
 import { normalizeCourseEnrolment } from "./courseEnrolments";
+import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
+import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
+import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
+import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
+import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
 import {
   MEMBER_RECORDS_COLLECTION,
   MEMBER_RECORD_APPLICATIONS,
@@ -35,6 +57,43 @@ export type AccountDeletionSummary = {
    * buzzing a phone for somebody who no longer has an account here.
    */
   pushSubscriptionsDeleted: number;
+  /**
+   * The account's calendar link (`calendarLinks/{uid}`, Add to calendar):
+   * the secret a calendar app fetches their sessions with. Deleted, so the
+   * link answers as one that never was, and a calendar still holding it
+   * empties on its next fetch.
+   */
+  calendarLinkDeleted: boolean;
+  /**
+   * The account's rows on surveys (`surveyPeople`): who a survey was sent to,
+   * the secret in their personal link, whether they answered. Deleted, so a
+   * link they were sent opens nothing.
+   */
+  surveyPeopleDeleted: number;
+  /**
+   * Survey answers the account sent (`surveyAnswers`), taken off them: the
+   * person comes off at once and the answers stay in the totals, as the
+   * survey's own box tells them. Counted once per answer.
+   */
+  surveyAnswersNamesTakenOff: number;
+  /**
+   * The account's Kairos choice (`kairosChoices/{uid}`): whether its name and
+   * programme record may go to Kairos. Deleted, since with the account gone
+   * there is nothing of theirs left to share.
+   */
+  kairosChoiceDeleted: boolean;
+  /**
+   * Ratings given at a programme's end (`programmeRatings`) that the account
+   * gave or was given: what a facilitator, the lead or an admin said about a
+   * fellow. Deleted either way, since a rating is only ever about one named
+   * person, by one named person.
+   */
+  programmeRatingsDeleted: number;
+  /**
+   * The events the account came to (`eventCheckIns`), taken off them: what
+   * is left counts that one person came and names nobody, as a year on does.
+   */
+  eventCheckInsNamesTakenOff: number;
   registrationDeleted: boolean;
   collaboratorDeleted: boolean;
   userDocDeleted: boolean;
@@ -54,6 +113,87 @@ export type AccountDeletionSummary = {
    * participant note about them (both keys go, in one batch).
    */
   courseAttendanceMarksCleared: number;
+  /**
+   * Pitches in an incubator's pitching week (`coursePitches`) this account was
+   * taken off: a pitch only they pitched is deleted, one they pitched with a
+   * partner stays the partner's without them, and their name comes off every
+   * pitch's list of people who would join it. Counted once per pitch.
+   */
+  coursePitchesCleared: number;
+  /**
+   * An incubator's teams (`courseTeams`) this account was taken off: their uid
+   * comes off the team's people and off its record of who was told, and the
+   * team stays with whoever else is in it. Counted once per team. The markers
+   * of tests of the team email they sent themselves go too.
+   */
+  courseTeamsCleared: number;
+  /**
+   * What this account saved last on an incubator team's page
+   * (`courseTeamEntries`: a week's check-in, a link, the hand-in): their uid
+   * comes off each, and the words stay with the team, as a register keeps
+   * its marks. Counted once per entry.
+   */
+  courseTeamEntriesCleared: number;
+  /**
+   * Who finished (`courseFinishing`): the programme lead's decisions about
+   * this account are deleted, and on decisions this account made about other
+   * people as a lead or an admin, who made them is cleared and the decision
+   * stays. Counted once per document.
+   */
+  courseFinishingCleared: number;
+  /**
+   * Asking people to facilitate (`courseFacilitating`): every ask sent to
+   * this account, with its answer, is deleted; where this account asked
+   * somebody, set a run's training or sent a test of the ask's email, who
+   * did it is cleared and the record stays. Counted once per document.
+   */
+  courseFacilitatingCleared: number;
+  /**
+   * The notes this account wrote as one of a group's facilitators for the
+   * others (`courseGroupNotes`, C30). Deleted: a note is its writer's words,
+   * and it goes with their account.
+   */
+  courseGroupNotesDeleted: number;
+  /**
+   * The notes this account shared with a group it was in or facilitated
+   * (`courseGroupSharedNotes`, C29). Deleted: a note is its writer's words,
+   * and it goes with their account.
+   */
+  courseGroupSharedNotesDeleted: number;
+  /**
+   * What this account had in each week's packs and talks
+   * (`coursePacksAndCases`): the pack it picked or was given, the case it was
+   * given and its own "Ready for my talk". Deleted: each record is about
+   * this account alone.
+   */
+  coursePacksAndCasesDeleted: number;
+  /**
+   * This account's place in each session's pairs (`coursePairs`): which pair
+   * it was in and whether it was bringing a laptop. Deleted: each record is
+   * about this account alone, and a pair is the people sharing a number, so
+   * its partners' records name nothing of it.
+   */
+  coursePairsDeleted: number;
+  /**
+   * Certificates this account owned whose link was off (`courseCertificates`):
+   * deleted, since only their owner could open them. With them go the
+   * markers of tests of the certificate email this account sent itself.
+   */
+  courseCertificatesDeleted: number;
+  /**
+   * Certificates this account owned whose link was on: KEPT, as the privacy
+   * policy says, for the people the owner gave the link to. Each loses its
+   * owner and shows what it was issued with.
+   */
+  courseCertificatesKept: number;
+  /**
+   * This account's sealed predictions (`coursePredictions`), on every run:
+   * both cards, sealed or not. Deleted: each is about this account alone.
+   * The record of each time an admin opened one (`recordOpenings`) is kept,
+   * as the log of course actions is: it names this account by an id that no
+   * longer resolves, and nothing the card said.
+   */
+  coursePredictionsDeleted: number;
   /** Admission applications (drafts included) written by this account. */
   admissionApplicationsDeleted: number;
   /** Their access-requirements rows, deleted in the SAME batch. See below. */
@@ -366,6 +506,296 @@ export async function deleteMembershipImportRows(
     );
   }
   return deleted;
+}
+
+/**
+ * Take one account off pitching week (`coursePitches`, described in
+ * `src/lib/courses/pitching/model.ts`).
+ *
+ * A pitch names its people in two arrays, `pitcherUids` (one or two people,
+ * the first having sent it) and `wouldJoinUids` (the picks), so each is
+ * found by a single-field `array-contains`, served by the automatic indexes:
+ *
+ *  - a pitch only this account pitched is DELETED: its words are theirs;
+ *  - a pitch they pitched with a partner stays, the partner's alone, so the
+ *    partner keeps the pitch they also wrote;
+ *  - every pitch they said they would join loses their name from that list.
+ *
+ * A person is on one pitch a week and picks a handful, so one batch is
+ * plenty; it is written in batches of 400 all the same.
+ */
+export async function clearCoursePitches(db: Firestore, uid: string): Promise<number> {
+  const pitches = db.collection(PITCHES_COLLECTION);
+  const [pitched, picked] = await Promise.all([
+    pitches.where("pitcherUids", "array-contains", uid).get(),
+    pitches.where("wouldJoinUids", "array-contains", uid).get(),
+  ]);
+  const writes: Array<(batch: ReturnType<Firestore["batch"]>) => void> = [];
+  const touched = new Set<string>();
+  for (const doc of pitched.docs) {
+    touched.add(doc.id);
+    const pitchers = (doc.data()?.pitcherUids as unknown[] | undefined) ?? [];
+    const others = pitchers.filter((other) => typeof other === "string" && other !== uid);
+    if (others.length === 0) {
+      writes.push((batch) => batch.delete(doc.ref));
+    } else {
+      writes.push((batch) =>
+        batch.update(doc.ref, { pitcherUids: others, wouldJoinUids: FieldValue.arrayRemove(uid) }),
+      );
+    }
+  }
+  for (const doc of picked.docs) {
+    if (touched.has(doc.id)) continue;
+    touched.add(doc.id);
+    writes.push((batch) => batch.update(doc.ref, { wouldJoinUids: FieldValue.arrayRemove(uid) }));
+  }
+  for (let at = 0; at < writes.length; at += 400) {
+    const batch = db.batch();
+    for (const write of writes.slice(at, at + 400)) write(batch);
+    await batch.commit();
+  }
+  return touched.size;
+}
+
+/**
+ * Take one account off an incubator's teams (`courseTeams`, described in
+ * `src/lib/courses/teams/model.ts`).
+ *
+ * A team names its people in `memberUids`, found by a single-field
+ * `array-contains` served by the automatic indexes, and what each of them was
+ * last told in `toldAs`, whose entries are always its members'. The person
+ * comes off both, and the team stays, with whoever else is in it: it is the
+ * lead's, not theirs. A test of the team email somebody sent themselves is a
+ * marker in `courseNudges` that names them (kind `teams-test`, with `byUid`),
+ * found by that one equality and deleted; the other markers there that carry
+ * a `byUid` are not this sweep's. Counted once per team.
+ */
+export async function clearCourseTeams(db: Firestore, uid: string): Promise<number> {
+  const [teams, markers] = await Promise.all([
+    db.collection(TEAMS_COLLECTION).where("memberUids", "array-contains", uid).get(),
+    db.collection(TEAMS_MARKERS).where("byUid", "==", uid).get(),
+  ]);
+  const writes: Array<(batch: ReturnType<Firestore["batch"]>) => void> = [];
+  for (const doc of teams.docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    const people = Array.isArray(data.memberUids) ? data.memberUids.filter((other) => other !== uid) : [];
+    const told = Array.isArray(data.toldAs)
+      ? data.toldAs.filter((entry) => !(entry && typeof entry === "object" && (entry as { uid?: unknown }).uid === uid))
+      : [];
+    writes.push((batch) => batch.update(doc.ref, { memberUids: people, toldAs: told }));
+  }
+  for (const doc of markers.docs) {
+    if ((doc.data() ?? {}).kind !== TEAMS_TEST_KIND) continue;
+    writes.push((batch) => batch.delete(doc.ref));
+  }
+  for (let at = 0; at < writes.length; at += 400) {
+    const batch = db.batch();
+    for (const write of writes.slice(at, at + 400)) write(batch);
+    await batch.commit();
+  }
+  return teams.docs.length;
+}
+
+/**
+ * Take one account's name off what it saved on incubator teams' pages
+ * (`courseTeamEntries`, described in `src/lib/courses/teamPage/model.ts`).
+ *
+ * Everything on a team's page is the team's: anybody in the team may change
+ * a check-in, remove a link or change the hand-in, so an entry has a last
+ * writer and no owner. The entries this account saved last are found by
+ * that one equality (`byUid`) and keep their words for the rest of the team,
+ * with nobody's name on them; nothing else names the account. Counted once
+ * per entry.
+ */
+export async function clearCourseTeamEntries(db: Firestore, uid: string): Promise<number> {
+  const snap = await db.collection(TEAM_ENTRIES_COLLECTION).where("byUid", "==", uid).get();
+  for (let at = 0; at < snap.docs.length; at += 400) {
+    const batch = db.batch();
+    for (const doc of snap.docs.slice(at, at + 400)) batch.update(doc.ref, { byUid: null });
+    await batch.commit();
+  }
+  return snap.docs.length;
+}
+
+/**
+ * Take one account out of who finished (`courseFinishing`, described in
+ * `src/lib/courses/finishing/model.ts`).
+ *
+ * A decision about a person carries their `uid`, found by that one equality
+ * and deleted: it is about them, and nothing else reads it. A decision this
+ * account made about somebody else carries it as `byUid`, found by that one
+ * equality, and keeps its finished or not with `byUid` cleared: it is about
+ * the other person, and their record must not change because whoever pressed
+ * the switch has gone. The run's rule names nobody. Counted once per document.
+ */
+export async function clearCourseFinishing(db: Firestore, uid: string): Promise<number> {
+  const rows = db.collection(FINISHING_COLLECTION);
+  const [about, made] = await Promise.all([
+    rows.where("uid", "==", uid).get(),
+    rows.where("byUid", "==", uid).get(),
+  ]);
+  const writes: Array<(batch: ReturnType<Firestore["batch"]>) => void> = [];
+  const touched = new Set<string>();
+  for (const doc of about.docs) {
+    touched.add(doc.id);
+    writes.push((batch) => batch.delete(doc.ref));
+  }
+  for (const doc of made.docs) {
+    if (touched.has(doc.id)) continue;
+    touched.add(doc.id);
+    writes.push((batch) => batch.update(doc.ref, { byUid: null }));
+  }
+  for (let at = 0; at < writes.length; at += 400) {
+    const batch = db.batch();
+    for (const write of writes.slice(at, at + 400)) write(batch);
+    await batch.commit();
+  }
+  return touched.size;
+}
+
+/**
+ * Take one account out of asking people to facilitate (`courseFacilitating`,
+ * described in `src/lib/courses/facilitatorAsks/model.ts`).
+ *
+ * An ask sent to this account carries their `uid`, found by that one
+ * equality and deleted: it is about them, and their answer goes with it. An
+ * ask this account sent carries it as `askedByUid`, a run's training as
+ * `setByUid`, and a test record as `byUid`: each is found by its one
+ * equality and keeps everything but who did it, which is cleared, because it
+ * is about somebody else or about the run. Counted once per document.
+ */
+export async function clearFacilitatorAsks(db: Firestore, uid: string): Promise<number> {
+  const rows = db.collection(FACILITATING_COLLECTION);
+  const [about, asked, trained, tested] = await Promise.all([
+    rows.where("uid", "==", uid).get(),
+    rows.where("askedByUid", "==", uid).get(),
+    rows.where("setByUid", "==", uid).get(),
+    rows.where("byUid", "==", uid).get(),
+  ]);
+  const writes: Array<(batch: ReturnType<Firestore["batch"]>) => void> = [];
+  const touched = new Set<string>();
+  for (const doc of about.docs) {
+    touched.add(doc.id);
+    writes.push((batch) => batch.delete(doc.ref));
+  }
+  for (const [snap, field] of [
+    [asked, "askedByUid"],
+    [trained, "setByUid"],
+    [tested, "byUid"],
+  ] as const) {
+    for (const doc of snap.docs) {
+      if (touched.has(doc.id)) continue;
+      touched.add(doc.id);
+      writes.push((batch) => batch.update(doc.ref, { [field]: "" }));
+    }
+  }
+  for (let at = 0; at < writes.length; at += 400) {
+    const batch = db.batch();
+    for (const write of writes.slice(at, at + 400)) write(batch);
+    await batch.commit();
+  }
+  return touched.size;
+}
+
+/**
+ * Delete every note this account wrote for the other facilitators of a group
+ * (`courseGroupNotes`, C30), on every run, a page at a time. A note is its
+ * writer's own words, found by the one equality on `authorUid` and deleted;
+ * nobody else's note is touched, whatever group it is on.
+ */
+export async function deleteCourseGroupNotes(db: Firestore, uid: string): Promise<number> {
+  return deleteOwnedCourseRows(db, COURSE_GROUP_NOTES_COLLECTION, uid, "authorUid");
+}
+
+/**
+ * Delete every note this account shared with a group (`courseGroupSharedNotes`,
+ * C29), on every run, a page at a time. A note is its writer's own words,
+ * found by the one equality on `authorUid` and deleted; nobody else's note is
+ * touched, whatever group it is in.
+ */
+export async function deleteCourseGroupSharedNotes(db: Firestore, uid: string): Promise<number> {
+  return deleteOwnedCourseRows(db, COURSE_GROUP_SHARED_NOTES_COLLECTION, uid, "authorUid");
+}
+
+/**
+ * Delete every record of what this account had in a week's packs and talks
+ * (`coursePacksAndCases`), on every run, a page at a time: the pack it picked
+ * or was given, the case it was given and its own "Ready for my talk". Found
+ * by the one equality on `uid`; nobody else's record is touched.
+ */
+export async function deleteCoursePacksAndCases(db: Firestore, uid: string): Promise<number> {
+  return deleteOwnedCourseRows(db, COURSE_PACKS_AND_CASES_COLLECTION, uid);
+}
+
+/**
+ * Delete every record of this account's place in a session's pairs
+ * (`coursePairs`), on every run and in every group, a page at a time: which
+ * pair it was in and whether it was bringing a laptop. Found by the one
+ * equality on `uid`; nobody else's record is touched, and none names it.
+ */
+export async function deleteCoursePairs(db: Firestore, uid: string): Promise<number> {
+  return deleteOwnedCourseRows(db, COURSE_PAIRS_COLLECTION, uid);
+}
+
+/**
+ * This account's certificates (`courseCertificates`, described in
+ * `src/lib/courses/certificates/model.ts`), found by the one equality on
+ * `uid`.
+ *
+ * A certificate whose link is off is deleted: only its owner could open it.
+ * One whose link is on stays, because it exists for the people its owner gave
+ * the link to: its owner is cleared and its page goes on showing what it was
+ * issued with, until somebody asks for it to be withdrawn. The privacy policy
+ * says both (Retention). The link decides, read as stored: anything but `true`
+ * is off.
+ *
+ * The markers this account left in `courseNudges` for the certificate send
+ * (a test it sent itself, a press it was making), found by the one equality
+ * on `byUid` and told apart by their kind, go too; the other markers there
+ * that carry a `byUid` are not this sweep's.
+ */
+export async function clearCourseCertificates(
+  db: Firestore,
+  uid: string,
+): Promise<{ deleted: number; kept: number }> {
+  const [owned, markers] = await Promise.all([
+    db.collection(CERTIFICATES_COLLECTION).where("uid", "==", uid).get(),
+    db.collection(CERTIFICATE_MARKERS).where("byUid", "==", uid).get(),
+  ]);
+  const writes: Array<(batch: ReturnType<Firestore["batch"]>) => void> = [];
+  let deleted = 0;
+  let kept = 0;
+  for (const doc of owned.docs) {
+    if ((doc.data() ?? {}).linkOn === true) {
+      kept += 1;
+      writes.push((batch) => batch.update(doc.ref, { uid: null, ownerGoneAt: FieldValue.serverTimestamp() }));
+    } else {
+      deleted += 1;
+      writes.push((batch) => batch.delete(doc.ref));
+    }
+  }
+  for (const doc of markers.docs) {
+    const kind = (doc.data() ?? {}).kind;
+    if (kind !== CERTIFICATES_TEST_KIND && kind !== CERTIFICATES_PRESS_KIND) continue;
+    writes.push((batch) => batch.delete(doc.ref));
+  }
+  for (let at = 0; at < writes.length; at += 400) {
+    const batch = db.batch();
+    for (const write of writes.slice(at, at + 400)) write(batch);
+    await batch.commit();
+  }
+  return { deleted, kept };
+}
+
+/**
+ * Delete this account's sealed predictions (`coursePredictions`), on every
+ * run, a page at a time: both cards, sealed or not. Found by the one equality
+ * on `uid`; nobody else's card is touched, and the record of each time an
+ * admin opened one (`recordOpenings`) is left, as the log of course actions
+ * is (see `src/lib/firestore/recordOpenings.ts`).
+ */
+export async function deleteCoursePredictions(db: Firestore, uid: string): Promise<number> {
+  return deleteOwnedCourseRows(db, COURSE_PREDICTIONS_COLLECTION, uid);
 }
 
 /**
@@ -874,6 +1304,12 @@ export async function deleteAccountCascade(
   const summary: AccountDeletionSummary = {
     subscriptionsDeleted: 0,
     pushSubscriptionsDeleted: 0,
+    calendarLinkDeleted: false,
+    surveyPeopleDeleted: 0,
+    surveyAnswersNamesTakenOff: 0,
+    kairosChoiceDeleted: false,
+    programmeRatingsDeleted: 0,
+    eventCheckInsNamesTakenOff: 0,
     registrationDeleted: false,
     collaboratorDeleted: false,
     userDocDeleted: false,
@@ -884,6 +1320,18 @@ export async function deleteAccountCascade(
     courseExerciseResponsesDeleted: 0,
     schedulerMarkersDeleted: 0,
     courseAttendanceMarksCleared: 0,
+    coursePitchesCleared: 0,
+    courseTeamsCleared: 0,
+    courseTeamEntriesCleared: 0,
+    courseFinishingCleared: 0,
+    courseFacilitatingCleared: 0,
+    courseGroupNotesDeleted: 0,
+    courseGroupSharedNotesDeleted: 0,
+    coursePacksAndCasesDeleted: 0,
+    coursePairsDeleted: 0,
+    courseCertificatesDeleted: 0,
+    courseCertificatesKept: 0,
+    coursePredictionsDeleted: 0,
     admissionApplicationsDeleted: 0,
     admissionApplicationPrivateDeleted: 0,
     admissionDecisionsDeleted: 0,
@@ -962,6 +1410,84 @@ export async function deleteAccountCascade(
     );
   } catch (err) {
     console.error("[deleteAccount] pushSubscriptions delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 1d. The CALENDAR LINK, the account's third channel to a device: the
+  //     secret a calendar app fetches their sessions with
+  //     (`src/lib/firestore/calendarLinks.ts`), one document at their uid,
+  //     deleted by `deleteCalendarLink`.
+  //     Deleted, so the link answers as one that never was and a calendar
+  //     still holding it empties on its next fetch.
+  //
+  //     BEST-EFFORT, as the push rows are, and for the same bounded reason: a
+  //     link that survives a failure here opens nothing once the account is
+  //     gone (the feed asks the account's standing and finds no account), and
+  //     the 207 keeps the registration row so the sweep is retried. The error
+  //     is logged without its message, which can carry the document it read.
+  try {
+    summary.calendarLinkDeleted = await deleteCalendarLink(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] calendar link delete failed:", uid, (err as { code?: unknown } | null)?.code ?? "unknown");
+    partialFailure = true;
+  }
+
+  // 1e. SURVEYS. The account's name comes off its survey answers at once and
+  //     the answers stay in the totals; its rows on surveys (who a survey was
+  //     sent to, the secret in their link, whether they answered) are deleted
+  //     (`takeNamesOffForAccount`, `src/lib/surveys/namesOff.ts`). One
+  //     equality on `respondent.uid` in each collection. The record of each
+  //     time an admin opened this account's answers, and of each time this
+  //     account, as an admin, opened somebody's, stays (`recordOpenings`,
+  //     kind `survey-answers`), as the record of downloads does: it names the
+  //     account by an id that no longer resolves, and nothing the answers said.
+  //
+  //     BEST-EFFORT, with the 207 keeping the registration row so the sweep
+  //     is retried: a failure here leaves a name on answers only admins read,
+  //     which the retry takes off.
+  try {
+    const off = await takeNamesOffForAccount(db, uid);
+    summary.surveyPeopleDeleted = off.people;
+    summary.surveyAnswersNamesTakenOff = off.answers;
+  } catch (err) {
+    console.error("[deleteAccount] survey names-off failed:", uid, (err as { code?: unknown } | null)?.code ?? "unknown");
+    partialFailure = true;
+  }
+
+  // 1f. THE KAIROS CHOICE. Whether the account's name and programme record
+  //     may go to Kairos (`kairosChoices/{uid}`, `src/lib/kairos/choice.ts`):
+  //     one document at the uid, deleted. BEST-EFFORT like 1e, with the 207
+  //     keeping the registration row so the sweep is retried.
+  try {
+    summary.kairosChoiceDeleted = await deleteKairosChoice(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] Kairos choice delete failed:", uid, (err as { code?: unknown } | null)?.code ?? "unknown");
+    partialFailure = true;
+  }
+
+  // 1g. RATINGS. Every rating given at a programme's end that the account gave
+  //     or was given (`programmeRatings`, `src/lib/ratings/store.ts`): one
+  //     equality on `raterUid` and one on `ratedUid`, deleted. BEST-EFFORT like
+  //     1e, with the 207 keeping the registration row so the sweep is retried.
+  try {
+    summary.programmeRatingsDeleted = await deleteRatingsForAccount(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] ratings delete failed:", uid, (err as { code?: unknown } | null)?.code ?? "unknown");
+    partialFailure = true;
+  }
+
+  // 1h. CHECK-INS. The account's name comes off every event it came to at
+  //     once (`takeCheckInNamesOffForAccount`, `src/lib/events/checkIns.ts`):
+  //     the records stay as counts, as they do a year after an event. One
+  //     equality on `uid`.
+  //
+  //     BEST-EFFORT, with the 207 keeping the registration row so the sweep
+  //     is retried: a failure here leaves a name only the people who run
+  //     check-in see, which the retry takes off.
+  try {
+    summary.eventCheckInsNamesTakenOff = await takeCheckInNamesOffForAccount(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] check-in names-off failed:", uid, (err as { code?: unknown } | null)?.code ?? "unknown");
     partialFailure = true;
   }
 
@@ -1153,6 +1679,121 @@ export async function deleteAccountCascade(
       console.error(`[deleteAccount] ${collection} delete failed:`, uid, err);
       partialFailure = true;
     }
+  }
+
+  // 5c'. PITCHING WEEK. A pitch holds who pitched it and who would join it as
+  //      two arrays of uids, so this account is taken off both rather than a
+  //      row of its own being deleted (see clearCoursePitches).
+  try {
+    summary.coursePitchesCleared = await clearCoursePitches(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] coursePitches clear failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c''. TEAMS. A team holds its people, and who of them was told, as uids,
+  //      so this account is taken off it rather than a row of its own being
+  //      deleted (see clearCourseTeams).
+  try {
+    summary.courseTeamsCleared = await clearCourseTeams(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseTeams clear failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c''+. TEAM PAGES. What this account saved last on a team's page stays
+  //      with the team, and their uid comes off it (see clearCourseTeamEntries).
+  try {
+    summary.courseTeamEntriesCleared = await clearCourseTeamEntries(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseTeamEntries clear failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c'''. WHO FINISHED. The lead's decisions about this account go; on the
+  //      ones this account made about other people, who made them is cleared
+  //      (see clearCourseFinishing).
+  try {
+    summary.courseFinishingCleared = await clearCourseFinishing(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseFinishing clear failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c''''-. ASKED TO FACILITATE. Every ask sent to this account goes, with
+  //      its answer; where this account asked, set the training or sent a
+  //      test, who did it is cleared (see clearFacilitatorAsks).
+  try {
+    summary.courseFacilitatingCleared = await clearFacilitatorAsks(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseFacilitating clear failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c''''. FACILITATORS' NOTES. The notes this account wrote for the other
+  //      facilitators of a group are their own words, addressed by the
+  //      writer's uid, and go with the account (see courseGroupNotes.ts).
+  try {
+    summary.courseGroupNotesDeleted = await deleteCourseGroupNotes(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseGroupNotes delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c'''''. NOTES SHARED WITH A GROUP. The notes this account shared with a
+  //      group it was in, or facilitated, are their own words, addressed by
+  //      the writer's uid, and go with the account (see
+  //      courseGroupSharedNotes.ts).
+  try {
+    summary.courseGroupSharedNotesDeleted = await deleteCourseGroupSharedNotes(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseGroupSharedNotes delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c. PACKS AND CASES. What this account had in each week's packs and
+  //      talks (the pack picked or given, the case given, its own ready
+  //      mark) is about this account alone, addressed by its uid, and goes
+  //      with it (see coursePacksAndCases.ts).
+  try {
+    summary.coursePacksAndCasesDeleted = await deleteCoursePacksAndCases(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] coursePacksAndCases delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c. PAIRS. This account's place in each session's pairs (which pair, and
+  //      whether it was bringing a laptop) is about this account alone,
+  //      addressed by its uid, and goes with it; a partner's record names
+  //      nothing of it (see coursePairs.ts).
+  try {
+    summary.coursePairsDeleted = await deleteCoursePairs(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] coursePairs delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c''''''. CERTIFICATES. One whose link is off goes; one whose link is on
+  //      stays without its owner, for the people the owner gave the link to
+  //      (see clearCourseCertificates).
+  try {
+    const certificates = await clearCourseCertificates(db, uid);
+    summary.courseCertificatesDeleted = certificates.deleted;
+    summary.courseCertificatesKept = certificates.kept;
+  } catch (err) {
+    console.error("[deleteAccount] courseCertificates clear failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c. SEALED PREDICTIONS. This account's predictions cards, sealed or not,
+  //      are about this account alone, addressed by its uid, and go with it
+  //      (see coursePredictions.ts). The record of each time an admin opened
+  //      one stays, as the log of course actions does (see recordOpenings.ts).
+  try {
+    summary.coursePredictionsDeleted = await deleteCoursePredictions(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] coursePredictions delete failed:", uid, err);
+    partialFailure = true;
   }
 
   // 5d. ADMISSIONS. Same tier as the course rows above and for the same

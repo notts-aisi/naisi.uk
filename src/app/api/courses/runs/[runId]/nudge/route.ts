@@ -31,9 +31,14 @@ import {
   resolveCalendar,
   resolveWeekDoc,
 } from "@/lib/courses/groupResolve";
-import { courseEnrolmentId, normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
+import {
+  courseEnrolmentId,
+  normalizeCourseEnrolment,
+  placementIsShownTo,
+} from "@/lib/firestore/courseEnrolments";
 import {
   normalizeCourseGroup,
+  isCancelledOn,
   sessionForWeek,
   sessionModeForWeek,
   type CourseGroupDoc,
@@ -574,8 +579,8 @@ type GroupIndex = {
  *
  * The session is resolved through `sessionForWeek`, so a one-week room or time
  * change is reflected, and dated through the slot THE GROUP is actually in —
- * which is what lets `{sessionWhen}` read "Tuesday 26 August, 18:00–19:30"
- * rather than the recurring "Tuesdays 18:00–19:30" a weekly email has no use
+ * which is what lets `{sessionWhen}` read "Tue 26 Aug, 6pm to 7:30pm" rather
+ * than the recurring "Tuesdays, 6pm to 7:30pm" a weekly email has no use
  * for, and what keeps a group pacing a week behind from being dated to the
  * run's slot.
  *
@@ -608,10 +613,11 @@ async function loadGroups(
     if (address) addressByGroupId.set(group.id, address);
     const at = address ?? runAddress;
     const session = sessionForWeek(group, at.weekId);
-    const sessionWhen = courseNudgeSessionWhen(
-      session,
-      courseNudgeSessionDateKey(at.slotStartKey, session.weekday),
-    );
+    const sessionDateKey = courseNudgeSessionDateKey(at.slotStartKey, session.weekday);
+    // A session cancelled through "Change a session" is no evening to name:
+    // the group's people get the week without a sentence about meeting.
+    if (sessionDateKey && isCancelledOn(group, at.weekId, sessionDateKey)) continue;
+    const sessionWhen = courseNudgeSessionWhen(session, sessionDateKey);
     if (!sessionWhen) continue;
     const context: SessionContext = {
       sessionWhen,
@@ -767,14 +773,24 @@ function groupWeekFor(
   return weeks.get(groupId) ?? runWeek;
 }
 
-/** The caller's own placement on this run, if they have one. */
-async function ownGroupId(db: Firestore, runId: string, uid: string): Promise<string | null> {
+/**
+ * The caller's own placement on this run, if they have one and it has been
+ * told: a placement Publish has not told them about picks no group's week
+ * for their preview, exactly as if they had none.
+ */
+async function ownGroupId(
+  db: Firestore,
+  runId: string,
+  uid: string,
+  viewer: { isAdmin: boolean },
+): Promise<string | null> {
   const snap = await db
     .collection("courseEnrolments")
     .doc(courseEnrolmentId(runId, uid))
     .get();
   if (!snap.exists) return null;
-  return normalizeCourseEnrolment(snap.id, snap.data() ?? {}).groupId;
+  const own = normalizeCourseEnrolment(snap.id, snap.data() ?? {});
+  return placementIsShownTo(own, viewer) ? own.groupId : null;
 }
 
 /**
@@ -838,7 +854,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ runId: string 
   if (!gate.ok) {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
-  const { actor, db, run } = gate;
+  const { actor, db, run, isAdmin } = gate;
 
   // Captured once so the run's position, every group's position and the
   // preview's session date all describe the same instant.
@@ -871,7 +887,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ runId: string 
       loadGroups(db, run, runAddress, now),
       resolveCourseNudgeTemplate(db),
       db.collection("users").doc(actor.uid).get(),
-      ownGroupId(db, runId, actor.uid),
+      ownGroupId(db, runId, actor.uid, { isAdmin }),
       readCoursesConfig(db),
     ]);
 
@@ -1151,7 +1167,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ runId: string 
         address: own,
         recipientName: senderName,
         ownName: senderName,
-        groupId: await ownGroupId(db, runId, actor.uid),
+        groupId: await ownGroupId(db, runId, actor.uid, { isAdmin }),
       },
     ]);
     recipients = deliverable;

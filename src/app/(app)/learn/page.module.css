@@ -50,6 +50,41 @@
   }
 }
 
+/* A run the member left: a card that says only that, below the live grid and
+   a grid gap from it, so the two read as one grid. The link and the card copy
+   RunCard's own (a block anchor whose radius the focus ring traces). */
+.leftAfterLive {
+  margin-top: var(--space-4);
+}
+
+.leftLink {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-lg);
+}
+
+.leftLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.leftCard {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.leftTitle {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
 /* The archived bucket, below the live grid. Only the gap is new — the heading
    and lede reuse .header/.title/.lede so the two sections read as one page. */
 .archivedSection {
@@ -92,6 +127,18 @@
 .browse:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
+}
+
+/* The card that says a member's group is on its way, above the runs. */
+.above {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.above:empty {
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -3,10 +3,27 @@ import Link from "next/link";
 import kit from "@/features/applications/kit/kit.module.css";
 import { ArrowRightIcon, BackIcon } from "@/features/applications/apply/icons";
 import { standardSubject } from "@/lib/applications/decisionDay/emailCopy";
-import type { StatusView } from "@/lib/applications/status/view";
+import {
+  ASK_THE_TEAM_AFTER,
+  GO_TO_YOUR_PROGRAMME,
+  inGroupLine,
+  leavingNowLine,
+} from "@/lib/applications/status/runWords";
+import type { InGroupView, StatusView } from "@/lib/applications/status/view";
+import {
+  LEFT_CHIP,
+  REMOVED_BY_MISTAKE,
+  REMOVED_CHIP,
+  leftTitle,
+  removedOnLine,
+  removedTitle,
+} from "@/lib/applications/status/words";
+import { CHANGED_AFTER, CHANGED_BEFORE, CHANGED_YOUR_MIND, leftOnLine } from "@/lib/courses/leavingWords";
+import type { WhenFreeView } from "@/lib/applications/status/whenFree";
 import OfferBanner from "./OfferBanner";
 import { InvitationReply, PlaceReply, ReplyTitle } from "./ReplyButtons";
 import Steps from "./Steps";
+import WhenYoureFree from "./WhenYoureFree";
 import styles from "./status.module.css";
 
 /**
@@ -21,6 +38,13 @@ import styles from "./status.module.css";
  * What somebody with a place is told comes next is the view's own `next`,
  * which is the decision email's sentence for the kind of programme they are
  * in. It is not typed here: a sentence typed here is said to everybody.
+ *
+ * ONCE PUBLISH HAS TOLD THEM THEIR GROUP, a place offers no reply buttons:
+ * giving the place back is leaving the programme by then, so the page points
+ * to their programme's page, where leaving is, and says what it means
+ * (`InGroup`). Once they have left, by either door, the page says so and
+ * when, never that they told us they could not make it. Once staff have
+ * taken them off, it says that, and when, in the same way.
  *
  * Nothing on this page is a form control but the reply buttons, so apart
  * from those it reads in full from the first HTML, before any script runs.
@@ -118,15 +142,56 @@ function Plain({ title, children }: { title: string; children: ReactNode }) {
 
 const withDay = (label: string, day: string | null) => (day ? `${label} · ${day}` : label);
 
+/**
+ * In place of "I’m coming" and "I can’t make it", once Publish has told them
+ * their group: where everything is, the way to their programme's page, and
+ * what giving the place back now means there (nothing, once the run's last
+ * session is over).
+ */
+function InGroup({ inGroup, card }: { inGroup: InGroupView; card: boolean }) {
+  const line = inGroupLine(inGroup.groupName);
+  return (
+    <>
+      {/* Where the sentence about what comes next sits, on the page and on the card. */}
+      {card ? (
+        <div className={styles.body}>
+          <p>{line}</p>
+        </div>
+      ) : (
+        <p className={styles.offerText}>{line}</p>
+      )}
+      <div className={styles.actions} data-gap="tight">
+        <Link href={`/learn/${encodeURIComponent(inGroup.runId)}`} className={`${kit.primary} ${styles.primary}`}>
+          <span>{GO_TO_YOUR_PROGRAMME}</span>
+          <ArrowRightIcon />
+        </Link>
+        {inGroup.leave === "open" ? <p className={styles.note}>{leavingNowLine(inGroup.groupName)}</p> : null}
+        {inGroup.leave === "ask-the-team" ? (
+          <p className={styles.note}>
+            {CHANGED_YOUR_MIND} {CHANGED_BEFORE} <Contact /> {ASK_THE_TEAM_AFTER}
+          </p>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
 export default function StatusPage({
   roundId,
   view,
   viewingAs,
+  free = null,
 }: {
   roundId: string;
   view: StatusView;
   /** An admin is looking at this as the member, so nothing may be answered. */
   viewingAs: boolean;
+  /**
+   * "When you’re free" (Q7), for somebody holding a place on a fellowship
+   * until Publish has told them their group: the form's grid, the week as
+   * painted and the line under the title (`loadWhenFree`). Null draws no card.
+   */
+  free?: WhenFreeView | null;
 }) {
   const applyHref = `/apply/${encodeURIComponent(roundId)}`;
 
@@ -356,12 +421,22 @@ export default function StatusPage({
               </div>
             ) : null}
           </div>
-          <p className={styles.offerText}>{view.next}</p>
-          <PlaceReply
-            roundId={roundId}
-            said={view.saidComing ? "You’ve told us you’re coming." : null}
-            locked={viewingAs}
-          />
+          {view.inGroup ? (
+            <InGroup inGroup={view.inGroup} card={false} />
+          ) : (
+            <>
+              <p className={styles.offerText}>{view.next}</p>
+              <PlaceReply
+                roundId={roundId}
+                said={view.saidComing ? "You’ve told us you’re coming." : null}
+                helps={view.comingHelps}
+                locked={viewingAs}
+              />
+            </>
+          )}
+          {free && !view.inGroup ? (
+            <WhenYoureFree roundId={roundId} grid={free.grid} availability={free.availability} line={free.line} />
+          ) : null}
           <p className={styles.questions}>
             Questions? <Contact />
           </p>
@@ -390,11 +465,25 @@ export default function StatusPage({
               </div>
             ) : null}
           </div>
-          <div className={styles.body}>
-            <p>{view.next}</p>
-          </div>
-          <PlaceReply roundId={roundId} said="You’ve accepted your invitation." locked={viewingAs} />
+          {view.inGroup ? (
+            <InGroup inGroup={view.inGroup} card />
+          ) : (
+            <>
+              <div className={styles.body}>
+                <p>{view.next}</p>
+              </div>
+              <PlaceReply
+                roundId={roundId}
+                said="You’ve accepted your invitation."
+                helps={view.comingHelps}
+                locked={viewingAs}
+              />
+            </>
+          )}
         </div>
+        {free && !view.inGroup ? (
+          <WhenYoureFree roundId={roundId} grid={free.grid} availability={free.availability} line={free.line} />
+        ) : null}
       </Frame>
     );
   }
@@ -418,11 +507,27 @@ export default function StatusPage({
             ) : null}
           </div>
           <div className={styles.body}>
-            <p>
-              {view.appliedFor ? `You applied for ${view.appliedFor}. ` : null}
-              The pool was really strong and we don’t have space for you this time, but we think you’d be a
-              great fit for {programme ? programme.shortName : "this programme"} instead.
-            </p>
+            {view.freed ? (
+              // A freed place, on a programme they ranked: the words of the
+              // email that offered it, with the day as a date, because a page
+              // is read on any day after.
+              <p>
+                {view.decidedLabel ? (
+                  <>
+                    On <span className={styles.together}>{view.decidedLabel}</span> we
+                  </>
+                ) : (
+                  "We"
+                )}{" "}
+                couldn’t offer you a place this term. Someone has given theirs back, and we’d love you to have it.
+              </p>
+            ) : (
+              <p>
+                {view.appliedFor ? `You applied for ${view.appliedFor}. ` : null}
+                The pool was really strong and we don’t have space for you this time, but we think you’d be a
+                great fit for {programme ? programme.shortName : "this programme"} instead.
+              </p>
+            )}
             <p>
               {!view.canAccept ? (
                 <>
@@ -451,6 +556,65 @@ export default function StatusPage({
             </p>
           </div>
           <InvitationReply roundId={roundId} canAccept={view.canAccept} locked={viewingAs} />
+        </div>
+      </Frame>
+    );
+  }
+
+  // Left the programme, by either door. Their programme's page says the same,
+  // and shows them nothing more: not their notes, nor the reading list.
+  if (view.kind === "left") {
+    return (
+      <Frame eyebrow={eyebrow} pad="outcome" gap="outcome">
+        <div className={`${styles.card} ${styles.stack}`}>
+          <div>
+            <Chip>{LEFT_CHIP}</Chip>
+          </div>
+          <ReplyTitle as="h2" className={styles.cardTitle}>
+            {leftTitle(view.programme?.shortName ?? null)}
+          </ReplyTitle>
+          <div className={styles.body}>
+            <p>{leftOnLine(view.leftOnLabel)}</p>
+            <p>
+              {CHANGED_YOUR_MIND} {CHANGED_BEFORE} <Contact /> {CHANGED_AFTER}
+            </p>
+          </div>
+          <div>
+            <Link href={`/learn/${encodeURIComponent(view.runId)}`} className={styles.outlineSmall}>
+              <span>{GO_TO_YOUR_PROGRAMME}</span>
+              <ArrowRightIcon />
+            </Link>
+          </div>
+        </div>
+      </Frame>
+    );
+  }
+
+  // Taken off the programme by staff, which gave the place on the form back.
+  // The run closes to them, so there is no way to their programme's page, and
+  // the page never says they told us they could not make it.
+  if (view.kind === "removed") {
+    const day = removedOnLine(view.removedOnLabel);
+    return (
+      <Frame eyebrow={eyebrow} pad="outcome" gap="outcome">
+        <div className={`${styles.card} ${styles.stack}`}>
+          <div>
+            <Chip>{REMOVED_CHIP}</Chip>
+          </div>
+          <h2 className={styles.cardTitle}>{removedTitle(view.programme?.shortName ?? null)}</h2>
+          <div className={styles.body}>
+            {day ? <p>{day}</p> : null}
+            <p>
+              {REMOVED_BY_MISTAKE} <Contact /> {CHANGED_AFTER}
+            </p>
+            <p>Our events are open to everyone, so come along to one.</p>
+          </div>
+          <div>
+            <Link href={EVENTS} className={styles.outlineSmall}>
+              <span>See what’s on</span>
+              <ArrowRightIcon />
+            </Link>
+          </div>
         </div>
       </Frame>
     );

@@ -9,6 +9,7 @@ import type {
 } from "@/app/api/courses/groups/[groupId]/attendance/route";
 import type { AttendancePushResult } from "@/app/api/courses/groups/[groupId]/attendance/push/route";
 import type { ParticipantNoteResult } from "@/app/api/courses/groups/[groupId]/participant-notes/route";
+import type { RegisterEnding } from "@/lib/courses/registerEnding";
 import type { AttendanceStatus } from "@/lib/firestore/courseAttendance";
 
 /**
@@ -39,10 +40,11 @@ import type { AttendanceStatus } from "@/lib/firestore/courseAttendance";
  *
  * ── WHAT IS NOT OPTIMISTIC, AND WHY ─────────────────────────────────────────
  * Marks are: they are small, reversible, and the whole gesture is tapping
- * quickly down a column. PUSH is not. It locks the register, rewrites every
- * member's attendance record and mails the group, and a UI that showed it as
- * done before the server agreed would be claiming an email had gone out. The
- * push and the note drawer both wait for their answer and then reload.
+ * quickly down a column. FINISHING is not. It locks the register and rewrites
+ * every member's attendance record (and, while next week's email is not on its
+ * schedule, mails the group), and a UI that showed it as done before the
+ * server agreed would be claiming something had happened. The finish and the
+ * note drawer both wait for their answer and then reload.
  *
  * ── PII BOUNDARY ────────────────────────────────────────────────────────────
  * The payload carries `displayName`, the marks, and the facilitator's own
@@ -58,6 +60,8 @@ export type AttendanceMark = { uid: string; status: AttendanceStatus | null };
 
 export type { AttendanceSession };
 export type AttendanceMember = AttendancePayload["members"][number];
+/** Somebody who left the group: read only, beside the register's rows. */
+export type AttendanceLeaver = AttendancePayload["leavers"][number];
 export type AttendanceRecords = AttendancePayload["records"];
 export type AttendanceNotes = AttendancePayload["participantNotes"];
 
@@ -70,12 +74,21 @@ export type AttendanceState = {
   sessions: AttendanceSession[];
   /** The grid's rows: active members, name-sorted. */
   members: AttendanceMember[];
+  /**
+   * True when somebody placed in the group is not a row yet because Publish
+   * has not told them their group. False until a payload has landed.
+   */
+  notYetTold: boolean;
+  /** Who left the group, read only, with the marks they had. Never a row anybody marks. */
+  leavers: AttendanceLeaver[];
   /** `sessionKey -> uid -> status`. Sparse: absent means unmarked. */
   records: AttendanceRecords;
   /** `sessionKey -> uid -> note`. Private to staff. */
   participantNotes: AttendanceNotes;
   /** True when this caller may correct a register that is already pushed. */
   canEditPushed: boolean;
+  /** How the register ends: which button, and the words under it. */
+  ending: RegisterEnding | null;
   /** True on the first load of a group AND on a manual refresh. */
   loading: boolean;
   /** A fetch for the CURRENT group has landed, so the grid is real. */
@@ -104,8 +117,9 @@ export type AttendanceState = {
     patch?: SessionPatch,
   ) => Promise<AttendanceEditResult>;
   /**
-   * PUSH ATTENDANCE. Locks the register, rebuilds the mirrors, mails the
-   * group. `force` is the ADMIN-ONLY resend over a claimed reminder marker.
+   * FINISH THE REGISTER (or PUSH ATTENDANCE). Locks the register and rebuilds
+   * the mirrors; mails the group only while next week's email is not on its
+   * schedule. `force` is the ADMIN-ONLY resend over a claimed email.
    */
   push: (
     session: AttendanceSession,
@@ -121,6 +135,7 @@ export type AttendanceState = {
 
 const NO_SESSIONS: AttendanceSession[] = [];
 const NO_MEMBERS: AttendanceMember[] = [];
+const NO_LEAVERS: AttendanceLeaver[] = [];
 const NO_RECORDS: AttendanceRecords = {};
 const NO_NOTES: AttendanceNotes = {};
 
@@ -407,9 +422,12 @@ export function useAttendance(groupId: string): AttendanceState {
     group: data?.group ?? null,
     sessions: data?.sessions ?? NO_SESSIONS,
     members: data?.members ?? NO_MEMBERS,
+    notYetTold: data?.notYetTold === true,
+    leavers: data?.leavers ?? NO_LEAVERS,
     records: data?.records ?? NO_RECORDS,
     participantNotes: data?.participantNotes ?? NO_NOTES,
     canEditPushed: data?.canEditPushed ?? false,
+    ending: data?.ending ?? null,
     loading,
     loaded: !idle && !loading && data !== null,
     error: fresh?.error ?? null,

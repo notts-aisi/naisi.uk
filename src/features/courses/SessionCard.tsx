@@ -8,12 +8,19 @@ import {
   GROUP_FIELD_LIMITS,
   type GroupSessionMode,
 } from "@/lib/firestore/courseGroups";
+import { sessionWhenLabel } from "@/lib/courses/londonLabels";
 import {
   addDaysToKey,
   isValidDateKey,
   londonDateKey,
   londonWallClockToInstant,
 } from "@/lib/courses/weekPlan";
+import {
+  CANCELLED_CARD,
+  JOIN_ONLINE,
+  LINK_IS_HERE,
+  LINK_WILL_BE_HERE,
+} from "@/lib/courses/sessionChange/words";
 import styles from "./SessionCard.module.css";
 
 /**
@@ -58,10 +65,15 @@ import styles from "./SessionCard.module.css";
  *
  * HONEST FALLBACKS, both directions. An online week with no stored link and an
  * in-person week with no room each say so in a sentence a member can act on
- * ("your facilitator will send it") rather than rendering an empty card that
- * reads as "there is nowhere to be". The `meetingUrl` PII gate is upstream and
- * untouched: `null` here can also mean "not yours to see", and the fallback
- * copy is written so it is true either way.
+ * rather than rendering an empty card that reads as "there is nowhere to be".
+ * The online one says the link will be HERE, never that anybody will send it:
+ * the link lives on the site, behind sign-in, and no email carries it (Q23).
+ * The `meetingUrl` PII gate is upstream and untouched: `null` here can also
+ * mean "not yours to see", and the fallback copy is written so it is true
+ * either way.
+ *
+ * "Join online" carries the board's line under it (wk-changes): the link is
+ * here, not in your emails, so it can't be forwarded.
  */
 
 type SessionState = "upcoming" | "today" | "held";
@@ -82,31 +94,15 @@ type Props = {
    */
   mode: GroupSessionMode | null;
   title?: string;
+  /**
+   * The session this card is dated to was cancelled and the group kept pace
+   * (Q25): the card says so, with the reason the group was given, and offers
+   * no room and no link for an evening nobody meets.
+   */
+  cancelled?: { reason: string } | null;
 };
 
 const WALL_CLOCK = /^([01]\d|2[0-3]):([0-5]\d)$/;
-
-/**
- * Module-scoped: constructing an `Intl.DateTimeFormat` is expensive relative
- * to using one (the `weekPlan.ts` precedent), and this renders on every week
- * page. `timeZone: "UTC"` because the input is a civil date parsed at UTC
- * midnight — it is a date, not an instant, and must not be re-zoned.
- */
-const SESSION_DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
-  timeZone: "UTC",
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-});
-
-/** "18:00" + 90 → "19:30". Null when the slot has no usable duration. */
-function endTimeLabel(start: string, minutes: number): string | null {
-  const m = WALL_CLOCK.exec(start);
-  if (!m || minutes <= 0) return null;
-  const total = (Number(m[1]) * 60 + Number(m[2]) + minutes) % 1440;
-  const hh = String(Math.floor(total / 60)).padStart(2, "0");
-  return `${hh}:${String(total % 60).padStart(2, "0")}`;
-}
 
 type SessionWindow = { dateKey: string; startsAt: Date; endsAt: Date };
 
@@ -146,24 +142,17 @@ export default function SessionCard({
   slotStartKey,
   mode,
   title = "This week's session",
+  cancelled = null,
 }: Props) {
   const occurrence = sessionWindow(group, slotStartKey);
   const state = sessionState(occurrence, new Date());
 
-  const end = endTimeLabel(group.startTimeLocal, group.durationMinutes);
-  const timeRange = WALL_CLOCK.test(group.startTimeLocal)
-    ? `${group.startTimeLocal}${end ? `–${end}` : ""}`
-    : "";
-  // With a resolved date the card names the actual evening; without one it
-  // falls back to the run's recurring label rather than guessing.
-  const when = occurrence
-    ? [
-        SESSION_DATE_FORMAT.format(new Date(`${occurrence.dateKey}T00:00:00Z`)),
-        timeRange,
-      ]
-        .filter(Boolean)
-        .join(" · ")
-    : group.sessionLabel;
+  // With a resolved date the card names the actual evening, "Mon 2 Nov, 5pm
+  // to 7pm", in the words the weekly email names it in (`sessionWhenLabel`);
+  // without one it names the weekly habit the same way, "Mondays, 5pm to
+  // 7pm", rather than guessing a date. The run's recurring label is the last
+  // resort, for a slot with no time of day.
+  const when = sessionWhenLabel(group, occurrence?.dateKey ?? null) || group.sessionLabel;
 
   // Meeting links are facilitator-authored. `validateSubmissionUrl` is the
   // same gate `GroupEditor` applies on save, re-applied at render so a link
@@ -182,9 +171,12 @@ export default function SessionCard({
   // apart is what makes the fallbacks honest rather than blank.
   const showLocation = mode !== "virtual" && Boolean(group.location);
   const showJoin = mode !== "in-person" && Boolean(meetingUrl);
-  const missing =
-    mode === "virtual" && !meetingUrl
-      ? "Online this week — your facilitator will send the joining link."
+  // Never a promise that the link will come by email (Q23): it is on the
+  // site only, so the card says where it will be.
+  const missing = cancelled
+    ? null
+    : mode === "virtual" && !meetingUrl
+      ? `Online this week. ${LINK_WILL_BE_HERE}`
       : mode === "in-person" && !group.location
         ? "In person this week — your facilitator will confirm the room."
         : null;
@@ -213,31 +205,46 @@ export default function SessionCard({
           word, so a member who remembers a room does not have to work out why
           it has gone. Nothing is shown when no mode is set — an unswitched
           week must read exactly as it did before. */}
-      {mode !== null && (
+      {cancelled && (
+        <>
+          <p className={styles.mode}>
+            <Chip tone="neutral" size="sm">
+              {CANCELLED_CARD}
+            </Chip>
+          </p>
+          {cancelled.reason && <p className={styles.note}>{cancelled.reason}</p>}
+        </>
+      )}
+      {!cancelled && mode !== null && (
         <p className={styles.mode}>
           <Chip tone={mode === "virtual" ? "accent" : "neutral"} size="sm">
             {mode === "virtual" ? "Online this week" : "In person this week"}
           </Chip>
         </p>
       )}
-      {showLocation && <p className={styles.location}>{group.location}</p>}
+      {/* A cancelled evening offers neither a room nor a link. */}
+      {!cancelled && showLocation && <p className={styles.location}>{group.location}</p>}
       {missing && <p className={styles.note}>{missing}</p>}
 
-      {state === "held" && (
+      {!cancelled && state === "held" && (
         <p className={styles.note}>This week&apos;s session has happened.</p>
       )}
 
-      {showJoin && meetingUrl && (
-        // <Button> renders a real <button> and takes no href, so a navigation
-        // target gets the styling rather than the component (the CourseCTA call).
-        <a
-          className={styles.button}
-          href={meetingUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Join the call
-        </a>
+      {!cancelled && showJoin && meetingUrl && (
+        <>
+          {/* <Button> renders a real <button> and takes no href, so a
+              navigation target gets the styling rather than the component
+              (the CourseCTA call). */}
+          <a
+            className={styles.button}
+            href={meetingUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {JOIN_ONLINE}
+          </a>
+          <p className={styles.note}>{LINK_IS_HERE}</p>
+        </>
       )}
     </Card>
   );

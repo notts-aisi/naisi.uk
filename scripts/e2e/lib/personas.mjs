@@ -46,6 +46,20 @@ import { mintSessionCookie } from "./session.mjs";
  * Every persona the battery knows, by the shape of its `users` document.
  * `anonymous` has no account and no cookie. The permission holders are plain
  * members with one key each, which is how the map is granted in the product.
+ *
+ * The last three hold a role on a RECORD, which `./personaWorld.mjs` writes
+ * once their accounts exist: `lead` leads a programme whose run is running,
+ * `facilitator` facilitates one group on that run and holds a place in it,
+ * and `participant` holds a place in the run's other group. Their documents
+ * are what that role needs and no more:
+ *
+ *  - `lead` is SU-recognised committee because a programme's lead stands only
+ *    behind the reviewer bar (`AUTHORITY["admissionRounds.leadUid"]`), which
+ *    `programmeLedBy` asks again on every request, so a lead who is a plain
+ *    member leads nothing. `admissionsReviewer` is the flag appointing a lead
+ *    sets (`setProgrammeRoles`), which the admissions tree's gate reads.
+ *  - `facilitator` and `participant` are plain members: the bar for a group's
+ *    facilitators and for a place is an approved account.
  */
 export const PERSONAS = {
   anonymous: null,
@@ -63,6 +77,9 @@ export const PERSONAS = {
   approveCourse: { role: "member", permissions: { approveCourse: true } },
   manageMembership: { role: "member", permissions: { manageMembership: true } },
   circulateWorksheet: { role: "member", permissions: { circulateWorksheet: true } },
+  lead: { role: "committee", suRecognised: true, admissionsReviewer: true },
+  facilitator: { role: "member" },
+  participant: { role: "member" },
 };
 
 export const PERSONA_NAMES = Object.keys(PERSONAS);
@@ -111,6 +128,7 @@ function personaDocument(uid, email, name) {
     role: shape.role,
     ...(shape.suRecognised === undefined ? {} : { suRecognised: shape.suRecognised }),
     ...(shape.permissions ? { permissions: shape.permissions } : {}),
+    ...(shape.admissionsReviewer === undefined ? {} : { admissionsReviewer: shape.admissionsReviewer }),
     showOnMembers: false,
     policyVersion: ACCEPTED_POLICY_VERSION,
     policyAgreedAt: new Date(),

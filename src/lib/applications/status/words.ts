@@ -32,6 +32,35 @@ export type OutcomeWords = {
   title: string;
 };
 
+/** The chip of somebody who left the programme. Drawn by the page from here too. */
+export const LEFT_CHIP = "Left the programme";
+
+/** "You left AGI Strategy.", or "You left the programme." when the form no longer carries it. */
+export function leftTitle(shortName: string | null): string {
+  return shortName ? `You left ${shortName}.` : "You left the programme.";
+}
+
+/**
+ * The chip of somebody staff took off the programme. Drawn by the page from
+ * here too. No board draws a removal: these words, and the page's lines
+ * below, are written in the boards' voice and listed in the build notes for
+ * the boards' designers to confirm.
+ */
+export const REMOVED_CHIP = "Taken off the programme";
+
+/** "You’re no longer on AGI Strategy.", or "You’re no longer on the programme." when the form no longer carries it. */
+export function removedTitle(shortName: string | null): string {
+  return shortName ? `You’re no longer on ${shortName}.` : "You’re no longer on the programme.";
+}
+
+/** "That was on Tue 27 Oct.", or null when no day is on record. */
+export function removedOnLine(day: string | null): string | null {
+  return day ? `That was on ${day}.` : null;
+}
+
+/** Before the society's address, as a link, then "and we’ll see what we can do." */
+export const REMOVED_BY_MISTAKE = "If you think that’s a mistake, email";
+
 export function outcomeWords(view: StatusView): OutcomeWords | null {
   if (view.kind === "place") {
     return {
@@ -49,6 +78,17 @@ export function outcomeWords(view: StatusView): OutcomeWords | null {
         ? `You’re invited to ${view.programme.shortName}.`
         : "You’re invited to another programme.",
     };
+  }
+  // Left the programme, by either door: never "You’ve told us you can’t make
+  // it", which is said of somebody who gave the place back before a group.
+  if (view.kind === "left") {
+    const name = view.programme?.shortName ?? null;
+    return { chip: LEFT_CHIP, tone: "neutral", title: leftTitle(name) };
+  }
+  // Taken off by staff: never "You’ve told us you can’t make it", which they
+  // did not say, and never "left", which was not their act.
+  if (view.kind === "removed") {
+    return { chip: REMOVED_CHIP, tone: "neutral", title: removedTitle(view.programme?.shortName ?? null) };
   }
   if (view.kind === "released") {
     const name = view.programme?.shortName ?? null;

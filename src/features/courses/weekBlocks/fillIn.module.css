@@ -1,0 +1,183 @@
+/*
+ * A week's fill-in boxes (board wk-week6-phone, part 3 "Your action plan"):
+ * a card on the week page's surface, its title in the meta face, the count
+ * beside it, numbered headings with their boxes, one "Saved" and the line
+ * that says who reads it. The boxes themselves are the reflection boxes'
+ * (`blockWeek.module.css`, `.box`), so every box on the page looks alike.
+ */
+
+.card {
+  min-width: 0;
+  padding: 16px clamp(1rem, 1.6cqi, 1.375rem);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-sizing: border-box;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  line-height: 1.3;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-live);
+}
+
+.count {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.saveLine {
+  margin: 6px 0 4px;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.groups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 0;
+  border-top: 1px solid var(--color-border);
+  min-width: 0;
+}
+
+.heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  /* The board's numbered headings are in the body's face and its tracking, not the display face and the
+     tighter tracking every h4 is given. */
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.4;
+  letter-spacing: normal;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.number {
+  flex: none;
+  font-family: var(--font-meta);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--color-live);
+}
+
+.hint {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.field {
+  min-width: 0;
+}
+
+.label,
+.labelText {
+  display: block;
+  margin: 0 0 10px;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  font-weight: 500;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.labelText {
+  margin: 0;
+}
+
+/* The box: a reflection box's look at the board's size for a plan. */
+.box {
+  display: block;
+  width: 100%;
+  min-height: 72px;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  resize: vertical;
+  field-sizing: content;
+}
+
+.box:focus-visible {
+  outline: none;
+  border-color: var(--color-live);
+  box-shadow: var(--focus-ring);
+}
+
+.box[readonly] {
+  color: var(--color-text-soft);
+}
+
+.status {
+  min-height: 18px;
+  margin: 10px 0 0;
+}
+
+.readers {
+  margin: 8px 0 0;
+  font-size: 0.84375rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* "Draft" where a part's Done goes, and This week's "Draft · 6 of 12 filled". */
+.draftChip {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface-hover);
+  color: var(--color-text-soft);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.taskDraft {
+  margin: 6px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+@media (max-width: 48rem) {
+  .card {
+    padding-inline: 1rem;
+  }
+}

@@ -10,7 +10,9 @@ import { DECISION_REPLY_TO, testSubject, type DecisionEmail } from "./emailCopy"
  *
  * The send and the test both call this, so a test is the same template, the
  * same reply-to and the same words as the real thing, apart from the marker in
- * its subject.
+ * its subject. So do the daily invitation reminder, and the offer of a freed
+ * place after decision day with its own test, whose email is an invitation
+ * drawn by the same template (`../freedPlaces/offer.ts`).
  *
  * It asks nobody's notification settings: the email is the answer to an
  * application the person sent. The do-not-email list and the rule about which

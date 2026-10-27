@@ -1,0 +1,497 @@
+/* A programme's People in groups (board st-groups): the line over the
+   board, To place, a column per group, the cards, the list of who gave
+   their place back and the note under it all. Sizes are the board's; every
+   colour is a theme token. */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* Beside the views: "4 still to place" and "Publish groups…". */
+.publish {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.stillToPlace {
+  font-size: 14px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.publishLink {
+  white-space: nowrap;
+}
+
+/* "30 holding a place · 26 in a group · 4 to place · 2 invited". */
+.line {
+  font-family: var(--font-meta);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.moveNote {
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+.textButton {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* --- the board: its own sideways scroll on a laptop narrower than it ---- */
+
+.board {
+  min-width: 0;
+  padding-bottom: 4px;
+  overflow-x: auto;
+}
+.board:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+.boardInner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 1092px;
+}
+
+.toPlace {
+  padding: 12px 8px 10px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-bg) 60%, transparent);
+}
+.toPlaceHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 0 4px 10px;
+}
+.toPlaceCount {
+  font-family: var(--font-meta);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--color-warning);
+}
+.toPlaceCards {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+}
+.toPlaceCell {
+  flex: 1 1 250px;
+  min-width: 0;
+}
+
+.columns {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.column {
+  flex: 1 0 262px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+}
+.columnHover {
+  border-color: var(--color-accent);
+}
+.columnHead {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 6px 8px;
+}
+.columnTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.columnTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.columnTitle {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.seats {
+  flex: none;
+  font-family: var(--font-meta);
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+.columnMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+.room {
+  overflow-wrap: anywhere;
+}
+.facilitators {
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.bar {
+  height: 5px;
+  margin-top: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-hover);
+  overflow: hidden;
+}
+.barFill,
+.barFull {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+}
+.barFill {
+  background: var(--color-accent);
+}
+.barFull {
+  background: var(--color-ok);
+}
+.columnNote {
+  padding: 4px 6px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+.noteLink {
+  color: var(--color-accent-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+.noGroups {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* --- a card -------------------------------------------------------------- */
+
+.cardShell {
+  min-width: 0;
+}
+.card {
+  display: grid;
+  grid-template-columns: 14px 28px minmax(0, 1fr) auto;
+  column-gap: 8px;
+  row-gap: 1px;
+  align-items: start;
+  min-width: 0;
+  padding: 8px 8px 8px 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-surface);
+}
+/* Sitting in a group whose session they cannot make. */
+.cardWarn {
+  border-color: color-mix(in srgb, var(--color-warning) 55%, transparent);
+}
+.cardDragging {
+  opacity: 0.4;
+}
+.handle {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: center;
+  display: inline-flex;
+  color: var(--color-text-muted);
+  cursor: grab;
+  touch-action: none;
+}
+.avatar {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  display: inline-flex;
+}
+.name {
+  grid-column: 3;
+  grid-row: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.menu {
+  grid-column: 4;
+  grid-row: 1;
+  justify-self: end;
+  margin: -13px -8px -13px 0;
+}
+/* #67's move menu, drawn as the board's three dots: a 44px square. */
+.menuTrigger.menuTrigger {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.menuTrigger.menuTrigger:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+.menuTrigger.menuTrigger:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: -2px;
+}
+.detail {
+  grid-column: 3 / span 2;
+  grid-row: 2;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--color-text-muted);
+}
+.nowrap {
+  white-space: nowrap;
+}
+.marks {
+  grid-column: 2 / span 3;
+  grid-row: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 6px;
+  margin-top: 3px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.chipPlain {
+  background: var(--color-surface-hover);
+  color: var(--color-text-body);
+}
+.chipWarn {
+  border-color: var(--color-warning-line);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+.chipOk {
+  border-color: var(--color-ok-line);
+  background: var(--color-success-soft);
+  color: var(--color-ok);
+}
+
+/* Invited and not answered: dashed, quiet, and nothing to press. */
+.invited {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 10px 10px 26px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-row);
+}
+.invitedAvatar {
+  display: inline-flex;
+  opacity: 0.6;
+}
+.invitedText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.invitedName {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+.invitedLine {
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--color-text-muted);
+}
+
+.overlay {
+  width: 262px;
+  cursor: grabbing;
+}
+
+/* --- under the board ---------------------------------------------------- */
+
+.gaveBack {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 28px;
+  padding: 2px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
+}
+.gaveBackToggle {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.gaveBackToggle:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+.chevronOpen,
+.chevronShut {
+  display: inline-flex;
+}
+.chevronShut {
+  transform: rotate(-90deg);
+}
+.gaveBackList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 28px;
+  list-style: none;
+}
+.gaveBackItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.gaveBackAvatar {
+  display: inline-flex;
+  opacity: 0.7;
+}
+.gaveBackName {
+  font-size: 14px;
+  color: var(--color-text);
+}
+.gaveBackLine {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.footnote {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 2px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+.footnoteIcon {
+  flex: none;
+  margin-top: 1px;
+  display: inline-flex;
+}
+
+/* A phone: the groups stack under To place, one above the next, so the page
+   never scrolls sideways; the move menu is how a card moves here. */
+@media (max-width: 48rem) { /* --bp-md */
+  .publish {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .board {
+    overflow-x: visible;
+  }
+  .boardInner {
+    min-width: 0;
+  }
+  .columns {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .column {
+    flex: 1 1 auto;
+  }
+  .toPlaceCell {
+    flex: 1 1 100%;
+  }
+  .gaveBack {
+    padding: 2px 12px 8px;
+  }
+  .gaveBackItem {
+    flex-wrap: wrap;
+  }
+}

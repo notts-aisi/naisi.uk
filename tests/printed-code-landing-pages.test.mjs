@@ -49,9 +49,21 @@ const LANDING_PAGES = [
     whenMissing: "has no document of its own to be missing: it serves the built-in rows whatever is stored",
   },
   {
+    file: "src/app/events/[id]/check-in/page.tsx",
+    matches: /^\/events\/[^/]+\/check-in$/,
+    whenMissing: "renders its own state for every case, a gone event included, as ordinary HTML, never notFound()",
+  },
+  {
     file: "src/app/events/[id]/calendar/page.tsx",
     matches: /^\/events\/[^/]+\/calendar$/,
     whenMissing: "renders EventNotListed: what happened, and links to upcoming events and /links",
+  },
+  {
+    // The code is printed on a certificate's PDF, under "Check it at".
+    file: "src/app/(public)/c/[code]/page.tsx",
+    matches: /^\/c\/[^/]+$/,
+    whenMissing:
+      "renders one calm page for a link that is off and a code that is unknown or malformed, the same for all of them",
   },
   {
     file: "src/app/(public)/sources/[slug]/page.tsx",

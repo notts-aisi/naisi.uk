@@ -115,6 +115,11 @@ const UNSCANNABLE_FIELDS = {
         "account on purpose: the pre-course opens during Welcome Week when every fresher who has " +
         "just registered is still pending. Its module comment says so, and says that access to " +
         "/learn afterwards is a separate decision, which is the decision the floor makes.",
+      "src/lib/courses/leaveRun.ts":
+        "The one leave, moved out of the enrol route's DELETE so that a reply of I can't make it " +
+        "from somebody in a group takes the same code. It WRITES the caller's own row rather than " +
+        "reading it as a grant, and admits whom that route admits, a pending account leaving an " +
+        "open run included, for the reason that route's own exception gives.",
     },
   },
   "circulationResponses.uid": {
@@ -357,20 +362,23 @@ const RAW_SITES = {
   },
   "src/app/api/courses/me/route.ts": {
     role: "not-a-gate",
-    matches: { admissionsReviewerUids: 1, trackLeadUids: 1 },
+    matches: { admissionsReviewerUids: 1, trackLeadUids: 1, facilitatorUids: 1 },
     provedBy: [
       'if (holdsStanding(actor, "courseRuns.trackLeadUids")) {',
       'if (holdsStanding(actor, "courseRuns.admissionsReviewerUids")) {',
+      'if (!isNamedWithStanding(actor, "courseGroups.facilitatorUids", group.facilitatorUids)) continue;',
     ],
     // The only entry whose control legitimately runs AFTER the comparison: the
-    // two queries are self-scoped reads that grant nothing on their own, and
+    // three queries are self-scoped reads that grant nothing on their own, and
     // the bar is applied where the result is turned into a role. Declared, so
     // that "after" is a decision rather than the absence of a check.
     controlAfter: true,
     why:
-      "Two `array-contains` queries scoped to the caller's own uid, which is how the hub finds " +
-      "the runs it might draw a door for. The bar is applied where the door is actually drawn, " +
-      "on the two loops that add the `reviewer` and `lead` roles.",
+      "Three `array-contains` queries scoped to the caller's own uid, which is how the hub finds " +
+      "the runs it might draw a door for. The bar is applied where the door is actually drawn: " +
+      "on the two loops that add the `reviewer` and `lead` roles, and, for the groups that name " +
+      "the caller as a facilitator (a facilitator who holds a place has a learner's row), " +
+      "before any of them adds the `facilitator` role.",
   },
   "src/app/api/members/roster/route.ts": {
     role: "not-a-gate",
@@ -388,6 +396,26 @@ const RAW_SITES = {
       "A collision check on a mirror task whose id is built from the caller's own uid: is the " +
       "document already sitting at that address ours? It " +
       "decides whether to write, never whether the caller may.",
+  },
+  "src/app/api/courses/groups/[groupId]/shared-notes/[noteId]/route.ts": {
+    role: "not-a-gate",
+    matches: { authorUid: 1 },
+    provedBy: ['if (!holdsStanding(actor, "courseEnrolments.uid")) {'],
+    why:
+      "A note shared with a group (`courseGroupSharedNotes.authorUid`) is its writer's own words, and the " +
+      "comparison decides only that the caller is deleting their own note: an ownership scalar, not an " +
+      "appointment, caught because worksheets name their author the same way. The roster floor is " +
+      "applied above it, so an account that has lost its standing deletes nothing.",
+  },
+  "src/app/api/courses/runs/[runId]/overview/route.ts": {
+    role: "not-a-gate",
+    matches: { facilitatorUids: 2 },
+    provedBy: ['isNamedWithStanding(actor, "courseGroups.facilitatorUids", g.facilitatorUids),'],
+    why:
+      "Leaves the caller out of who they are told to ask to swap a pack or a case (`askToSwap`), and out of each " +
+      "group's facilitator names (`facilitatorNames`), so a facilitator who takes part in the group is never told to " +
+      "ask themselves, nor named to themselves. It names, never admits: the route's gate is above it, and who " +
+      "facilitates there is held to the bar with `isNamedWithStanding`.",
   },
   "src/app/api/tasks/[id]/send-for-review/route.ts": {
     role: "not-a-gate",

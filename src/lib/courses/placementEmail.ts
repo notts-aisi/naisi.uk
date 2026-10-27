@@ -2,6 +2,7 @@ import { firstWord } from "@/lib/firestore/applicationEmails";
 import { GROUP_FIELD_LIMITS, type GroupSession, type GroupSessionMode } from "@/lib/firestore/courseGroups";
 import { validateSubmissionUrl } from "@/lib/firestore/courses";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
+import { lengthWords } from "@/lib/courses/sessionLength";
 import { couldBeFollowed } from "./followable";
 
 /**
@@ -32,9 +33,19 @@ import { couldBeFollowed } from "./followable";
  *  - `essential`: the group's name and its first session. The email exists
  *    to say these, so a placement without one is refused, with a sentence
  *    that says what to set. Nobody is told "your first session is" nothing.
- *  - `optional`: the facilitators, where the first session is, and the run's
- *    start. Where there is nothing to say, the unit that holds the token is
- *    left out whole, and the rest of the email goes.
+ *  - `optional`: the facilitators, where the first session is, the run's
+ *    start, week 1's reading time and who signs it. Where there is nothing to
+ *    say, the unit that holds the token is left out whole, and the rest of
+ *    the email goes.
+ *  - `inline`: a piece of a sentence, or a whole sentence, that sits beside
+ *    others in its unit: where the group meets ("in Hallward B12"), how long
+ *    its sessions last ("Sessions last 2 hours."), who facilitates it, how
+ *    many are in it. Its value carries its own words, so with nothing to say
+ *    it is filled with nothing, the space it leaves is closed up
+ *    (`closeUp`), and the rest of the unit stays: "You’ll meet on Tuesdays at
+ *    6pm, starting Tue 3 Nov." reads whole with no room in it. A unit left
+ *    showing nothing goes, as one with a missing optional value does. An
+ *    inline token never refuses an email.
  *
  * ## What is left out, and what never is
  *
@@ -63,9 +74,12 @@ import { couldBeFollowed } from "./followable";
  * or a bullet of its own. It cannot be left out of a subject line, or of a
  * unit that also carries an essential token, without taking what the email
  * is for with it. Wording that puts one there is refused for a group that
- * lacks the value, with a sentence that says which to change. The seed copy
- * in `courseEmails.ts` obeys the rule, and the same rule is what the weekly
- * reminder asks of its own copy.
+ * lacks the value, with a sentence that says which to change. An INLINE
+ * token is the one way to say something that may be missing inside a
+ * sentence with other things in it: its value is worded to stand in the
+ * sentence or to go from it, so a template keeps it where the sentence
+ * needs it. The seed copy in `courseEmails.ts` obeys the rule, and the same
+ * rule is what the weekly reminder asks of its own copy.
  *
  * ## Values go in as text
  *
@@ -130,13 +144,30 @@ import { couldBeFollowed } from "./followable";
  * fill is left as typed for them to notice, as every other template's proof
  * does. Nothing that reaches a placed person is composed that way.
  *
+ * ## One composer, two emails
+ *
+ * What is written above is the rule for any email that tells somebody their
+ * group, and `composeWholeEmail` is that rule with the token list handed in.
+ * The placement email hands it `PLACEMENT_TOKEN_RULES`. The email a
+ * facilitator is sent when groups go out (`./facilitatingEmail.ts`) hands it
+ * its own list, and is written whole or refused by the same code, so the two
+ * cannot come to differ on what is left out.
+ *
  * Pure, with no server import, so the route, the designer and a test all run
  * the same function.
  */
 
 /** What becomes of a token when there is nothing to fill it with. See the header. */
-export type PlacementTokenRule = "always" | "essential" | "optional";
+export type PlacementTokenRule = "always" | "essential" | "optional" | "inline";
 
+/**
+ * The placement email's tokens, each with its rule. The seed copy is the
+ * board's ("Your AGI Strategy group: Tuesdays at 6pm"): it says `firstName`,
+ * `groupName` and the tokens from `programmeName` on. The others stay on the
+ * list for wording an admin saved before the seed changed, and are filled as
+ * they always were: a token taken off this list would refuse that wording at
+ * Publish.
+ */
 export const PLACEMENT_TOKEN_RULES = {
   firstName: "always",
   preferredName: "always",
@@ -147,6 +178,19 @@ export const PLACEMENT_TOKEN_RULES = {
   startDate: "optional",
   facilitatorNames: "optional",
   firstSessionWhere: "optional",
+  programmeName: "always",
+  firstSessionDay: "always",
+  weeklySlot: "essential",
+  firstSession: "essential",
+  programmeUrl: "essential",
+  weekOneTime: "optional",
+  leadName: "optional",
+  naisiSignOff: "optional",
+  place: "inline",
+  placeNote: "inline",
+  sessionLength: "inline",
+  yourFacilitators: "inline",
+  groupSize: "inline",
 } as const satisfies Record<string, PlacementTokenRule>;
 
 export type PlacementToken = keyof typeof PLACEMENT_TOKEN_RULES;
@@ -173,17 +217,41 @@ export type PlacementFacts = {
   /** The run's first day, written out: "Monday 26 October". */
   startDate: string | null;
   groupName: string | null;
-  /** "Priya and Sam", or null while the group has no facilitator. */
+  /** "Priya and Sam", or null while the group has no facilitator. Whole names: wording saved before the board's. */
   facilitatorNames: string | null;
-  /** "Tuesday 27 October, 18:00", or null when no first session can be worked out. */
+  /** "Tue 27 Oct, 6pm", or null when no first session can be worked out. */
   firstSessionWhen: string | null;
   firstSessionWhere: PlacementWhere | null;
+  /** The short name of the programme that names the run ("AGI Strategy"), else the course's title. */
+  programmeName: string;
+  /** "Tuesdays at 6pm" (`weeklySlotWords`), or null while the group has no day and time. */
+  weeklySlot: string | null;
+  /** "Tue 3 Nov": the group's first session, or its next one once it has met. */
+  firstSession: string | null;
+  /** That session's day as "before ..." says it: "Tuesday" within the week, else "Tue 3 Nov". */
+  firstSessionDay: string | null;
+  /** Where the group meets each week: the slot's own place, never one week's change. Never an address. */
+  where: PlacementWhere | null;
+  /** How long its sessions last, from the group's own length, or null when none is set. */
+  sessionMinutes: number | null;
+  /** The first names of the group's facilitators, never the reader's own. */
+  facilitatorFirstNames: readonly string[];
+  /** How many people the group has, the reader among them, as Publish counts them. Null when not known. */
+  groupSize: number | null;
+  /** "about 80 minutes": week 1's time (`weekReadingTime`), or null for none, or a group that has met. */
+  weekOneTime: string | null;
+  /** The person's programme page in the member area, as a whole address, or null when the site does not know its own. */
+  programmeUrl: string | null;
+  /** The first name of the programme's lead, while they stand, who signs the email. Null signs it NAISI. */
+  leadName: string | null;
 };
 
 /** Why an email could not be written. Each has a sentence in `placementRefusal`. */
 export type PlacementProblem =
   | { kind: "no-group-name" }
   | { kind: "no-first-session" }
+  /** The site does not know its own address, so the email's button would lead nowhere. */
+  | { kind: "no-site-address" }
   /** The wording uses a token this email does not fill. */
   | { kind: "unknown-token"; tokens: string[] }
   /** An optional token with no value sits where it cannot be left out. */
@@ -244,11 +312,87 @@ const LINK_IS_ON_THE_PAGE = "The link to join is on your programme's page in the
 const WHERE_IS_ON_THE_PAGE = "You'll find where it meets on your programme's page in the learning space.";
 
 // ---------------------------------------------------------------------------
+// The board's words for the values (st-emails, "Your AGI Strategy group")
+// ---------------------------------------------------------------------------
+
+/** How "You’ll meet on Tuesdays at 6pm ..." says a group that meets online, as the ask to facilitate says it. */
+const ONLINE_IN_A_SENTENCE = "online";
+
+/**
+ * What an online group's people are told about joining, where the link is
+ * there for them to find, and what stands for a room whose text is not
+ * printed: the words the incubator's email says them in.
+ */
+const LINK_TO_JOIN_IS_ON_THE_PAGE = "The link to join is on your programme’s page.";
+const FIND_WHERE_IT_MEETS_ON_THE_PAGE = "You’ll find where it meets on your programme’s page.";
+
+/** Who signs the email when no lead stands to: as decision day signs, NAISI. */
+export const NAISI_SIGN_OFF = "NAISI";
+
+/** "A", "A and B", "A, B and C". */
+function inWords(items: readonly string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+/**
+ * "in Hallward B12" or "online": where a group meets, as the sentence after
+ * its weekly time says it. Null when it says nothing: no room or link yet, or
+ * a room with something a reader could follow typed into it, which is never
+ * printed (`placeNoteSentence` then says where to find it).
+ */
+export function placeInSentence(where: PlacementWhere | null): string | null {
+  if (!where) return null;
+  if (where.kind === "online") return ONLINE_IN_A_SENTENCE;
+  if (where.kind === "on-page" || couldBeFollowed(where.room)) return null;
+  const room = oneLine(where.room);
+  return room ? `in ${room}` : null;
+}
+
+/**
+ * The sentence for a place the email does not print, or null when there is
+ * none to say: where an online group's link to join is, when its page has
+ * one, and where to find a room whose text is not printed. Never an address.
+ */
+export function placeNoteSentence(where: PlacementWhere | null): string | null {
+  if (!where) return null;
+  if (where.kind === "online") return where.linkOnPage ? LINK_TO_JOIN_IS_ON_THE_PAGE : null;
+  if (where.kind === "on-page" || couldBeFollowed(where.room)) return FIND_WHERE_IT_MEETS_ON_THE_PAGE;
+  return null;
+}
+
+/** "Sessions last 2 hours.", from the group's own length. Null while it has none. */
+export function sessionLengthSentence(minutes: number | null): string | null {
+  if (minutes === null || !Number.isInteger(minutes) || minutes <= 0) return null;
+  return `Sessions last ${lengthWords(minutes)}.`;
+}
+
+/** "Rahul and Sofia are your facilitators." or "Rahul is your facilitator.". Null for nobody. */
+export function yourFacilitatorsSentence(firstNames: readonly string[]): string | null {
+  const names = firstNames.map((name) => oneLine(name)).filter(Boolean);
+  if (names.length === 0) return null;
+  return names.length === 1 ? `${names[0]} is your facilitator.` : `${inWords(names)} are your facilitators.`;
+}
+
+/**
+ * "There are 8 of you.": how many are in the group, the reader among them.
+ * Null for a group of one, where the board has no words, and when the number
+ * is not known.
+ */
+export function groupOfYouSentence(count: number | null): string | null {
+  if (count === null || !Number.isInteger(count) || count < 2) return null;
+  return `There are ${count} of you.`;
+}
+
+// ---------------------------------------------------------------------------
 // The values
 // ---------------------------------------------------------------------------
 
 /** A value as plain text (a subject, a heading) and as HTML (a rich-text block). */
 type Value = { text: string; html: string };
+
+/** A value as `composeWholeEmail` takes it. */
+export type EmailValue = Value;
 
 const HTML_ESCAPES: Record<string, string> = {
   "&": "&amp;",
@@ -263,7 +407,7 @@ function escapeHtml(input: string): string {
 }
 
 /** Collapse to one line and trim. Also what keeps a typed value out of a header. */
-function oneLine(value: string | null | undefined): string {
+export function oneLine(value: string | null | undefined): string {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 }
 
@@ -273,13 +417,13 @@ function plain(value: string | null | undefined): string {
 }
 
 /** A value, or null when there is nothing to say. */
-function typed(value: string | null | undefined): Value | null {
+export function typed(value: string | null | undefined): Value | null {
   const text = plain(value);
   return text ? { text, html: escapeHtml(text) } : null;
 }
 
 /** A value every placement has. An empty one is printed as nothing, and is never a reason to leave a sentence out. */
-function always(value: string | null | undefined): Value {
+export function always(value: string | null | undefined): Value {
   return typed(value) ?? { text: "", html: "" };
 }
 
@@ -293,6 +437,7 @@ function whereValue(where: PlacementWhere | null): Value | null {
 
 function valuesOf(facts: PlacementFacts): Record<PlacementToken, Value | null> {
   const name = oneLine(facts.name);
+  const lead = typed(facts.leadName);
   return {
     firstName: always(firstWord(name)),
     preferredName: always(name),
@@ -303,6 +448,20 @@ function valuesOf(facts: PlacementFacts): Record<PlacementToken, Value | null> {
     startDate: typed(facts.startDate),
     facilitatorNames: typed(facts.facilitatorNames),
     firstSessionWhere: whereValue(facts.firstSessionWhere),
+    programmeName: always(facts.programmeName),
+    firstSessionDay: always(facts.firstSessionDay),
+    weeklySlot: typed(facts.weeklySlot),
+    firstSession: typed(facts.firstSession),
+    programmeUrl: typed(facts.programmeUrl),
+    weekOneTime: typed(facts.weekOneTime),
+    leadName: lead,
+    // Exactly one of the two sign-offs is there: the lead's, or NAISI's.
+    naisiSignOff: lead ? null : typed(NAISI_SIGN_OFF),
+    place: typed(placeInSentence(facts.where)),
+    placeNote: typed(placeNoteSentence(facts.where)),
+    sessionLength: typed(sessionLengthSentence(facts.sessionMinutes)),
+    yourFacilitators: typed(yourFacilitatorsSentence(facts.facilitatorFirstNames)),
+    groupSize: typed(groupOfYouSentence(facts.groupSize)),
   };
 }
 
@@ -317,8 +476,15 @@ export function unfilledTokens(text: string): string[] {
   return [...new Set([...text.matchAll(TOKEN)].map((match) => match[1]))];
 }
 
-function isPlacementToken(name: string): name is PlacementToken {
-  return Object.prototype.hasOwnProperty.call(PLACEMENT_TOKEN_RULES, name);
+/**
+ * The tokens one email fills, each with its rule. `PLACEMENT_TOKEN_RULES` is
+ * the placement email's; `./facilitatingEmail.ts` has the other.
+ */
+export type TokenRules = Readonly<Record<string, PlacementTokenRule>>;
+
+/** Is `name` one of the tokens this email fills? An own key only, so no name a plain object inherits counts. */
+function isRuleToken(rules: TokenRules, name: string): boolean {
+  return Object.prototype.hasOwnProperty.call(rules, name);
 }
 
 type Filled = {
@@ -326,37 +492,83 @@ type Filled = {
   text: string;
   /** Tokens this email does not fill. */
   unknown: string[];
-  /** Tokens it fills, with no value this time. */
-  absent: PlacementToken[];
+  /** Tokens it fills, with no value this time. Never an inline one. */
+  absent: string[];
   /** It also carries an essential token that does have a value. */
   holdsEssential: boolean;
+  /** An inline token in it had nothing to say: it was filled with nothing and the space closed up. */
+  emptied: boolean;
 };
 
 /**
  * Fill one unit: a subject, a heading, a caption, or one run of text in a
  * rich-text block. A token with no value becomes nothing, and the caller
- * decides what happens to the unit. A token this email does not fill is left
- * exactly as typed.
+ * decides what happens to the unit, except an INLINE token, whose unit
+ * stays: the space it leaves is closed up here (`closeUp`). A token this
+ * email does not fill is left exactly as typed.
  */
-function fillUnit(input: string, values: Record<PlacementToken, Value | null>, as: "text" | "html"): Filled {
+function fillUnit(
+  input: string,
+  values: Readonly<Record<string, Value | null>>,
+  rules: TokenRules,
+  as: "text" | "html",
+): Filled {
   // Sets, so a unit with a great many tokens is read once and not once per token.
   const unknown = new Set<string>();
-  const absent = new Set<PlacementToken>();
+  const absent = new Set<string>();
   let holdsEssential = false;
+  let emptied = false;
   const text = input.replace(TOKEN, (match, name: string) => {
-    if (!isPlacementToken(name)) {
+    if (!isRuleToken(rules, name)) {
       unknown.add(name);
       return match;
     }
     const value = values[name];
     if (!value) {
+      if (rules[name] === "inline") {
+        emptied = true;
+        return "";
+      }
       absent.add(name);
       return "";
     }
-    if (PLACEMENT_TOKEN_RULES[name] === "essential") holdsEssential = true;
+    if (rules[name] === "essential") holdsEssential = true;
     return as === "html" ? value.html : value.text;
   });
-  return { text, unknown: [...unknown], absent: [...absent], holdsEssential };
+  return { text: emptied ? closeUp(text) : text, unknown: [...unknown], absent: [...absent], holdsEssential, emptied };
+}
+
+/** The spaces `closeUp` reads as space: those a template, or a value filled into one, can hold. */
+const SPACE = new Set([" ", "\t", "\n", "\r", "\f", "\v"]);
+
+/** What a space is never left in front of, once an inline token has gone from beside it. */
+const CLOSES_UP = new Set([",", ".", ";", ":", "!", "?", ")"]);
+
+/**
+ * A unit an inline token was left out of, with the space it left closed up:
+ * every run of space one space, none in front of a comma or a full stop, and
+ * none at either end. "on Tuesdays at 6pm , starting" reads "on Tuesdays at
+ * 6pm, starting". Run only on a unit an inline token was emptied in, so
+ * wording that lost nothing is never touched.
+ *
+ * A LOOP, NOT A PATTERN: one pass over the characters, so it is in step with
+ * the length of the text whatever the text holds (see "Every pattern here is
+ * linear", at the top of this file), and there is no pattern for
+ * `tests/email-pattern-shapes.test.mjs` to hold.
+ */
+function closeUp(text: string): string {
+  let out = "";
+  let spaced = false;
+  for (const ch of text) {
+    if (SPACE.has(ch)) {
+      spaced = true;
+      continue;
+    }
+    if (spaced && out !== "" && !CLOSES_UP.has(ch)) out += " ";
+    spaced = false;
+    out += ch;
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -491,43 +703,67 @@ function showsAnything(html: string): boolean {
 // The email
 // ---------------------------------------------------------------------------
 
+/** Why an email could not be written, whichever email it is. */
+export type WholeEmailProblem =
+  /** An essential token has nothing to fill it with. */
+  | { kind: "missing"; token: string }
+  /** The wording uses a token this email does not fill. */
+  | { kind: "unknown-token"; tokens: string[] }
+  /** An optional token with no value sits where it cannot be left out. */
+  | { kind: "cannot-leave-out"; tokens: string[]; where: "subject" | "paragraph" };
+
+export type ComposedEmail =
+  | { ok: true; subject: string; blocks: Block[] }
+  | { ok: false; problems: WholeEmailProblem[] };
+
 /**
- * The email for one placed person, or the problems that stop it.
+ * One email, written whole from `values` under `rules`, or the problems that
+ * stop it. The rule this file exists for, for any token list: see the header.
  *
  * For a send (`proof` unset) the answer is all or nothing: every token filled
- * and every unit with nothing to say left out, or `ok: false` and why.
+ * and every unit with nothing to say left out, or `ok: false` and why. An
+ * essential token with no value refuses the email whether or not the wording
+ * uses it, because the email exists to say it.
  */
-export function composePlacementEmail(
+export function composeWholeEmail(
   template: PlacementTemplate,
-  facts: PlacementFacts,
+  values: Readonly<Record<string, Value | null>>,
+  rules: TokenRules,
   options: { proof?: boolean } = {},
-): ComposedPlacement {
+): ComposedEmail {
   const proof = options.proof === true;
-  const values = valuesOf(facts);
-  const problems: PlacementProblem[] = [];
+  const problems: WholeEmailProblem[] = [];
   /** Each problem once, however many units have it. */
   const noted = new Set<string>();
-  const note = (problem: PlacementProblem) => {
+  const note = (problem: WholeEmailProblem) => {
     const key = JSON.stringify(problem);
     if (noted.has(key)) return;
     noted.add(key);
     problems.push(problem);
   };
 
-  if (!values.groupName) note({ kind: "no-group-name" });
-  if (!values.firstSessionWhen) note({ kind: "no-first-session" });
+  // In the list's own order, so the problems come back in the order its
+  // author wrote the essentials down.
+  for (const token of Object.keys(rules)) {
+    if (rules[token] === "essential" && !values[token]) note({ kind: "missing", token });
+  }
 
   /**
    * One unit, filled, or null when it is left out. `canGo` is false for a
    * subject, which an email cannot do without.
    */
   const unit = (input: string, as: "text" | "html", canGo: boolean): string | null => {
-    const filled = fillUnit(input, values, as);
+    const filled = fillUnit(input, values, rules, as);
     if (filled.unknown.length > 0 && !proof) note({ kind: "unknown-token", tokens: filled.unknown });
     // An essential token with no value is reported once, above. Here it only
     // has to keep its own sentence from being printed with a hole in it.
-    const missing = filled.absent.filter((token) => PLACEMENT_TOKEN_RULES[token] === "optional");
-    if (filled.absent.length === 0) return filled.text;
+    const missing = filled.absent.filter((token) => rules[token] === "optional");
+    if (filled.absent.length === 0) {
+      // A unit whose inline tokens all had nothing to say, and that shows
+      // nothing now, goes, as one with a missing optional value does.
+      const blank = as === "html" ? !showsAnything(filled.text) : filled.text.trim() === "";
+      return canGo && filled.emptied && blank ? null : filled.text;
+    }
     if (proof) return canGo ? null : filled.text;
     if (missing.length > 0 && (!canGo || filled.holdsEssential)) {
       note({ kind: "cannot-leave-out", tokens: missing, where: canGo ? "paragraph" : "subject" });
@@ -572,6 +808,45 @@ export function composePlacementEmail(
   return problems.length > 0 ? { ok: false, problems } : { ok: true, subject, blocks };
 }
 
+/**
+ * The email for one placed person, or the problems that stop it: the whole
+ * email under `PLACEMENT_TOKEN_RULES`, with its two essentials named the way
+ * `placementRefusal` reads them.
+ */
+export function composePlacementEmail(
+  template: PlacementTemplate,
+  facts: PlacementFacts,
+  options: { proof?: boolean } = {},
+): ComposedPlacement {
+  const written = composeWholeEmail(template, valuesOf(facts), PLACEMENT_TOKEN_RULES, options);
+  if (written.ok) return written;
+  // Three essentials are one problem when a group has no time ("no first
+  // session"), so each problem is said once.
+  const said = new Set<string>();
+  const problems = written.problems.map(asPlacementProblem).filter((problem) => {
+    const key = JSON.stringify(problem);
+    if (said.has(key)) return false;
+    said.add(key);
+    return true;
+  });
+  return { ok: false, problems };
+}
+
+/** A problem of the whole-email composer, as the placement email names it. */
+function asPlacementProblem(problem: WholeEmailProblem): PlacementProblem {
+  if (problem.kind === "missing") {
+    // The group's name, the button's address, and what dates the group: its
+    // first session, its weekly time and the day they are said on.
+    if (problem.token === "groupName") return { kind: "no-group-name" };
+    if (problem.token === "programmeUrl") return { kind: "no-site-address" };
+    return { kind: "no-first-session" };
+  }
+  if (problem.kind === "cannot-leave-out") {
+    return { kind: "cannot-leave-out", tokens: problem.tokens as PlacementToken[], where: problem.where };
+  }
+  return problem;
+}
+
 /** Every piece of text a block prints. */
 function textOf(block: Block): string {
   if (block.type === "heading") return block.text;
@@ -590,6 +865,14 @@ function textOf(block: Block): string {
 export function placementFactsFromSample(sample: Readonly<Record<string, string | undefined>>): PlacementFacts {
   const said = (token: PlacementToken): string | null => oneLine(sample[token]) || null;
   const where = said("firstSessionWhere");
+  // The tokens that are sentences take the sample's facts and word them as a
+  // send would: `place` is a room ("Hallward Library, B12"), `sessionLength`
+  // minutes, `yourFacilitators` first names with commas between them, and
+  // `groupSize` a count. `placeNote` and `naisiSignOff` follow from the room
+  // and the lead, as on a send.
+  const place = said("place");
+  const minutes = Number(said("sessionLength") ?? "");
+  const size = Number(said("groupSize") ?? "");
   return {
     name: said("preferredName") ?? said("firstName") ?? "",
     courseTitle: said("courseTitle") ?? "",
@@ -599,6 +882,17 @@ export function placementFactsFromSample(sample: Readonly<Record<string, string 
     facilitatorNames: said("facilitatorNames"),
     firstSessionWhen: said("firstSessionWhen"),
     firstSessionWhere: where ? { kind: "room", room: where } : null,
+    programmeName: said("programmeName") ?? said("courseTitle") ?? "",
+    weeklySlot: said("weeklySlot"),
+    firstSession: said("firstSession"),
+    firstSessionDay: said("firstSessionDay"),
+    where: place ? { kind: "room", room: place } : null,
+    sessionMinutes: Number.isInteger(minutes) && minutes > 0 ? minutes : null,
+    facilitatorFirstNames: (said("yourFacilitators") ?? "").split(",").map((name) => oneLine(name)).filter(Boolean),
+    groupSize: Number.isInteger(size) && size > 0 ? size : null,
+    weekOneTime: said("weekOneTime"),
+    programmeUrl: said("programmeUrl"),
+    leadName: said("leadName"),
   };
 }
 
@@ -609,11 +903,19 @@ export function placementFactsFromSample(sample: Readonly<Record<string, string 
 /** The label of the template in the designer, so the sentence names it as the screen does. */
 export const PLACEMENT_TEMPLATE_LABEL = "Placed in a group";
 
-/** What each optional token is called in a sentence about a group that lacks it. */
-const LACKS: Record<string, string> = {
-  facilitatorNames: "has no facilitator yet",
-  firstSessionWhere: "has no room or meeting link for its first session",
-  startDate: "is on a run with no start date",
+/**
+ * What a group that lacks an optional value lacks, as a sentence says it, and
+ * whether the sentence may tell the admin to fill it in for the group: a
+ * missing lead, and the sign-off NAISI uses only when there is none, are not
+ * the group's to fill.
+ */
+const LACKS: Record<string, { lacks: string; fill: boolean }> = {
+  facilitatorNames: { lacks: "has no facilitator yet", fill: true },
+  firstSessionWhere: { lacks: "has no room or meeting link for its first session", fill: true },
+  startDate: { lacks: "is on a run with no start date", fill: true },
+  weekOneTime: { lacks: "has no reading time for week 1 to give", fill: true },
+  leadName: { lacks: "is on a run whose programme has no lead to sign the email", fill: false },
+  naisiSignOff: { lacks: "is on a run whose programme’s lead signs the email", fill: false },
 };
 
 /** Why a group has no first session to tell its people about. */
@@ -668,6 +970,12 @@ export function placementRefusal(groups: readonly RefusedGroup[]): string[] {
     );
   }
 
+  if (withProblem((problem) => problem.kind === "no-site-address").length > 0) {
+    said.push(
+      `This copy of the site doesn’t know its own address, so the button in the “${PLACEMENT_TEMPLATE_LABEL}” email would lead nowhere.`,
+    );
+  }
+
   const unknown = [
     ...new Set(groups.flatMap((group) => group.problems.flatMap((p) => (p.kind === "unknown-token" ? p.tokens : [])))),
   ];
@@ -687,9 +995,11 @@ export function placementRefusal(groups: readonly RefusedGroup[]): string[] {
       const names = lacking.map((group) => group.name);
       const place = where === "subject" ? "in its subject" : "in the same paragraph as the group or its first session";
       const fix = where === "subject" ? `take {${token}} out of the subject` : `give {${token}} a paragraph of its own`;
+      const about = LACKS[token] ?? { lacks: `has nothing for {${token}}`, fill: true };
+      const remedy = about.fill ? `Fill it in for ${names.length === 1 ? "that group" : "those groups"}, or ${fix}` : capitalise(fix);
       said.push(
-        `${capitalise(named(names))} ${LACKS[token] ?? `has nothing for {${token}}`}, and the “${PLACEMENT_TEMPLATE_LABEL}” email uses {${token}} ${place}, where it cannot be left out. ` +
-          `Fill it in for ${names.length === 1 ? "that group" : "those groups"}, or ${fix} in Email designs, then publish again.`,
+        `${capitalise(named(names))} ${about.lacks}, and the “${PLACEMENT_TEMPLATE_LABEL}” email uses {${token}} ${place}, where it cannot be left out. ` +
+          `${remedy} in Email designs, then publish again.`,
       );
     }
   }

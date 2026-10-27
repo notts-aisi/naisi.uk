@@ -405,10 +405,24 @@ const REGISTRY = {
     "The run catch-up nudge, over the same audience resolver.",
     "src/lib/email/courseFacilitatorEmails.ts",
   ),
-  "src/app/api/courses/groups/[groupId]/attendance/push/route.ts#sendCourseWeekNudgeEmail": G(
+  "src/lib/courses/nextWeekEmail.ts#sendCourseWeekNudgeEmail": G(
     "courses",
-    "The weekly session nudge to one group, over the same audience resolver.",
+    "Next week's email to one group, the one send both of its lanes go through: the register's push while the email is not on its schedule (and an admin's resend), and the `courses-next-week-email` job while it is. `resolveCohortAudience` drops everybody whose courses cell is a stored false before a message is rendered.",
     "src/lib/email/courseFacilitatorEmails.ts",
+  ),
+  "src/lib/scheduler/jobs/registerReminders.ts#sendRegisterReminderEmail": G(
+    "tasks",
+    "The one reminder to a group's facilitators about an unfinished register: work they took on, like a worksheet's due-soon reminder, so their own tasks row is its off switch. `resolveFacilitator` reads it beside the address and the suppression check. Email only: this job has no push leg.",
+  ),
+  "src/lib/courses/registerRemind.ts#sendRegisterReminderEmail": G(
+    "tasks",
+    "The same reminder, pressed now by a programme's lead or an admin (the Overview's Remind), to the facilitators of one group whose register is not finished. Each goes through the job's own `resolveFacilitator`, which reads their tasks row beside the address and the suppression check, and claims the job's own marker, so a facilitator hears about one register once. Email only.",
+    "src/lib/scheduler/jobs/registerReminders.ts",
+  ),
+  "src/lib/email/registerReminderEmail.ts#sendEmail": G(
+    "tasks",
+    "The register reminder's send door. Its two callers, the job and a lead's Remind, both consult the row through the job's own resolveFacilitator before they get here.",
+    "src/lib/scheduler/jobs/registerReminders.ts",
   ),
   "src/lib/email/courseNudgeEmail.ts#sendEmail": G(
     "courses",
@@ -492,7 +506,7 @@ const REGISTRY = {
     "The decision on that enquiry, approved or rejected, to the person who sent it.",
   ),
   "src/lib/email/courseApplicationEmails.ts#sendEmail": T(
-    "Course application submitted, decided and allocated: three answers to one person about one application.",
+    "Course application submitted, decided and allocated, and the facilitators' email beside the allocation: answers to one person about their own application or their own group, and a marked test of the last two to whoever presses \"Send a test to me\".",
   ),
   "src/app/api/courses/runs/[runId]/apply/route.ts#sendCourseApplicationEmail": T(
     "The receipt for a course application, sent as it is submitted.",
@@ -501,13 +515,22 @@ const REGISTRY = {
     "The decision on that application, accepted or not, to the applicant.",
   ),
   "src/app/api/courses/runs/[runId]/allocation/publish/route.ts#sendCourseApplicationEmail": T(
-    "The placement mail telling an accepted applicant which group they are in.",
+    "The placement mail telling an accepted applicant which group they are in, and, from the same loop, the \"You're facilitating\" mail telling each facilitator of a group with people in it that they facilitate it, once per group. Both are owed to their recipient by the press.",
+  ),
+  "src/app/api/courses/runs/[runId]/allocation/publish/test/route.ts#sendCourseApplicationEmail": T(
+    "\"Send a test to me\" on the allocation board: the first person's placement email and the first facilitator's \"You're facilitating\" email, marked as a test, to the address on the presser's own session and nobody else. One call, in a loop over the two.",
   ),
   "src/lib/email/courseEnrolmentEmails.ts#sendEmail": T(
     "The dropped-out note confirming a member is off a run. A change to their own enrolment.",
   ),
-  "src/app/api/courses/runs/[runId]/enrol/route.ts#sendCourseDroppedOutEmail": T(
-    "The call site of that note, on the route that takes a member off a run.",
+  "src/lib/courses/leaveRun.ts#sendCourseDroppedOutEmail": T(
+    "The call site of that note, in the one leave both doors take: Leave the programme on the programme page, and I can’t make it from somebody in a group on their application page. It goes to the person who left and nobody else.",
+  ),
+  "src/lib/email/writtenFeedbackEmail.ts#sendEmail": T(
+    "The one short \"feedback is waiting\" email (Q34 B): feedback has been sent on somebody's own written answer, and this says it is on the site, with a link to their feedback page. Owed to the person who sent their answer for feedback, as the course hub's other messages to one person about their own place and work are (the placement email, the leaving note), so it consults no notification preference.",
+  ),
+  "src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts#sendWrittenFeedbackEmail": T(
+    "The call site of that email: once per feedback sent, after the feedback is saved, to the address on the account of the person whose answer it is and nobody else.",
   ),
   "src/lib/email/admissionEmails.ts#sendEmail": T(
     "The admissions template's send door, shared by five callers. It consults nothing itself; the two scheduled callers consult the courses row before they reach it and carry their own grid entries.",
@@ -515,9 +538,45 @@ const REGISTRY = {
   "src/lib/applications/decisionDay/deliver.ts#sendEmail": T(
     "The decision-day template's send door: You're in, Invitation and No offer this time, and the daily reminder that repeats an invitation. It consults nothing itself; the one scheduled caller consults the courses row before it reaches it and carries its own grid entry.",
   ),
+  "src/lib/courses/facilitatorAsks/act.ts#sendEmail": T(
+    "Asking somebody to facilitate: the answer to their own application, where they said they would like to (\"Would you facilitate a group on AGI Strategy?\"), one message to the one person an ask or a reminder names, and a rehearsal of one to the address on the session of whoever asks. One call, in the one helper every one of them goes through.",
+  ),
+  "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/when-free/remind/route.ts#sendFreeReminders": T(
+    "Remind on a programme's Overview, pressed by its lead or an admin: the reminders below, one to each person the card names whose week is still theirs to add, each about their own place. One call, which loops over them.",
+  ),
+  "src/lib/courses/getReady/remind.ts#sendEmail": T(
+    "Remind on a programme's Overview before its groups have met: one email to each person holding a place who sent the form with no week painted, about their own place (\"Tell us when you’re free for AGI Strategy\"), while that is still theirs to add, pressed by the programme's lead or an admin. Once a person a day, by a marker.",
+  ),
+  "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask/test/route.ts#sendAskTest": T(
+    "\"Send a test to me\" before asking somebody to facilitate: the real email one person would get, marked as a test, to the address on the caller's own session and nobody else.",
+  ),
+  "src/lib/applications/freedPlaces/offer.ts#sendDecisionEmail": T(
+    "A freed place offered after decision day: the answer to the person's own application (\"A place has come up\"), one message to each person a press offers a place to or whose email is still to go, and a rehearsal of one to the address on the session of the admin who asked. One call each.",
+    2,
+  ),
   "src/lib/applications/decisionDay/send.ts#sendDecisionEmail": T(
     "Decision day itself, one message per applicant after their result is published (or, on a later press, the one email an earlier press left owed), and a rehearsal of one email to the address on the session of whoever asked for it: an admin from Send decisions, or a programme's lead from its settings. One call each.",
     2,
+  ),
+  "src/lib/applications/handover/teamsTell.ts#sendEmail": T(
+    "Telling each person in an incubator's teams which team they are in, its project and who else is in it: owed to them by the lead's press, as a placement is by Publish's, once for each team that is new to them or has changed; and a rehearsal of the first such email, marked as a test, to the address on the presser's own session and nobody else. One call each.",
+    2,
+  ),
+  "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell/route.ts#sendTeamEmails": T(
+    "The call site of those emails: the lead's or an admin's press of \"Tell everyone their team\", which consults nobody's notification row, as the placement email does not.",
+  ),
+  "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell/test/route.ts#sendTeamEmailTest": T(
+    "\"Send a test to me\" beside that button: the first person's team email, marked as a test, to the address on the presser's own session and nobody else.",
+  ),
+  "src/lib/courses/certificates/send.ts#sendEmail": T(
+    "Sending a programme's certificates: owed to each person its record says finished and to each of its facilitators by the lead's or an admin's press, one message a person carrying their own certificates, as a placement is owed by Publish's; and a rehearsal of the first such email, marked as a test, to the address on the presser's own session and nobody else. One call each.",
+    2,
+  ),
+  "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/certificates/route.ts#sendCertificates": T(
+    "The call site of those emails: the lead's or an admin's press of \"Send N certificates\", which consults nobody's notification row, as the placement email does not.",
+  ),
+  "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/certificates/test/route.ts#sendCertificateTest": T(
+    "\"Send a test to me\" beside that button: the first person's certificate email, marked as a test, to the address on the presser's own session and nobody else.",
   ),
   "src/app/api/admissions/rounds/[roundId]/apply/route.ts#sendAdmissionEmail": T(
     "The receipt for starting an admissions application.",
@@ -636,8 +695,23 @@ const REGISTRY = {
   "src/app/api/courses/runs/[runId]/email/route.ts#sendNotice": N(
     "The run composer's second lane, taken when the sender ticks `send as an important notice`. Same gate, same enrolment re-verification, same cap; the audience keeps the members whose courses row is a stored false.",
   ),
+  "src/app/api/courses/runs/[runId]/updates/route.ts#sendNotice": N(
+    "An update's email (Q18): a programme's lead, an admin or a group's facilitator writing to everyone on the run, one group or its facilitators about the programme they are on, the update also kept on the programme page. It goes whatever the courses row says, with the marker, through the cohort list and the suppression list. Email only: no push leg.",
+  ),
+  "src/app/api/courses/runs/[runId]/updates/route.ts#sendEmail": T(
+    "\"Send a test to me\" on the update composer: the update's own email, marked [TEST], to the address on the presser's own account and nobody else. Nobody's preference is passed over and nothing is posted, so it is no notice.",
+  ),
   "src/app/api/courses/runs/[runId]/email/route.ts#sendNoticePush": N(
     "The notification beside that notice. The ordinary announcement lane has no push leg at all, deliberately: a scheduled cohort mail that also buzzed every phone is how people turn notifications off for good.",
+  ),
+  "src/lib/surveys/sending.ts#sendNotice": N(
+    "A programme survey and its reminder (docs/surveys.md): an admin writing to everybody holding a place on the programme the survey is about, each with their own link, whatever their courses row says, with the marker and the lane's caps. Email only: no push leg.",
+  ),
+  "src/lib/surveys/events/sending.ts#sendNotice": N(
+    "The survey after an event, its email to people who came since and its reminder (docs/surveys.md): an admin writing to the people who came to the event or everybody whose place was confirmed, each with their own link, whatever their events row says, with the marker (surface event-survey) and the lane's caps. A guest's and a walk-in's go to the address they gave the event. Email only: no push leg.",
+  ),
+  "src/app/api/surveys/[surveyId]/test/route.ts#sendEmail": T(
+    "\"Send a test to me\" under a survey's email or its reminder: the email, marked [TEST], to the address on the presser's own session and nobody else. Nobody's preference is passed over, so it is no notice.",
   ),
 };
 

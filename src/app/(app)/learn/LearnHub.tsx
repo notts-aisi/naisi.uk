@@ -9,6 +9,11 @@ import EmptyState from "@/components/ui/EmptyState";
 import Skeleton from "@/components/ui/Skeleton";
 import RunCard from "@/features/courses/RunCard";
 import { useMyRuns } from "@/features/courses/useMyRuns";
+import { leftHeading } from "@/lib/courses/leavingWords";
+import OnItsWay from "@/features/courses/weekOne/OnItsWay";
+import SurveyCards from "@/features/surveys/cards/SurveyCards";
+import type { BeforeGroupsCard } from "@/lib/courses/weekOne/cards";
+import type { SurveyCard } from "@/lib/surveys/waiting";
 import styles from "./page.module.css";
 
 /**
@@ -46,10 +51,21 @@ import styles from "./page.module.css";
  * to the member's applications and states no outcome: this hub never says
  * what became of an application. Once they are on a live run, that run's own
  * card says where they are, and `instead` is not drawn.
+ *
+ * ── A RUN THEY LEFT ─────────────────────────────────────────────────────────
+ * The list of runs leaves out a run somebody left, and somebody who left keeps
+ * nothing of it. The page hands in each run they left by themselves (`left`,
+ * from the gate every page under the run asks), and each is a card that says
+ * only that they left, linking to the run's page, which says the same and
+ * when. So somebody whose one course was a run they left is not told they are
+ * on no course: they were, and the card says what became of it.
  */
 
 /** Enough cards to fill the fold at the widest main column (64rem cap). */
 const SKELETON_COUNT = 3;
+
+/** A run the member left by themselves: its id, and the name its own page goes by. */
+export type LeftRun = { runId: string; name: string };
 
 type Props = {
   /**
@@ -58,9 +74,25 @@ type Props = {
    * place could not be read alike. Null when they are known to hold none.
    */
   instead: ReactNode;
+  /** The runs the member left by themselves, newest first. None for anybody else. */
+  left?: readonly LeftRun[];
+  /**
+   * "Your group’s on its way" for each place held before groups go out
+   * (Q13 B), worded on the server (`beforeGroupsCardsFor`): drawn under the
+   * heading, above the runs, whatever they are. Empty draws nothing.
+   */
+  beforeGroups?: readonly BeforeGroupsCard[];
+  /**
+   * "A survey for you" for each survey waiting for the member (Q50 B), worded
+   * on the server (`surveysWaitingFor`): drawn first under the heading, above
+   * the cards for a place and the runs. Empty draws nothing.
+   */
+  surveys?: readonly SurveyCard[];
 };
 
-export default function LearnHub({ instead }: Props) {
+const NO_RUNS_LEFT: readonly LeftRun[] = [];
+
+export default function LearnHub({ instead, left = NO_RUNS_LEFT, beforeGroups = [], surveys = [] }: Props) {
   const { runs, loading, error } = useMyRuns();
 
   // The route already sorts archived rows last, so this is a partition of an
@@ -77,13 +109,23 @@ export default function LearnHub({ instead }: Props) {
     <div>
       <div className={styles.header}>
         <Badge tone="accent">Courses</Badge>
-        <h1 className={styles.title}>Your courses</h1>
+        {/* The sidebar's own name for this page, and a line that never says
+            "exercise" (v20: coursework is never an exercise in a member's
+            words); listed in the build notes for the boards' designers. */}
+        <h1 className={styles.title}>My programmes</h1>
         <p className={styles.lede}>
-          Every fellowship and reading group you&apos;re on: the week your cohort is
-          on, the materials for it, and the exercises you owe. A place you&apos;ve
-          been offered shows here too, until your group is confirmed.
+          Every fellowship and reading group you’re on: the week your group is
+          on, and what to do for it. A programme can show here before your
+          group is set.
         </p>
       </div>
+
+      {surveys.length > 0 || beforeGroups.length > 0 ? (
+        <div className={styles.above}>
+          <SurveyCards cards={surveys} />
+          <OnItsWay cards={beforeGroups} />
+        </div>
+      ) : null}
 
       {loading ? (
         <ul className={styles.grid}>
@@ -94,7 +136,7 @@ export default function LearnHub({ instead }: Props) {
                   "Loading…" three times for one wait. */}
               <Skeleton
                 height="10rem"
-                ariaLabel={i === 0 ? "Loading your courses…" : ""}
+                ariaLabel={i === 0 ? "Loading your programmes…" : ""}
               />
             </li>
           ))}
@@ -105,7 +147,7 @@ export default function LearnHub({ instead }: Props) {
               account is still pending needs to read why, not "failed". */}
           <p className={styles.error}>{error.message}</p>
         </Card>
-      ) : runs.length === 0 ? (
+      ) : runs.length === 0 && left.length === 0 ? (
         // Holding a place is not being on nothing, and neither is a place
         // the page could not read: for both, the way to the member's
         // applications stands where the empty state would.
@@ -138,6 +180,26 @@ export default function LearnHub({ instead }: Props) {
                   style={{ "--card-index": Math.min(i, 7) } as CSSProperties}
                 >
                   <RunCard entry={entry} />
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {left.length > 0 && (
+            <ul className={`${styles.grid} ${live.length > 0 ? styles.leftAfterLive : ""}`}>
+              {left.map((entry, i) => (
+                <li
+                  key={entry.runId}
+                  className={styles.cell}
+                  style={{ "--card-index": Math.min(live.length + i, 7) } as CSSProperties}
+                >
+                  <Link href={`/learn/${encodeURIComponent(entry.runId)}`} className={styles.leftLink}>
+                    {/* A div, never an article: a link wrapped round an article has no
+                        accessible name in Chromium, so the card would be an unnamed link. */}
+                    <Card as="div" padding="md" interactive className={styles.leftCard}>
+                      <h3 className={styles.leftTitle}>{leftHeading(entry.name)}</h3>
+                    </Card>
+                  </Link>
                 </li>
               ))}
             </ul>

@@ -2,11 +2,15 @@ import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import {
+  membershipKnownFromRow,
   normalizeCourseApplication,
+  rowIsServedTo,
   type CourseApplicationStatus,
 } from "@/lib/firestore/courseApplications";
 import {
+  compareGroupsByMeeting,
   normalizeCourseGroup,
   type GroupSession,
 } from "@/lib/firestore/courseGroups";
@@ -20,11 +24,13 @@ import { hasPaidMembership, normalizeUser } from "@/lib/firestore/users";
  * The admissions review queue for one run — the read half of P5.
  *
  * WHO MAY READ (locked product decision): admins ∪ the run's
- * `admissionsReviewerUids` ∪ its `trackLeadUids`. Admissions is deliberately a
- * SEPARATE role from facilitation: being a group facilitator grants no sight of
- * anyone's application, and reviewing applications grants no access to the
- * cohort. Track leads are here to READ (they staff and steer the run); only
- * admins and admissions reviewers may decide — see the decide route.
+ * `admissionsReviewerUids` ∪ its `trackLeadUids` ∪ the lead of the programme
+ * that names the run (`runStaffingOf`), who reads it as a track lead does.
+ * Admissions is deliberately a SEPARATE role from facilitation: being a group
+ * facilitator grants no sight of anyone's application, and reviewing
+ * applications grants no access to the cohort. Track leads are here to READ
+ * (they staff and steer the run); only admins and admissions reviewers may
+ * decide: see the decide route.
  *
  * ── THE PII BOUNDARY ────────────────────────────────────────────────────────
  * `email` is populated ONLY when the caller is an admin. A non-admin reviewer
@@ -61,7 +67,12 @@ export type AdmissionsRow = {
   displayName: string;
   /** ADMINS ONLY — null for every non-admin reviewer. See the PII boundary. */
   email: string | null;
-  paidMembership: boolean;
+  /**
+   * The membership badge, read from the person's account. `null` is "not
+   * known": the account could not be read and the row carries no snapshot
+   * (`membershipKnownFromRow`). The queue then draws no badge.
+   */
+  paidMembership: boolean | null;
   status: CourseApplicationStatus;
   answers: Record<string, unknown>;
   /** The session labels the applicant ticked, split back out of storage. */
@@ -205,18 +216,14 @@ export async function GET(
   }
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
 
-  const isAdmin = actor.role === "admin";
+  const staffing = await runStaffingOf(db, actor, run);
+  const isAdmin = staffing.isAdmin;
   const isReviewer = isNamedWithStanding(
     actor,
     "courseRuns.admissionsReviewerUids",
     run.admissionsReviewerUids,
   );
-  const isTrackLead = isNamedWithStanding(
-    actor,
-    "courseRuns.trackLeadUids",
-    run.trackLeadUids,
-  );
-  if (!isAdmin && !isReviewer && !isTrackLead) {
+  if (!doesTrackLeadWork(staffing) && !isReviewer) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -231,24 +238,22 @@ export async function GET(
     db.collection("courseGroups").where("runId", "==", runId).limit(50).get(),
   ]);
 
-  const applications = appSnap.docs.map((d) =>
-    normalizeCourseApplication(d.id, d.data() ?? {}),
-  );
+  // A row the application form put on this run is seen by an admin and by
+  // the lead of the programme whose hand-over wrote it (`rowIsServedTo`): the
+  // run's reviewers and track leads are listed the people who applied to the
+  // run itself, and nobody else. The run's own counters above still count
+  // every row, as numbers.
+  const applications = appSnap.docs
+    .map((d) => normalizeCourseApplication(d.id, d.data() ?? {}))
+    .filter((a) => rowIsServedTo(a, staffing));
 
   // Archived groups are dropped: a reviewer must not be able to record a
   // preference for a group that no longer runs.
   const groups = groupSnap.docs
     .map((d) => normalizeCourseGroup(d.id, d.data() ?? {}))
     .filter((g) => !g.archived)
-    .sort((a, b) => {
-      // Monday-first for display; `weekday` is stored Sunday-first.
-      const day = ((a.session.weekday + 6) % 7) - ((b.session.weekday + 6) % 7);
-      return (
-        day ||
-        a.session.startTimeLocal.localeCompare(b.session.startTimeLocal) ||
-        a.name.localeCompare(b.name)
-      );
-    });
+    // Monday first, the order every list of a run's groups uses.
+    .sort(compareGroupsByMeeting);
 
   // One `getAll` for every name this payload needs: applicants, whoever decided
   // each application, and the groups' facilitators. Names only — see the PII
@@ -292,7 +297,10 @@ export async function GET(
     email: isAdmin ? app.email : null,
     // Falls back to the apply-time snapshot when the user doc is gone (deleted
     // account) — the badge then reflects what was true when they applied.
-    paidMembership: paidByUid.get(app.uid) ?? app.paidMembershipAtApply,
+    // A row the application form wrote carries no snapshot, so for one of
+    // those the answer is null and no badge is drawn
+    // (`membershipKnownFromRow`).
+    paidMembership: paidByUid.get(app.uid) ?? membershipKnownFromRow(app),
     status: app.status,
     answers: app.answers,
     availability: splitAvailability(app.availability),

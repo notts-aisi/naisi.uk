@@ -225,12 +225,22 @@ const SUBMIT = api("runs", "[runId]", "exercises", "[exerciseId]", "submit", "ro
 const ALLOCATE = api("runs", "[runId]", "allocate", "route.ts");
 const ALLOCATION = api("runs", "[runId]", "allocation", "route.ts");
 const ALLOCATION_PUBLISH = api("runs", "[runId]", "allocation", "publish", "route.ts");
+/**
+ * Since the course hub's Publish (October 2026) what a press of Publish reads
+ * and decides (who is placed, who is owed an email, when each group first
+ * meets) is worked out by one plan, which the route, "Send a test to me" and
+ * the board's count all read. The properties pinned on the route before are
+ * pinned on the plan, where that code now lives.
+ */
+const PUBLISH_PLAN = src("lib", "courses", "allocationPublish.ts");
 const DECIDE = api("runs", "[runId]", "applications", "[uid]", "decide", "route.ts");
 const APPLY_ROUTE = api("runs", "[runId]", "apply", "route.ts");
 const STATUS_ROUTE = api("runs", "[runId]", "status", "route.ts");
 const REMOVE_ROUTE = api("runs", "[runId]", "enrolments", "[uid]", "remove", "route.ts");
 const ENROL_ROUTE = api("runs", "[runId]", "enrol", "route.ts");
 const FACILITATORS = api("groups", "[groupId]", "facilitators", "route.ts");
+/** The one place a group's facilitators change, and so where the route's enrolment writes live. */
+const GROUP_FACILITATORS = src("lib", "courses", "groupFacilitators.ts");
 
 const MATERIAL_NOTES = api("runs", "[runId]", "material-notes", "route.ts");
 const PACE = api("groups", "[groupId]", "pace", "route.ts");
@@ -244,6 +254,9 @@ const RUN_EDITOR = src("features", "courses", "RunEditor.tsx");
 const WEEK_PLAN_BUILDER = src("features", "courses", "WeekPlanBuilder.tsx");
 const WEEK_VIEW = src("features", "courses", "WeekView.tsx");
 const RUN_HOME = src("features", "courses", "RunHome.tsx");
+// The run home's ticket reads its session's facts here since the restyle
+// (boards wk-programme, st-programme): the next session's own week.
+const CARD_FACTS = src("features", "courses", "sessionChange", "cardFacts.ts");
 const USE_WEEK = src("features", "courses", "useWeek.ts");
 const USE_GROUP_WEEKS = src("features", "courses", "useGroupWeeks.ts");
 const USE_ALLOCATION = src("features", "courses", "useAllocation.ts");
@@ -812,7 +825,9 @@ test("GUARD — every member-facing surface addresses a week by weekDocId(number
     // keyed by week doc id (see the per-week card test): two surfaces now index
     // it, and both must spell the key the way every writer of that map does.
     [WEEK_VIEW, /sessionModes\[weekDocId\(weekNumber\)\]/],
-    [RUN_HOME, /sessionModes\[weekDocId\(cardWeekNumber\)\]/],
+    // The run home's ticket, through `ticketFacts`: the mode of the week of
+    // the session it is dated to, addressed by that week's number.
+    [CARD_FACTS, /sessionModes\[weekDocId\(next\.weekNumber\)\]/],
     [NUDGE, /const weekId = weekDocId\(weekNumber\);/],
     // V2-3 moved the mirror's read behind the group resolver, so the pattern
     // now pins BOTH doctrines at once: addressed by number, resolved
@@ -910,8 +925,13 @@ test("GUARD — no reader resolves sessionOverrides by the plan entry's own week
   assert.doesNotMatch(SESSIONS, /entry\.weekId/);
   assert.match(SESSIONS, /const weekId = weekDocId\(weekNumber\);/);
   assert.match(SESSIONS, /sessionForWeek\(group, weekId\)/);
-  assert.doesNotMatch(ALLOCATION_PUBLISH, /\? firstWeek\.weekId/);
-  assert.match(ALLOCATION_PUBLISH, /weekDocId\(firstWeek\.weekNumber\)/);
+  // The allocation emails now read their first session from `resolveSessions`
+  // too, on the group's own calendar, so the key is the one pinned on
+  // SESSIONS above. No plan entry is read by Publish at all.
+  assert.match(PUBLISH_PLAN, /resolveSessions\(run, group\)/);
+  assert.match(PUBLISH_PLAN, /sessionForWeek\(group, first\.weekId\)/);
+  assert.doesNotMatch(PUBLISH_PLAN, /firstWeek|entry\.weekId|weekPlan\[/);
+  assert.doesNotMatch(ALLOCATION_PUBLISH, /weekId/);
 
   // Attendance stays internally consistent: the register beside the header is
   // addressed by NUMBER too (plus the occurrence, whose default keeps every
@@ -1298,8 +1318,9 @@ test("archiving a group leaves the enrolments, the count and the publish gate as
   // as placed and the allocation publishes with nobody told. That divergence is
   // documented on purpose; it is pinned here so it cannot be "tidied" on one
   // side only.
-  assert.match(ALLOCATION_PUBLISH, /Groups are NOT filtered on\s*\/\/ archived here/);
-  assert.match(ALLOCATION_PUBLISH, /e\.groupId === null \|\| e\.status !== "active"/);
+  // (On Publish's plan, which every press reads: see PUBLISH_PLAN.)
+  assert.match(PUBLISH_PLAN, /Groups are NOT filtered on\s*\/\/ archived here/);
+  assert.match(PUBLISH_PLAN, /e\.groupId === null \|\| e\.status !== "active"/);
 });
 
 // ===========================================================================
@@ -1525,9 +1546,16 @@ test("a member can still write progress on a completed run, because no route com
   // The only enrolment-status writers in the whole feature.
   assert.match(ALLOCATE, /status: "active"/);
   assert.match(REMOVE_ROUTE, /status: "removed"/);
-  assert.match(FACILITATORS, /"active"|"removed"/);
+  // The group facilitators route's writes moved into the one place a group's
+  // facilitators change (asking people to facilitate, October 2026), and the
+  // route's own "active" went with the rule that nobody facilitates a
+  // programme they take part in (lifted on 26 Oct 2026). So the writes are
+  // pinned where they are, each one: a facilitator's row active, a retired
+  // one removed, and a facilitator who holds a place a learner's row, active.
+  assert.match(GROUP_FACILITATORS, /status: "active"/);
+  assert.match(GROUP_FACILITATORS, /status: "removed"/);
   // Nothing writes the other two onto an enrolment.
-  for (const source of [ALLOCATE, REMOVE_ROUTE, FACILITATORS, STATUS_ROUTE]) {
+  for (const source of [ALLOCATE, REMOVE_ROUTE, FACILITATORS, GROUP_FACILITATORS, STATUS_ROUTE]) {
     assert.doesNotMatch(source, /status:\s*"withdrawn"/);
   }
   assert.doesNotMatch(STATUS_ROUTE, /courseEnrolments/);
@@ -1782,9 +1810,10 @@ test("an accepted applicant's only record is an email whose {startDate} is froze
   // days.
   assert.match(DECIDE, /startDate/);
   assert.match(DECIDE, /changed/);
-  assert.match(ALLOCATION_PUBLISH, /function firstSessionWhen/);
+  // (On Publish's plan, which every press reads: see PUBLISH_PLAN.)
+  assert.match(PUBLISH_PLAN, /function firstSessionWhen/);
   // The publish-side value is derived on every send…
-  assert.match(ALLOCATION_PUBLISH, /firstSessionWhen\(run, group\)/);
+  assert.match(PUBLISH_PLAN, /firstSessionWhen\(run, group\)/);
   // …and nothing re-mails the acceptance.
   assert.doesNotMatch(STATUS_ROUTE, /sendCourseApplication/);
 });
@@ -1869,7 +1898,8 @@ test("GUARD — every date-driven consumer guards with isValidDateKey before pac
     [NUDGE, "nudge"],
     [SYNC_TASKS, "sync-tasks"],
     [ATTENDANCE, "attendance"],
-    [ALLOCATION_PUBLISH, "allocation/publish"],
+    // Publish's dates are worked out by its plan (see PUBLISH_PLAN).
+    [PUBLISH_PLAN, "allocation/publish (its plan)"],
     // `allocate` and the open-enrol route both reach the guard through
     // `joinedWeekFor`, which holds it once for both of them.
     [GROUP_RESOLVE, "groupResolve (joinedWeekFor)"],
@@ -2426,11 +2456,13 @@ test("GUARD — virtual/in-person reaches the member, on the card and in the ema
   // holds, so the map travels for each of them rather than only for the one
   // the calendar resolved through.
   assert.match(OVERVIEW, /sessionModes: sessionModesOf\(source\),/);
-  // The facilitator's own group page builds the same shape and hands the card
-  // the same week's entry, so the person who just flipped the switch sees what
-  // their members will.
+  // The facilitator's own group page builds the same shape and hands its
+  // ticket the same week's entry, so the person who just flipped the switch
+  // sees what their members will. Since board wk-fac-group the page draws the
+  // run home's ticket, which reads the mode of its own session's week through
+  // `ticketFacts` (the CARD_FACTS row above pins how), handed this whole map.
   assert.match(GROUP_PAGE, /sessionModes: sessionModesOf\(group\),/);
-  assert.match(GROUP_PAGE, /mode=\{sessionModeForWeek\(group, weekId\)\}/);
+  assert.match(GROUP_PAGE, /const facts = ticketFacts\(sessionGroup\);/);
   // The nudge resolves it for the group's OWN week address, not the run's.
   assert.match(
     NUDGE,
@@ -2446,8 +2478,16 @@ test("GUARD — virtual/in-person reaches the member, on the card and in the ema
     SESSION_CARD,
     /const showJoin = mode !== "in-person" && Boolean\(meetingUrl\);/,
   );
-  // Honest fallbacks rather than an empty card, in both directions.
-  assert.match(SESSION_CARD, /Online this week — your facilitator will send the joining link\./);
+  // Honest fallbacks rather than an empty card, in both directions. The online
+  // one says the link will be on the card, and never that anybody will send
+  // it: the link lives on the site only, behind sign-in (Q23), so the old
+  // "your facilitator will send the joining link" is gone for good.
+  assert.match(SESSION_CARD, /`Online this week\. \$\{LINK_WILL_BE_HERE\}`/);
+  assert.match(
+    src("lib", "courses", "sessionChange", "words.ts"),
+    /export const LINK_WILL_BE_HERE = "The link to join will be here, not in your emails\.";/,
+  );
+  assert.doesNotMatch(SESSION_CARD, /send the joining link/);
   assert.match(SESSION_CARD, /In person this week — your facilitator will confirm the room\./);
 
   // THE PII GATE IS UNTOUCHED. `mode` is a display fact; it grants nobody the
@@ -2540,10 +2580,12 @@ test("GUARD — the week page shows the VIEWED week's mode, not the current week
     /payload\.group\?\.sessionModes\[weekDocId\(weekNumber\)\] \?\? null/,
   );
   assert.match(WEEK_VIEW, /mode=\{viewedSessionMode\}/);
-  // …the run home the CURRENT one, because its card is dated to the current
-  // slot and must describe that session end to end.
-  assert.match(RUN_HOME, /group\?\.sessionModes\[weekDocId\(cardWeekNumber\)\] \?\? null/);
-  assert.match(RUN_HOME, /mode=\{cardSessionMode\}/);
+  // …the run home the one of the session its ticket is dated to (the group's
+  // next, since the restyle to boards wk-programme and st-programme), and
+  // describes that session end to end: its own week's mode, room and link.
+  assert.match(CARD_FACTS, /const mode = group\.sessionModes\[weekDocId\(next\.weekNumber\)\] \?\? null;/);
+  assert.match(CARD_FACTS, /const room = mode !== "virtual" && next\.location\.trim\(\) \? next\.location\.trim\(\) : null;/);
+  assert.match(RUN_HOME, /const facts = group \? ticketFacts\(group\) : null;/);
 
   // THE NUDGE IS UNAFFECTED, and that is verified rather than assumed: it
   // always resolved per week from the group DOC (it has no payload to read),
@@ -2884,6 +2926,12 @@ test("GUARD — nothing outside the allowlist calls currentWeekFor, anywhere in 
       "features/courses/WeekPlanBuilder.tsx",
       "the admin's run-plan preview — the RUN is its subject",
     ],
+    [
+      "lib/courses/programmeAttendance.ts",
+      "the PROGRAMME's own week on its lead's tabs (This week, Running · week 3 of 6, the Overview's week card), asked " +
+        "once in `programmeWeekNow`: the RUN is its subject, and every group's sessions beside it are dated by the " +
+        "group's own calendar",
+    ],
   ]);
 
   const files = [];
@@ -3137,10 +3185,14 @@ test("GUARD — a retrospective note can be written about a fork-only material",
   // boundary the review queue draws. Only the trusted tier scans the rest.
   assert.match(MATERIAL_NOTES, /isTrusted\s*\?\s*otherGroupIds\.map\(/);
   assert.match(MATERIAL_NOTES, /const isTrusted =/);
+  // The run's track leads are in it through the one gate a track lead passes
+  // (`runStaffingOf`, which holds them to the bar through isNamedWithStanding),
+  // shared with the lead of the programme that names the run.
   assert.match(
     MATERIAL_NOTES,
-    /isNamedWithStanding\(\s*actor,\s*"courseRuns\.trackLeadUids",\s*asUidList\(runRaw\.trackLeadUids\),?\s*\)/,
+    /runStaffingOf\(db, actor, \{ id: runId, trackLeadUids: asUidList\(runRaw\.trackLeadUids\) \}\)/,
   );
+  assert.match(MATERIAL_NOTES, /\(staffing !== null && doesTrackLeadWork\(staffing\)\)/);
   // The split that feeds it, and the bound it inherits.
   assert.match(MATERIAL_NOTES, /const ownGroupIds: string\[\] = \[\];/);
   assert.match(MATERIAL_NOTES, /\.limit\(MAX_GROUPS_SCANNED\)/);

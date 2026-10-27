@@ -71,6 +71,10 @@ const GUARDED_TREES = [
   // accident here is one only an admin can undo.
   "src/app/api/worksheets",
 
+  // Surveys. Every write in this tree is recorded as the session's person: a
+  // survey made or sent in an admin's name, an answer kept as somebody's own.
+  "src/app/api/surveys",
+
   // The account / registration lane. These routes act on the SESSION account's
   // own persistent state: its Firebase Auth password, its registration-tracker
   // rows, its consent stamp, its very existence. During view-as the session is
@@ -89,11 +93,17 @@ const GUARDED_TREES = [
  * Paths are repo-relative and use forward slashes.
  */
 const MUST_GUARD = [
+  ["src/app/api/courses/[courseId]/crest/route.ts", "sets the programme crest a course shows on every page that names it"],
   ["src/app/api/courses/[courseId]/destroy/route.ts", "destroys a course and everything under it"],
+  ["src/app/api/courses/[courseId]/facilitator-guide/[slot]/route.ts", "loads a document into a course's facilitator guide, replacing what its facilitators read"],
   ["src/app/api/courses/[courseId]/page/route.ts", "rewrites the public marketing page a logged-out visitor reads"],
   ["src/app/api/courses/[courseId]/page/generate-themes/route.ts", "regenerates the public weekly themes and their provenance"],
   ["src/app/api/courses/[courseId]/publish/route.ts", "publishes a course to the public catalogue"],
+  ["src/app/api/courses/[courseId]/routes/route.ts", "replaces a course's routes and deadlines, which every run of the course shows on the week that lists them"],
+  ["src/app/api/courses/[courseId]/predictions/route.ts", "replaces a course's predictions card, which every run of the course asks in the two weeks it names"],
+  ["src/app/api/courses/[courseId]/rubric/route.ts", "reads and saves a course's rubric, which every run of the course gives feedback on"],
   ["src/app/api/courses/[courseId]/templates/route.ts", "writes a reusable curriculum template"],
+  ["src/app/api/courses/calendar/route.ts", "makes or replaces the caller's own calendar link, a secret kept in their name"],
   ["src/app/api/courses/exercise-responses/[responseId]/review/route.ts", "reviews a learner's submitted work and releases the comment"],
   ["src/app/api/courses/groups/[groupId]/attendance/route.ts", "marks a session register, and lets an admin correct a locked one"],
   ["src/app/api/courses/groups/[groupId]/attendance/push/route.ts", "locks a register, rewrites every member's attendance record and mails the group"],
@@ -101,13 +111,22 @@ const MUST_GUARD = [
   ["src/app/api/courses/groups/[groupId]/email/route.ts", "sends email to a group"],
   ["src/app/api/courses/groups/[groupId]/facilitators/route.ts", "appoints and removes facilitators"],
   ["src/app/api/courses/groups/[groupId]/notice/route.ts", "publishes a notice to a whole group"],
+  ["src/app/api/courses/groups/[groupId]/notes/route.ts", "writes a note a group's facilitators share, in the writer's name"],
+  ["src/app/api/courses/groups/[groupId]/draw/route.ts", "gives a group's people their packs and cases from the draw, in the typist's name"],
+  ["src/app/api/courses/groups/[groupId]/pairs/route.ts", "puts a group's people in pairs for a session and says who brings a laptop, in the typist's name"],
+  ["src/app/api/courses/groups/[groupId]/shared-notes/route.ts", "adds a note shared with a group, in the writer's name"],
+  ["src/app/api/courses/groups/[groupId]/ratings/route.ts", "rates a fellow at a programme's end, in the rater's name"],
+  ["src/app/api/courses/groups/[groupId]/shared-notes/[noteId]/route.ts", "deletes a note shared with a group, for the person who wrote it"],
   ["src/app/api/courses/groups/[groupId]/pace/route.ts", "changes a group's pacing, moving every learner's dates"],
   ["src/app/api/courses/groups/[groupId]/session/route.ts", "changes a group's meeting details"],
+  ["src/app/api/courses/groups/[groupId]/session/change/route.ts", "changes or cancels one week's session of a group, in the presser's name"],
+  ["src/app/api/courses/groups/[groupId]/weeks/[weekId]/blocks/route.ts", "makes or replaces a group's own copy of a week from pasted Markdown, and can take out items its people have answered"],
   ["src/app/api/courses/groups/[groupId]/weeks/[weekId]/fork/route.ts", "forks a week's content for a group"],
   ["src/app/api/courses/groups/[groupId]/weeks/[weekId]/route.ts", "edits a group's week content"],
   ["src/app/api/courses/progress/[progressId]/moderate/route.ts", "moderates a learner's recorded progress"],
   ["src/app/api/courses/runs/[runId]/allocate/route.ts", "allocates applicants to groups"],
   ["src/app/api/courses/runs/[runId]/allocation/publish/route.ts", "publishes an allocation, which tells applicants their place"],
+  ["src/app/api/courses/runs/[runId]/allocation/publish/test/route.ts", "sends Publish's first emails to the presser as a test, and records the test Publish waits for"],
   ["src/app/api/courses/runs/[runId]/applications/[uid]/decide/route.ts", "accepts, waitlists or rejects an application"],
   ["src/app/api/courses/runs/[runId]/applications/[uid]/notes/route.ts", "writes reviewer notes on an applicant"],
   ["src/app/api/courses/runs/[runId]/apply/route.ts", "creates, edits and withdraws an application in the applicant's own name"],
@@ -121,11 +140,31 @@ const MUST_GUARD = [
   ["src/app/api/courses/runs/[runId]/enrolments/[uid]/reinstate/route.ts", "puts a member who left back on a run, taking a seat back off the group"],
   ["src/app/api/courses/runs/[runId]/enrol-mode/route.ts", "flips a run between admissions and open enrolment, which changes what the enrol route accepts"],
   ["src/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route.ts", "submits a learner's answer in their own name"],
+  ["src/app/api/courses/runs/[runId]/guide/[doc]/route.ts", "replaces a programme's Start here or Glossary, which everybody on the run reads"],
+  ["src/app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts", "picks a pack and marks a talk ready in the person's own name"],
+  ["src/app/api/courses/runs/[runId]/reflections/[promptId]/route.ts", "saves a reflection in its writer's own name: a member's own box, or a group facilitator's own"],
+  ["src/app/api/courses/runs/[runId]/fill-in-boxes/[boxId]/route.ts", "saves a fill-in box in its writer's own name: a member's own box, or a group facilitator's own"],
+  ["src/app/api/courses/runs/[runId]/predictions/route.ts", "saves, seals and opens a person's own predictions card in their own name: a member's own, or a group facilitator's own"],
+  ["src/app/api/courses/runs/[runId]/predictions/people/[uid]/route.ts", "an admin opens one person's predictions card, the opening recorded before the card is read"],
   ["src/app/api/courses/runs/[runId]/material-notes/route.ts", "records feedback attributed to the reader"],
   ["src/app/api/courses/runs/[runId]/normalise-weeks/route.ts", "rewrites every week id on a run"],
   ["src/app/api/courses/runs/[runId]/nudge/route.ts", "sends the weekly nudge email"],
+  ["src/app/api/courses/runs/[runId]/pitching/picks/route.ts", "records which pitches a member would join, which their lead makes teams from"],
+  ["src/app/api/courses/runs/[runId]/pitching/pitch/route.ts", "saves a pitch in the member's own name and chooses who pitches it with them"],
+  ["src/app/api/courses/runs/[runId]/team/check-in/route.ts", "saves a team's check-in for the week, recorded as whoever the session says saved it"],
+  ["src/app/api/courses/runs/[runId]/team/hand-in/route.ts", "hands in for a whole team, recorded as whoever the session says pressed it"],
+  ["src/app/api/courses/runs/[runId]/team/links/route.ts", "adds a link to a team's page, recorded as whoever the session says added it"],
+  ["src/app/api/courses/runs/[runId]/team/links/[linkId]/route.ts", "removes a link from a team's page, for everybody in the team"],
   ["src/app/api/courses/runs/[runId]/roles/route.ts", "grants and revokes staff roles on a run"],
   ["src/app/api/courses/runs/[runId]/status/route.ts", "moves a run along its lifecycle, opening or closing applications"],
+  ["src/app/api/courses/runs/[runId]/updates/route.ts", "posts an update to a run's people and emails it, in the poster's name"],
+  ["src/app/api/courses/runs/[runId]/weeks/[weekId]/blocks/route.ts", "replaces a week's blocks, and can take out items people have answered"],
+  ["src/app/api/courses/runs/[runId]/weeks/[weekId]/ready/route.ts", "stores a week's Ready, which opens week 1 to everybody holding a place"],
+  ["src/app/api/courses/runs/[runId]/weeks/[weekId]/owner/route.ts", "chooses who owns a week of a run on its programme's Weeks tab"],
+  ["src/app/api/courses/runs/[runId]/weeks/[weekId]/mode/route.ts", "holds a whole week's sessions online, or puts them back in person, for every group of a run"],
+  ["src/app/api/courses/runs/[runId]/week-one/ticks/[itemId]/route.ts", "ticks week 1 off in its caller's own name, for somebody holding a place before groups go out"],
+  ["src/app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts", "saves and sends a written answer in its writer's own name: a member's own, or a group facilitator's own"],
+  ["src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts", "opens, reopens and gives feedback on somebody's written answer, and emails them that it is waiting"],
   ["src/app/api/courses/runs/[runId]/sync-tasks/route.ts", "creates committee tasks on the board"],
   ["src/app/api/courses/templates/[templateId]/route.ts", "deletes a curriculum template"],
   // Admissions: the round authoring console. A round is the object an intake
@@ -145,6 +184,121 @@ const MUST_GUARD = [
   ["src/app/api/admissions/forms/[roundId]/sets/[setId]/route.ts", "writes and deletes the questions applicants are asked"],
   ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/route.ts", "changes what applicants are shown about a programme, the wording of its emails, and closes it"],
   ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/roles/route.ts", "names a programme's lead and reviewers, which grants access to applications"],
+  // Where a programme's accepted people go, and the press that puts them
+  // there. Both are an admin's alone, and the second writes a row about each
+  // person and a log line in the caller's name.
+  ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/run/route.ts", "names the course run a programme places its accepted people on"],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/run/hand-over/route.ts",
+    "puts everybody who holds a place on a programme onto its course run's allocation list, and logs who pressed it",
+  ],
+  // Offering a place given back after decision day changes what a person
+  // was told and emails them, in the caller's name; its test writes a record
+  // on the form and emails the address on the session.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places/route.ts",
+    "offers freed places after decision day, which changes outcomes and emails the people offered one",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places/test/route.ts",
+    "sends a test of the freed-place email to the address on the session, and records it on the form",
+  ],
+  // An incubator's teams, made and changed by its lead or an admin, and the
+  // email that tells each person theirs: writes in the caller's name, and the
+  // test emails the address on the session.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/route.ts",
+    "makes an incubator's teams and moves people between them, recorded as whoever the session says is acting",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell/route.ts",
+    "emails everyone in an incubator's teams their team in the caller's name, which cannot be unsent",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell/test/route.ts",
+    "sends a test of the team email to the address on the session, which during view-as is the member's, and records that it reached them",
+  ],
+  // An incubator's hand-in dates, set by its lead or an admin on the Teams tab.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/hand-in/route.ts",
+    "sets the day an incubator's hand-ins are due and the week of its showcase, which every team's page reads",
+  ],
+  // Certificates: their owner's switch, and the send that makes and emails
+  // them, with its test.
+  [
+    "src/app/api/courses/certificates/[code]/route.ts",
+    "turns a certificate's link on or off, which decides whether a member's name is public, as whoever the session says owns it",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/certificates/route.ts",
+    "makes a programme's certificates and emails each person theirs in the caller's name, which cannot be unsent",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/certificates/test/route.ts",
+    "sends a test of the certificate email to the address on the session, which during view-as is the member's, and records that it reached them",
+  ],
+  // Who finished: the run's rule, and the lead's decision about one person,
+  // each recorded as whoever the session says is acting.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing/route.ts",
+    "records whether one person finished a programme, stored with whoever the session says pressed the switch",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing/rule/route.ts",
+    "sets the rule that decides who finished a programme, which changes what its members are told once it is over",
+  ],
+  // Asking people to facilitate: an ask and a reminder email one person in
+  // the caller's name, a test emails the session's own address and is
+  // recorded on the run, the training is a setting of the run, and an answer
+  // is the person's own and puts them on a group.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask/route.ts",
+    "asks one person to facilitate a group, which writes the ask and emails them in the caller's name",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask/test/route.ts",
+    "sends a test of the ask's email to the address on the session, and records it on the run",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/remind/route.ts",
+    "reminds one person of their ask by email, in the caller's name, and counts the reminder",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/training/route.ts",
+    "sets the run's facilitators' training, which every later ask's email and page name",
+  ],
+  [
+    "src/app/api/courses/facilitator-asks/[askId]/answer/route.ts",
+    "records the person's own yes or no to an ask, and a yes puts them on a group as its facilitator",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups-go-out/route.ts",
+    "sets the day groups go out on a programme's run, which every holder of a place is told on Home, week 1 and their application",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/route.ts",
+    "adds a group to the run a programme names, from the Times view",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time/route.ts",
+    "changes a group's day and start on the run a programme names, from the Times view",
+  ],
+  // A programme's run as its lead reads and chases it. The attendance CSV
+  // takes every register of the run off the platform and writes the
+  // dataExports row that is the only record it happened; Remind emails a
+  // group's facilitators in the caller's name.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/attendance/export/route.ts",
+    "takes every register of a programme's run off the platform as a file of named people, and writes the dataExports row that is the only record it happened",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/registers/remind/route.ts",
+    "emails a group's facilitators a reminder about an unfinished register in the caller's name, and claims the reminder job's own marker for each so that the job sends them none",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/when-free/remind/route.ts",
+    "emails the people holding a place who have not said when they are free in the caller's name, and claims a marker for each for the day",
+  ],
   // The application form's lifecycle. Opening a form lets real applicants
   // reach it, and settling writes every applicant's member record in the
   // caller's name. An admin viewing as somebody else must not do either.
@@ -163,6 +317,7 @@ const MUST_GUARD = [
   ["src/app/api/admissions/forms/[roundId]/application/route.ts", "saves the draft of an application in the applicant's own name, and creates the application on the first save"],
   ["src/app/api/admissions/forms/[roundId]/application/send/route.ts", "sends an application, which puts somebody's answers in front of each programme's lead and reviewers"],
   ["src/app/api/admissions/forms/[roundId]/application/access-requirements/route.ts", "reads and saves an applicant's own access-requirements answer; during a view-as session the session is the member's, so even the read would hand an admin that answer with nothing recording it"],
+  ["src/app/api/admissions/forms/[roundId]/application/availability/route.ts", "changes the week a place painted, in its owner's own application, until groups go out"],
   ["src/app/api/admissions/forms/[roundId]/application/reply/route.ts", "records an applicant's reply to their offer or invitation in their own name, which can give their place back, and accepting an invitation approves their own account if it was still waiting"],
   // The application form's review screens. Every write here is recorded under
   // the caller's own name: a score, an internal comment, a programme's
@@ -285,6 +440,25 @@ const MUST_GUARD = [
   // refuses anybody who is not an admin, which an admin viewing as a member is
   // not.
 
+  // Surveys. Every handler in the tree writes, so every one is here; the
+  // pages that read a survey are server pages, not routes.
+  ["src/app/api/surveys/route.ts", "makes a programme's survey in the admin's name"],
+  ["src/app/api/surveys/[surveyId]/questions/route.ts", "changes a survey's words and questions before it is sent"],
+  ["src/app/api/surveys/[surveyId]/test/route.ts", "sends the presser a test and records the test the send waits for"],
+  ["src/app/api/surveys/[surveyId]/send/route.ts", "emails a survey to everybody holding a place, in the presser's name"],
+  ["src/app/api/surveys/[surveyId]/remind/route.ts", "emails a reminder to everybody who has not answered, in the presser's name"],
+  ["src/app/api/surveys/[surveyId]/close/route.ts", "closes a survey to every further answer"],
+  ["src/app/api/surveys/[surveyId]/open-at-event/route.ts", "opens a survey after an event for its QR code, fixing its words, in the admin's name"],
+  ["src/app/api/surveys/[surveyId]/open/route.ts", "opens a leaving survey, fixing its words, in the admin's name"],
+  ["src/app/api/surveys/[surveyId]/export/route.ts", "hands over everybody's answers with names, recorded as the presser's download"],
+  ["src/app/api/surveys/[surveyId]/people/[who]/route.ts", "opens one person's answers, the opening recorded in the opener's name before anything of them is read"],
+  ["src/app/api/surveys/[surveyId]/answer/route.ts", "keeps the session's person's answers, once, as their own"],
+  ["src/app/api/surveys/answer/route.ts", "keeps a person's answers, once, through their link"],
+  ["src/app/api/surveys/[surveyId]/consent/route.ts", "changes the session's person's own follow-ups consent"],
+  ["src/app/api/surveys/consent/route.ts", "changes a person's own follow-ups consent through their link"],
+  ["src/app/api/surveys/public-numbers/route.ts", "publishes a programme's numbers and ticked quotes on its public page, in the admin's name"],
+  ["src/app/api/surveys/public-numbers/take-down/route.ts", "takes a programme's public numbers off its public page"],
+
   // ── The admission ROUND lane of the deletion work ────────────────────────
   // Destroying a round is the single most consequential write in the
   // admissions tree, and it is one an admin can only make under their own
@@ -310,9 +484,18 @@ const MUST_GUARD = [
     "tears down the session account; the unfinished-only scope blocks the reachable view-as case, but the guard states the intent beside its sibling",
   ],
   [
+    "src/app/api/account/kairos/route.ts",
+    "changes the session account's own Kairos choice, whether its name and programme record go to Kairos, which during view-as would be the target member's word",
+  ],
+  [
     "src/app/api/account/reconsent/route.ts",
     "stamps the session account's consent record (an audit fact whose whole value is that the member made it) or deletes the account",
   ],
+  // ── The events lane: check-in ────────────────────────────────────────────
+  ["src/app/api/events/[id]/check-in/route.ts", "checks a person in, in their name"],
+  ["src/app/api/events/[id]/check-ins/route.ts", "checks people in and adds walk-ins at the door"],
+  ["src/app/api/events/[id]/check-ins/[checkInId]/route.ts", "undoes a check-in at the door"],
+  ["src/app/api/events/[id]/door-code/route.ts", "makes an event's permanent door code"],
 ];
 
 /**

@@ -1,0 +1,181 @@
+/*
+  The "Last term" block (pub-agi, sv-public).
+
+  A size container: the block lays itself out by its own width, so the
+  admins' preview shows a phone's and a computer's layout side by side on one
+  screen. Phone sizes first; from 48rem of the block's own width, the
+  computer's: three numbers to a row, two quotes, larger figures.
+*/
+
+.block {
+  container-type: inline-size;
+  container-name: lastterm;
+  min-width: 0;
+}
+
+.eyebrow {
+  margin: 0;
+}
+
+.title {
+  margin: 0.625rem 0 0;
+  font-family: var(--font-display);
+  font-size: 1.875rem;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-wrap: balance;
+}
+
+.numbers,
+.quotes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  margin: 1.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quotes {
+  margin-top: var(--space-4);
+}
+
+.number,
+.quote {
+  min-width: 0;
+  box-sizing: border-box;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.number {
+  background: var(--color-surface);
+}
+
+.quote {
+  background: var(--color-bg);
+}
+
+/* On the raised ground the quotes take the floor's colour, so they stand off it. */
+.block[data-ground="raised"] .quote {
+  background: var(--color-floor);
+}
+
+.figure {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.pairLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.625rem;
+  margin: 0;
+}
+
+.pairEnd {
+  margin-top: 0.375rem;
+}
+
+.pairFigure {
+  font-family: var(--font-display);
+  font-size: 1.625rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.when {
+  font-size: var(--text-ui);
+  color: var(--color-text-muted);
+}
+
+.words {
+  margin: 0.875rem 0 0;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--color-text-soft);
+  overflow-wrap: anywhere;
+}
+
+.quoteFigure {
+  margin: 0;
+}
+
+.quoteWords {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.attribution {
+  margin-top: 0.875rem;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.footer {
+  margin: var(--space-5) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* A computer: the block's own width, never the screen's. */
+@container lastterm (min-width: 48rem) {
+  .title {
+    font-size: 2.75rem;
+  }
+
+  .numbers {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-6);
+    margin-top: var(--space-10);
+  }
+
+  .quotes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-6);
+    margin-top: var(--space-6);
+  }
+
+  .number,
+  .quote {
+    padding: 1.75rem;
+  }
+
+  .figure {
+    font-size: 2.5rem;
+  }
+
+  .pairFigure {
+    font-size: 1.875rem;
+  }
+
+  .quoteWords {
+    font-size: var(--text-xl);
+  }
+}
+
+@media (max-width: 48rem) {
+  /* Nothing: the block is laid out by its own width (the container query
+     above), so a phone already gets the one-column layout. */
+}

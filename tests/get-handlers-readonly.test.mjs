@@ -89,6 +89,16 @@ const MUTATION_HELPERS = {
   // What an applicant says after decision day. The write is made in
   // `src/lib/applications/status/record.ts`, beside the read of the same page.
   recordReply: "records an applicant's reply, moves their application's status and the round's counters",
+  // Leaving a run gives the place on the form back, in the transaction that
+  // takes somebody off the run; the write is in the same file.
+  givePlaceBack: "gives an applicant's place on the form back and moves the round's counters, inside the transaction that takes them off a run",
+  // Putting somebody back on a run gives them that place again, in the
+  // allocate route's transaction; the write is in
+  // `src/lib/applications/status/restore.ts`.
+  restorePlaces: "gives somebody put back on a run their place on the form again and moves the round's counters, inside the transaction that puts them back",
+  // The one leave, which the enrol route's DELETE and the reply route take.
+  // Its writes are in `src/lib/courses/leaveRun.ts`, out of every handler's body.
+  leaveRun: "takes the caller off a run: their seat, their group's count, their place on the form, the cohort list, their week cards, a log line and an email",
   // What follows from accepting an invitation, called by the same route once
   // the reply is written. The write is `approveWaitingAccount`, one file down.
   approveAfterAcceptedInvitation: "makes the account of somebody who accepted an invitation a member's, if it was still waiting",

@@ -15,6 +15,9 @@ import SegmentedControl from "@/components/ui/SegmentedControl";
 import Skeleton from "@/components/ui/Skeleton";
 import Switch from "@/components/ui/Switch";
 import { youtubeIdFromUrl } from "@/lib/firestore/newsletterBlocks";
+import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
+import { groupPasteLede, saveForWords } from "@/lib/courses/weeksTab/words";
+import WeekBlocksLoader from "./WeekBlocksLoader";
 import type { WeekPlanEntry } from "@/lib/courses/weekPlan";
 import type { GroupSessionMode } from "@/lib/firestore/courseGroups";
 import {
@@ -41,6 +44,7 @@ import {
   type GroupWeekPatch,
   type OrphanCount,
 } from "./useGroupWeeks";
+import WeekQuestionsEditor from "./WeekQuestionsEditor";
 import styles from "./GroupWeekEditor.module.css";
 
 /**
@@ -66,8 +70,9 @@ import styles from "./GroupWeekEditor.module.css";
  *
  * ── THE TRUST BOUNDARY IS THE SERVER'S, RESTATED HERE ───────────────────────
  * Facilitators may edit text-safe content: materials, exercises, the checklist,
- * the summary, the week's estimated minutes, and whether the week is published
- * to their group. They may NOT edit the week's TITLE (it is how the cohort and
+ * the questions to think about, the summary, the week's estimated minutes, and
+ * whether the week is published to their group. They may NOT edit the week's
+ * TITLE (it is how the cohort and
  * every email refer to the week) and they may not touch `guideBlocks` — the
  * rich prose is the one `dangerouslySetInnerHTML` surface in the courses
  * feature and it stays with the course. The route enforces both; this file
@@ -1358,6 +1363,8 @@ function WeekPreview({ week }: { week: CourseWeekDoc }) {
         .filter(Boolean)
         .join(" · "),
     })),
+    // "Questions to think about", in the order the week page numbers them.
+    ...week.questions.map((question) => ({ kind: "question", title: question })),
     ...week.exercises.map((x) => ({
       kind: "exercise",
       title: x.prompt || "Untitled prompt",
@@ -1656,6 +1663,10 @@ export default function GroupWeekEditor({
   }
 
   const shown = week ?? canonical;
+  // A week written as blocks (Q39) is changed for this group by Markdown:
+  // copy it, change it, paste it back. The fork door and the editor of the
+  // old lists below are for a week written before blocks.
+  const blockShape = shown !== null && shown !== undefined && isBlockWeek(shown);
 
   return (
     <div className={styles.editor}>
@@ -1747,7 +1758,8 @@ export default function GroupWeekEditor({
               <>
                 Your group has no meeting link saved, so an online week would show
                 them nowhere to go. Add the link on your group&apos;s session
-                before you switch, or send it in a room notice.
+                before you switch. It goes on their programme page, never in an
+                email.
               </>
             )
           ) : location ? (
@@ -1768,8 +1780,24 @@ export default function GroupWeekEditor({
         </p>
       </Card>
 
+      {/* ---- A week written as blocks: copy as Markdown, change, paste back (Q39) ---- */}
+      {blockShape && (
+        <WeekBlocksLoader
+          runId={runId}
+          weekId={weekId}
+          weekNumber={weekNumber}
+          blockWeek
+          endpoint={`/api/courses/groups/${encodeURIComponent(groupId)}/weeks/${encodeURIComponent(weekId)}/blocks`}
+          saveLabel={saveForWords(groupName)}
+          title={`Paste ${groupName}’s week, then check it`}
+          lede={`${groupPasteLede(groupName)}${forked ? "" : ` Saving makes ${groupName} its own copy of ${weekLabel}, and from then on changes to the programme’s week no longer reach it.`}`}
+          idSuffix={`-${groupId}`}
+          onSaved={reload}
+        />
+      )}
+
       {/* ---- Not forked: the door, then the preview ----------------------- */}
-      {!forked && (
+      {!forked && !blockShape && (
         <>
           <div className={styles.forkCard}>
             <h2 className={styles.forkTitle}>
@@ -1811,7 +1839,7 @@ export default function GroupWeekEditor({
       )}
 
       {/* ---- Forked: the editor ------------------------------------------ */}
-      {forked && week && (
+      {forked && week && !blockShape && (
         <>
           {pending && (
             <div className={styles.orphanPanel}>
@@ -1965,6 +1993,13 @@ export default function GroupWeekEditor({
           </Card>
 
           <MaterialsSection materials={week.materials} save={save} busy={busy} />
+          <WeekQuestionsEditor
+            questions={week.questions}
+            onSave={(questions) => save("questions", { questions })}
+            forGroup
+            headingLevel={2}
+            busy={busy}
+          />
           <ExercisesSection exercises={week.exercises} save={save} busy={busy} />
           <ChecklistSection checklist={week.checklist} save={save} busy={busy} />
 

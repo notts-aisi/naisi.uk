@@ -18,6 +18,8 @@ import {
   renderCourseNudge,
   COURSE_NUDGE_TEMPLATE_ID,
 } from "@/lib/email/courseNudgeEmail";
+import { composeFacilitatingEmail, facilitatingFactsFromSample } from "@/lib/courses/facilitatingEmail";
+import { composeIncubatorStartEmail, incubatorStartFactsFromSample } from "@/lib/courses/incubatorStartEmail";
 import { composePlacementEmail, placementFactsFromSample } from "@/lib/courses/placementEmail";
 import { sendEmail } from "@/lib/email/send";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -43,15 +45,15 @@ import {
  * no seed step, so "no doc" is a normal state and the defaults are what a real
  * send would use — a test that 404'd there would be testing the wrong thing.
  *
- * Six of the twelve templates render through the same `ApplicationEmail`
+ * Eight of the fifteen templates render through the same `ApplicationEmail`
  * component the real course sends use, so what lands here is what an applicant
- * gets. SIX HAVE THEIR OWN COMPONENT AND ARE RENDERED THROUGH IT, for the
+ * gets. SEVEN HAVE THEIR OWN COMPONENT AND ARE RENDERED THROUGH IT, for the
  * same reason in each case: that is the one implementation the recipient
  * receives, footer and degradation rules included, and a rehearsal that
  * rendered it any other way would be proofing an email nobody gets. The weekly
- * nudge goes through `renderCourseNudge` into `CourseNudgeEmail`; the five
+ * nudge goes through `renderCourseNudge` into `CourseNudgeEmail`; the six
  * admissions templates go through `admissionsPreview` below, which is
- * exhaustive over `AdmissionsTemplateId` so a sixth one cannot be added
+ * exhaustive over `AdmissionsTemplateId` so a seventh one cannot be added
  * without a branch. The count above is checked by nothing, so keep it honest
  * when a template is added.
  */
@@ -207,10 +209,16 @@ export async function POST(
   // The placement email, written by its own composer as a PROOF: a paragraph
   // with nothing to say is left out as it would be for a placed person, and a
   // token that email cannot fill stays as typed for whoever asked to notice.
+  // The facilitators' email and the incubator's the same way, each through
+  // its own composer.
   const placement =
     templateId === "course-allocated"
       ? composePlacementEmail({ subject, blocks }, placementFactsFromSample(tokens), { proof: true })
-      : null;
+      : templateId === "course-facilitating"
+        ? composeFacilitatingEmail({ subject, blocks }, facilitatingFactsFromSample(tokens), { proof: true })
+        : templateId === "course-allocated-incubator"
+          ? composeIncubatorStartEmail({ subject, blocks }, incubatorStartFactsFromSample(tokens), { proof: true })
+          : null;
   const proof = placement && placement.ok ? placement : null;
 
   const personalisedSubject = nudge

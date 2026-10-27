@@ -3,9 +3,19 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
-import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
-import { normalizeExerciseResponse } from "@/lib/firestore/courseExercises";
+import {
+  normalizeCourseEnrolment,
+  placementIsShownTo,
+} from "@/lib/firestore/courseEnrolments";
+import { isOwnBoxResponse, normalizeExerciseResponse } from "@/lib/firestore/courseExercises";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
+import {
+  facilitatesOnRun,
+  liveGroupsOf,
+  readsFacilitatorsOwnWork,
+  reviewerFactsOf,
+} from "@/lib/courses/writtenAnswers/access";
+import { isWordCountedAnswer } from "@/lib/courses/writtenAnswers/model";
 import { weekDocId } from "@/lib/firestore/courses";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
 
@@ -46,6 +56,17 @@ import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exerci
  * reach these people by email goes through the group email route, which
  * resolves addresses server-side and never hands them out. Every field added
  * below has to be checked against that line.
+ *
+ * ONLY PEOPLE WHO HAVE BEEN TOLD, for anybody but an admin. An admin's
+ * placement is the board's until Publish emails the person their group
+ * (`placementIsShownTo`): before then they are not a row here, and
+ * `notYetTold` says that somebody is waiting.
+ *
+ * A FACILITATOR'S OWN WORK only for whoever the one rule lets read it
+ * (`facilitatesOnRun` and `readsFacilitatorsOwnWork` in
+ * `src/lib/courses/writtenAnswers/access.ts`): somebody who facilitates a
+ * live group of the run is a row here only for the programme's lead and
+ * admins, and never for themselves.
  */
 
 // ---------------------------------------------------------------------------
@@ -82,6 +103,11 @@ export type GroupExercisesPayload = {
     displayName: string;
     responses: ExerciseResponseWire[];
   }>;
+  /**
+   * True when somebody placed in the group is not a row yet because Publish
+   * has not told them their group. Never true for an admin.
+   */
+  notYetTold: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -265,16 +291,41 @@ export async function GET(
     return NextResponse.json({ error: "Week not found" }, { status: 404 });
   }
 
-  const memberUids = memberSnap.docs
-    .map((d) => normalizeCourseEnrolment(d.id, d.data() ?? {}).uid)
-    .filter(Boolean);
+  const placed = memberSnap.docs
+    .map((d) => normalizeCourseEnrolment(d.id, d.data() ?? {}))
+    .filter((e) => Boolean(e.uid));
+  // Somebody Publish has not told is not a row for anybody but an admin.
+  const shown = placed.filter((e) => placementIsShownTo(e, { isAdmin }));
+  // NOR IS A FACILITATOR'S OWN WORK, for anybody the one rule keeps it from.
+  // A facilitator who holds a place does the group's coursework as one of its
+  // fellows, and their answers are read and reviewed by the programme's lead
+  // and admins (the review route asks the same rule), never by a
+  // co-facilitator and never by themselves. The caller's standing is read
+  // only when somebody listed facilitates.
+  const liveGroups = await liveGroupsOf(db, group.runId);
+  const facts = shown.some((e) => facilitatesOnRun(e.uid, liveGroups))
+    ? await reviewerFactsOf(db, actor, group.runId)
+    : null;
+  const ownWork = shown.filter(
+    (e) => !facilitatesOnRun(e.uid, liveGroups) || (facts !== null && readsFacilitatorsOwnWork(actor, facts, e.uid)),
+  );
+  const memberUids = ownWork.map((e) => e.uid);
   const memberSet = new Set(memberUids);
 
+  const writtenIds = new Set(
+    responseSnap.docs.filter((d) => isWordCountedAnswer(d.data() ?? {})).map((d) => d.id),
+  );
   const responses = responseSnap.docs
     .map((d) => normalizeExerciseResponse(d.id, d.data() ?? {}))
     // The group filter. Everything outside it is dropped before a single field
     // is copied into the payload.
-    .filter((r) => memberSet.has(r.uid));
+    .filter((r) => memberSet.has(r.uid))
+    // A reflection or a fill-in box is never reviewed, so it is never this
+    // queue's: each is a box its writer fills in (courseExercises.ts).
+    .filter((r) => !isOwnBoxResponse(r))
+    // Nor is a block week's written answer: it gets its feedback on the
+    // group's written answers page, by the rubric.
+    .filter((r) => !writtenIds.has(r.id));
 
   // One `getAll` for every name the payload needs: the group's members, plus
   // whoever reviewed each response. Names only — see the PII line above.
@@ -355,6 +406,7 @@ export async function GET(
         (a, b) =>
           a.displayName.localeCompare(b.displayName) || a.uid.localeCompare(b.uid),
       ),
+    notYetTold: shown.length < placed.length,
   };
 
   return NextResponse.json(payload);

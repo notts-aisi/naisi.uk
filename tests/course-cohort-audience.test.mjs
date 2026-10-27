@@ -199,7 +199,14 @@ function fakeDb(store) {
   };
 }
 
-/** One member: a confirmed cohort subscription, an enrolment, a user doc. */
+/**
+ * One member: a confirmed cohort subscription, an enrolment, a user doc.
+ *
+ * The enrolment carries Publish's stamp (`allocatedEmailAt`): a member on the
+ * cohort's list is somebody Publish told their group, and a placement nobody
+ * has told is no cohort mail's audience (`placementIsTold`). That case is held
+ * in tests/course-hub-group-published-mail.test.mjs.
+ */
 function member(store, { uid, groupId, status = "active" }) {
   store.subscriptions[`sub_${uid}`] = {
     email: `${uid}@example.test`,
@@ -214,6 +221,7 @@ function member(store, { uid, groupId, status = "active" }) {
     uid,
     groupId,
     status,
+    allocatedEmailAt: new Date("2026-10-28T09:00:00Z"),
   };
   store.users[uid] = { displayName: `Member ${uid}`, profile: {} };
 }

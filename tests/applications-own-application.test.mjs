@@ -158,6 +158,55 @@ const READS_THE_LISTS = {
     why: "a scheduled job with nobody looking: it reminds people decision day has already told",
     holds: "no-session",
   },
+  "lib/applications/handover/handOver.ts#handOverProgramme": {
+    kind: "everybody",
+    why: "everybody who holds a place goes onto the run, an admin who applied included. It reads nobody until the term is marked as sent, when there is nothing left for anybody to learn early",
+    holds: "after-the-send",
+  },
+  "lib/applications/freedPlaces/load.ts#loadOfferBoard": {
+    kind: "viewer",
+    why: "the freed-places page is read for whoever is looking: the term through loadTerm, and the reviews only for the people it lists",
+  },
+  "lib/applications/freedPlaces/offer.ts#offerFreedPlaces": {
+    kind: "everybody",
+    why: "a place offered has to be really free, so the writer counts the whole term inside its transaction, the caller's own application included. It refuses the caller's own id before it reads, reads nobody before decisions have gone out, and lists nothing",
+    holds: "after-the-send",
+  },
+  "lib/applications/freedPlaces/offer.ts#sendOwedFreedPlaceEmails": {
+    kind: "everybody",
+    why: "finds the freed-place emails still to go on one programme, never the caller's own, and answers with how many went and the names of any that did not. It reads nobody before decisions have gone out",
+    holds: "after-the-send",
+  },
+  "lib/applications/handover/load.ts#loadRunPanel": {
+    kind: "everybody",
+    why: "the panel names who a press would hand over, and that is everybody who holds a place. It names and counts nobody until the term is marked as sent",
+    holds: "after-the-send",
+  },
+  "lib/applications/people/load.ts#readProgrammePeople": {
+    kind: "everybody",
+    why: "the People tab's model, read once for the People tab and for People in groups: everybody who holds a place on the programme or gave it back, an admin who applied included, as the hand-over and the times picture count them. It reads nobody until the term is marked as sent, when there is nothing left for anybody to learn early",
+    holds: "after-the-send",
+  },
+  "lib/applications/people/load.ts#countPlaceHolders": {
+    kind: "everybody",
+    why: "the number beside a programme's People tab: everybody who holds a place on it, an admin who applied included, by the hand-over's own test. It counts nobody until the term is marked as sent",
+    holds: "after-the-send",
+  },
+  "lib/applications/handover/timesLoad.ts#loadTimesPicture": {
+    kind: "everybody",
+    why: "the times picture counts everybody who holds a place by when they said they are free, and names who no group suits, an admin who applied included. It reads nobody until the term is marked as sent, when there is nothing left for anybody to learn early",
+    holds: "after-the-send",
+  },
+  "lib/surveys/kairosReportLoad.ts#loadKairosReport": {
+    kind: "everybody",
+    why: "the Kairos report's funnel, for admins: how many applications in the term ranked the programme. It reads no decision and no review, so it says nothing about where anybody's application stands",
+    holds: "no-decisions",
+  },
+  "lib/surveys/audience.ts#readAudience": {
+    kind: "everybody",
+    why: "a programme survey goes to everybody who holds a place on the programme, an admin who applied included. It reads nobody until the term is marked as sent, when there is nothing left for anybody to learn early",
+    holds: "after-the-send",
+  },
 };
 
 /**
@@ -168,6 +217,7 @@ const READS_THE_LISTS = {
 const PLANS_THE_TERM = {
   "lib/applications/decisionDay/plan.ts#termsFor": "the one place the viewer's own application is left out",
   "lib/applications/decisionDay/pool.ts#setPooledOutcome": "the writer's own count of free places, inside its transaction",
+  "lib/applications/freedPlaces/offer.ts#offerFreedPlaces": "the freed-place writer's own count of free places, inside its transaction",
 };
 
 /**
@@ -287,6 +337,18 @@ describe("every reader of the committee's lists says what it does about the view
         assert.deepEqual(callers.map(inSrc), []);
       });
     }
+    if (entry.holds === "after-the-send") {
+      test(`${key} reads nobody's application until the term is marked as sent`, () => {
+        // Decision day is what makes an outcome its owner's to know. Until the
+        // term is marked as sent, a list of everybody could tell the person
+        // looking where their own application stands, so the function leaves
+        // before any of the lists is read.
+        const leaves = fn.body.search(/if \(form\.decisionsSentAt === null\) return\b/);
+        const read = Math.min(...LIST_READERS.map((name) => firstCall(fn.body, name)).filter((at) => at >= 0));
+        assert.ok(leaves >= 0, `${key} no longer leaves while decisions have not been sent`);
+        assert.ok(leaves < read, `${key} reads everybody's applications before it has asked whether decisions have been sent`);
+      });
+    }
     if (entry.holds === "no-session") {
       test(`${key} is a job: nobody is signed in where it runs`, () => {
         assert.ok(inSrc(mod.file).startsWith("lib/scheduler/jobs/"));
@@ -379,6 +441,7 @@ const DECISION_WRITERS = {
   "lib/applications/review/decide.ts": "a lead's decision for a programme, and an admin taking an acceptance back",
   "lib/applications/decisionDay/pool.ts": "the outcome an admin picks for a pooled applicant",
   "lib/applications/decisionDay/send.ts": "decision day: it reads each decision and writes the result onto its applicant's own document",
+  "lib/applications/freedPlaces/term.ts": "reads every application and decision on the form inside the freed-place writer's transaction, to count free places; it writes no decision",
 };
 
 /**

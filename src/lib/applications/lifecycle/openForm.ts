@@ -3,6 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { pickLiveRound, type LiveRoundCandidate } from "@/lib/admissions/liveRound";
 import { roundWindowState, type RoundWindowState } from "@/lib/admissions/window";
 import { ROUNDS_COLLECTION, type AdmissionRoundDoc } from "@/lib/firestore/admissionRounds";
+import { own } from "../keys";
 import { FORM_VERSION, type ProgrammeKind, type ProgrammeSettings } from "../model";
 import { isApplicationForm, normaliseForm, type ApplicationForm } from "../normalise";
 import { openProgrammes } from "../sections";
@@ -57,10 +58,18 @@ import { openProgrammes } from "../sections";
  * nothing, so it can say nothing. That is the same reading the form's own
  * page gives, which answers a draft as a round that is not there.
  *
+ * ## A run the form places people on takes no application of its own
+ *
+ * A third question, asked by the older per-run apply page and its route:
+ * `runTakesPeopleFromForm`. A programme names the course run its accepted
+ * people go onto (`runId`), and from that moment the run's own way of
+ * applying is shut, whatever the run's status and dates say. The answer is a
+ * yes or a no and nothing about the form, so it can be given to anybody.
+ *
  * ## The read
  *
  * One equality on one field (`formVersion`), which needs no declared index,
- * made in one place (`readForms`) for both lookups here and for the one in
+ * made in one place (`readForms`) for the lookups here and for the one in
  * `./publicTerm.ts`. A site has a handful of forms over its whole life, so
  * the rest is done in memory.
  */
@@ -286,4 +295,38 @@ export async function findFormsByCourse(
     speaking.set(courseId, courseViewOf(best.round, best.window.state, now));
   }
   return speaking;
+}
+
+// ---------------------------------------------------------------------------
+// A run the form places people on
+// ---------------------------------------------------------------------------
+
+/**
+ * Does an application form place people on this course run?
+ *
+ * True when a programme on ANY form names it, whatever state that form is in
+ * (a draft, open, closed, settled, archived or cancelled) and whether or not
+ * the programme has been closed. The older per-run apply page and its route
+ * ask this before anything else about the run, and refuse when it is true:
+ * people get onto such a run through the form and an admin's hand-over, and
+ * an application made to the run itself would be read by nobody.
+ *
+ * EVERY STATE, on purpose. The run's own status machine can only leave draft
+ * through "applications open", so the run a term's form feeds has to pass
+ * through a status in which its own apply page would otherwise answer. A
+ * rule that waited for the form to open, or stopped once it settled, would
+ * leave a window in which that page took applications after all.
+ *
+ * It answers a yes or a no. Nothing about the form leaves this function, not
+ * even that there is one: the caller's refusal says only that this run takes
+ * no applications here.
+ */
+export async function runTakesPeopleFromForm(db: Firestore, runId: string): Promise<boolean> {
+  if (!runId) return false;
+  for (const form of await readForms(db)) {
+    for (const programmeId of form.programmeIds) {
+      if (own(form.programmes, programmeId)?.runId === runId) return true;
+    }
+  }
+  return false;
 }

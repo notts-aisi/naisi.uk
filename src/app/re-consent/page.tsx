@@ -101,21 +101,34 @@ export default async function ReConsentPage() {
         </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           <strong style={{ color: "var(--color-text)" }}>What changed:</strong>{" "}
-          the section on courses and programmes now describes our one
-          application form for the fellowships and the incubator. The main
-          change is that the people who read an application see the
-          applicant&apos;s name: the version before said reviewers scored with
-          names hidden. It also says who reads an application (admins, and the
-          lead and reviewers of each programme you rank), that only admins can
-          open what you write under access requirements, that the versions you
-          sent before are kept for the people reading it, that nothing about a
-          decision is shown or sent before decision day, what you are told
-          then and how you reply, and what stays in our records afterwards.
-          Outside that section, it now names the event sign-up form among the
-          forms that use Google reCAPTCHA, says what the application form
-          keeps in your browser if you start it before you have an account,
-          and says that a change you make to your degree or expected
-          graduation on your profile is kept with what it said before.
+          the section on courses and programmes now covers a programme while
+          it runs and when it ends. It says what a programme&apos;s lead sees,
+          including every register of its groups and the notes its
+          groups&apos; facilitators share; that the people in your group see
+          the notes you share with it; that on an incubator your group sees a
+          pitch you send, with your name, and how teams are made; what leaving
+          a programme does and who reads your reason; that a place somebody
+          gives back can be offered to somebody else until the end of the
+          first week; how we record who finished; that certificates are sent
+          to the people who finished and to facilitators, private until you
+          turn the link on; that you can add your sessions to your calendar
+          with a private link, which your calendar&apos;s provider fetches
+          and you can replace; who reads what you write and tick on a
+          week&apos;s pages, and who sees your pack, your case and your pair
+          for a session; that your sealed predictions are read by you and
+          admins alone; and that our surveys are confidential: only
+          admins see who said what, a programme&apos;s lead sees totals and
+          comments and never your name, and your name comes off two years
+          after the programme. It also says that facilitators see names only, never
+          email addresses, and that downloads of a programme&apos;s
+          attendance are recorded. It adds that we may record that you came
+          to an event and send you a survey after it, and that a comment you
+          tick to be quoted may be shown on a programme&apos;s page, without
+          your name. And it says that, unless you say no, we
+          share your name and your record on a programme with Kairos, one of
+          our funders, including the ratings you were given at its end, which
+          nobody is shown about themselves; you can say no at the end of any
+          programme survey or on your profile, at any time.
         </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           Read the full{" "}
