@@ -370,6 +370,13 @@ export const FIXTURE_COLLECTIONS = [
   // route, by somebody holding a place on week 1 before groups go out too.
   // Written by nothing a fixture seeds.
   "courseExerciseResponses",
+  // The end of a programme: who finished (the run's rule, set on the
+  // programme's Settings tab, and the lead's decisions on its Overview, each
+  // with `runId` on it), and the certificates the Overview's send makes, one
+  // a person and kind (`runId` on each). Written by those routes and the
+  // owner's switch, and by nothing a fixture seeds.
+  "courseFinishing",
+  "courseCertificates",
   "courseAudit",
   "subscriptions",
   "subscriptionEvents",

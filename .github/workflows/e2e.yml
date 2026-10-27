@@ -100,7 +100,11 @@ jobs:
       cancel-in-progress: false
       queue: max
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # The persona battery asks every course hub gate about a programme each
+    # persona leads, staffs or takes part in, and about another one: about
+    # 16,000 cells, roughly twice its old time, on top of a job that took 22
+    # to 28 minutes in October 2026. Sixty leaves room without hiding a hang.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

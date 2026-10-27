@@ -149,6 +149,25 @@
  * single-point spec's is, and each later one on the run id and a letter of
  * its own, so a sweep by the run id finds every row of all of them.
  *
+ * ## The end of a programme ("last-week", "programme-over")
+ *
+ * Two points a programme's end is read at, each with a cast of its own:
+ *
+ *  - "last-week" (`LAST_WEEK`): the fellowship in its last week, with one
+ *    group whose sixth and last session is on the seed's own day, late in
+ *    the evening, so a member's Home says it is tonight. Ada is in it, every
+ *    register before it is finished, and Fern is the account the admin
+ *    appoints to it. The survey at the end is the admin's to make and send on
+ *    the real pages; the fixture writes none.
+ *  - "programme-over" (`PROGRAMME_OVER`): the fellowship past its run's last
+ *    session, every register finished, so who finished has opened. Ada and
+ *    Dan are in Group A, Cleo and Eve in Group B, and Fern is the account the
+ *    admin appoints to Group A. Dan left in week 3 (`left`), as leaving left
+ *    them: their seat withdrawn with the day, their place on the form given
+ *    back, off the cohort's list, and their marks from before kept. The rule
+ *    for who finished, who the lead ticks, and every certificate are the
+ *    admin's on the real pages; the fixture writes none of them.
+ *
  * ## No term facts
  *
  * Every date is worked out from the moment the seed runs, in London: the run
@@ -197,7 +216,9 @@ export const TERM_POINTS = Object.freeze([
   "week-three-unmarked",
   "pitching-week",
   "week-four",
+  "last-week",
   "after-the-end",
+  "programme-over",
 ]);
 
 /** The form's one programme at the first three points. Fixed: a programme id is unique on its own form. */
@@ -395,6 +416,8 @@ export function laterPlanOf(point) {
   if (point === "pitching-week") return PITCHING_WEEK;
   if (point === "week-four") return WEEK_FOUR;
   if (point === "after-the-end") return AFTER_THE_END;
+  if (point === "last-week") return LAST_WEEK;
+  if (point === "programme-over") return PROGRAMME_OVER;
   return null;
 }
 
@@ -1568,6 +1591,8 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
 
   if (weekThree) await seedWeekThree(state, laterPlan, at);
   if (point === "before-groups") await seedLaterWeeks(state, anchor);
+  // A point whose plan has somebody who left: their records as leaving left them.
+  if (laterPlan?.left) await seedLeavers(state, laterPlan);
 
   log(
     `Seeded form ${state.formId} (${state.programmeKind}, decisions sent, ${state.people.length} accepted and coming), ` +
@@ -1889,6 +1914,25 @@ function reminderMarkersOf(state) {
  * every point has: nothing. Both doors refuse a leave once the run's last
  * session is over, before they write anything.
  *
+ * And at the end of a programme ("last-week", "programme-over"), past the
+ * approvals, the naming and the facilitator every point has:
+ *  - making the survey at the end, its test and its send (src/lib/surveys/):
+ *    the `surveys` document (the form's id on it as `roundId`), found by the
+ *    form (`surveyIdsOf`); one `surveyPeople` row a person, with their link's
+ *    secret (`surveyId` on it); the send counters (`surveyCounterIdsOf`); a
+ *    send row to the admin about the survey (`referenceId`), and the notices
+ *    (`to ==` each person);
+ *  - the rule for who finished and the lead's switch (src/lib/courses/finishing/):
+ *    `courseFinishing` rows, the rule's and each decision's (`runId` on each);
+ *  - the certificates' test and send (src/lib/courses/certificates/): the
+ *    test's marker and the press's lock in `courseNudges` (`runId` on each),
+ *    one `courseCertificates` row a certificate (`runId` on it), a send row to
+ *    the admin about the run, and the certificate emails (`to ==` each, about
+ *    the run);
+ *  - an owner's switch: their certificate row; the page, the PDF and the
+ *    programme pages read, and a programme page or Home may mirror a week
+ *    into `tasks`.
+ *
  * And at the seventh point, as the lead and the people drive it, past the
  * first point's naming, hand-over, placing, test and Publish:
  *  - the day groups go out (the Groups tab): the run document itself;
@@ -1975,6 +2019,11 @@ export async function countTerm(state) {
   counts.dataExports = (await fixtureQuery("dataExports").where("scope.runId", "==", runId).get()).size;
   counts.coursePitches = (await fixtureQuery("coursePitches").where("runId", "==", runId).get()).size;
   counts.courseTeams = (await fixtureQuery("courseTeams").where("runId", "==", runId).get()).size;
+  // The end of a programme's: the rule for who finished and the lead's
+  // decisions, and the certificates the send made.
+  counts.courseFinishing = (await fixtureQuery("courseFinishing").where("runId", "==", runId).get()).size;
+  counts.courseCertificates = (await fixtureQuery("courseCertificates").where("runId", "==", runId).get()).size;
+
   let counters = 0;
   for (const id of sendCounterIdsOf(state)) {
     if ((await fixtureDoc("courseNudges", id).get()).exists) counters += 1;
@@ -2080,6 +2129,11 @@ export async function teardownTerm(state) {
   // The fourth point's: the pitches (with the picks on them) and the teams.
   await deleteQuery(fixtureQuery("coursePitches").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("courseTeams").where("runId", "==", runId));
+  // The end of a programme's: the rule for who finished, the lead's
+  // decisions, and the certificates (with the owners' links on them).
+  await deleteQuery(fixtureQuery("courseFinishing").where("runId", "==", runId));
+  await deleteQuery(fixtureQuery("courseCertificates").where("runId", "==", runId));
+
   for (const id of sendCounterIdsOf(state)) await fixtureDoc("courseNudges", id).delete();
   for (const ref of reminderMarkersOf(state)) await ref.delete();
   // The eighth point's: each survey's answers, who it was sent to (with
@@ -2247,4 +2301,162 @@ export async function teardownTerms(state) {
   }
   if (failed) throw failed;
   return addCounts(list);
+}
+
+// ---------------------------------------------------------------------------
+// The end of a programme: its last week, and after its last session
+// ---------------------------------------------------------------------------
+
+/**
+ * When the last week's group meets: late enough in the evening that its last
+ * session, on the seed's own day, is still to come at any hour a run is
+ * seeded before it, and "Tonight" (the site says so of a session from 5pm).
+ * It ends half an hour after midnight.
+ */
+export const LAST_SESSION_CLOCK = "23:00";
+
+/** A week Ada came to, at the last week. */
+const ADA_CAME = Object.freeze({ ada: "present" });
+
+/**
+ * THE FELLOWSHIP IN ITS LAST WEEK, ITS LAST SESSION TONIGHT ("last-week").
+ * Its one group meets on the run's second day each week, at
+ * `LAST_SESSION_CLOCK`, and the run began `daysIn` days before the seed, so
+ * the group's sixth and last session is on the seed's own day (day 36 of the
+ * plan), still to come: a member's Home says it is tonight. A run that
+ * crosses midnight is still in week 6 (day 37), with that session the day
+ * before, until it ends.
+ *
+ * Ada is in the group, told by Publish before the start, and came to each of
+ * weeks 1 to 5, whose registers are finished; every week is published. Fern
+ * is the account the admin appoints to the group on the real page, so the
+ * survey at the end's card can say who steps out. Nobody leads the programme.
+ */
+export const LAST_WEEK = Object.freeze({
+  daysIn: 36,
+  programme: FELLOWSHIP,
+  groups: Object.freeze([
+    Object.freeze({
+      key: "A",
+      name: "Group A",
+      dayAfterStart: 1,
+      startTimeLocal: LAST_SESSION_CLOCK,
+      room: "Room E1",
+      online: false,
+    }),
+  ]),
+  people: Object.freeze([PEOPLE_PLAN[0]]),
+  facilitator: FACILITATOR_PLAN,
+  places: Object.freeze({ ada: "A" }),
+  marks: Object.freeze({ A: Object.freeze({ 1: ADA_CAME, 2: ADA_CAME, 3: ADA_CAME, 4: ADA_CAME, 5: ADA_CAME }) }),
+  unfinished: null,
+  facilitated: "A",
+  published: WEEK_COUNT,
+});
+
+/**
+ * THE FELLOWSHIP PAST ITS RUN'S LAST SESSION, WITH SOMEBODY WHO LEFT
+ * ("programme-over"). Its run began `daysIn` days before the seed, as the
+ * sixth point's did, so both groups' sixth and last sessions were over a
+ * week before the seed: who finished has opened, and stays open across
+ * midnight. Every register of the six weeks is finished and every week
+ * published.
+ *
+ * Group A: Ada came to all six (one late); Dan came to weeks 1 and 2 and
+ * then left (`left`: the day after Group A's week 2 session). Group B: Cleo
+ * came to three (excused in week 2), and Eve came to three. So a rule of at
+ * least 4 ticks Ada alone, and the lead decides about anybody else. Fern is
+ * the account the admin appoints to Group A on the real page. Nobody leads
+ * the programme.
+ */
+export const PROGRAMME_OVER = Object.freeze({
+  daysIn: AFTER_THE_END.daysIn,
+  programme: FELLOWSHIP,
+  groups: GROUP_PLAN,
+  people: Object.freeze([
+    PEOPLE_PLAN[0],
+    PEOPLE_PLAN[2],
+    WEEK_FOUR.people[3],
+    Object.freeze({ key: "eve", first: "Eve", canMake: Object.freeze(["B"]) }),
+  ]),
+  facilitator: FACILITATOR_PLAN,
+  places: Object.freeze({ ada: "A", cleo: "B", dan: "A", eve: "B" }),
+  marks: Object.freeze({
+    A: Object.freeze({
+      1: Object.freeze({ ada: "present", dan: "present" }),
+      2: Object.freeze({ ada: "present", dan: "present" }),
+      3: Object.freeze({ ada: "present" }),
+      4: Object.freeze({ ada: "present" }),
+      5: Object.freeze({ ada: "late" }),
+      6: Object.freeze({ ada: "present" }),
+    }),
+    B: Object.freeze({
+      1: Object.freeze({ cleo: "present", eve: "present" }),
+      2: Object.freeze({ cleo: "excused", eve: "absent" }),
+      3: Object.freeze({ cleo: "present", eve: "present" }),
+      4: Object.freeze({ cleo: "absent", eve: "absent" }),
+      5: Object.freeze({ cleo: "absent", eve: "present" }),
+      6: Object.freeze({ cleo: "present", eve: "absent" }),
+    }),
+  }),
+  left: Object.freeze({ dan: Object.freeze({ afterWeek: 2 }) }),
+  unfinished: null,
+  facilitated: "A",
+  published: WEEK_COUNT,
+});
+
+/**
+ * Everybody a plan says left (`left`), as leaving left them
+ * (src/lib/courses/leaveRun.ts, and `givePlaceBack` in
+ * src/lib/applications/status/record.ts, restated): their seat withdrawn with
+ * the day and no reason, its group and Publish's stamp kept, and their tally
+ * of the weeks before they went; their group one person smaller; their
+ * application withdrawn, "I can’t make it", with no reason; the form's counts
+ * moved; and their cohort row unsubscribed.
+ *
+ * Each left at noon the day after their group's session of the week the plan
+ * names, so every register up to it marks them and none after it does. The
+ * moment is written onto the person in the state, for a spec to read.
+ */
+async function seedLeavers(state, plan) {
+  const leavers = state.people.filter((person) => plan.left[person.key]);
+  for (const person of leavers) {
+    const group = state.groups.find((each) => each.key === person.groupKey);
+    const { afterWeek } = plan.left[person.key];
+    const lastSession = sessionOf(group, afterWeek);
+    const leftAt = londonWallClockToInstant(shiftDateKey(lastSession.dateKey, 1), "12:00");
+    person.leftAt = leftAt.toISOString();
+    // Their tally, from their group's registers up to the week they left: the
+    // finishing press of that week was the last to count them.
+    const marksBefore = Object.fromEntries(
+      Object.entries(plan.marks[group.key] ?? {}).filter(([week]) => Number(week) <= afterWeek),
+    );
+    const tallied = new Date(lastSession.endsAt.getTime() + 30 * 60_000);
+    await fixtureDoc("courseEnrolments", enrolmentId(state.runId, person.uid)).update({
+      status: "withdrawn",
+      droppedOutAt: leftAt,
+      dropOutReason: null,
+      attendance: rollupFor({ ...plan, marks: { ...plan.marks, [group.key]: marksBefore } }, person, tallied),
+      updatedAt: leftAt,
+    });
+    await fixtureDoc("admissionApplications", `${state.formId}__${person.uid}`).update({
+      status: "withdrawn",
+      withdrawnAt: leftAt,
+      attendance: { answer: "cant-make-it", answeredAt: leftAt },
+      updatedAt: leftAt,
+    });
+    await fixtureDoc("subscriptions", subscriptionId(person.email, state.channel)).update({
+      subscribed: false,
+      unsubscribedAt: leftAt,
+    });
+  }
+  for (const group of state.groups) {
+    await fixtureDoc("courseGroups", group.id).update({
+      memberCount: state.people.filter((person) => person.groupKey === group.key && !plan.left[person.key]).length,
+    });
+  }
+  await fixtureDoc("admissionRounds", state.formId).update({
+    "applicationCounts.accepted": state.people.length - leavers.length,
+    "applicationCounts.withdrawn": leavers.length,
+  });
 }
