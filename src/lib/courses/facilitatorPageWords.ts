@@ -333,14 +333,15 @@ export function sayHelloLine(firstSessionDateKey: string, withinAWeek: boolean):
 
 /**
  * The notes card's title for one of the group's facilitators: "Notes for you
- * and Sofia", the others by first name; "Notes for you" with none. For a
+ * and Sofia", the others by first name, one list with the reader first
+ * ("Notes for you, Sofia and Bea" with two); "Notes for you" with none. For a
  * reader who is not one of them (an admin): "Notes for Rahul and Sofia".
  */
 export function notesTitle(otherFirstNames: readonly string[], readerFacilitates: boolean): string {
   if (!readerFacilitates) {
     return otherFirstNames.length > 0 ? `Notes for ${namesWords(otherFirstNames)}` : "Notes for the facilitators";
   }
-  return otherFirstNames.length > 0 ? `Notes for you and ${namesWords(otherFirstNames)}` : "Notes for you";
+  return `Notes for ${namesWords(["you", ...otherFirstNames])}`;
 }
 
 /**
