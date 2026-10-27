@@ -113,12 +113,18 @@ export default async function ReConsentPage() {
           to the people who finished and to facilitators, private until you
           turn the link on; that you can add your sessions to your calendar
           with a private link, which your calendar&apos;s provider fetches
-          and you can replace; and that our surveys are confidential: only
+          and you can replace; who reads what you write and tick on a
+          week&apos;s pages, and who sees your pack, your case and your pair
+          for a session; that your sealed predictions are read by you and
+          admins alone; and that our surveys are confidential: only
           admins see who said what, a programme&apos;s lead sees totals and
           comments and never your name, and your name comes off two years
           after the programme. It also says that facilitators see names only, never
           email addresses, and that downloads of a programme&apos;s
-          attendance are recorded. And it says that, unless you say no, we
+          attendance are recorded. It adds that we may record that you came
+          to an event and send you a survey after it, and that a comment you
+          tick to be quoted may be shown on a programme&apos;s page, without
+          your name. And it says that, unless you say no, we
           share your name and your record on a programme with Kairos, one of
           our funders, including the ratings you were given at its end, which
           nobody is shown about themselves; you can say no at the end of any

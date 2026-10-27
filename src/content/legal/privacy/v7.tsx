@@ -71,11 +71,14 @@
  *     the group, and a team's page by the team. A comment on a piece of
  *     material is shown to the run only on a programme anyone can join; on a
  *     programme that places people in groups, the people in a group see the
- *     notes it shares instead (17).
+ *     notes it shares instead (17). In a session in pairs, a person's partners
+ *     see their first name and, where the week asks, whether they are bringing
+ *     a laptop (33, `readOwnPairs`).
  * 11. **Five downloads are logged, not two.** A programme's attendance, a
  *     survey's answers with names and the Kairos file join the membership
  *     list and a worksheet's answers, with what each new file holds and never
- *     holds.
+ *     holds. Operational logs names the same five kinds (every caller of
+ *     `logExport`).
  * 12. **How we use it.** Making teams, recording who finished and sending
  *     certificates are named among running our courses.
  * 13. **No automated decisions.** Who finished starts from the lead's number
@@ -91,7 +94,11 @@
  *     `deleteCourseGroupSharedNotes` and `deleteCourseGroupNotes`), and so do
  *     the name on a person's survey answers and the record of each survey sent
  *     to them, with its link (19, `takeNamesOffForAccount`); the answers stay
- *     in the totals.
+ *     in the totals. The list of what a deletion removes also names
+ *     reflections and a week's boxes (the person's `courseExerciseResponses`
+ *     rows), pairs (33) and sealed predictions (32), and the audit-style
+ *     records name the record of each admin opening of a sealed card or of
+ *     one person's survey answers (32, 36), which a deletion leaves.
  * 15. **Destroying a term's applications takes nobody off a programme.** A
  *     place on a run stays with the rest of the person's course record.
  * 16. **Notes facilitators share.** A group's facilitators keep notes for
@@ -142,7 +149,10 @@
  *     rubric and a comment with no mark, and the one email that says it is
  *     waiting (`src/lib/courses/writtenAnswers/`, `src/lib/courses/rubric.ts`,
  *     `src/lib/email/writtenFeedbackEmail.ts`, and the two written-answers
- *     routes).
+ *     routes). It saves as it is typed, and until it is sent its other readers
+ *     see only that it has been started ("Draft"), never its words
+ *     (`answerState` in `src/lib/courses/writtenAnswers/model.ts`, the review
+ *     page's `src/lib/courses/writtenAnswers/reviewPage.ts`).
  * 21. **Pathways and cases.** Some weeks give a person a pack to read (a
  *     pathway) and a case to give a talk on. What is handed out on paper in
  *     a session is recorded on the site, by the group's facilitators, the
@@ -325,6 +335,15 @@
  *     shows the average star rating of each piece of course material, once
  *     three people have rated it, never who gave which
  *     (`src/lib/courses/sourceRatings.ts`, the retrospective's count).
+ * 38. **When you are free, once you hold a place.** Somebody given a place on
+ *     a fellowship can change when they are free on their application page
+ *     from decision day until Publish tells them their group, and the change
+ *     counts at once and keeps the version it replaces
+ *     (`src/lib/applications/status/whenFree.ts`, `changeSentAvailability` in
+ *     `src/lib/applications/applicant/store.ts`). Until then the programme's
+ *     lead or an admin may email somebody who has not said when they are free,
+ *     at most once a day, whatever their settings say
+ *     (`src/lib/courses/getReady/remind.ts`, the when-free remind route).
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
@@ -825,11 +844,11 @@ export default function PrivacyContentV7({
                 </li>
                 <li>
                   A record of the spreadsheet downloads the site generates.
-                  Four kinds are logged today, a membership list, the
+                  Five kinds are logged today, a membership list, the
                   responses to a circulated worksheet, a programme&apos;s
-                  attendance and a survey&apos;s answers, and each row holds
-                  who asked for it, what it covered, how many people were in
-                  it, and when. See{" "}
+                  attendance, a survey&apos;s answers and the Kairos file, and
+                  each row holds who asked for it, what it covered, how many
+                  people were in it, and when. See{" "}
                   <a href="#courses">Courses and programmes</a> for what that
                   does and does not cover.
                 </li>
@@ -923,7 +942,15 @@ export default function PrivacyContentV7({
                   <strong>Your availability.</strong> The grid where you mark
                   the times you are free, in 15 minute steps between 9am and
                   9pm on each day of the week. The people who read your
-                  application can see it, and we use it to build groups.
+                  application can see it, and we use it to build groups. If
+                  you are given a place on a fellowship, you can also change
+                  it on your application page from decision day until we email
+                  you your group. That change counts at once, without sending
+                  your application again, and the version it replaces is kept
+                  with your earlier versions. Until then, if you have not said
+                  when you are free, the programme&apos;s lead or an admin may
+                  email you to ask, at most once a day, whatever your
+                  notification settings say.
                 </li>
                 <li>
                   <strong>Access requirements.</strong> The optional box asking
@@ -1180,7 +1207,9 @@ export default function PrivacyContentV7({
                   nobody else taking part; the week&apos;s page says so beside
                   it. If you facilitate a group, your own answer is read by the
                   programme&apos;s lead and admins, and not by the group&apos;s
-                  other facilitators. We record when you first send it, and
+                  other facilitators. It saves as you type, and until you send
+                  it, the others who read it see only that you have started
+                  it, never what it says. We record when you first send it, and
                   when you change it after that. You can change it until one of
                   your group&apos;s facilitators opens it (for a
                   facilitator&apos;s own answer, the programme&apos;s lead or an
@@ -1600,8 +1629,10 @@ export default function PrivacyContentV7({
                   incubator, the people in
                   your group also see any pitch you send, with your name, and
                   the people in your team see that you are in it and anything
-                  you write on your team&apos;s page. They see nothing else
-                  about you.
+                  you write on your team&apos;s page. When a session is in
+                  pairs, the people in your pair see your first name and,
+                  where the week asks, whether you are bringing a laptop. They
+                  see nothing else about you.
                 </li>
                 <li>
                   <strong>Admins</strong> can see all of the above. Admin
@@ -2019,8 +2050,10 @@ export default function PrivacyContentV7({
                 email-verification links, your course enrolments, applications
                 and drafts, the asks to facilitate a group sent to you and your
                 replies to them, your progress, your written answers with the
-                feedback on them, the packs and cases recorded for you and
-                whether you said you were ready for your talks, your calendar
+                feedback on them, your reflections and what you wrote in a
+                week&apos;s boxes, the packs and cases recorded for you and
+                whether you said you were ready for your talks, your pairs for
+                a session, your sealed predictions, your calendar
                 link, the notes you shared with a group, notes you wrote for the
                 other facilitators of a group, your name on your survey answers,
                 the record of each survey sent to you with your link to answer
@@ -2137,9 +2170,11 @@ export default function PrivacyContentV7({
                 log, the subscription event log, the impersonation log used for
                 committee oversight, the log of course actions including who
                 read an access-requirements answer and each decision made about
-                an application, and the record of the five downloads the site
-                logs. They name the person who took the action and what it
-                concerned. A log line about a decision on an application, or
+                an application, the record of each time an admin opened
+                somebody&apos;s sealed predictions or survey answers, and the
+                record of the five downloads the site logs. They name the
+                person who took the action and what it concerned. A log line
+                about a decision on an application, or
                 about an admin opening an access-requirements answer,
                 identifies the applicant by their account&apos;s id and not by
                 name, names the programme where there is one, and says what
