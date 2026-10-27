@@ -30,6 +30,13 @@
  *  6. THE PAGES: the layout lets them in, the week page draws week 1 for them
  *     and sends every other week to week 1, the run's home and its progress
  *     page send them away.
+ *  8. A REFUSAL REACHES THE PAGE IN THE ROUTE'S OWN WORDS: somebody who gave
+ *     their place back with week 1 open in a tab ticks, or writes in a box,
+ *     and the page's own client code (the tick hook and the box's write),
+ *     answered by the real routes, says the route's sentence, never "check
+ *     your connection"; only a request that got no answer names the
+ *     connection, and a tick the browser writes itself and the rules refuse
+ *     says to reload the page.
  *
  * Real: every route and page loaded, the door, the gate and the libraries
  * under them, the store. Faked: the session, the Admin SDK handle, the
@@ -599,5 +606,167 @@ describe("7. week 1's page, drawn for somebody holding a place before groups go 
   test("a ticked source opens no rating or note: nobody it names reads one yet", async () => {
     const { text } = await drawWeekOne({ ticked: ["k1-s1"] });
     assert.ok(!text.includes("Rate it or leave a note"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. A refusal reaches the page in the route's own words
+// ---------------------------------------------------------------------------
+
+/**
+ * The week page's own client code, as the browser runs it: the tick hook
+ * (`useMaterialTicks`), week 1's tick door (`tickWeekOneBeforeGroups`) and a
+ * reflection box's write (`putReflection`). Stood in: the browser's database
+ * (every write refused with the code `__weekOnePage.code` names, as the rules
+ * refuse one), the person's live rows, and `fetch`, which the real routes
+ * above answer as the person.
+ */
+globalThis.__weekOnePage = { code: "permission-denied" };
+const browser = createLoader({
+  stubs: [
+    [
+      "firebase/firestore",
+      "export function doc() { return {}; }\n" +
+        "export async function getDoc() { return { data: () => undefined }; }\n" +
+        "export async function setDoc() { throw Object.assign(new Error('Missing or insufficient permissions.'), { code: globalThis.__weekOnePage.code }); }\n" +
+        "export function serverTimestamp() { return 'serverTimestamp()'; }",
+    ],
+    ["@/lib/firebase/client", "export function getClientDb() { return {}; }"],
+    ["@/features/courses/useRunProgress", "export function useRunProgress() { return { byItemId: new Map(), loading: false, error: null }; }"],
+  ],
+});
+const { useMaterialTicks } = await browser.loadTs(join("features", "courses", "weekly", "useMaterialTicks.ts"));
+const tickWords = await browser.loadTs(join("features", "courses", "weekly", "tickWords.ts"));
+const { putReflection } = await browser.loadTs(join("features", "courses", "weekBlocks", "boxWrites.ts"));
+const { REFLECTION_NOT_SAVED } = await browser.loadTs(join("lib", "courses", "memberPageWords.ts"));
+
+/** `fetch` as the page makes it, answered by the real tick and reflection routes, as `who`. */
+function answeredAs(who) {
+  return async (url, init = {}) => {
+    const path = new URL(String(url), "https://naisi.invalid").pathname;
+    const body = init.body ? JSON.parse(init.body) : undefined;
+    const tickAt = /^\/api\/courses\/runs\/([^/]+)\/week-one\/ticks\/([^/]+)$/.exec(path);
+    const boxAt = /^\/api\/courses\/runs\/([^/]+)\/reflections\/([^/]+)$/.exec(path);
+    let answer = null;
+    if (tickAt) answer = await call(who, ticksRoute.PUT, { runId: decodeURIComponent(tickAt[1]), itemId: decodeURIComponent(tickAt[2]) }, { body });
+    if (boxAt) answer = await call(who, reflectionRoute.PUT, { runId: decodeURIComponent(boxAt[1]), promptId: decodeURIComponent(boxAt[2]) }, { body });
+    assert.ok(answer, `the page fetched ${path}, which nothing here answers`);
+    return new Response(JSON.stringify(answer.body), { status: answer.status, headers: { "Content-Type": "application/json" } });
+  };
+}
+
+/** No answer at all: what `fetch` does with the connection gone. */
+const lost = async () => {
+  throw new TypeError("Failed to fetch");
+};
+/** An answer with nothing to say: a page some proxy answered with. */
+const blank = async () => new Response("<html><body>Bad gateway</body></html>", { status: 502, headers: { "Content-Type": "text/html" } });
+
+async function withFetch(impl, run) {
+  const stub = mock.method(globalThis, "fetch", impl);
+  try {
+    return await run();
+  } finally {
+    stub.mock.restore();
+  }
+}
+
+/** The ticks the week page holds for `who`, through the hook, as their week 1 page draws it. */
+function weekPageTicks(who, writer) {
+  let ticks = null;
+  function WeekOneTicks() {
+    ticks = useMaterialTicks(RUN.agi, who, 1, true, writer);
+    return null;
+  }
+  renderToStaticMarkup(createElement(WeekOneTicks));
+  return ticks;
+}
+
+/** Bea gives the place back on the application page, the way the reply does. */
+const beaGivesHerPlaceBack = () =>
+  world.db.poke(applicationPath("bea"), { status: "withdrawn", attendance: { answer: "cant-make-it", answeredAt: NOW } });
+
+const boxWrite = (text) => putReflection({ runId: RUN.agi, promptId: "k1-rp1", weekId: "w01", text, keepalive: false });
+
+describe("8. a refusal reaches the page in the route's own words", () => {
+  test("a tick after giving the place back, with week 1 still open in a tab: put back, in the route's words", async () => {
+    const ticks = weekPageTicks("bea", "week-one-door");
+    // Holding the place, Bea's tick goes through week 1's door and saves.
+    assert.deepEqual(await withFetch(answeredAs("bea"), () => ticks.tick("material", "k1-s1", true)), { saved: true });
+    assert.equal(world.db.read(`courseProgress/${RUN.agi}__bea__k1-s1`).completed, true);
+    beaGivesHerPlaceBack();
+    const before = snapshot();
+    const refused = await withFetch(answeredAs("bea"), () => ticks.tick("material", "k1-s2", true));
+    assert.deepEqual(refused, { saved: false, words: "Week 1 isn’t open to you yet." });
+    assert.doesNotMatch(refused.words, /connection/i);
+    assert.equal(snapshot(), before, "a refused tick wrote something");
+    // The pages that only say that a tick did not save are told it did not.
+    assert.equal(await withFetch(answeredAs("bea"), () => ticks.toggle("material", "k1-s2", true)), false);
+  });
+
+  test("every other refusal of week 1's door reaches the page as the route's own sentence", async () => {
+    const ticks = weekPageTicks("amara", "week-one-door");
+    // Week 2's source, through week 1's door.
+    assert.deepEqual(await withFetch(answeredAs("amara"), () => ticks.tick("material", "k2-s1", true)), {
+      saved: false,
+      words: "That isn’t on week 1 any more. Reload the page.",
+    });
+    // Week 1 no longer ready: the door shut for Amara too.
+    world.db.poke(W01, { ready: false });
+    assert.deepEqual(await withFetch(answeredAs("amara"), () => ticks.tick("material", "k1-s1", true)), {
+      saved: false,
+      words: "Week 1 isn’t open to you yet.",
+    });
+  });
+
+  test("a reflection box after giving the place back is refused in the route's own sentence, under the box", async () => {
+    // Holding the place, the box's own write saves.
+    const row = await withFetch(answeredAs("bea"), () => boxWrite("About thirty."));
+    assert.equal(row.text, "About thirty.");
+    beaGivesHerPlaceBack();
+    await assert.rejects(withFetch(answeredAs("bea"), () => boxWrite("About forty.")), (err) => {
+      assert.equal(err.message, "Only somebody taking part in this programme can write in its reflection boxes.");
+      return true;
+    });
+    assert.equal(world.db.read(`courseExerciseResponses/${RUN.agi}__bea__w01__k1-rp1`).text, "About thirty.");
+  });
+
+  test("only a request that got no answer, or an answer with nothing to say, names the connection", async () => {
+    const ticks = weekPageTicks("amara", "week-one-door");
+    for (const impl of [lost, blank]) {
+      assert.deepEqual(await withFetch(impl, () => ticks.tick("material", "k1-s1", true)), { saved: false, words: tickWords.TICK_NOT_SAVED });
+      await assert.rejects(withFetch(impl, () => boxWrite("About thirty.")), (err) => {
+        assert.equal(err.message, REFLECTION_NOT_SAVED, "the browser's own words for a lost request");
+        return true;
+      });
+    }
+    assert.equal(tickWords.TICK_NOT_SAVED, "That tick didn’t save, so it has been undone. Check your connection and try again.");
+    assert.equal(REFLECTION_NOT_SAVED, "Your last change isn’t saved yet. Check your connection: it saves again as you type.");
+  });
+
+  test("a tick the browser writes itself, refused by the rules, says to reload the page, never to check the connection", async () => {
+    const ticks = weekPageTicks("amara", "browser");
+    globalThis.__weekOnePage.code = "permission-denied";
+    assert.deepEqual(await ticks.tick("material", "k1-s1", true), { saved: false, words: "That tick didn’t save, so it has been undone. Reload the page." });
+    assert.equal(tickWords.TICK_REFUSED_RELOAD, "That tick didn’t save, so it has been undone. Reload the page.");
+    // The browser's own database out of reach is the connection.
+    globalThis.__weekOnePage.code = "unavailable";
+    assert.deepEqual(await ticks.tick("material", "k1-s1", true), { saved: false, words: tickWords.TICK_NOT_SAVED });
+    globalThis.__weekOnePage.code = "permission-denied";
+  });
+
+  test("the week page says what the hook hands back, and the boxes write through the shared writes", () => {
+    const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
+    const code = (...parts) => readFileSync(join(SRC, ...parts), "utf8");
+    const view = code("features", "courses", "WeekView.tsx");
+    assert.equal([...view.matchAll(/ticks\.tick\(itemKind, itemId, next\)\.then\(\(outcome\) => \{/g)].length, 2, "both of the page's ticks");
+    assert.equal([...view.matchAll(/throw new Error\(outcome\.words\);/g)].length, 2, "and both say the hook's words");
+    assert.doesNotMatch(view, /ticks\.toggle\(|Check your connection/, "the week page says something of its own about a refused tick");
+    for (const [file, write] of [["ReflectStop.tsx", "putReflection"], ["FillInCard.tsx", "putFillIn"]]) {
+      const box = code("features", "courses", "weekBlocks", file);
+      assert.match(box, new RegExp(`import \\{ ${write} \\} from "\\./boxWrites";`), file);
+      assert.doesNotMatch(box, /\bfetch\(/, `${file} writes by a fetch of its own`);
+      assert.match(box, /saver\.error\?\.message \|\| REFLECTION_NOT_SAVED/, `${file} says something other than the write's words`);
+    }
   });
 });

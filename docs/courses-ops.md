@@ -1235,7 +1235,11 @@ programme names" below).
   session on the group's own calendar, who else facilitates it, how many in
   it have been told their group and that their names are on the group page,
   and a button to their group page, signed by the lead of the programme that
-  names the run. The board's "and week 1’s guide" is said only while the
+  names the run, or by NAISI when no lead stands, as the group email is
+  (wording for "You're facilitating" saved in Email designs before 26
+  October 2026 has no `{naisiSignOff}` and says nothing in its place, until
+  the token is added in a paragraph of its own or the wording is reset to
+  the default). The board's "and week 1’s guide" is said only while the
   facilitator's group page shows it: the group's next session is its week
   1 and week 1 of the course's facilitator guide has its session plan or
   its notes (load it before Publish to have it said). That number counts only the people
@@ -2155,8 +2159,11 @@ laptop. The code is `src/lib/courses/pairs/`.
 
 - **The group's live facilitators, the programme's lead and admins** type
   them and see every pair, on the pairs page; the group's facilitators and
-  admins also on the group page. The lead has no link to the pairs page
-  yet: open it by its address.
+  admins also on the group page. The lead (and an admin) reaches it from the
+  Sessions view of the programme's Groups tab: each group's session in a
+  week that asks for pairs, by the group's own copy of the week, has
+  "Pairs and laptops" (or "Pairs") under "Change a session", to that group's
+  pairs page for that week.
 - **Each person** sees their own pair on that week's page, under the
   guide's "Before you come": who they are paired with, by first name, and
   who in their pair is bringing a laptop ("You’re paired with Kofi.",

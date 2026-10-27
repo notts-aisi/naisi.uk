@@ -83,7 +83,9 @@ export const COURSE_FACILITATING_PREVIEW_SAMPLE = {
   leadName: "Jordan",
   programmeName: "AI Safety Fundamentals",
   // The board's tokens follow from the samples above, as a send's follow
-  // from its facts (`facilitatingFactsFromSample`), so these are never read.
+  // from its facts (`facilitatingFactsFromSample`), so these are never read:
+  // NAISI's sign-off from the lead, as on the placement email.
+  naisiSignOff: "",
   namesOnPage: "",
   place: "",
   placeNote: "",

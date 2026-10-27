@@ -4763,10 +4763,11 @@ describe("the course hub passage", () => {
         // Surveys after events (the event survey block below holds each to its gate).
         ["src/app/api/surveys/[surveyId]/open-at-event/route.ts", `${ADMIN_ROUTE}; opening a survey after an event for its QR code`],
         ["src/app/events/[id]/survey/page.tsx", "the survey after an event by its QR code: signed in, shown only to somebody who signed up or came, by their own row; signed out, it names nobody"],
-        ["src/app/(app)/events/manage/[id]/survey/page.tsx", "the event's Survey after tab: everybody in the events area reads that it went and when; its results only when canRunSurveys says the viewer is an admin"],
+        ["src/app/(app)/events/manage/[id]/survey/page.tsx", "the event's Survey after tab: everybody in the events area reads that it went and when; the people who run check-in its QR code while it takes answers (surveyCodeAtEvent), never an answer; its results only when canRunSurveys says the viewer is an admin"],
         ["src/app/(app)/events/manage/[id]/check-in/page.tsx", "the Check-in tab reads when the event's survey closes, the end of adding somebody who came and of a walk-in's email, and nothing of its answers or who answered"],
         ["src/app/(app)/events/manage/[id]/door/page.tsx", "the door list reads when the event's survey closes, for the day a walk-in's email goes, and nothing of its answers or who answered"],
         ["src/app/api/events/[id]/check-ins/route.ts", "the door list's route reads when the event's survey closes, the end of adding somebody who came and the day a walk-in's email goes, and nothing of its answers or who answered"],
+        ["src/lib/qr/codeAccess.ts", "who may draw a code: an event survey's code for the people who run check-in while that survey takes answers (surveyCodeAtEvent), from the survey's state alone, and nothing of its answers or who answered"],
         // This term in numbers (sv-term, Q51 B): counts made on the server, never a name.
         ["src/app/(app)/admin/(admin-only)/surveys/term/page.tsx", `${ADMIN_PAGE}; This term in numbers, counts made on the server, never a name`],
         ["src/app/api/surveys/term/totals/route.ts", `${ADMIN_ROUTE}; This term in numbers as a file of totals that names nobody, not a recorded download`],

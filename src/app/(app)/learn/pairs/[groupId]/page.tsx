@@ -42,8 +42,9 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  *
  * A STATIC SEGMENT UNDER /learn, not `/learn/[runId]/...`, whose layout sends
  * away a programme's lead who holds no role on the run, as the draw's page
- * is. The group page links here for its facilitators; the lead opens it by
- * its address until the programme's Groups tab links it.
+ * is. The group page links here for its facilitators; the lead reaches it
+ * from the Sessions view of the programme's Groups tab, on each group's
+ * session in a week that asks for pairs (`SessionCardView.pairs`).
  */
 
 export const dynamic = "force-dynamic";

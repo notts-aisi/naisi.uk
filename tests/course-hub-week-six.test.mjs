@@ -261,6 +261,65 @@ describe("2. a fill-in box is its writer's own", () => {
     assert.equal(w.everything(), before, "a refused write wrote something");
   });
 
+  test("a box the route refuses says the route's own sentence under it, through the page's own write; only no answer names the connection", async () => {
+    const { putFillIn } = await w.loadTs(join("features", "courses", "weekBlocks", "boxWrites.ts"));
+    const { REFLECTION_NOT_SAVED } = await w.loadTs(join("lib", "courses", "memberPageWords.ts"));
+    /** `fetch` as the page makes it, answered by the real fill-in route, as `who`. */
+    const answeredAs = (who) => async (url, init = {}) => {
+      const at = /^\/api\/courses\/runs\/([^/]+)\/fill-in-boxes\/([^/]+)$/.exec(new URL(String(url), "https://naisi.invalid").pathname);
+      assert.ok(at, `the page fetched ${url}, which nothing here answers`);
+      const answer = await w.call(who, w.routes.fillInWrite.PUT, { runId: decodeURIComponent(at[1]), boxId: decodeURIComponent(at[2]) }, {
+        course: true,
+        body: JSON.parse(init.body),
+      });
+      return new Response(JSON.stringify(answer.body), { status: answer.status, headers: { "Content-Type": "application/json" } });
+    };
+    const write = async (impl, text) => {
+      const stub = mock.method(globalThis, "fetch", impl);
+      try {
+        return await putFillIn({ runId: RUN.agi, boxId: FB[0], weekId: "w06", text, keepalive: false });
+      } finally {
+        stub.mock.restore();
+      }
+    };
+    assert.equal((await write(answeredAs("chloe"), "Before the end.")).text, "Before the end.");
+    // Chloe's place finished with the page still open.
+    w.world.db.poke(`courseEnrolments/${RUN.agi}__chloe`, { status: "completed" });
+    await assert.rejects(write(answeredAs("chloe"), "After the end."), (err) => {
+      assert.equal(err.message, "Only somebody taking part in this programme can write in its boxes.");
+      return true;
+    });
+    // A box no longer on the week says so in the route's words too.
+    w.world.db.poke(`courseEnrolments/${RUN.agi}__chloe`, { status: "active" });
+    await assert.rejects(
+      (async () => {
+        const stub = mock.method(globalThis, "fetch", answeredAs("chloe"));
+        try {
+          return await putFillIn({ runId: RUN.agi, boxId: "k6-nowhere", weekId: "w06", text: "x", keepalive: false });
+        } finally {
+          stub.mock.restore();
+        }
+      })(),
+      (err) => {
+        assert.equal(err.message, "That box isn’t on this week any more. Reload the page.");
+        return true;
+      },
+    );
+    // No answer at all, or an answer with nothing to say: the connection, never the browser's own words.
+    for (const impl of [
+      async () => {
+        throw new TypeError("Failed to fetch");
+      },
+      async () => new Response("Bad gateway", { status: 502 }),
+    ]) {
+      await assert.rejects(write(impl, "Again."), (err) => {
+        assert.equal(err.message, REFLECTION_NOT_SAVED);
+        return true;
+      });
+    }
+    assert.equal(w.world.db.read(rowPath("chloe", "w06", FB[0])).text, "Before the end.");
+  });
+
   test("a finished place reads its boxes back and writes no more", async () => {
     await w.writeFillIn("chloe", FB[0], "w06", "Before the end.");
     w.world.db.poke(`courseEnrolments/${RUN.agi}__chloe`, { status: "completed" });

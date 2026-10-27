@@ -8,6 +8,7 @@ import {
   type DocumentReference,
 } from "firebase/firestore";
 import { getClientDb } from "@/lib/firebase/client";
+import { routeRefusalOf } from "./routeRefusal";
 import {
   buildProgressWrite,
   courseProgressId,
@@ -194,8 +195,9 @@ export async function saveProgressReflection(
  * rules above can see, so their tick goes through week 1's door
  * (`PUT /api/courses/runs/[runId]/week-one/ticks/[itemId]`), which asks the
  * one answer and writes the same row this module would. The row comes back
- * through the same live listener. Rejects with the route's own sentence when
- * it refuses.
+ * through the same live listener. Rejects with a `RouteRefusal` carrying the
+ * route's own sentence when it refuses, and with what `fetch` threw when no
+ * answer came back, so the page can tell the two apart.
  */
 export async function tickWeekOneBeforeGroups(args: { runId: string; itemId: string; next: boolean }): Promise<void> {
   const res = await fetch(
@@ -206,8 +208,5 @@ export async function tickWeekOneBeforeGroups(args: { runId: string; itemId: str
       body: JSON.stringify({ completed: args.next }),
     },
   );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? "That tick didn’t save.");
-  }
+  if (!res.ok) throw (await routeRefusalOf(res)) ?? new Error("That tick didn’t save.");
 }

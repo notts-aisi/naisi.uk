@@ -90,7 +90,9 @@ import styles from "./WeekView.module.css";
  *
  * TICKING is `useMaterialTicks`, the one way Home and the programme home tick
  * too, so a reading ticked anywhere is the same record everywhere. A ticked
- * reading opens its reflection, and a refused tick is put back and said.
+ * reading opens its reflection, and a refused tick is put back and said in
+ * the words the hook hands back: the route's own sentence when a route
+ * refused it, never the connection unless nothing came back.
  *
  * "QUESTIONS TO THINK ABOUT" are the week's own (`CourseWeekDoc.questions`),
  * numbered 01, 02, 03 between the readings and the exercise; a week with none
@@ -148,9 +150,6 @@ type Props = {
  */
 const FORKED_HINT =
   "Your facilitator has made this week their own: you’re reading your group’s version, which may differ from the other groups on this run.";
-
-/** What the page says when a tick is refused: the box has gone back. */
-const TICK_REFUSED = "That tick didn’t save, so it has been undone. Check your connection and try again.";
 
 const EMPTY_ROWS: ReadonlyArray<never> = [];
 
@@ -223,11 +222,11 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
       // A ticked reading opens its reflection; an unticked one closes it.
       // Before groups go out there is no reflection to open (no group reads it).
       if (itemKind === "material" && !beforeGroups) setPanel(itemId, next);
-      void ticks.toggle(itemKind, itemId, next).then((ok) => {
-        if (ok || !mounted.current) return;
+      void ticks.tick(itemKind, itemId, next).then((outcome) => {
+        if (outcome.saved || !mounted.current) return;
         if (itemKind === "material") setPanel(itemId, false);
         void runToast(async () => {
-          throw new Error(TICK_REFUSED);
+          throw new Error(outcome.words);
         });
       });
     },
@@ -305,13 +304,13 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
   if (!weekDoc) return <WeekSkeleton />; // unreachable; narrows the type
 
   if (isBlockWeek(weekDoc)) {
-    // A refused tick is put back by the hook and said, as on every page.
+    // A refused tick is put back by the hook and said in the words it hands back, as on every page.
     const tickBlock = (itemKind: ProgressItemKind, itemId: string, next: boolean) => {
       if (!canWrite) return;
-      void ticks.toggle(itemKind, itemId, next).then((ok) => {
-        if (ok || !mounted.current) return;
+      void ticks.tick(itemKind, itemId, next).then((outcome) => {
+        if (outcome.saved || !mounted.current) return;
         void runToast(async () => {
-          throw new Error(TICK_REFUSED);
+          throw new Error(outcome.words);
         });
       });
     };

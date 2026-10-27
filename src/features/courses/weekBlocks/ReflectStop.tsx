@@ -13,6 +13,7 @@ import {
 import type { ReflectionBlock, ReflectionPrompt } from "@/lib/courses/weekBlocks/model";
 import { REFLECTION_MAX_CHARS } from "@/lib/firestore/courseExercises";
 import styles from "./blockWeek.module.css";
+import { putReflection } from "./boxWrites";
 
 /**
  * A REFLECTION STOP (boards st-week1-phone, wk-week-phone): one or two
@@ -32,11 +33,14 @@ import styles from "./blockWeek.module.css";
  * person's own rows have loaded (`loaded`), the stop says so instead, with a
  * way to try again.
  *
- * THE WRITE is `PUT /api/courses/runs/[runId]/reflections/[promptId]`,
- * through `useDebouncedWrite` (one writer, newest value wins, flushed on blur,
- * on leaving and on the page being hidden): every change either sends what
- * the box now holds or cancels what was waiting, as the exercise answer's
- * box does. An emptied box sends "" and the route removes the row.
+ * THE WRITE is `PUT /api/courses/runs/[runId]/reflections/[promptId]`
+ * (`putReflection`, `./boxWrites.ts`), through `useDebouncedWrite` (one
+ * writer, newest value wins, flushed on blur, on leaving and on the page
+ * being hidden): every change either sends what the box now holds or cancels
+ * what was waiting, as the exercise answer's box does. An emptied box sends
+ * "" and the route removes the row. A refused write says the route's own
+ * sentence under the box; only a write that got no answer names the
+ * connection.
  */
 
 type Props = {
@@ -112,34 +116,6 @@ export default function ReflectStop({
       )}
     </section>
   );
-}
-
-/** A refusal with the route's own sentence. */
-class ReflectionSaveError extends Error {}
-
-async function putReflection(args: {
-  runId: string;
-  promptId: string;
-  weekId: string;
-  text: string;
-  keepalive: boolean;
-}): Promise<ExerciseResponseWire> {
-  const res = await fetch(
-    `/api/courses/runs/${encodeURIComponent(args.runId)}/reflections/${encodeURIComponent(args.promptId)}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ weekId: args.weekId, text: args.text }),
-      // A box holds at most REFLECTION_MAX_CHARS, far under a keepalive
-      // request's budget, so the last change outlives the page.
-      keepalive: args.keepalive,
-    },
-  );
-  const body = (await res.json().catch(() => null)) as { response?: ExerciseResponseWire; error?: string } | null;
-  if (!res.ok || !body?.response) {
-    throw new ReflectionSaveError(body?.error ?? REFLECTION_NOT_SAVED);
-  }
-  return body.response;
 }
 
 function ReflectionBox({

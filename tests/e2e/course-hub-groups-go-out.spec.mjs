@@ -575,7 +575,9 @@ test(
             ? "There is 1 person in the group. Their name is on your group page."
             : `There are ${size} people in the group. Their names are on your group page.`,
           "Open your group",
-          "Take the register on your phone during the session.",
+          // The programme has no lead, so NAISI signs it, as it signs the
+          // group email (since 26 October 2026; until then nobody did).
+          "Take the register on your phone during the session. NAISI",
         ],
         // One facilitator, and a programme with no lead to sign it. This world
         // loads no facilitator guide, so week 1's guide is never promised.

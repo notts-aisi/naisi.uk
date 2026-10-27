@@ -13,7 +13,9 @@ import styles from "./SessionsBoard.module.css";
 /**
  * The Sessions view of a programme's Groups tab (wk-session), and the same
  * list on a group's own page: one card per session, each with "Change a
- * session" opening the dialog beside the list (below it on a phone).
+ * session" opening the dialog beside the list (below it on a phone). On the
+ * Groups tab a session whose week asks for pairs also has the way to its
+ * pairs ("Pairs and laptops"), named for screen readers with its group.
  *
  * Everything drawn is the server's (`SessionCardView`); the only state here is
  * which card's dialog is open and what the last change said. A change that
@@ -117,23 +119,31 @@ export default function SessionsBoard({
                   )}
                   {card.note && <p className={styles.cardNote}>{card.note}</p>}
                 </div>
-                {card.dialog && (
+                {(card.dialog || card.pairs) && (
                   <div className={styles.cardAction}>
-                    <button
-                      type="button"
-                      ref={(element) => {
-                        buttons.current.set(card.key, element);
-                      }}
-                      className={styles.changeButton}
-                      aria-expanded={here}
-                      disabled={!hydrated}
-                      onClick={() => {
-                        setSaid(null);
-                        setOpenKey(here ? null : card.key);
-                      }}
-                    >
-                      {CHANGE_A_SESSION}
-                    </button>
+                    {card.dialog && (
+                      <button
+                        type="button"
+                        ref={(element) => {
+                          buttons.current.set(card.key, element);
+                        }}
+                        className={styles.changeButton}
+                        aria-expanded={here}
+                        disabled={!hydrated}
+                        onClick={() => {
+                          setSaid(null);
+                          setOpenKey(here ? null : card.key);
+                        }}
+                      >
+                        {CHANGE_A_SESSION}
+                      </button>
+                    )}
+                    {card.pairs && (
+                      <Link className={styles.pairsLink} href={card.pairs.href}>
+                        {card.pairs.label}
+                        <span className={styles.srOnly}> in {card.heading}</span>
+                      </Link>
+                    )}
                   </div>
                 )}
               </div>

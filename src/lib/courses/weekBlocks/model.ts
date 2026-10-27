@@ -605,21 +605,45 @@ export const ID_PREFIX = {
 
 export type IdPrefix = (typeof ID_PREFIX)[keyof typeof ID_PREFIX];
 
+/** What a fresh id's tail is made of: ten characters, each a lower-case letter or a digit. */
+export const WEEK_ITEM_ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
+export const WEEK_ITEM_ID_TAIL_LENGTH = 10;
+
+/**
+ * The largest multiple of the alphabet's length that fits in a byte (252 for
+ * 36 characters). A random byte at or above it is thrown away rather than
+ * folded onto the alphabet, so every character is equally likely: a
+ * remainder of every byte would make the first four characters a little
+ * likelier than the rest. `src/lib/firestore/slugId.ts` draws the same way.
+ */
+export const WEEK_ITEM_ID_UNBIASED_BELOW = 256 - (256 % WEEK_ITEM_ID_ALPHABET.length);
+
 /**
  * A fresh id: the prefix, then ten random letters and digits. Random rather
  * than counted, so two weeks of one run (and a week and its group's copy
  * after both were edited) never mint the same one.
+ *
+ * The bytes come from the platform's cryptographic generator, on the server
+ * and in the browser alike. A browser with no `crypto` makes them from
+ * `Math.random` instead, and they are thrown away and folded exactly as the
+ * generator's are, so its ids are as evenly drawn. An id has the same shape
+ * however it was drawn, so every id minted before keeps reading as one.
  */
 export function newWeekItemId(prefix: IdPrefix): string {
-  const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
-  const bytes = new Uint8Array(10);
-  if (typeof globalThis.crypto?.getRandomValues === "function") {
-    globalThis.crypto.getRandomValues(bytes);
-  } else {
-    for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
-  }
+  const bytes = new Uint8Array(WEEK_ITEM_ID_TAIL_LENGTH * 2);
   let tail = "";
-  for (const byte of bytes) tail += alphabet[byte % alphabet.length];
+  while (tail.length < WEEK_ITEM_ID_TAIL_LENGTH) {
+    if (typeof globalThis.crypto?.getRandomValues === "function") {
+      globalThis.crypto.getRandomValues(bytes);
+    } else {
+      for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+    }
+    for (const byte of bytes) {
+      if (byte >= WEEK_ITEM_ID_UNBIASED_BELOW) continue;
+      tail += WEEK_ITEM_ID_ALPHABET[byte % WEEK_ITEM_ID_ALPHABET.length];
+      if (tail.length === WEEK_ITEM_ID_TAIL_LENGTH) break;
+    }
+  }
   return `${prefix}-${tail}`;
 }
 

@@ -480,7 +480,9 @@ export const courseTemplateDefaults: Record<
    *    facilitating alone is told nobody beside them.
    *  - `{leadName}` and `{programmeName}` can be missing: a run no programme
    *    names, a programme with no lead. They share the sign-off, which is
-   *    left out whole when there is nothing to put in it.
+   *    left out whole when there is nothing to put in it, and then
+   *    `{naisiSignOff}` signs it NAISI in a paragraph of its own, as the
+   *    group email does. Exactly one of the two sign-offs is ever there.
    *  - `{groupSize}` and `{namesOnPage}` are whole sentences ("There are 8
    *    people in the group. Their names are on your group page."), so a
    *    group of one reads right. `{namesOnPage}` says the board's "Their
@@ -503,7 +505,8 @@ export const courseTemplateDefaults: Record<
           "<p>{groupSize} {namesOnPage}</p>" +
           '<p><a href="{groupUrl}" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#6a82ff;color:#050810;font-weight:600;text-decoration:none">Open your group</a></p>' +
           "<p>Take the register on your phone during the session.</p>" +
-          '<p>{leadName}<br /><span style="color:#71717a">{programmeName} lead, NAISI</span></p>',
+          '<p>{leadName}<br /><span style="color:#71717a">{programmeName} lead, NAISI</span></p>' +
+          "<p>{naisiSignOff}</p>",
       ),
     ],
   },

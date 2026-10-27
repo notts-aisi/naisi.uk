@@ -22,6 +22,10 @@
  *     next session covering both weeks, a moved session's day, time and room,
  *     and an online week's "Join online" with its line; never to anybody the
  *     group is not theirs, never another group's link.
+ *  6. THE WAY TO EACH GROUP'S PAIRS, where the lead reaches each group: a
+ *     session whose week asks for pairs (by the group's own copy of the
+ *     week) leads to its group's pairs page for that week, which takes the
+ *     lead; no other session has the link, and nobody else reaches it.
  *
  * Real: the pages, the tree's gate, the loaders, the overview route, the
  * resolver, the dialog and the cards rendered to HTML. Faked: the session,
@@ -37,6 +41,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { walkSource } from "./lib/functionScan.mjs";
 import { AGI, AWAY, B, C, LINK, ROUND, RUN, TUE_24, makeSessionsWorld } from "./lib/sessionsWorld.mjs";
+import { blockWeekDoc, weekBlocksFor } from "./lib/packsAndCasesWorld.mjs";
+import { PAIRS_ONLY, PAIRS_WITH_LAPTOPS, withBeforeYouCome } from "./lib/pairsWorld.mjs";
 
 const ui = { h: createElement };
 globalThis.__sessionsPagesUi = ui;
@@ -79,6 +85,7 @@ const GROUP = join("app", "(app)", "learn", "[runId]", "group", "[groupId]");
 const { default: SessionsPage } = await loadTs(join(TABS, "groups", "sessions", "page.tsx"));
 const { default: GroupSessionsPage } = await loadTs(join(GROUP, "sessions", "page.tsx"));
 const { default: GroupPage } = await loadTs(join(GROUP, "page.tsx"));
+const { default: PairsPage } = await loadTs(join("app", "(app)", "learn", "pairs", "[groupId]", "page.tsx"));
 const { default: ChangeSessionDialog } = await loadTs(join("features", "courses", "sessionChange", "ChangeSessionDialog.tsx"));
 const { default: SessionCard } = await loadTs(join("features", "courses", "SessionCard.tsx"));
 const { default: SessionNotice } = await loadTs(join("features", "courses", "sessionChange", "SessionNotice.tsx"));
@@ -698,5 +705,91 @@ describe("5. the room notice never carries the meeting link", () => {
     assert.ok(said.includes("The link to join is on your programme page, not in your emails."), said);
     assert.ok(said.includes("Written from this week being online. It says where the joining link is, and never carries the link."), said);
     assert.doesNotMatch(said, /Join here|send the joining link|carries the joining link/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. The way to each group's pairs
+// ---------------------------------------------------------------------------
+
+describe("6. the way to each group's pairs, where the lead reaches each group", () => {
+  /** Week 4 asks for pairs with laptops, week 5 for pairs alone; week 3 is as the world wrote it. Every word made up. */
+  function weeksInPairs() {
+    world.db.seed(`courseRuns/${RUN.agi}/weeks/w04`, blockWeekDoc(4, "How sure are you, again?", withBeforeYouCome(weekBlocksFor("w4"), PAIRS_WITH_LAPTOPS)));
+    world.db.seed(`courseRuns/${RUN.agi}/weeks/w05`, blockWeekDoc(5, "How sure are you, now?", withBeforeYouCome(weekBlocksFor("w5"), PAIRS_ONLY)));
+  }
+  const groupIds = async () => {
+    const { board } = await cardsFor("zach");
+    return Object.fromEntries(board.cards.map((card) => [card.heading, card.key.split("__").slice(0, 2).join("__")]));
+  };
+
+  test("the lead and an admin: each session in a week that asks for pairs leads to its group's pairs for that week", async () => {
+    weeksInPairs();
+    const id = await groupIds();
+    assert.equal(id["Group B"], B);
+    assert.equal(id["Group C"], C);
+    for (const who of ["claudia", "zach"]) {
+      const { drawn, board } = await cardsFor(who);
+      assert.deepEqual(
+        board.cards.map((card) => [card.heading, card.pairs]),
+        [
+          ["Group B", { href: `/learn/pairs/${B}?week=4`, label: "Pairs and laptops" }],
+          ["Group C", { href: `/learn/pairs/${C}?week=4`, label: "Pairs and laptops" }],
+          ["Group A", { href: `/learn/pairs/${id["Group A"]}?week=4`, label: "Pairs and laptops" }],
+        ],
+        who,
+      );
+      // Under Change a session, named for a screen reader with its group.
+      assert.ok(
+        drawn.html.includes(`Change a session</button><a href="/learn/pairs/${B}?week=4" class="pairsLink">Pairs and laptops<span class="srOnly"> in Group B</span></a>`),
+        drawn.html,
+      );
+      assert.match(drawn.text, /Group B Tuesdays 6pm · Hallward B12 RM SR Rahul Mehta and Sofia Rossi Week 4 Tue 24 Nov, 6pm Change a session Pairs and laptops in Group B/);
+      // A week that asks for pairs alone says so; a week that asks for none has no link.
+      assert.deepEqual((await cardsFor(who, { week: "5" })).board.cards.map((card) => card.pairs?.label ?? null), ["Pairs", "Pairs", "Pairs"]);
+      assert.deepEqual((await cardsFor(who, { week: "3" })).board.cards.map((card) => card.pairs), [null, null, null]);
+      assert.equal(drawn.wrote, false);
+    }
+  });
+
+  test("the group's own copy of the week decides: a copy with no session in pairs has no link, and the others keep theirs", async () => {
+    weeksInPairs();
+    const id = await groupIds();
+    const copy = structuredClone(world.db.read(`courseRuns/${RUN.agi}/weeks/w04`));
+    copy.blocks = copy.blocks.filter((block) => block.type !== "inTheSession");
+    world.db.seed(`courseGroups/${id["Group A"]}/weeks/w04`, { ...copy, groupId: id["Group A"], runId: RUN.agi });
+    const { card } = await cardsFor("claudia");
+    assert.equal(card("Group A").pairs, null);
+    assert.deepEqual(card("Group B").pairs, { href: `/learn/pairs/${B}?week=4`, label: "Pairs and laptops" });
+  });
+
+  test("a run with no week in pairs reads exactly as before", async () => {
+    const { drawn, board } = await cardsFor("claudia");
+    assert.deepEqual(board.cards.map((card) => card.pairs), [null, null, null]);
+    assert.ok(!drawn.html.includes("/learn/pairs/") && !/Pairs/.test(drawn.text));
+  });
+
+  test("the link takes the lead to the pairs page for that week; a group's own sessions page has none, its facilitators' card being on the group page", async () => {
+    weeksInPairs();
+    const page = await draw(PairsPage, "claudia", { groupId: B }, { week: "4" });
+    assert.equal(page.to, null, "the pairs page sent the lead away");
+    assert.match(page.text, /Week 4 · Pairs and laptops/);
+    assert.equal(page.wrote, false);
+    const own = await groupSessions("rahul");
+    const [board] = find(own.element, "SessionsBoard");
+    assert.ok(board, "no sessions on the group's own page");
+    assert.ok(board.props.cards.length > 0);
+    assert.ok(board.props.cards.every((card) => card.pairs === null), "a group's own sessions page offers the pairs link");
+  });
+
+  test("nobody else is shown the link: a reviewer and another lead are told the tab is not theirs, the rest never reach it", async () => {
+    weeksInPairs();
+    for (const who of ["lloyd", "tess"]) {
+      const drawn = await sessionsView(who);
+      assert.ok(!drawn.html.includes("/learn/pairs/"), `${who} was shown the way to a group's pairs`);
+    }
+    for (const who of ["yusuf", "rahul", "amara", "nobody", null]) {
+      assert.equal((await sessionsView(who)).to, "/dashboard", String(who));
+    }
   });
 });

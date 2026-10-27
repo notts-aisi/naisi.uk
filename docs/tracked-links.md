@@ -265,7 +265,8 @@ with the package's own decoder.
   written out. It sits under the root layout alone, so nothing but the sheet
   prints.
 - Who may draw which code is `codeForViewer` (`src/lib/qr/codeAccess.ts`):
-  admins any link; the people who run check-in an event's door code.
+  admins any link; the people who run check-in an event's door code, and an
+  event survey's code while that survey takes answers.
 
 ## Door codes
 
@@ -289,7 +290,12 @@ survey, filed under the campaign "Surveys", the same fields as every other
 link, its slug the door code's word with `-survey` ("VR games night" is
 `vr-survey`, then `vr-survey-2`). Admins draw it, download its PNG and show it
 full screen from the survey's Send tab, through the same image route as every
-code. One per event, never one per person, and never deleted.
+code. While the survey takes answers, the people who may draw the event's door
+code (admins and SU-recognised committee, `runsCheckIn`) show it too, from
+the event's own Survey after tab, with its PNG and full screen and nothing
+else of the survey's (`surveyCodeAtEvent` in `src/lib/surveys/events/code.ts`,
+which the image route asks as well). One per event, never one per person, and
+never deleted.
 
 ## Checking a deploy
 

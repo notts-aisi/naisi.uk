@@ -13,8 +13,9 @@
  *     wording before the board's, which an admin may have saved, still reads
  *     as it did (`SAVED`).
  *  3. A MISSING VALUE TAKES ITS OWN PIECE AND NOTHING ELSE: no room, one
- *     facilitator, no programme to sign it. Every combination of those comes
- *     back whole, word for word, with no token and no empty element.
+ *     facilitator, no programme to sign it (and then NAISI signs it). Every
+ *     combination of those comes back whole, word for word, with no token and
+ *     no empty element.
  *  4. AN ESSENTIAL VALUE MISSING REFUSES THE EMAIL, with the problem named,
  *     and the refusal reads as a sentence an admin can act on.
  *  5. NEVER A MEETING LINK: an online group is told the link is on its page,
@@ -25,6 +26,9 @@
  *     board's "Their names and week 1’s guide are on your group page." when
  *     Publish's plan says the page shows it, the names alone otherwise, and
  *     never in a proof, whose samples are no course.
+ *  8. NAISI SIGNS IT WHEN NO LEAD STANDS, as the group email does, with the
+ *     group email's own sign-off (Zach, Mon 26 Oct 2026). With a lead the
+ *     email is as it was.
  *
  * The composer is the placement email's own (`composeWholeEmail`), so the
  * hostile-wording and long-input checks in tests/email-unfilled-tokens.test.mjs
@@ -32,13 +36,16 @@
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createLoader } from "./lib/tsLoader.mjs";
 
 const { loadTs } = createLoader({ stubs: new Map([["server-only", "export {};"]]) });
 const email = await loadTs(join("lib", "courses", "facilitatingEmail.ts"));
 const seeds = await loadTs(join("lib", "firestore", "courseEmails.ts"));
 const words = await loadTs(join("lib", "courses", "publishWords.ts"));
+const placement = await loadTs(join("lib", "courses", "placementEmail.ts"));
 
 const SEED = seeds.courseTemplateDefaults["course-facilitating"];
 const TOKEN = /\{([a-zA-Z][a-zA-Z0-9_]*)\}/g;
@@ -138,6 +145,8 @@ describe("1. each token has its rule", () => {
       coFacilitators: "optional",
       leadName: "optional",
       programmeName: "optional",
+      // NAISI's sign-off when no lead stands, as the group email's (Mon 26 Oct 2026).
+      naisiSignOff: "optional",
       // The board's, since October 2026.
       namesOnPage: "always",
       place: "inline",
@@ -146,7 +155,7 @@ describe("1. each token has its rule", () => {
     });
     const used = tokensIn(`${SEED.subject}\n${printed(SEED.blocks)}`);
     assert.deepEqual(used.filter((token) => !(token in email.FACILITATING_TOKEN_RULES)), []);
-    for (const token of [...ESSENTIAL, "leadName", "programmeName", "firstName", ...BOARD]) {
+    for (const token of [...ESSENTIAL, "leadName", "programmeName", "naisiSignOff", "firstName", ...BOARD]) {
       assert.ok(used.includes(token), `the seed no longer says {${token}}`);
     }
     // The wording before the board's is still the email's to fill, every token of it.
@@ -154,7 +163,7 @@ describe("1. each token has its rule", () => {
     assert.deepEqual(saved.filter((token) => !(token in email.FACILITATING_TOKEN_RULES)), []);
     for (const token of [...ESSENTIAL, ...OPTIONAL, "firstName"]) assert.ok(saved.includes(token), `the saved wording no longer says {${token}}`);
     // No optional value may sit in the subject, where it could not be left out.
-    for (const token of OPTIONAL) assert.ok(!SEED.subject.includes(`{${token}}`) && !SAVED.subject.includes(`{${token}}`), token);
+    for (const token of [...OPTIONAL, "naisiSignOff"]) assert.ok(!SEED.subject.includes(`{${token}}`) && !SAVED.subject.includes(`{${token}}`), token);
   });
 
   test("it is a course email an admin can edit, named as the designer names it", () => {
@@ -188,6 +197,16 @@ describe("3. a missing value takes its own piece and nothing else", () => {
     leadName: " Claudia AGI Strategy lead, NAISI",
     programmeName: " Claudia AGI Strategy lead, NAISI",
   };
+  /**
+   * The board's email less what each missing value takes, word for word. With
+   * no lead to sign it NAISI signs it in the lead's place, as the group email
+   * is signed (Mon 26 Oct 2026; until then it was signed by nobody, and the
+   * lead's sign-off simply went).
+   */
+  const expectedWithout = (absent) => {
+    const text = [...new Set(absent.map((token) => GONE[token]))].reduce((said, gone) => said.replace(gone, ""), FULL);
+    return absent.includes("leadName") ? `${text} NAISI` : text;
+  };
   const cases = [
     ["somebody facilitating alone", ["coFacilitators"]],
     ["a group with no room yet", ["where"]],
@@ -198,11 +217,14 @@ describe("3. a missing value takes its own piece and nothing else", () => {
     test(label, () => {
       const written = email.composeFacilitatingEmail(SEED, without(FACTS, absent));
       assert.equal(written.ok, true, JSON.stringify(written));
-      assert.equal(read(written), FULL.replace(GONE[absent[0]], ""));
+      assert.equal(read(written), expectedWithout(absent));
     });
   }
 
   // The wording before the board's, as it always did: each in a paragraph of its own.
+  // It has no {naisiSignOff}, so nothing is written in a missing lead's place
+  // until an admin adds it (docs/courses-ops.md says so): the composer never
+  // writes a paragraph the wording does not have.
   const savedCases = [
     ["saved wording, somebody facilitating alone", ["coFacilitators"], " You’re facilitating with Sofia."],
     ["saved wording, a group with no room yet", ["where"], " Where: Hallward B12"],
@@ -224,9 +246,8 @@ describe("3. a missing value takes its own piece and nothing else", () => {
       const all = `${written.subject}\n${printed(written.blocks)}`;
       assert.deepEqual(tokensIn(all), [], absent.join(", "));
       assert.doesNotMatch(all, EMPTY_SHELL, absent.join(", "));
-      // Exactly the board's email less what each missing value takes.
-      const expected = [...new Set(absent.map((token) => GONE[token]))].reduce((text, gone) => text.replace(gone, ""), FULL);
-      assert.equal(read(written), expected, absent.join(", "));
+      // Exactly the board's email less what each missing value takes, NAISI signing where no lead stands.
+      assert.equal(read(written), expectedWithout(absent), absent.join(", "));
       // And the saved wording keeps every sentence that is not about a missing value.
       const saved = email.composeFacilitatingEmail(SAVED, without(FACTS, absent));
       for (const kept of ["Group B meets on Tuesdays at 6pm, from Tue 3 Nov to Tue 8 Dec.", "There are 8 people in the group.", "Take the register on your phone during the session."]) {
@@ -447,5 +468,74 @@ describe("7. week 1's guide, promised only when the group page shows it", () => 
     const proof = read(email.composeFacilitatingEmail(SEED, facts, { proof: true }));
     assert.ok(proof.includes("There are 8 people in the group. Their names are on your group page."), proof);
     assert.doesNotMatch(proof, /week 1’s guide/);
+  });
+});
+
+describe("8. NAISI signs it when no lead stands, as the group email does", () => {
+  /** The last paragraph of an email's body, as written. */
+  const lastParagraph = (blocks) => {
+    const html = printed(blocks);
+    return html.slice(html.lastIndexOf("<p>"));
+  };
+  /** The group email, as Publish writes it for a programme with no lead. */
+  const groupEmail = placement.composePlacementEmail(
+    seeds.courseTemplateDefaults["course-allocated"],
+    placement.placementFactsFromSample({
+      firstName: "Amara",
+      groupName: "Group B",
+      weeklySlot: "Tuesdays at 6pm",
+      firstSession: "Tue 3 Nov",
+      firstSessionWhen: "Tue 3 Nov, 6pm",
+      firstSessionDay: "Tuesday",
+      programmeUrl: "https://naisi.invalid/learn/run-1",
+      programmeName: "AGI Strategy",
+    }),
+  );
+
+  test("with a lead the email is as it was, signed by the lead alone", () => {
+    const written = email.composeFacilitatingEmail(SEED, FACTS);
+    assert.equal(read(written), FULL);
+    assert.equal(lastParagraph(written.blocks), '<p>Claudia<br /><span style="color:#71717a">AGI Strategy lead, NAISI</span></p>');
+  });
+
+  test("with none it ends with the very sign-off the group email ends with", () => {
+    assert.equal(groupEmail.ok, true, JSON.stringify(groupEmail));
+    assert.equal(lastParagraph(groupEmail.blocks), "<p>NAISI</p>");
+    for (const absent of [["leadName"], ["leadName", "programmeName"]]) {
+      const written = email.composeFacilitatingEmail(SEED, without(FACTS, absent));
+      assert.equal(written.ok, true, absent.join(", "));
+      assert.equal(lastParagraph(written.blocks), lastParagraph(groupEmail.blocks), absent.join(", "));
+      assert.ok(read(written).endsWith("Take the register on your phone during the session. NAISI"), read(written));
+      assert.doesNotMatch(read(written), /lead, NAISI/);
+    }
+    // A blank name is no lead.
+    for (const blank of ["", "   "]) {
+      assert.equal(lastParagraph(email.composeFacilitatingEmail(SEED, { ...FACTS, leadName: blank }).blocks), "<p>NAISI</p>", JSON.stringify(blank));
+    }
+  });
+
+  test("a proof signs as a send would: the sample lead, or NAISI with none", () => {
+    const sample = {
+      firstName: "Alex",
+      groupName: "Group B",
+      weeklySlot: "Tuesdays at 6pm",
+      firstSession: "Tue 7 Oct",
+      lastSession: "Tue 11 Nov",
+      groupSize: "8",
+      groupUrl: "https://naisi.invalid/g",
+      programmeName: "AI Safety Fundamentals",
+    };
+    const proof = (over) => email.composeFacilitatingEmail(SEED, email.facilitatingFactsFromSample({ ...sample, ...over }), { proof: true });
+    assert.ok(read(proof({ leadName: "Jordan" })).endsWith("Jordan AI Safety Fundamentals lead, NAISI"));
+    assert.ok(read(proof({})).endsWith("Take the register on your phone during the session. NAISI"));
+  });
+
+  test("one sign-off, the group email's own constant, and no second NAISI written in this email's code", () => {
+    assert.equal(placement.NAISI_SIGN_OFF, "NAISI");
+    const source = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "src", "lib", "courses", "facilitatingEmail.ts"), "utf8");
+    const code = source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+    assert.match(code, /import \{\s*NAISI_SIGN_OFF,[\s\S]*?\} from "@\/lib\/courses\/placementEmail";/);
+    assert.match(code, /naisiSignOff: lead \? null : typed\(NAISI_SIGN_OFF\),/);
+    assert.doesNotMatch(code, /["'`]NAISI["'`]/, "a sign-off of this email's own");
   });
 });
