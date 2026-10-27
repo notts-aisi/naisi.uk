@@ -1210,6 +1210,13 @@ const USERS = new Map([
     "it runs the account cascade and the form's destroy end to end over survey records, so its graph is both " +
       "cascades, the member-record sweep and the survey modules; what is under test is what each leaves behind",
   ],
+  [
+    "surveys-lead-tab.test.mjs",
+    "it draws the programme's tab bar (a .tsx client component) to HTML on a loader of its own, because which tab is " +
+      "open comes from Next's `useSelectedLayoutSegment`, which the leaving world's navigation does not answer, and " +
+      "whether the lead is handed a Surveys link is only real when the bar is drawn. `next/navigation`, `next/link` and " +
+      "the bar's stylesheet are stubbed",
+  ],
 ]);
 
 /**

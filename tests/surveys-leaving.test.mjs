@@ -667,9 +667,23 @@ describe("7. results: for admins, and for the programme's lead, never a name", (
     }
   });
 
-  test("the lead reads the leaving survey alone: another survey of the programme is answered in a sentence", async () => {
+  // CHANGED ON PURPOSE (finding L2; Q41, Q49 A): the lead reads every survey
+  // of the programme (`LEAD_READS`), not the leaving survey alone, as the box
+  // at the top of each tells the people answering it. The test that pinned
+  // "another survey of the programme is answered in a sentence" now pins the
+  // programme's before survey read under the programme, never a name, and the
+  // sentence kept for a survey that is no programme's: a survey after an event.
+  // tests/surveys-lead-tab.test.mjs drives the rest.
+  test("the lead reads every survey of the programme; a survey after an event, which is no programme's, is answered in a sentence", async () => {
     const before = await call("zach", routes.create.POST, {}, { body: { roundId: ROUND, programmeId: AGI, stage: "before", closesOn: "2026-11-30" } });
+    assert.equal(before.status, 200, JSON.stringify(before.body));
     const page = await leadPage("claudia", before.body.survey.id);
-    assert.ok(page.text.includes(lib.words.LEAD_RESULTS_WORDS.notHere), page.text);
+    assert.equal(page.to, null);
+    assert.ok(!page.text.includes(lib.words.LEAD_RESULTS_WORDS.notHere), page.text);
+    assert.ok(page.text.startsWith(`AGI Strategy: before ${lib.words.LEAD_RESULTS_WORDS.line} No answers yet.`), page.text);
+    const event = await call("zach", routes.create.POST, {}, { body: { template: "event", eventId: "pizza", audience: "came", closesOn: "2026-11-26" } });
+    assert.equal(event.status, 200, JSON.stringify(event.body));
+    const night = await leadPage("claudia", event.body.survey.id);
+    assert.equal(night.text, lib.words.LEAD_RESULTS_WORDS.notHere);
   });
 });

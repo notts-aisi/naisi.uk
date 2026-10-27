@@ -39,11 +39,17 @@ import styles from "./ProgrammeFrame.module.css";
  * Attendance, is a link on the same terms, where the run's weeks are written
  * and marked ready. Its count is how many weeks the run's plan has, given
  * only to the two who open it.
+ *
+ * Surveys (board sv-programme), between Messages and Settings, is a link on
+ * the same terms: the programme's surveys in totals and comments, never a
+ * name, with Ratings and the anonymous form's answers linked from it. It is
+ * drawn like the tabs not built yet for a reviewer, and its page refuses
+ * anybody else on its own.
  */
 
 type Tab = {
   /** The route segment under the programme, for the tabs that have a page. */
-  segment: "overview" | "applications" | "people" | "groups" | "teams" | "weeks" | "attendance" | "messages" | "setup" | null;
+  segment: "overview" | "applications" | "people" | "groups" | "teams" | "weeks" | "attendance" | "messages" | "surveys" | "setup" | null;
   label: string;
   count?: number | null;
 };
@@ -67,7 +73,7 @@ export default function ProgrammeTabs({
   groups: number | null;
   /** True for the programme's lead and for an admin. */
   canEdit: boolean;
-  /** True for an admin and the programme's lead: Overview, Groups, Teams, Attendance and Messages are links. */
+  /** True for an admin and the programme's lead: Overview, Groups, Teams, Attendance, Messages and Surveys are links. */
   groupsOpen: boolean;
   /** An incubator's Teams tab, with how many teams its run has; null for a fellowship. */
   teams?: { count: number | null } | null;
@@ -85,6 +91,7 @@ export default function ProgrammeTabs({
     { segment: groupsOpen ? "weeks" : null, label: "Weeks", count: groupsOpen ? weeks : null },
     { segment: groupsOpen ? "attendance" : null, label: "Attendance" },
     { segment: groupsOpen ? "messages" : null, label: "Messages" },
+    { segment: groupsOpen ? "surveys" : null, label: "Surveys" },
   ];
   if (canEdit) tabs.push({ segment: "setup", label: "Settings" });
 

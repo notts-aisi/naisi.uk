@@ -1479,11 +1479,17 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys": {
+    reason:
+      "Surveys: a programme's Surveys tab for its lead and admins (board sv-programme); tests/surveys-lead-tab.test.mjs renders it for an admin, the lead, another programme's lead, a reviewer, a track lead, a facilitator, a member and somebody signed out, finds no name, and holds each number to its own page's; the stage four journey draws it after the end.",
+    coverWhen:
+      "When the end-to-end fixtures seed a programme whose before survey and survey at the end have answers, so a spec can open the tab from the programme's head and follow its links.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]": {
     reason:
-      "Surveys: a leaving survey's results for its programme's lead and admins; tests/surveys-leaving.test.mjs renders it for the lead, an admin, another programme's lead, a reviewer, a facilitator, a member and somebody signed out, and finds no name.",
+      "Surveys: one programme survey's results for its lead and admins; tests/surveys-leaving.test.mjs and tests/surveys-lead-tab.test.mjs render it for the lead, an admin, another programme's lead, a reviewer, a facilitator, a member and somebody signed out, and find no name.",
     coverWhen:
-      "When the lead's Surveys tab links it, so a spec can follow the tab from the programme's head.",
+      "When the end-to-end fixtures seed a programme whose surveys have answers, so a spec can follow the Surveys tab's links from the programme's head.",
   },
   "/api/surveys/[surveyId]/open": {
     reason:

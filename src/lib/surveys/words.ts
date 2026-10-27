@@ -985,6 +985,135 @@ export const LEAD_RESULTS_WORDS = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// The lead's Surveys tab (sv-programme, Q41, Q49 A)
+// ---------------------------------------------------------------------------
+
+/**
+ * The words of a programme lead's Surveys tab: the board's where it draws
+ * them. Where the records hold something other than what the board drew (the
+ * questionnaire replaced the board's questions, and Q41 and Q49 took away
+ * the floors and the wait for a survey to close), the words are in the
+ * board's voice, listed in the build notes for the boards' designers to
+ * confirm.
+ */
+export const LEAD_TAB_WORDS = {
+  changed: "What changed",
+  seeBeforeAndAfter: "See before and after",
+  noneBoth: "Nobody has answered both the before and the after yet.",
+  careerPlans: "Career plans",
+  considering: "Considering, planning or already doing it",
+  confidence: "Confidence and knowledge",
+  /** C4, in public numbers' words for it. */
+  explaining: "Explaining the case that advanced AI could be catastrophic, and the main objections",
+  beliefs: "Beliefs about AI",
+  beliefsTitle: "What people think about AI",
+  seeBeliefs: "See them at the start and the end",
+  surveys: "This programme’s surveys",
+  surveysLine: "Results show as answers come in, never with a name.",
+  nothingSent: "No survey has gone out for this programme yet.",
+  seeResults: "See results",
+  ratingsTitle: "Ratings",
+  ratingsLine: "What each group’s facilitators said about their fellows, and your own ratings of the facilitators.",
+  seeRatings: "See ratings",
+  anonymousTitle: "What to keep, change and drop",
+  anonymousLine: "Answers to the anonymous form the survey at the end links to.",
+  seeAnswers: "See answers",
+  howItWent: "How it went",
+  weeks: "The weeks",
+  outOf5: "Out of 5",
+  sources: "Sources people rated",
+  sourcesLine: "From the ratings on each week’s page: totals, never a name, out of 5. A source shows once 3 people have rated it.",
+  highest: "Rated highest",
+  lowest: "Rated lowest",
+  facilitators: "Your facilitators",
+  onlyYou: "Only you and admins",
+  facilitatorsNote: "Your facilitators don’t see this. Pass on the gist in your own words, never fellows’ words or the numbers.",
+  inTheirWords: "In their words",
+  noComments: "Nobody has written anything here yet.",
+  refusalTitle: "Only the programme’s lead and admins can open Surveys",
+  refusalBody: "Surveys shows the totals and comments of the programme’s surveys, so only the programme’s lead or an admin can open it.",
+  refusalAction: "Go to applications",
+} as const;
+
+/** "25 answered both the before and the after. Only they are compared." */
+export function answeredBothWords(n: number): string {
+  return `${n} answered both the before and the after. Only they are compared.`;
+}
+
+/** "12 moved up a stage, 11 stayed, 2 moved down." */
+export function stagesMovedWords(up: number, same: number, down: number): string {
+  return `${up} moved up a stage, ${same} stayed, ${down} moved down.`;
+}
+
+/** "22 of 25 moved up." */
+export function ofMovedUpWords(up: number, of: number): string {
+  return `${up} of ${of} moved up.`;
+}
+
+/** "Beliefs are reported, never targets: the fellowship doesn’t aim to move them one way." */
+export function beliefsLineWords(kind: SurveyProgrammeKind): string {
+  return `Beliefs are reported, never targets: the ${kind} doesn’t aim to move them one way.`;
+}
+
+/** "29 of 32 answered · closed Wed 4 Nov", "3 of 8 answered · closes Wed 4 Nov", "1 of 1 answered · no closing date". */
+export function leadSurveyLineWords(answers: number, of: number, closes: Date | null, closed: boolean): string {
+  const when = closes ? `${closed ? "closed" : "closes"} ${dayWords(closes)}` : "no closing date";
+  return `${answers} of ${of} answered · ${when}`;
+}
+
+/** "27 answers", the count beside a section's heading. */
+export function answersCountWords(n: number): string {
+  return `${n} ${n === 1 ? "answer" : "answers"}`;
+}
+
+/** "4.4", one decimal, always. */
+export function oneDecimalWords(value: number): string {
+  return (Math.round(value * 10) / 10).toFixed(1);
+}
+
+/** "Average, out of 5 · 27 answers". */
+export function averageOutOfWords(max: number, answers: number): string {
+  return `Average, out of ${max} · ${answersCountWords(answers)}`;
+}
+
+/** "Averages, from 1 Not valuable to 5 Very valuable." */
+export function averagesFromWords(min: number, minLabel: string, max: number, maxLabel: string): string {
+  return `Averages, from ${min}${minLabel ? ` ${minLabel}` : ""} to ${max}${maxLabel ? ` ${maxLabel}` : ""}.`;
+}
+
+/** "Net promoter score +40, from 25 answers: the share at 9 or 10 less the share at 0 to 6." */
+export function promoterScoreWords(score: number, answers: number): string {
+  return `Net promoter score ${score > 0 ? `+${score}` : score}, from ${answers} answers: the share at 9 or 10 less the share at 0 to 6.`;
+}
+
+/**
+ * The caption under the facilitator line: its scale, the question it is a
+ * line of, and that it is every group's answers together. "Average out of 5,
+ * from 1 Not valuable to 5 Very valuable, of “How valuable was each part?” in
+ * the survey at the end. Every group’s answers together, not each
+ * facilitator’s."
+ */
+export function facilitatorLineWords(question: string, max: number, minLabel: string, maxLabel: string): string {
+  const scale = `from 1${minLabel ? ` ${minLabel}` : ""} to ${max}${maxLabel ? ` ${maxLabel}` : ""}`;
+  return `Average out of ${max}, ${scale}, of “${question}” in the survey at the end. Every group’s answers together, not each facilitator’s.`;
+}
+
+/** "24 ratings". */
+export function ratingsCountWords(n: number): string {
+  return `${n} ${n === 1 ? "rating" : "ratings"}`;
+}
+
+/** "5 of 18", the comments shown of a question's. */
+export function shownOfWords(shown: number, total: number): string {
+  return `${shown} of ${total}`;
+}
+
+/** "See all 18". */
+export function seeAllWords(total: number): string {
+  return `See all ${total}`;
+}
+
+// ---------------------------------------------------------------------------
 // One person's answers, for admins (sv-person)
 // ---------------------------------------------------------------------------
 

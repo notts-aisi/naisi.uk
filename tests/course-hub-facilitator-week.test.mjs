@@ -630,6 +630,7 @@ const PROGRESS_ADDRESSERS = {
   "features/courses/useRunProgress.ts": ["own", "a person's own rows, in their browser, by their own uid"],
   "lib/courses/facilitatorWeek/readers.ts": ["staff", "who ticked each source by name, for a group's facilitators, the programme's lead and admins, and the private notes, for its facilitators and admins, after each page's gate"],
   "lib/courses/leftView.ts": ["own", "a person's own notes and ratings, on their own notes page"],
+  "lib/courses/sourceRatings.ts": ["aggregate", "the sources people rated as totals, for a programme lead's Surveys tab: the retrospective's projection, with no uid, and its count"],
   "lib/firestore/accountDeletion.ts": ["deletion", "deleting an account deletes its rows"],
   "lib/firestore/courseDeletion.ts": ["deletion", "destroying a run counts and deletes its rows"],
 };
