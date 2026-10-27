@@ -120,6 +120,13 @@ const READERS = {
     asks: 1,
     why: "week 1's door before groups go out (Q35 B): the caller's own seat only, never shown. A seat Publish has told them about is the run gate's, a seat that has left shuts the door, and an untold seat opens week 1 alone, by the place on the form, with nothing of its group",
   },
+  "lib/courses/getReady/remind.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "Remind on the Overview's card of who has not said when they are free: each person's own seat, by its id, " +
+      "never shown. A seat Publish has told is left out, because its week is the group's now",
+  },
   "lib/courses/updates/audience.ts": {
     kind: "told",
     asks: 1,

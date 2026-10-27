@@ -764,6 +764,16 @@ export const ROUTES = {
         "programme's lead and admins email a group's facilitators.",
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/when-free/remind": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Remind on the Overview's card of who has not said when they are free: the body (how many " +
+        "the button said it emails) is checked before anything is read, so every signed-in persona " +
+        "meets the same 400 on an empty body. Then the role from the form, as the Overview's own " +
+        "gate: only the programme's lead and admins remind anybody.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing": {
     PUT: {
       expect: signedIn(400),
@@ -1642,6 +1652,15 @@ export const ROUTES = {
         "and its own membership decides. The battery's id addresses nothing, so every signed-in " +
         "persona is told that the document is missing. Track leads are per run, so the run is " +
         "read first.",
+    },
+  },
+  "/api/courses/runs/[runId]/allocation/publish/preview": {
+    GET: {
+      expect: signedIn(404),
+      why:
+        "Publish's two emails, for Publish's own page: session required, then the run is read and " +
+        "Publish's own gate decides. The battery's id addresses nothing, so every signed-in persona " +
+        "is told the run is missing. It writes nothing.",
     },
   },
   "/api/courses/runs/[runId]/applications": {
@@ -3253,6 +3272,13 @@ export const PAGES = {
       "The admissions tree's gate, then the programme layout's and the page's own: the Times view is the programme's " +
       "lead's and an admin's, so a reviewer on the form is told so once the form's settings are read, and a programme " +
       "the caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: Publish's own page is the " +
+      "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme the caller " +
+      "has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/facilitators": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),

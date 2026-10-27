@@ -541,6 +541,12 @@ const REGISTRY = {
   "src/lib/courses/facilitatorAsks/act.ts#sendEmail": T(
     "Asking somebody to facilitate: the answer to their own application, where they said they would like to (\"Would you facilitate a group on AGI Strategy?\"), one message to the one person an ask or a reminder names, and a rehearsal of one to the address on the session of whoever asks. One call, in the one helper every one of them goes through.",
   ),
+  "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/when-free/remind/route.ts#sendFreeReminders": T(
+    "Remind on a programme's Overview, pressed by its lead or an admin: the reminders below, one to each person the card names whose week is still theirs to add, each about their own place. One call, which loops over them.",
+  ),
+  "src/lib/courses/getReady/remind.ts#sendEmail": T(
+    "Remind on a programme's Overview before its groups have met: one email to each person holding a place who sent the form with no week painted, about their own place (\"Tell us when you’re free for AGI Strategy\"), while that is still theirs to add, pressed by the programme's lead or an admin. Once a person a day, by a marker.",
+  ),
   "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask/test/route.ts#sendAskTest": T(
     "\"Send a test to me\" before asking somebody to facilitate: the real email one person would get, marked as a test, to the address on the caller's own session and nobody else.",
   ),

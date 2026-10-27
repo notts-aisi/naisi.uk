@@ -295,6 +295,10 @@ const MUST_GUARD = [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/registers/remind/route.ts",
     "emails a group's facilitators a reminder about an unfinished register in the caller's name, and claims the reminder job's own marker for each so that the job sends them none",
   ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/when-free/remind/route.ts",
+    "emails the people holding a place who have not said when they are free in the caller's name, and claims a marker for each for the day",
+  ],
   // The application form's lifecycle. Opening a form lets real applicants
   // reach it, and settling writes every applicant's member record in the
   // caller's name. An admin viewing as somebody else must not do either.

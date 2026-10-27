@@ -46,6 +46,11 @@ type Props = {
   result: string[];
   onTest: () => void;
   onPublish: () => void;
+  /**
+   * A sentence under the line of who a press reaches: what happens after
+   * Publish, on Publish's own page. The run's allocation board passes none.
+   */
+  note?: string;
 };
 
 /** "Tue 27 Oct at 5:38pm", in London, as the course pages write a moment. */
@@ -78,6 +83,7 @@ export default function AllocationPublish({
   result,
   onTest,
   onPublish,
+  note,
 }: Props) {
   const sends = summary.emails > 0;
   const fresh = summary.test.state === "fresh";
@@ -89,6 +95,7 @@ export default function AllocationPublish({
         <h3 id="allocation-publish-title" className={styles.title}>
           {publishAudienceLine(summary.people, summary.facilitators)}
         </h3>
+        {note && !summary.adminOnly ? <p className={styles.line}>{note}</p> : null}
 
         {summary.adminOnly ? (
           <p className={styles.line}>{PUBLISH_ADMIN_ONLY}</p>

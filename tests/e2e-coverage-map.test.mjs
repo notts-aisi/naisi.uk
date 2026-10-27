@@ -752,6 +752,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the groups-go-out spec changes a group's time on the Times view before it presses Publish.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/when-free/remind": {
+    reason:
+      "Course hub: Remind on the Overview's card of who has not said when they are free; tests/course-hub-get-ready.test.mjs executes it as every kind of caller, with the count it must match, once a person a day, and a failed send given back.",
+    coverWhen:
+      "When the end-to-end fixtures can seed a fellowship whose people sent the form with no week painted, with its lead signed in and the suite's mail catcher reading the reminder.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups-go-out": {
     reason:
       "Course hub: the day groups go out, set on a programme's Groups tab above its sessions. tests/course-hub-groups-go-out-day.test.mjs executes it as every kind of caller and draws the card and the programme's head.",
@@ -1081,6 +1087,12 @@ const NOT_COVERED = {
       "Learn hub: /api/courses/runs/[runId]/exercises/[exerciseId]/submit belongs to the curriculum surface being rebuilt in October.",
     coverWhen:
       "When the October curriculum rebuild lands, because a spec written against today's shape would be thrown away with it.",
+  },
+  "/api/courses/runs/[runId]/allocation/publish/preview": {
+    reason:
+      "Course hub: the read behind Publish's own page's two emails; tests/course-hub-get-ready.test.mjs executes it as every kind of caller and holds each email it shows to be, byte for byte, the one the press then sends.",
+    coverWhen:
+      "With the spec above for Publish's own page, which opens it.",
   },
   "/api/courses/runs/[runId]/facilitators/asking": {
     reason:
@@ -1802,6 +1814,12 @@ const NOT_COVERED = {
       "Course hub: the Groups tab's People in groups view is the run's own allocation board, drawn as st-groups draws it for the programme's lead and admins; its every caller, its words in every state and its one count are executed by tests/course-hub-people-in-groups.test.mjs and tests/course-hub-lead-pages.test.mjs, the board's routes by tests/course-hub-lead-routes.test.mjs and tests/applications-handover-board.test.mjs, and it was checked by hand at 1440 and 390.",
     coverWhen:
       "When the end-to-end fixtures can seed a programme that names a run with groups, with its lead signed in.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
+    reason:
+      "Course hub: Publish's own page (st-publish), its readiness check, the two emails and Publish's own buttons, for a programme's lead and admins; its every caller, what it blocks and what it only warns, each against a real press, are executed by tests/course-hub-get-ready.test.mjs, and it was checked by hand at 1440 and 390.",
+    coverWhen:
+      "When the groups-go-out spec presses Publish from the programme's own Groups tab rather than the run editor's board.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks": {
     reason:

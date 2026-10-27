@@ -244,6 +244,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/courses/getReady/read.ts",
+    {
+      why: "Get ready for week 1 and Publish's readiness check read a form's programmes by the programme id of the page they were reached by, which loadProgrammeRun has found on that form, to take its places, kind and short name",
+    },
+  ],
+  [
     "src/lib/courses/weekOne/",
     {
       why: "week 1's door before groups go out and the cards it words: each reads a form's programmes by an id on that form's own programmeIds (the door the one namingProgrammeIn found, the cards each one in turn), to take the programme's kind, short name, course and run",

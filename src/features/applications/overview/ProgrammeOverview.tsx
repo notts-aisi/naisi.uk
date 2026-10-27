@@ -3,9 +3,11 @@ import InitialsChip from "@/components/ui/InitialsChip";
 import type { CertificatesSectionModel } from "@/lib/courses/certificates/send";
 import type { WhoFinishedModel } from "@/lib/courses/finishing/whoFinished";
 import { SET_THE_RULE } from "@/lib/courses/finishing/words";
+import type { GetReadyModel } from "@/lib/courses/getReady/model";
 import type { OverviewAttention, OverviewModel, OverviewSession } from "@/lib/courses/programmeOverview";
 import type { OverviewUpdate } from "@/lib/courses/updates/views";
 import CertificatesSection from "./CertificatesSection";
+import GetReady from "./GetReady";
 import OverviewMarkReady from "./OverviewMarkReady";
 import RemindButton from "./RemindButton";
 import WhoFinished from "./WhoFinished";
@@ -27,6 +29,10 @@ import styles from "./ProgrammeOverview.module.css";
  * People card says when it can be done. Both from `loadWhoFinished`.
  * CERTIFICATES follows it (`loadCertificatesSection`): who they go to, a
  * preview, the email, its test and the send.
+ *
+ * BEFORE ANY GROUP HAS MET the page draws "Get ready for week 1" in place of
+ * all of this (`GetReady`, boards st-overview and st-overview-phone), from
+ * `getReady`, which the server hands over only then.
  */
 
 function Arrow() {
@@ -137,6 +143,7 @@ export default function ProgrammeOverview({
   programmePath,
   finishing = null,
   certificates = null,
+  getReady = null,
 }: {
   model: OverviewModel;
   /** The newest updates on the run, worded on the server (`overviewUpdateRows`). */
@@ -149,7 +156,20 @@ export default function ProgrammeOverview({
   finishing?: WhoFinishedModel | null;
   /** The Certificates section, once the run is over (`loadCertificatesSection`). */
   certificates?: CertificatesSectionModel | null;
+  /** "Get ready for week 1", before any group has met (`buildGetReady`); null once one has. */
+  getReady?: { model: GetReadyModel; courseId: string; runId: string } | null;
 }) {
+  if (getReady) {
+    return (
+      <GetReady
+        model={getReady.model}
+        roundId={roundId}
+        programmeId={programmeId}
+        courseId={getReady.courseId}
+        runId={getReady.runId}
+      />
+    );
+  }
   const { week, sessions, attention, chart, people } = model;
   return (
     <div className={styles.page}>

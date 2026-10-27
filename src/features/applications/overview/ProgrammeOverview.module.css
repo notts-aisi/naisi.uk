@@ -1428,4 +1428,544 @@
   .ctButton {
     white-space: normal;
   }
+
+  /* Get ready for week 1. */
+  .readyCard,
+  .readyChecklist {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .readyStepActionNoted {
+    max-width: none;
+  }
+}
+
+
+/* ══ Before any group has met: "Get ready for week 1" (boards st-overview and
+   st-overview-phone) ════════════════════════════════════════════════════
+   The checklist and who has not said when they are free on the left, the
+   places and the facilitators on the right, one column on a phone in the
+   same order. Every class here starts "ready" and is drawn by GetReady.tsx
+   and RemindFree.tsx alone. */
+
+.readyPage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 24px;
+  min-width: 0;
+}
+
+.readyMain {
+  display: flex;
+  flex: 3 1 540px;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+.readySide {
+  display: flex;
+  flex: 2 1 340px;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+.readyCard,
+.readyChecklist {
+  min-width: 0;
+  padding: 22px 24px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-sizing: border-box;
+}
+
+.readyChecklist {
+  padding: 24px 24px 10px;
+}
+
+.readyCardTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.readyLede {
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.readyCardText {
+  margin: 10px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.readyArrow {
+  display: block;
+  flex: none;
+}
+
+/* ── The steps ─────────────────────────────────────────────────────────── */
+
+.readySteps {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.readyStep {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.readyMark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-top: 1px;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.readyMark_done {
+  border: 1.5px solid var(--color-ok-line);
+  background: var(--color-success-soft);
+  color: var(--color-ok);
+}
+
+.readyMark_doing {
+  border: 1.5px solid var(--color-warning-line);
+  background: var(--color-warning-soft);
+}
+
+.readyMark_todo {
+  border: 1.5px solid var(--color-border-strong);
+  background: transparent;
+}
+
+.readyMarkDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-warning);
+}
+
+.readyStepBody {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  min-width: 0;
+}
+
+.readyStepText {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.readyStepTitle {
+  margin: 0;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-text);
+}
+
+.readyStepLine {
+  margin: 3px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.readyStepAction {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.readyStepActionNoted {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 230px;
+  min-width: 0;
+}
+
+.readyStepNote {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.readyTextLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--color-accent-text);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.readyTextLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.readyButtonLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.readyButtonLink:hover {
+  background: var(--color-surface-hover);
+}
+
+.readyTextLink:focus-visible,
+.readyButtonLink:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+/* ── Places ────────────────────────────────────────────────────────────── */
+
+.readyHeld {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.readyBigNumber {
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.readyHeldWords {
+  font-size: 16px;
+  color: var(--color-text-muted);
+}
+
+.readyBar {
+  height: 6px;
+  margin: 14px 0 6px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-hover);
+}
+
+.readyBarFill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+}
+
+.readyTallies {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.readyTally {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.readyTallyDot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.readyTallyDotOk {
+  background: var(--color-ok);
+}
+
+.readyTallyDotRing {
+  border: 1.5px solid var(--color-text-muted);
+}
+
+.readyTallyDotWarn {
+  background: var(--color-warning);
+}
+
+.readyTallyLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 15px;
+  color: var(--color-text);
+}
+
+.readyTallyNumber {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.readyGaveBack {
+  margin: 0 0 0 21px;
+  padding: 0 0 6px;
+  list-style: none;
+}
+
+.readyPerson {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+}
+
+.readyPersonText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.readyPersonName {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-text);
+}
+
+.readyPersonLine {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.readyFreed {
+  padding: 16px 18px 4px;
+  border: 1px solid var(--color-accent-line);
+  border-radius: var(--radius-row);
+  background: var(--color-accent-soft);
+}
+
+.readyFreedTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+.readyFreedText {
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text);
+}
+
+.readyWindowLine {
+  margin: 14px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+/* ── Facilitators ──────────────────────────────────────────────────────── */
+
+.readyFacilitators {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.readyFacilitator {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+}
+
+.readyFacilitatorText {
+  display: flex;
+  flex: 1 1 140px;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.readyFacilitatorName {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.readyFacilitatorGroup {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.readyChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.readyChipDot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.readyChipYes {
+  border-color: var(--color-ok-line);
+  background: var(--color-success-soft);
+  color: var(--color-ok);
+}
+
+.readyChipWaiting {
+  border-color: var(--color-warning-line);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.readyTraining {
+  margin: 6px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+/* ── Remind ────────────────────────────────────────────────────────────── */
+
+.readyRemind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 16px;
+}
+
+.readyRemindButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.readyRemindButton:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.readyRemindButton:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+.readyRemindButton:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.readyRemindCount {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.readyRemindResult {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.readyRemindedLine {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.readyRemindProblem {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-danger-text);
 }
