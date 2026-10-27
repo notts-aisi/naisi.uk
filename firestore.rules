@@ -3264,6 +3264,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === publicNumbers ===
+    // What a programme's public page shows of how its last term went, the
+    // "Last term" block (src/lib/publicNumbers/model.ts): the figures, words
+    // and bases an admin published, the ticked quotes' words, the term, and
+    // when and by whom. Written only by the publish route and deleted only by
+    // Take it down, both an admin's on the Admin SDK, and read only on the
+    // server: the public page through a fetcher that projects what the block
+    // draws. Every browser is refused, an admin's included.
+    match /publicNumbers/{recordId} {
+      allow read, write: if false;
+    }
+
     // === config ===
     // Server-only runtime config, written by the Admin SDK and read only by
     // routes: `config/taskEmails` (the task-email kill switch),

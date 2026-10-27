@@ -5,6 +5,7 @@ import {
   SURVEY_PEOPLE_COLLECTION,
   SURVEYS_COLLECTION,
   asksKairos,
+  asksQuotes,
   normalizeSurvey,
   normalizeSurveyPerson,
   programmeOf,
@@ -66,7 +67,9 @@ export async function recordAnswer(
   if (person.answered) return { ok: false, status: 409, error: REFUSAL.answered };
   if (!isOpen(survey, now)) return { ok: false, status: 409, error: REFUSAL.closed };
 
-  const read = readSurveyAnswers(survey.items, input.raw);
+  // A tick under a long answer is kept with it only where the form drew the
+  // box (`asksQuotes`): the survey about leaving draws none.
+  const read = readSurveyAnswers(survey.items, input.raw, { quotes: asksQuotes(survey) });
   if (read.problems.length > 0) return { ok: false, status: 400, error: read.problems[0].message };
   const said = readSurveyConsents(survey.items, input.consents);
   if (said.problem) return { ok: false, status: 400, error: said.problem };

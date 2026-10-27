@@ -266,6 +266,20 @@ export function asksKairos(survey: Pick<SurveyDoc, "audience">): boolean {
   return survey.audience.kind === "programme" || survey.audience.kind === "followUps";
 }
 
+/**
+ * Whether a survey's long answers each carry the box "You can quote this,
+ * without my name". Exactly the surveys whose confidential box says that
+ * comments ticked to be quoted may go in reports or on the site: a
+ * programme's before survey, the one at its end, its follow-ups, and a
+ * survey after an event. The survey about leaving says only that totals may
+ * go in reports, so its long answer has no box and none of its comments can
+ * ever be quoted. `tests/surveys-quote-tick.test.mjs` holds the box's words
+ * and this to the same answer for every kind.
+ */
+export function asksQuotes(survey: Pick<SurveyDoc, "kind">): boolean {
+  return survey.kind !== "leaving";
+}
+
 /** One person's row: one per survey per person, so a second send to them is no second row. */
 export function surveyPersonId(surveyId: string, respondent: SurveyRespondent): string {
   return `${surveyId}__${respondent.uid}`;

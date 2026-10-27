@@ -1479,6 +1479,18 @@ const NOT_COVERED = {
     coverWhen:
       "When the leaving spec (tests/e2e/course-hub-leaving.spec.mjs) makes and opens its programme's leaving survey before somebody leaves, and reads its card on the left page.",
   },
+  "/api/surveys/public-numbers": {
+    reason:
+      "Public numbers: Publish; tests/surveys-public-numbers.test.mjs drives it as an admin, the programme's lead, a reviewer, a facilitator, a member, signed out and in a view-as session, and reads back the record it keeps, which holds no person.",
+    coverWhen:
+      "When the end-to-end fixtures seed a programme whose survey at the end has answers, so a spec can publish its numbers and read them on the programme's public page.",
+  },
+  "/api/surveys/public-numbers/take-down": {
+    reason:
+      "Public numbers: Take it down; tests/surveys-public-numbers.test.mjs deletes a published record as an admin, refuses everybody else, and never takes down a record whose ids name another programme.",
+    coverWhen:
+      "When the end-to-end fixtures seed a programme whose survey at the end has answers, so a spec can publish its numbers and take them down again.",
+  },
   "/api/surveys/[surveyId]/export": {
     reason:
       "Surveys: the spreadsheet with names; tests/surveys-routes.test.mjs reads the file and the dataExports row written before it, and the refusal when the row cannot be written.",
@@ -1700,6 +1712,12 @@ const NOT_COVERED = {
       "Surveys: the Kairos report, fourteen measures in totals; tests/kairos-report.test.mjs counts each on a made-up programme and renders the page over a programme's three surveys, its register and its ratings.",
     coverWhen:
       "When the end-to-end fixtures seed a run whose last session is over, so a spec can open the file and the report.",
+  },
+  "/(app)/admin/(admin-only)/surveys/public-numbers": {
+    reason:
+      "Public numbers: the admins' page; tests/surveys-public-numbers.test.mjs renders it before and after publishing, with the offer, the ticked quotes, the boxes of what is published ticked and both previews, and finds no name.",
+    coverWhen:
+      "When the end-to-end fixtures seed a programme whose survey at the end has answers, so a spec can publish its numbers and read them on the programme's public page.",
   },
   "/(app)/admin/(admin-only)/surveys/new": {
     reason:

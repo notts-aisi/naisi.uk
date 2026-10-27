@@ -25,6 +25,9 @@ export default async function SurveysPage() {
         description={LIST_WORDS.lede}
         actions={
           <>
+            <Link href="/admin/surveys/public-numbers" className={styles.linkButtonGhost}>
+              {LIST_WORDS.publicNumbers}
+            </Link>
             <Link href="/admin/surveys/kairos" className={styles.linkButtonGhost}>
               {LIST_WORDS.kairos}
             </Link>

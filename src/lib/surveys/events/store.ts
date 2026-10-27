@@ -4,6 +4,7 @@ import {
   SURVEY_ANSWERS_COLLECTION,
   SURVEY_PEOPLE_COLLECTION,
   SURVEYS_COLLECTION,
+  asksQuotes,
   eventPersonId,
   normalizeEventAnswer,
   normalizeEventPerson,
@@ -155,7 +156,8 @@ export async function recordEventAnswer(
   const { survey, respondent, via, now } = input;
   if (!survey.firstSentAt) return { ok: false, status: 409, error: EVENT_REFUSAL.notOpen };
   if (!isOpen(survey, now)) return { ok: false, status: 409, error: REFUSAL.closed };
-  const read = readSurveyAnswers(survey.items, input.raw);
+  // A tick under a long answer is kept with it, as the form drew the box (`asksQuotes`).
+  const read = readSurveyAnswers(survey.items, input.raw, { quotes: asksQuotes(survey) });
   if (read.problems.length > 0) return { ok: false, status: 400, error: read.problems[0].message };
 
   const personRef = db.collection(SURVEY_PEOPLE_COLLECTION).doc(eventPersonId(survey.id, respondent));
