@@ -19,8 +19,8 @@ import {
 } from "@/lib/firestore/surveys";
 import { surveyLinkPath } from "./emails";
 import { surveyQuestionsOf } from "./items";
-import { isOpen, readSurvey } from "./repo";
-import { CARD_WORDS, cardSizeWords, closesWords } from "./words";
+import { isOpen, ownAnswerOf, readSurvey } from "./repo";
+import { CARD_WORDS, cardSizeWords, closesWords, dateKeyWords, dayWords } from "./words";
 
 /**
  * A SURVEY WAITING FOR SOMEBODY: the one answer to "is there a survey for
@@ -55,6 +55,12 @@ import { CARD_WORDS, cardSizeWords, closesWords } from "./words";
  * rows, their link and their application are their own, and an admin viewing
  * the site as them is shown no card.
  *
+ * THE SURVEY AT THE END has a card of its own on its programme's pages
+ * ("The survey at the end": Home in the last week, the programme page once it
+ * is over), which asks this same answer for whether it waits (`endSurveyFor`)
+ * and, once the person has sent it, says the day they did. Its card carries
+ * the survey's own facts for those words (`atTheEnd`).
+ *
  * Every read is one document by its id or one equality on one field (the
  * person's rows by `respondent.uid`), so nothing needs a declared index.
  */
@@ -78,7 +84,39 @@ export type SurveyCard = {
   href: string;
   /** "Answer". */
   answer: string;
+  /**
+   * A survey at a programme's end only (`kind` "after"): its own facts, for
+   * the card its programme's pages draw ("The survey at the end": Home in the
+   * last week, the programme page once it is over). Absent on every other
+   * survey's card.
+   */
+  atTheEnd?: AtTheEnd;
 };
+
+/**
+ * WHAT THE SURVEY AT THE END'S CARD SAYS OF IT, from its own record: how many
+ * questions and minutes, how many of its questions its programme's survey
+ * before it asked too ("the same 9 questions as week 1": the questions the
+ * two share by id, the pairing `pairOf` fixed when it was made; 0 when it
+ * pairs with none), and the day it closes ("Fri 18 Dec", null with none).
+ */
+export type AtTheEnd = {
+  questions: number;
+  minutes: number;
+  sameAsStart: number;
+  closesOn: string | null;
+};
+
+/**
+ * THE SURVEY AT THE END, AS ITS RUN'S OWN PAGES SHOW IT TO ONE PERSON (Q48 B;
+ * boards en-after-phone, en-after-nofinish-phone): either it is theirs to
+ * answer, as `surveysWaitingFor` says (its card), or they have sent it (the
+ * day they sent it, and the day their name comes off it, "Sat 9 Dec 2028",
+ * null while that cannot be dated). Nothing of anybody else's.
+ */
+export type EndSurvey =
+  | { state: "open"; card: SurveyCard }
+  | { state: "sent"; surveyId: string; sentOn: string | null; keptUntil: string | null };
 
 /** Whether the person still holds a place on the programme a survey is about: the reminder's own test, for one person. */
 async function holdsPlaceNow(
@@ -127,7 +165,7 @@ async function stillTheirs(
   return holdsPlaceNow(db, survey, uid, forms);
 }
 
-function cardOf(survey: SurveyDoc, person: SurveyPersonDoc): SurveyCard {
+function cardOf(survey: SurveyDoc, person: SurveyPersonDoc, atTheEnd: AtTheEnd | null): SurveyCard {
   return {
     surveyId: survey.id,
     runId: survey.runId,
@@ -139,6 +177,25 @@ function cardOf(survey: SurveyDoc, person: SurveyPersonDoc): SurveyCard {
     closes: survey.closesAt ? closesWords(survey.closesAt, false) : "",
     href: surveyLinkPath(person.token),
     answer: CARD_WORDS.answer,
+    ...(atTheEnd ? { atTheEnd } : {}),
+  };
+}
+
+/**
+ * The survey at the end's own facts (`AtTheEnd`), for its card. The survey it
+ * pairs with is read by its id (one document), and only for a survey at the
+ * end. Null for every other kind.
+ */
+async function atTheEndOf(db: Firestore, survey: SurveyDoc): Promise<AtTheEnd | null> {
+  if (survey.kind !== "after") return null;
+  const questions = surveyQuestionsOf(survey.items);
+  const before = survey.pairOf && !survey.pairOf.includes("/") ? await readSurvey(db, survey.pairOf) : null;
+  const askedBefore = new Set(before ? surveyQuestionsOf(before.items).map((question) => question.id) : []);
+  return {
+    questions: questions.length,
+    minutes: survey.minutes,
+    sameAsStart: questions.filter((question) => askedBefore.has(question.id)).length,
+    closesOn: survey.closesAt ? dayWords(survey.closesAt) : null,
   };
 }
 
@@ -164,7 +221,7 @@ export async function surveysWaitingFor(db: Firestore, person: Pick<SessionUser,
     const survey = await readSurvey(db, row.surveyId);
     if (!survey || !isOpen(survey, now)) continue;
     if (!(await stillTheirs(db, survey, uid, forms))) continue;
-    cards.push({ card: cardOf(survey, row), closesAt: survey.closesAt?.getTime() ?? Number.POSITIVE_INFINITY });
+    cards.push({ card: cardOf(survey, row, await atTheEndOf(db, survey)), closesAt: survey.closesAt?.getTime() ?? Number.POSITIVE_INFINITY });
   }
   return cards
     .sort((a, b) => a.closesAt - b.closesAt || a.card.title.localeCompare(b.card.title, "en") || a.card.surveyId.localeCompare(b.card.surveyId))
@@ -197,4 +254,46 @@ export async function leavingSurveyCardFor(
 ): Promise<SurveyCard | null> {
   const cards = await surveysWaitingFor(db, person, now);
   return cards.find((card) => card.kind === "leaving" && card.runId === runId) ?? null;
+}
+
+/**
+ * THE SURVEY AT THE END OF A RUN, FOR ONE PERSON (`EndSurvey`), or null: the
+ * run's survey at the end while it waits for them, by `surveysWaitingFor`
+ * (the same answer Home's and My programmes' cards ask), or, once they have
+ * sent it, the day they sent it and the day their name comes off it. Null
+ * when it is neither: not sent to them, closed before they answered, no
+ * longer theirs, or a view-as session, asked first.
+ *
+ * The sent state reads only the person's own rows (one equality on
+ * `respondent.uid`), the survey each names, and their own answer to it
+ * (`ownAnswerOf`, by their own uid). Never how many others have answered.
+ */
+export async function endSurveyFor(
+  db: Firestore,
+  person: Pick<SessionUser, "uid">,
+  runId: string,
+  now: Date,
+): Promise<EndSurvey | null> {
+  const uid = person.uid;
+  if (!uid || uid.includes("/") || !runId || runId.includes("/")) return null;
+  if (markerIsLive(await getImpersonator(), uid)) return null;
+
+  const open = (await surveysWaitingFor(db, person, now)).find((card) => card.kind === "after" && card.runId === runId);
+  if (open) return { state: "open", card: open };
+
+  const snap = await db.collection(SURVEY_PEOPLE_COLLECTION).where("respondent.uid", "==", uid).get();
+  for (const doc of snap.docs) {
+    const row = normalizeSurveyPerson(doc.id, doc.data() ?? {});
+    if (!row || row.respondent.uid !== uid || row.sentAt === null || !row.answered) continue;
+    const survey = await readSurvey(db, row.surveyId);
+    if (!survey || survey.kind !== "after" || survey.runId !== runId || survey.audience.kind !== "programme") continue;
+    const answer = await ownAnswerOf(db, survey, uid);
+    return {
+      state: "sent",
+      surveyId: survey.id,
+      sentOn: answer?.sentAt ? dayWords(answer.sentAt) : null,
+      keptUntil: survey.namesOffOn ? dateKeyWords(survey.namesOffOn) || null : null,
+    };
+  }
+  return null;
 }

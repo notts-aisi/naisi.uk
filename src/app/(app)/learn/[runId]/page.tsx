@@ -1,5 +1,8 @@
 import { redirect } from "next/navigation";
+import { homeEvents } from "@/app/(app)/dashboard/homeData";
 import { readOwnCertificates } from "@/lib/courses/certificates/own";
+import { liveGroupsOf, runEndOf } from "@/lib/courses/finishing/runEnd";
+import { endSurveyFor } from "@/lib/surveys/waiting";
 import { leavePathFor } from "@/lib/courses/leaving";
 import { leaveClosedLine } from "@/lib/courses/leavingWords";
 import { loadLeftView } from "@/lib/courses/leftView";
@@ -23,7 +26,10 @@ import { guideLinksOf } from "@/lib/courses/guide/load";
  * client component, because the learning space's data moves under the reader
  * and the draw is a mount-time effect.
  *
- *   canLearn                    → the cohort view
+ *   canLearn                    → the cohort view, and once the programme
+ *                                 is over, for somebody who took part, the
+ *                                 page that says so (en-after-phone), handed
+ *                                 the survey at the end and the next event
  *   left the run themselves     → the page that says so (wk-left-phone):
  *                                 that they left and the day, and the
  *                                 leaving survey's card while it is theirs
@@ -133,6 +139,22 @@ export default async function RunHomePage({
     ? await readOwnCertificates(db, access.run.id, access.user.uid, viewAs, process.env.NEXT_PUBLIC_APP_URL)
     : [];
 
+  // Once the programme is over (en-after-phone, en-after-nofinish-phone), for
+  // somebody who took part: the survey at the end as it stands for them
+  // (`endSurveyFor`: theirs to answer, or sent; nothing in a view-as session)
+  // and Home's next event, as Home picks it. Read only once their own group's
+  // last session is over (`runEndOf`, which the gate's groups answer with no
+  // read), so the page people open while it runs reads nothing more. A read
+  // that fails draws nothing.
+  const now = new Date();
+  const ownGroups = own?.groupId ? liveGroupsOf(access.run.id, access.groups).filter((group) => group.id === own.groupId) : [];
+  const over = access.isEnrolled && own?.role === "learner" && runEndOf(access.run, ownGroups, now).over;
+  const endSurvey = over && db ? await endSurveyFor(db, access.user, access.run.id, now).catch(() => null) : null;
+  const next = over ? (await homeEvents(now)).upcoming[0] ?? null : null;
+  const nextEvent = next
+    ? { eventId: next.eventId, title: next.title, tile: next.tile, clock: next.clock, place: next.place }
+    : null;
+
   return (
     <RunHome
       runId={runId}
@@ -145,6 +167,8 @@ export default async function RunHomePage({
       uid={access.user.uid}
       {...(guide ? { guide } : {})}
       {...(certificates.length > 0 ? { certificates } : {})}
+      {...(endSurvey ? { endSurvey } : {})}
+      {...(nextEvent ? { nextEvent } : {})}
     />
   );
 }

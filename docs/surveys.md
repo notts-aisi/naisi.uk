@@ -400,6 +400,31 @@ place, by `holdsPlaceOn`, the test the reminder asks through
   its QR code, and a card's lines are a programme's; a row of one is never
   "theirs" here (`stillTheirs`).
 
+### The survey at the end, on its programme's pages (Q48 B)
+
+The survey at the end goes to everybody still on the programme at its end,
+finished or not, and its programme's own pages draw it as "The survey at the
+end" (boards wk-lastweek-phone, en-after-phone, en-after-nofinish-phone), by
+`EndSurveyCard` in `src/features/surveys/cards/`:
+
+- **On Home in the run's last week** (the reader's own calendar's last taught
+  week), while it is theirs to answer: when to answer it (at the end of
+  tonight's session, or of the last session on its day), the same questions as
+  week 1 then how it went, how long, that the facilitators leave them the time,
+  "Open the survey" and when it closes. It is the card `surveysWaitingFor`
+  answers, moved from the top of Home to its place in the programme's cards,
+  so it is never drawn twice.
+- **On the programme page once the programme is over**: while it is theirs to
+  answer, what it asks, how long and when it closes, with "Answer it"; once
+  they have sent it, "Your survey at the end", the day they sent it and the
+  day their name comes off it (`endSurveyFor`).
+
+What it says of the survey comes from its own record (`atTheEnd` on the
+card): its questions and minutes, how many questions it shares by id with the
+survey it pairs with ("the same 9 questions as week 1"), and its closing day.
+Nothing of anybody else's is read: never how many others have answered. There
+is no "then and now" page (Q47 A).
+
 ## The leaving survey (Q46)
 
 Confidential, like every survey on the site (Zach: "to allow us to do better

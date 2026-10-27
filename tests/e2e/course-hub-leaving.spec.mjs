@@ -1675,17 +1675,20 @@ test(
 
         activePage = ivyPage;
         await signIn(ivyPage, ivy);
-        // Ivy's programme page says the programme has ended, and offers no way out.
+        // Ivy's programme page says the programme has ended, and offers no way
+        // out. Board en-after-nofinish-phone: the programme's name, then the
+        // thanks with the term and Ivy's group (Ivy finished nothing: no rule
+        // was set), never that Ivy did not finish.
         await ivyPage.goto(`${origin}${learnPath(ended)}`, { waitUntil: "domcontentloaded" });
         const head = ivyPage.locator("main header");
-        await head.getByText(`${ended.courseTitle} has ended.`, { exact: true }).waitFor({ timeout: WAIT_MS });
+        await head.getByText(`${ended.programmeName} has ended.`, { exact: true }).waitFor({ timeout: WAIT_MS });
         await head
-          .getByText("Thanks for being part of it. Every week stays open, so you can go back to any of them.", { exact: true })
+          .getByText(`Thanks for being part of it. ${ended.runLabel} · ${group.name}.`, { exact: true })
           .waitFor({ timeout: WAIT_MS });
         assert.equal(await ivyPage.getByRole("link", { name: LEAVING.link }).count(), 0, "Ivy's programme page still offers Leave the programme");
         // The confirmation's address sends Ivy back to it.
         await ivyPage.goto(`${origin}${learnPath(ended)}/leave`, { waitUntil: "domcontentloaded" });
-        await ivyPage.locator("main header").getByText(`${ended.courseTitle} has ended.`, { exact: true }).waitFor({ timeout: WAIT_MS });
+        await ivyPage.locator("main header").getByText(`${ended.programmeName} has ended.`, { exact: true }).waitFor({ timeout: WAIT_MS });
         assert.equal(new URL(ivyPage.url()).pathname, learnPath(ended), "the confirmation opened after the run's end");
         // The press the confirmation would send, title typed right, is
         // refused in leaving's own words, which that page would show.

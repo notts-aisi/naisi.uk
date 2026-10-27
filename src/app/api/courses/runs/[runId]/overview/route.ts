@@ -15,6 +15,8 @@ import { runCrests } from "@/lib/crests/runs";
 import type { ShownCrest } from "@/lib/crests/resolve";
 import type { ProgrammeKind } from "@/lib/applications/model";
 import { finishedForMember } from "@/lib/courses/finishing/record";
+import { inLastWeek } from "@/lib/courses/programmeEnd";
+import { whatsNextFor, type WhatsNext } from "@/lib/courses/whatsNext";
 import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
 import { cardChangeFacts } from "@/lib/courses/sessionChange/model";
 import { isOpenAt, weekOpening } from "@/lib/courses/weekOpening";
@@ -661,6 +663,15 @@ export type OverviewPayload = {
    * else.
    */
   beforeGroups: { line: string } | null;
+  /**
+   * WHAT'S NEXT (boards wk-lastweek-phone, en-after-phone,
+   * en-after-nofinish-phone), for somebody taking part, in their own
+   * calendar's last week and once it is over: the term's form taking
+   * applications or opening (`whatsNextFor`, the form's own public facts), and
+   * whether to say they can ask to facilitate. Null for everybody else, on
+   * every other week, and when it could not be read.
+   */
+  whatsNext: WhatsNext | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -1006,6 +1017,7 @@ async function beforeGroupsPayload(
       isReviewer: roles.isReviewer,
       isTrackLead: roles.isTrackLead,
     },
+    whatsNext: null,
     beforeGroups: {
       line: weekOneOpenWords(groupsGoOutDay(place.groupsGoOutOn, londonDateKey(new Date())), place.kind),
     },
@@ -1536,6 +1548,13 @@ export async function GET(
   const finished =
     isEnrolled && liveEnrolment ? await finishedForMember(db, run, liveEnrolment, new Date(), groups) : false;
 
+  // What's next, for somebody taking part, in their own last week and once
+  // their programme is over (wk-lastweek-phone, en-after-phone): the term's
+  // form, read only then. A read that fails says nothing.
+  const takingPart = isEnrolled && liveEnrolment?.role === "learner";
+  const atTheEnd = currentWeek?.phase === "after" || inLastWeek(currentWeek, own.totalWeeks);
+  const whatsNext = takingPart && atTheEnd ? await whatsNextFor(db, new Date()).catch(() => null) : null;
+
   const payload: OverviewPayload = {
     run: {
       id: run.id,
@@ -1586,6 +1605,7 @@ export async function GET(
       isTrackLead,
     },
     beforeGroups: null,
+    whatsNext,
   };
 
   return NextResponse.json(payload);

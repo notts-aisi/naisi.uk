@@ -556,6 +556,8 @@
   border: 1px solid var(--color-border-strong);
 }
 
+/* Join online (wk-changes): the accent fill, with the dark label the accent
+   takes, in the row under the ticket. */
 .joinButton {
   appearance: none;
   -webkit-appearance: none;
@@ -572,18 +574,295 @@
   white-space: nowrap;
   box-sizing: border-box;
   text-decoration: none;
-  background: var(--color-surface);
-  color: var(--color-text);
-  border: 1px solid var(--color-border-strong);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  border: 1px solid var(--color-accent);
 }
 
 .joinButton:hover {
-  background: var(--color-surface-hover);
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
 }
 
 .joinButton:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
+}
+
+/* The row Join online sits in: the button, and under it that the link is
+   only here. Its own width wider than a phone, as Home's row is. */
+.joinFoot {
+  grid-template-columns: minmax(0, max-content);
+  gap: 8px;
+}
+
+.joinFoot .joinButton {
+  justify-self: start;
+}
+
+.joinNote {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* === The end of a programme: the last week's cards (wk-lastweek-phone) and
+   what's next (with en-after-phone), as cards on Home and as sections with no
+   card around them on the programme page once it is over === */
+
+.endCard {
+  padding: 16px;
+}
+
+.endSection {
+  min-width: 0;
+}
+
+.endCardTitle {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.0625rem;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-wrap: balance;
+}
+
+.endLine {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+/* "After tonight": the envelope, then the line. */
+.afterRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 6px 0 0;
+}
+
+.afterIcon {
+  flex: none;
+  display: inline-flex;
+  margin-top: 2px;
+  color: var(--color-accent-text);
+}
+
+/* What's next: a row per thing to say, ruled between. */
+.nextRow {
+  padding: 4px 0 0;
+}
+
+.nextRowRule {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* The next event, once the programme is over (en-after-phone): its date on
+   a stub, what it is and when, and a chevron. The whole card is the link. */
+.eventCard {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  margin-top: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  overflow: hidden;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.eventCard:hover {
+  background: var(--color-surface-hover);
+}
+
+.eventCard:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.eventStub {
+  flex: none;
+  width: 4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 0;
+  border-right: 2px dashed var(--color-border-strong);
+  box-sizing: border-box;
+}
+
+.eventDay {
+  font-family: var(--font-display);
+  font-size: 1.625rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.eventBody {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 10px 14px;
+}
+
+.eventTitle {
+  font-size: var(--text-ui);
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.eventMeta {
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.eventChevron {
+  display: flex;
+  align-items: center;
+  padding-right: 12px;
+  color: var(--color-text-muted);
+}
+
+/* === The programme page once it is over (en-after-phone,
+   en-after-nofinish-phone): one column, its sections 24px apart === */
+
+.after {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: 40rem;
+  min-width: 0;
+}
+
+/* The head: a card, tinted with the finished colour for somebody who
+   finished and the surface for everybody else. */
+.afterHead {
+  padding: 16px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  min-width: 0;
+}
+
+.afterHeadFinished {
+  background: var(--color-success-soft);
+  border-color: var(--color-ok-line);
+}
+
+.afterTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.375rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-wrap: balance;
+}
+
+.afterHeadLine {
+  margin: 6px 0 0;
+  font-size: var(--text-ui);
+  line-height: 1.55;
+  color: var(--color-text-soft);
+  text-wrap: pretty;
+}
+
+/* One part of that line ("with Rahul and Sofia"): it moves to the next line
+   whole, and wraps inside only when it is wider than the card. */
+.afterPart {
+  display: inline-block;
+}
+
+/* The certificate as a section with no card around it, as the board draws
+   it on this page; on the programme page while it runs it keeps its card. */
+.certPlain {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.certPlain .cardTitle {
+  margin-bottom: 10px;
+  font-size: 1.0625rem;
+}
+
+/* What you keep: a row per thing, each the link to its page. */
+.keepList {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+
+.keepItem + .keepItem {
+  border-top: 1px solid var(--color-border);
+}
+
+.keepLink {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 0;
+  box-sizing: border-box;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.keepLink:hover .keepTitle {
+  color: var(--color-accent-text-hover);
+}
+
+.keepLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+.keepText {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.keepTitle {
+  font-size: var(--text-ui);
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.keepWeeks {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
+.keepChevron {
+  flex: none;
+  color: var(--color-text-muted);
 }
 
 /* === Add to calendar: the ticket's button and its dialog (st-calendar-phone) === */
@@ -2155,6 +2434,21 @@ a.weekItem:focus-visible {
   /* Home's row: the whole width of the card, as wk-home-phone draws it. */
   .ticketFoot {
     grid-template-columns: 1fr;
+  }
+
+  /* Join online the width of the card, its line centred under it, as
+     wk-changes draws them. */
+  .joinFoot {
+    grid-template-columns: 1fr;
+  }
+
+  .joinFoot .joinButton {
+    justify-self: stretch;
+  }
+
+  .joinNote {
+    margin: 0 2px 2px;
+    text-align: center;
   }
 
   .calendarButtonHome {

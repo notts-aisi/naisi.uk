@@ -49,6 +49,22 @@ const made = await makeFinishWorld("__finishMember");
 const { world, reset, ask, member, lib } = made;
 
 const COURSE_TITLE = "AGI Strategy Fellowship";
+/**
+ * Boards en-after-phone and en-after-nofinish-phone name the programme, by
+ * the name it goes by, in the head of the page somebody who took part reads
+ * once it is over, and under it the term and their group: with its
+ * facilitators for somebody who finished, after the thanks for everybody
+ * else. Staff read the course's title over the page, as before.
+ */
+const PROGRAMME = "AGI Strategy";
+const GROUP_LINE = {
+  amara: "Autumn 2026 · Group A · with Sofia",
+  dev: "Autumn 2026 · Group A · with Sofia",
+  kofi: "Autumn 2026 · Group B · with Rahul and Sofia",
+  bea: "Autumn 2026 · Group A.",
+  tariq: "Autumn 2026 · Group A.",
+  freya: "Autumn 2026 · Group D.",
+};
 
 beforeEach(() => {
   mock.timers.setTime(END.getTime());
@@ -94,7 +110,7 @@ describe("1. somebody who finished is told so", () => {
       const pages = await pagesOf(who);
       assert.equal(pages.overview.body.finished, true);
       assert.equal(pages.entry.finished, true);
-      assert.match(pages.home, new RegExp(`You finished ${COURSE_TITLE}\\. Every week stays open, so you can go back to any of them\\.`));
+      assert.ok(pages.home.startsWith(`My programmes ${PROGRAMME} You finished ${PROGRAMME}. ${GROUP_LINE[who]} What you keep `), pages.home);
       assert.match(pages.card, /Finished/);
       assert.match(pages.list, new RegExp(`${COURSE_TITLE} Finished`));
       assert.match(pages.homeLine, /· finished/);
@@ -113,7 +129,7 @@ describe("2. somebody who did not finish is told it has ended, and nothing more"
       const pages = await pagesOf(who);
       assert.equal(pages.overview.body.finished, false);
       assert.equal(pages.entry.finished, false);
-      assert.match(pages.home, new RegExp(`${COURSE_TITLE} has ended\\. Thanks for being part of it\\.`));
+      assert.ok(pages.home.startsWith(`My programmes ${PROGRAMME} ${PROGRAMME} has ended. Thanks for being part of it. ${GROUP_LINE[who]} What you keep `), pages.home);
       assert.match(pages.card, /Ended/);
       assert.match(pages.list, new RegExp(`${COURSE_TITLE} Ended`));
       assert.match(pages.homeLine, /· ended/);
@@ -127,17 +143,18 @@ describe("2. somebody who did not finish is told it has ended, and nothing more"
     world.db.seed(rulePath, RULE(6));
     const chloe = await pagesOf("chloe");
     assert.deepEqual([chloe.overview.body.finished, chloe.entry.finished], [true, true]);
-    assert.match(chloe.home, new RegExp(`You finished ${COURSE_TITLE}\\.`));
+    assert.match(chloe.home, new RegExp(`You finished ${PROGRAMME}\\. Autumn 2026 · Group B · with Rahul and Sofia What you keep`));
     const yasmin = await pagesOf("yasmin");
     assert.deepEqual([yasmin.overview.body.finished, yasmin.entry.finished], [false, false]);
-    assert.match(yasmin.home, new RegExp(`${COURSE_TITLE} has ended\\.`));
+    assert.match(yasmin.home, new RegExp(`${PROGRAMME} has ended\\. Thanks for being part of it\\. Autumn 2026 · Group D\\. What you keep`));
   });
 
   test("the lead unticking somebody the rule ticked tells them it has ended", async () => {
     world.db.seed(decisionPath("amara"), decision("amara", false, "claudia"));
     const pages = await pagesOf("amara");
     assert.equal(pages.overview.body.finished, false);
-    assert.match(pages.home, new RegExp(`${COURSE_TITLE} has ended\\.`));
+    assert.match(pages.home, new RegExp(`${PROGRAMME} has ended\\. Thanks for being part of it\\. Autumn 2026 · Group A\\. What you keep`));
+    assert.doesNotMatch(pages.home, /You finished/);
   });
 });
 

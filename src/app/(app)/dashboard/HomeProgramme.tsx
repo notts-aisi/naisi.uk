@@ -9,6 +9,11 @@ import { useAuth } from "@/auth/AuthProvider";
 import type { MyRunEntry } from "@/app/api/courses/me/route";
 import { weekHref } from "@/features/courses/links";
 import { ticketFacts } from "@/features/courses/sessionChange/cardFacts";
+import SessionNotice from "@/features/courses/sessionChange/SessionNotice";
+import { AfterLastSession, WhatsNextCard } from "@/features/courses/weekly/ProgrammeEnd";
+import EndSurveyCard, { type LastSession } from "@/features/surveys/cards/EndSurveyCard";
+import { inLastWeek } from "@/lib/courses/programmeEnd";
+import type { SurveyCard } from "@/lib/surveys/waiting";
 import { useRunOverview } from "@/features/courses/useRunOverview";
 import { useWeek } from "@/features/courses/useWeek";
 import SessionTicket from "@/features/courses/weekly/SessionTicket";
@@ -22,6 +27,7 @@ import {
   BEFORE_TODAY,
   BEFORE_TONIGHT,
   BEFORE_YOUR_SESSION,
+  afterLastSessionHeading,
   doneWords,
   groupHoursWords,
   homeEyebrow,
@@ -58,6 +64,19 @@ import styles from "./home.module.css";
  *
  * "Add to calendar" fills the row under the ticket (st-calendar-phone: the
  * member's own calendar link).
+ *
+ * A CHANGED WEEK (wk-changes) reads here as on the programme page: a
+ * cancelled evening's notice over the ticket, and the ticket's eyebrow naming
+ * the weeks a session covers or that it is online (`sessionEyebrow`).
+ *
+ * THE LAST WEEK (wk-lastweek-phone), by the member's own calendar
+ * (`inLastWeek`): the ticket says "Tonight · your last session" on its day;
+ * under it, in the board's order, "The survey at the end" while it is theirs
+ * to answer (`endSurvey`, the card Home's top would have drawn, handed here
+ * so it is drawn once), "After tonight" with the certificate line, and
+ * "What’s next" from the term's form (`whatsNext` on the overview). The
+ * reading before the session, the group and the events follow, as on any
+ * week. Home's own events stay where they are, after them.
  *
  * A WEEK WRITTEN AS BLOCKS counts by This week's tasks ("0 of 1 done" for
  * week 1, `src/lib/courses/weekBlocks/progress.ts`) and lists the sources on
@@ -105,9 +124,15 @@ type Slots = {
   applications: ReactNode;
   /** The cards every form of Home ends with. */
   more: ReactNode;
+  /**
+   * In the programme's last week, its survey at the end while it waits for
+   * the member (`surveysWaitingFor`'s card, moved here from Home's top by
+   * `HomeMember`). Null on every other week, and when it does not wait.
+   */
+  endSurvey?: SurveyCard | null;
 };
 
-export default function HomeProgramme({ given, invite, entry, comingUp, applications, more }: Slots) {
+export default function HomeProgramme({ given, invite, entry, comingUp, applications, more, endSurvey = null }: Slots) {
   const { user } = useAuth();
   const { data, error } = useRunOverview(entry.runId);
   const [tickFailed, setTickFailed] = useState(false);
@@ -139,6 +164,22 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
     name,
     firstName: firstName(name) || name,
   }));
+
+  // The last week (wk-lastweek-phone), by the member's own calendar. The
+  // group's last session is the last one its calendar holds, a cancelled one
+  // left out; once it is over there is no ticket, and the cards say so.
+  const lastWeek = inLastWeek(entry.currentWeek, entry.totalWeeks);
+  const lastDateKey = group?.calendar.lastSessionDate ?? "";
+  const isLast = facts !== null && lastDateKey !== "" && facts.dateKey === lastDateKey;
+  const onTheDay = isLast && isToday && facts ? (tonightWord(facts.startTimeLocal) === "Tonight" ? "tonight" : "today") : null;
+  const lastSession: LastSession | null =
+    isLast && facts
+      ? {
+          when: onTheDay ?? { day: dayWords(facts.dateKey) },
+          facilitators: facilitators.map((person) => person.firstName),
+          online: facts.mode === "virtual",
+        }
+      : null;
 
   // A week written as blocks counts This week's tasks; any other week, its
   // readings and checklist, as it always has.
@@ -181,6 +222,10 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
         </section>
       )}
 
+      {/* An evening is off (Q25, wk-changes): the notice the programme page
+          shows, over the session the group meets at next. */}
+      {data && group?.sessionNotice && <SessionNotice notice={group.sessionNotice} />}
+
       {data && group && facts && (
         <SessionTicket
           home
@@ -188,8 +233,11 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
           eyebrow={sessionEyebrow({
             isToday,
             isFirst,
+            isLast,
             startTimeLocal: facts.startTimeLocal,
             weekNumbers: facts.weekNumbers,
+            dateKey: facts.dateKey,
+            online: facts.mode === "virtual",
             home: true,
           })}
           heading={groupHoursWords(group.name, hoursWords(facts.startTimeLocal, facts.durationMinutes))}
@@ -217,6 +265,12 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
 
       <div className={styles.columns}>
         <div className={styles.stack}>
+          {/* The last week's cards, in wk-lastweek-phone's order, straight under the ticket. */}
+          {data && lastWeek && endSurvey && (
+            <EndSurveyCard survey={{ state: "open", card: endSurvey }} look="card" lastSession={lastSession} />
+          )}
+          {data && lastWeek && <AfterLastSession heading={afterLastSessionHeading(onTheDay ?? "around")} />}
+          {data && lastWeek && <WhatsNextCard whatsNext={data.whatsNext} look="card" />}
           {data && facts && weekNumber >= 1 && (
             <section className={`${weekly.card} ${weekly.cardTight}`} aria-labelledby="home-before">
               <div className={weekly.cardHead}>
