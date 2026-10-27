@@ -70,8 +70,10 @@ function drawItems(doc: HousePdf, items: readonly PdfItem[]): void {
 
 export type PrintablesPdf = {
   bytes: Buffer;
-  /** Every string handed to PDFKit as text, in the order it was drawn. */
+  /** Every string of the document handed to PDFKit as text, in the order it was drawn. */
   drawn: string[];
+  /** What the layout adds, as drawn: each page's number, and a table's header row drawn again where it runs on. */
+  extras: string[];
   pages: number;
   /** Every character no house font has, drawn as a box. */
   undrawable: string[];
@@ -88,5 +90,5 @@ export async function renderPrintablesPdf(doc: GuideDocument, title: string): Pr
     drawItems(pdf, items);
   });
   pdf.end();
-  return { bytes: await bytes, drawn: layout.drawn, pages: layout.pages.length, undrawable: layout.undrawable, layout };
+  return { bytes: await bytes, drawn: layout.drawn, extras: layout.extras, pages: layout.pages.length, undrawable: layout.undrawable, layout };
 }

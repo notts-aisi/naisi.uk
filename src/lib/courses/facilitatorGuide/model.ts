@@ -4,6 +4,7 @@ import {
   runsText,
   sanitizeProse,
   sanitizeRuns,
+  type CodeEnds,
   type Prose,
   type ProseItem,
   type ProseParagraph,
@@ -250,6 +251,15 @@ export function guideDocumentChars(doc: GuideDocument): number {
 }
 
 /**
+ * A guide's block of code is a template people write on (a card, a form), and
+ * the blank lines at its very end are the room under its last line. They are
+ * kept exactly: by the reader (`markdown.ts`), here in the store, on the page,
+ * in Copy as Markdown and in the printables' PDF. A week's code is read
+ * without them, as before.
+ */
+export const TEMPLATE_ENDS: CodeEnds = { keepBlankLinesAtEnd: true };
+
+/**
  * Stored blocks, read: each block's shape checked, its text made canonical,
  * the whole cut to the caps. A document that reached the store some other way
  * still draws inside them. What the loader saves is held to the same caps
@@ -269,7 +279,7 @@ export function sanitizeGuideBlocks(raw: unknown): GuideBlock[] {
       const runs = sanitizeRuns(b.runs, GUIDE_LIMITS.heading);
       if (level && runs.length > 0) block = { type: "heading", level, runs };
     } else if (b.type === "quote") {
-      const body = sanitizeProse(b.body, left);
+      const body = sanitizeProse(b.body, left, TEMPLATE_ENDS);
       if (body.length > 0) block = { type: "quote", body };
     } else if (b.type === "checklist") {
       const items: GuideCheckItem[] = [];
@@ -282,7 +292,7 @@ export function sanitizeGuideBlocks(raw: unknown): GuideBlock[] {
       }
       if (items.length > 0) block = { type: "checklist", items };
     } else {
-      const [paragraph] = sanitizeProse([value], left);
+      const [paragraph] = sanitizeProse([value], left, TEMPLATE_ENDS);
       if (paragraph) block = paragraph;
     }
     if (!block) continue;

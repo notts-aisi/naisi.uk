@@ -38,9 +38,15 @@ export type CountedCheckIn = {
    * account, and the address on a sign-up made without one (with each
    * account's own address, so the two ways meet). Empty for a walk-in with no
    * account, who is never matched: the address a walk-in leaves is for that
-   * event's survey alone. Never handed to a page.
+   * event's survey alone. Empty too when the names have come off. Never
+   * handed to a page.
    */
   keys: string[];
+  /**
+   * A check-in whose names have come off: one person, matched with nobody,
+   * and not a walk-in, so it never shows the walk-ins' sentence.
+   */
+  namesOff?: true;
 };
 
 export type TermEvent = {
@@ -166,6 +172,8 @@ const STAGE_QUESTION = "q_c1";
  * at one event, and two check-ins that share a key are one person. Answers
  * how many different people that is, how many came to two or more of the
  * events, and whether walk-ins with no account came to two or more of them.
+ * A check-in with no key (a walk-in with no account, or one whose names have
+ * come off) is a person of its own; only a walk-in's counts for the sentence.
  */
 export function peopleAcross(events: readonly Pick<TermEvent, "counted">[]): { people: number; cameTwice: number; unmatched: boolean } {
   const parent = new Map<string, string>();
@@ -196,10 +204,10 @@ export function peopleAcross(events: readonly Pick<TermEvent, "counted">[]): { p
   events.forEach((event, index) => {
     event.counted.forEach((checkIn, at) => {
       if (checkIn.keys.length === 0) {
-        const token = `walk-in:${index}:${at}`;
+        const token = `unmatched:${index}:${at}`;
         add(token);
         visits.push({ key: token, event: index });
-        unmatchedAt.add(index);
+        if (!checkIn.namesOff) unmatchedAt.add(index);
         return;
       }
       for (const key of checkIn.keys) add(key);

@@ -173,6 +173,12 @@
   color: var(--color-text-muted);
 }
 
+/* Counted and not listed, or ticks gone with the names: people whose names have come off. */
+.note {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
 .footnote {
   margin: 0;
   color: var(--color-text-muted);

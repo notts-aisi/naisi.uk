@@ -105,6 +105,54 @@ describe("the door list page", () => {
     assert.match(text, /To come 2 Here 1/);
     assert.match(text, /Just checked in KA Kofi Asante Door · 2:05pm/);
   });
+
+  // A record whose names have come off stays in the count, as on the event's
+  // Check-in tab: counted as here, listed nowhere, and its sign-up's row,
+  // which keeps no tick, is said to be one of those who came.
+  test("a name that comes off on the night: still here in the count, and the list says one of those to come came", async (t) => {
+    clock(t, DURING);
+    w.reset();
+    await press("sue", { rsvpId: RSVP.kofi, from: "door" });
+    const { takeCheckInNamesOffForAccount } = await load("lib/events/checkIns.ts");
+    assert.equal(await takeCheckInNamesOffForAccount(w.world.db, "kofi"), 1);
+    const { text } = await open("sue");
+    assert.match(text, /VR games night Door list 1 of 3 here/);
+    assert.match(text, /To come 2 Here 1/);
+    assert.match(
+      text,
+      /1 of these came, but their name has come off, so we can’t tell which\. CN Chloe Nguyen Signed up Check in GP Gwen Price Signed up Check in KA Kofi Asante Signed up Check in/,
+    );
+    assert.ok(!text.includes("Just checked in"), "nobody named came");
+    // Once everybody else has come, nobody is still to come.
+    await press("sue", { rsvpId: RSVP.chloe, from: "door" });
+    await press("sue", { rsvpId: RSVP.gwen, from: "door" });
+    const later = await open("sue");
+    assert.match(later.text, /3 of 3 here/);
+    assert.match(later.text, /To come 0 Here 3/);
+    assert.match(later.text, /Everybody who signed up is here\./);
+    assert.ok(!later.text.includes("of these came"));
+  });
+
+  test("a year on, when every name has come off: the night's count, and the list of who signed up says which can't be told", async (t) => {
+    clock(t, DURING);
+    w.reset();
+    await press("sue", { rsvpId: RSVP.kofi, from: "door" });
+    await press("sue", { rsvpId: RSVP.chloe, from: "door" });
+    await press("sue", { from: "door", walkIn: { name: "Mo Rahman" } });
+    t.mock.timers.reset();
+    const yearOn = new Date("2027-11-02T10:00:00Z");
+    clock(t, yearOn);
+    const { tidyCheckIns } = await load("lib/events/checkIns.ts");
+    assert.equal((await tidyCheckIns(w.world.db, yearOn)).namesOff, 3);
+    const { text, html } = await open("sue");
+    assert.match(text, /VR games night Door list 2 of 3 here · 1 walk-in/);
+    assert.match(text, /To come 1 Here 3/);
+    assert.match(
+      text,
+      /2 of these came, but their names have come off, so we can’t tell which\. CN Chloe Nguyen Signed up GP Gwen Price Signed up KA Kofi Asante Signed up/,
+    );
+    assert.ok(!html.includes('aria-label="Check in'), "nothing to press a year on");
+  });
 });
 
 // ---------------------------------------------------------------------------

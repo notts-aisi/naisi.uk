@@ -5,7 +5,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { runsCheckIn } from "@/lib/events/checkInAccess";
 import { loadEventAtTheDoor } from "@/lib/events/checkInLoad";
-import { doorClosedWords, doorRows } from "@/lib/events/checkInView";
+import { doorClosedWords, doorRows, namesOffOf } from "@/lib/events/checkInView";
 import {
   checkInPhase,
   doorListSignups,
@@ -58,6 +58,7 @@ export default async function DoorPage({ params }: { params: Promise<{ id: strin
       eventId={event.id}
       eventTitle={title}
       initialRows={doorRows(doorListSignups(signups), checkIns)}
+      namesOff={namesOffOf(checkIns)}
       closedWords={closedWords}
       doorAddress={doorCode && doorCode.active ? shortLinkAddress(doorCode.slug) : null}
       eventLine={event.startAt ? `${title} · ${dayWords(event.startAt)}` : title}

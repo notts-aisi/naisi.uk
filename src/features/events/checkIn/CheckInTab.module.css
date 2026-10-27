@@ -306,6 +306,23 @@
   border-top: 1px solid var(--color-border);
 }
 
+/* Counted and not listed: people whose names have come off. */
+.notListed {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.tableWrap + .notListed {
+  margin-top: var(--space-3);
+}
+
+/* Over the confirmed sign-ups with no tick, when some of them came. */
+.notHereNote {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-3);
+  color: var(--color-text-muted);
+}
+
 .srOnly {
   position: absolute;
   width: 1px;

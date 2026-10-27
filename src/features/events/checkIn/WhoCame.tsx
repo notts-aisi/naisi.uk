@@ -6,7 +6,15 @@ import InitialsChip from "@/components/ui/InitialsChip";
 import { clockWords, dayWords } from "@/features/events/manageWords";
 import { useHydrated } from "@/hooks/useHydrated";
 import { isSameSiteDay } from "@/lib/datetime/siteTime";
-import { HOW_WORDS, type DoorRow } from "@/lib/events/checkInView";
+import {
+  HOW_WORDS,
+  NO_NAMES_OFF,
+  cameUntickedWords,
+  doorCounts,
+  notListedWords,
+  type DoorRow,
+  type NamesOff,
+} from "@/lib/events/checkInView";
 import WalkInDialog from "./WalkInDialog";
 import styles from "./CheckInTab.module.css";
 
@@ -14,6 +22,8 @@ type Props = {
   eventId: string;
   /** Every sign-up the door list shows, and every walk-in. */
   initialRows: DoorRow[];
+  /** The people whose names have come off, as counts: counted with who came, never listed. */
+  namesOff?: NamesOff;
   /** People who came can be added now: the door is open, or it is within a week after. */
   canAdd: boolean;
   /** The last day somebody can be added: "Sun 8 Nov". */
@@ -37,10 +47,15 @@ type Props = {
  * confirmed sign-ups who did not come, behind a disclosure, each with "They
  * came" while people can still be added. Not coming is recorded nowhere and
  * held against nobody.
+ *
+ * Its numbers are the tab's (`doorCounts`): somebody whose name has come off
+ * is counted with who came and listed nowhere, and the confirmed sign-ups
+ * with no tick say when some of them came that way.
  */
 export default function WhoCame({
   eventId,
   initialRows,
+  namesOff = NO_NAMES_OFF,
   canAdd,
   addUntil,
   doorClosed,
@@ -60,6 +75,7 @@ export default function WhoCame({
     .filter((row) => row.checkIn)
     .sort((a, b) => (a.checkIn?.at ?? "").localeCompare(b.checkIn?.at ?? ""));
   const notHere = rows.filter((row) => row.standing === "signed-up" && !row.checkIn);
+  const counts = doorCounts(rows, namesOff);
   const start = startsAt ? new Date(startsAt) : null;
 
   const when = (iso: string) => {
@@ -97,7 +113,7 @@ export default function WhoCame({
       <section aria-labelledby="who-came-heading">
         <div className={styles.sectionHead}>
           <h2 id="who-came-heading" className={styles.sectionHeading}>
-            Who came <span className={styles.pill}>{here.length}</span>
+            Who came <span className={styles.pill}>{counts.here}</span>
           </h2>
           {canAdd && (
             <div className={styles.sectionTools}>
@@ -125,7 +141,7 @@ export default function WhoCame({
         )}
 
         {here.length === 0 ? (
-          <p className={styles.quiet}>Nobody is checked in yet.</p>
+          counts.notListed === 0 && <p className={styles.quiet}>Nobody is checked in yet.</p>
         ) : (
           <div className={styles.tableWrap}>
             <table className={styles.table}>
@@ -165,13 +181,15 @@ export default function WhoCame({
             </table>
           </div>
         )}
+        {counts.notListed > 0 && <p className={styles.notListed}>{notListedWords(counts.notListed, here.length > 0)}</p>}
       </section>
 
-      {notHere.length > 0 && (
+      {counts.toCome > 0 && (
         <details className={styles.notHere}>
           <summary className={styles.notHereSummary}>
-            {doorClosed ? "Didn’t come" : "Still to come"} <span className={styles.count}>{notHere.length}</span>
+            {doorClosed ? "Didn’t come" : "Still to come"} <span className={styles.count}>{counts.toCome}</span>
           </summary>
+          {counts.cameUnticked > 0 && <p className={styles.notHereNote}>{cameUntickedWords(counts.cameUnticked)}</p>}
           <ul className={styles.notHereList}>
             {notHere.map((row) => (
               <li key={row.key} className={styles.notHereRow}>

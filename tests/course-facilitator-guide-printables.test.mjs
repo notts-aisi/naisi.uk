@@ -394,6 +394,25 @@ describe("2. what is drawn", () => {
     }
   });
 
+  // The blank lines at a template's very end are the room under its last
+  // line: lines of its frame in the PDF, as on the guide's page.
+  test("a template keeps the room under its last line: its blank lines at the end are lines of its frame", () => {
+    const card = (tail) => `# Printables\n\n## Session 1: the card\n\n\`\`\`markdown\nCARD\nWhat would you ask the group:${tail}\`\`\`\n`;
+    const template = (md) => lay(stored(md)).placed.find((mark) => mark.kind === "template");
+    const none = template(card("\n"));
+    const three = template(card("\n\n\n\n"));
+    assert.equal(stored(card("\n\n\n\n")).blocks.find((block) => block.type === "code").text, "CARD\nWhat would you ask the group:\n\n\n");
+    const { size, leading } = layoutLib.PRINT_LOOK.template;
+    assert.ok(Math.abs(three.bottom - three.top - (none.bottom - none.top) - 3 * size * leading) < 0.001, `${three.bottom - three.top} against ${none.bottom - none.top}`);
+    // The frame, a line to cut along, goes round the room too.
+    const frameOf = (md) => {
+      const page = lay(stored(md)).pages[0];
+      const ys = page.filter((item) => item.kind === "line" && item.dashed).flatMap((item) => [item.y1, item.y2]);
+      return Math.max(...ys) - Math.min(...ys);
+    };
+    assert.ok(Math.abs(frameOf(card("\n\n\n\n")) - frameOf(card("\n")) - 3 * size * leading) < 0.001);
+  });
+
   test("the marks of the document: bold is the heavier face, italic leans, a link is underlined and stays a link", () => {
     const { pages } = lay(stored(SHAPES));
     const texts = pages.flat().filter((item) => item.kind === "text");
@@ -547,17 +566,27 @@ describe("3. what is never split across a page", () => {
     }
   });
 
-  test("nothing is drawn past the margins or off the page", () => {
+  test("nothing is drawn past the margins or off the page; a page's number sits in the bottom margin, under everything", () => {
     const doc = stored(longPrintables());
     const m = measure();
     const { pages } = layoutLib.layoutPrintables(doc, m);
     const { width, height, margin } = layoutLib.PAGE;
+    let numbers = 0;
     for (const items of pages) {
       for (const item of items) {
         if (item.kind === "text") {
           const right = item.x + m.width(item.text, item.face, item.size);
           assert.ok(item.x >= margin - 0.01 && right <= width - margin + 0.01, `"${item.text}" runs from ${item.x} to ${right}`);
-          assert.ok(item.y > margin && item.y < height - margin, `"${item.text}" sits at ${item.y}`);
+          // CHANGED ON PURPOSE (page numbers, a default taken for Zach): the
+          // page's number is the one string in a margin, the bottom one,
+          // wholly below the content and on the page; everything else is
+          // held inside the margins as before.
+          if (item.extra === "page-number") {
+            numbers += 1;
+            assert.ok(item.y - layoutLib.FACE_METRICS.regular.ascent * item.size > height - margin && item.y < height, `"${item.text}" sits at ${item.y}`);
+          } else {
+            assert.ok(item.y > margin && item.y < height - margin, `"${item.text}" sits at ${item.y}`);
+          }
         } else if (item.kind === "line") {
           for (const [x, y] of [[item.x1, item.y1], [item.x2, item.y2]]) assert.ok(x >= margin - 0.01 && x <= width - margin + 0.01 && y >= margin - 0.01 && y <= height - margin + 0.01);
         } else {
@@ -565,6 +594,105 @@ describe("3. what is never split across a page", () => {
         }
       }
     }
+    assert.equal(numbers, pages.length, "a page of a PDF of more than one page has no number");
+  });
+
+  // Defaults taken for Zach (printables, questions 1 and 2): a PDF of more
+  // than one page says "Page 2 of 5" small at the foot of each page, and a
+  // table that runs on to another page repeats its header row there. Neither
+  // moves anything else.
+  test("a PDF of more than one page says “Page 2 of 5” small at the foot of each page; a PDF of one page says nothing", () => {
+    const m = measure();
+    const long = layoutLib.layoutPrintables(stored(longPrintables()), m);
+    const n = long.pages.length;
+    assert.ok(n >= 8);
+    assert.deepEqual(long.extras.filter((text) => text.startsWith("Page ")), Array.from({ length: n }, (_, i) => `Page ${i + 1} of ${n}`));
+    long.pages.forEach((items, i) => {
+      const number = items.filter((item) => item.kind === "text" && item.extra === "page-number");
+      assert.equal(number.length, 1, `page ${i + 1}`);
+      const [item] = number;
+      assert.equal(item.text, `Page ${i + 1} of ${n}`);
+      assert.deepEqual([item.face, item.size, item.ink, item.oblique], ["regular", layoutLib.PRINT_LOOK.pageNumber.size, layoutLib.PRINT_INKS.muted, false]);
+      assert.ok(Math.abs(item.x + m.width(item.text, "regular", item.size) / 2 - layoutLib.PAGE.width / 2) < 0.01, "centred");
+      assert.ok(!long.drawn.includes(item.text), "a page's number is not the document's text");
+    });
+    // One page: no number, and nothing in the bottom margin.
+    const short = layoutLib.layoutPrintables(stored("# Printables\n\n## Session 1: a card\n\nOne card each.\n"), m);
+    assert.equal(short.pages.length, 1);
+    assert.deepEqual(short.extras, []);
+    assert.ok(short.pages[0].every((item) => item.kind !== "text" || item.y < layoutLib.PAGE.height - layoutLib.PAGE.margin));
+    // The words, as listed for the boards' designers.
+    assert.equal(words.pageOfWords(2, 5), "Page 2 of 5");
+  });
+
+  test("a table that runs on to another page has its header row drawn again at the top there, and nowhere else", () => {
+    const cell = (text) => ({ runs: [{ text }] });
+    const row = (i) => ({ cells: [cell(String(i)), cell("Rain on the hills by evening, wind from the west, a long line to wrap. ".repeat(2).trim())] });
+    const table = (rows) => ({ type: "table", header: [cell("Card"), cell("What it says")], rows: Array.from({ length: rows }, (_, i) => row(i + 1)) });
+    const after = Array.from({ length: 12 }, (_, i) => ({ type: "p", runs: [{ text: `A paragraph after the cards, number ${i + 1}, long enough to wrap on to a second line of the page and then some more words.` }] }));
+    const doc = { title: "Printables", blocks: [{ type: "heading", level: 2, runs: [{ text: "Session 1: the cards" }] }, table(60), ...after] };
+    const { pages, placed, extras, drawn, groups } = lay(doc);
+    assert.ok(pages.length >= 3, `the table runs on to ${pages.length} pages`);
+    const rows = placed.filter((mark) => mark.kind === "row" && !mark.repeated);
+    const again = placed.filter((mark) => mark.repeated);
+    // Once on each page after the first that the table runs on to, at its top, the row after it right under it.
+    const onPages = [...new Set(rows.map((mark) => mark.page))];
+    assert.deepEqual(again.map((mark) => mark.page), onPages.slice(1));
+    for (const mark of again) {
+      assert.deepEqual([mark.kind, mark.block, mark.row, mark.top], ["row", 1, 0, layoutLib.PAGE.margin]);
+      const next = placed[placed.indexOf(mark) + 1];
+      assert.deepEqual([next.kind, next.page, next.top], ["row", mark.page, mark.bottom]);
+      assert.ok(next.row > 0);
+    }
+    // Its words are the header's, drawn again, and they are told from the document's own.
+    assert.deepEqual(
+      extras.filter((text) => !text.startsWith("Page ")),
+      again.flatMap(() => ["Card", "What it says"]),
+    );
+    assert.equal(drawn.filter((text) => text === "Card").length, 1, "the document's header is drawn once as its own");
+    // Every row of the table is drawn once, in order, and no piece of a page is past its foot.
+    assert.deepEqual(rows.map((mark) => mark.row), Array.from({ length: 61 }, (_, i) => i));
+    for (const mark of placed) assert.ok(mark.bottom <= layoutLib.PAGE.height - layoutLib.PAGE.margin + 0.01, `${mark.kind} ${mark.row} runs past the foot`);
+    // The groups after the table are read on the pages they were drawn on, and each that fits is on one.
+    for (const group of groups) {
+      const drawnOn = [...new Set(placed.filter((mark) => !mark.repeated && mark.groups.includes(group.id)).map((mark) => mark.page))].sort((a, b) => a - b);
+      assert.deepEqual(group.pages, drawnOn, group.id);
+      if (group.height <= layoutLib.CONTENT_HEIGHT) assert.equal(group.pages.length, 1, group.id);
+    }
+    assert.ok(groups.filter((group) => /^b\d+$/.test(group.id) && group.pages[0] > again[0].page).length > 0, "no group after a header drawn again was checked");
+    // In a quote, the header drawn again keeps the quote's bar beside it.
+    const quoted = lay({ title: "Printables", blocks: [{ type: "quote", body: [table(60)] }] });
+    const quotedAgain = quoted.placed.filter((mark) => mark.repeated);
+    assert.ok(quotedAgain.length >= 2);
+    for (const mark of quotedAgain) {
+      const bar = quoted.pages[mark.page].find((item) => item.kind === "line" && item.ink === layoutLib.PRINT_INKS.bar && Math.abs(item.y1 - mark.top) < 0.01);
+      assert.ok(bar && bar.y2 >= mark.bottom - 0.01, `the header drawn again on page ${mark.page + 1} has no bar beside it`);
+    }
+    // A table that fits on its page, and a template or a list that runs on, repeat nothing.
+    const fits = lay({ title: "Printables", blocks: [table(3)] });
+    assert.deepEqual([fits.pages.length, fits.placed.filter((mark) => mark.repeated).length, fits.extras], [1, 0, []]);
+    const tall = lay({ title: "Printables", blocks: [{ type: "code", lang: "", text: Array.from({ length: 120 }, (_, i) => `LINE ${i + 1}`).join("\n") }] });
+    assert.ok(tall.pages.length >= 2);
+    assert.deepEqual(tall.placed.filter((mark) => mark.repeated), []);
+    assert.deepEqual(tall.extras, tall.pages.map((_, i) => `Page ${i + 1} of ${tall.pages.length}`));
+  });
+
+  test("a row taller than a page leaves room on each page for the header drawn again above its next piece", () => {
+    const long = "Cloud ".repeat(1800).trim();
+    const doc = {
+      title: "Printables",
+      blocks: [{ type: "table", header: [{ runs: [{ text: "Card" }] }, { runs: [{ text: "What it says" }] }], rows: [{ cells: [{ runs: [{ text: "1" }] }, { runs: [{ text: long }] }] }] }],
+    };
+    const { placed, drawn } = lay(doc);
+    const pieces = placed.filter((mark) => mark.kind === "row" && mark.row === 1);
+    assert.ok(pieces.length >= 2);
+    for (const piece of pieces.slice(1)) {
+      const head = placed.find((mark) => mark.repeated && mark.page === piece.page);
+      assert.ok(head, `the piece on page ${piece.page + 1} has no header above it`);
+      assert.equal(piece.top, head.bottom);
+      assert.ok(piece.bottom <= layoutLib.PAGE.height - layoutLib.PAGE.margin + 0.01);
+    }
+    assert.equal(drawn.filter((text) => text.includes("Cloud")).join(" ").split(/\s+/).length, 1800, "words of the long row went missing");
   });
 
   test("only what is taller than a page is split: a template goes on in a frame of its own, a row line by line", () => {

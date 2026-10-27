@@ -30,13 +30,15 @@ import { monthWords } from "./words";
  *
  *  - CAME: each event's Check-in tab's own rows, `doorRows` over the event's
  *    sign-ups and check-ins as `loadEventAtTheDoor` reads them for the tab
- *    and the door list: every row with a check-in, which is what the tab's
- *    "came" counts (`doorCounts`).
+ *    and the door list: every row with a check-in, and every check-in whose
+ *    names have come off, which is what the tab's "came" counts
+ *    (`doorCounts` with `namesOffOf`).
  *  - DIFFERENT PEOPLE, AND WHO CAME TO TWO OR MORE: the same counted
  *    check-ins, told apart by account, and by the address on a sign-up made
  *    without one (each account's own address joins the two). A walk-in with
  *    no account is never matched: the address a walk-in leaves is for that
- *    event's survey and nothing else.
+ *    event's survey and nothing else. Nor is a check-in whose names have come
+ *    off: it is one more person nobody can match.
  *  - SURVEY ANSWERS AND "HOW WAS IT?": the event's survey (`eventSurveyOf`)
  *    through its Results tab's own reader (`resultsView`).
  *  - STARTED AND FINISHED: the Kairos report's count (`headcountOf`).
@@ -101,6 +103,9 @@ async function readEvent(db: Firestore, event: EventDoc, startAt: Date): Promise
     if (signup && signup.email.trim()) keys.push(addressKey(signup.email));
     counted.push({ how: row.checkIn.how, keys });
   }
+  // A check-in whose names have come off has no row, and the tab counts it:
+  // one more person who came, whom nothing can match.
+  for (const checkIn of checkIns) if (checkIn.namesOff) counted.push({ how: checkIn.how, keys: [], namesOff: true });
   const first = checkIns.reduce<Date | null>((at, checkIn) => (checkIn.at && (!at || checkIn.at < at) ? checkIn.at : at), null);
 
   const survey = await eventSurveyOf(db, event.id);

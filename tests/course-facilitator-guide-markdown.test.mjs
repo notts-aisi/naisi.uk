@@ -41,6 +41,46 @@ import { loadGuideModules } from "./lib/facilitatorGuideWorld.mjs";
 const { model, markdown, recognise, record } = await loadGuideModules();
 const { readGuideMarkdown, guideToMarkdown, isByline } = markdown;
 
+/**
+ * Printables whose templates end in blank lines, the room under a last line:
+ * one, three, one inside a quote, a last line of spaces, and one with none.
+ */
+const TEMPLATE_ROOM = [
+  "# Printables",
+  "",
+  "## Session 1: the card",
+  "",
+  "```markdown",
+  "CARD",
+  "What would you ask the group:",
+  "",
+  "```",
+  "",
+  "## Session 2: the brief",
+  "",
+  "```",
+  "One question for the speaker:",
+  "",
+  "",
+  "",
+  "```",
+  "",
+  "> ```",
+  "> A quoted form:",
+  ">",
+  "> ```",
+  "",
+  "```",
+  "A last line of spaces keeps its spaces:",
+  "   ",
+  "```",
+  "",
+  "```",
+  "No room under this one.",
+  "```",
+  "",
+].join("\n");
+
 const slot = (key) => model.parseSlotKey(key);
 const DOCUMENTS = [
   ["how-to-use", HOW_TO_USE],
@@ -112,6 +152,35 @@ describe("1. every document in the export's shape reads, word for word", () => {
     const { doc } = readGuideMarkdown(PRINTABLES, slot("printables"));
     const code = doc.blocks.find((block) => block.type === "code");
     assert.deepEqual(code, { type: "code", lang: "markdown", text: "FRIDAY FORECAST                 Name: ____________\n\nChance of rain:  ____%" });
+  });
+
+  // The blank lines at a template's very end are the room under its last
+  // line (a card's last question): kept by the reader and the store, and
+  // written back as they were pasted.
+  test("a template keeps the blank lines at its end, through the store and back out as Markdown", () => {
+    const { doc, problems } = readGuideMarkdown(TEMPLATE_ROOM, slot("printables"));
+    assert.deepEqual(problems, []);
+    assert.deepEqual(
+      doc.blocks.filter((block) => block.type === "code").map((block) => block.text),
+      ["CARD\nWhat would you ask the group:\n", "One question for the speaker:\n\n\n", "A last line of spaces keeps its spaces:\n   ", "No room under this one."],
+    );
+    assert.deepEqual(doc.blocks.find((block) => block.type === "quote").body, [{ type: "code", lang: "", text: "A quoted form:\n" }]);
+    // The store keeps them.
+    assert.deepEqual(model.sanitizeGuideBlocks(JSON.parse(JSON.stringify(doc.blocks))), doc.blocks);
+    // Copy as Markdown writes each as it was pasted, and pasted again it is the same document.
+    const copy = guideToMarkdown(doc);
+    for (const written of [
+      "```markdown\nCARD\nWhat would you ask the group:\n\n```",
+      "```\nOne question for the speaker:\n\n\n\n```",
+      "> ```\n> A quoted form:\n>\n> ```",
+      "```\nA last line of spaces keeps its spaces:\n   \n```",
+      "```\nNo room under this one.\n```",
+    ]) {
+      assert.ok(copy.includes(written), `Copy as Markdown lost ${JSON.stringify(written)}`);
+    }
+    const again = readGuideMarkdown(copy, slot("printables"));
+    assert.deepEqual(again.doc, doc);
+    assert.equal(guideToMarkdown(again.doc), copy);
   });
 });
 

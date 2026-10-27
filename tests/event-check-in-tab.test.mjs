@@ -190,3 +190,107 @@ describe("the Check-in tab", () => {
     assert.match(text, /Check-in is for a published event, and this one isn’t published\.$/);
   });
 });
+
+// A record whose names have come off (a year after the event, or at once when
+// the account is deleted) "stays in the count", as the privacy policy says:
+// the tab counts it with who came, lists it nowhere, and its sign-up's row,
+// which keeps no tick, is not said to be somebody who didn't come.
+describe("a check-in whose names have come off still counts", () => {
+  /** Mon 1 Nov 2027, after the names came off the night's check-ins. */
+  const YEAR_ON = new Date("2027-11-02T10:00:00Z");
+  const NIGHT =
+    /4 came 2 of 3 who signed up, and 2 walk-ins 1 checked themselves in With the QR code at the door 1 at the door list Plus the 2 walk-ins 1 didn’t come Check-in never stops anyone signing up again, and nobody else sees who didn’t come\./;
+
+  test("a year after the event every name comes off, and the four numbers are still the night's, for everybody who sees them", async (t) => {
+    clock(t, DURING);
+    await theNight();
+    t.mock.timers.reset();
+    clock(t, YEAR_ON);
+    const { tidyCheckIns } = await load("lib/events/checkIns.ts");
+    assert.equal((await tidyCheckIns(w.world.db, YEAR_ON)).namesOff, 4);
+    for (const who of ["iris", "cal", "sue", "zach"]) {
+      const { text, html } = await open(who);
+      assert.match(text, NIGHT, who);
+      if (who === "iris" || who === "cal") for (const name of NAMES) assert.ok(!html.includes(name), `${who}: ${name} is nowhere in the page`);
+    }
+    const { text } = await open("sue");
+    assert.match(text, /Who came 4 4 came whose names have come off: counted, not listed\. Didn’t come 1 /);
+    assert.ok(!text.includes("Nobody is checked in yet."), "the list says nobody came");
+    assert.match(
+      text,
+      /Didn’t come 1 2 of these came, but their names have come off, so we can’t tell which\. CN Chloe Nguyen GP Gwen Price KA Kofi Asante/,
+    );
+    assert.ok(!text.includes("They came"), "nothing is added a year on");
+  });
+
+  test("an account deleted: its record's names come off at once and it still counts; its sign-up stays, and the list says one of those came", async (t) => {
+    clock(t, DURING);
+    await theNight();
+    const { takeCheckInNamesOffForAccount } = await load("lib/events/checkIns.ts");
+    assert.equal(await takeCheckInNamesOffForAccount(w.world.db, "kofi"), 1);
+    t.mock.timers.reset();
+    clock(t, AFTER);
+    for (const who of ["iris", "cal"]) {
+      const { text, html } = await open(who);
+      assert.match(text, NIGHT, who);
+      for (const name of NAMES) assert.ok(!html.includes(name), `${who}: ${name} is nowhere in the page`);
+    }
+    const { text } = await open("sue");
+    assert.match(text, NIGHT);
+    assert.match(
+      text,
+      /Who came 4 Until Sun 8 Nov, a week after the event Add someone who came Who came, in the order they were checked in Name How Checked in CN Chloe Nguyen Door list 2:05pm DF Dan Fitzgerald .+ MR Mo Rahman No email Walk-in 2:05pm 1 more came whose name has come off: counted, not listed\./,
+    );
+    assert.match(
+      text,
+      /Didn’t come 1 1 of these came, but their name has come off, so we can’t tell which\. GP Gwen Price They came KA Kofi Asante They came/,
+    );
+  });
+
+  test("the counting: every record whose names have come off is one person, a sign-up's taken from the confirmed with no tick while there are any", async () => {
+    const view = await load("lib/events/checkInView.ts");
+    const row = (rsvpId, standing, checkIn = null) => ({ key: rsvpId, rsvpId, name: rsvpId, standing, checkIn });
+    const ticked = (how) => ({ id: "c", how, at: "2026-11-01T14:05:00.000Z", emailGoesAt: null, noEmail: false });
+    const off = (kind, how) => ({ id: `off-${kind}-${how}`, eventId: EVENT_ID, kind, how, namesOff: true });
+    assert.deepEqual(view.namesOffOf([off("signup", "qr"), off("signup", "door"), off("walk-in", "door"), { ...off("signup", "page"), namesOff: false }]), {
+      signups: 2,
+      signupsByQr: 1,
+      walkIns: 1,
+    });
+    // Three confirmed, one of them ticked; two sign-ups and a walk-in whose names came off.
+    const rows = [row("a", "signed-up", ticked("door")), row("b", "signed-up"), row("c", "signed-up"), row("w", "waiting")];
+    assert.deepEqual(view.doorCounts(rows, { signups: 2, signupsByQr: 1, walkIns: 1 }), {
+      expected: 3,
+      signupsHere: 3,
+      walkIns: 1,
+      here: 4,
+      toCome: 0,
+      byQr: 1,
+      byList: 2,
+      notListed: 3,
+      cameUnticked: 2,
+    });
+    // More whose names came off than confirmed with no tick: the rest were let in, and are expected as they came.
+    assert.deepEqual(view.doorCounts([row("a", "signed-up")], { signups: 3, signupsByQr: 0, walkIns: 0 }), {
+      expected: 3,
+      signupsHere: 3,
+      walkIns: 0,
+      here: 3,
+      toCome: 0,
+      byQr: 0,
+      byList: 3,
+      notListed: 3,
+      cameUnticked: 1,
+    });
+    // With none, the numbers are the rows' alone, as before.
+    assert.deepEqual(view.doorCounts(rows), view.doorCounts(rows, view.NO_NAMES_OFF));
+    assert.deepEqual(
+      [view.doorCounts(rows).here, view.doorCounts(rows).toCome, view.doorCounts(rows).notListed, view.doorCounts(rows).cameUnticked],
+      [1, 2, 0, 0],
+    );
+    assert.equal(view.notListedWords(1, false), "1 came whose name has come off: counted, not listed.");
+    assert.equal(view.notListedWords(3, true), "3 more came whose names have come off: counted, not listed.");
+    assert.equal(view.cameUntickedWords(1), "1 of these came, but their name has come off, so we can’t tell which.");
+    assert.equal(view.cameUntickedWords(2), "2 of these came, but their names have come off, so we can’t tell which.");
+  });
+});

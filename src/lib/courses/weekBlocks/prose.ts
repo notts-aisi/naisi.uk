@@ -195,11 +195,19 @@ export function sanitizeRuns(raw: unknown, maxChars: number = WEEK_BLOCK_LIMITS.
 }
 
 /**
+ * How a block of code keeps its end. A week's code loses the blank lines at
+ * its very end, as its reader does. A facilitator guide's code is a template
+ * people write on, and the blank lines at its end are the room under its last
+ * line, so its readers keep them (`src/lib/courses/facilitatorGuide/`).
+ */
+export type CodeEnds = { keepBlankLinesAtEnd?: boolean };
+
+/**
  * Stored prose, read: paragraphs and lists in order, each line canonical,
  * empty lines and lists dropped, the whole cut to `maxChars` characters of
  * text and the caps on paragraphs and list items.
  */
-export function sanitizeProse(raw: unknown, maxChars: number = WEEK_BLOCK_LIMITS.proseChars): Prose {
+export function sanitizeProse(raw: unknown, maxChars: number = WEEK_BLOCK_LIMITS.proseChars, codeEnds: CodeEnds = {}): Prose {
   if (!Array.isArray(raw)) return [];
   const out: Prose = [];
   let left = maxChars;
@@ -238,8 +246,10 @@ export function sanitizeProse(raw: unknown, maxChars: number = WEEK_BLOCK_LIMITS
       out.push({ type: "table", header, rows });
     } else if (p.type === "code") {
       if (typeof p.text !== "string" || !p.text.trim()) continue;
-      // Code keeps every space and line break: it is shown as written.
-      const text = p.text.replace(/\r\n?/g, "\n").replace(/\n+$/, "").slice(0, WEEK_BLOCK_LIMITS.codeChars);
+      // Code keeps every space and line break: it is shown as written. The
+      // blank lines at its end are kept only when asked (`CodeEnds`).
+      const lines = p.text.replace(/\r\n?/g, "\n");
+      const text = (codeEnds.keepBlankLinesAtEnd ? lines : lines.replace(/\n+$/, "")).slice(0, WEEK_BLOCK_LIMITS.codeChars);
       const lang = typeof p.lang === "string" && /^[A-Za-z0-9+#.-]*$/.test(p.lang) ? p.lang.slice(0, WEEK_BLOCK_LIMITS.codeLang) : "";
       left -= text.length;
       out.push({ type: "code", lang, text });

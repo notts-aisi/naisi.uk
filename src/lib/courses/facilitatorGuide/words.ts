@@ -113,3 +113,8 @@ export function noSuchSessionWords(asked: number, sessions: number): string {
 export function nothingForSessionWords(session: number): string {
   return `Nothing in the printables is for session ${session}.`;
 }
+
+/** Small at the foot of each page of a PDF of more than one page: "Page 2 of 5". */
+export function pageOfWords(page: number, pages: number): string {
+  return `Page ${page} of ${pages}`;
+}

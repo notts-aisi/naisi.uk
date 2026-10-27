@@ -13,7 +13,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { runsCheckIn } from "@/lib/events/checkInAccess";
 import { loadEventAtTheDoor } from "@/lib/events/checkInLoad";
-import { doorCounts, doorRows } from "@/lib/events/checkInView";
+import { doorCounts, doorRows, namesOffOf } from "@/lib/events/checkInView";
 import {
   addLaterUntil,
   checkInPhase,
@@ -63,7 +63,9 @@ export default async function CheckInTabPage({ params }: { params: Promise<{ id:
   const takes = eventTakesCheckIns(event);
   const phase = takes ? checkInPhase(event, now, surveyClosesAt) : null;
   const rows = doorRows(doorListSignups(signups), checkIns);
-  const counts = doorCounts(rows);
+  // A check-in whose names have come off has no row and still counts.
+  const namesOff = namesOffOf(checkIns);
+  const counts = doorCounts(rows, namesOff);
   const window = doorWindow(event);
   const until = addLaterUntil(event, surveyClosesAt);
   const emailGoesAt = walkInEmailGoesAt(event, surveyClosesAt);
@@ -164,6 +166,7 @@ export default async function CheckInTabPage({ params }: { params: Promise<{ id:
               <WhoCame
                 eventId={event.id}
                 initialRows={rows}
+                namesOff={namesOff}
                 canAdd={phase === "door" || phase === "later"}
                 addUntil={until ? dayWords(until) : null}
                 doorClosed={doorClosed}

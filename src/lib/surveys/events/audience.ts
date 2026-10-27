@@ -1,6 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { fullNameOfUser } from "@/lib/courses/programmeLead";
+import { namesOffOf, type NamesOff } from "@/lib/events/checkInView";
 import { loadEventCheckIns } from "@/lib/events/checkIns";
 import { normalizeEvent, normalizeRsvp, type EventDoc, type RsvpDoc } from "@/lib/firestore/events";
 import type { EventAudience, EventRespondent } from "@/lib/firestore/surveys";
@@ -50,6 +51,11 @@ export type EventAudienceRead = {
   event: EventDoc;
   /** Everybody who came or whose sign-up is confirmed, once each, by name. */
   people: EventAudienceMember[];
+  /**
+   * The check-ins whose names have come off, as counts: people who came whom
+   * no survey can reach, and whom the Check-in tab still counts.
+   */
+  namesOff: NamesOff;
 };
 
 /** One person's key, whichever kind they are. */
@@ -153,5 +159,5 @@ export async function readEventAudience(db: Firestore, eventId: string): Promise
     }
   }
   people.sort((a, b) => a.name.localeCompare(b.name, "en") || a.key.localeCompare(b.key));
-  return { event, people };
+  return { event, people, namesOff: namesOffOf(checkIns.filter((checkIn) => checkIn.eventId === eventId)) };
 }

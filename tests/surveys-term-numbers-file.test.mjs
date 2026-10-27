@@ -72,12 +72,13 @@ describe("Download totals (CSV)", () => {
       file.text,
       [
         "Term,Events,Programmes,Check-ins,At events,Different people,Came to 2 or more,Note",
-        'Autumn 2026,7,2,12,3,8,4,"Walk-ins without an account can’t be matched across events, so the 8 may count one walk-in twice, and the 4 may miss some."',
+        // The VR night's record whose names came off is counted, as its Check-in tab counts it.
+        'Autumn 2026,7,2,13,3,9,4,"Walk-ins without an account can’t be matched across events, so the 9 may count one walk-in twice, and the 4 may miss some."',
         "",
         "Date,Event,Came,Survey answers,How was it? Average out of 5,Note",
         "Wed 14 Oct,Board games and pizza,Not counted,No survey,,Before check-in",
         "Fri 16 Oct,Movie night: WarGames,Not counted,No survey,,Before check-in",
-        "Sun 1 Nov,VR games night,6,3,4.5,",
+        "Sun 1 Nov,VR games night,7,3,4.5,",
         "Thu 5 Nov,AI policy careers panel,4,Not sent yet,,",
         "Thu 12 Nov,How do you test an AI model?,2,No survey,,No sign-up: checked in by QR and at the door",
         "Thu 19 Nov,Pizza and board games,Not counted,No survey,,No check-in",

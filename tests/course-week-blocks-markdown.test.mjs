@@ -20,6 +20,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { marked } from "marked";
 import { createLoader } from "./lib/tsLoader.mjs";
 import { syntheticGuideMarkdown, syntheticWeekBlocks } from "./lib/weekBlocksFixture.mjs";
 
@@ -354,6 +355,26 @@ describe("2. the guide's own Markdown, read", () => {
     assert.deepEqual(further.items[1].why.filter((run) => run.href).map((run) => run.href), ["https://example.org/video", "https://example.com/essay"]);
     const handsOn = blocks.find((block) => block.type === "handsOn");
     assert.deepEqual(handsOn.body[1], { type: "code", lang: "python", text: "def brier(p, outcome):\n    return (p - outcome) ** 2" });
+  });
+
+  // A facilitator guide's template keeps the blank lines at its end (the room
+  // under its last line); a week's code is read as it always was, so no week
+  // changes. Only the guide asks for them (`TEMPLATE_ENDS`).
+  test("a week's code still loses the blank lines at its very end: only a facilitator guide keeps a template's", async () => {
+    const roomy = syntheticGuideMarkdown().replace("    return (p - outcome) ** 2\n```", "    return (p - outcome) ** 2\n\n\n```");
+    assert.notEqual(roomy, syntheticGuideMarkdown(), "the fixture's code block moved: point this test at it again");
+    const handsOn = paste(roomy, null).blocks.find((block) => block.type === "handsOn");
+    assert.deepEqual(handsOn.body[1], { type: "code", lang: "python", text: "def brier(p, outcome):\n    return (p - outcome) ** 2" });
+    const reader = await loadTs("lib/courses/weekBlocks/markdownRead.ts");
+    const { sanitizeProse } = await loadTs("lib/courses/weekBlocks/prose.ts");
+    const { TEMPLATE_ENDS } = await loadTs("lib/courses/facilitatorGuide/model.ts");
+    const fenced = marked.lexer("```\nA command\n\n\n```\n", { gfm: true });
+    assert.deepEqual(reader.readProseTokens(fenced, reader.noneLeftOut()), [{ type: "code", lang: "", text: "A command" }]);
+    assert.deepEqual(reader.readProseTokens(fenced, reader.noneLeftOut(), TEMPLATE_ENDS), [{ type: "code", lang: "", text: "A command\n\n" }]);
+    const storedCode = [{ type: "code", lang: "", text: "A command\n\n" }];
+    assert.deepEqual(sanitizeProse(storedCode), [{ type: "code", lang: "", text: "A command" }]);
+    assert.deepEqual(sanitizeProse(storedCode, undefined, TEMPLATE_ENDS), storedCode);
+    assert.deepEqual(TEMPLATE_ENDS, { keepBlankLinesAtEnd: true });
   });
 
   test("once read, the guide's week copies out with its ids and reads back the same", () => {

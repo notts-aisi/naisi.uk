@@ -1,6 +1,7 @@
 import type { Prose, ProseParagraph, Run, TableCell } from "@/lib/courses/weekBlocks/prose";
 import type { GuideBlock, GuideCheckItem, GuideDocument } from "./model";
 import { drawableText, drawnAs } from "./printablesGlyphs";
+import { pageOfWords } from "./words";
 
 /**
  * A COURSE'S PRINTABLES, LAID OUT ON A4: where every line, row, template and
@@ -10,9 +11,14 @@ import { drawableText, drawnAs } from "./printablesGlyphs";
  * WHAT IS DRAWN IS WHAT IS WRITTEN, in the document's order: its title,
  * headings, paragraphs, lists, quotes, boxes to tick, tables, and its
  * templates (code blocks) in the monospace face with every space kept,
- * because they are forms people write on. Nothing is added and nothing is
- * reworded: every string handed to the PDF is a stretch of the document's
- * own text (`drawn`), and the marks around them are lines and boxes.
+ * because they are forms people write on. Nothing is reworded, and two things
+ * are added (`extras`): a PDF of more than one page says "Page 2 of 5" small
+ * in the bottom margin of each page, and a table that runs on to another page
+ * has its header row drawn again at the top there. Every other string handed
+ * to the PDF is a stretch of the document's own text (`drawn`), and the marks
+ * around them are lines and boxes. Neither addition moves the rest: the page's
+ * number sits below the content, and a header drawn again takes only its own
+ * height on the page it is drawn on.
  *
  * THE PAGE: A4 portrait, single-sided, 15 mm margins, the house's light inks
  * on white.
@@ -29,7 +35,8 @@ import { drawableText, drawnAs } from "./printablesGlyphs";
  * in a colon always have what follows them on their page. What cannot fit on
  * a page of its own is split there and nowhere else: a template or a row
  * taller than a page at a line, its first piece three quarters of a page so
- * its heading stands with it; a table taller than a page between its rows; a
+ * its heading stands with it; a table taller than a page between its rows,
+ * its header row drawn again above the rows on each page it runs on to; a
  * paragraph taller than a page keeping two lines either side of the break.
  *
  * Pure: the fonts are asked through `Measure`, which `printablesPdf.ts` hands
@@ -106,6 +113,8 @@ export const PRINT_LOOK = {
   rule: 0.5,
   /** A link's underline, below the baseline. */
   underline: { offset: 1.6, width: 0.6 },
+  /** "Page 2 of 5", in the bottom margin. */
+  pageNumber: { size: 8 },
 } as const;
 
 /** Tab stops in a template, every eight columns, as a browser draws a template on the guide's page. */
@@ -150,6 +159,12 @@ export type PdfText = {
   ink: string;
   /** Italic in the document: Space Grotesk has no italic, so the letters lean. */
   oblique: boolean;
+  /**
+   * What the layout adds rather than the document's text where it is written:
+   * the page's number at its foot, or a table's header row drawn again at the
+   * top of a page its table runs on to.
+   */
+  extra?: "page-number" | "header-again";
 };
 
 /** A straight line: a cut line (dashed), a rule, an underline, a quote's bar. */
@@ -172,6 +187,8 @@ export type PlacedMark = {
   row?: number;
   /** The piece of a row or a template too tall for one page; absent when it is whole. */
   part?: number;
+  /** A table's header row drawn again at the top of a page its table runs on to. */
+  repeated?: true;
   /** The "##" section and "###" part it is in, outermost first. */
   groups: string[];
   page: number;
@@ -184,8 +201,14 @@ export type PlacedGroup = { id: string; height: number; pages: number[] };
 
 export type PrintablesLayout = {
   pages: PdfItem[][];
-  /** Every string handed to the PDF as text, in the order it is drawn. */
+  /** Every string of the document's own text handed to the PDF, in the order it is drawn: each once. */
   drawn: string[];
+  /**
+   * The strings the layout adds, in the order they are drawn: each page's
+   * number when there is more than one page, and a table's header row drawn
+   * again at the top of each page it runs on to.
+   */
+  extras: string[];
   /** Every character drawn as a box, once each, in order. */
   undrawable: string[];
   placed: PlacedMark[];
@@ -211,6 +234,8 @@ type Atom = {
   groups: string[];
   mark: Mark;
   items(top: number, atPageTop: boolean): PdfItem[];
+  /** A row of a table after its header: the header, drawn again above it when it starts a page. */
+  repeat?: Atom;
 };
 
 /** Where a block is drawn across the page: from `x`, `width` wide, with a quote's bar beside it when `bar` is set. */
@@ -428,6 +453,7 @@ function withBar(frame: Frame, atom: Atom, opensQuote: boolean): Atom {
   if (!bar) return atom;
   return {
     ...atom,
+    repeat: atom.repeat ? withBar(frame, atom.repeat, false) : undefined,
     items(top, atPageTop) {
       const from = atPageTop || opensQuote ? top : top - atom.gapBefore;
       const half = PRINT_LOOK.quote.bar / 2;
@@ -522,8 +548,10 @@ function cutFrame(x: number, y: number, w: number, h: number): PdfItem[] {
 /**
  * A table: each row a card in its own dashed frame, its cells' text wrapped
  * in columns sized to what they hold, the header's words in the heavier
- * weight. The header row is kept on the page of the row after it; a row is
- * never split unless it is taller than a page.
+ * weight. The header row is kept on the page of the row after it, and drawn
+ * again at the top of each page the table runs on to (`repeat`), so a row
+ * there leaves room for it; a row is never split unless it is taller than a
+ * page.
  */
 function tableAtoms(b: Build, frame: Frame, header: readonly TableCell[], rows: readonly { cells: readonly TableCell[] }[], gapBefore: number): Atom[] {
   const { size, leading, padX, padY } = PRINT_LOOK.table;
@@ -557,21 +585,28 @@ function tableAtoms(b: Build, frame: Frame, header: readonly TableCell[], rows: 
   const lefts = widths.map((_, c) => frame.x + widths.slice(0, c).reduce((a, n) => a + n, 0));
 
   const atoms: Atom[] = [];
+  // The header row as drawn again at the top of a page the table runs on to:
+  // a header of one slice, and no taller than a quarter of a page, so a row
+  // always has room under it.
+  let headerAgain: Atom | null = null;
   all.forEach((row, r) => {
     const cells = Array.from({ length: columns }, (_, c) =>
       breakLines(b.ctx, row.cells[c]?.runs ?? [], size, Math.max(1, widths[c] - 2 * padX), row.head),
     );
     const tallest = Math.max(1, ...cells.map((lines) => lines.length));
-    // A row taller than a page is cut into slices of whole lines; any other row is one slice.
-    const slices = pieces(tallest, Math.max(1, Math.floor((CONTENT_HEIGHT - 2 * padY) / lineHeight)));
+    // A row taller than a page is cut into slices of whole lines, each leaving
+    // room for the header drawn again above it; any other row is one slice.
+    const tallestSlice = CONTENT_HEIGHT - 2 * padY - (headerAgain ? headerAgain.height : 0);
+    const slices = pieces(tallest, Math.max(1, Math.floor(tallestSlice / lineHeight)));
     slices.forEach(([from, to], part) => {
       const height = (to - from) * lineHeight + 2 * padY;
-      atoms.push({
+      const atom: Atom = {
         height,
         gapBefore: r === 0 && part === 0 ? gapBefore : 0,
         glueNext: row.head && r < all.length - 1,
         groups: b.groups,
         mark: slices.length > 1 ? { kind: "row", block: b.block, row: r, part } : { kind: "row", block: b.block, row: r },
+        repeat: headerAgain ?? undefined,
         items: (top: number) => {
           const items: PdfItem[] = [];
           for (let c = 1; c < columns; c += 1) {
@@ -585,7 +620,17 @@ function tableAtoms(b: Build, frame: Frame, header: readonly TableCell[], rows: 
           });
           return items;
         },
-      });
+      };
+      atoms.push(atom);
+      if (row.head && slices.length === 1 && height <= CONTENT_HEIGHT / 4) {
+        headerAgain = {
+          ...atom,
+          gapBefore: 0,
+          glueNext: false,
+          repeat: undefined,
+          items: (top, atPageTop) => atom.items(top, atPageTop).map((item) => (item.kind === "text" ? { ...item, extra: "header-again" } : item)),
+        };
+      }
     });
   });
   return atoms;
@@ -795,7 +840,9 @@ function documentAtoms(ctx: Ctx, doc: GuideDocument): Atom[] {
  * of its own (a "##" section, a "###" part, a block), and then whatever is
  * glued to the end of that, the same way. When that does not fit on what is
  * left of this page but would fit on an empty one, it starts the next page;
- * otherwise the atom goes where it fits, or on the next page.
+ * otherwise the atom goes where it fits, or on the next page. A row of a table
+ * that starts a page has its table's header drawn again above it: the row was
+ * cut to leave room for it (`tableAtoms`).
  */
 function paginate(atoms: readonly Atom[]): { pages: PdfItem[][]; placed: PlacedMark[]; groups: PlacedGroup[] } {
   // Where each group ends.
@@ -841,6 +888,8 @@ function paginate(atoms: readonly Atom[]): { pages: PdfItem[][]; placed: PlacedM
 
   const pages: PdfItem[][] = [[]];
   const placed: PlacedMark[] = [];
+  /** The page each atom went on, by the atom's place in `atoms`. */
+  const pageOf: number[] = [];
   let y = TOP;
   let atTop = true;
   const newPage = () => {
@@ -855,9 +904,18 @@ function paginate(atoms: readonly Atom[]): { pages: PdfItem[][]; placed: PlacedM
       if (y + need > BOTTOM && need - atom.gapBefore <= CONTENT_HEIGHT) newPage();
     }
     if (!atTop && y + atom.gapBefore + atom.height > BOTTOM) newPage();
+    // The table runs on to this page: its header row first.
+    if (atTop && atom.repeat) {
+      const head = atom.repeat;
+      pages[pages.length - 1].push(...head.items(TOP, true));
+      placed.push({ ...head.mark, repeated: true, groups: atom.groups, page: pages.length - 1, top: TOP, bottom: TOP + head.height });
+      y = TOP + head.height;
+      atTop = false;
+    }
     const top = y + (atTop ? 0 : atom.gapBefore);
     pages[pages.length - 1].push(...atom.items(top, atTop));
     placed.push({ ...atom.mark, groups: atom.groups, page: pages.length - 1, top, bottom: top + atom.height });
+    pageOf.push(pages.length - 1);
     y = top + atom.height;
     atTop = false;
   });
@@ -865,18 +923,52 @@ function paginate(atoms: readonly Atom[]): { pages: PdfItem[][]; placed: PlacedM
   atoms.forEach((atom, i) => {
     for (const id of startingAt[i]) {
       const last = ends.get(id) as number;
-      const on = new Set(placed.slice(i, last + 1).map((mark) => mark.page));
+      const on = new Set(pageOf.slice(i, last + 1));
       groups.push({ id, height: tall(i, last) - atom.gapBefore, pages: [...on].sort((a, b) => a - b) });
     }
   });
   return { pages, placed, groups };
 }
 
-/** A printables document laid out on A4 pages: what each page draws, every string drawn, and where everything went. */
+/**
+ * "Page 2 of 5", small and muted, centred in the bottom margin, below
+ * everything the page holds, so it moves nothing.
+ */
+function pageNumber(ctx: Ctx, page: number, pages: number): PdfText {
+  const { size } = PRINT_LOOK.pageNumber;
+  const text = pageOfWords(page, pages);
+  const box = size * 1.2;
+  const top = BOTTOM + (PAGE.margin - box) / 2;
+  return {
+    kind: "text",
+    x: (PAGE.width - widthOf(ctx, text, "regular", size)) / 2,
+    y: top + baselineIn("regular", size, box),
+    text,
+    face: "regular",
+    size,
+    ink: PRINT_INKS.muted,
+    oblique: false,
+    extra: "page-number",
+  };
+}
+
+/**
+ * A printables document laid out on A4 pages: what each page draws, the
+ * document's strings and what the layout adds, and where everything went.
+ * A PDF of more than one page numbers its pages; one of a page does not.
+ */
 export function layoutPrintables(doc: GuideDocument, measure: Measure): PrintablesLayout {
   const ctx: Ctx = { measure, cache: new Map(), undrawable: [] };
   const atoms = documentAtoms(ctx, doc);
   const { pages, placed, groups } = paginate(atoms);
-  const drawn = pages.flatMap((items) => items.flatMap((item) => (item.kind === "text" ? [item.text] : [])));
-  return { pages, drawn, undrawable: [...ctx.undrawable], placed, groups };
+  if (pages.length > 1) pages.forEach((items, index) => items.push(pageNumber(ctx, index + 1, pages.length)));
+  const texts = pages.flatMap((items) => items.flatMap((item) => (item.kind === "text" ? [item] : [])));
+  return {
+    pages,
+    drawn: texts.filter((item) => !item.extra).map((item) => item.text),
+    extras: texts.filter((item) => item.extra).map((item) => item.text),
+    undrawable: [...ctx.undrawable],
+    placed,
+    groups,
+  };
 }
