@@ -2723,6 +2723,16 @@ export const ROUTES = {
         "in it, signed in or not.",
     },
   },
+  "/api/surveys/term/totals": {
+    GET: {
+      expect: adminOnly(404),
+      why:
+        "This term in numbers as a file of totals is an admin's alone: canRunSurveys refuses everybody else " +
+        "before anything is read, and somebody signed out is told to sign in. The battery's world has opened no " +
+        "application form, so there is no term and an admin is told so in a sentence. A GET that writes nothing, " +
+        "and a file, not JSON, so no fields.",
+    },
+  },
   "/api/tasks/[id]/delete": {
     POST: {
       expect: signedIn(404),
@@ -3157,6 +3167,13 @@ export const PAGES = {
       "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard, the " +
       "course and membership permission holders included, because the admin front door " +
       "admits them and this inner gate is what keeps them out of the rest.",
+  },
+  "/(app)/admin/(admin-only)/surveys/term": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard, and the page asks " +
+      "canRunSurveys again itself. It shows how many came to a term's events and each programme's before and " +
+      "after, counts only and never a name; with no term it says so in a sentence.",
   },
   "/(app)/admin/(admin-only)/task-templates": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),

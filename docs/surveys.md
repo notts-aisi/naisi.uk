@@ -762,14 +762,77 @@ with `isEventSurvey` and hand it over.
   caller), and the policy's "survey after an event" block in
   `tests/privacy-policy.test.mjs`.
 
+## This term in numbers
+
+Run NAISI › Surveys › This term in numbers (`/admin/surveys/term`, board
+sv-term, Q51 B): the term at a glance for admins, each event's check-ins and
+survey, how many different people came and how many came back, and each
+programme's before and after. Counts only, never a name; every count with its
+base; no threshold (Zach, 26 Oct 2026). The code: `src/lib/surveys/term/`
+(`choose.ts` the term, `load.ts` the reads, `model.ts` the counting,
+`words.ts` the board's words, `totals.ts` the file), the page and
+`GET /api/surveys/term/totals`.
+
+- **Admins only, three times over**: the `(admin-only)` layout, the page's own
+  `canRunSurveys`, and the loader, which asks `canRunSurveys` and the check-in
+  bar (`runsCheckIn`) before it reads anything. A view-as session's account is
+  never an admin's, so it never gets in.
+- **The term, chosen from records** (`chooseTerm`): an application form that
+  has opened (not a draft, cancelled or archived). This term is the one whose
+  decision day went out most recently, so next term's form, open and
+  undecided, does not take over and this term's surveys at the end stay on the
+  page; before any decisions, the one that opened most recently. Its label is
+  the form's. Its **events** are the published events that started since its
+  form opened, up to now (one range on `startAt`), oldest first; its
+  **programmes** are the form's that name a course run, in the form's order.
+  Only this term is shown: there is no way to look at an earlier one.
+- **Every number through the reader its own page uses**, so the two can never
+  disagree: an event's Came is its Check-in tab's rows (`doorRows` over
+  `loadEventAtTheDoor`, what `doorCounts` counts); its survey's answers and
+  "How was it?" are its Results (`resultsView`); Started and Finished are the
+  Kairos report's, through the one shared count (`headcountOf` in
+  `src/lib/courses/finishing/headcount.ts`); Answered both is the change
+  view's pairing (`bothOf` in `change.ts`); the survey at the end's "27 of 31"
+  is every answer it holds of the people its sends reached (`sentCountOf`, as
+  its Results). `tests/surveys-term-numbers.test.mjs` holds each to its reader.
+- **Different people, and who came to two or more**: the counted check-ins of
+  the term's events, matched by account (and the account's own address), and
+  a sign-up made without an account by the address it gave. A walk-in with no
+  account is never matched: the address a walk-in leaves is for that event's
+  survey and nothing else. When such walk-ins came to two or more of the
+  events, the board's sentence says the count may hold one twice and the
+  repeat count may miss some.
+- **The notes**: nobody counted and the event ended before check-in was first
+  used on the site (the first check-in its events hold, or any before the
+  term): "Before check-in"; else "No sign-up and no check-in" for an event
+  with no sign-up, else "No check-in". A no-sign-up event with people counted
+  says how they were checked in, as the Check-in tab groups them ("by QR",
+  "at the door" for the door list and those added later).
+- **A programme's row**: "Considering, planning or already doing it" is C1 at
+  stage 2 or more (`CONSIDERING_STAGE`), at the start and at the end, of the
+  people who answered both surveys; somebody who skipped C1 at one end is not
+  counted at that end. Until the survey at the end is sent, the cell says when
+  it comes: the month of the run's last session and its last taught week
+  (`lastTaughtWeek`), "In February, after week 10".
+- **The file** ("Download totals (CSV)") is the page's own view as three
+  blocks (the term, its events, its programmes). It names nobody, so it is
+  **not** a download the site records: `dataExports` is for files of named
+  people, the five the privacy policy lists, and the Kairos report of totals
+  is not recorded either. A GET that writes nothing, so the link works before
+  the page's script arrives.
+- **Retention**: nothing is stored. The counts are worked out each time from
+  the check-ins as the Check-in tab counts them, and the check-ins keep names
+  for a year after the event.
+- The privacy policy says it in "When you come to an event", tied in
+  `tests/privacy-policy.test.mjs` ("this term in numbers").
+
 ## Not built yet
 
 Results for a programme's lead but the leaving survey's, and the lead's
-Surveys tab that links them; one person's answers page; this term in numbers;
-"Can be quoted" beside a ticked comment on Results (sv-results); and an
-option's own words ("Something else: ..."). The
-model is built so none of them needs a rewrite: another `audience.kind`,
-another `respondent.kind`, the same records.
+Surveys tab that links them; one person's answers page; "Can be quoted"
+beside a ticked comment on Results (sv-results); and an option's own words
+("Something else: ..."). The model is built so none of them needs a rewrite:
+another `audience.kind`, another `respondent.kind`, the same records.
 
 ## Check-in, for the surveys after events
 
@@ -796,8 +859,12 @@ every kind of caller), `tests/surveys-deletion.test.mjs` (both cascades),
 writes), `tests/surveys-quote-tick.test.mjs` (the box and the tick, one
 decision; the tick kept with its answer), `tests/surveys-public-numbers.test.mjs`
 (the counting, what is read and never read, both routes and the admins' page as
-every kind of caller) and `tests/public-numbers-last-term.test.mjs` (the block
-on the public page, from the record alone).
+every kind of caller), `tests/public-numbers-last-term.test.mjs` (the block
+on the public page, from the record alone), and This term in numbers' three:
+`tests/surveys-term-numbers.test.mjs` (the counting, and every number held to
+its own page's reader), `tests/surveys-term-numbers-page.test.mjs` and
+`tests/surveys-term-numbers-file.test.mjs` (the page and the file as every
+kind of caller, and nothing about a person in either).
 
 The privacy policy says what a survey keeps, who sees it, when names come off
 and what a deletion does, under "When you answer a survey", and
