@@ -329,9 +329,15 @@ export function byHandFullWords(name: string, groupName: string): string {
   return `${groupName} is full, so ${name} can’t be placed in it. Make room in ${groupName} on People in groups, or give it more places, then try again. Nothing was saved.`;
 }
 
-/** By hand, from somebody who may not place them (a track lead, for a place from the application form). */
-export function byHandNotYoursWords(name: string): string {
-  return `Only an admin or the lead of the programme that names this run can make ${name} one of its facilitators, so nothing was saved.`;
+/**
+ * By hand, from somebody who may not place them (a track lead, for a place
+ * from the application form). NOT DRAWN, listed in the build notes for the
+ * boards' designers to confirm. It names nobody and gives no reason: a row
+ * from the application form is named in a refusal to an admin or that
+ * programme's lead only, and saying why would say that the row is there.
+ */
+export function byHandNotYoursWords(): string {
+  return "Only an admin or the lead of the programme that names this run can make that change, so nothing was saved.";
 }
 
 /** Asking: they sit in another group. */

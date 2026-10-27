@@ -6,7 +6,7 @@ import { COURSE_AUDIT_COLLECTION, type CourseAuditKind } from "@/lib/firestore/c
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import type { SessionUser } from "@/lib/firebase/session";
-import { roleOnProgramme } from "../access";
+import { canReadApplication, roleOnProgramme } from "../access";
 import { freePlaces, isInTerm } from "../decisions";
 import { sendDecisionEmail, type Delivery } from "../decisionDay/deliver";
 import type { DecisionEmail } from "../decisionDay/emailCopy";
@@ -333,6 +333,10 @@ export async function offerFreedPlaces(
       const application = byUid.get(pick.uid);
       if (!application?.sent) return refuse(404, NOBODY);
       const ranked = rankedProgrammes(live, application.sent).map((each) => each.id);
+      // Somebody this caller may not read answers as nobody does, before
+      // anything says whether they withdrew, were told, hold a place or an
+      // invitation.
+      if (!canReadApplication(user, live, ranked)) return refuse(404, NOBODY);
       const why = offerProblem(
         { name: nameOf(application), ranked, decision: decisions.get(pick.uid) ?? null, application },
         liveProgramme,
@@ -619,6 +623,8 @@ export async function sendFreedPlaceTest(
   ]);
   if (!application?.sent) return refuse(404, NOBODY);
   const ranked = rankedProgrammes(form, application.sent).map((each) => each.id);
+  // The same answer as for nobody, ahead of everything that describes them.
+  if (!canReadApplication(user, form, ranked)) return refuse(404, NOBODY);
   const why = offerProblem({ name: nameOf(application), ranked, decision, application }, programme);
   if (why) return refuse(409, why);
   const group = groupSnap.exists ? normalizeCourseGroup(groupSnap.id, groupSnap.data() ?? {}) : null;

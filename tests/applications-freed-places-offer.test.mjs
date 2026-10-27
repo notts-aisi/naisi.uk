@@ -555,6 +555,36 @@ describe("only to a pooled applicant told “No offer this time” who ranked th
     ]);
   });
 
+  test("a programme's lead asking about somebody who ranked another programme only is told what is said for nobody", async () => {
+    // Claudia leads AGI Strategy. Hana ranked Technical AI Safety only, so her
+    // application is not Claudia's to read: both routes answer exactly as they
+    // do for an id with no application, before anything says what became of her.
+    await api.test("claudia", { ...pick("omar"), replyBy: REPLY_BY });
+    const before = everything();
+    const mail = world.mail.length;
+    const nobody = await api.offer("claudia", offerBody([pick("nobody")]));
+    const offered = await api.offer("claudia", offerBody([pick("hana")]));
+    assert.deepEqual(short(offered), [404, "Nobody by that id has an application on this form."]);
+    assert.deepEqual(offered.body, nobody.body);
+    const tested = await api.test("claudia", { ...pick("hana"), replyBy: REPLY_BY });
+    assert.deepEqual(short(tested), [404, "Nobody by that id has an application on this form."]);
+    assert.ok(!/hana|ito/i.test(JSON.stringify([offered.body, tested.body])), "the answer named the person");
+    assert.equal(everything(), before);
+    assert.equal(world.mail.length, mail);
+  });
+
+  test("a lead still hears what became of somebody who ranked their programme, and an admin's answers are unchanged", async () => {
+    await api.test("claudia", { ...pick("omar"), replyBy: REPLY_BY });
+    const kai = "AGI Strategy declined Kai Moreau, so they aren’t offered its place.";
+    assert.deepEqual(short(await api.offer("claudia", offerBody([pick("kai")]))), [409, kai]);
+    assert.deepEqual(short(await api.test("claudia", { ...pick("kai"), replyBy: REPLY_BY })), [409, kai]);
+    // An admin reads every application: the same sentences as before.
+    const hana = "Hana Ito didn’t rank AGI Strategy, so its freed places aren’t theirs to be offered.";
+    await api.test("zach", { ...pick("omar"), replyBy: REPLY_BY });
+    assert.deepEqual(short(await api.offer("zach", offerBody([pick("hana")]))), [409, hana]);
+    assert.deepEqual(short(await api.test("zach", { ...pick("hana"), replyBy: REPLY_BY })), [409, hana]);
+  });
+
   test("somebody with no application on the form is not found", async () => {
     await api.test("zach", { ...pick("omar"), replyBy: REPLY_BY });
     assert.deepEqual(short(await api.offer("zach", offerBody([pick("nobody")]))), [
