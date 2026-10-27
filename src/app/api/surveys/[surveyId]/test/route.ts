@@ -3,7 +3,8 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { sendEmail } from "@/lib/email/send";
 import { getCurrentUser } from "@/lib/firebase/session";
-import { SURVEYS_COLLECTION } from "@/lib/firestore/surveys";
+import { SURVEYS_COLLECTION, isEventSurvey } from "@/lib/firestore/surveys";
+import { eventNamesOffDay } from "@/lib/surveys/events/records";
 import { namesOffDayFor } from "@/lib/surveys/namesOff";
 import { canRunSurveys, isOpen, isSurveyId, readSurvey } from "@/lib/surveys/repo";
 import { prepareSurveyTest, recordSurveyTest } from "@/lib/surveys/sending";
@@ -53,8 +54,11 @@ export async function POST(req: Request, ctx: Ctx) {
   // A leaving survey is never sent: it reaches each person as they leave (Q46).
   if (survey.kind === "leaving") return NextResponse.json({ error: REFUSAL.leavingNotSent }, { status: 409 });
   const now = new Date();
-  if (email === "survey" && survey.firstSentAt) return NextResponse.json({ error: REFUSAL.alreadySent }, { status: 409 });
-  if (email === "reminder" && !survey.firstSentAt) return NextResponse.json({ error: REFUSAL.notSentYet }, { status: 409 });
+  // A survey after an event opens at the event before its email goes, so its
+  // email has gone once its first press has.
+  const emailed = isEventSurvey(survey) ? survey.presses.some((press) => press.kind === "first") : survey.firstSentAt !== null;
+  if (email === "survey" && emailed) return NextResponse.json({ error: REFUSAL.alreadySent }, { status: 409 });
+  if (email === "reminder" && !emailed) return NextResponse.json({ error: REFUSAL.notSentYet }, { status: 409 });
   if (survey.firstSentAt && !isOpen(survey, now)) return NextResponse.json({ error: REFUSAL.closedSend }, { status: 409 });
   if (!survey.closesAt || survey.closesAt.getTime() <= now.getTime()) {
     return NextResponse.json({ error: REFUSAL.closesPast }, { status: 409 });
@@ -63,7 +67,7 @@ export async function POST(req: Request, ctx: Ctx) {
   // while that cannot be worked out, as the send is. Until the first send the
   // day follows the run's sessions, so it is worked out again here.
   if (!survey.firstSentAt) {
-    const day = await namesOffDayFor(db, survey.runId, now);
+    const day = isEventSurvey(survey) ? await eventNamesOffDay(db, survey) : await namesOffDayFor(db, survey.runId, now);
     if (!day) return NextResponse.json({ error: REFUSAL.noNamesOff }, { status: 409 });
     if (day !== survey.namesOffOn) {
       await db.collection(SURVEYS_COLLECTION).doc(survey.id).update({ namesOffOn: day });

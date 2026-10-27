@@ -4,11 +4,15 @@ import {
   SURVEY_ANSWERS_COLLECTION,
   SURVEY_PEOPLE_COLLECTION,
   SURVEYS_COLLECTION,
+  isEventSurvey,
   isSurveyToken,
+  normalizeEventPerson,
   normalizeSurvey,
   normalizeSurveyAnswer,
   normalizeSurveyPerson,
   surveyPersonId,
+  type EventSurveyDoc,
+  type EventSurveyPersonDoc,
   type SurveyAnswerDoc,
   type SurveyDoc,
   type SurveyPersonDoc,
@@ -117,6 +121,8 @@ export async function ownAnswerOf(db: Firestore, survey: SurveyDoc, uid: string)
 /** What a link's secret opens: a person's own row, a survey's test, or nothing. */
 export type LinkTarget =
   | { kind: "person"; person: SurveyPersonDoc; survey: SurveyDoc }
+  /** A person's own row on a survey after an event, who may be a guest (`./events/store.ts`). */
+  | { kind: "event"; person: EventSurveyPersonDoc; survey: EventSurveyDoc }
   | { kind: "test"; survey: SurveyDoc }
   | { kind: "none" };
 
@@ -131,10 +137,14 @@ export async function openLink(db: Firestore, token: string): Promise<LinkTarget
   const people = await db.collection(SURVEY_PEOPLE_COLLECTION).where("token", "==", token).get();
   if (people.docs.length === 1) {
     const doc = people.docs[0];
-    const person = normalizeSurveyPerson(doc.id, doc.data() ?? {});
-    if (person && person.token === token) {
-      const survey = await readSurvey(db, person.surveyId);
-      if (survey) return { kind: "person", person, survey };
+    // A row on a survey after an event may hold a guest, whom only its own
+    // reader knows; any other row holds an account.
+    const row = normalizeEventPerson(doc.id, doc.data() ?? {});
+    if (row && row.token === token) {
+      const survey = await readSurvey(db, row.surveyId);
+      if (survey && isEventSurvey(survey)) return { kind: "event", person: row, survey };
+      const person = normalizeSurveyPerson(doc.id, doc.data() ?? {});
+      if (survey && person) return { kind: "person", person, survey };
     }
     return { kind: "none" };
   }

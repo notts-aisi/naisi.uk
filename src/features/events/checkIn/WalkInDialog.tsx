@@ -12,6 +12,8 @@ type FormProps = {
   eventLine: string;
   /** The day a walk-in's email is deleted: "Sun 8 Nov". */
   emailGoesOn: string;
+  /** It goes then because the event's survey closes, before a week has passed. */
+  untilSurvey?: boolean;
   /** Where it is pressed: the door list, or the event's page afterwards. */
   from: "door" | "page";
   onAdded: (row: DoorRow) => void;
@@ -23,7 +25,7 @@ type FormProps = {
  * this event's survey, with the day it is deleted said beside the box. Saved
  * by the same route as a tick on the door list, as a walk-in.
  */
-export function WalkInForm({ eventId, eventLine, emailGoesOn, from, onAdded, onCancel }: FormProps) {
+export function WalkInForm({ eventId, eventLine, emailGoesOn, untilSurvey = false, from, onAdded, onCancel }: FormProps) {
   const nameId = useId();
   const emailId = useId();
   const hintId = useId();
@@ -97,7 +99,9 @@ export function WalkInForm({ eventId, eventLine, emailGoesOn, from, onAdded, onC
         aria-describedby={hintId}
       />
       <p id={hintId} className={styles.hint}>
-        Only for the survey after this event. We delete it on {emailGoesOn}, a week after the event.
+        {untilSurvey
+          ? `Only for the survey after this event. We delete it when the survey closes on ${emailGoesOn}.`
+          : `Only for the survey after this event. We delete it on ${emailGoesOn}, a week after the event.`}
       </p>
 
       {problem && (

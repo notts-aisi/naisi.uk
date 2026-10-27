@@ -20,11 +20,12 @@ import { INCUBATOR_STRANDS, SURVEY_TEMPLATES, type IncubatorStrand, type SurveyT
  * only as an admin's results, made on the server.
  *
  * CONFIDENTIAL, NEVER ANONYMOUS. Every survey on the site knows who answered:
- * an account today, and an event guest's own sign-up when event surveys
- * come. The person is a `respondent` map, `{ kind: "account", uid }`, found by
- * one equality on `respondent.uid`, so another kind can sit beside it without
- * a rewrite. Names come off by setting it to null on the answers (the totals
- * stay) and deleting the people rows: the job two years after the programme
+ * an account, or after an event somebody with no account, by the sign-up or
+ * the check-in that brought them (`{ kind: "guest", signupId }`). The person is
+ * a `respondent` map, `{ kind: "account", uid }`, found by one equality on
+ * `respondent.uid`, so another kind sits beside it without a rewrite. Names
+ * come off by setting it to null on the answers (the totals stay) and deleting
+ * the people rows: the job two years after the programme or the event
  * (`src/lib/surveys/namesOff.ts`), and account deletion at once.
  *
  * WHAT IS NEVER KEPT: no draft of an answer before "Send my answers", no
@@ -38,11 +39,12 @@ export const SURVEY_ANSWERS_COLLECTION = "surveyAnswers";
 
 /**
  * Which of a programme's surveys this is: before it, at its end, or a
- * follow-up 6 or 12 months on, each pairing with the one before it; or the
+ * follow-up 6 or 12 months on, each pairing with the one before it; the
  * survey for people leaving it (`leaving`), which pairs with none, is never
- * sent, and has no closing day.
+ * sent, and has no closing day; or the survey after an event (`event`), which
+ * pairs with none.
  */
-export type SurveyKind = SurveyTemplate;
+export type SurveyKind = SurveyTemplate | "event";
 
 /** Confidential is the only setting: no survey on the site is anonymous. */
 export type SurveyPrivacy = "confidential";
@@ -60,10 +62,59 @@ export type SurveyPrivacy = "confidential";
 export type SurveyAudience =
   | { kind: "programme"; roundId: string; programmeId: string }
   | { kind: "followUps"; roundId: string; programmeId: string; consentFrom: string }
-  | { kind: "leaving"; roundId: string; programmeId: string };
+  | { kind: "leaving"; roundId: string; programmeId: string }
+  | EventAudience;
 
-/** A person a survey is for, or who answered it. An account today. */
+/**
+ * Who a survey after an event is for (`src/lib/surveys/events/audience.ts`):
+ * the people who came (`event-came`, from check-in), or everybody whose
+ * sign-up was confirmed (`event-signups`). Never anybody who did neither.
+ * Chosen when the survey is made, and fixed by its first email.
+ */
+export type EventAudience = { kind: "event-came" | "event-signups"; eventId: string };
+
+/** Whether an audience is an event's. */
+export function isEventAudience(audience: SurveyAudience): audience is EventAudience {
+  return audience.kind === "event-came" || audience.kind === "event-signups";
+}
+
+/**
+ * The form and programme a programme survey's people come from. A survey
+ * after an event has neither, so both are "" and nothing keyed on a form
+ * finds it.
+ */
+export function programmeOf(audience: SurveyAudience): { roundId: string; programmeId: string } {
+  return isEventAudience(audience) ? { roundId: "", programmeId: "" } : { roundId: audience.roundId, programmeId: audience.programmeId };
+}
+
+/** Whether a survey's audience is one programme's: never an event's. */
+export function isProgrammeAudience(audience: SurveyAudience, roundId: string, programmeId: string): boolean {
+  return !isEventAudience(audience) && audience.roundId === roundId && audience.programmeId === programmeId;
+}
+
+/** A survey after an event: its audience is the event's. */
+export type EventSurveyDoc = SurveyDoc & { kind: "event"; audience: EventAudience; event: SurveyEventFacts };
+
+/** Whether a survey is one after an event. */
+export function isEventSurvey(survey: SurveyDoc): survey is EventSurveyDoc {
+  return survey.kind === "event" && isEventAudience(survey.audience) && survey.event !== null;
+}
+
+/** A person a programme survey is for, or who answered it: an account. */
 export type SurveyRespondent = { kind: "account"; uid: string };
+
+/**
+ * Somebody with no account a survey after an event is for: a guest who signed
+ * up (`signupId` is their sign-up's id), or a walk-in who left an email at the
+ * door (`signupId` is the check-in record the door made for them).
+ */
+export type SurveyGuest = { kind: "guest"; signupId: string };
+
+/** A person a survey after an event is for: an account, or a guest. */
+export type EventRespondent = SurveyRespondent | SurveyGuest;
+
+/** The event a survey is about, as it was when the survey was made, so the survey stands without it. */
+export type SurveyEventFacts = { title: string; startAt: Date | null; endAt: Date | null };
 
 export type SurveyProgrammeKind = "fellowship" | "incubator";
 
@@ -76,6 +127,8 @@ export type SurveyPress = {
   at: Date | null;
   /** People the press emailed. */
   count: number;
+  /** Who pressed it, where the press recorded them (a survey after an event's do: its organisers are told who sent it). */
+  byUid?: string;
 };
 
 /** The two emails a test is taken of. */
@@ -103,7 +156,7 @@ export type SurveyDoc = {
   /** "About 3 minutes". */
   minutes: number;
   audience: SurveyAudience;
-  /** The programme as it was when the survey was made, so the survey stands without its form. */
+  /** The programme as it was when the survey was made, so the survey stands without its form. "" after an event. */
   programmeName: string;
   programmeKind: SurveyProgrammeKind;
   /** The course run the programme named when the survey was made. */
@@ -116,6 +169,8 @@ export type SurveyDoc = {
   pairOf: string | null;
   /** An incubator's research strand, for the first line of its skills question; null for a fellowship. */
   strand: IncubatorStrand | null;
+  /** The event a survey after an event is about, as it was when made; null for a programme's. */
+  event: SurveyEventFacts | null;
   /** It refuses answers from this moment: 23:59 in London on the day an admin picked. Null for a leaving survey, which has no closing day. */
   closesAt: Date | null;
   /** Closed early, by hand. */
@@ -128,6 +183,9 @@ export type SurveyDoc = {
    * The first send. From then on the questions, the words and the closing
    * date are fixed. A leaving survey is never sent: this is when an admin
    * opened it, from when it reaches whoever leaves, and fixes it the same way.
+   * A survey after an event takes answers from its QR code before its email
+   * goes: this is whichever came first, an admin opening it for the code or
+   * its first email.
    */
   firstSentAt: Date | null;
   presses: SurveyPress[];
@@ -213,6 +271,11 @@ export function surveyPersonId(surveyId: string, respondent: SurveyRespondent): 
   return `${surveyId}__${respondent.uid}`;
 }
 
+/** The same for a survey after an event, whose person may be a guest: `{surveyId}__g_{signupId}`. */
+export function eventPersonId(surveyId: string, respondent: EventRespondent): string {
+  return respondent.kind === "account" ? surveyPersonId(surveyId, respondent) : `${surveyId}__g_${respondent.signupId}`;
+}
+
 const TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/;
 
 /** Whether a value has the shape of a survey link's secret. Says nothing of whether it is anybody's. */
@@ -246,13 +309,33 @@ function readRespondent(raw: unknown): SurveyRespondent | null {
   return null;
 }
 
+/** An account or a guest: what the rows and answers of a survey after an event hold. */
+function readEventRespondent(raw: unknown): EventRespondent | null {
+  const account = readRespondent(raw);
+  if (account) return account;
+  const r = (raw ?? {}) as Raw;
+  if (r.kind === "guest" && typeof r.signupId === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(r.signupId)) {
+    return { kind: "guest", signupId: r.signupId };
+  }
+  return null;
+}
+
 function readAudience(raw: unknown): SurveyAudience {
   const r = (raw ?? {}) as Raw;
   if (r.kind === "followUps" && typeof r.consentFrom === "string" && r.consentFrom) {
     return { kind: "followUps", roundId: str(r.roundId), programmeId: str(r.programmeId), consentFrom: r.consentFrom };
   }
   if (r.kind === "leaving") return { kind: "leaving", roundId: str(r.roundId), programmeId: str(r.programmeId) };
+  if ((r.kind === "event-came" || r.kind === "event-signups") && typeof r.eventId === "string" && r.eventId) {
+    return { kind: r.kind, eventId: r.eventId };
+  }
   return { kind: "programme", roundId: str(r.roundId), programmeId: str(r.programmeId) };
+}
+
+function readEvent(raw: unknown): SurveyEventFacts | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Raw;
+  return { title: str(r.title), startAt: tsToDate(r.startAt), endAt: tsToDate(r.endAt) };
 }
 
 function readConsents(raw: unknown): SurveyConsents {
@@ -279,7 +362,9 @@ function readPresses(raw: unknown): SurveyPress[] {
     if (!entry || typeof entry !== "object") continue;
     const r = entry as Raw;
     if (r.kind !== "first" && r.kind !== "joined" && r.kind !== "remind") continue;
-    out.push({ id: str(r.id), kind: r.kind, at: tsToDate(r.at), count: count(r.count) });
+    const press: SurveyPress = { id: str(r.id), kind: r.kind, at: tsToDate(r.at), count: count(r.count) };
+    if (typeof r.byUid === "string" && r.byUid) press.byUid = r.byUid;
+    out.push(press);
   }
   return out;
 }
@@ -289,7 +374,7 @@ export function normalizeSurvey(id: string, data: Raw): SurveyDoc {
   const minutes = count(data.minutes);
   return {
     id,
-    kind: SURVEY_TEMPLATES.includes(data.kind as SurveyKind) ? (data.kind as SurveyKind) : "before",
+    kind: data.kind === "event" ? "event" : SURVEY_TEMPLATES.includes(data.kind as SurveyTemplate) ? (data.kind as SurveyTemplate) : "before",
     privacy: "confidential",
     name: str(data.name),
     title: str(data.title),
@@ -302,6 +387,7 @@ export function normalizeSurvey(id: string, data: Raw): SurveyDoc {
     runId: str(data.runId),
     pairOf: typeof data.pairOf === "string" && data.pairOf ? data.pairOf : null,
     strand: INCUBATOR_STRANDS.includes(data.strand as IncubatorStrand) ? (data.strand as IncubatorStrand) : null,
+    event: data.kind === "event" ? readEvent(data.event) : null,
     closesAt: tsToDate(data.closesAt),
     closedAt: tsToDate(data.closedAt),
     namesOffOn: typeof data.namesOffOn === "string" && DATE_KEY.test(data.namesOffOn) ? data.namesOffOn : null,
@@ -340,6 +426,56 @@ export function normalizeSurveyPerson(id: string, data: Raw): SurveyPersonDoc | 
     answered: data.answered === true,
     consents: readConsents(data.consents),
     consentsAt: tsToDate(data.consentsAt),
+  };
+}
+
+/**
+ * One person's row on a survey after an event, whose person may be a guest.
+ * The programme surveys' fields, less the consents (an event's survey asks
+ * none).
+ */
+export type EventSurveyPersonDoc = Omit<SurveyPersonDoc, "respondent" | "roundId" | "consents" | "consentsAt"> & {
+  respondent: EventRespondent;
+};
+
+/** A stored row of a survey after an event, or null for one that is not whole. */
+export function normalizeEventPerson(id: string, data: Raw): EventSurveyPersonDoc | null {
+  const respondent = readEventRespondent(data.respondent);
+  if (!respondent || !isSurveyToken(data.token)) return null;
+  const delivery = data.delivery;
+  return {
+    id,
+    surveyId: str(data.surveyId),
+    respondent,
+    token: data.token,
+    pressId: str(data.pressId),
+    sentAt: tsToDate(data.sentAt),
+    delivery: delivery === "sent" || delivery === "held" || delivery === "suppressed" ? delivery : null,
+    remindedAt: tsToDate(data.remindedAt),
+    reminders: count(data.reminders),
+    answered: data.answered === true,
+  };
+}
+
+/** One person's answers to a survey after an event: when, how, and who, while the name is on them. */
+export type EventSurveyAnswerDoc = Pick<SurveyAnswerDoc, "id" | "surveyId" | "answers" | "sentAt" | "via"> & {
+  /** Null once names have come off. */
+  respondent: EventRespondent | null;
+};
+
+/** A stored answer to a survey after an event. */
+export function normalizeEventAnswer(
+  id: string,
+  data: Raw,
+  read: (raw: unknown) => Record<string, SurveyAnswer>,
+): EventSurveyAnswerDoc {
+  return {
+    id,
+    surveyId: str(data.surveyId),
+    respondent: readEventRespondent(data.respondent),
+    answers: read(data.answers),
+    sentAt: tsToDate(data.sentAt),
+    via: data.via === "signed-in" ? "signed-in" : "link",
   };
 }
 

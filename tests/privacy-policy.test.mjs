@@ -4580,6 +4580,13 @@ describe("the course hub passage", () => {
           "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]/page.tsx",
           "the programme's lead and admins (loadProgrammeRun first): its leaving survey's totals and comments, made on the server, never a name",
         ],
+        // Surveys after events (the event survey block below holds each to its gate).
+        ["src/app/api/surveys/[surveyId]/open-at-event/route.ts", `${ADMIN_ROUTE}; opening a survey after an event for its QR code`],
+        ["src/app/events/[id]/survey/page.tsx", "the survey after an event by its QR code: signed in, shown only to somebody who signed up or came, by their own row; signed out, it names nobody"],
+        ["src/app/(app)/events/manage/[id]/survey/page.tsx", "the event's Survey after tab: everybody in the events area reads that it went and when; its results only when canRunSurveys says the viewer is an admin"],
+        ["src/app/(app)/events/manage/[id]/check-in/page.tsx", "the Check-in tab reads when the event's survey closes, the end of adding somebody who came and of a walk-in's email, and nothing of its answers or who answered"],
+        ["src/app/(app)/events/manage/[id]/door/page.tsx", "the door list reads when the event's survey closes, for the day a walk-in's email goes, and nothing of its answers or who answered"],
+        ["src/app/api/events/[id]/check-ins/route.ts", "the door list's route reads when the event's survey closes, the end of adding somebody who came and the day a walk-in's email goes, and nothing of its answers or who answered"],
       ]),
       "reaching survey code from outside it",
       "The policy says only admins see who said what or who has answered, and " +
@@ -4602,6 +4609,7 @@ describe("the course hub passage", () => {
         ["src/lib/surveys/waiting.ts", "the cards: a person's own rows, read for that person alone, to say which surveys sent to them wait for an answer"],
         // CHANGED ON PURPOSE (Q46): the leaving survey's row for a person is made as they leave.
         ["src/lib/surveys/leaving.ts", "the leaving survey's row for a person, made as they leave the programme, with their own link: never an answer"],
+        ["src/lib/surveys/events/store.ts", "a survey after an event's rows and its one writer of answers: each person's row before their email, and their own answers, once, by their link or signed in"],
       ]),
       "addressing who a survey was sent to, or what somebody answered",
       "The policy says only admins see who said what or who has answered. If " +
@@ -4621,6 +4629,7 @@ describe("the course hub passage", () => {
       "src/app/api/surveys/[surveyId]/close/route.ts",
       "src/app/api/surveys/[surveyId]/open/route.ts",
       "src/app/api/surveys/[surveyId]/export/route.ts",
+      "src/app/api/surveys/[surveyId]/open-at-event/route.ts",
     ]) {
       const code = withoutComments(read(route));
       const refused = code.indexOf("if (!canRunSurveys(actor)) return NextResponse.json({ error: REFUSAL.adminOnly }, { status: 403 });");
@@ -4789,6 +4798,7 @@ describe("the course hub passage", () => {
       new Map([
         ["src/lib/surveys/token.ts", "the one place a survey link's secret is made"],
         ["src/lib/surveys/sending.ts", "a press's own id, which is no secret of anybody's"],
+        ["src/lib/surveys/events/sending.ts", "a press's own id for a survey after an event, which is no secret of anybody's"],
       ]),
       "making random bytes in survey code",
       "A survey link's secret is made by mintSurveyToken in src/lib/surveys/token.ts alone.",
@@ -5264,13 +5274,31 @@ describe("the check-in passage", () => {
     assert.match(rules, /kind: walkIn \? "walk-in" : "signup",/);
   });
 
-  test("a walk-in's email is only for that event's survey, and is deleted a week after the event", () => {
+  // Since the surveys after events (Q44), the email goes when the event's
+  // survey closes, or a week after the event if that comes first: the week
+  // when there is no survey or it closes later, the survey's close when that
+  // is sooner. Both ways are run below, and the old sentence is held gone.
+  test("a walk-in's email is only for that event's survey, and is deleted when that survey closes or a week after the event, whichever comes first", () => {
     assert.match(
       PAGE_FLAT,
-      /If you come without signing up, we take your name at the door, and an email address only if you want that event&apos;s survey\. We use the address for nothing else, and delete it a week after the event\./,
+      /If you come without signing up, we take your name at the door, and an email address only if you want that event&apos;s survey\. We use the address for nothing else, and delete it when that survey closes, or a week after the event if that comes first\./,
     );
-    assert.match(PAGE_FLAT, /A walk-in&apos;s email address is deleted a week after the event\./);
+    assert.match(PAGE_FLAT, /A walk-in&apos;s email address is deleted when the event&apos;s survey closes, or a week after the event if that comes first\./);
+    assert.ok(!/delete it a week after the event\.|email address is deleted a week after the event\./.test(PAGE_FLAT), "the page still says a walk-in's email is kept a week whatever the survey does");
     assert.equal(checkInRules.walkInEmailGoesAt(VR).toISOString(), "2026-11-08T17:00:00.000Z");
+    assert.equal(checkInRules.walkInEmailGoesAt(VR, new Date("2026-11-05T23:59:00Z")).toISOString(), "2026-11-05T23:59:00.000Z", "a survey closing sooner no longer takes the email with it");
+    assert.equal(checkInRules.walkInEmailGoesAt(VR, new Date("2026-11-20T23:59:00Z")).toISOString(), "2026-11-08T17:00:00.000Z", "a survey closing later keeps a walk-in's email past the week");
+    // The day is moved with the survey's own: made, saved, and closed by hand,
+    // when the email goes at once.
+    const checkIns = withoutComments(read("src/lib/events/checkIns.ts"));
+    const align = /export async function setWalkInEmailDeadlines\([\s\S]*?\n\}/.exec(checkIns);
+    assert.ok(align, "could not find how a walk-in's email follows the survey");
+    assert.match(align[0], /const goesAt = walkInEmailGoesAt\(event, surveyClosesAt\);/);
+    assert.match(align[0], /if \(!goesAt \|\| goesAt\.getTime\(\) <= now\.getTime\(\)\) \{\s*return \{ moved: 0, gone: await updateAll\(db, keeping\.map\(\(doc\) => doc\.ref\), EMAIL_GONE_FIELDS\) \};/);
+    assert.match(withoutComments(read("src/lib/surveys/events/create.ts")), /await alignWalkInEmails\(db, ref\.id, now\);/);
+    assert.match(withoutComments(read("src/lib/surveys/create.ts")), /if \(saved\.ok && isEventSurvey\(survey\)\) await alignWalkInEmails\(db, survey\.id, now\);/);
+    assert.match(withoutComments(read("src/app/api/surveys/[surveyId]/close/route.ts")), /await alignWalkInEmails\(db, surveyId, now\);/);
+    assert.match(withoutComments(read("src/app/api/events/[id]/check-ins/route.ts")), /surveyClosesAt,\s*\}\);/);
     assert.deepEqual({ ...checkInRules.EMAIL_GONE_FIELDS }, { email: null, emailGoesAt: null });
     const rules = withoutComments(read("src/lib/events/checkIns.ts"));
     assert.match(rules, /const emailsDue = await col\.where\("emailGoesAt", "<=", now\)\.get\(\);/);
@@ -5400,6 +5428,143 @@ describe("the check-in passage", () => {
     assert.match(withoutComments(read("src/lib/surveys/leaving.ts")), /const namesOffOn = await namesOffDayFor\(db, survey\.runId, now\);/);
     assert.match(withoutComments(read("src/lib/surveys/create.ts")), /const namesOffOn = await namesOffDayFor\(db, runId, now\);/);
     assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-leaving.test.mjs")), "tests/surveys-leaving.test.mjs renders the lead's page for every kind of caller");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2g, continued: the survey after an event
+// ---------------------------------------------------------------------------
+
+/**
+ * What v7 says about the survey after an event (docs/surveys.md, "Surveys
+ * after events"), held to the code that makes it true: who it goes to and who
+ * reads it, what it asks, its QR code and its email, what is kept with the
+ * answers, when names come off and what its file holds. Added while v7 was on
+ * dev, before any member had been asked to accept it, so it kept its number.
+ * `tests/surveys-events.test.mjs` runs every route and page as every kind of
+ * caller; here each sentence is paired with a rule that is run or a line of
+ * source that is matched.
+ */
+const eventSurveyTemplate = await loadTs("lib/surveys/events/template.ts");
+const eventSurveyWords = await loadTs("lib/surveys/events/words.ts");
+
+describe("the survey after an event", () => {
+  const WHO = /<li> After an event, NAISI&apos;s admins may send a survey to the people who came to it, or to everybody whose place on it was confirmed, and to nobody else\. It is confidential like every survey: your answers keep your name, and only NAISI&apos;s admins can see who said what and whether they came\. The event&apos;s organisers are told that it went and when, and nothing of its results\. <\/li>/;
+  const ASKS = /<li> The survey after an event asks how it was, whether you would come to another, what we should run next, how you heard about it and what we should change\. <\/li>/;
+  const CODE = /<li> At the end of an event its QR code opens the survey\. Signed in, you answer it there if you came or signed up, and its email afterwards skips you; signed out, it asks you to sign in\. Its email is an important notice, like every survey&apos;s, with a link of your own, sent to your account&apos;s address, or if you have no account to the address you gave when you signed up or at the door\. With your answers we keep when you sent them and whether you used your link or were signed in\. <\/li>/;
+  const NAMES_OFF = /no longer linked to you\. For the survey after an event, that day is two years after the event\./;
+  const FILE = /The file of a survey after an event has no column about a group, and names a guest by the name they gave the event\./;
+
+  test("the frozen v6 carries none of these sentences", () => {
+    for (const pattern of [/After an event, NAISI&apos;s admins may send a survey/, /The survey after an event asks/, /its QR code opens the survey/, /For the survey after an event, that day/, /The file of a survey after an event/]) {
+      assert.ok(!pattern.test(V6_FLAT), `v6 already says ${pattern}`);
+    }
+  });
+
+  test("who it goes to: the people who came or everybody confirmed, nobody else; confidential; the organisers see that it went, never its results", () => {
+    assert.match(PAGE_FLAT, WHO);
+    // Who it can reach, read from the event's own sign-ups and check-ins.
+    const audience = withoutComments(read("src/lib/surveys/events/audience.ts"));
+    assert.match(audience, /if \(row\.status !== "confirmed"\) continue;/, "a sign-up that is not confirmed now reaches the survey");
+    assert.match(audience, /if \(checkIn\.namesOff \|\| checkIn\.eventId !== eventId\) continue;/);
+    assert.match(audience, /return read\.people\.filter\(\(member\) => \(kind === "event-came" \? member\.came : member\.signedUp\)\);/);
+    assert.match(audience, /\.filter\(\(row\) => row\.eventId === eventId && !row\.synthetic\);/);
+    // Confidential: an answer keeps its person, an account or a guest.
+    assert.equal(surveyRecords.normalizeSurvey("s1", { kind: "event", privacy: "anonymous", audience: { kind: "event-came", eventId: "e1" }, event: { title: "VR games night" } }).privacy, "confidential");
+    // Who reads it: the admins' pages, and the event's tab draws results only for an admin.
+    const tab = withoutComments(read("src/app/(app)/events/manage/[id]/survey/page.tsx"));
+    assert.match(tab, /const admin = canRunSurveys\(viewer\);/);
+    assert.match(tab, /const results =\s*admin && survey && survey\.firstSentAt\s*\?/, "the event's tab reads results for somebody other than an admin");
+    assert.ok(!/eventAnswersOf|eventPeopleOf|resultsView|SURVEY_(?:ANSWERS|PEOPLE)_COLLECTION/.test(withoutComments(read("src/lib/surveys/events/tab.ts"))), "what the tab tells the organisers now reads answers or who answered");
+    // The organisers are told it went and when: the sentence, run.
+    assert.match(withoutComments(read("src/lib/surveys/events/tab.ts")), /\$\{survey\.name\}: \$\{who\} emailed it to \$\{peopleWords\(first\.count\)\} \$\{when\}\./);
+    // tests/surveys-events.test.mjs renders the tab as the organiser, SU-recognised committee and an admin.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-events.test.mjs")));
+  });
+
+  test("what it asks, by kind, is the template's every question", () => {
+    assert.match(PAGE_FLAT, ASKS);
+    const items = eventSurveyTemplate.eventTemplateItems();
+    assert.deepEqual(
+      items.map((item) => [item.title, item.type]),
+      [
+        ["How was it?", "rating"],
+        ["Would you come to another NAISI social?", "singleChoice"],
+        ["What should we run next?", "multipleChoice"],
+        ["How did you hear about it?", "singleChoice"],
+        ["Anything we should change?", "longText"],
+      ],
+      "the survey after an event asks something the policy does not say it asks",
+    );
+    assert.ok(items.every((item) => item.required === false), "a question of the survey after an event is required");
+    assert.deepEqual(surveyItems.validateSurveyItems(items), []);
+  });
+
+  test("its QR code, its email and what is kept with the answers", () => {
+    assert.match(PAGE_FLAT, CODE);
+    // Signed out, asked to sign in before anything about the person is read;
+    // signed in, only somebody who signed up or came.
+    const page = withoutComments(read("src/lib/surveys/events/codePage.ts"));
+    const signIn = page.indexOf('if (!user) return { kind: "sign-in"');
+    const may = page.indexOf("await mayAnswerSignedIn(db, survey.audience.eventId, user.uid)");
+    assert.ok(signIn !== -1 && may !== -1 && signIn < may, "the QR code's page reads the person before asking a signed-out visitor to sign in");
+    assert.match(withoutComments(read("src/lib/surveys/events/audience.ts")), /return member !== undefined && \(member\.signedUp \|\| member\.came\);/);
+    const route = withoutComments(read("src/app/api/surveys/[surveyId]/answer/route.ts"));
+    const gate = route.indexOf("if (!(await mayAnswerSignedIn(db, survey.audience.eventId, actor.uid))) {");
+    const kept = route.indexOf("await recordEventAnswer(db, {");
+    assert.ok(gate !== -1 && kept !== -1 && gate < kept, "an answer signed in is kept before the person is asked whether they signed up or came");
+    // The email skips whoever answered: the people owed it have neither a sent nor an answered row.
+    const sending = withoutComments(read("src/lib/surveys/events/sending.ts"));
+    assert.match(sending, /const reached = new Set\(rows\.filter\(\(row\) => row\.sentAt !== null \|\| row\.answered\)/);
+    // An important notice, with its own line, through the notice door alone.
+    assert.match(sending, /const result = await sendNotice\(\{/);
+    assert.match(sending, /surface: "event-survey",/);
+    assert.ok(!/\bsendEmail\(|wantsEmailFor|addressesForSend/.test(sending), "the survey after an event now goes through a door that reads the notification settings");
+    assert.match(withoutComments(read("src/emails/NoticeMarker.tsx")), /"event-survey": "you came to this event or signed up for it",/);
+    // To the account's address, or to the address a guest or a walk-in gave the event.
+    const audience = withoutComments(read("src/lib/surveys/events/audience.ts"));
+    assert.match(audience, /const address = typeof data\.email === "string" \? data\.email\.trim\(\) : "";/);
+    assert.match(audience, /guestAddress: row\.email\.trim\(\) \|\| null/);
+    assert.match(audience, /add\(\{ kind: "guest", signupId: checkIn\.id \}, \{ came: true, guestName: checkIn\.name \?\? "", guestAddress: checkIn\.email \}\);/);
+    // A link of their own: one row each, its secret made where every survey's is.
+    assert.match(withoutComments(read("src/lib/surveys/events/store.ts")), /const token = mintSurveyToken\(\);/);
+    // What is kept with the answers, field by field: no group, no record of opening it.
+    const store = withoutComments(read("src/lib/surveys/events/store.ts"));
+    const set = /tx\.set\(answerRef, \{([\s\S]*?)\}\);/.exec(store);
+    assert.ok(set, "could not find where an answer to a survey after an event is kept");
+    assert.deepEqual(
+      [...set[1].matchAll(/^\s*(\w+)(?=[:,])/gm)].map((field) => field[1]),
+      ["surveyId", "eventId", "respondent", "answers", "sentAt", "via"],
+      "an answer to a survey after an event now keeps something the policy does not list",
+    );
+    assert.match(set[1], /sentAt: FieldValue\.serverTimestamp\(\),/);
+    assert.match(withoutComments(read("src/app/api/surveys/answer/route.ts")), /via: "link",/);
+    assert.match(withoutComments(read("src/app/api/surveys/[surveyId]/answer/route.ts")), /via: "signed-in",/);
+    // Nothing before Send: the code's page and what it reads write nothing.
+    for (const file of ["src/app/events/[id]/survey/page.tsx", "src/lib/surveys/events/codePage.ts", "src/lib/surveys/events/answerView.ts"]) {
+      assert.ok(!/\.(?:set|update|add|create|delete)\(|runTransaction\(|\.batch\(\)/.test(withoutComments(read(file))), `${file} now writes something when a survey is opened`);
+    }
+    // The box says so at the top, in its own words, with the two years.
+    const box = eventSurveyWords.eventBoxPoints({ namesOffOn: "2028-11-01", signedInAs: null, came: true });
+    assert.equal(box.points[0], "Only NAISI’s admins can see who said what.");
+    assert.ok(box.points.includes("Your name comes off on Wed 1 Nov 2028, two years after the event. The totals stay."));
+    assert.equal(box.note, "We keep your answers with your name, and that you came, so nobody is emailed it twice.");
+  });
+
+  test("names come off two years after the event by the surveys' own job, and the file names no group", () => {
+    assert.match(PAGE_FLAT, NAMES_OFF);
+    assert.match(PAGE_FLAT, FILE);
+    const records = withoutComments(read("src/lib/surveys/events/records.ts"));
+    assert.match(records, /const ends = eventEnds\(event\);\s*return ends \? twoYearsAfter\(londonDateKey\(ends\)\) : null;/);
+    // The day is the survey's own, which the surveys-names-off job reads for every survey alike.
+    assert.match(withoutComments(read("src/lib/surveys/events/create.ts")), /namesOffOn,\n/);
+    assert.match(withoutComments(read("src/lib/scheduler/jobs/surveyNamesOff.ts")), /const due = \(await listSurveys\(db\)\)\.filter\(\(survey\) => namesDueOff\(survey, today\)\);/);
+    // The file: the programme surveys' table, less the group's column, a guest by the name they gave.
+    const file = withoutComments(read("src/lib/surveys/events/exportTable.ts"));
+    assert.match(file, /const drop = table\.header\.indexOf\("After their first session"\);/);
+    assert.match(file, /const names = new Map\(\(read\?\.people \?\? \[\]\)\.map\(\(member\) => \[member\.key, member\.name\]\)\);/);
+    // tests/surveys-events.test.mjs runs the job the day before and on the day, guests and accounts alike, and downloads the file.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-events.test.mjs")));
   });
 });
 

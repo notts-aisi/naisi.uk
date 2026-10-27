@@ -4,6 +4,7 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { isSurveyToken } from "@/lib/firestore/surveys";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
 import { recordAnswer } from "@/lib/surveys/answer";
+import { recordEventAnswer } from "@/lib/surveys/events/store";
 import { openLink } from "@/lib/surveys/repo";
 import { REFUSAL } from "@/lib/surveys/words";
 
@@ -53,6 +54,20 @@ export async function POST(req: Request) {
   const target = await openLink(db, body.token);
   if (target.kind === "none") return NextResponse.json({ error: REFUSAL.noLink }, { status: 404 });
   if (target.kind === "test") return NextResponse.json({ error: REFUSAL.testLink }, { status: 409 });
+  // A survey after an event keeps its answers by its own writer, for a guest
+  // as for an account (src/lib/surveys/events/store.ts).
+  if (target.kind === "event") {
+    const kept = await recordEventAnswer(db, {
+      survey: target.survey,
+      respondent: target.person.respondent,
+      token: body.token,
+      raw: body.answers,
+      via: "link",
+      now: new Date(),
+    });
+    if (!kept.ok) return NextResponse.json({ error: kept.error }, { status: kept.status });
+    return NextResponse.json({ ok: true });
+  }
 
   const outcome = await recordAnswer(db, {
     survey: target.survey,

@@ -13,17 +13,20 @@ export default function AnsweredTab({
   rows,
   answered,
   sent,
+  heading,
 }: {
   surveyId: string;
   rows: AnsweredRow[];
   answered: number;
   sent: number;
+  /** The tab's heading, when the survey's own count says more than "of" (a survey after an event's QR code). */
+  heading?: string;
 }) {
   return (
     <div className={styles.main}>
       <section className={`${styles.card} ${styles.section}`} aria-labelledby="answered-title">
         <h2 id="answered-title" className={styles.sectionTitle}>
-          {answered} of {sent} have answered
+          {heading ?? `${answered} of ${sent} have answered`}
         </h2>
         {rows.length === 0 ? (
           <p className={styles.muted}>It hasn’t been sent to anybody yet.</p>

@@ -1,6 +1,9 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import type { SurveyDoc, SurveyPersonDoc } from "@/lib/firestore/surveys";
+import { isEventSurvey, type SurveyDoc, type SurveyPersonDoc } from "@/lib/firestore/surveys";
+import { eventListRow } from "./events/listRow";
+import { eventPeopleOf } from "./events/store";
+import { eventMeta } from "./events/words";
 import { changeBetween, lookBackBetween, type ChangeResult, type PairedAnswers } from "./change";
 import { emailWordsFor, siteAddress, surveyLinkPath } from "./emails";
 import { consentItemsOf, surveyQuestionsOf } from "./items";
@@ -90,7 +93,12 @@ function rowOf(survey: SurveyDoc, people: readonly SurveyPersonDoc[], now: Date)
 }
 
 export async function listView(db: Firestore, surveys: readonly SurveyDoc[], now: Date): Promise<ListView> {
-  const rows = await Promise.all(surveys.map(async (survey) => rowOf(survey, await peopleOf(db, survey.id), now)));
+  // A survey after an event lists its answers as a count, and its rows may hold guests (./events/listRow.ts).
+  const rows = await Promise.all(
+    surveys.map(async (survey) =>
+      isEventSurvey(survey) ? eventListRow(survey, await eventPeopleOf(db, survey.id), now) : rowOf(survey, await peopleOf(db, survey.id), now),
+    ),
+  );
   return {
     open: rows.filter((row) => row.state === "open"),
     drafts: rows.filter((row) => row.state === "draft"),
@@ -110,14 +118,14 @@ export type HeadView = {
   leaving: boolean;
 };
 
-export function headView(survey: SurveyDoc, people: readonly SurveyPersonDoc[], now: Date): HeadView {
+export function headView(survey: SurveyDoc, people: readonly { answered: boolean }[], now: Date): HeadView {
   const state = surveyState(survey, now);
   const ends = closedOn(survey);
   return {
     id: survey.id,
     name: survey.name,
     state,
-    programme: programmeLine(survey.programmeKind, survey.programmeName),
+    programme: isEventSurvey(survey) ? eventMeta(survey.event.title, survey.event.startAt) : programmeLine(survey.programmeKind, survey.programmeName),
     closes: ends ? closesWords(ends, state === "closed") : survey.kind === "leaving" ? LIST_WORDS.neverCloses : "",
     answered: people.filter((person) => person.answered).length,
     leaving: survey.kind === "leaving",
@@ -169,7 +177,7 @@ export type EmailPreview = {
   signOff: string[];
 };
 
-function preview(words: SurveyEmailWords, to: number, sent: Date | null): EmailPreview {
+export function preview(words: SurveyEmailWords, to: number, sent: Date | null): EmailPreview {
   return {
     subject: words.subject,
     from: `${SURVEY_FROM_NAME} <${fromAddress()}>`,
@@ -210,7 +218,7 @@ export type SendView = {
   summary: { name: string; size: string; who: string; closes: string; namesOff: string; labelled: boolean };
 };
 
-function testView(fresh: "none" | "stale" | "fresh", at: Date | null, now: Date): TestView {
+export function testView(fresh: "none" | "stale" | "fresh", at: Date | null, now: Date): TestView {
   return { fresh: fresh === "fresh", line: fresh === "fresh" && at ? testSentWords(at, now) : "" };
 }
 
@@ -457,5 +465,6 @@ export async function surveyPage(
   const survey = await readSurvey(db, surveyId);
   if (!survey) return null;
   const people = await peopleOf(db, survey.id);
-  return { survey, people, head: headView(survey, people, now) };
+  // A survey after an event counts its guests' answers too (./events/store.ts).
+  return { survey, people, head: headView(survey, isEventSurvey(survey) ? await eventPeopleOf(db, survey.id) : people, now) };
 }

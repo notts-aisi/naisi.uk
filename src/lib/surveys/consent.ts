@@ -2,7 +2,9 @@ import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import {
   SURVEY_PEOPLE_COLLECTION,
+  isProgrammeAudience,
   normalizeSurveyPerson,
+  programmeOf,
   surveyPersonId,
   type SurveyDoc,
   type SurveyPersonDoc,
@@ -47,8 +49,8 @@ export function isConsentPurpose(value: unknown): value is SurveyConsentPurpose 
 
 /** The programme's before survey and its survey at the end, as far as each was made, for any of its surveys. */
 async function stagesOf(db: Firestore, survey: SurveyDoc): Promise<{ before: string | null; after: string | null }> {
-  const same = (each: SurveyDoc) =>
-    each.audience.roundId === survey.audience.roundId && each.audience.programmeId === survey.audience.programmeId;
+  const { roundId, programmeId } = programmeOf(survey.audience);
+  const same = (each: SurveyDoc) => isProgrammeAudience(each.audience, roundId, programmeId);
   const oldest = (kind: SurveyDoc["kind"], all: readonly SurveyDoc[]) =>
     all
       .filter((each) => each.kind === kind && same(each))

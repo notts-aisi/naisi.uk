@@ -6,7 +6,8 @@ import type { ProgrammeSettings } from "@/lib/applications/model";
 import type { ApplicationForm } from "@/lib/applications/normalise";
 import { loadForm } from "@/lib/applications/repo";
 import { listDecisions, listSentApplications } from "@/lib/applications/staffRepo";
-import type { SurveyAudience } from "@/lib/firestore/surveys";
+import { isEventAudience, isProgrammeAudience, type SurveyAudience } from "@/lib/firestore/surveys";
+import { readEventAudience, type EventAudienceRead } from "./events/audience";
 import { namesOf } from "./names";
 import { listSurveys, peopleOf } from "./repo";
 
@@ -35,6 +36,8 @@ import { listSurveys, peopleOf } from "./repo";
 
 export type AudienceRead =
   | { status: "ok"; form: ApplicationForm | null; programme: ProgrammeSettings | null; holders: PlaceHolder[] }
+  /** A survey after an event: who came and who signed up (`./events/audience.ts`). */
+  | { status: "event"; event: EventAudienceRead }
   /** The form, or the programme on it, is no longer there. */
   | { status: "gone" };
 
@@ -51,7 +54,7 @@ async function followUpHolders(db: Firestore, audience: Extract<SurveyAudience, 
   // Who has said anything on the before survey: their word there decides.
   const spoke = new Set(rows.filter((person) => person.consents.followUps !== undefined).map((person) => person.respondent.uid));
   const atEnd = (await listSurveys(db))
-    .filter((each) => each.kind === "after" && each.audience.roundId === audience.roundId && each.audience.programmeId === audience.programmeId)
+    .filter((each) => each.kind === "after" && isProgrammeAudience(each.audience, audience.roundId, audience.programmeId))
     .sort((a, b) => (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0) || a.id.localeCompare(b.id))[0];
   const late = atEnd
     ? (await peopleOf(db, atEnd.id)).filter((person) => person.consents.followUps === true && !spoke.has(person.respondent.uid))
@@ -65,6 +68,10 @@ async function followUpHolders(db: Firestore, audience: Extract<SurveyAudience, 
 }
 
 export async function readAudience(db: Firestore, audience: SurveyAudience): Promise<AudienceRead> {
+  if (isEventAudience(audience)) {
+    const event = await readEventAudience(db, audience.eventId);
+    return event ? { status: "event", event } : { status: "gone" };
+  }
   if (audience.kind === "followUps") {
     return { status: "ok", form: null, programme: null, holders: await followUpHolders(db, audience) };
   }

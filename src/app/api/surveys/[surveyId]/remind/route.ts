@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { isEventSurvey } from "@/lib/firestore/surveys";
 import { testRefusal } from "@/lib/surveys/emails";
+import { pressAnswer, pressEventRemind } from "@/lib/surveys/events/sending";
+import { EVENT_REFUSAL } from "@/lib/surveys/events/words";
 import { canRunSurveys, isOpen, isSurveyId, readSurvey } from "@/lib/surveys/repo";
 import { pressRemind, signerOf, testStateFor } from "@/lib/surveys/sending";
 import { REFUSAL } from "@/lib/surveys/words";
@@ -47,6 +50,16 @@ export async function POST(req: Request, ctx: Ctx) {
   // A leaving survey is never sent: it reaches each person as they leave (Q46).
   if (survey.kind === "leaving") return NextResponse.json({ error: REFUSAL.leavingNotSent }, { status: 409 });
   const now = new Date();
+  // A survey after an event may have opened at the event before its email
+  // went: it reminds the people its email reached (src/lib/surveys/events/sending.ts).
+  if (isEventSurvey(survey)) {
+    if (!survey.presses.some((press) => press.kind === "first")) return NextResponse.json({ error: EVENT_REFUSAL.notEmailed }, { status: 409 });
+    if (!isOpen(survey, now)) return NextResponse.json({ error: REFUSAL.closedSend }, { status: 409 });
+    const refusal = testRefusal(testStateFor(survey, "reminder", await signerOf(db, actor.uid)));
+    if (refusal) return NextResponse.json({ error: refusal }, { status: 409 });
+    const answer = pressAnswer(await pressEventRemind(db, { survey, presserUid: actor.uid, emails, audience: null, now }));
+    return NextResponse.json(answer.body, { status: answer.status, headers: answer.headers });
+  }
   if (!survey.firstSentAt) return NextResponse.json({ error: REFUSAL.notSentYet }, { status: 409 });
   if (!isOpen(survey, now)) return NextResponse.json({ error: REFUSAL.closedSend }, { status: 409 });
 

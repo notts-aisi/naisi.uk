@@ -1,9 +1,13 @@
 import { AdminPage } from "@/features/admin/adminList";
+import EventResultsHead, { EventResultsLayout } from "@/features/surveys/admin/EventResultsHead";
+import ExportButton from "@/features/surveys/admin/ExportButton";
 import ResultsTab from "@/features/surveys/admin/ResultsTab";
 import SurveyHead from "@/features/surveys/admin/SurveyHead";
 import SurveyMissing from "@/features/surveys/admin/SurveyMissing";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { isEventSurvey } from "@/lib/firestore/surveys";
 import { resultsView, surveyPage } from "@/lib/surveys/adminView";
+import { eventResultsHead, resultsWhoFor } from "@/lib/surveys/events/adminView";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +30,23 @@ export default async function SurveyResultsPage({
     return (
       <AdminPage>
         <SurveyMissing />
+      </AdminPage>
+    );
+  }
+  // A survey after an event (sv-results): its own numbers first, every rate of the answers, and who sees them (Q42).
+  if (isEventSurvey(page.survey)) {
+    const [head, view, who] = await Promise.all([
+      eventResultsHead(db, page.survey),
+      resultsView(db, page.survey, false),
+      resultsWhoFor(db, page.survey),
+    ]);
+    return (
+      <AdminPage wide>
+        <SurveyHead head={page.head} current="results" />
+        <EventResultsHead head={head} />
+        <EventResultsLayout who={who} download={view.answers > 0 ? <ExportButton surveyId={page.survey.id} /> : null}>
+          <ResultsTab view={view} surveyId={page.survey.id} beforeFirstSession={false} ofAnswers />
+        </EventResultsLayout>
       </AdminPage>
     );
   }

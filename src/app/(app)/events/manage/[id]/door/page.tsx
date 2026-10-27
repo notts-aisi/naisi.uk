@@ -15,6 +15,7 @@ import {
 } from "@/lib/events/checkIns";
 import { findDoorCode } from "@/lib/events/doorCode";
 import { shortLinkAddress } from "@/lib/qr/shortLinkCode";
+import { surveyClosesFor } from "@/lib/surveys/events/records";
 
 export const dynamic = "force-dynamic";
 
@@ -42,12 +43,15 @@ export default async function DoorPage({ params }: { params: Promise<{ id: strin
   if (!db || !loaded) notFound();
   const { event, signups, checkIns } = loaded;
 
+  // A walk-in's email goes when the event's survey closes, if that is sooner than a week.
+  const surveyClosesAt = await surveyClosesFor(db, event.id);
   const closedWords = eventTakesCheckIns(event)
-    ? doorClosedWords(checkInPhase(event, new Date()), doorWindow(event))
+    ? doorClosedWords(checkInPhase(event, new Date(), surveyClosesAt), doorWindow(event))
     : "Only a published event takes check-ins.";
   const doorCode = await findDoorCode(db, event.id);
   const title = event.title.trim() || "Untitled event";
-  const emailGoesAt = walkInEmailGoesAt(event);
+  const emailGoesAt = walkInEmailGoesAt(event, surveyClosesAt);
+  const untilSurvey = emailGoesAt !== null && emailGoesAt.getTime() !== walkInEmailGoesAt(event)?.getTime();
 
   return (
     <DoorList
@@ -58,6 +62,7 @@ export default async function DoorPage({ params }: { params: Promise<{ id: strin
       doorAddress={doorCode && doorCode.active ? shortLinkAddress(doorCode.slug) : null}
       eventLine={event.startAt ? `${title} · ${dayWords(event.startAt)}` : title}
       emailGoesOn={emailGoesAt ? dayWords(emailGoesAt) : "the day after"}
+      untilSurvey={untilSurvey}
     />
   );
 }

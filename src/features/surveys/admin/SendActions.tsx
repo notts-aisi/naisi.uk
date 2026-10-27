@@ -51,6 +51,8 @@ export default function SendActions({
   testFresh,
   testLine,
   blocked,
+  extraBody,
+  sendLabel,
 }: {
   surveyId: string;
   kind: Kind;
@@ -64,6 +66,10 @@ export default function SendActions({
   testLine: string;
   /** Why nothing can be sent, or "". */
   blocked: string;
+  /** More for the send's body: a survey after an event's first email names who it goes to. */
+  extraBody?: Record<string, unknown>;
+  /** The send button's words, when the survey's own differ from the programme's. */
+  sendLabel?: string;
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -108,7 +114,7 @@ export default function SendActions({
     setError("");
     setDone("");
     try {
-      const { ok, result } = await post(ROUTE[kind].path, ROUTE[kind].body(emails));
+      const { ok, result } = await post(ROUTE[kind].path, { ...ROUTE[kind].body(emails), ...extraBody });
       if (!ok) setError(result.error ?? "Nothing was sent. Try again in a minute.");
       else setDone(tallyWords(result));
       router.refresh();
@@ -147,7 +153,7 @@ export default function SendActions({
           </Button>
         )}
         <Button onClick={send} disabled={sendDisabled}>
-          {buttonWords(kind, emails, audienceKind)}
+          {sendLabel ?? buttonWords(kind, emails, audienceKind)}
         </Button>
       </div>
       {blocked ? (

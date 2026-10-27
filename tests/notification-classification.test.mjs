@@ -701,6 +701,9 @@ const REGISTRY = {
   "src/lib/surveys/sending.ts#sendNotice": N(
     "A programme survey and its reminder (docs/surveys.md): an admin writing to everybody holding a place on the programme the survey is about, each with their own link, whatever their courses row says, with the marker and the lane's caps. Email only: no push leg.",
   ),
+  "src/lib/surveys/events/sending.ts#sendNotice": N(
+    "The survey after an event, its email to people who came since and its reminder (docs/surveys.md): an admin writing to the people who came to the event or everybody whose place was confirmed, each with their own link, whatever their events row says, with the marker (surface event-survey) and the lane's caps. A guest's and a walk-in's go to the address they gave the event. Email only: no push leg.",
+  ),
   "src/app/api/surveys/[surveyId]/test/route.ts#sendEmail": T(
     "\"Send a test to me\" under a survey's email or its reminder: the email, marked [TEST], to the address on the presser's own session and nobody else. Nobody's preference is passed over, so it is no notice.",
   ),

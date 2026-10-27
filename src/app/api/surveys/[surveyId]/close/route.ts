@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { closeAnonymousForm } from "@/lib/anonymousFeedback/forms";
+import { alignWalkInEmails } from "@/lib/surveys/events/records";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
@@ -13,8 +14,9 @@ type Ctx = { params: Promise<{ surveyId: string }> };
 /**
  * CLOSE A SURVEY NOW, before its closing day: from this moment it takes no
  * more answers and nothing more can be sent, and it is never opened again.
- * The survey at a programme's end takes its anonymous form with it. Nobody
- * is emailed. Admins only.
+ * The survey at a programme's end takes its anonymous form with it, and a
+ * survey after an event the emails its walk-ins left for it. Nobody is
+ * emailed. Admins only.
  *
  * A survey that is not open (never sent, or already closed) is answered 409:
  * there is nothing to close. Body `{}`.
@@ -49,5 +51,8 @@ export async function POST(_req: Request, ctx: Ctx) {
   // programme's end closes with it (docs/surveys.md). Any other survey has
   // none, and this changes nothing.
   await closeAnonymousForm(db, surveyId);
+  // A survey after an event takes its walk-ins' emails with it: they were
+  // kept for it alone (src/lib/events/checkIns.ts). Any other survey has none.
+  await alignWalkInEmails(db, surveyId, now);
   return NextResponse.json({ ok: true });
 }

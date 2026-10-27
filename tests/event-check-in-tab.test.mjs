@@ -50,19 +50,22 @@ async function theNight() {
 describe("the tabs", () => {
   const tabs = (props) => renderToStaticMarkup(createElement(EventTabs, { eventId: EVENT_ID, ...props }));
 
-  test("Details, Sign-ups with its count, and Check-in, each its own address, the current one marked", () => {
+  // The survey after an event is built (docs/surveys.md, "Surveys after events"), so the
+  // fourth section, Survey after, sits beside Check-in, as ev-manage draws it.
+  test("Details, Sign-ups with its count, Check-in and Survey after, each its own address, the current one marked", () => {
     const html = tabs({ current: "check-in", showSignups: true, signups: 18, showCheckIn: true });
-    assert.equal(textOf(html), "Details Sign-ups 18 Check-in");
+    assert.equal(textOf(html), "Details Sign-ups 18 Check-in Survey after");
+    assert.match(html, new RegExp(`href="/events/manage/${EVENT_ID}/survey"[^>]*>Survey after`));
     assert.match(html, /<nav[^>]*aria-label="Sections"/);
     assert.match(html, new RegExp(`href="/events/manage/${EVENT_ID}"[^>]*>Details`));
     assert.match(html, new RegExp(`href="/events/manage/${EVENT_ID}/attendees"[^>]*>Sign-ups`));
     assert.match(html, new RegExp(`href="/events/manage/${EVENT_ID}/check-in"[^>]*aria-current="page"[^>]*>Check-in`));
   });
 
-  test("Sign-ups only for those its page admits; Check-in only for a published event; no survey tab yet", () => {
-    assert.equal(textOf(tabs({ current: "details", showSignups: false, showCheckIn: true })), "Details Check-in");
+  test("Sign-ups only for those its page admits; Check-in and Survey after only for a published event", () => {
+    assert.equal(textOf(tabs({ current: "details", showSignups: false, showCheckIn: true })), "Details Check-in Survey after");
     assert.equal(textOf(tabs({ current: "details", showSignups: true, showCheckIn: false })), "Details Sign-ups");
-    assert.ok(!tabs({ current: "details", showSignups: true, showCheckIn: true }).includes("Survey"));
+    assert.ok(!tabs({ current: "details", showSignups: true, showCheckIn: false }).includes("Survey"));
   });
 
   test("the editor and the attendees page both draw them, with the attendees page's own gate for Sign-ups", () => {

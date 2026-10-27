@@ -5,7 +5,8 @@ import { isId, type ApplicationForm } from "@/lib/applications/normalise";
 import { loadForm } from "@/lib/applications/repo";
 import { listForms } from "@/lib/applications/handover/run";
 import { isValidDateKey, londonDateKey, londonWallClockToInstant } from "@/lib/courses/weekPlan";
-import { SURVEYS_COLLECTION, SURVEY_LIMITS, normalizeSurvey, type SurveyAudience, type SurveyDoc } from "@/lib/firestore/surveys";
+import { SURVEYS_COLLECTION, SURVEY_LIMITS, isEventSurvey, isProgrammeAudience, normalizeSurvey, type SurveyAudience, type SurveyDoc } from "@/lib/firestore/surveys";
+import { alignWalkInEmails, eventNamesOffDay } from "./events/records";
 import { sameQuestions, sanitizeSurveyItems, surveyQuestionsOf, validateSurveyItems, type SurveyItem } from "./items";
 import { namesOffDayFor } from "./namesOff";
 import { mintSurveyToken } from "./token";
@@ -136,7 +137,7 @@ function programmeNameOf(form: ApplicationForm, programmeId: string): string {
 function surveysOf(surveys: readonly SurveyDoc[], roundId: string, programmeId: string): Map<SurveyTemplate, SurveyDoc> {
   const out = new Map<SurveyTemplate, SurveyDoc>();
   for (const survey of surveys) {
-    if (survey.audience.roundId === roundId && survey.audience.programmeId === programmeId && !out.has(survey.kind)) out.set(survey.kind, survey);
+    if (survey.kind !== "event" && isProgrammeAudience(survey.audience, roundId, programmeId) && !out.has(survey.kind)) out.set(survey.kind, survey);
   }
   return out;
 }
@@ -309,7 +310,8 @@ export function parseSave(raw: unknown, survey: SurveyDoc, now: Date): { ok: tru
 
 /** Write an editor's save, unless the survey has been sent meanwhile. */
 export async function saveSurvey(db: Firestore, survey: SurveyDoc, input: SaveInput, now: Date): Promise<{ ok: true } | Refused> {
-  const namesOffOn = await namesOffDayFor(db, survey.runId, now);
+  // A survey after an event takes its day from the event (src/lib/surveys/events/create.ts).
+  const namesOffOn = isEventSurvey(survey) ? await eventNamesOffDay(db, survey) : await namesOffDayFor(db, survey.runId, now);
   const ref = db.collection(SURVEYS_COLLECTION).doc(survey.id);
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -325,5 +327,9 @@ export async function saveSurvey(db: Firestore, survey: SurveyDoc, input: SaveIn
       updatedAt: FieldValue.serverTimestamp(),
     });
     return { ok: true } as const;
+  }).then(async (saved) => {
+    // A survey after an event: its walk-ins' emails follow its closing day.
+    if (saved.ok && isEventSurvey(survey)) await alignWalkInEmails(db, survey.id, now);
+    return saved;
   });
 }

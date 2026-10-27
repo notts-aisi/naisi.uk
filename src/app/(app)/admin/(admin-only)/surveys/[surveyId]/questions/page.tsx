@@ -6,6 +6,8 @@ import SurveyMissing from "@/features/surveys/admin/SurveyMissing";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { surveyPage } from "@/lib/surveys/adminView";
+import { isEventSurvey } from "@/lib/firestore/surveys";
+import { LOCK_WORDS } from "@/lib/surveys/events/words";
 import { TEMPLATE_MEASURES } from "@/lib/surveys/templates";
 
 export const dynamic = "force-dynamic";
@@ -28,17 +30,20 @@ export default async function SurveyQuestionsPage({ params }: { params: Promise<
     );
   }
   const { survey, head } = page;
+  // A survey after an event locks when it opens, at the event or with its email.
+  const event = isEventSurvey(survey);
   return (
     <AdminPage wide>
       <SurveyHead head={head} current="questions" />
       {survey.firstSentAt ? (
-        <QuestionsList items={survey.items} measures={TEMPLATE_MEASURES} intro={survey.intro} title={survey.title} />
+        <QuestionsList items={survey.items} measures={TEMPLATE_MEASURES} intro={survey.intro} title={survey.title} {...(event ? { lockNote: LOCK_WORDS.fixed } : {})} />
       ) : (
         <QuestionsEditor
           surveyId={survey.id}
           measures={TEMPLATE_MEASURES}
           today={londonDateKey(now)}
           closes={survey.kind !== "leaving"}
+          {...(event ? { lockNote: LOCK_WORDS.editing } : {})}
           initial={{
             title: survey.title,
             intro: survey.intro,

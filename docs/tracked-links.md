@@ -281,6 +281,16 @@ off here, a scan of it lands on `/links`, as any switched-off code does, and
 the event's Check-in tab says so. Repointed elsewhere, it stops being the door
 code and the event can have a new one.
 
+## Survey codes
+
+The survey after an event has a short link of its own, to the event's survey
+page, `/events/<id>/survey` (`src/lib/surveys/events/code.ts`): made with the
+survey, filed under the campaign "Surveys", the same fields as every other
+link, its slug the door code's word with `-survey` ("VR games night" is
+`vr-survey`, then `vr-survey-2`). Admins draw it, download its PNG and show it
+full screen from the survey's Send tab, through the same image route as every
+code. One per event, never one per person, and never deleted.
+
 ## Checking a deploy
 
 ```sh

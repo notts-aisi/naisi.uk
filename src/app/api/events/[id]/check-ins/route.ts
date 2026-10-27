@@ -13,6 +13,7 @@ import {
   eventTakesCheckIns,
   recordCheckIn,
 } from "@/lib/events/checkIns";
+import { surveyClosesFor } from "@/lib/surveys/events/records";
 
 export const dynamic = "force-dynamic";
 
@@ -21,11 +22,13 @@ export const dynamic = "force-dynamic";
  * `POST /api/events/<id>/check-ins` with `{ rsvpId, from }` for a sign-up, or
  * `{ walkIn: { name, email }, from }` for somebody who came without one. A
  * walk-in's email is optional and is only for that event's survey: it is
- * deleted a week after the event (`walkInEmailGoesAt`).
+ * deleted when that survey closes or a week after the event, whichever comes
+ * first (`walkInEmailGoesAt`).
  *
  * `from` is where it was pressed. `door` is the door list, open from an hour
  * before the start to an hour after the end; `page` is the event's own page,
- * from the door opening until a week after the event. A sign-up on the door
+ * from the door opening until a week after the event, or until the event's
+ * survey closes when that is sooner. A sign-up on the door
  * list is somebody confirmed, on the waiting list or not decided yet: a
  * cancelled or refused one who comes is added as a walk-in.
  *
@@ -106,7 +109,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }
 
   const now = new Date();
-  const phase = checkInPhase(event, now);
+  // Until the event's survey closes, when that is sooner than a week.
+  const surveyClosesAt = await surveyClosesFor(db, event.id);
+  const phase = checkInPhase(event, now, surveyClosesAt);
   const window = doorWindow(event);
   if (parsed.from === "door") {
     const closed = doorClosedWords(phase, window);
@@ -117,7 +122,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         ? `Nobody can be checked in before the door list opens at ${clockWords(window.opensAt)} on ${dayWords(window.opensAt)}.`
         : phase === "undated"
           ? "This event has no date yet, so nobody can be checked in."
-          : "It’s more than a week since this event, so nobody more can be added.";
+          : surveyClosesAt && surveyClosesAt.getTime() <= now.getTime()
+            ? "The survey after this event has closed, so nobody more can be added."
+            : "It’s more than a week since this event, so nobody more can be added.";
     return NextResponse.json({ error }, { status: 409 });
   }
 
@@ -128,6 +135,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       how: parsed.from === "door" ? "door" : "page",
       byUid: user.uid,
       now,
+      surveyClosesAt,
     });
     const [row] = doorRows([], [checkIn]);
     return NextResponse.json(

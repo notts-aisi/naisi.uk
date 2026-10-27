@@ -9,6 +9,7 @@ import { listGroups, readRunRecords, weeksOf } from "@/lib/courses/programmeAtte
 import { kairosChoicesOf } from "@/lib/kairos/choice";
 import { sharesWithKairos } from "@/lib/kairos/model";
 import type { KairosProgramme } from "@/lib/kairos/programmes";
+import { isProgrammeAudience } from "@/lib/firestore/surveys";
 import { readRunRatings } from "@/lib/ratings/store";
 import { buildKairosReport, type KairosReport, type ReportSurvey } from "./kairosReport";
 import { answersOf, listSurveys } from "./repo";
@@ -54,7 +55,7 @@ export async function loadKairosReport(db: Firestore, programme: KairosProgramme
   const surveys: ReportSurvey[] = [];
   for (const stage of SURVEY_STAGES) {
     const survey = all
-      .filter((each) => each.kind === stage && each.audience.roundId === programme.roundId && each.audience.programmeId === programme.programmeId)
+      .filter((each) => each.kind === stage && isProgrammeAudience(each.audience, programme.roundId, programme.programmeId))
       .sort((a, b) => (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0))[0];
     if (!survey) continue;
     const answers = await answersOf(db, survey);

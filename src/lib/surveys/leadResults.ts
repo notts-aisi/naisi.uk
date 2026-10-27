@@ -1,6 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import type { SurveyDoc, SurveyKind } from "@/lib/firestore/surveys";
+import { isProgrammeAudience, type SurveyDoc, type SurveyKind } from "@/lib/firestore/surveys";
 import { readSurvey } from "./repo";
 
 /**
@@ -23,6 +23,6 @@ export const LEAD_READS: readonly SurveyKind[] = ["leaving"];
 export async function leadSurveyOf(db: Firestore, roundId: string, programmeId: string, surveyId: string): Promise<SurveyDoc | null> {
   const survey = await readSurvey(db, surveyId);
   if (!survey || !LEAD_READS.includes(survey.kind)) return null;
-  if (survey.audience.roundId !== roundId || survey.audience.programmeId !== programmeId) return null;
+  if (!isProgrammeAudience(survey.audience, roundId, programmeId)) return null;
   return survey;
 }

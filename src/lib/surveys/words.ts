@@ -1,4 +1,4 @@
-import type { SurveyAudience, SurveyProgrammeKind } from "@/lib/firestore/surveys";
+import type { SurveyAudience, SurveyKind, SurveyProgrammeKind } from "@/lib/firestore/surveys";
 import type { SurveyChoiceQuestion, SurveyQuestion } from "./items";
 import type { IncubatorStrand, SurveyTemplate } from "./templates";
 
@@ -287,7 +287,7 @@ export const STATE_WORDS = {
 
 export type ConfidentialFacts = {
   /** Which of the programme's surveys it is: a follow-up compares with what was said during it; leaving has its own words. */
-  stage?: SurveyTemplate;
+  stage?: SurveyKind;
   /** The programme lead's first name, or null when the programme has no lead who stands. */
   leadName: string | null;
   /**
@@ -540,7 +540,7 @@ export const SEND_WORDS = {
 export type AudienceKind = "start" | "end" | "followUps" | "leaving";
 
 /** Which of the four a survey's audience and stage make it. */
-export function audienceKindOf(audience: SurveyAudience, stage: SurveyTemplate): AudienceKind {
+export function audienceKindOf(audience: SurveyAudience, stage: SurveyKind): AudienceKind {
   if (audience.kind === "followUps") return "followUps";
   if (audience.kind === "leaving") return "leaving";
   return stage === "after" ? "end" : "start";
@@ -662,6 +662,16 @@ export function answersRateWords(answers: number, sent: number, reach: ReachWord
 /** "12 answered, 60% of the 20 it was sent to", beside each question. */
 export function answeredRateWords(n: number, sent: number, verb = "answered", reach: ReachWord = "it was sent to"): string {
   return sent > 0 ? `${n} ${verb}, ${rateOf(n, sent)} of the ${sent} ${reach}` : `${n} ${verb}`;
+}
+
+/** "15 answers.", "No answers yet.": how many, with no "of" (a survey after an event). */
+export function answersWords(answers: number): string {
+  return answers === 0 ? "No answers yet." : `${answers} ${answers === 1 ? "answer" : "answers"}.`;
+}
+
+/** "12 answered, 80% of the 15 answers", beside each question when every rate is of the answers. */
+export function answeredOfAnswersWords(n: number, answers: number, verb = "answered"): string {
+  return answers > 0 ? `${n} ${verb}, ${rateOf(n, answers)} of the ${answers} ${answers === 1 ? "answer" : "answers"}` : `${n} ${verb}`;
 }
 
 /** "Compared, person by person, with AGI Strategy: before (24 answers)." */
