@@ -598,6 +598,12 @@ const NOT_COVERED = {
   // The application form's review screens. The loaders and writers behind
   // every one of these are executed offline by
   // tests/applications-review-routes.test.mjs against an in-memory database.
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/assessments": {
+    reason:
+      "The Claude and Pangram marks on a programme's list, read only. Its gate is executed by tests/applications-assessment.test.mjs; a browser spec waits on the same fake as the assessment route.",
+    coverWhen:
+      "With the assessment route's spec: the admin's list shows the mark the fake left, and a lead's list has no Claude column.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/applications": {
     reason:
       "Application review: the list and the bulk decision behind this route are executed by tests/applications-review-routes.test.mjs, and no end-to-end fixture seeds an application form with sent applications yet.",
@@ -621,6 +627,12 @@ const NOT_COVERED = {
       "An admin opening one applicant's access-requirements answer. Executed against an in-memory store by tests/applications-d2-zeta-access-requirements.test.mjs (every kind of account refused before anything is read, one log line for each open, an unsent draft not found), with no browser spec yet.",
     coverWhen:
       "With the review spec for the new form: an admin presses the button on one application and the log line is read back; a lead opens the same application and has no button.",
+  },
+  "/api/admissions/forms/[roundId]/applications/[uid]/assessment": {
+    reason:
+      "An admin asking Claude and Pangram about one application calls two outside services that a browser spec must not spend money on or send fixture text to. The gate, what is sent and what is kept are executed by tests/applications-assessment.test.mjs.",
+    coverWhen:
+      "When the end-to-end harness can stand in for Anthropic and Pangram with a local fake, so an admin can press the button and read the stored read back.",
   },
   "/api/admissions/forms/[roundId]/applications/[uid]/decision": {
     reason:

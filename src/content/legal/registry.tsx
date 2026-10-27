@@ -8,6 +8,7 @@ import PrivacyContentV4 from "./privacy/v4";
 import PrivacyContentV5 from "./privacy/v5";
 import PrivacyContentV6 from "./privacy/v6";
 import PrivacyContentV7 from "./privacy/v7";
+import PrivacyContentV8 from "./privacy/v8";
 
 /** A version's self-contained content component, with header slots. */
 export type LegalContent = (props: {
@@ -29,5 +30,6 @@ export const LEGAL_CONTENT: Record<PolicyKey, Record<number, LegalContent>> = {
     5: PrivacyContentV5,
     6: PrivacyContentV6,
     7: PrivacyContentV7,
+    8: PrivacyContentV8,
   },
 };

@@ -636,7 +636,34 @@
 }
 
 /* === Mobile === */
-@media (max-width: 48rem) { /* --bp-md */
+/* ---- An admin's Claude and Pangram line above the list (AssessAllBar.tsx) ---- */
+.assessBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px 16px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+}
+
+.assessBar button {
+  min-height: 2.75rem;
+}
+
+.assessLine {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+@media (max-width: 48rem) {
+  .assessBar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+ /* --bp-md */
   .card {
     padding: 18px 16px 16px;
   }

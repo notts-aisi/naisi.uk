@@ -24,6 +24,7 @@ import { PITCHES_COLLECTION } from "@/lib/courses/pitching/model";
 import { TEAM_ENTRIES_COLLECTION } from "@/lib/courses/teamPage/model";
 import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
 import { TEAMS_MARKERS, TEAMS_TEST_KIND } from "@/lib/courses/teams/told";
+import { ASSESSMENTS_COLLECTION } from "./admissionAssessments";
 import { normalizeCourseEnrolment } from "./courseEnrolments";
 import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
@@ -205,6 +206,11 @@ export type AccountDeletionSummary = {
    * they are about, at the id the two share. See below.
    */
   admissionDecisionsDeleted: number;
+  /**
+   * What Claude and Pangram made of their applications, kept at each
+   * application's id. Deleted in the SAME batch as the application.
+   */
+  admissionAssessmentsDeleted: number;
   /** Review rows written ABOUT this account. */
   admissionReviewsDeleted: number;
   /** Review rows written BY this account about other people. */
@@ -281,16 +287,17 @@ const COURSE_MAX_PAGES = 60;
  * Rows per page for the admissions sweep, and deliberately NOT
  * `COURSE_PAGE_SIZE`.
  *
- * `deleteAdmissionApplications` commits up to THREE deletes per row in ONE
- * batch (the application, its `admissionApplicationPrivate` twin, and the
- * decision document an application form keeps at the same id), and that
- * single batch is load-bearing rather than incidental: see that function for
- * why the rows cannot be torn down by separate sweeps. A 300-row page would
- * ask one batch for up to 900 writes, past Firestore's 500-write cap, so the
- * page is the cap divided by three and rounded down. 166 × 3 = 498, and no
- * real account comes near even one page.
+ * `deleteAdmissionApplications` commits up to FOUR deletes per row in ONE
+ * batch (the application, its `admissionApplicationPrivate` twin, the
+ * decision document an application form keeps at the same id, and the
+ * assessment Claude and Pangram left there), and that single batch is
+ * load-bearing rather than incidental: see that function for why the rows
+ * cannot be torn down by separate sweeps. A 300-row page would ask one batch
+ * for up to 1,200 writes, past Firestore's 500-write cap, so the page is the
+ * cap divided by four. 125 × 4 = 500, and no real account comes near even
+ * one page.
  */
-const ADMISSION_PAGE_SIZE = 166;
+const ADMISSION_PAGE_SIZE = 125;
 
 /**
  * Delete every row a member owns in one `uid`-keyed collection, a page at a
@@ -917,8 +924,8 @@ export async function clearCourseAttendanceMarks(
  * a failure leaves both, and a retry (re-reading the smaller remainder) is
  * the same operation again.
  *
- * That is also why the page size is `ADMISSION_PAGE_SIZE` (166) and not the
- * 300 the other course sweeps use: up to three deletes per row against
+ * That is also why the page size is `ADMISSION_PAGE_SIZE` (125) and not the
+ * 300 the other course sweeps use: up to four deletes per row against
  * Firestore's 500-write batch cap.
  *
  * ## The decision document goes in the same batch, for a different reason
@@ -942,6 +949,14 @@ export async function clearCourseAttendanceMarks(
  * BATCH. `tests/application-decision-lifetime.test.mjs` walks the tree for
  * anything that deletes an application without doing so.
  *
+ * ## So does the assessment
+ *
+ * `admissionAssessments` holds what Claude and Pangram made of the
+ * application, at the same id: a reading of it, and the committee's reviews
+ * in Claude's words. It is derived from the application and is worth nothing
+ * without it, so it leaves in the same batch, read first so the count is
+ * honest.
+ *
  * ## The counters are deliberately left alone
  *
  * Deleting an application does NOT move `admissionRounds.applicationCounts`.
@@ -957,17 +972,18 @@ export async function clearCourseAttendanceMarks(
 async function deleteAdmissionApplications(
   db: Firestore,
   uid: string,
-): Promise<{ applications: number; privateRows: number; decisions: number }> {
+): Promise<{ applications: number; privateRows: number; decisions: number; assessments: number }> {
   let applications = 0;
   let privateRows = 0;
   let decisions = 0;
+  let assessments = 0;
   for (let page = 0; page < COURSE_MAX_PAGES; page += 1) {
     const snap = await db
       .collection("admissionApplications")
       .where("uid", "==", uid)
       .limit(ADMISSION_PAGE_SIZE)
       .get();
-    if (snap.empty) return { applications, privateRows, decisions };
+    if (snap.empty) return { applications, privateRows, decisions, assessments };
 
     // Read the private rows before the batch only so the count is HONEST: a
     // `batch.delete` on a missing document succeeds silently, so counting the
@@ -985,16 +1001,24 @@ async function deleteAdmissionApplications(
     );
     const liveDecisions = (await db.getAll(...decisionRefs)).filter((d) => d.exists);
 
+    // The assessments, the same way: addressed at the shared id, read first.
+    const assessmentRefs = snap.docs.map((d) =>
+      db.collection(ASSESSMENTS_COLLECTION).doc(d.id),
+    );
+    const liveAssessments = (await db.getAll(...assessmentRefs)).filter((d) => d.exists);
+
     const batch = db.batch();
     for (const d of livePrivate) batch.delete(d.ref);
     for (const d of liveDecisions) batch.delete(d.ref);
+    for (const d of liveAssessments) batch.delete(d.ref);
     for (const d of snap.docs) batch.delete(d.ref);
     await batch.commit();
 
     applications += snap.size;
     privateRows += livePrivate.length;
     decisions += liveDecisions.length;
-    if (snap.size < ADMISSION_PAGE_SIZE) return { applications, privateRows, decisions };
+    assessments += liveAssessments.length;
+    if (snap.size < ADMISSION_PAGE_SIZE) return { applications, privateRows, decisions, assessments };
   }
   throw new Error(
     `admissionApplications did not drain after ${COURSE_MAX_PAGES} pages`,
@@ -1335,6 +1359,7 @@ export async function deleteAccountCascade(
     admissionApplicationsDeleted: 0,
     admissionApplicationPrivateDeleted: 0,
     admissionDecisionsDeleted: 0,
+    admissionAssessmentsDeleted: 0,
     admissionReviewsDeleted: 0,
     admissionReviewsAuthoredDeleted: 0,
     admissionRoundRolesCleared: 0,
@@ -1802,18 +1827,19 @@ export async function deleteAccountCascade(
   //     they are ghost rows no admin surface could find. Each is its own try
   //     so one failure does not cost the others.
   //
-  //     The first of them is three collections in one step, on purpose: an
-  //     application, its access-requirements row and the decision document
-  //     kept beside it share one id and leave in one batch. See
+  //     The first of them is four collections in one step, on purpose: an
+  //     application, its access-requirements row, the decision document and
+  //     the assessment kept beside it share one id and leave in one batch. See
   //     `deleteAdmissionApplications`.
   try {
-    const { applications, privateRows, decisions } = await deleteAdmissionApplications(
+    const { applications, privateRows, decisions, assessments } = await deleteAdmissionApplications(
       db,
       uid,
     );
     summary.admissionApplicationsDeleted = applications;
     summary.admissionApplicationPrivateDeleted = privateRows;
     summary.admissionDecisionsDeleted = decisions;
+    summary.admissionAssessmentsDeleted = assessments;
   } catch (err) {
     console.error("[deleteAccount] admissionApplications delete failed:", uid, err);
     partialFailure = true;

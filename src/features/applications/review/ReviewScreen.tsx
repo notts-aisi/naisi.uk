@@ -27,6 +27,7 @@ import { hiddenReviewsLine } from "./otherReviewsWords";
 import { Avatar, Chip, Icon, Key, ScoreBox, StandingChip } from "./parts";
 import parts from "./parts.module.css";
 import AccessRequirementsBlock from "./AccessRequirementsBlock";
+import AssessmentBlock from "./AssessmentBlock";
 import styles from "./ReviewScreen.module.css";
 
 /**
@@ -1068,6 +1069,21 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
                 ) : null}
               </div>
             </section>
+          ) : null}
+
+          {/*
+            An admin's alone: Claude's read and Pangram's check, fetched when
+            the block opens and asked for again only by pressing its button.
+            Keyed by applicant and programme, because a read is of one
+            application for one programme.
+          */}
+          {viewer.isAdmin ? (
+            <AssessmentBlock
+              key={`${applicant.uid}:${programme.id}`}
+              apiBase={apiBase}
+              applicantUid={applicant.uid}
+              programmeId={programme.id}
+            />
           ) : null}
 
           {/*

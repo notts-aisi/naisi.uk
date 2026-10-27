@@ -3,6 +3,7 @@ import { FieldValue, type Firestore, type Query } from "firebase-admin/firestore
 import { QUESTION_SETS_SUBCOLLECTION } from "@/lib/applications/model";
 import { DECISIONS_COLLECTION } from "@/lib/applications/staffRepo";
 import { APPLICATIONS_COLLECTION } from "@/lib/firestore/admissionApplications";
+import { ASSESSMENTS_COLLECTION } from "@/lib/firestore/admissionAssessments";
 import {
   ROUNDS_COLLECTION,
   type AdmissionRoundDoc,
@@ -145,20 +146,20 @@ import { writeRecordsForRound } from "./memberRecordSync";
 
 /**
  * Rows per page for every drain that deletes one document per row.
- * Applications page smaller (below) because each one commits up to three.
+ * Applications page smaller (below) because each one commits up to four.
  */
 const DESTROY_PAGE_SIZE = 250;
 
 /**
  * Applications per page. Each row commits its own delete AND the deletes of
- * the two documents that share its id, in the same batch: its
- * `admissionApplicationPrivate` twin, and the decision document an
- * application form keeps beside it. Three writes a row against Firestore's
- * 500-write cap, so 150 rows is 450 at the very most. That is the
- * `accountDeletion.ts` arithmetic, restated here because the reason is the
- * pairing rather than the collection.
+ * the three documents that share its id, in the same batch: its
+ * `admissionApplicationPrivate` twin, the decision document an application
+ * form keeps beside it, and the assessment Claude and Pangram left there.
+ * Four writes a row against Firestore's 500-write cap, so 125 rows is 500 at
+ * the very most. That is the `accountDeletion.ts` arithmetic, restated here
+ * because the reason is the pairing rather than the collection.
  */
-const APPLICATION_PAGE_SIZE = 150;
+const APPLICATION_PAGE_SIZE = 125;
 
 /**
  * Documents one invocation may delete before returning `complete: false`.
@@ -221,6 +222,11 @@ export type RoundDestroyCounts = {
    * application at most, and only on a round that is an application form.
    */
   decisions: number;
+  /**
+   * What Claude and Pangram made of an application, at the application's id.
+   * One per application at most. Deleted with the application it is about.
+   */
+  assessments: number;
   stages: number;
   /** The question sets of an application form. None on any other round. */
   questionSets: number;
@@ -404,6 +410,12 @@ async function drainQuery(
  * it cannot be left standing once the application it judged has gone. It is
  * read first and counted for the reason the private row is, and its total
  * lands in `extra.decisions`, beside what the stage drained.
+ *
+ * ## And the assessment
+ *
+ * What Claude and Pangram made of the application sits at its id too, and is
+ * worth nothing without it. Taken by address in the same batch, counted the
+ * same way, into `extra.assessments`.
  */
 async function drainApplications(
   db: Firestore,
@@ -431,18 +443,21 @@ async function drainApplications(
     }
     prevFirstId = firstId;
 
-    // One round trip for both twins. `getAll` answers in the order it was
-    // asked, so the first half is the private rows and the second the decisions.
+    // One round trip for the three twins. `getAll` answers in the order it
+    // was asked: the private rows, then the decisions, then the assessments.
     const twins = await db.getAll(
       ...snap.docs.map((doc) => db.collection(APPLICATION_PRIVATE_COLLECTION).doc(doc.id)),
       ...snap.docs.map((doc) => db.collection(DECISIONS_COLLECTION).doc(doc.id)),
+      ...snap.docs.map((doc) => db.collection(ASSESSMENTS_COLLECTION).doc(doc.id)),
     );
     const livePrivate = twins.slice(0, snap.size).filter((doc) => doc.exists);
-    const liveDecisions = twins.slice(snap.size).filter((doc) => doc.exists);
+    const liveDecisions = twins.slice(snap.size, snap.size * 2).filter((doc) => doc.exists);
+    const liveAssessments = twins.slice(snap.size * 2).filter((doc) => doc.exists);
 
     const batch = db.batch();
     for (const doc of livePrivate) batch.delete(doc.ref);
     for (const doc of liveDecisions) batch.delete(doc.ref);
+    for (const doc of liveAssessments) batch.delete(doc.ref);
     for (const doc of snap.docs) batch.delete(doc.ref);
     await batch.commit();
 
@@ -451,6 +466,7 @@ async function drainApplications(
     extra.applicationPrivateRows =
       (extra.applicationPrivateRows ?? 0) + livePrivate.length;
     extra.decisions = (extra.decisions ?? 0) + liveDecisions.length;
+    extra.assessments = (extra.assessments ?? 0) + liveAssessments.length;
 
     if (snap.size < limit) return { deleted, drained: true };
   }
@@ -619,14 +635,19 @@ export async function countRoundDestroyTargets(
     .get();
   const decisionIds = new Set(decisionIdSnap.docs.map((doc) => doc.id));
 
+  let assessments = 0;
   const privateCounts = await Promise.all(
     chunk(applicationIds, APPLICATION_PAGE_SIZE).map(async (batch) => {
-      // Both twins in one round trip, private rows first, as the cascade reads them.
+      // The three twins in one round trip, in the order the cascade reads them.
       const docs = await db.getAll(
         ...batch.map((id) => db.collection(APPLICATION_PRIVATE_COLLECTION).doc(id)),
         ...batch.map((id) => db.collection(DECISIONS_COLLECTION).doc(id)),
+        ...batch.map((id) => db.collection(ASSESSMENTS_COLLECTION).doc(id)),
       );
-      for (const doc of docs.slice(batch.length)) if (doc.exists) decisionIds.add(doc.id);
+      for (const doc of docs.slice(batch.length, batch.length * 2)) {
+        if (doc.exists) decisionIds.add(doc.id);
+      }
+      assessments += docs.slice(batch.length * 2).filter((doc) => doc.exists).length;
       return docs.slice(0, batch.length).filter((doc) => doc.exists).length;
     }),
   );
@@ -663,6 +684,7 @@ export async function countRoundDestroyTargets(
     applicationPrivateRows: privateCounts.reduce((a, b) => a + b, 0),
     reviews,
     decisions: decisionIds.size,
+    assessments,
     stages,
     questionSets,
     auditRows,

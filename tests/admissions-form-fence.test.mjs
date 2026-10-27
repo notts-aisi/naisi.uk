@@ -585,6 +585,13 @@ const ROUND_SURFACES = {
       "openAccessRequirements, which starts from the form's own loader and answers not found " +
       "for a round that is not a form, before it reads the answer or records the read",
   },
+  "/api/admissions/forms/[roundId]/applications/[uid]/assessment": {
+    kind: "form",
+    why:
+      "an admin reads or asks for Claude's read and Pangram's check of one application " +
+      "through loadReview, which starts from the form's own loader and answers 404 for a " +
+      "round that is not a form, before anything is read or sent",
+  },
   "/api/admissions/forms/[roundId]/applications/[uid]/decision": {
     kind: "form",
     why:
@@ -611,6 +618,13 @@ const ROUND_SURFACES = {
       "reads and changes one programme's settings. It loads through loadSetup and writes " +
       "through changeProgramme, and both stop at a round that is not a form before anything " +
       "is read as a programme",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/assessments": {
+    kind: "form",
+    why:
+      "an admin reads the Claude and Pangram marks on one programme's list through " +
+      "loadProgrammeBoard, which starts from the form's own loader and answers 404 for a " +
+      "round that is not a form",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/applications": {
     kind: "form",

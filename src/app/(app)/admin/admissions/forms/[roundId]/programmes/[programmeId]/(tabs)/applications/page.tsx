@@ -50,6 +50,16 @@ export default async function ProgrammeApplicationsPage({
         listPath={`/admin/admissions/${base}`}
         apiPath={`/api/admissions/${base}`}
         freedPlacesPath={offers ? `/admin/admissions/${base}/freed-places` : null}
+        assessments={
+          // Claude's and Pangram's marks are an admin's alone: the route asks
+          // again, and refuses anybody else before it reads anything.
+          result.board.viewer.role === "admin"
+            ? {
+                marksPath: `/api/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/assessments`,
+                formApiBase: `/api/admissions/forms/${encodeURIComponent(roundId)}`,
+              }
+            : null
+        }
       />
     </ApplicationsRoot>
   );

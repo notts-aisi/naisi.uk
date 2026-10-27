@@ -79,6 +79,20 @@ env:
   - variable: RECAPTCHA_SECRET
     secret: RECAPTCHA_SECRET
     availability: [RUNTIME]
+  # The keys for Claude (Anthropic's API) and Pangram (the AI-writing
+  # detector), read only in src/lib/ai/claude.ts and src/lib/ai/pangram.ts,
+  # which an admin's assessment of an application calls. RUNTIME only and never
+  # NEXT_PUBLIC_: a key that reached a browser could spend the society's
+  # credits. Resolved by NAME from each project's own Secret Manager, so the
+  # practice site and the live site each use their own key, and a backend
+  # without them fails its rollout here. See docs/applications.md, "Claude and
+  # Pangram".
+  - variable: ANTHROPIC_API_KEY
+    secret: ANTHROPIC_API_KEY
+    availability: [RUNTIME]
+  - variable: PANGRAM_API_KEY
+    secret: PANGRAM_API_KEY
+    availability: [RUNTIME]
   # Web push (VAPID). The secrets resolve by name from each project's own
   # Secret Manager. The PUBLIC key needs BUILD availability because it is
   # inlined into the client bundle; the private key is runtime-only and is

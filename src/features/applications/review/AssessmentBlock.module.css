@@ -1,0 +1,150 @@
+/* ============================================================
+   Claude's read and Pangram's check, on the review screen, for
+   an admin. The frame is the screen's own admin frame
+   (ReviewScreen.module.css); this is what goes inside it.
+   ============================================================ */
+
+.box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rule {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+/* A full 44px target (docs/touch-targets.md). */
+.box .button {
+  min-height: 2.75rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.quietLine {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.read {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.leanRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.leanLabel {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.leanReason {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.stale {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.part {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.partTitle {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.text {
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.pangramList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pangramList li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+}
+
+.lookAt {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+}
+
+.question {
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.reading {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
+.lookAt .reading {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .box .button {
+    justify-content: center;
+    text-align: center;
+  }
+}

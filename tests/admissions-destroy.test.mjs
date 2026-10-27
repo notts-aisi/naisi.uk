@@ -806,6 +806,7 @@ test("the manifest counts what dies, what is written and what is kept", async ()
     // each is counted and found to be nothing: a zero that was measured, which
     // section 10 sets beside a form where none of them is zero.
     decisions: 0,
+    assessments: 0,
     stages: 1,
     questionSets: 0,
     auditRows: 0,
@@ -1681,6 +1682,16 @@ function seedFormWorld() {
       pooledOutcome: null,
       exception: null,
     },
+    // What Claude and Pangram made of u1's application, at its id. Found
+    // only there, and it leaves in the application's batch.
+    "admissionAssessments/r1__u1": {
+      roundId: "r1",
+      uid: "u1",
+      claude: { agi: { lean: "strong", summary: "A clear fit." } },
+      pangram: null,
+    },
+    // Another round's assessment of the same person. Not this destroy's.
+    "admissionAssessments/r3__u1": { roundId: "r3", uid: "u1", claude: {}, pangram: null },
     // Says nothing about which round it is for. Found only at its
     // application's id.
     [`${DECISIONS_COLLECTION}/r1__u3`]: {
@@ -1803,6 +1814,8 @@ test("a form's manifest counts its question sets, its decisions and its log line
     // once), u3's (at its application's id only) and the one with no
     // application (by the round it names only).
     decisions: 3,
+    // u1's, at its application's id. Not r3's.
+    assessments: 1,
     stages: 0,
     questionSets: 3,
     // The two keyed to this round. Not the run's, and not the other round's.
@@ -1882,10 +1895,25 @@ test("a destroyed form takes its question sets, every decision and its log lines
   assert.equal(audit.deleted.round, 1);
   assert.deepEqual(
     last.body.deleted,
-    { reviews: 4, decisions: 3, applications: 3, questionSets: 3, auditRows: 2, round: 1 },
+    { reviews: 4, decisions: 3, assessments: 1, applications: 3, questionSets: 3, auditRows: 2, round: 1 },
     "and it lists deletions only: no stage and no access-requirements line for " +
       "a form that had neither",
   );
+});
+
+test("an assessment leaves in the same batch as its application, and another round's stays", async () => {
+  const db = seedFormWorld();
+  install(db, ADMIN);
+  await destroyToCompletion(db);
+
+  const together = db.batches.find((paths) => paths.includes("admissionApplications/r1__u1"));
+  assert.ok(together, "u1's application was never deleted");
+  assert.ok(
+    together.includes("admissionAssessments/r1__u1"),
+    "the assessment did not leave in its application's batch",
+  );
+  assert.equal(db.docs.has("admissionAssessments/r1__u1"), false);
+  assert.ok(db.docs.has("admissionAssessments/r3__u1"), "another round's assessment must survive");
 });
 
 test("a decision that names no round leaves in the same batch as its application", async () => {

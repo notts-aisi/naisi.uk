@@ -452,9 +452,9 @@ describe("what the policy says, held to the page", () => {
     assert.ok(words((await view.handIn("amara")).html).includes("all see it, and so do Tess and admins."));
   });
 
-  test("version 7 says the page exists and what it does, and each sentence is the code's", async () => {
+  test("the current version says the page exists and what it does, and each sentence is the code's", async () => {
     const { readFileSync } = await import("node:fs");
-    const policy = readFileSync(new URL("../src/content/legal/privacy/v7.tsx", import.meta.url), "utf8").replace(/\s+/g, " ");
+    const policy = readFileSync(new URL("../src/content/legal/privacy/v8.tsx", import.meta.url), "utf8").replace(/\s+/g, " ");
     for (const sentence of [
       "On an incubator, each team has a page of its own: its project, a weekly check-in, the team&apos;s links and its hand-in.",
       "Anybody in the team can change what is there.",

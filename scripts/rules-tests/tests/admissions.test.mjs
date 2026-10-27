@@ -10,6 +10,7 @@
  *   memberConductFlags
  *   admissionRounds/{roundId}/questionSets/{setId}
  *   admissionDecisions
+ *   admissionAssessments
  *
  * Every one of them is `allow read, write: if false`. A file that only
  * asserted "deny denies" would be worth nothing, so what is actually pinned
@@ -325,7 +326,20 @@ async function seedAdmissions() {
     // application's own id.
     await round.collection("questionSets").doc(QUESTION_SET_ID).set(questionSetDoc());
     await db.collection("admissionDecisions").doc(APPLICATION_ID).set(decisionDoc());
+    // What Claude and Pangram made of the application, at the same id.
+    await db.collection("admissionAssessments").doc(APPLICATION_ID).set(assessmentDoc());
   });
+}
+
+/** An assessment, shaped like one the assessment route stores. */
+function assessmentDoc(overrides = {}) {
+  return {
+    roundId: ROUND_ID,
+    uid: APPLICANT,
+    claude: { "agi-strategy": { lean: "borderline", summary: "Reviewer A and Reviewer B disagree." } },
+    pangram: null,
+    ...overrides,
+  };
 }
 
 /** A stream question set on an application form, shaped like a real one. */
@@ -453,6 +467,16 @@ const COLLECTIONS = [
     payload: () => decisionDoc({ uid: "drafter" }),
     update: { pooledOutcome: { kind: "no-offer", setByUid: "reviewer", setAt: new Date() } },
   },
+  {
+    // An admin's reading aid that quotes the committee's reviews in Claude's
+    // words: an applicant must not read what the committee thinks of them.
+    label: "admissionAssessments",
+    ref: (db) => db.collection("admissionAssessments"),
+    docId: APPLICATION_ID,
+    createId: `${ROUND_ID}__drafter`,
+    payload: () => assessmentDoc({ uid: "drafter" }),
+    update: { pangram: { answers: [], failed: [], tooShort: 0, at: "2026-10-27T00:00:00Z" } },
+  },
 ];
 
 // ===========================================================================
@@ -554,6 +578,15 @@ describe("admissions: the plausible reads, refused for their own reasons", () =>
     await assertFails(
       reviewer.collection("admissionDecisions").where("roundId", "==", ROUND_ID).get(),
     );
+  });
+
+  it("refuses an APPLICANT the assessment at their own application's id", async () => {
+    // Same id, same reason: Claude's read draws the reviewers' comments together.
+    await seedCast();
+    await seedAdmissions();
+    const db = await asUser(APPLICANT);
+    await assertFails(db.collection("admissionAssessments").doc(APPLICATION_ID).get());
+    await assertFails(db.collection("admissionAssessments").where("uid", "==", APPLICANT).get());
   });
 
   it("refuses a FLAGGED MEMBER their own conduct flag, and an admin theirs too", async () => {

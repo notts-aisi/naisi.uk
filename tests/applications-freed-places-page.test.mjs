@@ -67,6 +67,7 @@ const STYLESHEETS = [
   // The single application, opened from the tab.
   "./ReviewScreen.module.css",
   "./AccessRequirementsBlock.module.css",
+  "./AssessmentBlock.module.css",
   "./MemberText.module.css",
 ];
 const made = makeFreedWorld("__freedPageWorld", [
