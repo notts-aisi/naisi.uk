@@ -13,6 +13,8 @@ import { normalizeCourse, weekDocId } from "@/lib/firestore/courses";
 import { guideLinksOf } from "@/lib/courses/guide/load";
 import type { CourseRoutes } from "@/lib/courses/routes/model";
 import { beforeSurveyCardFor, type SurveyCard } from "@/lib/surveys/waiting";
+import { ownPredictionsView } from "@/lib/courses/predictions/own";
+import type { PredictionsView } from "@/lib/courses/predictions/wire";
 
 /**
  * Server shell for the member week page. It decides whether this viewer
@@ -43,6 +45,11 @@ import { beforeSurveyCardFor, type SurveyCard } from "@/lib/surveys/waiting";
  * (Q50 B): this run's before survey, open, sent to them, still theirs and not
  * answered, by the same answer Home asks (`beforeSurveyCardFor`). Asked of
  * week 1 alone, and read for the reader alone; nothing in a view-as session.
+ *
+ * SEALED PREDICTIONS: on the week the course's card is sealed in and the week
+ * it opens in, the reader's own card, as `ownPredictionsView` decides they may
+ * read and change it now; nothing for anybody with no card, and nothing in a
+ * view-as session.
  */
 
 export const dynamic = "force-dynamic";
@@ -137,11 +144,12 @@ export default async function WeekPage({
   // The course's routes travel only when it has some: a course with none
   // hands the page nothing new, and the week shows the guide's own tables.
   const guideDb = getAdminDb();
-  const [sharedNotes, guide, routes, survey] = await Promise.all([
+  const [sharedNotes, guide, routes, survey, predictions] = await Promise.all([
     sharedNotesFor(access),
     guideDb ? guideLinksOf(guideDb, access.run.id).catch(() => null) : Promise.resolve(null),
     routesFor(access),
     weekOneSurvey(access, weekNumber),
+    predictionsFor(access, weekNumber),
   ]);
   return (
     <WeekView
@@ -153,8 +161,24 @@ export default async function WeekPage({
       {...(guide ? { guide } : {})}
       {...(routes ? { routes } : {})}
       {...(survey ? { survey } : {})}
+      {...(predictions ? { predictions } : {})}
     />
   );
+}
+
+/**
+ * The reader's own sealed predictions card on this week, or null: a week
+ * that holds no card for them, or a read that fails, shows none.
+ */
+async function predictionsFor(access: RunAccess, weekNumber: number): Promise<PredictionsView | null> {
+  const db = getAdminDb();
+  if (!db) return null;
+  try {
+    return await ownPredictionsView(db, access.user, access.run.id, weekNumber, new Date());
+  } catch (err) {
+    console.error("[week page] predictions read failed", access.run.id, err);
+    return null;
+  }
 }
 
 /**

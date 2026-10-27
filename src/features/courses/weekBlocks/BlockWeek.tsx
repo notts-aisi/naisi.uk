@@ -103,6 +103,9 @@ import {
   sentOnWords,
 } from "@/lib/courses/writtenAnswerWords";
 import FillInCard from "./FillInCard";
+import PredictionsCard from "./PredictionsCard";
+import type { PredictionsView } from "@/lib/courses/predictions/wire";
+import { PREDICTIONS_HEADING } from "@/lib/courses/predictions/words";
 import RoutesList from "./RoutesList";
 import styles from "./blockWeek.module.css";
 import answerStyles from "./writtenAnswer.module.css";
@@ -177,6 +180,13 @@ import fillIn from "./fillIn.module.css";
  *
  * `leadCards` draws above This week: week 1's line before groups go out
  * (Q35) and, later, the before survey's card (Q50).
+ *
+ * SEALED PREDICTIONS (`PredictionsCard`): on the week the course's card is
+ * sealed in and the week it opens in, the reader's own card, read on the
+ * server and handed in (`predictions`). No line of a week's Markdown places
+ * it, so the guides paste as written: it goes after In the session when the
+ * week has one, otherwise before Go further and the hands-on route, otherwise
+ * at the end of the week.
  */
 
 type Props = {
@@ -211,6 +221,11 @@ type Props = {
    * the guide's tables.
    */
   routes?: CourseRoutes | null;
+  /**
+   * The reader's own sealed predictions card on this week, read on the
+   * server, or null on a week that holds none for them.
+   */
+  predictions?: PredictionsView | null;
 };
 
 const FORKED_HINT =
@@ -231,6 +246,7 @@ export default function BlockWeek({
   leadCards = null,
   guide = null,
   routes = null,
+  predictions = null,
 }: Props) {
   const runHomeHref = `/learn/${encodeURIComponent(runId)}`;
   const todayKey = londonDateKey(new Date());
@@ -396,7 +412,16 @@ export default function BlockWeek({
   const rail: RailEntry[] = [];
 
   const body: ReactNode[] = [];
+  // The reader's own predictions card, once, at its place in the week.
+  let predictionsPlaced = predictions === null;
+  const placePredictions = () => {
+    if (predictionsPlaced || !predictions) return;
+    predictionsPlaced = true;
+    rail.push({ id: "your-predictions", label: PREDICTIONS_HEADING, count: null, mark: null, indent: false });
+    body.push(<PredictionsCard key={`your-predictions-${predictions.stage}-${predictions.weekNumber}`} runId={runId} view={predictions} />);
+  };
   for (const block of blocks) {
+    if (block.type === "goFurther" || block.type === "handsOn") placePredictions();
     switch (block.type) {
       case "thisWeek":
         rail.push({ id: anchor(block.id), label: THIS_WEEK, count: participant && counts.of > 0 ? ofWords(counts.done, counts.of) : null, mark: null, indent: false });
@@ -524,6 +549,7 @@ export default function BlockWeek({
       case "inTheSession":
         rail.push({ id: anchor(block.id), label: "In the session", count: null, mark: null, indent: false });
         body.push(<InTheSession key={block.id} block={block} />);
+        placePredictions();
         break;
       case "goFurther":
         rail.push({ id: anchor(block.id), label: GO_FURTHER_SHORT, count: null, mark: null, indent: false });
@@ -554,6 +580,8 @@ export default function BlockWeek({
       }
     }
   }
+
+  placePredictions();
 
   const sections = sharedNotes?.sections ?? [];
   if (sections.length > 0) rail.push({ id: "shared-notes", label: SHARED_NOTES_SHORT, count: null, mark: null, indent: false });

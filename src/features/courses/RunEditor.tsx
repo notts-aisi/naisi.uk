@@ -58,6 +58,7 @@ import PitchSettingsEditor from "./pitching/PitchSettingsEditor";
 import RolePickers from "./RolePickers";
 import GuideLoader from "./GuideLoader";
 import RunDangerZone from "./RunDangerZone";
+import SealedPredictionsPanel from "./SealedPredictionsPanel";
 import SaveTemplateDialog from "./SaveTemplateDialog";
 import TemplatePicker, { type TemplatePickerGroup } from "./TemplatePicker";
 import WeekPlanBuilder from "./WeekPlanBuilder";
@@ -1408,6 +1409,12 @@ export default function RunEditor({ courseId, runId }: Props) {
           membersLoading={role === null}
         />
       )}
+
+      {/* ---- Sealed predictions ----
+          Admins only: who has a card on this run, and opening one, each
+          opening recorded before the card is read (the routes refuse
+          everybody else, a programme's lead included). */}
+      {isAdmin && <SealedPredictionsPanel runId={runId} />}
 
       {/* ---- Archive + destroy ----
           Last on the page by design: the end-of-life controls sit after

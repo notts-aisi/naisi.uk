@@ -405,7 +405,7 @@ export const ROUTES = {
   "/api/admin/registrations/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamEntriesCleared", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePitchesCleared", "coursePredictionsDeleted", "courseProgressDeleted", "courseTeamEntriesCleared", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -494,7 +494,7 @@ export const ROUTES = {
   "/api/admin/users/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePitchesCleared", "courseProgressDeleted", "courseTeamEntriesCleared", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePitchesCleared", "coursePredictionsDeleted", "courseProgressDeleted", "courseTeamEntriesCleared", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -1254,6 +1254,22 @@ export const ROUTES = {
         "is missing.",
     },
   },
+  "/api/courses/[courseId]/predictions": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "View-as is refused first, then the session, then the gate: reading a pasted predictions card is an " +
+        "admin's, decided before the body or any document is read, and the admin meets the body check on an " +
+        "empty one.",
+    },
+    PUT: {
+      expect: adminOnly(400),
+      why:
+        "View-as is refused first, then the session, then the gate: saving or taking off a course's predictions " +
+        "card is an admin's, decided before the body or any document is read, and the admin meets the body " +
+        "check on an empty one.",
+    },
+  },
   "/api/courses/[courseId]/publish": {
     POST: {
       expect: adminOnly(404, { approveCourse: 404 }),
@@ -1942,6 +1958,40 @@ export const ROUTES = {
         "read, so every signed-in persona meets the same 400 on an empty one. The caller's own seat, " +
         "or a group they facilitate, is asked once a valid body arrives; the record written is always " +
         "the caller's own.",
+    },
+  },
+  "/api/courses/runs/[runId]/predictions": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "View-as is refused first, then the session, then the body is checked before anything is read " +
+        "(which card, which question, the answer's type), so every signed-in persona meets the same 400 on " +
+        "an empty one. Who has a card is asked once a valid body arrives; the card written is always the " +
+        "caller's own.",
+    },
+    POST: {
+      expect: signedIn(400),
+      why:
+        "View-as is refused first, then the session, then the body is checked before anything is read (seal " +
+        "or open), so every signed-in persona meets the same 400 on an empty one. The card sealed or opened " +
+        "is always the caller's own.",
+    },
+  },
+  "/api/courses/runs/[runId]/predictions/people": {
+    GET: {
+      expect: adminOnly(404),
+      why:
+        "Whose predictions cards exist on a run is an admin's to know, decided before anything is read; the " +
+        "admin is told the run is missing. Never an answer: three fields are asked for.",
+    },
+  },
+  "/api/courses/runs/[runId]/predictions/people/[uid]": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "View-as is refused first, then the session, then the gate: opening somebody's predictions card is an " +
+        "admin's, decided before anything is read, and the admin is told the run is missing before any opening " +
+        "is recorded.",
     },
   },
   "/api/courses/runs/[runId]/reflections": {

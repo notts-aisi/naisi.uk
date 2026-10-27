@@ -325,6 +325,16 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "The programme's anonymous keep, change and drop form, which stops its link working, and every answer to it. Nothing in them names anybody, so they go with the run and nothing else ever takes them.",
   },
+  predictions: {
+    label: "Sealed predictions",
+    fate: "destroyed",
+    note: "Each person's predictions card on this run: what they answered in the week it was sealed in and in the week it opened in. Each is that person's own record of the run, so it goes with the run.",
+  },
+  recordOpenings: {
+    label: "Records of admins opening a card",
+    fate: "destroyed",
+    note: "Each time an admin opened somebody's sealed predictions card on this run, with who opened it and when. They are about the cards this destroy deletes, so they go with the run.",
+  },
   schedulerMarkers: {
     label: "Scheduler send markers",
     fate: "destroyed",

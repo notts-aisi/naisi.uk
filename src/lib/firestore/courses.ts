@@ -12,6 +12,7 @@ import { isClockTime, sanitizeWeekBlocks, type WeekBlock } from "../courses/week
 import { isCrestKey, type CrestKey } from "../crests/keys";
 import { normalizeRubric, type CourseRubric } from "../courses/rubric";
 import { normalizeCourseRoutes, type CourseRoutes } from "../courses/routes/model";
+import { normalizePredictionCard, type PredictionCard } from "../courses/predictions/model";
 
 /**
  * Courses data model — `courses/{id}` → `courseRuns/{id}` (top-level) →
@@ -131,6 +132,14 @@ export type CourseDoc = {
    * route; null for a course with none.
    */
   routes: CourseRoutes | null;
+  /**
+   * The course's credence card for sealed predictions
+   * (`src/lib/courses/predictions/model.ts`): its questions, the week each
+   * person fills it in and seals it, and the week it opens in beside the same
+   * questions asked again. Set by an admin in the course's details through its
+   * route; null for a course with none, which shows no card on any week.
+   */
+  predictionCard: PredictionCard | null;
   createdAt?: Date | null;
   updatedAt?: Date | null;
 };
@@ -1400,6 +1409,7 @@ export function normalizeCourse(id: string, data: Raw): CourseDoc {
     // Only one of the four keys is a crest; anything else stored reads as none.
     crest: isCrestKey(data.crest) ? data.crest : null,
     routes: normalizeCourseRoutes(data.routes),
+    predictionCard: normalizePredictionCard(data.predictionCard),
     createdAt: tsToDate(data.createdAt),
     updatedAt: tsToDate(data.updatedAt),
   };

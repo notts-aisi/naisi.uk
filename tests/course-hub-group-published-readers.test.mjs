@@ -198,6 +198,11 @@ const READERS = {
     asks: 1,
     why: "who reads a fellow's fill-in boxes: the group's facilitators read them only once Publish has told the fellow their seat, so an untold seat's boxes are the lead's and admins' alone",
   },
+  "lib/courses/predictions/taker.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "who has a sealed predictions card on a run: the caller's own seat, which an untold seat does not open (a group's facilitator has a card as its facilitator, which is no seat)",
+  },
   "app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts": {
     kind: "shown",
     asks: 1,

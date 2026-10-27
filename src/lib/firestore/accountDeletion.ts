@@ -28,6 +28,7 @@ import { normalizeCourseEnrolment } from "./courseEnrolments";
 import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
+import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import {
   MEMBER_RECORDS_COLLECTION,
   MEMBER_RECORD_APPLICATIONS,
@@ -177,6 +178,14 @@ export type AccountDeletionSummary = {
    * owner and shows what it was issued with.
    */
   courseCertificatesKept: number;
+  /**
+   * This account's sealed predictions (`coursePredictions`), on every run:
+   * both cards, sealed or not. Deleted: each is about this account alone.
+   * The record of each time an admin opened one (`recordOpenings`) is kept,
+   * as the log of course actions is: it names this account by an id that no
+   * longer resolves, and nothing the card said.
+   */
+  coursePredictionsDeleted: number;
   /** Admission applications (drafts included) written by this account. */
   admissionApplicationsDeleted: number;
   /** Their access-requirements rows, deleted in the SAME batch. See below. */
@@ -761,6 +770,17 @@ export async function clearCourseCertificates(
 }
 
 /**
+ * Delete this account's sealed predictions (`coursePredictions`), on every
+ * run, a page at a time: both cards, sealed or not. Found by the one equality
+ * on `uid`; nobody else's card is touched, and the record of each time an
+ * admin opened one (`recordOpenings`) is left, as the log of course actions
+ * is (see `src/lib/firestore/recordOpenings.ts`).
+ */
+export async function deleteCoursePredictions(db: Firestore, uid: string): Promise<number> {
+  return deleteOwnedCourseRows(db, COURSE_PREDICTIONS_COLLECTION, uid);
+}
+
+/**
  * Remove a member from every attendance register on the given runs.
  *
  * A register is SHARED — one doc per (group, week), with the uid as a MAP KEY
@@ -1292,6 +1312,7 @@ export async function deleteAccountCascade(
     coursePacksAndCasesDeleted: 0,
     courseCertificatesDeleted: 0,
     courseCertificatesKept: 0,
+    coursePredictionsDeleted: 0,
     admissionApplicationsDeleted: 0,
     admissionApplicationPrivateDeleted: 0,
     admissionDecisionsDeleted: 0,
@@ -1727,6 +1748,17 @@ export async function deleteAccountCascade(
     summary.courseCertificatesKept = certificates.kept;
   } catch (err) {
     console.error("[deleteAccount] courseCertificates clear failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c. SEALED PREDICTIONS. This account's predictions cards, sealed or not,
+  //      are about this account alone, addressed by its uid, and go with it
+  //      (see coursePredictions.ts). The record of each time an admin opened
+  //      one stays, as the log of course actions does (see recordOpenings.ts).
+  try {
+    summary.coursePredictionsDeleted = await deleteCoursePredictions(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] coursePredictions delete failed:", uid, err);
     partialFailure = true;
   }
 

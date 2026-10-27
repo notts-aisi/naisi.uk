@@ -46,6 +46,7 @@ import CourseDangerZone from "./CourseDangerZone";
 import CourseRubricCard from "./CourseRubricCard";
 import { useCourseRuns, useCourses } from "./useAdminCourses";
 import CourseRoutesCard from "./CourseRoutesCard";
+import CoursePredictionsCard from "./CoursePredictionsCard";
 import styles from "./adminCourses.module.css";
 
 /**
@@ -846,6 +847,9 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
 
         {/* === Routes and deadlines (the routes a week that lists them shows) === */}
         <CourseRoutesCard key={course.id} courseId={course.id} stored={course.routes} />
+
+        {/* === Sealed predictions (the card a week asks, sealed and opened later) === */}
+        <CoursePredictionsCard key={`predictions-${course.id}`} courseId={course.id} stored={course.predictionCard} />
 
         {/* === Archive + destroy ===
             Last on the page by design: end-of-life controls sit after

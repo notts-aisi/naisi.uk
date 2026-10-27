@@ -2365,6 +2365,87 @@ The field is written only by its route (`/api/courses/[courseId]/routes`,
 admins, view-as refused); the rules keep every browser write off it, admins'
 included.
 
+## Sealed predictions
+
+On paper, each fellow fills in a credence card in session 1, seals it in an
+envelope and opens it in session 6, after filling in the same card again. On
+the site the card is a record on the course (`CourseDoc.predictionCard`,
+`src/lib/courses/predictions/`), and each person's two cards are one record
+of theirs on the run (`coursePredictions`, `src/lib/firestore/coursePredictions.ts`).
+
+### Where it is set
+
+The course's page in the admin area (`/admin/courses/<course>`), the card
+"Sealed predictions". Admins only. Say the week it is filled in and sealed in
+and the week it opens in, paste the card as the session plans print it, then
+Read it, check what it found, and Save. "Take it off" stops every week
+showing a card; the cards people filled in are kept, and admins can still
+open them.
+
+The shape (`src/lib/courses/predictions/cardText.ts`):
+
+- the first line is the card's heading, kept as printed; when it says
+  "sealed until week N", N has to be the week it opens in;
+- a "Name:" line is left out;
+- a line before the first question that is not one is the line under the
+  heading;
+- each question is numbered, or ends in a blank or a colon: a blank and a %
+  sign (`____%`) asks for a percentage, a blank alone with the ends in
+  brackets (`(0 = not at all, 10 = completely) ____`) a number on that
+  scale, a colon and no blank a sentence. A number answer may have one
+  decimal place.
+
+A person's card keeps a copy of the questions from their first answer, so
+saving a new card changes nothing anybody has started.
+
+### Where it shows
+
+No line of a week's Markdown places it, so the guides paste as written. On the
+week it is sealed in and the week it opens in, the card goes after In the
+session when the week has one, otherwise before Go further and the hands-on
+route, otherwise at the end of the week.
+
+- **The week it is sealed in.** Somebody taking part (a live, told place, or a
+  facilitator of a live group, as themselves) answers on their own; each
+  answer saves as they type. "Seal my predictions" asks first, then seals it:
+  from then nothing changes it and its answers are never handed back, to its
+  owner either, until the week it opens in has opened to their group and they
+  open it there. A card never sealed shuts for good once that week opens; its
+  owner can still read it on the week it was filled in on.
+- **The week it opens in.** The same questions again first, saving as they
+  type, then "Open my sealed card": both cards side by side, with how each
+  number moved, and neither changes again. Somebody who sealed nothing
+  answers again with nothing to open.
+- **When a week opens to them.** Their group's own clock, as the week pages
+  use it, for everybody with a card: a facilitator reads every published week
+  early, but their own card opens with their group.
+
+### Who reads a card
+
+Its owner, and admins at any time. Nobody else: not the group's facilitators
+(a facilitator who holds a place included), not the programme's lead, not
+another fellow. An admin opens one from the run's page in the admin area, the
+panel "Sealed predictions": it lists who has a card and where it stands, never
+an answer, and "Open card" records the opening before anything of the card is
+read (`recordOpenings`, `src/lib/firestore/recordOpenings.ts`), refusing to open
+it when the record cannot be written. An admin cannot open their own card
+there. Nothing of a card is shown in a view-as session.
+
+### Deleting
+
+Deleting an account deletes that person's cards. The records of admins opening
+a card stay, in both directions, as the log of course actions does: they hold
+ids, the opening admin's name and when, never what a card said. Destroying a
+run deletes its cards and the records of opening them.
+
+### Rules
+
+`coursePredictions` and `recordOpenings` are shut to every browser, admins
+included: the routes on the Admin SDK are their only readers and writers. The
+course's `predictionCard` is written only by its route
+(`/api/courses/[courseId]/predictions`, admins, view-as refused); the rules keep
+every browser write off it, admins' included.
+
 ## Who finished
 
 Once a programme's last session is over, its lead (or an admin) says who

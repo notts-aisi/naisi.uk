@@ -2888,6 +2888,10 @@ describe("the course hub passage", () => {
       /the survey about leaving is confidential/i,
       /the lead may still be able to tell which answer is yours/i,
       /and the survey about leaving while it is yours to answer/i,
+      // Sealed predictions (Zach's extra (d)), new in v7.
+      /Sealed predictions\./i,
+      /Once you seal your card, nobody can change it/i,
+      /Each time an admin opens a card, we record who opened it/i,
     ]) {
       assert.ok(
         !pattern.test(V6_FLAT),
@@ -4324,6 +4328,84 @@ describe("the course hub passage", () => {
     // tests/course-hub-week-six.test.mjs runs who writes and who reads as
     // every caller, a leaver and a facilitator who holds a place included.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "course-hub-week-six.test.mjs")));
+  });
+
+  test("sealed predictions: saved as typed until sealed, shut to its owner until the week it opens in, read by them and admins alone, every admin opening recorded first, and gone with the account and the run", () => {
+    // OWNER DECISION, 26 October 2026 (Zach's extra (d)): the fellow and
+    // admins at any time read a card, nobody else, a facilitator's own
+    // included; each admin opening recorded.
+    assert.match(
+      PAGE_FLAT,
+      /<strong>Sealed predictions\.<\/strong> On a programme whose course has a card of predictions, a week&apos;s page gives you that card to fill in: each question asks for a percentage, a number on a scale or a sentence, and each answer saves as you type\. Once you seal your card, nobody can change it, you included, and you cannot read it again until the week it opens in has opened to your group and you open it there, after answering the same questions again\. You then see both side by side, and neither changes after that\. A card you never seal can no longer be changed once that week has opened, and you can still read it\. Your card is read by you and by admins, who can open anybody&apos;s at any time, and by nobody else: not your group&apos;s facilitators, not the programme&apos;s lead and not other fellows\. If you facilitate a group, its other facilitators do not read yours either\. Each time an admin opens a card, we record who opened it, whose card it was by account id, the course run and when, before anything on the card is read, and never what it says; if that record cannot be written, the card stays closed\. An admin cannot open their own card that way\. If you leave the programme, you no longer see your card, and admins still can\. Your card is deleted with your account, and when the programme&apos;s course run is destroyed\. The records of admins opening a card stay when an account is deleted, and are deleted when the run is destroyed\./,
+    );
+    // Every file that addresses a person's cards, and why it may.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bCOURSE_PREDICTIONS_COLLECTION\b|["'`]coursePredictions["'`]/),
+      new Map([
+        ["src/lib/firestore/coursePredictions.ts", "the record's own shape, its id and its normaliser"],
+        ["src/lib/courses/predictions/own.ts", "the owner's own card, read by their own id, and what of it they may see now"],
+        ["src/app/api/courses/runs/[runId]/predictions/route.ts", "the owner's answers, seal and opening, in their own name only"],
+        ["src/app/api/courses/runs/[runId]/predictions/people/route.ts", "an admin's list of whose cards exist, three fields and never an answer"],
+        ["src/lib/firestore/accountDeletion.ts", "deleting an account deletes every card of theirs"],
+        ["src/lib/firestore/courseDeletion.ts", "destroying a run deletes its cards and the records of opening them"],
+      ]),
+      "addressing somebody's sealed predictions",
+      "The policy says a card is read by its owner and admins alone, shut to " +
+        "its owner once sealed until the week it opens in, and gone with the " +
+        "account and the run. If this file reads, shows or removes cards " +
+        "otherwise, the sentence is wrong and a new version has to say so.",
+    );
+    // Saved as typed into the owner's own card: the id is built from the session's uid.
+    const route = withoutComments(read("src/app/api/courses/runs/[runId]/predictions/route.ts"));
+    assert.match(route, /db\.collection\(COURSE_PREDICTIONS_COLLECTION\)\.doc\(predictionsRecordId\(runId, actor\.uid\)\)/);
+    // Sealed, nothing changes it: the owner's own route refuses every change.
+    assert.match(route, /if \(stage === "start" && stored\?\.start\.sealedAt\) throw new PredictionsError\(REFUSE_SEALED, 409\);/);
+    // Opened only after answering again, and then neither changes.
+    assert.match(route, /if \(answeredCount\(stored\.card\.questions, stored\.now\.answers\) === 0\) throw new PredictionsError\(REFUSE_OPEN_NEEDS_ONE, 409\);/);
+    assert.match(route, /if \(stage === "now" && stored\?\.now\.openedAt\) throw new PredictionsError\(REFUSE_OPENED, 409\);/);
+    // A card never sealed shuts once the week it opens in has opened.
+    assert.match(route, /if \(opening\.open\) return NextResponse\.json\(\{ error: sealWindowShutWords\(openWeek\) \}, \{ status: 409 \}\);/);
+    // Shut to its owner: a sealed card's answers travel only once opened, in the week it opens in.
+    const own = withoutComments(read("src/lib/courses/predictions/own.ts"));
+    assert.match(own, /answers: state === "draft" \|\| state === "closed" \? startAnswers : \{\},/);
+    assert.match(own, /start: \{ state: state === "closed" \? "none" : state, answers: \{\}, sealedAt: iso\(sealedAt\) \},/);
+    assert.match(own, /sealedAt && openedAt && opening\.open\s*\? \{ answers: startAnswers,/);
+    // Nothing of a card in a view-as session.
+    assert.match(own, /if \(!actor\.uid \|\| markerIsLive\(await getImpersonator\(\), actor\.uid\)\) return null;/);
+    // Who has one: a live, told place (a leaver sees nothing), or a live group to facilitate.
+    const taker = withoutComments(read("src/lib/courses/predictions/taker.ts"));
+    assert.match(taker, /\(row\.status === "active" \|\| row\.status === "completed"\) &&/);
+    assert.match(taker, /placementIsShownTo\(row, \{ isAdmin: actor\.role === "admin" \}\)/);
+    // Nobody else reads one: both routes about somebody else's card are an admin's, and not their own.
+    const list = withoutComments(read("src/app/api/courses/runs/[runId]/predictions/people/route.ts"));
+    const opening = withoutComments(read("src/app/api/courses/runs/[runId]/predictions/people/[uid]/route.ts"));
+    for (const source of [list, opening]) {
+      assert.match(source, /if \(actor\.role !== "admin"\) return NextResponse\.json\(\{ error: REFUSE_ADMIN_ONLY \}, \{ status: 403 \}\);/);
+    }
+    assert.match(list, /\.select\("uid", "start\.sealedAt", "now\.openedAt"\)/);
+    assert.match(opening, /if \(uid === actor\.uid\) return NextResponse\.json\(\{ error: REFUSE_OWN_CARD \}, \{ status: 403 \}\);/);
+    // Recorded first, with who, whose by account id, the run and when, never what it says.
+    const openings = withoutComments(read("src/lib/firestore/recordOpenings.ts"));
+    const recorded = openings.indexOf(".create({");
+    assert.ok(recorded > -1 && openings.indexOf("await read()") > recorded, "the card is read before its opening is recorded");
+    const row = openings.slice(recorded, openings.indexOf("});", recorded));
+    assert.deepEqual([...row.matchAll(/^\s*(\w+):/gm)].map((m) => m[1]), ["kind", "actorUid", "actorName", "subjectUid", "runId", "openedAt"]);
+    assert.match(openings, /return \{ ok: false \};\s*\}\s*return \{ ok: true, value: await read\(\) \};/);
+    assert.ok(opening.indexOf("openRecorded(") > -1 && opening.indexOf("ownRecordOf(") > opening.indexOf("openRecorded("));
+    assert.match(opening, /if \(!opened\.ok\) return NextResponse\.json\(\{ error: REFUSE_NOT_RECORDED \}, \{ status: 500 \}\);/);
+    // Gone with the account; the openings stay; both go with the run's destroy.
+    const sweep = read("src/lib/firestore/accountDeletion.ts");
+    assert.match(sweep, /return deleteOwnedCourseRows\(db, COURSE_PREDICTIONS_COLLECTION, uid\);/);
+    assert.match(sweep, /summary\.coursePredictionsDeleted = await deleteCoursePredictions\(db, uid\);/);
+    assert.doesNotMatch(withoutComments(sweep), /RECORD_OPENINGS_COLLECTION|["'`]recordOpenings["'`]/);
+    const destroy = read("src/lib/firestore/courseDeletion.ts");
+    assert.match(destroy, /drainQuery\(db, COURSE_PREDICTIONS_COLLECTION, byRunId\(COURSE_PREDICTIONS_COLLECTION\), budget\)/);
+    assert.match(destroy, /drainQuery\(db, RECORD_OPENINGS_COLLECTION, byRunId\(RECORD_OPENINGS_COLLECTION\), budget\)/);
+    // tests/course-hub-sealed-predictions.test.mjs runs every one of these as
+    // every caller: the owner before and after sealing and in the week it
+    // opens in, a fellow, a facilitator, a co-facilitator, a facilitator who
+    // holds a place, the lead, an admin, view-as and signed out.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-hub-sealed-predictions.test.mjs")));
   });
 
   test("a comment on the material is shown to the run only on a programme anyone can join, and the group's notes take its place on one that places people in groups", () => {

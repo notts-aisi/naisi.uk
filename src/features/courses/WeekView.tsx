@@ -69,6 +69,7 @@ import weekly from "./weekly/weekly.module.css";
 import BlockWeek from "./weekBlocks/BlockWeek";
 import WeekOneLine from "./weekBlocks/WeekOneLine";
 import type { CourseRoutes } from "@/lib/courses/routes/model";
+import type { PredictionsView } from "@/lib/courses/predictions/wire";
 import styles from "./WeekView.module.css";
 
 /**
@@ -134,6 +135,8 @@ type Props = {
   routes?: CourseRoutes | null;
   /** Week 1's before survey while it waits for the reader (Q50 B), read on the server; null otherwise. */
   survey?: SurveyCard | null;
+  /** The reader's own sealed predictions card on this week, read on the server; null on a week that holds none. */
+  predictions?: PredictionsView | null;
 };
 
 /**
@@ -148,7 +151,7 @@ const TICK_REFUSED = "That tick didn’t save, so it has been undone. Check your
 
 const EMPTY_ROWS: ReadonlyArray<never> = [];
 
-export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNotes = null, guide = null, routes = null, survey = null }: Props) {
+export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNotes = null, guide = null, routes = null, survey = null, predictions = null }: Props) {
   const overview = useRunOverview(runId);
   // WHERE THIS READER'S COPY OF THE WEEK LIVES (V2-3 copy-on-write): their
   // group's forked document when their facilitator has personalised this
@@ -339,6 +342,7 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
           }
           guide={guide}
           routes={routes}
+          predictions={predictions}
         />
         <ActionToast toast={toast} onDismiss={dismiss} />
       </>
