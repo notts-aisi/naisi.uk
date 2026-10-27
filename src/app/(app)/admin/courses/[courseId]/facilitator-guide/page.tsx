@@ -11,8 +11,9 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
 /**
  * WHERE AN ADMIN LOADS A COURSE'S FACILITATOR GUIDE: each week's session
  * plan and notes, and the course's own documents (How to use these plans,
- * the Handbook, Case studies and feedback, Printables), pasted one at a time
- * as the course docs export them.
+ * the Handbook, Case studies and feedback, Printables, and Sessions and Week
+ * notes, the two about every week at once), pasted one at a time as the
+ * course docs export them.
  *
  * ADMINS ONLY (Q39: an admin loads the course material, for now). The
  * course authoring tree around this page also admits course drafters and

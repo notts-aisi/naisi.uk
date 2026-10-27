@@ -17,9 +17,10 @@ import {
  *
  * What it holds is the course docs' facilitator material, exported as
  * Markdown, one document a tab: for each week the session's plan and the
- * week's notes (with their answer keys), and for the whole course How to use
- * these plans, the Handbook, Case studies and feedback, and Printables. The
- * contract for that Markdown is `docs/course-facilitator-guide.md`.
+ * week's notes (with their answer keys); for the whole course How to use
+ * these plans, the Handbook, Case studies and feedback, and Printables; and
+ * the two tabs over every week, Sessions and Week notes. The contract for
+ * that Markdown is `docs/course-facilitator-guide.md`.
  *
  * NONE OF IT EVER REACHES SOMEBODY TAKING PART. It is stored on the server
  * only (`src/lib/firestore/courseFacilitatorGuide.ts`), read only behind the
@@ -41,8 +42,13 @@ import {
 // Where a document goes
 // ---------------------------------------------------------------------------
 
-/** The course's own documents, in the order a course page lists them. */
-export const COURSE_DOCUMENT_KEYS = ["how-to-use", "handbook", "case-studies", "printables"] as const;
+/**
+ * The course's own documents, in the order the loader offers them and a
+ * course page lists them: the four under "For the whole course", then the two
+ * about every week at once (`WEEKS_AT_A_GLANCE`), which the course page shows
+ * at the top of "Each week" instead.
+ */
+export const COURSE_DOCUMENT_KEYS = ["how-to-use", "handbook", "case-studies", "printables", "sessions", "week-notes"] as const;
 export type CourseDocumentKey = (typeof COURSE_DOCUMENT_KEYS)[number];
 
 export const COURSE_DOCUMENT_LABEL: Record<CourseDocumentKey, string> = {
@@ -50,7 +56,25 @@ export const COURSE_DOCUMENT_LABEL: Record<CourseDocumentKey, string> = {
   handbook: "Handbook",
   "case-studies": "Case studies and feedback",
   printables: "Printables",
+  sessions: "Sessions",
+  "week-notes": "Week notes",
 };
+
+/**
+ * THE TWO DOCUMENTS ABOUT EVERY WEEK AT ONCE: the course docs' two parent
+ * tabs, "Sessions" over every session's plan and "Week notes" over every
+ * week's notes, where a course keeps what it sums up of all its weeks (an
+ * "At a glance" table: each session's opener, activities and what to print;
+ * each week's one idea and the hardest question). Course documents like the
+ * other four, loaded, stored, gated and read exactly as they are; only the
+ * course page places them, at the top of "Each week".
+ */
+export const WEEKS_AT_A_GLANCE: readonly CourseDocumentKey[] = ["sessions", "week-notes"];
+
+/** Is this one of the two documents about every week at once? */
+export function isWeeksAtAGlance(key: CourseDocumentKey): boolean {
+  return WEEKS_AT_A_GLANCE.includes(key);
+}
 
 /** The two documents of a week, in the order its page shows them. */
 export const WEEK_PARTS = ["plan", "notes"] as const;

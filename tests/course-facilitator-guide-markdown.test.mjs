@@ -33,6 +33,8 @@ import {
   PLAN_W1,
   PLAN_W3,
   PRINTABLES,
+  SESSIONS,
+  WEEK_NOTES,
 } from "./lib/facilitatorGuideFixture.mjs";
 import { loadGuideModules } from "./lib/facilitatorGuideWorld.mjs";
 
@@ -48,6 +50,8 @@ const DOCUMENTS = [
   ["w01-plan", PLAN_W1],
   ["w03-plan", PLAN_W3],
   ["w03-notes", NOTES_W3],
+  ["sessions", SESSIONS],
+  ["week-notes", WEEK_NOTES],
 ];
 
 /** What Markdown's own renderer says a text holds, as words. */
@@ -314,6 +318,32 @@ describe("5. a document's own title says where it goes", () => {
     assert.equal(readGuideMarkdown(FELLOW_WEEK_3, slot("handbook")).problems[0], "This is week 3 of the fellow guide, which goes in the run’s week, not in the facilitator guide.");
   });
 
+  test("Sessions and Week notes read in their own places with nothing to check, and as course documents anywhere else", () => {
+    for (const [key, text, title] of [["sessions", SESSIONS, "Sessions"], ["week-notes", WEEK_NOTES, "Week notes"]]) {
+      const read = readGuideMarkdown(text, slot(key));
+      assert.deepEqual([read.problems, read.checks], [[], []], key);
+      assert.deepEqual(
+        read.found.map((row) => [row.state, row.label, row.detail]),
+        [
+          ["found", "Title", title],
+          ["found", "Before the first heading", "1 paragraph"],
+          ["found", "At a glance", "1 table"],
+        ],
+        key,
+      );
+    }
+    // Each in the other's place is a thing to check, as between any two course documents.
+    assert.deepEqual(readGuideMarkdown(SESSIONS, slot("week-notes")).checks, ["Check this is Week notes: its title doesn’t say so."]);
+    assert.deepEqual(readGuideMarkdown(WEEK_NOTES, slot("sessions")).checks, ["Check this is Sessions: its title doesn’t say so."]);
+    assert.deepEqual(readGuideMarkdown(SESSIONS, slot("handbook")).checks, ["Check this is Handbook: its title doesn’t say so."]);
+    // In a week's place, refused by its title; and a week's own document is refused in theirs.
+    assert.equal(readGuideMarkdown(SESSIONS, slot("w01-plan")).problems[0], "“Sessions” is one of the course’s own documents, and you’re loading Week 1 session plan. Load it in its own place, or change the title line.");
+    assert.equal(readGuideMarkdown(WEEK_NOTES, slot("w01-notes")).problems[0], "“Week notes” is one of the course’s own documents, and you’re loading Week 1 notes. Load it in its own place, or change the title line.");
+    assert.equal(readGuideMarkdown(PLAN_W3, slot("sessions")).problems[0], "This is session 3’s plan, and you’re loading Sessions. Load it as Week 3 session plan, or change the title line.");
+    assert.equal(readGuideMarkdown(NOTES_W3, slot("week-notes")).problems[0], "This is week 3’s notes, and you’re loading Week notes. Load it as Week 3 notes, or change the title line.");
+    assert.equal(readGuideMarkdown(FELLOW_WEEK_3, slot("week-notes")).problems[0], "This is week 3 of the fellow guide, which goes in the run’s week, not in the facilitator guide.");
+  });
+
   test("what the page leaves out is said", () => {
     const read = readGuideMarkdown("# Printables\n\nOne.\n\n---\n\n- [ ] a box\n- a line\n", slot("printables"));
     assert.deepEqual(read.problems, []);
@@ -331,10 +361,13 @@ describe("5. a document's own title says where it goes", () => {
 describe("6. the places and pages are spelt one way", () => {
   test("every place of a six-week course, by key and back", () => {
     const slots = model.guideSlots(6);
-    assert.equal(slots.length, 16);
+    // Six course documents since the two tabs over every week, Sessions and
+    // Week notes, have places of their own (October 2026; four before), then
+    // two places a week.
+    assert.equal(slots.length, 18);
     for (const one of slots) assert.deepEqual(model.parseSlotKey(model.slotKey(one)), one);
-    assert.deepEqual(model.guideSlots(0).map(model.slotKey), ["how-to-use", "handbook", "case-studies", "printables"]);
-    assert.equal(model.guideSlots(99).length, 4 + 2 * 60);
+    assert.deepEqual(model.guideSlots(0).map(model.slotKey), ["how-to-use", "handbook", "case-studies", "printables", "sessions", "week-notes"]);
+    assert.equal(model.guideSlots(99).length, 6 + 2 * 60);
     for (const bad of ["w00-plan", "w61-plan", "w3-plan", "W03-plan", "w03-Plan", "handbook ", "", null, 3]) {
       assert.equal(model.parseSlotKey(bad), null, String(bad));
     }
@@ -344,6 +377,16 @@ describe("6. the places and pages are spelt one way", () => {
     assert.deepEqual(model.parseGuidePage("week-3"), { kind: "week", weekNumber: 3 });
     assert.deepEqual(model.parseGuidePage("week-60"), { kind: "week", weekNumber: 60 });
     assert.deepEqual(model.parseGuidePage("handbook"), { kind: "course", key: "handbook" });
+    // The two tabs over every week: course documents, with pages of their own, which the course page places at the top of Each week.
+    assert.deepEqual(model.parseGuidePage("sessions"), { kind: "course", key: "sessions" });
+    assert.deepEqual(model.parseGuidePage("week-notes"), { kind: "course", key: "week-notes" });
+    assert.equal(model.facilitatorGuidePath("c", { kind: "course", key: "week-notes" }), "/learn/facilitator-guide/c/week-notes");
+    assert.deepEqual([model.slotLabel(slot("sessions")), model.slotLabel(slot("week-notes"))], ["Sessions", "Week notes"]);
+    assert.deepEqual(model.COURSE_DOCUMENT_KEYS.filter(model.isWeeksAtAGlance), ["sessions", "week-notes"]);
+    for (const bad of ["week-note", "weeknotes", "Sessions", "session", "w00-notes"]) {
+      assert.equal(model.parseGuidePage(bad), null, bad);
+      assert.equal(model.parseSlotKey(bad), null, bad);
+    }
     for (const bad of ["week-0", "week-03", "week-61", "week-", "w03-plan", "Week-3", "preface"]) {
       assert.equal(model.parseGuidePage(bad), null, bad);
     }

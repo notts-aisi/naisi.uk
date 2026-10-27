@@ -200,6 +200,8 @@ const COURSE_TITLE_WORDS: Record<CourseDocumentKey, RegExp> = {
   handbook: /\bfacilitator guide\b|\bhandbook\b/i,
   "case-studies": /\bcase stud/i,
   printables: /\bprintables?\b/i,
+  sessions: /\bsessions\b/i,
+  "week-notes": /\bweek notes\b/i,
 };
 
 /**

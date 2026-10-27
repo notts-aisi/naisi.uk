@@ -161,7 +161,8 @@ const FACILITATING_TOKENS: TokenHelp[] = [
   { token: "programmeName", description: "That programme's short name. Nothing on a run no programme names." },
   {
     token: "namesOnPage",
-    description: "A sentence after the group's size: Their names are on your group page, or Their name is, for a group of one.",
+    description:
+      "A sentence after the group's size: Their names are on your group page, or Their name is, for a group of one. While the group page shows week 1's facilitator guide (the group has not met yet and the guide has week 1), it says Their names and week 1's guide are on your group page. A preview never does.",
   },
   {
     token: "place",

@@ -483,10 +483,13 @@ export const courseTemplateDefaults: Record<
    *    left out whole when there is nothing to put in it.
    *  - `{groupSize}` and `{namesOnPage}` are whole sentences ("There are 8
    *    people in the group. Their names are on your group page."), so a
-   *    group of one reads right.
+   *    group of one reads right. `{namesOnPage}` says the board's "Their
+   *    names and week 1’s guide are on your group page." only while the
+   *    facilitator's group page shows that guide: the group has not met yet
+   *    and week 1 of the course's facilitator guide has its session plan or
+   *    its notes (Publish's plan asks).
    *
-   * Not said: the board's "and week 1’s guide" after "Their names". The
-   * button is a link styled as one, in the colours of the decision-day
+   * The button is a link styled as one, in the colours of the decision-day
    * emails' main button. No meeting link is ever filled in: an online group
    * is told the link is on the group page.
    */

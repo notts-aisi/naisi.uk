@@ -1997,7 +1997,22 @@ service cloud.firestore {
           && request.resource.data.get('enrolledCount', 0)
             == resource.data.get('enrolledCount', 0)
           && request.resource.data.get('submissionExerciseRef', {})
-            == resource.data.get('submissionExerciseRef', {});
+            == resource.data.get('submissionExerciseRef', {})
+          // THE DAY GROUPS GO OUT and AN INCUBATOR'S HAND-IN DATES. Each is a
+          // date every person on the run is told, set by the programme's lead
+          // or an admin through its programme tab's route on the Admin SDK
+          // (`.../programmes/[programmeId]/groups-go-out` on the Groups tab,
+          // `.../programmes/[programmeId]/teams/hand-in` on the Teams tab). The
+          // run editor writes neither, so the drafter-owner, an approver and a
+          // track lead, who edit the run from the browser all term, may not
+          // change either from there. Both sides default, so a run that has
+          // never had one compares equal and passes: the groups route stores
+          // null to clear its day and the hand-in route always stores the
+          // whole map, and neither deletes.
+          && request.resource.data.get('groupsGoOutOn', null)
+            == resource.data.get('groupsGoOutOn', null)
+          && request.resource.data.get('teamHandIn', {})
+            == resource.data.get('teamHandIn', {});
       }
 
       // ---- V3 W1 PR5: courses open mode ---------------------------------
@@ -2131,7 +2146,17 @@ service cloud.firestore {
           && request.resource.data.get('cohort', {}).get('term', 'autumn')
             in ['autumn', 'spring', 'summer']
           && request.resource.data.get('cohort', {}).get('year', 2026) is int
-          && request.resource.data.get('cohort', {}).get('number', 1) is int;
+          && request.resource.data.get('cohort', {}).get('number', 1) is int
+          // The day groups go out (`groupsGoOutOn`): null, or a civil
+          // "YYYY-MM-DD" date in London, as its route writes it. Absent reads
+          // as null. Every sentence that names the day reads only a whole
+          // date. A stored value of any other shape would refuse every later
+          // non-admin edit of the run, which is why only that route writes
+          // it, and only these two shapes.
+          && (request.resource.data.get('groupsGoOutOn', null) == null
+            || (request.resource.data.get('groupsGoOutOn', null) is string
+              && request.resource.data.get('groupsGoOutOn', null)
+                .matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')));
       }
 
       // ---- V3 W3 PR20: draft reads ---------------------------------------

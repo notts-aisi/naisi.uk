@@ -1235,8 +1235,10 @@ programme names" below).
   session on the group's own calendar, who else facilitates it, how many in
   it have been told their group and that their names are on the group page,
   and a button to their group page, signed by the lead of the programme that
-  names the run. The board's "and week 1’s guide" is not said: the email
-  does not ask whether the course's facilitator guide holds week 1. That number counts only the people
+  names the run. The board's "and week 1’s guide" is said only while the
+  facilitator's group page shows it: the group's next session is its week
+  1 and week 1 of the course's facilitator guide has its session plan or
+  its notes (load it before Publish to have it said). That number counts only the people
   told by the end of the press, so it is the number of names on their
   roster: somebody with no address on file, or whose email failed, is
   counted once a later press tells them. Never a meeting link: an online

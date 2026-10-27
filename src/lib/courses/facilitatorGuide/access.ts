@@ -28,7 +28,9 @@ import { normalizeCourse } from "@/lib/firestore/courses";
  * take (`src/lib/courses/facilitatorGuide/store.ts`), so no page or route can
  * read a document without having asked here first. It is minted in this file
  * and nowhere else; `tests/course-facilitator-guide-guard.test.mjs` holds
- * that, and walks every page and route that reaches the store.
+ * that, and walks every page and route that reaches the store. The
+ * facilitators' door is also asked for a whole group, by Publish, for the
+ * email it sends them (`facilitatorGuideReaderForGroup`, below).
  *
  * ONE ANSWER FOR EVERYBODY REFUSED: null, whether the course is missing, the
  * id is not one, or the caller is not one of the three. The pages turn it
@@ -114,6 +116,36 @@ export async function facilitatorGuideReader(
   if (await facilitatesOnCourse(db, user, courseId)) return mintReader(courseId, course.title, "facilitator");
   if (await leadsOnCourse(db, user, courseId)) return mintReader(courseId, course.title, "lead");
   return null;
+}
+
+/**
+ * THE FACILITATORS' DOOR, ASKED FOR A GROUP RATHER THAN A PERSON: a reader of
+ * what the facilitators of `group` are shown of their course's guide, for the
+ * email Publish sends them, which says week 1's guide is on their group page
+ * only when that page shows it (`src/lib/courses/allocationPublish.ts`).
+ *
+ * The bars are the facilitator door's above, without the person: the group
+ * is live (not archived) and names somebody to facilitate it; its run is
+ * there, not being destroyed, and a run of a course that is there and not
+ * being destroyed, the run read again here and its course taken from it,
+ * never from the group. Each facilitator of such a group is let in by
+ * `facilitatorGuideReader` on their group page while their account stands,
+ * and one whose account does not stand cannot open that page at all.
+ *
+ * Nobody else is ever answered through it, and nothing a document says is
+ * handed on by its one caller: Publish asks only which weeks have something.
+ */
+export async function facilitatorGuideReaderForGroup(
+  db: Firestore,
+  group: { runId: string; archived: boolean; facilitatorUids: readonly string[] },
+): Promise<GuideReader | null> {
+  if (group.archived || group.facilitatorUids.length === 0 || !isAddressableId(group.runId)) return null;
+  const run = await db.collection("courseRuns").doc(group.runId).get();
+  const raw = run.data() ?? {};
+  const courseId = raw.courseId;
+  if (!run.exists || raw.destroying === true || typeof courseId !== "string" || !isAddressableId(courseId)) return null;
+  const course = await liveCourse(db, courseId);
+  return course ? mintReader(courseId, course.title, "facilitator") : null;
 }
 
 /**

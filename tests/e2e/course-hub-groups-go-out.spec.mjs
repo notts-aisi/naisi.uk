@@ -577,8 +577,9 @@ test(
           "Open your group",
           "Take the register on your phone during the session.",
         ],
-        // One facilitator, and a programme with no lead to sign it.
-        absent: ["You’re facilitating with", "lead, NAISI", "Where:"],
+        // One facilitator, and a programme with no lead to sign it. This world
+        // loads no facilitator guide, so week 1's guide is never promised.
+        absent: ["You’re facilitating with", "lead, NAISI", "Where:", "week 1’s guide"],
       });
       const groupPage = `${origin}${groupPagePath(group)}`;
       assert.ok(

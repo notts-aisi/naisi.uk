@@ -34,6 +34,11 @@
  *  6. THE EMAILS: the board's words, the group's own calendar, a moved
  *     person told their new group, an online group told the link is on the
  *     page, and no meeting link or token in any email, tests included.
+ *  8. WEEK 1'S GUIDE: the facilitators' email says "and week 1’s guide" only
+ *     while their group page shows it, that is while the group's next
+ *     session is its week 1 and week 1 of the course's facilitator guide has
+ *     its session plan or its notes. The page's side of it is held in
+ *     tests/course-facilitator-guide.test.mjs, section 5.
  *
  * Built on `tests/lib/handoverWorld.mjs`: the real handlers, the term's form
  * (AGI Strategy names the run and Claudia leads it), and the course run
@@ -43,6 +48,7 @@ import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { render } from "@react-email/render";
 import {
+  COURSE,
   GROUP,
   RUN,
   groupDoc,
@@ -976,5 +982,131 @@ describe("7. somebody who has left the run is not waited for", () => {
       },
     });
     assert.equal(everything(), before, "a refused press wrote something");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. Week 1's guide
+// ---------------------------------------------------------------------------
+
+describe("8. the facilitators' email promises week 1's guide only while their group page shows it", () => {
+  const BOARD_WORDS = "Their names and week 1’s guide are on your group page.";
+  const NAMES_ONLY = "Their names are on your group page.";
+
+  /** One document of a course's facilitator guide, as its loader stores one. */
+  function loadGuide(slot, title, courseId = COURSE.agi) {
+    world.db.seed(`courseFacilitatorGuide/${courseId}__${slot}`, {
+      courseId,
+      slot,
+      weekNumber: Number(slot.slice(1, 3)),
+      title,
+      blocks: [{ type: "p", runs: [{ text: "Set the chairs out in a circle before anybody arrives." }] }],
+      updatedAt: new Date(),
+    });
+  }
+
+  /** Each facilitators' email this press sent, as "who: group: the sentence about names". */
+  async function namesSentences(from = 0) {
+    const out = [];
+    for (const mail of realMail().slice(from).filter(isFacilitating)) {
+      const text = (await opened(mail)).text;
+      const said = /Their names? (?:and week 1’s guide are|is|are) on your group page\./.exec(text);
+      out.push(`${mail.to}: ${mail.subject.replace("You’re facilitating ", "").split(":")[0]}: ${said ? said[0] : "(none)"}`);
+    }
+    return out.sort();
+  }
+
+  test("with week 1's session plan loaded, every facilitator told before their group first meets reads the board's whole sentence, in the test and the press", async () => {
+    loadGuide("w01-plan", "Session 1: First look");
+    await placed();
+    await sendTest();
+    const tested = await opened(world.mail.find((mail) => isTest(mail) && isFacilitating(mail)));
+    assert.ok(tested.text.includes(`There are 2 people in the group. ${BOARD_WORDS} Open your group`), tested.text);
+    assert.equal((await pressNow()).status, 200);
+    assert.deepEqual(await namesSentences(), [
+      `rahul@example.com: Group B: ${BOARD_WORDS}`,
+      `sofia@example.com: Group A: ${BOARD_WORDS}`,
+      `sofia@example.com: Group B: ${BOARD_WORDS}`,
+    ]);
+    await nothingToFollow(world.mail);
+  });
+
+  test("week 1's notes alone are enough, and a group of one reads right", async () => {
+    loadGuide("w01-notes", "Week 1 notes: First look");
+    await press();
+    const done = await place("zach", [
+      { uid: "amara", groupId: B },
+      { uid: "dev", groupId: A },
+      { uid: "bea", groupId: A },
+      { uid: "tariq", groupId: A },
+    ]);
+    assert.equal(done.body.placed, 4, JSON.stringify(done.body));
+    await sendTest();
+    assert.equal((await pressNow()).status, 200);
+    const rahul = await opened(realMail().find((mail) => mail.to === "rahul@example.com" && isFacilitating(mail)));
+    assert.ok(rahul.text.includes("There is 1 person in the group. Their name and week 1’s guide are on your group page. Open your group"), rahul.text);
+  });
+
+  test("no week 1 in the guide, week 1 only in another course's guide, or the course being destroyed: the names alone", async () => {
+    const cases = [
+      [
+        "only later weeks loaded",
+        () => {
+          loadGuide("w02-plan", "Session 2: Second look");
+          loadGuide("w03-notes", "Week 3 notes: Reading the sky");
+        },
+      ],
+      ["week 1 in another course's guide", () => loadGuide("w01-plan", "Session 1: First look", COURSE.tais)],
+      [
+        "the course being destroyed",
+        () => {
+          loadGuide("w01-plan", "Session 1: First look");
+          world.db.poke(`courses/${COURSE.agi}`, { destroying: true });
+        },
+      ],
+    ];
+    for (const [label, arrange] of cases) {
+      reset(hubSeed(), { now: () => new Date() });
+      arrange();
+      await placed();
+      await sendTest();
+      const before = realMail().length;
+      assert.equal((await pressNow()).status, 200, label);
+      assert.deepEqual(
+        await namesSentences(before),
+        [`rahul@example.com: Group B: ${NAMES_ONLY}`, `sofia@example.com: Group A: ${NAMES_ONLY}`, `sofia@example.com: Group B: ${NAMES_ONLY}`],
+        label,
+      );
+    }
+  });
+
+  test("once the group has met, its next session is week 2, so week 1's guide is promised no more, though it is loaded", async (t) => {
+    t.after(() => mock.timers.setTime(NOW.getTime()));
+    loadGuide("w01-plan", "Session 1: First look");
+    await placed();
+    await sendTest();
+    await pressNow();
+    assert.deepEqual(await namesSentences(), [
+      `rahul@example.com: Group B: ${BOARD_WORDS}`,
+      `sofia@example.com: Group A: ${BOARD_WORDS}`,
+      `sofia@example.com: Group B: ${BOARD_WORDS}`,
+    ]);
+    // Half an hour into Group A's first session it is still the one named, and still week 1.
+    mock.timers.setTime(new Date("2026-10-29T18:30:00Z").getTime());
+    world.db.poke(`courseGroups/${A}`, { facilitatorUids: ["sofia", "tom"] });
+    let before = realMail().length;
+    assert.equal((await pressNow()).status, 200);
+    assert.deepEqual(await namesSentences(before), [`tom@example.com: Group A: ${BOARD_WORDS}`]);
+    // The next morning Group A's next session is its week 2: the names alone,
+    // while Group B, which has not met, still promises it.
+    mock.timers.setTime(new Date("2026-10-30T09:00:00Z").getTime());
+    world.db.poke(`courseGroups/${A}`, { facilitatorUids: ["sofia", "tom", "rahul"] });
+    world.db.poke(`courseGroups/${B}`, { facilitatorUids: ["rahul", "sofia", "tom"] });
+    before = realMail().length;
+    assert.equal((await pressNow()).status, 200);
+    assert.deepEqual(await namesSentences(before), [
+      `rahul@example.com: Group A: ${NAMES_ONLY}`,
+      `tom@example.com: Group B: ${BOARD_WORDS}`,
+    ]);
   });
 });

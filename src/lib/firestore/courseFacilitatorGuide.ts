@@ -12,8 +12,9 @@ import {
  * facilitator guide. Per COURSE, not per run: every run of a course is
  * facilitated from the same plans. The slot is a week's session plan
  * (`w03-plan`), a week's notes (`w03-notes`), or one of the course's own
- * documents (`how-to-use`, `handbook`, `case-studies`, `printables`); the
- * shapes are `src/lib/courses/facilitatorGuide/model.ts`.
+ * documents (`how-to-use`, `handbook`, `case-studies`, `printables`,
+ * `sessions`, `week-notes`); the shapes are
+ * `src/lib/courses/facilitatorGuide/model.ts`.
  *
  * TWO DOCUMENTS A WEEK, NOT ONE WITH TWO PARTS. A session's plan and a week's
  * notes are two tabs of the course docs, exported as two files and pasted

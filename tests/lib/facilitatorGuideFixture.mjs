@@ -208,6 +208,36 @@ You'll line up your percentages.
 - **Read:** ["More clouds"](https://example.com/more), Example Press, 2020. 10 minutes. A longer read.
 `;
 
+/**
+ * The tab over every session's plan, with what it sums up of all of them in
+ * a table. Loaded only by the suites that ask for it, so the course page of
+ * `GUIDE_SEED` stays as it was drawn.
+ */
+export const SESSIONS = `# Sessions
+
+One plan per evening, in the tabs under this one.
+
+## At a glance
+
+| Evening | To open | What we do | To print |
+| --- | --- | --- | --- |
+| 1. First look | Names round the room | A: Cloud walk · B: Barometer race | Forecast slips |
+| 3. Reading the sky | The pressure line | A: Looking out · B: Chart swap | Cloud atlases |
+`;
+
+/** The tab over every week's notes, with each week's idea and the question to expect. */
+export const WEEK_NOTES = `# Week notes
+
+What each evening is for, in the tabs under this one.
+
+## At a glance
+
+| Week | The idea | The question to expect |
+| --- | --- | --- |
+| 1. First look | A forecast is a number with a reason | "Isn't it just a guess?" |
+| 3. Reading the sky | Pressure moves before the clouds do | "Why not look at an app?" |
+`;
+
 /** Every document a suite loads, by the slot it goes in. */
 export const GUIDE_SEED = [
   ["how-to-use", HOW_TO_USE],

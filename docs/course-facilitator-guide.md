@@ -2,9 +2,10 @@
 
 The material a group's facilitators run each session from: for each week,
 the session's plan and the week's notes (with their answer keys and example
-answers), and for the whole course How to use these plans, the Handbook, Case
-studies and feedback, and Printables. It comes from the course docs, exported
-as Markdown one tab at a time, and it is loaded by an admin.
+answers); for the whole course How to use these plans, the Handbook, Case
+studies and feedback, and Printables; and the two tabs over every week,
+Sessions and Week notes. It comes from the course docs, exported as Markdown
+one tab at a time, and it is loaded by an admin.
 
 **Nobody taking part ever reads it.** A group's facilitators take part in the
 course as well, and they read it because they facilitate.
@@ -36,12 +37,22 @@ the same calm sentence, so nobody learns which courses exist.
 
 Loading is an admin's job (`facilitatorGuideWriter`), as loading a week is.
 
+Publish asks the facilitators' door for a whole group
+(`facilitatorGuideReaderForGroup`), with the same bars but no person: a live
+group with a facilitator, on a run that is there and not being destroyed, of
+a course that is there and not being destroyed (the run's course, never the
+group's own). It reads only which weeks have something loaded, so the email
+to the group's facilitators says "Their names and week 1’s guide are on your
+group page." only while that page shows the link: the group's next session is
+its week 1 and week 1 has its session plan or its notes.
+
 ## Where it is stored, and where it never is
 
 `courseFacilitatorGuide/{courseId}__{slot}`, one document per place, per
 course (every run of a course is facilitated from the same plans). The slot
 is `w03-plan`, `w03-notes`, or one of `how-to-use`, `handbook`,
-`case-studies`, `printables`. A week's plan and its notes are two documents,
+`case-studies`, `printables`, `sessions`, `week-notes`. A week's plan and its
+notes are two documents,
 not one with two parts: they are two tabs of the course docs, pasted one at a
 time, and "Copy as Markdown" gives each back exactly as it was pasted.
 
@@ -60,9 +71,9 @@ document's title, or a heading only facilitator material has, below).
 
 | Address | What it is |
 | --- | --- |
-| `/learn/facilitator-guide/[courseId]` | Every week with something loaded, and the course's own documents |
+| `/learn/facilitator-guide/[courseId]` | Sessions and Week notes, then every week with something loaded, under "Each week"; the course's other documents under "For the whole course" |
 | `/learn/facilitator-guide/[courseId]/week-3` | "Facilitator guide for week 3": the session plan, then the week's notes |
-| `/learn/facilitator-guide/[courseId]/handbook` | One of the course's own documents (`how-to-use`, `handbook`, `case-studies`, `printables`) |
+| `/learn/facilitator-guide/[courseId]/handbook` | One of the course's own documents (`how-to-use`, `handbook`, `case-studies`, `printables`, `sessions`, `week-notes`) |
 | `/admin/courses/[courseId]/facilitator-guide` | Where an admin loads it, one document at a time |
 
 A facilitator's group page links "Facilitator guide for week 3" on its
@@ -130,9 +141,11 @@ Headings only facilitator material has, which the week loader refuses: "Run
 sheet", "If it goes differently", "The point of the week", and any "answer
 key".
 
-The two parent tabs, "Sessions" and "Week notes", have no place of their own:
-to keep their "At a glance" tables, paste one under How to use these plans or
-the Handbook with its title line made a heading ("## Sessions").
+The two parent tabs, "Sessions" (over every session's plan) and "Week notes"
+(over every week's notes), have places of their own, `sessions` and
+`week-notes`: course documents like the other four, loaded, gated and read
+the same way, which keep what a course sums up of all its weeks (its "At a
+glance" tables). The course page shows them at the top of "Each week".
 
 ### Copy as Markdown
 

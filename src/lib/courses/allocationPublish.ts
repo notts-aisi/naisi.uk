@@ -47,6 +47,8 @@ import {
   type PlacementWhere,
   type RefusedGroup,
 } from "@/lib/courses/placementEmail";
+import { facilitatorGuideReaderForGroup } from "./facilitatorGuide/access";
+import { readGuideIndex } from "./facilitatorGuide/store";
 import { resolveCalendar, resolveWeekDoc } from "./groupResolve";
 import { gaveTheirPlaceBack, type PlaceOnTheForm } from "./placeGivenBack";
 import { readNamingProgramme, readRunLead, type RunLead } from "./programmeLead";
@@ -1085,6 +1087,27 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
     (slot) => (toldIn.get(slot.group.id) ?? 0) + (writesIn.get(slot.group.id) ?? 0) > 0,
   );
 
+  // ── Week 1's guide on the group page ─────────────────────────────────────
+  // "Their names and week 1’s guide are on your group page." is said only
+  // when that page shows it. A facilitator's group page links "Facilitator
+  // guide for week N" on its ticket, for the group's next session, when week
+  // N of the course's facilitator guide has its session plan or its notes.
+  // So it is said while the group's next session is its week 1 and the
+  // guide has week 1, asked through the guide's own gate for the group's
+  // facilitators (`facilitatorGuideReaderForGroup`), once per course: the
+  // guide's list of titles, of which only the week numbers are used, and
+  // never what a document says.
+  const weekOneGuide = new Map<string, boolean>();
+  const guideWeeks = new Map<string, ReadonlySet<number>>();
+  for (const group of new Map(owedFacilitators.map(({ group }) => [group.id, group])).values()) {
+    const next = sessionRange(resolveSessions(run, group), now).next;
+    const reader = next?.weekNumber === 1 ? await facilitatorGuideReaderForGroup(db, group) : null;
+    if (reader && !guideWeeks.has(reader.courseId)) {
+      guideWeeks.set(reader.courseId, new Set((await readGuideIndex(db, reader)).weeks.map((week) => week.weekNumber)));
+    }
+    weekOneGuide.set(group.id, reader ? (guideWeeks.get(reader.courseId)?.has(1) ?? false) : false);
+  }
+
   // ── The facilitators' emails ────────────────────────────────────────────
   // THE GROUP'S SIZE IN A FACILITATOR'S EMAIL is the people in it who will
   // have been told once this press is done: those told already and those it
@@ -1128,6 +1151,7 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
       groupUrl: groupPageUrl(runId, group.id),
       leadName: naming.programmeName ? leadName : null,
       programmeName: naming.programmeName,
+      weekOneGuide: weekOneGuide.get(group.id) ?? false,
     };
     const written = writeFacilitating(facts);
     if (!written.ok && !refusedFacilitators.has(group.id)) {

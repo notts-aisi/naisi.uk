@@ -16,7 +16,11 @@
  *     the TOP LEVEL of the handler. A refusal nested inside another condition,
  *     such as `if (visibility === "members") { if (!viewer) return refuse(); }`,
  *     is not a gate, so a checker that asked whether the file mentions a
- *     session at all would call that handler gated.
+ *     session at all would call that handler gated. Nor is a refusal that
+ *     holds only when something else is missing too, such as the self
+ *     check-in's `if (!parsed.token && !user)`: a caller with no session who
+ *     brings the token reaches the body, so the scan reads that handler as
+ *     reached THROUGH what they bring, and it is anonymous-reachable.
  *  2. THE REGISTRY answers for each one what it does and what gates it, with a
  *     written reason. Both directions. A handler the scan calls
  *     anonymous-reachable and the registry does not name FAILS, so a new
@@ -24,8 +28,10 @@
  *  3. THE RULE. An anonymous handler that SENDS to a caller-chosen address
  *     carries a rate limit, and either a captcha or a per-address cooldown
  *     that bounds how often one address can be written to. One that WRITES
- *     carries a rate limit or a credential the caller had to present. Every
- *     literal named is checked against the file rather than believed.
+ *     carries a rate limit or a credential the caller had to present. One
+ *     reached THROUGH something a caller with no session brings names the
+ *     credential that checks it. Every literal named is checked against the
+ *     file rather than believed.
  *
  * The runtime half is `scripts/e2e/tests/public-write-gating.test.mjs`, which
  * asks a deployed backend whether the RSVP captcha is really live, the same
@@ -81,11 +87,108 @@ const ASSIGNMENT = new RegExp(
 const HANDLER = new RegExp(`export\\s+async\\s+function\\s+(${HTTP_METHOD})\\s*\\(`, "g");
 
 /**
+ * The pieces of a condition at its top level, split on `op` ("||" or "&&").
+ * Brackets of every kind nest, and the scanner's reading has already emptied
+ * every string, so an operator inside either is never split on.
+ */
+function splitTopLevel(text, op) {
+  const parts = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === "(" || c === "[" || c === "{") depth += 1;
+    else if (c === ")" || c === "]" || c === "}") depth -= 1;
+    else if (depth === 0 && text.startsWith(op, i)) {
+      parts.push(text.slice(start, i));
+      i += op.length - 1;
+      start = i + 1;
+    }
+  }
+  parts.push(text.slice(start));
+  return parts.map((part) => part.trim());
+}
+
+/** A condition without the parentheses that wrap the whole of it, however many. */
+function unwrap(text) {
+  let inner = text.trim();
+  while (inner.startsWith("(") && balancedParens(inner, 0).length === inner.length - 2) inner = inner.slice(1, -1).trim();
+  return inner;
+}
+
+/**
+ * HOW A TOP-LEVEL CONDITION TREATS A CALLER WITH NO SESSION:
+ *
+ *  - "session": it refuses every one of them, whatever else they bring:
+ *    `!user`, `!user || !canDoIt(user)`, or `!user && !applicant` with both
+ *    held from a session gate;
+ *  - "or-else": it refuses one only when something else is missing too, so a
+ *    caller with no session who brings that something reaches the body. The
+ *    self check-in's `!parsed.token && !user` is one: the something is the
+ *    token from a guest's own confirmation email;
+ *  - null: the session has nothing to do with it.
+ *
+ * A disjunction refuses everybody with no session when any of its parts
+ * does, a conjunction only when every one of its parts does. Each single
+ * part is read by `readsAsAbsence`, the shapes the tree uses for "there is no
+ * session".
+ */
+export function sessionRefusal(condition, identities) {
+  const term = unwrap(condition);
+  const ors = splitTopLevel(term, "||");
+  if (ors.length > 1) {
+    const kinds = ors.map((part) => sessionRefusal(part, identities));
+    if (kinds.includes("session")) return "session";
+    return kinds.includes("or-else") ? "or-else" : null;
+  }
+  const ands = splitTopLevel(term, "&&");
+  if (ands.length > 1) {
+    const kinds = ands.map((part) => sessionRefusal(part, identities));
+    if (kinds.every((kind) => kind === "session")) return "session";
+    return kinds.some((kind) => kind !== null) ? "or-else" : null;
+  }
+  return identities.some((v) => readsAsAbsence(term, v)) ? "session" : null;
+}
+
+/**
+ * WHO REACHES A HANDLER'S BODY WITH NO SESSION, from its top-level refusals,
+ * in order:
+ *
+ *  - "session": nobody; a refusal of every caller with no session leaves
+ *    before the body does anything;
+ *  - "through": a caller who brings what an "or-else" refusal asks for in
+ *    place of a session (a token, a signed link), when no later refusal turns
+ *    them away;
+ *  - "open": anybody; nothing at its top level refuses on the session.
+ *
+ * A refusal nested inside another condition holds only on that branch, so it
+ * is not one. And a refusal has to leave: `if (!user) user = anon;` is not one.
+ */
+export function handlerReach(body, identities) {
+  const depths = braceDepths(body);
+  let through = false;
+  const ifs = /\bif\s*\(/g;
+  let branch;
+  while ((branch = ifs.exec(body)) !== null) {
+    if (depths[branch.index] !== 0) continue; // nested: conditional on something else
+    const paren = body.indexOf("(", branch.index);
+    const kind = sessionRefusal(balancedParens(body, paren), identities);
+    if (kind === null) continue;
+    if (!/\breturn\b/.test(body.slice(paren, paren + 400))) continue;
+    if (kind === "session") return "session";
+    through = true;
+  }
+  return through ? "through" : "open";
+}
+
+/**
  * Every exported handler under `src/app/api` an anonymous caller reaches,
- * keyed `path#METHOD`.
+ * keyed `path#METHOD`, and among them (`through`) those reached only by
+ * bringing something in place of a session.
  */
 export function scanAnonymousHandlers() {
   const anonymous = new Set();
+  const through = new Set();
   const unreadable = [];
   for (const file of walkRoutes(API_DIR)) {
     const raw = readFileSync(file, "utf8");
@@ -108,25 +211,12 @@ export function scanAnonymousHandlers() {
         unreadable.push(`${path}#${handler[1]}`);
         continue;
       }
-      const depths = braceDepths(body);
-      let gated = false;
-      const ifs = /\bif\s*\(/g;
-      let branch;
-      while ((branch = ifs.exec(body)) !== null) {
-        if (depths[branch.index] !== 0) continue; // nested: conditional on something else
-        const paren = body.indexOf("(", branch.index);
-        const condition = balancedParens(body, paren);
-        if (![...identities].some((v) => readsAsAbsence(condition, v))) continue;
-        // The refusal has to actually leave. `if (!user) user = anon;` is not
-        // a gate.
-        if (!/\breturn\b/.test(body.slice(paren, paren + 400))) continue;
-        gated = true;
-        break;
-      }
-      if (!gated) anonymous.add(`${path}#${handler[1]}`);
+      const reach = handlerReach(body, [...identities]);
+      if (reach !== "session") anonymous.add(`${path}#${handler[1]}`);
+      if (reach === "through") through.add(`${path}#${handler[1]}`);
     }
   }
-  return { anonymous, unreadable };
+  return { anonymous, through, unreadable };
 }
 
 // ---------------------------------------------------------------------------
@@ -264,6 +354,23 @@ const PUBLIC_HANDLERS = new Map([
       why:
         "The same signed token on the same row, asking an organiser for a change rather than " +
         "cancelling. The token names the row, so there is no address to choose.",
+    },
+  ],
+  [
+    "src/app/api/events/[id]/check-in/route.ts#POST",
+    {
+      anonymous: true,
+      writes: true,
+      sends: false,
+      throttle: "rateLimit(`events:check-in:ip:${clientIp(req)}`",
+      credential: "decideSelf(",
+      why:
+        "Checking yourself in at an event, on the page its door code lands on: signed in, or with no session and " +
+        "the link from a guest's own confirmation email, `{ rsvpId, token }`. The token is signed for that one " +
+        "sign-up and `decideSelf` checks it (verifyRsvpToken) before anything is written, so a wrong one checks " +
+        "nobody in, and a session is asked for only when there is no token. A per-address throttle runs first, " +
+        "generous because a hall full of phones shares one address. The one write is a check-in record for that " +
+        "sign-up or that account, and nothing is emailed.",
     },
   ],
   [
@@ -727,6 +834,44 @@ describe("an anonymous handler with a side effect is gated for one", () => {
   }
 });
 
+/**
+ * What the entry of a handler the scan reads as reached THROUGH something
+ * brought in place of a session must say: that it is anonymous-reachable,
+ * and the credential that checks what is brought. A refusal that lets such a
+ * caller in is a gate only when what they bring is checked, and the registry
+ * says where (the side-effect rule above then holds the literal to the file).
+ */
+function throughProblems(key, entry) {
+  if (!entry) {
+    return [`${key} lets in a caller with no session who brings something else instead, and PUBLIC_HANDLERS has no entry for it.`];
+  }
+  const out = [];
+  if (entry.anonymous !== true) {
+    out.push(`${key} is reached with no session by a caller who brings something else instead: its entry says anonymous: true.`);
+  }
+  if (typeof entry.credential !== "string" || entry.credential.length === 0) {
+    out.push(
+      `${key} refuses a caller with no session only when they bring nothing else, and its entry names no credential ` +
+        "that checks what they bring. Name the call that checks it.",
+    );
+  }
+  return out;
+}
+
+describe("a handler a stranger reaches by bringing something in place of a session names what checks it", () => {
+  const { through } = scanAnonymousHandlers();
+
+  test("the scan sees the self check-in reached that way, by a guest's own link", () => {
+    assert.ok(through.has("src/app/api/events/[id]/check-in/route.ts#POST"), [...through].join(", "));
+  });
+
+  for (const key of through) {
+    test(key, () => {
+      assert.deepEqual(throughProblems(key, PUBLIC_HANDLERS.get(key)), []);
+    });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // The scanner itself
 // ---------------------------------------------------------------------------
@@ -735,7 +880,12 @@ describe("the scanner still tells a gate from a branch", () => {
   const wrap = (body) =>
     `export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {${body}}`;
 
-  const isAnonymous = (body) => {
+  /**
+   * What the scan answers for a fixture handler: the scan's own decision
+   * (`handlerReach`), asked of the fixture's body with the identities its
+   * session gates hand out, as `scanAnonymousHandlers` asks it of a route.
+   */
+  const reachOf = (body) => {
     const source = wrap(body);
     const identities = new Set();
     ASSIGNMENT.lastIndex = 0;
@@ -745,19 +895,9 @@ describe("the scanner still tells a gate from a branch", () => {
     const handler = HANDLER.exec(source);
     const inner = handlerBody(source, handler.index);
     assert.ok(inner !== null, "the fixture handler body must be readable");
-    const depths = braceDepths(inner);
-    const ifs = /\bif\s*\(/g;
-    let branch;
-    while ((branch = ifs.exec(inner)) !== null) {
-      if (depths[branch.index] !== 0) continue;
-      const paren = inner.indexOf("(", branch.index);
-      const condition = balancedParens(inner, paren);
-      if (![...identities].some((v) => readsAsAbsence(condition, v))) continue;
-      if (!/\breturn\b/.test(inner.slice(paren, paren + 400))) continue;
-      return false;
-    }
-    return true;
+    return handlerReach(inner, [...identities]);
   };
+  const isAnonymous = (body) => reachOf(body) !== "session";
 
   test("a top-level refusal is a gate", () => {
     assert.equal(
@@ -795,6 +935,46 @@ describe("the scanner still tells a gate from a branch", () => {
 
   test("a condition with no return is not a refusal", () => {
     assert.equal(isAnonymous("const viewer = await getCurrentUser(); if (!viewer) { log('anon'); }"), true);
+  });
+
+  test("a refusal that holds only when something else is missing too is not a session gate: the self check-in's token or session", () => {
+    const shape = "const user = await getCurrentUser(); const parsed = parse(body);";
+    assert.equal(reachOf(`${shape} if (!parsed.token && !user) return refuse(); await recordCheckIn();`), "through");
+    assert.equal(reachOf(`${shape} if (!user && !parsed.token) return refuse(); await recordCheckIn();`), "through");
+    assert.equal(reachOf(`${shape} if ((!parsed.token && !user) || !parsed.ok) return refuse(); await recordCheckIn();`), "through");
+    // The conditions themselves, part by part.
+    assert.equal(sessionRefusal("!parsed.token && !user", ["user"]), "or-else");
+    assert.equal(sessionRefusal("!user", ["user"]), "session");
+    assert.equal(sessionRefusal("parsed.ok", ["user"]), null);
+    // Split only at the top level: a call's or a bracket's own operators are inside one part.
+    assert.deepEqual(splitTopLevel("a && (b || c) && d[e && f] && g({ h: i && j })", "&&"), ["a", "(b || c)", "d[e && f]", "g({ h: i && j })"]);
+    assert.deepEqual(splitTopLevel("!user || (!parsed.token && other)", "||"), ["!user", "(!parsed.token && other)"]);
+    assert.deepEqual(splitTopLevel("!user.can(a && b)", "&&"), ["!user.can(a && b)"]);
+    assert.equal(unwrap(" ((!parsed.token && !user)) "), "!parsed.token && !user");
+    assert.equal(unwrap("(a) && (b)"), "(a) && (b)");
+  });
+
+  test("a refusal of everybody with no session is still a gate, however it is written, and wherever it follows one that is not", () => {
+    const shape = "const user = await getCurrentUser(); const parsed = parse(body);";
+    assert.equal(reachOf(`${shape} if (!parsed.token && !user) return refuse(); if (!user) return refuse(); await write();`), "session");
+    assert.equal(reachOf(`${shape} if (!user || (!parsed.token && other)) return refuse(); await write();`), "session");
+    assert.equal(reachOf(`${shape} if (((!user))) return refuse(); await write();`), "session");
+    // Both parts about a session gate's answer: nobody without one gets past.
+    assert.equal(reachOf("const user = await getCurrentUser(); const caller = await requireApplicant(); if (!user && !caller) return refuse();"), "session");
+  });
+
+  test("a route that asks a stranger for neither a session nor anything else is still open, and still has to answer to the registry", () => {
+    assert.equal(reachOf("const user = await getCurrentUser(); const parsed = parse(body); if (!parsed.ok) return bad(); await recordCheckIn();"), "open");
+    // A check of something brought, with no session gate beside it, is no session refusal at all.
+    assert.equal(reachOf("const parsed = parse(body); if (!parsed.token) return refuse(); await recordCheckIn();"), "open");
+    // And one let in through a token is held to the registry: no entry, or an entry with no credential, fails.
+    const key = "src/app/api/example/[id]/route.ts#POST";
+    assert.equal(throughProblems(key, undefined).length, 1);
+    assert.match(throughProblems(key, undefined)[0], /has no entry/);
+    const noCredential = { anonymous: true, writes: true, sends: false, throttle: "rateLimit(", why: "x".repeat(60) };
+    assert.match(throughProblems(key, noCredential).join(" "), /names no credential/);
+    assert.match(throughProblems(key, { ...noCredential, anonymous: false, gatedBy: "x" }).join(" "), /anonymous: true/);
+    assert.deepEqual(throughProblems(key, { ...noCredential, credential: "decideSelf(" }), []);
   });
 
   test("a parameter list with a brace in it does not swallow the handler", () => {
