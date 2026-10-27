@@ -919,9 +919,20 @@ local job because they build the app; the browser step then reuses that build
 with `--skip-build`, and `run.mjs` rebuilds anyway if the values baked in
 differ from what it wants.
 
-**Every run of the suite waits behind the last one.** The two jobs that drive
-the dev project share one concurrency group, not one per ref, because every run
-of either drives the SAME dev Firebase project. The group is declared on those
+**The local job runs on four machines at once.** The fetch batteries run on
+one, and a third of the browser specs on each of three
+(`node scripts/run-e2e.mjs --local --shard N/3`, split by
+`scripts/e2e/lib/shard.mjs`). Each machine builds and boots its own loopback
+server and Mailpit, so they share nothing but the dev project, where every row
+carries its run id. The one exception is the spec that borrows
+`config/membership`: it always runs in part 1 (`BORROWS_A_SHARED_SETTING`),
+and part 1 is the only part that waits in the shared queue described next.
+`tests/e2e-shards.test.mjs` holds that every spec lands in exactly one part
+and that a fixture reaching the shared document is on the list.
+
+**Every run that borrows the shared setting waits behind the last one.** The
+nightly `dev` job and part 1 of the local job share one concurrency group, not
+one per ref, because both drive the SAME dev Firebase project. The group is declared on those
 two jobs rather than on the workflow, with `queue: max`: by default a group
 holds one waiting run and a newer arrival CANCELS it, which left the middle of
 three pull requests with a cancelled run, and a run whose suite is skipped

@@ -188,14 +188,19 @@ describe("the workflow consults it", () => {
   });
 
   test("the two jobs that drive the dev project wait in one queue, and are never cancelled", () => {
-    for (const id of ["local", "dev"]) {
-      const block = job(id);
-      assert.match(
-        block,
-        /\n {4}concurrency:\n {6}group: e2e-\$\{\{ github\.workflow \}\}\n {6}cancel-in-progress: false\n {6}queue: max\n/,
-        `${id} is not in the shared queue`,
-      );
-    }
+    // `dev` waits in the shared group whole. `local` is split across machines
+    // (tests/e2e-shards.test.mjs), and only its part that borrows the shared
+    // setting, specs-1, waits there; the others take a group of their own.
+    assert.match(
+      job("dev"),
+      /\n {4}concurrency:\n {6}group: e2e-\$\{\{ github\.workflow \}\}\n {6}cancel-in-progress: false\n {6}queue: max\n/,
+      "dev is not in the shared queue",
+    );
+    assert.match(
+      job("local"),
+      /\n {4}concurrency:\n {6}group: \$\{\{ matrix\.part == 'specs-1' && format\('e2e-\{0\}', github\.workflow\) \|\| [^\n]+ \}\}\n {6}cancel-in-progress: false\n {6}queue: max\n/,
+      "local's part 1 is not in the shared queue",
+    );
     assert.doesNotMatch(workflow, /\nconcurrency:/, "a workflow-level group would queue the runs whose suite is skipped");
     for (const id of ["result", "nightly-alert"]) {
       assert.doesNotMatch(job(id), /\n {4}concurrency:/, `${id} must answer at once, not wait in the queue`);

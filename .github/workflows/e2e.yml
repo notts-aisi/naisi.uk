@@ -46,7 +46,10 @@ permissions:
   contents: read
 
 # THE CONCURRENCY GROUP, declared on the two jobs that drive the dev project
-# (`local` and `dev`) and on nothing else.
+# (`local` and `dev`) and on nothing else. `local` runs on four machines at
+# once, and only its part that borrows the shared setting below (`specs-1`)
+# joins the group; the other parts write only rows that carry their run id and
+# take a group of their own (see the `local` job).
 #
 # ONE GROUP FOR BOTH, deliberately not per ref. Every run of either job, on any
 # branch and from any trigger, drives the SAME dev Firebase project. Fixture
@@ -76,7 +79,12 @@ permissions:
 
 jobs:
   local:
-    name: Local mode (loopback server, captcha relaxed, mail into Mailpit)
+    name: Local mode (${{ matrix.part }})
+    # FOUR MACHINES AT ONCE. One runs the fetch batteries (the persona battery
+    # among them); three each run a third of the browser specs
+    # (`--shard N/3`, scripts/e2e/lib/shard.mjs). Each builds and boots its
+    # own loopback server, so nothing is shared between them but the dev
+    # project, and `needs.local.result` is a success only when all four are.
     # Three conditions, for three different reasons. `result`, at the foot of
     # this file, decides what a skip MEANS for the pull request; this only
     # decides whether the suite can run.
@@ -95,10 +103,29 @@ jobs:
       && vars.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
       && github.event.pull_request.head.repo.full_name == github.repository
       && github.actor != 'dependabot[bot]'
+    # ONE PART JOINS THE SHARED QUEUE. The spec that borrows `config/membership`
+    # always runs in part 1 of the browser specs (BORROWS_A_SHARED_SETTING in
+    # scripts/e2e/lib/shard.mjs), so `specs-1` waits in the one group with the
+    # nightly, as the whole job used to. The other three write only rows that
+    # carry their run id, so each takes a group of its own and starts at once.
     concurrency:
-      group: e2e-${{ github.workflow }}
+      group: ${{ matrix.part == 'specs-1' && format('e2e-{0}', github.workflow) || format('e2e-{0}-{1}-{2}', github.workflow, github.run_id, matrix.part) }}
       cancel-in-progress: false
       queue: max
+    strategy:
+      # One failing part must not cancel the others mid-run: a cancelled part
+      # leaves its fixture behind (see the header), and the whole list of
+      # failures is what a reader needs.
+      fail-fast: false
+      matrix:
+        include:
+          - part: batteries
+          - part: specs-1
+            shard: 1/3
+          - part: specs-2
+            shard: 2/3
+          - part: specs-3
+            shard: 3/3
     runs-on: ubuntu-latest
     # The persona battery asks every course hub gate about a programme each
     # persona leads, staffs or takes part in, and about another one: about
@@ -125,17 +152,20 @@ jobs:
       # every production deploy. E2E_PERSONA_BATTERY=required below turns a
       # missing emulator into a red job rather than a quiet skip.
       - run: npm ci
+        if: matrix.part == 'batteries'
         working-directory: scripts/rules-tests
       # 21, because firebase-tools 15 refuses anything older ("no longer
       # supports Java version before 21") and the version it replaces runs on
       # 21 as well.
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        if: matrix.part == 'batteries'
         with:
           distribution: temurin
           java-version: "21"
       # The emulator jar firebase-tools downloads on first use, kept between
       # runs so the persona battery does not fetch it every time.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: matrix.part == 'batteries'
         with:
           path: ~/.cache/firebase/emulators
           key: firebase-emulators-${{ runner.os }}-${{ hashFiles('scripts/rules-tests/package-lock.json') }}
@@ -145,6 +175,7 @@ jobs:
       # library plus a downloaded Chromium has no business there. The runner
       # refuses to run without Playwright and prints this same line.
       - name: Install Playwright
+        if: matrix.part != 'batteries'
         run: |
           npm install --no-save playwright
           npx playwright install --with-deps chromium
@@ -199,6 +230,7 @@ jobs:
       # Read-only: `keys.list` never returns key material. See
       # scripts/e2e/README.md, "In CI".
       - name: Check the dev project's API key restrictions
+        if: matrix.part == 'batteries'
         run: node scripts/check-api-key-restrictions.mjs --project naisi-uk-dev
 
       # The harness's own config. No secrets: the project id is a name and the
@@ -250,22 +282,23 @@ jobs:
           EOF
           echo "NEXT_PUBLIC_FIREBASE_API_KEY=${FIREBASE_WEB_API_KEY}" >> .env.local
 
-      # The nine fetch batteries under scripts/e2e/tests/ FIRST, because the
+      # The fetch batteries under scripts/e2e/tests/, on their own machine. The
       # coverage map credits them with the registration and magic-link routes
-      # (AUTH_BATTERIES in tests/e2e-coverage-map.test.mjs) and a credit no CI
+      # (AUTH_BATTERIES in tests/e2e-coverage-map.test.mjs), and a credit no CI
       # job collects is a credit that goes stale unnoticed. This boots its own
-      # loopback server with Mailpit and shuts it down again; the browser step
-      # below then reuses the build it just made.
+      # loopback server with Mailpit and shuts it down again.
       - name: Run the fetch batteries against a loopback server
+        if: matrix.part == 'batteries'
         env:
           E2E_SIGNING_SERVICE_ACCOUNT: ${{ vars.GCP_E2E_SERVICE_ACCOUNT }}
           E2E_PERSONA_BATTERY: required
         run: npm run e2e:local
 
-      # `--skip-build`: the batteries step above built the app from the same
-      # env, and scripts/e2e/run.mjs rebuilds anyway if its marker says the
-      # values baked in differ.
+      # A third of the browser specs, on a machine of its own. No
+      # `--skip-build`: nothing on this machine has built the app yet, so
+      # scripts/e2e/run.mjs builds it from the env written above.
       - name: Run the browser specs against a loopback server
+        if: matrix.part != 'batteries'
         env:
           # Custom tokens are signed by asking IAM to sign as this account. In
           # CI that is the account the run itself authenticates as, which has
@@ -276,7 +309,8 @@ jobs:
           # forbids writing any role above `pending`.
           E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
           E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
-        run: node scripts/run-e2e.mjs --local --skip-build
+          SHARD: ${{ matrix.shard }}
+        run: node scripts/run-e2e.mjs --local --shard "$SHARD"
 
       # Runs even when the job is CANCELLED, which is the one case the
       # runner's own `finally` cannot cover: the step above is killed before
@@ -310,7 +344,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: e2e-local-state
+          name: e2e-local-state-${{ matrix.part }}
           path: .e2e-state
           if-no-files-found: ignore
           # Both directories are dotfolders, which upload-artifact v4.4+ skips
@@ -331,7 +365,7 @@ jobs:
         if: failure() && vars.E2E_UPLOAD_SCREENSHOTS == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: e2e-local-artifacts
+          name: e2e-local-artifacts-${{ matrix.part }}
           path: .e2e-artifacts
           if-no-files-found: ignore
           # Both directories are dotfolders, which upload-artifact v4.4+ skips
