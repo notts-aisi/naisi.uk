@@ -31,6 +31,8 @@ function sendApplicationEmail(body: {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
+    // Sent without waiting, so it has to outlive the page: tests/fetch-keepalive.test.mjs.
+    keepalive: true,
   }).catch((err) => {
     console.warn("[application email] fire-and-forget failed", err);
   });

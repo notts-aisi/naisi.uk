@@ -189,6 +189,8 @@ export default function RsvpForm({
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ email, channels, source: "event-rsvp", name }),
+          // Sent without waiting, so it has to outlive the page: tests/fetch-keepalive.test.mjs.
+          keepalive: true,
         }).catch(() => {});
       }
 

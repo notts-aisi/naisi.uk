@@ -103,6 +103,8 @@ export function PushSettings() {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ endpoint }),
+          // Sent without waiting, so it has to outlive the page: tests/fetch-keepalive.test.mjs.
+          keepalive: true,
         }).catch(() => {});
       }
       setState("off");

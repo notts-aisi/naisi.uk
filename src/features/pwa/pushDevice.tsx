@@ -128,6 +128,8 @@ export function PushDeviceProvider({ children }: { children: ReactNode }) {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ subscription: sub.toJSON() }),
+            // Sent without waiting, so it has to outlive the page: tests/fetch-keepalive.test.mjs.
+            keepalive: true,
           }).catch(() => {});
         } else {
           setState("off");
