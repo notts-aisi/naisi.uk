@@ -26,6 +26,7 @@ import {
   type StatusFilter,
 } from "./listModel";
 import AssessAllBar from "./AssessAllBar";
+import ProgrammeClaude from "./ProgrammeClaude";
 import { changedMark } from "./changesWords";
 import { Avatar, Chip, Icon, ScoreBox, StandingChip } from "./parts";
 import styles from "./ApplicationsBoard.module.css";
@@ -102,6 +103,8 @@ export default function ApplicationsBoard({
   /** Moved on to read the marks again, after "Assess the rest" finishes. */
   const [marksRead, setMarksRead] = useState(0);
   const marksPath = assessments?.marksPath ?? null;
+  // The applications Claude reads and compares: everybody still in the term who ranked this programme.
+  const compared = useMemo(() => board.rows.filter((row) => !row.withdrawn && !row.byInvitation), [board.rows]);
   useEffect(() => {
     if (!marksPath) return;
     let live = true;
@@ -388,14 +391,24 @@ export default function ApplicationsBoard({
       </div>
 
       {assessments ? (
-        <AssessAllBar
-          formApiBase={assessments.formApiBase}
-          programmeId={programme.id}
-          uids={board.rows.filter((row) => !row.withdrawn && !row.byInvitation).map((row) => row.uid)}
-          marks={marks}
-          configured={configured}
-          onDone={() => setMarksRead((n) => n + 1)}
-        />
+        <>
+          <AssessAllBar
+            formApiBase={assessments.formApiBase}
+            programmeId={programme.id}
+            uids={compared.map((row) => row.uid)}
+            marks={marks}
+            configured={configured}
+            onDone={() => setMarksRead((n) => n + 1)}
+          />
+          {configured.claude && marks !== null ? (
+            <ProgrammeClaude
+              askPath={assessments.marksPath}
+              listPath={listPath}
+              read={compared.filter((row) => own(marks, row.uid)?.lean).length}
+              total={compared.length}
+            />
+          ) : null}
+        </>
       ) : null}
 
       {/* ---- The applications ---- */}

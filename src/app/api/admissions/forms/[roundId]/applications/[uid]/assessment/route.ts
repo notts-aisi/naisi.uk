@@ -22,10 +22,10 @@ import { getCurrentUser } from "@/lib/firebase/session";
  * refuse on the review screen itself. The admin check is made here too, before
  * the body is read, so nobody else learns what a valid request looks like.
  *
- * A POST has the whole of the backend's 60-second request limit: Claude's
- * part takes most of it, and is told to stop at 48 seconds.
+ * A POST may take most of the backend's 300-second request limit: Claude's
+ * part is told to stop at 150 seconds, and usually takes under one minute.
  */
-export const maxDuration = 58;
+export const maxDuration = 290;
 
 const ONLY_ADMINS = "Only an admin can ask for an assessment.";
 

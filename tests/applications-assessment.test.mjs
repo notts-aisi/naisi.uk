@@ -403,3 +403,108 @@ describe("the marks on a programme's list", () => {
     assert.deepEqual(response.body.configured, { claude: true, pangram: true });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Claude across a whole programme
+// ---------------------------------------------------------------------------
+
+const PROGRAMME = (body) =>
+  marksRoute.POST(request("POST", body), { params: Promise.resolve({ roundId: ROUND, programmeId: AGI }) });
+
+/** Claude's comparison, as the stub answers it. Amara is Applicant 1 (account ids in order). */
+const OVERVIEW = {
+  ok: true,
+  model: "claude-opus-5-5",
+  usage: { inputTokens: 1, outputTokens: 1 },
+  value: {
+    overall: "Applicant 1 is the strongest; Reviewer A and Reviewer B differ on them.",
+    shortlist: [{ applicant: "Applicant 1", why: "Specific and engaged." }],
+    borderline: [],
+    notThisTime: [{ applicant: "Applicant 99", why: "Not on the list: dropped." }],
+    secondLook: [{ applicant: "Applicant 2", why: "Not read yet." }],
+    elsewhere: [],
+  },
+};
+
+describe("asking Claude about a whole programme", () => {
+  for (const who of ["claudia", "lloyd", "tess", "amara"]) {
+    test(`not ${who}: refused before the body is read, and nothing is sent`, async () => {
+      as(who);
+      assert.equal((await PROGRAMME({ kind: "overview" })).status, 403);
+      assert.equal((await PROGRAMME({ kind: "question", question: "Who?" })).status, 403);
+      assert.equal(globalThis.__claudeAsked.length, 0);
+    });
+  }
+
+  test("with nothing read yet, Claude is not asked, and the admin is told to assess first", async () => {
+    as("zach");
+    const response = await PROGRAMME({ kind: "overview" });
+    assert.equal(response.status, 409);
+    assert.match(response.body.error, /Assess them first/);
+    assert.equal(globalThis.__claudeAsked.length, 0);
+  });
+
+  test("a comparison sends numbers and letters, never a name, and the screen gets the names back", async () => {
+    as("zach");
+    await ASK("claude");
+    globalThis.__claudeAsked = [];
+    globalThis.__claudeAnswer = OVERVIEW;
+    const response = await PROGRAMME({ kind: "overview" });
+    assert.equal(response.status, 200);
+
+    const { message } = globalThis.__claudeAsked[0];
+    for (const uid of ["amara", "dev", "wen"]) {
+      for (const word of namesOf(uid)) assert.equal(message.includes(word), false, `the comparison names ${word}`);
+    }
+    for (const reviewer of ["Claudia", "Lloyd"]) assert.equal(message.includes(reviewer), false);
+    assert.match(message, /## Applicant 1/);
+    assert.match(message, /Not read by Claude yet/);
+
+    const overview = response.body.overview;
+    assert.equal(overview.overall, "Amara is the strongest; Claudia and Lloyd differ on them.".replace("Amara", "Amara Okafor"));
+    assert.deepEqual(overview.shortlist, [{ uid: "amara", name: "Amara Okafor", why: "Specific and engaged." }]);
+    assert.equal(overview.secondLook[0].uid, "dev");
+    assert.equal(overview.notThisTime[0].uid, null, "a label that is not on the list names nobody");
+    assert.equal(overview.read, 1);
+    assert.equal(overview.total, 3);
+  });
+
+  test("nothing about a comparison is stored", async () => {
+    as("zach");
+    await ASK("claude");
+    const before = JSON.stringify(db.read(ASSESSMENT));
+    const paths = db.paths().length;
+    globalThis.__claudeAnswer = OVERVIEW;
+    await PROGRAMME({ kind: "overview" });
+    assert.equal(JSON.stringify(db.read(ASSESSMENT)), before);
+    assert.equal(db.paths().length, paths);
+  });
+
+  test("a name typed into a question is swapped for a label before it is sent", async () => {
+    as("zach");
+    await ASK("claude");
+    globalThis.__claudeAsked = [];
+    globalThis.__claudeAnswer = {
+      ok: true,
+      model: "claude-opus-5-5",
+      usage: { inputTokens: 1, outputTokens: 1 },
+      value: { answer: "Applicant 1 is more specific than Applicant 2, as Reviewer A said." },
+    };
+    const response = await PROGRAMME({ kind: "question", question: "How does Amara compare with Dev Patel? Ask Claudia." });
+    assert.equal(response.status, 200);
+    const { message } = globalThis.__claudeAsked[0];
+    for (const word of ["Amara", "Dev Patel", "Patel", "Claudia"]) {
+      assert.equal(message.includes(word), false, `the question sent ${word}`);
+    }
+    assert.match(message, /How does Applicant 1 compare with Applicant 2\? Ask Reviewer A\./);
+    assert.equal(response.body.answer, "Amara Okafor is more specific than Dev Patel, as Claudia said.");
+  });
+
+  test("an empty or very long question is refused before anything is read", async () => {
+    as("zach");
+    assert.equal((await PROGRAMME({ kind: "question", question: "  " })).status, 400);
+    assert.equal((await PROGRAMME({ kind: "question", question: "x".repeat(1001) })).status, 400);
+    assert.equal((await PROGRAMME({})).status, 400);
+    assert.equal(globalThis.__claudeAsked.length, 0);
+  });
+});

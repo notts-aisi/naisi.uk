@@ -12,13 +12,19 @@ import { refuse } from "../review/refusals";
 import type { Refusal, ReviewPayload } from "../review/types";
 import { askForClaudeRead } from "./claudeRead";
 import { assessmentInputFrom, withNames, type LongAnswer } from "./input";
+import { askAboutTheProgramme, askForOverview } from "./overview";
+import { namedFor, programmeInputFrom, scrubbed, type StoredFor } from "./programmeInput";
 import type {
   AssessmentMark,
   AssessmentPart,
   AssessmentView,
   ClaudeRead,
+  OverviewEntry,
+  OverviewEntryView,
   PangramAnswer,
   PangramCheck,
+  ProgrammeAsk,
+  ProgrammeOverviewView,
   StoredClaudeRead,
 } from "./types";
 
@@ -36,9 +42,12 @@ import type {
  *     own application) is refused here in the same words.
  *  3. What is sent is built from that payload alone (`input.ts`).
  *
- * Claude and Pangram are two parts, asked for one at a time, because each has
- * to finish inside the backend's 60-second request limit and Claude's part
- * takes most of it. The screen asks for both.
+ * Claude and Pangram are two parts, asked for one at a time, so each lands
+ * on the screen as soon as it is ready. The screen asks for both.
+ *
+ * The bottom of this file asks about a whole programme: a comparison of its
+ * applications, or a question. Both read the reads already stored, through
+ * `programmeInput.ts`, and neither is stored.
  */
 
 const ONLY_ADMINS = "Only an admin can ask for an assessment.";
@@ -221,18 +230,21 @@ export type MarksResult =
   | { ok: true; marks: Record<string, AssessmentMark>; configured: Record<AssessmentPart, boolean> }
   | Refusal;
 
-/** Each application's marks on one programme's list, for an admin. */
-export async function loadProgrammeMarks(
+type BoardRefusal = Extract<Awaited<ReturnType<typeof loadProgrammeBoard>>, { ok: false }>;
+type Board = Extract<Awaited<ReturnType<typeof loadProgrammeBoard>>, { ok: true }>["board"];
+
+/** The programme's list, for an admin, with what is stored for each of its rows. */
+async function storedForProgramme(
   db: Firestore,
   user: SessionUser,
   roundId: string,
   programmeId: string,
-): Promise<MarksResult> {
+): Promise<{ ok: true; board: Board; stored: Record<string, StoredFor> } | BoardRefusal | Refusal> {
   if (!canRunTerm(user)) return refuse(403, ONLY_ADMINS);
-  const board = await loadProgrammeBoard(db, user, roundId, programmeId);
-  if (!board.ok) return board;
-  const uids = board.board.rows.map((row) => row.uid);
-  const marks: Record<string, AssessmentMark> = {};
+  const loaded = await loadProgrammeBoard(db, user, roundId, programmeId);
+  if (!loaded.ok) return loaded;
+  const uids = loaded.board.rows.map((row) => row.uid);
+  const stored: Record<string, StoredFor> = {};
   for (let i = 0; i < uids.length; i += 100) {
     const refs = uids.slice(i, i + 100).map((uid) => assessmentRef(db, roundId, uid));
     if (refs.length === 0) continue;
@@ -241,13 +253,106 @@ export async function loadProgrammeMarks(
       const data = asRecord(snap.data());
       const uid = typeof data.uid === "string" ? data.uid : "";
       if (!uids.includes(uid)) continue;
-      const read = storedReadOf(data, programmeId);
-      const pangram = storedPangramOf(data);
-      marks[uid] = {
-        lean: read?.lean ?? null,
-        worthALook: pangram ? pangram.answers.filter((answer) => answer.worthALook).length : null,
-      };
+      stored[uid] = { read: storedReadOf(data, programmeId), pangram: storedPangramOf(data) };
     }
   }
+  return { ok: true, board: loaded.board, stored };
+}
+
+/** Each application's marks on one programme's list, for an admin. */
+export async function loadProgrammeMarks(
+  db: Firestore,
+  user: SessionUser,
+  roundId: string,
+  programmeId: string,
+): Promise<MarksResult> {
+  const loaded = await storedForProgramme(db, user, roundId, programmeId);
+  if (!loaded.ok) return loaded;
+  const marks: Record<string, AssessmentMark> = {};
+  for (const [uid, { read, pangram }] of Object.entries(loaded.stored)) {
+    marks[uid] = {
+      lean: read?.lean ?? null,
+      worthALook: pangram ? pangram.answers.filter((answer) => answer.worthALook).length : null,
+    };
+  }
   return { ok: true, marks, configured: { claude: claudeConfigured(), pangram: pangramConfigured() } };
+}
+
+const QUESTION_LIMIT = 1_000;
+
+export type ProgrammeAskResult =
+  | { ok: true; overview: ProgrammeOverviewView }
+  | { ok: true; answer: string; question: string }
+  | Refusal;
+
+/** A comparison of a programme's applications, or a question about them, for an admin. */
+export async function askAboutProgramme(
+  db: Firestore,
+  user: SessionUser,
+  roundId: string,
+  programmeId: string,
+  ask: ProgrammeAsk,
+): Promise<ProgrammeAskResult> {
+  if (ask.kind === "question" && (!ask.question.trim() || ask.question.length > QUESTION_LIMIT)) {
+    return refuse(400, `Ask a question of up to ${QUESTION_LIMIT} characters.`);
+  }
+  const loaded = await storedForProgramme(db, user, roundId, programmeId);
+  if (!loaded.ok) return loaded;
+  if (!claudeConfigured()) return refuse(409, "Claude isn’t set up on this site yet.");
+  const { board, stored } = loaded;
+  const input = programmeInputFrom({
+    programmeName: board.programme.name,
+    places: board.programme.places,
+    rows: board.rows,
+    stored,
+  });
+  if (input.read === 0) {
+    return refuse(409, "Claude hasn’t read any of these applications yet. Assess them first.");
+  }
+
+  const nameOfUid = new Map(board.rows.map((row) => [row.uid, row.name]));
+  const applicantNames: Record<string, string> = {};
+  for (const [label, uid] of Object.entries(input.applicants)) applicantNames[label] = nameOfUid.get(uid) ?? label;
+  const staffNames = await loadStaffNames(db, Object.values(input.reviewers));
+  const reviewerNames: Record<string, string> = {};
+  for (const [label, uid] of Object.entries(input.reviewers)) reviewerNames[label] = staffNames.get(uid) ?? UNNAMED_STAFF;
+  const named = (text: string) => namedFor(text, applicantNames, reviewerNames);
+
+  if (ask.kind === "question") {
+    const people = [
+      ...Object.entries(applicantNames).map(([label, name]) => ({ label, name })),
+      ...Object.entries(reviewerNames).map(([label, name]) => ({ label, name })),
+    ];
+    const answer = await askAboutTheProgramme(input.message, scrubbed(ask.question, people));
+    if (!answer.ok) return refuse(500, answer.reason);
+    return { ok: true, answer: named(answer.answer), question: ask.question };
+  }
+
+  const answer = await askForOverview(input.message);
+  if (!answer.ok) return refuse(500, answer.reason);
+  const shown = (entries: OverviewEntry[]): OverviewEntryView[] =>
+    entries.map((entry) => {
+      const uid = own(input.applicants, entry.applicant) ?? null;
+      return {
+        uid,
+        name: uid ? (nameOfUid.get(uid) ?? entry.applicant) : entry.applicant,
+        why: named(entry.why),
+        ...(entry.programme ? { programme: entry.programme } : {}),
+      };
+    });
+  const { overview } = answer;
+  return {
+    ok: true,
+    overview: {
+      overall: named(overview.overall),
+      shortlist: shown(overview.shortlist),
+      borderline: shown(overview.borderline),
+      notThisTime: shown(overview.notThisTime),
+      secondLook: shown(overview.secondLook),
+      elsewhere: shown(overview.elsewhere),
+      at: new Date().toISOString(),
+      read: input.read,
+      total: input.total,
+    },
+  };
 }

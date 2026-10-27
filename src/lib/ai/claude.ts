@@ -13,10 +13,11 @@ import Anthropic from "@anthropic-ai/sdk";
  *   `apphosting.yaml` and is never `NEXT_PUBLIC_`. With no key the site does
  *   not call out and says so in words (`claudeConfigured()`), on every
  *   backend: there is no development default that calls anyway.
- * - IT FITS INSIDE ONE REQUEST. The backend stops a request at 60 seconds
- *   (`runConfig.timeoutSeconds`), so a call is given 48 and never retried: a
- *   retry after a slow first attempt would be cut off mid-way and still
- *   billed. The caller says "try again" instead.
+ * - IT FITS INSIDE ONE REQUEST. The backend stops a request at 300 seconds
+ *   (`runConfig.timeoutSeconds`). A caller says how long its call may take
+ *   (`timeoutMs`, never more than `MAX_CALL_MS`), and a call is never
+ *   retried: a retry after a slow first attempt would be cut off mid-way and
+ *   still billed. The caller says "try again" instead.
  * - A DECLINED REQUEST IS RETRIED SERVER SIDE. `fallbacks: "default"` lets
  *   Anthropic re-run a request its safety classifiers decline on the model it
  *   recommends for that case, inside the same call. A request every model
@@ -28,14 +29,15 @@ import Anthropic from "@anthropic-ai/sdk";
 
 export const CLAUDE_MODEL = "claude-opus-5-5";
 
-const CALL_TIMEOUT_MS = 48_000;
+/** The longest any one call may take, inside the backend's 300-second request limit. */
+export const MAX_CALL_MS = 240_000;
 
 let cached: Anthropic | null | undefined;
 
 function client(): Anthropic | null {
   if (cached !== undefined) return cached;
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  cached = apiKey ? new Anthropic({ apiKey, timeout: CALL_TIMEOUT_MS, maxRetries: 0 }) : null;
+  cached = apiKey ? new Anthropic({ apiKey, timeout: MAX_CALL_MS, maxRetries: 0 }) : null;
   return cached;
 }
 
@@ -63,24 +65,29 @@ export async function askClaudeForJson(input: {
   schema: Record<string, unknown>;
   effort: "low" | "medium" | "high";
   maxTokens: number;
+  /** How long this call may take. */
+  timeoutMs: number;
 }): Promise<ClaudeJsonResult> {
   const anthropic = client();
   if (!anthropic) return { ok: false, reason: "Claude isn’t set up on this site yet." };
 
   let response: Anthropic.Beta.BetaMessage;
   try {
-    response = await anthropic.beta.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: input.maxTokens,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      system: input.system,
-      messages: [{ role: "user", content: input.message }],
-      output_config: {
-        effort: input.effort,
-        format: { type: "json_schema", schema: input.schema },
+    response = await anthropic.beta.messages.create(
+      {
+        model: CLAUDE_MODEL,
+        max_tokens: input.maxTokens,
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default",
+        system: input.system,
+        messages: [{ role: "user", content: input.message }],
+        output_config: {
+          effort: input.effort,
+          format: { type: "json_schema", schema: input.schema },
+        },
       },
-    });
+      { timeout: Math.min(input.timeoutMs, MAX_CALL_MS) },
+    );
   } catch (error) {
     if (error instanceof Anthropic.APIConnectionTimeoutError) {
       return { ok: false, reason: "Claude took too long to answer. Try again." };

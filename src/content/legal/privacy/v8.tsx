@@ -14,6 +14,9 @@
  *     access-requirements or Students' Union membership answer, reviewers by
  *     a letter, only answers of 50 words or more to Pangram, and only admins
  *     read the result (`src/lib/applications/assessment/input.ts`).
+ *     Claude can also compare those reads across a programme's applications;
+ *     a comparison is shown to the admin who asked and is not kept
+ *     (`src/lib/applications/assessment/programmeInput.ts`).
  *  3. **Still no automated decisions.** The paragraph says what the two are
  *     for: one view the admin weighs, nothing acted on by itself.
  *
@@ -1053,7 +1056,9 @@ export default function PrivacyContentV8({
                   <strong>A second reader, for the person who decides.</strong>{" "}
                   An admin can ask Claude, an AI model made by Anthropic, to
                   read your application together with the reviewers&apos;
-                  scores and comments and write a short assessment of it. An
+                  scores and comments and write a short assessment of it, and
+                  to compare those assessments across the applications to the
+                  same programme. An
                   admin can also ask Pangram, a service that estimates whether
                   writing was produced with AI, to check your longer answers:
                   those of 50 words or more, and nothing shorter. What is sent
@@ -1065,7 +1070,8 @@ export default function PrivacyContentV8({
                   result is a reason for a person to look again, never a
                   finding on its own. What comes back is kept with your
                   application, is deleted with it, and is never copied to your
-                  member record.
+                  member record. A comparison across a programme is shown to
+                  the admin who asked and is not kept.
                 </li>
                 <li>
                   <strong>The decision,</strong> its date, who made it, and the

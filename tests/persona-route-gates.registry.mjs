@@ -885,6 +885,13 @@ export const ROUTES = {
         "The Claude and Pangram marks on a programme's list are an admin's alone, decided on " +
         "the session before anything is read; the admin is then told the programme is missing.",
     },
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Asking Claude about a whole programme is admin only, decided before the body is read; " +
+        "the admin then meets the body check, which an empty body fails before anything is read " +
+        "or sent anywhere.",
+    },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/roles": {
     PUT: {
@@ -4456,6 +4463,10 @@ export const REAL_ROUTES = {
     GET: adminAlone(
       "Reading Claude's and Pangram's marks",
       c(200, "An admin reads the marks already stored, on either programme. Nothing is sent to Claude or Pangram."),
+    ),
+    POST: adminAlone(
+      "Asking Claude about a programme",
+      c(400, "An admin meets the body check: an empty body asks for nothing, so nothing is read or sent."),
     ),
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/roles": {

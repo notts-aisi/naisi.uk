@@ -76,3 +76,38 @@ export type AssessmentMark = {
 };
 
 export type AssessmentPart = "claude" | "pangram";
+
+/** One person in Claude's comparison, as Claude names them: by label. */
+export type OverviewEntry = { applicant: string; why: string; programme?: string };
+
+/** Claude's comparison of a programme's applications. Never stored. */
+export type ProgrammeOverview = {
+  overall: string;
+  shortlist: OverviewEntry[];
+  borderline: OverviewEntry[];
+  notThisTime: OverviewEntry[];
+  secondLook: OverviewEntry[];
+  elsewhere: OverviewEntry[];
+  /** ISO instant. */
+  at: string;
+  /** How many of the applications compared Claude had read, and how many there were. */
+  read: number;
+  total: number;
+};
+
+/** One person in the comparison, as the admin's screen is sent it. */
+export type OverviewEntryView = { uid: string | null; name: string; why: string; programme?: string };
+
+export type ProgrammeOverviewView = Omit<
+  ProgrammeOverview,
+  "shortlist" | "borderline" | "notThisTime" | "secondLook" | "elsewhere"
+> & {
+  shortlist: OverviewEntryView[];
+  borderline: OverviewEntryView[];
+  notThisTime: OverviewEntryView[];
+  secondLook: OverviewEntryView[];
+  elsewhere: OverviewEntryView[];
+};
+
+/** What an admin can ask of a whole programme. */
+export type ProgrammeAsk = { kind: "overview" } | { kind: "question"; question: string };

@@ -5,7 +5,10 @@ runConfig:
   cpu: 1
   memoryMiB: 512
   concurrency: 80
-  timeoutSeconds: 60
+  # Five minutes, for an admin asking Claude to compare a programme's
+  # applications (src/lib/ai/claude.ts, MAX_CALL_MS). Ordinary pages answer
+  # in well under a second; this is a ceiling, not a wait.
+  timeoutSeconds: 300
 
 env:
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY

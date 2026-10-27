@@ -138,7 +138,7 @@ export class DestroyPassInFlightError extends Error {
 
 /**
  * How long one invocation's claim on a row lasts. Comfortably longer than a
- * pass (Cloud Run caps a request at 60 seconds) and short enough that a pass
+ * pass (Cloud Run capped a request at 60 seconds when this was written, 300 now) and short enough that a pass
  * killed mid-flight does not strand the resume for long. A process that DIES
  * leaves its claim standing until it expires, so a resume can be up to this
  * far away; that window is the deliberate cost of exact totals.

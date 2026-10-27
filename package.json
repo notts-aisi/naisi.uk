@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --test --import ./tests/lib/outputGuard.mjs tests/",
+    "test:shard": "node --test --test-shard=$TEST_SHARD --import ./tests/lib/outputGuard.mjs tests/",
     "e2e": "node --test scripts/e2e/tests/",
     "e2e:local": "node scripts/e2e/run.mjs",
     "e2e:funnel": "node scripts/run-e2e.mjs --spec applicant-funnel",

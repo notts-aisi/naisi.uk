@@ -600,7 +600,7 @@ const NOT_COVERED = {
   // tests/applications-review-routes.test.mjs against an in-memory database.
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/assessments": {
     reason:
-      "The Claude and Pangram marks on a programme's list, read only. Its gate is executed by tests/applications-assessment.test.mjs; a browser spec waits on the same fake as the assessment route.",
+      "The Claude and Pangram marks on a programme's list, and Claude's comparison of its applications or a question about them. The gate, the labels sent and the names put back are executed by tests/applications-assessment.test.mjs; a browser spec waits on the same fake as the assessment route.",
     coverWhen:
       "With the assessment route's spec: the admin's list shows the mark the fake left, and a lead's list has no Claude column.",
   },
