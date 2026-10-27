@@ -302,6 +302,15 @@
  *     on a page and in a file of totals that is not a recorded download
  *     (`src/lib/surveys/term/`, the page under Run NAISI › Surveys, and
  *     `GET /api/surveys/term/totals`).
+ * 36. **One person's answers.** An admin can open one person's answers to a
+ *     programme's surveys, or to a survey after an event, together on one
+ *     page (`src/lib/surveys/onePerson.ts`, the opening route). Each opening
+ *     is recorded before anything of the answers is read, with who opened
+ *     them, whose they were by an id, which surveys and when, and never what
+ *     they say; nothing is shown when it cannot be recorded
+ *     (`openSurveyAnswersRecorded` in `src/lib/firestore/recordOpenings.ts`).
+ *     The record stays when names come off and when an account is deleted,
+ *     as the record of downloads does.
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
@@ -695,6 +704,16 @@ export default function PrivacyContentV7({
                   there, and nothing from the survey about leaving, a survey
                   after an event or the anonymous form. An admin can take it
                   down at any time.
+                </li>
+                <li>
+                  An admin can open one person&apos;s answers to a
+                  programme&apos;s surveys, or to a survey after an event,
+                  together on one page. Each time, before anything of them is
+                  read, we record who opened them, whose they were, by an id
+                  and never by name, which surveys and when, and never what the
+                  answers say; if that record cannot be written, nothing of them
+                  is shown. We keep that record when names come off and when an
+                  account is deleted, as we keep the record of downloads.
                 </li>
                 <li>
                   One form is anonymous: the keep, change and drop form linked

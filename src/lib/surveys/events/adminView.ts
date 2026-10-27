@@ -7,6 +7,7 @@ import { shortLinkAddress } from "@/lib/qr/shortLinkCode";
 import { preview, testView, type EmailPreview, type SurveyState, type TestView } from "../adminView";
 import { emailWordsFor, siteAddress } from "../emails";
 import { surveyQuestionsOf } from "../items";
+import { whoOf } from "../onePersonLayout";
 import { closedOn, surveyState } from "../repo";
 import { signerOf, testStateFor } from "../sending";
 import {
@@ -242,7 +243,7 @@ export async function eventAnsweredView(
   survey: EventSurveyDoc,
   plan?: EventSendPlan,
 ): Promise<{
-  rows: { name: string; sent: string; answered: string; how: string; label: string; reminded: string }[];
+  rows: { name: string; who: string; sent: string; answered: string; how: string; label: string; reminded: string }[];
   answered: number;
   sent: number;
   heading: string;
@@ -258,6 +259,7 @@ export async function eventAnsweredView(
       const answer = byKey.get(key);
       return {
         name: names.get(key) ?? (row.respondent.kind === "guest" ? "A guest no longer on the list" : "Somebody whose account has gone"),
+        who: whoOf(row.respondent),
         sent: row.sentAt ? dayAndClockWords(row.sentAt) : "",
         answered: answer?.sentAt ? dayAndClockWords(answer.sentAt) : row.answered ? "Answered" : "",
         how: answer ? (answer.via === "signed-in" ? "With the QR code, signed in" : "Personal link") : "",

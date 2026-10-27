@@ -1,12 +1,20 @@
+import Link from "next/link";
 import type { AnsweredRow } from "@/lib/surveys/adminView";
 import ExportButton from "./ExportButton";
 import styles from "./surveyAdmin.module.css";
+
+/** The page that opens one person's answers, every opening recorded first (sv-person). */
+export function personHref(surveyId: string, who: string): string {
+  return `/admin/surveys/${encodeURIComponent(surveyId)}/answered/${encodeURIComponent(who)}`;
+}
 
 /**
  * Who answered, for admins only: everybody a survey was sent to, by name,
  * whether and when they answered, how, and whether it came after their
  * group first met. Names are here so an admin can remind people and answer a
  * request about someone's answers; nobody else is shown who has answered.
+ * Each name opens that person's answers, on a page that records the opening
+ * before it shows anything of them.
  */
 export default function AnsweredTab({
   surveyId,
@@ -46,7 +54,11 @@ export default function AnsweredTab({
               <tbody>
                 {rows.map((row, index) => (
                   <tr key={index}>
-                    <td>{row.name}</td>
+                    <td>
+                      <Link href={personHref(surveyId, row.who)} prefetch={false} className={styles.personLink}>
+                        {row.name}
+                      </Link>
+                    </td>
                     <td>{row.sent}</td>
                     <td>{row.answered || "Not yet"}</td>
                     <td>{row.how}</td>

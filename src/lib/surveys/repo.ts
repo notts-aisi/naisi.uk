@@ -118,6 +118,45 @@ export async function ownAnswerOf(db: Firestore, survey: SurveyDoc, uid: string)
   return null;
 }
 
+/**
+ * ONE PERSON'S ROWS AND ANSWERS ON SOME OF A PROGRAMME'S SURVEYS, for the one
+ * admins' page that opens them (`src/lib/surveys/onePerson.ts`), which
+ * records the opening before it calls this. Their rows by their fixed ids,
+ * and their answers by one equality on `respondent.uid`, each read against
+ * its own survey's questions. An answer whose name has come off is nobody's
+ * and is never found here.
+ */
+export async function personOnSurveys(
+  db: Firestore,
+  surveys: readonly SurveyDoc[],
+  uid: string,
+): Promise<{ rows: Map<string, SurveyPersonDoc>; answers: Map<string, SurveyAnswerDoc> }> {
+  const rows = new Map<string, SurveyPersonDoc>();
+  const answers = new Map<string, SurveyAnswerDoc>();
+  if (!uid || uid.includes("/") || surveys.length === 0) return { rows, answers };
+  const respondent: SurveyRespondent = { kind: "account", uid };
+  const [rowSnaps, answerSnap] = await Promise.all([
+    db.getAll(...surveys.map((survey) => db.collection(SURVEY_PEOPLE_COLLECTION).doc(surveyPersonId(survey.id, respondent)))),
+    db.collection(SURVEY_ANSWERS_COLLECTION).where("respondent.uid", "==", uid).get(),
+  ]);
+  for (const snap of rowSnaps) {
+    if (!snap.exists) continue;
+    const row = normalizeSurveyPerson(snap.id, snap.data() ?? {});
+    if (row && row.respondent.uid === uid && surveys.some((survey) => survey.id === row.surveyId)) rows.set(row.surveyId, row);
+  }
+  for (const doc of answerSnap.docs) {
+    const surveyId = (doc.data() ?? {}).surveyId;
+    const survey = surveys.find((each) => each.id === surveyId);
+    if (!survey) continue;
+    const answer = normalizeSurveyAnswer(doc.id, doc.data() ?? {}, (raw) => storedSurveyAnswers(survey.items, raw));
+    if (answer.respondent?.uid !== uid) continue;
+    // One answer per person per survey: the first sent, should a second ever be stored.
+    const kept = answers.get(survey.id);
+    if (!kept || (answer.sentAt?.getTime() ?? Infinity) < (kept.sentAt?.getTime() ?? Infinity)) answers.set(survey.id, answer);
+  }
+  return { rows, answers };
+}
+
 /** What a link's secret opens: a person's own row, a survey's test, or nothing. */
 export type LinkTarget =
   | { kind: "person"; person: SurveyPersonDoc; survey: SurveyDoc }
