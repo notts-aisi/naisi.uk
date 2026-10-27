@@ -311,6 +311,18 @@
  *     (`openSurveyAnswersRecorded` in `src/lib/firestore/recordOpenings.ts`).
  *     The record stays when names come off and when an account is deleted,
  *     as the record of downloads does.
+ * 37. **A programme's lead reads its surveys' results** (Q41, Q49 A). The
+ *     lead sees the totals and comments of the programme's own surveys,
+ *     before it, at its end and in the follow-ups, as the survey about
+ *     leaving's already were, as answers come in: on the programme's Surveys
+ *     tab and each survey's page under it, never a name, who answered or who
+ *     did not, the comments in an order that does not follow when they came
+ *     in, and no download (`LEAD_READS` in `src/lib/surveys/leadResults.ts`,
+ *     `src/lib/surveys/leadTab.ts`). With no floor, the lead may still tell
+ *     whose an answer is when few answer, which the policy says. The tab also
+ *     shows the average star rating of each piece of course material, once
+ *     three people have rated it, never who gave which
+ *     (`src/lib/courses/sourceRatings.ts`, the retrospective's count).
  *
  * The accept page's "What changed" paragraph (`src/app/re-consent/page.tsx`)
  * says the same in a few lines.
@@ -571,6 +583,15 @@ export default function PrivacyContentV7({
                   keep your answers with your name, and each survey says so at
                   the top. Only NAISI&apos;s admins can see who said what.
                   Facilitators never see anything of a survey.
+                </li>
+                <li>
+                  The programme&apos;s lead sees the totals and comments of its
+                  surveys before it, at its end and in the follow-ups as
+                  answers come in, with the comments in an order that does not
+                  follow when they came in. The lead never sees your name or
+                  who answered and who did not, and cannot download the
+                  answers. When only a few people answer, the lead may still be
+                  able to tell which answer is yours.
                 </li>
                 <li>
                   A programme&apos;s surveys ask about your level and subject of
@@ -1535,6 +1556,11 @@ export default function PrivacyContentV7({
                   among them.
                   When it ends, the lead also reads the ratings given to the
                   people on it, and rates its facilitators.
+                  The lead also sees the totals and comments of the
+                  programme&apos;s surveys, never with a name (see When you
+                  answer a survey), and the average star rating of each piece
+                  of its course material once three people have rated it,
+                  never who gave which.
                   Admins see every application but their own, with your email
                   addresses. On decision day they are the only ones who choose
                   what somebody no programme took will hear, and they send the

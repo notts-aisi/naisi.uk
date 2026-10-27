@@ -21,10 +21,9 @@ records), `src/app/api/surveys/` (the routes), `src/app/survey/[token]/` and
 - **Only admins** make, change, send, remind, close and read a survey, and only
   admins see a name beside an answer. Facilitators never see anything of a
   survey, about themselves included. A programme's lead reads totals and
-  comments for their own programme, never a name, as answers come in: for the
-  leaving survey on its page under the programme (below); for the others with
-  the lead's Surveys tab, still to come. Nothing here holds results back until a
-  survey closes.
+  comments for their own programme's surveys, never a name, as answers come
+  in, on the programme's Surveys tab and each survey's page under it (below).
+  Nothing here holds results back until a survey closes.
 - **Confidential, never anonymous.** Every survey on the site knows who answered.
   The confidential box at the top of every survey says so, in sv-privacy's words.
   The one anonymous form on the site is not a survey and has no anonymous mode
@@ -529,15 +528,83 @@ survey also shows how many said yes to follow-ups. A switch leaves out
 before-survey answers sent after someone's first session, on its own Results
 and on the before side of every later stage's comparison.
 
-**A leaving survey's results for the programme's lead** (Q46, Q49 A) are at
+**A programme's survey results for its lead** (Q46, Q49 A) are at
 `/admin/admissions/forms/<form>/programmes/<programme>/surveys/<survey>`, under
-the programme's head: the same results, for the programme's lead and admins
-(`loadProgrammeRun` first, a reviewer told in a sentence), from the first
-answer, never a name, each question's comments listed by their words and not
-in the order they came, so their order says nothing of when, or after whom,
-each was written. A lead reads the leaving survey alone for now
-(`LEAD_READS` in `src/lib/surveys/leadResults.ts`); the lead's Surveys tab,
-which will link this page, widens it with the policy's sentence for the rest.
+the programme's head and linked from its Surveys tab (below): the same results,
+for the programme's lead and admins (`loadProgrammeRun` first, a reviewer told
+in a sentence), from the first answer, never a name, each question's comments
+listed by their words and not in the order they came, so their order says
+nothing of when, or after whom, each was written, and without the admins'
+switch that leaves out answers sent after someone's first session (a smaller
+set beside a larger one). The lead reads every kind of survey the programme
+has of its own: before it, at its end, the follow-ups and leaving
+(`LEAD_READS` in `src/lib/surveys/leadResults.ts`). A survey after an event is
+no programme's, and another programme's is not this one's: each is answered
+in a sentence.
+
+## The lead's Surveys tab (sv-programme)
+
+Each programme's tabs have **Surveys**, between Messages and Settings
+(`/admin/admissions/forms/<form>/programmes/<programme>/surveys`), a link for
+the programme's lead and admins and drawn like a tab not built yet for a
+reviewer. Board sv-programme, with Q41 (no floors) and Q49 A (as answers come
+in). The page asks `loadProgrammeRun` before it reads any survey; the admin
+area is closed during a view-as session, and the page writes nothing.
+
+**What it shows**, made on the server by `leadSurveysTab`
+(`src/lib/surveys/leadTab.ts`) and drawn by
+`src/features/surveys/lead/LeadSurveysTab.tsx`:
+
+- **This programme's surveys**: each of the programme's own surveys of the
+  kinds the lead reads, once it has gone out (sent, or opened for the survey
+  about leaving), in the order of the stages, with "29 of 32 answered · closed
+  Wed 4 Nov" and a way to its results. Below them, **Ratings** once the
+  programme names a run, and **What to keep, change and drop** (the anonymous
+  form's answers) once the survey at the end has gone out.
+- **What changed**, once the survey at the end pairs with the before survey:
+  how many answered both, C1 at stage 2 and up at each end ("Considering,
+  planning or already doing it", "8 → 15 of 25") with who moved a stage, and
+  C4's averages then and now with how many moved up. Beside it, **Beliefs
+  about AI**, which reports and never targets, with a way to them at the start
+  and the end. Once names come off, nothing pairs: it says so in the Results'
+  own words and compares nothing, and every survey's totals stay.
+- **How it went**, once the survey at the end has an answer: Q1, Q2 and Q3 of
+  the questionnaire, each an average with a bar per point or per line.
+- **The weeks**: the sources people rated on the week pages, up to three
+  highest and the lowest, from the retrospective's count and its floor (an
+  average shows from three ratings).
+- **Your facilitators**: the Facilitator line of "How valuable was each
+  part?", for every group together, with the board's note that facilitators
+  never see it.
+- **In their words**: every written answer's question of the survey at the
+  end, five comments shown and the rest behind "See all", in the order of
+  their words.
+
+**One count each.** Every number on the tab is the one its own page shows,
+through that page's reader: a survey's answers, its rate, its totals and
+comments are its Results (`resultsView`, with the lead's order of comments);
+"answered both" is the change view's pairing (`bothOf`); "considering,
+planning or already doing it" is public numbers' count (`consideringOf` in
+`src/lib/surveys/publicNumbers.ts`, which its own measure uses); moved up,
+stayed and moved down, and the averages then and now, are the Results' Before
+and now; the sources people rated are the retrospective's
+(`readSourceRatings` in `src/lib/courses/sourceRatings.ts`, with its
+projection of `itemId`, `rating` and `completed`, and `aggregateRetrospective`).
+
+**Nothing about a person** reaches the tab: no name, uid, email address, row
+per person, who answered or who did not. The lead never has the download with
+names (an admin's alone).
+
+**Not drawn**, because no record holds it (the questionnaire replaced the
+board's questions): "How useful was each week?", each facilitator's own
+scores, the comments by group and "Comments about facilitators are never
+quoted or put in reports". Also not drawn: "Can be quoted" beside a comment
+(not on Results either) and the report's download (sv-report is not built).
+The board's "Results show once each survey closes" (Q49 B, which Zach did not
+choose) reads "Results show as answers come in, never with a name.", and its
+"Anonymous totals" for the source ratings reads "totals, never a name"
+(ratings are kept with the account), each listed for the boards' designers to
+confirm.
 
 **The spreadsheet with names** (`POST /api/surveys/[id]/export`) is one row per
 person who answered and one column per question (and per line), choices in their
@@ -560,7 +627,8 @@ tied to (pub-agi), and can take them down at any time.
   list, each a sentence true of the counting beside it, read by the
   questionnaire's fixed ids: would recommend it (Q1, 9 or 10 out of 10), getting
   what they wanted from it (Q3's average), considering, planning or already
-  doing work on AI safety (C1 at stage 2 and up, at the start and at the end),
+  doing work on AI safety (C1 at stage 2 and up, at the start and at the end:
+  `consideringOf`, the one count of it, which the lead's Surveys tab shows too),
   explaining the case and the main objections (C4's averages), knowing the field
   (C5's averages), knowing their next concrete step (C7's first line, agree and
   strongly agree), moved towards AI safety (A1) and took a concrete step (C9).
@@ -900,10 +968,10 @@ base; no threshold (Zach, 26 Oct 2026). The code: `src/lib/surveys/term/`
 
 ## Not built yet
 
-Results for a programme's lead but the leaving survey's, and the lead's
-Surveys tab that links them; downloading or deleting one person's answers from
-their page; "Can be quoted" beside a ticked comment on Results (sv-results);
-and an option's own words ("Something else: ..."). The model is built so none
+Downloading or deleting one person's answers from their page; "Can be quoted"
+beside a ticked comment on Results (sv-results) and on the lead's tab; the
+lead's Surveys tab's per-week usefulness and per-facilitator scores, which no
+survey asks; and an option's own words ("Something else: ..."). The model is built so none
 of them needs a rewrite: another `audience.kind`, another `respondent.kind`,
 the same records.
 
@@ -944,7 +1012,10 @@ anything is read, and refused whole when it cannot be), and This term in
 numbers' three: `tests/surveys-term-numbers.test.mjs` (the counting, and every
 number held to its own page's reader), `tests/surveys-term-numbers-page.test.mjs`
 and `tests/surveys-term-numbers-file.test.mjs` (the page and the file as every
-kind of caller, and nothing about a person in either).
+kind of caller, and nothing about a person in either), and
+`tests/surveys-lead-tab.test.mjs` (the lead's Surveys tab and each survey's
+results under it as every kind of caller, every number held to its own page's
+reader, and nothing about a person in either).
 
 The privacy policy says what a survey keeps, who sees it, when names come off
 and what a deletion does, under "When you answer a survey", and
@@ -956,7 +1027,10 @@ offers; the survey at the end showing a person their own earlier answer; and
 the follow-ups' box, who it sends them to and how it is changed; and the
 survey about leaving: who it reaches and how, what it asks, who reads it,
 that the lead may still tell whose an answer is when few have left, and the
-page that says somebody left showing its card. A change that
+page that says somebody left showing its card; and the lead's reading of the
+programme's surveys: totals and comments as answers come in, never a name, who
+answered or a download, that the lead may still tell whose an answer is when
+few answer, and the average rating of each source from three. A change that
 alters any of them changes the policy first: a template that asks a new kind
 of question fails until the policy names it.
 

@@ -231,7 +231,14 @@ function bothSurveys(input: OfferInput, questionId: string): { before: OfferSurv
   return { before, after, start, end };
 }
 
-function stage(input: OfferInput): OfferedNumber | null {
+/**
+ * How many of the people who answered C1 in both surveys were considering,
+ * planning or already doing AI safety work (stage 2 and up) at the start and
+ * at the end, and how many that is of: the one count of it, which this
+ * page's measure and the programme lead's Surveys tab both show. Null without
+ * both surveys, or with nobody who answered it both times.
+ */
+export function consideringOf(input: OfferInput): { start: number; end: number; n: number } | null {
   const both = bothSurveys(input, "q_c1");
   if (!both) return null;
   const pairs = pairsOf(
@@ -241,9 +248,14 @@ function stage(input: OfferInput): OfferedNumber | null {
     (answers) => valueOf(both.end, own(answers, "q_c1")),
   );
   if (pairs.length === 0) return null;
-  const n = pairs.length;
   const at = (side: 0 | 1) => pairs.filter((each) => each[side] >= CONSIDERING).length;
-  return pair("stage", ofWords(at(0), n), ofWords(at(1), n), "Considering, planning or already doing work on AI safety", n);
+  return { start: at(0), end: at(1), n: pairs.length };
+}
+
+function stage(input: OfferInput): OfferedNumber | null {
+  const counts = consideringOf(input);
+  if (!counts) return null;
+  return pair("stage", ofWords(counts.start, counts.n), ofWords(counts.end, counts.n), "Considering, planning or already doing work on AI safety", counts.n);
 }
 
 /** The average of a scale, at the start and at the end, for the people who answered both. */

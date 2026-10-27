@@ -818,6 +818,13 @@ const MUST_NAME = [
   // any member was asked to accept it. §2g holds each to its code.
   ["a survey is confidential, and says so at the top", /Every survey is confidential: we keep your answers with your name, and each survey says so at the top\./i],
   ["only admins see who said what in a survey, and facilitators see nothing of one", /Only NAISI&apos;s admins can see who said what\. Facilitators never see anything of a survey\./i],
+  // A programme's lead reads its surveys' totals and comments (Q41, Q49 A;
+  // the stage four walk's finding L2), added to v7 before any member was
+  // asked to accept it. §2g holds each to its code.
+  ["the lead sees a programme's surveys' totals and comments as they come, in no order that follows when they came", /The programme&apos;s lead sees the totals and comments of its surveys before it, at its end and in the follow-ups as answers come in, with the comments in an order that does not follow when they came in\./i],
+  ["the lead never sees a survey's names, who answered, or a download of its answers", /The lead never sees your name or who answered and who did not, and cannot download the answers\./i],
+  ["the lead may tell whose a survey answer is", /When only a few people answer, the lead may still be able to tell which answer is yours\./i],
+  ["what a programme's lead sees of its surveys and of the ratings of its material", /The lead also sees the totals and comments of the programme&apos;s surveys, never with a name \(see When you answer a survey\), and the average star rating of each piece of its course material once three people have rated it, never who gave which\./i],
   // The questionnaire (26 October 2026) compares at the end and in follow-ups: "and in any follow-ups" added.
   ["why a survey keeps the name, and who sees who has answered", /We keep your name with your answers so that we can compare them with your answers to the same questions at the end of the programme and in any follow-ups, and so that a reminder goes only to people who have not answered\. Only admins see who has answered\./i],
   ["who a programme's surveys go to, at each stage", /At the start of a programme and again at its end, NAISI&apos;s admins may send a survey to everybody holding a place on it, and 6 and 12 months later a follow-up to the people who said yes to one\./i],
@@ -4688,9 +4695,11 @@ describe("the course hub passage", () => {
     // each may: the admins' (behind the (admin-only) layout, or canRunSurveys
     // in the route), the person's own (by the secret in their link, or signed
     // in by their own row), and the two that take names off. No facilitator's
-    // page, and no lead's but one: a leaving survey's totals and comments for
-    // the lead's own programme, never a name (CHANGED ON PURPOSE, Q46 and
-    // Q49 A).
+    // page, and no lead's but two: the programme's Surveys tab and one
+    // survey's results under it, the totals and comments of the lead's own
+    // programme's surveys, never a name (CHANGED ON PURPOSE, Q46 and Q49 A;
+    // then finding L2, which widened the second from the leaving survey to
+    // every survey of the programme and added the first).
     const ADMIN_PAGE = "an admins' page: the (admin-only) layout sends everybody else to the dashboard first";
     const ADMIN_ROUTE = "an admin's action: canRunSurveys refuses everybody else before anything is read";
     assertExactlyTheseFiles(
@@ -4758,7 +4767,11 @@ describe("the course hub passage", () => {
         ["src/features/courses/leaving/LeftProgramme.tsx", "the page that says somebody left draws the leaving survey's card it is handed: the card's type and its component"],
         [
           "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]/page.tsx",
-          "the programme's lead and admins (loadProgrammeRun first): its leaving survey's totals and comments, made on the server, never a name",
+          "the programme's lead and admins (loadProgrammeRun first): one of its surveys' totals and comments, made on the server, never a name",
+        ],
+        [
+          "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/page.tsx",
+          "the programme's lead and admins (loadProgrammeRun first): its Surveys tab, its surveys' totals and comments made on the server, never a name or a row per person",
         ],
         // Surveys after events (the event survey block below holds each to its gate).
         ["src/app/api/surveys/[surveyId]/open-at-event/route.ts", `${ADMIN_ROUTE}; opening a survey after an event for its QR code`],
@@ -4924,9 +4937,10 @@ describe("the course hub passage", () => {
     // page and the page that says somebody left draw the card of a survey
     // waiting for their reader, which reads whether it waits and never an
     // answer; leaving makes the leaver's own row on the leaving survey,
-    // reading no answer; and a programme's lead reads its leaving survey's
-    // totals and comments, never a name. Each file listed reaches survey code
-    // through exactly the modules beside it, and decides nothing by it.
+    // reading no answer; and a programme's lead reads its surveys' totals and
+    // comments, never a name (finding L2: every survey of the programme, and
+    // its Surveys tab). Each file listed reaches survey code through exactly
+    // the modules beside it, and decides nothing by it.
     const REACHES_NO_ANSWER = new Map([
       ["src/app/(app)/learn/[runId]/weeks/[n]/page.tsx", ["week 1's first card: asks beforeSurveyCardFor whether the run's before survey waits for the reader", ["@/lib/surveys/waiting"]]],
       ["src/features/courses/WeekView.tsx", ["draws the card it is handed, by the card's own component", ["@/lib/surveys/waiting", "@/features/surveys/cards/SurveyCards"]]],
@@ -4942,8 +4956,15 @@ describe("the course hub passage", () => {
       [
         "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]/page.tsx",
         [
-          "the one reading of answers here: a leaving survey's totals and comments for its programme's lead and admins, never a name, deciding nothing",
+          "a reading of answers here: one of the programme's surveys' totals and comments for its lead and admins, never a name, deciding nothing",
           ["@/features/surveys/admin/ResultsTab", "@/features/surveys/admin/surveyAdmin.module.css", "@/lib/surveys/adminView", "@/lib/surveys/leadResults", "@/lib/surveys/words"],
+        ],
+      ],
+      [
+        "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/page.tsx",
+        [
+          "the other reading of answers here: the programme's Surveys tab, its surveys' totals and comments for its lead and admins, never a name, deciding nothing",
+          ["@/features/surveys/lead/LeadSurveysTab", "@/lib/surveys/leadTab", "@/lib/surveys/words"],
         ],
       ],
     ]);
@@ -5660,9 +5681,63 @@ describe("the check-in passage", () => {
     assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-leaving.test.mjs")), "tests/surveys-leaving.test.mjs runs both doors, the page and the email, and nobody else");
   });
 
+  test("a programme's lead sees its surveys' totals and comments as they come, never a name, who answered or a download, in no order that follows when they came, and its material's average ratings from three", () => {
+    assert.match(
+      PAGE_FLAT,
+      /<li> The programme&apos;s lead sees the totals and comments of its surveys before it, at its end and in the follow-ups as answers come in, with the comments in an order that does not follow when they came in\. The lead never sees your name or who answered and who did not, and cannot download the answers\. When only a few people answer, the lead may still be able to tell which answer is yours\. <\/li>/,
+    );
+    // Every kind of survey the programme has of its own, and never one after an event or another programme's.
+    const reads = withoutComments(read("src/lib/surveys/leadResults.ts"));
+    assert.match(reads, /export const LEAD_READS: readonly SurveyKind\[\] = \["before", "after", "followUp6", "followUp12", "leaving"\];/);
+    assert.match(reads, /if \(!isProgrammeAudience\(survey\.audience, roundId, programmeId\)\) return null;/);
+    // Its two pages, the Surveys tab and one survey's results, each ask the lead's gate before any survey is read.
+    const TABS = "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys";
+    for (const [page, reader] of [
+      [`${TABS}/page.tsx`, "leadSurveysTab(db,"],
+      [`${TABS}/[surveyId]/page.tsx`, "leadSurveyOf(db,"],
+    ]) {
+      const code = withoutComments(read(page));
+      const gate = code.indexOf("loadProgrammeRun(db, user, roundId, programmeId)");
+      const refused = code.indexOf('if (outcome.status === "not-yours") {');
+      assert.ok(gate !== -1 && refused > gate, `${page} no longer asks who the caller is, then refuses a reviewer`);
+      assert.ok(code.indexOf(reader) > refused, `${page} reads a survey before it refuses a reviewer`);
+    }
+    // The tab's numbers are each survey's Results, with the comments by their
+    // words, and it lists only those surveys, once each has gone out.
+    const tab = withoutComments(read("src/lib/surveys/leadTab.ts"));
+    assert.match(tab, /await resultsView\(db, survey, false, \{ commentsInOrder: "words" \}\)/);
+    assert.match(tab, /LEAD_READS\.includes\(survey\.kind\) && isProgrammeAudience\(survey\.audience, roundId, programmeId\) && survey\.firstSentAt !== null/);
+    // No admins' switch that shows a smaller set beside a larger one on the lead's page.
+    assert.match(withoutComments(read(`${TABS}/[surveyId]/page.tsx`)), /<ResultsTab view=\{view\} surveyId=\{survey\.id\} beforeFirstSession=\{false\} switches=\{false\} \/>/);
+    // "Cannot download the answers": the one download of a survey's answers is an admin's.
+    const exported = withoutComments(read("src/app/api/surveys/[surveyId]/export/route.ts"));
+    assert.ok(
+      exported.indexOf("if (!canRunSurveys(actor)) return NextResponse.json({ error: REFUSAL.adminOnly }, { status: 403 });") !== -1,
+      "the download of a survey's answers no longer refuses everybody but an admin",
+    );
+    // "The average star rating ... once three people have rated it, never who
+    // gave which": the retrospective's count and its floor, through its
+    // projection, which reads no uid.
+    const ratings = withoutComments(read("src/lib/courses/sourceRatings.ts"));
+    assert.match(ratings, /\.select\("itemId", "rating", "completed"\)/);
+    assert.match(ratings, /aggregateRetrospective\(\{ weeks, progress, notes: \[\], enrolledCount: 0 \}\)/);
+    assert.match(ratings, /row\.avgRating === null \? \[\]/);
+    assert.match(read("src/lib/firestore/courseTemplates.ts"), /export const RETRO_ANONYMITY_FLOOR = 3;/);
+    assert.ok(
+      existsSync(join(REPO_ROOT, "tests", "surveys-lead-tab.test.mjs")),
+      "tests/surveys-lead-tab.test.mjs renders the tab and each survey's results for every kind of caller, and finds no name",
+    );
+  });
+
   test("the survey about leaving is confidential: admins see who said what, the lead its totals and comments as they come and never a name, in no order that follows when they came, facilitators nothing, and names come off as every survey's", () => {
-    // The lead reads the leaving survey alone, under the programme, after the lead's own gate.
-    assert.match(read("src/lib/surveys/leadResults.ts"), /export const LEAD_READS: readonly SurveyKind\[\] = \["leaving"\];/);
+    // CHANGED ON PURPOSE (finding L2; Q41, Q49 A): was the leaving survey
+    // alone. The lead reads every kind of survey the programme has of its own,
+    // the leaving survey among them, and never a survey after an event, under
+    // the programme, after the lead's own gate.
+    assert.match(
+      read("src/lib/surveys/leadResults.ts"),
+      /export const LEAD_READS: readonly SurveyKind\[\] = \["before", "after", "followUp6", "followUp12", "leaving"\];/,
+    );
     const page = withoutComments(read("src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]/page.tsx"));
     assert.ok(page.indexOf("loadProgrammeRun(db, user, roundId, programmeId)") < page.indexOf("leadSurveyOf(db,"), "the lead's page reads a survey before it asks who the caller is");
     assert.match(page, /if \(outcome\.status === "not-yours"\) \{/);
@@ -6113,10 +6188,12 @@ describe("the re-consent gate", () => {
         /; that you can add your sessions to your calendar with a private link, which your calendar&apos;s provider fetches and you can replace;/,
         /gives you a private link to your sessions.*your calendar&apos;s provider \(Apple, Google or Microsoft, for example\) fetches it from us.*You can replace it at any time from the same place, and the old link then shows nothing\./,
       ],
+      // CHANGED ON PURPOSE (finding L2): the clause names what the lead sees,
+      // as v7 now says; it said only that admins see who said what.
       [
-        "that a survey is confidential, and when the name comes off",
-        /; and that our surveys are confidential: only admins see who said what, and your name comes off two years after the programme\./,
-        /Every survey is confidential: we keep your answers with your name, and each survey says so at the top\. Only NAISI&apos;s admins can see who said what\..*We take your name off your answers to a survey on the day it tells you, two years after the programme&apos;s last session/,
+        "that a survey is confidential, what the lead sees, and when the name comes off",
+        /; and that our surveys are confidential: only admins see who said what, a programme&apos;s lead sees totals and comments and never your name, and your name comes off two years after the programme\./,
+        /Every survey is confidential: we keep your answers with your name, and each survey says so at the top\. Only NAISI&apos;s admins can see who said what\..*The programme&apos;s lead sees the totals and comments of its surveys .*The lead never sees your name.*We take your name off your answers to a survey on the day it tells you, two years after the programme&apos;s last session/,
       ],
       [
         "facilitators see names only",
@@ -6147,7 +6224,7 @@ describe("the re-consent gate", () => {
     const list = paragraph.slice(paragraph.indexOf("It says what"), paragraph.indexOf("It also says"));
     assert.ok(list.length > 200, "could not find the accept page's list of what v7 says");
     assert.equal((list.match(/\band that\b/g) ?? []).length, 1, "the accept page's list of what v7 says has more than one \"and that\", or none");
-    assert.match(list, /; and that our surveys are confidential: only admins see who said what, and your name comes off two years after the programme\. $/);
+    assert.match(list, /; and that our surveys are confidential: only admins see who said what, a programme&apos;s lead sees totals and comments and never your name, and your name comes off two years after the programme\. $/);
     // A register's notes are not among what a lead reads (§2g), so the
     // paragraph does not say they are. The notes it does name for the lead
     // are the ones its groups' facilitators share.

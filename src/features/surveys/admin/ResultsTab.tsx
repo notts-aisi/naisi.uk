@@ -14,6 +14,7 @@ import {
   movedWords,
   numberWords,
   pairedWithWords,
+  promoterScoreWords,
   type ReachWord,
 } from "@/lib/surveys/words";
 import styles from "./surveyAdmin.module.css";
@@ -174,10 +175,7 @@ function Result({ result, sent, reach, ofAnswers = false }: { result: ResultRow;
             {result.min} is {result.minLabel || "the lowest"}, {result.min + (result.rows[0]?.counts.length ?? 5) - 1} is {result.maxLabel || "the highest"}.
           </p>
           {result.promoterScore !== null && (
-            <p className={styles.muted}>
-              Net promoter score {result.promoterScore > 0 ? `+${result.promoterScore}` : result.promoterScore}, from {result.rows[0]?.respondents ?? 0} answers: the share at 9
-              or 10 less the share at 0 to 6.
-            </p>
+            <p className={styles.muted}>{promoterScoreWords(result.promoterScore, result.rows[0]?.respondents ?? 0)}</p>
           )}
         </div>
       )}
@@ -204,6 +202,7 @@ export default function ResultsTab({
   surveyId,
   beforeFirstSession,
   ofAnswers = false,
+  switches = true,
 }: {
   view: ResultsView;
   surveyId: string;
@@ -214,6 +213,12 @@ export default function ResultsTab({
    * emailed, and its own numbers sit above these.
    */
   ofAnswers?: boolean;
+  /**
+   * Whether the switch that leaves out answers sent after someone's first
+   * session is drawn. Admins only: a programme's lead reads every answer
+   * counted, with no switch that shows a smaller set beside a larger one.
+   */
+  switches?: boolean;
 }) {
   const base = `/admin/surveys/${encodeURIComponent(surveyId)}/results`;
   const paired = pairedWithWords(view.pairedWith);
@@ -228,7 +233,7 @@ export default function ResultsTab({
         </p>
         {paired && <p className={styles.muted}>{paired}</p>}
         {view.namesOff && <p className={styles.muted}>{RESULT_WORDS.namesOff}</p>}
-        {view.offersFirstSession && (
+        {switches && view.offersFirstSession && (
           <Link href={beforeFirstSession ? base : `${base}?before-first-session=1`} className={styles.toggle}>
             {beforeFirstSession ? RESULT_WORDS.toggleCountAll : RESULT_WORDS.toggleLeaveOut}
           </Link>

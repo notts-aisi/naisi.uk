@@ -31,8 +31,8 @@
  *  C. The before survey (Thu 29 Oct to Tue 3 Nov) and the leaving survey. An
  *     admin makes the before survey, tests it, sends it, reminds and closes
  *     it. Its Send tab's count, its Results, Who answered, the logged
- *     download and one person's answers agree; the lead reads none of it,
- *     though the box at its top says the lead sees its totals. Sam leaves
+ *     download and one person's answers agree; the lead reads its totals
+ *     and comments with no name, as the box at its top says. Sam leaves
  *     before Group B first meets and answers the leaving survey, which the
  *     lead reads without a name.
  *  D. An event (Sun 1 Nov). Sign-ups checked in on the door list and by the
@@ -325,6 +325,7 @@ async function loadPages() {
   P.publish = await tabPage("groups/publish");
   P.people = await tabPage("people");
   P.leadSurvey = await tabPage("surveys/[surveyId]");
+  P.leadTab = await tabPage("surveys");
   P.surveyList = await adminSurveyPage("");
   P.surveySend = await adminSurveyPage("[surveyId]/send/");
   P.surveyResults = await adminSurveyPage("[surveyId]/results/");
@@ -760,6 +761,9 @@ async function tellTheStory() {
     }
   }
   seen.afterResults = await draw(P.surveyResults, "zach", { surveyId: after });
+  // The lead's Surveys tab once the survey at the end has closed (L2): each number on it is the one its own page shows.
+  seen.leadTab = await draw(P.leadTab, "claudia", PARAMS, { segment: "surveys" });
+  seen.leadTabByReviewer = await draw(P.leadTab, "lloyd", PARAMS, { segment: "surveys" });
   // Ratings at the end: each group's facilitators rate its fellows; the lead rates one too.
   const rate = (who, groupId, uid, answers) => call(who, R.ratings.POST, { groupId }, { body: { uid, answers }, course: true });
   seen.ratings = {
@@ -1049,20 +1053,87 @@ describe("C. The before survey: Send, Results, Who answered, the download and on
     assert.deepEqual(seen.personByLead, { status: 403, body: { error: "Only an admin can do this with a survey." } });
   });
 
-  test("the lead reads none of the before survey: its results page answers in a sentence (L2)", () => {
-    // Q49 (a lead sees their programme's results as answers come in) and the
-    // board sv-programme (the lead's Surveys tab) are not built: the lead's
-    // results page reads the leaving survey alone (`LEAD_READS`), and what it
-    // says of the before survey is that it is not the programme's, which is
-    // not so.
-    assert.equal(seen.leadBefore.text, "That survey isn’t one of this programme’s.");
-    assert.equal(seen.leadAfter.text, "That survey isn’t one of this programme’s.");
+  test("the lead reads the before survey under the programme as the admins' Results count it, never a name, and the survey at the end from when it is sent (L2)", () => {
+    // CHANGED ON PURPOSE (L2, made true): this pinned the lead's results page
+    // answering "That survey isn’t one of this programme’s." of both surveys,
+    // since it read the leaving survey alone. The lead now reads every survey
+    // of the programme (`LEAD_READS`, Q49 A), from the first answer: the same
+    // counts as the admins' Results, the comments by their words, and nothing
+    // that names anybody or opens the admins' own pages.
+    inOrder(seen.leadBefore.text, [
+      "AGI Strategy: before Totals and comments, never a name, from the first answer. Only the programme’s lead and NAISI’s admins see them; facilitators never do.",
+      "3 answers from the 8 people it was sent to (38%).",
+      "5. Which best describes you right now? 3 answered, 38% of the 8 it was sent to",
+      "8. How well could you explain why some researchers think advanced AI could be catastrophically dangerous, and the main objections? 3 answered, 38% of the 8 it was sent to",
+      "14. What do you most want to get out of this programme? 1 wrote something, 13% of the 8 it was sent to Meet people who think about this.",
+    ]);
+    assert.ok(seen.resultsBefore.text.includes("3 answers from the 8 people it was sent to (38%)."), "the admins' Results count it the same");
+    for (const uid of seen.sentPeople) {
+      const account = world.db.read(`users/${uid}`);
+      assert.doesNotMatch(seen.leadBefore.html, new RegExp(`\\b${uid}\\b`), `the lead's page holds ${uid}'s uid`);
+      for (const said of [account.displayName, account.email].filter(Boolean)) {
+        assert.ok(!seen.leadBefore.html.includes(said), `the lead's page names ${said}`);
+      }
+    }
+    assert.ok(!seen.leadBefore.html.includes("/admin/surveys/"), "the lead's page links an admins' page");
+    assert.equal(
+      seen.leadAfter.text,
+      "AGI Strategy: after Totals and comments, never a name, from the first answer. Only the programme’s lead and NAISI’s admins see them; facilitators never do. " +
+        "No answers yet from the 6 people it was sent to. Compared, person by person, with AGI Strategy: before (3 answers). " +
+        "Consent 0 said yes, 0% of the 6 it was sent to: Contact me at 6 and 12 months with a short follow-up survey.",
+    );
   });
 
-  test("yet the box at the top of both surveys tells each fellow the lead sees their totals (L2)", () => {
+  test("the lead's Surveys tab, after the end, shows each number its own page shows, links the three pages that had no way in, and names nobody (L2)", () => {
+    // Board sv-programme, built for L2. The tab is drawn once the survey at
+    // the end has closed; its numbers are held here to the pages that show
+    // them already: public numbers (considering it, and C4's averages), the
+    // Results of each survey and the Kairos report (net promoter score).
+    inOrder(seen.leadTab.text, [
+      "What changed 3 answered both the before and the after. Only they are compared. See before and after",
+      "Career plans Considering, planning or already doing it 0 → 1 of 2 2 moved up a stage, 0 stayed, 0 moved down.",
+      "Confidence and knowledge Explaining the case that advanced AI could be catastrophic, and the main objections 3.0 → 5.0 out of 7 3 of 3 moved up.",
+      "Beliefs about AI What people think about AI Beliefs are reported, never targets: the fellowship doesn’t aim to move them one way. See them at the start and the end",
+      "This programme’s surveys Results show as answers come in, never with a name.",
+      "AGI Strategy: before See results 3 of 8 answered · closed Tue 3 Nov",
+      "AGI Strategy: after See results 4 of 6 answered · closed Thu 10 Dec",
+      "AGI Strategy: leaving See results 1 of 1 answered · no closing date",
+      "Ratings See ratings",
+      "What to keep, change and drop See answers",
+      "How it went 4 answers How likely are you to recommend this programme to a friend with similar interests? 8.3 Average, out of 10 · 4 answers",
+      "Net promoter score +25, from 4 answers: the share at 9 or 10 less the share at 0 to 6.",
+      "Did you get what you wanted from it? 4.0 Average, out of 5 · 3 answers",
+      "Your facilitators Only you and admins Your facilitators don’t see this. Pass on the gist in your own words, never fellows’ words or the numbers.",
+      "In their words 4 answers Did the programme have any negative effect on you or your plans? 2 of 2 I dropped a module for it. None. It made my plans clearer.",
+    ]);
+    const measure = (id) => seen.offer?.numbers.find((number) => number.id === id)?.figure ?? null;
+    assert.deepEqual(measure("stage"), { kind: "pair", start: "0 of 2", end: "1 of 2" }, "public numbers counts considering it the same");
+    assert.deepEqual(measure("explain"), { kind: "pair", start: "3.0 out of 7", end: "5.0" }, "public numbers averages C4 the same");
+    assert.ok(seen.resultsClosed.text.includes("3 answers from the 8 people it was sent to (38%)."));
+    assert.ok(seen.afterResults.text.includes("4 answers from the 6 people it was sent to (67%)."));
+    assert.ok(seen.adminLeavingResults.text.includes("1 answer from the 1 person it reached (100%)."));
+    assert.ok(seen.kairos.text.includes("Satisfaction Net promoter score +25 n = 4"));
+    // The three pages that were reached from nowhere: each survey's results, Ratings and the anonymous form's answers.
+    for (const path of [`surveys/${seen.beforeId}`, `surveys/${seen.afterId}`, `surveys/${seen.leavingId}`, "ratings", "anonymous-feedback"]) {
+      assert.ok(seen.leadTab.html.includes(`href="/admin/admissions/forms/${ROUND}/programmes/${AGI}/${path}"`), `the tab does not link ${path}`);
+    }
+    assert.equal(seen.leadTab.wrote, false);
+    for (const uid of seen.sentPeople) {
+      const account = world.db.read(`users/${uid}`);
+      assert.doesNotMatch(seen.leadTab.html, new RegExp(`\\b${uid}\\b`), `the tab holds ${uid}'s uid`);
+      for (const said of [account.displayName, account.email].filter(Boolean)) assert.ok(!seen.leadTab.html.includes(said), `the tab names ${said}`);
+    }
+    assert.equal(
+      seen.leadTabByReviewer.text,
+      "Only the programme’s lead and admins can open Surveys Surveys shows the totals and comments of the programme’s surveys, so only the programme’s lead or an admin can open it. Go to applications",
+    );
+  });
+
+  test("and the box at the top of both surveys says so: the lead sees totals and comments, never names (L2)", () => {
     // `confidentialPoints` (src/lib/surveys/words.ts) names the lead on every
-    // programme survey; the policy (v7) names a lead as a reader of the
-    // leaving survey only.
+    // programme survey, and the lead now reads every programme survey's
+    // totals and comments (the test above). The words are sv-privacy's, as
+    // approved, unchanged.
     for (const page of [seen.answerPageBefore, seen.answerPageAfter]) {
       assert.ok(
         page.text.includes("Confidential Only NAISI’s admins can see who said what. Claudia sees totals and comments, never names. Rahul and Sofia never see your answers."),
