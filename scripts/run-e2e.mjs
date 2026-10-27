@@ -8,6 +8,7 @@
  *   node scripts/run-e2e.mjs --local               against a server it starts
  *   node scripts/run-e2e.mjs --local --skip-build  reuse the previous build
  *   node scripts/run-e2e.mjs --spec applicant-funnel,events-rsvp
+ *   node scripts/run-e2e.mjs --local --shard 2/3  one part of three, as CI runs it
  *   node scripts/run-e2e.mjs --list                what it can run
  *   node scripts/run-e2e.mjs --teardown            tear down whatever the ledgers name, nothing else
  *   node scripts/run-e2e.mjs --sweep <runId,...>   remove a run's rows and accounts WITHOUT a ledger
@@ -71,6 +72,7 @@ import { appendFileSync, existsSync, readFileSync, readdirSync, rmSync } from "n
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { namesInShard, parseShard } from "./e2e/lib/shard.mjs";
 import {
   HARNESS_LOCAL_ORIGIN,
   RECAPTCHA_SKIP_REASON,
@@ -97,6 +99,7 @@ function parseArgs(raw) {
   const applicantsAt = raw.indexOf("--applicants");
   const specAt = raw.indexOf("--spec");
   const sweepAt = raw.indexOf("--sweep");
+  const shardAt = raw.indexOf("--shard");
   return {
     local: raw.includes("--local"),
     skipBuild: raw.includes("--skip-build"),
@@ -110,6 +113,9 @@ function parseArgs(raw) {
     // Undefined when the flag is absent, so each spec's own default applies
     // rather than this file holding a second opinion about one spec's shape.
     applicants: applicantsAt === -1 ? undefined : Number(raw[applicantsAt + 1]),
+    // CI splits the suite across machines: see scripts/e2e/lib/shard.mjs for
+    // which spec runs where, and why one of them always runs in part 1.
+    shard: shardAt === -1 ? null : { raw: String(raw[shardAt + 1] ?? ""), parsed: parseShard(raw[shardAt + 1]) },
     only:
       specAt === -1
         ? null
@@ -551,6 +557,16 @@ async function main() {
       return 1;
     }
     selected = specs.filter((s) => argv.only.includes(s.spec.name));
+  }
+  if (argv.shard) {
+    if (!argv.shard.parsed) {
+      console.error(`[e2e:browser] --shard takes a part and a count, like 2/3; got "${argv.shard.raw}".`);
+      return 1;
+    }
+    const { index, count } = argv.shard.parsed;
+    const names = namesInShard(selected.map((s) => s.spec.name), index, count);
+    selected = selected.filter((s) => names.includes(s.spec.name));
+    log(`Part ${index} of ${count}: ${selected.map((s) => s.spec.name).join(", ") || "nothing"}.`);
   }
   if (selected.length === 0) {
     console.error("[e2e:browser] nothing to run.");
