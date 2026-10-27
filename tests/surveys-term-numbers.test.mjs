@@ -177,10 +177,30 @@ describe("a programme's row", () => {
   test("answered both is the change view's pairing; considering counts stage 2 and up at each end, of those", () => {
     const made = row();
     assert.equal(made.answeredBoth, 3, "a, b and c answered both; d answered at the end only");
-    assert.deepEqual(made.considering, { start: 1, end: 2, of: 3 }, "c skipped the question at the start, so is not counted there");
+    // The stage is counted over the people who answered it both times, as
+    // public numbers, the Kairos report and Results count it (walk 4b, L3).
+    assert.deepEqual(made.considering, { start: 1, end: 1, of: 2 }, "c skipped the question at the start, so is counted at neither end: a and b answered it both times");
     assert.equal(made.afterSurvey, "Closed Fri 18 Dec: 5 of 6");
     assert.equal(words.consideringWords(1, 2, 3), "1 → 2 of 3");
     assert.equal(model.CONSIDERING_STAGE, 2, "“One of several options I’m seriously considering” and up");
+  });
+
+  test("the stage is counted only over the people who answered it both times, skipped at either end, with that number beside answered both", () => {
+    // b answers both surveys and skips the stage question at the end, as Dev
+    // does in the stage four journey: b answered both, and is counted at
+    // neither end of the stage.
+    const skippedAtEnd = row({
+      before: { items, answers: [{ uid: "a", answers: stage(2) }, { uid: "b", answers: stage(2) }] },
+      after: { ...programme().after, answers: [{ uid: "a", answers: stage(3) }, { uid: "b", answers: { q_q1: { type: "scale", value: 7 } } }] },
+    });
+    assert.equal(skippedAtEnd.answeredBoth, 2);
+    assert.deepEqual(skippedAtEnd.considering, { start: 1, end: 1, of: 1 });
+    // Nobody answered it both times: no figure, though two answered both surveys.
+    const nobody = row({
+      before: { items, answers: [{ uid: "a", answers: {} }, { uid: "b", answers: stage(4) }] },
+      after: { ...programme().after, answers: [{ uid: "a", answers: stage(3) }, { uid: "b", answers: {} }] },
+    });
+    assert.deepEqual([nobody.answeredBoth, nobody.considering], [2, null]);
   });
 
   test("before the survey at the end goes, nothing is compared, and the cell says when it comes, from records", () => {

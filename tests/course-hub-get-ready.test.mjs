@@ -700,12 +700,49 @@ describe("4. Publish's readiness check: what Publish refuses for is needed, the 
   test("the page draws the check: Ready? with its chip, the two lists and their words", async () => {
     await allDone();
     const drawn = await publishView("claudia");
+    // `allDone` presses Publish, so the card says when, in the Overview's
+    // checklist's words, and what a later move emails, in place of "Ready to
+    // publish" (walk 4b, L7); the next test draws the card before the press.
     assert.match(
       drawn.text,
-      /^People in groups Publish AGI Strategy’s groups Ready\? Ready to publish Needed to publish Every group has a day, a time and a room 3 groups: Tue 6pm, Wed 1pm, Thu 6pm Worth checking These don’t stop you publishing\. Every group has a facilitator/,
+      /^People in groups Publish AGI Strategy’s groups Ready\? Published Published Mon 26 Oct, 12pm\. Someone you move now sees nothing of their new group until you publish again, which emails only the people who haven’t been told\. Needed to publish Every group has a day, a time and a room 3 groups: Tue 6pm, Wed 1pm, Thu 6pm Worth checking These don’t stop you publishing\. Every group has a facilitator/,
     );
     assert.match(drawn.html, new RegExp(`<a href="${PROGRAMME_PATH}/groups" class="back">`));
     assert.deepEqual(drawn.groups, { runId: RUN.agi });
+  });
+
+  test("before the press the chip says Ready to publish; after it, the card says when the Overview does and what a later move emails", async () => {
+    // Everything `allDone` does but the press.
+    world.db.seed(W01, weekDoc(1, { ready: true }));
+    world.db.seed(`courseRuns/${RUN.agi}/weeks/w02`, weekDoc(2, { ready: true }));
+    world.db.seed(`courseRuns/${RUN.agi}/weeks/w03`, weekDoc(3, { ready: true }));
+    assert.equal((await join_.press("zach")).status, 200);
+    const placed = await join_.place("zach", [
+      { uid: "amara", groupId: B },
+      { uid: "bea", groupId: A },
+      { uid: "callum", groupId: B },
+      { uid: "dev", groupId: C },
+      { uid: "kofi", groupId: B },
+      { uid: "sam", groupId: B },
+      { uid: "tariq", groupId: A },
+      { uid: "zach", groupId: B },
+    ]);
+    assert.equal(placed.status, 200);
+    const before = await publishView("claudia");
+    assert.match(before.text, /^People in groups Publish AGI Strategy’s groups Ready\? Ready to publish Needed to publish /);
+    assert.equal(before.readiness.published, null);
+    assert.equal((await join_.publish("claudia")).status, 200);
+    for (const who of ["claudia", "zach"]) {
+      const after = await publishView(who);
+      const step = (await facts(who)).checklist.steps.find((each) => each.key === "publish");
+      assert.deepEqual(after.readiness.published, {
+        when: step.line,
+        later: "Someone you move now sees nothing of their new group until you publish again, which emails only the people who haven’t been told.",
+      }, who);
+      assert.equal(step.line, "Published Mon 26 Oct, 12pm.");
+      assert.match(after.text, /Ready\? Published Published Mon 26 Oct, 12pm\. Someone you move now /, who);
+      assert.ok(!after.text.includes("Ready to publish"), who);
+    }
   });
 });
 

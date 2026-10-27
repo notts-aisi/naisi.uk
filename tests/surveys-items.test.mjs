@@ -729,6 +729,21 @@ describe("dates, in London", () => {
     assert.equal(words.programmeLine("fellowship", "AGI Strategy"), "Fellowship: AGI Strategy");
     assert.equal(words.programmeLine("incubator", "Alignment Research"), "Incubator: Alignment Research");
   });
+
+  // The Send tab's progress line says who it was sent to and no longer
+  // reaches, so it and "Remind 4 haven't answered" add up (walk 4b, L4).
+  test("the Send tab's progress line, with the people Remind no longer reaches", () => {
+    const closes = new Date("2026-11-04T23:59:00Z");
+    assert.equal(words.progressWords(20, 32, closes, false), "20 of 32 have answered. It closes on Wed 4 Nov.");
+    assert.equal(words.notReachedWords(0, "start"), "");
+    assert.equal(
+      words.progressWords(3, 8, closes, false, words.notReachedWords(1, "start")),
+      "3 of 8 have answered, and 1 who hasn’t no longer holds a place. It closes on Wed 4 Nov.",
+    );
+    assert.equal(words.notReachedWords(2, "end"), "2 who haven’t no longer hold a place");
+    assert.equal(words.notReachedWords(1, "followUps"), "1 who hasn’t no longer says yes to follow-ups");
+    assert.equal(words.notReachedWords(3, "followUps"), "3 who haven’t no longer say yes to follow-ups");
+  });
 });
 
 describe("the records", () => {

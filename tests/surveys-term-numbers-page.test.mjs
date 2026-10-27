@@ -81,7 +81,9 @@ describe("the page, for an admin", () => {
     assert.ok(text.includes("Technical AI Safety Fellowship 2 Not yet In February, after week 10"));
     assert.ok(text.includes("AGI Strategy Fellowship 6 4 3 1 → 2 of 3 Closed Wed 9 Dec: 5 of 6"));
     assert.ok(!text.includes("Research Incubator"), "a programme that names no run is no programme of the term");
-    assert.ok(text.includes("Considering, planning or already doing it: at the start → at the end, of the people who answered both surveys."));
+    // Of the people who answered that question in both surveys, as the column counts it (walk 4b, L3).
+    assert.ok(text.includes("Considering, planning or already doing it: at the start → at the end, of the people who answered that question in both surveys."));
+    assert.ok(!text.includes("of the people who answered both surveys."), "the footnote still says the count is of everybody who answered both surveys");
     // As drawn: "Not yet" across Finished, Answered both and Considering; "No survey" across both survey columns.
     assert.match(html, /<td colspan="3" data-label="Finished"><span class="muted">Not yet<\/span><\/td>/i);
     assert.match(html, /<td colspan="2" data-label="Survey answers"><span class="muted">No survey<\/span><\/td>/i);

@@ -1,4 +1,4 @@
-import type { PeopleFilter, PersonComing, PersonFree, PersonStatus } from "./views";
+import type { PeopleFilter, PersonComing, PersonFree, PersonRow, PersonStatus } from "./views";
 
 /**
  * THE WORDS OF A PROGRAMME'S PEOPLE TAB (board st-people), in one place.
@@ -59,11 +59,37 @@ export function showingWords(shown: number, of: number): string {
   return `Showing ${shown} of ${of}`;
 }
 
-/** "30 hold a place; 2 gave theirs back." The board's sentence, from the two counts. */
-export function placesSentence(holding: number, gaveBack: number): string {
-  if (holding === 0 && gaveBack === 0) return "Nobody holds a place yet.";
-  const held = `${holding} ${holding === 1 ? "holds" : "hold"} a place`;
-  return gaveBack === 0 ? `${held}.` : `${held}; ${gaveBack} gave theirs back.`;
+/**
+ * "30 hold a place; 2 gave theirs back." The board's sentence, from the
+ * counts. Somebody who left the programme's run after it was theirs (by
+ * themselves, or taken off by staff) is said apart from somebody who gave
+ * their place back: "6 hold a place; 1 gave theirs back; 2 left." (not
+ * drawn: listed in the build notes for the boards' designers to confirm).
+ */
+export function placesSentence(holding: number, gaveBack: number, left = 0): string {
+  if (holding === 0 && gaveBack === 0 && left === 0) return "Nobody holds a place yet.";
+  const parts = [`${holding} ${holding === 1 ? "holds" : "hold"} a place`];
+  if (gaveBack > 0) parts.push(`${gaveBack} gave theirs back`);
+  if (left > 0) parts.push(`${left} left`);
+  return `${parts.join("; ")}.`;
+}
+
+/**
+ * The filter for everybody who gave a place back, once one of them left the
+ * programme's run (`placesSentence` says them apart): "Gave their place back
+ * or left" (not drawn: listed in the build notes for the boards' designers to
+ * confirm), so its count is the sentence's two numbers together.
+ */
+export const GAVE_BACK_OR_LEFT = "Gave their place back or left";
+
+/** What a filter's button says: its own words, or `GAVE_BACK_OR_LEFT` once somebody under it has left. */
+export function filterLabelWords(filter: PeopleFilter, someoneLeft: boolean): string {
+  return filter === "gave-back" && someoneLeft ? GAVE_BACK_OR_LEFT : FILTER_LABEL[filter];
+}
+
+/** Whether anybody under Gave their place back left the programme's run rather than giving the place back. */
+export function someoneLeftOf(rows: readonly Pick<PersonRow, "category" | "status">[]): boolean {
+  return rows.some((row) => row.category === "gave-back" && row.status.kind === "left");
 }
 
 /** "Yes, Mon 26 Oct", "Not yet", "No". */

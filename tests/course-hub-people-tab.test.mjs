@@ -303,8 +303,11 @@ describe("3. one count", () => {
       assert.equal(view.rows.filter((row) => row.category === "holding").length, fromHolders);
       assert.ok(view.sentence.startsWith(`${fromHolders} hold a place`), view.sentence);
     }
-    assert.equal((await open("claudia")).view.sentence, "6 hold a place; 3 gave theirs back.");
-    assert.equal((await open("zach")).view.sentence, "6 hold a place; 4 gave theirs back.");
+    // Somebody who left the run is said apart from somebody who gave a place
+    // back (walk 4b, L6): Sam left and Callum was taken off; Nina gave a
+    // place back, and an admin also reads Sana's no.
+    assert.equal((await open("claudia")).view.sentence, "6 hold a place; 1 gave theirs back; 2 left.");
+    assert.equal((await open("zach")).view.sentence, "6 hold a place; 2 gave theirs back; 2 left.");
   });
 
   test("staff taking somebody off the run moves them to Gave their place back at once, and every count with them", async () => {
@@ -339,7 +342,8 @@ describe("3. one count", () => {
       coming: before.counts.coming - 1,
       "gave-back": before.counts["gave-back"] + 1,
     });
-    assert.equal(after.sentence, "5 hold a place; 4 gave theirs back.");
+    // Taken off, Amara has left the run: said with Sam and Callum (walk 4b, L6).
+    assert.equal(after.sentence, "5 hold a place; 1 gave theirs back; 3 left.");
     // The tab's number is the hand-over's test, which agrees at once.
     assert.equal(await countPlaceHolders(world.db, await loadForm(world.db, ROUND), AGI), 5);
     assert.match((await layout("claudia")).html, /People<span class="tabCount">5<\/span>/);
@@ -472,12 +476,16 @@ describe("4. every value from records", () => {
 
   test("the page draws the board's words", async () => {
     const { html, text } = await open("claudia");
-    for (const label of ["Everyone", "Coming", "Haven’t said", "Not said when they’re free", "Gave their place back", "Invited"]) {
+    // Somebody under Gave their place back left the run, so the filter says so
+    // too, as the sentence does (walk 4b, L6); before anybody leaves it is the
+    // board's "Gave their place back" (section 5).
+    for (const label of ["Everyone", "Coming", "Haven’t said", "Not said when they’re free", "Gave their place back or left", "Invited"]) {
       assert.match(html, new RegExp(`aria-pressed="(true|false)"[^>]*>${label}<span`), label);
     }
+    assert.doesNotMatch(html, /aria-pressed="(true|false)"[^>]*>Gave their place back<span/);
     assert.match(html, /role="group" aria-label="Show"/);
     for (const words_ of [
-      "6 hold a place; 3 gave theirs back.",
+      "6 hold a place; 1 gave theirs back; 2 left.",
       "Leads see names, degrees and replies. Email addresses and access requirements stay with admins.",
       "Everyone who holds a place or gave it back",
       "Showing 9 of 9",
@@ -559,6 +567,19 @@ describe("5. the words", () => {
     assert.equal(words.placesSentence(1, 1), "1 holds a place; 1 gave theirs back.");
     assert.equal(words.placesSentence(4, 0), "4 hold a place.");
     assert.equal(words.placesSentence(0, 0), "Nobody holds a place yet.");
+    // Somebody who left the run, said apart (walk 4b, L6).
+    assert.equal(words.placesSentence(6, 1, 2), "6 hold a place; 1 gave theirs back; 2 left.");
+    assert.equal(words.placesSentence(6, 0, 1), "6 hold a place; 1 left.");
+    assert.equal(words.placesSentence(0, 0, 1), "0 hold a place; 1 left.");
+  });
+
+  test("the filter for giving a place back says left too once somebody under it left the run", () => {
+    const row = (category, kind) => ({ category, status: { kind } });
+    assert.equal(words.filterLabelWords("gave-back", false), "Gave their place back");
+    assert.equal(words.filterLabelWords("gave-back", true), "Gave their place back or left");
+    assert.equal(words.filterLabelWords("coming", true), "Coming");
+    assert.equal(words.someoneLeftOf([row("gave-back", "gave-back"), row("holding", "left")]), false, "a leaver still holding a place is not under it");
+    assert.equal(words.someoneLeftOf([row("gave-back", "gave-back"), row("gave-back", "left")]), true);
   });
 
   test("a seat that has left the run reads as the hand-over panel and the person's own page read it", async () => {

@@ -580,9 +580,28 @@ export function remindedWords(n: number): string {
   return `Reminded the ${n} who hadn’t answered`;
 }
 
-/** "20 of 32 have answered. It closes on Wed 4 Nov." */
-export function progressWords(answered: number, of: number, closesAt: Date, closed: boolean): string {
-  return `${answered} of ${of} have answered. ${closed ? `It closed on ${dayWords(closesAt)}.` : `It closes on ${dayWords(closesAt)}.`}`;
+/**
+ * "20 of 32 have answered. It closes on Wed 4 Nov." With `notReached`
+ * (`notReachedWords`) once somebody it was sent to has left without
+ * answering: "3 of 8 have answered, and 1 who hasn’t no longer holds a
+ * place. It closes on Wed 4 Nov."
+ */
+export function progressWords(answered: number, of: number, closesAt: Date, closed: boolean, notReached = ""): string {
+  const who = notReached ? `${answered} of ${of} have answered, and ${notReached}.` : `${answered} of ${of} have answered.`;
+  return `${who} ${closed ? `It closed on ${dayWords(closesAt)}.` : `It closes on ${dayWords(closesAt)}.`}`;
+}
+
+/**
+ * Not drawn: the people a programme survey was sent to who have not answered
+ * and are no longer in its audience, so its Remind does not reach them ("1
+ * who hasn’t no longer holds a place"), or "" for nobody. Listed in the build
+ * notes for the boards' designers to confirm.
+ */
+export function notReachedWords(n: number, kind: AudienceKind): string {
+  if (n <= 0) return "";
+  const who = n === 1 ? "1 who hasn’t" : `${n} who haven’t`;
+  if (kind === "followUps") return `${who} no longer ${n === 1 ? "says" : "say"} yes to follow-ups`;
+  return `${who} no longer ${n === 1 ? "holds" : "hold"} a place`;
 }
 
 /** "Email 30 people". */

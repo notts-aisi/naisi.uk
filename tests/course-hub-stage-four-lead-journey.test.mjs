@@ -983,13 +983,24 @@ describe("B. Publish: the number on its button is the emails a press sends, to t
     ]);
   });
 
-  test("after the press the checklist says Published; Publish's own Ready card still reads Ready to publish (L7)", () => {
+  test("after the press the checklist says Published, and so does Publish's own card, with what a later move emails (L7)", () => {
     assert.equal(stepOf(seen.overviewPublished, "publish").line, "Published Tue 27 Oct, 10am.");
-    // Publish's readiness card is built without the run's published stamp
-    // (`buildReadiness` never reads `facts.published`), so the page a lead
-    // opens from "Publish groups…" after publishing still says it is ready to.
-    assert.ok(seen.publishAfter.text.startsWith("People in groups Publish AGI Strategy’s groups Ready? Ready to publish"));
+    // Publish's readiness card reads the run's published stamp (`buildReadiness`,
+    // `facts.published`): when, in the checklist's own words, and what a later
+    // move emails, in place of "Ready to publish".
+    assert.deepEqual(seen.publishAfter.readiness.published, {
+      when: stepOf(seen.overviewPublished, "publish").line,
+      later: "Someone you move now sees nothing of their new group until you publish again, which emails only the people who haven’t been told.",
+    });
+    assert.ok(
+      seen.publishAfter.text.startsWith(
+        "People in groups Publish AGI Strategy’s groups Ready? Published Published Tue 27 Oct, 10am. Someone you move now sees nothing of their new group until you publish again, which emails only the people who haven’t been told.",
+      ),
+    );
     assert.equal(seen.publishAfter.readiness.ready, true);
+    // Before the press, the board's words.
+    assert.ok(seen.publishPlaced.text.startsWith("People in groups Publish AGI Strategy’s groups Ready? Ready to publish"));
+    assert.equal(seen.publishPlaced.readiness.published, null);
   });
 });
 
@@ -1151,14 +1162,18 @@ describe("C. The before survey: Send, Results, Who answered, the download and on
   });
 });
 
-describe("C. After somebody leaves: the survey list's Remind count and the Send tab's disagree (L4)", () => {
-  test("the list says Remind 5 haven't answered; the Send tab it opens says 4, its button emails 4, and the press sends 4", () => {
-    // Sam left on Sun 1 Nov. The list counts everybody sent it and not
-    // answered (`rowOf` in src/lib/surveys/adminView.ts); the Send tab and
-    // the press count only people still holding a place (`readSendPlan`).
-    assert.ok(seen.listBeforeRemind.text.includes("3 of 8 Closes Wed 4 Nov Remind 5 haven’t answered"));
+describe("C. After somebody leaves: the survey list's Remind count is the Send tab's (L4)", () => {
+  test("the list says Remind 4 haven't answered; the Send tab it opens says who left and 4, its button emails 4, and the press sends 4", () => {
+    // Sam left on Sun 1 Nov. The list's count is the Remind button's reach
+    // (`remindReach` in src/lib/surveys/sending.ts, which the Send tab and the
+    // press read too): sent it, not answered, and still holding a place. The
+    // Send tab says the one it no longer reaches beside who answered, so its
+    // two lines add up: 8 less 3 less 1 is 4.
+    assert.ok(seen.listBeforeRemind.text.includes("3 of 8 Closes Wed 4 Nov Remind 4 haven’t answered"));
+    // Before Sam left the list's count was 5, every one of them reached.
+    assert.ok(seen.listMid.text.includes("3 of 8 Closes Wed 4 Nov Remind 5 haven’t answered"));
     inOrder(seen.sendBeforeRemind.text, [
-      "3 of 8 have answered. It closes on Wed 4 Nov.",
+      "3 of 8 have answered, and 1 who hasn’t no longer holds a place. It closes on Wed 4 Nov.",
       "Remind 4 haven’t answered. Nothing goes until you press the button.",
       "To 4 people",
       "Email 4 people",
@@ -1169,15 +1184,17 @@ describe("C. After somebody leaves: the survey list's Remind count and the Send 
     assert.deepEqual(seen.reminded, { status: 200, body: { ok: true, sent: 4, held: 0, suppressed: 0, failed: 0, noAddress: 0 } });
     assert.deepEqual(seen.remindMailSurvey.map((message) => message.to), ["callum", "kofi", "tariq", "zach"].map((uid) => `${uid}@example.com`));
     assert.ok(seen.remindMailSurvey.every((message) => message.subject === "A reminder: 14 questions for AGI Strategy, by Wed 4 Nov"));
-    // After the press, still 5 on the list.
-    assert.ok(seen.listAfterRemind.text.includes("3 of 8 Closes Wed 4 Nov Remind 5 haven’t answered"));
+    // After the press, the same 4 on the list: a reminder answers nobody.
+    assert.ok(seen.listAfterRemind.text.includes("3 of 8 Closes Wed 4 Nov Remind 4 haven’t answered"));
   });
 });
 
-describe("C. Sam leaves before Group B first meets: People, the leaving survey and the Overview (L1)", () => {
-  test("leaving is accepted, and People lists Sam as Left the programme, under Gave their place back", () => {
+describe("C. Sam leaves before Group B first meets: People, the leaving survey and the Overview agree (L1)", () => {
+  test("leaving is accepted, and People lists Sam as Left the programme, under Gave their place back or left", () => {
     assert.deepEqual(seen.samLeaves, { status: 200, body: { ok: true, feedbackUrl: "" } });
-    assert.deepEqual(peopleSaid(seen.peopleSamLeft).sentence, "7 hold a place; 2 gave theirs back.");
+    // Sam left; Nina gave a place back: said apart (L6).
+    assert.deepEqual(peopleSaid(seen.peopleSamLeft).sentence, "7 hold a place; 1 gave theirs back; 1 left.");
+    assert.ok(seen.peopleSamLeft.html.includes(">Gave their place back or left<span"));
     assert.deepEqual(
       peopleRows(seen.peopleSamLeft).find((row) => row[0] === "Sam Whitfield"),
       ["Sam Whitfield", "gave-back", null, "left"],
@@ -1198,26 +1215,42 @@ describe("C. Sam leaves before Group B first meets: People, the leaving survey a
     assert.equal(seen.reviewerLeaving.text, "Only the programme’s lead and admins read its survey results.");
   });
 
-  test("the Overview says Nobody has left and never shows Sam, the day Sam left or the reason Sam gave", () => {
-    // The Overview's people line and its "left" cards count leavers only where
-    // a register marked them (`isListed` in src/lib/courses/programmeAttendance.ts),
-    // and Group B had not met. People names the Overview as the one reader of a
-    // leaver's reason, so "Too much on this term." reaches the lead nowhere.
-    assert.ok(seen.overviewSamLeft.text.includes("People 7 taking part Nobody has left."));
-    assert.ok(!seen.overviewSamLeft.text.includes("Sam"));
-    assert.ok(!seen.overviewSamLeft.text.includes("Too much on this term."));
-    // Later in the term the same Overview counts Callum, taken off after a
-    // register marked Callum, and never Sam.
-    assert.ok(seen.overviewAfterRemove.text.includes("Callum Price left on Wed 11 Nov Callum’s off Group B’s register from week 3."));
-    assert.ok(seen.overviewAfterRemove.text.includes("People 6 taking part 1 left."));
-    assert.ok(!seen.overviewAfterEnd.text.includes("Sam"));
+  test("the Overview names Sam the day Sam left, with the reason Sam gave, and counts Sam as left, though Group B had not met (L1)", () => {
+    // The Overview's people line and its "left" cards read every enrolment of
+    // the run that left (`leaversOfRun` in src/lib/courses/programmeOverview.ts),
+    // whether or not a register marked them, as People reads a seat that left.
+    // People names the Overview as the one reader of a leaver's reason, and it
+    // reads Sam's. The grid keeps its own rule, a row being somebody a register
+    // marked (tests/course-hub-overview.test.mjs holds that).
+    const leftCards = (drawn) =>
+      find(drawn.element, "ProgrammeOverview")[0]
+        .props.model.attention.filter((item) => item.kind === "left")
+        .map((item) => [item.title, item.detail]);
+    const SAM = ["Sam Whitfield left on Sun 1 Nov", "Sam said: “Too much on this term.” Sam’s off Group B’s register from week 1."];
+    const CALLUM = ["Callum Price left on Wed 11 Nov", "Callum’s off Group B’s register from week 3."];
+    assert.deepEqual(leftCards(seen.overviewSamLeft), [SAM]);
+    assert.ok(seen.overviewSamLeft.text.includes("People 7 taking part 1 left."));
+    // Later in the term the same Overview names Callum, taken off after a
+    // register marked Callum, the most recent first, and still Sam.
+    assert.deepEqual(leftCards(seen.overviewAfterRemove), [CALLUM, SAM]);
+    assert.ok(seen.overviewAfterRemove.text.includes("People 6 taking part 2 left."));
+    assert.deepEqual(leftCards(seen.overviewAfterEnd), [CALLUM, SAM]);
+    // Who finished lists the people who started: Callum left after a register
+    // marked Callum, Sam before any did.
+    assert.ok(!/Left the programme[^.]*Sam Whitfield/.test(seen.overviewAfterEnd.text));
   });
 
-  test("People says 3 gave their place back after Callum is taken off: Nina gave a place back, Sam left, Callum was taken off (L6)", () => {
+  test("People says 1 gave a place back and 2 left after Callum is taken off: Nina gave a place back, Sam left, Callum was taken off (L6)", () => {
+    // `placesSentence` says somebody who left the run (by themselves or taken
+    // off by staff) apart from somebody who gave a place back; the filter
+    // holds all three and says so ("Gave their place back or left", 3).
     assert.deepEqual(peopleSaid(seen.peopleMid), {
-      sentence: "6 hold a place; 3 gave theirs back.",
+      sentence: "6 hold a place; 1 gave theirs back; 2 left.",
       counts: { everyone: 9, coming: 3, "havent-said": 3, "not-said-free": 1, "gave-back": 3, invited: 1 },
     });
+    assert.ok(seen.peopleMid.html.includes(">Gave their place back or left<span class=\"filterCount\">3</span>"));
+    // Before anybody left, the board's words.
+    assert.ok(seen.peopleLead.html.includes(">Gave their place back<span class=\"filterCount\">1</span>"));
     assert.deepEqual(
       (seen.peopleMid.view.rows ?? []).filter((row) => row.category === "gave-back").map((row) => [row.name, row.status]),
       [
@@ -1238,7 +1271,12 @@ describe("D. VR games night: Check-in, the organiser's tab and the night's surve
   });
 
   test("six came: three sign-ups and three walk-ins, on Sue's Check-in tab and as counts alone on Iris's", () => {
-    const counts = "6 came 3 of 4 who signed up, and 3 walk-ins 1 checked themselves in With the QR code at the door 2 at the door list Plus the 3 walk-ins 1 still to come";
+    // Kofi and Mo checked themselves in with the code (Mo, a walk-in, with an
+    // account and no sign-up: L5), so 2 of the 3 walk-ins came in at the door.
+    // Of the 3 who signed up (the Sign-ups tab's 3) Kofi and Gwen came, and Wren
+    // was let in from the waiting list (L9).
+    const counts =
+      "6 came 2 of 3 who signed up, 1 from the waiting list, and 3 walk-ins 2 checked themselves in With the QR code at the door 2 at the door list Plus 2 of the 3 walk-ins 1 still to come";
     assert.ok(seen.checkInSue.text.includes(counts));
     assert.ok(seen.checkInIris.text.includes(counts));
     assert.ok(seen.checkInIris.text.endsWith("Only NAISI’s admins and the committee members the Students’ Union recognises see who came, as they see who signed up."));
@@ -1248,39 +1286,51 @@ describe("D. VR games night: Check-in, the organiser's tab and the night's surve
       "GP Gwen Price Door list 2:10pm",
       "WH Wren Hale Door list 2:10pm",
       "DF Dan Fitzgerald No email Walk-in 2:10pm",
-      "MR Mo Rahman No email Walk-in 2:10pm",
+      "MR Mo Rahman QR at the door 2:10pm",
       "RM Rosa Martinez Email kept for the survey until Sun 8 Nov Walk-in 2:10pm",
       "Still to come 1 CN Chloe Nguyen",
     ]);
     assert.ok(seen.checkInAfter.text.includes("Didn’t come 1 CN Chloe Nguyen"));
   });
 
-  test("Mo checked in with the code, signed in: Check-in says No email and Walk-in; the survey counts Mo as a walk-in who left an email and emails Mo (L5)", () => {
+  test("Mo checked in with the code, signed in: Check-in says QR at the door and counts Mo as checking in by the code; the survey names Mo as somebody who came without signing up and emails Mo (L5)", () => {
     assert.deepEqual(seen.moSelf.status, 201);
-    // Check-in draws "No email" under every walk-in with no stored address
-    // (`view` in src/lib/events/checkInView.ts, `WhoCame`), an account
-    // included, and leaves a code check-in by an account out of "checked
-    // themselves in" (`byQr` counts sign-ups only).
-    assert.ok(seen.checkInSue.text.includes("MR Mo Rahman No email Walk-in 2:10pm"));
+    // Mo's survey goes to Mo's account, so no "No email" under Mo's name
+    // (`view` in src/lib/events/checkInView.ts); "QR at the door", as a
+    // sign-up who used the code reads (`walkedInByCode`, `WhoCame`); and Mo is
+    // among the 2 who checked themselves in (`byQr`).
+    assert.ok(seen.checkInSue.text.includes("MR Mo Rahman QR at the door 2:10pm"));
+    assert.ok(!/Mo Rahman No email/.test(seen.checkInSue.text));
+    assert.ok(seen.checkInSue.text.includes("2 checked themselves in With the QR code at the door"));
     // The survey reads the account's address (src/lib/surveys/events/audience.ts)
-    // and words Mo as a walk-in who left one.
-    assert.ok(seen.nightSendPage.text.includes("Everyone who came, with an email: 5 3 who signed up and checked in, and 2 walk-ins who left an email"));
+    // and says Mo apart from the walk-in who left one (`cameDetail`).
+    assert.ok(
+      seen.nightSendPage.text.includes(
+        "Everyone who came, with an email: 5 3 who signed up and checked in, 1 who came without signing up, and 1 walk-in who left an email",
+      ),
+    );
     assert.ok(seen.nightMail.some((message) => message.to === "mo@example.com"));
   });
 
-  test("Sign-ups says 3 and the survey's Everyone who signed up says 3; Check-in says of 4, counting Wren, let in from the waiting list (L9)", () => {
+  test("Sign-ups says 3, the survey's Everyone who signed up says 3, and Check-in says of 3, with Wren from the waiting list apart (L9)", () => {
+    // `cameWords` in src/lib/events/checkInView.ts: of the confirmed sign-ups,
+    // and anybody let in at the door said apart.
     assert.ok(seen.checkInSue.text.includes("Details Sign-ups 3 Check-in"));
     assert.ok(seen.nightSendPage.text.includes("Everyone who signed up: 3"));
-    assert.ok(seen.checkInSue.text.includes("6 came 3 of 4 who signed up"));
+    assert.ok(seen.checkInSue.text.includes("6 came 2 of 3 who signed up, 1 from the waiting list, and 3 walk-ins"));
+    assert.ok(seen.checkInIris.text.includes("6 came 2 of 3 who signed up, 1 from the waiting list, and 3 walk-ins"));
   });
 
-  test("the survey closes at 11:59pm a week on, while a walk-in's email and Add someone who came end at the event's hour that day (L8)", () => {
-    // `walkInEmailGoesAt` (src/lib/events/checkIns.ts) keeps whichever comes
-    // first, and a survey closing on its day at 11:59pm never does, so
-    // Check-in never says "Until the survey closes" and the emails go first.
-    assert.equal(seen.rosaWalkIn.body.row.checkIn.emailGoesAt, "2026-11-08T17:00:00.000Z");
+  test("the survey closes at 11:59pm a week on, and a walk-in's email and Add someone who came end with it (L8)", () => {
+    // A week after the event is a day (`addLaterUntil` in
+    // src/lib/events/checkIns.ts), so a survey closing on that day, at 23:59,
+    // takes the walk-ins' emails and adding somebody who came with it: the
+    // survey is never open on its last evening without them, and Check-in
+    // says "Until the survey closes", as ev-manage draws it.
+    assert.equal(seen.rosaWalkIn.body.row.checkIn.emailGoesAt, "2026-11-08T23:59:00.000Z");
     assert.ok(seen.nightSendPage.text.includes("Closes Sun 8 Nov, 23:59"));
-    assert.ok(seen.checkInAfter.text.includes("Who came 6 Until Sun 8 Nov, a week after the event Add someone who came"));
+    assert.ok(seen.checkInAfter.text.includes("Who came 6 Until the survey closes on Sun 8 Nov Add someone who came"));
+    assert.ok(seen.checkInAfter.text.includes("RM Rosa Martinez Email kept for the survey until Sun 8 Nov Walk-in 2:10pm"));
   });
 
   test("the night's survey: opened at the event, Kofi answers signed in, the email skips Kofi and goes to the 4 the page names", () => {
@@ -1362,18 +1412,24 @@ describe("E. The term's end: registers, Who finished, the head, the Kairos repor
       "ZL Zach Levin Group A 6 of 6",
       "Left the programme CP Callum Price Group B Left Wed 11 Nov",
     ]);
-    assert.ok(seen.overviewAfterEnd.text.includes("People 6 taking part 1 left."));
+    // 6 taking part; Callum and Sam left (L1: Sam, who left before Group B met, is counted too).
+    assert.ok(seen.overviewAfterEnd.text.includes("People 6 taking part 2 left."));
     assert.ok(seen.headAfterEnd.includes("Finished · Wed 9 Dec C Lead: Claudia · 6 stayed to the end"));
     assert.ok(seen.headAfterEnd.includes("People 6"));
   });
 
-  test("the head says 7, then 6, taking part as the Overview does; in 3 groups, beside a Groups tab that says 4 (L10)", () => {
+  test("the head says 7, then 6, taking part as the Overview does; in 3 groups, beside a Groups tab that says 3 (L10)", () => {
     assert.ok(seen.headSamLeft.includes("Running · week 1 of 6 C Lead: Claudia · 7 taking part in 3 groups"));
     assert.ok(seen.overviewSamLeft.text.includes("People 7 taking part"));
     assert.ok(seen.headMid.includes("Running · week 2 of 6 C Lead: Claudia · 6 taking part in 3 groups"));
     assert.ok(seen.overviewAfterRemove.text.includes("People 6 taking part"));
-    // The tab's count is the form's planned number of groups (`groupCount`).
-    for (const strip of [seen.headSamLeft, seen.headMid, seen.headAfterEnd]) assert.ok(strip.includes("Groups 4"), strip);
+    // Once the programme names a run, the tab counts the run's groups that
+    // still meet (`countRunGroups`), as the head's "in 3 groups" does, not
+    // the form's planned 4.
+    for (const strip of [seen.headSamLeft, seen.headMid, seen.headAfterEnd]) {
+      assert.ok(strip.includes("Groups 3"), strip);
+      assert.ok(!strip.includes("Groups 4"), strip);
+    }
     assert.equal(stepOf(seen.overviewReady, "times").line, "3 groups: Tue 6pm, Wed 1pm, Thu 6pm");
   });
 
@@ -1392,11 +1448,11 @@ describe("E. The term's end: registers, Who finished, the head, the Kairos repor
       "Autumn 2026 · 1 event and 2 programmes",
       "6 Check-ins At 1 event 6 Different people 0 Came to 2 or more",
       "Sun 1 Nov VR games night 6 2 4.5",
-      "AGI Strategy Fellowship 7 5 3 1 → 1 of 3 Closed Thu 10 Dec: 4 of 6",
+      "AGI Strategy Fellowship 7 5 3 0 → 1 of 2 Closed Thu 10 Dec: 4 of 6",
     ]);
     assert.equal(seen.termCsv.status, 200);
     assert.ok(seen.termCsv.text.includes("Sun 1 Nov,VR games night,6,2,4.5,"));
-    assert.ok(seen.termCsv.text.includes("AGI Strategy Fellowship,7,5,3,1,1,Closed Thu 10 Dec: 4 of 6"));
+    assert.ok(seen.termCsv.text.includes("AGI Strategy Fellowship,7,5,3,0,1,2,Closed Thu 10 Dec: 4 of 6"));
     // The after survey's own Results say the same 4 of 6.
     assert.ok(seen.afterResults.text.includes("4 answers from the 6 people it was sent to (67%)."));
     assert.deepEqual(seen.afterMail, ["amara", "bea", "dev", "kofi", "tariq", "zach"].map((uid) => `${uid}@example.com`));
@@ -1433,7 +1489,7 @@ describe("E. Kairos: the ratings at the end, a no said on the survey's form, the
   });
 });
 
-describe("E. Considering, planning or already doing it: four pages, two answers (L3)", () => {
+describe("E. Considering, planning or already doing it: four pages, one answer (L3)", () => {
   test("Results pair by the question: 2 who answered it both times, both moved up", () => {
     assert.ok(seen.afterResults.text.includes("Before and now Of the 2 who answered it both times (AGI Strategy: before): 2 moved up, 0 stayed, 0 moved down."));
   });
@@ -1444,13 +1500,17 @@ describe("E. Considering, planning or already doing it: four pages, two answers 
     assert.ok(seen.kairos.text.includes("Moved up at least one stage, start to end 2 of 2 (100%) n = 2"));
   });
 
-  test("This term in numbers pairs by the surveys and counts Dev's skipped question as not considering: 1 → 1 of 3", () => {
+  test("This term in numbers pairs by the question too, beside the 3 who answered both surveys: 0 → 1 of 2", () => {
     // Dev was considering it at the start and skipped the question at the end
     // (every question can be skipped). `programmeRow` in
-    // src/lib/surveys/term/model.ts counts a missing stage as below the line,
-    // so the term page says nobody crossed it while the three pages above say
-    // one of two did.
-    assert.ok(seen.term.text.includes("AGI Strategy Fellowship 7 5 3 1 → 1 of 3"));
+    // src/lib/surveys/term/model.ts counts the stage over the people who
+    // answered it both times, with that number beside it, so the term page
+    // says one of two crossed the line, as the three pages above say, beside
+    // "Answered both 3".
+    assert.ok(seen.term.text.includes("AGI Strategy Fellowship 7 5 3 0 → 1 of 2"));
+    const stage = seen.offer.numbers.find((number) => number.id === "stage");
+    assert.deepEqual([stage.figure.start, stage.figure.end], ["0 of 2", "1 of 2"], "public numbers say the same two");
+    assert.ok(seen.term.text.includes("of the people who answered that question in both surveys."));
   });
 });
 

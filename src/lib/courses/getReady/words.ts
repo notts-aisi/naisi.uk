@@ -301,6 +301,21 @@ export function trainingLine(training: { day: string; time: string; room: string
 export const READY_TITLE = "Ready?";
 export const READY_CHIP = "Ready to publish";
 export const NOT_READY_CHIP = "Not ready yet";
+/**
+ * Once the groups are published and nothing a second press needs is missing,
+ * the chip says so in place of "Ready to publish" (not drawn: board st-publish
+ * draws only the page before the press; listed in the build notes for the
+ * boards' designers to confirm).
+ */
+export const PUBLISHED_CHIP = "Published";
+/**
+ * Under the card's head once published, after when (`publishedWords`, the
+ * Overview's checklist's words): what a later move emails, true of what the
+ * site does (`AFTER_YOU_PUBLISH`, said before the press, is the same fact).
+ * Not drawn: listed in the build notes for the boards' designers to confirm.
+ */
+export const AFTER_PUBLISHED =
+  "Someone you move now sees nothing of their new group until you publish again, which emails only the people who haven’t been told.";
 export const NEEDED_TITLE = "Needed to publish";
 export const WORTH_TITLE = "Worth checking";
 export const WORTH_LINE = "These don’t stop you publishing.";

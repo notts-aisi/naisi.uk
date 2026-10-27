@@ -27,7 +27,11 @@ export type DoorCheckIn = {
   at: string;
   /** For a walk-in who gave an email: when it goes, as an ISO instant. */
   emailGoesAt: string | null;
-  /** A walk-in who gave no email. */
+  /**
+   * A walk-in with no account who gave no email: the event's survey cannot
+   * reach them. Never an account's check-in, whose survey goes to the
+   * account's own address.
+   */
   noEmail: boolean;
 };
 
@@ -74,7 +78,7 @@ function view(checkIn: EventCheckInDoc): DoorCheckIn {
     how: checkIn.how,
     at: (checkIn.at ?? new Date(0)).toISOString(),
     emailGoesAt: checkIn.email && checkIn.emailGoesAt ? checkIn.emailGoesAt.toISOString() : null,
-    noEmail: checkIn.kind === "walk-in" && !checkIn.email,
+    noEmail: checkIn.kind === "walk-in" && !checkIn.email && !checkIn.uid,
   };
 }
 
@@ -105,6 +109,17 @@ export function namesOffOf(checkIns: readonly EventCheckInDoc[]): NamesOff {
     signupsByQr: signups.filter((row) => row.how === "qr").length,
     walkIns: off.length - signups.length,
   };
+}
+
+/**
+ * Whether a row is a walk-in who checked themselves in with the door code:
+ * an account with no sign-up, which is the only way in by the code without
+ * one (`decideSelf`, which tells them it checks them in as a walk-in). The
+ * Check-in tab counts them among who checked themselves in, and its row says
+ * how they came ("QR at the door"), as a sign-up's does.
+ */
+export function walkedInByCode(row: Pick<DoorRow, "standing" | "checkIn">): boolean {
+  return row.standing === "walk-in" && row.checkIn?.how === "qr";
 }
 
 /**
@@ -148,18 +163,27 @@ export function doorRows(signups: readonly RsvpDoc[], checkIns: readonly EventCh
 }
 
 export type DoorCounts = {
-  /** Sign-ups expected: everybody confirmed, and anybody else who was let in. */
+  /** Sign-ups expected: everybody confirmed, and anybody else who was let in. The door list's own count. */
   expected: number;
   /** Of those, how many came. */
   signupsHere: number;
+  /** Confirmed sign-ups: the event's sign-ups, as its Sign-ups tab counts them. */
+  confirmed: number;
+  /** Of those, how many came. */
+  confirmedHere: number;
+  /** Let in from the waiting list. */
+  waitingHere: number;
+  /** Let in with a sign-up not decided yet. */
+  undecidedHere: number;
+  /** Everybody here with no sign-up. */
   walkIns: number;
   /** Everybody here: sign-ups and walk-ins. */
   here: number;
   /** Confirmed sign-ups not checked in. */
   toCome: number;
-  /** Checked themselves in with the code. */
+  /** Checked themselves in with the code: sign-ups, and accounts with no sign-up. */
   byQr: number;
-  /** Checked in on the door list or added later, walk-ins left out. */
+  /** Sign-ups checked in on the door list or added later. */
   byList: number;
   /** Counted and on no row: the check-ins whose names have come off. */
   notListed: number;
@@ -170,6 +194,8 @@ export type DoorCounts = {
    * longer be told.
    */
   cameUnticked: number;
+  /** Of the walk-ins, the ones who checked themselves in with the code (`walkedInByCode`), counted in `byQr`. */
+  walkInsByCode: number;
 };
 
 /**
@@ -186,15 +212,24 @@ export function doorCounts(rows: readonly DoorRow[], namesOff: NamesOff = NO_NAM
   const unticked = signups.filter((row) => row.standing === "signed-up" && !row.checkIn).length;
   const cameUnticked = Math.min(namesOff.signups, unticked);
   const signupsHere = signups.filter((row) => row.checkIn).length + namesOff.signups;
-  const walkIns = rows.filter((row) => row.standing === "walk-in").length + namesOff.walkIns;
+  const walkInRows = rows.filter((row) => row.standing === "walk-in");
+  const walkIns = walkInRows.length + namesOff.walkIns;
+  const here = (standing: DoorStanding) => signups.filter((row) => row.standing === standing && row.checkIn).length;
   return {
     expected: signups.filter((row) => row.standing === "signed-up" || row.checkIn).length + namesOff.signups - cameUnticked,
     signupsHere,
+    confirmed: signups.filter((row) => row.standing === "signed-up").length,
+    // A confirmed sign-up whose names have come off lost its tick with them,
+    // so it is one of the confirmed who came (`cameUnticked`).
+    confirmedHere: here("signed-up") + cameUnticked,
+    waitingHere: here("waiting"),
+    undecidedHere: here("undecided"),
     walkIns,
     here: signupsHere + walkIns,
     toCome: unticked - cameUnticked,
-    byQr: signups.filter((row) => row.checkIn?.how === "qr").length + namesOff.signupsByQr,
+    byQr: rows.filter((row) => row.checkIn?.how === "qr").length + namesOff.signupsByQr,
     byList: signups.filter((row) => row.checkIn && row.checkIn.how !== "qr").length + namesOff.signups - namesOff.signupsByQr,
+    walkInsByCode: walkInRows.filter(walkedInByCode).length,
     notListed: namesOff.signups + namesOff.walkIns,
     cameUnticked,
   };
@@ -216,6 +251,47 @@ export function notListedWords(n: number, more: boolean): string {
  */
 export function cameUntickedWords(n: number): string {
   return `${n} of these came, but ${n === 1 ? "their name has" : "their names have"} come off, so we can’t tell which.`;
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * Under the Check-in tab's "came": who came, so the parts add up to the
+ * number. "15 of 18 who signed up, and 3 walk-ins", the board's words, where
+ * 18 is the confirmed sign-ups, the number on the Sign-ups tab beside it.
+ * Somebody let in at the door from the waiting list, or with a sign-up not
+ * decided yet, is said apart: "2 of 3 who signed up, 1 from the waiting list,
+ * and 3 walk-ins" (not drawn: listed in the build notes for the boards'
+ * designers to confirm).
+ */
+export function cameWords(counts: DoorCounts): string {
+  const parts = [`${counts.confirmedHere} of ${counts.confirmed} who signed up`];
+  if (counts.waitingHere > 0) parts.push(`${counts.waitingHere} from the waiting list`);
+  if (counts.undecidedHere > 0) {
+    parts.push(
+      counts.undecidedHere === 1
+        ? "1 whose place wasn’t decided yet"
+        : `${counts.undecidedHere} whose places weren’t decided yet`,
+    );
+  }
+  if (counts.walkIns > 0) parts.push(plural(counts.walkIns, "walk-in", "walk-ins"));
+  return parts.length < 2 ? parts[0] : `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
+}
+
+/**
+ * Under "at the door list": the walk-ins, who came in at the door too, so
+ * the three numbers add up to who came. "Plus the 3 walk-ins", the board's
+ * words; once a walk-in checked themselves in with the code (counted under
+ * "checked themselves in"), "Plus 2 of the 3 walk-ins" (not drawn: listed in
+ * the build notes for the boards' designers to confirm). Null when every
+ * walk-in checked themselves in, or there was none.
+ */
+export function plusWalkInsWords(counts: DoorCounts): string | null {
+  const atTheDoor = counts.walkIns - counts.walkInsByCode;
+  if (atTheDoor <= 0) return null;
+  return counts.walkInsByCode > 0
+    ? `Plus ${atTheDoor} of the ${counts.walkIns} walk-ins`
+    : `Plus the ${plural(counts.walkIns, "walk-in", "walk-ins")}`;
 }
 
 /** "10 of 18 here · 2 walk-ins". */

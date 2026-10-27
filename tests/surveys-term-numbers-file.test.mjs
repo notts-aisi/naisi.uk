@@ -84,10 +84,11 @@ describe("Download totals (CSV)", () => {
         "Thu 19 Nov,Pizza and board games,Not counted,No survey,,No check-in",
         "Wed 25 Nov,Movie night: Ex Machina,Not counted,No survey,,No sign-up and no check-in",
         "",
-        'Programme,Started,Finished,Answered both,"Considering, planning or already doing it: at the start","Considering, planning or already doing it: at the end",After survey',
-        'Technical AI Safety Fellowship,2,Not yet,,,,"In February, after week 10"',
-        "AGI Strategy Fellowship,6,4,3,1,2,Closed Wed 9 Dec: 5 of 6",
-        '"Considering, planning or already doing it: at the start → at the end, of the people who answered both surveys."',
+        // The stage at each end and how many it is of, the page's "1 → 2 of 3" (walk 4b, L3).
+        'Programme,Started,Finished,Answered both,"Considering, planning or already doing it: at the start","Considering, planning or already doing it: at the end","Considering, planning or already doing it: answered it in both surveys",After survey',
+        'Technical AI Safety Fellowship,2,Not yet,,,,,"In February, after week 10"',
+        "AGI Strategy Fellowship,6,4,3,1,2,3,Closed Wed 9 Dec: 5 of 6",
+        '"Considering, planning or already doing it: at the start → at the end, of the people who answered that question in both surveys."',
         "",
       ].join("\n"),
     );
@@ -103,7 +104,8 @@ describe("Download totals (CSV)", () => {
       .split(/[\n,]/)
       .map((cell) => cell.replace(/^"|"$/g, ""))
       .filter((cell) => /^\d+(?:\.\d)?$/.test(cell));
-    assert.equal(numbers.length, 17, "six in the term's row, five in the events', six in the programmes'");
+    // The programmes' block has the stage's own "of" since walk 4b's L3: the page's "1 → 2 of 3".
+    assert.equal(numbers.length, 18, "six in the term's row, five in the events', seven in the programmes'");
     for (const cell of numbers) assert.ok(text.includes(cell), `the file holds ${cell}, which the page does not`);
     const { view } = await w.load("zach");
     assert.equal(file.text, termTotalsCsv(view), "the route hands over the loader's view, as the page draws it");

@@ -112,14 +112,23 @@ export type EventSendView = {
   summary: { name: string; size: string; atEvent: string; byEmail: string; closes: string; results: string; namesOff: string };
 };
 
-/** "15 who signed up and checked in, and 2 walk-ins who left an email". */
-function cameDetail(members: readonly EventAudienceMember[]): string {
+/**
+ * "15 who signed up and checked in, and 2 walk-ins who left an email": the
+ * board's words. Somebody with an account who came without a sign-up (they
+ * checked themselves in with the door code) left no email: the survey goes
+ * to their account's address, so they are said apart, "1 who came without
+ * signing up" (not drawn: listed in the build notes for the boards'
+ * designers to confirm).
+ */
+export function cameDetail(members: readonly EventAudienceMember[]): string {
   const withEmail = members.filter((member) => member.address !== null);
   const bySignup = withEmail.filter((member) => member.cameBySignup).length;
-  const walkIns = withEmail.length - bySignup;
+  const accounts = withEmail.filter((member) => !member.cameBySignup && member.respondent.kind === "account").length;
+  const walkIns = withEmail.length - bySignup - accounts;
   const parts = [`${bySignup} who signed up and checked in`];
+  if (accounts > 0) parts.push(`${accounts} who came without signing up`);
   if (walkIns > 0) parts.push(`${walkIns} ${walkIns === 1 ? "walk-in" : "walk-ins"} who left an email`);
-  return parts.join(", and ");
+  return parts.length < 2 ? parts[0] : `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
 }
 
 /** "Emailed the 14 people who came, with an email". */

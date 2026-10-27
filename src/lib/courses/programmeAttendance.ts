@@ -767,6 +767,29 @@ export type RunHeader = {
   lastSession: string | null;
 };
 
+/** The run's groups that still meet, from a read of its groups: not archived, and the run's own. */
+function liveGroupsOf(docs: readonly { id: string; data(): Record<string, unknown> | undefined }[], runId: string): CourseGroupDoc[] {
+  return docs
+    .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
+    .filter((group) => !group.archived && group.runId === runId);
+}
+
+/**
+ * HOW MANY GROUPS THE RUN HAS THAT STILL MEET: the number beside a
+ * programme's Groups tab once the programme names the run, which is the
+ * head's "in 3 groups" (`readRunHeader`) counted the same way. One document
+ * and one equality on one field, so no declared index. Null for a run that
+ * is not there or is being destroyed.
+ */
+export async function countRunGroups(db: Firestore, runId: string): Promise<number | null> {
+  const [runSnap, groupSnap] = await Promise.all([
+    db.collection("courseRuns").doc(runId).get(),
+    db.collection("courseGroups").where("runId", "==", runId).get(),
+  ]);
+  if (!runSnap.exists || runSnap.data()?.destroying === true) return null;
+  return liveGroupsOf(groupSnap.docs, runId).length;
+}
+
 /**
  * Read only what the line needs: the run, its groups and its enrolments.
  * Who counts as taking part is the grid's own rule (`isListed`), so the line
@@ -790,9 +813,7 @@ export async function readRunHeader(
   const current = total > 0 ? programmeWeekNow(run, now) : null;
   if (!current || current.phase === "before") return null;
 
-  const groups = groupSnap.docs
-    .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
-    .filter((group) => !group.archived && group.runId === runId);
+  const groups = liveGroupsOf(groupSnap.docs, runId);
   const live = new Set(groups.map((group) => group.id));
   let takingPart = 0;
   for (const doc of enrolmentSnap.docs) {

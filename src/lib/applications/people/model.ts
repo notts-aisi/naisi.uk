@@ -193,12 +193,13 @@ export function programmePeople(input: PeopleInput): PeopleModel {
   rows.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, "en") || a.uid.localeCompare(b.uid));
   const out: PersonRow[] = rows.map(({ order: _order, ...row }) => row);
   const counts = countRows(out);
+  // Under Gave their place back, somebody who left the run is said apart from
+  // somebody who gave the place back before it was theirs on the run.
+  const gaveBack = out.filter((row) => row.category === "gave-back");
+  const left = gaveBack.filter((row) => row.status.kind === "left").length;
   return {
     rows: out,
     counts,
-    sentence: placesSentence(
-      out.filter((row) => row.category === "holding").length,
-      out.filter((row) => row.category === "gave-back").length,
-    ),
+    sentence: placesSentence(out.filter((row) => row.category === "holding").length, gaveBack.length - left, left),
   };
 }

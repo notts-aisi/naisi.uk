@@ -13,7 +13,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { runsCheckIn } from "@/lib/events/checkInAccess";
 import { loadEventAtTheDoor } from "@/lib/events/checkInLoad";
-import { doorCounts, doorRows, namesOffOf } from "@/lib/events/checkInView";
+import { cameWords, doorCounts, doorRows, namesOffOf, plusWalkInsWords } from "@/lib/events/checkInView";
 import {
   addLaterUntil,
   checkInPhase,
@@ -123,10 +123,7 @@ export default async function CheckInTabPage({ params }: { params: Promise<{ id:
           <li className={styles.stat}>
             <span className={styles.statNumber}>{counts.here}</span>
             <span className={styles.statLabel}>came</span>
-            <span className={styles.statSub}>
-              {counts.signupsHere} of {counts.expected} who signed up
-              {counts.walkIns > 0 ? `, and ${plural(counts.walkIns, "walk-in", "walk-ins")}` : ""}
-            </span>
+            <span className={styles.statSub}>{cameWords(counts)}</span>
           </li>
           <li className={styles.stat}>
             <span className={styles.statNumber}>{counts.byQr}</span>
@@ -136,9 +133,7 @@ export default async function CheckInTabPage({ params }: { params: Promise<{ id:
           <li className={styles.stat}>
             <span className={styles.statNumber}>{counts.byList}</span>
             <span className={styles.statLabel}>at the door list</span>
-            {counts.walkIns > 0 && (
-              <span className={styles.statSub}>Plus the {plural(counts.walkIns, "walk-in", "walk-ins")}</span>
-            )}
+            {plusWalkInsWords(counts) && <span className={styles.statSub}>{plusWalkInsWords(counts)}</span>}
           </li>
           <li className={styles.stat}>
             <span className={styles.statNumber}>{counts.toCome}</span>

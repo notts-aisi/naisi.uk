@@ -12,6 +12,7 @@ import {
   cameUntickedWords,
   doorCounts,
   notListedWords,
+  walkedInByCode,
   type DoorRow,
   type NamesOff,
 } from "@/lib/events/checkInView";
@@ -51,6 +52,11 @@ type Props = {
  * Its numbers are the tab's (`doorCounts`): somebody whose name has come off
  * is counted with who came and listed nowhere, and the confirmed sign-ups
  * with no tick say when some of them came that way.
+ *
+ * A walk-in who checked themselves in with the code (an account with no
+ * sign-up) reads "QR at the door", as a sign-up who did reads, and nothing
+ * under their name: the event's survey reaches the account, so there is no
+ * email to keep or to say is missing.
  */
 export default function WhoCame({
   eventId,
@@ -161,7 +167,7 @@ export default function WhoCame({
                         <InitialsChip name={row.name} uid={row.key} size="sm" />
                         <div className={styles.personText}>
                           <span className={styles.personName}>{row.name}</span>
-                          {row.standing === "walk-in" && emailsKept && row.checkIn && (
+                          {row.standing === "walk-in" && emailsKept && row.checkIn && (row.checkIn.emailGoesAt || row.checkIn.noEmail) && (
                             <span className={styles.personSub}>
                               {row.checkIn.emailGoesAt
                                 ? `Email kept for the survey until ${dayWords(new Date(row.checkIn.emailGoesAt))}`
@@ -172,7 +178,11 @@ export default function WhoCame({
                       </div>
                     </td>
                     <td data-label="How">
-                      {row.standing === "walk-in" ? "Walk-in" : row.checkIn ? HOW_WORDS[row.checkIn.how] : ""}
+                      {row.checkIn && (row.standing !== "walk-in" || walkedInByCode(row))
+                        ? HOW_WORDS[row.checkIn.how]
+                        : row.standing === "walk-in"
+                          ? "Walk-in"
+                          : ""}
                     </td>
                     <td data-label="Checked in">{row.checkIn ? when(row.checkIn.at) : ""}</td>
                   </tr>

@@ -46,8 +46,18 @@ export function termTotalsCsv(view: TermView): string {
       row.note,
     ]),
   );
+  // The stage at each end, and how many people that is of: the page's "0 → 1 of 2".
   const programmes = toCSV(
-    [TERM_WORDS.programme, TERM_WORDS.started, TERM_WORDS.finished, TERM_WORDS.answeredBoth, AT_THE_START, AT_THE_END, TERM_WORDS.afterSurvey],
+    [
+      TERM_WORDS.programme,
+      TERM_WORDS.started,
+      TERM_WORDS.finished,
+      TERM_WORDS.answeredBoth,
+      AT_THE_START,
+      AT_THE_END,
+      TERM_WORDS.consideringOf,
+      TERM_WORDS.afterSurvey,
+    ],
     [
       ...view.programmes.map((row) => [
         row.name,
@@ -56,6 +66,7 @@ export function termTotalsCsv(view: TermView): string {
         row.answeredBoth ?? "",
         row.considering?.start ?? "",
         row.considering?.end ?? "",
+        row.considering?.of ?? "",
         row.afterSurvey,
       ]),
       [TERM_WORDS.footnote],

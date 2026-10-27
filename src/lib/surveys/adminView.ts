@@ -1,6 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { isEventSurvey, type SurveyDoc, type SurveyPersonDoc } from "@/lib/firestore/surveys";
+import { isEventAudience, isEventSurvey, type SurveyDoc, type SurveyPersonDoc } from "@/lib/firestore/surveys";
+import { readAudience, type AudienceRead } from "./audience";
 import { eventListRow } from "./events/listRow";
 import { eventPeopleOf } from "./events/store";
 import { eventMeta } from "./events/words";
@@ -11,7 +12,7 @@ import { namesOf } from "./names";
 import { whoOf } from "./onePersonLayout";
 import { answersOf, chainOf, closedOn, peopleOf, readSurvey, sentCountOf, surveyState } from "./repo";
 import { surveyResults, type QuestionResult } from "./results";
-import { readSendPlan, signerOf, testStateFor } from "./sending";
+import { readSendPlan, remindReach, signerOf, testStateFor } from "./sending";
 import {
   LIST_WORDS,
   SURVEY_FROM_NAME,
@@ -28,6 +29,7 @@ import {
   namesOffWords,
   nobodyNewWords,
   notAnsweredWords,
+  notReachedWords,
   openSinceWords,
   peopleWords,
   programmeLine,
@@ -76,7 +78,17 @@ function closesFor(survey: SurveyDoc, state: SurveyState): string {
   return closesWords(ends, state === "closed");
 }
 
-function rowOf(survey: SurveyDoc, people: readonly SurveyPersonDoc[], now: Date): ListRow {
+/** Whether the list offers "Remind" on a survey: open, and not a leaving survey, which reaches each person as they leave. */
+function offersRemind(survey: SurveyDoc, now: Date): boolean {
+  return surveyState(survey, now) === "open" && survey.kind !== "leaving";
+}
+
+/**
+ * One survey's row. `reach` is how many its Send tab's "Remind" reaches now
+ * (`remindReach`, the button's and the press's own answer), read only for a
+ * survey the list offers Remind on.
+ */
+function rowOf(survey: SurveyDoc, people: readonly SurveyPersonDoc[], now: Date, reach: number): ListRow {
   const state = surveyState(survey, now);
   const sent = people.filter((person) => person.sentAt !== null).length;
   const answered = people.filter((person) => person.answered).length;
@@ -88,17 +100,48 @@ function rowOf(survey: SurveyDoc, people: readonly SurveyPersonDoc[], now: Date)
     answers: state === "draft" ? LIST_WORDS.notSent : answeredOf(answered, sent),
     share: state === "draft" ? null : sent > 0 ? answered / sent : 0,
     closes: closesFor(survey, state),
-    // Nobody is reminded of a leaving survey: it reaches each person as they leave.
-    unanswered: state === "open" && sent > answered && survey.kind !== "leaving" ? notAnsweredWords(sent - answered) : "",
+    unanswered: offersRemind(survey, now) && reach > 0 ? notAnsweredWords(reach) : "",
   };
 }
 
+/** One key for one audience, so surveys with the same audience share one read of it. */
+function audienceKey(audience: SurveyDoc["audience"]): string {
+  return isEventAudience(audience)
+    ? `${audience.kind}:${audience.eventId}`
+    : `${audience.kind}:${audience.roundId}:${audience.programmeId}:${audience.kind === "followUps" ? audience.consentFrom : ""}`;
+}
+
+/**
+ * THE SURVEY LIST. Each survey's people rows, as before; and for each survey
+ * the list offers "Remind" on (open, a programme's, not a leaving survey),
+ * one read of who it is for (`readAudience`: the form, its sent applications
+ * and its decisions, or a follow-up's rows), so its "12 haven’t answered" is
+ * the number the Remind button reaches, not everybody it was sent to who has
+ * not answered (somebody who left since is no longer reminded). Surveys with
+ * the same audience (a programme's survey before and at the end) share the
+ * one read, so the list reads each programme's audience at most once, and a
+ * draft, a closed survey, a leaving survey and a survey after an event read
+ * none.
+ */
 export async function listView(db: Firestore, surveys: readonly SurveyDoc[], now: Date): Promise<ListView> {
+  const audiences = new Map<string, Promise<AudienceRead>>();
+  const audienceOf = (survey: SurveyDoc): Promise<AudienceRead> => {
+    const key = audienceKey(survey.audience);
+    let read = audiences.get(key);
+    if (!read) {
+      read = readAudience(db, survey.audience);
+      audiences.set(key, read);
+    }
+    return read;
+  };
   // A survey after an event lists its answers as a count, and its rows may hold guests (./events/listRow.ts).
   const rows = await Promise.all(
-    surveys.map(async (survey) =>
-      isEventSurvey(survey) ? eventListRow(survey, await eventPeopleOf(db, survey.id), now) : rowOf(survey, await peopleOf(db, survey.id), now),
-    ),
+    surveys.map(async (survey) => {
+      if (isEventSurvey(survey)) return eventListRow(survey, await eventPeopleOf(db, survey.id), now);
+      const people = await peopleOf(db, survey.id);
+      const reach = offersRemind(survey, now) ? remindReach(people, await audienceOf(survey)).length : 0;
+      return rowOf(survey, people, now, reach);
+    }),
   );
   return {
     open: rows.filter((row) => row.state === "open"),
@@ -291,7 +334,9 @@ export async function sendView(db: Firestore, survey: SurveyDoc, presserUid: str
     noAddress: !siteAddress(),
     first: null,
     log,
-    progress: ends ? progressWords(plan.answered, plan.sent, ends, !open) : "",
+    // While it is open, the people it no longer reaches are said beside who
+    // answered, so "3 of 8 have answered" and "Remind 4" add up.
+    progress: ends ? progressWords(plan.answered, plan.sent, ends, !open, open ? notReachedWords(plan.notReached, audienceKind) : "") : "",
     share: plan.sent > 0 ? plan.answered / plan.sent : 0,
     joined: open
       ? {

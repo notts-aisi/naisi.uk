@@ -44,7 +44,9 @@ import { monthWords } from "./words";
  *  - STARTED AND FINISHED: the Kairos report's count (`headcountOf`).
  *  - ANSWERED BOTH, AND C1 AT EACH END: the change view's pairing (`bothOf`,
  *    in the model) over the programme's before survey and its survey at the
- *    end (the oldest of each, as the Kairos report takes them).
+ *    end (the oldest of each, as the Kairos report takes them); C1 counted
+ *    over the people who answered it in both, with that number beside it, as
+ *    public numbers, the Kairos report and Results count it.
  *  - THE AFTER SURVEY'S ANSWERS OF HOW MANY: every answer it holds, of the
  *    people its sends reached (`sentCountOf`), as its Results tab counts them.
  *

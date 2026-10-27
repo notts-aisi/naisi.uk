@@ -27,7 +27,7 @@ import {
   type SurveyPersonDoc,
   type SurveyPressKind,
 } from "@/lib/firestore/surveys";
-import { readAudience } from "./audience";
+import { readAudience, type AudienceRead } from "./audience";
 import { emailWordsFor, siteAddress, surveyLink, testStateOf, wordingFingerprint, type TestState } from "./emails";
 import { peopleOf } from "./repo";
 import { mintSurveyToken } from "./token";
@@ -96,25 +96,39 @@ export type SendPlan = {
   owed: PlaceHolder[];
   /** Sent it, not answered, and still holding a place. */
   unanswered: SurveyPersonDoc[];
+  /** Sent it, not answered, and no longer in its audience (left, or no longer saying yes), so Remind does not reach them. */
+  notReached: number;
   /** People it was sent to. */
   sent: number;
   /** People who have answered. */
   answered: number;
 };
 
+/**
+ * WHO "REMIND" REACHES: the people it was sent to who have not answered and
+ * are still in its audience, by uid. The one answer the Send tab's button,
+ * its press and the survey list's "Remind 12 haven’t answered" all give.
+ */
+export function remindReach(people: readonly SurveyPersonDoc[], audience: AudienceRead): SurveyPersonDoc[] {
+  const holding = new Set((audience.status === "ok" ? audience.holders : []).map((holder) => holder.uid));
+  return people
+    .filter((person) => person.sentAt !== null && !person.answered && holding.has(person.respondent.uid))
+    .sort((a, b) => a.respondent.uid.localeCompare(b.respondent.uid));
+}
+
 export async function readSendPlan(db: Firestore, survey: SurveyDoc): Promise<SendPlan> {
   const [audience, people] = await Promise.all([readAudience(db, survey.audience), peopleOf(db, survey.id)]);
   const holders = audience.status === "ok" ? audience.holders : [];
   const sentTo = new Set(people.filter((person) => person.sentAt !== null).map((person) => person.respondent.uid));
-  const holding = new Set(holders.map((holder) => holder.uid));
+  const unanswered = remindReach(people, audience);
+  const waiting = people.filter((person) => person.sentAt !== null && !person.answered).length;
   return {
     gone: audience.status !== "ok",
     holders,
     people,
     owed: holders.filter((holder) => !sentTo.has(holder.uid)),
-    unanswered: people
-      .filter((person) => person.sentAt !== null && !person.answered && holding.has(person.respondent.uid))
-      .sort((a, b) => a.respondent.uid.localeCompare(b.respondent.uid)),
+    unanswered,
+    notReached: waiting - unanswered.length,
     sent: sentTo.size,
     answered: people.filter((person) => person.answered).length,
   };

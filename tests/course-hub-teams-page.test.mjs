@@ -245,9 +245,11 @@ describe("the programme's head", () => {
     // People sits after Applications (board st-people), with how many hold a
     // place on the incubator: nobody on the form holds one here. Weeks (board
     // pr-weeks) sits after Teams and before Attendance, with how many weeks
-    // the run's plan has: the incubator's run has seven. CHANGED ON PURPOSE
-    // (board sv-programme): Surveys sits between Messages and Settings.
-    assert.match(lead.text, /Overview Interest Applications 0 People 0 Groups 4 Teams 2 Weeks 7 Attendance Messages Surveys Settings/);
+    // the run's plan has: the incubator's run has seven. Groups counts the
+    // run's groups that still meet, the head's "in 2 groups" (walk 4b, L10).
+    // CHANGED ON PURPOSE (board sv-programme): Surveys sits between Messages
+    // and Settings.
+    assert.match(lead.text, /Overview Interest Applications 0 People 0 Groups 2 Teams 2 Weeks 7 Attendance Messages Surveys Settings/);
   });
 
   test("a reviewer sees the tab drawn and not a link", async () => {

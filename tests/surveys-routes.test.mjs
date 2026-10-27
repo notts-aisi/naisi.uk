@@ -403,6 +403,82 @@ describe("people who join since get it with one button; reminders go only to who
     assert.equal(w.survey(id).presses.at(-1).kind, "remind");
   });
 
+  // The survey list's "Remind 2 haven't answered" is the number its Remind
+  // button reaches (`remindReach`), not everybody it was sent to who has not
+  // answered; the Send tab says the one it no longer reaches beside who
+  // answered, so its two lines add up (walk 4b, L4).
+  test("once somebody gives their place back, the list's Remind count is what the button reaches, and the Send tab says who it no longer reaches", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = await sentSurvey();
+    assert.equal((await w.answerByLink(w.tokenOf(id, "amara"), CHOICES)).status, 200);
+    w.world.db.poke(applicationPath("bea"), {
+      status: "withdrawn",
+      attendance: { answer: "cant-make-it", answeredAt: NOW },
+      withdrawnAt: NOW,
+      releaseReason: { kind: "times", other: "" },
+    });
+    const list = await w.page(w.pages.list, {}, "zach");
+    assert.ok(list.text.includes("1 of 4 Closes Wed 4 Nov Remind 2 haven’t answered"), list.text);
+    const send = await w.page(w.pages.send, { params: Promise.resolve({ surveyId: id }) }, "zach");
+    for (const words of [
+      "1 of 4 have answered, and 1 who hasn’t no longer holds a place. It closes on Wed 4 Nov.",
+      "2 haven’t answered. Nothing goes until you press the button.",
+      "Email 2 people",
+    ]) {
+      assert.ok(send.text.includes(words), `missing "${words}"`);
+    }
+    // The press reaches the same 2, and says so to a wrong number.
+    await call("zach", routes.test.POST, { surveyId: id }, { body: { email: "reminder" } });
+    const wrong = await call("zach", routes.remind.POST, { surveyId: id }, { body: { emails: 3 } });
+    assert.deepEqual([wrong.status, wrong.body.emails], [409, 2]);
+    // Nobody left: the Send tab's line is the board's, and the list's count is everybody not answered.
+    w.reset(seed());
+    const again = await sentSurvey();
+    assert.equal((await w.answerByLink(w.tokenOf(again, "amara"), CHOICES)).status, 200);
+    assert.ok((await w.page(w.pages.list, {}, "zach")).text.includes("1 of 4 Closes Wed 4 Nov Remind 3 haven’t answered"));
+    assert.ok((await w.page(w.pages.send, { params: Promise.resolve({ surveyId: again }) }, "zach")).text.includes("1 of 4 have answered. It closes on Wed 4 Nov."));
+  });
+
+  test("the list reads who a survey is for once for each programme, and not for a draft, a closed or a leaving survey", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const before = await sentSurvey();
+    // The survey at the end, made and sent: the same programme's audience.
+    const after = (await w.make("zach", { stage: "after" })).body.survey.id;
+    assert.equal((await w.sendFirst(after)).status, 200);
+    // The leaving survey, opened: it reaches each person as they leave, and is never reminded.
+    const leaving = (await w.make("zach", { stage: "leaving", closesOn: undefined })).body.survey.id;
+    const open = await w.loadTs("app/api/surveys/[surveyId]/open/route.ts");
+    assert.equal((await call("zach", open.POST, { surveyId: leaving }, { body: {} })).status, 200);
+    const queried = [];
+    const collection = w.world.db.collection;
+    w.world.db.collection = (path) => {
+      queried.push(path);
+      return collection(path);
+    };
+    try {
+      await w.page(w.pages.list, {}, "zach");
+    } finally {
+      w.world.db.collection = collection;
+    }
+    const count = (name) => queried.filter((path) => path === name).length;
+    assert.deepEqual([count("admissionApplications"), count("admissionDecisions")], [1, 1], "two open surveys of one programme share one read");
+    // Closed, neither reads it.
+    for (const id of [before, after]) assert.equal((await call("zach", routes.close.POST, { surveyId: id }, { body: {} })).status, 200);
+    queried.length = 0;
+    w.world.db.collection = (path) => {
+      queried.push(path);
+      return collection(path);
+    };
+    try {
+      await w.page(w.pages.list, {}, "zach");
+    } finally {
+      w.world.db.collection = collection;
+    }
+    assert.deepEqual([count("admissionApplications"), count("admissionDecisions")], [0, 0], "no survey on the list offers Remind");
+  });
+
   test("closed, nothing more is sent and nobody can answer", async (t) => {
     clock(t);
     w.reset(seed());
