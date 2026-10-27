@@ -858,6 +858,75 @@ const MUST_NAME = [
   ["the sessions beside a rating come from the register", /Beside each rating we show how many sessions the person came to, read from the register, never typed in\./i],
   ["ratings are deleted two years after the programme and with an account", /We delete them two years after the programme&apos;s last session, and at once if the account of whoever gave or was given one is deleted\./i],
   ["a copy of your data covers the ratings you were given", /the notes a facilitator wrote about you, the ratings you were given at the end of a programme, and the reason behind a conduct flag\./i],
+  // Every passage of v7 with a claim about something built since v6 that no
+  // entry above names, whole and in page order (privacy pass 2, before v7
+  // went live): the event and survey passages added after the owner approved
+  // the wording, the course hub's passages whose sentences had no entry, and
+  // the retention and rights passages that name them. A passage that drops a
+  // claim fails here as a category the page stopped naming; §2g holds each
+  // claim to its code.
+  ["who came to an event, how and when, and who sees it by name", /If you come to an event, we may record that you came, how and when: you check yourself in with the code at the door, or a committee member ticks your name on the door list\. Only NAISI&apos;s admins and the committee members the Students&apos; Union recognises can see who came, as they can see who signed up\. The event&apos;s other organisers see how many came, never who\./],
+  ["not coming to an event is recorded nowhere", /Not coming is recorded nowhere\. It is never held against you, and it never stops you signing up again\./],
+  ["a walk-in's name, and an address only for that event's survey, deleted when it closes or a week on", /If you come without signing up, we take your name at the door, and an email address only if you want that event&apos;s survey\. We use the address for nothing else, and delete it when that survey closes, or a week after the event if that comes first\./],
+  ["the check-in link in the email that confirms a place", /When your place at an event is confirmed, the email that tells you has a link that checks you in at the door, so you can check in without an account\. Anyone holding it could check in in your name, so keep it to yourself\./],
+  ["the check-in record counts who comes, and lists nobody's events", /We use the record to count who comes\. Nobody is shown one person&apos;s list of the events they came to\./],
+  ["how many different people came to a term's events, counted for admins alone", /NAISI&apos;s admins also see how many different people came to a term&apos;s events, and how many came to two or more of them\. To count you once, we match your check-ins by your account and its email address, and a sign-up you made without an account by the email address you gave; a walk-in with no account is never matched\. Admins see these as counts only, on a page and in a file of totals, never as who came to which events\./],
+  ["what a programme's surveys ask at the start, at the end and in the follow-ups, and an incubator's besides", /A programme&apos;s surveys ask about your level and subject of study, what you had done in AI safety before and how you first heard about NAISI; your career stage and plans, how likely you think you are to work on AI safety and the kinds of work that interest you; what you understand and know of the field, how many people in it you could contact, and how sure you are of your next step and of what you could contribute; what stands in your way and the steps you have taken; and what you want from the programme\. At the end and in the follow-ups they also ask how the programme went, what it changed, what else shaped your plans, what you are doing now and what you plan next\. An incubator&apos;s also ask about your research skills and what your team produced\./],
+  ["every programme survey ends with the Kairos choice, and the answers count the same", /Every programme survey ends with what we share with Kairos, one of our funders, and a box to say no to it, which starts as you last left it\. Whatever you choose there, your answers are kept and counted the same\. See Sharing with Kairos, under Sharing and processors\./],
+  ["who the survey after an event goes to, and who reads it", /After an event, NAISI&apos;s admins may send a survey to the people who came to it, or to everybody whose place on it was confirmed, and to nobody else\. It is confidential like every survey: your answers keep your name, and only NAISI&apos;s admins can see who said what and whether they came\. The event&apos;s organisers are told that it went and when, and nothing of its results\./],
+  ["what the survey after an event asks", /The survey after an event asks how it was, whether you would come to another, what we should run next, how you heard about it and what we should change\./],
+  ["the survey after an event's QR code, its email and what is kept with the answers", /At the end of an event its QR code opens the survey\. Signed in, you answer it there if you came or signed up, and its email afterwards skips you; signed out, it asks you to sign in\. Its email is an important notice, like every survey&apos;s, with a link of your own, sent to your account&apos;s address, or if you have no account to the address you gave when you signed up or at the door\. With your answers we keep when you sent them and whether you used your link or were signed in\./],
+  ["the box under a long answer to tick a comment to be quoted", /Under each long answer, a programme&apos;s surveys and the survey after an event have a box that says &quot;You can quote this, without my name&quot;\. It starts unticked\. If you tick it, the tick is kept with that answer, and like the rest of your answers it cannot change once you send them\. The survey about leaving has no such box\./],
+  ["what admins may publish on a programme's page, and nothing else", /NAISI&apos;s admins may publish, on a programme&apos;s page on our site, numbers worked out from that programme&apos;s own surveys, with how many people answered them, and comments whose writers ticked that box, each shown with the term and no name\. Nothing else of anybody&apos;s answers is published there, and nothing from the survey about leaving, a survey after an event or the anonymous form\. An admin can take it down at any time\./],
+  ["an admin opening one person's answers, recorded first", /An admin can open one person&apos;s answers to a programme&apos;s surveys, or to a survey after an event, together on one page\. Each time, before anything of them is read, we record who opened them, whose they were, by an id and never by name, which surveys and when, and never what the answers say; if that record cannot be written, nothing of them is shown\. We keep that record when names come off and when an account is deleted, as we keep the record of downloads\./],
+  ["the five kinds of download the record names", /A record of the spreadsheet downloads the site generates\. Five kinds are logged today, a membership list, the responses to a circulated worksheet, a programme&apos;s attendance, a survey&apos;s answers and the Kairos file, and each row holds who asked for it, what it covered, how many people were in it, and when\. See\{" "\} <a href="#courses">Courses and programmes<\/a> for what that does and does not cover\./],
+  ["when you are free: changed after decision day by somebody holding a place, and the reminder to say it", /<strong>Your availability\.<\/strong> The grid where you mark the times you are free, in 15 minute steps between 9am and 9pm on each day of the week\. The people who read your application can see it, and we use it to build groups\. If you are given a place on a fellowship, you can also change it on your application page from decision day until we email you your group\. That change counts at once, without sending your application again, and the version it replaces is kept with your earlier versions\. Until then, if you have not said when you are free, the programme&apos;s lead or an admin may email you to ask, at most once a day, whatever your notification settings say\./],
+  ["a freed place's offer on the application page, emailed whatever the settings say", /<strong>A place that comes back\.<\/strong> If somebody gives their place back after decision day, then until the end of the programme&apos;s first week its lead or an admin can offer that place to somebody who ranked the programme and was told no offer this time, as long as the programme had not turned them down\. If that is you, the offer is written onto your application and shown on your application page, and we email it to you whatever your notification settings say, with a day to reply by\. You answer it as you would an invitation\. The daily reminder about an invitation is not sent for these offers\./],
+  ["being asked to facilitate: who asks, how it is emailed and answered, and what a yes does", /<strong>Being asked to facilitate\.<\/strong> If you said you would like to facilitate a group, then from decision day the lead of a programme you said you would facilitate, or an admin, may ask you to facilitate one of its groups\. We email you the ask whatever your notification settings say, because it answers what you said on your application, and while it waits for your answer we may send you up to three reminders, at least twelve hours apart\. You answer on our site, on a page that shows the ask to you and nobody else, by the day and time the ask gives\. If you say yes, you become one of that group&apos;s facilitators\. We keep a record of each ask: who asked you and when, which group it was for, the day and time to answer by, whether the email went, any reminders, your answer and when you gave it, and a copy of the email as it was sent, with the name it was sent to\. The record holds no email address\. The programme&apos;s lead and admins can see these records, and you can see your own ask on its page\. They are kept with the rest of your course record, and deleted with your account\. If you hold a place on that programme, saying yes also puts you in that group, as one of its people: a facilitator who holds a place sits in the group they facilitate\./],
+  ["the calendar link: what it shows, who else can see it, replacing it, a leaver's, and deletion", /<strong>Your calendar link\.<\/strong> &quot;Add to calendar&quot; on your programme page gives you a private link to your sessions, which you can add to Apple Calendar, Google Calendar, Outlook or any calendar that subscribes to a link\. It shows the day, time and room of each session of your group \(and of any group you facilitate\), with the programme&apos;s and the group&apos;s name, and marks a session that is cancelled\. An online week says to join on naisi\.uk, never the meeting link\. It shows no names and no email address\. Once you add it, your calendar&apos;s provider \(Apple, Google or Microsoft, for example\) fetches it from us every so often and keeps what it shows, under its own privacy policy, so a session that moves or is cancelled changes in your calendar too\. Anyone else holding the link can see the same, so keep it to yourself\. You can replace it at any time from the same place, and the old link then shows nothing\. If you leave a programme, no session after the day you left is in it\. It is deleted with your account\./],
+  ["the notes a group's facilitators share go with their writer's account", /<strong>Notes facilitators share\.<\/strong> A group&apos;s facilitators can keep notes for each other about how their group is going, and a note can mention you by name\. The group&apos;s facilitators, the programme&apos;s lead and admins read them; nobody in the group does\. A note goes when the account of the facilitator who wrote it is deleted\. If you ask to see what is written about you, we will show you these notes too\./],
+  ["written work: who reads it, saving and sending, the lock, Late, feedback and its email", /<strong>Your written work\.<\/strong> Your written answers, the feedback on them, and your progress through each week&apos;s materials\. A written answer is read by you, your group&apos;s facilitators, the programme&apos;s lead and admins, and by nobody else taking part; the week&apos;s page says so beside it\. If you facilitate a group, your own answer is read by the programme&apos;s lead and admins, and not by the group&apos;s other facilitators\. It saves as you type, and until you send it, the others who read it see only that you have started it, never what it says\. We record when you first send it, and when you change it after that\. You can change it until one of your group&apos;s facilitators opens it \(for a facilitator&apos;s own answer, the programme&apos;s lead or an admin\), or feedback is sent on it; we record when it was opened, and any of its readers can reopen it for you to change\. Its readers can see when you sent it, and whether that was after it was due\. Your own pages show when you sent it, but never mark it late\. Feedback is a level for each row of the course&apos;s rubric and a short comment, with the name of whoever gave it, and never a mark\. One short email tells you that feedback is waiting; the feedback itself stays on the site\. You can also keep a private note against a piece of material: it is never shown to the rest of your run or read out\. Your group&apos;s facilitators and admins can read it, with your name, and we use what it says to improve the course; if you facilitate the group, only admins read yours\. We do not publish anything you write to the rest of your group unless you choose to share it, apart from a line of a reflection your facilitators may read out without saying who wrote it \(see Reflections\), and we will not use anything you write in a course to make decisions about you outside the programme\./],
+  ["pathways and cases: what is recorded and by whom, who sees it, a pick, and the ready box", /<strong>Pathways and cases\.<\/strong> Some weeks give you a pack to read, such as a pathway, and a case to give a short talk on\. When your facilitators hand these out on paper in a session, which ones you were given is recorded on the site, by them or by the programme&apos;s lead or an admin, and you see yours on that week&apos;s page\. Your group&apos;s facilitators, the programme&apos;s lead and admins see what everyone in the group was given; nobody else in your group sees yours\. If you facilitate the group you take part in, your co-facilitators see what you were given, as they see everybody&apos;s\. When a week lets you pick a pack yourself, we keep the one you picked, and you can change it until your session starts\. Your group&apos;s facilitators, the programme&apos;s lead and admins can see which one you picked, except that if you facilitate the group, your co-facilitators cannot\. You can say you are ready for your talk, and that is shown on your own pages and nobody else&apos;s\./],
+  ["a week's boxes go with the account", /<strong>Boxes you fill in\.<\/strong> Some weeks have boxes for you to fill in, such as an action plan\. What you write saves as you type\. It is read by you, your group&apos;s facilitators, the programme&apos;s lead and admins, and by nobody else taking part; the page says so under the boxes\. If you facilitate a group, what you write is read by the programme&apos;s lead and admins, and not by the group&apos;s other facilitators\. If you leave the programme, the programme&apos;s lead and admins can still read it, and your group&apos;s facilitators and you no longer can\. It is deleted with your account\./],
+  ["sealed predictions: filling in, sealing, opening, who reads a card, each admin opening recorded, and deletion", /<strong>Sealed predictions\.<\/strong> On a programme whose course has a card of predictions, a week&apos;s page gives you that card to fill in: each question asks for a percentage, a number on a scale or a sentence, and each answer saves as you type\. Once you seal your card, nobody can change it, you included, and you cannot read it again until your group&apos;s session before the week it opens in has ended and you open it there, after answering the same questions again\. You then see both side by side, and neither changes after that\. A card you never seal can no longer be changed once that session has ended, and you can still read it\. Your card is read by you and by admins, who can open anybody&apos;s at any time, and by nobody else: not your group&apos;s facilitators, not the programme&apos;s lead and not other fellows\. If you facilitate a group, its other facilitators do not read yours either\. Each time an admin opens a card, we record who opened it, whose card it was by account id, the course run and when, before anything on the card is read, and never what it says; if that record cannot be written, the card stays closed\. An admin cannot open their own card that way\. If you leave the programme, you no longer see your card, and admins still can\. Your card is deleted with your account, and when the programme&apos;s course run is destroyed\. The records of admins opening a card stay when an account is deleted, and are deleted when the run is destroyed\./],
+  ["a facilitator can hold a place in the group they facilitate", /<strong>If you facilitate your own group\.<\/strong> A facilitator can also hold a place on the programme, in the group they facilitate\. If you do, you are one of the group&apos;s people as well: you are on its register, and whoever takes the register marks you, which can be you; you count towards who finished; and your written answers are not shown to the group&apos;s other facilitators, who do not give you feedback on them: the programme&apos;s lead or an admin does\. Before you can leave the programme, or be taken off it, the programme&apos;s lead or an admin takes you off the group&apos;s facilitators\./],
+  ["reflections save as they are typed and get no feedback and no mark", /<strong>Reflections\.<\/strong> At stops in a week&apos;s readings you answer set questions in boxes that save as you type\. You, your group&apos;s facilitators, the programme&apos;s lead and admins can read your answers, and nobody else on the programme can; the week&apos;s page says so beside the boxes\. A facilitator may read a line of one out in the session without saying who wrote it, and the page where they choose lines shows them the words with no name beside them\. Reflections get no feedback and no mark\. If you facilitate a group, your own reflections are read by the programme&apos;s lead and admins, not by the group&apos;s other facilitators, and nobody reads them out\./],
+  ["a tick for each source of a week's readings", /<strong>Ticks\.<\/strong> Each source in a week&apos;s readings has a tick for you\. Your group&apos;s facilitators, the programme&apos;s lead and admins can see which sources you have ticked, with your name, and the week&apos;s page says so; nobody else on the programme can\. A tick never counts against you\. If you facilitate a group, the programme&apos;s lead and admins see yours, and the group&apos;s other facilitators do not\./],
+  ["a note shared with a group: deleted by its writer alone, and with their account", /<strong>Notes shared with your group\.<\/strong> On a programme that places you in a group, each week&apos;s page has notes the people in your group and its facilitators share with each other\. A note you add is shown with your name, the day you wrote it and the week it was written on, to everyone in your group, its facilitators, the programme&apos;s lead and admins, and to nobody else; the page says so under the notes\. While you are in the group you can delete a note you wrote, and nobody else can\. If you leave the programme, the notes you shared stay with your group, as your marks stay on its register\. They are deleted with your account\./],
+  ["pitching week: what a pitch holds, picks, and a pitch made a team", /<strong>Pitching week\.<\/strong> On an incubator, one week can be its pitching week\. You can pitch a project: a title, the paper you would replicate and your twist on it, alone or with a partner from your group\. Sending a pitch is choosing to share it: everybody in your group sees it, with your name and your partner&apos;s, and the pitch form says so\. You can also say which of your group&apos;s pitches you would join\. Nobody else in your group is told which ones you picked\. The programme&apos;s lead and admins see each pitch and how many would join it, but not who\. If the lead makes a pitch into a team, the people who said they would join it are put in that team \(see Teams\)\./],
+  ["teams are put together by the lead or an admin, who can move anybody", /<strong>Teams\.<\/strong> On an incubator, the programme&apos;s lead or an admin puts the people taking part into teams\. The site can make a team from a pitch \(the people who pitched it, then people who said they would join it\) or, where the programme&apos;s own questions on the application asked you to rank its projects, from your ranking\. The lead can move anybody\. We then email you your team&apos;s name and the names of the people in it, and nothing else about them\./],
+  ["a team's page: what it holds, who changes it, the hand-in and the check-ins, leaving and deletion", /<strong>Your team&apos;s page\.<\/strong> On an incubator, each team has a page of its own: its project, a weekly check-in, the team&apos;s links and its hand-in\. What anybody in the team writes there is seen by everybody in the team, the programme&apos;s lead and admins, and the page says so beside what you write\. Anybody in the team can change what is there\. The hand-in says who handed it in, and the lead and admins also see who last saved each week&apos;s check-in\. If you leave, what you wrote stays with your team; if your account is deleted, it stays and your name comes off it\./],
+  ["who finished: arriving late counts, what a member is told, and certificates follow it", /<strong>Who finished\.<\/strong> Once a programme&apos;s last session is over, we mark as finished everybody who came to at least the number of sessions its lead has set\. Arriving late or leaving early counts as coming\. The lead can then change anybody&apos;s, and we record who changed it and when\. Only the lead and admins see that number, and the list with how many sessions each person came to and how many written answers they sent\. Your programme page then tells you that you finished, or that the programme has ended\. Somebody who did not finish is not told so\. Who finished decides who is sent a certificate\./],
+  ["certificates: the email and its link, the PDF, Add to LinkedIn, who is not sent one, and whose choice it is", /When a programme ends, we will send a certificate to everybody the programme&apos;s record says finished it \(see Who finished\), and to each person who facilitated one of its groups\. A facilitator who held a place and finished is sent both\. The programme&apos;s lead or an admin sends each one as an email with a link to its page on our site\. The page shows your name, that you finished the programme or facilitated a group on it, the programme, the term, how many weeks it ran and the day it was issued\. It shows no email address, no photo and nobody else&apos;s name\. It starts private: until you turn its link on, only you can open it\. While the link is on, anyone holding it can open the page and check the certificate, and you can turn it off again at any time\. The link is not guessable and the page is not listed anywhere\. You can also download the certificate as a PDF\. A copy you have downloaded or passed on is yours, and outside our reach\. Add to LinkedIn sends nothing until you press it; if you do, your browser takes the certificate&apos;s title, the date and its link to LinkedIn\. Somebody who did not finish is not sent one, and is not told\. Making a certificate is part of running the programme\. Whether anybody else sees it is your choice\./],
+  ["what facilitators rate at a programme's end, and that the ratings go to Kairos unless you say no", /Once a programme&apos;s last session is over, each group&apos;s facilitators rate the people taking part in it: how much they joined in discussion, their grasp of the material, how much improving AI outcomes seems to drive them, and whether they would recommend them for a more demanding next step\. On an incubator they also rate how strongly they support the person&apos;s research continuing, their research or technical skill, and how independently they can steer it\. Beside each rating we show how many sessions the person came to, read from the register, never typed in\. Nobody rates themselves, and two facilitators of one group never rate each other: a facilitator, who takes part in the group they run, is rated by the programme&apos;s lead or an admin, who can also rate anybody else on the programme\. Ratings are read only by the programme&apos;s lead, NAISI&apos;s admins, and the person who gave each one, who sees only their own\. They are never shown to the person rated, on any page or in any email\. Unless you have said no, the ratings you were given go to Kairos with your name \(see Sharing and processors\)\. We delete them two years after the programme&apos;s last session, and at once if the account of whoever gave or was given one is deleted\./],
+  ["the five recorded downloads: who may take each, and what each file holds", /Staff sometimes need a spreadsheet: a register to take to a session, a roster, the applications for a round, a membership list\. Five of those downloads are recorded, with who asked for it, what it covered, how many people were in it and when: the membership list, the answers to a circulated worksheet, a programme&apos;s attendance, a survey&apos;s answers with names, and the Kairos file; only admins can download the last two\. The attendance file is for the programme&apos;s lead and admins\. It holds each person&apos;s group, name and marks, how many sessions they came to and the day they left, if they did, and never an email address or a note\. The survey file holds, for each person who answered, their name, when and how they sent their answers, whether their group had met by then, and the answers themselves, and never an email address\. The file of a survey after an event has no column about a group, and names a guest by the name they gave the event\. The Kairos file holds, for each person on a programme at its end who has not said no to sharing with Kairos, their name, the programme, how many sessions they came to, whether they finished and the ratings they were given at the end, and never an email address, who gave a rating or a survey answer\. All five refuse to hand over the file if that record cannot be written\. The event attendee list and the subscriber list are built in your browser and are not recorded\. We are being careful with that sentence: it means we log five of the files the site produces\. It does not mean we can track a file once it has been downloaded, and it does not cover somebody copying what is on their screen\./],
+  ["what a programme's lead sees and does, from decision day to the end", /<strong>The lead of each programme<\/strong> sees everything a reviewer sees, and records the decision for that programme\. After decision day the lead can also offer a place that comes back\. The lead also reads the answers about facilitating of everybody who said they would like to facilitate the programme, whether or not they ranked it, and from decision day can ask them to facilitate one of its groups\. Once the programme is running, the lead places its people in groups, reads every register of its groups, the notes its groups&apos; facilitators share, and the notes each of its groups shares on its week pages, sees the pitches and makes the teams on an incubator, reads the reason somebody gives for leaving, and says who finished\. The lead also reads the reflections its groups&apos; people write and sees which sources each of them has ticked, a facilitator&apos;s own among them\. When it ends, the lead also reads the ratings given to the people on it, and rates its facilitators\. The lead also sees the totals and comments of the programme&apos;s surveys, never with a name \(see When you answer a survey\), and the average star rating of each piece of its course material once three people have rated it, never who gave which\. Admins see every application but their own, with your email addresses\. On decision day they are the only ones who choose what somebody no programme took will hear, and they send the decisions\. Only admins can open what you wrote under access requirements, and each time one does it is recorded\. A programme&apos;s lead cannot\./],
+  ["what facilitators see, before the first session and at the end", /<strong>Facilitators<\/strong> \(students, in most cases only a year or two ahead of you\) see their own groups: who is in them, by name only, attendance, written work, the reflections the group&apos;s people write and which sources each of them has ticked, the private notes they keep on what they read, the participant notes their colleagues wrote about people in that group, and the notes the group&apos;s facilitators share with each other\. A facilitator never sees another facilitator&apos;s own reflections, ticks or private notes\. They never see your email address: they can email their group through the site without seeing anybody&apos;s\. Before the first session, they also see whether each person in their group has said they are coming\. Apart from that one reply, they see nothing from applications, and no review scores\. When a programme ends they rate the people in their group, and see only the ratings they gave, never anybody&apos;s rating of them\./],
+  ["what other participants see, and nothing else", /<strong>Other participants<\/strong> on your run see your name\. On a programme anyone can join, they also see any comment or star rating you leave on a piece of course material; on a programme that places you in a group, the people in your group see the notes you share with it\. On an incubator, the people in your group also see any pitch you send, with your name, and the people in your team see that you are in it and anything you write on your team&apos;s page\. When a session is in pairs, the people in your pair see your first name and, where the week asks, whether you are bringing a laptop\. They see nothing else about you\./],
+  ["checking people in at an event, among how we use data", /Check people in at an event, and count who comes\./],
+  ["running courses, among how we use data", /Run our courses: assess applications, place people into groups that fit their availability, keep registers, give feedback on work, make teams on an incubator, record who finished and send certificates, and ask how the sessions are going\./],
+  ["showing a programme's last term on its page, among how we use data", /Show on a programme&apos;s page how its last term went: numbers from its own surveys, and comments their writers ticked to be quoted, with no name\./],
+  ["the transactional emails, that feedback is waiting among them", /Send you transactional emails you have asked for, such as RSVP confirmations, application receipts and reminders, the decision on an application, the week&apos;s course materials, that feedback on your written answer is waiting, and account-related messages\./],
+  ["consent, quoting a comment among it", /<strong>Consent<\/strong> for sending you the newsletter and any other marketing-style communication, and for push notifications\. You can withdraw consent at any time using the unsubscribe link in any such email, the notification settings on your profile, or by emailing us\. Quoting a comment of yours on our site rests on your consent too, given by ticking the box under it, and if you email us we will take the quote down\. Important notices about something you have signed up for, such as an event you are attending or a course group you are in, are sent under performance of a contract rather than consent, so your notification settings do not switch them off, and they are never marketing\./],
+  ["no automated decisions, who finished and teams among them", /<strong>No automated decisions\.<\/strong> No decision about you is made solely by automated means\. Scores are given by named reviewers, and a programme&apos;s score for an application is only the average of what those reviewers gave\. Where a programme uses scores, the site shows the people reviewing its applications which ones scored highest, as a guide\. On a programme, who finished starts from the number of sessions its lead chose, and the lead can change anybody&apos;s; on an incubator, the site can put teams together from pitches or rankings when the lead asks, and the lead can move anybody before telling people their team\. Every decision is taken by a person\./],
+  ["what goes to Kairos, what Kairos does with it, and why we share it", /Kairos supports AI safety groups at universities and is one of our funders\. Unless you say no, when a programme ends we send Kairos a file with, for each person on it at the end: their name, the programme, how many sessions they came to, whether they finished, and the ratings they were given at the end \(described under Ratings at the end of a programme\)\. Kairos uses it to see what its support achieves and to point promising people towards work in AI safety\. We share it because it helps us make our case to our funders and sponsors, so leaving it on helps NAISI\. It never holds your email address, your survey answers, or who gave a rating\./],
+  ["how long course records are kept", /<strong>Course applications and course records\.<\/strong>\{" "\} Applications are kept against your account for as long as it exists, so you can see what you sent us and so we can make sense of a later application from the same person\. We do not strip them after a fixed period\. The scores, comments and decisions about an application are kept for as long as it is\. The same goes for the rest of your course record: attendance, written work, feedback you gave us \(survey answers, below, are the exception\), and notes written about you\. If you want any of it removed sooner, email us\./],
+  ["survey answers' names come off two years on, a survey after an event's two years after the event", /<strong>Survey answers\.<\/strong> We take your name off your answers to a survey on the day it tells you, two years after the programme&apos;s last session, and delete the record that it was sent to you, with your link to answer it and what you said about follow-ups\. Your answers stay in its totals, no longer linked to you\. For the survey after an event, that day is two years after the event\./],
+  ["how long what is published from a programme's surveys stays", /<strong>What we publish from a programme&apos;s surveys\.<\/strong>\{" "\} The numbers and quotes on a programme&apos;s page stay there until an admin takes them down, or publishes that programme&apos;s again, which replaces them\./],
+  ["how long ratings at a programme's end are kept", /<strong>Ratings at the end of a programme\.<\/strong> We delete them two years after the programme&apos;s last session, the day names come off its surveys\./],
+  ["how long the Kairos choice is kept", /<strong>Your choice about Kairos\.<\/strong> Kept for as long as your account exists, so a later programme goes by it too\./],
+  ["how long who came to an event is kept with names, and a walk-in's address", /<strong>Who came to an event\.<\/strong> We keep the record of who came with names for a year after the event, then take the names off and keep the count\. A walk-in&apos;s email address is deleted when the event&apos;s survey closes, or a week after the event if that comes first\./],
+  ["what a deletion removes, every course record named", /<strong>What a deletion removes\.<\/strong> Your account record and profile, your newsletter subscriptions and their history, your collaborator application if you made one, any outstanding email-verification links, your course enrolments, applications and drafts, the asks to facilitate a group sent to you and your replies to them, your progress, your written answers with the feedback on them, your reflections and what you wrote in a week&apos;s boxes, the packs and cases recorded for you and whether you said you were ready for your talks, your pairs for a session, your sealed predictions, your calendar link, the notes you shared with a group, notes you wrote for the other facilitators of a group, your name on your survey answers, the record of each survey sent to you with your link to answer it, a pitch you sent alone, your name on a pitch you sent with a partner, your picks in pitching week, your place in a team, any decision a lead recorded about whether you finished, a certificate whose link is off, your admission applications together with the access-requirements answer stored separately beside them, the decisions recorded about those applications, the review scores and notes written about those applications and any you wrote about somebody else, a conduct flag if there is one, every rating you gave or were given at the end of a programme, your choice about sharing with Kairos, your membership records and the lines naming you on a Students&apos; Union membership file, and your sign-in record\. Your marks and the notes about you are stripped out of attendance registers, which stay for the rest of the group\./],
+  ["survey answers stay in the totals after a deletion", /Your answers to surveys, no longer linked to you: they stay in the totals\./],
+  ["a quoted comment after a deletion", /A comment of yours quoted on a programme&apos;s page: it carries no name, and with your account gone nothing links it to you\. Email us and we will take it down\./],
+  ["the anonymous form's answers after a deletion", /Your answers to the anonymous form: nothing in them says they were yours, so there is nothing of yours to remove\./],
+  ["the record that somebody came to an event, after a deletion", /The record that you came to an event, no longer linked to you: it stays in the count\./],
+  ["a pitch sent with a partner, after a deletion", /A pitch you sent with a partner: it stays theirs, without your name\./],
+  ["what somebody wrote on a team's page, after a deletion", /What you wrote on your team&apos;s page: it stays with your team, and your name comes off it\./],
+  ["a certificate whose link is on, after a deletion", /<strong>A certificate whose link is on is a deliberate exception\.<\/strong> If its link is on when your account is deleted, its page is not removed, because it exists for the people you gave the link to and that is the moment you are least likely to still have an account with us\. Email us and we will withdraw it, account or no account\. A certificate whose link is off is deleted with your account\./],
+  ["the audit-style records a deletion leaves, the openings of sealed predictions and survey answers among them", /Audit-style records are kept for as long as needed to investigate issues and meet our accountability obligations, and are not removed when an account is deleted\. These are records of what staff did rather than of what you wrote: the email send log, the subscription event log, the impersonation log used for committee oversight, the log of course actions including who read an access-requirements answer and each decision made about an application, the record of each time an admin opened somebody&apos;s sealed predictions or survey answers, and the record of the five downloads the site logs\. They name the person who took the action and what it concerned\. A log line about a decision on an application, or about an admin opening an access-requirements answer, identifies the applicant by their account&apos;s id and not by name, names the programme where there is one, and says what was done\. It never holds the answer that was opened\. Where an admin took an acceptance back, the line holds the reason they typed\. Those lines stay when the applicant&apos;s account is deleted, and go only if that term&apos;s applications are destroyed\. Apart from that reason, the logs hold no course answers, marks or notes, and no scores or reviewers&apos; comments\./],
+  ["saying no to Kairos on the profile, among the rights you serve yourself", /Most of these are self-serve\. You can edit your profile and notification preferences, and say no to sharing with Kairos, from <a href="\/profile">your profile page<\/a>, and unsubscribe from any marketing email through the link in that email\. Important notices carry no unsubscribe link, because there is nothing there to switch off\. Deleting your account is by request: email\{" "\} <a href="mailto:ai-safety@uonsu\.com">ai-safety@uonsu\.com<\/a>\{" "\} and we will delete it\. There is no delete button on the site, because removing a member&apos;s work from the committee tooling is done by hand\./],
+  ["a copy of your data covers what others wrote about you, the ratings you were given among it", /A request for a copy of your data covers what other people have written about you as well as what you wrote yourself\. For courses that means the scores and notes a reviewer recorded on your application, what each programme decided about it and any reason noted, the notes a facilitator wrote about you, the ratings you were given at the end of a programme, and the reason behind a conduct flag\. Ask us and we will tell you\. Where a record names somebody else as well as you we may need to redact their part of it\./],
 ];
 
 describe("the courses section", () => {
@@ -1205,11 +1274,12 @@ describe("the courses section", () => {
       ["RSVP dietary and accessibility answers are given by explicit consent", /dietary and accessibility\s+answers you give on an event signup form/i],
       ["the Google profile photo is fetched from Google by the visitor", /visitor&apos;s browser fetches it from Google&apos;s servers/i],
       ["a video thumbnail in an email is fetched from YouTube", /fetches\s+that thumbnail from YouTube/i],
-      // Four since a survey's answers joined the log after a programme's
-      // attendance: §2g walks the tree for every caller of `logExport` and
-      // holds the list to exactly four. The pattern this replaces named three,
-      // ending at the attendance.
-      ["the export log names the kinds that exist", /Four\s+kinds are logged today, a membership list, the\s+responses to a circulated worksheet, a programme&apos;s\s+attendance and a survey&apos;s answers,/i],
+      // Five since the Kairos file joined the log after a survey's answers:
+      // §2g walks the tree for every caller of `logExport` and holds the list
+      // to exactly five, and holds this sentence's kinds to that walk. The
+      // pattern this replaces named four, ending at a survey's answers, which
+      // stayed on the page after the Kairos file joined (privacy pass 2).
+      ["the export log names the kinds that exist", /Five\s+kinds are logged today, a membership list, the\s+responses to a circulated worksheet, a programme&apos;s\s+attendance, a survey&apos;s answers and the Kairos file,/i],
       ["Google's sign-in script and where it is loaded from", /sign-in script is loaded from/i],
     ]) {
       assert.match(CURRENT_FLAT, pattern, `v7 no longer says: ${name}`);
@@ -3940,6 +4010,19 @@ describe("the course hub passage", () => {
   // Five since the Kairos file joined the log: the walk, the refusal loop and
   // the title each said four, and each names the fifth now, as exactly.
   test("five downloads are logged, each before its file is handed over, and the attendance, survey and Kairos files hold what the page says", () => {
+    // Operational logs names as many kinds as there are writers of the
+    // record, before the walk below names each: it said four after the
+    // Kairos file had made five (privacy pass 2).
+    const NUMBER_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+    const callers = sourceFilesNaming(/\blogExport\(/).filter((file) => file !== "src/lib/firestore/dataExports.ts").length;
+    const logs = /A record of the spreadsheet downloads the site generates\. (\w+) kinds are logged today, (.*?), and each row holds who asked for it, what it covered, how many people were in it, and when\./.exec(PAGE_FLAT);
+    assert.ok(logs, "Operational logs no longer says how many kinds of download are logged");
+    assert.equal(logs[1].toLowerCase(), NUMBER_WORDS[callers], `Operational logs says ${logs[1]} kinds are logged, and ${callers} routes write the record of a download`);
+    assert.equal(
+      logs[2],
+      "a membership list, the responses to a circulated worksheet, a programme&apos;s attendance, a survey&apos;s answers and the Kairos file",
+      "Operational logs names other kinds than the five the walk below holds",
+    );
     assertExactlyTheseFiles(
       sourceFilesNaming(/\blogExport\(/).filter((file) => file !== "src/lib/firestore/dataExports.ts"),
       new Map([
@@ -4663,8 +4746,12 @@ describe("the course hub passage", () => {
       // The written answers and their feedback by name, where "your answers
       // to exercises" stood (the same rows, deleted by the same step below),
       // then the packs and cases recorded for a person (plan item 8), before
-      // the calendar link; everything else is as it was.
-      /your progress, your written answers with the feedback on them, the packs and cases recorded for you and whether you said you were ready for your talks, your calendar link, the notes you shared with a group, notes you wrote for the other facilitators of a group, your name on your survey answers, the record of each survey sent to you with your link to answer it, a pitch you sent alone,/,
+      // the calendar link. CHANGED ON PURPOSE (privacy pass 2): the list now
+      // also names reflections and a week's boxes (the same rows as the
+      // written answers, swept by the same step), pairs for a session and
+      // sealed predictions, each deleted by a step held below, which their
+      // own bullets said and the list did not; everything else is as it was.
+      /your progress, your written answers with the feedback on them, your reflections and what you wrote in a week&apos;s boxes, the packs and cases recorded for you and whether you said you were ready for your talks, your pairs for a session, your sealed predictions, your calendar link, the notes you shared with a group, notes you wrote for the other facilitators of a group, your name on your survey answers, the record of each survey sent to you with your link to answer it, a pitch you sent alone,/,
     );
     const cascade = withoutComments(read("src/lib/firestore/accountDeletion.ts"));
     for (const step of [
@@ -4673,9 +4760,29 @@ describe("the course hub passage", () => {
       "summary.courseGroupSharedNotesDeleted = await deleteCourseGroupSharedNotes(db, uid);",
       "summary.courseGroupNotesDeleted = await deleteCourseGroupNotes(db, uid);",
       "summary.coursePacksAndCasesDeleted = await deleteCoursePacksAndCases(db, uid);",
+      "summary.coursePairsDeleted = await deleteCoursePairs(db, uid);",
+      "summary.coursePredictionsDeleted = await deleteCoursePredictions(db, uid);",
     ]) {
       assert.ok(cascade.includes(step), `the account deletion no longer runs \`${step}\`, which the policy lists among what a deletion removes`);
     }
+    // Pairs and both predictions cards go whole, every row the uid owns.
+    assert.match(cascade, /export async function deleteCoursePairs\(db: Firestore, uid: string\): Promise<number> \{\s*return deleteOwnedCourseRows\(db, COURSE_PAIRS_COLLECTION, uid\);\s*\}/);
+    assert.match(cascade, /export async function deleteCoursePredictions\(db: Firestore, uid: string\): Promise<number> \{\s*return deleteOwnedCourseRows\(db, COURSE_PREDICTIONS_COLLECTION, uid\);\s*\}/);
+    // "Your reflections and what you wrote in a week's boxes": both are rows
+    // of the written answers' own store, keyed by their writer's uid, which
+    // the cascade sweeps by uid whatever their kind.
+    for (const [route, kind] of [
+      ["src/app/api/courses/runs/[runId]/reflections/[promptId]/route.ts", "reflection"],
+      ["src/app/api/courses/runs/[runId]/fill-in-boxes/[boxId]/route.ts", "fillIn"],
+    ]) {
+      const writer = withoutComments(read(route));
+      assert.match(writer, /db\.collection\("courseExerciseResponses"\)\.doc\(id\)/, `${route} no longer writes the store the cascade sweeps`);
+      assert.match(writer, /uid: actor\.uid,/, `${route} no longer keys its row by its writer`);
+      assert.match(writer, new RegExp(`kind: "${kind}",`), `${route} no longer writes a ${kind} row`);
+    }
+    const sweep = /async function deleteOwnedCourseRows\([\s\S]*?\n\}/.exec(cascade)?.[0] ?? "";
+    assert.match(sweep, /\.where\(field, "==", uid\)\s*\.limit\(COURSE_PAGE_SIZE\)\s*\.get\(\);/);
+    assert.ok(!/kind/.test(sweep), "the cascade's sweep of a person's rows now picks among kinds, so it may leave reflections or boxes behind");
   });
 
   test("a survey is confidential: its answers keep the person's name, only admins see who said what or who has answered, facilitators see nothing of it, and the survey says so at the top", () => {
@@ -5333,9 +5440,18 @@ describe("the course hub passage", () => {
       assert.ok(!/kairosChoicesOf|sharesWithKairos/.test(withoutComments(read(file))), `${file} now leaves out somebody who said no to Kairos`);
     }
     // "We keep your choice ... until your account is deleted": the account's
-    // deletion takes it, and no job does.
+    // deletion takes it, and no job does. The same claim is made under
+    // Retention ("Kept for as long as your account exists, so a later
+    // programme goes by it too": one record for the person, read by every
+    // programme's file), in the list of what a deletion removes, and under
+    // Your rights, where the profile is one of the two places to say no
+    // (held to the profile page above). Privacy pass 2 held those three here.
+    assert.match(PAGE_FLAT, /<strong>Your choice about Kairos\.<\/strong> Kept for as long as your account exists, so a later programme goes by it too\./);
+    assert.match(PAGE_FLAT, /every rating you gave or were given at the end of a programme, your choice about sharing with Kairos, your membership records/);
+    assert.match(PAGE_FLAT, /You can edit your profile and notification preferences, and say no to sharing with Kairos, from <a href="\/profile">your profile page<\/a>/);
     assert.match(withoutComments(read("src/lib/firestore/accountDeletion.ts")), /summary\.kairosChoiceDeleted = await deleteKairosChoice\(db, uid\);/);
     assert.deepEqual(sourceFilesNaming(/\bdeleteKairosChoice\(/).filter((file) => file !== "src/lib/kairos/choice.ts"), ["src/lib/firestore/accountDeletion.ts"]);
+    assert.match(withoutComments(read("src/lib/kairos/choice.ts")), /\.collection\(KAIROS_CHOICES_COLLECTION\)\.doc\(uid\)/, "the Kairos choice is no longer one record for the person, which every programme's file reads");
     // "These never name anybody": the report, run with people in it, carries
     // no uid out.
     const report = kairosReport.buildKairosReport({
@@ -5402,6 +5518,18 @@ describe("the course hub passage", () => {
     const job = withoutComments(read("src/lib/scheduler/jobs/surveyNamesOff.ts"));
     assert.match(job, /const off = twoYearsAfter\(sheet\.lastSessionOn\);\s*return off !== null && off <= today;/);
     assert.match(job, /const ratings = await deleteRunRatings\(db, sheet\.runId\);/);
+    // Retention says it again, "the day names come off its surveys": the same
+    // job, and the same two years after the same last session that a
+    // survey's own day is worked out from (privacy pass 2).
+    assert.match(PAGE_FLAT, /<strong>Ratings at the end of a programme\.<\/strong> We delete them two years after the programme&apos;s last session, the day names come off its surveys\./);
+    assert.match(withoutComments(read("src/lib/surveys/namesOff.ts")), /const last = runEndOf\(run, groups, now\)\.lastDateKey;\s*return last \? twoYearsAfter\(last\) : null;/);
+    assert.ok(job.indexOf("await takeNamesOffSurvey(db, survey)") < job.indexOf("await deleteRunRatings(db, sheet.runId)"), "the ratings no longer go in the names-off job's own pass");
+    // The list of what a deletion removes names them, held to the cascade's
+    // step above (privacy pass 2).
+    assert.match(PAGE_FLAT, /a conduct flag if there is one, every rating you gave or were given at the end of a programme,/);
+    // A copy of a person's data covers the ratings they were given: each one
+    // is found by the person it is about (the store's own reading, below).
+    assert.match(PAGE_FLAT, /the notes a facilitator wrote about you, the ratings you were given at the end of a programme, and the reason behind a conduct flag\./);
     assert.match(withoutComments(read("src/lib/firestore/accountDeletion.ts")), /summary\.programmeRatingsDeleted = await deleteRatingsForAccount\(db, uid\);/);
     const store = withoutComments(read("src/lib/ratings/store.ts"));
     assert.match(store, /\.where\("raterUid", "==", uid\)\.get\(\),\s*db\.collection\(RATINGS_COLLECTION\)\.where\("ratedUid", "==", uid\)\.get\(\),/);
@@ -6075,6 +6203,183 @@ describe("one person's answers, opened by an admin", () => {
 });
 
 // ---------------------------------------------------------------------------
+// §2g, continued: the last pass before version 7 goes live
+// ---------------------------------------------------------------------------
+
+/**
+ * Sentences made true, or added, in the last check of v7 against the code
+ * before it went live (v7 was on dev and nobody had accepted it, so it kept
+ * its number): when you are free, once you hold a place, and the reminder to
+ * say it; a written answer before it is sent; what the people in your pair
+ * see of you, which made "They see nothing else about you" untrue until it
+ * was said; and the record of an admin opening somebody's sealed predictions
+ * or survey answers among the audit-style records a deletion leaves. Each is
+ * paired with a rule that is run or a line of source that is matched, as the
+ * rest of §2g is.
+ */
+const standingRules = await loadTs("lib/applications/status/standing.ts");
+const pairsModel = await loadTs("lib/courses/pairs/model.ts");
+const writtenModel = await loadTs("lib/courses/writtenAnswers/model.ts");
+
+describe("the last pass before version 7 goes live", () => {
+  const FREE =
+    /If you are given a place on a fellowship, you can also change it on your application page from decision day until we email you your group\. That change counts at once, without sending your application again, and the version it replaces is kept with your earlier versions\./;
+  const REMIND =
+    /Until then, if you have not said when you are free, the programme&apos;s lead or an admin may email you to ask, at most once a day, whatever your notification settings say\./;
+  const DRAFT =
+    /It saves as you type, and until you send it, the others who read it see only that you have started it, never what it says\./;
+  const PAIRS =
+    /When a session is in pairs, the people in your pair see your first name and, where the week asks, whether you are bringing a laptop\. They see nothing else about you\./;
+  const OPENINGS =
+    /each decision made about an application, the record of each time an admin opened somebody&apos;s sealed predictions or survey answers, and the record of the five downloads the site logs\./;
+
+  test("the frozen v6 carries none of these sentences", () => {
+    for (const pattern of [FREE, REMIND, DRAFT, PAIRS, OPENINGS]) assert.ok(!pattern.test(V6_FLAT), `v6 already says ${pattern}`);
+  });
+
+  // The list at the top of v7 is how a maintainer finds the code behind each
+  // change from v6. It is held here as the last pass checked it: numbered in
+  // order with no gap, every cross-reference naming an item that is there,
+  // and every file it names in the tree (a bare file name somewhere under
+  // src, as the items name a module beside the folder they gave).
+  test("the list of changes from v6 is numbered in order, cross-refers to items that are there, and names files that exist", () => {
+    const header = CURRENT.slice(0, CURRENT.indexOf("*/"));
+    const numbers = [...header.matchAll(/^ \* {0,2}(\d+)\. \*\*/gm)].map((m) => Number(m[1]));
+    assert.ok(numbers.length >= 38, "could not find the list of changes from v6");
+    assert.deepEqual(numbers, numbers.map((_, at) => at + 1), "the list of changes from v6 skips or repeats a number");
+    for (const [, refs] of header.matchAll(/\((\d+(?:(?:, | and )\d+)*)[,)]/g)) {
+      for (const ref of refs.split(/, | and /).map(Number)) {
+        assert.ok(ref >= 1 && ref <= numbers.length, `the list refers to item ${ref}, which it does not have`);
+      }
+    }
+    const everyFile = textFilesUnder(SRC).map((file) => file.slice(REPO_ROOT.length + 1).split(sep).join("/"));
+    for (const [, named] of header.matchAll(/`([^`\s]+\.(?:tsx?|mjs|md))`/g)) {
+      const found = named.includes("/") ? existsSync(join(REPO_ROOT, named)) : everyFile.some((file) => file.endsWith(`/${named}`));
+      assert.ok(found, `the list of changes from v6 names ${named}, which is not in the tree`);
+    }
+    for (const [, folder] of header.matchAll(/`((?:src|docs|tests)\/[^`\s]+\/)`/g)) {
+      assert.ok(existsSync(join(REPO_ROOT, folder)), `the list of changes from v6 names the folder ${folder}, which is not in the tree`);
+    }
+  });
+
+  test("when you are free changes from decision day, for a fellowship's place, until the group is emailed, at once and keeping the version it replaces", () => {
+    assert.match(PAGE_FLAT, FREE);
+    const whenFree = withoutComments(read("src/lib/applications/status/whenFree.ts"));
+    // A place, read from the person's own application; a fellowship's; shut once Publish has told them their group.
+    assert.match(whenFree, /const standing = standingOf\(application\);\s*if \(standing\.kind !== "place" \|\| !standing\.programmeId\) return \{ open: false, why: "no-place" \};/);
+    assert.match(whenFree, /if \(!programme \|\| programme\.kind !== "fellowship"\) return \{ open: false, why: "no-place" \};/);
+    assert.match(whenFree, /if \(onRun\.kind !== "not-in-a-group"\) return \{ open: false, why: "told" \};/);
+    // "From decision day": nothing is a place until an outcome is written, and
+    // nothing is written before decision day ("Nothing early").
+    assert.equal(standingRules.standingOf({ status: "submitted", result: null, invitation: null, attendance: null }).kind, "waiting");
+    assert.equal(standingRules.standingOf({ status: "submitted", result: { kind: "accepted", programmeId: "agi" }, invitation: null, attendance: null }).kind, "place");
+    assert.equal(
+      standingRules.standingOf({ status: "submitted", result: { kind: "accepted", programmeId: "agi" }, invitation: null, attendance: { answer: "cant-make-it" } }).kind,
+      "released",
+      "somebody who gave the place back can still change when they are free",
+    );
+    // At once: written into what was sent, with no Send; the version it replaces kept as a send keeps one.
+    const store = withoutComments(read("src/lib/applications/applicant/store.ts"));
+    const change = /export async function changeSentAvailability\([\s\S]*?\n\}/.exec(store)?.[0] ?? "";
+    assert.ok(change, "could not find the one writer of a changed week");
+    assert.match(change, /const history = keepVersion\(/);
+    assert.match(change, /"sent\.availability": next,/);
+    assert.match(change, /sentHistory: history\.versions\.map\(/);
+    // The one route that calls it, from the person's own application page.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bchangeSentAvailability\(/).filter((file) => file !== "src/lib/applications/applicant/store.ts"),
+      new Map([["src/lib/applications/status/whenFree.ts", "the rule for changing when you are free after decision day, asked by the person's own route"]]),
+      "changing a sent application's week",
+      "The policy says somebody holding a place on a fellowship changes when they are free from decision day until their group is emailed. A new writer changes that sentence first.",
+    );
+  });
+
+  test("the reminder to say when you are free: the programme's lead or an admin, a fellowship's people not yet told, at most once a day, whatever the settings say", () => {
+    assert.match(PAGE_FLAT, REMIND);
+    const route = withoutComments(read("src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/when-free/remind/route.ts"));
+    // The lead or an admin, asked before anybody is read; a fellowship's alone.
+    const gate = route.indexOf("const outcome = await loadProgrammeRun(db, actor, roundId, programmeId);");
+    const refused = route.indexOf('if (outcome.status === "not-yours") {');
+    const people = route.indexOf("await loadProgrammePeople(db,");
+    assert.ok(gate !== -1 && refused > gate && people > refused, "the reminder reads who to email before it refuses a reviewer");
+    assert.match(route, /if \(programme\.kind !== "fellowship"\) \{/);
+    // Who has not said when they are free: the People tab's own rows.
+    assert.match(route, /people\.view\.rows\.filter\(\(row\) => rowMatches\(row, "not-said-free"\)\)/);
+    assert.match(read("src/lib/applications/people/filters.ts"), /case "not-said-free":\s*return row\.category === "holding" && row\.free\.kind === "not-said";/);
+    // Until their group is emailed; once a London day; the day claimed before the email goes.
+    const remind = withoutComments(read("src/lib/courses/getReady/remind.ts"));
+    assert.match(remind, /const told = notSaid\.filter\(\(_, at\) => isTold\[at\]\)\.map\(\(row\) => row\.uid\);\s*const open = notSaid\.filter\(\(_, at\) => !isTold\[at\]\);/);
+    assert.match(remind, /return `freeremind__\$\{runId\}__\$\{uid\}__\$\{dateKey\}`;/);
+    const claim = remind.indexOf("await ref.create({");
+    const send = remind.indexOf("await sendEmail({");
+    assert.ok(claim !== -1 && send > claim, "a reminder goes before the day's claim is made, so a second press could send it twice");
+    assert.match(remind, /const dateKey = londonDateKey\(input\.now\);/);
+    // Whatever the settings say: nothing here reads a notification choice.
+    assert.ok(!/wantsEmailFor|addressesForSend|resolveCohortAudience|notifications|categories/.test(remind), "the reminder now reads a notification setting, which the policy says it does not");
+    // Its one sender is that route.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bsendFreeReminders\(/).filter((file) => file !== "src/lib/courses/getReady/remind.ts"),
+      new Map([["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/when-free/remind/route.ts", "Remind on the programme's Overview, pressed by its lead or an admin"]]),
+      "sending the reminder to say when you are free",
+      "The policy says the programme's lead or an admin may email this reminder. A new sender changes that sentence first.",
+    );
+  });
+
+  test("a written answer saves as it is typed, and until it is sent its other readers see only that it has been started", () => {
+    assert.match(PAGE_FLAT, DRAFT);
+    // Saved without a Send: the words are written whatever the press, and only a Send stamps the first-sent time.
+    const route = withoutComments(read("src/app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts"));
+    assert.match(route, /\} else \{\s*write\.text = text;/);
+    assert.match(route, /if \(sending\) \{\s*write\.firstSentAt = FieldValue\.serverTimestamp\(\);/);
+    // "Draft" is all a reader is told of an answer not sent, run.
+    const record = (over) => ({ text: "", boxes: null, words: 0, firstSentAt: null, editedAt: null, openedAt: null, openedByUid: "", reopenedAt: null, reopenedByUid: "", feedback: null, ...over });
+    assert.equal(writtenModel.answerState(record({ text: "Half a thought", words: 3 })), "draft");
+    assert.equal(writtenModel.answerState(null), "not-started");
+    assert.equal(writtenModel.answerState(record({ text: "Sent", words: 1, firstSentAt: new Date("2026-11-03T10:00:00Z") })), "sent");
+    // The review page opens only an answer that was sent, and the review route refuses one that was not.
+    const page = withoutComments(read("src/lib/courses/writtenAnswers/reviewPage.ts"));
+    assert.match(page, /const readable = \[\.\.\.toGive, \.\.\.feedbackSent\];/);
+    assert.match(page, /\(askedPerson \? readable\.find\(\(person\) => person\.uid === askedPerson\) : undefined\) \?\? toGive\[0\] \?\? feedbackSent\[0\] \?\? null;/);
+    assert.match(withoutComments(read("src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts")), /if \(!record\.firstSentAt\) throw new ReviewError\("That answer hasn’t been sent yet\.", 409\);/);
+    // This week's work says the same word, and links nothing for a draft.
+    assert.match(withoutComments(read("src/lib/courses/facilitatorWeek/workColumns.ts")), /case "draft":\s*return \{ text: DRAFT, href: null \};/);
+  });
+
+  test("the people in your pair see your first name and, where the week asks, whether you are bringing a laptop", () => {
+    assert.match(PAGE_FLAT, PAIRS);
+    // Run: a laptop is said only where the week asks.
+    const people = [{ uid: "amara" }, { uid: "kofi" }];
+    const entries = new Map([["amara", { pair: 1, laptop: true }], ["kofi", { pair: 1, laptop: false }]]);
+    assert.deepEqual(pairsModel.pairsView(people, (uid) => entries.get(uid), true).pairs[0].laptops.map((person) => person.uid), ["amara"]);
+    assert.deepEqual(pairsModel.pairsView(people, (uid) => entries.get(uid), false).pairs[0].laptops, [], "a laptop is said in a week that does not ask");
+    // What a person is handed of their pair: their partners' first names, and which of them is bringing a laptop.
+    const readers = withoutComments(read("src/lib/courses/pairs/readers.ts"));
+    assert.match(readers, /partners: partners\.map\(\(person\) => person\.firstName\),/);
+    assert.match(readers, /partnersBringing: pair \? pair\.laptops\.filter\(\(person\) => person\.uid !== actor\.uid\)\.map\(\(person\) => person\.firstName\) : \[\],/);
+    const own = /export async function readOwnPairs\([\s\S]*?\n\}/.exec(readers)?.[0] ?? "";
+    assert.ok(own, "could not find what a person is handed of their own pairs");
+    assert.ok(!/fullName|email|person\.name\b/.test(own), "a person's own pairs now carry more of a partner than a first name");
+  });
+
+  test("the record of an admin opening somebody's sealed predictions or survey answers is an audit-style record a deletion leaves", () => {
+    assert.match(PAGE_FLAT, OPENINGS);
+    assert.match(PAGE_FLAT, /Audit-style records are kept for as long as needed to investigate issues and meet our accountability obligations, and are not removed when an account is deleted\./);
+    // The two kinds, and nothing a record says in a row.
+    assert.match(read("src/lib/firestore/recordOpenings.ts"), /export const RECORD_OPENING_KINDS: readonly RecordOpeningKind\[\] = \["sealed-predictions", "survey-answers"\];/);
+    const log = withoutComments(read("src/lib/firestore/recordOpenings.ts"));
+    const sealed = log.slice(log.indexOf("export async function openRecorded"), log.indexOf("export async function openSurveyAnswersRecorded"));
+    const row = sealed.slice(sealed.indexOf(".create({"), sealed.indexOf("});", sealed.indexOf(".create({")));
+    assert.deepEqual(
+      [...row.matchAll(/^\s*(\w+)(?=[:,])/gm)].map((m) => m[1]),
+      ["kind", "actorUid", "actorName", "subjectUid", "runId", "openedAt"],
+      "an opening of a sealed card now keeps something an audit record of what staff did does not",
+    );
+    // A deletion takes none, in either direction.
+    assert.doesNotMatch(withoutComments(read("src/lib/firestore/accountDeletion.ts")), /RECORD_OPENINGS_COLLECTION|["'`]recordOpenings["'`]/);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // §3 The re-consent gate
 // ---------------------------------------------------------------------------
 
@@ -6194,6 +6499,24 @@ describe("the re-consent gate", () => {
         /; that you can add your sessions to your calendar with a private link, which your calendar&apos;s provider fetches and you can replace;/,
         /gives you a private link to your sessions.*your calendar&apos;s provider \(Apple, Google or Microsoft, for example\) fetches it from us.*You can replace it at any time from the same place, and the old link then shows nothing\./,
       ],
+      // Privacy pass 2: what a week's pages keep and who reads it, packs,
+      // cases and pairs, and sealed predictions, each in a few words, before
+      // the list's last clause. Each is held to the passage it summarises.
+      [
+        "who reads what somebody writes and ticks on a week's pages",
+        /; who reads what you write and tick on a week&apos;s pages,/,
+        /<strong>Reflections\.<\/strong> At stops in a week&apos;s readings you answer set questions in boxes that save as you type\. You, your group&apos;s facilitators, the programme&apos;s lead and admins can read your answers.*<strong>Ticks\.<\/strong> Each source in a week&apos;s readings has a tick for you\. Your group&apos;s facilitators, the programme&apos;s lead and admins can see which sources you have ticked, with your name/,
+      ],
+      [
+        "who sees a person's pack, case and pair",
+        /and who sees your pack, your case and your pair for a session;/,
+        /Your group&apos;s facilitators, the programme&apos;s lead and admins see what everyone in the group was given; nobody else in your group sees yours\..*Your group&apos;s facilitators, the programme&apos;s lead and admins see every pair in the group; nobody else in your group sees your pair\./,
+      ],
+      [
+        "who reads a sealed predictions card",
+        /; that your sealed predictions are read by you and admins alone;/,
+        /Your card is read by you and by admins, who can open anybody&apos;s at any time, and by nobody else:/,
+      ],
       // CHANGED ON PURPOSE (finding L2): the clause names what the lead sees,
       // as v7 now says; it said only that admins see who said what.
       [
@@ -6219,6 +6542,18 @@ describe("the re-consent gate", () => {
         "a programme's attendance is a logged download",
         /and that downloads of a programme&apos;s attendance are recorded\./,
         /Five of those downloads are recorded, with who asked for it, what it covered, how many people were in it and when: the membership list, the answers to a circulated worksheet, a programme&apos;s attendance,/,
+      ],
+      // Privacy pass 2: check-in and the survey after an event, and the quote
+      // box with public numbers, which the paragraph had not named.
+      [
+        "who came to an event, and the survey after it",
+        /It adds that we may record that you came to an event and send you a survey after it,/,
+        /If you come to an event, we may record that you came, how and when.*After an event, NAISI&apos;s admins may send a survey to the people who came to it, or to everybody whose place on it was confirmed, and to nobody else\./,
+      ],
+      [
+        "a comment ticked to be quoted on a programme's page",
+        /and that a comment you tick to be quoted may be shown on a programme&apos;s page, without your name\./,
+        /NAISI&apos;s admins may publish, on a programme&apos;s page on our site, numbers worked out from that programme&apos;s own surveys, with how many people answered them, and comments whose writers ticked that box, each shown with the term and no name\./,
       ],
     ]) {
       assert.match(paragraph, said, `the accept page no longer says v7 changed ${what}`);
