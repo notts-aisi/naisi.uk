@@ -394,12 +394,54 @@ The same shape, older:
   can read the order of a handler's calls but never its answer. So the
   question is asked by request, of every route under `src/app/api` and every
   page under `src/app/(app)`, as every persona (`anonymous`, `pending`,
-  `rejected`, `member`, non-SU `committee`, `suCommittee`, `admin`, and a
-  plain member holding each `permissions` key), with ids that address nothing
+  `rejected`, `member`, non-SU `committee`, `suCommittee`, `admin`, a
+  plain member holding each `permissions` key, and three who hold a role on a
+  record: `lead`, `facilitator` and `participant`), with ids that address nothing
   and empty bodies so the answer is the gate's or the first validation's, and
   each cell is held to the registry: a status per persona, a redirect target
   per persona for a page, the allowed top-level fields for a 2xx, and a reason
-  per entry. The design decision, written up in `scripts/e2e/lib/personas.mjs`
+  per entry. Ids that address nothing prove who a route refuses outright and
+  never whether a programme's lead can reach another programme's records, so a
+  second pass asks the course hub (every route under `/api/courses` and
+  `/api/surveys`, the routes and pages under a programme on an application
+  form, and every page under `/learn`, walked from the address by `isHubKey`)
+  about records: `scripts/e2e/lib/personaWorld.mjs` writes two programmes to
+  the same emulator, each with a running run, two groups, three published
+  weeks, a survey sent to the people holding a place and an open ask to
+  facilitate. THEIRS is led by the `lead`
+  persona (SU-recognised committee, the bar a lead stands behind), with the
+  `facilitator` facilitating its first group and holding a place in it, as
+  this term's facilitators do, and the `participant` in its second; ANOTHER
+  has the same shapes, led and staffed by accounts that are none of the
+  personas. Every persona asks every hub key with a segment the world fills
+  (`asksBothSets`) with each programme's ids, and the registry's
+  `REAL_ROUTES` and `REAL_PAGES` say what each gets with each, every cell with
+  its reason: `theirs` names the three role personas, and everybody else's
+  cell on THEIRS is their `another` cell, because the two programmes are
+  mirrors in every field a gate reads. A mutating route is sent an empty body,
+  so a gate that admits somebody stops at the first validation; a cell where
+  nothing would stop it (a route that takes no body, or reads an empty one as
+  a choice) is marked `ACTS` with what it would do, and is not sent, so no
+  write lands. A route that checks its body first answers 400 to everybody
+  signed in on both programmes, and its gate is not reached, unless its
+  columns carry a whole `realDrive.body`: then every cell is a refusal or
+  `ACTS`, so the body reaches only somebody refused (the lead-gated week
+  routes are asked that way, and so are twenty four where a facilitator
+  could reach another group's records, a lead another programme's, a
+  participant another programme's run, or anybody an ask or a survey meant for
+  somebody else). A page
+  that draws a calm "not here" in place of itself (`STATES`) is read for those
+  words, because the refusal and the page are both a 200. How a cell is read
+  (a key's path, a redirect put back into key shape, the calm states, an
+  outcome held to its expectation) is a module of its own,
+  `scripts/e2e/lib/personaCells.mjs`, held offline to those rules, so a
+  refusal whose words change fails under `npm test` instead of reading as an
+  open page, and a state is spelled with words only its refusal draws: never a
+  boundary's or a layout's, which every page beneath them carries (the first
+  recording read the not-found page's heading as a refusal on every page).
+  The world's teardown deletes every document it wrote, reads every path
+  again, and the run fails if anything is left. The design
+  decision, written up in `scripts/e2e/lib/personas.mjs`
   and in "Safety properties" in `scripts/e2e/README.md`: the harness's rule
   that it never grants a role above `pending` on a real project stays
   literally true, because the elevated personas exist only in a Firestore
@@ -407,15 +449,22 @@ The same shape, older:
   of the build on `:3101`; their Auth accounts are bare harness
   accounts with no document. That is also what makes it safe to drive every
   mutating route as an admin: what it mutates is the emulator. The fence guard
-  admits exactly that one module, executes its refusal with the emulator
-  variable unset and pointed off-loopback, and reads it to check that every
-  exported function asserts the emulator first. The offline half runs under
-  `npm test` with no build: the tree and the registry are checked against
-  each other in both directions, every entry for a persona that is not one, a
-  status that is not one, a page outcome naming no redirect, a 2xx with no
-  `fields`, and an anonymous 2xx with no written `public` reason, so a new
-  route or page fails on arrival until somebody writes down what every persona
-  gets. The runtime half runs in local mode only (there is no emulator behind
+  admits exactly two modules on those terms, the personas and their world,
+  executes each one's refusal with the emulator variable unset and pointed
+  off-loopback, reads both to check that every exported function asserts the
+  emulator first (the world takes the assertion from the persona module rather
+  than defining its own), and holds the world to a declared list of its own
+  collections while every other harness file keeps the original three. The
+  offline half runs under `npm test` with no build: the tree and the registry
+  are checked against each other in both directions, every entry for a
+  persona that is not one, a status that is not one, a page outcome naming no
+  redirect, a 2xx with no `fields`, and an anonymous 2xx with no written
+  `public` reason, so a new route or page fails on arrival until somebody
+  writes down what every persona gets; and the second pass's columns are held
+  to the tree in both directions too, so a new course hub route or page fails
+  until somebody writes down what every persona gets about a programme they
+  lead, staff or hold a place on, and about another one. The runtime half
+  runs in local mode only (there is no emulator behind
   a deployed backend), is required in CI, and can record what it observed
   (`E2E_PERSONA_RECORD`) so a wholesale change is re-keyed as a diff read as
   decisions.

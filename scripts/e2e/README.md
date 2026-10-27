@@ -93,11 +93,13 @@ These are deliberate and enforced, not aspirational:
   Auth users, or (in the Phase 2+ batteries) users with a seeded document
   whose role is hard-coded to `pending` — the lowest role there is, which
   grants access to nothing. The design brief caps any future fixture ladder at
-  `member`. The one place a role above `pending` is ever written is
-  `lib/personas.mjs`, for the per-persona route battery, and it can only write
-  it to a **Firestore emulator**: every exported function there refuses first
-  unless `FIRESTORE_EMULATOR_HOST` names a loopback host, the fence guard
-  imports the module with the variable unset and proves the refusal, and the
+  `member`. The only places a role above `pending` is ever written are
+  `lib/personas.mjs` and `lib/personaWorld.mjs` (the records the personas hold
+  roles on), for the per-persona route battery, and they can only write to a
+  **Firestore emulator**: every exported function in both refuses first
+  unless `FIRESTORE_EMULATOR_HOST` names a loopback host (the world takes that
+  test from the persona module rather than keeping its own), the fence guard
+  imports both modules with the variable unset and proves the refusal, and the
   elevated personas' Auth accounts on dev are bare harness accounts with no
   document at all. `run.mjs` starts that emulator and a second copy of the
   build on `:3101` pointed at it, and kills both with the run. See "The
@@ -107,7 +109,10 @@ These are deliberate and enforced, not aspirational:
   line at "no Firestore handle at all"; Phase 2 needed reads/seeds to prove the
   two-phase stamp, and Phase 3 added *delete-only* access to the signup tracker
   so route-created accounts don't leave ghost rows. Every write is namespaced
-  to harness accounts and ledgered for teardown. Enforced offline by
+  to harness accounts and ledgered for teardown. The one file held to a list
+  of its own is `lib/personaWorld.mjs`, which writes the persona battery's
+  records to the emulator only and nowhere else; its collections are declared,
+  each with its reason, in the fence guard. Enforced offline by
   `tests/e2e-no-privilege-grants.test.mjs` under `npm test`, which also calls
   the real `assertTarget()` against a battery of production spellings
   (userinfo tricks, trailing dots, `www.`, uppercase) rather than
@@ -691,12 +696,38 @@ keys off the origin rather than off the flag.
 
 The standing red team. Every route under `src/app/api` and every page under
 `src/app/(app)` is requested as every persona (`anonymous`, `pending`,
-`rejected`, `member`, non-SU `committee`, `suCommittee`, `admin`, and a plain
-member holding each `permissions` key), and the answer is held to
+`rejected`, `member`, non-SU `committee`, `suCommittee`, `admin`, a plain
+member holding each `permissions` key, and three who hold a role on a record:
+`lead`, `facilitator` and `participant`), and the answer is held to
 `tests/persona-route-gates.registry.mjs`, the answer key a person wrote, cell
 by cell, with a reason per entry. Ids address nothing and bodies are empty, so
 what is asserted is each gate's answer to each persona and never a handler's
 work; a 2xx JSON body is also held to the `fields` list the entry allows.
+
+**The second pass: records somebody holds a role on.** Ids that address
+nothing never show whether a programme's lead can reach another programme's
+records, or a facilitator another group's. So `lib/personaWorld.mjs` writes
+two programmes to the same emulator after the personas exist: THEIRS, led by
+the `lead` persona (SU-recognised committee, flagged as appointed, the bar a
+lead stands behind), whose run is three weeks in with two groups, the
+`facilitator` facilitating the first and holding a place in it and the
+`participant` in the second, three published weeks, a before survey sent to
+both and the lead's open ask to the participant to facilitate; and ANOTHER, the same shapes led and staffed by accounts that are
+none of the personas. Every course hub route and page with a segment the
+world fills (`asksBothSets` in the registry: walked from the address, never
+listed) is asked again by every persona with each programme's ids and held to
+its two columns, `REAL_ROUTES` and `REAL_PAGES`. A mutating route is sent an
+empty body, unless its columns carry a whole `realDrive.body` to reach a gate
+that checks the body first, and then every admitted cell is `ACTS`; a GET is
+sent its `realDrive` query where a week or a person is required to reach the
+gate; a cell the registry marks `ACTS` (the gate admits the persona and
+nothing would stop the request) is not sent, so no write lands. Redirects to a real run are read back into key shape, and the
+calm "not here" states a page draws in place of itself (`STATES`) are read as
+words, because the refusal and the page are both a 200; that reading is
+`lib/personaCells.mjs`, which reads and writes nothing, so the offline guard
+holds it to its rules. `dispose()` deletes every document the world wrote,
+before the personas are removed, reads every path again and returns what is
+left, and the battery fails unless that is nothing.
 
 **Where the elevated roles live.** The battery needs the personas the fence
 forbids, so `run.mjs` starts a Firestore emulator (a Java process, through the
@@ -736,8 +767,10 @@ retry says so rather than passing quietly, and `getCurrentUser` logs a
 verification failure that is not the cookie's own doing.
 
 **Re-keying the registry.** `E2E_PERSONA_RECORD=<path>` writes what was
-observed as JSON instead of asserting. Diff it against the registry, read the
-diff as a list of decisions, and edit the registry; the offline guard
+observed as JSON instead of asserting, the second pass included (it sends a
+cell only where the registry already has the key's columns, so a recording
+never lands a write the registry has not ruled on). Diff it against the
+registry, read the diff as a list of decisions, and edit the registry; the offline guard
 `tests/persona-route-gates.test.mjs` then holds the tree and the registry to
 each other in both directions on every `npm test`, so a new route fails on
 arrival until somebody writes down what every persona should get.
