@@ -3401,12 +3401,19 @@ export const PAGES = {
       "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme " +
       "the caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: the Surveys tab is the programme's " +
+      "lead's and an admin's, so a reviewer is told so before any survey is read, and a programme the caller has no " +
+      "role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
     why:
-      "The admissions tree's gate, then the programme layout's and the page's own: a leaving survey's results are the " +
+      "The admissions tree's gate, then the programme layout's and the page's own: a programme survey's results are the " +
       "programme's lead's and an admin's, so a reviewer is told so before any survey is read, a survey that is not " +
-      "this programme's leaving survey is answered in a sentence, and a programme the caller has no role on, or one " +
+      "one of this programme's is answered in a sentence, and a programme the caller has no role on, or one " +
       "that does not exist, renders 'there is no programme here' with a 200.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams": {

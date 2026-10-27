@@ -426,10 +426,16 @@ const ROUND_SURFACES = {
       "one programme's Messages tab, the updates to the people on the run it names. It reaches the round only " +
       "through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys": {
+    kind: "form",
+    why:
+      "a programme's Surveys tab, for its lead and admins. It reaches the round only through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]": {
     kind: "form",
     why:
-      "a programme's leaving survey's results, for its lead and admins. It reaches the round only " +
+      "one of a programme's surveys' results, for its lead and admins. It reaches the round only " +
       "through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams": {
