@@ -69,6 +69,8 @@ export default function GroupsGoOut({
           method: "PUT",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ on: value }),
+          // Sent without waiting, so it has to outlive the page: tests/fetch-keepalive.test.mjs.
+          keepalive: true,
         },
       )
         .then(async (response) => {
