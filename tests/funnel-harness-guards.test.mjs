@@ -510,6 +510,9 @@ test("the funnel fixture declares every collection its teardown must drain", () 
     // them, with who was told their team.
     "coursePitches",
     "courseTeams",
+    // Week 1 before groups go out: the reflection boxes somebody holding a
+    // place writes in on a week written as blocks, one row each.
+    "courseExerciseResponses",
   ]) {
     assert.ok(
       FIXTURE_COLLECTIONS.includes(required),
