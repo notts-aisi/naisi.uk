@@ -31,6 +31,39 @@
  *
  * The helpers below are the recurring shapes, so an entry reads as a
  * decision rather than a table. Every entry carries `why`.
+ *
+ * THE SECOND PASS: TWO PROGRAMMES, THEIRS AND ANOTHER. Three personas hold a
+ * role on a record: `lead` leads a programme whose run is running,
+ * `facilitator` facilitates one of that run's groups and holds a place in it,
+ * and `participant` holds a place in its other group
+ * (`scripts/e2e/lib/personaWorld.mjs` writes THEIRS, and ANOTHER, the same
+ * shapes led and staffed by accounts that are none of the personas). Every
+ * course hub route and page with a segment the world fills (`asksBothSets`) is
+ * asked again by every persona with each programme's ids, and its entry
+ * carries two columns, each a map from a persona (or `"*"`) to
+ * `[outcome, reason]`, so every cell has its reason:
+ *
+ *  - `another`: what each persona gets on a programme it holds no role on.
+ *    A role persona not named resolves through its base (`ROLE_PERSONAS`),
+ *    then `"*"`: on somebody else's programme a lead is SU-recognised
+ *    committee and a facilitator or a participant is a member.
+ *  - `theirs`: the three role personas, always named, on their own
+ *    programme. Everybody else holds no role on either programme, so their
+ *    cell is the `another` column's: the two programmes are mirrors in every
+ *    field a gate reads, and a difference between the columns is a role at
+ *    work.
+ *
+ * In the second pass a mutating route is sent an EMPTY body and a GET its
+ * `realDrive.query` (filled from the set's ids, `{segment}`), so a refusal is
+ * the gate's and a persona the gate admits meets the first validation. Where
+ * the gate admits somebody and nothing stops the request after it (the route
+ * takes no body, or reads an empty one as a choice), the cell is `ACTS`, with
+ * the reason, and the battery does not send it: no write ever lands. A
+ * mutating route whose body is checked before its gate may carry a whole
+ * `realDrive.body` instead, so the gate is reached; then every cell is a
+ * refusal or `ACTS`, and the body only ever goes to somebody refused. A page
+ * that draws a calm "not here" in place of itself answers a 200 either way,
+ * so the second pass names that state (`STATES`) rather than the status.
  */
 
 export const PERSONA_NAMES = [
@@ -49,7 +82,135 @@ export const PERSONA_NAMES = [
   "approveCourse",
   "manageMembership",
   "circulateWorksheet",
+  "lead",
+  "facilitator",
+  "participant",
 ];
+
+/**
+ * THE THREE PERSONAS WHO HOLD A ROLE ON A RECORD, and the persona each one is
+ * everywhere else: on a record it holds no role on, a programme's lead is an
+ * SU-recognised committee member (the bar a lead stands behind) and a
+ * facilitator or a participant is a member. An expectation that does not name
+ * one of them is read through its base before `"*"`, in the first pass and in
+ * the `another` column alike.
+ *
+ * One difference is real and is named wherever it shows: appointing a lead
+ * flags the account (`users.admissionsReviewer`, which `setProgrammeRoles`
+ * sets), and the admissions tree's gate admits a flagged account that still
+ * stands, so on the pages under /admin/admissions the lead is named.
+ */
+export const ROLE_PERSONAS = Object.freeze({ lead: "suCommittee", facilitator: "member", participant: "member" });
+
+/** A second-pass cell the battery does not send: the gate admits the persona and the request would act. */
+export const ACTS = "acts";
+
+/**
+ * The calm states a page draws IN PLACE of itself, with a 200, for somebody
+ * it does not admit, by the words that say so. The second pass names them;
+ * the first keeps reading a status.
+ */
+export const STATES = {
+  /** The programme head's refusal (`NoProgrammeHere` in src/features/applications/editor/Refusals.tsx). */
+  noProgramme: "There is no programme here",
+  /**
+   * The applications list's and one application's (`NotHere` in
+   * src/features/applications/review/NotHere.tsx), by its own sentence: its
+   * heading, "We can’t find that", begins the site's not-found page too, which
+   * every page carries in its payload, so the heading would read on every page.
+   */
+  notReviewed: "If there should be, ask an admin to check who is named on the programme.",
+  /** The facilitator guide's (`GUIDE_REFUSED` in src/lib/courses/facilitatorGuide/words.ts). */
+  guideRefused: "Only a course’s facilitators, its programme’s lead and admins can open its facilitator guide.",
+  /** A survey that was not sent to the caller (`STATE_WORDS.notYours` in src/lib/surveys/words.ts). */
+  surveyNotYours: "This survey isn’t one you were sent",
+  /** An ask to facilitate that is not the caller's own (`NOT_YOURS` in src/lib/courses/facilitatorAsks/words.ts). */
+  askNotYours: "This page is for the person we asked.",
+};
+
+/**
+ * The dynamic segments the second pass fills from a programme's own records.
+ * Every other segment keeps its made-up value in both sets: it names a
+ * record the world does not write (an answer, a note, a link, a team, a
+ * token), so the request is asked at the record it names.
+ */
+export const WORLD_SEGMENTS = Object.freeze([
+  "roundId",
+  "programmeId",
+  "courseId",
+  "runId",
+  "groupId",
+  "surveyId",
+  "askId",
+  "uid",
+  "weekId",
+  "n",
+]);
+
+/**
+ * THE COURSE HUB, walked from the address and never listed: every route under
+ * /api/courses, the programme surveys' routes (/api/surveys), the routes under
+ * a programme on an application form, every page under /learn, and every page
+ * under a programme on an application form (its tabs and the pages beside
+ * them). A new route or page there is asked about by the second pass the day
+ * it lands.
+ */
+export function isHubKey(key) {
+  return (
+    key.startsWith("/api/courses/") ||
+    key === "/api/surveys" ||
+    key.startsWith("/api/surveys/") ||
+    key.startsWith("/api/admissions/forms/[roundId]/programmes/[programmeId]") ||
+    key === "/(app)/learn" ||
+    key.startsWith("/(app)/learn/") ||
+    key.startsWith("/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]")
+  );
+}
+
+/** The dynamic segments of a key, by name. */
+export function segmentsOf(key) {
+  return [...key.matchAll(/\[\.{0,3}(\w+)\]/g)].map((match) => match[1]);
+}
+
+/**
+ * Does the second pass ask this key? A course hub key with at least one
+ * segment the world fills. One with none (`/api/courses/me`, a calendar
+ * token's feed) is the same request in both sets, so it is asked once, in the
+ * first pass, by every persona.
+ */
+export function asksBothSets(key) {
+  return isHubKey(key) && segmentsOf(key).some((name) => WORLD_SEGMENTS.includes(name));
+}
+
+/** One column's cell for a persona: the persona, then its base, then `"*"`. Returns the `[outcome, reason]` pair. */
+export function cellIn(column, persona) {
+  if (!column) return undefined;
+  if (persona in column) return column[persona];
+  const base = ROLE_PERSONAS[persona];
+  if (base && base in column) return column[base];
+  if ("*" in column) return column["*"];
+  return undefined;
+}
+
+/**
+ * A key's two columns (`REAL_ROUTES[key][method]`, or `REAL_PAGES[key]` when
+ * `method` is null), or undefined when it has none.
+ */
+export function realColumnsFor(key, method) {
+  return method ? REAL_ROUTES[key]?.[method] : REAL_PAGES[key];
+}
+
+/** A second-pass cell: `theirs` names the role personas on their own programme; everybody else reads `another`. */
+export function realCellFor(columns, set, persona) {
+  if (!columns) return undefined;
+  if (set === "theirs" && columns.theirs && persona in columns.theirs) return columns.theirs[persona];
+  return cellIn(columns.another, persona);
+}
+
+/** The outcome alone of a second-pass cell. */
+export function realExpectedFor(columns, set, persona) {
+  return realCellFor(columns, set, persona)?.[0];
+}
 
 /** Redirect targets a page may name. */
 export const REDIRECTS = {
@@ -62,6 +223,10 @@ export const REDIRECTS = {
   eventsManage: "/events/manage",
   event: "/events/manage/[id]",
   newsletter: "/newsletter",
+  /** A run's home under /learn, where a page beneath it sends somebody it does not admit (second pass). */
+  run: "/learn/[runId]",
+  /** A week of a run under /learn (second pass). */
+  week: "/learn/[runId]/weeks/[n]",
 };
 
 /** Anonymous is refused for having no session; everyone signed in gets `rest`. */
@@ -79,9 +244,11 @@ export const approvedOnly = (ok, overrides = {}) => ({
 /** Everyone, signed in or not, gets `status`: a public route or a uniform answer. */
 export const everyone = (status, overrides = {}) => ({ "*": status, ...overrides });
 
-/** Resolve one persona's expectation out of an `expect` map. */
+/** Resolve one persona's expectation out of an `expect` map: the persona, then its base (`ROLE_PERSONAS`), then `"*"`. */
 export function expectedFor(expect, persona) {
   if (persona in expect) return expect[persona];
+  const base = ROLE_PERSONAS[persona];
+  if (base && base in expect) return expect[base];
   if ("*" in expect) return expect["*"];
   return undefined;
 }
@@ -518,7 +685,8 @@ export const ROUTES = {
       why:
         "Any signed-in account may list application forms, and canSeeForm filters the list " +
         "per caller: an admin sees every form, a lead or a reviewer the forms that name them. " +
-        "Here the list is empty, so pending and rejected see nothing and canCreate is false " +
+        "Here the list is empty but for the battery's world (both its forms for the admin, the " +
+        "one naming them for the lead), so pending and rejected see nothing and canCreate is false " +
         "for everybody but the admin.",
     },
     POST: {
@@ -663,6 +831,7 @@ export const ROUTES = {
   "/api/admissions/forms/[roundId]/programmes/[programmeId]": {
     GET: {
       expect: signedIn(404),
+      fields: ["programme"],
       why:
         "A programme's settings are for its lead and for admins. A caller with no role on the " +
         "programme gets the 404 a missing programme gets, and here the form is missing for " +
@@ -679,6 +848,7 @@ export const ROUTES = {
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/applications": {
     GET: {
       expect: signedIn(404),
+      fields: ["board"],
       why:
         "404 rather than 403 by design: a missing form, a missing programme and a programme " +
         "the caller has no role on are answered in the same words, so the list never confirms " +
@@ -704,6 +874,7 @@ export const ROUTES = {
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/run": {
     GET: {
       expect: adminOnly(404),
+      fields: ["panel"],
       why:
         "Admin only (placing people on a run is part of running the term), decided before the " +
         "read: every other session is forbidden whether or not the form or the programme " +
@@ -719,6 +890,7 @@ export const ROUTES = {
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/hand-over": {
     POST: {
       expect: adminOnly(404),
+      fields: ["ok", "receipt", "panel"],
       why:
         "Admin only, decided before anything is read: every other session is forbidden " +
         "whether or not the form exists. It takes no body, so the admin goes straight to the " +
@@ -1224,6 +1396,7 @@ export const ROUTES = {
   "/api/courses/[courseId]/destroy-manifest": {
     GET: {
       expect: adminOnly(404),
+      fields: ["course", "counts", "blockers", "interrupted"],
       why:
         "Admin only, decided before the read: every other session is forbidden and the admin " +
         "is told the id is missing.",
@@ -1232,6 +1405,7 @@ export const ROUTES = {
   "/api/courses/[courseId]/facilitator-guide": {
     GET: {
       expect: signedIn(403),
+      fields: ["courseId", "documents", "weeks"],
       why:
         "The titles of a course's facilitator guide, behind the guide's own gate: a facilitator of a " +
         "live group on a run of the course, the lead of a programme naming a run of it, or an admin. " +
@@ -1395,6 +1569,7 @@ export const ROUTES = {
   "/api/courses/groups/[groupId]/attendance": {
     GET: {
       expect: adminOnly(404),
+      fields: ["group", "sessions", "members", "notYetTold", "leavers", "records", "participantNotes", "canEditPushed", "ending"],
       why:
         "The register gate (gateGroupRegister) collapses missing, archived and not-yours onto " +
         "one 403 for a non-admin and tells an admin the group is missing.",
@@ -1431,6 +1606,7 @@ export const ROUTES = {
   "/api/courses/groups/[groupId]/exercises": {
     GET: {
       expect: signedIn(400),
+      fields: ["group", "week", "rows", "notYetTold"],
       why:
         "Session required, then the caller's own request is validated before the document is " +
         "read, so every signed-in persona meets the same 400 on an empty one. A week " +
@@ -1502,6 +1678,7 @@ export const ROUTES = {
   "/api/courses/groups/[groupId]/roster": {
     GET: {
       expect: signedIn(404),
+      fields: ["group", "facilitators", "members", "notYetTold"],
       why:
         "Session required, then the document is read and its own membership decides. The " +
         "battery's id addresses nothing, so every signed-in persona is told that the document " +
@@ -1568,6 +1745,7 @@ export const ROUTES = {
   "/api/courses/groups/[groupId]/summary": {
     GET: {
       expect: adminOnly(404),
+      fields: ["groupId", "expected", "notYetTold", "toReview", "writtenToGive", "writtenNext", "nextEmail", "leftRecently", "coFacilitators", "whosComing", "write"],
       why:
         "What a facilitator's Home says about their group, behind the group page's own gate: a live " +
         "facilitator of the group or an admin. A missing group and one that is not the caller's collapse " +
@@ -1616,8 +1794,9 @@ export const ROUTES = {
       expect: signedIn(200),
       fields: ["runs"],
       why:
-        "Any signed-in account sees its own runs; the list is empty here for every persona, " +
-        "pending and rejected included.",
+        "Any signed-in account, pending and rejected included, sees its own runs; the list is empty " +
+        "here for every persona but the facilitator and the participant, whose places in the battery's " +
+        "world are listed.",
     },
   },
   "/api/courses/progress/[progressId]/moderate": {
@@ -1639,6 +1818,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/allocation": {
     GET: {
       expect: signedIn(404),
+      fields: ["run", "groups", "people", "publish"],
       why:
         "Session required, then the document is read and its own membership decides. The " +
         "battery's id addresses nothing, so every signed-in persona is told that the document " +
@@ -1668,6 +1848,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/allocation/publish/preview": {
     GET: {
       expect: signedIn(404),
+      fields: ["incubator", "people", "facilitators", "refusals"],
       why:
         "Publish's two emails, for Publish's own page: session required, then the run is read and " +
         "Publish's own gate decides. The battery's id addresses nothing, so every signed-in persona " +
@@ -1677,6 +1858,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/applications": {
     GET: {
       expect: signedIn(404),
+      fields: ["run", "groups", "applications"],
       why:
         "Session required, then the document is read and its own membership decides. The " +
         "battery's id addresses nothing, so every signed-in persona is told that the document " +
@@ -1750,6 +1932,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/comments": {
     GET: {
       expect: signedIn(400),
+      fields: ["items"],
       why:
         "Session required, then the caller's own request is validated before the document is " +
         "read, so every signed-in persona meets the same 400 on an empty one. A week " +
@@ -1767,6 +1950,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/destroy-manifest": {
     GET: {
       expect: adminOnly(404),
+      fields: ["run", "counts", "blockers", "interrupted"],
       why:
         "Admin only, decided before the read: every other session is forbidden and the admin " +
         "is told the id is missing.",
@@ -1783,6 +1967,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/enrol": {
     GET: {
       expect: signedIn(404, { rejected: 403 }),
+      fields: ["groups", "enrolment"],
       why:
         "The enroller gate refuses a rejected account; every other session is told the run is " +
         "missing.",
@@ -1843,6 +2028,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/facilitators/asking": {
     GET: {
       expect: signedIn(404),
+      fields: ["roundId", "programmeId", "runId", "viewer", "shortName", "programmeName", "kind", "headline", "groups", "email", "training", "leadName", "columns", "people", "asksFacilitating", "decisionsSent", "today", "test", "siteAddress"],
       why:
         "The Facilitators view as one model: session required, then the programme that names the run " +
         "is found, and its lead or an admin is answered. The battery's id names no run any programme " +
@@ -1852,6 +2038,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/facilitators": {
     GET: {
       expect: { anonymous: 401, "*": 403, suCommittee: 404, admin: 404 },
+      fields: ["groups", "people"],
       why:
         "The run's groups and the approved accounts by name, for the Facilitators view of a programme's Groups tab. " +
         "Refused from the session alone to anybody outside the roster's own tier (an admin or SU-recognised " +
@@ -1883,6 +2070,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/fill-in-boxes": {
     GET: {
       expect: signedIn(400),
+      fields: ["boxes"],
       why:
         "Session required, then the query is checked before anything is read (whose boxes, and which " +
         "week), so every signed-in persona meets the same 400 on an empty one. Once a valid query arrives " +
@@ -1910,6 +2098,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/my-exercises": {
     GET: {
       expect: signedIn(400),
+      fields: ["responses"],
       why:
         "Session required, then the caller's own request is validated before the document is " +
         "read, so every signed-in persona meets the same 400 on an empty one. A week " +
@@ -1927,6 +2116,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/nudge": {
     GET: {
       expect: adminOnly(404),
+      fields: ["week", "recipients", "alreadySentAt", "sessionLine", "subjectPreview", "bodyPreview"],
       why:
         "Run staff only through gateRunStaff, collapsed onto one 403 for a non-admin; an " +
         "admin is told the run is missing.",
@@ -1941,6 +2131,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/overview": {
     GET: {
       expect: signedIn(404),
+      fields: ["run", "calendarSource", "currentWeek", "weeks", "askToSwap", "weekSchedule", "programme", "shownCrest", "forkedWeekIds", "enrolment", "group", "groups", "ownAttendance", "finished", "access", "beforeGroups", "whatsNext"],
       why:
         "Session required, then the document is read and its own membership decides. The " +
         "battery's id addresses nothing, so every signed-in persona is told that the document " +
@@ -2039,6 +2230,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/predictions/people": {
     GET: {
       expect: adminOnly(404),
+      fields: ["people"],
       why:
         "Whose predictions cards exist on a run is an admin's to know, decided before anything is read; the " +
         "admin is told the run is missing. Never an answer: three fields are asked for.",
@@ -2056,6 +2248,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/reflections": {
     GET: {
       expect: signedIn(400),
+      fields: ["reflections"],
       why:
         "Session required, then the query is checked before anything is read (whose reflections, and " +
         "which week), so every signed-in persona meets the same 400 on an empty one. Once a valid query " +
@@ -2074,6 +2267,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/retrospective": {
     GET: {
       expect: adminOnly(404, { draftCourse: 404, approveCourse: 404 }),
+      fields: ["run", "enrolledCount", "ratingFloor", "truncated", "materials"],
       why:
         "Course authors (admin, draftCourse, approveCourse) read a run's retrospective; the " +
         "run is missing for them, everyone else is forbidden before the read.",
@@ -2082,6 +2276,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/roles": {
     GET: {
       expect: adminOnly(404),
+      fields: ["candidates", "admissionsReviewerUids", "trackLeadUids", "runFacilitatorUids"],
       why:
         "Admin only, decided before the read: every other session is forbidden and the admin " +
         "is told the id is missing. Run roles are admin only.",
@@ -2104,6 +2299,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/updates": {
     GET: {
       expect: adminOnly(404),
+      fields: ["updates"],
       why:
         "A run's updates are read by somebody they are to: its lead, track leads and admins, a facilitator " +
         "of one of its live groups, or somebody placed on it whom Publish has told. A missing run is the " +
@@ -2745,12 +2941,12 @@ export const ROUTES = {
   },
   "/api/surveys/term/totals": {
     GET: {
-      expect: adminOnly(404),
+      expect: adminOnly(200),
       why:
         "This term in numbers as a file of totals is an admin's alone: canRunSurveys refuses everybody else " +
-        "before anything is read, and somebody signed out is told to sign in. The battery's world has opened no " +
-        "application form, so there is no term and an admin is told so in a sentence. A GET that writes nothing, " +
-        "and a file, not JSON, so no fields.",
+        "before anything is read, and somebody signed out is told to sign in. The battery's world opens two " +
+        "application forms whose decisions are sent, so there is a term and an admin is handed its file. A GET " +
+        "that writes nothing, and a file, not JSON, so no fields.",
     },
   },
   "/api/tasks/[id]/delete": {
@@ -3210,287 +3406,360 @@ export const PAGES = {
       "admits them and this inner gate is what keeps them out of the rest.",
   },
   "/(app)/admin/admissions": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions console: requireAdmissionsPage admits round authors (admin or " +
       "approveCourse) and named reviewers; a draftCourse holder passes the admin front door " +
-      "and is sent on to the dashboard here.",
+      "and is sent on to the dashboard here. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/[roundId]": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions console: requireAdmissionsPage admits round authors (admin or " +
       "approveCourse) and named reviewers; a draftCourse holder passes the admin front door " +
       "and is sent on to the dashboard here. A missing round renders the console's " +
-      "not-found state for those admitted.",
+      "not-found state for those admitted. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/[roundId]/appointments": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions console: requireAdmissionsPage admits round authors (admin or " +
       "approveCourse) and named reviewers; a draftCourse holder passes the admin front door " +
       "and is sent on to the dashboard here. A missing round renders the console's " +
-      "not-found state for those admitted.",
+      "not-found state for those admitted. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree: requireAdmissionsPage admits round authors (admin or " +
       "approveCourse) and named reviewers, and sends everybody else to the dashboard. The " +
       "list is filtered per caller, so the approveCourse holder is shown an empty page that " +
-      "says they are on no form.",
+      "says they are on no form. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the page's own: a form the caller has no role on, " +
       "and a form that does not exist, both render 'there is no application form here' in " +
-      "place of the page, as ordinary HTML with a 200.",
+      "place of the page, as ordinary HTML with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/form": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the page's own: the form's editor is an admin's, and " +
       "a missing form or one the caller has no role on renders 'there is no application form " +
-      "here' in place of the page with a 200.",
+      "here' in place of the page with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/pool": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions console: requireAdmissionsPage admits round authors (admin or " +
       "approveCourse) and named reviewers; a draftCourse holder passes the admin front door " +
       "and is sent on to the dashboard here. A missing form, or one the caller has no role " +
       "on, renders not found for those admitted; a lead or a reviewer on the form is shown " +
-      "a notice that the page is an admin's.",
+      "a notice that the page is an admin's. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/applications": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions console: requireAdmissionsPage admits round authors (admin or " +
       "approveCourse) and named reviewers, and sends everyone else to the dashboard. For " +
       "those admitted, a form that is missing and a programme they have no role on both " +
-      "render the page's own calm not-here state as ordinary HTML, with a 200.",
+      "render the page's own calm not-here state as ordinary HTML, with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/applications/freed-places": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions console: requireAdmissionsPage admits round authors (admin or " +
       "approveCourse) and named reviewers, and sends everyone else to the dashboard. For " +
       "those admitted, a form that is missing and a programme they have no role on render " +
       "the programme layout's calm not-here state with a 200; a lead or a reviewer on the " +
-      "programme is shown that the page is an admin's.",
+      "programme is shown that the page is an admin's. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the page's own: the review page for the programme's lead and " +
       "admins, so a reviewer on the form is told it is the lead's and an admin's before the run is read, " +
       "and a programme the caller has no role on, or one that does not exist, renders 'there is no " +
-      "programme here' with a 200.",
+      "programme here' with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications/[uid]": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions console: requireAdmissionsPage admits round authors (admin or " +
       "approveCourse) and named reviewers, and sends everyone else to the dashboard. For " +
       "those admitted, an application that is missing or not theirs to read renders the " +
-      "page's own calm not-here state as ordinary HTML, with a 200.",
+      "page's own calm not-here state as ordinary HTML, with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the page's own door (openLeadDoor, decided from the form before the " +
       "run is read): a group's reflections, its facilitators' own among them, are the programme's lead's and " +
       "an admin's to read here, so a reviewer on the form is told the page is theirs, and a programme the caller " +
-      "has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+      "has no role on, or one that does not exist, renders 'there is no programme here' with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the page's own door (openLeadDoor, decided from the form before the " +
       "run is read): a group's week, who ticked each source by name and its facilitators' own work, is the " +
       "programme's lead's and an admin's to read here, so a reviewer on the form is told the page is theirs, " +
       "and a programme the caller has no role on, or one that does not exist, renders 'there is no programme " +
-      "here' with a 200.",
+      "here' with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own: People in groups is the run's " +
       "allocation board, the programme's lead's and an admin's, so a reviewer on the form is told so before the run is " +
       "read, and a programme the caller has no role on, or one that does not exist, renders 'there is no programme " +
-      "here' in place of the page with a 200.",
+      "here' in place of the page with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own: Publish's page is the " +
       "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme the " +
-      "caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+      "caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own: the Sessions view is the " +
       "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme the caller " +
-      "has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+      "has no role on, or one that does not exist, renders 'there is no programme here' with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/times": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own: the Times view is the programme's " +
       "lead's and an admin's, so a reviewer on the form is told so once the form's settings are read, and a programme " +
-      "the caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+      "the caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own: Publish's own page is the " +
       "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme the caller " +
-      "has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+      "has no role on, or one that does not exist, renders 'there is no programme here' with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/facilitators": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own: the Facilitators view is the " +
       "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme the caller " +
-      "has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+      "has no role on, or one that does not exist, renders 'there is no programme here' with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/people": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own: everyone who holds a place on " +
       "the programme or gave it back, by name, with their replies, is the programme's lead's and an admin's to read, " +
       "so a reviewer is told so before anybody is read, and a programme the caller has no role on, or one that does " +
-      "not exist, renders 'there is no programme here' with a 200.",
+      "not exist, renders 'there is no programme here' with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own: the Overview of the run a " +
       "programme names is the programme's lead's and an admin's, so a reviewer is told so before the run is read, " +
       "and a programme the caller has no role on, or one that does not exist, renders 'there is no programme here' " +
-      "with a 200.",
+      "with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview/certificates": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own: the preview of a programme's " +
       "certificates is its lead's and an admin's, so a reviewer is told so before the run is read, and a programme " +
-      "the caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+      "the caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own: every register of the run is the " +
       "programme's lead's and an admin's to read, so a reviewer is told so before the run is read, and a programme the " +
-      "caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+      "caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/pitches": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own: for those " +
       "admitted, a form that is missing and a programme the caller has no role on render 'there " +
       "is no programme here' in place of the page with a 200, and a reviewer of the programme is " +
-      "told the list is the lead's and admins'.",
+      "told the list is the lead's and admins'. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/messages": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own: Messages is the " +
       "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme " +
-      "the caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+      "the caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own: the Surveys tab is the programme's " +
       "lead's and an admin's, so a reviewer is told so before any survey is read, and a programme the caller has no " +
-      "role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+      "role on, or one that does not exist, renders 'there is no programme here' with a 200. The lead persona is " +
+      "admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads).",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own: a programme survey's results are the " +
       "programme's lead's and an admin's, so a reviewer is told so before any survey is read, a survey that is not " +
       "one of this programme's is answered in a sentence, and a programme the caller has no role on, or one " +
-      "that does not exist, renders 'there is no programme here' with a 200.",
+      "that does not exist, renders 'there is no programme here' with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own: for those " +
       "admitted, a form that is missing and a programme the caller has no role on render 'there " +
       "is no programme here' in place of the page with a 200; a reviewer of the programme is told " +
-      "the tab is the lead's and admins', and a fellowship's address that teams are an incubator's.",
+      "the tab is the lead's and admins', and a fellowship's address that teams are an incubator's. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams/[teamId]": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own: for those admitted, a " +
       "form that is missing and a programme the caller has no role on render 'there is no programme here' " +
       "with a 200; a reviewer of the programme is told the tab is the lead's and admins', and a team that is " +
-      "not on the run the programme names is said in one sentence.",
+      "not on the run the programme names is said in one sentence. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/ratings": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own: the ratings given at the " +
       "programme's end are the programme's lead's and an admin's to read, so a reviewer is told so before the run is " +
       "read, and a programme the caller has no role on, or one that does not exist, renders 'there is no programme " +
-      "here' with a 200.",
+      "here' with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own: Weeks is the " +
       "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme " +
-      "the caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
+      "the caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/copy": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "Copy weeks from the course, a page of the Weeks tab, on the tab's terms: a reviewer is told the tab " +
       "is the lead's and an admin's, and a programme the caller has no role on, or one that does not exist, " +
-      "renders 'there is no programme here' with a 200.",
+      "renders 'there is no programme here' with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "One week's page on the Weeks tab, on the tab's terms; a week that is no taught week of the run's " +
       "plan goes back to the tab. A programme the caller has no role on, or one that does not exist, renders " +
-      "'there is no programme here' with a 200 before the week is looked at.",
+      "'there is no programme here' with a 200 before the week is looked at. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/preview": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "Preview as a fellow, on the tab's terms: it reads the week and nobody's answers, and writes nothing. " +
       "A programme the caller has no role on, or one that does not exist, renders 'there is no programme " +
-      "here' with a 200 before the week is looked at.",
+      "here' with a 200 before the week is looked at. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's: a programme the caller has no " +
       "role on, and one that does not exist, both render 'there is no programme here' in " +
-      "place of the page with a 200.",
+      "place of the page with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/anonymous-feedback": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions tree's gate, then the programme layout's and the page's own: the answers to the " +
       "programme's anonymous form are its lead's and an admin's to read, so a reviewer is told so before any " +
       "answer is read, and a programme the caller has no role on, or one that does not exist, renders " +
-      "'there is no programme here' with a 200.",
+      "'there is no programme here' with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/admissions/forms/[roundId]/send": {
-    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
       "The admissions console: requireAdmissionsPage admits round authors (admin or " +
       "approveCourse) and named reviewers; a draftCourse holder passes the admin front door " +
       "and is sent on to the dashboard here. A missing form, or one the caller has no role " +
       "on, renders not found for those admitted; a lead or a reviewer on the form is shown " +
-      "a notice that the page is an admin's.",
+      "a notice that the page is an admin's. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
   },
   "/(app)/admin/courses": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, draftCourse: 200, approveCourse: 200 }),
@@ -3650,7 +3919,8 @@ export const PAGES = {
     why:
       "The authed shell: a stranger is sent to sign in by the proxy, a pending account to " +
       "the waiting page and a rejected one home by the layout, and every approved account " +
-      "renders it. The learn hub lists the account's own runs, empty here.",
+      "renders it. The learn hub lists the account's own runs, empty here but for the facilitator's " +
+      "and the participant's places in the battery's world.",
   },
   "/(app)/learn/[runId]": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
@@ -3928,3 +4198,1605 @@ export const PAGES = {
       "response itself is client-direct behind the rules.",
   },
 };
+
+// ===========================================================================
+// THE SECOND PASS: every persona, with THEIRS and with ANOTHER
+// ===========================================================================
+//
+// One block, keyed exactly as `ROUTES` and `PAGES` are, so the entries above
+// stay as they were and a key added beside them is added here once. What a
+// cell means, and how the two columns resolve, is in this file's header; how
+// the world is made is in `scripts/e2e/lib/personaWorld.mjs`. In short: the
+// lead leads THEIRS' programme (an SU-recognised committee member, flagged as
+// appointed); the facilitator facilitates its run's first group and holds a
+// place there; the participant holds a place in the run's second group; the
+// run is three weeks in, its first three weeks published as plain weeks (not
+// written as blocks), and a before survey went to both people holding a place.
+// A segment the world does not fill keeps its made-up id in both sets.
+
+/** One cell: the outcome and the reason for it. */
+const c = (outcome, why) => [outcome, why];
+
+const NO_SESSION = "No session: refused before anything is read.";
+const SIGN_IN = "No session: the proxy sends a stranger to sign in, whatever the address names.";
+const WAITING = "A waiting account is sent to the waiting page by the authed layout, whatever the address names.";
+const TURNED_DOWN = "A refused account is sent home by the authed layout, whatever the address names.";
+
+/**
+ * The body is checked before anything is read, so an empty one is the same
+ * 400 for everybody signed in, on either programme: the gate (`gate`, said
+ * for the reader) is never reached. Where an empty body cannot reach a gate
+ * the second pass proves nothing more than that, and says so.
+ */
+function bodyFirst(gate, extra = {}) {
+  const why = `The body is checked before anything is read, so an empty one is the same 400 whoever asks and the gate is never reached. ${gate}`;
+  return {
+    another: { anonymous: c(401, NO_SESSION), "*": c(400, why), ...(extra.another ?? {}) },
+    theirs: { lead: c(400, why), facilitator: c(400, why), participant: c(400, why), ...(extra.theirs ?? {}) },
+  };
+}
+
+/** An admin's alone, decided on the session before anything is read; `admin` is what an admin meets next. */
+function adminAlone(what, admin) {
+  return {
+    another: {
+      anonymous: c(401, NO_SESSION),
+      "*": c(403, `${what} is an admin's alone, decided on the session before anything is read.`),
+      admin,
+    },
+    theirs: {
+      lead: c(403, `Leading the programme gives no say here: ${what} is an admin's alone.`),
+      facilitator: c(403, `Facilitating one of the run's groups gives no say here: ${what} is an admin's alone.`),
+      participant: c(403, `Holding a place gives no say here: ${what} is an admin's alone.`),
+    },
+  };
+}
+
+/** A course approver's (an admin or an approveCourse holder), decided on the session; `ok` is what they meet next. */
+function courseApprovers(what, ok) {
+  return {
+    another: {
+      anonymous: c(401, NO_SESSION),
+      "*": c(403, `${what} is a course approver's (an admin or an approveCourse holder), decided on the session before anything is read.`),
+      admin: ok,
+      approveCourse: ok,
+    },
+    theirs: {
+      lead: c(403, `Leading a programme that names a run of the course does not make the lead its approver: ${what} is an approver's.`),
+      facilitator: c(403, `Facilitating a group gives no say here: ${what} is a course approver's.`),
+      participant: c(403, `Holding a place gives no say here: ${what} is a course approver's.`),
+    },
+  };
+}
+
+/**
+ * The group's live facilitators and admins, decided from the group before
+ * anything else of it is read; `next` is what either meets once admitted.
+ */
+function groupStaff(what, next) {
+  return {
+    another: {
+      anonymous: c(401, NO_SESSION),
+      "*": c(403, `Facilitates no live group here, so is refused in one 403 before anything else is read: ${what} is the group's live facilitators' and an admin's.`),
+      admin: next,
+    },
+    theirs: {
+      lead: c(403, `Leading the programme does not make the lead one of this group's facilitators: ${what} is theirs and an admin's.`),
+      facilitator: next,
+      participant: c(403, `Holds a place in the run's other group and facilitates none: ${what} is this group's facilitators' and an admin's.`),
+    },
+  };
+}
+
+/**
+ * An admin, a track lead of the run, or the lead of the programme that names
+ * it (`doesTrackLeadWork`), decided once the run is read; `next` is what each
+ * meets once admitted.
+ */
+function runStaff(what, next) {
+  return {
+    another: {
+      anonymous: c(401, NO_SESSION),
+      "*": c(403, `Staffs nothing on this run: ${what} is for an admin, its track leads and the lead of the programme that names it.`),
+      admin: next,
+    },
+    theirs: {
+      lead: next,
+      facilitator: c(403, `Facilitating one of the run's groups does not staff the run: ${what} is for an admin, its track leads and the programme's lead.`),
+      participant: c(403, `Holding a place does not staff the run: ${what} is for an admin, its track leads and the programme's lead.`),
+    },
+  };
+}
+
+/**
+ * Writing in one's own seat on a run (a box, a reflection, a written answer,
+ * a pack or a ready): somebody taking part, told their place, or a live
+ * facilitator of one of its groups; an admin is neither. Sent a whole `body`,
+ * only to somebody refused, so the gate is reached on both programmes.
+ */
+function seatWrite(what, body) {
+  const notSent = "a whole body is never sent to somebody the gate admits, so it is not sent.";
+  return {
+    realDrive: {
+      body,
+      why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
+    },
+    another: {
+      anonymous: c(401, NO_SESSION),
+      "*": c(403, `Neither holds a place on this run nor facilitates one of its groups: ${what} is refused before anything is written.`),
+      admin: c(403, `An admin neither holds a place on the run nor facilitates one of its groups, and ${what} is theirs alone: refused before anything is written.`),
+    },
+    theirs: {
+      lead: c(403, `Leading the programme gives no place on the run: ${what} is refused before anything is written.`),
+      facilitator: c(ACTS, `Holds a place on the run and facilitates a group, so admitted: ${notSent}`),
+      participant: c(ACTS, `Holds a place on the run, so admitted: ${notSent}`),
+    },
+  };
+}
+
+// --- Pages ---------------------------------------------------------------
+
+const PAGE_BASE = {
+  anonymous: c("login", SIGN_IN),
+  pending: c("pendingApproval", WAITING),
+  rejected: c("home", TURNED_DOWN),
+};
+
+/**
+ * A page under a programme on an application form. The admissions tree admits
+ * an admin, an approveCourse holder and an appointed reviewer or lead (the
+ * flag appointing sets), and sends everybody else to the dashboard; the
+ * programme's head, or the page itself, then draws "there is no programme
+ * here" for anybody with no role on THIS programme. `page` says what the
+ * programme's lead and an admin are shown; `state` is what somebody admitted
+ * with no role on it sees (one STATES name, or a list when the page draws a
+ * calm state of its own under the head's).
+ */
+function programmePage(page, state = "noProgramme") {
+  const noRole = (who) => c(state, `${who}, so the admissions tree admits them, but holds no role on this programme: ${state === "noProgramme" ? "the page is drawn as 'there is no programme here'" : "the page and its head are drawn as a calm 'not here'"}.`);
+  return {
+    another: {
+      ...PAGE_BASE,
+      "*": c("dashboard", "Not an admin, an approveCourse holder or anybody appointed on a form: the admissions tree sends them to the dashboard."),
+      admin: c(200, `An admin, whatever the programme: ${page}`),
+      approveCourse: noRole("Authors application forms"),
+      lead: noRole("Appointed to lead a programme on another form"),
+    },
+    theirs: {
+      lead: c(200, `The programme's own lead: ${page}`),
+      facilitator: c("dashboard", "Facilitating one of the run's groups is not a role on the form: the admissions tree sends a plain member to the dashboard."),
+      participant: c("dashboard", "Holding a place is not a role on the form: the admissions tree sends a plain member to the dashboard."),
+    },
+  };
+}
+
+/** Anybody the run layout refuses: no role on the run. Both its redirect and the page's own can be in the stream. */
+const NOT_ON_THE_RUN = ["learn", "run"];
+const NOT_ON_THE_RUN_WHY =
+  "Holds no role on this run, so the run layout sends them to /learn; the page beneath renders beside it and may send them to the run's home too, so either is accepted.";
+const LEAD_NOT_ON_THE_RUN_WHY =
+  "The run layout admits learners, facilitators, admins, track leads and reviewers, and not a programme's lead (who works from the programme's own tabs), so it sends the lead to /learn; the page beneath may send them to the run's home too.";
+
+/**
+ * A page under one run in /learn. `admin`, `facilitator` and `participant`
+ * are the cells of the three the run layout admits on THEIRS (an admin on
+ * either); `refused` is what everybody it does not admit sees, the lead
+ * included, with `why`.
+ */
+function learnPage({ admin, facilitator, participant, refused = NOT_ON_THE_RUN, why = NOT_ON_THE_RUN_WHY, leadWhy = LEAD_NOT_ON_THE_RUN_WHY }) {
+  return {
+    another: { ...PAGE_BASE, "*": c(refused, why), admin },
+    theirs: { lead: c(refused, leadWhy), facilitator, participant },
+  };
+}
+
+/** The run home, the admissions lane's page: everybody it refuses goes to /learn and nowhere else. */
+const LEARN_ONLY_WHY =
+  "Holds no role on this run, so the run layout sends them to /learn, and the page beneath sends them there too.";
+const LEAD_LEARN_ONLY_WHY =
+  "The run layout does not admit a programme's lead, who works from the programme's own tabs, and the page beneath sends them to /learn as well.";
+
+export const REAL_ROUTES = {
+  // ---- A programme on an application form: the programme's own console ----
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]": {
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, so the address says nothing."),
+        admin: c(200, "An admin reads any programme's settings."),
+      },
+      theirs: {
+        lead: c(200, "The programme's own lead reads its settings."),
+        facilitator: c(404, "Holding a place and facilitating are no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
+    PATCH: bodyFirst("Who may change the programme is decided from the form inside the write."),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/applications": {
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: the list is answered as one that is not there, by design."),
+        admin: c(200, "An admin reads any programme's applications."),
+      },
+      theirs: {
+        lead: c(200, "The programme's own lead reads the applications that ranked it."),
+        facilitator: c(404, "No role on the form: answered as a list that is not there."),
+        participant: c(404, "No role on the form: answered as a list that is not there."),
+      },
+    },
+    POST: bodyFirst("A bulk decision is decided from the form once a valid one arrives."),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/roles": {
+    PUT: bodyFirst("Who may name whom is setProgrammeRoles's decision, from the form."),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run": {
+    GET: adminAlone("Placing people on a run", c(200, "An admin reads which run the programme names, on either programme.")),
+    PUT: adminAlone("Naming the programme's run", c(400, "An admin meets the body check: an empty body names no run.")),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/run/hand-over": {
+    POST: adminAlone(
+      "Handing people over to the run",
+      c(200, "An admin's press with everybody holding a place already on the run's list: nobody is handed over and nothing is written."),
+    ),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places": {
+    POST: bodyFirst("Offering a freed place is an admin's, decided from the form once a valid body arrives."),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/freed-places/test": {
+    POST: bodyFirst("As the press, then the role from the form."),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/attendance/export": {
+    POST: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there."),
+        admin: c(ACTS, "An admin is handed the attendance file, after its export-log row is written: it takes no body, so nothing stops it."),
+      },
+      theirs: {
+        lead: c(ACTS, "The programme's own lead is handed the attendance file after its export-log row is written: it takes no body."),
+        facilitator: c(404, "No role on the form: answered as a programme that is not there."),
+        participant: c(404, "No role on the form: answered as a programme that is not there."),
+      },
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/registers/remind": {
+    POST: bodyFirst("Only the programme's lead and admins email a group's facilitators, decided from the form."),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/when-free/remind": {
+    POST: {
+      realDrive: { body: { emails: 1 }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, before its run is read."),
+        admin: c(ACTS, "An admin reminds people to say when they are free on any programme, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "The programme's own lead reminds its people to say when they are free, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing": {
+    PUT: {
+      realDrive: { body: { uid: "e2e-battery-person", finished: true }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, before its run is read."),
+        admin: c(ACTS, "An admin decides who finished on any programme, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "The programme's own lead decides who finished, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask": {
+    POST: bodyFirst("The programme's lead or an admin ask, decided from the form."),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask/test": {
+    POST: bodyFirst("As the ask, then the role from the form."),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/remind": {
+    POST: bodyFirst("As the ask, then the role from the form."),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/training": {
+    PUT: {
+      realDrive: { body: { training: null }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, before its run is read."),
+        admin: c(ACTS, "An admin sets the facilitators' training on any programme, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "The programme's own lead sets its facilitators' training, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing/rule": {
+    PUT: {
+      realDrive: { body: { atLeast: null }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, before its run is read."),
+        admin: c(ACTS, "An admin sets the rule for who finished on any programme, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "The programme's own lead sets its rule for who finished, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups": {
+    POST: bodyFirst("Only the programme's lead and admins add a group, decided from the form."),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups-go-out": {
+    PUT: {
+      realDrive: { body: { on: null }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, before its run is read."),
+        admin: c(ACTS, "An admin sets the day groups go out on any programme, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "The programme's own lead sets the day its groups go out, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time": {
+    PUT: {
+      realDrive: { body: { weekday: 2, start: "18:00", from: { weekday: 1, start: "18:00" } }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, before its group is read."),
+        admin: c(ACTS, "An admin changes any programme's group times, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "The programme's own lead changes its groups' times, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams": {
+    POST: bodyFirst("An incubator's lead or an admin make its teams, decided from the form."),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/certificates": {
+    POST: bodyFirst("The role comes from the form once a valid body arrives."),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/certificates/test": {
+    POST: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there."),
+        admin: c(409, "An admin is told the run's last session is not over yet, before anybody's certificate is read or any test is sent."),
+      },
+      theirs: {
+        lead: c(409, "The programme's own lead is told the run's last session is not over yet, before any test is sent."),
+        facilitator: c(404, "No role on the form: answered as a programme that is not there."),
+        participant: c(404, "No role on the form: answered as a programme that is not there."),
+      },
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell": {
+    POST: bodyFirst("Then the role from the form."),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/tell/test": {
+    POST: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there."),
+        admin: c(409, "An admin is told teams are an incubator's, and this programme is a fellowship: nothing is sent."),
+      },
+      theirs: {
+        lead: c(409, "The programme's own lead is told teams are an incubator's, and theirs is a fellowship: nothing is sent."),
+        facilitator: c(404, "No role on the form: answered as a programme that is not there."),
+        participant: c(404, "No role on the form: answered as a programme that is not there."),
+      },
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams/hand-in": {
+    PUT: bodyFirst("Then the programme's lead or an admin, from the form."),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/test-email": {
+    POST: bodyFirst("Then its lead or an admin, from the form."),
+  },
+
+  // ---- A course ----------------------------------------------------------
+  "/api/courses/[courseId]/crest": {
+    PUT: adminAlone("A course's crest", c(400, "An admin meets the body check: the battery sends no crest.")),
+  },
+  "/api/courses/[courseId]/destroy": {
+    POST: adminAlone("Destroying a course", c(400, "An admin meets the body check: destroying needs the typed name.")),
+  },
+  "/api/courses/[courseId]/destroy-manifest": {
+    GET: adminAlone("What destroying a course would delete", c(200, "An admin reads the course's destroy manifest, on either programme's course. A GET: it writes nothing.")),
+  },
+  "/api/courses/[courseId]/facilitator-guide": {
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither facilitates a live group on a run of this course nor leads a programme naming one: the guide's gate refuses before anything is read."),
+        admin: c(200, "An admin reads any course's guide titles."),
+      },
+      theirs: {
+        lead: c(200, "Leads the programme that names a running run of the course: the guide's gate admits them."),
+        facilitator: c(200, "Facilitates a live group on a run of the course: the guide's gate admits them."),
+        participant: c(403, "Holding a place does not open the facilitator guide."),
+      },
+    },
+  },
+  "/api/courses/[courseId]/facilitator-guide/[slot]": {
+    GET: guideWriter("Copying a guide document out"),
+    POST: guideWriter("Reading a pasted guide document"),
+    PUT: guideWriter("Saving a pasted guide document"),
+  },
+  "/api/courses/[courseId]/page": {
+    PUT: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither an admin nor an author of this course (its author or a collaborator holding a course permission): refused once the course is read."),
+        admin: c(ACTS, "An admin saves the course's page from whatever arrives: an empty body is an empty page, so it would act."),
+      },
+      theirs: {
+        lead: c(403, "Leading a programme gives no say over the course's page: it is its authors' and an admin's."),
+        facilitator: c(403, "Facilitating gives no say over the course's page."),
+        participant: c(403, "Holding a place gives no say over the course's page."),
+      },
+    },
+  },
+  "/api/courses/[courseId]/page/generate-themes": {
+    POST: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Not an author of this course: refused once the course is read."),
+        admin: c(400, "An admin meets the body check: it names neither a template nor a run."),
+      },
+      theirs: {
+        lead: c(403, "Leading a programme gives no say over the course's page."),
+        facilitator: c(403, "Facilitating gives no say over the course's page."),
+        participant: c(403, "Holding a place gives no say over the course's page."),
+      },
+    },
+  },
+  "/api/courses/[courseId]/predictions": {
+    POST: adminAlone("Reading a pasted predictions card", c(400, "An admin meets the body check on an empty one.")),
+    PUT: adminAlone("Saving a course's predictions card", c(400, "An admin meets the body check on an empty one.")),
+  },
+  "/api/courses/[courseId]/publish": {
+    POST: courseApprovers(
+      "Publishing a course",
+      c(ACTS, "An approver publishes the course again, with no showcase run: an empty body is a valid press, so it would act."),
+    ),
+  },
+  "/api/courses/[courseId]/rubric": {
+    POST: adminAlone("Reading a pasted rubric", c(400, "An admin meets the body check: no table.")),
+    PUT: adminAlone("Saving a course's rubric", c(400, "An admin meets the body check: no table.")),
+  },
+  "/api/courses/[courseId]/routes": {
+    POST: adminAlone("Reading a pasted list of routes", c(400, "An admin meets the body check on an empty one.")),
+    PUT: adminAlone("Saving a course's routes", c(400, "An admin meets the body check on an empty one.")),
+  },
+  "/api/courses/[courseId]/templates": {
+    POST: adminAlone("Saving a course's version", c(400, "An admin meets the body check: a version needs a label.")),
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither a course author (admin, draftCourse, approveCourse) nor a track lead of one of its runs."),
+        admin: c(200, "An admin reads a course's saved versions."),
+        draftCourse: c(200, "A course drafter reads any course's saved versions."),
+        approveCourse: c(200, "A course approver reads any course's saved versions."),
+      },
+      theirs: {
+        lead: c(403, "A programme's lead is not a track lead of the run: the saved versions are the course authors' and track leads'."),
+        facilitator: c(403, "Facilitating gives no sight of the course's saved versions."),
+        participant: c(403, "Holding a place gives no sight of the course's saved versions."),
+      },
+    },
+  },
+
+  // ---- A group -------------------------------------------------------------
+  "/api/courses/facilitator-asks/[askId]/answer": {
+    POST: {
+      realDrive: { body: { answer: "no" }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "Not the person asked: an ask that is not the caller's own is answered as one that is not there, an admin's included."),
+      },
+      theirs: {
+        lead: c(404, "The lead made the ask, to somebody else: only the person asked answers it, so it is answered as one that is not there."),
+        facilitator: c(404, "The ask is to the participant, not to them: answered as one that is not there."),
+        participant: c(ACTS, "The ask is to them and still open, so a whole answer would be recorded: it is not sent."),
+      },
+    },
+  },
+  "/api/courses/groups/[groupId]/attendance": {
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither a live facilitator of the group, the lead of the programme naming its run, nor an admin: one 403 before the register is read."),
+        admin: c(200, "An admin reads any group's registers."),
+      },
+      theirs: {
+        lead: c(200, "Leads the programme that names the group's run: the register's read gate admits the lead."),
+        facilitator: c(200, "A live facilitator of the group reads its registers."),
+        participant: c(403, "Holds a place in another group of the run: the register is its facilitators', the lead's and an admin's."),
+      },
+    },
+    POST: groupStaff("Marking the register", c(400, "Admitted, then the body is checked: an empty one says no week.")),
+    PATCH: groupStaff("Changing a pushed register", c(400, "Admitted, then the body is checked: an empty one says no week.")),
+  },
+  "/api/courses/groups/[groupId]/attendance/push": {
+    POST: groupStaff("Finishing a register", c(400, "Admitted, then the body is checked: an empty one says no week.")),
+  },
+  "/api/courses/groups/[groupId]/email": {
+    POST: groupStaff("Emailing the group", c(400, "Admitted, then the body is checked: an empty one has no subject or message.")),
+  },
+  "/api/courses/groups/[groupId]/exercises": {
+    GET: {
+      realDrive: { query: "?week=1", why: "A week is required in the query, which an empty one fails for everybody: week 1 reaches the gate." },
+      ...groupStaff("Reading the group's answers to a week's exercises", c(200, "Admitted, and week 1 is asked for: the group's answers, none here.")),
+    },
+  },
+  "/api/courses/groups/[groupId]/facilitators": {
+    POST: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Staffs nothing on the group's run: a group is staffed by admins, the run's track leads and the programme's lead."),
+        admin: c(ACTS, "An admin's empty body is read as 'nobody facilitates': it would take the group's facilitator off it."),
+      },
+      theirs: {
+        lead: c(ACTS, "The programme's own lead staffs the run's groups, and an empty body is read as 'nobody facilitates': it would take the facilitator off the group."),
+        facilitator: c(403, "Facilitating a group does not staff the run: appointing facilitators is the run's staff's."),
+        participant: c(403, "Holding a place does not staff the run."),
+      },
+    },
+  },
+  "/api/courses/groups/[groupId]/notes": {
+    POST: {
+      realDrive: { body: { body: "Written by the persona battery." }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Facilitates no live group here: a note on a group is its live facilitators' alone, so one 403 before anything is written."),
+        admin: c(403, "An admin is none of this group's facilitators, and a note on a group is theirs alone: refused with the group's own sentence."),
+      },
+      theirs: {
+        lead: c(403, "Leading the programme does not make the lead one of the group's facilitators: refused before anything is written."),
+        facilitator: c(ACTS, "A live facilitator of the group, so admitted, and the body is a whole note: it would write it, so it is not sent."),
+        participant: c(403, "Holds a place in the run's other group and facilitates none: refused before anything is written."),
+      },
+    },
+  },
+  "/api/courses/groups/[groupId]/notice": {
+    POST: groupStaff("A notice to the group", c(400, "Admitted, then the body is checked: an empty one has no message.")),
+  },
+  "/api/courses/groups/[groupId]/pace": {
+    PATCH: groupStaff("The group's pace", c(400, "Admitted, then the body is checked: it sends neither a start nor a plan.")),
+  },
+  "/api/courses/groups/[groupId]/participant-notes": {
+    POST: groupStaff("A note about one of the group's people", c(400, "Admitted, then the body is checked: an empty one says no week.")),
+  },
+  "/api/courses/groups/[groupId]/ratings": {
+    POST: {
+      realDrive: { body: { uid: "e2e-battery-rated", answers: {} }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither an admin, a live facilitator of the group, nor the lead of the programme naming its run: refused before anybody is rated."),
+        admin: c(ACTS, "An admin rates on any group, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent (it would be told the run's last session is not over yet)."),
+      },
+      theirs: {
+        lead: c(ACTS, "Leads the programme naming the group's run, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(ACTS, "A live facilitator of the group, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        participant: c(403, "Holds a place in the run's other group, facilitates none and leads nothing: refused before anybody is rated."),
+      },
+    },
+  },
+  "/api/courses/groups/[groupId]/roster": {
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither facilitates the group nor holds a told place in it: the roster is refused once the group is read."),
+        admin: c(200, "An admin reads any group's roster."),
+      },
+      theirs: {
+        lead: c(403, "The roster is the group's own facilitators', its people's and an admin's: leading the programme does not open it."),
+        facilitator: c(200, "Facilitates the group, and holds a place in it too: reads its roster."),
+        participant: c(403, "Holds a place in the run's other group, not this one: another group's roster is not theirs."),
+      },
+    },
+  },
+  "/api/courses/groups/[groupId]/session": {
+    PATCH: groupStaff("A session's mode", c(400, "Admitted, then the body is checked: an empty one names no week.")),
+  },
+  "/api/courses/groups/[groupId]/session/change": {
+    POST: {
+      realDrive: {
+        body: { week: 1, dateKey: "2026-01-05", kind: "online", reason: "Written by the persona battery.", tell: false },
+        why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither an admin, a live facilitator of the group, nor anybody staffing its run (its track leads, the programme's lead): one 403 before any session changes."),
+        admin: c(ACTS, "An admin changes any group's sessions, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "Leads the programme that names the run, which staffs it, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(ACTS, "A live facilitator of the group, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        participant: c(403, "Holds a place in the run's other group and staffs nothing: one 403 before any session changes."),
+      },
+    },
+  },
+  "/api/courses/groups/[groupId]/draw": {
+    PUT: {
+      realDrive: {
+        body: { weekId: "w01", entries: [{ uid: "e2e-battery-person", blockId: "e2e-battery-block", value: null }] },
+        why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither a live facilitator of the group, the lead of the programme naming its run, nor an admin: refused before the week is read."),
+        admin: c(ACTS, "An admin opens any group's draw, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "Leads the programme naming the group's run, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(ACTS, "A live facilitator of the group, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        participant: c(403, "Holds a place in the run's other group, facilitates none and leads nothing: refused before the week is read."),
+      },
+    },
+  },
+  "/api/courses/groups/[groupId]/pairs": {
+    PUT: {
+      realDrive: {
+        body: { weekId: "w01", blockId: "e2e-battery-block", entries: [{ uid: "e2e-battery-person", pair: 1, laptop: false }] },
+        why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither a live facilitator of the group, the lead of the programme naming its run, nor an admin: refused before the week is read."),
+        admin: c(ACTS, "An admin opens any group's pairs, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "Leads the programme naming the group's run, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(ACTS, "A live facilitator of the group, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        participant: c(403, "Holds a place in the run's other group, facilitates none and leads nothing: refused before the week is read."),
+      },
+    },
+  },
+  "/api/courses/groups/[groupId]/shared-notes": {
+    POST: {
+      realDrive: { body: { weekNumber: 1, body: "Written by the persona battery." }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither holds a place in the group nor facilitates it: a shared note is its people's and its live facilitators', so one 403 before anything is written."),
+        admin: c(403, "An admin neither holds a place in the group nor facilitates it, and shared notes are theirs alone: refused with the group's own sentence."),
+      },
+      theirs: {
+        lead: c(403, "Leading the programme gives no place in the group: refused before anything is written."),
+        facilitator: c(ACTS, "Holds a place in the group and facilitates it, so admitted, and the body is a whole note: it would write it, so it is not sent."),
+        participant: c(403, "Holds a place in the run's other group, not this one: another group's shared notes are not theirs to write, refused before anything is written."),
+      },
+    },
+  },
+  "/api/courses/groups/[groupId]/shared-notes/[noteId]": {
+    DELETE: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        pending: c(403, "The roster floor is asked first: a waiting account is refused."),
+        rejected: c(403, "The roster floor is asked first: a refused account is refused."),
+        "*": c(403, "The note the address names is no note of the caller's (the battery names none): one 403 for anybody but an admin."),
+        admin: c(404, "An admin is told the note is not there: the battery names none."),
+      },
+      theirs: {
+        lead: c(403, "The note the address names is not the lead's: refused as anybody is."),
+        facilitator: c(403, "The note the address names is not theirs: only a note's own writer deletes it."),
+        participant: c(403, "The note the address names is not theirs: only a note's own writer deletes it."),
+      },
+    },
+  },
+  "/api/courses/groups/[groupId]/summary": {
+    GET: groupStaff("What a facilitator's Home says about the group", c(200, "Admitted: the group's summary.")),
+  },
+  "/api/courses/groups/[groupId]/weeks/[weekId]": {
+    PATCH: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither an admin, a lead of the run (its track lead or its programme's lead) nor a live facilitator of the group: refused before the body."),
+        admin: c(400, "Admitted, then an empty body changes nothing and is refused."),
+      },
+      theirs: {
+        lead: c(400, "Leads the programme that names the run, so admitted, then an empty body changes nothing and is refused."),
+        facilitator: c(400, "A live facilitator of the group, so admitted, then an empty body changes nothing and is refused."),
+        participant: c(403, "Holds a place in the run's other group and leads nothing: refused before the body."),
+      },
+    },
+  },
+  "/api/courses/groups/[groupId]/weeks/[weekId]/blocks": {
+    GET: groupWeek("Copying the group's week out", c(404, "Admitted, and week 1 is not written as blocks here, so there is nothing to copy.")),
+    POST: groupWeek("Reading a pasted week for the group", c(400, "Admitted, then the body is checked: no Markdown.")),
+    PUT: groupWeek("Saving a pasted week for the group", c(400, "Admitted, then the body is checked: no Markdown.")),
+  },
+  "/api/courses/groups/[groupId]/weeks/[weekId]/fork": {
+    POST: groupStaff(
+      "Giving the group its own copy of a week",
+      c(ACTS, "Admitted, and week 1 has canonical content: it takes no body, so it would make the group's copy."),
+    ),
+  },
+
+  // ---- A run ----------------------------------------------------------------
+  "/api/courses/runs/[runId]/allocate": {
+    POST: {
+      realDrive: { body: { placements: [{ uid: "e2e-battery-person", groupId: null }] }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      ...runStaff("Placing people in the run's groups", c(ACTS, "Admitted: a whole body is never sent to somebody the gate admits, so it is not sent.")),
+    },
+  },
+  "/api/courses/runs/[runId]/allocation": {
+    GET: runStaff("The allocation board", c(200, "Admitted: the board, the rows served to the caller.")),
+  },
+  "/api/courses/runs/[runId]/allocation/publish": {
+    POST: {
+      realDrive: { body: { emails: 0 }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      ...runStaff("Publish", c(ACTS, "Admitted: a whole body is never sent to somebody the gate admits, so it is not sent (it would take the run's press lock).")),
+    },
+  },
+  "/api/courses/runs/[runId]/allocation/publish/test": {
+    POST: runStaff(
+      "A test of Publish's emails",
+      c(ACTS, "Admitted, and it takes no body: it would send a test to the caller's own address."),
+    ),
+  },
+  "/api/courses/runs/[runId]/allocation/publish/preview": {
+    GET: runStaff("Publish's two emails, previewed", c(200, "Admitted, and every row on the run is served to them: the preview. It writes nothing.")),
+  },
+  "/api/courses/runs/[runId]/applications": {
+    GET: runStaff("The run's applications queue", c(200, "Admitted: the rows served to the caller.")),
+  },
+  "/api/courses/runs/[runId]/applications/[uid]/decide": {
+    POST: bodyFirst("Then admins and the run's own admissions reviewers decide."),
+  },
+  "/api/courses/runs/[runId]/applications/[uid]/notes": {
+    PATCH: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither an admin nor one of the run's admissions reviewers: refused once the run is read."),
+        admin: c(400, "An admin reaches the row, then an empty body has nothing to save."),
+      },
+      theirs: {
+        lead: c(403, "A programme's lead may read the run's queue but not annotate it: the notes are the run's reviewers' and admins'."),
+        facilitator: c(403, "Facilitating gives no say over the run's applications."),
+        participant: c(403, "Holding a place gives no say over the run's applications, their own included."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/apply": {
+    POST: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        rejected: c(403, "The applicant lane refuses a refused account first."),
+        "*": c(409, "The run takes its people from an application form, so nobody applies to it here: the same 409 whoever asks."),
+      },
+      theirs: {
+        lead: c(409, "The run takes its people from the form: nobody applies to it here."),
+        facilitator: c(409, "The run takes its people from the form: nobody applies to it here, a place holder included."),
+        participant: c(409, "The run takes its people from the form: nobody applies to it here, a place holder included."),
+      },
+    },
+    PATCH: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        rejected: c(403, "The applicant lane refuses a refused account first."),
+        "*": c(404, "The caller has no application on this run: the row read is always the caller's own."),
+      },
+      theirs: {
+        lead: c(404, "No application of the lead's on the run."),
+        facilitator: c(403, "Their own row on the run's list was handed over accepted, so it has been reviewed and is not theirs to edit."),
+        participant: c(403, "Their own row on the run's list was handed over accepted, so it has been reviewed and is not theirs to edit."),
+      },
+    },
+    DELETE: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "The caller has no application on this run: the row read is always the caller's own."),
+      },
+      theirs: {
+        lead: c(404, "No application of the lead's on the run."),
+        facilitator: c(409, "Their own row was accepted, so it cannot be withdrawn here: decisions are the team's."),
+        participant: c(409, "Their own row was accepted, so it cannot be withdrawn here: decisions are the team's."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/apply-template": {
+    POST: courseApprovers("Applying a saved version to a run", c(400, "An approver meets the body check: no version chosen.")),
+  },
+  "/api/courses/runs/[runId]/archive": {
+    PATCH: courseApprovers("Archiving a run", c(400, "An approver meets the body check: archived must be true or false.")),
+  },
+  "/api/courses/runs/[runId]/clone-weeks": {
+    POST: bodyFirst("Then the run's staff, once a run to copy from is named."),
+  },
+  "/api/courses/runs/[runId]/comments": {
+    GET: {
+      realDrive: { query: "?week=1", why: "A week is required in the query, which an empty one fails for everybody: week 1 reaches the gate." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Holds no live place and facilitates nothing on the run: its comments are refused before a row is read."),
+        admin: c(200, "An admin reads a run's comments on a week."),
+      },
+      theirs: {
+        lead: c(403, "Leading the programme opens no place on the run: the comments are its people's, its facilitators' and an admin's."),
+        facilitator: c(200, "Holds a told place on the run: reads its people's comments on a week."),
+        participant: c(200, "Holds a told place on the run: reads its people's comments on a week."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/destroy": {
+    POST: adminAlone("Destroying a run", c(400, "An admin meets the body check: destroying needs the typed label.")),
+  },
+  "/api/courses/runs/[runId]/destroy-manifest": {
+    GET: adminAlone("What destroying a run would delete", c(200, "An admin reads the run's destroy manifest. A GET: it writes nothing.")),
+  },
+  "/api/courses/runs/[runId]/email": {
+    POST: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Staffs nothing on the run (an admin, its run facilitators, its track leads, the programme's lead): one 403."),
+        admin: c(400, "Admitted, then an empty body has no subject or message."),
+      },
+      theirs: {
+        lead: c(400, "Leads the programme that names the run, so admitted, then an empty body has no subject or message."),
+        facilitator: c(403, "Facilitating a group does not staff the run: the run-wide email is its staff's."),
+        participant: c(403, "Holding a place does not staff the run."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/enrol": {
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        rejected: c(403, "The enroller gate refuses a refused account first."),
+        "*": c(200, "The run is there: its open groups (none: it takes people by admissions) and the caller's own told place, if any."),
+      },
+      theirs: {
+        lead: c(200, "The run is there: no place of the lead's to show."),
+        facilitator: c(200, "The run is there: their own told place is shown to them."),
+        participant: c(200, "The run is there: their own told place is shown to them."),
+      },
+    },
+    POST: bodyFirst("Then the run, for its open window.", { another: { rejected: c(403, "The enroller gate refuses a refused account first.") } }),
+    PATCH: bodyFirst("Then the run, for its open window.", { another: { rejected: c(403, "The enroller gate refuses a refused account first.") } }),
+    DELETE: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        rejected: c(403, "The enroller gate refuses a refused account first."),
+        "*": c(409, "The caller holds no place on this run, so there is no way out of it to take."),
+      },
+      theirs: {
+        lead: c(409, "The lead holds no place on the run, so there is no way out of it to take."),
+        facilitator: c(409, "Facilitates a group of the run: they come off its facilitators before they can leave."),
+        participant: c(400, "Holds a place, so the way out is open, and the typed course title is then missing."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/enrol-mode": {
+    PATCH: adminAlone("A run's enrolment mode", c(400, "An admin meets the body check: no mode.")),
+  },
+  "/api/courses/runs/[runId]/enrolments/[uid]/reinstate": {
+    POST: runStaff(
+      "Putting somebody back on the run",
+      c(ACTS, "Admitted, and it takes no body: the place is already active, so the press is idempotent, but it would still put them on the run's cohort list."),
+    ),
+  },
+  "/api/courses/runs/[runId]/enrolments/[uid]/remove": {
+    POST: runStaff(
+      "Taking somebody off the run",
+      c(ACTS, "Admitted, and it takes no body: it would take the participant off the run."),
+    ),
+  },
+  "/api/courses/runs/[runId]/exercises/[exerciseId]/submit": {
+    POST: {
+      realDrive: { body: { weekId: "w01" }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Holds no place on this run, told by Publish: an answer to an exercise is its people's own, refused before anything is written."),
+        admin: c(403, "An admin holds no place on the run: an answer to an exercise is its people's own, refused before anything is written."),
+      },
+      theirs: {
+        lead: c(403, "Leading the programme gives no place on the run: refused before anything is written."),
+        facilitator: c(ACTS, "Holds a place on the run, told by Publish, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        participant: c(ACTS, "Holds a place on the run, told by Publish, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/facilitators/asking": {
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "The programme that names the run is found, and the caller holds no role on it: answered as no programme here, so the address says nothing."),
+        admin: c(200, "An admin reads the Facilitators view of any programme."),
+      },
+      theirs: {
+        lead: c(200, "Leads the programme that names the run: its Facilitators view."),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as no programme here."),
+        participant: c(404, "Holding a place is no role on the form: answered as no programme here."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/facilitators": {
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Outside the roster's own tier (an admin or SU-recognised committee): refused on the session alone."),
+        suCommittee: c(403, "Inside the roster's tier but staffs nothing on this run: refused once the run is read."),
+        admin: c(200, "An admin reads the run's groups and the approved accounts by name."),
+      },
+      theirs: {
+        lead: c(200, "SU-recognised committee, and leads the programme that names the run: the run's groups and the approved accounts by name."),
+        facilitator: c(403, "A plain member is outside the roster's tier: refused on the session alone."),
+        participant: c(403, "A plain member is outside the roster's tier: refused on the session alone."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/guide/[doc]": {
+    GET: adminAlone("Copying a programme's Start here or Glossary out", c(400, "An admin meets the page check: the battery names no page.")),
+    POST: adminAlone("Reading a pasted Start here or Glossary", c(400, "An admin meets the page check: the battery names no page.")),
+    PUT: adminAlone("Saving a pasted Start here or Glossary", c(400, "An admin meets the page check: the battery names no page.")),
+  },
+  "/api/courses/runs/[runId]/fill-in-boxes": {
+    GET: {
+      realDrive: {
+        query: "?uid={uid}&week=1",
+        why: "Whose boxes and which week are asked in the query, which an empty one fails for everybody: the participant's week 1 reaches the gate.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither an admin, the programme's lead, nor a live facilitator of the participant's group: refused before a box is read."),
+        admin: c(200, "An admin reads anybody's boxes."),
+      },
+      theirs: {
+        lead: c(200, "Leads the programme that names the run: reads anybody's boxes on it."),
+        facilitator: c(403, "Facilitates the run's other group, not the participant's: another group's boxes are not theirs."),
+        participant: c(403, "The writer reads their own on their week page, never through this gate."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/fill-in-boxes/[boxId]": {
+    PUT: seatWrite("writing in a box", { weekId: "w01", text: "Written by the persona battery." }),
+  },
+  "/api/courses/runs/[runId]/material-notes": {
+    POST: {
+      realDrive: { body: { itemId: "e2e-battery-item", weekNumber: 1, note: "Written by the persona battery." }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither staffs the run (an admin, its track leads, its run facilitators, the programme's lead) nor facilitates one of its groups: refused before any week is read."),
+        admin: c(ACTS, "An admin staffs every run, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "Leads the programme that names the run, which staffs it, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(ACTS, "Facilitates one of the run's groups, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        participant: c(403, "Holding a place is not staffing the run or facilitating a group: a note on a material is refused before any week is read."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/my-exercises": {
+    GET: {
+      realDrive: { query: "?week=1", why: "A week is required in the query, which an empty one fails for everybody: week 1 reaches the gate." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "No told place on the run, and week 1's door before groups go out is shut: refused."),
+        admin: c(200, "An admin is answered their own (empty) answers."),
+      },
+      theirs: {
+        lead: c(403, "The lead holds no place on the run, and groups have gone out: refused."),
+        facilitator: c(200, "Holds a told place: their own answers to week 1."),
+        participant: c(200, "Holds a told place: their own answers to week 1."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/normalise-weeks": {
+    POST: courseApprovers("Normalising a run's week ids", c(409, "An approver is told week ids move only while a run is a draft, and this one is running: nothing is written.")),
+  },
+  "/api/courses/runs/[runId]/nudge": {
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Staffs nothing on the run: one 403."),
+        admin: c(200, "An admin is shown the weekly nudge's preview. It writes nothing."),
+      },
+      theirs: {
+        lead: c(200, "Leads the programme that names the run, so staffs it: the nudge's preview."),
+        facilitator: c(403, "Facilitating a group does not staff the run."),
+        participant: c(403, "Holding a place does not staff the run."),
+      },
+    },
+    POST: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Staffs nothing on the run: one 403."),
+        admin: c(ACTS, "An admin's empty body is the run-wide catch-up: it would send it."),
+      },
+      theirs: {
+        lead: c(403, "Staffs the run, but the run-wide catch-up is an admin's: the lead is refused before anything is sent."),
+        facilitator: c(403, "Facilitating a group does not staff the run."),
+        participant: c(403, "Holding a place does not staff the run."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/overview": {
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "No told place and no group facilitated on the run, and week 1's door is shut: refused."),
+        admin: c(200, "An admin is answered the run's overview."),
+      },
+      theirs: {
+        lead: c(403, "A programme's lead holds no place on the run: the overview is its people's, its facilitators' and an admin's."),
+        facilitator: c(200, "Holds a told place and facilitates a group: the run's overview."),
+        participant: c(200, "Holds a told place: the run's overview."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/pitching": {
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "No live seat in one of the run's groups: pitching week is for the people in the programme's groups."),
+      },
+      theirs: {
+        lead: c(403, "The lead holds no seat in the run's groups."),
+        facilitator: c(404, "Holds a seat in a group, so the seat check passes, and the run has no pitching week."),
+        participant: c(404, "Holds a seat in a group, so the seat check passes, and the run has no pitching week."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/pitching/picks": {
+    POST: bodyFirst("Then the caller's own seat."),
+  },
+  "/api/courses/runs/[runId]/pitching/pitch": {
+    POST: bodyFirst("Then the caller's own seat."),
+  },
+  "/api/courses/runs/[runId]/team/check-in": {
+    POST: bodyFirst("Then whether the caller is in a team they have been told about."),
+  },
+  "/api/courses/runs/[runId]/team/hand-in": {
+    POST: bodyFirst("Then whether the caller is in a team they have been told about."),
+  },
+  "/api/courses/runs/[runId]/team/links": {
+    POST: bodyFirst("Then whether the caller is in a team they have been told about."),
+  },
+  "/api/courses/runs/[runId]/team/links/[linkId]": {
+    DELETE: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "In no team on this run: refused before any link is read."),
+      },
+      theirs: {
+        lead: c(403, "In no team on the run."),
+        facilitator: c(403, "Holds a seat, but a fellowship has no teams: refused before any link is read."),
+        participant: c(403, "Holds a seat, but a fellowship has no teams: refused before any link is read."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/packs-and-cases/[blockId]": {
+    PUT: seatWrite("choosing a pack or saying one is ready", { weekId: "w01", ready: true }),
+  },
+  "/api/courses/runs/[runId]/predictions": {
+    PUT: bodyFirst("Then who has a card; the card written is the caller's own."),
+    POST: bodyFirst("Then who has a card; the card sealed or opened is the caller's own."),
+  },
+  "/api/courses/runs/[runId]/predictions/people": {
+    GET: adminAlone("Whose predictions cards exist", c(200, "An admin reads whose cards exist on the run, none here.")),
+  },
+  "/api/courses/runs/[runId]/predictions/people/[uid]": {
+    POST: adminAlone(
+      "Opening somebody's predictions card",
+      c(ACTS, "An admin's opening is recorded before the card is read: it takes no body, so it would act."),
+    ),
+  },
+  "/api/courses/runs/[runId]/reflections": {
+    GET: {
+      realDrive: {
+        query: "?uid={uid}&week=1",
+        why: "Whose reflections and which week are asked in the query, which an empty one fails for everybody: the participant's week 1 reaches the gate.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither an admin nor the programme's lead: refused before a row is read."),
+        admin: c(200, "An admin reads anybody's reflections."),
+      },
+      theirs: {
+        lead: c(200, "Leads the programme that names the run: reads its people's reflections."),
+        facilitator: c(403, "Reflections on this page are the programme's lead's and an admin's: a group's facilitators read theirs on the group's own page."),
+        participant: c(403, "Not through this gate, their own included: it is the lead's and an admin's."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/reflections/[promptId]": {
+    PUT: seatWrite("writing a reflection", { weekId: "w01", text: "Written by the persona battery." }),
+  },
+  "/api/courses/runs/[runId]/retrospective": {
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither a course author nor anybody staffing the run: refused."),
+        admin: c(200, "An admin reads any run's retrospective."),
+        draftCourse: c(200, "A course drafter reads any run's retrospective."),
+        approveCourse: c(200, "A course approver reads any run's retrospective."),
+      },
+      theirs: {
+        lead: c(200, "Leads the programme that names the run, which staffs it: its retrospective."),
+        facilitator: c(403, "Facilitating a group does not staff the run."),
+        participant: c(403, "Holding a place does not staff the run."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/roles": {
+    GET: adminAlone("A run's roles", c(200, "An admin reads the run's roles and who may hold them.")),
+    POST: adminAlone("Assigning a run's roles", c(400, "An admin's empty body supplies no roles and is refused before anything is written.")),
+  },
+  "/api/courses/runs/[runId]/status": {
+    POST: courseApprovers("Moving a run's status", c(400, "An approver meets the body check: no status.")),
+  },
+  "/api/courses/runs/[runId]/updates": {
+    GET: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Nobody the run's updates are to: not its lead, track leads or admins, a facilitator of a live group, or somebody told their place."),
+        admin: c(200, "An admin reads a run's updates."),
+      },
+      theirs: {
+        lead: c(200, "Leads the programme that names the run: its updates are to the lead."),
+        facilitator: c(200, "Facilitates a live group and holds a told place: the updates to them."),
+        participant: c(200, "Holds a told place: the updates to them."),
+      },
+    },
+    POST: {
+      realDrive: {
+        body: { to: "everyone", title: "Written by the persona battery", message: "Written by the persona battery.", email: false },
+        why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
+      },
+      ...runStaff("An update to everybody on the run", c(ACTS, "Admitted: a whole body is never sent to somebody the gate admits, so it is not sent.")),
+    },
+  },
+  "/api/courses/runs/[runId]/sync-tasks": {
+    POST: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "No active told place of the caller's on the run: refused, an admin included, since the tasks mirrored are the caller's own."),
+      },
+      theirs: {
+        lead: c(403, "The lead holds no place on the run."),
+        facilitator: c(ACTS, "Holds an active told place: it takes no body, so it would mirror the run's weeks into their own tasks."),
+        participant: c(ACTS, "Holds an active told place: it takes no body, so it would mirror the run's weeks into their own tasks."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/blocks": {
+    GET: leadOrAdmin("Copying a week out as Markdown", c(404, "Admitted, and week 1 is not written as blocks, so there is nothing to copy.")),
+    POST: leadOrAdmin("Reading a pasted week", c(400, "Admitted, then the body is checked: no Markdown.")),
+    PUT: leadOrAdmin("Saving a pasted week", c(400, "Admitted, then the body is checked: no Markdown.")),
+  },
+  "/api/courses/runs/[runId]/week-one/ticks/[itemId]": {
+    PUT: bodyFirst("Then week 1's door, which opens only to somebody holding a place before groups go out."),
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/ready": {
+    PUT: {
+      realDrive: {
+        body: { ready: true },
+        why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Not the lead of the programme that names the run, so refused from the forms before anything of the run is read: mark week 1 ready is the lead's and an admin's."),
+        admin: c(ACTS, "An admin is admitted, and the body is a whole one: it would mark week 1 ready, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "Leads the programme that names the run, so admitted, and the body is a whole one: it would mark week 1 ready, so it is not sent."),
+        facilitator: c(403, "Facilitating a group is not leading the programme: refused before anything of the run is read."),
+        participant: c(403, "Holding a place is not leading the programme: refused before anything of the run is read."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/owner": {
+    PUT: {
+      realDrive: {
+        body: { ownerUid: null },
+        why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Not the lead of the programme that names the run, so refused from the forms before anything of the run is read: give week 1 back to the lead is the lead's and an admin's."),
+        admin: c(ACTS, "An admin is admitted, and the body is a whole one: it would give week 1 back to the lead, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "Leads the programme that names the run, so admitted, and the body is a whole one: it would give week 1 back to the lead, so it is not sent."),
+        facilitator: c(403, "Facilitating a group is not leading the programme: refused before anything of the run is read."),
+        participant: c(403, "Holding a place is not leading the programme: refused before anything of the run is read."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/mode": {
+    PUT: {
+      realDrive: {
+        body: { online: false },
+        why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Not the lead of the programme that names the run, so refused from the forms before anything of the run is read: say week 1 meets in person is the lead's and an admin's."),
+        admin: c(ACTS, "An admin is admitted, and the body is a whole one: it would say week 1 meets in person, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "Leads the programme that names the run, so admitted, and the body is a whole one: it would say week 1 meets in person, so it is not sent."),
+        facilitator: c(403, "Facilitating a group is not leading the programme: refused before anything of the run is read."),
+        participant: c(403, "Holding a place is not leading the programme: refused before anything of the run is read."),
+      },
+    },
+  },
+  "/api/courses/runs/[runId]/written-answers/[answerId]": {
+    PUT: seatWrite("writing a written answer", { weekId: "w01", text: "Written by the persona battery." }),
+  },
+  "/api/courses/runs/[runId]/written-answers/[answerId]/review": {
+    POST: bodyFirst("Then the one gate on whose answer it is."),
+  },
+
+  // ---- A programme's survey ---------------------------------------------------
+  "/api/surveys/[surveyId]/answer": {
+    POST: {
+      realDrive: { body: { answers: {} }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "The survey was not sent to the caller, an admin included: answered as one that is not theirs, before anything is kept."),
+      },
+      theirs: {
+        lead: c(404, "The survey went to the people holding a place, not to the programme's lead: answered as one that is not theirs."),
+        facilitator: c(ACTS, "The survey was sent to them, so answering it is theirs: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        participant: c(ACTS, "The survey was sent to them, so answering it is theirs: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+    },
+  },
+  "/api/surveys/[surveyId]/close": {
+    POST: adminAlone("Closing a survey early", c(ACTS, "An admin's press closes the open survey: it takes no body, so it would act.")),
+  },
+  "/api/surveys/[surveyId]/open": {
+    POST: adminAlone("Opening a leaving survey", c(409, "An admin is told this survey is not a leaving survey: nothing is written.")),
+  },
+  "/api/surveys/[surveyId]/consent": {
+    POST: {
+      realDrive: { body: { purpose: "followUps", given: false }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "The survey was not sent to the caller, an admin included: answered as one that is not theirs, before anything changes."),
+      },
+      theirs: {
+        lead: c(404, "The survey went to the people holding a place, not to the programme's lead: answered as one that is not theirs."),
+        facilitator: c(ACTS, "The survey was sent to them, so its consent is theirs to change: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        participant: c(ACTS, "The survey was sent to them, so its consent is theirs to change: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+    },
+  },
+  "/api/surveys/[surveyId]/export": {
+    POST: adminAlone(
+      "The spreadsheet of a survey's answers",
+      c(ACTS, "An admin is handed the file after its export-log row is written: it takes no body, so it would act."),
+    ),
+  },
+  "/api/surveys/[surveyId]/open-at-event": {
+    POST: adminAlone("Opening a survey at an event", c(409, "An admin is told a programme's survey is not an event's: nothing is written.")),
+  },
+  "/api/surveys/[surveyId]/questions": {
+    POST: adminAlone("Changing a survey's words and questions", c(409, "An admin is told the survey has been sent, so its words are fixed: nothing is written.")),
+  },
+  "/api/surveys/[surveyId]/remind": {
+    POST: adminAlone("Reminding by hand", c(400, "An admin meets the body check: no number of emails.")),
+  },
+  "/api/surveys/[surveyId]/send": {
+    POST: adminAlone("Sending a survey", c(400, "An admin meets the body check: no audience and no number.")),
+  },
+  "/api/surveys/[surveyId]/test": {
+    POST: adminAlone("A survey's test email", c(400, "An admin meets the body check: no email named.")),
+  },
+  "/api/courses/[courseId]/facilitator-guide/printables/pdf": {
+    GET: {
+      another: {
+        anonymous: c(307, "No session: sent to sign in, and back to the printables page after, whatever the course."),
+        "*": c(200, "Neither facilitates a live group on a run of the course nor leads a programme naming one: the guide's one calm sentence, as text, and no PDF."),
+        admin: c(404, "An admin is admitted, and this course's printables are not loaded: the sentence that says so, and no PDF."),
+      },
+      theirs: {
+        lead: c(404, "Leads the programme naming a running run of the course, so admitted, and its printables are not loaded: the sentence that says so."),
+        facilitator: c(404, "Facilitates a live group on a run of the course, so admitted, and its printables are not loaded: the sentence that says so."),
+        participant: c(200, "Holding a place does not open the facilitator guide: the calm sentence, as text, and no PDF."),
+      },
+    },
+  },
+  "/api/surveys/[surveyId]/people/[who]": {
+    POST: adminAlone(
+      "Opening one person's answers",
+      c(ACTS, "An admin's opening is recorded before anything of the person is read: it takes no body, so it would act."),
+    ),
+  },
+};
+
+/** The facilitator guide's writer: an admin, or the lead of a programme naming a live run of the course. */
+function guideWriter(what) {
+  return {
+    another: {
+      anonymous: c(401, NO_SESSION),
+      "*": c(403, `${what} is for an admin and the lead of a programme naming a live run of the course: refused before anything is read.`),
+      admin: c(400, "An admin meets the place check: the battery names no document of the guide."),
+    },
+    theirs: {
+      lead: c(400, "Leads the programme that names a running run of the course, so admitted, then meets the place check: the battery names no document."),
+      facilitator: c(403, `Facilitating reads the guide but does not load it: ${what} is an admin's and the programme's lead's.`),
+      participant: c(403, `${what} is an admin's and the programme's lead's.`),
+    },
+  };
+}
+
+/** One group's week (Q39): an admin and the programme's lead any group, a group's live facilitators their own. */
+function groupWeek(what, next) {
+  return {
+    another: {
+      anonymous: c(401, NO_SESSION),
+      "*": c(403, `${what}: the group is somebody else's, so one 403 for anybody but an admin before anything else is read.`),
+      admin: next,
+    },
+    theirs: {
+      lead: next,
+      facilitator: next,
+      participant: c(403, `${what}: the participant facilitates no group and leads nothing, so one 403.`),
+    },
+  };
+}
+
+/** The lead of the programme that names the run, and admins, decided from the forms before anything of the run is read. */
+function leadOrAdmin(what, next) {
+  return {
+    another: {
+      anonymous: c(401, NO_SESSION),
+      "*": c(403, `${what} is for the lead of the programme that names the run and admins, decided from the forms: refused before anything of the run is read.`),
+      admin: next,
+    },
+    theirs: {
+      lead: next,
+      facilitator: c(403, `Facilitating a group is not leading the programme: ${what} is the lead's and an admin's.`),
+      participant: c(403, `${what} is the programme's lead's and an admin's.`),
+    },
+  };
+}
+
+export const REAL_PAGES = {
+  // ---- The programme's tabs and the pages beside them -------------------------
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/applications": programmePage(
+    "the applications that ranked it.",
+    ["noProgramme", "notReviewed"],
+  ),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/applications/freed-places": programmePage(
+    "the freed places, with the lead told the offer is an admin's.",
+    ["noProgramme", "notReviewed"],
+  ),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written": programmePage("the review page for its written answers."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications/[uid]": {
+    another: {
+      ...PAGE_BASE,
+      "*": c("dashboard", "Not an admin, an approveCourse holder or anybody appointed on a form: the admissions tree sends them to the dashboard."),
+      admin: c(200, "An admin reads any application."),
+      approveCourse: c("notReviewed", "Admitted by the admissions tree, but holds no role on a programme the applicant ranked: the page's own calm 'not here'."),
+      lead: c("notReviewed", "Admitted as an appointed lead, but leads none of the programmes the applicant ranked: the page's own calm 'not here'."),
+    },
+    theirs: {
+      lead: c(200, "Leads the programme the participant ranked: reads their application."),
+      facilitator: c("dashboard", "A plain member: the admissions tree sends them to the dashboard."),
+      participant: c("dashboard", "A plain member, and the application is their own: the admissions tree still sends them to the dashboard."),
+    },
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections": programmePage("its groups' reflections, its facilitators' own among them."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week": programmePage("a group's week, who ticked what by name."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": programmePage("People in groups, the run's allocation board."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": programmePage("Publish's own page."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions": programmePage("the Sessions view."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/times": programmePage("the Times view."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/facilitators": programmePage("the Facilitators view."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/people": programmePage("everybody who holds a place, by name, with their replies."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview": programmePage("the Overview of the run it names."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview/certificates": programmePage("the preview of its certificates."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance": programmePage("every register of the run."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/pitches": programmePage("the pitches page, which says a fellowship has none."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/messages": programmePage("Messages."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys": programmePage(
+    "the Surveys tab: the totals and comments of the programme's surveys, never a name.",
+  ),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]": programmePage(
+    "the page of one survey: its results when it is one of the programme's surveys, a sentence when it is not.",
+  ),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams": programmePage("the Teams tab, which says teams are an incubator's."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams/[teamId]": programmePage("the Teams tab's page, which says teams are an incubator's."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/ratings": programmePage("the ratings given at the programme's end."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks": programmePage("the Weeks tab."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/copy": programmePage("Copy weeks from the course."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]": programmePage("week 1's page, a taught week of the run's plan."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/preview": programmePage("week 1 as a fellow sees it, with nobody's answers."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": programmePage("the programme's Settings."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/anonymous-feedback": programmePage("the answers to its anonymous form."),
+
+  // ---- One run under /learn ---------------------------------------------------
+  "/(app)/learn/[runId]": learnPage({
+    admin: c(200, "An admin can learn on any run: its home."),
+    facilitator: c(200, "Holds a told place and facilitates a group: the run's home."),
+    participant: c(200, "Holds a told place: the run's home."),
+    refused: "learn",
+    why: LEARN_ONLY_WHY,
+    leadWhy: LEAD_LEARN_ONLY_WHY,
+  }),
+  "/(app)/learn/[runId]/admissions": learnPage({
+    admin: c(200, "An admin: the run's admissions lane."),
+    facilitator: c("learn", "The run layout admits them as a learner, and the admissions lane is for admins, reviewers and track leads: sent to /learn."),
+    participant: c("learn", "The admissions lane is for admins, reviewers and track leads: sent to /learn."),
+    refused: "learn",
+    why: LEARN_ONLY_WHY,
+    leadWhy: LEAD_LEARN_ONLY_WHY,
+  }),
+  "/(app)/learn/[runId]/email": learnPage({
+    admin: c(200, "An admin: the run-wide email."),
+    facilitator: c("run", "Admitted to the run, but the run-wide email is its staff's (run facilitators, track leads, admins): sent to the run's home."),
+    participant: c("run", "Admitted to the run as a learner: the run-wide email is its staff's, so sent to the run's home."),
+  }),
+  "/(app)/learn/[runId]/glossary": learnPage({
+    admin: c(200, "An admin can learn on any run: the Glossary."),
+    facilitator: c(200, "Can learn on the run: the Glossary."),
+    participant: c(200, "Can learn on the run: the Glossary."),
+    refused: "learn",
+    why: LEARN_ONLY_WHY,
+    leadWhy: LEAD_LEARN_ONLY_WHY,
+  }),
+  "/(app)/learn/[runId]/group/[groupId]": groupLearnPage("the group's page"),
+  "/(app)/learn/[runId]/group/[groupId]/edit": groupLearnPage("the list of the group's weeks to change"),
+  "/(app)/learn/[runId]/group/[groupId]/edit/[weekId]": groupLearnPage("changing week 1 for the group"),
+  "/(app)/learn/[runId]/group/[groupId]/email": groupLearnPage("emailing the group"),
+  "/(app)/learn/[runId]/group/[groupId]/ratings": groupLearnPage("rating the group's people at the end"),
+  "/(app)/learn/[runId]/group/[groupId]/register": groupLearnPage("the group's register"),
+  "/(app)/learn/[runId]/group/[groupId]/reflections": groupLearnPage("the group's reflections"),
+  "/(app)/learn/[runId]/group/[groupId]/review": groupLearnPage("the group's exercises to review (week 1 is a plain week, so the page draws)"),
+  "/(app)/learn/[runId]/group/[groupId]/sessions": groupLearnPage("the group's sessions"),
+  "/(app)/learn/[runId]/group/[groupId]/update": groupLearnPage("an update to the group"),
+  "/(app)/learn/[runId]/leave": learnPage({
+    admin: c("run", "An admin holds no place to leave: sent to the run's home."),
+    facilitator: c("run", "Facilitates a group of the run: the way out is closed until they come off its facilitators, so sent to the run's home."),
+    participant: c(200, "Holds an active place, and the way out is open: the page to leave."),
+  }),
+  "/(app)/learn/[runId]/notes": learnPage({
+    admin: c("run", "An admin holds no learner place: sent to the run's home."),
+    facilitator: c(200, "Holds a learner place: their own notes."),
+    participant: c(200, "Holds a learner place: their own notes."),
+  }),
+  "/(app)/learn/[runId]/nudge": learnPage({
+    admin: c(200, "An admin: the weekly nudge."),
+    facilitator: c("run", "The nudge page is the run's staff's (run facilitators, track leads, admins): sent to the run's home."),
+    participant: c("run", "The nudge page is the run's staff's: sent to the run's home."),
+  }),
+  "/(app)/learn/[runId]/pitching": learnPage({
+    admin: c("run", "An admin holds no seat in a group: sent to the run's home."),
+    facilitator: c("run", "Holds a seat, but the run has no pitching week: sent to the run's home."),
+    participant: c("run", "Holds a seat, but the run has no pitching week: sent to the run's home."),
+  }),
+  "/(app)/learn/[runId]/team": learnPage({
+    admin: c("run", "An admin is in no team: sent to the run's home."),
+    facilitator: c("run", "A fellowship has no teams: sent to the run's home."),
+    participant: c("run", "A fellowship has no teams: sent to the run's home."),
+  }),
+  "/(app)/learn/[runId]/team/hand-in": learnPage({
+    admin: c("run", "An admin is in no team: sent to the run's home."),
+    facilitator: c("run", "A fellowship has no teams: sent to the run's home."),
+    participant: c("run", "A fellowship has no teams: sent to the run's home."),
+  }),
+  "/(app)/learn/[runId]/progress": learnPage({
+    admin: c(200, "An admin can learn on any run: its progress."),
+    facilitator: c(200, "Can learn on the run: its progress."),
+    participant: c(200, "Can learn on the run: its progress."),
+    refused: "learn",
+    why: LEARN_ONLY_WHY,
+    leadWhy: LEAD_LEARN_ONLY_WHY,
+  }),
+  "/(app)/learn/[runId]/reading": learnPage({
+    admin: c("run", "An admin holds no learner place: sent to the run's home."),
+    facilitator: c(200, "Holds a learner place: their own reading list."),
+    participant: c(200, "Holds a learner place: their own reading list."),
+  }),
+  "/(app)/learn/[runId]/survey/[surveyId]": learnPage({
+    admin: c("surveyNotYours", "The run layout admits an admin, and the survey was not sent to them: the page says so in a sentence."),
+    facilitator: c(200, "The survey on this run was sent to them: the answer screen."),
+    participant: c(200, "The survey on this run was sent to them: the answer screen."),
+    refused: "learn",
+    why: "Holds no role on this run, so the run layout sends them to /learn; the page itself never redirects.",
+    leadWhy: "The run layout does not admit a programme's lead, so sends them to /learn; the survey was not sent to the lead either.",
+  }),
+  "/(app)/learn/[runId]/start-here": learnPage({
+    admin: c(200, "An admin can learn on any run: Start here."),
+    facilitator: c(200, "Can learn on the run: Start here."),
+    participant: c(200, "Can learn on the run: Start here."),
+    refused: "learn",
+    why: LEARN_ONLY_WHY,
+    leadWhy: LEAD_LEARN_ONLY_WHY,
+  }),
+  "/(app)/learn/[runId]/group/[groupId]/written": groupLearnPage("the group's written answers"),
+  "/(app)/learn/[runId]/weeks/[n]": learnPage({
+    admin: c(200, "An admin can learn on any run: week 1."),
+    facilitator: c(200, "Can learn on the run: week 1."),
+    participant: c(200, "Can learn on the run: week 1."),
+    refused: "learn",
+    why: LEARN_ONLY_WHY,
+    leadWhy: LEAD_LEARN_ONLY_WHY,
+  }),
+  "/(app)/learn/[runId]/weeks/[n]/feedback": learnPage({
+    admin: c("run", "An admin holds no place and facilitates no group: sent to the run's home."),
+    facilitator: c("week", "Holds a place, and week 1 is a plain week with no written answer to give feedback on: sent to week 1."),
+    participant: c("week", "Holds a place, and week 1 is a plain week with no written answer: sent to week 1."),
+  }),
+
+  // ---- Course-scoped, group-scoped and ask-scoped pages under /learn --------------
+  "/(app)/learn/facilitate/[askId]": {
+    another: {
+      ...PAGE_BASE,
+      "*": c("askNotYours", "Not the person asked: one calm sentence in place of the ask, and nothing of it, whoever else asks."),
+      admin: c("askNotYours", "An admin is not the person asked either: the ask's page is its own person's, and an admin is given the same sentence."),
+    },
+    theirs: {
+      lead: c("askNotYours", "The lead made the ask, to somebody else: its page is for the person asked, so the lead is given the sentence."),
+      facilitator: c("askNotYours", "The ask is to the participant, not to them: the sentence in place of it."),
+      participant: c(200, "The ask is to them and still open: its page, with its answer buttons."),
+    },
+  },
+  "/(app)/learn/facilitator-guide/[courseId]": facilitatorGuidePage("the course's facilitator guide"),
+  "/(app)/learn/facilitator-guide/[courseId]/[doc]": facilitatorGuidePage("one page of the guide (the battery names none, so the page says there is no such page)"),
+  "/(app)/learn/draw/[groupId]": drawPage("the draw"),
+  "/(app)/learn/pairs/[groupId]": drawPage("the pairs"),
+};
+
+/**
+ * A page for one group under a run: the group's live facilitators and admins.
+ * The participant is admitted to the run by the layout and sent to its home by
+ * the page, because the group is not theirs.
+ */
+function groupLearnPage(what) {
+  return learnPage({
+    admin: c(200, `An admin: ${what}.`),
+    facilitator: c(200, `A live facilitator of the group: ${what}.`),
+    participant: c("run", `Admitted to the run, but facilitates no group and this group is not theirs: sent to the run's home instead of ${what}.`),
+  });
+}
+
+/** The facilitator guide's pages: drawn for everybody approved, with the guide's one calm refusal in place of the guide. */
+function facilitatorGuidePage(what) {
+  const refused = c("guideRefused", `Neither facilitates on a run of the course nor leads a programme naming one: one calm sentence in place of ${what}.`);
+  return {
+    another: { ...PAGE_BASE, "*": refused, admin: c(200, `An admin: ${what}.`) },
+    theirs: {
+      lead: c(200, `Leads the programme naming a running run of the course: ${what}.`),
+      facilitator: c(200, `Facilitates a live group on a run of the course: ${what}.`),
+      participant: c("guideRefused", `Holding a place does not open the facilitator guide: one calm sentence in place of ${what}.`),
+    },
+  };
+}
+
+/** The draw's and the pairs' pages: a static segment under /learn so a programme's lead can open them. */
+function drawPage(what) {
+  return {
+    another: {
+      ...PAGE_BASE,
+      "*": c("learn", `Not the group's live facilitator, the lead of the programme naming its run, or an admin: sent to /learn instead of ${what}.`),
+      admin: c(200, `An admin opens any group's page: ${what}.`),
+    },
+    theirs: {
+      lead: c(200, `Leads the programme naming the group's run: ${what}.`),
+      facilitator: c(200, `A live facilitator of the group: ${what}.`),
+      participant: c("learn", `In the run's other group, and facilitates none: sent to /learn instead of ${what}.`),
+    },
+  };
+}

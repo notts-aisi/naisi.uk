@@ -21,10 +21,37 @@
  * followed. Every request carries its own forwarded address, because the
  * in-memory throttles would otherwise turn the later personas into 429s.
  *
+ * THE SECOND PASS: RECORDS SOMEBODY HOLDS A ROLE ON. Missing ids prove who a
+ * route refuses outright, never whether a programme's lead can reach ANOTHER
+ * programme's records or a facilitator another group's. So
+ * `scripts/e2e/lib/personaWorld.mjs` writes two programmes to the same
+ * emulator, each running with two groups, a published week and a survey:
+ * THEIRS, led by the `lead` persona, with the `facilitator` persona
+ * facilitating (and holding a place in) its first group and the `participant`
+ * persona in its second; and ANOTHER, the same shapes led, facilitated and
+ * taken part in by accounts that are none of the personas. Every course hub
+ * route and page with a segment the world fills (`asksBothSets` in the
+ * registry, walked from the address) is then asked again by every persona with
+ * each set's ids, and held to the entry's `theirs` and `another` columns. A
+ * page that draws a calm "not here" in place of itself is read for the words
+ * that say so (`STATES`), because both answers are a 200. A cell the registry
+ * says would ACT (the gate admits the persona and the request has nothing to
+ * stop it: it takes no body, or reads an empty one as a choice) is not sent,
+ * so no write ever lands; the registry gives the reason for each.
+ *
+ * HOW A CELL IS READ lives in `scripts/e2e/lib/personaCells.mjs`: a request
+ * path from a key, a redirect put back into key shape, the calm states a page
+ * drew, and an outcome held to its expectation. That half reads and writes
+ * nothing, so the offline guard (`tests/persona-route-gates.test.mjs`) holds
+ * it to its rules with no build and no emulator.
+ *
  * RECORDING. With `E2E_PERSONA_RECORD=<path>` the battery writes what it
  * observed as JSON and asserts nothing but that every request answered. That
  * is how the registry was first written, and how a wholesale change is
  * re-keyed: record, read the diff as a list of decisions, edit the registry.
+ * The second pass sends a cell only where the registry has the entry's two
+ * columns, in either mode, so a recording never lands a write the key has not
+ * already said would act.
  *
  * SKIPPING. Without the two variables the runner sets (`E2E_PERSONA_ORIGIN`
  * and `E2E_PERSONA_EMULATOR_HOST`), the battery skips and says so, unless
@@ -38,9 +65,19 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { REPO_ROOT, loadEnv, runId } from "../lib/env.mjs";
 import { PERSONA_NAMES, personaOrigin, withPersona } from "../lib/personas.mjs";
+import { WORLD_SETS, seedPersonaWorld } from "../lib/personaWorld.mjs";
+import { normalisePath, pageMatches, pageOutcome, pathFor, queryFor, statesIn } from "../lib/personaCells.mjs";
 import { stripSource } from "../../../tests/lib/stripSource.mjs";
 import { exportedHandlers, walkRoutes } from "../../../tests/lib/routeScan.mjs";
-import { PAGES, ROUTES, REDIRECTS, expectedFor } from "../../../tests/persona-route-gates.registry.mjs";
+import {
+  ACTS,
+  PAGES,
+  ROUTES,
+  asksBothSets,
+  expectedFor,
+  realColumnsFor,
+  realExpectedFor,
+} from "../../../tests/persona-route-gates.registry.mjs";
 import { readdirSync } from "node:fs";
 
 const APP_DIR = join(REPO_ROOT, "src", "app");
@@ -66,12 +103,15 @@ const POOL = 4;
  * fine, and it does so for EVERY persona at once until the quota window
  * passes. So a refusal that reads as "no session" (a 401, or a redirect to
  * sign in) for a persona that HAS a cookie is asked again after a pause that
- * grows, up to a minute in all, and only the last answer counts. A genuine
+ * grows, up to about three and a half minutes in all, and only the last
+ * answer counts: with sixteen thousand cells, a window of a minute was not
+ * always enough (October 2026), and while every worker waits the lookups
+ * stop, so the window passes. A genuine
  * 401 for that persona answers 401 every time; a throttled lookup answers
  * correctly once the window has passed. Every retry is counted and printed,
  * so a run that leaned on them says so rather than passing quietly.
  */
-const RETRY_PAUSES_MS = [2000, 6000, 15000, 40000];
+const RETRY_PAUSES_MS = [2000, 6000, 15000, 40000, 60000, 90000];
 let retried = 0;
 let retriesThatChanged = 0;
 const looksLikeNoSession = (result) =>
@@ -155,18 +195,19 @@ function pageSurfaces() {
   return out.sort();
 }
 
-/** A request path from a key: route groups dropped, dynamic segments filled with ids that address nothing. */
-export function pathFor(key) {
-  return key
-    .split("/")
-    .filter((seg) => !/^\(.*\)$/.test(seg))
-    .map((seg) => seg.replace(/^\[\.{0,3}(\w+)\]$/, (_, name) => `e2e-missing-${name}`))
-    .join("/") || "/";
-}
-
-async function requestRoute(persona, key, method, entry) {
-  const drive = entry?.drive ?? {};
-  const path = pathFor(key) + (drive.query ?? "");
+/**
+ * Asks one route. The first pass sends the entry's own `drive`; the second
+ * (`ids` given) sends a mutating route an empty body, so a gate that admits
+ * the persona meets the first validation and nothing lands, unless the
+ * columns carry a `realDrive.body`: then every cell the gate admits is
+ * `ACTS` and never sent, so the body only ever reaches somebody refused. A
+ * GET is sent its `realDrive.query`, and writes nothing by rule.
+ */
+async function requestRoute(persona, key, method, entry, ids = null) {
+  const real = ids ? (realColumnsFor(key, method)?.realDrive ?? {}) : null;
+  const drive = real ? { body: real.body } : (entry?.drive ?? {});
+  const query = real ? (method === "GET" && real.query ? queryFor(real.query, ids) : "") : (drive.query ?? "");
+  const path = pathFor(key, ids ?? {}) + query;
   const init = { method, headers: {} };
   if (MUTATING.has(method)) {
     init.headers["content-type"] = "application/json";
@@ -217,24 +258,18 @@ async function requestRoute(persona, key, method, entry) {
 const RSC_REDIRECT = /NEXT_REDIRECT;(?:replace|push);([^;"\\]+);(\d{3});/g;
 const META_REDIRECT = /<meta[^>]*http-equiv="refresh"[^>]*content="\d+;\s*url=([^"]+)"/gi;
 
-function normalisePath(location) {
-  return new URL(location.replace(/&amp;/g, "&"), "http://placeholder.invalid").pathname.replace(
-    /\/e2e-missing-(\w+)/g,
-    "/[$1]",
-  );
-}
-
-async function requestPage(persona, key) {
-  const res = await personaFetch(persona, pathFor(key), { method: "GET" });
+async function requestPage(persona, key, ids = null) {
+  const res = await personaFetch(persona, pathFor(key, ids ?? {}), { method: "GET" });
   const text = await res.text();
   const locations = new Set();
   const header = res.headers.get("location");
-  if (header) locations.add(normalisePath(header));
+  if (header) locations.add(normalisePath(header, ids ?? {}));
   if (res.status === 200) {
-    for (const match of text.matchAll(RSC_REDIRECT)) locations.add(normalisePath(match[1]));
-    for (const match of text.matchAll(META_REDIRECT)) locations.add(normalisePath(match[1]));
+    for (const match of text.matchAll(RSC_REDIRECT)) locations.add(normalisePath(match[1], ids ?? {}));
+    for (const match of text.matchAll(META_REDIRECT)) locations.add(normalisePath(match[1], ids ?? {}));
   }
-  return { status: res.status, locations: [...locations].sort() };
+  const states = ids && res.status === 200 && locations.size === 0 ? statesIn(text) : [];
+  return { status: res.status, locations: [...locations].sort(), ...(ids ? { states } : {}) };
 }
 
 /** Run `tasks` (thunks) with at most POOL in flight, in order of submission. */
@@ -251,36 +286,37 @@ async function drain(tasks) {
   return results;
 }
 
-/** The names of every redirect target observed, or the status when there was none. */
-function pageOutcome(observed) {
-  if (observed.locations.length === 0) return observed.status;
-  return observed.locations.map(
-    (path) => Object.keys(REDIRECTS).find((n) => REDIRECTS[n] === path) ?? `redirect:${path}`,
-  );
-}
-
-/** Does an observed outcome satisfy an expectation (a status, a name, or a list of names)? */
-function pageMatches(want, got) {
-  if (typeof want === "number") return got === want;
-  const allowed = Array.isArray(want) ? want : [want];
-  return Array.isArray(got) && got.length > 0 && got.every((name) => allowed.includes(name));
-}
-
 describe("persona route gates on a real build", { skip: !ARMED && !REQUIRED ? "E2E_PERSONA_ORIGIN and E2E_PERSONA_EMULATOR_HOST are not set; scripts/e2e/run.mjs sets them when the emulator and the persona server come up. Set E2E_PERSONA_BATTERY=required to fail instead." : false }, () => {
   const personas = new Map();
-  const observed = { routes: {}, pages: {} };
+  const observed = { routes: {}, pages: {}, second: { routes: {}, pages: {} } };
   const routes = routeSurfaces();
   const pages = pageSurfaces();
+  /** The world's two programmes, once seeded: `sets.theirs` and `sets.another`, each segment to an id. */
+  let world = null;
+  let notSent = 0;
 
   before(async () => {
     loadEnv();
     assert.ok(ARMED, "E2E_PERSONA_BATTERY=required but the emulator and persona server are not up.");
     const id = runId();
     for (const name of PERSONA_NAMES) personas.set(name, await withPersona(id, name));
+    world = await seedPersonaWorld(id, {
+      lead: personas.get("lead"),
+      facilitator: personas.get("facilitator"),
+      participant: personas.get("participant"),
+    });
   });
 
   after(async () => {
+    // The world first: it names the personas, never the other way round. It
+    // is drained to nothing and says so, and a teardown that left anything
+    // fails the run once the personas are removed too.
+    const drained = world ? await world.dispose().catch((err) => ({ deleted: 0, left: -1, err })) : null;
     for (const persona of personas.values()) await persona.dispose().catch(() => {});
+    if (drained) {
+      console.log(`[personas] the world: ${drained.deleted} document(s) written and deleted, ${drained.left} left.`);
+      assert.equal(drained.left, 0, `the world's teardown left documents behind${drained.err ? `: ${drained.err.message}` : ""}`);
+    }
   });
 
   it("every route answers every persona", async () => {
@@ -335,13 +371,75 @@ describe("persona route gates on a real build", { skip: !ARMED && !REQUIRED ? "E
     assert.ok(Object.keys(observed.pages).length === pages.length, "some page was never requested");
   });
 
+  /**
+   * One cell of the second pass: the persona's expectation with this set's
+   * ids, or undefined when the key has no columns (then nothing is sent, in
+   * either mode, so a recording never lands a write the key has not ruled on).
+   */
+  const realWant = (key, method, set, name) => realExpectedFor(realColumnsFor(key, method), set, name);
+
+  it("every course hub route answers every persona about both programmes", async () => {
+    const cells = [];
+    for (const { key, methods } of routes) {
+      if (!asksBothSets(key)) continue;
+      for (const method of methods) {
+        const entry = ROUTES[key]?.[method];
+        for (const set of WORLD_SETS) for (const name of PERSONA_NAMES) cells.push({ key, method, set, name, entry });
+      }
+    }
+    await drain(
+      cells.map((cell) => async () => {
+        const want = realWant(cell.key, cell.method, cell.set, cell.name);
+        if (want === undefined || want === ACTS) {
+          notSent += 1;
+          return;
+        }
+        const persona = personas.get(cell.name);
+        const ids = world.sets[cell.set];
+        const result = await withRetries(
+          persona,
+          () => requestRoute(persona, cell.key, cell.method, cell.entry, ids),
+          RECORD ? undefined : (r) => r.status === want,
+        );
+        const at = ((observed.second.routes[cell.key] ??= {})[cell.method] ??= {});
+        (at[cell.set] ??= {})[cell.name] = result;
+      }),
+    );
+  });
+
+  it("every course hub page answers every persona about both programmes", async () => {
+    const cells = [];
+    for (const key of pages) {
+      if (!asksBothSets(key)) continue;
+      for (const set of WORLD_SETS) for (const name of PERSONA_NAMES) cells.push({ key, set, name, entry: PAGES[key] });
+    }
+    await drain(
+      cells.map((cell) => async () => {
+        const want = realWant(cell.key, null, cell.set, cell.name);
+        if (want === undefined) {
+          notSent += 1;
+          return;
+        }
+        const persona = personas.get(cell.name);
+        const ids = world.sets[cell.set];
+        const result = await withRetries(
+          persona,
+          () => requestPage(persona, cell.key, ids),
+          RECORD ? undefined : (r) => pageMatches(want, pageOutcome(r)),
+        );
+        ((observed.second.pages[cell.key] ??= {})[cell.set] ??= {})[cell.name] = result;
+      }),
+    );
+  });
+
   it(RECORD ? "records what it observed" : "what it observed is what the registry says", () => {
     console.log(
       `[personas] ${retried} answer(s) that read as "no session" were asked again; ${retriesThatChanged} changed on the second ask.`,
     );
+    console.log(`[personas] the second pass left ${notSent} cell(s) unsent: the registry says they would act, or has no columns.`);
     if (RECORD) {
       mkdirSync(dirname(RECORD), { recursive: true });
-      writeFileSync(RECORD, JSON.stringify(observed, null, 2));
+      writeFileSync(RECORD, JSON.stringify({ ...observed, sets: world?.sets ?? null }, null, 2));
       console.log(`[personas] recorded ${routes.length} routes and ${pages.length} pages to ${RECORD}`);
       return;
     }
@@ -381,6 +479,58 @@ describe("persona route gates on a real build", { skip: !ARMED && !REQUIRED ? "E
         const got = pageOutcome(observed.pages[key][name]);
         if (!pageMatches(want, got)) {
           failures.push(`${key} as ${name}: expected ${JSON.stringify(want)}, got ${JSON.stringify(got)}`);
+        }
+      }
+    }
+    // The second pass, held to the entry's two columns.
+    for (const { key, methods } of routes) {
+      if (!asksBothSets(key)) continue;
+      for (const method of methods) {
+        const entry = ROUTES[key]?.[method];
+        const columns = realColumnsFor(key, method);
+        if (!columns?.theirs || !columns?.another) {
+          failures.push(`${key}#${method}: a course hub route with no theirs and another columns, so nothing was asked`);
+          continue;
+        }
+        for (const set of WORLD_SETS) {
+          for (const name of PERSONA_NAMES) {
+            const want = realExpectedFor(columns, set, name);
+            if (want === ACTS) continue;
+            const got = observed.second.routes[key]?.[method]?.[set]?.[name];
+            if (!got) {
+              failures.push(`${key}#${method} (${set}) as ${name}: never asked`);
+            } else if (got.status !== want) {
+              failures.push(
+                `${key}#${method} (${set}) as ${name}: expected ${want}, got ${got.status}` +
+                  (got.excerpt ? ` (${got.excerpt.replace(/\s+/g, " ").slice(0, 120)})` : ""),
+              );
+            } else if (got.status < 300 && got.keys) {
+              const extra = entry?.fields ? got.keys.filter((k) => !entry.fields.includes(k)) : got.keys;
+              if (extra.length > 0) failures.push(`${key}#${method} (${set}) as ${name}: unlisted response fields ${extra.join(", ")}`);
+            }
+          }
+        }
+      }
+    }
+    for (const key of pages) {
+      if (!asksBothSets(key)) continue;
+      const columns = realColumnsFor(key, null);
+      if (!columns?.theirs || !columns?.another) {
+        failures.push(`${key}: a course hub page with no theirs and another columns, so nothing was asked`);
+        continue;
+      }
+      for (const set of WORLD_SETS) {
+        for (const name of PERSONA_NAMES) {
+          const want = realExpectedFor(columns, set, name);
+          const seen = observed.second.pages[key]?.[set]?.[name];
+          if (!seen) {
+            failures.push(`${key} (${set}) as ${name}: never asked`);
+            continue;
+          }
+          const got = pageOutcome(seen);
+          if (!pageMatches(want, got)) {
+            failures.push(`${key} (${set}) as ${name}: expected ${JSON.stringify(want)}, got ${JSON.stringify(got)}`);
+          }
         }
       }
     }
