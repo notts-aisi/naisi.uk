@@ -29,6 +29,7 @@ import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import { RECORD_OPENINGS_COLLECTION } from "./recordOpenings";
+import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
 import { COURSE_UPDATES_COLLECTION } from "./courseUpdates";
 import {
   ANONYMOUS_ANSWERS_COLLECTION,
@@ -333,6 +334,13 @@ export type RunDestroyCounts = {
    * run: each record names a block of a week this cascade deletes.
    */
   packsAndCases: number;
+  /**
+   * `coursePairs` rows: who was paired with whom for a session in pairs, and
+   * who was bringing a laptop (`src/lib/firestore/coursePairs.ts`). Keyed by
+   * `runId` on the row like every other leaf here, and it dies with the run:
+   * each record names a group and a block of a week this cascade deletes.
+   */
+  pairs: number;
   /**
    * The anonymous keep, change and drop form of the programme that names
    * this run (`src/lib/anonymousFeedback/`): the form's own record, which
@@ -1121,6 +1129,7 @@ export async function countRunDestroyTargets(
     groupNotes,
     groupSharedNotes,
     packsAndCases,
+    pairs,
     anonymousFeedbackCounts,
     predictions,
     recordOpenings,
@@ -1197,6 +1206,8 @@ export async function countRunDestroyTargets(
     countAgg(db.collection(COURSE_GROUP_SHARED_NOTES_COLLECTION).where("runId", "==", runId)),
     // The same single equality the packs and cases stage drains on.
     countAgg(db.collection(COURSE_PACKS_AND_CASES_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the pairs stage drains on.
+    countAgg(db.collection(COURSE_PAIRS_COLLECTION).where("runId", "==", runId)),
     // The same single equality, on each of the three collections the
     // anonymous form stage drains.
     Promise.all(
@@ -1239,6 +1250,7 @@ export async function countRunDestroyTargets(
     groupNotes,
     groupSharedNotes,
     packsAndCases,
+    pairs,
     anonymousFeedback: anonymousFeedbackCounts.reduce((a, b) => a + b, 0),
     predictions,
     recordOpenings,
@@ -1830,6 +1842,15 @@ export async function destroyRunCascade(
       // so nothing recreates one behind the cascade.
       drain: () =>
         drainQuery(db, COURSE_PACKS_AND_CASES_COLLECTION, byRunId(COURSE_PACKS_AND_CASES_COLLECTION), budget),
+    },
+    {
+      key: "pairs",
+      // Who was paired with whom for a session in pairs: a leaf keyed by
+      // `runId`, drained with the other leaves and BEFORE the groups and the
+      // weeks each record names. `write: if false` to every client, and the
+      // pairs route refuses a run carrying the destroy marker, so nothing
+      // recreates one behind the cascade.
+      drain: () => drainQuery(db, COURSE_PAIRS_COLLECTION, byRunId(COURSE_PAIRS_COLLECTION), budget),
     },
     {
       key: "anonymousFeedback",

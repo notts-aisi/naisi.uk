@@ -12,6 +12,8 @@ import { runSharesGroupNotes } from "@/lib/firestore/courseGroupSharedNotes";
 import { normalizeCourse, weekDocId } from "@/lib/firestore/courses";
 import { guideLinksOf } from "@/lib/courses/guide/load";
 import type { CourseRoutes } from "@/lib/courses/routes/model";
+import type { OwnPair } from "@/lib/courses/pairs/model";
+import { readOwnPairs } from "@/lib/courses/pairs/readers";
 import { beforeSurveyCardFor, type SurveyCard } from "@/lib/surveys/waiting";
 import { ownPredictionsView } from "@/lib/courses/predictions/own";
 import type { PredictionsView } from "@/lib/courses/predictions/wire";
@@ -50,6 +52,10 @@ import type { PredictionsView } from "@/lib/courses/predictions/wire";
  * it opens in, the reader's own card, as `ownPredictionsView` decides they may
  * read and change it now; nothing for anybody with no card, and nothing in a
  * view-as session.
+ *
+ * A SESSION IN PAIRS (Technical AI Safety's hands-on night): the reader's own
+ * pairs, read here for them alone (`readOwnPairs`), go to the page only when
+ * there is one, so every other week is handed exactly what it was before.
  */
 
 export const dynamic = "force-dynamic";
@@ -144,12 +150,13 @@ export default async function WeekPage({
   // The course's routes travel only when it has some: a course with none
   // hands the page nothing new, and the week shows the guide's own tables.
   const guideDb = getAdminDb();
-  const [sharedNotes, guide, routes, survey, predictions] = await Promise.all([
+  const [sharedNotes, guide, routes, survey, predictions, pairs] = await Promise.all([
     sharedNotesFor(access),
     guideDb ? guideLinksOf(guideDb, access.run.id).catch(() => null) : Promise.resolve(null),
     routesFor(access),
     weekOneSurvey(access, weekNumber),
     predictionsFor(access, weekNumber),
+    pairsFor(access, weekNumber),
   ]);
   return (
     <WeekView
@@ -162,6 +169,7 @@ export default async function WeekPage({
       {...(routes ? { routes } : {})}
       {...(survey ? { survey } : {})}
       {...(predictions ? { predictions } : {})}
+      {...(pairs.length > 0 ? { pairs } : {})}
     />
   );
 }
@@ -178,6 +186,27 @@ async function predictionsFor(access: RunAccess, weekNumber: number): Promise<Pr
   } catch (err) {
     console.error("[week page] predictions read failed", access.run.id, err);
     return null;
+  }
+}
+
+/**
+ * THE READER'S OWN PAIRS for a week whose session is in pairs, read here on
+ * the server for them alone (`readOwnPairs`): who they are paired with, by
+ * first name, and who in their pair is bringing a laptop, for each group they
+ * take part in (their own place's, and each they facilitate). Empty on every
+ * other week, before their group's facilitators pair them, for somebody who
+ * takes part in no group, and when the read fails, so the week shows the
+ * guide's own words.
+ */
+async function pairsFor(access: RunAccess, weekNumber: number): Promise<OwnPair[]> {
+  if (access.groups.length === 0) return [];
+  const db = getAdminDb();
+  if (!db) return [];
+  try {
+    return await readOwnPairs(db, access.user, access.run.id, access.groups, access.enrolment, weekNumber, new Date());
+  } catch (err) {
+    console.error("[week page] pairs read failed", access.run.id, err);
+    return [];
   }
 }
 

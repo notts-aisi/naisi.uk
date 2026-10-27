@@ -1047,6 +1047,53 @@
   margin-top: 12px;
 }
 
+/* The reader's own pair for a session in pairs, under Before you come
+   (src/features/courses/pairs/YourPair.tsx). */
+.yourPair {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  margin-top: 14px;
+  padding: 14px clamp(1rem, 2.6cqi, 1.25rem);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+}
+
+.yourPairGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.yourPairHead {
+  margin: 0 0 2px;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.yourPairLine {
+  margin: 0;
+  font-size: var(--text-md, 1rem);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.yourPairLaptop {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-soft);
+  overflow-wrap: anywhere;
+}
+
 /* The hands-on route's own text, under its "Not counted" line. */
 .handsOnBody {
   margin: 12px 0 14px;

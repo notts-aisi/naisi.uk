@@ -344,6 +344,14 @@ You'll compare forecasts in pairs, then as a group.
 The paragraph that starts "Before you come" and what follows it are what to
 do before the session, kept as written.
 
+When "Before you come" says people are paired ("Your facilitators pair you
+up"), the week asks for pairs (`pairsAskOf` in
+`src/lib/courses/pairs/model.ts`), and asks who is bringing a laptop when the
+same words name one. The group's facilitators pair people on the pairs page,
+and each person's week page shows their own pair under these words. Nothing
+in the Markdown changes: the words decide. See `docs/courses-ops.md`, "Pairs
+for a session in pairs".
+
 ### Go further, and the hands-on route
 
 ```

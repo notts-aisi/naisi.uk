@@ -785,6 +785,14 @@ const MUST_NAME = [
   ["who reads what somebody fills in", /It is read by you, your group&apos;s facilitators, the programme&apos;s lead and admins, and by nobody else taking part; the page says so under the boxes\./i],
   ["a facilitator's own boxes", /If you facilitate a group, what you write is read by the programme&apos;s lead and admins, and not by the group&apos;s other facilitators\./i],
   ["a leaver's boxes", /If you leave the programme, the programme&apos;s lead and admins can still read it, and your group&apos;s facilitators and you no longer can\./i],
+  // Pairs for a session in pairs (Technical AI Safety's hands-on night): who
+  // records them, what each person sees of their own pair, who sees every
+  // pair, a facilitator in a pair, and a leaver. §2g holds each to its code.
+  ["pairs for a session, and who records them", /When a week&apos;s session is in pairs, your group&apos;s facilitators, the programme&apos;s lead or an admin record on the site who is in each pair and, where the week asks, who is bringing a laptop\./i],
+  ["what a person sees of their own pair, and their partners of them", /On that week&apos;s page you see who you are paired with, by first name, and who in your pair is bringing a laptop, and your partners see the same about you\./i],
+  ["who sees every pair, and nobody else in the group", /Your group&apos;s facilitators, the programme&apos;s lead and admins see every pair in the group; nobody else in your group sees your pair\./i],
+  ["a facilitator in a pair, seen by co-facilitators", /If you facilitate the group, you can be in a pair like anybody, and your co-facilitators see it\./i],
+  ["a leaver is shown in no pair, and pairs go with the account", /If you leave the programme, you are no longer shown in a pair\. It is deleted with your account\./i],
   ["the calendar link", /&quot;Add to calendar&quot; on your programme page gives you a private link to your sessions/i],
   ["what the calendar shows", /It shows the day, time and room of each session of your group \(and of any group you facilitate\), with the programme&apos;s and the group&apos;s name, and marks a session that is cancelled\./i],
   ["the calendar's provider fetches it and keeps what it shows", /your calendar&apos;s provider \(Apple, Google or Microsoft, for example\) fetches it from us every so often and keeps what it shows, under its own privacy policy/i],
@@ -2880,6 +2888,8 @@ describe("the course hub passage", () => {
       /Pathways and cases\./i,
       /which ones you were given is recorded on the site/i,
       /the packs and cases recorded for you/i,
+      /Pairs for a session\./i,
+      /who you are paired with/i,
       /saying yes also puts you in that group/i,
       /If you facilitate your own group\./i,
       /A facilitator who held a place and finished is sent both/i,
@@ -4271,6 +4281,73 @@ describe("the course hub passage", () => {
     // tests/course-hub-packs-and-cases.test.mjs runs the draw, the picks, the
     // ready box and the deletions as every kind of caller.
     assert.ok(existsSync(join(REPO_ROOT, "tests", "course-hub-packs-and-cases.test.mjs")));
+  });
+
+  test("pairs for a session: recorded by the group's facilitators, the lead or an admin; each person sees their own pair by first name and nothing of another; the group's facilitators, the lead and admins see every pair; a leaver is in none; and they go with the account", () => {
+    assert.match(
+      PAGE_FLAT,
+      /<strong>Pairs for a session\.<\/strong> When a week&apos;s session is in pairs, your group&apos;s facilitators, the programme&apos;s lead or an admin record on the site who is in each pair and, where the week asks, who is bringing a laptop\. On that week&apos;s page you see who you are paired with, by first name, and who in your pair is bringing a laptop, and your partners see the same about you\. Your group&apos;s facilitators, the programme&apos;s lead and admins see every pair in the group; nobody else in your group sees your pair\. If you facilitate the group, you can be in a pair like anybody, and your co-facilitators see it\. If you leave the programme, you are no longer shown in a pair\. It is deleted with your account\./,
+    );
+    // Every file that addresses the record, and why it may.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bCOURSE_PAIRS_COLLECTION\b|["'`]coursePairs["'`]/),
+      new Map([
+        ["src/lib/firestore/coursePairs.ts", "the record's own shape, its id and its normaliser"],
+        ["src/lib/courses/pairs/readers.ts", "the readers, each read by id for the people a page may show it to"],
+        ["src/app/api/courses/groups/[groupId]/pairs/route.ts", "the one writer, for the group's live facilitators, the programme's lead or an admin"],
+        ["src/lib/firestore/courseDeletion.ts", "destroying a run deletes its records"],
+        ["src/lib/firestore/accountDeletion.ts", "deleting an account deletes every record of theirs"],
+      ]),
+      "addressing the pairs recorded for a session in pairs",
+      "The policy says pairs are recorded by the group's facilitators, the " +
+        "programme's lead or an admin, that each person sees their own pair " +
+        "and nothing of another, that the group's facilitators, the lead and " +
+        "admins see every pair, and that they go with the account. If this " +
+        "file reads, shows or removes them otherwise, the sentence is wrong " +
+        "and a new version has to say so.",
+    );
+    // Who records them, and who sees every pair: the draw's gate (the group's
+    // live facilitators, the programme's lead and admins), asked by the route
+    // and the pairs page; the group page's own gate (its live facilitators and
+    // admins) for its card.
+    for (const file of ["src/app/api/courses/groups/[groupId]/pairs/route.ts", "src/app/(app)/learn/pairs/[groupId]/page.tsx"]) {
+      assert.match(read(file), /const gate = await drawGate\(db, (?:actor|user), group\);/, `${file} no longer asks the draw's gate`);
+    }
+    assert.match(
+      read("src/app/(app)/learn/[runId]/group/[groupId]/page.tsx"),
+      /const pairsWeek = drawWeek \? await readGroupPairs\(db, runId, groupId, drawWeek, drawList\) : null;/,
+    );
+    // Each person sees their own pair alone: the week page asks for the
+    // session's own person, and the reader hands on one pair's first names
+    // and laptops, never another pair or a record.
+    assert.match(
+      read("src/app/(app)/learn/[runId]/weeks/[n]/page.tsx"),
+      /return await readOwnPairs\(db, access\.user, access\.run\.id, access\.groups, access\.enrolment, weekNumber, new Date\(\)\);/,
+    );
+    const readers = withoutComments(read("src/lib/courses/pairs/readers.ts"));
+    const own = /export async function readOwnPairs\([\s\S]*?\n\}/.exec(readers);
+    assert.ok(own, "could not find the reader of a person's own pair");
+    assert.match(own[0], /const pair = pairOf\(groupPairs\.view, actor\.uid\);/);
+    assert.match(own[0], /partners: partners\.map\(\(person\) => person\.firstName\),/);
+    assert.match(own[0], /partnersBringing: pair \? pair\.laptops\.filter\(\(person\) => person\.uid !== actor\.uid\)\.map\(\(person\) => person\.firstName\) : \[\],/);
+    // A leaver is shown in no pair: pairs are drawn from the group's people
+    // taking part now (the draw's list, which takes in the group's
+    // facilitators too), in the route, on both staff pages and for the person.
+    assert.match(own[0], /const people = await readDrawPeople\(db, runId, group, \{ isAdmin: false \}, now\);/);
+    assert.match(own[0], /if \(!people \|\| !people\.some\(\(person\) => person\.uid === actor\.uid\)\) continue;/);
+    for (const file of ["src/app/api/courses/groups/[groupId]/pairs/route.ts", "src/app/(app)/learn/pairs/[groupId]/page.tsx"]) {
+      assert.match(read(file), /readDrawPeople\(db, (?:group\.runId|run\.id), group, \{ isAdmin: gate\.isAdmin \}, now\)/, `${file} no longer reads the group's people now`);
+    }
+    // Leaving touches no pair: the record stays and nothing shows it.
+    assert.ok(!/coursePairs|COURSE_PAIRS_COLLECTION/.test(read("src/lib/courses/leaveRun.ts")), "leaving now touches the pairs");
+    // They go with the account, found by the person's uid.
+    assert.match(
+      read("src/lib/firestore/accountDeletion.ts"),
+      /export async function deleteCoursePairs\(db: Firestore, uid: string\): Promise<number> \{\s*return deleteOwnedCourseRows\(db, COURSE_PAIRS_COLLECTION, uid\);\s*\}/,
+    );
+    // tests/course-hub-pairs.test.mjs runs who types them, who sees which,
+    // and the deletions as every kind of caller.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-hub-pairs.test.mjs")));
   });
 
   test("what somebody fills in on a week is read by them, their group's facilitators, the lead and admins; a facilitator's own by the lead and admins; a leaver's by the lead and admins; and goes with the account", () => {

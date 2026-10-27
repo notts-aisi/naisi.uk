@@ -320,6 +320,11 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "What each person had in the weeks' packs and talks: the pack they picked or were given, the case they were given, and whether they marked themselves ready. Each one names a week this destroy deletes, so they go with the run.",
   },
+  pairs: {
+    label: "Pairs and laptops",
+    fate: "destroyed",
+    note: "Who was paired with whom for a session in pairs, and who was bringing a laptop. Each one names a group and a week this destroy deletes, so they go with the run.",
+  },
   anonymousFeedback: {
     label: "The anonymous form and its answers",
     fate: "destroyed",

@@ -29,6 +29,7 @@ import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
+import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
 import {
   MEMBER_RECORDS_COLLECTION,
   MEMBER_RECORD_APPLICATIONS,
@@ -166,6 +167,13 @@ export type AccountDeletionSummary = {
    * this account alone.
    */
   coursePacksAndCasesDeleted: number;
+  /**
+   * This account's place in each session's pairs (`coursePairs`): which pair
+   * it was in and whether it was bringing a laptop. Deleted: each record is
+   * about this account alone, and a pair is the people sharing a number, so
+   * its partners' records name nothing of it.
+   */
+  coursePairsDeleted: number;
   /**
    * Certificates this account owned whose link was off (`courseCertificates`):
    * deleted, since only their owner could open them. With them go the
@@ -717,6 +725,16 @@ export async function deleteCourseGroupSharedNotes(db: Firestore, uid: string): 
  */
 export async function deleteCoursePacksAndCases(db: Firestore, uid: string): Promise<number> {
   return deleteOwnedCourseRows(db, COURSE_PACKS_AND_CASES_COLLECTION, uid);
+}
+
+/**
+ * Delete every record of this account's place in a session's pairs
+ * (`coursePairs`), on every run and in every group, a page at a time: which
+ * pair it was in and whether it was bringing a laptop. Found by the one
+ * equality on `uid`; nobody else's record is touched, and none names it.
+ */
+export async function deleteCoursePairs(db: Firestore, uid: string): Promise<number> {
+  return deleteOwnedCourseRows(db, COURSE_PAIRS_COLLECTION, uid);
 }
 
 /**
@@ -1310,6 +1328,7 @@ export async function deleteAccountCascade(
     courseGroupNotesDeleted: 0,
     courseGroupSharedNotesDeleted: 0,
     coursePacksAndCasesDeleted: 0,
+    coursePairsDeleted: 0,
     courseCertificatesDeleted: 0,
     courseCertificatesKept: 0,
     coursePredictionsDeleted: 0,
@@ -1736,6 +1755,17 @@ export async function deleteAccountCascade(
     summary.coursePacksAndCasesDeleted = await deleteCoursePacksAndCases(db, uid);
   } catch (err) {
     console.error("[deleteAccount] coursePacksAndCases delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c. PAIRS. This account's place in each session's pairs (which pair, and
+  //      whether it was bringing a laptop) is about this account alone,
+  //      addressed by its uid, and goes with it; a partner's record names
+  //      nothing of it (see coursePairs.ts).
+  try {
+    summary.coursePairsDeleted = await deleteCoursePairs(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] coursePairs delete failed:", uid, err);
     partialFailure = true;
   }
 

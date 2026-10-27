@@ -13,6 +13,7 @@ import {
 } from "@/features/courses/facilitator/GroupCards";
 import facilitator from "@/features/courses/facilitator/facilitator.module.css";
 import PathwaySpread from "@/features/courses/packsAndCases/PathwaySpread";
+import PairsCard from "@/features/courses/pairs/PairsCard";
 import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
 import ThisWeeksWork, { ReflectionsQueueCard } from "@/features/courses/facilitatorWeek/ThisWeeksWork";
 import { ticketFacts } from "@/features/courses/sessionChange/cardFacts";
@@ -31,6 +32,7 @@ import { loadFacilitatorGroup } from "@/lib/courses/facilitatorGroup";
 import { hasDraw } from "@/lib/courses/packsAndCases/model";
 import { drawPeople, readDrawState, readGroupWeek, spreadOf } from "@/lib/courses/packsAndCases/readers";
 import { changeDrawWords, spreadTitleWords } from "@/lib/courses/packsAndCases/words";
+import { readGroupPairs } from "@/lib/courses/pairs/readers";
 import { loadGroupWeek } from "@/lib/courses/facilitatorWeek/readers";
 import { facilitatorsWorkLine } from "@/lib/courses/facilitatorWeek/words";
 import {
@@ -93,6 +95,11 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * THE SPREAD (Q32 A, "Pathways in Group B"): the draw of the week of the
  * group's next session, each pathway with who has it, and the way to the draw
  * page (`/learn/draw/[groupId]`), where the slips are copied in.
+ *
+ * THE PAIRS ("Pairs in Group B"): when the week of the group's next session
+ * asks for pairs (its In the session block says people are paired), each
+ * pair, who is bringing a laptop and the check that every pair has one, and
+ * the way to the pairs page (`/learn/pairs/[groupId]`), where they are typed.
  *
  * NOT DRAWN, though the board draws it: who can't make it tonight (that
  * feature does not exist yet).
@@ -371,6 +378,9 @@ export default async function GroupHomePage({
   const drawList = drawPeople(model.people, model.facilitators);
   const spread =
     drawWeek && hasDraw(drawWeek.draw) ? spreadOf(drawWeek, drawList, await readDrawState(db, runId, drawWeek, drawList)) : null;
+  // The pairs of the same week, when it asks for them: everybody in the
+  // group's pairs, its facilitators too, who take part.
+  const pairsWeek = drawWeek ? await readGroupPairs(db, runId, groupId, drawWeek, drawList) : null;
 
   // The head: the group, its week, its programme, its usual day, time and
   // room, and the group's other facilitators by their whole names.
@@ -434,6 +444,14 @@ export default async function GroupHomePage({
           spread={spread}
           changeHref={`/learn/draw/${encodeURIComponent(groupId)}?week=${drawWeek.weekNumber}`}
           changeLabel={changeDrawWords(drawWeek.draw)}
+        />
+      )}
+      {pairsWeek && (
+        <PairsCard
+          groupName={groupName}
+          view={pairsWeek.view}
+          laptops={pairsWeek.ask.laptops}
+          changeHref={`/learn/pairs/${encodeURIComponent(groupId)}?week=${pairsWeek.weekNumber}`}
         />
       )}
     </>

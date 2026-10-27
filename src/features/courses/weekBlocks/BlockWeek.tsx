@@ -75,6 +75,7 @@ import {
 } from "@/lib/courses/fillInWords";
 import type { CourseWeekDoc } from "@/lib/firestore/courses";
 import { isRoutesSection, type CourseRoutes } from "@/lib/courses/routes/model";
+import type { OwnPair } from "@/lib/courses/pairs/model";
 import type { ProgressItemKind } from "@/lib/firestore/courseProgress";
 import { findCase, keyingChooseOne } from "@/lib/courses/packsAndCases/model";
 import { NOT_GIVEN_YET, NOT_READY_YET, NOT_SAVED, YOUR_CASE_LABEL } from "@/lib/courses/packsAndCases/words";
@@ -106,6 +107,7 @@ import FillInCard from "./FillInCard";
 import PredictionsCard from "./PredictionsCard";
 import type { PredictionsView } from "@/lib/courses/predictions/wire";
 import { PREDICTIONS_HEADING } from "@/lib/courses/predictions/words";
+import YourPair from "../pairs/YourPair";
 import RoutesList from "./RoutesList";
 import styles from "./blockWeek.module.css";
 import answerStyles from "./writtenAnswer.module.css";
@@ -154,6 +156,12 @@ import fillIn from "./fillIn.module.css";
  * AI Safety's week 6) shows the course's own record of them in its place,
  * once the course has one, each route past its deadline saying so; until
  * then, the guide's tables as written.
+ *
+ * A SESSION IN PAIRS (`YourPair`): when In the session's "Before you come"
+ * says people are paired (Technical AI Safety's hands-on night), the
+ * reader's own pair is drawn under the guide's words once their group's
+ * facilitators have paired them: who they are paired with, by first name,
+ * and whether to bring a laptop. Until then, the guide's words alone.
  *
  * DRAWN BY A LATER PAGE, AND NOTHING HERE YET: a table, which asks nothing
  * of anybody, so no task waits on it. Under the title, "Start here ·
@@ -226,7 +234,15 @@ type Props = {
    * server, or null on a week that holds none for them.
    */
   predictions?: PredictionsView | null;
+  /**
+   * The reader's own pairs for this week's session in pairs, read on the
+   * server for them alone (`readOwnPairs`); none until their group's
+   * facilitators pair them, and on every other week.
+   */
+  pairs?: readonly OwnPair[];
 };
+
+const NO_PAIRS: readonly OwnPair[] = [];
 
 const FORKED_HINT =
   "Your facilitator has made this week their own: you’re reading your group’s version, which may differ from the other groups on this run.";
@@ -247,6 +263,7 @@ export default function BlockWeek({
   guide = null,
   routes = null,
   predictions = null,
+  pairs = NO_PAIRS,
 }: Props) {
   const runHomeHref = `/learn/${encodeURIComponent(runId)}`;
   const todayKey = londonDateKey(new Date());
@@ -548,7 +565,7 @@ export default function BlockWeek({
       }
       case "inTheSession":
         rail.push({ id: anchor(block.id), label: "In the session", count: null, mark: null, indent: false });
-        body.push(<InTheSession key={block.id} block={block} />);
+        body.push(<InTheSession key={block.id} block={block} pairs={pairs.filter((pair) => pair.blockId === block.id)} />);
         placePredictions();
         break;
       case "goFurther":
@@ -1256,9 +1273,10 @@ function GoFurther({ block }: { block: GoFurtherBlock }) {
  * What happens in the session, then what to do before you come, as the guide
  * writes it ("Before you come (about 5 minutes). ..."). A This week task that
  * says "Get ready" covers this block; nothing on it is ticked or written, so
- * `progress.ts` counts such a task for nothing.
+ * `progress.ts` counts such a task for nothing. A session in pairs draws the
+ * reader's own pair under what to do before you come.
  */
-function InTheSession({ block }: { block: InTheSessionBlock }) {
+function InTheSession({ block, pairs }: { block: InTheSessionBlock; pairs: readonly OwnPair[] }) {
   const id = anchor(block.id);
   return (
     <section id={id} className={styles.section} aria-labelledby={`${id}-title`}>
@@ -1278,6 +1296,7 @@ function InTheSession({ block }: { block: InTheSessionBlock }) {
           codeClassName={styles.code}
         />
       )}
+      <YourPair pairs={pairs} />
     </section>
   );
 }
