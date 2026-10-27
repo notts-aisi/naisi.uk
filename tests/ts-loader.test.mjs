@@ -684,6 +684,12 @@ const USERS = new Map([
       "term in which every kind of reply has been made, because each screen has to count the same place",
   ],
   [
+    "applications-assessment.test.mjs",
+    "executes the assessment routes and the marks route with the real gate, access.ts, the review " +
+      "loaders and the Pangram client against an in-memory Firestore and a faked fetch, because who " +
+      "is refused before anything is sent, and that no name leaves or is kept, are decided by the code that runs",
+  ],
+  [
     "applications-d2-zeta-access-requirements.test.mjs",
     "executes the applicant's two access-requirements handlers and the admin's one, with the " +
       "real gate, rate limiter, access.ts and application modules, against an in-memory " +

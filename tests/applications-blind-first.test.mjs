@@ -564,6 +564,10 @@ describe("every file that names a review's overall comment says what it does wit
     ["lib/applications/decisionDay/pool.ts", "pooled applicants, which an admin alone opens, with the viewer's own application left out"],
     ["lib/firestore/memberRecords.ts", "the record kept after a term, which admins alone read"],
     ["features/applications/review/ReviewScreen.tsx", "draws what detail.ts sent, and sends the caller's own"],
+    [
+      "lib/applications/assessment/input.ts",
+      "draws every reviewer together for Claude, from the payload an admin alone is sent (run.ts refuses anybody else first)",
+    ],
   ]);
 
   test("the list is the tree", () => {

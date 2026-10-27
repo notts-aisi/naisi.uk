@@ -979,6 +979,8 @@ test("MODEL: the summary counts every admissions collection the sweep touches", 
     "admissionApplicationPrivateDeleted",
     // The decision document an application form keeps beside each application.
     "admissionDecisionsDeleted",
+    // What Claude and Pangram made of each application, at the same id.
+    "admissionAssessmentsDeleted",
     "admissionReviewsDeleted",
     "admissionReviewsAuthoredDeleted",
     "conductFlagDeleted",
@@ -1058,10 +1060,17 @@ test("MODEL: the decision document dies in that SAME BATCH, addressed at the sha
     "the decision documents are not deleted inside the application batch",
   );
   assert.ok(batchAt < appDeleteAt && appDeleteAt < commitAt);
+  // The assessment at the same id, in the same batch, for the same reason.
+  const assessmentDeleteAt = fn.indexOf("for (const d of liveAssessments) batch.delete(d.ref);");
+  assert.ok(
+    batchAt < assessmentDeleteAt && assessmentDeleteAt < commitAt,
+    "the assessments are not deleted inside the application batch",
+  );
+  assert.match(fn, /db\.collection\(ASSESSMENTS_COLLECTION\)\.doc\(d\.id\)/);
   assert.equal(
     (fn.match(/db\.batch\(\)/g) ?? []).length,
     1,
-    "the function builds more than one batch, so the three deletes are no longer one write",
+    "the function builds more than one batch, so the four deletes are no longer one write",
   );
   // Addressed, never queried: the id is the handle, whatever the document
   // says about itself.
@@ -1071,13 +1080,13 @@ test("MODEL: the decision document dies in that SAME BATCH, addressed at the sha
     /deleteOwnedCourseRows\(\s*db,\s*"admissionDecisions"/,
     "admissionDecisions is being swept separately from its applications",
   );
-  // Three deletes a row against a 500-write batch. The page has to leave room
-  // for all three, or a full page would be refused whole.
+  // Four deletes a row against a 500-write batch. The page has to leave room
+  // for all four, or a full page would be refused whole.
   const pageSize = /const ADMISSION_PAGE_SIZE = (\d+);/.exec(ACCOUNT_DELETION);
   assert.ok(pageSize, "ADMISSION_PAGE_SIZE is no longer a literal this pin can read");
   assert.ok(
-    Number(pageSize[1]) * 3 <= 500,
-    `a page of ${pageSize[1]} applications can ask one batch for ${Number(pageSize[1]) * 3} writes`,
+    Number(pageSize[1]) * 4 <= 500,
+    `a page of ${pageSize[1]} applications can ask one batch for ${Number(pageSize[1]) * 4} writes`,
   );
 });
 

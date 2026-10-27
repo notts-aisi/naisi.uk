@@ -789,6 +789,21 @@ export const ROUTES = {
         "same words whatever they asked about, and the admin is then told the form is missing.",
     },
   },
+  "/api/admissions/forms/[roundId]/applications/[uid]/assessment": {
+    GET: {
+      expect: adminOnly(404),
+      why:
+        "Claude's read and Pangram's check of an application are an admin's alone, decided " +
+        "on the session before anything is read; the admin is then told the form is missing.",
+    },
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Asking Claude or Pangram is admin only, decided before the body is read, so no other " +
+        "session learns what a request looks like; the admin then meets the body check, which " +
+        "an empty body fails before anything is read or sent anywhere.",
+    },
+  },
   "/api/admissions/forms/[roundId]/applications/[uid]/decision": {
     PUT: {
       expect: signedIn(400),
@@ -860,6 +875,14 @@ export const ROUTES = {
         "Session required, then the caller's own request is validated before the form is " +
         "read: a bulk decision has to be Accept or Pool and name at least one application, so " +
         "every signed-in persona meets the same 400 on an empty body.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/assessments": {
+    GET: {
+      expect: adminOnly(404),
+      why:
+        "The Claude and Pangram marks on a programme's list are an admin's alone, decided on " +
+        "the session before anything is read; the admin is then told the programme is missing.",
     },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/roles": {
@@ -4427,6 +4450,12 @@ export const REAL_ROUTES = {
       },
     },
     POST: bodyFirst("A bulk decision is decided from the form once a valid one arrives."),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/assessments": {
+    GET: adminAlone(
+      "Reading Claude's and Pangram's marks",
+      c(200, "An admin reads the marks already stored, on either programme. Nothing is sent to Claude or Pangram."),
+    ),
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/roles": {
     PUT: bodyFirst("Who may name whom is setProgrammeRoles's decision, from the form."),

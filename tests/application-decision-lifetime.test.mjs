@@ -414,6 +414,12 @@ function seed() {
     admissionApplicationPrivate: {
       [`older__${UID}`]: { accessRequirements: "A step-free room." },
     },
+    // What Claude and Pangram made of the form application, at its id, and of
+    // somebody else's, which must stay.
+    admissionAssessments: {
+      [`form__${UID}`]: { roundId: "form", uid: UID, claude: {}, pangram: null },
+      [`form__${OTHER}`]: { roundId: "form", uid: OTHER, claude: {}, pangram: null },
+    },
     [DECISIONS_COLLECTION]: {
       // The `uid` field is deliberately WRONG on this one. The document at an
       // application's id is that applicant's whatever it says about itself,
@@ -457,6 +463,7 @@ test("a deleted account's decision goes in the same batch as its application", a
     "one decision document existed for this account. A count of refs rather than of " +
       "documents would say 2, and a sweep keyed on the uid field would say 0.",
   );
+  assert.equal(summary.admissionAssessmentsDeleted, 1);
   assert.equal(summary.warning, undefined, "a clean teardown carries no warning");
 
   for (const path of [
@@ -464,6 +471,7 @@ test("a deleted account's decision goes in the same batch as its application", a
     `admissionApplications/older__${UID}`,
     `admissionApplicationPrivate/older__${UID}`,
     `admissionDecisions/form__${UID}`,
+    `admissionAssessments/form__${UID}`,
   ]) {
     assert.equal(db.has(path), false, `${path} must be gone`);
   }
@@ -480,6 +488,11 @@ test("a deleted account's decision goes in the same batch as its application", a
     together.includes(`admissionApplicationPrivate/older__${UID}`),
     "and the access-requirements row still rides in that batch, as it always did",
   );
+  assert.ok(
+    together.includes(`admissionAssessments/form__${UID}`),
+    "the assessment was not deleted in its application's batch",
+  );
+  assert.ok(db.has(`admissionAssessments/form__${OTHER}`), "somebody else's assessment must stay");
 });
 
 test("nobody else's application or decision is touched", async () => {
