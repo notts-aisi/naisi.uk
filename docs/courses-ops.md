@@ -660,8 +660,10 @@ overwriting anything.
 
 ### Budget, re-arm, and the Cloud Run caveat
 
-The backend's request timeout is 60s (`apphosting.yaml`,
-`runConfig.timeoutSeconds`). The tick declares `maxDuration = 45` and gives the
+The backend's request timeout was 60s when this was written and is 300s since
+27 October 2026 (`apphosting.yaml`, `runConfig.timeoutSeconds`), raised for
+Claude's comparisons of a programme's applications. The tick still keeps inside
+60s. The tick declares `maxDuration = 45` and gives the
 job list 28s of that, leaving room to write its receipt and hand off.
 
 When a job reports `hasMore`, the tick calls itself again with `depth + 1`, up

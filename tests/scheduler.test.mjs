@@ -777,7 +777,7 @@ describe("POST /api/scheduler/tick source guards", () => {
     const seconds = Number(match[1]);
     assert.ok(
       seconds > 0 && seconds < 60,
-      `maxDuration ${seconds} must sit under apphosting.yaml's timeoutSeconds: 60`,
+      `maxDuration ${seconds} must sit under 60, the budget the tick was designed for (the platform's limit is higher)`,
     );
   });
 

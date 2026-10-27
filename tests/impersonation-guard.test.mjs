@@ -335,6 +335,10 @@ const MUST_GUARD = [
     "opens an applicant's access-requirements answer and logs the read under the caller's name",
   ],
   [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/assessments/route.ts",
+    "sends Claude's reads of a programme's applications to Claude for a comparison or a question",
+  ],
+  [
     "src/app/api/admissions/forms/[roundId]/applications/[uid]/assessment/route.ts",
     "sends an application and its reviews to Claude or Pangram and keeps what came back",
   ],

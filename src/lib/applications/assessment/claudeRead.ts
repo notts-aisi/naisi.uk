@@ -88,9 +88,9 @@ export async function askForClaudeRead(message: string): Promise<ClaudeReadResul
     system: SYSTEM,
     message,
     schema: SCHEMA,
-    // Medium keeps a read inside the backend's 60-second request limit.
     effort: "medium",
     maxTokens: 12_000,
+    timeoutMs: 150_000,
   });
   if (!answer.ok) return answer;
   const read = claudeReadFrom(answer.value);

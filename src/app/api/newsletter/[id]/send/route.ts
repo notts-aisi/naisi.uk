@@ -283,7 +283,7 @@ export async function POST(_req: Request, ctx: Ctx) {
    * IT RUNS CONCURRENTLY WITH THE EMAIL LOOP, NOT AFTER IT, and that is a
    * budget decision rather than a tidiness one. The loop below is sequential
    * with a 200ms pause after every message, so it IS this request's wall
-   * clock, and it already runs against App Hosting's `timeoutSeconds: 60`. A
+   * clock, and it already runs against App Hosting's `timeoutSeconds` (300 now; 60 when this was written, and the send still keeps inside 60). A
    * push leg bolted on after it adds its own worst case (~34s at
    * `MAX_PUSH_ROWS`; `src/lib/push/rowAudience.ts` derives that figure and is
    * the authority for it) to the tightest number in the estate. Dispatched

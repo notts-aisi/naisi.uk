@@ -1892,10 +1892,20 @@ says reaches the applicant.
   carries a hash of what was sent, and is shown as out of date once the
   answers or the reviews change. It goes with its application (see What
   deletes what) and is never copied to a member record.
-- **Inside one request.** The backend stops a request at 60 seconds, so the
-  two parts are separate requests, Claude's call stops at 48 seconds and is
-  not retried, and a programme's worth is walked by the browser two at a
-  time.
+- **Across a programme.** On a programme's list an admin can ask Claude to
+  compare the applications it has read (a shortlist up to the places, the
+  borderline, the clear no's, who is worth a second look, who would suit
+  another programme) or ask one question about them
+  (`assessment/programmeInput.ts`, `assessment/overview.ts`). It is made from
+  the stored reads, never the applications, with applicants numbered in
+  account-id order and reviewers lettered once across the programme. A name
+  an admin types into a question is swapped for its label before it is
+  sent. Neither answer is stored.
+- **Inside one request.** The backend stops a request at 300 seconds (it was
+  60 until the comparison needed more). A read is given 150 seconds, a
+  comparison 240, and no call is retried. The two parts of a read are
+  separate requests, and a programme's worth of reads is walked by the
+  browser two at a time.
 - **The keys** are `ANTHROPIC_API_KEY` and `PANGRAM_API_KEY`, secrets in each
   project's own Secret Manager, `RUNTIME` only in `apphosting.yaml`. A site
   with no key says so and sends nothing. Each project's key lives in its own
@@ -1903,7 +1913,8 @@ says reaches the applicant.
 
 `tests/applications-assessment.test.mjs` runs the routes: who is refused,
 that no name is sent or stored, that a changed review puts a read out of date,
-and that Pangram is sent only the long answers.
+that Pangram is sent only the long answers, and that a comparison or a
+question sends labels, never names, and stores nothing.
 
 ## The modules
 

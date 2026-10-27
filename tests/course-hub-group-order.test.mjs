@@ -192,6 +192,11 @@ const FETCHES_IT_CANNOT_READ = new Map([
       "API base it is handed: Claude's and Pangram's reads of applications, never a run's groups.",
   ],
   [
+    "src/features/applications/review/ProgrammeClaude.tsx",
+    "An admin's Compare and Ask on a programme's list, at the programme's assessments route it is handed: " +
+      "Claude's comparison of applications, never a run's groups.",
+  ],
+  [
     "src/features/applications/review/AssessmentBlock.tsx",
     "An admin's Claude and Pangram block on one application, at that application's assessment route under the " +
       "form's API base it is handed: one application's reads, never a run's groups.",
