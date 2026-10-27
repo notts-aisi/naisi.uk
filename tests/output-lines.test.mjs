@@ -88,6 +88,17 @@ describe("the output guard is loaded into every test process", () => {
     );
   });
 
+  test("the shard script CI runs is the test script and the shard, nothing else", () => {
+    // CI splits the suite across machines with `npm run test:shard`. It has to
+    // be the same run as `npm test` cut into a quarter, or a machine could run
+    // the suite without the guard, or run something else.
+    const pkg = JSON.parse(readFileSync(join(REPO_ROOT, "package.json"), "utf8"));
+    assert.equal(
+      pkg.scripts?.["test:shard"],
+      pkg.scripts?.test.replace("node --test ", "node --test --test-shard=$TEST_SHARD "),
+    );
+  });
+
   test("the CI job keeps the cut as a backstop", () => {
     const workflow = readFileSync(
       join(REPO_ROOT, ".github", "workflows", "checks.yml"),
@@ -95,7 +106,7 @@ describe("the output guard is loaded into every test process", () => {
     );
     assert.match(
       workflow,
-      /npm test 2>&1 \| cut -c 1-\d+/,
+      /npm run test:shard 2>&1 \| cut -c 1-\d+/,
       "checks.yml must still pipe npm test through cut: the guard stops the lines " +
         "being produced, and the cut is what keeps a line the guard did not see from " +
         "stalling the job for half an hour",

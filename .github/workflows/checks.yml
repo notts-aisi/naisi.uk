@@ -27,8 +27,11 @@ permissions:
   contents: read
 
 jobs:
-  app:
-    name: Typecheck, lint, tests, build
+  # Typecheck, lint and the build, on one machine. The Node suites run beside
+  # it, split four ways (`tests`), and `app` below is the check the branch
+  # rules require: it passes only when both have.
+  static:
+    name: Typecheck, lint, build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -40,18 +43,6 @@ jobs:
       - run: npx next typegen
       - run: npx tsc --noEmit
       - run: npm run lint
-      # Every line is chopped before the runner reads it. The runner handles
-      # output a line at a time and can stall for minutes on a single line: a
-      # stack trace whose frames were the test loader's data: URLs, each
-      # carrying a whole module source, 440 KB per line.
-      # tests/lib/outputGuard.mjs fails any test file that prints
-      # a line over 20 KB, so the suite should never produce one; the
-      # cut stays as the backstop for a line the guard does not see. pipefail
-      # keeps the tests' exit status rather than cut's.
-      - name: Tests
-        run: |
-          set -o pipefail
-          npm test 2>&1 | cut -c 1-4000
       # A build needs the public Firebase values to inline. They are public by
       # definition (they ship in the browser bundle), and a build does not
       # contact the project, so placeholders are enough to prove it compiles.
@@ -65,6 +56,64 @@ jobs:
           NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "0"
           NEXT_PUBLIC_FIREBASE_APP_ID: "1:0:web:0"
           NEXT_PUBLIC_APP_URL: https://example.invalid
+
+  # The Node suites, a quarter on each of four machines at once. Node's own
+  # `--test-shard` decides which files go where, the same way on every run,
+  # and every file runs on exactly one machine (`npm run test:shard` is
+  # `npm test` with the shard added: tests/output-lines.test.mjs holds that).
+  tests:
+    name: Tests (${{ matrix.shard }} of 4)
+    runs-on: ubuntu-latest
+    strategy:
+      # One failing quarter must not cancel the others: the whole list of
+      # failures is what a reader needs.
+      fail-fast: false
+      matrix:
+        include:
+          - shard: 1
+          - shard: 2
+          - shard: 3
+          - shard: 4
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Every line is chopped before the runner reads it. The runner handles
+      # output a line at a time and can stall for minutes on a single line: a
+      # stack trace whose frames were the test loader's data: URLs, each
+      # carrying a whole module source, 440 KB per line.
+      # tests/lib/outputGuard.mjs fails any test file that prints
+      # a line over 20 KB, so the suite should never produce one; the
+      # cut stays as the backstop for a line the guard does not see. pipefail
+      # keeps the tests' exit status rather than cut's.
+      - name: Tests
+        env:
+          TEST_SHARD: ${{ matrix.shard }}/4
+        run: |
+          set -o pipefail
+          npm run test:shard 2>&1 | cut -c 1-4000
+
+  # THE REQUIRED CHECK. Its name is what the branch rules ask for
+  # (scripts/check-branch-rules.mjs), so it keeps the name the single job had.
+  # `always()` so that it reports even when a job it needs failed: a job
+  # skipped because a need failed would count as a pass to GitHub.
+  app:
+    name: Typecheck, lint, tests, build
+    runs-on: ubuntu-latest
+    needs: [static, tests]
+    if: always()
+    steps:
+      - name: Both halves passed
+        env:
+          STATIC: ${{ needs.static.result }}
+          TESTS: ${{ needs.tests.result }}
+        run: |
+          echo "typecheck, lint, build: $STATIC"
+          echo "tests (all four quarters): $TESTS"
+          test "$STATIC" = "success" && test "$TESTS" = "success"
 
   rules:
     name: Firestore and Storage rules
