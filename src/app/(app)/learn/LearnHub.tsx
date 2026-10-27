@@ -109,11 +109,14 @@ export default function LearnHub({ instead, left = NO_RUNS_LEFT, beforeGroups = 
     <div>
       <div className={styles.header}>
         <Badge tone="accent">Courses</Badge>
-        <h1 className={styles.title}>Your courses</h1>
+        {/* The sidebar's own name for this page, and a line that never says
+            "exercise" (v20: coursework is never an exercise in a member's
+            words); listed in the build notes for the boards' designers. */}
+        <h1 className={styles.title}>My programmes</h1>
         <p className={styles.lede}>
-          Every fellowship and reading group you&apos;re on: the week your cohort is
-          on, the materials for it, and the exercises you owe. A course can show
-          here before your group is set.
+          Every fellowship and reading group you’re on: the week your group is
+          on, and what to do for it. A programme can show here before your
+          group is set.
         </p>
       </div>
 
@@ -133,7 +136,7 @@ export default function LearnHub({ instead, left = NO_RUNS_LEFT, beforeGroups = 
                   "Loading…" three times for one wait. */}
               <Skeleton
                 height="10rem"
-                ariaLabel={i === 0 ? "Loading your courses…" : ""}
+                ariaLabel={i === 0 ? "Loading your programmes…" : ""}
               />
             </li>
           ))}

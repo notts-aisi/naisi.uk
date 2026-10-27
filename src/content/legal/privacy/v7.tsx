@@ -261,9 +261,11 @@
  * 32. **Sealed predictions** (Zach's extra (d)). A course's credence card
  *     (`CourseDoc.predictionCard`, `src/lib/courses/predictions/`): each
  *     answer saves as it is typed until the card is sealed; sealed, nothing
- *     changes it, and nothing shows it to its owner until the week it opens
- *     in has opened to their group and they open it there, after answering
- *     the same questions again (`own.ts`, `taker.ts`, the predictions route).
+ *     changes it, and nothing shows it to its owner until their group's
+ *     session before the week it opens in has ended and they open it there,
+ *     after answering the same questions again (`own.ts`, `taker.ts`'s
+ *     `cardOpenTo`, the predictions route). Reading that week early, which
+ *     everybody may since 27 October 2026, never opens a card early.
  *     Read by its owner and by admins at any time, and by nobody else, a
  *     facilitator's co-facilitators included. Each admin opening is recorded
  *     first, with who, whose by account id, the run and when, and the card
@@ -1256,12 +1258,13 @@ export default function PrivacyContentV7({
                   that card to fill in: each question asks for a percentage, a
                   number on a scale or a sentence, and each answer saves as you
                   type. Once you seal your card, nobody can change it, you
-                  included, and you cannot read it again until the week it
-                  opens in has opened to your group and you open it there,
-                  after answering the same questions again. You then see both
-                  side by side, and neither changes after that. A card you
-                  never seal can no longer be changed once that week has
-                  opened, and you can still read it. Your card is read by you
+                  included, and you cannot read it again until your
+                  group&apos;s session before the week it opens in has ended
+                  and you open it there, after answering the same questions
+                  again. You then see both side by side, and neither changes
+                  after that. A card you never seal can no longer be changed
+                  once that session has ended, and you can still read it.
+                  Your card is read by you
                   and by admins, who can open anybody&apos;s at any time, and
                   by nobody else: not your group&apos;s facilitators, not the
                   programme&apos;s lead and not other fellows. If you

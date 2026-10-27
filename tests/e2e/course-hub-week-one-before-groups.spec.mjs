@@ -367,8 +367,8 @@ const WEEK_PAGE = Object.freeze({
   dueOn: (day) => `Before your first session, ${day}, if you can`,
   rateIt: "Rate it or leave a note",
   progress: "See your progress week by week",
-  /** `weekOpensAfterWords`. */
-  weekTwoShut: "Week 2 opens after your session",
+  /** The way on to week 2: a link named for it, once it is published (every published week is open to read ahead). */
+  weekTwo: "Week 2",
 });
 
 /** Start here's and the Glossary's own words (src/lib/courses/guide/words.ts). */
@@ -726,7 +726,7 @@ test(
       assert.equal(await onItsWay(pg).count(), 0, `${who}'s Home says their group is on its way`);
       assert.equal(await pg.locator(`a[href="${weekPath(1)}"]`).count(), 0, `${who}'s Home links to week 1`);
       await pg.goto(`${origin}/learn`, { waitUntil: "domcontentloaded" });
-      await pg.getByRole("heading", { level: 1, name: "Your courses", exact: true }).waitFor({ timeout: WAIT_MS });
+      await pg.getByRole("heading", { level: 1, name: "My programmes", exact: true }).waitFor({ timeout: WAIT_MS });
       await pg.getByText(REFUSED.learn, { exact: true }).waitFor({ timeout: WAIT_MS });
       assert.equal(await onItsWay(pg).count(), 0, `${who}'s My programmes says their group is on its way`);
       assert.equal(await pg.locator(`a[href^="${programmePath}"]`).count(), 0, `${who}'s My programmes links into the run`);
@@ -796,7 +796,7 @@ test(
       await thisWeek.getByText(WEEK_PAGE.dueBefore, { exact: true }).waitFor({ timeout: WAIT_MS });
       await pg.getByText(READERS.boxes, { exact: true }).waitFor({ timeout: WAIT_MS });
       assert.equal(await pg.getByRole("link", { name: WEEK_PAGE.progress }).count(), 0, "week 1 leads somebody with no group to a progress page");
-      assert.equal(await pg.getByText(WEEK_PAGE.weekTwoShut).count(), 0, "week 1 points somebody with no group to week 2");
+      assert.equal(await pg.locator(`a[href="${weekPath(2)}"]`).count(), 0, "week 1 leads somebody with no group to week 2");
       return thisWeek;
     }
 
@@ -1560,11 +1560,15 @@ test(
           adaPage.getByRole("checkbox", { name: `Done: ${source.title}`, exact: true }).isChecked(),
         );
         await waitFor("Ada's reflection to be there", async () => (await boxOf(adaPage, prompt.text).inputValue()) === ADA_WROTE);
-        // And what a group brings: her reading's box for her facilitators,
-        // her progress page, and the next week opening after her session.
+        // And what a group brings: the reading's box for Ada's facilitators,
+        // the progress page, and the way on to week 2, which is published and
+        // so open to read before the group's first session (every published
+        // week is).
         await adaPage.getByRole("button", { name: WEEK_PAGE.rateIt }).first().waitFor({ timeout: WAIT_MS });
         await adaPage.getByRole("link", { name: WEEK_PAGE.progress, exact: true }).waitFor({ timeout: WAIT_MS });
-        await adaPage.getByText(WEEK_PAGE.weekTwoShut, { exact: true }).first().waitFor({ timeout: WAIT_MS });
+        const weekTwo = adaPage.getByRole("link", { name: WEEK_PAGE.weekTwo, exact: true }).first();
+        await weekTwo.waitFor({ timeout: WAIT_MS });
+        assert.equal(await weekTwo.getAttribute("href"), weekPath(2), "week 1's way on does not lead to week 2");
 
         const overview = await fetchAs(adaPage, overviewPath);
         assert.equal(overview.status, 200, `the run's data answered Ada ${overview.status}`);

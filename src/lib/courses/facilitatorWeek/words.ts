@@ -1,3 +1,5 @@
+import { FEEDBACK_SENT } from "@/lib/courses/writtenAnswerWords";
+
 /**
  * THE WORDS OF A GROUP'S WEEK (boards wk-fac-group, wk-fac-group-phone,
  * wk-reflections and wk-reflections-phone), in one place: This week's work,
@@ -63,8 +65,67 @@ export function facilitatorsWorkLine(leadFirstName: string | null): string {
     : "Facilitators’ own work is for admins to read, so it isn’t listed here.";
 }
 
+/**
+ * Under This week's work, to the lead and admins, when the group's
+ * facilitators' own work is listed beside the fellows': whom every number on
+ * the page counts. No board draws it: listed in the build notes for the
+ * boards' designers to confirm.
+ */
+export function ownCountedApartLine(fellows: number): string {
+  return `Every number here counts the group’s ${fellows} ${fellows === 1 ? "fellow" : "fellows"}. Facilitators’ own work is marked Facilitator and isn’t counted.`;
+}
+
 /** Before anybody in the group is listed. */
 export const NOBODY_LISTED = "Nobody is in this group yet.";
+
+// The pathway, written answer and case columns (wk-fac-group) ---------------
+
+/** A written answer waiting for the reader's feedback, a link to it: the board's words. */
+export const TO_GIVE_FEEDBACK = "To give feedback";
+
+/** "Feedback sent · Rahul": the board's words, the first name of who sent it, or "Feedback sent" with none. */
+export function feedbackSentByWords(byName: string | null): string {
+  const name = byName?.trim();
+  return name ? `${FEEDBACK_SENT} · ${name}` : FEEDBACK_SENT;
+}
+
+/** A pack the person chooses themselves, not chosen yet. No board draws it: listed for the boards' designers. */
+export const NOT_CHOSEN_YET = "Not chosen yet";
+
+// The boxes each person filled in (week 6's action plan) ---------------------
+// No board draws a reader's view of somebody's boxes: these are listed in the
+// build notes for the boards' designers to confirm.
+
+/** What the boxes are called by somebody who did not write them: "My action plan" is "action plan". */
+function boxesNameWords(title: string): string {
+  const trimmed = title.trim();
+  const own = /^my\s+(.+)$/i.exec(trimmed);
+  if (own) return own[1];
+  if (!trimmed) return "boxes";
+  return /^[A-Z][a-z]/.test(trimmed) ? `${trimmed[0].toLowerCase()}${trimmed.slice(1)}` : trimmed;
+}
+
+/** The section's heading: "Each person’s action plan". */
+export function eachPersonsBoxesWords(title: string): string {
+  return `Each person’s ${boxesNameWords(title)}`;
+}
+
+/** The button's words. */
+export const READ_IT = "Read it";
+export const HIDE_IT = "Hide it";
+
+/** The button's name for a screen reader, its words first: "Read it: Amara Okafor’s action plan". */
+export function readPersonsBoxesWords(name: string, title: string): string {
+  return `${READ_IT}: ${name}’s ${boxesNameWords(title)}`;
+}
+
+/** The same button, open: "Hide it: Amara Okafor’s action plan". */
+export function hidePersonsBoxesWords(name: string, title: string): string {
+  return `${HIDE_IT}: ${name}’s ${boxesNameWords(title)}`;
+}
+
+/** A box its writer has left empty. */
+export const NOT_FILLED_IN = "Not filled in yet.";
 
 // ---------------------------------------------------------------------------
 // The review queue's reflections half

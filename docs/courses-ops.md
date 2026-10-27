@@ -2475,16 +2475,20 @@ route, otherwise at the end of the week.
   facilitator of a live group, as themselves) answers on their own; each
   answer saves as they type. "Seal my predictions" asks first, then seals it:
   from then nothing changes it and its answers are never handed back, to its
-  owner either, until the week it opens in has opened to their group and they
-  open it there. A card never sealed shuts for good once that week opens; its
-  owner can still read it on the week it was filled in on.
-- **The week it opens in.** The same questions again first, saving as they
-  type, then "Open my sealed card": both cards side by side, with how each
-  number moved, and neither changes again. Somebody who sealed nothing
-  answers again with nothing to open.
-- **When a week opens to them.** Their group's own clock, as the week pages
-  use it, for everybody with a card: a facilitator reads every published week
-  early, but their own card opens with their group.
+  owner either, until their group's session before the week it opens in has
+  ended and they open it there. A card never sealed shuts for good once that
+  session has ended; its owner can still read it on the week it was filled in
+  on.
+- **The week it opens in.** Once the card has opened, the same questions
+  again first, saving as they type, then "Open my sealed card": both cards
+  side by side, with how each number moved, and neither changes again.
+  Somebody who sealed nothing answers again with nothing to open.
+- **When a card opens to them.** Their group's own clock, for everybody with a
+  card: straight after their group's session before the week it opens in
+  (`cardOpenTo`, `src/lib/courses/weekOpening.ts`). Everybody reads every
+  published week at once (Zach, 27 October 2026), so the week a card opens in
+  can be read early, but the card opens with their group and never before.
+  The card is filled in once the week it is sealed in is published for them.
 
 ### Who reads a card
 

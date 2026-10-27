@@ -409,13 +409,13 @@ const RAW_SITES = {
   },
   "src/app/api/courses/runs/[runId]/overview/route.ts": {
     role: "not-a-gate",
-    matches: { facilitatorUids: 1 },
+    matches: { facilitatorUids: 2 },
     provedBy: ['isNamedWithStanding(actor, "courseGroups.facilitatorUids", g.facilitatorUids),'],
     why:
-      "Leaves the caller out of who they are told to ask to swap a pack or a case (`askToSwap`), so a " +
-      "facilitator who takes part in the group is never told to ask themselves. It names, never " +
-      "admits: the route's gate is above it, and who facilitates there is held to the bar with " +
-      "`isNamedWithStanding`.",
+      "Leaves the caller out of who they are told to ask to swap a pack or a case (`askToSwap`), and out of each " +
+      "group's facilitator names (`facilitatorNames`), so a facilitator who takes part in the group is never told to " +
+      "ask themselves, nor named to themselves. It names, never admits: the route's gate is above it, and who " +
+      "facilitates there is held to the bar with `isNamedWithStanding`.",
   },
   "src/app/api/tasks/[id]/send-for-review/route.ts": {
     role: "not-a-gate",

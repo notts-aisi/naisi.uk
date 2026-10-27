@@ -23,15 +23,15 @@ export type PredictionsView = {
   card: PredictionQuestions;
   /** This stage's answers take writing now. */
   canWrite: boolean;
-  /** The week the card opens in has opened to them. */
+  /** The card has opened to them: their group's session before the week it opens in has ended (`cardOpenTo`). */
   opensNow: boolean;
-  /** While it is shut, the session the week it opens in waits on. */
+  /** While it is shut, the session the card waits on. */
   opensAfter: { dateKey: string; startTimeLocal: string } | null;
   /**
    * The first card. `draft`: theirs to change and seal; `sealed`: shut, its
-   * answers absent; `closed`: never sealed, and the week it opens in has
-   * opened, so it can no longer change or be sealed (its answers are still
-   * theirs to read); `none`: nothing on it.
+   * answers absent; `closed`: never sealed, and the card was due to open
+   * (`opensNow`), so it can no longer change or be sealed (its answers are
+   * still theirs to read); `none`: nothing on it.
    */
   start: {
     state: "none" | "draft" | "sealed" | "closed";

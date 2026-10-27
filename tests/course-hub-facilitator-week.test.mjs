@@ -226,14 +226,25 @@ describe("2. who ticked each source, by name, behind a button", () => {
     }
   });
 
-  test("an admin and the lead are shown the facilitators' own ticks too, marked as theirs", async () => {
+  test("an admin and the lead are shown the facilitators' own ticks too, marked as theirs, and counted in no number", async () => {
+    // One denominator on every view of a group's week: the group's 3 fellows, as the reflections half and the
+    // page where lines are read out count. Until 27 October 2026 the lead's and an admin's ticks counted all 5
+    // people listed while their reflections counted the 3 fellows.
     const expected = [
-      ["A keeper's diary", ["Chloe Nguyen", "Farah Hussain", "Rahul Mehta (facilitator)"], 5],
-      ["Lamps at night", ["Farah Hussain", "Sofia Rossi (facilitator)"], 5],
+      ["A keeper's diary", ["Chloe Nguyen", "Farah Hussain", "Rahul Mehta (facilitator)"], 3],
+      ["Lamps at night", ["Farah Hussain", "Sofia Rossi (facilitator)"], 3],
     ];
-    assert.deepEqual(ticksOf(weekOf(await groupPage("zach"))), expected, "an admin on the group page");
-    assert.deepEqual(ticksOf(weekOf(await leadWeekPage("zach"))), expected, "an admin on the lead's page");
-    assert.deepEqual(ticksOf(weekOf(await leadWeekPage("claudia"))), expected, "the lead");
+    const pages = [
+      ["an admin on the group page", await groupPage("zach")],
+      ["an admin on the lead's page", await leadWeekPage("zach")],
+      ["the lead", await leadWeekPage("claudia")],
+    ];
+    for (const [who, drawn] of pages) {
+      assert.deepEqual(ticksOf(weekOf(drawn)), expected, who);
+      assert.deepEqual(weekOf(drawn).sources.map((source) => source.fellowsTicked), [2, 1], who);
+      assert.match(drawn.text, /A keeper's diary 2 of 3 ticked it/, who);
+      assert.match(drawn.text, /Lamps at night 1 of 3 ticked it/, who);
+    }
   });
 
   test("the names sit behind a real button: closed, saying so, naming what it opens, and 44px to press", async () => {
@@ -408,9 +419,16 @@ describe("4. This week's work and the review queue's counts", () => {
         ],
       );
       assert.deepEqual(week.counts.map((count) => [count.number, count.written, count.of]), [[1, 2, 3], [2, 1, 3], [3, 0, 3]]);
+      assert.equal(week.of, 3);
       assert.match(drawn.text, /RM Rahul Mehta Facilitator Written Not yet Not yet/);
       assert.doesNotMatch(drawn.text, /Facilitators’ own work is for/);
+      // Under the table, whom every number counts.
+      assert.match(drawn.text, /Every number here counts the group’s 3 fellows\. Facilitators’ own work is marked Facilitator and isn’t counted\./);
     }
+    // A facilitator is shown none of it, and is told whose it is instead.
+    const facilitator = await groupPage("rahul");
+    assert.doesNotMatch(facilitator.text, /Every number here counts/);
+    assert.match(facilitator.text, /Facilitators’ own work is for Claudia and admins to read, so it isn’t listed here\./);
   });
 
   test("before groups go out, a facilitator reads the page's own sentence and no reflections half; an admin reads the group", async () => {

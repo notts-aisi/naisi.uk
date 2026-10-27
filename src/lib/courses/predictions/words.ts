@@ -105,14 +105,18 @@ export function goToWeekWords(weekNumber: number): string {
   return `Go to week ${weekNumber}`;
 }
 
-/** The week the card is filled in on is not open to the reader yet. */
+/** The week the card is filled in on is not open to the reader yet: it is not published. */
 export function sealNotOpenWords(sealWeek: number): string {
   return `You can fill in this card once week ${sealWeek} is open to you.`;
 }
 
-/** A card never sealed, once the week it opens in has opened. */
+/**
+ * A card never sealed, once it was due to open: the group's session before
+ * the week it opens in has ended. Every published week is open to read ahead
+ * (Zach, 27 October 2026), so the week being open says nothing here.
+ */
 export function closedDraftWords(openWeek: number): string {
-  return `You didn’t seal this card, and week ${openWeek} has opened, so it can’t be sealed now.`;
+  return `You didn’t seal this card before it was due to open in week ${openWeek}, so it can’t be sealed now.`;
 }
 
 // The week it opens in --------------------------------------------------------
@@ -134,9 +138,13 @@ export function nothingToOpenWords(sealWeek: number): string {
   return `You didn’t seal a card in week ${sealWeek}, so there’s nothing to open.`;
 }
 
-/** The week's page is in front of somebody whose card has not opened to them yet (a facilitator reading ahead). */
+/**
+ * The week's page is in front of somebody whose card has not opened to them
+ * yet: anybody reading ahead. With no session to wait on, the week is not
+ * published yet.
+ */
 export function waitingWords(after: { dateKey: string; startTimeLocal: string } | null, todayKey: string): string {
-  return after ? `Your sealed card opens here ${afterWords(after, todayKey)}.` : "Your sealed card opens here once this week opens to your group.";
+  return after ? `Your sealed card opens here ${afterWords(after, todayKey)}.` : "Your sealed card opens here once this week is published.";
 }
 
 /** "Sealed on Tue 3 Nov, opened on Fri 4 Dec." */
@@ -231,14 +239,23 @@ export const REFUSE_OPENED = "You’ve opened your sealed card, so today’s ans
 export const REFUSE_ALREADY_OPENED = "You’ve already opened your sealed card.";
 export const REFUSE_NO_QUESTION = "That question isn’t on your card. Reload the page.";
 
-/** The week a stage belongs to is not open to them yet. */
+/** The week the card is filled in on is not open to them yet: it is not published. */
 export function weekNotOpenWords(weekNumber: number): string {
   return `Week ${weekNumber} isn’t open to you yet.`;
 }
 
-/** The week the card opens in has opened, so the first card is shut. */
+/** The card was due to open (the session before the week it opens in has ended), so the first card is shut. */
 export function sealWindowShutWords(openWeek: number): string {
-  return `Week ${openWeek} has opened, so this card can’t change or be sealed now.`;
+  return `This card was due to open in week ${openWeek}, so it can’t change or be sealed now.`;
+}
+
+/**
+ * Answering again, or opening the sealed card, before the card opens: "Your
+ * card opens in week 6, after your session on Tue 1 Dec." The week itself may
+ * well be open to read.
+ */
+export function cardNotOpenWords(openWeek: number, after: { dateKey: string; startTimeLocal: string } | null, todayKey: string): string {
+  return after ? `Your card opens in week ${openWeek}, ${afterWords(after, todayKey)}.` : `Your card opens in week ${openWeek}, once that week is published.`;
 }
 
 export const REFUSE_ADMIN_ONLY = "Only an admin can open somebody’s predictions card.";

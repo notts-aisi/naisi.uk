@@ -2173,19 +2173,23 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     // its foot has no dash; until then it said "Tuesday 10 November" and the
     // hours with a dash between.
     test("finishing a register emails the group next week's email once that week is published, and says why not when it is not", () => {
-      const reason = (n) => `Week ${n} isn't published yet, so the group wasn't sent a reminder. Publish it and use the run's catch-up send.`;
+      // The answer says who marks the week ready to whoever pressed: AGI Strategy's facilitators are told
+      // Claudia does; Tess, who leads the incubator and runs its group, is told that marking it ready publishes it.
+      const reason = (n, marksReady) => `Week ${n} isn’t published yet, so nobody was emailed. ${marksReady}`;
+      const CLAUDIA = "Claudia marks it ready.";
+      const THE_LEADS = "Marking it ready publishes it.";
       assert.deepEqual(
         SESSIONS.map((key) => [key, r()[key].finished.body.sent, r()[key].finished.body.reason ?? null, r()[key].finishMail.map((mail) => mail.to.split("@")[0])]),
         [
-          ["a1", 0, reason(2), []],
-          ["inc1", 0, reason(2), []],
+          ["a1", 0, reason(2, CLAUDIA), []],
+          ["inc1", 0, reason(2, THE_LEADS), []],
           ["b1", 3, null, ["amara", "ella", "kofi"]],
           ["a2", 3, null, ["dev", "joel", "priya"]],
-          ["inc2", 0, reason(3), []],
+          ["inc2", 0, reason(3, THE_LEADS), []],
           ["b2", 2, null, ["amara", "ella"]],
-          ["a3", 0, reason(4), []],
-          ["inc3", 0, reason(4), []],
-          ["b3", 0, reason(4), []],
+          ["a3", 0, reason(4, CLAUDIA), []],
+          ["inc3", 0, reason(4, THE_LEADS), []],
+          ["b3", 0, reason(4, CLAUDIA), []],
         ],
       );
       const amara = r().b1.finishMail[0];

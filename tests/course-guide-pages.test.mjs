@@ -152,7 +152,12 @@ describe("1. loading the two documents, admins only", () => {
       ["found", "Opening"],
       ["found", "What you'll get out of it"],
     ]);
-    assert.deepEqual(answer.body.checks, ["The date under the title (“Mar 3, 2026”) was left out: it’s the guide’s byline, not part of the page."]);
+    // Start here's rubric is read against the course's, which feedback is given on: this world's course has
+    // none, so the loader says so among the things to check (never a refusal; problems stay empty).
+    assert.deepEqual(answer.body.checks, [
+      "The date under the title (“Mar 3, 2026”) was left out: it’s the guide’s byline, not part of the page.",
+      "Start here has a rubric, and the course has none, so feedback is a comment alone. Set the course’s rubric in its details if feedback should use these levels.",
+    ]);
     assert.equal(w.everything(), before, "Read it wrote something");
     assert.deepEqual(Object.keys(answer.body).sort(), ["checks", "doc", "found", "problems", "replaces"]);
   });

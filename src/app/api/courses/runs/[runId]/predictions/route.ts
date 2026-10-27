@@ -13,7 +13,7 @@ import {
   type PredictionAnswer,
 } from "@/lib/courses/predictions/model";
 import { courseCardOf, ownRecordOf, viewFor } from "@/lib/courses/predictions/own";
-import { predictionsTakerOf, weekOpenTo } from "@/lib/courses/predictions/taker";
+import { cardOpenTo, predictionsTakerOf, weekPublishedTo } from "@/lib/courses/predictions/taker";
 import {
   REFUSE_ALREADY_OPENED,
   REFUSE_ALREADY_SEALED,
@@ -24,8 +24,10 @@ import {
   REFUSE_OPEN_NEEDS_ONE,
   REFUSE_SEALED,
   REFUSE_SEAL_NEEDS_ONE,
+  cardNotOpenWords,
   nothingToOpenWords,
   sealWindowShutWords,
+  todayKeyAt,
   weekNotOpenWords,
 } from "@/lib/courses/predictions/words";
 import {
@@ -47,10 +49,11 @@ import type { PredictionsView } from "@/lib/courses/predictions/wire";
  *    sealed card is opened. A value of null, or "", takes the answer away.
  *  - `POST` with `{ action: "seal" }` seals the first card: from then nothing
  *    changes it and nothing hands its answers back to anybody but an admin,
- *    its owner included, until the week it opens in has opened to their group
- *    and they open it. `{ action: "open" }` opens it there, once they have
- *    answered the same questions again: the sealed answers are handed back
- *    beside the new ones, and from then neither card changes.
+ *    its owner included, until their group's session before the week it
+ *    opens in has ended and they open it. `{ action: "open" }` opens it
+ *    there, once they have answered the same questions again: the sealed
+ *    answers are handed back beside the new ones, and from then neither card
+ *    changes.
  *
  * WHO: somebody taking part (a live, told place on the run, on an account that
  * stands) or a facilitator of a live group of the run, as themselves
@@ -59,9 +62,12 @@ import type { PredictionsView } from "@/lib/courses/predictions/wire";
  * every write refuses a run that is being destroyed, so nothing recreates a
  * card behind the destroy.
  *
- * WHEN: the week a stage belongs to has to have opened to them
- * (`weekOpenTo`), and the first card shuts for good once the week it opens in
- * has opened, sealed or not. Every refusal is a sentence the page shows.
+ * WHEN: the first card is filled in once the week it is sealed in is
+ * published for them (`weekPublishedTo`); the second, and the opening, wait
+ * for the card's own clock (`cardOpenTo`: their group's session before the
+ * week it opens in has ended), which reading that week early never moves; and
+ * the first card shuts for good on that clock, sealed or not. Every refusal is
+ * a sentence the page shows.
  *
  * WHAT IS STORED: the answer alone, kept to one decimal place or as typed
  * (`readAnswer`), under the question it answers on the person's own copy of
@@ -127,15 +133,14 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string }
   // ---- When: the stage's week has opened to them, and the first card is open -----
   const now = new Date();
   const openWeek = before?.start.sealedAt ? (before.start.opensInWeek ?? card.openWeek) : card.openWeek;
-  const opening = await weekOpenTo(db, taker, openWeek, now);
+  const opening = await cardOpenTo(db, taker, openWeek, now);
   if (stage === "start") {
     // A sealed card says so first, whatever week it is.
     if (before?.start.sealedAt) return NextResponse.json({ error: REFUSE_SEALED }, { status: 409 });
-    const sealOpening = await weekOpenTo(db, taker, card.sealWeek, now);
-    if (!sealOpening.open) return NextResponse.json({ error: weekNotOpenWords(card.sealWeek) }, { status: 409 });
+    if (!(await weekPublishedTo(db, taker, card.sealWeek))) return NextResponse.json({ error: weekNotOpenWords(card.sealWeek) }, { status: 409 });
     if (opening.open) return NextResponse.json({ error: sealWindowShutWords(openWeek) }, { status: 409 });
   } else if (!opening.open) {
-    return NextResponse.json({ error: weekNotOpenWords(openWeek) }, { status: 409 });
+    return NextResponse.json({ error: cardNotOpenWords(openWeek, opening.after, todayKeyAt(now)) }, { status: 409 });
   }
 
   try {
@@ -216,11 +221,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ runId: string 
 
   if (action === "seal") {
     if (before?.start.sealedAt) return NextResponse.json({ error: REFUSE_ALREADY_SEALED }, { status: 409 });
-    const [sealOpening, opening] = await Promise.all([
-      weekOpenTo(db, taker, card.sealWeek, now),
-      weekOpenTo(db, taker, card.openWeek, now),
+    const [sealWeekOpen, opening] = await Promise.all([
+      weekPublishedTo(db, taker, card.sealWeek),
+      cardOpenTo(db, taker, card.openWeek, now),
     ]);
-    if (!sealOpening.open) return NextResponse.json({ error: weekNotOpenWords(card.sealWeek) }, { status: 409 });
+    if (!sealWeekOpen) return NextResponse.json({ error: weekNotOpenWords(card.sealWeek) }, { status: 409 });
     if (opening.open) return NextResponse.json({ error: sealWindowShutWords(card.openWeek) }, { status: 409 });
     try {
       await db.runTransaction(async (tx) => {
@@ -251,8 +256,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ runId: string 
   // Open: the sealed card, in the week it opens in, after today's answers.
   if (!before?.start.sealedAt) return NextResponse.json({ error: nothingToOpenWords(card.sealWeek) }, { status: 409 });
   const openWeek = before.start.opensInWeek ?? card.openWeek;
-  const opening = await weekOpenTo(db, taker, openWeek, now);
-  if (!opening.open) return NextResponse.json({ error: weekNotOpenWords(openWeek) }, { status: 409 });
+  const opening = await cardOpenTo(db, taker, openWeek, now);
+  if (!opening.open) return NextResponse.json({ error: cardNotOpenWords(openWeek, opening.after, todayKeyAt(now)) }, { status: 409 });
   try {
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);

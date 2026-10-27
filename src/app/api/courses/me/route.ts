@@ -128,7 +128,13 @@ export type MyRunRole = "learner" | "facilitator" | "reviewer" | "lead";
  * offer on the run they lead, and a reviewer holds neither.
  *
  *   enrolled    — a LIVE `courseEnrolments` row (active or completed). Exactly
- *                 the population this route served before offers existed.
+ *                 the population this route served before offers existed,
+ *                 and one more: somebody named on a live group of the run
+ *                 as one of its facilitators, who holds a row on it, told
+ *                 or not. The run's own gate (`runAccess.ts`) admits them
+ *                 from the appointment, so Home gives them the
+ *                 facilitator's Home from then on, whether or not they
+ *                 also hold a place Publish has yet to tell them about.
  *   offered     — accepted, not yet allocated. They have been told they are in
  *                 and there is no seat document anywhere yet.
  *   waitlisted  — waitlisted, same absence of a seat.
@@ -238,7 +244,10 @@ const ROLE_ORDER: MyRunRole[] = ["learner", "facilitator", "reviewer", "lead"];
  *
  *   1. A LIVE ENROLMENT WINS OUTRIGHT. Once a seat exists the application is
  *      history — it is left reading `accepted` forever (nothing rewinds it),
- *      so it must never be consulted while a seat is present.
+ *      so it must never be consulted while a seat is present. So does
+ *      facilitating a live group of the run: the run's own gate admits a
+ *      facilitator from the appointment, so the row says enrolled from
+ *      then on, as it does for a facilitator who holds no place.
  *
  *   2. AN ENROLMENT DOC THAT IS NOT LIVE KILLS THE OFFER. This is the rule
  *      that needs the test. The remove route flips the enrolment to `removed`
@@ -258,12 +267,18 @@ const ROLE_ORDER: MyRunRole[] = ["learner", "facilitator", "reviewer", "lead"];
 export function membershipFor(signals: {
   /** An `active` or `completed` enrolment on this run. */
   hasLiveEnrolment: boolean;
+  /**
+   * Named on a live group of this run as one of its facilitators, standing,
+   * with a row of their own on the run (told or not). Absent reads as false.
+   */
+  facilitatesLiveGroup?: boolean;
   /** ANY enrolment doc at (run, uid) — including withdrawn / removed. */
   hasEnrolmentDoc: boolean;
   /** The caller's own application status, or null if they never applied. */
   applicationStatus: CourseApplicationStatus | null;
 }): MyRunMembership {
   if (signals.hasLiveEnrolment) return "enrolled";
+  if (signals.facilitatesLiveGroup === true) return "enrolled";
   if (signals.hasEnrolmentDoc) return "none";
   if (signals.applicationStatus === "accepted") return "offered";
   if (signals.applicationStatus === "waitlisted") return "waitlisted";
@@ -503,7 +518,8 @@ export async function GET() {
   // A facilitator who holds a place: their row says learner, their groups
   // say facilitator, and they are both. Before Publish tells them their own
   // place, the run reaches them as any facilitator's does, with no seat on
-  // the row.
+  // the row, and enrolled (`membershipFor`): Home is the facilitator's Home
+  // from the appointment, as it is for a facilitator who holds no place.
   for (const runId of facilitatedRunIds) {
     const run = runById.get(runId);
     if (run) ensure(run).roles.add("facilitator");
@@ -603,6 +619,7 @@ export async function GET() {
         roles: ROLE_ORDER.filter((role) => roles.has(role)),
         membership: membershipFor({
           hasLiveEnrolment: Boolean(enrolment),
+          facilitatesLiveGroup: facilitatedRunIds.has(run.id),
           hasEnrolmentDoc: Boolean(enrolment) || supersededOfferRunIds.has(run.id),
           applicationStatus: applicationStatusByRun.get(run.id) ?? null,
         }),

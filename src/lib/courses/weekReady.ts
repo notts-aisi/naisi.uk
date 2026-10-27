@@ -13,8 +13,8 @@
  *
  * WHAT IT OPENS. Week 1, to everybody holding a place, before groups go out
  * (Q35 B: `src/lib/courses/weekOne/door.ts`). After groups go out every week
- * opens on Published, as it always has (`weekOpening.ts`), so a week that is
- * published and not ready still opens to its groups.
+ * opens on Published, all of them at once (Zach, 27 October 2026), so a week
+ * that is published and not ready still opens to its groups.
  *
  * Who asks: week 1's door, the programme's Overview ("Week 1 isn’t ready"),
  * the run's week editor, the lead's list of weeks (`weekReadiness` in

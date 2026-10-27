@@ -3,12 +3,14 @@ import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import NotYours from "@/features/applications/groups/NotYours";
 import RunBlank from "@/features/applications/groups/RunBlank";
 import facilitator from "@/features/courses/facilitator/facilitator.module.css";
-import ThisWeeksWork, { ReflectionsQueueCard } from "@/features/courses/facilitatorWeek/ThisWeeksWork";
+import ThisWeeksWork, { ReflectionsQueueCard, workColumnsOf } from "@/features/courses/facilitatorWeek/ThisWeeksWork";
 import weekly from "@/features/courses/weekly/weekly.module.css";
 import { loadFacilitatorGroup } from "@/lib/courses/facilitatorGroup";
 import { openLeadDoor } from "@/lib/courses/facilitatorWeek/leadDoor";
-import { loadGroupWeek } from "@/lib/courses/facilitatorWeek/readers";
-import { ATTENDANCE, NO_WEEK_TO_SHOW, groupWeekTitleWords, noGroupsWords } from "@/lib/courses/facilitatorWeek/words";
+import { loadGroupWeek, loadGroupWeekBoxes } from "@/lib/courses/facilitatorWeek/readers";
+import { loadWorkColumns } from "@/lib/courses/facilitatorWeek/workColumns";
+import { drawPeople } from "@/lib/courses/packsAndCases/readers";
+import { ATTENDANCE, NO_WEEK_TO_SHOW, groupWeekTitleWords, noGroupsWords, ownCountedApartLine } from "@/lib/courses/facilitatorWeek/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
@@ -22,7 +24,9 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * THE GROUP'S FACILITATORS' OWN WORK IS HERE, marked as theirs (Zach, Mon 26
  * Oct: a facilitator does the group's coursework as themselves, and their
  * own ticks and reflections are read by the programme's lead and admins),
- * which no page a facilitator opens ever shows. The private notes left on a
+ * which no page a facilitator opens ever shows. It is counted in no number:
+ * the reflections and the ticks are both out of the group's fellows, as on
+ * the facilitators' own page, and a line under the table says so. The private notes left on a
  * source are not shown to the lead (Q38: the group's facilitators and admins
  * read them); an admin reads them here as on the group page.
  *
@@ -73,6 +77,24 @@ export default async function LeadGroupWeekPage({
   const now = new Date();
   const model = await loadFacilitatorGroup(db, run, group, { isAdmin: viewer === "admin", actor: user }, now);
   const week = await loadGroupWeek(db, { run, group, model, viewer, now });
+  // Pathway, Written answer and Case for the same week, as the group's page draws them: a facilitator's own
+  // pick and answer are the lead's and admins', so both are shown here, and feedback is given on the lead's
+  // own review page.
+  const columns = week
+    ? await loadWorkColumns(db, {
+        run,
+        group,
+        actor: user,
+        viewer: { isAdmin: viewer === "admin", leadOf: viewer === "lead" ? { roundId, programmeId } : null },
+        weekNumber: week.weekNumber,
+        people: drawPeople(model.people, model.facilitators),
+        reviewHref: (uid, n) =>
+          `/admin/admissions/forms/${round}/programmes/${programmeKey}/written?group=${encodeURIComponent(group.id)}&week=${n}&person=${encodeURIComponent(uid)}`,
+        now,
+      })
+    : [];
+  // Each person's fill-in boxes on that week, a facilitator's own included: the lead and admins read them all.
+  const boxes = week ? await loadGroupWeekBoxes(db, { run, actor: user, week }) : [];
 
   return (
     <div className={facilitator.page}>
@@ -91,7 +113,13 @@ export default async function LeadGroupWeekPage({
               lead
             />
           )}
-          <ThisWeeksWork week={week} groupName={group.name} />
+          <ThisWeeksWork
+            week={week}
+            groupName={group.name}
+            columns={workColumnsOf(columns)}
+            boxes={boxes}
+            ownLine={week.ownApart ? ownCountedApartLine(week.of) : null}
+          />
         </div>
       )}
     </div>

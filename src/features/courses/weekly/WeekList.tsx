@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { weekHref } from "../links";
-import { EACH_WEEK_OPENS, WEEK_STATE_WORDS, ofWords, weeksHeading } from "@/lib/courses/memberPageWords";
+import { READ_AHEAD, WEEK_STATE_WORDS, ofWords, weeksHeading } from "@/lib/courses/memberPageWords";
 import type { WeekRow } from "./weekRows";
 import styles from "./weekly.module.css";
 
 /**
  * "The 6 weeks" (boards wk-programme, st-programme): every week of the
  * reader's programme with its date and its state. An open week is a link to
- * its page with what is done of it; a week that is not open is not a link,
- * and the next one to open says when it does (C17).
+ * its page with what is done of it; a week that is not published yet is not
+ * a link. Every published week is open, so the reader can read ahead (Zach,
+ * 27 October 2026).
  */
 
 function Tick() {
@@ -41,14 +42,14 @@ const MARK_WORD: Record<WeekRow["state"], string> = {
   done: WEEK_STATE_WORDS.done,
   current: WEEK_STATE_WORDS.current,
   next: WEEK_STATE_WORDS.next,
-  open: WEEK_STATE_WORDS.current,
+  open: WEEK_STATE_WORDS.open,
   shut: WEEK_STATE_WORDS.shut,
 };
 
 type Props = {
   runId: string;
   rows: WeekRow[];
-  /** Before the first session: the board's line under the weeks. */
+  /** Before the first session: the line under the weeks that says the reader can read ahead. */
   beforeStart: boolean;
   /** The way to the progress page, kept at the foot of the list for somebody taking part. */
   progressHref: string;
@@ -93,15 +94,9 @@ export default function WeekList({ runId, rows, beforeStart, progressHref, showP
                   <span className={styles.weekName}>Week {row.weekNumber}</span>
                   {row.title && <span className={styles.weekTheme}>{row.title}</span>}
                 </span>
-                {(row.when || row.opens) && (
+                {row.when && (
                   <span className={styles.weekWhen}>
-                    {row.when && <span className={dateClass}>{row.when}</span>}
-                    {row.when && row.opens && (
-                      <span className={`${styles.weekOpens} ${styles.weekSep}`} aria-hidden="true">
-                        {" · "}
-                      </span>
-                    )}
-                    {row.opens && <span className={styles.weekOpens}>{row.opens}</span>}
+                    <span className={dateClass}>{row.when}</span>
                   </span>
                 )}
               </span>
@@ -133,7 +128,7 @@ export default function WeekList({ runId, rows, beforeStart, progressHref, showP
           );
         })}
       </ol>
-      {beforeStart && <p className={styles.weeksNote}>{EACH_WEEK_OPENS}</p>}
+      {beforeStart && <p className={styles.weeksNote}>{READ_AHEAD}</p>}
       {showProgress && (
         <div className={styles.cardFootRule}>
           <Link className={styles.cardLink} href={progressHref}>

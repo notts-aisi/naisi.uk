@@ -19,10 +19,12 @@ import {
 } from "@/lib/courses/unmarkedRegisters";
 import { reserveSendSlot } from "@/lib/email/courseFacilitatorEmails";
 import { didNotHappenLine } from "@/lib/courses/programmeAttendance";
+import { readRunLead } from "@/lib/courses/programmeLead";
+import { unpublishedPushWords, type MarksReady } from "@/features/courses/registerEndingWords";
 import { joinWords, missingNudgeValueWords } from "@/lib/email/courseNudgeEmail";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
-import { getCurrentUser } from "@/lib/firebase/session";
+import { getCurrentUser, type SessionUser } from "@/lib/firebase/session";
 import { attendanceDocId } from "@/lib/firestore/courseAttendance";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import { REGISTER_FOLLOW_UP_TASK_SOURCE } from "@/lib/firestore/courseTasks";
@@ -314,6 +316,23 @@ async function archiveRegisterFollowUp(
       err,
     );
   }
+}
+
+/**
+ * WHO MARKS NEXT WEEK READY, said to the person who pressed when its email
+ * waits for the week to be published: an admin may mark it ready and use the
+ * run's catch-up send; the programme's lead may mark it ready; anybody else,
+ * a facilitator, is told who does (the lead by name, or an admin when no lead
+ * stands). One read of the forms and the lead's account, only on this path.
+ */
+async function marksReadyFor(db: Firestore, actor: SessionUser, runId: string): Promise<MarksReady> {
+  if (actor.role === "admin") return { kind: "admin" };
+  const lead = await readRunLead(db, runId).catch((err) => {
+    console.error("[courses push] could not read the run's lead", runId, err);
+    return null;
+  });
+  if (!lead) return { kind: "admins" };
+  return lead.uid === actor.uid ? { kind: "you" } : { kind: "lead", firstName: lead.firstName };
 }
 
 // ---------------------------------------------------------------------------
@@ -686,7 +705,11 @@ export async function POST(
       ? `Next week’s email wasn’t sent again: it’s missing ${joinWords(
           missingNudgeValueWords(outcome.missing, nextSession.weekNumber),
         )}.`
-      : outcome.reason;
+      : outcome.held === "unpublished"
+        ? // Only the programme's lead and admins mark a week ready, so who
+          // pressed decides what the answer asks of them.
+          unpublishedPushWords(nextSession.weekNumber, await marksReadyFor(db, actor, runId))
+        : outcome.reason;
 
   console.log("[courses push] pushed", groupId, session.sessionKey, {
     mirrored,

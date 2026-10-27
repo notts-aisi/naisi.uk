@@ -82,10 +82,12 @@ describe("1. the programme home", () => {
         "Week 1 reading two Reading 30 min Open Week 1 reading two Open week 1 → " +
         "Your group Group B CN Chloe (you) FH Farah KA Kofi R S Facilitators: Rahul and Sofia " +
         "Names only. Nobody here sees your email address. [RunUpdates] " +
-        "The 6 weeks Week 1 Week 1 readings Tue 3 Nov Next Week 2 Week 2 readings Tue 10 Nov " +
-        "Week 3 Who decides what AGI means Tue 17 Nov Week 4 Week 4 readings Tue 24 Nov " +
+        // Every published week is open to read ahead (Zach, 27 October 2026), with what is done of it;
+        // weeks 5 and 6 are not published, so they are not. The line under the weeks says so.
+        "The 6 weeks Week 1 Week 1 readings Tue 3 Nov Next Week 2 Week 2 readings Tue 10 Nov 0 of 3 " +
+        "Week 3 Who decides what AGI means Tue 17 Nov 0 of 3 Week 4 Week 4 readings Tue 24 Nov 0 of 3 " +
         "Week 5 Week 5 readings Tue 1 Dec Week 6 Week 6 readings Tue 8 Dec " +
-        "Each week opens straight after your previous session. See your progress week by week →",
+        "You can read ahead: each week opens as soon as it’s published. See your progress week by week →",
     );
     // "Add to calendar" exists now, once and on the ticket; "Can’t make it" still does not.
     assert.equal(text.match(/Add to calendar/g)?.length, 1);
@@ -105,26 +107,35 @@ describe("1. the programme home", () => {
         "This week 1 of 3 done Week 3 · Who decides what AGI means Thu 12 to Wed 18 Nov Open week 3 → " +
         "The 6 weeks Week 1 Week 1 readings Tue 3 Nov · Done 0 of 3 Week 2 Week 2 readings Tue 10 Nov · Done 0 of 3 " +
         "Week 3 Who decides what AGI means Tonight 1 of 3 " +
-        "Week 4 Week 4 readings Tue 24 Nov · Opens tonight, after your session " +
+        // Week 4 is published, so it is open before tonight's session: a link with what is done of it.
+        "Week 4 Week 4 readings Tue 24 Nov 0 of 3 " +
         "Week 5 Week 5 readings Tue 1 Dec Week 6 Week 6 readings Tue 8 Dec See your progress week by week → " +
         "Your marks P 3 Nov P 10 Nov · 17 Nov · 24 Nov · 1 Dec · 8 Dec P Present · Not yet " +
         "Your facilitators fill these in after each session. [RunUpdates] " +
         "Your group Group B CN Chloe (you) FH Farah KA Kofi R S Facilitators: Rahul and Sofia",
     );
-    // Open weeks are links; a week that is not open is not.
-    for (const n of [1, 2, 3]) assert.match(html, new RegExp(`href="/learn/[^"]+/weeks/${n}"`));
-    for (const n of [4, 5, 6]) assert.doesNotMatch(html, new RegExp(`href="/learn/[^"]+/weeks/${n}"`));
+    // Open weeks are links, every published one; a week that is not published is not.
+    for (const n of [1, 2, 3, 4]) assert.match(html, new RegExp(`href="/learn/[^"]+/weeks/${n}"`));
+    for (const n of [5, 6]) assert.doesNotMatch(html, new RegExp(`href="/learn/[^"]+/weeks/${n}"`));
+    // Each week's mark says its state to a screen reader: week 4, open ahead, is "Open", never "This week".
+    assert.deepEqual(
+      [...html.matchAll(/role="img" aria-label="([^"]+)"/g)].map((m) => m[1]).filter((label) => /^(Done|This week|Next|Open|Not open yet)$/.test(label)),
+      ["Done", "Done", "This week", "Open", "Not open yet", "Not open yet"],
+    );
     assert.match(html, /aria-current="step"/);
     // "Add to calendar" exists now, once and on the ticket; "Can’t make it" still does not.
     assert.equal(text.match(/Add to calendar/g)?.length, 1);
     assert.doesNotMatch(text, /Can’t make it|Names only/);
   });
 
-  test("only the next week to open says when: a later published week shows its date alone", async () => {
+  test("a later published week is open too, with its date and what is done of it: nothing says when a week opens", async () => {
     w.world.db.poke(`courseRuns/${RUN.agi}/weeks/w05`, { published: true });
     await w.asBrowser("chloe");
-    const { text } = w.programmeHome("chloe");
-    assert.match(text, /Week 4 Week 4 readings Tue 24 Nov · Opens tonight, after your session Week 5 Week 5 readings Tue 1 Dec Week 6 /);
+    const { text, html } = w.programmeHome("chloe");
+    assert.match(text, /Week 4 Week 4 readings Tue 24 Nov 0 of 3 Week 5 Week 5 readings Tue 1 Dec 0 of 3 Week 6 Week 6 readings Tue 8 Dec See your progress/);
+    assert.match(html, /href="\/learn\/[^"]+\/weeks\/5"/);
+    assert.doesNotMatch(html, /href="\/learn\/[^"]+\/weeks\/6"/);
+    assert.doesNotMatch(text, /Opens|after your session/);
   });
 
   test("a room changed for this week only: the ticket says so, the head keeps the group's own room", async () => {

@@ -15,7 +15,7 @@ import facilitator from "@/features/courses/facilitator/facilitator.module.css";
 import PathwaySpread from "@/features/courses/packsAndCases/PathwaySpread";
 import PairsCard from "@/features/courses/pairs/PairsCard";
 import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
-import ThisWeeksWork, { ReflectionsQueueCard } from "@/features/courses/facilitatorWeek/ThisWeeksWork";
+import ThisWeeksWork, { ReflectionsQueueCard, workColumnsOf } from "@/features/courses/facilitatorWeek/ThisWeeksWork";
 import { ticketFacts } from "@/features/courses/sessionChange/cardFacts";
 import SessionNotice from "@/features/courses/sessionChange/SessionNotice";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
@@ -33,8 +33,9 @@ import { hasDraw } from "@/lib/courses/packsAndCases/model";
 import { drawPeople, readDrawState, readGroupWeek, spreadOf } from "@/lib/courses/packsAndCases/readers";
 import { changeDrawWords, spreadTitleWords } from "@/lib/courses/packsAndCases/words";
 import { readGroupPairs } from "@/lib/courses/pairs/readers";
-import { loadGroupWeek } from "@/lib/courses/facilitatorWeek/readers";
-import { facilitatorsWorkLine } from "@/lib/courses/facilitatorWeek/words";
+import { loadGroupWeek, loadGroupWeekBoxes } from "@/lib/courses/facilitatorWeek/readers";
+import { loadWorkColumns } from "@/lib/courses/facilitatorWeek/workColumns";
+import { facilitatorsWorkLine, ownCountedApartLine } from "@/lib/courses/facilitatorWeek/words";
 import {
   MY_PROGRAMMES,
   coFacilitatorsWords,
@@ -382,6 +383,27 @@ export default async function GroupHomePage({
   // group's pairs, its facilitators too, who take part.
   const pairsWeek = drawWeek ? await readGroupPairs(db, runId, groupId, drawWeek, drawList) : null;
 
+  // This week's work's Pathway, Written answer and Case columns (wk-fac-group),
+  // for the week it shows, through the packs' and the written answers' own
+  // readers: each reader is shown what the review page and the draw page show
+  // them of the same people.
+  const workColumns = groupWeek
+    ? await loadWorkColumns(db, {
+        run: access.run,
+        group,
+        actor: access.user,
+        viewer: { isAdmin: access.isAdmin, leadOf: null },
+        weekNumber: groupWeek.weekNumber,
+        people: drawList,
+        reviewHref: (uid, week) => `${groupPath}/written?week=${week}&person=${encodeURIComponent(uid)}`,
+        now,
+      })
+    : [];
+  // Each person's fill-in boxes on that week (week 6's action plan), for exactly the people the boxes' own
+  // gate lets this reader read: a fellow's, to the group's facilitators and admins; a facilitator's own, to
+  // admins alone.
+  const boxes = groupWeek ? await loadGroupWeekBoxes(db, { run: access.run, actor: access.user, week: groupWeek }) : [];
+
   // The head: the group, its week, its programme, its usual day, time and
   // room, and the group's other facilitators by their whole names.
   const groupName = group.name || "Group";
@@ -598,7 +620,15 @@ export default async function GroupHomePage({
           <ThisWeeksWork
             week={groupWeek}
             groupName={groupName}
-            ownLine={groupWeek.ownLeftOut ? facilitatorsWorkLine(programme?.leadFirstName ?? null) : null}
+            columns={workColumnsOf(workColumns)}
+            boxes={boxes}
+            ownLine={
+              groupWeek.ownLeftOut
+                ? facilitatorsWorkLine(programme?.leadFirstName ?? null)
+                : groupWeek.ownApart
+                  ? ownCountedApartLine(groupWeek.of)
+                  : null
+            }
             emptyLine={model.notYetTold ? NAMES_WHEN_GROUPS_GO_OUT : undefined}
           />
           <div className={facilitator.columns}>

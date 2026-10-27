@@ -4374,6 +4374,7 @@ describe("the course hub passage", () => {
       new Map([
         [gateFile, "the gate itself: admins and the programme's lead for anybody's, a live facilitator of a fellow's own group for theirs, and nobody else for a facilitator's own"],
         [readerFile, "the one reader of somebody else's boxes, which asks the gate before a box is read"],
+        ["src/lib/courses/facilitatorWeek/readers.ts", "a group's week for its facilitators, the programme's lead and admins: each person's boxes on the week the page shows, the gate asked person by person before a box is read, for exactly the people it admits"],
       ]),
       "deciding who reads somebody's fill-in boxes",
       "The policy says a person's boxes are read by them, their group's " +
@@ -4421,7 +4422,7 @@ describe("the course hub passage", () => {
     // included; each admin opening recorded.
     assert.match(
       PAGE_FLAT,
-      /<strong>Sealed predictions\.<\/strong> On a programme whose course has a card of predictions, a week&apos;s page gives you that card to fill in: each question asks for a percentage, a number on a scale or a sentence, and each answer saves as you type\. Once you seal your card, nobody can change it, you included, and you cannot read it again until the week it opens in has opened to your group and you open it there, after answering the same questions again\. You then see both side by side, and neither changes after that\. A card you never seal can no longer be changed once that week has opened, and you can still read it\. Your card is read by you and by admins, who can open anybody&apos;s at any time, and by nobody else: not your group&apos;s facilitators, not the programme&apos;s lead and not other fellows\. If you facilitate a group, its other facilitators do not read yours either\. Each time an admin opens a card, we record who opened it, whose card it was by account id, the course run and when, before anything on the card is read, and never what it says; if that record cannot be written, the card stays closed\. An admin cannot open their own card that way\. If you leave the programme, you no longer see your card, and admins still can\. Your card is deleted with your account, and when the programme&apos;s course run is destroyed\. The records of admins opening a card stay when an account is deleted, and are deleted when the run is destroyed\./,
+      /<strong>Sealed predictions\.<\/strong> On a programme whose course has a card of predictions, a week&apos;s page gives you that card to fill in: each question asks for a percentage, a number on a scale or a sentence, and each answer saves as you type\. Once you seal your card, nobody can change it, you included, and you cannot read it again until your group&apos;s session before the week it opens in has ended and you open it there, after answering the same questions again\. You then see both side by side, and neither changes after that\. A card you never seal can no longer be changed once that session has ended, and you can still read it\. Your card is read by you and by admins, who can open anybody&apos;s at any time, and by nobody else: not your group&apos;s facilitators, not the programme&apos;s lead and not other fellows\. If you facilitate a group, its other facilitators do not read yours either\. Each time an admin opens a card, we record who opened it, whose card it was by account id, the course run and when, before anything on the card is read, and never what it says; if that record cannot be written, the card stays closed\. An admin cannot open their own card that way\. If you leave the programme, you no longer see your card, and admins still can\. Your card is deleted with your account, and when the programme&apos;s course run is destroyed\. The records of admins opening a card stay when an account is deleted, and are deleted when the run is destroyed\./,
     );
     // Every file that addresses a person's cards, and why it may.
     assertExactlyTheseFiles(
@@ -4448,8 +4449,13 @@ describe("the course hub passage", () => {
     // Opened only after answering again, and then neither changes.
     assert.match(route, /if \(answeredCount\(stored\.card\.questions, stored\.now\.answers\) === 0\) throw new PredictionsError\(REFUSE_OPEN_NEEDS_ONE, 409\);/);
     assert.match(route, /if \(stage === "now" && stored\?\.now\.openedAt\) throw new PredictionsError\(REFUSE_OPENED, 409\);/);
-    // A card never sealed shuts once the week it opens in has opened.
+    // A card never sealed shuts on the card's own clock: once the group's session before the week it opens
+    // in has ended (`cardOpenTo`). Every published week is open to read ahead since 27 October 2026, so the
+    // week being open is not that moment.
     assert.match(route, /if \(opening\.open\) return NextResponse\.json\(\{ error: sealWindowShutWords\(openWeek\) \}, \{ status: 409 \}\);/);
+    assert.match(route, /const opening = await cardOpenTo\(db, taker, openWeek, now\);/);
+    const clock = withoutComments(read("src/lib/courses/predictions/taker.ts"));
+    assert.match(clock, /weekOpening\(resolveSessions\(taker\.run, group\), weekNumber\)/);
     // Shut to its owner: a sealed card's answers travel only once opened, in the week it opens in.
     const own = withoutComments(read("src/lib/courses/predictions/own.ts"));
     assert.match(own, /answers: state === "draft" \|\| state === "closed" \? startAnswers : \{\},/);

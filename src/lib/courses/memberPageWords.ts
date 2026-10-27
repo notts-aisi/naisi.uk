@@ -178,44 +178,15 @@ export function notUpYetWords(weekNumber: number): string {
 export const NO_NEW_MATERIAL = "No new material this week.";
 
 // ---------------------------------------------------------------------------
-// When a week opens (C17)
+// Reading ahead
 // ---------------------------------------------------------------------------
 
-/** Under the weeks, before the first session. */
-export const EACH_WEEK_OPENS = "Each week opens straight after your previous session.";
-
 /**
- * When a week that is not open yet opens: "Opens tonight, after your
- * session", or on another day "Opens Tue 24 Nov, after your session".
+ * Under the weeks, before the first session. Every published week is open to
+ * everybody the run is open to (Zach, 27 October 2026), so nothing waits on a
+ * session; listed in the build notes for the boards' designers to confirm.
  */
-export function opensWords(after: { dateKey: string; startTimeLocal: string }, todayKey: string): string {
-  if (after.dateKey === todayKey) return `Opens ${tonightWord(after.startTimeLocal).toLowerCase()}, after your session`;
-  return `Opens ${dayWords(after.dateKey)}, after your session`;
-}
-
-/** The week page's way on: "Week 4 opens tonight, after your session". */
-export function nextWeekOpensWords(weekNumber: number, after: { dateKey: string; startTimeLocal: string }, todayKey: string): string {
-  if (after.dateKey === todayKey) {
-    return `Week ${weekNumber} opens ${tonightWord(after.startTimeLocal).toLowerCase()}, after your session`;
-  }
-  return `Week ${weekNumber} opens on ${dayWords(after.dateKey)}, after your session`;
-}
-
-/** The week page of a week that is not open to the reader yet. */
-export function notOpenTitle(weekNumber: number): string {
-  return `Week ${weekNumber} isn’t open yet`;
-}
-
-/** Under it: when it opens. */
-export function notOpenBody(after: { dateKey: string; startTimeLocal: string }, todayKey: string): string {
-  if (after.dateKey === todayKey) return `It opens ${tonightWord(after.startTimeLocal).toLowerCase()}, after your session.`;
-  return `It opens on ${dayWords(after.dateKey)}, after your session.`;
-}
-
-/** The way back from it. */
-export function backToWords(name: string): string {
-  return `Back to ${name}`;
-}
+export const READ_AHEAD = "You can read ahead: each week opens as soon as it’s published.";
 
 // ---------------------------------------------------------------------------
 // The weeks
@@ -231,6 +202,8 @@ export const WEEK_STATE_WORDS = {
   done: "Done",
   current: "This week",
   next: "Next",
+  /** A published week that is not this week or next: open to read ahead. */
+  open: "Open",
   shut: "Not open yet",
   cancelled: "Cancelled",
 } as const;
@@ -348,11 +321,6 @@ export function blockWeekEyebrow(input: {
   return [programme, weekOfWords(input.weekNumber, input.totalWeeks), input.range.trim()].filter(Boolean).join(" · ");
 }
 
-/** The way on, beside the way back, while the next week is shut: the board's words. */
-export function weekOpensAfterWords(weekNumber: number): string {
-  return `Week ${weekNumber} opens after your session`;
-}
-
 /** "In all: About 80 minutes". */
 export function inAllWords(total: string): string {
   return `In all: ${total.trim()}`;
@@ -437,13 +405,22 @@ export function partWords(n: number): string {
   return `Part ${n}`;
 }
 
-/** The programme page's short line for a task (board wk-programme). */
+/**
+ * The programme page's short line for a task (board wk-programme): "Your
+ * case talk" for a talk that hands out cases, and a talk with none by its own
+ * name, "Your pitch" for week 6's 2-minute pitch (listed in the build notes
+ * for the boards' designers to confirm).
+ */
 export function taskLabelWords(
-  subject: { kind: "writtenAnswer" } | { kind: "talk" } | { kind: "parts"; numbers: number[] } | { kind: "other" },
+  subject:
+    | { kind: "writtenAnswer" }
+    | { kind: "talk"; cases: boolean; name: string }
+    | { kind: "parts"; numbers: number[] }
+    | { kind: "other" },
   what: string,
 ): string {
   if (subject.kind === "writtenAnswer") return "Your written answer";
-  if (subject.kind === "talk") return "Your case talk";
+  if (subject.kind === "talk") return subject.cases ? "Your case talk" : `Your ${subject.name.trim() || "talk"}`;
   if (subject.kind === "parts") return partsWords(subject.numbers);
   return what.trim();
 }

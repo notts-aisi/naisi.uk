@@ -31,7 +31,6 @@ import {
   reflectionsReadByWords,
   taskWhenWords,
   ticksSeenByWords,
-  weekOpensAfterWords,
 } from "@/lib/courses/memberPageWords";
 import { CANCELLED_CARD, ONLINE_NOTICE_LINK_LINE, dayRangeWords } from "@/lib/courses/sessionChange/words";
 import type { WeekSharedNotes } from "@/lib/courses/sharedNotes/views";
@@ -674,8 +673,7 @@ function WeekWays({
   /** The foot's is the page's "Weeks" landmark; the head's is the same two ways again. */
   landmark: boolean;
 }) {
-  const shutLine = next && !next.open && next.opensAfter ? weekOpensAfterWords(next.weekNumber) : null;
-  if (prev === null && !next?.open && !shutLine) return null;
+  if (prev === null && !next?.open) return null;
   const inner = (
     <>
       {prev !== null ? (
@@ -695,8 +693,6 @@ function WeekWays({
             <path d="M9 6l6 6-6 6" />
           </svg>
         </Link>
-      ) : shutLine ? (
-        <p className={weekly.weekNavNote}>{shutLine}</p>
       ) : (
         <span />
       )}

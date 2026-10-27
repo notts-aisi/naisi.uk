@@ -54,6 +54,15 @@ const COMPARATOR_HOME = "src/lib/firestore/courseGroups.ts";
  */
 const READS_WITHOUT_A_LIST = new Map([
   [
+    "src/lib/courses/fillInBoxes/access.ts",
+    {
+      why:
+        "The gate for somebody's fill-in boxes reads the run's live groups only to find whether the person facilitates " +
+        "one and which group a fellow sits in: it answers whether one reader may read one person's boxes, never a list " +
+        "of groups. A programme's page reaches it through the lead's view of a group's week, which asks it person by person.",
+    },
+  ],
+  [
     "src/app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts",
     {
       why:

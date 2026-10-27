@@ -395,10 +395,9 @@ describe("a press that emails nobody says so, and why, before it", () => {
     const pressed = await pressTogether(GROUP.b, 2);
     assert.equal(pressed.confirm.title, "Push week 2?");
     assert.equal(pressed.confirm.first, "Nobody is emailed: week 3 isn’t published yet, so the group won’t be sent a reminder.");
-    assertNobody(
-      pressed,
-      "Week 3 isn't published yet, so the group wasn't sent a reminder. Publish it and use the run's catch-up send.",
-    );
+    // The push's answer: what happened, then who marks the week ready, to the facilitator who pressed (only
+    // the programme's lead and admins can, so a facilitator is never told to).
+    assertNobody(pressed, "Week 3 isn’t published yet, so nobody was emailed. Claudia marks it ready.");
     assert.ok(read(registerPath(GROUP.b, 2))?.pushedAt, "the register did not lock");
   });
 

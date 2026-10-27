@@ -1,32 +1,37 @@
 /**
- * Each week opens straight after the group's previous session (C17, Q5), and
- * a week's own page as the board draws it (wk-week-phone).
+ * Every published week is open to read and work in, once Publish has told
+ * somebody their group (Zach, 27 October 2026: weeks are published at the
+ * start so people can read ahead; until then each week opened straight after
+ * the group's previous session, C17), and a week's own page as the board
+ * draws it (wk-week-phone).
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
- *   src/lib/courses/weekOpening.ts                the rule
+ *   src/lib/courses/weekOpening.ts                the session before a week: the sealed card's clock
  *   GET /api/courses/runs/[runId]/overview        `weekSchedule`: each week, its session, open or not
  *   /learn/[runId]/weeks/[n]                      the page's gate, then the page
  *
  * ## What this guards
  *
- *  1. THE RULE, AT ITS EDGES. A week opens to somebody taking part once the
- *     group's session before it has ENDED: shut the minute before, shut at the
- *     end itself, open the minute after. The first week waits on nothing. A
- *     session moved through "Change a session" is waited on at its new time;
- *     a cancelled one is not waited on at all (the week opens after the
- *     session the group last held); a pushed one moves the weeks after it.
- *     A calendar nobody can date waits on nothing, as every run did before.
- *  2. WHO IT IS FOR. Somebody taking part. The group's facilitators, admins,
- *     and a facilitator of another group see every published week, as they
- *     always have; nobody else reads the run at all.
- *  3. THE PAGE'S GATE says when a shut week opens, and never promises an
+ *  1. THE SESSION BEFORE A WEEK, AT ITS EDGES, which a sealed predictions
+ *     card still waits on and no week page does: shut the minute before the
+ *     session ends, shut at the end itself, open the minute after. The first
+ *     week waits on nothing. A session moved through "Change a session" is
+ *     waited on at its new time; a cancelled one is not waited on at all; a
+ *     pushed one moves the weeks after it. A calendar nobody can date waits on
+ *     nothing.
+ *  2. EVERY CALLER IS TOLD EVERY PUBLISHED WEEK IS OPEN, whatever the time:
+ *     somebody taking part as the group's facilitators, admins and a
+ *     facilitator of another group always were, and the payload carries no
+ *     session to wait on. Nobody else reads the run at all.
+ *  3. THE PAGE'S GATE draws every published week for somebody taking part,
+ *     before the session before it as after, and never promises an
  *     unpublished week (the page's own "isn't published yet" stands).
  *  4. THE WEEK PAGE draws the board: the week of weeks and its dates, what
  *     is done and the minutes left, "Before your session" with THIS week's
  *     own session date (a moved week's, D2), the exercise a facilitator
- *     reviews, and the way on with when the next week opens. No sentence on
- *     it has a dash (C35).
+ *     reviews, and the way on, a link to the next week once it is published.
+ *     No sentence on it has a dash (C35).
  *
  * Real: the overview route, the week page's server shell and its client
  * page, the libraries. Faked: the session, the Admin SDK handle, the clock,
@@ -34,7 +39,14 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join, relative, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+import { walkSource } from "./lib/functionScan.mjs";
+import { stripSource } from "./lib/stripSource.mjs";
 import { B, NOW, RUN, makeMemberPagesWorld } from "./lib/memberPagesWorld.mjs";
+
+const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 const w = await makeMemberPagesWorld("__memberWeeks");
@@ -83,7 +95,7 @@ const openAt = (n, iso) => lib.opening.isOpenAt(opening(n), new Date(iso));
 // 1. The rule
 // ---------------------------------------------------------------------------
 
-describe("1. a week opens straight after the group's previous session", () => {
+describe("1. the session before a week, which a sealed card waits on (no week page does)", () => {
   test("the first week waits on nothing; every other waits on the session before it", () => {
     assert.equal(opening(1).after, null);
     const after = opening(4).after;
@@ -125,10 +137,28 @@ describe("1. a week opens straight after the group's previous session", () => {
     assert.equal(openAt(5, "2026-11-24T20:01:00Z"), false);
   });
 
-  test("a calendar nobody can date waits on nothing: its published weeks open as they always did", () => {
+  test("a calendar nobody can date waits on nothing", () => {
     const run = w.world.db.read(`courseRuns/${RUN.agi}`);
     w.world.db.seed(`courseRuns/${RUN.agi}`, { ...run, startDate: "" });
     for (let n = 1; n <= 6; n += 1) assert.equal(opening(n).after, null, `week ${n}`);
+  });
+
+  test("the tree: only the sealed card's clock asks it, so no page or route makes a published week wait on a session", () => {
+    // Every published week is open to read and work in once Publish has told somebody their group
+    // (Zach, 27 October 2026). A page, a route or a reader that asked the session before a week again would
+    // shut a published week to the people taking part: it has to be named here, with its reason, on purpose.
+    const expected = new Map([
+      ["lib/courses/weekOpening.ts", "the clock itself"],
+      ["lib/courses/predictions/taker.ts", "a sealed predictions card opens on it, never on the week being open"],
+    ]);
+    const found = [];
+    for (const file of walkSource(SRC)) {
+      if (!/\.(ts|tsx)$/.test(file)) continue;
+      const code = stripSource(readFileSync(file, "utf8"), { keepStrings: true });
+      if (/\bweekOpening\b|\bisOpenAt\b/.test(code)) found.push(relative(SRC, file).split(sep).join("/"));
+    }
+    assert.deepEqual(found.sort(), [...expected.keys()].sort());
+    for (const [, why] of expected) assert.ok(why.length > 10);
   });
 });
 
@@ -136,45 +166,51 @@ describe("1. a week opens straight after the group's previous session", () => {
 // 2. The overview's weeks, as every caller
 // ---------------------------------------------------------------------------
 
-/** Each week of a caller's schedule: [week, date, open, opens after]. */
+/**
+ * Each week of a caller's schedule: [week, date, open]. A week no longer waits on a session, so the wire
+ * carries none: a week that names one fails here.
+ */
 async function scheduleOf(who) {
   const answer = await w.overview(who);
   if (answer.status !== 200) return answer.status;
-  return answer.body.weekSchedule.map((s) => [s.weekNumber, s.dateKey, s.open, s.opensAfter ? `${s.opensAfter.dateKey} ${s.opensAfter.startTimeLocal}` : null]);
+  for (const s of answer.body.weekSchedule) assert.equal("opensAfter" in s, false, `week ${s.weekNumber} still names a session to wait on`);
+  return answer.body.weekSchedule.map((s) => [s.weekNumber, s.dateKey, s.open]);
 }
 
-describe("2. the weeks each caller is told about", () => {
-  test("somebody taking part in Group B: weeks 1 to 3 open, week 4 waits on tonight's session, 5 and 6 are not published", async () => {
+describe("2. the weeks each caller is told about: every published week, open", () => {
+  test("somebody taking part in Group B: weeks 1 to 4 open as they are published, week 4 before tonight's session; 5 and 6 are not published", async () => {
     assert.deepEqual(await scheduleOf("chloe"), [
-      [1, "2026-11-03", true, null],
-      [2, "2026-11-10", true, null],
-      [3, "2026-11-17", true, null],
-      [4, "2026-11-24", false, "2026-11-17 18:00"],
-      [5, "2026-12-01", false, null],
-      [6, "2026-12-08", false, null],
+      [1, "2026-11-03", true],
+      [2, "2026-11-10", true],
+      [3, "2026-11-17", true],
+      [4, "2026-11-24", true],
+      [5, "2026-12-01", false],
+      [6, "2026-12-08", false],
     ]);
   });
 
-  test("the minute after tonight's session ends, week 4 is open to her", async () => {
-    at("2026-11-17T20:01:00Z");
-    const schedule = await scheduleOf("chloe");
-    assert.deepEqual(schedule[3], [4, "2026-11-24", true, null]);
+  test("week 4 is open to Chloe the minute before tonight's session ends, at its end, and after it: nothing waits", async () => {
+    for (const iso of ["2026-11-17T19:59:00Z", "2026-11-17T20:00:00Z", "2026-11-17T20:01:00Z"]) {
+      at(iso);
+      assert.deepEqual((await scheduleOf("chloe"))[3], [4, "2026-11-24", true], iso);
+    }
   });
 
-  test("a member of another group is told their own group's weeks: Group A met on Thursday, so week 4 is open", async () => {
+  test("a member of another group is told their own group's weeks, on its own dates, every published one open", async () => {
     const schedule = await scheduleOf("amara");
-    assert.deepEqual(schedule.slice(2, 4), [
-      [3, "2026-11-12", true, null],
-      [4, "2026-11-19", true, null],
+    assert.deepEqual(schedule.slice(2, 5), [
+      [3, "2026-11-12", true],
+      [4, "2026-11-19", true],
+      [5, "2026-11-26", false],
     ]);
   });
 
-  test("each week's own session, Change a session applied: a moved week says its new day, time and room", async () => {
+  test("each week's own session, Change a session applied: a moved week says its new day, time and room, and the week after it is open", async () => {
     moveWeek3();
     const body = (await w.overview("chloe")).body;
     const week3 = body.weekSchedule.find((s) => s.weekNumber === 3);
     assert.deepEqual([week3.dateKey, week3.startTimeLocal, week3.location, week3.roomChanged], ["2026-11-18", "18:00", "Room M3", true]);
-    assert.deepEqual(body.weekSchedule.find((s) => s.weekNumber === 4).opensAfter, { dateKey: "2026-11-18", startTimeLocal: "18:00" });
+    assert.equal(body.weekSchedule.find((s) => s.weekNumber === 4).open, true);
   });
 
   for (const [who, why] of [
@@ -184,13 +220,13 @@ describe("2. the weeks each caller is told about", () => {
   ]) {
     test(`${why} sees every published week open, and nothing waits`, async () => {
       const schedule = await scheduleOf(who);
-      assert.deepEqual(schedule.map(([n, , open, after]) => [n, open, after]), [
-        [1, true, null],
-        [2, true, null],
-        [3, true, null],
-        [4, true, null],
-        [5, false, null],
-        [6, false, null],
+      assert.deepEqual(schedule.map(([n, , open]) => [n, open]), [
+        [1, true],
+        [2, true],
+        [3, true],
+        [4, true],
+        [5, false],
+        [6, false],
       ]);
     });
   }
@@ -214,26 +250,28 @@ describe("2. the weeks each caller is told about", () => {
 // 3. The week page's gate
 // ---------------------------------------------------------------------------
 
-describe("3. a week's page before it opens", () => {
-  test("somebody taking part is told when it opens, and led back", async () => {
+describe("3. a week's page: every published week is drawn, to read ahead", () => {
+  test("somebody taking part is drawn week 4 before tonight's session, and the gate writes nothing", async () => {
     const before = w.everything();
     const shell = await w.weekShell("chloe", 4);
-    assert.equal(shell.component, "WeekNotOpen");
-    assert.equal(shell.text, "AGI Strategy Week 4 Week 4 isn’t open yet It opens tonight, after your session. Back to AGI Strategy →");
+    assert.equal(shell.component, "WeekView");
+    assert.equal(shell.props.viewerRole, "learner");
     assert.equal(w.everything(), before, "the gate wrote something");
   });
 
-  test("the day before, it says the day", async () => {
+  test("the day before the session before it, it is drawn all the same", async () => {
     at("2026-11-16T12:00:00Z");
-    assert.match((await w.weekShell("chloe", 4)).text, /It opens on Tue 17 Nov, after your session\./);
+    assert.equal((await w.weekShell("chloe", 4)).component, "WeekView");
   });
 
-  test("the minute before the session ends it is shut; the minute after, the page is drawn", async () => {
+  test("the minute before the session ends and the minute after, the page is drawn, with the same props", async () => {
     at("2026-11-17T19:59:00Z");
-    assert.equal((await w.weekShell("chloe", 4)).component, "WeekNotOpen");
+    const early = await w.weekShell("chloe", 4);
+    assert.equal(early.component, "WeekView");
     at("2026-11-17T20:01:00Z");
     const open = await w.weekShell("chloe", 4);
     assert.equal(open.component, "WeekView");
+    assert.deepEqual(early.props, open.props);
     // Since C29 the shell also hands the page the notes Chloe's group shares,
     // read for her on the server: Group B's, under the board's heading, which
     // she may add to. Nothing else of anybody's.
@@ -256,12 +294,10 @@ describe("3. a week's page before it opens", () => {
     });
   });
 
-  test("a moved session moves the opening; a cancelled one opens the week now", async () => {
+  test("a moved session or a cancelled one changes nothing: the week after it is drawn either way", async () => {
     moveWeek3();
     at("2026-11-17T20:01:00Z");
-    const moved = await w.weekShell("chloe", 4);
-    assert.equal(moved.component, "WeekNotOpen");
-    assert.match(moved.text, /It opens on Wed 18 Nov, after your session\./);
+    assert.equal((await w.weekShell("chloe", 4)).component, "WeekView");
     w.reset();
     cancelWeek3();
     at(NOW.toISOString());
@@ -297,10 +333,10 @@ describe("3. a week's page before it opens", () => {
     assert.equal(shell.component, "WeekView");
     assert.equal(shell.props.viewerRole, "facilitator");
     const schedule = await scheduleOf("chloe");
-    assert.deepEqual(schedule[3].slice(2), [true, null]);
+    assert.deepEqual(schedule[3].slice(2), [true]);
   });
 
-  test("a member of another group is drawn week 4: her own group's session has ended", async () => {
+  test("a member of another group is drawn week 4, as every published week", async () => {
     assert.equal((await w.weekShell("amara", 4)).component, "WeekView");
   });
 
@@ -336,20 +372,24 @@ describe("4. a week's page (wk-week-phone)", () => {
         "Week 3 reading two Reading 30 min Cohort notes ▾ " +
         "Exercise A facilitator reviews it What is week 3 about? Due before your session Start the exercise " +
         "Rahul or Sofia will read it and reply. " +
-        "Week 2 Week 4 opens tonight, after your session See your progress week by week",
+        "Week 2 Week 4 See your progress week by week",
     );
+    // The way on is a link to week 4, open before tonight's session.
+    assert.match(html, /href="\/learn\/[^"]+\/weeks\/4"/);
     // Real boxes, each named for its reading.
     assert.equal((html.match(/type="checkbox"/g) ?? []).length, 3);
     assert.match(html, /aria-label="Done: Week 3 reading one"/);
     assert.match(html, /aria-label="Open Week 3 talk"/);
   });
 
-  test("once tonight's session has ended, the way on is a link to week 4", async () => {
-    at("2026-11-17T20:01:00Z");
-    await w.asBrowser("chloe");
-    const { html, text } = w.weekPage("chloe", 3);
-    assert.match(html, /href="\/learn\/[^"]+\/weeks\/4"/);
-    assert.doesNotMatch(text, /opens tonight/);
+  test("before tonight's session and once it has ended, the way on is a link to week 4, and nothing says when a week opens", async () => {
+    for (const iso of ["2026-11-17T12:00:00Z", "2026-11-17T20:01:00Z"]) {
+      at(iso);
+      await w.asBrowser("chloe");
+      const { html, text } = w.weekPage("chloe", 3);
+      assert.match(html, /href="\/learn\/[^"]+\/weeks\/4"/, iso);
+      assert.doesNotMatch(text, /opens tonight|opens on|after your session/, iso);
+    }
   });
 
   test("D2: a moved week's page, read before that week, shows its own session's date", async () => {
@@ -398,17 +438,18 @@ describe("4. a week's page (wk-week-phone)", () => {
 
   test("the way on is drawn only where it leads somewhere", async () => {
     // Before the start, with week 2 not published: week 1 has no week before
-    // it, and nothing after it to open or to wait for.
+    // it, and nothing after it to open.
     at("2026-10-31T12:00:00Z");
     w.world.db.poke(`courseRuns/${RUN.agi}/weeks/w02`, { published: false });
     await w.asBrowser("chloe");
     assert.doesNotMatch(w.weekPage("chloe", 1).html, /aria-label="Weeks"/);
-    // With week 2 published, it says when week 2 opens.
+    // With week 2 published, the way on is a link to it, before the first session.
     w.world.db.poke(`courseRuns/${RUN.agi}/weeks/w02`, { published: true });
     await w.asBrowser("chloe");
     const { html, text } = w.weekPage("chloe", 1);
     assert.match(html, /aria-label="Weeks"/);
-    assert.match(text, /Week 2 opens on Tue 3 Nov, after your session/);
+    assert.match(html, /href="\/learn\/[^"]+\/weeks\/2"/);
+    assert.doesNotMatch(text, /opens on|after your session/);
   });
 
   test("no sentence on the page has a dash of either kind", async () => {

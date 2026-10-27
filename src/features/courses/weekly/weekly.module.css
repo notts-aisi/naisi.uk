@@ -1493,11 +1493,6 @@ a.weekItem:focus-visible {
   font-weight: 700;
 }
 
-.weekOpens {
-  font-size: var(--text-caption);
-  color: var(--color-text-muted);
-}
-
 .weekSide {
   display: flex;
   align-items: center;
@@ -1863,36 +1858,6 @@ a.weekItem:focus-visible {
   border-radius: var(--radius-sm);
 }
 
-.weekNavNote {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0;
-  font-size: var(--text-sm);
-  line-height: 1.5;
-  color: var(--color-text-muted);
-  text-align: right;
-  text-wrap: balance;
-}
-
-.notOpen {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-6) var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-}
-
-.notOpenTitle {
-  margin: 0;
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: var(--text-xl);
-  line-height: 1.25;
-  color: var(--color-text);
-}
-
 /* === Questions to think about (C29): numbered 01, 02, 03 in mono === */
 
 .questions {
@@ -2204,15 +2169,6 @@ a.weekItem:focus-visible {
 
   .ticketActions > * {
     flex: 1 1 auto;
-  }
-
-  .weekWhen .weekOpens {
-    display: block;
-    margin-top: 2px;
-  }
-
-  .weekWhen .weekSep {
-    display: none;
   }
 }
 

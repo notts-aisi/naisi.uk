@@ -146,7 +146,7 @@ const READERS = {
   },
   "lib/courses/facilitatorWeek/readers.ts": {
     treats: "tells",
-    why: "a group's week for its facilitators, the programme's lead and admins: reflections only, of the people each viewer is shown, never an answer",
+    why: "a group's week for its facilitators, the programme's lead and admins: reflections, of the people each viewer is shown, and fill-in boxes (week 6's action plan), of exactly the people the boxes' own gate admits; never an answer",
   },
   "lib/courses/finishing/whoFinished.ts": {
     treats: "tells",

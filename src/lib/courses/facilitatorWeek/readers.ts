@@ -1,12 +1,15 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import type { FacilitatorGroupModel } from "@/lib/courses/facilitatorGroup";
+import { boxesReaderFor } from "@/lib/courses/fillInBoxes/access";
 import { resolveCalendar, resolveWeekDoc } from "@/lib/courses/groupResolve";
 import { resolveSessions, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
 import { dayRangeWords } from "@/lib/courses/sessionChange/words";
-import { isBlockWeek, type WeekBlock } from "@/lib/courses/weekBlocks/model";
+import { isBlockWeek, type FillInBlock, type WeekBlock } from "@/lib/courses/weekBlocks/model";
+import { weekFillInBoxes } from "@/lib/courses/weekBlocks/reader";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
-import { isReflectionResponse } from "@/lib/firestore/courseExercises";
+import { isFillInResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
+import type { SessionUser } from "@/lib/firebase/session";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { weekDocId, type CourseRunDoc, type CourseWeekDoc } from "@/lib/firestore/courses";
 import {
@@ -184,7 +187,10 @@ export type GroupWeekSource = {
   title: string;
   kindLabel: string;
   partNumber: number | null;
+  /** Everybody shown who ticked it, a facilitator's own tick marked as theirs (to the lead and admins). */
   ticked: WeekPerson[];
+  /** How many of the group's fellows ticked it, of `GroupWeek.of`: a facilitator's own tick is never counted. */
+  fellowsTicked: number;
   /** Null for a viewer who reads no private notes (the lead). */
   notes: Array<{ person: WeekPerson; text: string }> | null;
 };
@@ -199,13 +205,62 @@ export type GroupWeek = {
   /** Each part's reflection: how many of the group's fellows have written it, of how many. */
   counts: Array<{ number: number; written: number; of: number }>;
   sources: GroupWeekSource[];
-  /** The people a tick is counted over: everybody in `rows`. */
+  /**
+   * The group's fellows, whom every number on the page counts: the reflections
+   * and the ticks alike, for every viewer. ONE DENOMINATOR: the lead and admins
+   * are shown the facilitators' own rows and ticks too, marked as theirs, and
+   * counted in no number, so a group's numbers mean the same thing on its
+   * facilitators' page, the lead's and an admin's, and on the page where lines
+   * are read out, whichever of its facilitators also hold a place.
+   */
   of: number;
   /** Whether the viewer reads private notes. */
   readsNotes: boolean;
   /** To a facilitator: the group has facilitators, whose own work is left out of what they are shown. */
   ownLeftOut: boolean;
+  /** To the lead and admins: facilitators' own work is listed, marked as theirs, and counted in no number. */
+  ownApart: boolean;
+  /** The week's fill-in boxes (week 6's action plan), or null for a week with none. No one's words: `loadGroupWeekBoxes`. */
+  fillIn: GroupWeekFillIn | null;
 };
+
+/** A week's fill-in boxes, as their writer's card lays them out. */
+export type GroupWeekFillIn = {
+  /** The card's title as its writer reads it ("My action plan"). */
+  title: string;
+  /** Every box, in page order, under its numbered heading (the card numbers its headings 1, 2, 3). */
+  boxes: Array<{ id: string; number: number; heading: string; label: string }>;
+};
+
+/** The week's fill-in boxes, numbered by heading as the card numbers them; null for a week with none. */
+function fillInOf(week: CourseWeekDoc & { blocks: WeekBlock[] }): GroupWeekFillIn | null {
+  const boxes = weekFillInBoxes(week);
+  if (boxes.length === 0) return null;
+  const first = boxes[0];
+  const block = (function find(list: readonly WeekBlock[]): FillInBlock | null {
+    for (const candidate of list) {
+      if (candidate.type === "fillIn" && candidate.id === first.blockId) return candidate;
+      if (candidate.type === "part") {
+        const inner = find(candidate.blocks);
+        if (inner) return inner;
+      }
+    }
+    return null;
+  })(week.blocks);
+  let number = 0;
+  let last: string | null = null;
+  return {
+    title: block?.title ?? "",
+    boxes: boxes.map((box) => {
+      const group = `${box.blockId} ${box.heading}`;
+      if (group !== last) {
+        number += 1;
+        last = group;
+      }
+      return { id: box.id, number, heading: box.heading, label: box.label };
+    }),
+  };
+}
 
 /**
  * A group's week as `viewer` is shown it, or null when the week it is on is
@@ -265,6 +320,7 @@ export async function loadGroupWeek(
       kindLabel: source.kindLabel,
       partNumber: source.partNumber,
       ticked: people.filter((person) => ticks.get(source.id)?.has(person.uid) === true),
+      fellowsTicked: fellows.filter((row) => ticks.get(source.id)?.has(row.uid) === true).length,
       notes:
         notes === null
           ? null
@@ -273,10 +329,79 @@ export async function loadGroupWeek(
               .filter((note): note is { person: WeekPerson; text: string } => note.person !== undefined)
               .sort((a, b) => people.indexOf(a.person) - people.indexOf(b.person)),
     })),
-    of: people.length,
+    of: fellows.length,
     readsNotes: notes !== null,
     ownLeftOut: !seesFacilitatorsOwnWork(viewer) && model.facilitators.length > 0,
+    ownApart: rows.some((row) => row.own),
+    fillIn: fillInOf(week),
   };
+}
+
+// ---------------------------------------------------------------------------
+// The boxes each person filled in (week 6's action plan)
+// ---------------------------------------------------------------------------
+
+/** One person's boxes on a group's week, for a reader the gate lets read them. */
+export type PersonBoxes = {
+  person: WeekPerson;
+  /** How many of the week's boxes have words in them. */
+  filled: number;
+  /** Their words, by box id; a box left empty is absent. */
+  answers: Record<string, string>;
+};
+
+/**
+ * THE BOXES EACH PERSON ON A GROUP'S WEEK FILLED IN, for the reader the page
+ * has already let in, and for exactly the people the one gate lets that
+ * reader read: `boxesReaderFor`, which the reader route of somebody's boxes
+ * asks before a box is read (`GET .../fill-in-boxes`). So the group's
+ * facilitators read each fellow's, the programme's lead and admins read
+ * everybody's on the week, a facilitator's own included, and nobody reads a
+ * box the route would refuse them. The people are the week's rows, as the
+ * reader is shown them (`loadGroupWeek`); a person the gate refuses is left
+ * out, words and all.
+ *
+ * One read of the week's rows (equalities on the run and the week, as the
+ * reflections are read), fill-in boxes only, and the gate asked person by
+ * person. Empty for a week with no boxes.
+ */
+export async function loadGroupWeekBoxes(
+  db: Firestore,
+  input: { run: CourseRunDoc; actor: SessionUser; week: GroupWeek },
+): Promise<PersonBoxes[]> {
+  const { run, actor, week } = input;
+  if (!week.fillIn || week.rows.length === 0) return [];
+  const gates = await Promise.all(week.rows.map((row) => boxesReaderFor(db, actor, run.id, row.uid)));
+  const readable = week.rows.filter((_, index) => gates[index] !== null);
+  if (readable.length === 0) return [];
+  const uids = new Set(readable.map((row) => row.uid));
+  const boxIds = new Set(week.fillIn.boxes.map((box) => box.id));
+  const snap = await db
+    .collection("courseExerciseResponses")
+    .where("runId", "==", run.id)
+    .where("weekNumber", "==", week.weekNumber)
+    .get();
+  const answers = new Map<string, Record<string, string>>();
+  for (const doc of snap.docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    // Fill-in boxes only: a reflection and an answer each have readers of their own.
+    if (!isFillInResponse(data) || data.runId !== run.id) continue;
+    const uid = typeof data.uid === "string" ? data.uid : "";
+    const boxId = typeof data.exerciseId === "string" ? data.exerciseId : "";
+    const text = typeof data.text === "string" ? data.text : "";
+    if (!uids.has(uid) || !boxIds.has(boxId) || !text.trim()) continue;
+    const own = answers.get(uid) ?? {};
+    own[boxId] = text;
+    answers.set(uid, own);
+  }
+  return readable.map((row) => {
+    const own = answers.get(row.uid) ?? {};
+    return {
+      person: { uid: row.uid, name: row.name, firstName: row.firstName, own: row.own },
+      filled: Object.keys(own).length,
+      answers: own,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------

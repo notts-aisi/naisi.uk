@@ -242,7 +242,7 @@ export default function PredictionsCard({ runId, view: initial }: Props) {
         </>
       );
     } else if (view.opensNow) {
-      // Never sealed, and the week it opens in has opened: their answers, to read.
+      // Never sealed, and the card was due to open: their answers, to read.
       inner = (
         <>
           <p className={cardStyles.line}>{closedDraftWords(view.openWeek)}</p>
@@ -250,7 +250,7 @@ export default function PredictionsCard({ runId, view: initial }: Props) {
         </>
       );
     } else {
-      // The week it is filled in on is not open to them yet (a facilitator reading ahead).
+      // The week it is filled in on is not published for them yet (staff see such a week).
       inner = <p className={cardStyles.line}>{sealNotOpenWords(view.sealWeek)}</p>;
     }
   } else if (!view.opensNow) {

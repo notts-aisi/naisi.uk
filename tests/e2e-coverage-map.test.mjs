@@ -1853,7 +1853,7 @@ const NOT_COVERED = {
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week": {
     reason:
-      "Course hub: the lead's and admins' view of one group's week (This week's work, who ticked each source by name, its facilitators' own work); every caller is executed by tests/course-hub-facilitator-week.test.mjs, and it was checked in a browser on the preview kit at 1440 and 390.",
+      "Course hub: the lead's and admins' view of one group's week (This week's work with its pathway, written answer and case columns and each person's fill-in boxes, who ticked each source by name, its facilitators' own work); every caller is executed by tests/course-hub-facilitator-week.test.mjs, the columns and the boxes through the loaders the page calls by tests/course-hub-stage-four-journey.test.mjs, and it was checked in a browser on the preview kit at 1440 and 390.",
     coverWhen:
       "When the end-to-end fixtures can seed a run whose weeks are written as blocks, with ticks and reflections, and the programme's lead signed in.",
   },
