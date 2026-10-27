@@ -274,6 +274,14 @@ const MUST_GUARD = [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups-go-out/route.ts",
     "sets the day groups go out on a programme's run, which every holder of a place is told on Home, week 1 and their application",
   ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/route.ts",
+    "adds a group to the run a programme names, from the Times view",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time/route.ts",
+    "changes a group's day and start on the run a programme names, from the Times view",
+  ],
   // A programme's run as its lead reads and chases it. The attendance CSV
   // takes every register of the run off the platform and writes the
   // dataExports row that is the only record it happened; Remind emails a

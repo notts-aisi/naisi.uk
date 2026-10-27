@@ -1,5 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import { nextGroupName, sharedPlaces } from "@/lib/courses/groupTimes/rules";
+import { readsOf, toldGroupIds } from "@/lib/courses/groupTimes/told";
 import { readPitchingWeek } from "@/lib/courses/pitching/week";
 import type { SessionUser } from "@/lib/firebase/session";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
@@ -41,6 +43,13 @@ import {
  * else's. The painted weeks are read off each application through
  * `paintedWeekOf`, the reading the allocation board uses.
  *
+ * For the view's own controls ("Use for a group", "Change", "Add a group",
+ * whose writes are the two routes under the programme's `groups`), it also
+ * reads which of the run's groups Publish has told somebody the time of
+ * (`toldGroupIds`: the run's seats and its facilitators' markers), and works
+ * out what a new group is offered from the run's own groups: the next
+ * "Group" letter and the places they share.
+ *
  * WHAT IS WRITTEN: nothing. Nothing of anybody's week is kept: the picture
  * is worked out on each request and drawn into an admin's page.
  *
@@ -78,6 +87,15 @@ export type TimesView = {
    * Groups tab's views can offer that week's pitches; null otherwise.
    */
   pitchingWeek: number | null;
+  /**
+   * What the view's controls need. Null while there is no run to act on.
+   *  - `told`: the groups Publish has told somebody the time of. Their time
+   *    is not changed here: Change says so and points to Change a session,
+   *    and "Use for a group" does not offer them.
+   *  - `nextName`: what "Add a group" suggests ("Group E"), or "".
+   *  - `places`: the places every live group of the run shares, or null.
+   */
+  actions: { told: string[]; nextName: string; places: number | null } | null;
 };
 
 export type TimesOutcome =
@@ -92,11 +110,14 @@ export type TimesOutcome =
 
 const GROUPS_COLLECTION = "courseGroups";
 
-/** The run's groups that are not archived, reduced to what the picture reads. */
-async function groupsOf(db: Firestore, runId: string): Promise<TimesGroup[]> {
+/** One live group of the run: what the picture reads, and what its controls ask about it. */
+type LiveGroup = TimesGroup & { facilitatorUids: string[]; capacity: number | null };
+
+/** The run's groups that are not archived, reduced to what the picture and its controls read. */
+async function groupsOf(db: Firestore, runId: string): Promise<LiveGroup[]> {
   // One equality on one field, so no declared index.
   const snap = await db.collection(GROUPS_COLLECTION).where("runId", "==", runId).get();
-  const groups: TimesGroup[] = [];
+  const groups: LiveGroup[] = [];
   for (const doc of snap.docs) {
     const group = normalizeCourseGroup(doc.id, doc.data() ?? {});
     if (group.archived) continue;
@@ -109,6 +130,8 @@ async function groupsOf(db: Firestore, runId: string): Promise<TimesGroup[]> {
         startTimeLocal: group.session.startTimeLocal,
         durationMinutes: group.session.durationMinutes,
       },
+      facilitatorUids: [...group.facilitatorUids],
+      capacity: group.capacity,
     });
   }
   return groups;
@@ -142,6 +165,7 @@ export async function loadTimesPicture(
     length: { counted: 0, options: [], source: { kind: "none" } },
     picture: null,
     pitchingWeek: null,
+    actions: null,
   };
 
   if (programme.runId !== null) {
@@ -158,6 +182,12 @@ export async function loadTimesPicture(
   const options = lengthOptions(groups);
   const counted = pickLength(requestedLength, options, defaultLength(source));
   view.length = { counted, options, source };
+  const told = await toldGroupIds(db, readsOf(db), view.run.id, groups);
+  view.actions = {
+    told: groups.filter((group) => told.has(group.id)).map((group) => group.id),
+    nextName: nextGroupName(groups.map((group) => group.name)),
+    places: sharedPlaces(groups.map((group) => group.capacity)),
+  };
 
   // Nobody is counted, or named, until everybody has been told.
   if (form.decisionsSentAt === null) return { status: "ok", view: { ...view, blank: "not-sent" } };

@@ -222,6 +222,12 @@ const FETCHES_IT_CANNOT_READ = new Map([
       "the ones the page's loader lists, which `timedGroupsOf` orders with the comparator.",
   ],
   [
+    "src/features/applications/times/TimesActions.tsx",
+    "The Times view's two writes (`send(url)`), to the programme's own routes under " +
+      "`.../programmes/[programmeId]/groups`: one group's day and start, or a new group. Each names one group or " +
+      "none and lists none; the groups the view lists are the picture's, which orders them with the comparator.",
+  ],
+  [
     "src/features/applications/groups/GroupFacilitators.tsx",
     "The Facilitators view's asks, their test and Remind (`post(url)`), to the programme's own routes under " +
       "`.../programmes/[programmeId]/facilitators`: each names one group of the ones the view's read listed, and " +

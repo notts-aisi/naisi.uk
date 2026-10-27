@@ -819,6 +819,15 @@ export const ROUTES = {
         "form. Only the programme's lead and admins are ever shown the number.",
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Add a group, from the Groups tab's Times view: view-as is refused first, then the session, then the " +
+        "body (a name, a day, a start, a length and the places) is checked before anything is read, then the role " +
+        "from the form. Only the programme's lead and admins add one.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups-go-out": {
     PUT: {
       expect: signedIn(400),
@@ -826,6 +835,16 @@ export const ROUTES = {
         "When groups go out, from the Groups tab: view-as is refused first, then the session, then the " +
         "body (a whole date, or null) is checked before anything is read, then the role from the form. " +
         "Only the programme's lead and admins set it.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "A group's day and start, from the Groups tab's Times view: view-as is refused first, then the session, " +
+        "then the body (a day, a start and the time the dialog was opened on) is checked before anything is read, " +
+        "then the role from the form. Only the programme's lead and admins change it, and not once Publish has " +
+        "told somebody when the group meets.",
     },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/teams": {
@@ -3203,6 +3222,13 @@ export const PAGES = {
       "allocation board, the programme's lead's and an admin's, so a reviewer on the form is told so before the run is " +
       "read, and a programme the caller has no role on, or one that does not exist, renders 'there is no programme " +
       "here' in place of the page with a 200.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: Publish's page is the " +
+      "programme's lead's and an admin's, so a reviewer is told so before the run is read, and a programme the " +
+      "caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200 }),

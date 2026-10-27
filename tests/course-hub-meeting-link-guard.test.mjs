@@ -69,6 +69,10 @@ const READERS = {
     does: "saves",
     why: "the run editor's group card, where an admin or the run's staff type the link and the card checks it is a web address",
   },
+  "lib/courses/groupTimes/act.ts": {
+    does: "saves",
+    why: "a group added from the Times view is born in the run editor's own session shape, its link empty (null); nothing there reads it",
+  },
   "features/courses/GroupWeekEditor.tsx": {
     does: "shows",
     why: "a facilitator's week editor, which shows them the link their group will see on the site in an online week",

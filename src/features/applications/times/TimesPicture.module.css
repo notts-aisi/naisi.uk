@@ -380,10 +380,79 @@
   vertical-align: -3px;
 }
 
-/* The way to the run editor, where groups are added and their times changed. */
+/* The way to the run editor, where rooms, names and places are changed. */
 .editorLink {
   display: block;
   margin-top: 6px;
+}
+
+/* --- the controls (TimesActions.tsx) ------------------------------------ */
+
+/* "Use for a group" and "Change": a text button at the end of its row, as
+   tall as the touch floor. */
+.action {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-accent-text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.action:hover {
+  color: var(--color-accent-text-hover);
+}
+.action:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* "Add a group": the whole width of the card, under the groups. */
+.addGroup {
+  width: 100%;
+  margin-top: 14px;
+}
+
+/* What the last press came to. */
+.actionStatus {
+  margin-top: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+/* Inside a dialog: the groups "Use for a group" offers, and a refusal. */
+.choices {
+  display: flex;
+  flex-direction: column;
+}
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 15px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.choice input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-accent);
+}
+.dialogProblem {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-danger-text);
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 48rem) { /* --bp-md */

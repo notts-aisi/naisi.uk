@@ -130,6 +130,11 @@ const READERS = {
     asks: 1,
     why: "who reads and writes a group's shared notes: the caller's own place counts only once Publish has told them, whoever asks, an admin's own untold place included, so an untold seat neither reads nor writes its group's notes",
   },
+  "lib/courses/groupTimes/told.ts": {
+    kind: "told",
+    asks: 1,
+    why: "whether Publish has told anybody when a group meets, for the Times view and the two routes that change a group's time: a seat counts only once Publish has told it, and the answer is a group's id, never a seat or a name",
+  },
   "lib/courses/registerAccess.ts": {
     kind: "shown",
     asks: 1,

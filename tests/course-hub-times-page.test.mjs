@@ -79,7 +79,9 @@ const { loadTs: loadPage } = createLoader({
     [
       "next/navigation",
       "export function redirect(to) { throw Object.assign(new Error('NEXT_REDIRECT'), { to }); }\n" +
-        "export function useSelectedLayoutSegment() { return globalThis.__hubTimesUi.segment; }",
+        "export function useSelectedLayoutSegment() { return globalThis.__hubTimesUi.segment; }\n" +
+        // The Times view's controls read the page again after a press.
+        "export function useRouter() { return { refresh() {}, push() {}, replace() {} }; }",
     ],
     [
       "next/link",
@@ -89,9 +91,13 @@ const { loadTs: loadPage } = createLoader({
     ["@/components/ui/InitialsChip", "export default ({ name }) => globalThis.__hubTimesUi.h('span', null, name);"],
     [
       "@/features/applications/editor/controls",
-      "export function Chip({ children }) { return globalThis.__hubTimesUi.h('span', null, children); }",
+      "export function Chip({ children }) { return globalThis.__hubTimesUi.h('span', null, children); }\n" +
+        // The Times view's dialogs, which a page drawn on the server never opens.
+        "export function DialogFrame({ children }) { return globalThis.__hubTimesUi.h('div', null, children); }",
     ],
     ["./TimesPicture.module.css", CLASS_NAMES],
+    ["./Select.module.css", CLASS_NAMES],
+    ["@/features/applications/kit/kit.module.css", CLASS_NAMES],
     ["./GroupsViews.module.css", CLASS_NAMES],
     ["./editor.module.css", CLASS_NAMES],
     ["@/features/applications/editor/editor.module.css", CLASS_NAMES],
@@ -359,16 +365,33 @@ describe("who is counted is who holds a place", () => {
 
 describe("what the cards say", () => {
   test("the best times, each with the group that meets then", async () => {
-    const { text: said } = await draw("zach");
-    assert.match(said, /Best times Mon 6pm · 2 free Monday evening Mon 5pm · 1 free Mon 7pm · 1 free Thu 9am · 1 free Thu 10am · 1 free Thursday morning Thu 11am · 1 free/);
+    const { text: said, html } = await draw("zach");
+    // Since Times in full (st-times): "Use for a group" beside each best
+    // time no group meets at, and nowhere else. Until then the list carried
+    // no control at all.
+    assert.match(
+      said,
+      /Best times Mon 6pm · 2 free Monday evening Mon 5pm · 1 free Use for a group Mon 7pm · 1 free Use for a group Thu 9am · 1 free Use for a group Thu 10am · 1 free Thursday morning Thu 11am · 1 free Use for a group Your/,
+    );
+    assert.deepEqual(
+      [...html.matchAll(/aria-label="(Use [^"]+ for a group)"/g)].map((m) => m[1]),
+      ["Use Mon 5pm for a group", "Use Mon 7pm for a group", "Use Thu 9am for a group", "Use Thu 11am for a group"],
+    );
   });
 
   test("each group with its day, its time and how many can make it, and a group with no time in words", async () => {
     const { text: said } = await draw("zach");
     // Monday first, as People in groups lists them (the walk of stage two's fixes, G10).
+    // Since Times in full (st-times), each group's line ends with its Change,
+    // named for the group as the board names it.
     assert.match(
       said,
-      /Your 3 groups Monday evening Mon 6pm · 2 can make it To be arranged No session time set Thursday morning Thu 10am · 1 can make it/,
+      /Your 3 groups Monday evening Mon 6pm · 2 can make it Change To be arranged No session time set Change Thursday morning Thu 10am · 1 can make it Change 2 of 3/,
+    );
+    const { html } = await draw("zach");
+    assert.deepEqual(
+      [...html.matchAll(/aria-label="(Change [^"]+’s time)"/g)].map((m) => m[1]),
+      ["Change Monday evening’s time", "Change To be arranged’s time", "Change Thursday morning’s time"],
     );
   });
 
@@ -388,10 +411,20 @@ describe("what the cards say", () => {
     const editor = new RegExp(`<a href="/admin/courses/${COURSE.agi}/runs/${RUN.agi}" class="see editorLink">(.*?)</a>`).exec(html);
     assert.ok(editor, "no link to the run editor");
     assert.equal(text(editor[1]), "Add or change groups in the run editor");
-    for (const absent of ["Use for a group", "Change Group", "Add a group", "set in Settings"]) {
-      assert.ok(!said.includes(absent), `the page offers ${absent}`);
-    }
-    assert.ok(!/<button/.test(html), "the page has a button");
+    assert.ok(!said.includes("set in Settings"), "the page offers set in Settings");
+    // Since Times in full (st-times) the page offers exactly the board's three
+    // controls and nothing else: "Use for a group" beside each of the 4 best
+    // times no group meets at, "Change" beside each of the 3 groups, and one
+    // "Add a group". Until then it offered no button at all.
+    assert.deepEqual(
+      [...html.matchAll(/<button([^>]*)>(.*?)<\/button>/g)].map((m) => text(m[2])),
+      [
+        ...Array(4).fill("Use for a group"),
+        ...Array(3).fill("Change"),
+        "Add a group",
+      ],
+    );
+    for (const m of html.matchAll(/<button([^>]*)>/g)) assert.match(m[1], /type="button"/, "a button that would send a form");
     // The views are the four that exist, each a page of the tab: Sessions
     // (first since changing a session landed, as wk-session draws the row), the
     // run's allocation board (People in groups), this one, and Facilitators.
@@ -479,7 +512,8 @@ describe("every state has a sentence", () => {
     flagReviewers();
     const { text: said } = await draw("zach");
     assert.match(said, /No group has a session time yet\. This counts 90-minute sessions, the length a new group starts with\./);
-    assert.match(said, /Your groups This run has no groups yet\. Add groups in the run editor/);
+    // "Add a group" (st-times) sits above the admin's way to the run editor.
+    assert.match(said, /Your groups This run has no groups yet\. Add a group Add groups in the run editor/);
     assert.match(said, /Monday 6pm: 2 of 3 free/);
   });
 

@@ -67,6 +67,8 @@ const STYLESHEETS = [
   "./ProgrammeFrame.module.css",
   "./AllocationBoard.module.css",
   "./AllocationPublish.module.css",
+  // People in groups as the programme's hub draws it (board st-groups).
+  "./PeopleInGroups.module.css",
   "./ActionToast.module.css",
   "./Badge.module.css",
   "./Button.module.css",
@@ -206,19 +208,32 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("1. People in groups is the run's own allocation board", () => {
-  test("the lead is handed the board for the run the programme names, with no link to the run editor", async () => {
+  // Since People in groups was restyled (board st-groups) the hub draws the
+  // run's board with its own component, `PeopleInGroups`, over the same
+  // allocation route and moves (tests/course-hub-people-in-groups.test.mjs);
+  // the admin's mount under /admin/courses keeps `AllocationBoard`. Until
+  // then the hub handed `AllocationBoard` the run and a run editor link,
+  // which these two tests pinned. They now pin the run the hub's board is
+  // handed and who it is drawn for, as strictly.
+  test("the lead is handed the board for the run the programme names, drawn for the lead", async () => {
     const drawn = await draw(PeoplePage, "claudia");
-    const boards = find(drawn.element, "AllocationBoard");
+    const boards = find(drawn.element, "PeopleInGroups");
     assert.equal(boards.length, 1);
-    assert.deepEqual(boards[0].props, { courseId: COURSE.agi, runId: RUN.agi, runEditorHref: null });
+    assert.equal(find(drawn.element, "AllocationBoard").length, 0);
+    const { view } = boards[0].props;
+    assert.deepEqual(
+      [view.run, view.viewer, view.roundId, view.programmeId, view.blank],
+      [{ id: RUN.agi, courseId: COURSE.agi }, "lead", ROUND, AGI, null],
+    );
+    assert.ok(!drawn.html.includes(RUN_EDITOR), "the lead was offered the run editor");
     assert.match(drawn.html, new RegExp(`<a href="${PAGE_PATH}/groups" class="view viewCurrent" aria-current="page">People in groups</a>`));
     assert.equal(drawn.wrote, false);
   });
 
-  test("an admin is handed the same board, linked to the run editor", async () => {
+  test("an admin is handed the same board, drawn for an admin", async () => {
     const drawn = await draw(PeoplePage, "zach");
-    const [board] = find(drawn.element, "AllocationBoard");
-    assert.deepEqual(board.props, { courseId: COURSE.agi, runId: RUN.agi, runEditorHref: RUN_EDITOR });
+    const [board] = find(drawn.element, "PeopleInGroups");
+    assert.deepEqual([board.props.view.run, board.props.view.viewer], [{ id: RUN.agi, courseId: COURSE.agi }, "admin"]);
   });
 
   test("the board's empty state sends an admin to the run editor, and tells a lead an admin adds groups", () => {
@@ -281,7 +296,12 @@ describe("2. for the lead and an admin, decided before the run is read", () => {
       world.db.poke("users/claudia", { admissionsReviewer: true });
       world.db.poke(formPath, { [`programmes.${AGI}.leadUid`]: "nadia", [`programmes.${AGI}.reviewerUids`]: ["lloyd", "claudia"] });
       const replaced = await draw(Page, "claudia");
-      assert.equal(find(replaced.element, "AllocationBoard").length + find(replaced.element, "ProgrammeAttendance").length, 0);
+      assert.equal(
+        find(replaced.element, "AllocationBoard").length +
+          find(replaced.element, "PeopleInGroups").length +
+          find(replaced.element, "ProgrammeAttendance").length,
+        0,
+      );
       assert.match(replaced.text, /Only the programme’s lead and admins can open/);
       assert.deepEqual(replaced.reads, ["admissionRounds"]);
     });
@@ -312,7 +332,7 @@ describe("3. a programme with no run, in words for each", () => {
     world.db.poke(`courseRuns/${RUN.agi}`, { destroying: true });
     const destroying = await draw(PeoplePage, "claudia");
     assert.match(destroying.text, /The course run AGI Strategy names is no longer on the site\. An admin names another/);
-    assert.equal(find(destroying.element, "AllocationBoard").length, 0);
+    assert.equal(find(destroying.element, "AllocationBoard").length + find(destroying.element, "PeopleInGroups").length, 0);
     await world.db.collection("courseRuns").doc(RUN.agi).delete();
     const gone = await draw(AttendancePage, "zach");
     assert.match(gone.text, /The course run AGI Strategy names is no longer on the site\. Name another on the Settings tab/);

@@ -116,15 +116,19 @@ export const yourGroups = (count: number): string => `Your ${count} ${count === 
 /**
  * A group's line under its name: "Thu 6pm · 18 can make it". With the
  * group's own length when the groups' lengths differ:
- * "Thu 6pm · 90 minutes · 12 can make it".
+ * "Thu 6pm · 90 minutes · 12 can make it". `counted` is false while nobody
+ * has said when they are free: the line then says when the group meets and
+ * counts nobody ("Thu 6pm").
  */
 export function groupLine(
   session: { weekday: number; startMinute: number | null; durationMinutes: number },
   canMake: number | null,
   withLength: boolean,
+  counted = true,
 ): string {
-  if (canMake === null || session.startMinute === null) return "No session time set";
+  if (session.startMinute === null || (counted && canMake === null)) return "No session time set";
   const when = whenShort(session.weekday, session.startMinute);
+  if (!counted) return withLength ? `${when} · ${lengthWords(session.durationMinutes)}` : when;
   return withLength
     ? `${when} · ${lengthWords(session.durationMinutes)} · ${canMake} can make it`
     : `${when} · ${canMake} can make it`;
