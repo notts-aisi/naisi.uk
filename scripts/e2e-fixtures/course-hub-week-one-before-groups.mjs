@@ -127,10 +127,16 @@ export const SPEC = {
     ],
   },
   /**
-   * UNVERIFIED until the pull request's end-to-end job has passed it with a
-   * teardown of zero; the coverage map counts nothing of it until then.
+   * VERIFIED on 2026-10-27: against the harness's loopback server on a laptop
+   * (beside the other course hub specs), then in the pull request's end-to-end
+   * job (run 40441380710): all seventeen steps ran, 44 rows existed before
+   * teardown (a form and its question set, 3 applications and 3 decisions, a
+   * course and its run with 6 weeks, 2 groups, 2 run applications and 2
+   * enrolments, 1 course log row, 1 nudge, 1 progress row, 1 exercise response,
+   * 2 cohort subscriptions and 2 of their events, 6 rows of the send log, and 4
+   * accounts with their sign-ins), and the fixture manifest read zero after it.
    */
-  status: "unverified",
+  status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "before-groups" }),
   countRows: countTerm,
   teardown: teardownTerm,

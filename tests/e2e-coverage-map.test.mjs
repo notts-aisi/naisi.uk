@@ -676,43 +676,6 @@ const NOT_COVERED = {
     coverWhen:
       "With the spec for the press above, because the test is the press's first step.",
   },
-  "/api/courses/certificates/[code]": {
-    reason:
-      "Course hub: a certificate's owner turning its link on and off on its page (board en-cert). tests/course-hub-certificates-page.test.mjs executes it as the owner, a stranger, somebody signed out and a view-as session, and with unknown and malformed codes.",
-    coverWhen: "When the end-to-end fixtures can seed a certificate for a signed-in member.",
-  },
-  "/api/courses/certificates/[code]/pdf": {
-    reason:
-      "Course hub: Download PDF on a certificate's page (board en-cert). tests/course-hub-certificates-pdf.test.mjs executes it as the owner and everybody else, and reads the PDF's words, fonts and headers.",
-    coverWhen: "With the switch above.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview/certificates": {
-    reason:
-      "Course hub: the preview of one certificate and its email, opened from the Certificates section (board en-finish). tests/course-hub-certificates-send.test.mjs draws it as the lead, a reviewer and before the end.",
-    coverWhen: "With the certificates' send.",
-  },
-  "/(public)/c/[code]": {
-    reason:
-      "Course hub: a certificate's page (boards en-cert and en-cert-phone). tests/course-hub-certificates-page.test.mjs draws it as its owner, a stranger signed in, somebody signed out, an admin, the programme's lead and a view-as session, with its link on and off, and for unknown and malformed codes.",
-    coverWhen: "With the switch above.",
-  },
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing": {
-    reason:
-      "Course hub: one person's Finished switch on the Overview once a run's last session is over (board en-finish). tests/course-hub-finishing-routes.test.mjs executes it as every kind of caller, before and after the end, and tests/course-hub-finishing-pages.test.mjs draws the section it answers with.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a run whose last session is over, with finished registers, and its programme's lead signed in.",
-  },
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/certificates": {
-    reason:
-      "Course hub: Send N certificates on a programme's Overview once its run's last session is over (board en-finish). tests/course-hub-certificates-send.test.mjs executes it as every kind of caller, with every email read word for word and counted against the button, two presses racing, a send that fails, and a facilitator who finished sent both in one email.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a run whose last session is over, with finished registers, and its programme's lead signed in with a test of the email already sent.",
-  },
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/certificates/test": {
-    reason:
-      "Course hub: Send a test to me beside the certificates' send (board en-finish). tests/course-hub-certificates-send.test.mjs executes it as every kind of caller and reads the test word for word.",
-    coverWhen: "With the send above.",
-  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask": {
     reason:
       "Course hub: asking one person to facilitate one group, pressed by a programme's lead or an admin on the Groups tab's Facilitators view (board st-facilitators). tests/course-hub-facilitator-asks.test.mjs executes it as every kind of caller, with the email it sends read word for word and counted against the button.",
@@ -734,12 +697,6 @@ const NOT_COVERED = {
       "Course hub: the facilitators' training, a setting of the run on a programme's Settings tab; tests/course-hub-facilitator-asks.test.mjs executes it as every kind of caller, and what the email and the answer page then say.",
     coverWhen: "With the spec for the ask above, which sets the training before it asks.",
   },
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/finishing/rule": {
-    reason:
-      "Course hub: the rule for who finished, on a programme's Settings tab. tests/course-hub-finishing-routes.test.mjs executes it as every kind of caller, at its edges, and tests/course-hub-finishing-pages.test.mjs draws the card.",
-    coverWhen:
-      "With the spec for the switch above: setting the rule is that spec's first step.",
-  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups": {
     reason:
       "Course hub: Add a group, on a programme's Groups tab's Times view. tests/course-hub-times-actions.test.mjs executes it as every kind of caller, before Publish and after, and draws its dialog from the setup the page hands it.",
@@ -757,12 +714,6 @@ const NOT_COVERED = {
       "Course hub: Remind on the Overview's card of who has not said when they are free; tests/course-hub-get-ready.test.mjs executes it as every kind of caller, with the count it must match, once a person a day, and a failed send given back.",
     coverWhen:
       "When the end-to-end fixtures can seed a fellowship whose people sent the form with no week painted, with its lead signed in and the suite's mail catcher reading the reminder.",
-  },
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups-go-out": {
-    reason:
-      "Course hub: the day groups go out, set on a programme's Groups tab above its sessions. tests/course-hub-groups-go-out-day.test.mjs executes it as every kind of caller and draws the card and the programme's head.",
-    coverWhen:
-      "When a browser spec signs in as a programme's lead, sets the day, and a member holding a place reads it on Home.",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/roles": {
     reason:
@@ -1112,12 +1063,6 @@ const NOT_COVERED = {
     coverWhen:
       "With the spec for the ask above: the person asked signs in, opens the page from the email and says yes.",
   },
-  "/api/courses/runs/[runId]/guide/[doc]": {
-    reason:
-      "Course authoring: /api/courses/runs/[runId]/guide/[doc] loads a programme's Start here or Glossary, an admin's job for now, and every answer it gives is driven as each kind of caller in tests/course-guide-pages.test.mjs.",
-    coverWhen:
-      "When a lead loads their own programme's Start here or Glossary through it, because a mistake then reaches a run's people before an admin sees it.",
-  },
   "/api/courses/runs/[runId]/fill-in-boxes": {
     reason:
       "Course hub: one person's fill-in boxes, read by their group's facilitators, the programme's lead and admins (Q30 C; a facilitator's own by the lead and admins); every caller is executed by tests/course-hub-week-six.test.mjs. No page reads it yet: the facilitator's and the lead's pages that will are later pieces.",
@@ -1133,12 +1078,6 @@ const NOT_COVERED = {
   "/api/courses/runs/[runId]/material-notes": {
     reason:
       "Learn hub: /api/courses/runs/[runId]/material-notes belongs to the curriculum surface being rebuilt in October.",
-    coverWhen:
-      "When the October curriculum rebuild lands, because a spec written against today's shape would be thrown away with it.",
-  },
-  "/api/courses/runs/[runId]/my-exercises": {
-    reason:
-      "Learn hub: /api/courses/runs/[runId]/my-exercises belongs to the curriculum surface being rebuilt in October.",
     coverWhen:
       "When the October curriculum rebuild lands, because a spec written against today's shape would be thrown away with it.",
   },
@@ -1184,12 +1123,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the page that shows a lead somebody's reflections exists and a browser spec opens it.",
   },
-  "/api/courses/runs/[runId]/reflections/[promptId]": {
-    reason:
-      "Course hub: a reflection box on a week written as blocks, saved as the person types (st-week1-phone, wk-week-phone); who writes, who is refused and what a box keeps are executed by tests/course-hub-week-blocks-page.test.mjs; typed in a browser on the preview kit at 390, saved, reloaded and read back.",
-    coverWhen:
-      "When a browser spec signs in a member of a group Publish has told, opens a week written as blocks, writes in a box, reloads and reads it back.",
-  },
   "/api/courses/runs/[runId]/retrospective": {
     reason:
       "Learn hub: /api/courses/runs/[runId]/retrospective belongs to the curriculum surface being rebuilt in October.",
@@ -1208,12 +1141,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
   },
-  "/api/courses/runs/[runId]/weeks/[weekId]/blocks": {
-    reason:
-      "Course hub: /api/courses/runs/[runId]/weeks/[weekId]/blocks loads a week as blocks for admins and the programme's lead (the Weeks tab), and every answer it gives is driven as each kind of caller in tests/course-week-blocks-loader.test.mjs and, as the lead, in tests/course-hub-weeks-tab-week.test.mjs.",
-    coverWhen:
-      "When a browser spec signs in as a programme's lead, pastes a week on the Weeks tab, saves it as a draft and marks it ready, because the lead's Weeks tab now reaches a run's people through it.",
-  },
   "/api/courses/runs/[runId]/weeks/[weekId]/owner": {
     reason:
       "Course hub: a week's owner on the Weeks tab (pr-weeks), the programme's lead's and admins'; every caller, every refusal and what it stores are executed by tests/course-hub-weeks-tab-week.test.mjs.",
@@ -1225,18 +1152,6 @@ const NOT_COVERED = {
       "Course hub: In person or Online for a whole week on the Weeks tab (pr-weeks), written as the groups' own week mode; every caller, the groups it leaves alone, the link it needs and that it emails nobody are executed by tests/course-hub-weeks-tab-week.test.mjs.",
     coverWhen:
       "When a browser spec signs in as a programme's lead on the Weeks tab, holds a week online and a member of a group opens its join link on the programme page.",
-  },
-  "/api/courses/runs/[runId]/week-one/ticks/[itemId]": {
-    reason:
-      "Course hub: somebody holding a place ticks week 1 off before groups go out (Q35 B, st-week1-phone); every caller, every refusal and the row it writes are executed by tests/course-hub-week-one-before-groups.test.mjs.",
-    coverWhen:
-      "When a browser spec signs in as somebody holding a place before Publish, opens week 1 once it is marked ready, and ticks a source.",
-  },
-  "/api/courses/runs/[runId]/weeks/[weekId]/ready": {
-    reason:
-      "Course hub: the programme's lead's and admins' Mark ready and Not ready for a week (pr-weeks, Q35), pressed on the programme's Overview and in the run's week editor; every caller and every refusal is executed by tests/course-hub-week-ready.test.mjs.",
-    coverWhen:
-      "When a browser spec signs in as a programme's lead, marks week 1 ready on the Overview, and a member holding a place opens week 1.",
   },
   "/api/courses/runs/[runId]/written-answers/[answerId]": {
     reason:
@@ -1431,12 +1346,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the first issue goes to the real list and an unsubscribe link is somebody's only way out.",
   },
-  "/api/surveys": {
-    reason:
-      "Surveys: making a programme's before survey; tests/surveys-routes.test.mjs executes the handler as every kind of caller, the template word for word, and its refusals.",
-    coverWhen:
-      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
-  },
   "/api/surveys/[surveyId]/open-at-event": {
     reason:
       "Surveys after events: opening one for its QR code; tests/surveys-events.test.mjs opens it once as an admin, refuses everybody else, view-as and a second press, and finds it emailed nobody.",
@@ -1446,36 +1355,6 @@ const NOT_COVERED = {
   "/api/surveys/[surveyId]/people/[who]": {
     reason:
       "Surveys: opening one person's answers; tests/surveys-one-person.test.mjs opens them as every kind of caller, holds the opening recorded before anything of the person is read, and refuses whole when it cannot be recorded.",
-    coverWhen:
-      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
-  },
-  "/api/surveys/[surveyId]/questions": {
-    reason:
-      "Surveys: changing a survey until it is sent; tests/surveys-routes.test.mjs saves words, options, lines and order, and is refused a removed question and any change after the send.",
-    coverWhen:
-      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
-  },
-  "/api/surveys/[surveyId]/test": {
-    reason:
-      "Surveys: the test the send waits for; tests/surveys-routes.test.mjs sends it to the presser alone and holds the send to it, word for word.",
-    coverWhen:
-      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
-  },
-  "/api/surveys/[surveyId]/send": {
-    reason:
-      "Surveys: the first send and the send to people who joined since; tests/surveys-routes.test.mjs reads every email, its link, its count and its single claim.",
-    coverWhen:
-      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
-  },
-  "/api/surveys/[surveyId]/remind": {
-    reason:
-      "Surveys: Remind, by hand; tests/surveys-routes.test.mjs holds it to its own test and to people who have not answered and still hold a place.",
-    coverWhen:
-      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
-  },
-  "/api/surveys/[surveyId]/close": {
-    reason:
-      "Surveys: closing early; tests/surveys-routes.test.mjs closes one and is then refused every send and answer.",
     coverWhen:
       "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
   },
@@ -1509,12 +1388,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a programme whose survey at the end has answers, so a spec can publish its numbers and take them down again.",
   },
-  "/api/surveys/[surveyId]/export": {
-    reason:
-      "Surveys: the spreadsheet with names; tests/surveys-routes.test.mjs reads the file and the dataExports row written before it, and the refusal when the row cannot be written.",
-    coverWhen:
-      "When an end-to-end spec downloads a file anywhere on the site, so the download path is driven in a browser once for all of them.",
-  },
   "/api/surveys/[surveyId]/consent": {
     reason:
       "Surveys: a follow-ups consent changed signed in; tests/surveys-routes.test.mjs changes it as the person the survey was sent to and is refused for everybody else, signed out and during view-as.",
@@ -1527,23 +1400,11 @@ const NOT_COVERED = {
     coverWhen:
       "When the profile spec reaches the sections under the notification grid, so a browser presses the button and reads the line change.",
   },
-  "/api/surveys/consent": {
-    reason:
-      "Surveys: a follow-ups consent changed by a personal link; tests/surveys-routes.test.mjs stops and restarts it from the before survey's page and from a follow-up's, and refuses a wrong, malformed or test link and a survey that does not ask it.",
-    coverWhen:
-      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
-  },
   "/api/surveys/term/totals": {
     reason:
       "Surveys: This term in numbers as a file of totals; tests/surveys-term-numbers-file.test.mjs asks for it as every kind of caller, reads it line by line against the page's own view, and holds it to naming nobody and writing nothing.",
     coverWhen:
       "When an end-to-end spec downloads a file anywhere on the site, so the download path is driven in a browser once for all of them.",
-  },
-  "/api/surveys/[surveyId]/answer": {
-    reason:
-      "Surveys: answering signed in; tests/surveys-routes.test.mjs answers as the person sent it and is refused for everybody else and during view-as.",
-    coverWhen:
-      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/anonymous-feedback": {
     reason:
@@ -1556,12 +1417,6 @@ const NOT_COVERED = {
       "The anonymous keep, change and drop form: answering by the programme's one link; tests/anonymous-feedback.test.mjs answers signed out, signed in and in a view-as session, keeps only the three answers, the programme and the day, and refuses a wrong, malformed, closed or destroyed form's link and a flood past either limit.",
     coverWhen:
       "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can send the survey at the end, answer it and open the form from its end.",
-  },
-  "/api/surveys/answer": {
-    reason:
-      "Surveys: answering by a personal link; tests/surveys-routes.test.mjs answers by link, once, and refuses a wrong, malformed or test link and a closed survey.",
-    coverWhen:
-      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
   },
   "/api/tasks/[id]/delete": {
     reason:
@@ -1719,12 +1574,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the risk-ordered list reaches admin CRUD, which is after every applicant-facing and member-facing journey in this map is verified.",
   },
-  "/(app)/admin/(admin-only)/surveys": {
-    reason:
-      "Surveys: the admins' list; tests/surveys-routes.test.mjs renders it with a survey open and after its form has gone.",
-    coverWhen:
-      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
-  },
   "/(app)/admin/(admin-only)/surveys/kairos": {
     reason:
       "Surveys: the Kairos page, each programme with its file and report; tests/kairos-file.test.mjs renders it before and after a run's last session.",
@@ -1743,51 +1592,15 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a programme whose survey at the end has answers, so a spec can publish its numbers and read them on the programme's public page.",
   },
-  "/(app)/admin/(admin-only)/surveys/new": {
-    reason:
-      "Surveys: New survey; its route is executed by tests/surveys-routes.test.mjs, and the page is a form over it.",
-    coverWhen:
-      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
-  },
   "/(app)/admin/(admin-only)/surveys/term": {
     reason:
       "Surveys: This term in numbers; tests/surveys-term-numbers-page.test.mjs renders the real page as every kind of caller over a term with events, check-ins, an event's survey and two programmes, and tests/surveys-term-numbers.test.mjs holds each number to its own page's reader.",
     coverWhen:
       "When the end-to-end fixtures seed a term whose events have check-ins and whose programmes have sent their surveys, so a spec can open the page as an admin.",
   },
-  "/(app)/admin/(admin-only)/surveys/[surveyId]": {
-    reason:
-      "Surveys: a survey's address, which opens its Questions or its Results tab.",
-    coverWhen:
-      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
-  },
   "/(app)/admin/(admin-only)/surveys/[surveyId]/answered/[who]": {
     reason:
       "Surveys: one person's answers, opened from Who answered; tests/surveys-one-person.test.mjs renders the page before the opening and what it draws once the opening route answers.",
-    coverWhen:
-      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
-  },
-  "/(app)/admin/(admin-only)/surveys/[surveyId]/questions": {
-    reason:
-      "Surveys: the editor; its route is executed by tests/surveys-routes.test.mjs.",
-    coverWhen:
-      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
-  },
-  "/(app)/admin/(admin-only)/surveys/[surveyId]/send": {
-    reason:
-      "Surveys: the Send tab; tests/surveys-routes.test.mjs renders it before and after the first send and reads every count.",
-    coverWhen:
-      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
-  },
-  "/(app)/admin/(admin-only)/surveys/[surveyId]/answered": {
-    reason:
-      "Surveys: Who answered; tests/surveys-routes.test.mjs renders it.",
-    coverWhen:
-      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
-  },
-  "/(app)/admin/(admin-only)/surveys/[surveyId]/results": {
-    reason:
-      "Surveys: the results; tests/surveys-routes.test.mjs renders them from the first answer, with no name, and after names have come off.",
     coverWhen:
       "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can make, send and answer a survey.",
   },
@@ -1875,29 +1688,11 @@ const NOT_COVERED = {
     coverWhen:
       "When the groups-go-out spec presses Publish from the programme's own Groups tab rather than the run editor's board.",
   },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks": {
-    reason:
-      "Course hub: the Weeks tab lists the run's weeks for a programme's lead and admins (pr-weeks); its every caller, each week's state, first session, ready-by day and owner, and where the weeks meet are executed by tests/course-hub-weeks-tab.test.mjs, and it was checked by hand at 1440 and 390.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a programme that names a run with groups and weeks, with its lead signed in.",
-  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/copy": {
     reason:
       "Course hub: Copy weeks from the course, a page of the Weeks tab; its every caller and the copy it sends (never an overwrite) are executed by tests/course-hub-weeks-tab.test.mjs.",
     coverWhen:
       "When a course has two runs on dev and a browser spec copies one's weeks into the other as its programme's lead.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]": {
-    reason:
-      "Course hub: one week's page on the Weeks tab, where the lead pastes, checks and saves a week, chooses its owner, says how it meets, loads its facilitator guide and marks it ready; every caller and every control is executed by tests/course-hub-weeks-tab-week.test.mjs and tests/course-hub-weeks-tab-groups.test.mjs, and it was checked by hand at 1440 and 390.",
-    coverWhen:
-      "When a browser spec signs in as a programme's lead, pastes a week on the Weeks tab, saves it as a draft and marks it ready.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/preview": {
-    reason:
-      "Course hub: Preview as a fellow, the member's own week page drawn with nothing that can be pressed; its every caller, a group's copy and that it reads nobody's answers are executed by tests/course-hub-weeks-tab-week.test.mjs, and it was checked by hand at 1440 and 390.",
-    coverWhen:
-      "When a browser spec signs in as a programme's lead and previews a week it has pasted.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
     reason:
@@ -2023,18 +1818,6 @@ const NOT_COVERED = {
       "Learn hub: /(app)/learn/[runId]/email is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
     coverWhen:
       "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
-  },
-  "/(app)/learn/[runId]/glossary": {
-    reason:
-      "Course hub: a programme's Glossary (wk-glossary), open to exactly the people the run's week 1 opens to; every kind of caller, the count from the record and the terms in the guide's order are executed by tests/course-guide-pages.test.mjs, and its find box's filter by the same suite.",
-    coverWhen:
-      "When the browser spec for week 1 before groups go out signs in somebody holding a place, opens the Glossary from week 1's page and finds a term in the box.",
-  },
-  "/(app)/learn/[runId]/start-here": {
-    reason:
-      "Course hub: a programme's Start here (wk-start), open to exactly the people the run's week 1 opens to; every kind of caller, the guide's sections in order and the line naming who reads reflections from records are executed by tests/course-guide-pages.test.mjs.",
-    coverWhen:
-      "When the browser spec for week 1 before groups go out signs in somebody holding a place and opens Start here from week 1's page.",
   },
   "/(app)/learn/[runId]/group/[groupId]/edit": {
     reason:
@@ -2169,24 +1952,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
   },
-  "/(app)/learn/[runId]/survey/[surveyId]": {
-    reason:
-      "Surveys: the answer page signed in; tests/surveys-routes.test.mjs renders it for the person sent it and for everybody else.",
-    coverWhen:
-      "When the card on week 1 and Home that links to it lands, with a spec that follows the card.",
-  },
   "/(app)/learn/[runId]/group/[groupId]/written": {
     reason:
       "Course hub: a group's written answers one at a time (wk-review, wk-review-phone), for its facilitators and admins; drawn as each kind of caller in tests/course-hub-written-answers.test.mjs.",
     coverWhen:
       "When a browser spec signs in as a group's facilitator, opens a sent answer, gives feedback by the rubric, " +
         "and the member reads it on the feedback page.",
-  },
-  "/(app)/learn/[runId]/weeks/[n]": {
-    reason:
-      "Learn hub: /(app)/learn/[runId]/weeks/[n] is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
-    coverWhen:
-      "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
   },
   "/(app)/learn/[runId]/weeks/[n]/feedback": {
     reason:
@@ -2392,12 +2163,6 @@ const NOT_COVERED = {
       "The links page is checked-in rows, one read of published events and the home page's subscribe form, whose route tests/subscriptions-consent.test.mjs executes; what is new on it is the source attribution, which tests/campaign-attribution.test.mjs pins as a pure function.",
     coverWhen:
       "When scan counting or an admin-editable list of rows lands on it, because then the page writes and its content stops being a checked-in file.",
-  },
-  "/survey/[token]": {
-    reason:
-      "Surveys: the answer page by a personal link; tests/surveys-routes.test.mjs renders it for each kind of person (the box's names, an untold group, answered, closed, a test) and finds it writes nothing.",
-    coverWhen:
-      "When the end-to-end fixtures seed a term after decision day with a run whose sessions are dated, so a spec can open a link from the email in Mailpit and answer.",
   },
   "/feedback/[token]": {
     reason:
