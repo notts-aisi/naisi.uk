@@ -140,7 +140,11 @@ export type TermProgrammeRow = {
   finished: number | null;
   /** Null until the survey at the end has been sent to a programme whose before survey was. */
   answeredBoth: number | null;
-  /** Of those who answered both, how many said they were considering, planning or already doing it, at each end. */
+  /**
+   * Of the people who answered the stage question in both surveys (`of`, which
+   * is at most `answeredBoth`), how many said they were considering, planning
+   * or already doing it, at each end. Null while nobody has answered it both times.
+   */
   considering: { start: number; end: number; of: number } | null;
   afterSurvey: string;
 };
@@ -280,10 +284,21 @@ function programmeRow(programme: TermProgramme): TermProgrammeRow {
     // The change view's own pairing: by person, names on, at both ends.
     const both = bothOf(before.answers, after.answers);
     answeredBoth = both.length;
-    if (both.length > 0) {
-      const at = (side: "earlier" | "later") =>
-        both.filter((person) => (stageIn(side === "earlier" ? before : after, person[side]) ?? -1) >= CONSIDERING_STAGE).length;
-      considering = { start: at("earlier"), end: at("later"), of: both.length };
+    // C1 at each end, over the people who answered C1 itself both times,
+    // with that number beside it: every question can be skipped, and public
+    // numbers, the Kairos report and the after survey's Results count the
+    // stage the same way (`pairsOf` in src/lib/surveys/change.ts).
+    const stages = both.flatMap((person) => {
+      const start = stageIn(before, person.earlier);
+      const end = stageIn(after, person.later);
+      return start !== null && end !== null ? [{ start, end }] : [];
+    });
+    if (stages.length > 0) {
+      considering = {
+        start: stages.filter((each) => each.start >= CONSIDERING_STAGE).length,
+        end: stages.filter((each) => each.end >= CONSIDERING_STAGE).length,
+        of: stages.length,
+      };
     }
   }
   let afterSurvey: string;

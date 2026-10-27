@@ -105,6 +105,28 @@ describe("when check-in is open", () => {
     assert.equal(lib.checkInNamesOffAt(event()).toISOString(), "2027-11-01T17:00:00.000Z");
   });
 
+  // A week after the event is a day: a survey closing on it, at 23:59, takes
+  // the walk-ins' emails and adding somebody who came with it, so the survey
+  // is never open on its last evening without them (walk 4b, L8).
+  test("a survey closing on the day a week after the event closes together with the walk-ins' emails and adding somebody who came", () => {
+    const at = (iso) => new Date(iso);
+    const thatNight = at("2026-11-08T23:59:00Z");
+    assert.equal(lib.walkInEmailGoesAt(event(), thatNight).toISOString(), "2026-11-08T23:59:00.000Z");
+    assert.equal(lib.addLaterUntil(event(), thatNight).toISOString(), "2026-11-08T23:59:00.000Z");
+    assert.equal(lib.checkInPhase(event(), at("2026-11-08T20:00:00Z"), thatNight), "later", "after the event's hour, still open with the survey");
+    assert.equal(lib.checkInPhase(event(), at("2026-11-09T00:00:00Z"), thatNight), "closed");
+    // A day later: the week's own hour. A day earlier: its close. No survey: the week's hour.
+    assert.equal(lib.walkInEmailGoesAt(event(), at("2026-11-09T23:59:00Z")).toISOString(), "2026-11-08T17:00:00.000Z");
+    assert.equal(lib.walkInEmailGoesAt(event(), at("2026-11-07T23:59:00Z")).toISOString(), "2026-11-07T23:59:00.000Z");
+    assert.equal(lib.checkInPhase(event(), at("2026-11-08T17:00:01Z")), "closed");
+    // The day is London's: an event ending at 00:30 on a summer night is a
+    // week on at 00:30 that day, and a survey closing at 23:59 that day ends with it.
+    const summer = { startAt: at("2026-06-01T21:30:00Z"), endAt: at("2026-06-01T23:30:00Z") };
+    assert.equal(lib.walkInEmailGoesAt(summer, at("2026-06-09T22:59:00Z")).toISOString(), "2026-06-09T22:59:00.000Z");
+    assert.equal(lib.walkInEmailGoesAt(summer, at("2026-06-08T22:59:00Z")).toISOString(), "2026-06-08T22:59:00.000Z", "a day earlier, in London");
+    assert.equal(lib.walkInEmailGoesAt(summer, at("2026-06-10T22:59:00Z")).toISOString(), "2026-06-08T23:30:00.000Z");
+  });
+
   test("only a published event has a door", () => {
     for (const status of ["draft", "pending", "approved", "rejected", "cancelled"]) {
       assert.equal(lib.eventTakesCheckIns({ status }), false, status);

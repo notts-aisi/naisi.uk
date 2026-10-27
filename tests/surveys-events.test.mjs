@@ -577,7 +577,9 @@ describe("the admins' pages for a survey after an event", () => {
     const send = await w.page("app/(app)/admin/(admin-only)/surveys/[surveyId]/send/page.tsx", { params: Promise.resolve({ surveyId: id }) }, "zach");
     assert.match(send.text, /Who answers People at an event Its sign-ups or the people who came, and a QR code there\. Event: VR games night · Sun 1 Nov/);
     assert.match(send.text, /At the event: the QR code naisi\.invalid\/q\/vr-survey Up since Sun 1 Nov, 4:30pm · 1 answer Download PNG Show full screen/);
-    assert.match(send.text, /Email Everyone who came, with an email: 5 3 who signed up and checked in, and 2 walk-ins who left an email Everyone who signed up: 3/);
+    // Mo walked in signed in, with no sign-up: the email goes to Mo's account,
+    // so Mo is said apart from the walk-in who left an email (walk 4b, L5).
+    assert.match(send.text, /Email Everyone who came, with an email: 5 3 who signed up and checked in, 1 who came without signing up, and 1 walk-in who left an email Everyone who signed up: 3/);
     assert.match(send.text, /1 person already answered at the event while signed in, so they won’t get the email\. Emails 4 people\./);
     assert.match(send.text, /How was VR games night\?/);
     assert.match(send.text, /Admins only\. Iris, the organiser, sees how many came, not the results\./);

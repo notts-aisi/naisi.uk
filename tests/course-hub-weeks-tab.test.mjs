@@ -265,6 +265,21 @@ describe("5. the tab in the programme's row", () => {
     assert.ok(!head.html.includes(`${PROGRAMME_PATH}/weeks"`));
   });
 
+  // The Groups tab counts the run's groups that still meet once the
+  // programme names a run, as the head's "in 3 groups" does; the form's
+  // planned number before a run is named, and for a reviewer, who does not
+  // open the run (walk 4b, L10).
+  test("Groups counts the run's groups that still meet for the lead and an admin; the form's planned number with no run, and for a reviewer", async () => {
+    world.db.poke(`admissionRounds/${ROUND}`, { [`programmes.${AGI}.groupCount`]: 6 });
+    world.db.poke(`courseGroups/${D}`, { archived: true });
+    for (const who of ["claudia", "zach"]) {
+      assert.match((await draw(who, Layout, PARAMS, { segment: "weeks" })).text, /Groups 3 Weeks 6 /, who);
+    }
+    assert.match((await draw("lloyd", Layout, PARAMS, { segment: "applications" })).text, /Groups 6 /);
+    world.db.poke(`admissionRounds/${ROUND}`, { [`programmes.${AGI}.runId`]: null });
+    assert.match((await draw("claudia", Layout, PARAMS, { segment: "weeks" })).text, /Groups 6 Weeks /);
+  });
+
   test("with no run named, the tab is still a link and carries no count", async () => {
     world.db.poke(`admissionRounds/${ROUND}`, { [`programmes.${AGI}.runId`]: null });
     const head = await draw("claudia", Layout, PARAMS, { segment: "weeks" });

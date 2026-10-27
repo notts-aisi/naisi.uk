@@ -160,6 +160,14 @@
   color: var(--color-text-muted);
 }
 
+/* Once published: when, and what a later move emails, under the card's head. */
+.publishedLine {
+  margin: 8px 0 0;
+  max-width: 60ch;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
 .items {
   margin: 4px 0 0;
   padding: 0;

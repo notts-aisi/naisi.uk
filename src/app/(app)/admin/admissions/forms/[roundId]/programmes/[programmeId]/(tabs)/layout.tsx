@@ -15,7 +15,7 @@ import { stageSummaryFor } from "@/lib/applications/lifecycle/view";
 import { readRunEndById } from "@/lib/courses/finishing/record";
 import { groupsGoOutDay } from "@/lib/courses/groupsGoOut";
 import { readGroupsGoOut } from "@/lib/courses/groupsGoOutRead";
-import { readRunHeader } from "@/lib/courses/programmeAttendance";
+import { countRunGroups, readRunHeader } from "@/lib/courses/programmeAttendance";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { countRunWeeks } from "@/lib/courses/weeksTab/load";
 import { formatRunStartShort } from "@/lib/courses/window";
@@ -69,7 +69,10 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * (`countPlaceHolders`), worked out for an admin and the lead alone, who are
  * the two the tab opens for, and only once decisions have gone out. The
  * Weeks tab's is how many weeks the run's plan has (`countRunWeeks`), for the
- * same two.
+ * same two. The Groups tab's is how many groups the run has that still meet
+ * once the programme names a run (`countRunGroups`, the number the head's
+ * "in 3 groups" says), for the same two; the form's planned number of groups
+ * before a run is named, and for a reviewer.
  */
 export default async function ProgrammeLayout({
   children,
@@ -97,6 +100,14 @@ export default async function ProgrammeLayout({
   const people = db && opensProgrammeGroups(role) ? await countPlaceHolders(db, form, programme.id) : null;
   // How many weeks the run's plan has, beside Weeks: for the same two, while the programme names a run.
   const weeks = db && programme.runId && opensProgrammeGroups(role) ? await countRunWeeks(db, programme.runId) : null;
+  // How many groups, beside Groups: the run's own that still meet, for the same
+  // two, once the programme names a run (the head's "in 3 groups", counted the
+  // same way); the form's planned number otherwise.
+  const runGroups = runHeader
+    ? runHeader.groups
+    : db && programme.runId && opensProgrammeGroups(role)
+      ? await countRunGroups(db, programme.runId)
+      : null;
   // Before the run is under way, the day groups go out, for the lead and admins.
   const groupsGoOut =
     db && programme.runId && opensProgrammeGroups(role) && !runHeader
@@ -227,7 +238,7 @@ export default async function ProgrammeLayout({
         base={`${home}/programmes/${programme.id}`}
         applications={applications}
         people={people}
-        groups={programme.groupCount}
+        groups={runGroups ?? programme.groupCount}
         canEdit={role === "admin" || role === "lead"}
         groupsOpen={opensProgrammeGroups(role)}
         teams={teamsTab ? { count: teamsTab.count } : null}

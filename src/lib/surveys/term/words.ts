@@ -40,7 +40,10 @@ export const TERM_WORDS = {
   considering: "Considering, planning or already doing it",
   afterSurvey: "After survey",
   notYet: "Not yet",
-  footnote: "Considering, planning or already doing it: at the start → at the end, of the people who answered both surveys.",
+  /** The board's sentence named both surveys; the count is of the people who answered that question in both (listed for the boards' designers). */
+  footnote: "Considering, planning or already doing it: at the start → at the end, of the people who answered that question in both surveys.",
+  /** Not drawn: the file's column for how many that is, which the page writes after "of". */
+  consideringOf: "Considering, planning or already doing it: answered it in both surveys",
   /** Not drawn: an event after check-in was first used, with sign-ups, where nobody was checked in. */
   noCheckIn: "No check-in",
   /** Not drawn: a survey made for the event and not opened or sent yet. sv-list's word for a draft. */
@@ -103,7 +106,7 @@ export function averageWords(mean: number): string {
   return (Math.round(mean * 10) / 10).toFixed(1);
 }
 
-/** "8 → 15 of 25": at the start, at the end, of the people who answered both. */
+/** "8 → 15 of 25": at the start, at the end, of the people who answered the question in both surveys. */
 export function consideringWords(start: number, end: number, of: number): string {
   return `${start} → ${end} of ${of}`;
 }

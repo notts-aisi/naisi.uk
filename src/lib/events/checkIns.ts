@@ -1,5 +1,6 @@
 import "server-only";
 import type { DocumentReference, Firestore } from "firebase-admin/firestore";
+import { isSameSiteDay } from "@/lib/datetime/siteTime";
 import {
   CHECK_IN_LIMITS,
   EVENT_CHECK_INS_COLLECTION,
@@ -20,8 +21,9 @@ import type { EventDoc, RsvpDoc } from "@/lib/firestore/events";
  * (`surveyClosesAt`, from `src/lib/surveys/events/records.ts`).
  *
  * WHAT IS KEPT. A walk-in's email goes when the event's survey closes or a
- * week after the event, whichever comes first, and is used for that survey
- * alone; the day is kept on the record (`emailGoesAt`) and moved when the
+ * week after the event, whichever comes first (a survey closing on the day a
+ * week after the event takes it at its close: `addLaterUntil`), and is used
+ * for that survey alone; the day is kept on the record (`emailGoesAt`) and moved when the
  * survey's closing day is set or changed, or the survey is closed by hand
  * (`setWalkInEmailDeadlines`). Names come off a year after the event, and at
  * once when an account is deleted; what is left counts the person and names
@@ -61,15 +63,29 @@ export function doorWindow(event: Timed): { opensAt: Date; closesAt: Date } | nu
 /**
  * Until when somebody who came can be added from the event's page: a week
  * after the event, or when its survey closes if that is sooner.
+ *
+ * A WEEK AFTER THE EVENT IS A DAY, as everybody is told it ("We delete it on
+ * Sun 8 Nov, a week after the event"; "Until Sun 8 Nov, a week after the
+ * event"). So a survey that closes on that day, at 23:59 as a survey does,
+ * closes together with it: the walk-ins' emails, and adding somebody who
+ * came, end when the survey closes, and the survey is never open on its last
+ * evening without them. Without a survey, or with one closing on a later
+ * day, they end at the event's own hour a week on; with one closing on an
+ * earlier day, when it closes.
  */
 export function addLaterUntil(event: Timed, surveyClosesAt: Date | null = null): Date | null {
   const ends = eventEnds(event);
   if (!ends) return null;
   const week = new Date(ends.getTime() + ADD_LATER_FOR_MS);
-  return surveyClosesAt && surveyClosesAt.getTime() < week.getTime() ? surveyClosesAt : week;
+  if (!surveyClosesAt) return week;
+  if (surveyClosesAt.getTime() < week.getTime() || isSameSiteDay(surveyClosesAt, week)) return surveyClosesAt;
+  return week;
 }
 
-/** When a walk-in's email goes: when the event's survey closes or a week after the event, whichever comes first. */
+/**
+ * When a walk-in's email goes: when the event's survey closes or a week after
+ * the event, whichever comes first, the week being a day (`addLaterUntil`).
+ */
 export function walkInEmailGoesAt(event: Timed, surveyClosesAt: Date | null = null): Date | null {
   return addLaterUntil(event, surveyClosesAt);
 }

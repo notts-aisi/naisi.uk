@@ -4,6 +4,7 @@ import { statusWords } from "@/lib/applications/people/words";
 import { groupTagOf, groupsInWords } from "@/lib/courses/programmeAttendance";
 import type { WeekOneLine } from "@/lib/courses/weekOneLine";
 import {
+  AFTER_PUBLISHED,
   ALL_ON_THE_LIST,
   EVERY_GROUP_HAS_A_FACILITATOR,
   EVERY_GROUP_HAS_A_ROOM,
@@ -581,6 +582,12 @@ export type ReadyItem = {
 export type ReadinessModel = {
   /** Nothing Publish needs is missing. */
   ready: boolean;
+  /**
+   * Once the groups are published: when, in the Overview's checklist's own
+   * words ("Published Tue 27 Oct, 10am."), and what a later move emails.
+   * Null before the first press.
+   */
+  published: { when: string; later: string } | null;
   needed: ReadyItem[];
   worth: ReadyItem[];
 };
@@ -684,5 +691,12 @@ export function buildReadiness(facts: GetReadyFacts): ReadinessModel {
     );
   }
 
-  return { ready: needed.every((entry) => entry.state === "done"), needed, worth };
+  return {
+    ready: needed.every((entry) => entry.state === "done"),
+    published: facts.published
+      ? { when: publishedWords(facts.published.day, facts.published.clock), later: AFTER_PUBLISHED }
+      : null,
+    needed,
+    worth,
+  };
 }

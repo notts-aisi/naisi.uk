@@ -425,6 +425,55 @@ describe("3. needs attention", () => {
     assert.match((await draw("claudia")).text, /Needs attention Nothing needs attention\./);
   });
 
+  // A leaver no register marked: People names them, and the Overview is the
+  // one page that reads what they said, so it names them too, with the day
+  // and their reason, whether they left by themselves or were taken off.
+  // The grid keeps its own rule: a row there is somebody a register marked.
+  test("somebody who left before any register marked them is named with the day and what they said, and counted as left; the grid still leaves them out", async () => {
+    // Una, placed in Group C and told, leaves on Tue 10 Nov before a register
+    // marks Una; Zoe, placed and told, is taken off by staff on Thu 12 Nov
+    // before one marks Zoe (a removal clears the seat's group).
+    world.db.poke(`courseEnrolments/${RUN.agi}__una`, {
+      status: "withdrawn",
+      allocatedEmailAt: new Date("2026-10-28T18:00:00Z"),
+      droppedOutAt: new Date("2026-11-10T10:00:00Z"),
+      dropOutReason: "My timetable changed.",
+    });
+    world.db.seed("users/zoe", { ...world.db.read("users/hamza"), uid: "zoe", displayName: "Zoe Adams", profile: { ...world.db.read("users/hamza").profile, preferredName: "Zoe Adams" } });
+    world.db.seed(`courseEnrolments/${RUN.agi}__zoe`, {
+      ...world.db.read(`courseEnrolments/${RUN.agi}__hamza`),
+      uid: "zoe",
+      groupId: null,
+      status: "removed",
+      allocatedEmailAt: null,
+      droppedOutAt: new Date("2026-11-12T10:00:00Z"),
+    });
+    for (const who of ["claudia", "zach"]) {
+      const { model, text: said } = await draw(who);
+      assert.deepEqual(
+        model.attention.filter((item) => item.kind === "left").map((item) => [item.title, item.detail]),
+        [
+          ["Zoe Adams left on Thu 12 Nov", ""],
+          ["Una Byrne left on Tue 10 Nov", "Una said: “My timetable changed.” Una’s off Group C’s register from week 2."],
+          ["Sam Whitfield left on Fri 6 Nov", `Sam said: “${SAM_SAID}” Sam’s off Group A’s register from week 3.`],
+          ["Omar Haddad left", "Omar’s off Group B’s register."],
+        ],
+        who,
+      );
+      assert.equal(model.people.left, 4, who);
+      assert.equal(model.people.line, "4 left. Places can’t be offered after week 1.", who);
+      assert.match(said, /Needs attention 8 /, who);
+      // Neither is taking part, for the lead or for an admin.
+      assert.equal(model.people.takingPart, 10, who);
+    }
+    // The grid lists neither: no register marked them.
+    const { readRunRecords, buildRunAttendance } = await lib("courses", "programmeAttendance.ts");
+    const records = await readRunRecords(world.db, RUN.agi);
+    const rows = buildRunAttendance(records, { isAdmin: true }, NOW).groups.flatMap((group) => group.people.map((person) => person.uid));
+    assert.ok(rows.includes("sam") && rows.includes("omar"), "the leavers a register marked are rows");
+    assert.ok(!rows.includes("una") && !rows.includes("zoe"), "a leaver no register marked is no row of the grid");
+  });
+
   test("a register marked as not held needs nothing", async () => {
     world.db.poke(registerPath(D, 3), { held: false });
     const { model } = await draw("claudia");

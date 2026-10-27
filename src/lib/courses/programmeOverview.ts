@@ -18,7 +18,7 @@ import {
   type RunAttendance,
   type RunRecords,
 } from "@/lib/courses/programmeAttendance";
-import { firstNameOfUser, readRunLead, type RunLead } from "@/lib/courses/programmeLead";
+import { firstNameOfUser, fullNameOfUser, readRunLead, type RunLead } from "@/lib/courses/programmeLead";
 import { emailsCountLine, readReminderState, remindLabel, type ReminderState } from "@/lib/courses/registerRemind";
 import { followUpDueAt } from "@/lib/courses/unmarkedRegisters";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
@@ -26,6 +26,7 @@ import { OPEN_WEEK_ONE, WEEK_ONE_NOT_READY, weekOneLine } from "@/lib/courses/we
 import { weekIsReady } from "@/lib/courses/weekReady";
 import { courseNudgeSessionWhere } from "@/lib/email/courseNudgeEmail";
 import { readCoursesConfig, type CoursesConfig } from "@/lib/firestore/config";
+import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { sessionModeForWeek } from "@/lib/firestore/courseGroups";
 import { weekDocId } from "@/lib/firestore/courses";
 
@@ -51,7 +52,8 @@ import { weekDocId } from "@/lib/firestore/courses";
  *  - a register not finished once its session has ended, with the
  *    reminder's and the task's real times from the settings their jobs read
  *    (it goes when the register is finished, or marked as not held);
- *  - somebody who left (it goes if they are put back).
+ *  - somebody who left, whether or not a register marked them, with what
+ *    they said when they gave a reason (it goes if they are put back).
  *
  * NOT BUILT, and so not drawn: the board's "Email Freya" (a lead writing to
  * one person through the site is new, and its email is not drawn: C21), the
@@ -326,6 +328,58 @@ export function anyGroupHasMet(records: RunRecords, now: Date): boolean {
   return records.groups.some((group) => [...groupSessions(records, group, now).values()].some((facts) => facts.started));
 }
 
+/** Somebody who left the run, as the Overview names them. */
+type RunLeaver = {
+  enrolment: CourseEnrolmentDoc;
+  /** Their whole name, as the grid names people. */
+  name: string;
+  /** The civil date they left, or null when it is not on record. */
+  leftDateKey: string | null;
+  /** The group whose register they are off, or null for none. */
+  entry: ListedGroup | null;
+};
+
+/**
+ * WHO HAS LEFT THE RUN, for the Overview's "left" cards and its people line:
+ * every learner enrolment of the run that left (withdrawn by its owner or
+ * removed by staff, `hasLeft`, the test People asks of each seat), whether
+ * or not a register marked them. So somebody who leaves before their group
+ * first meets is named, with the day and what they said, on the one page
+ * that reads a leaver's reason.
+ *
+ * Somebody a register marked comes first, as the grid lists them (its
+ * groups in order, names within), in the group whose register last marked
+ * them; then everybody no register marked, by name, in the group their seat
+ * names (none once staff took them off, which clears it). Then the most
+ * recent first. The grid, its CSV and the facilitators' register keep their
+ * own rule (`isListed`): a row there is somebody a register marked.
+ */
+function leaversOfRun(records: RunRecords, listed: readonly ListedGroup[]): RunLeaver[] {
+  const out: RunLeaver[] = [];
+  const named = new Set<string>();
+  for (const entry of listed) {
+    for (const { enrolment, row } of entry.people) {
+      if (!hasLeft(enrolment) || named.has(enrolment.uid)) continue;
+      named.add(enrolment.uid);
+      out.push({ enrolment, name: row.name, leftDateKey: row.leftDateKey, entry });
+    }
+  }
+  const unmarked: RunLeaver[] = [];
+  for (const enrolment of records.enrolments) {
+    if (!hasLeft(enrolment) || named.has(enrolment.uid)) continue;
+    named.add(enrolment.uid);
+    unmarked.push({
+      enrolment,
+      name: fullNameOfUser(records.accounts.get(enrolment.uid) ?? {}),
+      leftDateKey: enrolment.droppedOutAt ? londonDateKey(enrolment.droppedOutAt) : null,
+      entry: enrolment.groupId ? (listed.find((each) => each.group.id === enrolment.groupId) ?? null) : null,
+    });
+  }
+  unmarked.sort((a, b) => a.name.localeCompare(b.name, "en-GB") || a.enrolment.uid.localeCompare(b.enrolment.uid));
+  out.push(...unmarked);
+  return out.sort((a, b) => (b.leftDateKey ?? "").localeCompare(a.leftDateKey ?? ""));
+}
+
 /**
  * THE OVERVIEW. Reads the week docs it needs, the reminder markers of the
  * registers not finished and the settings the chase reads; everything else
@@ -562,24 +616,17 @@ export async function buildProgrammeOverview(
   }
 
   // Somebody who left, the most recent first.
-  const leavers: { entry: ListedGroup; enrolmentIndex: number }[] = [];
-  for (const entry of listed) {
-    entry.people.forEach((person, index) => {
-      if (hasLeft(person.enrolment)) leavers.push({ entry, enrolmentIndex: index });
-    });
-  }
-  leavers.sort((a, b) => {
-    const left = (x: typeof a) => x.entry.people[x.enrolmentIndex].row.leftDateKey ?? "";
-    return left(b).localeCompare(left(a));
-  });
-  for (const { entry, enrolmentIndex } of leavers) {
-    const { enrolment, row } = entry.people[enrolmentIndex];
-    const first = firstNameOfUser(records.accounts.get(enrolment.uid) ?? {}) || row.name;
+  const leavers = leaversOfRun(records, listed);
+  for (const { enrolment, name, leftDateKey, entry } of leavers) {
+    const first = firstNameOfUser(records.accounts.get(enrolment.uid) ?? {}) || name;
     const sentences: string[] = [];
     if (enrolment.status === "withdrawn" && enrolment.dropOutReason) {
       sentences.push(`${first} said: “${enrolment.dropOutReason}”`);
     }
-    if (row.leftDateKey && enrolment.droppedOutAt) {
+    // The register they are off: the group a register last marked them in,
+    // or the group their seat names. A removal clears the seat's group, so
+    // somebody taken off before any register marked them is off none.
+    if (entry && leftDateKey && enrolment.droppedOutAt) {
       const leftAt = enrolment.droppedOutAt.getTime();
       const firstWeekGone = [...entry.sessions.values()]
         .filter((facts) => facts.startsAt !== null && (facts.startsAt as Date).getTime() >= leftAt)
@@ -587,12 +634,12 @@ export async function buildProgrammeOverview(
       if (firstWeekGone) {
         sentences.push(`${first}’s off ${entry.group.name}’s register from week ${firstWeekGone.session.weekNumber}.`);
       }
-    } else {
+    } else if (entry) {
       sentences.push(`${first}’s off ${entry.group.name}’s register.`);
     }
     attention.push({
       kind: "left",
-      title: row.leftDateKey ? `${row.name} left on ${dayLabel(row.leftDateKey)}` : `${row.name} left`,
+      title: leftDateKey ? `${name} left on ${dayLabel(leftDateKey)}` : `${name} left`,
       detail: sentences.join(" "),
       link: null,
     });
@@ -628,14 +675,15 @@ export async function buildProgrammeOverview(
   };
 
   // ── People ───────────────────────────────────────────────────────────────
+  // Taking part is the grid's own rule (`isListed`, which `listGroups`
+  // asks); left is everybody the cards above name.
   let takingPart = 0;
-  let left = 0;
   for (const entry of listed) {
     for (const { enrolment } of entry.people) {
-      if (hasLeft(enrolment)) left += 1;
-      else takingPart += 1;
+      if (!hasLeft(enrolment)) takingPart += 1;
     }
   }
+  const left = leavers.length;
   const window = freedPlaceWindow(place.decisionsSentAt, records.run, now);
   const placesLine =
     window.state === "open"

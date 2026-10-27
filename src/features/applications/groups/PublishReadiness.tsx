@@ -4,6 +4,7 @@ import type { ReadinessModel, ReadyItem } from "@/lib/courses/getReady/model";
 import {
   NEEDED_TITLE,
   NOT_READY_CHIP,
+  PUBLISHED_CHIP,
   READY_CHIP,
   READY_TITLE,
   WORTH_LINE,
@@ -20,6 +21,10 @@ import styles from "./PublishGroups.module.css";
  *
  * Week 1's "Mark ready" is the Overview's own control. "Move Joel…" opens
  * People in groups, where the move menu is.
+ *
+ * Once the groups are published, the card says when, in the Overview's
+ * checklist's words, and what a later move emails; its chip reads
+ * "Published" while nothing a second press needs is missing.
  */
 
 const MARK_LABEL: Record<ReadyItem["state"], string> = {
@@ -101,9 +106,14 @@ export default function PublishReadiness({
         </h2>
         <span className={`${styles.chip} ${model.ready ? styles.chipOk : styles.chipWarn}`}>
           <span className={styles.chipDot} aria-hidden="true" />
-          {model.ready ? READY_CHIP : NOT_READY_CHIP}
+          {!model.ready ? NOT_READY_CHIP : model.published ? PUBLISHED_CHIP : READY_CHIP}
         </span>
       </div>
+      {model.published ? (
+        <p className={`${styles.groupLine} ${styles.publishedLine}`}>
+          {model.published.when} {model.published.later}
+        </p>
+      ) : null}
       <div className={styles.groupHead}>
         <h3 className={styles.eyebrow}>{NEEDED_TITLE}</h3>
       </div>

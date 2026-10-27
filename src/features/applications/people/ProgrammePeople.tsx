@@ -9,7 +9,6 @@ import { PEOPLE_FILTERS, type PeopleFilter, type PeopleView, type PersonRow } fr
 import {
   COLUMNS,
   FILTERS_LABEL,
-  FILTER_LABEL,
   NOBODY_HERE,
   NOT_IN_A_GROUP,
   OPEN_PEOPLE_IN_GROUPS,
@@ -19,11 +18,13 @@ import {
   TABLE_CAPTION,
   WHO_SEES,
   comingWords,
+  filterLabelWords,
   freeWords,
   invitedUntilWords,
   moreForWords,
   seeApplicationWords,
   showingWords,
+  someoneLeftOf,
   statusWords,
 } from "@/lib/applications/people/words";
 import styles from "./ProgrammePeople.module.css";
@@ -163,6 +164,8 @@ export default function ProgrammePeople({ view }: { view: PeopleView }) {
   }, [openUid]);
 
   const matching = view.rows.filter((row) => rowMatches(row, filter) && rowMatchesSearch(row, search));
+  // "Gave their place back or left" once somebody under it left the run, as the sentence says them apart.
+  const someoneLeft = someoneLeftOf(view.rows);
   const drawn = matching.slice(0, shown);
 
   const choose = (next: PeopleFilter) => {
@@ -185,7 +188,7 @@ export default function ProgrammePeople({ view }: { view: PeopleView }) {
               className={`${styles.filter} ${pressed ? styles.filterOn : ""}`}
               onClick={() => choose(each)}
             >
-              {FILTER_LABEL[each]}
+              {filterLabelWords(each, someoneLeft)}
               <span className={styles.filterCount}>{view.counts[each]}</span>
             </button>
           );
