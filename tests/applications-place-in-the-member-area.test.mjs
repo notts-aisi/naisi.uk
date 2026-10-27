@@ -909,7 +909,7 @@ describe("no file of these pages can word an outcome", () => {
  * it, and the test of a held place that file makes before it says so.
  */
 const ON_NOTHING = {
-  "not on a programme yet": {
+  "not on a programme": {
     "src/app/(app)/dashboard/HomeMember.tsx": {
       asks: "const onNothing = !error && !involved && holdsNoPlace;",
       why: "Home says it only when the server read that the member holds no place",

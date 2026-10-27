@@ -4886,6 +4886,10 @@ describe("the course hub passage", () => {
           "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/page.tsx",
           "the programme's lead and admins (loadProgrammeRun first): its Surveys tab, its surveys' totals and comments made on the server, never a name or a row per person",
         ],
+        [
+          "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview/page.tsx",
+          "the programme's lead and admins (loadProgrammeRun first): once the programme is over, its Overview draws how many have answered the survey at the end, the Surveys tab's own count (leadAfterSurveyCard), never a name",
+        ],
         // Surveys after events (the event survey block below holds each to its gate).
         ["src/app/api/surveys/[surveyId]/open-at-event/route.ts", `${ADMIN_ROUTE}; opening a survey after an event for its QR code`],
         ["src/app/events/[id]/survey/page.tsx", "the survey after an event by its QR code: signed in, shown only to somebody who signed up or came, by their own row; signed out, it names nobody"],
@@ -5078,6 +5082,13 @@ describe("the course hub passage", () => {
         [
           "the other reading of answers here: the programme's Surveys tab, its surveys' totals and comments for its lead and admins, never a name, deciding nothing",
           ["@/features/surveys/lead/LeadSurveysTab", "@/lib/surveys/leadTab", "@/lib/surveys/words"],
+        ],
+      ],
+      [
+        "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview/page.tsx",
+        [
+          "the Overview once the programme is over: how many have answered the survey at the end, the Surveys tab's own count for its lead and admins, never a name, deciding nothing",
+          ["@/lib/surveys/leadTab"],
         ],
       ],
     ]);

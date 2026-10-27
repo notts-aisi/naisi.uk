@@ -953,12 +953,14 @@ const BUILT = new Map([
         "`${programmePath}/messages`",
         "`${programmePath}/messages`",
         "`${programmePath}/setup#who-finished`",
+        "`${programmePath}/surveys`",
       ],
       from:
         "the programme's own path and the run's own ids, worked out on the server by buildProgrammeOverview: its " +
         "Attendance tab, with a group's id to open on, its Messages tab (Write an update, and each update's title), " +
         "its Settings tab at the card for who finished (Set who counts as finished, before the end and while " +
-        "there is no rule), and for an admin the week's editor under /admin/courses. Nothing anybody typed",
+        "there is no rule), for an admin the week's editor under /admin/courses, and its Surveys tab (the after " +
+        "survey's way to its results). Nothing anybody typed",
     },
   ],
   [
@@ -1143,8 +1145,8 @@ const BUILT = new Map([
   [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written/page.tsx",
     {
-      built: ["`${programmePath}/attendance`"],
-      from: "the way back to the programme's own Attendance tab: its path from the form's and the programme's ids in the address, encoded. Nothing anybody typed",
+      built: ["`${programmePath}/attendance`", "`${programmePath}/written?group=${encodeURIComponent(candidate.id)}`"],
+      from: "the way back to the programme's own Attendance tab, and this page for each of the run's live groups (the lead's choice of group): its path from the form's and the programme's ids in the address, encoded, and a live group's id. Nothing anybody typed",
     },
   ],
   [
