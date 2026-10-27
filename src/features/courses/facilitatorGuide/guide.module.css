@@ -273,6 +273,48 @@
   border-radius: var(--radius-sm);
 }
 
+/* === The printables as PDFs: the printables page's card, a week's link === */
+
+.downloads {
+  max-width: 48rem;
+}
+
+/* A session with nothing to print: said, never a link, so it never lights up. */
+.rowQuiet .rowTitle,
+.rowQuiet:hover .rowTitle {
+  color: var(--color-text-muted);
+}
+
+.printLine {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-4);
+}
+
+.printLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-accent-text);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.printLink .rowArrow {
+  color: currentColor;
+}
+
+.printLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.printLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
 /* === A document, drawn === */
 
 .document {

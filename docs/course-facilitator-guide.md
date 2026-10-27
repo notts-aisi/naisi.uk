@@ -18,6 +18,7 @@ course as well, and they read it because they facilitate.
 | `src/lib/courses/facilitatorGuide/access.ts` | The one gate: who reads a course's guide, and who loads it |
 | `src/lib/courses/facilitatorGuide/store.ts` | Every read and write, each behind the gate |
 | `src/lib/firestore/courseFacilitatorGuide.ts` | The stored document and its normaliser |
+| `src/lib/courses/facilitatorGuide/printables*.ts`, `sessionCount.ts` | The printables as PDFs (below) |
 
 ## Who reads it
 
@@ -78,7 +79,8 @@ document's title, or a heading only facilitator material has, below).
 
 A facilitator's group page links "Facilitator guide for week 3" on its
 ticket, and their Home links "Facilitator guide" under this week's title, each
-only when that week has something loaded. `/api/courses/[courseId]/
+only when that week has something loaded. The Printables page and each week's
+page link the printables as PDFs (below). `/api/courses/[courseId]/
 facilitator-guide` tells a page drawn in the browser which weeks have, titles
 only.
 
@@ -153,3 +155,113 @@ Gives the document back so that, pasted again, it is the same document:
 `readGuideMarkdown(guideToMarkdown(doc))` gives back `doc`. Two lists that
 meet change their marker so they stay two lists, and every character Markdown
 would read as markup is escaped. The byline is not written back.
+
+## The printables as PDFs
+
+The Printables document is also a set of A4 PDFs, ready to send to a printer:
+one for each session and one for the whole document. The Printables page
+offers them all under "Download to print" (a session with nothing to print
+says so and is not a link), and each week's page offers its session's beside
+its plan ("Download session 3’s printables (PDF)").
+
+| Where | What it does |
+| --- | --- |
+| `src/lib/courses/facilitatorGuide/printables.ts` | Which sections go in which session's PDF; the loader's two checks; the file names and the route's address |
+| `src/lib/courses/facilitatorGuide/printablesLayout.ts` | Where every line, row and template goes on A4, page by page (pure: the fonts are measured through a function it is handed) |
+| `src/lib/courses/facilitatorGuide/printablesPdf.ts` | Draws that, with PDFKit, and nothing else |
+| `src/lib/courses/facilitatorGuide/printablesGlyphs.ts` | Which characters the fonts can draw, and how the rest are drawn |
+| `src/lib/courses/facilitatorGuide/sessionCount.ts` | How many sessions a course has |
+| `src/app/api/courses/[courseId]/facilitator-guide/printables/pdf/route.ts` | `GET`, the whole document; `?session=3`, one session |
+
+**Made on request, never stored.** The route draws the PDF from the stored
+Printables document each time it is asked. There is no Storage path and no
+storage rule: storage rules go out by a deploy command of their own, which is
+easy to forget, and a stored file would need its own deletion with the course
+and would go stale whenever the printables were loaded again. A file drawn on
+request is always the document as it is now, and there is nothing to delete.
+
+**Who.** Exactly the guide's readers, through the same gate
+(`facilitatorGuideReader`). Everybody it refuses, and everybody asking about a
+course that is not there, is given the guide's one calm sentence at 200 and no
+PDF; somebody signed out is sent to sign in and back to the Printables page.
+The route reads and draws and writes nothing, so a view-as session gets
+what the member would. Its other answers (no printables loaded, a session
+the course does not have, a session with nothing to print, a session that is
+not a number) are sentences as plain text, because the route is opened by a
+link in a browser. The PDF is saved rather than shown
+(`Content-Disposition: attachment`), named for the course and the session
+(`naisi-agi-strategy-fellowship-session-3-printables.pdf`), and kept out of
+every cache but the reader's (`Cache-Control: private, no-store`).
+
+### Which session a section belongs to
+
+A section is a `##` heading and everything under it to the next `##`, its
+`###` headings with it. Its heading says which sessions it is for, as the
+course docs write them:
+
+| Heading | Goes in |
+| --- | --- |
+| `Session 1: credence card`, `Session 1, Option C: the brief` | session 1 |
+| `Actor cards (session 1)`, `Intervention cards (session 4, Option B)` | that session |
+| `Case slips (end of sessions 1 to 4)`, `Briefing card (sessions 2 to 5)` | each session in the range |
+| `Sessions 2 and 3: ...`, `sessions 2, 3 and 5` | each one named |
+| `Every week: ...` (or each week, every session, each session, all sessions) | every session |
+| anything else | only the whole document's PDF |
+
+What comes before the first `##` (the document's own lines on how to print it)
+goes in every session's PDF too. A heading that names no session is a thing to
+check when the Printables are loaded ("“Where to buy card” names no session,
+so it goes only in the PDF of all the printables."), never a refusal.
+
+How many sessions a course has is the guide's own count of weeks
+(`guideWeekCount`), which the admin's place picker offers too: the longest week
+plan of the course's runs, and never fewer than a week already loaded. So an
+incubator or a shorter course gets its own number, and nothing about a term is
+written in code.
+
+### What is drawn
+
+What the document says, in its order, and nothing else: its title, headings,
+paragraphs, lists, quotes, boxes to tick and tables in Space Grotesk, and its
+templates (code blocks) in Space Mono with every space kept, because they are
+forms people write on. Nothing is added or reworded; bold is the heavier
+weight, italic leans (the face has no italic), and a link is underlined and
+stays a link.
+
+- **A4 portrait, single-sided**, 15 mm margins, the light theme's inks on
+  white.
+- **Cut lines.** The printables say "cut cards along the lines", so each row of
+  a table is a card in a dashed frame of its own, and each template sits in a
+  dashed frame. Dashed means cut; the thin solid lines between a row's columns
+  are not for cutting.
+- **Never split across a page when it fits on the next one:** a row, a
+  template, a block (a paragraph, a list, a quote, a table), and a whole `##`
+  section or `###` part. A heading always has what follows it on its page, and
+  so does a paragraph wholly in bold (a label such as "Rules for Blue") or one
+  ending in a colon. Only what is taller than a page on its own is split, at a
+  line: a template goes on in a frame of its own, a long table between rows, a
+  long paragraph keeping two lines either side.
+- **A template** is drawn at 9.5 point, or smaller until its widest line fits
+  the frame (the widest real template, 93 characters, prints at about 8.6
+  point); a line too wide even at 6 point goes on below itself, so nothing is
+  ever cut off. A tab moves to the next stop of eight, as the page draws it.
+
+**Characters.** The fonts are the house's own, the three the certificates
+embed. A character is drawn in its own face, or in the other face when only
+that one has it, or as an empty box when neither does, never as nothing; the
+loader names each such character when the Printables are loaded ("The PDF
+can’t draw ✂ (U+2702), so it prints as an empty box."). Neither course's
+printables had one when this was built: beyond plain letters they use only
+£, × and the minus sign, which both faces have. The character tables in
+`printablesGlyphs.ts` are the fonts' own, and a test fails when the font files
+and the tables disagree.
+
+**One library.** PDFKit is imported by one file,
+`src/lib/courses/certificates/pdf.ts`, which opens every PDF the site makes
+(`openHousePdf`), in the house's fonts and never one of PDFKit's own. The fonts
+are read from disk when the route runs, so `next.config.ts` traces them into
+this route as it does into the certificate's: a new route that draws a PDF
+needs its own line there, or it works on a laptop and fails deployed.
+
+`tests/course-facilitator-guide-printables.test.mjs` holds all of the above, the
+route driven as every kind of caller.

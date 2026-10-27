@@ -49,12 +49,15 @@ const nextConfig: NextConfig = {
   // PDF/A, so neither is read today, and kept outside the bundle neither can
   // break if that changes.
   serverExternalPackages: ["pdfkit"],
-  // The certificate PDF's fonts are read from disk when the route runs, by a
-  // path the build cannot see, so they are traced into the one route that
-  // reads them, with their licences. The standalone build copies only traced
-  // files: without this the route works on a laptop and fails deployed.
+  // The PDFs' fonts are read from disk when a route runs, by a path the
+  // build cannot see, so they are traced into each route that reads them,
+  // with their licences: a certificate's, and a course's printables', drawn
+  // in the same fonts through the same door (`openHousePdf`). The standalone
+  // build copies only traced files: without this a route works on a laptop
+  // and fails deployed. A new route that draws a PDF gets its own line.
   outputFileTracingIncludes: {
     "/api/courses/certificates/\\[code\\]/pdf": ["./src/lib/courses/certificates/fonts/*"],
+    "/api/courses/\\[courseId\\]/facilitator-guide/printables/pdf": ["./src/lib/courses/certificates/fonts/*"],
   },
   async headers() {
     return [
