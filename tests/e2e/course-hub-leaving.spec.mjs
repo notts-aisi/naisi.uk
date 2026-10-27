@@ -967,7 +967,9 @@ test(
           if (runs instanceof Error) throw runs;
           const mine = await okBody(runs, "Home's list of Ben's runs");
           assert.ok(!JSON.stringify(mine).includes(term.runId), "Home's list of Ben's runs still has the run Ben left");
-          await benPage.getByText("You’re not on a programme yet.", { exact: true }).waitFor({ timeout: WAIT_MS });
+          // A9: never "yet" to somebody who has been on one.
+          await benPage.getByText("You’re not on a programme.", { exact: true }).waitFor({ timeout: WAIT_MS });
+          assert.equal(await benPage.getByText("You’re not on a programme yet.", { exact: true }).count(), 0, "Home says yet to somebody who left");
           await noGroupHere("Home");
 
           // CHANGED ON PURPOSE: My programmes said "You're not on a course

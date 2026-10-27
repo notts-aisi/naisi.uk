@@ -72,6 +72,7 @@ const surveyRoutes = {
 const waiting = await w.loadTs(join("lib", "surveys", "waiting.ts"));
 const surveyWords = await w.loadTs(join("lib", "surveys", "words.ts"));
 const EndSurveyCard = (await w.loadTs(join("features", "surveys", "cards", "EndSurveyCard.tsx"))).default;
+const { whoStepsOut } = await w.loadTs(join("features", "courses", "weekly", "whoStepsOut.ts"));
 
 const at = (iso) => mock.timers.setTime(new Date(iso).getTime());
 
@@ -341,19 +342,36 @@ describe("2. the survey at the end, read from the surveys' own record", () => {
     const id = await sentSurvey("after");
     const open = await endFor("amara");
     const draw = (props) => textOf(renderToStaticMarkup(createElement(EndSurveyCard, props)));
-    const tonight = draw({ survey: open, look: "card", lastSession: { when: "tonight", facilitators: ["Rahul", "Sofia"], online: false } });
+    // Who steps out is the group's facilitators who hold no place in it (`whoStepsOut`): a facilitator who
+    // holds one answers it too, and is never said to step out (a default taken for Zach on 27 October 2026).
+    const out = (stepOut, takePart = []) => ({ stepOut, takePart });
+    const tonight = draw({ survey: open, look: "card", lastSession: { when: "tonight", facilitators: out(["Rahul", "Sofia"]), online: false } });
     assert.equal(
       tonight,
       "The survey at the end At the end of tonight’s session: the same 9 questions as week 1, then how it went. About 10 minutes. " +
         "Rahul and Sofia leave you 10 minutes for it and step out of the room. Open the survey It closes on Mon 30 Nov.",
     );
-    const html = renderToStaticMarkup(createElement(EndSurveyCard, { survey: open, look: "card", lastSession: { when: "tonight", facilitators: ["Rahul"], online: false } }));
+    // Rahul and Sofia step out; Priya, who holds a place in the group, takes it with it and is not named.
+    assert.equal(draw({ survey: open, look: "card", lastSession: { when: "tonight", facilitators: out(["Rahul", "Sofia"], ["Priya"]), online: false } }), tonight);
+    const html = renderToStaticMarkup(createElement(EndSurveyCard, { survey: open, look: "card", lastSession: { when: "tonight", facilitators: out(["Rahul"]), online: false } }));
     assert.match(html, new RegExp(`<a href="/survey/${tokenOf("amara", id)}" class="endButton"`));
+    // Every facilitator holds a place: nobody steps out, and the line says so.
     assert.match(
-      draw({ survey: open, look: "card", lastSession: { when: { day: "Tue 8 Dec" }, facilitators: [], online: true } }),
-      /^The survey at the end At the end of your last session, on Tue 8 Dec: the same 9 questions as week 1, then how it went\. About 10 minutes\. Your facilitators leave you 10 minutes for it and step away from the call\. Open the survey/,
+      draw({ survey: open, look: "card", lastSession: { when: { day: "Tue 8 Dec" }, facilitators: out([], ["Priya"]), online: true } }),
+      /^The survey at the end At the end of your last session, on Tue 8 Dec: the same 9 questions as week 1, then how it went\. About 10 minutes\. Priya takes it too, so nobody steps away from the call\. Open the survey/,
     );
-    assert.match(draw({ survey: open, look: "card", lastSession: { when: "today", facilitators: ["Tom"], online: false } }), /At the end of today’s session: .* Tom leaves you 10 minutes for it and steps out of the room\. Open the survey/);
+    assert.match(
+      draw({ survey: open, look: "card", lastSession: { when: "tonight", facilitators: out([], ["Priya", "Sam"]), online: false } }),
+      /About 10 minutes\. Priya and Sam take it too, so nobody steps out of the room\. Open the survey/,
+    );
+    assert.match(draw({ survey: open, look: "card", lastSession: { when: "today", facilitators: out(["Tom"]), online: false } }), /At the end of today’s session: .* Tom leaves you 10 minutes for it and steps out of the room\. Open the survey/);
+    // Not known yet (the group's names have not loaded), or a group with no facilitator: nothing of who steps out.
+    for (const facilitators of [null, out([], [])]) {
+      assert.equal(
+        draw({ survey: open, look: "card", lastSession: { when: "tonight", facilitators, online: false } }),
+        "The survey at the end At the end of tonight’s session: the same 9 questions as week 1, then how it went. About 10 minutes. Open the survey It closes on Mon 30 Nov.",
+      );
+    }
     assert.equal(
       draw({ survey: open, look: "section" }),
       "The survey at the end The same 9 questions as week 1, then how it went. About 10 minutes. It closes on Mon 30 Nov. Answer it",
@@ -416,6 +434,23 @@ async function homeOf(who, { endSurvey = null } = {}) {
 }
 
 const afterCardOf = async (uid) => (await waiting.surveysWaitingFor(w.world.db, { uid }, new Date())).find((card) => card.kind === "after") ?? null;
+
+describe("2b. who steps out while the group answers it", () => {
+  test("the group's facilitators who hold no place in it, by the roster route's own lists; never the reader; nothing while not known", () => {
+    const person = (uid, displayName) => ({ uid, displayName });
+    const [rahul, sofia, priya, amara] = [person("rahul", "Rahul Mehta"), person("sofia", "Sofia Rossi"), person("priya", "Priya Shah"), person("amara", "Amara Okafor")];
+    // Priya facilitates Group B and holds a place in it: the roster lists Priya among its members too.
+    const roster = { group: { id: B }, facilitators: [rahul, sofia, priya], members: [amara, priya] };
+    const uids = (split) => split && { stepOut: split.stepOut.map((p) => p.uid), takePart: split.takePart.map((p) => p.uid) };
+    assert.deepEqual(uids(whoStepsOut(roster, "amara")), { stepOut: ["rahul", "sofia"], takePart: ["priya"] });
+    // The reader is named in neither list, whichever they are.
+    assert.deepEqual(uids(whoStepsOut(roster, "priya")), { stepOut: ["rahul", "sofia"], takePart: [] });
+    assert.deepEqual(uids(whoStepsOut(roster, "rahul")), { stepOut: ["sofia"], takePart: ["priya"] });
+    assert.deepEqual(uids(whoStepsOut({ ...roster, facilitators: [priya] }, "amara")), { stepOut: [], takePart: ["priya"] });
+    // Before the group's names have landed: not known.
+    assert.equal(whoStepsOut({ group: null, facilitators: [], members: [] }, "amara"), null);
+  });
+});
 
 describe("3. the last week on Home (wk-lastweek-phone)", () => {
   test("on the last session's day: Tonight · your last session, the survey at the end above After tonight, then What’s next", async () => {
@@ -632,9 +667,10 @@ describe("4. after the end (en-after-phone, en-after-nofinish-phone)", () => {
         "What you keep The reading list for all 6 weeks " +
         // The event's stub, then its date again for a screen reader, which skips the stub.
         "What’s next Applications for next term open in January. Thu 28 Jan Thu 28 Jan: Welcome back social 7pm · Room E5 " +
-        "The 6 weeks Week 1 Week 1 readings Thu 29 Oct · Done 0 of 3 Week 2 Week 2 readings Thu 5 Nov · Done 0 of 3 " +
-        "Week 3 Who decides what AGI means Thu 12 Nov · Done 0 of 3 Week 4 Week 4 readings Thu 19 Nov · Done 0 of 3 " +
-        "Week 5 Week 5 readings Thu 26 Nov · Done 0 of 3 Week 6 Week 6 readings Thu 3 Dec · Done 0 of 3 See your progress week by week →",
+        // Amara ticked none of the weeks' readings here, so none is Done, finished or not (A3: Done only when done).
+        "The 6 weeks Week 1 Week 1 readings Thu 29 Oct · Not done 0 of 3 Week 2 Week 2 readings Thu 5 Nov · Not done 0 of 3 " +
+        "Week 3 Who decides what AGI means Thu 12 Nov · Not done 0 of 3 Week 4 Week 4 readings Thu 19 Nov · Not done 0 of 3 " +
+        "Week 5 Week 5 readings Thu 26 Nov · Not done 0 of 3 Week 6 Week 6 readings Thu 3 Dec · Not done 0 of 3 See your progress week by week →",
     );
     // The finished colour on the head; the reading list's own page; the event's own page.
     assert.match(page.html, /<header class="afterHead afterHeadFinished"><h1 class="afterTitle">You finished AGI Strategy\.<\/h1>/);
@@ -687,7 +723,7 @@ describe("4. after the end (en-after-phone, en-after-nofinish-phone)", () => {
     assert.match((await programmePage("dev")).text, /Your survey at the end Sent Fri 4 Dec\. Thank you\./);
   });
 
-  test("what they keep: the action plan, on the one week page whose fill-in boxes hold it", async () => {
+  test("what they keep: the action plan, on the one week page whose fill-in boxes hold it, once they wrote in it", async () => {
     allWeeksUp();
     at(AFTER);
     await w.asBrowser("chloe");
@@ -718,6 +754,13 @@ describe("4. after the end (en-after-phone, en-after-nofinish-phone)", () => {
       feedbackOn: [],
       answersReadBy: "facilitators",
     };
+    // A4: only what the person has. With nothing written in its boxes there is no plan to keep.
+    const none = w.programmeHome("chloe");
+    assert.match(none.text, / What you keep The reading list for all 6 weeks The 6 weeks /);
+    assert.doesNotMatch(none.text, /Your action plan/);
+    assert.doesNotMatch(none.html, new RegExp(`<a href="/learn/${RUN.agi}/weeks/6" class="keepLink">`));
+    // One box written of two: a plan to keep, on its week's page.
+    week6.thisWeek.rows[0].written = ["box1"];
     const { html, text } = w.programmeHome("chloe");
     assert.match(text, / What you keep Your action plan Week 6 The reading list for all 6 weeks /);
     assert.match(html, new RegExp(`<a href="/learn/${RUN.agi}/weeks/6" class="keepLink">`));

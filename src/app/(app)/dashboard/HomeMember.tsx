@@ -33,12 +33,12 @@ import styles from "./home.module.css";
  * member's applications, their unfinished profile) are rendered on the server
  * and handed in. This component only decides where they go. While the list
  * of runs is loading it draws the greeting and a placeholder, and says
- * nothing about programmes: "You're not on a programme yet" is a claim, and
+ * nothing about programmes: "You're not on a programme" is a claim, and
  * it waits until it is known.
  *
  * A PLACE ON A PROGRAMME IS NOT A RUN. Somebody decision day gave a place
  * has no run until they are put on one, so this list has nothing of theirs,
- * and "You're not on a programme yet" would be untrue of them. The server
+ * and "You're not on a programme" would be untrue of them. The server
  * asks whether the member holds a place and hands in one answer,
  * `holdsNoPlace`: the sentence is said only when the server could read that
  * they hold none. THIS PAGE STATES NO OUTCOME. With a place, or with a place
@@ -197,10 +197,12 @@ export default function HomeMember({
   // "Not on a programme" is said only when it is known: the runs were read
   // and hold nothing, and the server read that the member holds no place.
   const onNothing = !error && !involved && holdsNoPlace;
+  // Never "yet" (A9): the same words reach somebody who left a programme, or
+  // whose runs are archived, and Home reads nothing that tells them apart.
 
   return (
     <>
-      <PageHead title={greeting} description={onNothing ? "You’re not on a programme yet." : undefined} />
+      <PageHead title={greeting} description={onNothing ? "You’re not on a programme." : undefined} />
       {invite}
       {cards}
       {termCard}

@@ -200,6 +200,13 @@ export function weeksHeading(totalWeeks: number): string {
 /** What each week's mark says to a screen reader, and the board's image names. */
 export const WEEK_STATE_WORDS = {
   done: "Done",
+  /**
+   * A week whose session is over, and whose count the reader has not
+   * finished ("Tue 3 Nov · Not done", beside "2 of 3"). The boards draw every
+   * past week done: listed in the build notes for the boards' designers to
+   * confirm.
+   */
+  notDone: "Not done",
   current: "This week",
   next: "Next",
   /** A published week that is not this week or next: open to read ahead. */

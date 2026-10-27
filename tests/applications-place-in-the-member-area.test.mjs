@@ -354,7 +354,8 @@ async function drawn() {
 // The two pages each page can be
 // ---------------------------------------------------------------------------
 
-const NOT_ON_A_PROGRAMME = "You’re not on a programme yet.";
+// A9: never "yet". The same words reach somebody who left a programme, and Home reads nothing that tells them apart.
+const NOT_ON_A_PROGRAMME = "You’re not on a programme.";
 /** Home's card for somebody who has applied: the name of each application, and no more. */
 const APPLICATIONS_CARD = `Your applications View all → ${ROUND_LABEL} Open`;
 /** The same card when it names nothing: the way to the list. */
@@ -908,7 +909,7 @@ describe("no file of these pages can word an outcome", () => {
  * it, and the test of a held place that file makes before it says so.
  */
 const ON_NOTHING = {
-  "not on a programme yet": {
+  "not on a programme": {
     "src/app/(app)/dashboard/HomeMember.tsx": {
       asks: "const onNothing = !error && !involved && holdsNoPlace;",
       why: "Home says it only when the server read that the member holds no place",

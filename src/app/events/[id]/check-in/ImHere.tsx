@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useHydrated } from "@/hooks/useHydrated";
+import { CheckedIn } from "./CheckedIn";
 import styles from "./checkIn.module.css";
 
 type Props = {
@@ -9,6 +10,12 @@ type Props = {
   /** The sign-up and its token, when the page was opened from a confirmation email's link. */
   rsvpId: string | null;
   token: string | null;
+  /** The person's first name, for the answer once checked in; null for "Hello.". */
+  firstName: string | null;
+  /** The question over the button: "Hi Kofi. Are you here?" and "You signed up for this.". */
+  question: { title: string; lead: string };
+  /** Under the button: what the press does, and who can see who came. */
+  whoSees: string;
 };
 
 type State =
@@ -18,20 +25,17 @@ type State =
   | { kind: "problem"; words: string };
 
 /**
- * "I'm here": one press, one small request. Disabled until the page's script
- * has arrived, so a press is never lost to a page nothing is listening to.
+ * The question and "I'm here": one press, one small request. Disabled until
+ * the page's script has arrived, so a press is never lost to a page nothing
+ * is listening to. Once the press goes through, the question goes and the
+ * answer takes its place, as the page draws it for somebody already checked
+ * in (`CheckedIn`, B5).
  */
-export function ImHere({ eventId, rsvpId, token }: Props) {
+export function ImHere({ eventId, rsvpId, token, firstName, question, whoSees }: Props) {
   const hydrated = useHydrated();
   const [state, setState] = useState<State>({ kind: "idle" });
 
-  if (state.kind === "done") {
-    return (
-      <p className={styles.done} role="status">
-        You’re checked in at {state.atWords}.
-      </p>
-    );
-  }
+  if (state.kind === "done") return <CheckedIn firstName={firstName} atWords={state.atWords} />;
 
   async function press() {
     setState({ kind: "busy" });
@@ -59,6 +63,8 @@ export function ImHere({ eventId, rsvpId, token }: Props) {
 
   return (
     <>
+      <h1 className={styles.title}>{question.title}</h1>
+      <p className={styles.lead}>{question.lead}</p>
       <button
         type="button"
         className={styles.primary}
@@ -72,6 +78,7 @@ export function ImHere({ eventId, rsvpId, token }: Props) {
           {state.words}
         </p>
       )}
+      <p>{whoSees}</p>
     </>
   );
 }

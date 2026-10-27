@@ -1644,7 +1644,9 @@ const THE_LEAVING_EMAIL = (first) =>
  * boards en-after-phone and en-after-nofinish-phone: the programme's name in
  * the heading their finished record gives them, the term and their group,
  * with its facilitators for somebody who finished and after the thanks for
- * everybody else, what they keep, then the weeks, every one done, and no way
+ * everybody else, what they keep, then the weeks, each Done only when all it
+ * counts is done (nobody here ticked a reading, so every week that met says
+ * Not done beside "0 of 2", finished or not), and no way
  * out: leaving closed at the run's last session, H1; the boards draw no marks
  * once it is over, and the marks are held on the last day of the last week in
  * tests/course-hub-member-pages.test.mjs), the hub's card, and Home's line,
@@ -1656,37 +1658,37 @@ const THE_LEAVING_EMAIL = (first) =>
  */
 const MEMBER_PAGES = {
   amara: {
-    home: "My programmes AGI Strategy You finished AGI Strategy. Autumn 2026 · Group B · with Rahul and Sofia What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Tue 3 Nov · Done 0 of 2 Week 2 Who is building it, and why Tue 10 Nov · Done 0 of 2 Week 3 Who decides what AGI means Tue 17 Nov · Done 0 of 2 Week 4 Evaluations and standards Tue 24 Nov · Cancelled 0 of 2 Week 5 International coordination Tue 1 Dec · Done 0 of 2 Week 6 What you would do next Tue 8 Dec · Done 0 of 2 See your progress week by week →",
+    home: "My programmes AGI Strategy You finished AGI Strategy. Autumn 2026 · Group B · with Rahul and Sofia What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Tue 3 Nov · Not done 0 of 2 Week 2 Who is building it, and why Tue 10 Nov · Not done 0 of 2 Week 3 Who decides what AGI means Tue 17 Nov · Not done 0 of 2 Week 4 Evaluations and standards Tue 24 Nov · Cancelled 0 of 2 Week 5 International coordination Tue 1 Dec · Not done 0 of 2 Week 6 What you would do next Tue 8 Dec · Not done 0 of 2 See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Finished Group B",
     homeLine: "AGI Strategy · finished Hi You. AGI Strategy Fellowship · Group B · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your group Group B",
   },
   dev: {
-    home: "My programmes AGI Strategy You finished AGI Strategy. Autumn 2026 · Group A · with Amelia What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Thu 29 Oct · Done 0 of 2 Week 2 Who is building it, and why Thu 5 Nov · Done 0 of 2 Week 3 Who decides what AGI means Thu 12 Nov · Done 0 of 2 Week 4 Evaluations and standards Thu 19 Nov · Done 0 of 2 Week 5 International coordination Thu 26 Nov · Done 0 of 2 Week 6 What you would do next Thu 3 Dec · Done 0 of 2 See your progress week by week →",
+    home: "My programmes AGI Strategy You finished AGI Strategy. Autumn 2026 · Group A · with Amelia What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Thu 29 Oct · Not done 0 of 2 Week 2 Who is building it, and why Thu 5 Nov · Not done 0 of 2 Week 3 Who decides what AGI means Thu 12 Nov · Not done 0 of 2 Week 4 Evaluations and standards Thu 19 Nov · Not done 0 of 2 Week 5 International coordination Thu 26 Nov · Not done 0 of 2 Week 6 What you would do next Thu 3 Dec · Not done 0 of 2 See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Finished Group A",
     homeLine: "AGI Strategy · finished Hi You. AGI Strategy Fellowship · Group A · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your group Group A",
   },
   farah: {
-    home: "My programmes AGI Strategy AGI Strategy has ended. Thanks for being part of it. Autumn 2026 · Group B. What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Tue 3 Nov · Done 0 of 2 Week 2 Who is building it, and why Tue 10 Nov · Done 0 of 2 Week 3 Who decides what AGI means Tue 17 Nov · Done 0 of 2 Week 4 Evaluations and standards Tue 24 Nov · Cancelled 0 of 2 Week 5 International coordination Tue 1 Dec · Done 0 of 2 Week 6 What you would do next Tue 8 Dec · Done 0 of 2 See your progress week by week →",
+    home: "My programmes AGI Strategy AGI Strategy has ended. Thanks for being part of it. Autumn 2026 · Group B. What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Tue 3 Nov · Not done 0 of 2 Week 2 Who is building it, and why Tue 10 Nov · Not done 0 of 2 Week 3 Who decides what AGI means Tue 17 Nov · Not done 0 of 2 Week 4 Evaluations and standards Tue 24 Nov · Cancelled 0 of 2 Week 5 International coordination Tue 1 Dec · Not done 0 of 2 Week 6 What you would do next Tue 8 Dec · Not done 0 of 2 See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Ended Group B",
     homeLine: "AGI Strategy · ended Hi You. AGI Strategy Fellowship · Group B · ended No more sessions are planned for your group. Open AGI Strategy Fellowship Your group Group B",
   },
   isaac: {
-    home: "My programmes AGI Strategy You finished AGI Strategy. Autumn 2026 · Group B · with Rahul and Sofia What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Tue 3 Nov · Done 0 of 2 Week 2 Who is building it, and why Tue 10 Nov · Done 0 of 2 Week 3 Who decides what AGI means Tue 17 Nov · Done 0 of 2 Week 4 Evaluations and standards Tue 24 Nov · Cancelled 0 of 2 Week 5 International coordination Tue 1 Dec · Done 0 of 2 Week 6 What you would do next Tue 8 Dec · Done 0 of 2 See your progress week by week →",
+    home: "My programmes AGI Strategy You finished AGI Strategy. Autumn 2026 · Group B · with Rahul and Sofia What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Tue 3 Nov · Not done 0 of 2 Week 2 Who is building it, and why Tue 10 Nov · Not done 0 of 2 Week 3 Who decides what AGI means Tue 17 Nov · Not done 0 of 2 Week 4 Evaluations and standards Tue 24 Nov · Cancelled 0 of 2 Week 5 International coordination Tue 1 Dec · Not done 0 of 2 Week 6 What you would do next Tue 8 Dec · Not done 0 of 2 See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Finished Group B",
     homeLine: "AGI Strategy · finished Hi You. AGI Strategy Fellowship · Group B · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your group Group B",
   },
   kofi: {
-    home: "My programmes AGI Strategy You finished AGI Strategy. Autumn 2026 · Group B · with Rahul and Sofia What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Tue 3 Nov · Done 0 of 2 Week 2 Who is building it, and why Tue 10 Nov · Done 0 of 2 Week 3 Who decides what AGI means Tue 17 Nov · Done 0 of 2 Week 4 Evaluations and standards Tue 24 Nov · Cancelled 0 of 2 Week 5 International coordination Tue 1 Dec · Done 0 of 2 Week 6 What you would do next Tue 8 Dec · Done 0 of 2 See your progress week by week →",
+    home: "My programmes AGI Strategy You finished AGI Strategy. Autumn 2026 · Group B · with Rahul and Sofia What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Tue 3 Nov · Not done 0 of 2 Week 2 Who is building it, and why Tue 10 Nov · Not done 0 of 2 Week 3 Who decides what AGI means Tue 17 Nov · Not done 0 of 2 Week 4 Evaluations and standards Tue 24 Nov · Cancelled 0 of 2 Week 5 International coordination Tue 1 Dec · Not done 0 of 2 Week 6 What you would do next Tue 8 Dec · Not done 0 of 2 See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Finished Group B",
     homeLine: "AGI Strategy · finished Hi You. AGI Strategy Fellowship · Group B · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your group Group B",
   },
   mei: {
-    home: "My programmes AGI Strategy AGI Strategy has ended. Thanks for being part of it. Autumn 2026 · Group A. What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Thu 29 Oct · Done 0 of 2 Week 2 Who is building it, and why Thu 5 Nov · Done 0 of 2 Week 3 Who decides what AGI means Thu 12 Nov · Done 0 of 2 Week 4 Evaluations and standards Thu 19 Nov · Done 0 of 2 Week 5 International coordination Thu 26 Nov · Done 0 of 2 Week 6 What you would do next Thu 3 Dec · Done 0 of 2 See your progress week by week →",
+    home: "My programmes AGI Strategy AGI Strategy has ended. Thanks for being part of it. Autumn 2026 · Group A. What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Thu 29 Oct · Not done 0 of 2 Week 2 Who is building it, and why Thu 5 Nov · Not done 0 of 2 Week 3 Who decides what AGI means Thu 12 Nov · Not done 0 of 2 Week 4 Evaluations and standards Thu 19 Nov · Not done 0 of 2 Week 5 International coordination Thu 26 Nov · Not done 0 of 2 Week 6 What you would do next Thu 3 Dec · Not done 0 of 2 See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Ended Group A",
     homeLine: "AGI Strategy · ended Hi You. AGI Strategy Fellowship · Group A · ended No more sessions are planned for your group. Open AGI Strategy Fellowship Your group Group A",
   },
   noah: {
-    home: "My programmes AGI Strategy You finished AGI Strategy. Autumn 2026 · Group A · with Amelia What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Thu 29 Oct · Done 0 of 2 Week 2 Who is building it, and why Thu 5 Nov · Done 0 of 2 Week 3 Who decides what AGI means Thu 12 Nov · Done 0 of 2 Week 4 Evaluations and standards Thu 19 Nov · Done 0 of 2 Week 5 International coordination Thu 26 Nov · Done 0 of 2 Week 6 What you would do next Thu 3 Dec · Done 0 of 2 See your progress week by week →",
+    home: "My programmes AGI Strategy You finished AGI Strategy. Autumn 2026 · Group A · with Amelia What you keep The reading list for all 6 weeks The 6 weeks Week 1 What could go wrong, and how fast Thu 29 Oct · Not done 0 of 2 Week 2 Who is building it, and why Thu 5 Nov · Not done 0 of 2 Week 3 Who decides what AGI means Thu 12 Nov · Not done 0 of 2 Week 4 Evaluations and standards Thu 19 Nov · Not done 0 of 2 Week 5 International coordination Thu 26 Nov · Not done 0 of 2 Week 6 What you would do next Thu 3 Dec · Not done 0 of 2 See your progress week by week →",
     card: "AGI Strategy Fellowship Autumn 2026 · 2026/27 Learner Finished Group A",
     homeLine: "AGI Strategy · finished Hi You. AGI Strategy Fellowship · Group A · finished No more sessions are planned for your group. Open AGI Strategy Fellowship Your group Group A",
   },

@@ -221,6 +221,8 @@ export async function makePacksAndCasesWorld(key = "__packsAndCases") {
     ["../useWeek", useWeekStub],
     ["@/features/courses/useWeek", useWeekStub],
     ["../useGroupRoster", `export function useGroupRoster() { return ${handle}.roster; }`],
+    // Home reads the group's roster itself, once, for its group card and the last week's survey card.
+    ["@/features/courses/useGroupRoster", `export function useGroupRoster() { return ${handle}.roster; }`],
     [
       "./useMyExercises",
       `export function useMyExercises(runId) { const on = Boolean(runId); return { loading: false, loaded: on && ${handle}.ownRowsLoaded, byExerciseId: on ? ${handle}.ownRows : new Map(), error: null, reload() {}, apply() {} }; }`,

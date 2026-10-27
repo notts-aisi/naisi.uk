@@ -124,8 +124,8 @@ export default function SendTab({ surveyId, view }: { surveyId: string; view: Se
           </div>
           {view.summary.closes && (
             <div className={styles.summaryItem}>
-              <span className={styles.summaryLabel}>{SEND_WORDS.closes}</span>
-              <span>{view.summary.closes}</span>
+              <span className={styles.summaryLabel}>{view.summary.closes.label}</span>
+              <span>{view.summary.closes.value}</span>
             </div>
           )}
           {view.summary.namesOff && (

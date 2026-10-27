@@ -38,7 +38,7 @@ import styles from "./home.module.css";
  * person's own page and on the list of their applications, and the card here
  * is only the way to them. One thing is asked about it all the same.
  * Somebody decision day gave a place has no run until they are put on one,
- * and a member with no run is told "You’re not on a programme yet." So the
+ * and a member with no run is told "You’re not on a programme." So the
  * page asks `holdsPlace` (yes, no, or could not tell) and hands the member's
  * Home one thing: whether it may say that sentence. It may only on a "no".
  * Nothing in this file reads what became of an application.

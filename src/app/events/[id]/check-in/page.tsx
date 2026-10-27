@@ -14,6 +14,7 @@ import {
   selfClosedWords,
   type EventLine,
 } from "@/lib/events/selfCheckIn";
+import { CheckedIn } from "./CheckedIn";
 import { ImHere } from "./ImHere";
 import { SignOutLink } from "./SignOutLink";
 import styles from "./checkIn.module.css";
@@ -138,29 +139,33 @@ export default async function SelfCheckInPage({
   if (already) {
     return (
       <Frame line={line}>
-        <h1 className={styles.title}>
-          {decision.firstName ? `You’re checked in, ${decision.firstName}.` : "You’re checked in."}
-        </h1>
-        <p className={styles.lead}>Checked in at {clockWords(already.at ?? new Date())}.</p>
-        <p>{WHO_SEES}</p>
+        <CheckedIn firstName={decision.firstName} atWords={clockWords(already.at ?? new Date())} />
         <p>{SURVEY_LINE}</p>
         {signOut}
       </Frame>
     );
   }
 
+  // The question is the button's to draw: once the press goes through, the
+  // button draws the answer in its place, as the page above does for somebody
+  // already checked in, and the line about what the press does goes with it.
   return (
     <Frame line={line}>
-      <h1 className={styles.title}>{greeting} Are you here?</h1>
-      <p className={styles.lead}>
-        {!decision.asWalkIn
-          ? "You signed up for this."
-          : event.noSignup
-            ? "No sign-up needed for this one."
-            : "You didn’t sign up, so this checks you in as a walk-in."}
-      </p>
-      <ImHere eventId={event.id} rsvpId={link.rsvpId} token={link.token} />
-      <p>{WHO_SEES}</p>
+      <ImHere
+        eventId={event.id}
+        rsvpId={link.rsvpId}
+        token={link.token}
+        firstName={decision.firstName}
+        question={{
+          title: `${greeting} Are you here?`,
+          lead: !decision.asWalkIn
+            ? "You signed up for this."
+            : event.noSignup
+              ? "No sign-up needed for this one."
+              : "You didn’t sign up, so this checks you in as a walk-in.",
+        }}
+        whoSees={WHO_SEES}
+      />
       <p>{SURVEY_LINE}</p>
       {signOut}
     </Frame>

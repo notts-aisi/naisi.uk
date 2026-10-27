@@ -1152,6 +1152,37 @@
   opacity: 0.6;
 }
 
+/* en-finish's row once the run is over: Certificates, and The after survey beside it. */
+.endRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 28px;
+  min-width: 0;
+}
+
+.endMain {
+  flex: 2 1 36rem;
+  min-width: 0;
+}
+
+.endSide {
+  flex: 1 1 18rem;
+}
+
+/* "23 of 31 have answered.", the count in the text's own colour. */
+.afterCount {
+  margin: 8px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.afterCount strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
 .ctLock,
 .ctFoot {
   display: flex;
@@ -1213,6 +1244,10 @@
   }
 
   .page {
+    gap: 22px;
+  }
+
+  .endRow {
     gap: 22px;
   }
 

@@ -396,7 +396,7 @@ const WEEKS_TAB = Object.freeze({
 const REFUSED = Object.freeze({
   tick: "Week 1 isn’t open to you yet.",
   reflection: "Only somebody taking part in this programme can write in its reflection boxes.",
-  home: "You’re not on a programme yet.",
+  home: "You’re not on a programme.",
   learn: "You're not on a course yet",
 });
 

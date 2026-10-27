@@ -20,8 +20,9 @@ import styles from "./SurveyCards.module.css";
  *
  *  - THEIRS TO ANSWER, in the last week (`lastSession`): when to answer it
  *    (at the end of tonight's session, or of the last session on its day),
- *    what it asks and how long, that the facilitators leave them the time,
- *    "Open the survey" and when it closes.
+ *    what it asks and how long, which facilitators leave them the time (only
+ *    those who hold no place in the group: one who holds a place answers it
+ *    too), "Open the survey" and when it closes.
  *  - THEIRS TO ANSWER, once the programme is over: what it asks, how long,
  *    when it closes, and "Answer it".
  *  - SENT: the day they sent it, thanks, and the day their name comes off.
@@ -32,8 +33,11 @@ import styles from "./SurveyCards.module.css";
 export type LastSession = {
   /** "tonight" or "today" on the last session's own day; otherwise its day, "Tue 8 Dec". */
   when: "tonight" | "today" | { day: string };
-  /** The group's facilitators' first names. */
-  facilitators: readonly string[];
+  /**
+   * The group's facilitators' first names, the reader left out: those who hold no place in the group step
+   * out while it is answered, those who hold one take it too (`whoStepsOut`). Null while not known.
+   */
+  facilitators: { stepOut: readonly string[]; takePart: readonly string[] } | null;
   /** The last session is held online. */
   online: boolean;
 };

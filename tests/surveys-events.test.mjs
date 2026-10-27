@@ -587,6 +587,23 @@ describe("the admins' pages for a survey after an event", () => {
     assert.match(send.html, /href="\/api\/links\/vr-survey\/qr\?format=png&amp;download=1"/);
   });
 
+  test("B4: closed early, the Send tab says only the day it closed, in its summary and under its email", async (t) => {
+    clock(t, LATE);
+    w.reset();
+    const id = await made();
+    await press("open-at-event", "zach", id);
+    const SEND = "app/(app)/admin/(admin-only)/surveys/[surveyId]/send/page.tsx";
+    const open = (await w.page(SEND, { params: Promise.resolve({ surveyId: id }) }, "zach")).text;
+    assert.match(open, / By email 5 people, each with their own link, once you send it\. Closes Sun 8 Nov, 23:59 Results /);
+    await press("close", "zach", id);
+    const closed = (await w.page(SEND, { params: Promise.resolve({ surveyId: id }) }, "zach")).text;
+    // The head's chip says it, and so do both rows that said when it would close.
+    assert.match(closed, / Event: VR games night, Sun 1 Nov Closed Sun 1 Nov Results /);
+    assert.match(closed, / By email 4 people, each with their own link, once you send it\. Closed Sun 1 Nov Results /);
+    assert.match(closed, / Each email has its own link, so nobody signs in\. Closed Sun 1 Nov No reminders /);
+    assert.doesNotMatch(closed, /Closes Sun 8 Nov/);
+  });
+
   test("the list, Who answered with guests by name, and the results with n beside every number and the numbers above", async (t) => {
     clock(t, NEXT_DAY);
     w.reset();

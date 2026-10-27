@@ -668,14 +668,16 @@ describe("4. counts by This week's tasks", () => {
     assert.match(home.text, /This week 0 of 1 done Week 3 · The lamp makers Thu 12 to Wed 18 Nov Not done yet: Parts 1 to 3 Open week 3/);
     // No bar: the boards draw no percentages for a block week.
     assert.doesNotMatch(home.html, /role="progressbar"/);
-    assert.match(home.text, /Week 1 Who keeps the lamps Tue 3 Nov · Done 0 of 1/);
-    assert.match(home.text, /Week 2 How sure are you\? Tue 10 Nov · Done 0 of 3/);
+    // A week that is over is Done only once its tasks are (A3): weeks 1 and 2 are over with none done.
+    assert.match(home.text, /Week 1 Who keeps the lamps Tue 3 Nov · Not done 0 of 1/);
+    assert.match(home.text, /Week 2 How sure are you\? Tue 10 Nov · Not done 0 of 3/);
     assert.match(home.text, /Week 3 The lamp makers Tonight 0 of 1/);
     await writeAll("chloe", "k3", "w03");
     await writeAll("chloe", "k1", "w01");
     home = await w.programmeHome("chloe", [...sources("k3"), ...sources("k1")]);
     assert.match(home.text, /This week 1 of 1 done Week 3 · The lamp makers Thu 12 to Wed 18 Nov Done: Parts 1 to 3 Done Open week 3/);
     assert.match(home.text, /Week 1 Who keeps the lamps Tue 3 Nov · Done 1 of 1/);
+    assert.match(home.text, /Week 2 How sure are you\? Tue 10 Nov · Not done 0 of 3/);
     assert.match(home.text, /Week 3 The lamp makers Tonight 1 of 1/);
   });
 

@@ -1118,7 +1118,8 @@ describe("the strip's dates, for each stage", () => {
     assert.deepEqual(rows({ stage: "open" }), [CLOSE, DECISIONS, START]);
     const CLOSED = ["Applications closed", "Sun 18 Oct", "23:59"];
     assert.deepEqual(rows({ stage: "closed" }), [CLOSED, DECISIONS, START]);
-    assert.deepEqual(rows({ stage: "running" }), [CLOSED, DECISIONS, START]);
+    // A9: once decisions have gone out, the day they were due by is not offered as still to come.
+    assert.deepEqual(rows({ stage: "running" }), [CLOSED, START]);
     assert.deepEqual(rows({ stage: "none" }), []);
   });
 
@@ -1129,7 +1130,8 @@ describe("the strip's dates, for each stage", () => {
     assert.equal(rows({ stage: "before", showOpening: true }).length, 4);
     // Once applications have closed there is no opening to tell of.
     assert.equal(rows({ stage: "closed", showOpening: true }).length, 3);
-    assert.equal(rows({ stage: "running", showOpening: true }).length, 3);
+    // ...and once decisions have gone out, no day they were due by either (A9): the close and the start.
+    assert.deepEqual(rows({ stage: "running", showOpening: true }), [["Applications closed", "Sun 18 Oct", "23:59"], START]);
     assert.deepEqual(rows({ stage: "before", showOpening: true, opensAt: null }), [CLOSE, DECISIONS, START]);
   });
 
@@ -1278,7 +1280,8 @@ describe("from a stored form to the words on the page", () => {
     running.programmes["research-incubator"].starts = "w/c 18 Jan";
     const page = await drawn({ [FORM_ID]: running }, new Date("2026-11-10T12:00:00Z"));
     assert.equal(page.line, "Running now");
-    assert.deepEqual(page.dates, ["Applications closed Sun 18 Oct", "Decisions by Fri 23 Oct", "Programmes start w/c 18 Jan"]);
+    // A9: decisions went out on Fri 23 Oct, so the strip no longer offers that day as still to come.
+    assert.deepEqual(page.dates, ["Applications closed Sun 18 Oct", "Programmes start w/c 18 Jan"]);
     assert.equal(page.link, "");
   });
 

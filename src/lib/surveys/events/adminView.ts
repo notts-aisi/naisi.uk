@@ -14,13 +14,13 @@ import { signerOf, testStateFor } from "../sending";
 import {
   dayAndClockWords,
   dayWords,
-  deadlineWords,
   namesInWords,
   peopleWords,
   progressWords,
   remindLeadWords,
   remindedWords,
   sizeWords,
+  summaryClosesWords,
 } from "../words";
 import { respondentKey, type EventAudienceMember } from "./audience";
 import { findSurveyCode } from "./code";
@@ -109,7 +109,8 @@ export type EventSendView = {
   share: number;
   joined: { emails: number; names: string[]; nobody: string } | null;
   remind: { lead: string; email: EmailPreview | null; test: TestView; emails: number } | null;
-  summary: { name: string; size: string; atEvent: string; byEmail: string; closes: string; results: string; namesOff: string };
+  /** `closes`: "Closes" and its deadline, or once it has closed, "Closed" and the day (`summaryClosesWords`). */
+  summary: { name: string; size: string; atEvent: string; byEmail: string; closes: { label: string; value: string } | null; results: string; namesOff: string };
 };
 
 /**
@@ -157,7 +158,7 @@ export async function eventSendView(db: Firestore, survey: EventSurveyDoc, press
     byEmail: plan.firstEmailed
       ? `${peopleWords(plan.emailed)}, each with their own link.`
       : `${peopleWords(owed.length)}, each with their own link, once you send it.`,
-    closes: survey.closesAt ? deadlineWords(survey.closesAt) : "",
+    closes: summaryClosesWords(survey, state === "closed"),
     results: resultsWhoWords(organiser),
     namesOff: survey.namesOffOn ? eventNamesOffWords(survey.namesOffOn) : "",
   };

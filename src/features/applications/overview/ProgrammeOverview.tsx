@@ -28,7 +28,9 @@ import styles from "./ProgrammeOverview.module.css";
  * finished, named under Needs attention, changes who came. Before then the
  * People card says when it can be done. Both from `loadWhoFinished`.
  * CERTIFICATES follows it (`loadCertificatesSection`): who they go to, a
- * preview, the email, its test and the send.
+ * preview, the email, its test and the send. THE AFTER SURVEY follows that:
+ * how many have answered the survey at the end, worded on the server from the
+ * Surveys tab's own count, with "Surveys" the way to the tab.
  *
  * BEFORE ANY GROUP HAS MET the page draws "Get ready for week 1" in place of
  * all of this (`GetReady`, boards st-overview and st-overview-phone), from
@@ -143,6 +145,7 @@ export default function ProgrammeOverview({
   programmePath,
   finishing = null,
   certificates = null,
+  afterSurvey = null,
   getReady = null,
 }: {
   model: OverviewModel;
@@ -156,6 +159,11 @@ export default function ProgrammeOverview({
   finishing?: WhoFinishedModel | null;
   /** The Certificates section, once the run is over (`loadCertificatesSection`). */
   certificates?: CertificatesSectionModel | null;
+  /**
+   * "The after survey", once the run is over and the survey at the end has gone out: its words, as the server
+   * wrote them from the Surveys tab's own count. Its link is the programme's own Surveys tab.
+   */
+  afterSurvey?: { heading: string; answered: { count: string; rest: string }; results: { before: string; link: string; after: string } } | null;
   /** "Get ready for week 1", before any group has met (`buildGetReady`); null once one has. */
   getReady?: { model: GetReadyModel; courseId: string; runId: string } | null;
 }) {
@@ -176,8 +184,38 @@ export default function ProgrammeOverview({
       {finishing?.state === "open" && (
         <WhoFinished model={finishing} roundId={roundId} programmeId={programmeId} />
       )}
-      {finishing?.state === "open" && certificates && (
-        <CertificatesSection model={certificates} roundId={roundId} programmeId={programmeId} />
+      {finishing?.state === "open" && (certificates || afterSurvey) && (
+        /* en-finish: Certificates, and beside it The after survey, a narrower card; one under the other on a phone. */
+        <div className={styles.endRow}>
+          {certificates && (
+            <div className={styles.endMain}>
+              <CertificatesSection model={certificates} roundId={roundId} programmeId={programmeId} />
+            </div>
+          )}
+          {afterSurvey && (
+            <section className={`${styles.wfCard} ${styles.endSide}`} aria-labelledby="overview-after-survey">
+              <h2 id="overview-after-survey" className={styles.wfTitle}>
+                {afterSurvey.heading}
+              </h2>
+              <p className={styles.afterCount}>
+                <strong>{afterSurvey.answered.count}</strong> {afterSurvey.answered.rest}
+              </p>
+              <p className={styles.ctLock}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={styles.ctIcon}>
+                  <circle cx="12" cy="12" r="8.5" />
+                  <path d="M12 7.5V12l3 2" />
+                </svg>
+                <span>
+                  {afterSurvey.results.before}
+                  <Link href={`${programmePath}/surveys`} className={styles.wfSentenceLink}>
+                    {afterSurvey.results.link}
+                  </Link>
+                  {afterSurvey.results.after}
+                </span>
+              </p>
+            </section>
+          )}
+        </div>
       )}
       {week ? (
         <section className={styles.weekCard} aria-labelledby="overview-week">

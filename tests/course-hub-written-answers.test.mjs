@@ -29,7 +29,7 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
-import { B, C, COURSE, NOW, ONE_BOX, RUBRIC, RUN, makeWrittenAnswersWorld } from "./lib/writtenAnswersWorld.mjs";
+import { A, AGI, B, C, COURSE, NOW, ONE_BOX, ROUND, RUBRIC, RUN, makeWrittenAnswersWorld } from "./lib/writtenAnswersWorld.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 
@@ -601,6 +601,44 @@ describe("4. the pages, as the boards draw them", () => {
     // Signed out: the admissions tree's own gate sends them away before the page (the app's layout reaches /login first).
     const signedOut = await w.leadPage(null);
     assert.ok(signedOut.to && !/lamp plan/.test(signedOut.text), JSON.stringify(signedOut.to));
+  });
+
+  test("A10: the lead chooses the group on the page, with the Attendance tab's own control; a facilitator's page has none", async () => {
+    await sendFour();
+    const LEAD_WRITTEN = `/admin/admissions/forms/${ROUND}/programmes/${AGI}/written`;
+    /** The page's choice of group: each pill's name, its tag, its address, and whether it is the one shown. */
+    const pillsOf = (html) => {
+      const nav = /<nav class="groupLinks" aria-labelledby="([^"]+)"><span id="\1" class="groupLinksLabel">Group<\/span>([\s\S]*?)<\/nav>/.exec(html);
+      assert.ok(nav, "no choice of group on the page");
+      return [...nav[2].matchAll(/<a href="([^"]+)" class="([^"]+)" aria-label="([^"]+)"( aria-current="page")?>([^<]+)<\/a>/g)].map((m) => [
+        m[3],
+        m[5],
+        m[1],
+        m[2].includes("groupLinkCurrent") && m[4] !== undefined,
+      ]);
+    };
+    // Every group of the run that still meets, in the order the Attendance tab lists them (by meeting), each that
+    // group's own page here, which opens on its own week; the group shown marked. The lead and an admin alike.
+    const expected = (shown) =>
+      [["Group D", "D", "agi-autumn-2026-mondays__grp00004"], ["Group B", "B", B], ["Group C", "C", C], ["Group A", "A", A]].map(([name, tag, id]) => [
+        name,
+        tag,
+        `${LEAD_WRITTEN}?group=${id}`,
+        id === shown,
+      ]);
+    for (const who of ["claudia", "zach"]) {
+      assert.deepEqual(pillsOf((await w.leadPage(who, { group: B, week: "2" })).html), expected(B), who);
+    }
+    // Opened with no group, it shows the first, and the pills say which.
+    const first = await w.leadPage("claudia");
+    assert.deepEqual(pillsOf(first.html), expected("agi-autumn-2026-mondays__grp00004"));
+    assert.match(first.text, /Group D · Week 3 · Written answers/);
+    // A pill opens that group's page: Group A's answers, and only Group A's.
+    const a = await w.leadPage("claudia", { group: A });
+    assert.deepEqual(pillsOf(a.html), expected(A));
+    assert.equal(a.element.props.model.group.id, A);
+    // A facilitator's review page is the one group's own: nothing to choose.
+    assert.doesNotMatch((await w.writtenPage("rahul", { week: "2" })).html, /groupLinks/);
   });
 
   test("who reaches the group's review page at all", async () => {

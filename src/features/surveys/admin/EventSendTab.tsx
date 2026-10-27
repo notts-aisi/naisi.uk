@@ -32,7 +32,7 @@ export default function EventSendTab({ surveyId, view }: { surveyId: string; vie
       qr={view.code ? <QrCode text={shortLinkUrl(view.code.slug)} label={`QR code for ${view.code.address}`} /> : null}
       openSince={view.openSince}
       answers={view.qrAnswers}
-      canOpen={view.state === "draft" && view.summary.closes !== "" && !view.gone}
+      canOpen={view.state === "draft" && view.summary.closes !== null && !view.gone}
     />
   );
   return (
@@ -61,7 +61,7 @@ export default function EventSendTab({ surveyId, view }: { surveyId: string; vie
                   <p className={styles.muted}>{SEND_TAB_WORDS.linkLine}</p>
                   {view.summary.closes && (
                     <p>
-                      <span className={styles.summaryLabel}>{SEND_WORDS.closes}</span> {view.summary.closes}
+                      <span className={styles.summaryLabel}>{view.summary.closes.label}</span> {view.summary.closes.value}
                     </p>
                   )}
                   <p className={styles.muted}>{SEND_TAB_WORDS.noReminders}</p>
@@ -194,8 +194,8 @@ export default function EventSendTab({ surveyId, view }: { surveyId: string; vie
           </div>
           {view.summary.closes && (
             <div className={styles.summaryItem}>
-              <span className={styles.summaryLabel}>{SEND_WORDS.closes}</span>
-              <span>{view.summary.closes}</span>
+              <span className={styles.summaryLabel}>{view.summary.closes.label}</span>
+              <span>{view.summary.closes.value}</span>
             </div>
           )}
           <div className={styles.summaryItem}>

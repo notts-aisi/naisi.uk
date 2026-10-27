@@ -163,6 +163,10 @@ function Changed({ view, base }: { view: NonNullable<LeadTabView["change"]>; bas
         </div>
         <ArrowLink href={`${base}/surveys/${encodeURIComponent(view.surveyId)}`}>{LEAD_TAB_WORDS.seeBeforeAndAfter}</ArrowLink>
       </div>
+      {/* People answered both, and nobody answered the questions compared here both times: no row, and the card says so. */}
+      {!view.namesOff && view.both > 0 && !view.considering && !view.explaining && (
+        <p className={styles.caption}>{LEAD_TAB_WORDS.noneCompared}</p>
+      )}
       {view.considering && (
         <div className={styles.measure}>
           <p className={styles.eyebrow}>{LEAD_TAB_WORDS.careerPlans}</p>
