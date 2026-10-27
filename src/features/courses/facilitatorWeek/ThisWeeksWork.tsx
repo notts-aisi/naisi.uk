@@ -2,10 +2,16 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import InitialsChip from "@/components/ui/InitialsChip";
 import weekly from "@/features/courses/weekly/weekly.module.css";
-import type { GroupWeek, GroupWeekSource } from "@/lib/courses/facilitatorWeek/readers";
+import type { GroupWeek, GroupWeekFillIn, GroupWeekSource, PersonBoxes } from "@/lib/courses/facilitatorWeek/readers";
+import { filledWords } from "@/lib/courses/fillInWords";
+import { own } from "@/lib/applications/keys";
+import type { WorkColumnData } from "@/lib/courses/facilitatorWeek/workColumns";
 import {
   FACILITATOR,
   GROUPS_WEEKS,
+  HIDE_IT,
+  NOT_FILLED_IN,
+  READ_IT,
   HIDE_NAMES,
   HIDE_NOTES,
   NAME,
@@ -21,6 +27,9 @@ import {
   THIS_WEEKS_WORK,
   TICKS_NEVER_COUNT,
   WRITTEN,
+  eachPersonsBoxesWords,
+  hidePersonsBoxesWords,
+  readPersonsBoxesWords,
   groupWeekLineWords,
   groupWeekTitleWords,
   hideNotesNameWords,
@@ -51,13 +60,37 @@ import styles from "@/features/courses/facilitator/facilitator.module.css";
  * a facilitator is never handed a facilitator's own work, and the lead and
  * admins are handed it marked as theirs ("Facilitator" beside the name).
  *
- * The board's other columns (the written answer, the pathway, the case) are
- * the written answers' and the packs' pieces: each is handed in as a column
- * (`columns`), and the spread across pathways as `children`, under the table.
+ * The board's other columns (the pathway, the written answer, the case) are
+ * the packs' and the written answers' pieces, worked out on the server by
+ * `loadWorkColumns` through their own readers and handed in as columns
+ * (`workColumnsOf`); the spread across pathways comes in as `children`, under
+ * the table.
  */
 
 /** A column a later piece adds: its head, and what it says for one person. */
 export type WorkColumn = { key: string; label: string; cell: (uid: string) => ReactNode };
+
+/** The columns `loadWorkColumns` worked out, as the table draws them: a cell with an address is a link to it. */
+export function workColumnsOf(columns: readonly WorkColumnData[]): WorkColumn[] {
+  return columns.map((column) => ({
+    key: column.key,
+    label: column.label,
+    cell: (uid: string) => {
+      const cell = own(column.cells, uid);
+      if (!cell) return null;
+      return cell.href ? (
+        <Link href={cell.href} className={styles.wkCellLink}>
+          <span>{cell.text}</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
+        </Link>
+      ) : (
+        cell.text
+      );
+    },
+  }));
+}
 
 function Person({ name, uid, own, size = "md" }: { name: string; uid: string; own: boolean; size?: "sm" | "md" }) {
   return (
@@ -79,7 +112,7 @@ function SourceRow({ source, of }: { source: GroupWeekSource; of: number }) {
       </span>
       <span className={styles.wkSourceSide}>
         <span className={styles.wkSourceCount}>
-          {tickedWords(source.ticked.length, of)}
+          {tickedWords(source.fellowsTicked, of)}
           <span className={weekly.srOnly}> ticked it</span>
         </span>
       </span>
@@ -117,10 +150,72 @@ function SourceRow({ source, of }: { source: GroupWeekSource; of: number }) {
   );
 }
 
+/**
+ * EACH PERSON'S BOXES (week 6's action plan): one line a person, how many of
+ * the boxes they have filled, and "Read it", which shows what they wrote under
+ * each numbered heading, as their card lays it out. Handed only the people the
+ * one gate lets this reader read (`loadGroupWeekBoxes`), so it draws nobody
+ * else. Plain text, never markup.
+ */
+function GroupBoxes({ fillIn, people, headingId }: { fillIn: GroupWeekFillIn; people: readonly PersonBoxes[]; headingId: string }) {
+  const headings: Array<{ number: number; heading: string; boxes: GroupWeekFillIn["boxes"] }> = [];
+  for (const box of fillIn.boxes) {
+    const last = headings[headings.length - 1];
+    if (last && last.number === box.number) last.boxes.push(box);
+    else headings.push({ number: box.number, heading: box.heading, boxes: [box] });
+  }
+  return (
+    <section className={styles.wkTicks} aria-labelledby={headingId}>
+      <h3 id={headingId} className={styles.wkTicksTitle}>
+        {eachPersonsBoxesWords(fillIn.title)}
+      </h3>
+      <ul className={styles.wkSources}>
+        {people.map(({ person, filled, answers }) => (
+          <li key={person.uid} className={styles.wkSource}>
+            <span className={styles.wkSourceText}>
+              <span className={styles.wkPerson}>
+                <Person name={person.name} uid={person.uid} own={person.own} size="sm" />
+              </span>
+            </span>
+            <span className={styles.wkSourceSide}>
+              <span className={styles.wkSourceCount}>{filledWords(filled, fillIn.boxes.length)}</span>
+            </span>
+            <Disclosure
+              label={READ_IT}
+              hideLabel={HIDE_IT}
+              name={readPersonsBoxesWords(person.name, fillIn.title)}
+              hideName={hidePersonsBoxesWords(person.name, fillIn.title)}
+            >
+              <ol className={styles.wkBoxes}>
+                {headings.map((heading) => (
+                  <li key={heading.number} className={styles.wkBoxGroup}>
+                    <p className={styles.wkBoxHeading}>
+                      <span className={styles.wkBoxNumber}>{heading.number}</span> {heading.heading}
+                    </p>
+                    {heading.boxes.map((box) => (
+                      <div key={box.id} className={styles.wkBox}>
+                        {box.label && <p className={styles.wkBoxLabel}>{box.label}</p>}
+                        <p className={own(answers, box.id) ? styles.wkBoxText : `${styles.wkBoxText} ${styles.wkMuted}`}>
+                          {own(answers, box.id) ?? NOT_FILLED_IN}
+                        </p>
+                      </div>
+                    ))}
+                  </li>
+                ))}
+              </ol>
+            </Disclosure>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default function ThisWeeksWork({
   week,
   groupName,
   columns = [],
+  boxes = [],
   ownLine = null,
   emptyLine = NOBODY_LISTED,
   headingId = "this-weeks-work",
@@ -129,7 +224,9 @@ export default function ThisWeeksWork({
   week: GroupWeek;
   groupName: string;
   columns?: WorkColumn[];
-  /** To a facilitator: whose eyes the facilitators' own work is for. */
+  /** Each person's fill-in boxes this reader may read (`loadGroupWeekBoxes`); drawn on a week that has boxes. */
+  boxes?: readonly PersonBoxes[];
+  /** To a facilitator: whose eyes the facilitators' own work is for; to the lead and admins: whom the numbers count. */
   ownLine?: string | null;
   /** In place of the table when nobody is listed: the group page's own sentence for the moment it is in. */
   emptyLine?: string;
@@ -222,6 +319,8 @@ export default function ThisWeeksWork({
       {ownLine && <p className={styles.wkFootLine}>{ownLine}</p>}
 
       {children}
+
+      {week.fillIn && boxes.length > 0 && <GroupBoxes fillIn={week.fillIn} people={boxes} headingId={`${headingId}-boxes`} />}
 
       <section className={styles.wkTicks} aria-labelledby={`${headingId}-ticks`}>
         <h3 id={`${headingId}-ticks`} className={styles.wkTicksTitle}>

@@ -5,6 +5,9 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { GUIDE_LIMITS } from "@/lib/courses/guide/limits";
+import { startHereRubricCheck } from "@/lib/courses/guide/startHereRubric";
+import { rubricOf, type CourseRubric } from "@/lib/courses/rubric";
+import { normalizeCourse } from "@/lib/firestore/courses";
 import {
   glossaryToMarkdown,
   readGlossaryMarkdown,
@@ -39,6 +42,12 @@ import {
  * WHO. Admins only, for now, as for a week (Q39: an admin loads the
  * curriculum; a lead's own loading comes with the Weeks tab). The gate is
  * decided before anything is read; every other caller meets the same 403.
+ *
+ * START HERE'S RUBRIC IS READ AGAINST THE COURSE'S. A fellow is told the
+ * levels are "the rubric on Start here", and feedback is given on the course's
+ * own rubric record, so a Start here paste whose rubric is not the course's
+ * says so among the things to check (`startHereRubricCheck`). A check, never a
+ * refusal: one more read, of the run's course, for Start here alone.
  */
 
 type Params = { params: Promise<{ runId: string; doc: string }> };
@@ -84,8 +93,25 @@ async function loadRun(db: Firestore, runId: string): Promise<Record<string, unk
   return snap.data() ?? {};
 }
 
-function read(doc: GuideDocName, markdown: string): GuideRead<StartHereDoc> | GuideRead<GlossaryDoc> {
-  return doc === "start-here" ? readStartHereMarkdown(markdown) : readGlossaryMarkdown(markdown);
+/** The rubric of the run's course, which feedback is given on, or null for a run with no course or a course with none. */
+async function courseRubricOf(db: Firestore, run: Record<string, unknown>): Promise<CourseRubric | null> {
+  const courseId = typeof run.courseId === "string" ? run.courseId : "";
+  if (!isAddressableId(courseId)) return null;
+  const snap = await db.collection("courses").doc(courseId).get();
+  return snap.exists ? rubricOf(normalizeCourse(snap.id, snap.data() ?? {})) : null;
+}
+
+/** A paste, read; Start here's held to the course's rubric among the things to check. */
+async function read(
+  db: Firestore,
+  doc: GuideDocName,
+  markdown: string,
+  run: Record<string, unknown>,
+): Promise<GuideRead<StartHereDoc> | GuideRead<GlossaryDoc>> {
+  if (doc !== "start-here") return readGlossaryMarkdown(markdown);
+  const result = readStartHereMarkdown(markdown);
+  const check = startHereRubricCheck(result.doc, await courseRubricOf(db, run));
+  return check ? { ...result, checks: [...result.checks, check] } : result;
 }
 
 function stored(doc: GuideDocName, run: Record<string, unknown>): StartHereDoc | GlossaryDoc | null {
@@ -136,7 +162,7 @@ export async function POST(req: Request, ctx: Params) {
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
   const run = await loadRun(db, gated.runId);
   if (run instanceof NextResponse) return run;
-  return NextResponse.json(readAnswer(gated.doc, read(gated.doc, markdown), stored(gated.doc, run) !== null));
+  return NextResponse.json(readAnswer(gated.doc, await read(db, gated.doc, markdown, run), stored(gated.doc, run) !== null));
 }
 
 export async function PUT(req: Request, ctx: Params) {
@@ -156,7 +182,7 @@ export async function PUT(req: Request, ctx: Params) {
   if (run.destroying === true) {
     return NextResponse.json({ error: "This run is being destroyed and can’t be edited." }, { status: 409 });
   }
-  const result = read(gated.doc, markdown);
+  const result = await read(db, gated.doc, markdown, run);
   const answer = readAnswer(gated.doc, result, stored(gated.doc, run) !== null);
   if (result.problems.length > 0) return badRequest(result.problems[0], answer);
   await db

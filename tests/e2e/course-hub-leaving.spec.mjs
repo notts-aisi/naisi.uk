@@ -975,7 +975,7 @@ test(
           // says so. Now the run Ben left is a card that says only that Ben
           // left, and leads to that page.
           await benPage.goto(`${origin}/learn`, { waitUntil: "domcontentloaded" });
-          await benPage.getByRole("heading", { level: 1, name: "Your courses", exact: true }).waitFor({ timeout: WAIT_MS });
+          await benPage.getByRole("heading", { level: 1, name: "My programmes", exact: true }).waitFor({ timeout: WAIT_MS });
           const card = benPage.getByRole("link", { name: LEAVING.leftHeading(term.programmeName), exact: true });
           await card.waitFor({ timeout: WAIT_MS });
           assert.equal(await card.getAttribute("href"), learnPath(term), "the card for the run Ben left does not lead to its page");

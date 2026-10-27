@@ -195,19 +195,27 @@ describe("2. the server-side readers, on a block week", () => {
     assert.deepEqual(week2.items.map((item) => item.meta), ["Reading · 25 min", "Video · 20 min", "Reading · 30 min"]);
   });
 
-  test("the My Work mirror: a block week's card says its Why this week and mirrors its checklist blocks' items", async () => {
+  test("the My Work mirror: a block week makes no weekly card, and stamps nothing; the same week written before blocks still makes one", async () => {
+    // A default taken for Zach (27 October 2026): a week written as blocks is counted by This week's tasks on
+    // Home and its pages, so a card in My work beside them, which nothing closes, said the week was open after
+    // the page said it was done. Until then a block week's card said its Why this week and mirrored its
+    // checklist blocks' items.
+    const legacy = world.db.read(W3);
     const doc = syntheticWeekDoc();
     doc.blocks.find((b) => b.id === "pt-5").blocks.find((b) => b.id === "ck-1").items[0].mirrorToMyWork = true;
     world.db.seed(W3, doc);
     const enrolmentPath = world.db.paths().find((path) => path.startsWith("courseEnrolments/") && path.endsWith("__chloe"));
     world.db.poke(enrolmentPath, { lastTaskSyncedWeek: 0 });
-    const answer = await call("chloe", syncRoute.POST, { runId: RUN.agi }, { course: true });
-    assert.equal(answer.status, 200, JSON.stringify(answer.body));
-    assert.equal(answer.body.weekNumber, 3);
-    const task = world.db.read(`tasks/course-w03__${RUN.agi}__chloe`);
-    assert.ok(task, "the card was made");
-    assert.match(task.description, /^Forecasts are only useful if someone checks them\./);
-    assert.deepEqual(task.subtasks.map((s) => s.id), ["ci-1"]);
+    const blocks = await call("chloe", syncRoute.POST, { runId: RUN.agi }, { course: true });
+    assert.equal(blocks.status, 200, JSON.stringify(blocks.body));
+    assert.deepEqual(blocks.body, { ok: true, weekNumber: null, created: 0, alreadyPresent: 0, conflicted: 0 });
+    assert.ok(!world.db.read(`tasks/course-w03__${RUN.agi}__chloe`), "a card was made for a week written as blocks");
+    assert.equal(world.db.read(enrolmentPath).lastTaskSyncedWeek, 0, "the mark was stamped for a week with nothing mirrored");
+    // The same week, written before blocks, makes its card as it always has.
+    world.db.seed(W3, legacy);
+    const summer = await call("chloe", syncRoute.POST, { runId: RUN.agi }, { course: true });
+    assert.deepEqual([summer.status, summer.body.weekNumber, summer.body.created], [200, 3, 1], JSON.stringify(summer.body));
+    assert.ok(world.db.read(`tasks/course-w03__${RUN.agi}__chloe`), "the card was not made");
   });
 
   test("finishing counts a block week's written answer by its id, not the old exercise", async () => {

@@ -31,7 +31,6 @@ import {
   REVIEWED_CHIP,
   START_EXERCISE,
   doneWords,
-  nextWeekOpensWords,
   questionNumber,
   readerLine,
 } from "@/lib/courses/memberPageWords";
@@ -43,7 +42,7 @@ import {
   weekHeading,
 } from "@/lib/courses/sessionChange/words";
 import type { WeekSharedNotes } from "@/lib/courses/sharedNotes/views";
-import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
+import { addDaysToKey, isValidDateKey } from "@/lib/courses/weekPlan";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import type { GuideLinks } from "@/lib/courses/guide/model";
 import SurveyCards from "@/features/surveys/cards/SurveyCards";
@@ -77,7 +76,8 @@ import styles from "./WeekView.module.css";
  * A WEEK'S PAGE (board wk-week-phone): the week of weeks, its dates, what is
  * done and the minutes left; "Before your session" with the session's date and
  * the readings to tick; the exercise a facilitator reviews; and the way to the
- * next week, with when it opens (C17).
+ * next week, once it is published (every published week is open, to read
+ * ahead).
  *
  * Data: one overview fetch (the run, the reader's own weeks and their group),
  * one week-doc get, the member's own live rows, and for somebody taking part
@@ -359,7 +359,6 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
   const learnerEnrolment = payload.enrolment?.role === "learner" ? payload.enrolment : null;
   const canSubmitExercises = learnerEnrolment?.status === "active";
   const programmeName = payload.programme?.name || payload.run.courseTitle || "Your programme";
-  const todayKey = londonDateKey(new Date());
 
   // THIS week's session as the reader's group holds it, changes applied.
   const schedule = payload.weekSchedule.find((entry) => entry.weekNumber === weekNumber) ?? null;
@@ -393,8 +392,6 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
   const at = taught.findIndex((entry) => entry.weekNumber === weekNumber);
   const prev = at > 0 ? taught[at - 1] : null;
   const next = at >= 0 && at < taught.length - 1 ? taught[at + 1] : null;
-  const nextLine =
-    next && !next.open && next.opensAfter ? nextWeekOpensWords(next.weekNumber, next.opensAfter, todayKey) : null;
 
   const exercisesNote =
     learnerEnrolment || viewerRole === "learner" ? null : (
@@ -612,7 +609,7 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
           <GroupSharedNotes key={section.groupId} section={section} weekNumber={weekNumber} />
         ))}
 
-        {(prev || next?.open || nextLine) && (
+        {(prev || next?.open) && (
           <nav className={weekly.weekNav} aria-label="Weeks">
             {prev ? (
               <Link href={`${runHomeHref}/weeks/${prev.weekNumber}`} className={weekly.weekNavLink} onClick={() => setWeekNavDirection("right")}>
@@ -631,8 +628,6 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
                   <path d="M9 6l6 6-6 6" />
                 </svg>
               </Link>
-            ) : nextLine ? (
-              <p className={weekly.weekNavNote}>{nextLine}</p>
             ) : (
               <span />
             )}

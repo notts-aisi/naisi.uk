@@ -19,7 +19,6 @@ import { inLastWeek } from "@/lib/courses/programmeEnd";
 import { whatsNextFor, type WhatsNext } from "@/lib/courses/whatsNext";
 import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
 import { cardChangeFacts } from "@/lib/courses/sessionChange/model";
-import { isOpenAt, weekOpening } from "@/lib/courses/weekOpening";
 import { weekOneDoorFor, type PlaceBeforeGroups } from "@/lib/courses/weekOne/door";
 import { groupsGoOutDay, weekOneOpenWords } from "@/lib/courses/groupsGoOut";
 import type { WeekBlock } from "@/lib/courses/weekBlocks/model";
@@ -237,12 +236,13 @@ export type OverviewCancelledSession = {
  * session" applied: a one-week move's day, time and room, an online week, a
  * cancelled evening. Never the group's usual slot dated to another week.
  *
- * OPEN (C17): for somebody taking part, a published week opens straight after
- * the group's previous session (`weekOpening`); the first waits on nothing.
- * Facilitators and admins are shown every published week as open, as they
- * always were. `opensAfter` is the session a shut week waits on, so a page can
- * say "Opens tonight, after your session"; null when it waits on none, and
- * always null for staff.
+ * OPEN: every published week, to everybody the run is open to (Zach, 27
+ * October 2026: each week is published at the start, so people can read
+ * ahead). Nobody waits on a session to read or work in a published week; an
+ * unpublished one stays shut. Which week is this week, when work is due and
+ * the weekly emails stay on the group's calendar. The one thing that still
+ * waits on the group's previous session is a sealed predictions card, which
+ * keeps that clock for itself (`src/lib/courses/predictions/taker.ts`).
  */
 export type OverviewWeekSchedule = {
   weekNumber: number;
@@ -263,9 +263,7 @@ export type OverviewWeekSchedule = {
   cancelled: boolean;
   /** The session has ended. A cancelled one is over once its evening has passed. */
   over: boolean;
-  /** The session a shut week waits on, for somebody taking part. */
-  opensAfter: { dateKey: string; startTimeLocal: string } | null;
-  /** Whether the week's page is open to the caller now. */
+  /** Whether the week's page is open to the caller now: whether it is published. */
   open: boolean;
 };
 
@@ -344,7 +342,11 @@ export type OverviewGroup = {
    * it on a `"virtual"` week.
    */
   sessionModes: Record<string, GroupSessionMode>;
-  /** Names only. */
+  /**
+   * Names only: the group's facilitators, the caller left out, so nobody is
+   * named to themselves (a facilitator who holds a place reads "with Rahul
+   * and Sofia" of the group they run with them, as the placement email says).
+   */
   facilitatorNames: string[];
   /**
    * The group's usual weekly slot, with no week's own arrangement applied:
@@ -1401,9 +1403,9 @@ export async function GET(
       location: session.location,
       meetingUrl: canSeeMeetingUrlFor(source) ? session.meetingUrl : null,
       sessionModes: sessionModesOf(source),
-      facilitatorNames: source.facilitatorUids.map(
-        (uid) => nameByUid.get(uid) ?? "NAISI member",
-      ),
+      facilitatorNames: source.facilitatorUids
+        .filter((uid) => uid !== actor.uid)
+        .map((uid) => nameByUid.get(uid) ?? "NAISI member"),
       usualSlot: {
         weekday: source.session.weekday,
         startTimeLocal: source.session.startTimeLocal,
@@ -1428,20 +1430,16 @@ export async function GET(
    * open to them. Resolved through `ownGroup`, the group every top-level
    * field above is resolved through, so the weeks and the head agree.
    *
-   * The opening rule (C17) is for somebody taking part and nobody else: a
-   * facilitator of any group of the run and an admin are shown every
-   * published week, as they always were.
+   * Every published week is open to everybody the run is open to: somebody
+   * taking part reads ahead as a facilitator and an admin always have.
    */
-  const takesPart = isEnrolled && !isFacilitator && !isAdmin;
   const ownSessionsAll = resolveSessions(run, ownGroup, calendar);
   const publishedWeeks = new Set(weeks.filter((w) => w.published).map((w) => w.weekNumber));
   const ownModes = ownGroup ? sessionModesOf(ownGroup) : {};
   const usualRoom = ownGroup?.session.location.trim() ?? "";
   const scheduleOf = (session: ResolvedSession): OverviewWeekSchedule => {
     const { endsAt } = sessionInstants(session);
-    const published = publishedWeeks.has(session.weekNumber);
-    const opening = weekOpening(ownSessionsAll, session.weekNumber);
-    const open = published && (!takesPart || isOpenAt(opening, now));
+    const open = publishedWeeks.has(session.weekNumber);
     const dated = ownGroup !== null && session.dateKey !== "";
     const room = ownGroup ? session.session.location.trim() : "";
     return {
@@ -1455,10 +1453,6 @@ export async function GET(
       sessionMode: ownModes[session.weekId] ?? null,
       cancelled: session.cancelled,
       over: dated && endsAt !== null && endsAt.getTime() < now.getTime(),
-      opensAfter:
-        takesPart && published && !open && opening.after
-          ? { dateKey: opening.after.dateKey, startTimeLocal: opening.after.startTimeLocal }
-          : null,
       open,
     };
   };

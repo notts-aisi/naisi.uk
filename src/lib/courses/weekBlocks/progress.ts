@@ -1,5 +1,6 @@
 import {
   partsOf,
+  type CasesBlock,
   type PartBlock,
   type ThisWeekBlock,
   type ThisWeekRow,
@@ -253,25 +254,34 @@ export function weekTaskNeeds(blocks: readonly WeekBlock[]): TaskNeeds[] {
 
 /**
  * What a task is about, for the programme page's short line ("Parts 1 to
- * 3", "Your written answer", "Your case talk", board wk-programme): the
- * written answer when it covers one (or a single part holding one), the talk
- * when it covers a Cases block, otherwise the numbers of the parts it covers
- * (part N is the Nth part of the week), or nothing to say.
+ * 3", "Your written answer", "Your case talk", "Your pitch", board
+ * wk-programme): the written answer when it covers one (or a single part
+ * holding one), the talk when it covers a Cases block (with whether it hands
+ * out cases, and the talk's own name, "pitch" for week 6's 2-minute pitch),
+ * otherwise the numbers of the parts it covers (part N is the Nth part of the
+ * week), or nothing to say.
  */
 export type TaskSubject =
   | { kind: "writtenAnswer" }
-  | { kind: "talk" }
+  | { kind: "talk"; cases: boolean; name: string }
   | { kind: "parts"; numbers: number[] }
   | { kind: "other" };
+
+/** A Cases block as the subject of a task: a case talk when it hands out cases, otherwise a talk by its own name. */
+function talkSubject(block: CasesBlock): TaskSubject {
+  return { kind: "talk", cases: block.groups.some((group) => group.cases.length > 0), name: block.talk?.name.trim() ?? "" };
+}
 
 export function taskSubject(blocks: readonly WeekBlock[], row: Extract<ThisWeekRow, { type: "task" }>): TaskSubject {
   const byId = blocksById(blocks);
   const covered = row.covers.map((id) => byId.get(id)).filter((block): block is WeekBlock => block !== undefined);
-  if (covered.some((block) => block.type === "cases")) return { kind: "talk" };
+  const coveredTalk = covered.find((block): block is CasesBlock => block.type === "cases");
+  if (coveredTalk) return talkSubject(coveredTalk);
   if (covered.some((block) => block.type === "writtenAnswer")) return { kind: "writtenAnswer" };
   const parts = covered.filter((block): block is PartBlock => block.type === "part");
   if (parts.length === 1 && parts[0].blocks.some((child) => child.type === "writtenAnswer")) return { kind: "writtenAnswer" };
-  if (parts.length === 1 && parts[0].blocks.some((child) => child.type === "cases")) return { kind: "talk" };
+  const partTalk = parts.length === 1 ? parts[0].blocks.find((child): child is CasesBlock => child.type === "cases") : undefined;
+  if (partTalk) return talkSubject(partTalk);
   if (parts.length > 0) {
     const order = partsOf(blocks).map((part) => part.id);
     const numbers = parts

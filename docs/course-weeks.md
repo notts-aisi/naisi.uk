@@ -552,8 +552,12 @@ editor under `/admin/courses` stays an admin's.
   Everybody else gets one refusal, decided before anything of the run is read.
 - **States.** Ready is `weekIsReady` (marked, on a published week); Empty is a
   week with nothing in it, or with no page; Draft is anything else, published
-  or not. A published week that is not marked ready still opens to each group
-  straight after its previous session, as it always has.
+  or not. A published week that is not marked ready still opens to each
+  group. Every published week is open at once to everybody the run is open
+  to (Zach, 27 October 2026: weeks are published at the start so people can
+  read ahead); which week is this week, when work is due and the weekly
+  emails stay on each group's calendar, and a sealed predictions card still
+  opens only after the group's session before its week.
 - **First session and ready by.** The earliest session that week among the
   run's groups that still meet, each on its own calendar, a cancelled one left
   out; ready by is seven days before it.

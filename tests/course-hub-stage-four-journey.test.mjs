@@ -42,10 +42,10 @@
  *  8. After the end: who finished, the ratings and the certificates, a
  *     facilitator who took part among them, their count held to the emails.
  *
- * Where two pieces disagree today the test pins what is so and its comment
- * names the disagreement (W-self, W-work and the rest, as the stage four
- * walk's notes name them), so a change to either piece has to change this
- * file on purpose.
+ * Where the stage four walk found two pieces disagreeing, the comment names
+ * the finding (W-self, W-work and the rest, as the walk's notes name them)
+ * and the test pins the agreement that settled it, so a change to either
+ * piece has to change this file on purpose.
  *
  * Real: every route handler named below, the libraries behind them, the
  * access predicates, the email templates, the week page's server shell and
@@ -122,6 +122,7 @@ const routes = {
   surveyAnswer: await survey("answer"),
   openCard: await courseRoute("runs", "[runId]", "predictions", "people", "[uid]"),
   ratings: await courseRoute("groups", "[groupId]", "ratings"),
+  syncTasks: await courseRoute("runs", "[runId]", "sync-tasks"),
 };
 const lib = {
   reader: await loadTs(join("lib", "courses", "weekBlocks", "reader.ts")),
@@ -133,7 +134,31 @@ const lib = {
   queue: await loadTs(join("lib", "courses", "writtenAnswers", "queue.ts")),
   groups: await loadTs(join("lib", "firestore", "courseGroups.ts")),
   facilitatorWords: await loadTs(join("lib", "courses", "facilitatorPageWords.ts")),
+  homeRuns: await loadTs(join("features", "courses", "MyCoursesSummary.tsx")),
+  ending: await loadTs(join("features", "courses", "registerEndingWords.ts")),
+  startHereRubric: await loadTs(join("lib", "courses", "guide", "startHereRubric.ts")),
+  workColumns: await loadTs(join("lib", "courses", "facilitatorWeek", "workColumns.ts")),
+  packs: await loadTs(join("lib", "courses", "packsAndCases", "readers.ts")),
+  groupWeek: await loadTs(join("lib", "courses", "facilitatorWeek", "readers.ts")),
+  facilitatorGroup: await loadTs(join("lib", "courses", "facilitatorGroup.ts")),
 };
+
+/**
+ * Which form of Home `who` is given, as `HomeMember` decides it from the hub's list: the
+ * facilitator's Home for a live run they facilitate, the programme Home for one they learn on,
+ * otherwise the Home of a member on no programme. With the hub's entry for the run.
+ */
+async function homeFormOf(who) {
+  const runs = (await asCourse(who, w.routes.me.GET, {})).body?.runs ?? [];
+  const live = lib.homeRuns.liveRunsOf(runs);
+  const form = live.some((entry) => entry.roles.includes("facilitator"))
+    ? "facilitator"
+    : live.some((entry) => entry.roles.includes("learner"))
+      ? "programme"
+      : "member";
+  const entry = runs.find((row) => row.runId === RUN.agi) ?? null;
+  return { form, entry: entry ? [entry.roles, entry.membership] : null };
+}
 
 /** The six made-up weeks, as an admin pastes them: the guide's Markdown with no ids. */
 const WEEKS = [
@@ -414,10 +439,36 @@ describe("1. before groups go out (Mon 26 Oct)", () => {
     assert.equal(page.shell.props.viewerRole, "facilitator");
     assert.match(page.html, />Bea before groups go out\.</);
     // Week 1's door is staff's for anybody facilitating a group of the run (decided), so Home has no
-    // card for her place; and Home's own list leaves the run out until Publish tells her place.
+    // card for Bea's place. The run's own gate admits Bea from the appointment, so the hub puts Bea on
+    // the run, as a facilitator, and Home's list keeps it (W-before): Bea's Home is the facilitator's
+    // Home before Publish, as Rahul's is, and names no group of a place nobody has told Bea about.
     assert.deepEqual(await lib.cards.beforeGroupsCardsFor(world.courseDb, w.sessionOf("bea"), new Date()), []);
     const me = (await asCourse("bea", w.routes.me.GET, {})).body.runs.find((entry) => entry.runId === RUN.agi);
-    assert.deepEqual([me.roles, me.membership], [["facilitator"], "none"]);
+    assert.deepEqual([me.roles, me.membership, me.groupName], [["facilitator"], "enrolled", null]);
+  });
+
+  test("before Publish, Bea's Home is the facilitator's, and the hub gives nobody a run its gate would not open", async () => {
+    const forms = {};
+    for (const who of ["amara", "bea", "dev", "rahul", "sofia", "tom", "claudia", "zach", "nobody"]) forms[who] = await homeFormOf(who);
+    assert.deepEqual(forms, {
+      // Placed by the form and not told yet: the hub says nothing of the run, and week 1's door is their way in.
+      amara: { form: "member", entry: null },
+      dev: { form: "member", entry: null },
+      // Appointed to Group B, holding a place Publish has not told Bea about: Bea's row is on the run, so the hub
+      // gives the run as a facilitator's, enrolled, and Home is the facilitator's Home. A facilitator who
+      // holds no place, with the row an appointment writes, is answered the same
+      // (`tests/course-hub-facilitator-fellows-home.test.mjs`).
+      bea: { form: "facilitator", entry: [["facilitator"], "enrolled"] },
+      // This world names Rahul, Sofia and Tom on groups with no row on the run (an appointment always writes
+      // one), and the hub adds nothing for a name with no row.
+      rahul: { form: "member", entry: null },
+      sofia: { form: "member", entry: null },
+      tom: { form: "member", entry: null },
+      // The programme's lead and an admin take no part in a group of it.
+      claudia: { form: "member", entry: null },
+      zach: { form: "member", entry: null },
+      nobody: { form: "member", entry: null },
+    });
   });
   test("everybody the reflection route lets write in week 1 is answered their own boxes back, before Publish", async () => {
     const rows = await writersAndReaders();
@@ -481,6 +532,21 @@ describe("3. week 1 (Thu 29 Oct to Wed 4 Nov; Group B meets on Tue 3 Nov)", () =
     assert.doesNotMatch(counts.pages.week.text, /Week 1 is open now/);
   });
 
+  test("Home's My work holds no weekly card for a week written as blocks: This week's tasks are its record (W-mywork)", async () => {
+    // A default taken for Zach: the summer's weekly card was a second record of the week that nothing closes,
+    // so Home said week 1 was done and, below it, that week 1 was open with a deadline.
+    for (const who of ["amara", "bea"]) {
+      const answer = ok(await asCourse(who, routes.syncTasks.POST, { runId: RUN.agi }), `${who}'s weekly card`);
+      assert.deepEqual(answer, { ok: true, weekNumber: null, created: 0, alreadyPresent: 0, conflicted: 0 }, who);
+    }
+    const mirrors = world.db
+      .paths()
+      .filter((path) => path.startsWith("tasks/"))
+      .map((path) => world.db.read(path))
+      .filter((task) => task?.source === "fellowship-reminder");
+    assert.deepEqual(mirrors, []);
+  });
+
   test("Bea, who facilitates Group B and holds a place in it, does week 1 as herself, and her lines name only the lead and admins", async () => {
     const w1 = stored(1);
     for (const itemId of w1.sources) tick("bea", 1, itemId);
@@ -493,9 +559,13 @@ describe("3. week 1 (Thu 29 Oct to Wed 4 Nov; Group B meets on Tue 3 Nov)", () =
     assert.doesNotMatch(page.text, /Other fellows can’t|may read a line out/);
     const programme = await w.programmeHome("bea", ticksOf("bea"));
     assert.equal(doneOn(programme.text), "1 of 1 done");
-    // W-self: Bea's own programme page names her among the people she meets with. Publish's
-    // placement email leaves its reader out of the group's facilitators; the page does not.
-    assert.match(programme.text, /Group B · Tuesdays 6pm · Hallward B12 · with Rahul, Sofia and Bea/);
+    // W-self: nobody is named to themselves. Bea's own programme page names the group's other
+    // facilitators, in the head and on the ticket, as Publish's placement email does; Amara's names all three.
+    assert.match(programme.text, /Group B · Tuesdays 6pm · Hallward B12 · with Rahul and Sofia /);
+    assert.equal(programme.text.match(/with Rahul and Sofia/g)?.length, 2, programme.text);
+    assert.doesNotMatch(programme.text, /Sofia and Bea|Rahul, Sofia and Bea/);
+    const amara = await w.programmeHome("amara", ticksOf("amara"));
+    assert.match(amara.text, /Group B · Tuesdays 6pm · Hallward B12 · with Rahul, Sofia and Bea /);
   });
 
   test("everybody the reflection route lets write in week 1 is answered their own boxes back, after Publish", async () => {
@@ -534,13 +604,42 @@ describe("3. week 1 (Thu 29 Oct to Wed 4 Nov; Group B meets on Tue 3 Nov)", () =
     assert.match(week.text, /Rahul, Sofia or Bea may read a line out in the session, without your name\./);
   });
 
-  test("W-rubric: Start here's rubric and the course's rubric are two pastes, and nothing holds them to one another", async () => {
+  test("W-rubric: Start here's rubric is read against the course's, and a difference is named among the things to check, never refused", async () => {
     // The written answer's card sends a fellow to "the rubric on Start here"; feedback is given on the
-    // course's own rubric record. Loaded from two different tables, the two disagree and nothing says so.
+    // course's own rubric record. Loaded from two different tables, the two disagree.
     const amara = await serverPage(["[runId]", "start-here", "page.tsx"], { runId: RUN.agi }, "amara");
     assert.match(amara.text, /A clear position Not yet No view Solid A view Strong A view someone could argue with/);
     const course = world.db.read(`courses/${COURSE.agi}`);
     assert.deepEqual(course.rubric.rows.map((row) => row.name), ["A clear view", "Reasons"]);
+    // Reading Start here's paste again says so; saving it is not refused.
+    const differs =
+      "Start here’s rubric isn’t the course’s, which feedback is given on: its rows are “A clear position” and “Reasons”, " +
+      "and the course’s are “A clear view” and “Reasons”. Make them the same, here or in the course’s details.";
+    const read = ok(await asCourse("zach", routes.guide.POST, { runId: RUN.agi, doc: "start-here" }, { markdown: START_HERE_MARKDOWN }), "read Start here");
+    assert.ok(read.checks.includes(differs), JSON.stringify(read.checks));
+    assert.deepEqual(read.problems, []);
+    assert.equal(ok(await asCourse("zach", routes.guide.PUT, { runId: RUN.agi, doc: "start-here" }, { markdown: START_HERE_MARKDOWN }), "save").saved, true);
+    // The guide loader is an admin's: the lead and a facilitator are refused before anything is read.
+    for (const who of ["claudia", "rahul"]) {
+      assert.equal((await asCourse(who, routes.guide.POST, { runId: RUN.agi, doc: "start-here" }, { markdown: START_HERE_MARKDOWN })).status, 403, who);
+    }
+    // With the course's rubric made Start here's own table, nothing is named; then it is put back, since the
+    // rest of the term gives feedback on it.
+    const startHereTable = START_HERE_MARKDOWN.split("\n").filter((line) => line.startsWith("|  |") || line.startsWith("| --- | --- | --- | --- |") || /^\| \*\*(A clear position|Reasons)\*\*/.test(line)).join("\n");
+    ok(await asCourse("zach", routes.rubric.PUT, { courseId: COURSE.agi }, { markdown: startHereTable }), "the course's rubric made Start here's");
+    const matching = ok(await asCourse("zach", routes.guide.POST, { runId: RUN.agi, doc: "start-here" }, { markdown: START_HERE_MARKDOWN }), "read again");
+    assert.deepEqual(matching.checks.filter((line) => /rubric/.test(line)), []);
+    ok(await asCourse("zach", routes.rubric.PUT, { courseId: COURSE.agi }, { markdown: RUBRIC_MARKDOWN }), "the course's rubric put back");
+    assert.deepEqual(world.db.read(`courses/${COURSE.agi}`).rubric.rows.map((row) => row.name), ["A clear view", "Reasons"]);
+    // The other shapes: a course with no rubric, and a table that differs in one cell.
+    const startHere = lib.startHereRubric.startHereRubricOf(world.db.read(`courseRuns/${RUN.agi}`).startHere);
+    assert.deepEqual(startHere.levels, ["Not yet", "Solid", "Strong"]);
+    assert.equal(
+      lib.startHereRubric.startHereRubricCheck(world.db.read(`courseRuns/${RUN.agi}`).startHere, null),
+      "Start here has a rubric, and the course has none, so feedback is a comment alone. Set the course’s rubric in its details if feedback should use these levels.",
+    );
+    const oneCell = { levels: startHere.levels, rows: startHere.rows.map((row, i) => (i === 0 ? { ...row, descriptors: ["Nothing", ...row.descriptors.slice(1)] } : row)) };
+    assert.match(lib.startHereRubric.startHereRubricCheck(world.db.read(`courseRuns/${RUN.agi}`).startHere, oneCell), /: 1 of its cells says something else\./);
   });
 
   test("in session 1, both seal their predictions; the card is shut to its owner until week 6", async () => {
@@ -578,12 +677,36 @@ describe("3. week 1 (Thu 29 Oct to Wed 4 Nov; Group B meets on Tue 3 Nov)", () =
     const marks = ["amara", "bea"].map((uid) => ({ uid, status: "present" }));
     ok(await asCourse("rahul", routes.register.POST, { groupId: B }, { weekNumber: 1, marks }), "week 1's register");
     const finished = ok(await asCourse("rahul", routes.finish.POST, { groupId: B }, { weekNumber: 1 }), "finished");
-    // W-held: week 2 is not marked ready until tomorrow, so next week's email is held, and the facilitator who
-    // finished the register is told to do two things only the lead and admins can (Mark ready is the word now).
+    // W-held: week 2 is not marked ready until tomorrow, so next week's email is held. Only the lead and admins
+    // mark a week ready, so the facilitator who finished the register is told who does, by name, and asked to
+    // do nothing that is not theirs. Nothing sends the email later, and the words promise nothing of the kind.
     assert.equal(world.mail.length, 0);
-    assert.equal(finished.reason, "Week 2 isn't published yet, so the group wasn't sent a reminder. Publish it and use the run's catch-up send.");
+    assert.equal(finished.reason, "Week 2 isn’t published yet, so nobody was emailed. Claudia marks it ready.");
     const sheet = world.db.read(`courseAttendance/${RUN.agi}__${B}__w01`);
     assert.deepEqual(Object.keys(sheet.records).sort(), ["amara", "bea"]);
+  });
+
+  test("the held email's answer is worded for whoever pressed: an admin's resend is told what an admin can do", async () => {
+    // Group A's week 1 register was finished by Sofia while week 2 was not ready either. An admin's resend
+    // finds the email still held, claims nothing, sends nothing, and is answered in an admin's words.
+    const forced = ok(await asCourse("zach", routes.finish.POST, { groupId: A }, { weekNumber: 1, force: true }), "an admin's resend");
+    assert.equal(forced.sent, 0);
+    assert.equal(forced.reason, "Week 2 isn’t published yet, so nobody was emailed. Mark it ready, then use the run’s catch-up send.");
+    assert.equal(world.mail.length, 0);
+    // A facilitator is never told to mark it ready; a lead who facilitates a group of the lead's own run is
+    // (the stage two journey's incubator, run by its lead), and is never named to themselves.
+    assert.deepEqual(
+      [{ kind: "admin" }, { kind: "you" }, { kind: "lead", firstName: "Claudia" }, { kind: "lead", firstName: " " }, { kind: "admins" }].map((who) =>
+        lib.ending.unpublishedPushWords(2, who),
+      ),
+      [
+        "Week 2 isn’t published yet, so nobody was emailed. Mark it ready, then use the run’s catch-up send.",
+        "Week 2 isn’t published yet, so nobody was emailed. Marking it ready publishes it.",
+        "Week 2 isn’t published yet, so nobody was emailed. Claudia marks it ready.",
+        "Week 2 isn’t published yet, so nobody was emailed. The programme’s lead marks it ready.",
+        "Week 2 isn’t published yet, so nobody was emailed. An admin marks it ready.",
+      ],
+    );
   });
 
   test("the before survey's box names who never sees the answers: Amara's names all three facilitators, Bea's leaves her out", async () => {
@@ -672,7 +795,7 @@ describe("4. week 2 (Group B meets on Tue 10 Nov): a written answer, sent and gi
     assert.doesNotMatch(rahulReview.text, /Bea/);
   });
 
-  test("Rahul's group page in week 2: the group's fellows, never Bea's own work, and This week's work with reflections alone", async () => {
+  test("Rahul's group page in week 2: the group's fellows, never Bea's own work, and This week's work with its pack, written answer and case", async () => {
     await w.asBrowser("rahul", 2, []);
     const page = await serverPage(["[runId]", "group", "[groupId]", "page.tsx"], { runId: RUN.agi, groupId: B }, "rahul");
     // The group page leaves its reader out of the group's facilitators (W-self: the programme page does not).
@@ -681,10 +804,15 @@ describe("4. week 2 (Group B meets on Tue 10 Nov): a written answer, sent and gi
     assert.match(page.text, /Review queue Reflections Part 1, 0 of 1 · Part 2, 0 of 1/);
     assert.match(page.text, /Part 1 · Read A field guide to base rates 0 of 1 ticked it/);
     assert.match(page.text, /Facilitators’ own work is for Claudia and admins to read, so it isn’t listed here\./);
-    // W-work: wk-fac-group's table has Pathway, Written answer and Case columns. The group page hands
-    // This week's work no columns (`weekWorkOf` is called by nothing), so it draws the reflections alone.
-    assert.match(page.text, /This week’s work Week 2 · Thu 5 to Wed 11 Nov Name Part 1 reflection Part 2 reflection AO Amara Okafor Not yet Not yet/);
-    assert.doesNotMatch(page.text, /Name Part 1 reflection Part 2 reflection (Pathway|Written answer)/);
+    // W-work: wk-fac-group's table has its pathway, written answer and case columns, through the packs' and
+    // the written answers' own readers. The Choose one's own title heads the first ("Pack" in this made-up week,
+    // "Pathway" in the guide's); Amara's answer reads as the review page reads it; nobody has a pack or a case
+    // before the draw. On a phone each person's lines say the same.
+    assert.match(
+      page.text,
+      /This week’s work Week 2 · Thu 5 to Wed 11 Nov Name Part 1 reflection Part 2 reflection Pack Written answer Case AO Amara Okafor Not yet Not yet Not given yet Feedback sent · Rahul Not given yet /,
+    );
+    assert.match(page.text, /AO Amara Okafor Reflections Not yet Pack Not given yet Written answer Feedback sent · Rahul Case Not given yet /);
     // Three facilitators: the notes are for Rahul and the other two, in one list with the reader
     // first. Putting "you and" before a list already joined with "and" said "and" twice.
     assert.match(page.text, /Notes for you, Sofia and Bea Only Group B’s facilitators, Claudia and admins see these\./);
@@ -821,6 +949,64 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
     assert.match(rahul.text, /Amara can still change it until Rahul, Sofia or Bea opens it\./);
   });
 
+  test("W-work: in week 3, This week's work says each person's pack, written answer and case, to exactly the readers of each", async () => {
+    const w3 = stored(3);
+    const given = w3.chooseOnes.find((block) => block.givenBy === "facilitator");
+    const talk = w3.talks.find((block) => block.groups.some((group) => group.cases.length > 0));
+    const caseTitle = (uid) => {
+      const caseId = world.db.read(`coursePacksAndCases/${RUN.agi}__${uid}__${talk.id}`)?.caseId;
+      return talk.groups.flatMap((group) => group.cases).find((c) => c.id === caseId)?.title;
+    };
+    const groupPage = (who) => serverPage(["[runId]", "group", "[groupId]", "page.tsx"], { runId: RUN.agi, groupId: B }, who);
+    const review = (uid) => `href="/learn/${encodeURIComponent(RUN.agi)}/group/${B}/written?week=3&amp;person=${uid}"`;
+    // Rahul, and Bea from a place in the group Bea runs: the group's fellow, with Amara's pack, the answer
+    // waiting for feedback as a link to it on the review page, and Amara's case. Never Bea's own.
+    for (const who of ["rahul", "bea"]) {
+      const page = await groupPage(who);
+      assert.match(
+        page.text,
+        new RegExp(`Name Part 1 reflection Part 2 reflection ${given.title} Written answer Case AO Amara Okafor Written Written ${given.packs[0].name} To give feedback ${caseTitle("amara")} `),
+        who,
+      );
+      assert.ok(page.html.includes(review("amara")), `${who}: no way to Amara's answer`);
+      assert.ok(!page.html.includes(review("bea")), `${who}: a way to Bea's own answer`);
+      // The table holds nothing of Bea's own work. (The spread above it shows the pack Bea was GIVEN, as the draw
+      // shows every co-facilitator what was handed out in the room.)
+      const table = page.text.slice(page.text.indexOf("This week’s work"), page.text.indexOf("Reading ticks"));
+      assert.doesNotMatch(table, new RegExp(`Bea|${given.packs[1].name}|${caseTitle("bea")}`), `${who}'s table shows Bea's own work`);
+    }
+    // An admin: the fellows, then the facilitators' own rows, marked as theirs, Bea's pack and answer among them.
+    const admin = await groupPage("zach");
+    assert.match(admin.text, new RegExp(`BL Bea Lindqvist Facilitator Not yet Not yet ${given.packs[1].name} To give feedback ${caseTitle("bea")} `));
+    assert.match(admin.text, /RM Rahul Mehta Facilitator Not yet Not yet Not given yet Not started Not given yet /);
+    assert.ok(admin.html.includes(review("bea")), "an admin has no way to Bea's answer");
+    // A fellow never reaches the group page.
+    assert.equal((await groupPage("amara")).to, `/learn/${encodeURIComponent(RUN.agi)}`);
+    // The lead's view of the group's week asks the same loader as the lead: Bea's own pick and answer are the
+    // lead's to see, and "To give feedback" leads to the lead's own review page.
+    const run = w.lib.courses.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
+    const group = lib.groups.normalizeCourseGroup(B, world.db.read(`courseGroups/${B}`));
+    const people = await lib.packs.readDrawPeople(world.courseDb, RUN.agi, group, { isAdmin: false }, new Date());
+    const columns = await lib.workColumns.loadWorkColumns(world.courseDb, {
+      run,
+      group,
+      actor: w.sessionOf("claudia"),
+      viewer: { isAdmin: false, leadOf: { roundId: ROUND, programmeId: AGI } },
+      weekNumber: 3,
+      people,
+      reviewHref: (uid, n) => `lead-review?week=${n}&person=${uid}`,
+      now: new Date(),
+    });
+    const cellsOf = (uid) => Object.fromEntries(columns.map((column) => [column.key, column.cells[uid] ?? null]));
+    assert.deepEqual(columns.map((column) => [column.key, column.label]), [["pathway", given.title], ["written", "Written answer"], ["case", "Case"]]);
+    assert.deepEqual(cellsOf("bea"), {
+      pathway: { text: given.packs[1].name, href: null },
+      written: { text: "To give feedback", href: "lead-review?week=3&person=bea" },
+      case: { text: caseTitle("bea"), href: null },
+    });
+    assert.deepEqual(cellsOf("amara").written, { text: "To give feedback", href: "lead-review?week=3&person=amara" });
+  });
+
   test("who waits for whose feedback: Rahul and Sofia have Amara's answer and never Bea's; the lead and an admin have both", async () => {
     const run = w.lib.courses.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
     const groups = [B, A].map((id) => lib.groups.normalizeCourseGroup(id, world.db.read(`courseGroups/${id}`)));
@@ -896,9 +1082,19 @@ describe("7. week 6 (Group B meets on Tue 8 Dec, its last session)", () => {
     assert.deepEqual([amara.week, amara.programme, amara.home], ["1 of 4 done", "1 of 4 done", "1 of 4 done"]);
     assert.match(amara.pages.week.text, /Done: Part 3: draft your keeper's plan About 30 minutes Bring it to your session, Tue 8 Dec Done/);
     // W-pitch: week 6's talk is a pitch with no case ("Part 4: prepare your 2-minute pitch", "Ready for my
-    // pitch"), and the programme page calls its row "Your case talk".
+    // pitch"), and the programme page's row names it by the talk's own name, as the week page's mark does.
     assert.match(amara.pages.week.text, /Not done yet: Part 4: prepare your 2-minute pitch About 15 minutes At your session, Tue 8 Dec Not ready yet/);
-    assert.match(amara.pages.programme.text, /Not done yet: Your case talk Not ready yet Open week 6/);
+    assert.match(amara.pages.programme.text, /Not done yet: Your pitch Not ready yet Open week 6/);
+    assert.doesNotMatch(amara.pages.programme.text, /Your case talk/);
+    // A talk that hands out cases is still "Your case talk" (week 3's, above); one with no name, "Your talk".
+    assert.deepEqual(
+      [
+        { kind: "talk", cases: true, name: "talk" },
+        { kind: "talk", cases: false, name: "pitch" },
+        { kind: "talk", cases: false, name: " " },
+      ].map((subject) => w.lib.words.taskLabelWords(subject, "")),
+      ["Your case talk", "Your pitch", "Your talk"],
+    );
     const bea = await w.weekPage("bea", 6, ticksOf("bea"));
     assert.match(bea.text, /Draft · 6 of 12 filled/);
   });
@@ -922,8 +1118,57 @@ describe("7. week 6 (Group B meets on Tue 8 Dec, its last session)", () => {
     for (const who of ["claudia", "zach"]) assert.deepEqual(await readBoxes(who, "bea"), { status: 200, boxes: 6 }, `${who} reads Bea's`);
     for (const who of ["rahul", "sofia", "amara"]) assert.equal((await readBoxes(who, "bea")).status, 403, `${who} reads Bea's`);
     assert.equal((await readBoxes("bea", "amara")).status, 200);
-    // W-plan: the route is the only way anybody reads somebody else's plan, and no page calls it, so the
-    // line names readers who have no screen to read it on (as with W-work, a reader the group page does not draw).
+
+    // W-plan: the people the line names read the plan on the group's week: the group page for its facilitators
+    // and admins, the lead's view of the group's week for the lead. Each lists exactly the people the route
+    // admits that reader, by the route's own gate, each with what they wrote under the card's headings.
+    const fillIn = stored(6).week.blocks.flatMap((block) => (block.type === "part" ? block.blocks : [block])).find((block) => block.type === "fillIn");
+    const heading = `Each person’s ${fillIn.title.replace(/^my\s+/i, "")}`;
+    const section = (text) => text.slice(text.indexOf(heading), text.indexOf("Reading ticks"));
+    const listed = (text) => [...section(text).matchAll(/(Amara Okafor|Bea Lindqvist|Rahul Mehta|Sofia Rossi)(?: Facilitator)? (\d+) of 12 filled/g)].map((m) => `${m[1].split(" ")[0].toLowerCase()} ${m[2]}`);
+    const admitted = async (who) => {
+      const out = [];
+      for (const uid of ["amara", "bea", "rahul", "sofia"]) if ((await readBoxes(who, uid)).status === 200) out.push(uid);
+      return out;
+    };
+    const groupPage = (who) => serverPage(["[runId]", "group", "[groupId]", "page.tsx"], { runId: RUN.agi, groupId: B }, who);
+    const expected = { rahul: ["amara 12"], sofia: ["amara 12"], bea: ["amara 12"], zach: ["amara 12", "rahul 0", "sofia 0", "bea 6"] };
+    // Whom This week's work lists to each reader: a facilitator, the fellows; an admin, the facilitators too.
+    const rows = { rahul: ["amara"], sofia: ["amara"], bea: ["amara"], zach: ["amara", "rahul", "sofia", "bea"] };
+    for (const [who, people] of Object.entries(expected)) {
+      const page = await groupPage(who);
+      assert.ok(page.text.includes(heading), `${who}: no plans on the group page`);
+      assert.deepEqual(listed(page.text), people, who);
+      // Exactly the people the route admits this reader, of the people listed to them.
+      const shown = people.map((entry) => entry.split(" ")[0]);
+      const allowed = await admitted(who);
+      assert.deepEqual([...shown].sort(), rows[who].filter((uid) => allowed.includes(uid)).sort(), who);
+      // Their words are on the page, behind "Read it", and nobody else's.
+      const words = (page.html.match(/A step on /g) ?? []).length;
+      assert.equal(words, people.reduce((sum, entry) => sum + Number(entry.split(" ")[1]), 0), `${who}: words of people not listed`);
+      assert.match(page.html, /aria-label="Read it: Amara Okafor’s [^"]+"/);
+    }
+    // Rahul and Sofia are refused Bea's by the route, and Bea's plan is on neither of their pages.
+    for (const who of ["rahul", "sofia"]) assert.deepEqual(await admitted(who), ["amara"], who);
+    // The lead, on the lead's view of the group's week, through the same reader: everybody, as the route admits.
+    const run = w.lib.courses.normalizeCourseRun(RUN.agi, world.db.read(`courseRuns/${RUN.agi}`));
+    const group = lib.groups.normalizeCourseGroup(B, world.db.read(`courseGroups/${B}`));
+    const claudia = w.sessionOf("claudia");
+    const model = await lib.facilitatorGroup.loadFacilitatorGroup(world.courseDb, run, group, { isAdmin: false, actor: claudia }, new Date());
+    const leadWeek = await lib.groupWeek.loadGroupWeek(world.courseDb, { run, group, model, viewer: "lead", now: new Date() });
+    const leadBoxes = await lib.groupWeek.loadGroupWeekBoxes(world.courseDb, { run, actor: claudia, week: leadWeek });
+    assert.deepEqual(leadBoxes.map((entry) => [entry.person.uid, entry.filled]), [["amara", 12], ["rahul", 0], ["sofia", 0], ["bea", 6]]);
+    assert.deepEqual(await admitted("claudia"), ["amara", "bea", "rahul", "sofia"]);
+    // The reader asks the route's own gate person by person, so it never hands anybody more than the route
+    // would, whoever it is handed: given Bea's own row beside Amara's, Rahul is handed Amara's alone.
+    const rahul = w.sessionOf("rahul");
+    const rahulModel = await lib.facilitatorGroup.loadFacilitatorGroup(world.courseDb, run, group, { isAdmin: false, actor: rahul }, new Date());
+    const rahulWeek = await lib.groupWeek.loadGroupWeek(world.courseDb, { run, group, model: rahulModel, viewer: "facilitator", now: new Date() });
+    const beaRow = { uid: "bea", name: "Bea Lindqvist", firstName: "Bea", own: true, written: rahulWeek.parts.map(() => false) };
+    const handed = await lib.groupWeek.loadGroupWeekBoxes(world.courseDb, { run, actor: rahul, week: { ...rahulWeek, rows: [...rahulWeek.rows, beaRow] } });
+    assert.deepEqual(handed.map((entry) => entry.person.uid), ["amara"]);
+    // A fellow never reaches the group page, so never anybody's plan there.
+    assert.equal((await groupPage("amara")).to, `/learn/${encodeURIComponent(RUN.agi)}`);
   });
 
   test("a pack each picks herself: Amara and Bea pick one and change it before the session", async () => {
@@ -998,8 +1243,8 @@ describe("8. after the end (Group C's last session ends at 3pm on Wed 9 Dec)", (
     assert.match(amara.text, /^My programmes AGI Strategy You finished AGI Strategy\. Autumn 2026 · Group B · with Rahul, Sofia and Bea Your survey at the end Sent Tue 8 Dec\. Thank you\. It’s here until Sat 9 Dec 2028, when your name comes off your answers\. What you keep Your action plan Week 6 The reading list for all 6 weeks/);
     await w.asBrowser("bea", 6, ticksOf("bea"));
     const bea = await serverPage(["[runId]", "page.tsx"], { runId: RUN.agi }, "bea");
-    // W-self again: "with Rahul, Sofia and Bea", on Bea's own page.
-    assert.match(bea.text, /^My programmes AGI Strategy You finished AGI Strategy\. Autumn 2026 · Group B · with Rahul, Sofia and Bea The survey at the end/);
+    // W-self: after the end too, Bea's own page names the group's other facilitators and never Bea.
+    assert.match(bea.text, /^My programmes AGI Strategy You finished AGI Strategy\. Autumn 2026 · Group B · with Rahul and Sofia The survey at the end/);
   });
 
   test("ratings at the end: Rahul rates Amara and never Bea, his co-facilitator; the lead rates Bea; nobody rates themselves", async () => {

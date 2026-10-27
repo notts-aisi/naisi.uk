@@ -142,8 +142,8 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
   const facts = group ? ticketFacts(group) : null;
   const learner = data?.enrolment?.role === "learner" ? data.enrolment : null;
 
-  // The reading before the next session: that session's own week, which is
-  // open by the rule that it opens straight after the session before it.
+  // The reading before the next session: that session's own week, open to
+  // read once it is published, as every published week is.
   const weekNumber = facts?.weekNumber ?? 0;
   const schedule = data?.weekSchedule.find((week) => week.weekNumber === weekNumber) ?? null;
   const doc = data?.weeks.find((week) => week.weekNumber === weekNumber) ?? null;

@@ -243,3 +243,54 @@ function pushEffect(group: string, line: PushEmailLine | undefined, hasNext: boo
   if (line?.kind === "held") return `${locks} ${heldFootSentence(group, line)}`;
   return `${locks} Nobody’s emailed.`;
 }
+
+// ---------------------------------------------------------------------------
+// The push's own answer, when next week's email waits for its week
+// ---------------------------------------------------------------------------
+
+/**
+ * Who marks a week ready, which publishes it, as the push's answer names them
+ * to the person who pressed. Only the programme's lead and admins can (the
+ * ready route), so a facilitator is told who does it and never told to do it
+ * themselves; nobody is named to themselves.
+ */
+export type MarksReady =
+  /** The person who pressed is an admin: marking it ready and the run's catch-up send are both theirs. */
+  | { kind: "admin" }
+  /** The person who pressed leads the programme that names the run. */
+  | { kind: "you" }
+  /** The programme's lead, by the name they go by ("" when they have given none). */
+  | { kind: "lead"; firstName: string }
+  /** No lead stands for the run: admins mark its weeks ready. */
+  | { kind: "admins" };
+
+/** "Week 3 isn’t published yet, so nobody was emailed.": what happened, in the foot's words. */
+export function unpublishedHeldWords(weekNumber: number): string {
+  return `Week ${weekNumber} isn’t published yet, so nobody was emailed.`;
+}
+
+/** The sentence after it: who marks the week ready, said to the person who pressed. */
+function marksReadyWords(who: MarksReady): string {
+  switch (who.kind) {
+    case "admin":
+      return "Mark it ready, then use the run’s catch-up send.";
+    case "you":
+      return "Marking it ready publishes it.";
+    case "lead": {
+      const name = who.firstName.trim();
+      return name ? `${name} marks it ready.` : "The programme’s lead marks it ready.";
+    }
+    case "admins":
+      return "An admin marks it ready.";
+  }
+}
+
+/**
+ * The push's answer when the group's email about the next session waits for
+ * that session's week to be published: "Week 3 isn’t published yet, so nobody
+ * was emailed. Claudia marks it ready." Nothing sends the email later when the
+ * week is marked ready, and these words promise nothing of the kind.
+ */
+export function unpublishedPushWords(weekNumber: number, marksReady: MarksReady): string {
+  return `${unpublishedHeldWords(weekNumber)} ${marksReadyWords(marksReady)}`;
+}

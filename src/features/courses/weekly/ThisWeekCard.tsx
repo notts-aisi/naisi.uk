@@ -36,8 +36,8 @@ import styles from "./weekly.module.css";
  * and leads to the week.
  *
  * The dates are the week's seven days in the reader's group's own calendar
- * (`slotStartKey`). A week that is not open to the reader yet says when it
- * opens instead of leading to it (C17).
+ * (`slotStartKey`). A week that is not published yet says so instead of
+ * leading to it.
  *
  * A WEEK WRITTEN AS BLOCKS (`thisWeek`) counts by This week's tasks, worked
  * out in `src/lib/courses/weekBlocks/progress.ts`: "0 of 1 done" for week 1.
@@ -59,10 +59,8 @@ type Props = {
   countableIds: readonly string[];
   /** A week written as blocks: its tasks, as the overview hands them. Null on any other week. */
   thisWeek?: OverviewThisWeek | null;
-  /** The week's page is open to the reader. */
+  /** The week's page is open to the reader: it is published. */
   open: boolean;
-  /** "Opens tonight, after your session", for a week that is not open yet. */
-  opens: string | null;
   /** A break slot's own name ("Reading week"): no reading of its own. */
   breakLabel?: string | null;
   /** Where the reader's copy of the week lives, for the readings listed before the start. */
@@ -82,7 +80,6 @@ export default function ThisWeekCard({
   countableIds,
   thisWeek = null,
   open,
-  opens,
   breakLabel = null,
   weekSource,
   ticks,
@@ -220,7 +217,7 @@ export default function ThisWeekCard({
               </Link>
             </div>
           ) : (
-            <p className={styles.cardLine}>{opens ?? notUpYetWords(weekNumber)}</p>
+            <p className={styles.cardLine}>{notUpYetWords(weekNumber)}</p>
           )}
         </>
       )}

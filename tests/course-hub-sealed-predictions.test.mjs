@@ -1,10 +1,11 @@
 /**
  * Sealed predictions (Zach's extra (d)): a course's credence card as a
  * record, each person's first card filled in and sealed in the week it is
- * sealed in, shut to everybody but admins until the week it opens in has
- * opened to their group, and opened there beside the same questions asked
- * again; an admin opening one, the opening recorded first; deletion and the
- * run's destroy.
+ * sealed in, shut to everybody but admins until their group's session before
+ * the week it opens in has ended, and opened there beside the same questions
+ * asked again; an admin opening one, the opening recorded first; deletion and
+ * the run's destroy. Every published week is open to read ahead (Zach, 27
+ * October 2026), the week a card opens in included: the card is not.
  *
  * Driven through the real routes (the course's card, the person's own card,
  * the admins' list and opening), the week page's real server shell and the
@@ -42,7 +43,7 @@ const read = (...parts) => readFileSync(join(SRC, ...parts), "utf8");
 
 /** Tue 17 Nov 2026 at noon in London: week 3. */
 const NOW = "2026-11-17T12:00:00Z";
-/** Group B's week 5 session ends at 8pm on Tue 1 Dec: week 6 opens to it then. */
+/** Group B's week 5 session ends at 8pm on Tue 1 Dec: week 6's card opens to it then. */
 const BEFORE_B = "2026-12-01T19:59:00Z";
 const AFTER_B = "2026-12-01T20:01:00Z";
 /** Group A's week 5 session ends at 8pm on Thu 26 Nov. */
@@ -344,7 +345,7 @@ describe("2. week 1: filled in, then sealed", () => {
     assert.equal(sealedWords("2026-11-03T19:00:00.000Z", 6, after, "2026-12-01"), "Sealed on Tue 3 Nov. It opens in week 6, tonight, after your session.");
     assert.equal(sealedWords("2026-11-03T19:00:00.000Z", 6, null, "2026-11-20"), "Sealed on Tue 3 Nov. It opens in week 6.");
     assert.equal(waitingWords(after, "2026-11-30"), "Your sealed card opens here after your session on Tue 1 Dec.");
-    assert.equal(waitingWords(null, "2026-11-30"), "Your sealed card opens here once this week opens to your group.");
+    assert.equal(waitingWords(null, "2026-11-30"), "Your sealed card opens here once this week is published.");
   });
 
   test("a run with no card, or a course that took it off, shows no card and takes no answer", async () => {
@@ -455,13 +456,21 @@ describe("3. whose card", () => {
 // ---------------------------------------------------------------------------
 
 describe("4. week 6", () => {
-  test("before week 6 opens to Chloe's group, Chloe's card stays shut: no second card, no opening, and no week 6 page", async () => {
+  test("before Chloe's group's session before week 6 ends, Chloe's card stays shut: no second card, no opening, though week 6's page is open to read", async () => {
     await fillStart("chloe");
     await w.act("chloe", "seal");
     at(BEFORE_B);
-    assert.deepEqual(short(await w.answer("chloe", "now", "q1", 10)), [409, "Week 6 isn’t open to you yet."]);
-    assert.deepEqual(short(await w.act("chloe", "open")), [409, "Week 6 isn’t open to you yet."]);
-    assert.equal((await w.weekCard("chloe", 6)).shell.component, "WeekNotOpen");
+    assert.deepEqual(short(await w.answer("chloe", "now", "q1", 10)), [409, "Your card opens in week 6, tonight, after your session."]);
+    assert.deepEqual(short(await w.act("chloe", "open")), [409, "Your card opens in week 6, tonight, after your session."]);
+    // Week 6's page is drawn (every published week is open to read ahead), and the card on it is shut:
+    // nothing of week 1 travels, no box to answer again, and it says when it opens.
+    const six = await w.weekCard("chloe", 6);
+    assert.equal(six.shell.component, "WeekView");
+    assert.deepEqual([six.view.stage, six.view.opensNow, six.view.canWrite, six.view.opened], ["open", false, false, null]);
+    assert.deepEqual(six.view.start.answers, {});
+    for (const typed of STARTS) assert.ok(!six.html.includes(typed), typed);
+    assert.ok(!six.html.includes('type="number"'));
+    assert.match(six.text, /Your sealed card opens here tonight, after your session\./);
     // Her first card is still shut, and still shuts out a change.
     assert.deepEqual((await w.weekCard("chloe", 1)).view.start.answers, {});
     assert.deepEqual(short(await w.answer("chloe", "start", "q1", 1)), [409, "Your card is sealed, so it can’t change now."]);
@@ -472,8 +481,8 @@ describe("4. week 6", () => {
     await w.act("chloe", "seal");
     w.world.db.poke(`courseRuns/${RUN.agi}/weeks/w06`, { published: false });
     at(AFTER_B);
-    assert.deepEqual(short(await w.answer("chloe", "now", "q1", 10)), [409, "Week 6 isn’t open to you yet."]);
-    assert.deepEqual(short(await w.act("chloe", "open")), [409, "Week 6 isn’t open to you yet."]);
+    assert.deepEqual(short(await w.answer("chloe", "now", "q1", 10)), [409, "Your card opens in week 6, once that week is published."]);
+    assert.deepEqual(short(await w.act("chloe", "open")), [409, "Your card opens in week 6, once that week is published."]);
     // Her first card stays shut, and somebody else's unsealed one stays theirs to change.
     assert.deepEqual(short(await w.answer("chloe", "start", "q1", 1)), [409, "Your card is sealed, so it can’t change now."]);
     await fillStart("kofi", { q1: 5 });
@@ -501,7 +510,7 @@ describe("4. week 6", () => {
     assert.equal(view.opened, null);
     assert.match(text, /Your sealed card opens here tonight, after your session\./);
     assert.ok(!html.includes('type="number"'));
-    assert.deepEqual(short(await w.act("rahul", "open")), [409, "Week 6 isn’t open to you yet."]);
+    assert.deepEqual(short(await w.act("rahul", "open")), [409, "Your card opens in week 6, tonight, after your session."]);
   });
 
   test("once it opens: fresh answers first, then the sealed card beside them, with how each moved", async () => {
@@ -579,7 +588,7 @@ describe("4. week 6", () => {
     // Sofia runs Groups A and B: Sofia's card opens with the first of them.
     assert.equal((await w.answer("sofia", "now", "q1", 41)).status, 200);
     // Farah facilitates Group B from a place in it: Farah's waits for Group B.
-    assert.deepEqual(short(await w.answer("farah", "now", "q1", 41)), [409, "Week 6 isn’t open to you yet."]);
+    assert.deepEqual(short(await w.answer("farah", "now", "q1", 41)), [409, "Your card opens in week 6, after your session on Tue 1 Dec."]);
     at(AFTER_B);
     assert.equal((await w.answer("farah", "now", "q1", 41)).status, 200);
     assert.equal((await w.act("farah", "open")).status, 200);
@@ -599,15 +608,19 @@ describe("4. week 6", () => {
     assert.equal(w.record("kofi").card.questions.length, 4);
   });
 
-  test("a card never sealed shuts once week 6 opens, and stays its owner's to read on week 1", async () => {
+  test("a card never sealed shuts once it was due to open in week 6 (the session before it has ended), and stays its owner's to read on week 1", async () => {
     await fillStart("chloe", { q1: 15, q4: "The north light." });
+    // Week 6 is published and open to read from the start: the first card still takes changes until the
+    // card's own clock, the minute before the session ends.
+    at(BEFORE_B);
+    assert.equal((await w.answer("chloe", "start", "q1", 15)).status, 200);
     at(AFTER_B);
-    assert.deepEqual(short(await w.answer("chloe", "start", "q1", 16)), [409, "Week 6 has opened, so this card can’t change or be sealed now."]);
-    assert.deepEqual(short(await w.act("chloe", "seal")), [409, "Week 6 has opened, so this card can’t change or be sealed now."]);
+    assert.deepEqual(short(await w.answer("chloe", "start", "q1", 16)), [409, "This card was due to open in week 6, so it can’t change or be sealed now."]);
+    assert.deepEqual(short(await w.act("chloe", "seal")), [409, "This card was due to open in week 6, so it can’t change or be sealed now."]);
     const { view, text } = await w.weekCard("chloe", 1);
     assert.equal(view.start.state, "closed");
     assert.equal(view.canWrite, false);
-    inOrder(text, ["You didn’t seal this card, and week 6 has opened, so it can’t be sealed now.", "15%", "The north light."]);
+    inOrder(text, ["You didn’t seal this card before it was due to open in week 6, so it can’t be sealed now.", "15%", "The north light."]);
     // Week 6 hands none of the unsealed card over, and says there is nothing to open.
     const six = await w.weekCard("chloe", 6);
     assert.deepEqual(six.view.start, { state: "none", answers: {}, sealedAt: null });
@@ -620,7 +633,7 @@ describe("4. week 6", () => {
     w.world.db.poke(`courses/${COURSE.agi}`, { "predictionCard.openWeek": 3 });
     // Week 3 is open now: it holds nothing for Chloe, whose card was sealed until week 6.
     assert.equal((await w.weekCard("chloe", 3)).view, null);
-    assert.deepEqual(short(await w.act("chloe", "open")), [409, "Week 6 isn’t open to you yet."]);
+    assert.deepEqual(short(await w.act("chloe", "open")), [409, "Your card opens in week 6, after your session on Tue 1 Dec."]);
     // Kofi sealed nothing: the course's week 3 is the one Kofi's second card is on.
     const kofi = await w.weekCard("kofi", 3);
     assert.equal(kofi.view.stage, "open");

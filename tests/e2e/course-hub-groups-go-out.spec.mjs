@@ -1012,7 +1012,7 @@ test(
           !JSON.stringify(runs).includes(state.runId),
           "the member's list of runs still has the run, before Publish has told him his new group",
         );
-        await memberPage.getByRole("heading", { name: "Your courses", level: 1 }).waitFor({ timeout: WAIT_MS });
+        await memberPage.getByRole("heading", { name: "My programmes", level: 1 }).waitFor({ timeout: WAIT_MS });
         // Its text content, not `innerText`: a group's name set in capitals
         // by CSS would read "GROUP A" there, and this check would pass
         // without looking.

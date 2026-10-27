@@ -319,7 +319,7 @@ export async function makeWeekBlocksPageWorld(key = "__weekBlocksPage") {
     ["@/hooks/useHydrated", "export function useHydrated() { return false; }"],
     ["./useRunOverview", overviewStub],
     ["@/features/courses/useRunOverview", overviewStub],
-    ["./useSyncTasks", "export function useSyncTasks() {}"],
+    ["./useSyncTasks", "export function useSyncTasks() {}\nexport function SyncTasksTrigger() { return null; }"],
     ["@/features/courses/useRunProgress", `export function useRunProgress() { return { byItemId: ${handle}.progress, loading: false, error: null }; }`],
     ["./useWeek", useWeekStub],
     ["../useWeek", useWeekStub],

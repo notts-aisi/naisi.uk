@@ -1,15 +1,11 @@
 import { redirect } from "next/navigation";
 import { getRunAccess, getSessionUser, type RunAccess } from "@/features/courses/runAccess";
-import WeekNotOpen from "@/features/courses/weekly/WeekNotOpen";
-import WeekView from "@/features/courses/WeekView";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
-import { resolveWeekDoc } from "@/lib/courses/groupResolve";
+import WeekView from "@/features/courses/WeekView";
 import { sharedNotesForWeekPage, type WeekSharedNotes } from "@/lib/courses/sharedNotes/readers";
-import { resolveSessions } from "@/lib/courses/sessions";
-import { isOpenAt, weekOpening } from "@/lib/courses/weekOpening";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { runSharesGroupNotes } from "@/lib/firestore/courseGroupSharedNotes";
-import { normalizeCourse, weekDocId } from "@/lib/firestore/courses";
+import { normalizeCourse } from "@/lib/firestore/courses";
 import { guideLinksOf } from "@/lib/courses/guide/load";
 import type { CourseRoutes } from "@/lib/courses/routes/model";
 import type { OwnPair } from "@/lib/courses/pairs/model";
@@ -20,9 +16,9 @@ import type { PredictionsView } from "@/lib/courses/predictions/wire";
 
 /**
  * Server shell for the member week page. It decides whether this viewer
- * belongs in the learning space, whether the week is open to them yet, and
- * hands a validated week number to the client `WeekView` (data on this page is
- * client-fetched: the tick listener needs the client SDK anyway).
+ * belongs in the learning space and hands a validated week number to the
+ * client `WeekView` (data on this page is client-fetched: the tick listener
+ * needs the client SDK anyway).
  *
  * Access via `getRunAccess` (React cache(), so the layout and sibling pages
  * share the reads): learners, facilitators and admins may learn; reviewers
@@ -31,14 +27,13 @@ import type { PredictionsView } from "@/lib/courses/predictions/wire";
  * the cohort) and everyone else to the hub. Plain redirects, not 403s: a
  * member guessing run ids learns nothing about which runs exist.
  *
- * EACH WEEK OPENS STRAIGHT AFTER THE GROUP'S PREVIOUS SESSION (C17). For
- * somebody taking part, a published week whose group session before it has
- * not ended yet is not drawn: the page says when it opens instead, worked out
- * from their group's own calendar (`weekOpening`, a session moved or
- * cancelled through "Change a session" included). The week's document is
- * readable by anybody signed in, so this is the page's gate, like
- * `published`, and not a boundary. Facilitators and admins see every
- * published week, as they always have.
+ * EVERY PUBLISHED WEEK IS OPEN (Zach, 27 October 2026: each week is
+ * published at the start, so people can read ahead). Once Publish has told
+ * somebody their group, every published week of the run is theirs to read
+ * and work in, whatever their group's sessions; an unpublished one says so
+ * on the page itself. Facilitators and admins see every published week, as
+ * they always have. The sealed predictions card keeps its own clock (its
+ * reader, below), so reading a week early never opens a card early.
  *
  * Somebody holding a place whom Publish has not told yet reads week 1 alone,
  * once its door is open to them (Q35 B, `beforeGroups`): see below.
@@ -111,39 +106,6 @@ export default async function WeekPage({
     : access.isFacilitator
       ? "facilitator"
       : "learner";
-
-  // The opening rule, for somebody taking part in a group of this run.
-  const own = access.enrolment;
-  const group =
-    viewerRole === "learner" && own?.groupId
-      ? (access.groups.find((candidate) => candidate.id === own.groupId) ?? null)
-      : null;
-  if (group) {
-    const now = new Date();
-    const opening = weekOpening(resolveSessions(access.run, group), weekNumber);
-    if (!isOpenAt(opening, now) && opening.after) {
-      // Only a PUBLISHED week waits on a session: an unpublished one is the
-      // page's own "isn't published yet", whenever it would have opened.
-      const db = getAdminDb();
-      const [resolved, programme] = db
-        ? await Promise.all([
-            resolveWeekDoc(db, access.run.id, group.id, weekDocId(weekNumber)).catch(() => null),
-            runProgrammeOf(db, access.run.id).catch(() => null),
-          ])
-        : [null, null];
-      if (resolved?.week?.published) {
-        return (
-          <WeekNotOpen
-            runId={runId}
-            weekNumber={weekNumber}
-            programmeName={programme?.shortName || access.run.courseTitle || "Your programme"}
-            after={{ dateKey: opening.after.dateKey, startTimeLocal: opening.after.startTimeLocal }}
-            now={now}
-          />
-        );
-      }
-    }
-  }
 
   // The programme's Start here and Glossary, linked under a block week's
   // title when the run has either; nothing is handed for a run with neither.

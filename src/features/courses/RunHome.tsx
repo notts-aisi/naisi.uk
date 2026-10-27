@@ -47,7 +47,6 @@ import {
   hoursWords,
   kindAndTermWords,
   markWords,
-  opensWords,
   sessionEyebrow,
   weekOfWords,
   withWords,
@@ -74,8 +73,8 @@ import styles from "./RunHome.module.css";
  * session's ticket (tonight, a room changed this week, a session moved or
  * cancelled as "Change a session" says), "This week" (or before the first
  * session, week 1's readings to tick), the weeks with their dates and states
- * and when the next one opens (C17), their marks with no count (C26), the
- * updates, their group, and the way out.
+ * (every published week open, to read ahead), their marks with no count
+ * (C26), the updates, their group, and the way out.
  *
  * "Add to calendar" is on the ticket for somebody whose group it is, taking
  * part or facilitating (st-calendar-phone: their own calendar link).
@@ -580,7 +579,6 @@ export default function RunHome({
         countableIds={thisDoc?.countableIds ?? []}
         thisWeek={thisDoc?.thisWeek ?? null}
         open={thisSchedule?.open ?? false}
-        opens={thisSchedule?.opensAfter ? opensWords(thisSchedule.opensAfter, todayKey) : null}
         breakLabel={calendarWeek?.breakLabel ?? null}
         weekSource={weekSource}
         ticks={ticks}

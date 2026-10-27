@@ -1243,7 +1243,9 @@ test(
         // never does: either way, this press emails nobody.
         const reason = ending.scheduled
           ? "Next week’s email goes on its schedule, so finishing the register emailed nobody."
-          : `Week ${nextWeek} isn't published yet, so the group wasn't sent a reminder. Publish it and use the run's catch-up send.`;
+          : // The push's answer says who marks the week ready to the facilitator who pressed: the
+            // programme's lead by name, or here, where the programme has no lead, an admin.
+            `Week ${nextWeek} isn’t published yet, so nobody was emailed. An admin marks it ready.`;
         const toast = toastOf(
           facilitatorPage,
           ending.scheduled ? "Register finished. Everyone can see their mark, and nobody was emailed." : `Register locked. ${reason}`,

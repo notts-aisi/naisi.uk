@@ -1,9 +1,5 @@
 import type { OverviewPayload, OverviewWeekSchedule } from "@/app/api/courses/runs/[runId]/overview/route";
-import {
-  WEEK_STATE_WORDS,
-  opensWords,
-  sessionDayWords,
-} from "@/lib/courses/memberPageWords";
+import { WEEK_STATE_WORDS, sessionDayWords } from "@/lib/courses/memberPageWords";
 import { dayWords } from "@/lib/courses/sessionChange/words";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { handedTasksDone } from "@/lib/courses/weekBlocks/progress";
@@ -20,11 +16,10 @@ import { handedTasksDone } from "@/lib/courses/weekBlocks/progress";
  *  - CURRENT: open, not over, and this week by the calendar.
  *  - NEXT: open, not over, and the week of the group's next session, when
  *    that is not this week's (before the first session, week 1).
- *  - OPEN: open and none of those (a reader with no group).
- *  - SHUT: not open to the reader yet (C17), or not published. The next
- *    week to open, when it is published, says when ("Opens tonight, after
- *    your session"); before the first session the list says it once under
- *    the weeks instead, as the board draws it.
+ *  - OPEN: open and none of those: a reader with no group, or a week ahead
+ *    of the group's next session, which anybody may read ahead.
+ *  - SHUT: not published yet. Every published week is open to everybody the
+ *    run is open to (Zach, 27 October 2026), so nothing says when one opens.
  */
 
 export type WeekRowState = "done" | "current" | "next" | "open" | "shut";
@@ -36,8 +31,6 @@ export type WeekRow = {
   cancelled: boolean;
   /** "Tue 3 Nov · Done", "Tonight", "Tue 24 Nov": upper case by the stylesheet. */
   when: string;
-  /** "Opens tonight, after your session", for a shut week that waits on a session. */
-  opens: string | null;
   /**
    * What is done of the week, for an open week that has anything to do: its
    * readings and checklist, or on a week written as blocks This week's tasks
@@ -62,18 +55,13 @@ export function weekRowsOf(
   now: Date,
   /**
    * The reader's group has not met yet (st-programme): their first week is
-   * "Next" whatever the calendar's own week, and the weeks say once, under
-   * the list, when each opens.
+   * "Next" whatever the calendar's own week.
    */
   beforeFirstSession = false,
 ): WeekRow[] {
   const todayKey = londonDateKey(now);
   const calendar = beforeFirstSession ? { number: 0, phase: "before" } : calendarWeekOf(payload);
   const docs = new Map(payload.weeks.map((week) => [week.weekNumber, week]));
-
-  // The one week that says when it opens: the first that is not open yet.
-  const nextToOpen = payload.weekSchedule.find((schedule) => !schedule.open)?.weekNumber ?? null;
-  const saysWhen = calendar.phase !== "before" && calendar.phase !== "none";
 
   return payload.weekSchedule.map((schedule) => {
     const doc = docs.get(schedule.weekNumber);
@@ -112,10 +100,6 @@ export function weekRowsOf(
       state,
       cancelled: schedule.cancelled,
       when,
-      opens:
-        state === "shut" && saysWhen && schedule.weekNumber === nextToOpen && schedule.opensAfter
-          ? opensWords(schedule.opensAfter, todayKey)
-          : null,
       of: state !== "shut" ? of : null,
       schedule,
     };

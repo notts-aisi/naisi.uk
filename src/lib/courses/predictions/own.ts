@@ -10,7 +10,7 @@ import {
 } from "@/lib/firestore/coursePredictions";
 import { normalizeCourse, type CourseRunDoc } from "@/lib/firestore/courses";
 import { questionsOf, type PredictionCard } from "./model";
-import { predictionsTakerOf, weekOpenTo, type PredictionsTaker } from "./taker";
+import { cardOpenTo, predictionsTakerOf, weekPublishedTo, type PredictionsTaker } from "./taker";
 import type { PredictionsView } from "./wire";
 
 /**
@@ -21,12 +21,14 @@ import type { PredictionsView } from "./wire";
  *
  * THE RULES IT HOLDS, for the person themselves and nobody else:
  *  - In the week the course's card is sealed in, the first card is theirs to
- *    fill in, saving as they type, until they seal it. Sealed, its answers
- *    are never handed back, until the week it opens in has opened to their
- *    group and they have opened it there.
- *  - Once that week has opened, a first card that was never sealed can no
- *    longer change or be sealed; its answers are still theirs to read, on the
- *    week it was filled in on.
+ *    fill in once that week is published for them, saving as they type,
+ *    until they seal it. Sealed, its answers are never handed back, until
+ *    their group's session before the week it opens in has ended
+ *    (`cardOpenTo`, the card's own clock, which reading that week early
+ *    never moves) and they have opened it there.
+ *  - From then, a first card that was never sealed can no longer change or
+ *    be sealed; its answers are still theirs to read, on the week it was
+ *    filled in on.
  *  - In the week it opens in, the same questions are asked again, saving as
  *    they type until they open the sealed card. Opening it hands back the
  *    sealed answers beside the new ones, and from then neither changes.
@@ -77,9 +79,9 @@ export async function viewFor(
   const sealedAt = record?.start.sealedAt ?? null;
   // A sealed card opens in the week it was sealed to open in.
   const openWeek = sealedAt ? (record?.start.opensInWeek ?? card.openWeek) : card.openWeek;
-  const [opening, sealOpening] = await Promise.all([
-    weekOpenTo(db, taker, openWeek, now),
-    stage === "seal" ? weekOpenTo(db, taker, card.sealWeek, now) : Promise.resolve(null),
+  const [opening, sealWeekOpen] = await Promise.all([
+    cardOpenTo(db, taker, openWeek, now),
+    stage === "seal" ? weekPublishedTo(db, taker, card.sealWeek) : Promise.resolve(false),
   ]);
   const startAnswers = record?.start.answers ?? {};
   const started = Object.keys(startAnswers).length > 0;
@@ -101,7 +103,7 @@ export async function viewFor(
       sealWeek: card.sealWeek,
       openWeek,
       card: questions,
-      canWrite: !sealedAt && !opening.open && sealOpening?.open === true,
+      canWrite: !sealedAt && !opening.open && sealWeekOpen,
       opensNow: opening.open,
       opensAfter: opening.after,
       start: {

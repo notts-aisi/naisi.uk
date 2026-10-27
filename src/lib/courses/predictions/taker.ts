@@ -28,16 +28,22 @@ import { isOpenAt, weekOpening, type OpensAfter } from "../weekOpening";
  * ever does. Somebody who left, was taken off, or holds a seat Publish has
  * not told them about has no card here. Archived groups staff nobody.
  *
- * WHEN A WEEK OPENS TO THEM, for the card. A week opens to the people taking
- * part in a group straight after the group's previous session
- * (`weekOpening`), and only once it is published (the run's week, or their
- * group's own copy of it). The card follows the same clock for EVERYBODY who
- * has one, facilitators included: a facilitator reads every published week
- * early, but their own card opens with their group. Their group is their
- * placement's; a facilitator with no place goes by the group they
- * facilitate, and by whichever of their groups gets there first when they
- * run several. Somebody with no group goes by the run's own calendar, which
- * waits on no session.
+ * FILLING IT IN is working in the week it is sealed in, so it needs only
+ * that week published as they read it (`weekPublishedTo`): every published
+ * week is open to read and work in once Publish has told somebody their
+ * group (Zach, 27 October 2026).
+ *
+ * WHEN THE CARD OPENS is the card's own clock, and reading ahead never moves
+ * it (`cardOpenTo`): straight after the group's session before the week it
+ * opens in (`weekOpening`, which no week page asks any more), and only once
+ * that week is published (the run's week, or their group's own copy of it).
+ * From then the sealed card can be opened and a card never sealed is shut.
+ * The same clock for EVERYBODY who has one, facilitators included: anybody
+ * may read the week a card opens in early, but their own card opens with
+ * their group. Their group is their placement's; a facilitator with no place
+ * goes by the group they facilitate, and by whichever of their groups gets
+ * there first when they run several. Somebody with no group goes by the
+ * run's own calendar, which waits on no session.
  *
  * Reads: the run, the caller's own enrolment (addressed, nobody else's), the
  * run's groups (one equality on the run), and for a week, its document as
@@ -100,17 +106,22 @@ export async function predictionsTakerOf(db: Firestore, actor: SessionUser, runI
   return { ok: true, taker: { actor, run, enrolment, ownGroup, calendarGroups } };
 }
 
-export type WeekOpenTo = {
-  /** The week is published, and its session has passed for them. */
+/** Whether week `weekNumber` is published as `taker` reads it (their group's copy, else the run's): theirs to work in. */
+export async function weekPublishedTo(db: Firestore, taker: PredictionsTaker, weekNumber: number): Promise<boolean> {
+  const resolved = await resolveWeekDoc(db, taker.run.id, taker.ownGroup?.id ?? null, weekDocId(weekNumber));
+  return resolved.week?.published === true;
+}
+
+export type CardOpenTo = {
+  /** The week the card opens in is published, and the session before it has passed for them. */
   open: boolean;
   /** The session it waits on, while it is shut and has one. */
   after: { dateKey: string; startTimeLocal: string } | null;
 };
 
-/** Whether week `weekNumber` has opened to `taker` at `now`, for their card. */
-export async function weekOpenTo(db: Firestore, taker: PredictionsTaker, weekNumber: number, now: Date): Promise<WeekOpenTo> {
-  const resolved = await resolveWeekDoc(db, taker.run.id, taker.ownGroup?.id ?? null, weekDocId(weekNumber));
-  if (!resolved.week?.published) return { open: false, after: null };
+/** Whether the card that opens in week `weekNumber` has opened to `taker` at `now`: the card's own clock. */
+export async function cardOpenTo(db: Firestore, taker: PredictionsTaker, weekNumber: number, now: Date): Promise<CardOpenTo> {
+  if (!(await weekPublishedTo(db, taker, weekNumber))) return { open: false, after: null };
   const openings = (taker.calendarGroups.length > 0 ? taker.calendarGroups : [null]).map((group) =>
     weekOpening(resolveSessions(taker.run, group), weekNumber),
   );

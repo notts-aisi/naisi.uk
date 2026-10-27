@@ -26,6 +26,7 @@ import {
 } from "@/lib/firestore/courses";
 import { TASK_FIELD_LIMITS } from "@/lib/firestore/tasks";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { weekChecklistItems, weekSummaryText } from "@/lib/courses/weekBlocks/reader";
 
 /**
@@ -121,6 +122,17 @@ import { weekChecklistItems, weekSummaryText } from "@/lib/courses/weekBlocks/re
  * different documents, and the high-water mark lives on the member's own
  * enrolment. Nothing about the guarantee depends on the cohort agreeing about
  * what week it is.
+ *
+ * ── A WEEK WRITTEN AS BLOCKS IS NOT MIRRORED ────────────────────────────────
+ * (A default taken for Zach, 27 October 2026.) Such a week's work is This
+ * week's tasks, which Home's programme card, the programme page and the week
+ * page already show and count. A weekly card in My work beside them is a
+ * second record nothing closes (this projection is one way), so Home said a
+ * week was done and, below it, that the same week was open with a deadline.
+ * So the route answers that there is nothing to mirror for a week written as
+ * blocks, writes nothing, and stamps no mark; a week written before blocks
+ * keeps its card as it always has. A card already made stays, as every card
+ * does, until its owner dismisses it.
  */
 
 // ---------------------------------------------------------------------------
@@ -375,6 +387,9 @@ export async function POST(
     // no checklist is worse than no card, and the high-water mark is left
     // unstamped so the mirror appears on the first mount after publication.
     if (!week || !week.published) return nothingToMirror();
+    // A week written as blocks is counted by This week's tasks on Home and
+    // its pages, never by a card here (see the note at the top).
+    if (isBlockWeek(week)) return nothingToMirror();
 
     // Due at the end of the CURRENT slot, 23:59 Europe/London. The slot is the
     // one the cohort is in right now rather than the anchor week's own slot:

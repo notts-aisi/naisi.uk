@@ -1,5 +1,6 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { unpublishedHeldWords } from "@/features/courses/registerEndingWords";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
 import { nextWeekChangeLine } from "@/lib/courses/sessionChange/model";
 import { resolveSessions, type ResolvedSession } from "@/lib/courses/sessions";
@@ -271,14 +272,16 @@ async function prepareNextWeekEmail(
   });
 
   // Read BEFORE anything is claimed: an unpublished week is a reason to wait,
-  // and claiming first would silence the email for good.
+  // and claiming first would silence the email for good. The push says only
+  // what happened here: who marks the week ready depends on who pressed, so
+  // the push route adds that sentence (`unpublishedPushWords`).
   if (!reading.week || !reading.published) {
     return {
       ready: false,
       outcome: heldOutcome(
         "unpublished",
         args.lane === "push"
-          ? `Week ${session.weekNumber} isn't published yet, so the group wasn't sent a reminder. Publish it and use the run's catch-up send.`
+          ? unpublishedHeldWords(session.weekNumber)
           : `Week ${session.weekNumber} isn't published yet, so its email is waiting.`,
       ),
     };

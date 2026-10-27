@@ -665,9 +665,9 @@ export type CourseWeekDoc = {
    * answer two different questions, and this is how they relate:
    *
    *  - PUBLISHED, unchanged, is whether the week can be read at all: by its
-   *    group when the week opens to them (straight after the group's
-   *    previous session, `weekOpening`), and on the public course pages when
-   *    its run is the course's showcase run. Every reader that decides
+   *    groups as soon as it is published (every published week is open to
+   *    read ahead, Zach, 27 October 2026), and on the public course pages
+   *    when its run is the course's showcase run. Every reader that decides
    *    whether a week shows asks it.
    *  - READY is the lead's word that the week is finished. One route stores
    *    it, "Mark ready" and "Not ready" for the programme's lead and admins

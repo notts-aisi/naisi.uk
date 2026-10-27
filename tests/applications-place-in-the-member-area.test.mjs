@@ -369,9 +369,11 @@ const HOME = {
   unread: `Hi Amara. [install] [term] [events] ${WAY_TO_APPLICATIONS} [profile] [MyWorkSummary]`,
 };
 
+// The hub is "My programmes", the sidebar's name for it, and its line never says "exercise" (v20). Until
+// 27 October 2026 it was "Your courses", and it promised "the exercises you owe".
 const HUB_HEAD =
-  "Courses Your courses Every fellowship and reading group you're on: the week your cohort is on, the materials for it, " +
-  "and the exercises you owe. A course can show here before your group is set.";
+  "Courses My programmes Every fellowship and reading group you’re on: the week your group is on, " +
+  "and what to do for it. A programme can show here before your group is set.";
 const HUB_EMPTY =
   "You're not on a course yet NAISI runs fellowships and reading groups each term. The catalogue lists what's open and what's coming. Browse courses";
 const LEARN = {
