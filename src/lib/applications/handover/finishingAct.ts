@@ -16,6 +16,7 @@ import {
   LEADS_AND_ADMINS,
   NOT_ON_THE_LIST,
   NO_PROGRAMME,
+  OWN_FINISHED,
   NO_RUN,
   RUN_GONE,
   leftTheProgramme,
@@ -43,7 +44,8 @@ import { loadProgrammeRun, type ProgrammeRunView } from "./programmeRun";
  *    the Overview. Where the switch now says what the suggestion says, any
  *    stored decision is removed and the suggestion decides again; otherwise
  *    the decision is stored with who pressed it and when. Somebody who left,
- *    or who is nobody on the viewer's list, is refused.
+ *    or who is nobody on the viewer's list, is refused, and so is the
+ *    caller's own switch, whoever the caller is.
  *
  * NOBODY SENT A CERTIFICATE FOR FINISHING STOPS BEING FINISHED while it
  * stands (`courseCertificates`, src/lib/courses/certificates/): neither their
@@ -173,6 +175,8 @@ export async function decideFinished(
     .flatMap((listed) => listed.people)
     .find((person) => person.row.uid === change.uid)?.row;
   if (!row) return refuse(404, NOT_ON_THE_LIST);
+  // Nobody decides their own switch, an admin or the lead included.
+  if (row.uid === actor.uid) return refuse(403, OWN_FINISHED);
   if (row.left !== null) return refuse(409, leftTheProgramme(row.name));
 
   const runId = records.run.id;

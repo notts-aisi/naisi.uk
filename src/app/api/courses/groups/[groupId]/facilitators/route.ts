@@ -73,7 +73,7 @@ async function groupNameOf(db: Firestore, groupId: string): Promise<string> {
 
 type Outcome =
   | { kind: "gone" }
-  | { kind: "not-yours"; uid: string }
+  | { kind: "not-yours" }
   | { kind: "seat"; problem: SeatProblem; groupName: string }
   | { kind: "saved"; placed: string[] };
 
@@ -160,7 +160,7 @@ export async function POST(
     for (const [i, uid] of added.entries()) {
       const snap = listed[i];
       const row = snap?.exists ? normalizeCourseApplication(snap.id, snap.data() ?? {}) : null;
-      if (row && !rowIsServedTo(row, staffing)) return { kind: "not-yours", uid };
+      if (row && !rowIsServedTo(row, staffing)) return { kind: "not-yours" };
       const enrolment = enrolmentByUid.get(uid);
       seats.set(uid, {
         row: enrolment?.exists ? (enrolment.data() ?? {}) : null,
@@ -190,7 +190,8 @@ export async function POST(
 
   if (outcome.kind === "gone") return NextResponse.json({ error: "Group not found" }, { status: 404 });
   if (outcome.kind === "not-yours") {
-    return NextResponse.json({ error: byHandNotYoursWords(await nameOf(db, outcome.uid)) }, { status: 409 });
+    // Names nobody: such a row is named to an admin or the programme's lead only.
+    return NextResponse.json({ error: byHandNotYoursWords() }, { status: 409 });
   }
   if (outcome.kind === "seat") {
     const { problem, groupName } = outcome;

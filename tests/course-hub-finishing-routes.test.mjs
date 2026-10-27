@@ -43,6 +43,7 @@ import {
   rulePath,
   short,
 } from "./lib/finishWorld.mjs";
+import { A, enrolment } from "./lib/hubAttendanceWorld.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: END });
 
@@ -257,6 +258,26 @@ describe("4. a switch", () => {
     for (const uid of ["nobody", "rahul", "claudia"]) {
       assert.deepEqual(short(await ask.decide("claudia", uid, true)), [404, words.NOT_ON_THE_LIST], uid);
     }
+  });
+
+  test("nobody decides their own switch: a lead or an admin who is also a learner on the run is refused, and nothing is written", async () => {
+    for (const uid of ["claudia", "zach"]) world.db.seed(`courseEnrolments/${RUN.agi}__${uid}`, enrolment(uid, A));
+    const before = everything();
+    for (const [who, finished] of [
+      ["claudia", true],
+      ["claudia", false],
+      ["zach", true],
+      ["zach", false],
+    ]) {
+      assert.deepEqual(short(await ask.decide(who, who, finished)), [403, words.OWN_FINISHED], `${who} ${finished}`);
+    }
+    assert.equal(everything(), before);
+    assert.deepEqual(stored(), [rulePath]);
+    // They are on the list, so it is the refusal that stops them, and each
+    // still decides somebody else.
+    assert.equal((await ask.decide("claudia", "bea", true)).status, 200);
+    assert.equal((await ask.decide("zach", "tariq", true)).status, 200);
+    assert.deepEqual([world.db.read(decisionPath("bea")).byUid, world.db.read(decisionPath("tariq")).byUid], ["claudia", "zach"]);
   });
 
   test("with no rule, the lead ticks people by hand, and unticking one goes back to nobody", async () => {

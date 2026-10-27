@@ -921,8 +921,13 @@ describe("4b. a facilitator who holds a place is one of the group's fellows, in 
     assert.equal(refused.status, 409);
     assert.equal(
       refused.body.error,
-      "Only an admin or the lead of the programme that names this run can make Amara Okafor one of its facilitators, so nothing was saved.",
+      "Only an admin or the lead of the programme that names this run can make that change, so nothing was saved.",
     );
+    // The refusal names nobody and carries nothing else of the person.
+    assert.deepEqual(Object.keys(refused.body), ["error"]);
+    assert.ok(!/amara|okafor/i.test(JSON.stringify(refused.body)), "the refusal named the person");
+    assert.ok(!/application form|place came/i.test(refused.body.error), "the refusal said why, which says the row is there");
+    assert.equal(words.byHandNotYoursWords.length, 0, "the words take a name again");
     assert.equal(everything(), before);
     const added = await call("yusuf", routes.byHand.POST, { groupId: A }, { body: { uids: ["sofia", "omar"] }, course: true });
     assert.deepEqual(added, { status: 200, body: { ok: true, facilitatorUids: ["sofia", "omar"] } });

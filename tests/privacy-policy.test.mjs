@@ -217,6 +217,12 @@ describe("policy versions", () => {
     assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.7");
   });
 
+  test("privacy v7 is dated the day its words last changed", () => {
+    const seven = POLICIES.privacy.versions.find((v) => v.version === 7);
+    assert.equal(seven?.lastUpdated, "27 October 2026");
+    assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 7).length, 1);
+  });
+
   test("versions are newest first, which entry [0] depends on", () => {
     for (const key of POLICY_KEYS) {
       const versions = POLICIES[key].versions.map((v) => v.version);

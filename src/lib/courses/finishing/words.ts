@@ -133,6 +133,13 @@ export function notOverYet(lastDay: string | null): string {
 /** A uid that is nobody on the lead's list. */
 export const NOT_ON_THE_LIST = "That person isn’t taking part in this programme.";
 
+/**
+ * The caller's own row. NOT DRAWN, listed in the build notes for the boards'
+ * designers to confirm. Nobody says whether they themselves finished, an
+ * admin or the programme's lead included.
+ */
+export const OWN_FINISHED = "You can’t say whether you finished yourself. Another admin or the programme’s lead can.";
+
 /** Somebody who left: never on the list of who finished. */
 export function leftTheProgramme(name: string): string {
   return `${name} left the programme, so they aren’t on the list of who finished.`;
