@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { AFTER, ROUND, checkInDoc, eventDoc, makeTermWorld } from "./lib/termWorld.mjs";
+import { AFTER, EV, ROUND, checkInDoc, eventDoc, makeTermWorld } from "./lib/termWorld.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const w = await makeTermWorld("__termNumbersPage");
@@ -57,16 +57,17 @@ describe("the page, for an admin", () => {
     assert.ok(text.startsWith("Surveys This term in numbers Autumn 2026 · 7 events and 2 programmes Download totals (CSV)"), text.slice(0, 160));
     assert.ok(html.includes('<a href="/admin/surveys">Surveys</a>'), "the way back to the list");
     assert.match(html, /<a href="\/api\/surveys\/term\/totals" download="" class="download">/, "the download is an ordinary link to the file, which works before any script arrives");
+    // The VR night's record whose names came off is counted, as its Check-in tab counts it.
     assert.ok(
       text.includes(
-        "12 Check-ins At 3 events 8 Different people Walk-ins without an account can’t be matched across events, so the 8 may count one walk-in twice, and the 4 may miss some. 4 Came to 2 or more Of the 8 different people",
+        "13 Check-ins At 3 events 9 Different people Walk-ins without an account can’t be matched across events, so the 9 may count one walk-in twice, and the 4 may miss some. 4 Came to 2 or more Of the 9 different people",
       ),
     );
     assert.ok(text.includes("Events 7 this term Date Event Came Survey answers How was it? Average out of 5 Note"));
     for (const line of [
       "Wed 14 Oct Board games and pizza Not counted No survey Before check-in",
       "Fri 16 Oct Movie night: WarGames Not counted No survey Before check-in",
-      "Sun 1 Nov VR games night 6 3 4.5",
+      "Sun 1 Nov VR games night 7 3 4.5",
       "Thu 5 Nov AI policy careers panel 4 Not sent yet",
       "Thu 12 Nov How do you test an AI model? 2 No survey No sign-up: checked in by QR and at the door",
       "Thu 19 Nov Pizza and board games Not counted No survey No check-in",
@@ -140,8 +141,24 @@ describe("the page, for an admin", () => {
     delete seed["eventCheckIns/talk-pat"];
     w.reset(seed);
     const { text } = await w.view("zach");
-    assert.ok(text.includes("10 Check-ins At 3 events 6 Different people 4 Came to 2 or more Of the 6 different people"));
+    assert.ok(text.includes("11 Check-ins At 3 events 7 Different people 4 Came to 2 or more Of the 7 different people"));
     assert.ok(!text.includes("can’t be matched"));
+  });
+
+  test("a check-in whose names have come off is counted at its own event, and is no walk-in: the sentence stays the walk-ins' alone", async (t) => {
+    clock(t);
+    const seed = w.seed();
+    // Dan, at the VR night, is the only walk-in with no account; the record
+    // whose names came off is at the careers panel.
+    delete seed["eventCheckIns/panel-mo"];
+    delete seed["eventCheckIns/talk-pat"];
+    seed["eventCheckIns/vr-gone"] = { ...seed["eventCheckIns/vr-gone"], eventId: EV.panel };
+    w.reset(seed);
+    const { text } = await w.view("zach");
+    assert.ok(text.includes("11 Check-ins At 3 events 7 Different people 4 Came to 2 or more Of the 7 different people"), text);
+    assert.ok(text.includes("Sun 1 Nov VR games night 6 3 4.5"));
+    assert.ok(text.includes("Thu 5 Nov AI policy careers panel 4 Not sent yet"));
+    assert.ok(!text.includes("can’t be matched"), "the walk-ins' sentence shows for a record that is not a walk-in's");
   });
 });
 

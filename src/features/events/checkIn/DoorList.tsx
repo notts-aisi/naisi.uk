@@ -9,11 +9,15 @@ import Notice from "@/components/ui/Notice";
 import PageHead from "@/components/ui/PageHead";
 import { useHydrated } from "@/hooks/useHydrated";
 import {
+  NO_NAMES_OFF,
   STANDING_WORDS,
+  cameUntickedWords,
   checkInStamp,
   doorCounts,
   hereWords,
+  notListedWords,
   type DoorRow,
+  type NamesOff,
 } from "@/lib/events/checkInView";
 import WalkInDialog from "./WalkInDialog";
 import styles from "./DoorList.module.css";
@@ -23,6 +27,8 @@ type Props = {
   eventTitle: string;
   /** Every sign-up the list shows, and every walk-in, as the server built them. */
   initialRows: DoorRow[];
+  /** The people whose names have come off, as counts: counted as here, never listed. */
+  namesOff?: NamesOff;
   /** Why nobody can be checked in here right now, or null while the door is open. */
   closedWords: string | null;
   /** The door code as people type it, when the event has one that is on. */
@@ -47,11 +53,15 @@ type Show = "to-come" | "here";
  * and the row moves once the server has the record, so a press on no signal
  * says so and can be pressed again; nothing is shown as checked in that is
  * not. Undo is offered on the last check-in made here, for a wrong tap.
+ *
+ * Its numbers are the Check-in tab's (`doorCounts`): somebody whose name has
+ * come off is counted as here and listed nowhere.
  */
 export default function DoorList({
   eventId,
   eventTitle,
   initialRows,
+  namesOff = NO_NAMES_OFF,
   closedWords,
   doorAddress,
   eventLine,
@@ -67,7 +77,7 @@ export default function DoorList({
   const [problem, setProblem] = useState<string | null>(null);
   const [walkInOpen, setWalkInOpen] = useState(false);
 
-  const counts = doorCounts(rows);
+  const counts = doorCounts(rows, namesOff);
   const words = hereWords(counts);
   const needle = query.trim().toLowerCase();
   const matches = (row: DoorRow) => needle === "" || row.name.toLowerCase().includes(needle);
@@ -246,8 +256,11 @@ export default function DoorList({
 
       {show === "to-come" ? (
         <>
-          {expectedToCome.length > 0 ? (
-            <ul className={styles.list}>{expectedToCome.map((row) => personRow(row, "check-in"))}</ul>
+          {expectedToCome.length > 0 && counts.toCome > 0 ? (
+            <>
+              {!needle && counts.cameUnticked > 0 && <p className={styles.note}>{cameUntickedWords(counts.cameUnticked)}</p>}
+              <ul className={styles.list}>{expectedToCome.map((row) => personRow(row, "check-in"))}</ul>
+            </>
           ) : (
             <p className={styles.empty}>
               {needle ? `Nobody called “${query.trim()}” is still to come.` : "Everybody who signed up is here."}
@@ -272,12 +285,19 @@ export default function DoorList({
             </section>
           )}
         </>
-      ) : here.filter(matches).length > 0 ? (
-        <ul className={styles.list}>{here.filter(matches).map((row) => personRow(row, "stamp"))}</ul>
       ) : (
-        <p className={styles.empty}>
-          {needle ? `Nobody called “${query.trim()}” is checked in.` : "Nobody is checked in yet."}
-        </p>
+        <>
+          {here.filter(matches).length > 0 ? (
+            <ul className={styles.list}>{here.filter(matches).map((row) => personRow(row, "stamp"))}</ul>
+          ) : (
+            (needle || counts.notListed === 0) && (
+              <p className={styles.empty}>
+                {needle ? `Nobody called “${query.trim()}” is checked in.` : "Nobody is checked in yet."}
+              </p>
+            )
+          )}
+          {!needle && counts.notListed > 0 && <p className={styles.note}>{notListedWords(counts.notListed, here.length > 0)}</p>}
+        </>
       )}
 
       {doorAddress && (

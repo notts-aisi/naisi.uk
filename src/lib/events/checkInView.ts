@@ -79,9 +79,39 @@ function view(checkIn: EventCheckInDoc): DoorCheckIn {
 }
 
 /**
+ * The check-ins whose names have come off, a year after the event or at once
+ * when an account is deleted (`src/lib/events/checkIns.ts`), as counts. Each
+ * is still one person who came, and says whether they came by a sign-up or
+ * walked in, and how; never who. They have no row, because a row is a name,
+ * and they stay in every count of who came (`doorCounts`): the privacy policy
+ * says such a record "stays in the count".
+ */
+export type NamesOff = {
+  /** Sign-ups who came. */
+  signups: number;
+  /** Of those, how many checked themselves in with the code. */
+  signupsByQr: number;
+  walkIns: number;
+};
+
+export const NO_NAMES_OFF: NamesOff = { signups: 0, signupsByQr: 0, walkIns: 0 };
+
+/** The event's check-ins whose names have come off, counted. Names nobody. */
+export function namesOffOf(checkIns: readonly EventCheckInDoc[]): NamesOff {
+  const off = checkIns.filter((row) => row.namesOff);
+  const signups = off.filter((row) => row.kind === "signup");
+  return {
+    signups: signups.length,
+    signupsByQr: signups.filter((row) => row.how === "qr").length,
+    walkIns: off.length - signups.length,
+  };
+}
+
+/**
  * Every row of the door list: the sign-ups it shows (confirmed, then the
  * waiting list, then not decided), each with its check-in when there is one,
- * then the walk-ins. A check-in whose names have come off has no row.
+ * then the walk-ins. A check-in whose names have come off has no row: it is
+ * counted from `namesOffOf` instead.
  */
 export function doorRows(signups: readonly RsvpDoc[], checkIns: readonly EventCheckInDoc[]): DoorRow[] {
   const live = checkIns.filter((row) => !row.namesOff);
@@ -131,22 +161,61 @@ export type DoorCounts = {
   byQr: number;
   /** Checked in on the door list or added later, walk-ins left out. */
   byList: number;
+  /** Counted and on no row: the check-ins whose names have come off. */
+  notListed: number;
+  /**
+   * Confirmed sign-ups with no tick who are counted as having come: a
+   * sign-up's tick goes with its names, so each sign-up whose names have come
+   * off is taken to be one of these, while there are any. Which ones can no
+   * longer be told.
+   */
+  cameUnticked: number;
 };
 
-export function doorCounts(rows: readonly DoorRow[]): DoorCounts {
+/**
+ * The numbers of the door list and the Check-in tab. `namesOff` (from
+ * `namesOffOf`) adds the people whose names have come off: each counts as
+ * having come, by a sign-up or walking in and how, as their record says. A
+ * sign-up's row loses its tick when its names come off and stays on the list,
+ * so each such sign-up is taken to be one of the confirmed sign-ups with no
+ * tick, as a sign-up who comes almost always is: then the four numbers still
+ * add up, `signupsHere` and `toCome` making `expected`.
+ */
+export function doorCounts(rows: readonly DoorRow[], namesOff: NamesOff = NO_NAMES_OFF): DoorCounts {
   const signups = rows.filter((row) => row.standing !== "walk-in");
-  const expected = signups.filter((row) => row.standing === "signed-up" || row.checkIn).length;
-  const signupsHere = signups.filter((row) => row.checkIn).length;
-  const walkIns = rows.filter((row) => row.standing === "walk-in").length;
+  const unticked = signups.filter((row) => row.standing === "signed-up" && !row.checkIn).length;
+  const cameUnticked = Math.min(namesOff.signups, unticked);
+  const signupsHere = signups.filter((row) => row.checkIn).length + namesOff.signups;
+  const walkIns = rows.filter((row) => row.standing === "walk-in").length + namesOff.walkIns;
   return {
-    expected,
+    expected: signups.filter((row) => row.standing === "signed-up" || row.checkIn).length + namesOff.signups - cameUnticked,
     signupsHere,
     walkIns,
     here: signupsHere + walkIns,
-    toCome: signups.filter((row) => row.standing === "signed-up" && !row.checkIn).length,
-    byQr: signups.filter((row) => row.checkIn?.how === "qr").length,
-    byList: signups.filter((row) => row.checkIn && row.checkIn.how !== "qr").length,
+    toCome: unticked - cameUnticked,
+    byQr: signups.filter((row) => row.checkIn?.how === "qr").length + namesOff.signupsByQr,
+    byList: signups.filter((row) => row.checkIn && row.checkIn.how !== "qr").length + namesOff.signups - namesOff.signupsByQr,
+    notListed: namesOff.signups + namesOff.walkIns,
+    cameUnticked,
   };
+}
+
+/**
+ * Under a list of who came, when some are counted and not listed: "2 more
+ * came whose names have come off: counted, not listed." `more` is false when
+ * nobody is listed above it.
+ */
+export function notListedWords(n: number, more: boolean): string {
+  return `${n} ${more ? "more " : ""}came whose ${n === 1 ? "name has" : "names have"} come off: counted, not listed.`;
+}
+
+/**
+ * Over a list of confirmed sign-ups with no tick, when some of them came and
+ * their names have come off: "2 of these came, but their names have come off,
+ * so we can’t tell which."
+ */
+export function cameUntickedWords(n: number): string {
+  return `${n} of these came, but ${n === 1 ? "their name has" : "their names have"} come off, so we can’t tell which.`;
 }
 
 /** "10 of 18 here · 2 walk-ins". */

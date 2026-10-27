@@ -450,6 +450,34 @@ describe("4. the guide's pages", () => {
     assert.match(printables.html, /<pre class="code"><code>FRIDAY FORECAST {17}Name: ____________\n\nChance of rain: {2}____%<\/code><\/pre>/);
   });
 
+  // The blank lines at a template's end are the room under its last line. A
+  // browser draws no line after the last line break in a `pre`, so the page
+  // is given one more, and every blank line shows.
+  test("a template keeps the room under its last line: saved, drawn, copied out and pasted back exactly", async () => {
+    const markdown = "# Printables\n\n## Session 1: the card\n\n```markdown\nCARD\nWhat would you ask the group:\n\n```\n\n## Session 2: the brief\n\n```\nOne question for the speaker:\n\n\n\n```\n";
+    assert.equal((await load("zach", "PUT", "printables", { markdown })).status, 200);
+    const path = `courseFacilitatorGuide/${COURSE.agi}__printables`;
+    const saved = world.db.read(path).blocks;
+    assert.deepEqual(
+      saved.filter((block) => block.type === "code").map((block) => block.text),
+      ["CARD\nWhat would you ask the group:\n", "One question for the speaker:\n\n\n"],
+    );
+    for (const who of ["zach", "claudia", "tom"]) {
+      const page = await docPage(who, "printables");
+      assert.match(page.html, /<pre class="code"><code>CARD\nWhat would you ask the group:\n\n<\/code><\/pre>/, who);
+      assert.match(page.html, /<pre class="code"><code>One question for the speaker:\n\n\n\n<\/code><\/pre>/, who);
+    }
+    // Copied out by the programme's lead as it was pasted, and pasted back the same.
+    const copied = await load("claudia", "GET", "printables");
+    assert.equal(copied.status, 200);
+    assert.ok(copied.body.markdown.includes("```markdown\nCARD\nWhat would you ask the group:\n\n```"), copied.body.markdown);
+    assert.ok(copied.body.markdown.includes("```\nOne question for the speaker:\n\n\n\n```"), copied.body.markdown);
+    assert.equal((await load("claudia", "PUT", "printables", { markdown: copied.body.markdown })).status, 200);
+    assert.deepEqual(world.db.read(path).blocks, saved);
+    // Everybody the guide refuses sees none of it.
+    for (const who of ["amara", "tess", null]) assert.doesNotMatch((await docPage(who, "printables")).html ?? "", /What would you ask/, String(who));
+  });
+
   test("a week or a document with nothing loaded says so plainly to its readers; a page that is not one, likewise", async () => {
     assert.match((await docPage("rahul", "week-2")).text, /Facilitator guide for week 2 .*There’s no facilitator guide for week 2 yet\./);
     world.db.seed(`courses/${COURSE.tais}`, world.db.read(`courses/${COURSE.tais}`));

@@ -8,7 +8,8 @@ import { safeLinkUrl, type Prose as ProseData, type Run, type TableCell } from "
  * `safeLinkUrl` again here, where it is drawn. Nothing is ever handed to
  * `dangerouslySetInnerHTML`: this is the boundary between whatever a week's
  * Markdown held and the page. Code is drawn exactly as written, in a `pre`,
- * every space and line kept.
+ * every space and line kept, the blank lines at its end with it
+ * (`codeAsWritten`).
  *
  * No hooks and no browser API, so a server page and a page in the browser
  * draw the same elements from the same data. The one renderer of a week's
@@ -16,6 +17,17 @@ import { safeLinkUrl, type Prose as ProseData, type Run, type TableCell } from "
  */
 
 type LinkProps = { linkClassName?: string };
+
+/**
+ * A block of code's text as a `pre` draws it line for line. A browser draws
+ * no line after the last line break in a `pre`, so a text that ends in blank
+ * lines (a facilitator guide's template keeps the room under its last line)
+ * is given one more, and every blank line shows. A text that ends in no line
+ * break, as every week's does, is drawn as it is.
+ */
+export function codeAsWritten(text: string): string {
+  return text.endsWith("\n") ? `${text}\n` : text;
+}
 
 /** One line of runs. */
 export function Runs({ runs, linkClassName }: { runs: readonly Run[] } & LinkProps) {
@@ -139,7 +151,7 @@ export default function Prose({
           case "code":
             return (
               <pre key={index} className={codeClassName}>
-                <code>{paragraph.text}</code>
+                <code>{codeAsWritten(paragraph.text)}</code>
               </pre>
             );
         }

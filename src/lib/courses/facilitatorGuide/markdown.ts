@@ -6,6 +6,7 @@ import {
   COURSE_DOCUMENT_LABEL,
   GUIDE_LIMITS,
   NOTHING_UNDER_TITLE,
+  TEMPLATE_ENDS,
   guideDocumentProblems,
   sanitizeGuideBlocks,
   slotLabel,
@@ -27,7 +28,8 @@ import { facilitatorOnlyHeading, readDocumentTitle } from "./recognise";
  * READING keeps every word: the text inside blocks is read by the week
  * loader's own reader (`readProseTokens`, `readInlineRuns`), headings stay
  * headings, quotes stay quotes, and "- [ ]" lines stay boxes to tick on
- * paper. Two things are left out, and each is said: the byline under the
+ * paper. A block of code is a template, and keeps the blank lines at its end,
+ * which are the room to write in under its last line (`TEMPLATE_ENDS`). Two things are left out, and each is said: the byline under the
  * title (the export's date and names, which are not page content), and what a
  * page never draws (pictures, HTML, links that are not https or mailto).
  * What the page could not draw where it is written (a block of code inside a
@@ -253,7 +255,7 @@ export function readGuideMarkdown(markdown: string, slot: GuideSlot): ReadGuide 
         break;
       }
       case "blockquote": {
-        const body = readProseTokens((token as Tokens.Blockquote).tokens, seen);
+        const body = readProseTokens((token as Tokens.Blockquote).tokens, seen, TEMPLATE_ENDS);
         if (body.length > 0) blocks.push({ type: "quote", body });
         break;
       }
@@ -279,7 +281,7 @@ export function readGuideMarkdown(markdown: string, slot: GuideSlot): ReadGuide 
           break;
         }
         if (tasks > 0) checks.push(`${where()}, a list mixes boxes to tick with plain lines: it is read as a plain list, without its boxes.`);
-        blocks.push(...readProseTokens([token], seen));
+        blocks.push(...readProseTokens([token], seen, TEMPLATE_ENDS));
         break;
       }
       case "hr":
@@ -290,7 +292,7 @@ export function readGuideMarkdown(markdown: string, slot: GuideSlot): ReadGuide 
         // link it serves has already been read where it is used.
         break;
       default:
-        blocks.push(...readProseTokens([token], seen));
+        blocks.push(...readProseTokens([token], seen, TEMPLATE_ENDS));
     }
   }
 

@@ -29,7 +29,7 @@
  *    | --- | --- | --- | --- |
  *    | Board games and pizza | Wed 14 Oct | nobody checked in | none |
  *    | Movie night: WarGames (no sign-up) | Fri 16 Oct | nobody | none |
- *    | VR games night | Sun 1 Nov | Amara (code), Bea, Gwen and Dev and Mo as guests, Dan walking in, and one record whose names came off (not counted by the Check-in tab); Tariq signed up and did not come | sent: 3 answers, rated 5 and 4 |
+ *    | VR games night | Sun 1 Nov | Amara (code), Bea, Gwen and Dev and Mo as guests, Dan walking in, and one record whose names came off (counted by the Check-in tab, and matched with nobody); Tariq signed up and did not come | sent: 3 answers, rated 5 and 4 |
  *    | AI policy careers panel | Thu 5 Nov | Amara (code), Gwen (with an account now), Dev walking in with an account, Mo walking in with no account | a draft |
  *    | How do you test an AI model? (no sign-up) | Thu 12 Nov | Bea with the code, Pat at the door | none |
  *    | Pizza and board games | Thu 19 Nov | nobody checked in | none |
@@ -38,9 +38,10 @@
  *    Not the term's: a draft (Fri 20 Nov), a cancelled one (Sat 21 Nov), one
  *    on Wed 30 Sep, before the form opened, and one on Tue 15 Dec, to come.
  *
- *    So: 12 check-ins at 3 events; 8 different people (Amara, Bea, Gwen, Dev,
- *    Mo the guest, and three walk-ins with no account: Dan, Mo again, Pat);
- *    4 who came to two or more (Amara, Bea, Gwen, Dev). Gwen is matched by
+ *    So: 13 check-ins at 3 events; 9 different people (Amara, Bea, Gwen, Dev,
+ *    Mo the guest, three walk-ins with no account: Dan, Mo again, Pat, and the
+ *    person whose names came off); 4 who came to two or more (Amara, Bea,
+ *    Gwen, Dev). Gwen is matched by
  *    the address on Gwen's guest sign-up and the account's own; Dev by the
  *    address on Dev's guest sign-up and the account's, which Dev's walking
  *    in carries. Mo's walk-in email is never matched to Mo's guest sign-up.
@@ -306,7 +307,7 @@ export function termSeed(templates, eventItems, over = {}) {
   seed["eventCheckIns/vr-dev"] = checkInDoc(EV.vr, vr, { rsvpId: "vr-dev" });
   seed["eventCheckIns/vr-mo"] = checkInDoc(EV.vr, vr, { rsvpId: "vr-mo" });
   seed["eventCheckIns/vr-dan"] = checkInDoc(EV.vr, vr, { kind: "walk-in", name: "Dan Fitzgerald" });
-  // Somebody whose account was deleted: their record's names came off at once, and the Check-in tab no longer counts it.
+  // Somebody whose account was deleted: their record's names came off at once. The Check-in tab still counts it, as one person nothing can match.
   seed["eventCheckIns/vr-gone"] = checkInDoc(EV.vr, "2026-11-01T14:20:00Z", { namesOff: true, namesOffAt: null, byUid: null });
   const panel = "2026-11-05T18:10:00Z";
   seed["eventCheckIns/panel-amara"] = checkInDoc(EV.panel, panel, { rsvpId: "panel-amara", uid: "amara", how: "qr", byUid: null });

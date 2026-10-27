@@ -30,7 +30,7 @@ import {
   type WeekBlock,
   type WrittenAnswerBlock,
 } from "./model";
-import { canonicalRuns, runsText, safeLinkUrl, safeSourceUrl, type Prose, type Run, type TableCell } from "./prose";
+import { canonicalRuns, runsText, safeLinkUrl, safeSourceUrl, type CodeEnds, type Prose, type Run, type TableCell } from "./prose";
 
 /**
  * READING A WEEK'S MARKDOWN INTO BLOCKS. The contract is
@@ -504,8 +504,12 @@ function tableCells(cells: readonly Tokens.TableCell[], counts: InlineCounts): T
   return cells.map((cell) => ({ runs: line(tokensLine(cell.tokens, counts)) }));
 }
 
-/** Tokens as prose, in order: paragraphs, lists, tables and code. */
-function proseOf(tokens: readonly Token[], counts: InlineCounts, leftOut: string[]): Prose {
+/**
+ * Tokens as prose, in order: paragraphs, lists, tables and code. A block of
+ * code loses the blank lines at its very end unless `codeEnds` keeps them, as
+ * a facilitator guide's reader asks (`CodeEnds` in `prose.ts`).
+ */
+function proseOf(tokens: readonly Token[], counts: InlineCounts, leftOut: string[], codeEnds: CodeEnds = {}): Prose {
   const out: Prose = [];
   for (const token of tokens) {
     switch (token.type) {
@@ -528,11 +532,12 @@ function proseOf(tokens: readonly Token[], counts: InlineCounts, leftOut: string
       case "code": {
         const code = token as Tokens.Code;
         // Shown exactly as written: every space and line break kept.
-        if (code.text.trim()) out.push({ type: "code", lang: (code.lang ?? "").trim().split(/\s+/)[0] ?? "", text: code.text.replace(/\n+$/, "") });
+        const text = codeEnds.keepBlankLinesAtEnd ? code.text : code.text.replace(/\n+$/, "");
+        if (code.text.trim()) out.push({ type: "code", lang: (code.lang ?? "").trim().split(/\s+/)[0] ?? "", text });
         break;
       }
       case "blockquote":
-        out.push(...proseOf((token as Tokens.Blockquote).tokens, counts, leftOut));
+        out.push(...proseOf((token as Tokens.Blockquote).tokens, counts, leftOut, codeEnds));
         break;
       case "heading": {
         // A heading prose cannot hold keeps its words, as a bold line.
@@ -1863,11 +1868,12 @@ export function noneLeftOut(): TextLeftOut {
  * paragraphs, lists, tables and code, a quote's words kept, a heading kept as
  * a bold line. For a document that is not a week (a course's facilitator
  * guide, `src/lib/courses/facilitatorGuide/`), so one reader decides what a
- * line of text is, wherever it is written.
+ * line of text is, wherever it is written. `codeEnds` says whether a block of
+ * code keeps the blank lines at its end (a guide's templates do).
  */
-export function readProseTokens(tokens: readonly Token[], seen: TextLeftOut): Prose {
+export function readProseTokens(tokens: readonly Token[], seen: TextLeftOut, codeEnds: CodeEnds = {}): Prose {
   const counts: InlineCounts = { images: 0, refused: [] };
-  const prose = proseOf(tokens, counts, seen.leftOut);
+  const prose = proseOf(tokens, counts, seen.leftOut, codeEnds);
   seen.images += counts.images;
   seen.refused.push(...counts.refused);
   return prose;

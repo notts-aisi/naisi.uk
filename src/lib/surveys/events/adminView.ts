@@ -2,6 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { runsCheckIn } from "@/lib/events/checkInAccess";
+import { NO_NAMES_OFF } from "@/lib/events/checkInView";
 import type { EventAudience, EventSurveyDoc } from "@/lib/firestore/surveys";
 import { shortLinkAddress } from "@/lib/qr/shortLinkCode";
 import { preview, testView, type EmailPreview, type SurveyState, type TestView } from "../adminView";
@@ -296,13 +297,17 @@ export async function eventResultsHead(db: Firestore, survey: EventSurveyDoc): P
   const [plan, answers] = await Promise.all([readEventSendPlan(db, survey), eventAnswersOf(db, survey)]);
   const qr = answers.filter((answer) => answer.via === "signed-in").length;
   const came = plan.audiences["event-came"].members;
-  const bySignup = came.filter((member) => member.cameBySignup).length;
+  // Somebody whose name has come off reaches nobody and still came, as the
+  // event's Check-in tab counts them.
+  const namesOff = plan.read?.namesOff ?? NO_NAMES_OFF;
+  const bySignup = came.filter((member) => member.cameBySignup).length + namesOff.signups;
+  const total = came.length + namesOff.signups + namesOff.walkIns;
   const first = survey.presses.find((press) => press.kind === "first");
   return {
     answers: answers.length,
     answersLine: `${qr} with the QR code, ${answers.length - qr} by email`,
-    came: came.length,
-    cameLine: `${bySignup} who signed up, ${came.length - bySignup} ${came.length - bySignup === 1 ? "walk-in" : "walk-ins"}`,
+    came: total,
+    cameLine: `${bySignup} who signed up, ${total - bySignup} ${total - bySignup === 1 ? "walk-in" : "walk-ins"}`,
     emailRate: plan.firstEmailed ? `${plan.answeredEmail} of ${plan.emailed}` : "",
     emailLine: first?.at ? `Sent ${dayAndClockWords(first.at)}` : "",
   };

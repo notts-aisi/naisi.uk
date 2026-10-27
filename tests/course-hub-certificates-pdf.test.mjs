@@ -15,9 +15,11 @@
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { APP_URL, END, certificateDoc, certificatePath, makeCertificateWorld, short } from "./lib/certificateWorld.mjs";
+import { resolveImport, walkSource } from "./lib/functionScan.mjs";
+import { stripSource } from "./lib/stripSource.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(REPO_ROOT, "src");
@@ -228,6 +230,28 @@ describe("who downloads it", () => {
 // Where the library may be, and how the build carries it
 // ---------------------------------------------------------------------------
 
+/** `import ... from "x"` and `export ... from "x"`, however many lines it spans. */
+const FROM_STATEMENT = /(?:^|\n)([ \t]*(?:import|export)\b[^;]*?\bfrom\s*["']([^"']+)["'])/g;
+/** `import "x"`, the side-effect form. */
+const BARE_IMPORT = /(?:^|\n)[ \t]*import\s*["']([^"']+)["']/g;
+/** `import("x")`. */
+const DYNAMIC_IMPORT = /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
+
+/** Every module a file's code (comments gone, strings kept) takes values from: a statement that imports only types loads nothing. */
+function valueImports(code) {
+  const out = [];
+  for (const [, statement, specifier] of code.matchAll(FROM_STATEMENT)) {
+    const braces = /^\s*(?:import|export)\s*\{([^}]*)\}\s*from/.exec(statement);
+    const typesOnly =
+      /^\s*(?:import|export)\s+type\b/.test(statement) ||
+      (braces !== null && braces[1].split(",").map((entry) => entry.trim()).filter(Boolean).every((entry) => /^type\s/.test(entry)));
+    if (!typesOnly) out.push(specifier);
+  }
+  for (const [, specifier] of code.matchAll(BARE_IMPORT)) out.push(specifier);
+  for (const [, specifier] of code.matchAll(DYNAMIC_IMPORT)) out.push(specifier);
+  return out;
+}
+
 describe("the library", () => {
   function* walk(dir) {
     for (const entry of readdirSync(dir)) {
@@ -253,13 +277,58 @@ describe("the library", () => {
     assert.ok(clients > 50, "the walk found too few client files to mean anything");
   });
 
-  test("the build keeps PDFKit outside the bundle and traces the fonts into the one route that reads them", () => {
+  // The fonts are read from disk when a route runs (`CERTIFICATE_FONT_DIR` in
+  // pdf.ts), by a path the build cannot see, so every route whose imports
+  // reach pdf.ts needs its own tracing line in next.config.ts, or it works on
+  // a laptop and fails deployed. Held both ways round, from a walk of every
+  // file's imports: each route that reaches the fonts is traced, and each
+  // traced route reaches them. Today that is a certificate's and a course's
+  // printables'; a third fails here until it is traced and listed.
+  test("the build keeps PDFKit outside the bundle and traces the fonts into every route that reads them: a certificate's and a course's printables'", () => {
     const config = readFileSync(join(REPO_ROOT, "next.config.ts"), "utf8");
     assert.match(config, /serverExternalPackages: \["pdfkit"\]/);
+    const fontReader = join(SRC, "lib", "courses", "certificates", "pdf.ts");
+    assert.match(readFileSync(fontReader, "utf8"), /readFileSync\(join\(CERTIFICATE_FONT_DIR, FONT_FILES\[name\]\)\)/, "the fonts are read somewhere else now: walk from there");
+    // Who imports whom, for values (a type-only import loads nothing).
+    const importers = new Map();
+    let files = 0;
+    for (const file of walkSource(SRC)) {
+      files += 1;
+      for (const specifier of valueImports(stripSource(readFileSync(file, "utf8"), { keepStrings: true }))) {
+        const target = resolveImport(file, specifier, SRC);
+        if (!target) continue;
+        if (!importers.has(target)) importers.set(target, new Set());
+        importers.get(target).add(file);
+      }
+    }
+    assert.ok(files > 500, "the walk found too few files to mean anything");
+    const reaching = new Set([fontReader]);
+    const queue = [fontReader];
+    while (queue.length > 0) {
+      for (const by of importers.get(queue.pop()) ?? []) {
+        if (!reaching.has(by)) {
+          reaching.add(by);
+          queue.push(by);
+        }
+      }
+    }
+    const app = join(SRC, "app");
+    const readers = [...reaching]
+      .filter((file) => file.startsWith(`${app}${sep}`) && /[\\/](?:route\.ts|page\.tsx)$/.test(file))
+      .map((file) => relative(app, file).split(sep).join("/"))
+      .sort();
+    assert.deepEqual(readers, ["api/courses/[courseId]/facilitator-guide/printables/pdf/route.ts", "api/courses/certificates/[code]/pdf/route.ts"]);
+    // The routes the build traces the fonts into, as next.config.ts names them.
+    const block = /outputFileTracingIncludes: \{([\s\S]*?)\n {2}\},/.exec(config);
+    assert.ok(block, "could not find the build's list of traced files");
+    const traced = [...block[1].matchAll(/^\s*"([^"]+)": \["\.\/src\/lib\/courses\/certificates\/fonts\/\*"\],$/gm)]
+      .map(([, key]) => `${key.replace(/\\/g, "").replace(/^\//, "")}/route.ts`)
+      .sort();
+    assert.deepEqual(traced, readers, "every route that reads the fonts is traced, and only those");
     assert.match(config, /"\/api\/courses\/certificates\/\\\\\[code\\\\\]\/pdf": \["\.\/src\/lib\/courses\/certificates\/fonts\/\*"\]/);
-    // The key names a route that exists, and the files are where it says.
-    assert.ok(existsSync(join(SRC, "app", "api", "courses", "certificates", "[code]", "pdf", "route.ts")));
-    assert.ok(readdirSync(join(SRC, "lib", "courses", "certificates", "fonts")).filter((f) => f.endsWith(".ttf")).length === 3);
+    // Each key names a route that exists, and the files are where it says.
+    for (const route of readers) assert.ok(existsSync(join(app, ...route.split("/"))), route);
+    assert.equal(readdirSync(join(SRC, "lib", "courses", "certificates", "fonts")).filter((f) => f.endsWith(".ttf")).length, 3);
   });
 
   test("the route reads and draws, and writes nothing", () => {

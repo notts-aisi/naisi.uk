@@ -72,6 +72,20 @@ describe("who is one person across the term's events", () => {
     assert.deepEqual(model.peopleAcross([{ counted: [visit("door")] }, { counted: [visit("door")] }]), { people: 2, cameTwice: 0, unmatched: true });
   });
 
+  // A check-in whose names have come off is one more person (the Check-in tab
+  // counts it) whom nothing matches; the walk-ins' sentence is about walk-ins
+  // with no account, so it never shows for these.
+  test("a check-in whose names have come off is one person nobody matches, and never shows the walk-ins' sentence", () => {
+    const off = (how) => ({ how, keys: [], namesOff: true });
+    assert.deepEqual(model.peopleAcross([{ counted: [off("door")] }, { counted: [off("qr")] }]), { people: 2, cameTwice: 0, unmatched: false });
+    assert.deepEqual(model.peopleAcross([{ counted: [visit("door")] }, { counted: [off("door"), visit("qr", "account:a")] }]), {
+      people: 3,
+      cameTwice: 0,
+      unmatched: false,
+    });
+    assert.deepEqual(model.peopleAcross([{ counted: [visit("door"), off("door")] }, { counted: [visit("door")] }]), { people: 3, cameTwice: 0, unmatched: true });
+  });
+
   test("one person checked in twice at one event came to one event", () => {
     assert.deepEqual(model.peopleAcross([{ counted: [visit("door", "account:a"), visit("door", "account:a", "address:a@example.com")] }]), {
       people: 1,
@@ -228,11 +242,16 @@ describe("the term, read from the records", () => {
     );
   });
 
-  test("the people: 12 check-ins at 3 events, 8 different people, 4 who came back, and the walk-ins' sentence", async (t) => {
+  // CHANGED ON PURPOSE (the Check-in tab counts a check-in whose names have
+  // come off, as the privacy policy says it stays in the count): the VR
+  // night's names-off record is a 13th check-in and a 9th person, whom
+  // nothing matches. It is not a walk-in, so the sentence is the walk-ins'
+  // as before (the model's own test below).
+  test("the people: 13 check-ins at 3 events, 9 different people, 4 who came back, and the walk-ins' sentence", async (t) => {
     clock(t);
     w.reset();
     const { view } = await w.load("zach");
-    assert.deepEqual(view.tiles, { checkIns: 12, atEvents: 3, people: 8, cameTwice: 4, unmatched: true });
+    assert.deepEqual(view.tiles, { checkIns: 13, atEvents: 3, people: 9, cameTwice: 4, unmatched: true });
   });
 
   test("a walk-in's email is never matched, though it is the address a guest signed up with", async (t) => {
@@ -240,7 +259,7 @@ describe("the term, read from the records", () => {
     w.reset();
     const { view } = await w.load("zach");
     // Were Mo's walk-in address matched with Mo's guest sign-up, they would be one person who came back.
-    assert.equal(view.tiles.people, 8);
+    assert.equal(view.tiles.people, 9);
     assert.equal(view.tiles.cameTwice, 4);
   });
 
@@ -254,8 +273,8 @@ describe("the term, read from the records", () => {
     seed["users/dev"] = { ...seed["users/dev"], email: "dev.patel@example.com" };
     w.reset(seed);
     const apart = (await w.load("zach")).view.tiles;
-    assert.deepEqual([joined.people, joined.cameTwice], [8, 4]);
-    assert.deepEqual([apart.people, apart.cameTwice], [9, 3], "Dev's account no longer holds the address Dev's guest sign-up gave; Gwen's sign-up with an account still carries the same address");
+    assert.deepEqual([joined.people, joined.cameTwice], [9, 4]);
+    assert.deepEqual([apart.people, apart.cameTwice], [10, 3], "Dev's account no longer holds the address Dev's guest sign-up gave; Gwen's sign-up with an account still carries the same address");
   });
 
   test("everybody but an admin is handed nothing, and nothing is read for them", async (t) => {
@@ -304,7 +323,10 @@ describe("every number is the one its own page shows", () => {
       [EV.film, "Movie night: Ex Machina"],
     ]) {
       const loaded = await loadEventAtTheDoor(w.world.db, id);
-      const here = checkInView.doorCounts(checkInView.doorRows(checkIns.doorListSignups(loaded.signups), loaded.checkIns)).here;
+      const here = checkInView.doorCounts(
+        checkInView.doorRows(checkIns.doorListSignups(loaded.signups), loaded.checkIns),
+        checkInView.namesOffOf(loaded.checkIns),
+      ).here;
       assert.equal(eventRow(view, title).came, here > 0 ? here : null, `${title}: the tab says ${here}`);
       if (here > 0) {
         sum += here;

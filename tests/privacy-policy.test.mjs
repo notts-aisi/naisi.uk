@@ -5400,6 +5400,7 @@ describe("the course hub passage", () => {
  */
 const checkInAccess = await loadTs("lib/events/checkInAccess.ts");
 const checkInRules = await loadTs("lib/events/checkIns.ts");
+const checkInCounts = await loadTs("lib/events/checkInView.ts");
 /** Every file that reads or builds a list of who came, by name. */
 const NAMED_CHECK_IN_READERS = /\bloadEventAtTheDoor\(|\bdoorRows\(/;
 
@@ -5529,6 +5530,62 @@ describe("the check-in passage", () => {
     assert.ok(!/\.delete\(/.test(account[0]), "a deletion now removes check-ins, which the policy says stay in the count");
     const cascade = withoutComments(read("src/lib/firestore/accountDeletion.ts"));
     assert.match(cascade, /summary\.eventCheckInsNamesTakenOff = await takeCheckInNamesOffForAccount\(db, uid\);/);
+  });
+
+  // "It stays in the count" and "keep the count", run: a record whose names
+  // have come off is one person who came, by a sign-up or walking in, and is
+  // counted wherever who came is counted, and listed nowhere. Every file that
+  // counts who came is held to it.
+  test("a record whose names have come off stays in the count, wherever who came is counted", () => {
+    assert.match(PAGE_FLAT, /<li> The record that you came to an event, no longer linked to you: it stays in the count\. <\/li>/);
+    assert.match(PAGE_FLAT, /then take the names off and keep the count\./);
+    const off = (kind, how) => ({
+      id: `${kind}-${how}`,
+      eventId: "e",
+      kind,
+      how,
+      rsvpId: null,
+      uid: null,
+      name: null,
+      email: null,
+      emailGoesAt: null,
+      byUid: null,
+      at: null,
+      namesOffAt: null,
+      namesOff: true,
+    });
+    const records = [off("signup", "qr"), off("signup", "door"), off("walk-in", "door")];
+    // Listed nowhere: no row, since a row is a name.
+    assert.deepEqual(checkInCounts.doorRows([], records), []);
+    // Counted: three people came, two by a sign-up (one with the code) and one walking in.
+    const counts = checkInCounts.doorCounts([], checkInCounts.namesOffOf(records));
+    assert.deepEqual([counts.here, counts.signupsHere, counts.walkIns, counts.byQr, counts.byList], [3, 2, 1, 1, 1]);
+    // Every count of who came takes them, from the same check-ins as its rows.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bdoorCounts\(/).filter((file) => file !== "src/lib/events/checkInView.ts"),
+      new Map([
+        ["src/app/(app)/events/manage/[id]/check-in/page.tsx", "the Check-in tab's four numbers, which everybody in the events area sees"],
+        ["src/features/events/checkIn/DoorList.tsx", "the door list's count of who is here and who is still to come"],
+        ["src/features/events/checkIn/WhoCame.tsx", "the Check-in tab's list of who came, with its count, and of who didn't"],
+      ]),
+      "counting who came to an event",
+      "Count the records whose names have come off too (`namesOffOf`), as the policy says they stay in the count, then list the file here.",
+    );
+    for (const file of ["src/app/(app)/events/manage/[id]/check-in/page.tsx", "src/features/events/checkIn/DoorList.tsx", "src/features/events/checkIn/WhoCame.tsx"]) {
+      const source = withoutComments(read(file));
+      assert.equal((source.match(/\bdoorCounts\(rows, namesOff\)/g) ?? []).length, (source.match(/\bdoorCounts\(/g) ?? []).length, `${file} counts who came without the records whose names have come off`);
+    }
+    const tab = withoutComments(read("src/app/(app)/events/manage/[id]/check-in/page.tsx"));
+    assert.match(tab, /const namesOff = namesOffOf\(checkIns\);\s*const counts = doorCounts\(rows, namesOff\);/);
+    assert.match(tab, /initialRows=\{rows\}\s*namesOff=\{namesOff\}/);
+    assert.match(withoutComments(read("src/app/(app)/events/manage/[id]/door/page.tsx")), /initialRows=\{doorRows\(doorListSignups\(signups\), checkIns\)\}\s*namesOff=\{namesOffOf\(checkIns\)\}/);
+    // This term in numbers counts each as one more person nobody can match,
+    // and the head over a survey after an event's results counts it as came.
+    assert.match(withoutComments(read("src/lib/surveys/term/load.ts")), /for \(const checkIn of checkIns\) if \(checkIn\.namesOff\) counted\.push\(\{ how: checkIn\.how, keys: \[\], namesOff: true \}\);/);
+    assert.match(withoutComments(read("src/lib/surveys/events/audience.ts")), /namesOff: namesOffOf\(checkIns\.filter\(\(checkIn\) => checkIn\.eventId === eventId\)\)/);
+    const head = withoutComments(read("src/lib/surveys/events/adminView.ts"));
+    assert.match(head, /const namesOff = plan\.read\?\.namesOff \?\? NO_NAMES_OFF;/);
+    assert.match(head, /const total = came\.length \+ namesOff\.signups \+ namesOff\.walkIns;/);
   });
 
   test("the email that confirms a place carries the check-in link, and no other email does", () => {

@@ -857,7 +857,8 @@ base; no threshold (Zach, 26 Oct 2026). The code: `src/lib/surveys/term/`
   Only this term is shown: there is no way to look at an earlier one.
 - **Every number through the reader its own page uses**, so the two can never
   disagree: an event's Came is its Check-in tab's rows (`doorRows` over
-  `loadEventAtTheDoor`, what `doorCounts` counts); its survey's answers and
+  `loadEventAtTheDoor`) and its check-ins whose names have come off, what
+  `doorCounts` counts with `namesOffOf`; its survey's answers and
   "How was it?" are its Results (`resultsView`); Started and Finished are the
   Kairos report's, through the one shared count (`headcountOf` in
   `src/lib/courses/finishing/headcount.ts`); Answered both is the change
@@ -870,7 +871,9 @@ base; no threshold (Zach, 26 Oct 2026). The code: `src/lib/surveys/term/`
   account is never matched: the address a walk-in leaves is for that event's
   survey and nothing else. When such walk-ins came to two or more of the
   events, the board's sentence says the count may hold one twice and the
-  repeat count may miss some.
+  repeat count may miss some. A check-in whose names have come off is one
+  more person nobody can match; it is no walk-in, so it never shows that
+  sentence.
 - **The notes**: nobody counted and the event ended before check-in was first
   used on the site (the first check-in its events hold, or any before the
   term): "Before check-in"; else "No sign-up and no check-in" for an event
@@ -918,7 +921,12 @@ survey has who came to send to. What it can rely on:
   a week after the event if that comes first (see "Surveys after events"). The
   walk-in form and the Check-in tab say whichever day it is.
 - Names come off a year after the event (`event-check-ins-tidy`), and at once
-  when an account is deleted.
+  when an account is deleted. The record still counts as one person who came,
+  by a sign-up or walking in and how, wherever who came is counted
+  (`namesOffOf` and `doorCounts` in `src/lib/events/checkInView.ts`): the
+  Check-in tab, the door list, a survey's results and This term in numbers. It
+  is listed nowhere, and the sign-up it came by keeps no tick, so each is taken
+  to be one of the confirmed sign-ups with no tick, and the lists say so.
 
 ## The guards
 

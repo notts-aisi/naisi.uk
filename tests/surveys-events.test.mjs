@@ -613,6 +613,29 @@ describe("the admins' pages for a survey after an event", () => {
     assert.match(results.text, /Admins only\. Iris, the organiser, sees how many came, not the results: send Iris the summary\./);
     for (const name of ["Kofi", "Gwen", "Asante", "Price"]) assert.ok(!results.text.includes(name), `the results named ${name}`);
   });
+
+  // A record whose names have come off reaches nobody, and still came: the
+  // privacy policy says it stays in the count, and the event's Check-in tab
+  // counts it, so the head over the results counts it the same way.
+  test("a check-in whose names have come off reaches nobody and still came: the results' Came is the Check-in tab's", async (t) => {
+    clock(t, NEXT_DAY);
+    const off = { eventId: EVENT_ID, rsvpId: null, uid: null, name: null, email: null, emailGoesAt: null, byUid: null, at: new Date("2026-11-01T14:30:00Z"), namesOffAt: null, namesOff: true };
+    w.reset(
+      eventSurveySeed({
+        "eventCheckIns/ci-off-signup": { ...off, kind: "signup", how: "qr" },
+        "eventCheckIns/ci-off-walk-in": { ...off, kind: "walk-in", how: "door" },
+      }),
+    );
+    const id = await made();
+    const { readEventAudience, membersOf } = await w.load("lib/surveys/events/audience.ts");
+    const read = await readEventAudience(w.world.db, EVENT_ID);
+    assert.equal(membersOf(read, "event-came").length, 6, "a record with its names off reached somebody");
+    assert.deepEqual(read.namesOff, { signups: 1, signupsByQr: 1, walkIns: 1 });
+    const results = await w.page("app/(app)/admin/(admin-only)/surveys/[surveyId]/results/page.tsx", { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
+    assert.match(results.text, / 8 Came 4 who signed up, 4 walk-ins /);
+    const tab = await w.page("app/(app)/events/manage/[id]/check-in/page.tsx", { params: Promise.resolve({ id: EVENT_ID }) }, "sue");
+    assert.match(tab.text, / 8 came /);
+  });
 });
 
 // ---------------------------------------------------------------------------

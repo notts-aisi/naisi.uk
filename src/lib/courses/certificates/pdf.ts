@@ -30,8 +30,10 @@ import { LOCKUP_LINES, PDF_FONTS, pdfItems, type PdfFont, type PdfItem, type Pdf
  * Grotesk, so the PDF carries the brand's two faces and no third.
  *
  * PDFKit stays outside the server bundle (`serverExternalPackages` in
- * next.config.ts), and the fonts are traced into the build for the one route
- * that reads them (`outputFileTracingIncludes`).
+ * next.config.ts), and the fonts are traced into the build for every route
+ * that reads them (`outputFileTracingIncludes`): a certificate's and a
+ * course's printables' (`tests/course-hub-certificates-pdf.test.mjs` walks
+ * the tree for them).
  */
 
 /** Where the fonts are read from: the project's root on a laptop, the standalone build's root when deployed. */

@@ -119,7 +119,12 @@ Oct 25, 2026 · @ada example
   disagree about a line. A quote stays a quote (a week's notes quote an
   example strong answer). "- [ ]" lines are boxes to tick on paper, drawn and
   never a control. Code blocks are printable templates, drawn exactly as
-  written, every space kept.
+  written, every space kept, and the blank lines at a template's very end
+  with them: they are the room to write in under its last line (a card's last
+  question). The reader, the store, the page, Copy as Markdown and the PDF all
+  keep them (`TEMPLATE_ENDS` in `model.ts`); a week's code loses them, as it
+  always has. A document stored before this was kept has lost them, and gets
+  them back when it is pasted again.
 - Pictures, HTML and links that are not https or mailto are left out and
   said. A block of code, a table or a quote inside a line of a list stops a
   save, because the page could not draw it there.
@@ -224,9 +229,12 @@ written in code.
 What the document says, in its order, and nothing else: its title, headings,
 paragraphs, lists, quotes, boxes to tick and tables in Space Grotesk, and its
 templates (code blocks) in Space Mono with every space kept, because they are
-forms people write on. Nothing is added or reworded; bold is the heavier
-weight, italic leans (the face has no italic), and a link is underlined and
-stays a link.
+forms people write on. Nothing is reworded; bold is the heavier weight,
+italic leans (the face has no italic), and a link is underlined and stays a
+link. Two things are added, and neither moves the rest: a PDF of more than one
+page says "Page 2 of 5" small at the foot of each page, in the bottom margin
+(a PDF of one page says nothing), and a table that runs on to another page has
+its header row drawn again at the top there.
 
 - **A4 portrait, single-sided**, 15 mm margins, the light theme's inks on
   white.
@@ -239,12 +247,14 @@ stays a link.
   section or `###` part. A heading always has what follows it on its page, and
   so does a paragraph wholly in bold (a label such as "Rules for Blue") or one
   ending in a colon. Only what is taller than a page on its own is split, at a
-  line: a template goes on in a frame of its own, a long table between rows, a
+  line: a template goes on in a frame of its own, a long table between rows
+  (its header row drawn again above the rows on each page it runs on to), a
   long paragraph keeping two lines either side.
 - **A template** is drawn at 9.5 point, or smaller until its widest line fits
   the frame (the widest real template, 93 characters, prints at about 8.6
   point); a line too wide even at 6 point goes on below itself, so nothing is
   ever cut off. A tab moves to the next stop of eight, as the page draws it.
+  The blank lines at its end are lines of its frame, the room to write in.
 
 **Characters.** The fonts are the house's own, the three the certificates
 embed. A character is drawn in its own face, or in the other face when only
