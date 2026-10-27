@@ -5501,6 +5501,26 @@ export const REAL_ROUTES = {
   "/api/surveys/[surveyId]/test": {
     POST: adminAlone("A survey's test email", c(400, "An admin meets the body check: no email named.")),
   },
+  "/api/courses/[courseId]/facilitator-guide/printables/pdf": {
+    GET: {
+      another: {
+        anonymous: c(307, "No session: sent to sign in, and back to the printables page after, whatever the course."),
+        "*": c(200, "Neither facilitates a live group on a run of the course nor leads a programme naming one: the guide's one calm sentence, as text, and no PDF."),
+        admin: c(404, "An admin is admitted, and this course's printables are not loaded: the sentence that says so, and no PDF."),
+      },
+      theirs: {
+        lead: c(404, "Leads the programme naming a running run of the course, so admitted, and its printables are not loaded: the sentence that says so."),
+        facilitator: c(404, "Facilitates a live group on a run of the course, so admitted, and its printables are not loaded: the sentence that says so."),
+        participant: c(200, "Holding a place does not open the facilitator guide: the calm sentence, as text, and no PDF."),
+      },
+    },
+  },
+  "/api/surveys/[surveyId]/people/[who]": {
+    POST: adminAlone(
+      "Opening one person's answers",
+      c(ACTS, "An admin's opening is recorded before anything of the person is read: it takes no body, so it would act."),
+    ),
+  },
 };
 
 /** The facilitator guide's writer: an admin, or the lead of a programme naming a live run of the course. */
@@ -5589,8 +5609,11 @@ export const REAL_PAGES = {
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance": programmePage("every register of the run."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/pitches": programmePage("the pitches page, which says a fellowship has none."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/messages": programmePage("Messages."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys": programmePage(
+    "the Surveys tab: the totals and comments of the programme's surveys, never a name.",
+  ),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]": programmePage(
-    "the survey page, which says in a sentence that this survey is not its leaving survey.",
+    "the page of one survey: its results when it is one of the programme's surveys, a sentence when it is not.",
   ),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams": programmePage("the Teams tab, which says teams are an incubator's."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams/[teamId]": programmePage("the Teams tab's page, which says teams are an incubator's."),
