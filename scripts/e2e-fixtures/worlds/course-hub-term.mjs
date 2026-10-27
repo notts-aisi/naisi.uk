@@ -128,6 +128,17 @@
  * there so that a week a person holding a place may not open is a week that
  * exists and is published, not one that is missing.
  *
+ * ## The eighth point ("first-day")
+ *
+ * The fellowship on its run's first day (`FIRST_DAY`): Publish told everybody
+ * their group two days before, week 1 is published, and no group has met yet
+ * (Group A meets the next day, Group B the day after), so whatever a person
+ * sends now comes before their first session. No register exists and nothing
+ * has been posted to the run. Its cast is the fifth point's: Ada, Ben and Dan
+ * in Group A, Cleo in Group B, and Fern for the admin to appoint to Group A.
+ * Every survey a spec makes here is the admin's, on the real pages; the
+ * fixture writes none, and finds each one afterwards by the form it names.
+ *
  * ## Two points at once
  *
  * A spec may need the term at two points in one run (the leaving spec reads
@@ -181,6 +192,7 @@ const log = (msg) => console.log(`[term-seed] ${msg}`);
 export const TERM_POINTS = Object.freeze([
   "decisions-sent",
   "before-groups",
+  "first-day",
   "week-three",
   "week-three-unmarked",
   "pitching-week",
@@ -377,6 +389,7 @@ export const PITCHING_WEEK = Object.freeze({
 
 /** What a point after decision day is seeded from, or null for decision day itself. */
 export function laterPlanOf(point) {
+  if (point === "first-day") return FIRST_DAY;
   if (point === "week-three") return WEEK_THREE;
   if (point === "week-three-unmarked") return WEEK_THREE_UNMARKED;
   if (point === "pitching-week") return PITCHING_WEEK;
@@ -489,10 +502,39 @@ export const AFTER_THE_END = Object.freeze({
 export const BEFORE_GROUPS = Object.freeze({ firstPublished: 2 });
 
 /**
+ * THE FELLOWSHIP ON ITS RUN'S FIRST DAY, ITS GROUPS OUT: the eighth point.
+ * Its run begins on the seed's own day (`daysIn` 0), Publish told everybody
+ * their group before it (as at every later point), and each group's first
+ * session is still to come: Group A's the next day, Group B's the day after.
+ * So a run that crosses midnight is still in week 1 with nobody's group met,
+ * and what a person sends counts as before their first session.
+ *
+ * Its cast is the fifth point's (`WEEK_FOUR`): Ada, Ben and Dan in Group A,
+ * Cleo in Group B, and Fern, the account the admin appoints to Group A on the
+ * real page (`facilitated`). No register exists (`marks` is empty), week 1 is
+ * published, and nothing has been posted to the run (`earlierUpdate` false:
+ * the later points' update from week 1 would be dated later than the seed on
+ * a morning run, on this point's first day).
+ */
+export const FIRST_DAY = Object.freeze({
+  daysIn: 0,
+  programme: FELLOWSHIP,
+  groups: GROUP_PLAN,
+  people: WEEK_FOUR.people,
+  facilitator: FACILITATOR_PLAN,
+  places: WEEK_FOUR.places,
+  marks: Object.freeze({}),
+  unfinished: null,
+  facilitated: "A",
+  published: 1,
+  earlierUpdate: false,
+});
+
+/**
  * Who and what a point is made of: the form's one programme, its run's
  * groups, the people the programme accepted, and the account with no
  * application. The first three points are the fellowship's; a plan that
- * names a programme of its own (the fourth to the sixth) brings its whole
+ * names a programme of its own (the fourth to the seventh) brings its whole
  * cast.
  */
 function castOf(plan) {
@@ -1532,7 +1574,9 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
       `course ${state.courseId}, ${weekThree ? "running" : "draft"} run ${state.runId} starting ${startDate}, ` +
       `${state.groups.length} ${state.groups.length === 1 ? "group" : "groups"}, and ${plans.length} waiting accounts` +
       (weekThree
-        ? `; ${laterPlan.daysIn} days into its run: places told, ${laterPlan.published} weeks published, registers, one update` +
+        ? `; ${laterPlan.daysIn} days into its run: places told, ${laterPlan.published} weeks published` +
+          (Object.keys(laterPlan.marks).length > 0 ? ", registers" : "") +
+          (laterPlan.earlierUpdate === false ? "" : ", one update") +
           (state.notes ? `, ${state.notes.length} ${state.notes.length === 1 ? "note" : "notes"} on a reading` : "")
         : "") +
       (point === "before-groups"
@@ -1599,8 +1643,10 @@ function weekThreeInstants(state, plan) {
     placed: new Date(published.getTime() - HOUR_MS),
     // An editor published the weeks the day before.
     weeksPublished: new Date(published.getTime() - DAY_MS),
-    // The latest finishing press, which last worked out everybody's tally.
-    lastFinished: new Date(Math.max(...finished)),
+    // The latest finishing press, which last worked out everybody's tally; at
+    // a point with no finished register yet, Publish's moment, when each
+    // place last changed.
+    lastFinished: finished.length > 0 ? new Date(Math.max(...finished)) : published,
     earlierUpdate: new Date(state.weekThree.earlierUpdatePostedAt),
   };
 }
@@ -1636,9 +1682,13 @@ async function seedWeekThree(state, plan, at) {
       );
     }
   }
-  await fixtureDoc("courseUpdates", state.weekThree.earlierUpdateId).set(
-    earlierUpdateDoc({ state, postedAt: at.earlierUpdate }),
-  );
+  // The update from week 1, at every later point but one whose plan says no
+  // update has been posted yet (`earlierUpdate: false`).
+  if (plan.earlierUpdate !== false) {
+    await fixtureDoc("courseUpdates", state.weekThree.earlierUpdateId).set(
+      earlierUpdateDoc({ state, postedAt: at.earlierUpdate }),
+    );
+  }
   // What a person wrote on a reading, saved an hour after their group's
   // session of that week.
   for (const entry of state.notes ?? []) {
@@ -1666,14 +1716,44 @@ function subscriptionIdsOf(state) {
 }
 
 /**
- * The send log, keyed three ways and counted once: every row to one of the
- * term's own addresses, every row about the term's course run, and every row
- * about one of its groups, whoever they went to. The second and third keys
- * are what find a test, which goes to the admin who pressed it, an address
- * this ledger never holds: Publish's test is about the run, and the test of
- * an update to one group is about that group.
+ * The surveys an admin made on this term's programme. Each has an id the
+ * survey routes make, which the fixture never knows in advance, and each
+ * names the form it is about (`roundId`); every row its routes write is found
+ * from it by the survey's id. So every count and teardown reads them first,
+ * and teardown deletes them last of the term's rows, after everything found
+ * by their ids: a teardown stopped part way still finds each row by its survey.
  */
-async function sendRowsOf(state) {
+async function surveyIdsOf(state) {
+  const snap = await fixtureQuery("surveys").where("roundId", "==", state.formId).get();
+  return snap.docs.map((doc) => doc.id).sort();
+}
+
+/**
+ * The send counters a survey's presses leave (`claimCaps` in
+ * src/lib/surveys/sending.ts, restated: `reserveNoticeSlots` keeps them in
+ * `courseNudges` as `emailrate__<key>`, with nothing on the row to query by):
+ * each survey's daily one, and the presser's hourly one. Only an admin
+ * presses a survey's buttons, so the presser is the admin the ledger names.
+ */
+function surveyCounterIdsOf(state, surveyIds) {
+  const ids = [];
+  for (const id of surveyIds) {
+    ids.push(`emailrate__surveyday__${id}`);
+    if (state.adminUid) ids.push(`emailrate__survey__${id}__${state.adminUid}`);
+  }
+  return ids;
+}
+
+/**
+ * The send log, keyed four ways and counted once: every row to one of the
+ * term's own addresses, every row about the term's course run, every row
+ * about one of its groups, and every row about one of its surveys, whoever
+ * they went to. The last three keys are what find a test, which goes to the
+ * admin who pressed it, an address this ledger never holds: Publish's test is
+ * about the run, the test of an update to one group is about that group, and
+ * a survey's tests (of its email and of its reminder) are about the survey.
+ */
+async function sendRowsOf(state, surveyIds = []) {
   const rows = new Map();
   for (const account of accountsOf(state)) {
     const snap = await fixtureQuery("emailSends").where("to", "==", account.email).get();
@@ -1684,6 +1764,10 @@ async function sendRowsOf(state) {
   for (const group of state.groups ?? []) {
     const aboutGroup = await fixtureQuery("emailSends").where("referenceId", "==", group.id).get();
     for (const doc of aboutGroup.docs) rows.set(doc.id, doc.ref);
+  }
+  for (const id of surveyIds) {
+    const aboutSurvey = await fixtureQuery("emailSends").where("referenceId", "==", id).get();
+    for (const doc of aboutSurvey.docs) rows.set(doc.id, doc.ref);
   }
   return rows;
 }
@@ -1820,10 +1904,31 @@ function reminderMarkersOf(state) {
  *  - Home, My programmes, the week page, Start here and the Glossary: they
  *    read, and a programme page or Home may mirror a week into `tasks` for
  *    somebody Publish has told.
+ *
+ * And at the eighth point, as the admin and the people drive a programme's
+ * survey (src/lib/surveys/ and src/app/api/surveys/):
+ *  - making it, and saving its words: the `surveys` document (the form's id
+ *    on it as `roundId`), found by the form (`surveyIdsOf`);
+ *  - "Send a test to me", of its email and of its reminder: the record of the
+ *    test and the test's secret on the survey, and a send row to the admin
+ *    about the survey (`referenceId`);
+ *  - the send and Remind: one `surveyPeople` row a person, with their link's
+ *    secret (`surveyId` on it), the press on the survey, the notices (`to ==`
+ *    each person, about the survey) and the send counters
+ *    (`surveyCounterIdsOf`);
+ *  - an answer, by a person's link or signed in: one `surveyAnswers` row
+ *    (`surveyId` on it), their row stamped, and their Kairos choice only when
+ *    they changed its box (`kairosChoices`, by their uid);
+ *  - a consent changed later: their row;
+ *  - the download with names: one `dataExports` row (`scope.surveyId`);
+ *  - Close it now: the survey document itself.
  */
 export async function countTerm(state) {
   const counts = {};
   const { formId, runId } = state;
+  // First, while they are there to be read: everything a survey's routes
+  // write is found by the survey's id.
+  const surveyIds = await surveyIdsOf(state);
 
   for (const [name, collection, id] of [
     ["admissionRounds", "admissionRounds", formId],
@@ -1881,12 +1986,37 @@ export async function countTerm(state) {
   }
   counts.reminderMarkers = markers;
 
+  // The eighth point's: the surveys, who each was sent to, the answers, the
+  // download log's rows, the send counters, and any Kairos choice an answer kept.
+  counts.surveys = surveyIds.length;
+  let surveyPeople = 0;
+  let surveyAnswers = 0;
+  let surveyExports = 0;
+  for (const id of surveyIds) {
+    surveyPeople += (await fixtureQuery("surveyPeople").where("surveyId", "==", id).get()).size;
+    surveyAnswers += (await fixtureQuery("surveyAnswers").where("surveyId", "==", id).get()).size;
+    surveyExports += (await fixtureQuery("dataExports").where("scope.surveyId", "==", id).get()).size;
+  }
+  counts.surveyPeople = surveyPeople;
+  counts.surveyAnswers = surveyAnswers;
+  counts.surveyExports = surveyExports;
+  let surveyCounters = 0;
+  for (const id of surveyCounterIdsOf(state, surveyIds)) {
+    if ((await fixtureDoc("courseNudges", id).get()).exists) surveyCounters += 1;
+  }
+  counts.surveyCounters = surveyCounters;
+  let kairosChoices = 0;
+  for (const account of accountsOf(state)) {
+    if ((await fixtureDoc("kairosChoices", account.uid).get()).exists) kairosChoices += 1;
+  }
+  counts.kairosChoices = kairosChoices;
+
   let suppressionRows = 0;
   for (const id of state.suppressed ?? []) {
     if ((await fixtureDoc("suppressedEmails", id).get()).exists) suppressionRows += 1;
   }
   counts.suppressedEmails = suppressionRows;
-  counts.emailSends = (await sendRowsOf(state)).size;
+  counts.emailSends = (await sendRowsOf(state, surveyIds)).size;
 
   const accounts = await countAccounts(accountsOf(state).map((account) => account.uid));
   counts.users = accounts.users;
@@ -1924,6 +2054,9 @@ export async function teardownTerm(state) {
     }
   }
   const { formId, runId } = state;
+  // Every survey made on the term's programme, read before anything is
+  // deleted: the rows its routes wrote are found by its id.
+  const surveyIds = await surveyIdsOf(state);
 
   // Rows the routes wrote. Event lines before the subscription rows they describe.
   for (const id of subscriptionIdsOf(state)) {
@@ -1949,6 +2082,17 @@ export async function teardownTerm(state) {
   await deleteQuery(fixtureQuery("courseTeams").where("runId", "==", runId));
   for (const id of sendCounterIdsOf(state)) await fixtureDoc("courseNudges", id).delete();
   for (const ref of reminderMarkersOf(state)) await ref.delete();
+  // The eighth point's: each survey's answers, who it was sent to (with
+  // their links), the download log's rows and the send counters. The surveys
+  // themselves go after the send log, below.
+  for (const id of surveyIds) {
+    await deleteQuery(fixtureQuery("surveyAnswers").where("surveyId", "==", id));
+    await deleteQuery(fixtureQuery("surveyPeople").where("surveyId", "==", id));
+    await deleteQuery(fixtureQuery("dataExports").where("scope.surveyId", "==", id));
+  }
+  for (const id of surveyCounterIdsOf(state, surveyIds)) await fixtureDoc("courseNudges", id).delete();
+  // Each account's Kairos choice, by its uid: an answer keeps one only when its box was changed.
+  for (const account of accounts) await fixtureDoc("kairosChoices", account.uid).delete();
 
   // The fixture's own records.
   await deleteQuery(fixtureQuery("admissionDecisions").where("roundId", "==", formId));
@@ -1970,7 +2114,9 @@ export async function teardownTerm(state) {
   // The send log LAST of the rows: a send is logged a moment after its
   // message leaves, so the later this runs the smaller the window for a row
   // to land behind it.
-  for (const ref of (await sendRowsOf(state)).values()) await ref.delete();
+  for (const ref of (await sendRowsOf(state, surveyIds)).values()) await ref.delete();
+  // Then the surveys, the last record anything above was found by.
+  for (const id of surveyIds) await fixtureDoc("surveys", id).delete();
 
   for (const account of accounts) {
     // The users document first: an Auth account whose document outlives it is

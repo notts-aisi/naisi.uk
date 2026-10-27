@@ -350,6 +350,19 @@ export const FIXTURE_COLLECTIONS = [
   // (`runId` on every one), with what each person was told by email. Written
   // by the teams routes the lead presses, and by nothing a fixture seeds.
   "courseTeams",
+  // A programme's surveys: the survey an admin makes from a template (one per
+  // stage, the form's id on every one as `roundId`), who it was sent to with
+  // each person's own link, and each person's answers, kept once. Written by
+  // the survey routes a spec drives (make, edit, test, send, remind, answer,
+  // change a consent, close), and by nothing a fixture seeds. Found by the
+  // form, then by each survey's id.
+  "surveys",
+  "surveyPeople",
+  "surveyAnswers",
+  // A person's Kairos choice, one document keyed by their uid. A survey's
+  // answer route writes it only when the person changed the box on the form,
+  // so a fixture account's is counted, and removed, by that uid.
+  "kairosChoices",
   "courseEnrolments",
   "courseProgress",
   // A person's own rows on a week written as blocks: each reflection box they

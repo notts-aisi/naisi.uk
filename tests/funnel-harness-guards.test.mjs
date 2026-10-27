@@ -513,6 +513,13 @@ test("the funnel fixture declares every collection its teardown must drain", () 
     // Week 1 before groups go out: the reflection boxes somebody holding a
     // place writes in on a week written as blocks, one row each.
     "courseExerciseResponses",
+    // A programme's before survey: the survey the admin makes, who it was
+    // sent to with their own links, the answers the answer routes keep, and
+    // the Kairos choice an answer keeps when the person changed its box.
+    "surveys",
+    "surveyPeople",
+    "surveyAnswers",
+    "kairosChoices",
   ]) {
     assert.ok(
       FIXTURE_COLLECTIONS.includes(required),
