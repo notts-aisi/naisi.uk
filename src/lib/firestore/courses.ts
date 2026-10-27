@@ -680,11 +680,11 @@ export type CourseWeekDoc = {
    *    (`src/lib/courses/weekReady.ts`) and nothing else.
    *  - Week 1 opening BEFORE groups go out, to everybody holding a place
    *    (Q35 B), asks READY, not Published: that is the lead deciding the
-   *    week is fit to open early. After groups go out a week opens on
-   *    Published, as it always has.
+   *    week is fit to open early. After groups go out every published week
+   *    is open to every group at once (Zach, 27 October 2026).
    *  - A published week that is not ready is a week shown by the switch in
-   *    the run's week editor, which is every week until the Weeks tab exists:
-   *    it opens to its groups as today, and never early.
+   *    the run's week editor: it opens to its groups once groups go out, and
+   *    never before.
    *
    * Read only off the RUN's week, as `pitching` is: no copy carries it, so
    * a group's copy, a template and another run's copy all start not ready.

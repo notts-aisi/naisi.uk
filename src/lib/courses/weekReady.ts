@@ -37,6 +37,16 @@ export const MARK_READY = "Mark ready";
  */
 export const NOT_READY = "Not ready";
 
-/** pr-weeks' line beside the weeks: what Ready opens, and what it does not. */
+/**
+ * pr-weeks' line beside the weeks, and the run's week editor's under Ready:
+ * what Ready opens, and when the other weeks open. The first sentence is the
+ * board's. The board's second ("Each later week opens to a group straight
+ * after its previous session.") named a rule that was taken away on 27
+ * October 2026, so the second sentence says what the pages do now
+ * (`weekSchedule[].open` in the overview route, and week 1's door): before
+ * groups go out, week 1 alone, once it is ready; after, every published week,
+ * ready or not. Listed in the build notes for the boards' designers to
+ * confirm.
+ */
 export const READY_OPENS =
-  "Week 1 opens to everyone holding a place once it’s marked ready. Each later week opens to a group straight after its previous session.";
+  "Week 1 opens to everyone holding a place once it’s marked ready. Once groups go out, every published week opens to every group.";

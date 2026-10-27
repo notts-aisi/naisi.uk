@@ -3,7 +3,7 @@
 import InitialsChip from "@/components/ui/InitialsChip";
 import Skeleton from "@/components/ui/Skeleton";
 import { firstName } from "@/app/(app)/dashboard/homeWords";
-import { useGroupRoster } from "../useGroupRoster";
+import { useGroupRoster, type GroupRosterState } from "../useGroupRoster";
 import { NAMES_ONLY, YOU, YOUR_GROUP, facilitatorsLabel } from "@/lib/courses/memberPageWords";
 import { namesWords } from "@/lib/courses/sessionChange/words";
 import styles from "./weekly.module.css";
@@ -17,6 +17,12 @@ import styles from "./weekly.module.css";
  * (once Publish has told them their group), its facilitators and admins, and
  * only with names: no address, no profile. The reader comes first, marked
  * "(you)"; everybody else in the order the route gives.
+ *
+ * NOBODY IS NAMED TO THEMSELVES. A facilitator who holds a place in the group
+ * is one of its people, marked "(you)", and is left out of its facilitators
+ * here, as the page's head, its ticket and Publish's placement email leave
+ * them out (`facilitatorNames` in the overview route). The line names the
+ * others, and is not drawn when the reader is the group's only facilitator.
  */
 
 type Props = {
@@ -27,12 +33,18 @@ type Props = {
   /** "Names only. Nobody here sees your email address.", as the board before the start draws it. */
   namesOnly: boolean;
   className?: string;
+  /**
+   * The group's roster when the page already reads it (Home, whose last week's survey card names who steps
+   * out from the same answer), so the route is asked once; without it, the card asks for its own.
+   */
+  roster?: GroupRosterState;
 };
 
-export default function YourGroup({ groupId, groupName, selfUid, namesOnly, className }: Props) {
-  const roster = useGroupRoster(groupId);
+export default function YourGroup({ groupId, groupName, selfUid, namesOnly, className, roster: given }: Props) {
+  const fetched = useGroupRoster(given ? "" : groupId);
+  const roster = given ?? fetched;
   const members = [...roster.members].sort((a, b) => Number(b.uid === selfUid) - Number(a.uid === selfUid));
-  const facilitators = roster.facilitators;
+  const facilitators = roster.facilitators.filter((person) => person.uid !== selfUid);
 
   return (
     <section className={[styles.card, className ?? ""].filter(Boolean).join(" ")} aria-labelledby={`your-group-${groupId}`}>

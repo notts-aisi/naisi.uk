@@ -473,7 +473,11 @@ export function questionTypeWords(question: SurveyQuestion): string {
 
 export const LIST_WORDS = {
   title: "Surveys",
-  lede: "Only admins make and send surveys.",
+  /**
+   * sv-list's lede, the board's words. Its second sentence waited for the
+   * lead's Surveys tab, which is built (`(tabs)/surveys`), so it is true now.
+   */
+  lede: "Only admins make and send surveys. Leads see results for their own programme, in its Surveys tab.",
   newSurvey: "New survey",
   kairos: "Kairos",
   /** sv-public, reached from the list: what goes on a programme's public page. */
@@ -532,6 +536,8 @@ export const SEND_WORDS = {
   summary: "Summary",
   who: "Who",
   closes: "Closes",
+  /** The summary's row once it has closed, as the head's chip says it. */
+  closed: "Closed",
   namesOff: "Names come off",
   labelled: "Answers sent after someone’s first session are labelled, so the comparison can leave them out.",
   close: "Close it now",
@@ -540,6 +546,22 @@ export const SEND_WORDS = {
   closeSure: "Nobody will be able to answer after this, and it can’t be opened again.",
   closedNow: "Closed. It takes no more answers.",
 } as const;
+
+/**
+ * The summary's row for when a survey closes (B4): "Closes" and the deadline,
+ * "Wed 11 Nov, 23:59", while it can still take answers; once it has closed,
+ * "Closed" and the day it did, "Tue 27 Oct" (closed by hand, the day of the
+ * hand; else the deadline's day), the one date the page's head and its
+ * progress line say. Null with no closing time and not closed.
+ */
+export function summaryClosesWords(
+  survey: { closesAt: Date | null; closedAt: Date | null },
+  closed: boolean,
+): { label: string; value: string } | null {
+  const ended = survey.closedAt ?? survey.closesAt;
+  if (closed && ended) return { label: SEND_WORDS.closed, value: dayWords(ended) };
+  return survey.closesAt ? { label: SEND_WORDS.closes, value: deadlineWords(survey.closesAt) } : null;
+}
 
 /** Who a survey reaches, in the Send tab's words, by who it is for and when. */
 export type AudienceKind = "start" | "end" | "followUps" | "leaving";
@@ -587,7 +609,7 @@ export function remindedWords(n: number): string {
  * place. It closes on Wed 4 Nov."
  */
 export function progressWords(answered: number, of: number, closesAt: Date, closed: boolean, notReached = ""): string {
-  const who = notReached ? `${answered} of ${of} have answered, and ${notReached}.` : `${answered} of ${of} have answered.`;
+  const who = notReached ? `${answered} of ${of} have answered, and ${notReached}.` : haveAnsweredWords(answered, of);
   return `${who} ${closed ? `It closed on ${dayWords(closesAt)}.` : `It closes on ${dayWords(closesAt)}.`}`;
 }
 
@@ -850,21 +872,39 @@ export function endCardAsksWords(facts: { questions: number; sameAsStart: number
     : `${questionsWords(facts.questions)} on how it went`;
 }
 
+/** "Rahul", "Rahul and Sofia", "Rahul, Sofia and Tom". */
+function andWords(firstNames: readonly string[]): string {
+  return firstNames.length <= 1 ? (firstNames[0] ?? "") : `${firstNames.slice(0, -1).join(", ")} and ${firstNames[firstNames.length - 1]}`;
+}
+
 /**
- * "Rahul and Sofia leave you 5 minutes for it and step out of the room", with
- * one facilitator "Tom leaves ... and steps out", and "Your facilitators" while
- * the group names none.
+ * Who leaves the group the time: "Rahul and Sofia leave you 5 minutes for it
+ * and step out of the room", with one facilitator "Tom leaves ... and steps
+ * out". They are the group's facilitators who hold no place in it
+ * (`whoStepsOut`): a facilitator who holds one answers it too, and is never
+ * named as stepping out.
+ *
+ * When every facilitator of the group holds a place in it, nobody steps out,
+ * and the line says so: "Priya takes it too, so nobody steps out of the
+ * room." (listed in the build notes for the boards' designers to confirm).
+ * Nothing at all while who steps out is not known, or the group has no
+ * facilitator: never a guess.
  */
-function leaveYouWords(firstNames: readonly string[], minutes: number, online: boolean): string {
-  const one = firstNames.length === 1;
-  const who =
-    firstNames.length === 0
-      ? "Your facilitators"
-      : one
-        ? firstNames[0]
-        : `${firstNames.slice(0, -1).join(", ")} and ${firstNames[firstNames.length - 1]}`;
-  const away = online ? `${one ? "steps" : "step"} away from the call` : `${one ? "steps" : "step"} out of the room`;
-  return `${who} ${one ? "leaves" : "leave"} you ${forWords(minutes)} for it and ${away}`;
+function leaveYouWords(
+  facilitators: { stepOut: readonly string[]; takePart: readonly string[] } | null,
+  minutes: number,
+  online: boolean,
+): string | null {
+  if (!facilitators) return null;
+  const { stepOut, takePart } = facilitators;
+  if (stepOut.length > 0) {
+    const one = stepOut.length === 1;
+    const away = online ? `${one ? "steps" : "step"} away from the call` : `${one ? "steps" : "step"} out of the room`;
+    return `${andWords(stepOut)} ${one ? "leaves" : "leave"} you ${forWords(minutes)} for it and ${away}`;
+  }
+  if (takePart.length === 0) return null;
+  const nobody = online ? "nobody steps away from the call" : "nobody steps out of the room";
+  return `${andWords(takePart)} ${takePart.length === 1 ? "takes" : "take"} it too, so ${nobody}`;
 }
 
 /**
@@ -874,14 +914,15 @@ function leaveYouWords(firstNames: readonly string[], minutes: number, online: b
  * room." `when` is "tonight" or "today" on the last session's own day (the
  * notice's rule: "tonight" from 5pm), or the day before it comes ("At the
  * end of your last session, on Tue 8 Dec: ..."). An online session's
- * facilitators "step away from the call".
+ * facilitators "step away from the call". Who steps out is `leaveYouWords`'.
  */
 export function endCardLastWeekWords(input: {
   when: "tonight" | "today" | { day: string };
   questions: number;
   sameAsStart: number;
   minutes: number;
-  facilitators: readonly string[];
+  /** The group's facilitators' first names, split by `whoStepsOut`; null while not known. */
+  facilitators: { stepOut: readonly string[]; takePart: readonly string[] } | null;
   online: boolean;
 }): string {
   const at =
@@ -890,7 +931,8 @@ export function endCardLastWeekWords(input: {
       : input.when === "today"
         ? "At the end of today’s session"
         : `At the end of your last session, on ${input.when.day}`;
-  return `${at}: ${endCardAsksWords(input)}. ${aboutWords(input.minutes)}. ${leaveYouWords(input.facilitators, input.minutes, input.online)}.`;
+  const leave = leaveYouWords(input.facilitators, input.minutes, input.online);
+  return `${at}: ${endCardAsksWords(input)}. ${aboutWords(input.minutes)}.${leave ? ` ${leave}.` : ""}`;
 }
 
 /** Under the button in the last week: "It closes on Fri 18 Dec." */
@@ -1019,6 +1061,11 @@ export const LEAD_TAB_WORDS = {
   changed: "What changed",
   seeBeforeAndAfter: "See before and after",
   noneBoth: "Nobody has answered both the before and the after yet.",
+  /**
+   * What changed, when people answered both surveys and nobody answered the
+   * questions it compares both times, so there is no row to draw (B2).
+   */
+  noneCompared: "Nobody has answered the questions on career plans or confidence both times yet.",
   careerPlans: "Career plans",
   considering: "Considering, planning or already doing it",
   confidence: "Confidence and knowledge",
@@ -1052,6 +1099,32 @@ export const LEAD_TAB_WORDS = {
   refusalTitle: "Only the programme’s lead and admins can open Surveys",
   refusalBody: "Surveys shows the totals and comments of the programme’s surveys, so only the programme’s lead or an admin can open it.",
   refusalAction: "Go to applications",
+} as const;
+
+/** "23 of 31 have answered.": how many have answered of the people it was sent to, as the Send tab says it. */
+export function haveAnsweredWords(answered: number, of: number): string {
+  return `${answered} of ${of} have answered.`;
+}
+
+/** The same sentence in its two parts, for a card that sets the count apart: "23 of 31" and "have answered.". */
+export function haveAnsweredParts(answered: number, of: number): { count: string; rest: string } {
+  return { count: `${answered} of ${of}`, rest: "have answered." };
+}
+
+/**
+ * "The after survey" on the lead's Overview once the programme is over
+ * (en-finish): how many have answered, and the way to the Surveys tab. The
+ * board's "Results show in Surveys once it closes on Fri 18 Dec, so nobody can
+ * be worked out from one new answer." and "Totals show from 3 answers,
+ * comments from 5." were taken away by Q49 A (results as answers come in) and
+ * Q41 (no floors), so the line says what the tab does, in its own words:
+ * listed in the build notes for the boards' designers to confirm.
+ */
+export const AFTER_SURVEY_CARD_WORDS = {
+  heading: "The after survey",
+  resultsBefore: "Results show in ",
+  resultsLink: "Surveys",
+  resultsAfter: " as answers come in, never with a name.",
 } as const;
 
 /** "25 answered both the before and the after. Only they are compared." */

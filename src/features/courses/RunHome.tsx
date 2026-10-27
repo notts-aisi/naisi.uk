@@ -29,6 +29,7 @@ import { useMaterialTicks } from "./weekly/useMaterialTicks";
 import AfterTheEnd, { type AfterEvent, type AfterSurvey, type KeepItem } from "./weekly/AfterTheEnd";
 import { weekHref } from "./links";
 import { weekRowsOf } from "./weekly/weekRows";
+import { boxesFilled } from "@/lib/courses/weekBlocks/progress";
 import { LEAVE_LINK } from "@/lib/courses/leavingWords";
 import { ENDED_SUB, ENDED_THANKS, FINISHED_SUB, hasEnded, youFinished } from "@/lib/courses/finishing/words";
 import {
@@ -201,19 +202,26 @@ function afterHeadOf(
 
 /**
  * What they keep (en-after-phone), each thing linked to the page that holds
- * it, and only once such a page exists: the action plan (the one week whose
- * fill-in boxes hold it), and the reading list. The board's reflections,
- * written answers with feedback, notes shared with the group and every
- * week's Go further list have no page that holds them all yet: each is on
- * its own week's page, under the weeks below.
+ * it, and only once such a page exists, and only what the person has: the
+ * action plan (the one week whose fill-in boxes hold it), once they have
+ * written in at least one of its boxes, counted by the reader that counts
+ * filled boxes everywhere ("6 of 12 filled", `boxesFilled`) over the boxes
+ * the overview says they wrote in; and the reading list. The board's
+ * reflections, written answers with feedback, notes shared with the group
+ * and every week's Go further list have no page that holds them all yet:
+ * each is on its own week's page, under the weeks below.
  */
 function keepOf(overview: OverviewPayload, runId: string): KeepItem[] {
   const items: KeepItem[] = [];
-  const planWeeks = overview.weeks
-    .filter((week) => week.published && (week.thisWeek?.rows ?? []).some((row) => row.type === "task" && row.needs.fillInIds.length > 0))
-    .map((week) => week.weekNumber);
-  if (planWeeks.length === 1) {
-    items.push({ title: KEEP_ACTION_PLAN, weeks: keepWeeksWords(planWeeks), href: weekHref(runId, planWeeks[0]) });
+  const boxTasks = (week: OverviewPayload["weeks"][number]) =>
+    (week.thisWeek?.rows ?? []).flatMap((row) => (row.type === "task" && row.needs.fillInIds.length > 0 ? [row] : []));
+  const planWeeks = overview.weeks.filter((week) => week.published && boxTasks(week).length > 0);
+  const plan = planWeeks.length === 1 ? planWeeks[0] : null;
+  const filled = plan
+    ? boxTasks(plan).reduce((sum, row) => sum + boxesFilled(row.needs, (boxId) => row.written.includes(boxId)).filled, 0)
+    : 0;
+  if (plan && filled > 0) {
+    items.push({ title: KEEP_ACTION_PLAN, weeks: keepWeeksWords([plan.weekNumber]), href: weekHref(runId, plan.weekNumber) });
   }
   if (overview.run.totalWeeks > 0) {
     items.push({ title: readingListKeepWords(overview.run.totalWeeks), weeks: null, href: `/learn/${encodeURIComponent(runId)}/reading` });
@@ -509,7 +517,7 @@ export default function RunHome({
     group?.calendar.nextSession?.weekNumber ?? null,
     (ids) => ids.filter((id) => ticks.isDone(id)).length,
     now,
-    beforeStart,
+    { beforeFirstSession: beforeStart, takesPart: learner !== null },
   );
   const weekSource = {
     groupId: data.enrolment?.groupId ?? group?.id ?? null,

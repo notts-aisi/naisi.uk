@@ -22,7 +22,6 @@ import {
   audienceWords,
   closesWords,
   dayAndClockWords,
-  deadlineWords,
   firstSentWords,
   joinedSentWords,
   leaversWords,
@@ -38,6 +37,7 @@ import {
   remindLeadWords,
   remindedWords,
   sizeWords,
+  summaryClosesWords,
   testSentWords,
   SEND_WORDS,
   type AudienceKind,
@@ -259,7 +259,8 @@ export type SendView = {
   joined: { heading: string; emails: number; names: string[]; nobody: string } | null;
   remind: { lead: string; email: EmailPreview | null; test: TestView; emails: number } | null;
   /** `labelled`: whether answers are labelled by the person's first session, which only a before survey does. */
-  summary: { name: string; size: string; who: string; closes: string; namesOff: string; labelled: boolean };
+  /** `closes`: "Closes" and its deadline, or once it has closed, "Closed" and the day (`summaryClosesWords`). */
+  summary: { name: string; size: string; who: string; closes: { label: string; value: string } | null; namesOff: string; labelled: boolean };
 };
 
 export function testView(fresh: "none" | "stale" | "fresh", at: Date | null, now: Date): TestView {
@@ -278,7 +279,7 @@ export async function sendView(db: Firestore, survey: SurveyDoc, presserUid: str
     name: survey.name,
     size: sizeWords(questions, survey.minutes),
     who: audienceWords(survey.programmeName, plan.holders.length, audienceKind),
-    closes: survey.closesAt ? deadlineWords(survey.closesAt) : "",
+    closes: summaryClosesWords(survey, state === "closed"),
     namesOff: survey.namesOffOn ? namesOffWords(survey.namesOffOn) : "",
     labelled: survey.kind === "before",
   };

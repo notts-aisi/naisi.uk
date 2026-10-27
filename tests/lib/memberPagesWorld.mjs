@@ -171,6 +171,8 @@ export async function makeMemberPagesWorld(key = "__memberPages", { recordTickRo
     ["../useWeek", useWeekStub],
     ["@/features/courses/useWeek", useWeekStub],
     ["../useGroupRoster", `export function useGroupRoster() { return ${handle}.roster; }`],
+    // Home reads the group's roster itself, once, for its group card and the last week's survey card.
+    ["@/features/courses/useGroupRoster", `export function useGroupRoster() { return ${handle}.roster; }`],
     [
       "./useMyExercises",
       "export function useMyExercises() { return { loading: false, loaded: true, byExerciseId: new Map(), error: null, reload() {}, apply() {} }; }",

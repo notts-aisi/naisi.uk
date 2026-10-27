@@ -396,6 +396,19 @@ describe("2. every number is the one its own page shows", () => {
     assert.deepEqual([change("q_c4").before.mean, change("q_c4").after.mean, change("q_c4").up, change("q_c4").both], [3, 4.5, 3, 4]);
   });
 
+  test("A5: the Overview's after survey card counts as the tab's row for it does, and there is none before it goes out", async () => {
+    const row = view.surveys.find((survey) => survey.id === made.after);
+    assert.ok(row && row.answers > 0, "the tab has a row for the survey at the end");
+    const card = await lib.tab.leadAfterSurveyCard(world.courseDb, { roundId: ROUND, programmeId: AGI }, new Date());
+    assert.deepEqual(card, {
+      heading: "The after survey",
+      answered: { count: `${row.answers} of ${row.of}`, rest: "have answered." },
+      results: { before: "Results show in ", link: "Surveys", after: " as answers come in, never with a name." },
+    });
+    // Technical AI Safety's survey at the end has not gone out: no card.
+    assert.equal(await lib.tab.leadAfterSurveyCard(world.courseDb, { roundId: ROUND, programmeId: TAIS }, new Date()), null);
+  });
+
   test("how it went, the facilitator line and the comments are the Results', the line moved out of its grid", async () => {
     const after = await lib.repo.readSurvey(world.db, made.after);
     const results = await lib.adminView.resultsView(world.db, after, false, { commentsInOrder: "words" });
@@ -587,6 +600,50 @@ describe("5. drawing either page writes nothing", () => {
       assert.equal((await tabAs(who)).wrote, false, `the tab wrote for ${who}`);
       assert.equal((await resultsAs(who, made.after)).wrote, false, `the results wrote for ${who}`);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5b. What changed with nothing to compare yet (B2)
+// ---------------------------------------------------------------------------
+
+describe("5b. what changed, when people answered both surveys and nobody answered its questions both times", () => {
+  test("one line says so, no measure is drawn, and the card takes its own height", async () => {
+    // Nobody answered the career plans question (C1) or the confidence one (C4) in the before survey, so the
+    // after pairs four people with nothing of theirs to compare. Put back afterwards: the store is shared.
+    const kept = [];
+    for (const path of world.db.paths().filter((each) => each.startsWith("surveyAnswers/"))) {
+      const stored = world.db.read(path);
+      if (stored.surveyId !== made.before) continue;
+      kept.push([path, stored.answers]);
+      const answers = { ...stored.answers };
+      delete answers.q_c1;
+      delete answers.q_c4;
+      world.db.poke(path, { answers });
+    }
+    assert.ok(kept.length > 0);
+    try {
+      const view = await lib.tab.leadSurveysTab(world.courseDb, { roundId: ROUND, programmeId: AGI, runId: RUN.agi }, new Date());
+      assert.deepEqual(view.change, { surveyId: made.after, namesOff: false, both: 4, considering: null, explaining: null });
+      for (const who of ["claudia", "zach"]) {
+        const tab = await tabAs(who);
+        assert.ok(
+          tab.text.startsWith(
+            `${LEAD_TAB_WORDS.changed} 4 answered both the before and the after. Only they are compared. ${LEAD_TAB_WORDS.seeBeforeAndAfter} ` +
+              "Nobody has answered the questions on career plans or confidence both times yet. Beliefs about AI",
+          ),
+          `${who}: ${tab.text.slice(0, 300)}`,
+        );
+        assert.ok(!tab.text.includes(LEAD_TAB_WORDS.careerPlans) && !tab.text.includes(LEAD_TAB_WORDS.confidence), who);
+      }
+    } finally {
+      for (const [path, answers] of kept) world.db.poke(path, { answers });
+    }
+    // With its rows (above), and without, nothing makes the card grow to the height of the surveys beside it.
+    const css = readFileSync(join(REPO_ROOT, "src", "features", "surveys", "lead", "leadSurveys.module.css"), "utf8");
+    assert.doesNotMatch(css, /\.main\s*>\s*\.card[^{]*\{[^}]*flex:\s*1/);
+    // The line is drawn only then: with rows (the store as section 2 reads it) it is not.
+    assert.ok(!(await tabAs("claudia")).text.includes(LEAD_TAB_WORDS.noneCompared));
   });
 });
 

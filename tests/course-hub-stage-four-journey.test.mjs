@@ -566,6 +566,14 @@ describe("3. week 1 (Thu 29 Oct to Wed 4 Nov; Group B meets on Tue 3 Nov)", () =
     assert.doesNotMatch(programme.text, /Sofia and Bea|Rahul, Sofia and Bea/);
     const amara = await w.programmeHome("amara", ticksOf("amara"));
     assert.match(amara.text, /Group B · Tuesdays 6pm · Hallward B12 · with Rahul, Sofia and Bea /);
+    // W-self's last place (A2): the "Your group" card, drawn from the roster route's own answer to each. Bea is
+    // one of the group's people, marked "(you)", and its facilitators line names the other two; Amara's names all
+    // three. The faces beside the line are the same people as its names.
+    const beaGroup = await w.programmeHome("bea", ticksOf("bea"), { group: B });
+    assert.match(beaGroup.text, /Your group Group B B Bea \(you\) A Amara R S Facilitators: Rahul and Sofia Names only\./);
+    assert.doesNotMatch(beaGroup.text, /Facilitators: [^.]*Bea/);
+    const amaraGroup = await w.programmeHome("amara", ticksOf("amara"), { group: B });
+    assert.match(amaraGroup.text, /Your group Group B A Amara \(you\) B Bea R S B Facilitators: Rahul, Sofia and Bea Names only\./);
   });
 
   test("everybody the reflection route lets write in week 1 is answered their own boxes back, after Publish", async () => {
@@ -1192,6 +1200,22 @@ describe("7. week 6 (Group B meets on Tue 8 Dec, its last session)", () => {
     assert.deepEqual(waiting.map((card) => card.kind), ["after"]);
     // Dev left, so the survey at the end is not his (Q48: everyone still on the programme at the end).
     assert.equal(tokenOf(made.survey.id, "dev"), null);
+    // A1, W-self in the last week: Bea holds a place in Group B, so the same survey waits for Bea too. Home's card
+    // for it, on the day of the last session, names as stepping out only the group's facilitators who hold no place
+    // in it (a default taken for Zach): Rahul and Sofia, never Bea. Who is which is the roster route's answer, the
+    // one the group's own card reads; while it is not known, the card says nothing of who steps out.
+    assert.deepEqual((await lib.waiting.surveysWaitingFor(world.db, { uid: "bea" }, new Date())).map((card) => card.kind), ["after"]);
+    at("2026-12-08T12:00:00Z");
+    const endCard = (await lib.waiting.surveysWaitingFor(world.db, { uid: "amara" }, new Date())).find((card) => card.kind === "after");
+    const home = await w.homeCard("amara", ticksOf("amara"), { group: B, endSurvey: endCard });
+    assert.match(
+      home.text,
+      / The survey at the end At the end of tonight’s session: the same 9 questions as week 1, then how it went\. About 10 minutes\. Rahul and Sofia leave you 10 minutes for it and step out of the room\. Open the survey It closes on Wed 16 Dec\. /,
+    );
+    assert.doesNotMatch(home.text, /Bea leaves|and Bea leave/);
+    assert.match(home.text, /Your group Group B A Amara \(you\) B Bea R S B Facilitators: Rahul, Sofia and Bea$/);
+    const notKnown = await w.homeCard("amara", ticksOf("amara"), { endSurvey: endCard });
+    assert.match(notKnown.text, / About 10 minutes\. Open the survey It closes on Wed 16 Dec\. /);
     at("2026-12-08T19:45:00Z");
     ok(await asForm(null, routes.surveyAnswer.POST, {}, { token: tokenOf(made.survey.id, "amara"), answers: {} }), "Amara answers");
     waiting = await lib.waiting.surveysWaitingFor(world.db, { uid: "amara" }, new Date());
@@ -1245,6 +1269,28 @@ describe("8. after the end (Group C's last session ends at 3pm on Wed 9 Dec)", (
     const bea = await serverPage(["[runId]", "page.tsx"], { runId: RUN.agi }, "bea");
     // W-self: after the end too, Bea's own page names the group's other facilitators and never Bea.
     assert.match(bea.text, /^My programmes AGI Strategy You finished AGI Strategy\. Autumn 2026 · Group B · with Rahul and Sofia The survey at the end/);
+    // A3: a week that is over is Done only when everything it counts is, by the count beside it, for Amara and
+    // for Bea, who takes part through a learner's row; never "Done" beside "0 of 1". Rahul, who holds no place,
+    // has no count of their own, so every week whose session is over is Done for Rahul.
+    assert.match(
+      amara.text,
+      /The 6 weeks Week 1 Who keeps the lamps Tue 3 Nov · Done 1 of 1 Week 2 How sure are you\? Tue 10 Nov · Not done 1 of 3 Week 3 How sure are you, again\? Tue 17 Nov · Done 3 of 3 Week 4 The lamp makers Tue 24 Nov · Not done 0 of 1 Week 5 Lamps in pairs Tue 1 Dec · Not done 0 of 1 Week 6 Your next lamp Tue 8 Dec · Not done 1 of 4 /,
+    );
+    assert.match(
+      bea.text,
+      /The 6 weeks Week 1 Who keeps the lamps Tue 3 Nov · Done 1 of 1 Week 2 How sure are you\? Tue 10 Nov · Not done 1 of 3 Week 3 How sure are you, again\? Tue 17 Nov · Not done 1 of 3 Week 4 The lamp makers Tue 24 Nov · Not done 0 of 1 Week 5 Lamps in pairs Tue 1 Dec · Not done 0 of 1 Week 6 Your next lamp Tue 8 Dec · Not done 0 of 4 /,
+    );
+    // A4: What you keep offers the action plan only to somebody who wrote in its boxes, counted by the reader
+    // that counts filled boxes ("6 of 12 filled"): Amara (all 12) and Bea (a draft of 6) keep it; Tariq, who
+    // wrote in none of week 6's boxes, keeps the reading list alone.
+    assert.match(bea.text, / What you keep Your action plan Week 6 The reading list for all 6 weeks The 6 weeks /);
+    await w.asBrowser("tariq", 6, ticksOf("tariq"));
+    const tariq = await serverPage(["[runId]", "page.tsx"], { runId: RUN.agi }, "tariq");
+    assert.match(tariq.text, / Answer it What you keep The reading list for all 6 weeks The 6 weeks /);
+    assert.doesNotMatch(tariq.text, /Your action plan/);
+    await w.asBrowser("rahul", 6, []);
+    const rahul = await serverPage(["[runId]", "page.tsx"], { runId: RUN.agi }, "rahul");
+    assert.match(rahul.text, /The 6 weeks Week 1 Who keeps the lamps Tue 3 Nov · Done Week 2 How sure are you\? Tue 10 Nov · Done Week 3 [^.]*Tue 17 Nov · Done Week 4 The lamp makers Tue 24 Nov · Done Week 5 Lamps in pairs Tue 1 Dec · Done Week 6 Your next lamp Tue 8 Dec · Done /);
   });
 
   test("ratings at the end: Rahul rates Amara and never Bea, his co-facilitator; the lead rates Bea; nobody rates themselves", async () => {

@@ -222,6 +222,12 @@ export function sentOnWords(at: Date): string {
 // ---------------------------------------------------------------------------
 
 export const WRITTEN_ANSWERS = "Written answers";
+/**
+ * Over the lead's choice of group on the lead's own review page: the
+ * Attendance tab's word for its own choice of group, with each group's tag
+ * ("A") in a round pill and its name for a screen reader.
+ */
+export const GROUP = "Group";
 export const TO_GIVE_FEEDBACK_ON = "To give feedback on";
 export const FEEDBACK_SENT = "Feedback sent";
 export const NOT_SENT_YET = "Not sent yet";

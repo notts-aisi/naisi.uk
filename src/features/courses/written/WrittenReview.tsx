@@ -15,6 +15,7 @@ import {
   DRAFT,
   FEEDBACK_NOT_SENT,
   FEEDBACK_SENT,
+  GROUP,
   LATE,
   NOBODY_HERE,
   NOBODY_SENT_YET,
@@ -85,9 +86,18 @@ type Props = {
   basePath: string;
   /** The group, for a page that names it in its query (the lead's): kept on every link. */
   groupParam?: string;
+  /**
+   * The run's groups to choose between, on the lead's page, which reviews any
+   * of them: each its own page, the one shown marked. Absent on a
+   * facilitator's page, which is one group's own.
+   */
+  groups?: ReviewGroupLink[];
   /** The way back: "Group B" to the group's page, or the lead's tab. */
   back: { href: string; label: string };
 };
+
+/** One group to choose on the lead's page: "A" in its pill, "Group A" for a screen reader, and its page. */
+export type ReviewGroupLink = { id: string; name: string; tag: string; href: string };
 
 type Local = {
   openedAt: string | null;
@@ -128,7 +138,7 @@ async function post(model: ReviewPageModel, uid: string, body: Record<string, un
   return out;
 }
 
-export default function WrittenReview({ model, basePath, groupParam, back }: Props) {
+export default function WrittenReview({ model, basePath, groupParam, groups, back }: Props) {
   const router = useRouter();
   const linkBase = linkBaseOf(basePath, groupParam);
   const selected = model.selected;
@@ -210,6 +220,7 @@ export default function WrittenReview({ model, basePath, groupParam, back }: Pro
           </Link>
           <p className={styles.eyebrow}>{reviewEyebrowWords(model.group.name, model.weekNumber)}</p>
           <h1 className={styles.title}>{title}</h1>
+          {groups && groups.length > 1 && <GroupLinks groups={groups} current={model.group.id} />}
         </div>
         {person && <div className={styles.headNav}>{nav}</div>}
       </header>
@@ -230,6 +241,37 @@ export default function WrittenReview({ model, basePath, groupParam, back }: Pro
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * The lead's choice of group (A10): the Attendance tab's own control, a round
+ * pill a group with its tag and its name for a screen reader, each a link to
+ * that group's page here, which opens on the group's own week. The group
+ * shown is marked.
+ */
+function GroupLinks({ groups, current }: { groups: ReviewGroupLink[]; current: string }) {
+  const labelId = useId();
+  return (
+    <nav className={styles.groupLinks} aria-labelledby={labelId}>
+      <span id={labelId} className={styles.groupLinksLabel}>
+        {GROUP}
+      </span>
+      {groups.map((group) => {
+        const here = group.id === current;
+        return (
+          <Link
+            key={group.id}
+            href={group.href}
+            className={here ? `${styles.groupLink} ${styles.groupLinkCurrent}` : styles.groupLink}
+            aria-label={group.name}
+            aria-current={here ? "page" : undefined}
+          >
+            {group.tag}
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 

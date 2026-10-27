@@ -10,12 +10,18 @@
  * The page at `.../programmes/[programmeId]/(tabs)/weeks` and the `(tabs)`
  * layout are drawn for real (`tests/lib/weeksTabWorld.mjs`) as every kind of
  * caller, on week 3 of AGI Strategy's run, Tue 17 Nov 2026 at noon.
+ *
+ * Section 6 walks the tree: no page, email or doc may say a week opens after
+ * a session, the rule taken away on 27 October 2026 (every published week
+ * opens to every group once groups go out).
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { readFileSync, readdirSync } from "node:fs";
+import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { walkSource } from "./lib/functionScan.mjs";
+import { stripSource } from "./lib/stripSource.mjs";
 import { A, AGI, B, C, D, NOW, PERSONAS, PROGRAMME_PATH, ROUND, RUN, makeWeeksTabWorld } from "./lib/weeksTabWorld.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
@@ -102,11 +108,19 @@ describe("1. who is shown the tab", () => {
 
 describe("2. each week, as the board draws it", () => {
   test("the line, the link to copy weeks, and the weeks in order", async () => {
+    // The line says when weeks open as the pages open them: the board's second sentence ("Each later week
+    // opens to a group straight after its previous session.") named the rule taken away on 27 October 2026,
+    // when every published week became open to every group once groups go out. The lead and an admin read it.
+    for (const who of ["claudia", "zach"]) {
+      const drawn = await draw(who, Page, PARAMS);
+      assert.match(
+        drawn.text,
+        /Week 1 opens to everyone holding a place once it’s marked ready\. Once groups go out, every published week opens to every group\. Have each ready 7 days before its first session\./,
+        who,
+      );
+      assert.ok(!drawn.text.includes("previous session"), who);
+    }
     const page = await draw("claudia", Page, PARAMS);
-    assert.match(
-      page.text,
-      /Week 1 opens to everyone holding a place once it’s marked ready\. Each later week opens to a group straight after its previous session\. Have each ready 7 days before its first session\./,
-    );
     assert.match(page.html, /role="status"/);
     assert.match(page.html, new RegExp(`<a href="${PROGRAMME_PATH}/weeks/copy"[^>]*><span>Copy weeks from the course</span>`));
     assert.match(page.text, /Weeks, in order/);
@@ -284,5 +298,69 @@ describe("5. the tab in the programme's row", () => {
     world.db.poke(`admissionRounds/${ROUND}`, { [`programmes.${AGI}.runId`]: null });
     const head = await draw("claudia", Layout, PARAMS, { segment: "weeks" });
     assert.match(head.html, new RegExp(`<a href="${PROGRAMME_PATH}/weeks"[^>]*>Weeks</a>`));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. One rule for when a week opens, everywhere a person reads it
+// ---------------------------------------------------------------------------
+
+describe("6. the tree says one rule for when a week opens", () => {
+  /** A sentence that says something opens after a session. */
+  const OPENS_AFTER = /\b(opens?|opened)\b[^.?!"`\n]{0,60}\bafter\b[^.?!"`\n]{0,40}\bsession\b/i;
+  /**
+   * What may still open after a session, because it is not a week. Each is checked both ways: a word here
+   * that excuses no sentence fails, so a word cannot sit here and hide the next sentence that needs reading.
+   */
+  const NOT_A_WEEK = new Map([
+    ["card", "a sealed predictions card keeps the old clock for itself: it opens after the group's session before its week"],
+    ["notes", "a facilitator's notes on a person stay open to the facilitator, who writes them after the session"],
+  ]);
+
+  /** Every sentence a person reads: the pages' and emails' strings and words in `src`, and the docs. */
+  function sentences() {
+    const out = [];
+    for (const file of walkSource(SRC)) {
+      // Comments are left out; an interpolation reads as one word, so a template's sentence is read whole.
+      const code = stripSource(readFileSync(file, "utf8"), { keepStrings: true }).replace(/\$\{[^{}]*(\{[^{}]*\}[^{}]*)*\}/g, "X");
+      for (const piece of code.split(/(?<=[.?!])\s+|\n/)) out.push([relative(SRC, file).split(sep).join("/"), piece.trim()]);
+    }
+    const DOCS = join(SRC, "..", "docs");
+    for (const name of readdirSync(DOCS).filter((entry) => entry.endsWith(".md")).sort()) {
+      const text = readFileSync(join(DOCS, name), "utf8").replace(/\n(?!\n)/g, " ");
+      for (const piece of text.split(/(?<=[.?!])\s+/)) out.push([`docs/${name}`, piece.trim()]);
+    }
+    return out;
+  }
+
+  test("no page, email or doc says a week opens after a session (the rule taken away on 27 October 2026)", () => {
+    // Every published week opens to every group once groups go out; before that week 1 alone, once it is
+    // ready. The sentences of the old rule ("Each later week opens to a group straight after its previous
+    // session.", "Week 4 opens after your session", "Opens tonight, after your session") promised a wait
+    // nothing keeps.
+    const used = new Set();
+    const found = [];
+    for (const [where, sentence] of sentences()) {
+      if (!OPENS_AFTER.test(sentence)) continue;
+      const excused = [...NOT_A_WEEK.keys()].find((word) => new RegExp(`\\b${word}\\b`, "i").test(sentence));
+      if (excused) used.add(excused);
+      else found.push(`${where}: ${sentence.slice(0, 160)}`);
+    }
+    assert.deepEqual(found, []);
+    assert.deepEqual([...NOT_A_WEEK.keys()].filter((word) => !used.has(word)), [], "a word that excuses nothing");
+    for (const [, why] of NOT_A_WEEK) assert.ok(why.length > 20);
+  });
+
+  test("the guard reads the old rule's sentences as the old rule", () => {
+    for (const old of [
+      "Week 1 opens to everyone holding a place once it’s marked ready. Each later week opens to a group straight after its previous session.",
+      "Each week opens straight after your previous session.",
+      "Week X opens after your session",
+      "Opens X, after your session",
+      "It opens on X, after your session.",
+    ]) {
+      assert.ok(old.split(/(?<=[.?!])\s+/).some((piece) => OPENS_AFTER.test(piece)), old);
+    }
+    assert.ok(!OPENS_AFTER.test("Once groups go out, every published week opens to every group."));
   });
 });

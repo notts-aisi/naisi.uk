@@ -325,6 +325,8 @@ export async function makeWeekBlocksPageWorld(key = "__weekBlocksPage") {
     ["../useWeek", useWeekStub],
     ["@/features/courses/useWeek", useWeekStub],
     ["../useGroupRoster", `export function useGroupRoster() { return ${handle}.roster; }`],
+    // Home reads the group's roster itself, once, for its group card and the last week's survey card.
+    ["@/features/courses/useGroupRoster", `export function useGroupRoster() { return ${handle}.roster; }`],
     [
       "./useMyExercises",
       `export function useMyExercises(runId) { const on = Boolean(runId); return { loading: false, loaded: on && ${handle}.ownRowsLoaded, byExerciseId: on ? ${handle}.ownRows : new Map(), error: null, reload() {}, apply() {} }; }`,
@@ -492,23 +494,41 @@ export async function makeWeekBlocksPageWorld(key = "__weekBlocksPage") {
     return { html, text: textOf(html), shell };
   }
 
-  /** The programme home as `who` sees it. */
-  async function programmeHome(who, ticked = []) {
+  /**
+   * The roster route's answer to `who` for `groupId`, as the group card's hook hands it on. `asBrowser` hands
+   * the card an empty roster; a suite that reads the card's names asks for this one.
+   */
+  async function rosterOf(who, groupId) {
+    const answer = await call(who, routes.roster.GET, { groupId }, { course: true });
+    if (answer.status !== 200) return { group: null, facilitators: [], members: [], loading: false, error: new Error(answer.body?.error) };
+    return { ...answer.body, loading: false, error: null };
+  }
+
+  /**
+   * The programme home as `who` sees it. With `{ group }`, "Your group" is drawn from the roster route's own
+   * answer to `who` for that group; without it, from an empty roster.
+   */
+  async function programmeHome(who, ticked = [], { group = null } = {}) {
     await asBrowser(who, 3, ticked);
+    if (group) ui.roster = await rosterOf(who, group);
     const html = renderToStaticMarkup(
       createElement(components.RunHome, { runId: RUN.agi, isAdmin: who === "zach", canEmailCohort: false, pitching: null, canLeave: false, uid: who }),
     );
     return { html, text: textOf(html) };
   }
 
-  /** Home's card for the run, as `who` sees it. */
-  async function homeCard(who, ticked = []) {
+  /**
+   * Home's card for the run, as `who` sees it; `{ group }` as on `programmeHome`. `{ endSurvey }` is the survey
+   * at the end's card as `HomeMember` hands it on in the last week (`surveysWaitingFor`'s), or null.
+   */
+  async function homeCard(who, ticked = [], { group = null, endSurvey = null } = {}) {
     await asBrowser(who, 3, ticked);
+    if (group) ui.roster = await rosterOf(who, group);
     const runs = (await call(who, routes.me.GET, {}, { course: true })).body?.runs ?? [];
     const entry = runs.find((row) => row.runId === RUN.agi);
     if (!entry) return null;
     const html = renderToStaticMarkup(
-      createElement(components.HomeProgramme, { given: "Chloe", invite: null, entry, comingUp: null, applications: null, more: null }),
+      createElement(components.HomeProgramme, { given: "Chloe", invite: null, entry, comingUp: null, applications: null, more: null, endSurvey }),
     );
     return { html, text: textOf(html) };
   }
@@ -527,6 +547,7 @@ export async function makeWeekBlocksPageWorld(key = "__weekBlocksPage") {
     writeBox,
     readReflections,
     ownRowsOf,
+    rosterOf,
     asBrowser,
     weekShell,
     weekPage,

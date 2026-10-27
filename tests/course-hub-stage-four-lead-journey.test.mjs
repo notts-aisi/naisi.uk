@@ -847,8 +847,10 @@ function inOrder(text, parts) {
 
 describe("A. Before groups go out: the Weeks tab, Get ready for week 1 and Publish's own page say the same about week 1", () => {
   test("a week with no page: the Weeks tab says Empty, the checklist and Publish both send the lead to paste it", () => {
+    // B1: the tab's line says when weeks open as the pages open them, never the wait taken away on
+    // 27 October 2026 ("Each later week opens to a group straight after its previous session.").
     inOrder(seen.weeksBefore.text, [
-      "Week 1 opens to everyone holding a place once it’s marked ready.",
+      "Week 1 opens to everyone holding a place once it’s marked ready. Once groups go out, every published week opens to every group. Have each ready 7 days before its first session.",
       "Week 1 Empty First session Thu 29 Oct Ready by Thu 22 Oct",
       "Week 2 Empty First session Thu 5 Nov Ready by Thu 29 Oct",
     ]);
@@ -1398,6 +1400,24 @@ describe("E. The term's end: registers, Who finished, the head, the Kairos repor
         [6, "amara kofi tariq"],
       ],
     );
+  });
+
+  test("A5: after the end the Overview draws The after survey, the Surveys tab's own count, with the way to the tab", async () => {
+    // en-finish's card under Certificates. One count: the tab's row for the survey at the end ("4 of 6 answered")
+    // and the card's sentence are the same reader's (its Results), never a second count.
+    assert.ok(seen.leadTab.text.includes("AGI Strategy: after See results 4 of 6 answered · closed Thu 10 Dec"));
+    const card = "The after survey 4 of 6 have answered. Results show in Surveys as answers come in, never with a name.";
+    inOrder(seen.overviewAfterEnd.text, ["Certificates", "People who didn’t finish get nothing and aren’t told.", card]);
+    inOrder(seen.overviewCertificates.text, ["Certificates", card]);
+    const link = `<a href="/admin/admissions/forms/${ROUND}/programmes/${AGI}/surveys" class="wfSentenceLink">Surveys</a>`;
+    assert.ok(seen.overviewAfterEnd.html.includes(link), "the card's way to the Surveys tab");
+    // An admin's Overview says the same, from the same count.
+    const admin = await overview("zach");
+    assert.ok(admin.text.includes(card), admin.text.slice(admin.text.indexOf("Certificates"), admin.text.indexOf("Certificates") + 600));
+    // No record holds the day certificates go out, so nothing names one.
+    assert.doesNotMatch(seen.overviewAfterEnd.text, /Certificates go out/);
+    // Before the end there is no card: it belongs to the Overview once the programme is over.
+    for (const before of [seen.overviewPublished, seen.overviewAfterRemove]) assert.doesNotMatch(before.text, /The after survey/);
   });
 
   test("Who finished: 5 finished and 1 not, of the 6 who stayed; the head says 6 stayed to the end", () => {

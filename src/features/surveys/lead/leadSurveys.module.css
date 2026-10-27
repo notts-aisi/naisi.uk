@@ -32,10 +32,6 @@
   gap: var(--space-6);
 }
 
-.main > .card:first-child {
-  flex: 1 1 auto;
-}
-
 .side {
   flex: 0 1 23.75rem;
   min-width: 0;

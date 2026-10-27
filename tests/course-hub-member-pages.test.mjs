@@ -96,7 +96,8 @@ describe("1. the programme home", () => {
 
   test("in week 3, the day of the session (wk-programme)", async () => {
     await w.asBrowser("chloe");
-    w.ui.progress = new Map([["w3r1", { itemId: "w3r1", completed: true }]]);
+    // Chloe did all of week 1, none of week 2, and one of week 3's three.
+    w.ui.progress = new Map(["w1r1", "w1v1", "w1r2", "w3r1"].map((id) => [id, { itemId: id, completed: true }]));
     const { text, html } = w.programmeHome("chloe");
     assert.equal(
       text,
@@ -105,7 +106,8 @@ describe("1. the programme home", () => {
         // "Add to calendar" under the room, as wk-programme draws it (st-calendar-phone).
         "Tue 17 Nov Tonight · week 3 Tue 17 Nov, 6pm to 8pm Hallward B12 R S with Rahul and Sofia Add to calendar " +
         "This week 1 of 3 done Week 3 · Who decides what AGI means Thu 12 to Wed 18 Nov Open week 3 → " +
-        "The 6 weeks Week 1 Week 1 readings Tue 3 Nov · Done 0 of 3 Week 2 Week 2 readings Tue 10 Nov · Done 0 of 3 " +
+        // A week that is over is Done only when it is done: week 1's three, and not week 2's none (A3).
+        "The 6 weeks Week 1 Week 1 readings Tue 3 Nov · Done 3 of 3 Week 2 Week 2 readings Tue 10 Nov · Not done 0 of 3 " +
         "Week 3 Who decides what AGI means Tonight 1 of 3 " +
         // Week 4 is published, so it is open before tonight's session: a link with what is done of it.
         "Week 4 Week 4 readings Tue 24 Nov 0 of 3 " +
@@ -117,11 +119,13 @@ describe("1. the programme home", () => {
     // Open weeks are links, every published one; a week that is not published is not.
     for (const n of [1, 2, 3, 4]) assert.match(html, new RegExp(`href="/learn/[^"]+/weeks/${n}"`));
     for (const n of [5, 6]) assert.doesNotMatch(html, new RegExp(`href="/learn/[^"]+/weeks/${n}"`));
-    // Each week's mark says its state to a screen reader: week 4, open ahead, is "Open", never "This week".
+    // Each week's mark says its state to a screen reader: week 4, open ahead, is "Open", never "This week";
+    // week 2, over and not done, is "Not done", and only week 1's mark carries the tick.
     assert.deepEqual(
-      [...html.matchAll(/role="img" aria-label="([^"]+)"/g)].map((m) => m[1]).filter((label) => /^(Done|This week|Next|Open|Not open yet)$/.test(label)),
-      ["Done", "Done", "This week", "Open", "Not open yet", "Not open yet"],
+      [...html.matchAll(/role="img" aria-label="([^"]+)"/g)].map((m) => m[1]).filter((label) => /^(Done|Not done|This week|Next|Open|Not open yet)$/.test(label)),
+      ["Done", "Not done", "This week", "Open", "Not open yet", "Not open yet"],
     );
+    assert.equal(html.match(/<path d="M5 12\.5l4\.5 4\.5L19 7\.5"/g)?.length, 1);
     assert.match(html, /aria-current="step"/);
     // "Add to calendar" exists now, once and on the ticket; "Can’t make it" still does not.
     assert.equal(text.match(/Add to calendar/g)?.length, 1);
@@ -161,10 +165,12 @@ describe("1. the programme home", () => {
     assert.match(text, /Week 3 Who decides what AGI means Tue 17 Nov · Cancelled/);
   });
 
-  test("after the end: no ticket, no week to do, the record's own words, and every week done", async () => {
+  test("after the end: no ticket, no week to do, the record's own words, and each week Done only when it is", async () => {
     at("2026-12-10T12:00:00Z");
     for (const n of [5, 6]) w.world.db.poke(`courseRuns/${RUN.agi}/weeks/w0${n}`, { published: true });
     await w.asBrowser("chloe");
+    // Chloe did all of week 2 and nothing else.
+    w.ui.progress = new Map(["w2r1", "w2v1", "w2r2"].map((id) => [id, { itemId: id, completed: true }]));
     const { text } = w.programmeHome("chloe");
     // Boards en-after-phone and en-after-nofinish-phone: the programme's name
     // in a card of its own with the thanks, the term and the group (Chloe's
@@ -172,7 +178,9 @@ describe("1. the programme home", () => {
     // keeps, and then the weeks, each still open.
     assert.match(text, /^My programmes AGI Strategy AGI Strategy has ended\. Thanks for being part of it\. Autumn 2026 · Group B\. What you keep The reading list for all 6 weeks The 6 weeks /);
     assert.doesNotMatch(text, /Tonight|This week|Your next session|You finished|Your marks/);
-    for (const day of ["Tue 3 Nov", "Tue 10 Nov", "Tue 17 Nov", "Tue 24 Nov", "Tue 1 Dec", "Tue 8 Dec"]) assert.match(text, new RegExp(`${day} · Done`));
+    // Every week is over: week 2, all of it done, is Done; the others, with nothing done, say Not done (A3).
+    assert.match(text, /Tue 10 Nov · Done 3 of 3/);
+    for (const day of ["Tue 3 Nov", "Tue 17 Nov", "Tue 24 Nov", "Tue 1 Dec", "Tue 8 Dec"]) assert.match(text, new RegExp(`${day} · Not done 0 of 3`));
   });
 
   test("a facilitator of the group: the ticket and every published week, no marks, no ticks, no group card", async () => {
@@ -183,8 +191,11 @@ describe("1. the programme home", () => {
     assert.match(html, /href="\/learn\/[^"]+\/weeks\/4"/);
     assert.doesNotMatch(text, /Your marks|Your group|This week|See your progress|Opens tonight/);
     assert.doesNotMatch(html, /type="checkbox"/);
-    // What is done of a week is a member's own: a facilitator is shown none.
+    // What is done of a week is a member's own: a facilitator is shown none, and a week whose session is over
+    // is Done for them, with nothing of theirs to count.
     assert.doesNotMatch(text, /\d of 3/);
+    assert.match(text, /Week 1 Week 1 readings Tue 3 Nov · Done Week 2 Week 2 readings Tue 10 Nov · Done /);
+    assert.doesNotMatch(text, /Not done/);
   });
 
   test("an admin on no group: the weeks with no dates of anybody's, and no member's cards", async () => {

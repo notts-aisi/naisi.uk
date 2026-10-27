@@ -606,7 +606,7 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
         </Card>
 
         {/* === The rubric for written answers === */}
-        <CourseRubricCard key={course.id} courseId={course.id} stored={course.rubric} isAdmin={isAdmin} />
+        <CourseRubricCard key={`rubric-${course.id}`} courseId={course.id} stored={course.rubric} isAdmin={isAdmin} />
 
         {/* === Publish === */}
         <Card padding="lg">
@@ -846,7 +846,7 @@ export default function CourseEditor({ courseId }: { courseId: string }) {
         </Card>
 
         {/* === Routes and deadlines (the routes a week that lists them shows) === */}
-        <CourseRoutesCard key={course.id} courseId={course.id} stored={course.routes} />
+        <CourseRoutesCard key={`routes-${course.id}`} courseId={course.id} stored={course.routes} />
 
         {/* === Sealed predictions (the card a week asks, sealed and opened later) === */}
         <CoursePredictionsCard key={`predictions-${course.id}`} courseId={course.id} stored={course.predictionCard} />

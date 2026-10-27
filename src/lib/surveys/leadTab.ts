@@ -10,7 +10,7 @@ import { consideringOf, type OfferSurvey } from "./publicNumbers";
 import { answersOf, closedOn, listSurveys, sentCountOf, surveyState } from "./repo";
 import type { QuestionResult, ScaleRow } from "./results";
 import { FACILITATOR_LINE_ID, SURVEY_TEMPLATES, type SurveyStage } from "./templates";
-import { leadSurveyLineWords } from "./words";
+import { AFTER_SURVEY_CARD_WORDS, haveAnsweredParts, leadSurveyLineWords } from "./words";
 
 /**
  * A PROGRAMME LEAD'S SURVEYS TAB (board sv-programme; Q41, Q49 A): the
@@ -201,6 +201,49 @@ function endOf(after: SurveyDoc, view: ResultsView): LeadEnd {
   return { surveyId: after.id, answers: view.answers, howItWent, facilitator, comments };
 }
 
+/** One survey's row on the tab: its answers and the people its rate is of, as its Results count them, and its line. */
+function rowOf(survey: SurveyDoc, view: ResultsView, now: Date): LeadSurveyRow {
+  return {
+    id: survey.id,
+    name: survey.name,
+    answers: view.answers,
+    of: view.sent,
+    line: leadSurveyLineWords(view.answers, view.sent, closedOn(survey), surveyState(survey, now) === "closed"),
+  };
+}
+
+/** "The after survey" on the lead's Overview, worded: its heading, how many have answered, and the line that leads to the tab. */
+export type LeadAfterSurveyCard = {
+  heading: string;
+  /** "23 of 31 have answered.", the count apart ("23 of 31" set in bold, as the board draws it). */
+  answered: { count: string; rest: string };
+  /** "Results show in Surveys as answers come in, never with a name.", with "Surveys" the way to the tab. */
+  results: { before: string; link: string; after: string };
+};
+
+/**
+ * THE SURVEY AT THE END ON THE LEAD'S OVERVIEW once the programme is over
+ * (board en-finish, finding A5): the Surveys tab's own row for it, the same
+ * survey (`leadSurveysOf`, the first at the end) counted by the same reader
+ * (its Results, `rowOf`), so the card and the tab never show two counts.
+ * Null before it has gone out. For the page that holds the programme to its
+ * lead and admins, as the tab's does.
+ */
+export async function leadAfterSurveyCard(
+  db: Firestore,
+  programme: { roundId: string; programmeId: string },
+  now: Date,
+): Promise<LeadAfterSurveyCard | null> {
+  const after = leadSurveysOf(await listSurveys(db), programme.roundId, programme.programmeId).find((survey) => survey.kind === "after") ?? null;
+  if (!after) return null;
+  const row = rowOf(after, await resultsView(db, after, false, { commentsInOrder: "words" }), now);
+  return {
+    heading: AFTER_SURVEY_CARD_WORDS.heading,
+    answered: haveAnsweredParts(row.answers, row.of),
+    results: { before: AFTER_SURVEY_CARD_WORDS.resultsBefore, link: AFTER_SURVEY_CARD_WORDS.resultsLink, after: AFTER_SURVEY_CARD_WORDS.resultsAfter },
+  };
+}
+
 export async function leadSurveysTab(
   db: Firestore,
   programme: { roundId: string; programmeId: string; runId: string | null },
@@ -211,16 +254,7 @@ export async function leadSurveysTab(
   const views = new Map(
     await Promise.all(surveys.map(async (survey) => [survey.id, await resultsView(db, survey, false, { commentsInOrder: "words" })] as const)),
   );
-  const rows = surveys.map((survey): LeadSurveyRow => {
-    const view = views.get(survey.id)!;
-    return {
-      id: survey.id,
-      name: survey.name,
-      answers: view.answers,
-      of: view.sent,
-      line: leadSurveyLineWords(view.answers, view.sent, closedOn(survey), surveyState(survey, now) === "closed"),
-    };
-  });
+  const rows = surveys.map((survey): LeadSurveyRow => rowOf(survey, views.get(survey.id)!, now));
 
   const after = surveys.find((survey) => survey.kind === "after") ?? null;
   const before = after ? (surveys.find((survey) => survey.kind === "before" && survey.id === after.pairOf) ?? null) : null;

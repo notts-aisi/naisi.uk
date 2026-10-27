@@ -19,6 +19,8 @@ import { useWeek } from "@/features/courses/useWeek";
 import SessionTicket from "@/features/courses/weekly/SessionTicket";
 import TickRows, { tickItemsOf } from "@/features/courses/weekly/TickRows";
 import YourGroup from "@/features/courses/weekly/YourGroup";
+import { whoStepsOut } from "@/features/courses/weekly/whoStepsOut";
+import { useGroupRoster } from "@/features/courses/useGroupRoster";
 import { useMaterialTicks } from "@/features/courses/weekly/useMaterialTicks";
 import weekly from "@/features/courses/weekly/weekly.module.css";
 import { endedPart } from "@/lib/courses/finishing/words";
@@ -172,11 +174,19 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
   const lastDateKey = group?.calendar.lastSessionDate ?? "";
   const isLast = facts !== null && lastDateKey !== "" && facts.dateKey === lastDateKey;
   const onTheDay = isLast && isToday && facts ? (tonightWord(facts.startTimeLocal) === "Tonight" ? "tonight" : "today") : null;
+  // The group's names, read once for the group's card and for who steps out
+  // while the survey at the end is answered: the group's facilitators who
+  // hold no place in it (`whoStepsOut`), so a facilitator who answers it too
+  // is never said to step out.
+  const ownGroupId = learner && group && learner.groupId === group.id ? group.id : "";
+  const roster = useGroupRoster(ownGroupId);
+  const inTheRoom = ownGroupId ? whoStepsOut(roster, user?.uid ?? null) : null;
+  const firstNames = (people: readonly { displayName: string }[]) => people.map((person) => firstName(person.displayName) || person.displayName);
   const lastSession: LastSession | null =
     isLast && facts
       ? {
           when: onTheDay ?? { day: dayWords(facts.dateKey) },
-          facilitators: facilitators.map((person) => person.firstName),
+          facilitators: inTheRoom ? { stepOut: firstNames(inTheRoom.stepOut), takePart: firstNames(inTheRoom.takePart) } : null,
           online: facts.mode === "virtual",
         }
       : null;
@@ -323,7 +333,7 @@ export default function HomeProgramme({ given, invite, entry, comingUp, applicat
           )}
           {/* The board's order on a phone: the reading, the group, then the events. */}
           {data && learner && group && learner.groupId === group.id && (
-            <YourGroup groupId={group.id} groupName={group.name} selfUid={user?.uid ?? null} namesOnly={false} />
+            <YourGroup groupId={group.id} groupName={group.name} selfUid={user?.uid ?? null} namesOnly={false} roster={roster} />
           )}
           {comingUp}
         </div>

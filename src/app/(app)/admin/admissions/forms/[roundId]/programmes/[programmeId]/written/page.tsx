@@ -4,6 +4,7 @@ import RunBlank from "@/features/applications/groups/RunBlank";
 import WrittenReview from "@/features/courses/written/WrittenReview";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { isAddressableId } from "@/lib/addressableId";
+import { groupTagOf } from "@/lib/courses/programmeAttendance";
 import { liveGroupsOf, reviewerFactsOf } from "@/lib/courses/writtenAnswers/access";
 import { loadWrittenReview } from "@/lib/courses/writtenAnswers/reviewPage";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -26,6 +27,11 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  *
  * Outside the tabs, as a single application is: a screen of its own, with
  * the way back to the Attendance tab.
+ *
+ * THE LEAD CHOOSES THE GROUP HERE TOO (A10), with the Attendance tab's own
+ * control: a pill a group of the run that still meets, in the one order, each
+ * that group's page here (its own week), the one shown marked. Opened with no
+ * group, it shows the first, as before; the pills say which.
  */
 
 export const dynamic = "force-dynamic";
@@ -63,11 +69,19 @@ export default async function LeadWrittenAnswersPage({
   const model = await loadWrittenReview(db, user, run, group, asked, person, new Date(), { liveGroups, facts });
 
   const programmePath = `/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}`;
+  // Every address here is a page of this site written out from ids, never from stored text.
+  const groups = liveGroups.map((candidate) => ({
+    id: candidate.id,
+    name: candidate.name.trim() || "Untitled group",
+    tag: groupTagOf(candidate.name),
+    href: `${programmePath}/written?group=${encodeURIComponent(candidate.id)}`,
+  }));
   return (
     <WrittenReview
       model={model}
       basePath={`${programmePath}/written`}
       groupParam={group.id}
+      groups={groups}
       back={{ href: `${programmePath}/attendance`, label: "Attendance" }}
     />
   );

@@ -11,7 +11,8 @@ import styles from "./weekly.module.css";
  * reader's programme with its date and its state. An open week is a link to
  * its page with what is done of it; a week that is not published yet is not
  * a link. Every published week is open, so the reader can read ahead (Zach,
- * 27 October 2026).
+ * 27 October 2026). A week is ticked Done only when it is done: for somebody
+ * taking part, once the count beside it is complete (`weekRowsOf`).
  */
 
 function Tick() {
@@ -32,6 +33,7 @@ function Chevron() {
 
 const MARK_CLASS: Record<WeekRow["state"], string> = {
   done: `${styles.weekMark} ${styles.weekMarkDone}`,
+  notDone: styles.weekMark,
   current: `${styles.weekMark} ${styles.weekMarkCurrent}`,
   next: `${styles.weekMark} ${styles.weekMarkCurrent}`,
   open: styles.weekMark,
@@ -40,6 +42,7 @@ const MARK_CLASS: Record<WeekRow["state"], string> = {
 
 const MARK_WORD: Record<WeekRow["state"], string> = {
   done: WEEK_STATE_WORDS.done,
+  notDone: WEEK_STATE_WORDS.notDone,
   current: WEEK_STATE_WORDS.current,
   next: WEEK_STATE_WORDS.next,
   open: WEEK_STATE_WORDS.open,

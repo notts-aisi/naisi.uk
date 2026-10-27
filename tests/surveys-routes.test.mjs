@@ -490,6 +490,25 @@ describe("people who join since get it with one button; reminders go only to who
     assert.equal(w.answers(id).length, 0);
   });
 
+  test("B4: closed early, the Summary says only the day it closed, as the head and the progress line do", async (t) => {
+    clock(t);
+    w.reset(seed());
+    const id = await sentSurvey();
+    const sendPage = async () => (await w.page(w.pages.send, { params: Promise.resolve({ surveyId: id }) }, "zach")).text;
+    // Open: when it closes, to the minute.
+    assert.match(await sendPage(), / Who Everyone holding a place on AGI Strategy \(4\) Closes Wed 4 Nov, 23:59 Names come off /);
+    assert.equal((await call("zach", routes.close.POST, { surveyId: id }, { body: {} })).status, 200);
+    // Closed by hand on Thu 29 Oct: one date everywhere on the page, the day it closed.
+    const closed = await sendPage();
+    assert.match(closed, / Who Everyone holding a place on AGI Strategy \(4\) Closed Thu 29 Oct Names come off /);
+    assert.match(closed, /^Surveys › AGI Strategy: before › Send AGI Strategy: before Closed Confidential Fellowship: AGI Strategy Closed Thu 29 Oct /);
+    assert.match(closed, / It closed on Thu 29 Oct\. Summary /);
+    // The email it sent keeps its own words; nothing else on the page names the day it would have closed.
+    assert.deepEqual(closed.match(/Wed 4 Nov[^.]*/g), ["Wed 4 Nov"]);
+    assert.ok(closed.includes("It closes on Wed 4 Nov. Answer the 14 questions"), "the email as it was sent");
+    assert.doesNotMatch(closed, /Closes Wed 4 Nov/);
+  });
+
   test("closed while an answer is on its way, the answer is refused, not kept", async (t) => {
     clock(t);
     w.reset(seed());
@@ -771,6 +790,11 @@ describe("the admins' pages", () => {
     for (const words of ["Surveys", "Only admins make and send surveys.", "Open 1", "AGI Strategy: before", "Fellowship: AGI Strategy", "2 of 4", "Closes Wed 4 Nov", "2 haven’t answered"]) {
       assert.ok(list.text.includes(words), `list: missing "${words}"`);
     }
+    // B6: sv-list's lede whole, in the board's words, now that the lead's Surveys tab it names exists.
+    assert.ok(
+      list.text.startsWith("Surveys Only admins make and send surveys. Leads see results for their own programme, in its Surveys tab. "),
+      list.text.slice(0, 200),
+    );
     const answered = await w.page(w.pages.answered, { params: Promise.resolve({ surveyId: id }) }, "zach");
     assert.ok(answered.text.includes("2 of 4 have answered"));
     assert.ok(answered.text.includes("Amara Okafor"));

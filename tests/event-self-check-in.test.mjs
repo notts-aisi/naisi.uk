@@ -15,7 +15,13 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { render as renderEmail } from "@react-email/render";
-import { AFTER, BEFORE, DURING, EVENT_ID, RSVP, makeCheckInWorld } from "./lib/checkInWorld.mjs";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { AFTER, BEFORE, DURING, EVENT_ID, RSVP, makeCheckInWorld, textOf } from "./lib/checkInWorld.mjs";
+import { stripSource } from "./lib/stripSource.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
 
 process.env.EVENTS_TOKEN_SECRET = "a-secret-for-the-check-in-suite-only-0123456789";
@@ -23,6 +29,7 @@ process.env.EVENTS_TOKEN_SECRET = "a-secret-for-the-check-in-suite-only-01234567
 const w = await makeCheckInWorld("__selfCheckIn");
 const { call, render, load } = w;
 const page = await load("app/events/[id]/check-in/page.tsx");
+const checkedIn = await load("app/events/[id]/check-in/CheckedIn.tsx");
 const route = await load("app/api/events/[id]/check-in/route.ts");
 const tokens = await load("lib/events/rsvpToken.ts");
 
@@ -117,6 +124,32 @@ describe("the page the door code lands on", () => {
     const { text } = await open("kofi");
     assert.match(text, /You’re checked in, Kofi\. Checked in at 2:05pm\./);
     assert.ok(!text.includes("I’m here"));
+  });
+
+  test("B5: once checked in the question goes: the answer is one view, after the press as on the next visit", async (t) => {
+    clock(t, DURING);
+    w.reset();
+    const pressed = await press("kofi", {});
+    assert.equal(pressed.status, 201);
+    // What the button draws the moment its press goes through: the shared view, with the route's own answer.
+    const afterPress = textOf(renderToStaticMarkup(createElement(checkedIn.CheckedIn, { firstName: "Kofi", atWords: pressed.body.atWords })));
+    assert.equal(
+      afterPress,
+      "You’re checked in, Kofi. Checked in at 2:05pm. " +
+        "You’re on the door list. Only NAISI’s admins and the committee members the Students’ Union recognises can see who came.",
+    );
+    // The page on the next visit draws the same, then what the question page has under it; nothing of the question.
+    const { text } = await open("kofi");
+    assert.equal(text, `NAISI Check in ${LINE} ${afterPress} There may be a short survey afterwards. Not you? Sign out →`);
+    assert.doesNotMatch(text, /Are you here|You signed up for this|This checks you in|I’m here/);
+    // The button's done state is that view and nothing else: the question above it was the button's own to draw.
+    const code = (file) =>
+      stripSource(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "src", "app", "events", "[id]", "check-in", file), "utf8"), { keepStrings: true });
+    const button = code("ImHere.tsx");
+    assert.match(button, /if \(state\.kind === "done"\) return <CheckedIn firstName=\{firstName\} atWords=\{state\.atWords\} \/>;/);
+    const shell = code("page.tsx");
+    assert.equal((shell.match(/Are you here\?/g) ?? []).length, 2, "the question is the button's, and the signed-out page's own");
+    assert.ok(!shell.includes("{WHO_SEES}</p>"), "the line about what the press does is drawn by the button, so it goes with the question");
   });
 
   test("a guest through their own email's link: their sign-up, no account and no sign-out", async (t) => {

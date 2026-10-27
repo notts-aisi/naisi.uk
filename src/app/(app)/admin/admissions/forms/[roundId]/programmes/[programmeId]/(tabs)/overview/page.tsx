@@ -12,6 +12,7 @@ import { anyGroupHasMet, buildProgrammeOverview } from "@/lib/courses/programmeO
 import { loadRunGroups, loadUpdatesFor, updateReadingOf } from "@/lib/courses/updates/readers";
 import { overviewUpdateRows } from "@/lib/courses/updates/views";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { leadAfterSurveyCard } from "@/lib/surveys/leadTab";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
 /**
@@ -33,6 +34,10 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * People card says when it can be done (`loadWhoFinished`). Certificates
  * follows it, read only then (`loadCertificatesSection`, which asks the
  * same question of the form again), and sends through its own two routes.
+ * Then "The after survey" (en-finish, finding A5): how many have answered the
+ * survey at the end, the Surveys tab's own count for it
+ * (`leadAfterSurveyCard`), with the way to the tab. "Certificates go out
+ * [date]" is not drawn: no record holds that day.
  *
  * BEFORE ANY OF THE RUN'S GROUPS HAS MET (`anyGroupHasMet`) the page is "Get
  * ready for week 1" instead (boards st-overview and st-overview-phone): the
@@ -85,8 +90,13 @@ export default async function ProgrammeOverviewPage({
     loadWhoFinished(db, records, viewer, now),
     beforeTheStart ? readGetReady(db, user, view.roundId, view.programmeId, records, now) : Promise.resolve(null),
   ]);
-  const certificates =
-    finishing.state === "open" ? await loadCertificatesSection(db, user, roundId, programmeId, now) : null;
+  const [certificates, afterSurvey] =
+    finishing.state === "open"
+      ? await Promise.all([
+          loadCertificatesSection(db, user, roundId, programmeId, now),
+          leadAfterSurveyCard(db, { roundId, programmeId }, now),
+        ])
+      : [null, null];
   return (
     <ProgrammeOverview
       model={model}
@@ -96,6 +106,7 @@ export default async function ProgrammeOverviewPage({
       programmePath={programmePath}
       finishing={finishing}
       certificates={certificates}
+      afterSurvey={afterSurvey}
       getReady={ready ? { model: buildGetReady(ready.facts), courseId: ready.courseId, runId: records.run.id } : null}
     />
   );
