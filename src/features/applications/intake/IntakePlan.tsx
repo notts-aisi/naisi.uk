@@ -83,6 +83,8 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
   const needClaude = view.rows.filter((row) => !row.hasRead).length;
   const needPangram = view.rows.filter((row) => !row.hasPangram).length;
   const changed = view.rows.filter((row) => row.ops.length > 0);
+  // People the plan would move by undoing a decision already made: Apply leaves them for a person.
+  const held = view.rows.filter((row) => row.held !== null);
   const opCount = changed.reduce((sum, row) => sum + row.ops.length, 0);
 
   const plan = async (askClaude: boolean) => {
@@ -175,7 +177,6 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
             programmeId: op.programmeId,
             decision: op.decision,
             poolReason: op.poolReason,
-            couldSuitProgrammeId: op.couldSuitProgrammeId,
           });
           note({ label: `${row.name}: ${words(op)}`, ok: answer.ok, detail: answer.ok ? undefined : answer.error });
           // Their next decision depends on this one: leave them for a person.
@@ -208,7 +209,7 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
     await plan(false);
   };
 
-  const rows = showEveryone ? view.rows : changed;
+  const rows = showEveryone ? view.rows : [...changed, ...held];
 
   return (
     <div className={styles.page}>
@@ -330,6 +331,7 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
             {changed.length === 0
               ? "The plan matches the decisions as they stand"
               : `${changed.length} ${changed.length === 1 ? "person" : "people"} whose decisions would change`}
+            {held.length > 0 ? `, and ${held.length} left for you` : ""}
           </h3>
           <label className={styles.toggle}>
             <input type="checkbox" checked={showEveryone} onChange={(e) => setShowEveryone(e.target.checked)} />
@@ -394,8 +396,9 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
           3. Apply
         </h2>
         <p className={styles.line}>
-          Makes {opCount} {opCount === 1 ? "decision" : "decisions"} through the usual decision route, as you. A person
-          whose decision is refused is left for you, with why. Nobody is emailed until decision day.
+          Makes {opCount} {opCount === 1 ? "decision" : "decisions"} through the usual decision route, as you. It only
+          fills in decisions nobody has made yet: a lead’s Accept, Pool or Decline is never changed. A person whose
+          decision is refused is left for you, with why. Nobody is emailed until decision day.
         </p>
         <div className={styles.actions}>
           {confirming === "apply" ? (
@@ -482,6 +485,7 @@ function PersonRow({ row, nameOf }: { row: IntakeRow; nameOf: (id: string | null
         ))}
       </ol>
       {row.claudeWhy ? <p className={styles.why}>Claude: {row.claudeWhy}</p> : null}
+      {row.held ? <p className={styles.held}>{row.held}</p> : null}
       {row.ops.length > 0 ? (
         <p className={styles.line}>
           Apply would{" "}
