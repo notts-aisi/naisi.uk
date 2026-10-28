@@ -35,6 +35,8 @@ export type PersonCategory = "holding" | "gave-back" | "invited";
 export type PersonComing =
   | { kind: "yes"; on: string | null }
   | { kind: "not-yet" }
+  /** The form asked people to confirm by a day, it has passed, and they have not said they are coming. */
+  | { kind: "not-confirmed"; by: string }
   | { kind: "no" };
 
 /** "When they're free", as fit marks against the run's groups that have a weekly time. */
@@ -98,6 +100,12 @@ export type PeopleView = {
   blank: "not-sent" | null;
   /** "30 hold a place; 2 gave theirs back." */
   sentence: string;
+  /**
+   * While the form asks people to confirm their place by a day: who has not
+   * yet, in a sentence (`confirmSentence`), and whether the day has passed.
+   * Null when a place is presumed.
+   */
+  confirm: { sentence: string; overdue: boolean } | null;
   /** Each filter's count, by the one function the table filters by (`rowMatches`). */
   counts: PeopleCounts;
   rows: PersonRow[];

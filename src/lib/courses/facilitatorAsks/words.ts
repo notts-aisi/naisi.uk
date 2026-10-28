@@ -234,6 +234,29 @@ export const ASKED = "Asked";
 /** The button that opens the ask, with its ellipsis: it opens a question, it sends nothing. */
 export const ASK_BUTTON = "Ask to facilitate…";
 
+// ---- Making the case to somebody who did not offer (an admin's) ----
+
+export const CASE_TITLE = "Didn’t offer, but worth asking";
+export const CASE_LEDE =
+  "Everybody holding a place who didn’t offer to facilitate. Make the case to somebody you think would be good at it: they get the same email with a sentence of yours on why them, and say yes or no. Ask for a group that already has a facilitator who offered, so it never waits on the answer. Only admins see this.";
+export const CASE_BUTTON = "Make the case…";
+export const CASE_LABEL = "Why them (the email says this)";
+
+/** The button's accessible name. */
+export function caseButtonName(name: string): string {
+  return `Make the case to ${name} to facilitate`;
+}
+
+/** The panel's heading. */
+export function caseHeading(name: string): string {
+  return `Make the case to ${name}`;
+}
+
+/** Under the panel, for a group with no facilitator yet. */
+export function caseNoBackupWords(groupName: string): string {
+  return `${groupName} has no facilitator yet. If this person says no, it has nobody: add somebody who offered as well, so it never waits on the answer.`;
+}
+
 /** "Ask Kai Robertson to facilitate": the button's name for a screen reader. */
 export function askButtonName(name: string): string {
   return `Ask ${name} to facilitate`;
@@ -392,6 +415,12 @@ export type AskEmailInput = {
   leadName: string;
   /** The page the button opens: the person's own answer page. */
   link: string;
+  /**
+   * For somebody who did NOT offer: the admin's sentence saying why them,
+   * which the first paragraph is built round. Absent or null for somebody who
+   * offered.
+   */
+  case?: string | null;
 };
 
 /** The email, as it will read. The view's preview, the test and the send are this. */
@@ -431,8 +460,12 @@ export function composeAskEmail(input: AskEmailInput): AskEmail | null {
 
   const size = sizeWords(input.capacity);
   const meets = `${group} meets on ${input.meets}${whereInSentence(input.where)}, for ${weeksWords(input.weeks)} from ${input.firstSession}.`;
+  const made = (input.case ?? "").trim();
+  const opening = made
+    ? `You didn’t put yourself forward to facilitate, but we think you’d be very good at it. ${/[.!?]$/.test(made) ? made : `${made}.`} Would you take ${group} of the ${programme}?`
+    : `You said you’d like to facilitate, and we’d love you to. Would you take ${group} of the ${programme}?`;
   const paragraphs = [
-    `You said you’d like to facilitate, and we’d love you to. Would you take ${group} of the ${programme}?`,
+    opening,
     size ? `${meets} It’s for up to ${input.capacity === 1 ? "1 person" : `${input.capacity} people`}.` : meets,
   ];
   if (input.training) {
@@ -577,8 +610,8 @@ export function lateWords(day: string, time: string): string {
   return `We needed an answer by ${day}, ${time}, so this has closed. If you’d still like to facilitate, write to ai-safety@uonsu.com.`;
 }
 /** Once somebody else has said yes to the same place. */
-export function seatGoneWords(groupName: string): string {
-  return `Somebody else is facilitating ${groupName} now, so this has closed. Thank you for saying you’d like to.`;
+export function seatGoneWords(groupName: string, offered = true): string {
+  return `Somebody else is facilitating ${groupName} now, so this has closed. ${offered ? "Thank you for saying you’d like to." : "Thank you for thinking about it."}`;
 }
 /** To anybody but the person asked. Says nothing of the ask. */
 export const NOT_YOURS =
@@ -609,6 +642,10 @@ export const RUN_GONE = "The course run this programme names is no longer on the
 export const NOT_SENT_YET = ASK_AFTER_DECISIONS;
 export const NOT_YOURSELF = "You can’t ask yourself to facilitate.";
 export const NOT_ON_THE_LIST = "That person isn’t on the list of people who’d like to facilitate this programme.";
+export const CASE_ADMINS_ONLY = "Only an admin can ask somebody who didn’t offer to facilitate.";
+export const CASE_FOR_OFFERER = "That person said they’d like to facilitate, so ask them the usual way, without making the case.";
+export const NOT_A_CASE =
+  "That person can’t be asked this way: it’s for somebody holding a place on this programme who didn’t offer to facilitate it.";
 export const NO_SUCH_GROUP = "That group isn’t one of this run’s.";
 export const NOT_AN_ASK = "There is no ask here.";
 export const REPLY_BY_PAST = "Choose a day and time to answer by that is still to come.";

@@ -5,7 +5,7 @@ import type { ApplicationDoc, ProgrammeSettings, QuestionSetDoc } from "@/lib/ap
 import type { ApplicationForm } from "@/lib/applications/normalise";
 import { applicantDetail, applicantFirstName, applicantName } from "@/lib/applications/review/people";
 import { standingOf, type Standing } from "@/lib/applications/status/standing";
-import { answersFor, wouldFacilitate } from "./rules";
+import { answersFor, hasPlaceOn, wouldFacilitate } from "./rules";
 
 /**
  * THE PEOPLE WHO WOULD LIKE TO FACILITATE A PROGRAMME, read for whoever is
@@ -70,6 +70,53 @@ export async function loadFacilitatorPeople(
         firstName: applicantFirstName(sent.aboutYou, application.displayName),
         detail: applicantDetail(sent.aboutYou),
         answers: answersFor(form, sets, sent),
+        standing: standingOf(application),
+        role: roleOf.get(application.uid) ?? null,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, "en") || a.uid.localeCompare(b.uid));
+}
+
+/**
+ * THE PEOPLE AN ADMIN MAY MAKE THE CASE TO: everybody holding a place on this
+ * programme who did NOT say they would like to facilitate it, from the same
+ * term as the list above (so the viewer's own application is in neither).
+ * Their facilitator answers are empty: they gave none for this programme.
+ * Staff only, as above; the ask's writer lets only an admin use it.
+ */
+export async function loadCasePeople(
+  db: Firestore,
+  form: ApplicationForm,
+  sets: readonly QuestionSetDoc[],
+  programme: ProgrammeSettings,
+  viewerUid: string,
+): Promise<FacilitatorPerson[]> {
+  const term = await loadTerm(db, form, viewerUid);
+  const applications: ApplicationDoc[] = [...term.shownApplications.values(), ...term.leftApplications.values()];
+  const wanted = applications.filter(
+    (application) =>
+      application.sent !== null &&
+      !wouldFacilitate(form, sets, application.sent, programme) &&
+      hasPlaceOn(standingOf(application), programme.id),
+  );
+  if (wanted.length === 0) return [];
+
+  const accounts = await db.getAll(...wanted.map((application) => db.collection("users").doc(application.uid)));
+  const roleOf = new Map(
+    accounts.map((snap) => {
+      const role = snap.exists ? snap.data()?.role : null;
+      return [snap.id, typeof role === "string" ? role : null] as const;
+    }),
+  );
+  return wanted
+    .map((application) => {
+      const sent = application.sent!;
+      return {
+        uid: application.uid,
+        name: applicantName(sent.aboutYou, application.displayName),
+        firstName: applicantFirstName(sent.aboutYou, application.displayName),
+        detail: applicantDetail(sent.aboutYou),
+        answers: {},
         standing: standingOf(application),
         role: roleOf.get(application.uid) ?? null,
       };

@@ -2084,11 +2084,12 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/facilitators/asking": {
     GET: {
       expect: signedIn(404),
-      fields: ["roundId", "programmeId", "runId", "viewer", "shortName", "programmeName", "kind", "headline", "groups", "email", "training", "leadName", "columns", "people", "asksFacilitating", "decisionsSent", "today", "test", "siteAddress"],
+      fields: ["roundId", "programmeId", "runId", "viewer", "shortName", "programmeName", "kind", "headline", "groups", "email", "training", "leadName", "columns", "people", "notOffered", "asksFacilitating", "decisionsSent", "today", "test", "caseTest", "siteAddress"],
       why:
         "The Facilitators view as one model: session required, then the programme that names the run " +
         "is found, and its lead or an admin is answered. The battery's id names no run any programme " +
-        "names, so every signed-in persona is told there is no programme here.",
+        "names, so every signed-in persona is told there is no programme here. `notOffered` (the people " +
+        "who did not offer, for making the case) is filled for an admin and empty for a lead.",
     },
   },
   "/api/courses/runs/[runId]/facilitators": {

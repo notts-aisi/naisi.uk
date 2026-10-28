@@ -153,6 +153,11 @@ const READS_THE_LISTS = {
     why: "the whole term's arithmetic, kept for the suites that hold every count to one function. No screen calls it",
     holds: "uncalled",
   },
+  "lib/scheduler/jobs/applicationPlaceConfirmations.ts#handler": {
+    kind: "everybody",
+    why: "a scheduled job with nobody looking: it reminds people decision day has already given a place",
+    holds: "no-session",
+  },
   "lib/scheduler/jobs/applicationInvitationReminders.ts#handler": {
     kind: "everybody",
     why: "a scheduled job with nobody looking: it reminds people decision day has already told",

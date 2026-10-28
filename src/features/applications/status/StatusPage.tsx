@@ -430,6 +430,7 @@ export default function StatusPage({
                 roundId={roundId}
                 said={view.saidComing ? "You’ve told us you’re coming." : null}
                 helps={view.comingHelps}
+                confirm={view.confirm}
                 locked={viewingAs}
               />
             </>

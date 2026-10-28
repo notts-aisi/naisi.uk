@@ -1703,6 +1703,17 @@ const ROUND_READERS = new Map([
         "it reads it as one, so nobody on a round of the older kind is ever sent it",
     },
   ],
+  [
+    "src/lib/scheduler/jobs/applicationPlaceConfirmations.ts",
+    {
+      kind: "form",
+      asks: 1,
+      proof: ['.where("formVersion", "==", FORM_VERSION)', ".filter((doc) => isApplicationForm(doc.data()))"],
+      why:
+        "the daily reminder to confirm a place, the form's own job. It asks the database for forms " +
+        "only, and asks each stored document the question again before it reads it as one",
+    },
+  ],
 ]);
 
 const READER_KINDS = ["skips", "refuses", "form", "lists", "both", "names"];

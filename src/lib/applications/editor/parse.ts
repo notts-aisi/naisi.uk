@@ -144,6 +144,7 @@ export type FormChange = {
   closesAt?: Date | null;
   decisionsByDate?: string | null;
   invitationReplyBy?: string | null;
+  placeConfirmBy?: string | null;
   asksFacilitating?: boolean;
   /** The programmes in the order the Choose step shows them. */
   programmeIds?: string[];
@@ -191,6 +192,11 @@ export function parseFormChange(raw: unknown): Parsed<FormChange> {
     const day = readDay(body.replyBy, "The day invitations are accepted by");
     if (!day.ok) return day;
     change.invitationReplyBy = day.value;
+  }
+  if ("confirmBy" in body) {
+    const day = readDay(body.confirmBy, "The day places are confirmed by");
+    if (!day.ok) return day;
+    change.placeConfirmBy = day.value;
   }
   if ("asksFacilitating" in body) {
     if (typeof body.asksFacilitating !== "boolean") {

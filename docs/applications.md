@@ -174,7 +174,9 @@ One field is written by neither: `invitation.lastReminderOn`, the London day
 of the last reminder for an invitation nobody has answered. The reminder job
 (`src/lib/scheduler/jobs/applicationInvitationReminders.ts`) writes today
 into it before it sends, so a day sends at most one. It reads no decision
-document and changes nothing the person was told.
+document and changes nothing the person was told. `confirmReminderOn` is its
+twin for the reminder to confirm a place
+(`src/lib/scheduler/jobs/applicationPlaceConfirmations.ts`, below).
 
 **2. There are two copies of what the applicant wrote, and what a send
 replaces is kept.** `draft` is what the form is showing and is saved as they
@@ -1008,6 +1010,30 @@ page says invited people are reminded only while a scheduled run has
 actually run it (`decisionDay/armed.ts`). A freed place offered after
 decision day is not reminded, by name (`freed-place`): see "A place given
 back after decision day".
+
+### Confirming a place by a day
+
+A form may carry `placeConfirmBy` ("Places confirmed by" in the form's name
+and dates). With none, a place is presumed and "I'm coming" is optional, as
+below. With one (`status/confirming.ts`):
+
+- the "You're in" email asks them to confirm by that day; a programme's own
+  wording keeps its words and gets the sentence after them;
+- their application page says "Please confirm by …" under "I'm coming", and
+  after the day, that their place may go to someone else;
+- the `application-place-confirmations` job reminds anybody holding a place
+  who has not said they are coming, once a day from 10:00, from the day after
+  they were told up to that day, through `confirmReminderOn`. It ships
+  switched off; switch it on at Site status. The courses row of their
+  notifications stops it;
+- the programme's People tab says who has not confirmed, and after the day
+  shows them as "Not confirmed by …".
+
+AFTER THE DAY NOTHING HAPPENS BY ITSELF. The place is still theirs. To give
+it to somebody else, the lead or an admin takes them off on People in groups
+(Remove), which gives the place back on the form, then offers it from Freed
+places. Accepting an invitation counts as saying they are coming, so nobody
+who joined by an invitation is asked again.
 
 ## Replies
 

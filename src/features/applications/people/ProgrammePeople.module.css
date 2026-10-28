@@ -96,6 +96,11 @@
   color: var(--color-text-muted);
 }
 
+/* The places nobody confirmed by the form's day: a person decides what happens to them. */
+.overdue {
+  color: var(--color-text);
+}
+
 /* ── The search, and what a lead is shown ────────────────────────────── */
 
 .tools {

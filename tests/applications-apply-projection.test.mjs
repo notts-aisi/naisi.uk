@@ -263,6 +263,8 @@ describe("the form, as an applicant may know it", () => {
       "asksFacilitating",
       "availabilityGrid",
       "closesLabel",
+      // The day a place is confirmed by (its date and label), or null: the applicant's page says it.
+      "confirmBy",
       "decisionsLabel",
       "id",
       "label",

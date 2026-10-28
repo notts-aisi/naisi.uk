@@ -78,6 +78,11 @@ export type ApplicantForm = {
   closesLabel: string | null;
   /** "Fri 23 Oct", the day everybody hears, or null when it is not set. */
   decisionsLabel: string | null;
+  /**
+   * The day somebody holding a place is asked to confirm it by: the civil
+   * date and "Fri 30 Oct". Null when a place is presumed.
+   */
+  confirmBy: { day: string; label: string } | null;
   /** Every programme on the form, in the order the Choose step shows them. */
   programmes: ApplicantProgramme[];
   /** Question set ids in the order the form asks them. */

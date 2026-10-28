@@ -192,6 +192,8 @@ export type FormStaffView = {
   decisions: DayView | null;
   /** The day invitations are accepted by. */
   replyBy: DayView | null;
+  /** The day somebody holding a place is asked to confirm it by, or null when a place is presumed. */
+  confirmBy: DayView | null;
   asksFacilitating: boolean;
   /** How many people have sent an application. */
   sent: number;
@@ -239,6 +241,7 @@ export function projectFormForStaff(form: ApplicationForm, context: StaffContext
     closes: momentView(round.closesAt),
     decisions: dayView(round.decisionsByDate),
     replyBy: dayView(form.invitationReplyBy),
+    confirmBy: dayView(form.placeConfirmBy),
     asksFacilitating: form.asksFacilitating,
     sent: sentCount(round.applicationCounts),
     locked: questionsLocked(round.applicationCounts),

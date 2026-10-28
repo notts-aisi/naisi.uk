@@ -437,6 +437,10 @@ const REGISTRY = {
     "courses",
     "The stage-release announcement telling applicants a new part of the form has opened.",
   ),
+  "src/lib/scheduler/jobs/applicationPlaceConfirmations.ts#sendDecisionEmail": G(
+    "courses",
+    "The daily reminder to confirm a place while the form asks people to confirm by a day. A scheduled nudge about something the person already holds, so the courses row is its off switch; `hasOptedOut` reads it off the user document before the day's reminder is taken. Email only.",
+  ),
   "src/lib/scheduler/jobs/applicationInvitationReminders.ts#sendDecisionEmail": G(
     "courses",
     "The daily reminder for an invitation nobody has answered. A scheduled nudge about something the person already holds, so the courses row is its off switch; `hasOptedOut` reads it off the user document before the day's reminder is taken. Email only: this job has no push leg, so the cell it reads gates the only channel it has.",

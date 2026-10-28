@@ -85,12 +85,19 @@ export const POLICIES: Record<
     // did not offer. A new use of what an applicant wrote, and of each
     // programme's decision on them, so it moved the version.
     //
+    // v10 is confirming a place. A term may ask everybody holding a place to
+    // confirm it by a day, with a daily reminder, and after the day a person
+    // may take somebody off so the place goes to somebody else; and an admin
+    // may ask somebody who did not offer to facilitate. A new email, a new
+    // field on the application and a new consequence, so it moved the version.
+    //
     // Keep this comment ABOVE `versions:`, never between the `[` and the first
     // `{`: tests/funnel-harness-guards.test.mjs reads the current version out
     // of this file with a regex that allows only whitespace across that gap,
     // so a comment sitting there leaves the guard unable to read the very
     // number it exists to pin. Anywhere else in the file is fine.
     versions: [
+      { version: 10, lastUpdated: "28 October 2026" },
       { version: 9, lastUpdated: "28 October 2026" },
       { version: 8, lastUpdated: "28 October 2026" },
       { version: 7, lastUpdated: "27 October 2026" },

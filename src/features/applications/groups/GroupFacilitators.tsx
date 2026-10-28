@@ -30,10 +30,17 @@ import {
   SEND_TEST,
   TABLE_COLUMNS,
   ASK_AFTER_DECISIONS,
+  CASE_BUTTON,
+  CASE_LABEL,
+  CASE_LEDE,
+  CASE_TITLE,
   askButtonName,
   askHeading,
   askSendLabel,
   askSomeoneElseHeading,
+  caseButtonName,
+  caseHeading,
+  caseNoBackupWords,
   changeSavedWords,
   clockIn,
   composeAskEmail,
@@ -47,6 +54,7 @@ import {
   testWords,
   type AskEmail,
 } from "@/lib/courses/facilitatorAsks/words";
+import { FACILITATING_LIMITS } from "@/lib/courses/facilitatorAsks/model";
 import { GROUP_FIELD_LIMITS } from "@/lib/firestore/courseGroups";
 import { normalizeUser, type UserDoc } from "@/lib/firestore/users";
 import styles from "./GroupFacilitators.module.css";
@@ -75,10 +83,15 @@ type Props = { runId: string };
 
 type Said = { tone: "ok" | "problem"; text: string };
 
-/** What the ask panel is open for: one person from the list, or another person for a group's place. */
+/**
+ * What the ask panel is open for: one person from the list, another person
+ * for a group's place, or, for an admin, somebody who did not offer, with the
+ * case made to them.
+ */
 type Asking =
   | { mode: "person"; uid: string }
-  | { mode: "seat"; groupId: string; seat: string };
+  | { mode: "seat"; groupId: string; seat: string }
+  | { mode: "case"; uid: string };
 
 const COULD_NOT_READ = "The groups could not be read. Reload the page to try again.";
 const COULD_NOT_REACH = "We couldn’t reach the site, so nothing was sent. Check your connection and try again.";
@@ -239,6 +252,7 @@ export default function GroupFacilitators({ runId }: Props) {
   const [said, setSaid] = useState<Said | null>(null);
   const [groupSaid, setGroupSaid] = useState<{ groupId: string; said: Said } | null>(null);
   const [openAnswers, setOpenAnswers] = useState<ReadonlySet<string>>(new Set());
+  const [caseText, setCaseText] = useState("");
 
   const base = model
     ? `/api/admissions/forms/${encodeURIComponent(model.roundId)}/programmes/${encodeURIComponent(model.programmeId)}/facilitators`
@@ -248,22 +262,28 @@ export default function GroupFacilitators({ runId }: Props) {
     setAsking(next);
     setSaid(null);
     setGroupSaid(null);
-    setAskWho(next.mode === "person" ? next.uid : "");
+    setAskWho(next.mode === "seat" ? "" : next.uid);
     setAskGroup(next.mode === "seat" ? next.groupId : "");
+    setCaseText("");
   }
 
-  const askUid = asking?.mode === "person" ? asking.uid : askWho;
-  const person = model?.people.find((each) => each.uid === askUid) ?? null;
+  const making = asking?.mode === "case";
+  const made = making ? caseText.trim() : null;
+  const askUid = asking && asking.mode !== "seat" ? asking.uid : askWho;
+  const person =
+    (making ? model?.notOffered : model?.people)?.find((each) => each.uid === askUid) ?? null;
   const group = model?.groups.find((each) => each.id === askGroup) ?? null;
   const replyBy = replyDate && replyTime ? { dateKey: replyDate, time: replyTime } : null;
+  // The case is tested apart from the usual email (`caseTestId`), so each has its own standing.
+  const testFor = making ? model?.caseTest : model?.test;
   const tested =
-    model?.test.state === "fresh" &&
+    testFor?.state === "fresh" &&
     replyBy !== null &&
-    model.test.replyBy?.dateKey === replyBy.dateKey &&
-    model.test.replyBy?.time === replyBy.time;
+    testFor.replyBy?.dateKey === replyBy.dateKey &&
+    testFor.replyBy?.time === replyBy.time;
 
   const preview: AskEmail | null =
-    model && person && group && replyBy
+    model && person && group && replyBy && (!making || made)
       ? composeAskEmail({
           firstName: person.firstName,
           shortName: model.shortName,
@@ -278,6 +298,7 @@ export default function GroupFacilitators({ runId }: Props) {
           replyBy: { day: dayIn(replyBy.dateKey) ?? "", time: clockIn(replyBy.time) ?? "" },
           leadName: model.leadName,
           link: "#",
+          case: made,
         })
       : null;
 
@@ -289,7 +310,7 @@ export default function GroupFacilitators({ runId }: Props) {
     setBusy("test");
     setSaid(null);
     try {
-      const { ok, answer } = await post(`${base}/ask/test`, { uid: person.uid, groupId: group.id, replyBy });
+      const { ok, answer } = await post(`${base}/ask/test`, { uid: person.uid, groupId: group.id, replyBy, case: made });
       const delivery = answer?.delivery as "sent" | "held" | "suppressed" | undefined;
       if (ok && delivery) setSaid({ tone: delivery === "sent" ? "ok" : "problem", text: testWords(delivery, replyByWords) });
       else setSaid({ tone: "problem", text: String(answer?.error ?? COULD_NOT_REACH) });
@@ -312,6 +333,7 @@ export default function GroupFacilitators({ runId }: Props) {
         replyBy,
         emails: 1,
         seat: asking.mode === "seat" ? asking.seat : null,
+        case: made,
       });
       if (ok) {
         setAsking(null);
@@ -373,7 +395,9 @@ export default function GroupFacilitators({ runId }: Props) {
       <h3 id={`${ids}-ask`} className={styles.askTitle}>
         {asking.mode === "person"
           ? askHeading(person?.name ?? "")
-          : askSomeoneElseHeading(model.groups.find((each) => each.id === asking.groupId)?.name ?? "")}
+          : asking.mode === "case"
+            ? caseHeading(person?.name ?? "")
+            : askSomeoneElseHeading(model.groups.find((each) => each.id === asking.groupId)?.name ?? "")}
       </h3>
       <div className={styles.askFields}>
         {asking.mode === "seat" ? (
@@ -452,7 +476,29 @@ export default function GroupFacilitators({ runId }: Props) {
             }}
           />
         </div>
+        {making ? (
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor={`${ids}-case`}>
+              {CASE_LABEL}
+            </label>
+            <textarea
+              id={`${ids}-case`}
+              className={styles.input}
+              rows={3}
+              maxLength={FACILITATING_LIMITS.caseText}
+              value={caseText}
+              disabled={off}
+              onChange={(event) => {
+                setSaid(null);
+                setCaseText(event.target.value);
+              }}
+            />
+          </div>
+        ) : null}
       </div>
+      {making && group && group.facilitators.length === 0 ? (
+        <p className={styles.muted}>{caseNoBackupWords(group.name)}</p>
+      ) : null}
 
       {preview && person ? (
         <Letter email={preview} to={person.name} />
@@ -464,6 +510,8 @@ export default function GroupFacilitators({ runId }: Props) {
               ? `Choose the group the email asks ${person.firstName} to facilitate.`
               : !replyBy
                 ? "Choose the day and time to answer by."
+                : making && !made
+                  ? `Say in a sentence why you’re asking ${person.firstName}. The email makes the case with it.`
                 : `${group.name} has no session still to come, so no email can name its time.`}
         </p>
       )}
@@ -776,6 +824,73 @@ export default function GroupFacilitators({ runId }: Props) {
           </>
         )}
       </section>
+
+      {model.viewer === "admin" && model.notOffered.length > 0 ? (
+        <section className={styles.card} aria-labelledby={`${ids}-case-title`}>
+          <h2 id={`${ids}-case-title`} className={styles.title}>
+            {CASE_TITLE}
+          </h2>
+          <p className={styles.lede}>{CASE_LEDE}</p>
+          {!model.decisionsSent ? <p className={styles.muted}>{ASK_AFTER_DECISIONS}</p> : null}
+          <div className={styles.tableScroll}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th scope="col" className={styles.th}>
+                    {TABLE_COLUMNS.person}
+                  </th>
+                  <th scope="col" className={styles.th}>
+                    {TABLE_COLUMNS.status}
+                  </th>
+                  <th scope="col" className={styles.th}>
+                    <span className={styles.hidden}>{TABLE_COLUMNS.ask}</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {model.notOffered.map((each) => (
+                  <Fragment key={each.uid}>
+                    <tr className={styles.row}>
+                      <th scope="row" className={styles.personCell}>
+                        <span className={styles.personName}>
+                          <InitialsChip name={each.name} uid={each.uid} size="sm" />
+                          <span className={styles.personText}>
+                            <span className={styles.name}>{each.name}</span>
+                            {each.detail ? <span className={styles.detail}>{each.detail}</span> : null}
+                          </span>
+                        </span>
+                      </th>
+                      <td className={styles.statusCell}>
+                        <StatusChip chip={each.status.chip} />
+                        {each.status.note ? <span className={styles.note}>{each.status.note}</span> : null}
+                      </td>
+                      <td className={styles.askCell}>
+                        {each.status.ask === "asked" ? (
+                          <span className={styles.asked}>{ASKED}</span>
+                        ) : each.status.ask === "button" ? (
+                          <Button
+                            variant="secondary"
+                            aria-label={caseButtonName(each.name)}
+                            disabled={off || cannotSend}
+                            onClick={() => openAsk({ mode: "case", uid: each.uid })}
+                          >
+                            {CASE_BUTTON}
+                          </Button>
+                        ) : null}
+                      </td>
+                    </tr>
+                    {asking?.mode === "case" && asking.uid === each.uid ? (
+                      <tr className={styles.askRow}>
+                        <td colSpan={3}>{panel}</td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

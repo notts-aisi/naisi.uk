@@ -1626,6 +1626,29 @@ person only, while the ask is waiting: at most three times, twelve hours
 apart. "Ask someone else" asks another person for the same place; whoever
 says yes first takes it, and the other ask closes.
 
+### Making the case to somebody who did not offer
+
+Under the list, an admin (and only an admin) sees "Didn’t offer, but worth
+asking": everybody holding a place on the programme who did not offer to
+facilitate it (`loadCasePeople`). "Make the case…" is the same ask with a
+sentence of the admin's own on why them: the email opens "You didn’t put
+yourself forward to facilitate, but we think you’d be very good at it." and
+goes on with that sentence. Its test is kept apart from the usual one
+(`{runId}__casetest`), so testing one never makes the other stale, and the
+sentence is kept on the ask (`case`) so a reminder makes the same case. Use
+it for a group that already has a facilitator who offered, so the group
+never waits on the answer; the panel says so when the group has none. This
+is how the term's plan's "worth asking" list is followed up after decision
+day.
+
+### Telling the facilitators who offered
+
+Publish already emails each facilitator their group ("You’re facilitating",
+in Email designs). To treat an offer as a yes, put the lines into that
+template before Publish: that training is coming and to look out for its
+email, and that anybody who can no longer commit should reply to the email
+by a day you name. Replies reach the site's default reply-to address.
+
 ### The answer
 
 "Say yes or no" opens `/learn/facilitate/<ask>`, for the person asked,
@@ -1650,7 +1673,8 @@ admins: a day, a time and a room, all three, or none. There is no default.
 ### What is kept
 
 `courseFacilitating`, server only: each ask (who, which group, by when, the
-answer, the email exactly as it went), the run's training and the last test.
+answer, the email exactly as it went, and for a case the admin's sentence),
+the run's training, and the last test of each email.
 Destroying the run drains it; deleting an account deletes every ask sent to
 it, and clears the account's uid where it asked somebody or set the training.
 

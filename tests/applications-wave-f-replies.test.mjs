@@ -410,6 +410,8 @@ describe("ap-offer, as Amara sees it", () => {
       // a fellowship's is the line the page has always shown.
       comingHelps: "It helps us plan groups.",
       saidComing: false,
+      // The form asks nobody to confirm by a day, so "I’m coming" stays optional.
+      confirm: null,
     });
   });
 
@@ -431,6 +433,7 @@ describe("ap-offer, as Amara sees it", () => {
       // that it helps us plan (the owner's decision of 24 October 2026).
       comingHelps: "It helps us plan.",
       saidComing: false,
+      confirm: null,
     });
   });
 
@@ -516,6 +519,7 @@ describe("ap-outcomes, the invitation as Oliver sees it", () => {
       // draws no "I’m coming", so a fellowship's line is held here unseen.
       comingHelps: "It helps us plan groups.",
       saidComing: true,
+      confirm: null,
     });
   });
 });

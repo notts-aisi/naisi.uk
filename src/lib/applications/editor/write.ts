@@ -229,6 +229,7 @@ export async function createForm(
     questionSetIds: [facilitatorSetId],
     asksFacilitating: true,
     invitationReplyBy: null,
+    placeConfirmBy: null,
     revealOtherReviews: false,
     noOfferWording: null,
     decisionsSentAt: null,
@@ -414,6 +415,12 @@ export async function changeForm(
         400,
         "Invitations go out on the day everyone hears, so they cannot be due back before it.",
       );
+    }
+
+    const confirmBy = change.placeConfirmBy !== undefined ? change.placeConfirmBy : form.placeConfirmBy;
+    if (change.placeConfirmBy !== undefined) update.placeConfirmBy = change.placeConfirmBy;
+    if (confirmBy && decisions && confirmBy < decisions) {
+      return refuse(400, "Places are given on the day everyone hears, so they cannot be confirmed before it.");
     }
 
     if (change.asksFacilitating !== undefined && change.asksFacilitating !== form.asksFacilitating) {
