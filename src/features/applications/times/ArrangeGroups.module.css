@@ -177,7 +177,7 @@
 
 .board {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 20rem;
+  grid-template-columns: minmax(0, 1fr) 24rem;
   gap: 16px;
   align-items: start;
 }
@@ -439,6 +439,12 @@
 .small:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+.starts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .unplaced {

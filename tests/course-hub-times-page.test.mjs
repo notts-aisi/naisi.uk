@@ -97,6 +97,7 @@ const { loadTs: loadPage } = createLoader({
     ],
     ["./TimesPicture.module.css", CLASS_NAMES],
     ["./ArrangeGroups.module.css", CLASS_NAMES],
+    ["./WeekChart.module.css", CLASS_NAMES],
     ["./Select.module.css", CLASS_NAMES],
     ["./Input.module.css", CLASS_NAMES],
     ["@/features/applications/kit/kit.module.css", CLASS_NAMES],

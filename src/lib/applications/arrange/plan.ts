@@ -51,6 +51,11 @@ export type ArrangePerson = {
   groupId: string | null;
   /** Publish has told them their group: they stay in it. */
   told: boolean;
+  /**
+   * The stretches they marked, for an admin's chart of their week. Never in
+   * anything sent to Claude: Claude is told only which groups they can make.
+   */
+  marked?: readonly { weekday: number; start: number; end: number }[];
 };
 
 export type ArrangeGroup = {
@@ -139,6 +144,8 @@ export function planGroups(input: {
   minutes: number;
   size: number;
   names: (taken: readonly string[]) => string;
+  /** Groups to add beyond the ones the people need, at the next best times: an option with room for more fits. */
+  extra?: number;
 }): Plan {
   const size = Math.max(1, Math.floor(input.size));
   const people = [...input.people].sort((a, b) => a.uid.localeCompare(b.uid));
@@ -185,6 +192,19 @@ export function planGroups(input: {
   // 3: more groups, only as many as the people need.
   const room = () => planned.reduce((sum, group) => sum + Math.max(0, group.room - group.memberUids.length), 0);
   while (room() < toSeat.filter((person) => person.week.kind === "given").length) {
+    const session = nextTime();
+    if (!session) break;
+    planned.push({
+      id: null,
+      name: input.names(planned.map((group) => group.name)),
+      session,
+      timeIsNew: true,
+      room: size,
+      memberUids: [],
+    });
+  }
+
+  for (let added = 0; added < (input.extra ?? 0); added += 1) {
     const session = nextTime();
     if (!session) break;
     planned.push({

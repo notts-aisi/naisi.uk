@@ -1,0 +1,183 @@
+/* ============================================================
+   One person's week beside the groups (WeekChart.tsx), in the
+   side panel of Arrange groups.
+   ============================================================ */
+
+.chartWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.chart {
+  display: grid;
+  grid-template-columns: 2.4rem repeat(7, minmax(0, 1fr));
+  gap: 2px;
+  min-width: 0;
+}
+
+.axis {
+  position: relative;
+  margin-top: 18px;
+  height: 18rem;
+}
+
+.hour {
+  position: absolute;
+  right: 4px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  transform: translateY(-50%);
+}
+
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dayName {
+  height: 16px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.column {
+  position: relative;
+  height: 18rem;
+  border-radius: 4px;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+.free,
+.readAs {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+
+.free {
+  background: var(--color-accent-subtle, color-mix(in srgb, var(--color-accent) 30%, transparent));
+}
+
+.readAs {
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-accent) 18%, transparent) 0 4px,
+    transparent 4px 8px
+  );
+}
+
+.bar {
+  position: absolute;
+  z-index: 1;
+  min-height: 14px;
+  padding: 0;
+  border: 2px solid;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow: hidden;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.bar:disabled {
+  cursor: default;
+}
+
+.barFits {
+  border-color: var(--color-success, #2a8);
+  background: color-mix(in srgb, var(--color-success, #2a8) 35%, transparent);
+  color: var(--color-text);
+}
+
+.barNot {
+  border-color: var(--color-danger, #d33);
+  border-style: dashed;
+  background: color-mix(in srgb, var(--color-danger, #d33) 18%, transparent);
+  color: var(--color-text);
+}
+
+/* The group they are in now. */
+.barCurrent {
+  outline: 2px solid var(--color-text);
+  outline-offset: 1px;
+}
+
+.key {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+
+.swatch {
+  position: static;
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 2px;
+  vertical-align: -1px;
+  border-radius: 2px;
+}
+
+.swatch.barFits,
+.swatch.barNot {
+  border-width: 1px;
+}
+
+.fits {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fitRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.move {
+  flex: none;
+  min-height: 2.75rem;
+  padding: 0 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.move:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .axis,
+  .column {
+    height: 15rem;
+  }
+}

@@ -1,4 +1,4 @@
-import { canMake, planGroups, type ArrangeGroup, type ArrangePerson, type CandidateTime, type Plan } from "./plan";
+import { canMake, planGroups, slotFor, type ArrangeGroup, type ArrangePerson, type CandidateTime, type Plan } from "./plan";
 
 /**
  * SEVERAL WORKABLE ARRANGEMENTS, NOT ONE, for Claude to weigh and an admin to
@@ -12,6 +12,9 @@ import { canMake, planGroups, type ArrangeGroup, type ArrangePerson, type Candid
  *    spread that seats more people or puts a facilitator in every group.
  *  - HOW BIG. The programme's group size, and one smaller, which makes one
  *    more group where the people need it.
+ *  - ROOM FOR THE PEOPLE LEFT OUT. Where three or more who marked a real
+ *    week fit none of an option's groups, the same option is tried with one
+ *    or two groups more, at the times most of them can make.
  *  - WHETHER A GROUP KEEPS ITS TIME. The run's groups at the times they have
  *    now is always one of the options. The others may give a new time to any
  *    group nobody has been told they are in (the screen marks it "new time",
@@ -44,6 +47,8 @@ export const MAX_OPTIONS = 5;
 const TOP_TIMES = 8;
 /** The most combinations tried for one group size. */
 const MAX_COMBINATIONS = 70;
+/** How many people left out of an option it takes to try one with more groups. */
+const LEFT_OUT_FOR_MORE = 3;
 
 /** How strongly the site guesses somebody might lead a group: 0 for somebody who did not offer. */
 export type Strength = ReadonlyMap<string, number>;
@@ -214,8 +219,8 @@ export function candidatePlans(input: {
   const seen = new Set<string>();
   const found: Candidate[] = [];
 
-  const consider = (groups: readonly ArrangeGroup[], best: readonly CandidateTime[], size: number): Candidate | null => {
-    const planned = planGroups({ people: input.people, groups, best, minutes: input.minutes, size, names: input.names });
+  const consider = (groups: readonly ArrangeGroup[], best: readonly CandidateTime[], size: number, extra = 0): Candidate | null => {
+    const planned = planGroups({ people: input.people, groups, best, minutes: input.minutes, size, names: input.names, extra });
     // A group given back the time it has already is not a new time.
     for (const group of planned.groups) {
       const had = group.id ? input.groups.find((each) => each.id === group.id)?.session : null;
@@ -250,6 +255,36 @@ export function candidatePlans(input: {
       for (const picked of combinations(top.length, needed, MAX_COMBINATIONS)) {
         const first = picked.map((index) => top[index]);
         consider(groups, [...first, ...input.best.filter((time) => !first.includes(time))], size);
+      }
+      // People left out: the same times, and one or two groups more where most of them can come.
+      const leftOut = base.unplaced.filter((entry) => entry.reason !== "no-week").map((entry) => entry.uid);
+      if (leftOut.length >= LEFT_OUT_FOR_MORE) {
+        const sameSlot = (time: CandidateTime, group: { session: { weekday: number; startTimeLocal: string } }) => {
+          const slot = slotFor(time, input.minutes);
+          return slot.weekday === group.session.weekday && slot.startTimeLocal === group.session.startTimeLocal;
+        };
+        const kept = base.groups
+          .filter((group) => group.timeIsNew)
+          .flatMap((group) => input.best.filter((time) => sameSlot(time, group)).slice(0, 1));
+        const forThem = input.best
+          .filter((time) => !kept.includes(time) && !base.groups.some((group) => sameSlot(time, group)))
+          .map((time) => ({
+            time,
+            fits: leftOut.filter((uid) => {
+              const person = people.get(uid);
+              return person ? canMake(person, slotFor(time, input.minutes)) : false;
+            }).length,
+          }))
+          .filter((entry) => entry.fits >= 2)
+          .sort((a, b) => b.fits - a.fits)
+          .slice(0, 4)
+          .map((entry) => entry.time);
+        for (const extra of [1, 2]) {
+          for (const picked of combinations(forThem.length, extra, 6)) {
+            const first = [...kept, ...picked.map((index) => forThem[index])];
+            consider(groups, [...first, ...input.best.filter((time) => !first.includes(time))], size, extra);
+          }
+        }
       }
     }
   }

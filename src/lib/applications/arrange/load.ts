@@ -7,6 +7,7 @@ import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
 import { canRunTerm } from "../access";
 import { isInTerm, placementFor } from "../decisions";
 import { nameOnRecord, placeHoldersOn } from "../handover/holders";
+import { markedRanges } from "@/lib/admissions/availability";
 import { paintedWeekOf } from "../handover/paintedWeek";
 import { RUNS_COLLECTION, readRun } from "../handover/run";
 import { defaultLength, hasSessionTime, lengthFromGroups, lengthOptions, pickLength, timesPicture, WEEK_FROM_MONDAY } from "../handover/times";
@@ -77,6 +78,8 @@ export type Arranging = {
   /** The same groups as the planner reads them. */
   arrangeGroups: ArrangeGroup[];
   plan: Plan;
+  /** The hours the form's grid asked about, for a chart of somebody's week. */
+  grid: { startMinute: number; endMinute: number };
   /** The times picture's start times, most people first: what other arrangements are drawn from. */
   best: (CandidateTime & { count: number })[];
 };
@@ -143,6 +146,7 @@ export async function loadArranging(
       name: holder.name,
       week: paintedWeekOf(form.round.availabilityGrid, application),
       facilitates: application?.sent ? wouldFacilitate(form, sets, application.sent, programme) : false,
+      marked: application?.sent ? markedRanges(application.sent.availability, form.round.availabilityGrid) : [],
       groupId: seat?.groupId ?? null,
       told: seat?.told ?? false,
     });
@@ -205,6 +209,7 @@ function arrangingFrom(
     groups: new Map(live.map((group) => [group.id, group])),
     arrangeGroups,
     plan,
+    grid: { startMinute: form.round.availabilityGrid.startMinute, endMinute: form.round.availabilityGrid.endMinute },
     best,
   };
 }
@@ -261,6 +266,7 @@ export async function loadPreviewArranging(
       name: nameOnRecord(application),
       week: paintedWeekOf(form.round.availabilityGrid, application),
       facilitates: wouldFacilitate(form, sets, application.sent, programme),
+      marked: markedRanges(application.sent.availability, form.round.availabilityGrid),
       groupId: null,
       told: false,
     });
