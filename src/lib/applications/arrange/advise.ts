@@ -4,22 +4,27 @@ import { askClaudeForJson, claudeConfigured } from "@/lib/ai/claude";
 import type { SessionUser } from "@/lib/firebase/session";
 import { admissionAssessmentId, ASSESSMENTS_COLLECTION } from "@/lib/firestore/admissionAssessments";
 import { compareGroupsByMeeting } from "@/lib/firestore/courseGroups";
-import { nextGroupName } from "@/lib/courses/groupTimes/rules";
 import { canRunTerm } from "../access";
 import { storedReadFor } from "../assessment/stored";
 import { own } from "../keys";
 import { loadForm } from "../repo";
 import { NOT_FOUND, refuse } from "../review/refusals";
 import type { Refusal } from "../review/types";
+import { scrubbed } from "../assessment/programmeInput";
 import {
   applyChoice,
+  askAnswerFrom,
+  askInputFrom,
   choiceFrom,
   choiceInputFrom,
+  keepMoves,
+  screenGroupsFrom,
   siteOption,
   type AppliedChoice,
+  type ProgrammeTimes,
   type ReadNote,
 } from "./advice";
-import { loadArranging, loadPreviewArranging, type Arranging } from "./load";
+import { loadArranging, loadPreviewArranging, newGroupName, type Arranging } from "./load";
 import { candidatePlans, MAX_OPTIONS, type Strength } from "./options";
 import { canMake } from "./plan";
 import { loadFirstNames } from "../decisionDay/people";
@@ -210,7 +215,7 @@ export async function arrangeOptions(
     best: arranging.best,
     minutes: arranging.minutes,
     size: arranging.size,
-    names: (taken) => nextGroupName([...taken]),
+    names: newGroupName,
     strength,
   });
 
@@ -352,3 +357,133 @@ export async function arrangeOptions(
     },
   };
 }
+
+// ---------------------------------------------------------------------------
+// A question about the arrangement on the admin's screen
+// ---------------------------------------------------------------------------
+
+const ASK_SYSTEM = `You help the committee of NAISI, the Nottingham AI Safety Initiative (a student society at the University of Nottingham), arrange the people on one of its programmes into weekly in-person groups. An admin is looking at an arrangement on their screen and asks you about it.
+
+You are given the people, numbered ("Applicant 3"), with your own earlier read of each application; the groups on the admin's screen ("Group A2"), with who is in each, whether each person can make that group's time and which other groups they can make; and, for every programme on the form, how many people can make each start time for a session of this length (counts only). A fellowship meets at the same time every week; an incubator's sessions may move from week to week.
+
+What to do:
+- Answer the admin's question directly and practically. Where it helps, suggest concrete changes: moves of people between the groups on the screen, or start times drawn from the counts.
+- Only suggest moving somebody to a group on the screen that they can make, and never somebody already told their group. List any moves you suggest in moves as well as in your answer.
+- For a question about several programmes meeting together, use the counts: a time where many on each programme can come.
+- For facilitators, we want people who might help run the society one day: their values and how they engage, not only their fit. Thin or brief answers count against them. Do not judge whether anything was written with AI.
+- Do not use or guess at personal characteristics such as age, gender, nationality or health.
+- Refer to people and groups only by their labels. Be brief, in British English, and never use an em dash or an en dash.`;
+
+const ASK_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["answer", "moves"],
+  properties: {
+    answer: { type: "string", description: "Your answer to the admin, in a few short paragraphs at most." },
+    moves: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["applicant", "to", "why"],
+        properties: {
+          applicant: { type: "string" },
+          to: { type: "string", description: 'A group on the screen: "Group A2".' },
+          why: { type: "string" },
+        },
+      },
+    },
+  },
+};
+
+export type ArrangementAnswer = {
+  answer: string;
+  /** Moves that fit the groups on the screen, by the screen's own group key. */
+  moves: { uid: string; toKey: string; why: string }[];
+  dropped: { suggestion: string; why: string }[];
+};
+
+export type ArrangementAskResult = { ok: true; ask: ArrangementAnswer } | Refusal;
+
+/**
+ * Ask Claude about the arrangement on the admin's screen. Nothing is written
+ * or stored; the screen keeps the conversation and sends it back each time.
+ * Every programme on the form is read the way its own Times view reads it
+ * (a preview before decision day, the viewer's own application left out), and
+ * only how many people can make each start time is sent for it.
+ */
+export async function askAboutArrangement(
+  db: Firestore,
+  user: SessionUser,
+  roundId: string,
+  programmeId: string,
+  input: { question: string; history: { question: string; answer: string }[]; groups: unknown; minutes?: unknown },
+): Promise<ArrangementAskResult> {
+  if (!canRunTerm(user)) return refuse(403, "Only an admin can ask for an arrangement.");
+  const form = await loadForm(db, roundId);
+  if (!form) return NOT_FOUND;
+  if (!claudeConfigured()) return refuse(409, "Claude isn’t set up on this site yet.");
+  const load = form.decisionsSentAt === null ? loadPreviewArranging : loadArranging;
+  const loaded = await load(db, user, roundId, programmeId, { minutes: input.minutes });
+  if (!loaded.ok) return loaded;
+  const { arranging } = loaded;
+  const groups = screenGroupsFrom(input.groups, arranging.people);
+
+  // Every programme on the form, this one first, counted for a session of the same length.
+  const programmes: ProgrammeTimes[] = [];
+  for (const id of [programmeId, ...form.programmeIds.filter((other) => other !== programmeId)]) {
+    const other = id === programmeId ? loaded : await load(db, user, roundId, id, { minutes: String(arranging.minutes) });
+    if (!other.ok) continue;
+    programmes.push({
+      shortName: other.arranging.programmeShortName,
+      people: other.arranging.people.size,
+      counts: other.arranging.best,
+    });
+  }
+
+  const notes = await notesFor(db, roundId, programmeId, [...arranging.people.keys()]);
+  const uids = [...arranging.people.keys()].sort();
+  const label = (uid: string) => `Applicant ${uids.indexOf(uid) + 1}`;
+  const named = uids.map((uid) => ({ label: label(uid), name: arranging.people.get(uid)?.name ?? "" }));
+  const kept = new Set([...arranging.people.values()].filter((person) => person.told).map((person) => person.uid));
+  const ask = askInputFrom({
+    programmeName: arranging.programmeName,
+    minutes: arranging.minutes,
+    people: arranging.people,
+    reads: new Map([...notes].map(([uid, note]) => [uid, note.read])),
+    kept,
+    groups,
+    programmes,
+    history: input.history.map((turn) => ({ question: scrubbed(turn.question, named), answer: scrubbed(turn.answer, named) })),
+    question: scrubbed(input.question, named),
+  });
+
+  const answer = await askClaudeForJson({
+    system: ASK_SYSTEM,
+    message: ask.message,
+    schema: ASK_SCHEMA,
+    effort: "medium",
+    maxTokens: 8_000,
+    timeoutMs: 180_000,
+  });
+  if (!answer.ok) return { ok: false, status: 500, error: answer.reason };
+  const said = askAnswerFrom(answer.value);
+  if (!said) return { ok: false, status: 500, error: "Claude’s answer couldn’t be read. Try again." };
+  const fitting = keepMoves(groups, arranging.people, kept, ask, said.moves);
+  const nameOf = (text: string) =>
+    text
+      .replace(/\bApplicant (\d+)\b/g, (w) => arranging.people.get(own(ask.applicants, w) ?? "")?.name ?? w)
+      .replace(/\bGroup ([A-H]\d+)\b/g, (w) => {
+        const key = own(ask.groups, w);
+        return groups.find((group) => group.key === key)?.name ?? w;
+      });
+  return {
+    ok: true,
+    ask: {
+      answer: nameOf(said.answer),
+      moves: fitting.moves.map((move) => ({ ...move, why: nameOf(move.why) })),
+      dropped: fitting.dropped.map((entry) => ({ suggestion: nameOf(entry.suggestion), why: nameOf(entry.why) })),
+    },
+  };
+}
+

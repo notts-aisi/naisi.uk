@@ -1,6 +1,7 @@
 import type { Lean } from "../assessment/types";
 import { own } from "../keys";
 import { MAX_OPTIONS, type Candidate, type Strength } from "./options";
+import type { SessionSlot } from "@/lib/admissions/availability";
 import { canMake, type ArrangePerson, type Plan } from "./plan";
 
 /**
@@ -61,6 +62,39 @@ const LETTERS = "ABCDEFGH";
 
 const reviewerWords = (text: string) => text.replace(/\bReviewer [A-Z]\b/g, "a reviewer");
 
+/** One line for each person, as Claude is told them: never a name, a week or a Pangram finding. */
+function peopleLines(
+  uids: readonly string[],
+  labelOf: ReadonlyMap<string, string>,
+  people: ReadonlyMap<string, ArrangePerson>,
+  reads: ReadonlyMap<string, ReadNote>,
+  kept: ReadonlySet<string>,
+): string[] {
+  return uids.map((uid) => {
+    const person = people.get(uid)!;
+    const read = reads.get(uid) ?? null;
+    const parts = [
+      `${labelOf.get(uid)}:`,
+      person.facilitates ? "offered to facilitate." : "did not offer to facilitate.",
+      kept.has(uid) ? "Already told their group, so stays in it." : "",
+      person.week.kind === "given" && person.week.minimal ? "Marked under 4 hours in the week." : "",
+      person.week.kind !== "given" ? "Said nothing about when they are free." : "",
+      read
+        ? [
+            read.lean ? `Lean ${read.lean}.` : "",
+            reviewerWords(read.summary),
+            read.strengths.length ? `Strengths: ${read.strengths.map(reviewerWords).join("; ")}.` : "",
+            read.concerns.length ? `Concerns: ${read.concerns.map(reviewerWords).join("; ")}.` : "",
+            read.thin > 0 ? `${read.thin} ${read.thin === 1 ? "answer" : "answers"} thin or brief.` : "",
+          ]
+            .filter(Boolean)
+            .join(" ")
+        : "Not read by Claude.",
+    ];
+    return `- ${parts.filter(Boolean).join(" ")}`;
+  });
+}
+
 export function choiceInputFrom(input: {
   programmeName: string;
   candidates: readonly Candidate[];
@@ -78,29 +112,7 @@ export function choiceInputFrom(input: {
   const groups: Record<string, [number, number]> = {};
 
   const lines = [`# ${input.programmeName}: ${uids.length} people holding a place`, "", "## The people"];
-  for (const uid of uids) {
-    const person = input.people.get(uid)!;
-    const read = input.reads.get(uid) ?? null;
-    const parts = [
-      `${labelOf.get(uid)}:`,
-      person.facilitates ? "offered to facilitate." : "did not offer to facilitate.",
-      input.kept.has(uid) ? "Already told their group, so stays in it." : "",
-      person.week.kind === "given" && person.week.minimal ? "Marked under 4 hours in the week." : "",
-      person.week.kind !== "given" ? "Said nothing about when they are free." : "",
-      read
-        ? [
-            read.lean ? `Lean ${read.lean}.` : "",
-            reviewerWords(read.summary),
-            read.strengths.length ? `Strengths: ${read.strengths.map(reviewerWords).join("; ")}.` : "",
-            read.concerns.length ? `Concerns: ${read.concerns.map(reviewerWords).join("; ")}.` : "",
-            read.thin > 0 ? `${read.thin} ${read.thin === 1 ? "answer" : "answers"} thin or brief.` : "",
-          ]
-            .filter(Boolean)
-            .join(" ")
-        : "Not read by Claude.",
-    ];
-    lines.push(`- ${parts.filter(Boolean).join(" ")}`);
-  }
+  lines.push(...peopleLines(uids, labelOf, input.people, input.reads, input.kept));
 
   input.candidates.forEach((candidate, c) => {
     const letter = LETTERS[c];
@@ -427,4 +439,239 @@ export function applyChoice(
   }
   if (!options.some((option) => option.preferred)) options[0].preferred = true;
   return { options, potential, preferredWhy: choice.preferredWhy, notes: choice.notes, dropped };
+}
+
+// ---------------------------------------------------------------------------
+// A question about the arrangement on the admin's screen
+// ---------------------------------------------------------------------------
+
+/** One group as the admin's screen holds it, with their changes. */
+export type ScreenGroup = {
+  /** The screen's own key for the group: "A2". */
+  key: string;
+  name: string;
+  session: SessionSlot;
+  room: number;
+  memberUids: string[];
+  facilitators: { uid: string; role: "lead" | "second" }[];
+};
+
+/** How many people on one programme, who marked a real week, can make each start time. */
+export type ProgrammeTimes = {
+  shortName: string;
+  /** How many hold a place on it, or would by the decisions as they stand. */
+  people: number;
+  counts: readonly { weekday: number; start: number; count: number }[];
+};
+
+export type AskInput = {
+  message: string;
+  /** "Applicant 3" to the account. */
+  applicants: Record<string, string>;
+  /** "Group A2" to the screen's key for it. */
+  groups: Record<string, string>;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+const WALL_CLOCK = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+/**
+ * The arrangement the screen sent, as far as it can be believed: at most
+ * twenty groups, each with a real weekly time, and only people who are being
+ * arranged, each in one group. Anything else is left out.
+ */
+export function screenGroupsFrom(raw: unknown, people: ReadonlyMap<string, ArrangePerson>): ScreenGroup[] {
+  if (!Array.isArray(raw)) return [];
+  const placed = new Set<string>();
+  const out: ScreenGroup[] = [];
+  for (const entry of raw.slice(0, 20)) {
+    if (!isRecord(entry) || !isRecord(entry.session)) continue;
+    const { weekday, startTimeLocal, durationMinutes } = entry.session;
+    if (typeof weekday !== "number" || !Number.isInteger(weekday) || weekday < 0 || weekday > 6) continue;
+    if (typeof startTimeLocal !== "string" || !WALL_CLOCK.test(startTimeLocal)) continue;
+    if (typeof durationMinutes !== "number" || !Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 600) continue;
+    const key = typeof entry.key === "string" ? entry.key.slice(0, 8) : "";
+    if (!key || out.some((group) => group.key === key)) continue;
+    const memberUids = (Array.isArray(entry.memberUids) ? entry.memberUids : []).filter(
+      (uid): uid is string => typeof uid === "string" && people.has(uid) && !placed.has(uid),
+    );
+    for (const uid of memberUids) placed.add(uid);
+    const facilitators = (Array.isArray(entry.facilitators) ? entry.facilitators : []).flatMap((f) =>
+      isRecord(f) && typeof f.uid === "string" && memberUids.includes(f.uid) && (f.role === "lead" || f.role === "second")
+        ? [{ uid: f.uid, role: f.role as "lead" | "second" }]
+        : [],
+    );
+    const room = typeof entry.room === "number" && Number.isInteger(entry.room) ? Math.min(Math.max(entry.room, 1), 50) : 8;
+    out.push({
+      key,
+      name: typeof entry.name === "string" ? entry.name.slice(0, 80) : key,
+      session: { weekday, startTimeLocal, durationMinutes },
+      room,
+      memberUids,
+      facilitators,
+    });
+  }
+  return out;
+}
+
+const startWords = (weekday: number, start: number) =>
+  `${DAY[weekday] ?? "?"} ${String(Math.floor(start / 60)).padStart(2, "0")}:${String(start % 60).padStart(2, "0")}`;
+
+/**
+ * The message for one question: the people, the groups on the admin's screen
+ * (who is in each and which of the other groups each can make), how many on
+ * each programme of the form can make each start time (counts only, never
+ * who), the conversation so far, and the question. Names in the question and
+ * in the conversation have already been swapped for labels by the caller.
+ */
+export function askInputFrom(input: {
+  programmeName: string;
+  minutes: number;
+  people: ReadonlyMap<string, ArrangePerson>;
+  reads: ReadonlyMap<string, ReadNote>;
+  kept: ReadonlySet<string>;
+  groups: readonly ScreenGroup[];
+  programmes: readonly ProgrammeTimes[];
+  history: readonly { question: string; answer: string }[];
+  question: string;
+}): AskInput {
+  const uids = [...input.people.keys()].sort();
+  const labelOf = new Map(uids.map((uid, i) => [uid, `Applicant ${i + 1}`] as const));
+  const applicants: Record<string, string> = {};
+  for (const [uid, label] of labelOf) applicants[label] = uid;
+  const groups: Record<string, string> = {};
+  const labelOfGroup = new Map(input.groups.map((group) => [group.key, `Group ${group.key}`] as const));
+  for (const [key, label] of labelOfGroup) groups[label] = key;
+
+  const lines = [`# ${input.programmeName}: ${uids.length} people, sessions of ${input.minutes} minutes`, "", "## The people"];
+  lines.push(...peopleLines(uids, labelOf, input.people, input.reads, input.kept));
+
+  lines.push("", "## The groups on the admin's screen now");
+  const placed = new Set(input.groups.flatMap((group) => group.memberUids));
+  const canAlso = (uid: string, except: string | null) => {
+    const person = input.people.get(uid);
+    return input.groups
+      .filter((group) => group.key !== except && person && canMake(person, group.session))
+      .map((group) => labelOfGroup.get(group.key));
+  };
+  for (const group of input.groups) {
+    const when = `${DAY[group.session.weekday] ?? "?"} ${group.session.startTimeLocal}, ${group.session.durationMinutes} minutes`;
+    const led = group.facilitators
+      .map((f) => `${labelOf.get(f.uid)} ${f.role === "lead" ? "leads" : "backs up"}`)
+      .join(", ");
+    lines.push(`### ${labelOfGroup.get(group.key)}: ${when} (room for ${group.room}${led ? `; ${led}` : ""})`);
+    for (const uid of group.memberUids) {
+      const person = input.people.get(uid)!;
+      const fits = canMake(person, group.session);
+      const others = canAlso(uid, group.key);
+      lines.push(
+        `- ${labelOf.get(uid)} (${fits ? "can make it" : "cannot make this time"}${others.length ? `; can also make ${others.join(", ")}` : ""})`,
+      );
+    }
+    if (group.memberUids.length === 0) lines.push("- Nobody yet.");
+  }
+  const outside = uids.filter((uid) => !placed.has(uid));
+  if (outside.length > 0) {
+    lines.push("### Not in a group");
+    for (const uid of outside) {
+      const could = canAlso(uid, null);
+      lines.push(`- ${labelOf.get(uid)} (${could.length ? `can make ${could.join(", ")}` : "can make none of these groups"})`);
+    }
+  }
+
+  if (input.programmes.length > 0) {
+    lines.push(
+      "",
+      `## When people on each programme can meet for ${input.minutes} minutes`,
+      "Counts of people who marked a real week and are free for the whole session, by start time. Nobody is named.",
+    );
+    const keyOf = (c: { weekday: number; start: number }) => `${c.weekday}@${c.start}`;
+    const totals = new Map<string, { weekday: number; start: number; sum: number }>();
+    for (const programme of input.programmes) {
+      for (const c of programme.counts) {
+        const key = keyOf(c);
+        const was = totals.get(key) ?? { weekday: c.weekday, start: c.start, sum: 0 };
+        was.sum += c.count;
+        totals.set(key, was);
+      }
+    }
+    const top = [...totals.values()].sort((a, b) => b.sum - a.sum || a.weekday - b.weekday || a.start - b.start).slice(0, 15);
+    for (const time of top) {
+      const each = input.programmes.map((programme) => {
+        const found = programme.counts.find((c) => c.weekday === time.weekday && c.start === time.start);
+        return `${programme.shortName} ${found?.count ?? 0} of ${programme.people}`;
+      });
+      lines.push(`- ${startWords(time.weekday, time.start)}: ${each.join("; ")}`);
+    }
+  }
+
+  if (input.history.length > 0) {
+    lines.push("", "## The conversation so far");
+    for (const turn of input.history) lines.push(`Admin: ${turn.question}`, `You: ${turn.answer}`);
+  }
+  lines.push("", "## The admin asks", input.question);
+  return { message: lines.join("\n"), applicants, groups };
+}
+
+export type AskAnswer = { answer: string; moves: { applicant: string; to: string; why: string }[] };
+
+/** Claude's answer as this module reads it, or null when it is not one. */
+export function askAnswerFrom(value: unknown): AskAnswer | null {
+  if (!isRecord(value) || typeof value.answer !== "string" || !value.answer.trim()) return null;
+  const moves = (Array.isArray(value.moves) ? value.moves : []).flatMap((m) =>
+    isRecord(m) && typeof m.applicant === "string" && typeof m.to === "string"
+      ? [{ applicant: m.applicant.trim(), to: m.to.trim(), why: typeof m.why === "string" ? m.why.trim() : "" }]
+      : [],
+  );
+  return { answer: value.answer.trim(), moves };
+}
+
+/**
+ * The moves Claude suggested that fit the groups on the screen, in order:
+ * somebody being arranged, never somebody already told their group, to a
+ * group on the screen they can make, with room once the moves before it are
+ * made. The rest, with why.
+ */
+export function keepMoves(
+  groups: readonly ScreenGroup[],
+  people: ReadonlyMap<string, ArrangePerson>,
+  kept: ReadonlySet<string>,
+  labels: AskInput,
+  suggested: AskAnswer["moves"],
+): { moves: { uid: string; toKey: string; why: string }[]; dropped: { suggestion: string; why: string }[] } {
+  const members = new Map<string, string[]>(groups.map((group) => [group.key, [...group.memberUids]]));
+  const moves: { uid: string; toKey: string; why: string }[] = [];
+  const dropped: { suggestion: string; why: string }[] = [];
+  for (const said of suggested) {
+    const what = `move ${said.applicant} to ${said.to}`;
+    const uid = own(labels.applicants, said.applicant);
+    const toKey = own(labels.groups, said.to);
+    const person = uid ? people.get(uid) : undefined;
+    const target = toKey ? groups.find((group) => group.key === toKey) : undefined;
+    if (!uid || !person || !toKey || !target) {
+      dropped.push({ suggestion: what, why: "names somebody or a group that is not on the screen" });
+      continue;
+    }
+    if (kept.has(uid)) {
+      dropped.push({ suggestion: what, why: `${said.applicant} has already been told their group` });
+      continue;
+    }
+    if ((members.get(toKey) ?? []).includes(uid)) continue;
+    if (!canMake(person, target.session)) {
+      dropped.push({ suggestion: what, why: `${said.applicant} cannot make that group's time` });
+      continue;
+    }
+    if ((members.get(toKey) ?? []).length >= target.room) {
+      dropped.push({ suggestion: what, why: `${said.to} is full` });
+      continue;
+    }
+    for (const list of members.values()) {
+      const at = list.indexOf(uid);
+      if (at >= 0) list.splice(at, 1);
+    }
+    members.get(toKey)?.push(uid);
+    moves.push({ uid, toKey, why: said.why });
+  }
+  return { moves, dropped };
 }

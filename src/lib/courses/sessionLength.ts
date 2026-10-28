@@ -16,8 +16,12 @@
  * Pure, with no import, so a client component and a server page share it.
  */
 
-/** The lengths the group editor offers, in minutes, shortest first. */
-export const SESSION_LENGTH_PRESETS: readonly number[] = [60, 90, 120];
+/**
+ * The lengths the group editor offers, in minutes, shortest first. Three and
+ * four hours are for a programme that meets in person for an afternoon, as an
+ * incubator does.
+ */
+export const SESSION_LENGTH_PRESETS: readonly number[] = [60, 90, 120, 180, 240];
 
 /** What a new group's session lasts until somebody changes it. */
 export const NEW_GROUP_SESSION_MINUTES = 90;

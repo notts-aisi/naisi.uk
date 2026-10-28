@@ -44,6 +44,22 @@ import { planGroups, type ArrangeGroup, type ArrangePerson, type CandidateTime, 
 
 export const DEFAULT_GROUP_SIZE = 8;
 
+/**
+ * The name for a group an arrangement adds: the run's next "Group X" where its
+ * groups are named that way (`nextGroupName`), else the first "Group A",
+ * "Group B" not taken, so a group Apply makes always has a name.
+ */
+export function newGroupName(taken: readonly string[]): string {
+  const next = nextGroupName([...taken]);
+  if (next) return next;
+  const used = new Set(taken.map((name) => name.trim().toLowerCase()));
+  for (let code = "A".charCodeAt(0); code <= "Z".charCodeAt(0); code += 1) {
+    const name = `Group ${String.fromCharCode(code)}`;
+    if (!used.has(name.toLowerCase())) return name;
+  }
+  return `Group ${taken.length + 1}`;
+}
+
 export type Arranging = {
   /** Null for a preview of a programme that names no run yet. */
   runId: string | null;
@@ -98,7 +114,7 @@ export async function loadArranging(
   const runId = read.run.id;
   const live = await groupsOf(db, runId);
   const options = lengthOptions(live);
-  const minutes = pickLength(wanted.minutes, options, defaultLength(lengthFromGroups(live)));
+  const minutes = pickLength(wanted.minutes, options, defaultLength(lengthFromGroups(live), programme.kind));
   const askedSize = Number(wanted.size);
   const size = Number.isInteger(askedSize) && askedSize >= 2 && askedSize <= 30 ? askedSize : groupSizeOf(programme.groupSize, live);
 
@@ -174,7 +190,7 @@ function arrangingFrom(
     best,
     minutes,
     size,
-    names: (taken) => nextGroupName([...taken]),
+    names: newGroupName,
   });
 
   return {
@@ -223,7 +239,7 @@ export async function loadPreviewArranging(
     }
   }
   const options = lengthOptions(live);
-  const minutes = pickLength(wanted.minutes, options, defaultLength(lengthFromGroups(live)));
+  const minutes = pickLength(wanted.minutes, options, defaultLength(lengthFromGroups(live), programme.kind));
   const askedSize = Number(wanted.size);
   const size = Number.isInteger(askedSize) && askedSize >= 2 && askedSize <= 30 ? askedSize : groupSizeOf(programme.groupSize, live);
 

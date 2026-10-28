@@ -37,6 +37,7 @@ import { deleteEmailVerificationsFor, deleteRegistrationRow } from "../lib/fires
 import { anonFetch, authedFetch, sessionCookieForUid } from "../lib/session.mjs";
 import { trySignInWithPassword } from "../lib/identity.mjs";
 import {
+  brokenOutputIn,
   getMessage,
   hrefUrls,
   mailpitAvailable,
@@ -138,16 +139,13 @@ describe("/api/register email flow (Mailpit)", () => {
     // BOTH parts. sendEmail renders them independently — `render(react)` and
     // `render(react, { plainText: true })` — so a broken prop can surface in
     // one and not the other, and the HTML part is what most recipients see.
-    for (const artefact of ["undefined", "[object Object]", "NaN"]) {
-      for (const [part, body] of [
-        ["text", msg.Text],
-        ["html", msg.HTML],
-      ]) {
-        assert.ok(
-          !body.includes(artefact),
-          `The ${part} part contains "${artefact}" — a template prop is broken.`,
-        );
-      }
+    // Never a word search over the raw body: the verify link's random token
+    // can spell "NaN" (lib/mailpit.mjs says how this looks instead).
+    for (const [part, body] of [
+      ["text", msg.Text],
+      ["html", msg.HTML],
+    ]) {
+      assert.deepEqual(brokenOutputIn(body), [], `The ${part} part renders a value that failed: a template prop is broken.`);
     }
     // \s? because the plain-text pipeline renders the JSX expression boundary
     // in "{expiresInMinutes} minutes" without its space ("10minutes"), a
