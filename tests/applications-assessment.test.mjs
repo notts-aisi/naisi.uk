@@ -109,7 +109,10 @@ const LONG =
   "I first read about AI safety in a seminar on the philosophy of mind, and since then I have " +
   "spent my evenings working through the alignment reading list, writing short notes on each " +
   "paper and arguing about them with two friends from my course. I want a group that will " +
-  "push back on my arguments and help me find out which of them actually hold up.";
+  "push back on my arguments and help me find out which of them actually hold up. Last term I " +
+  "ran a small reading group in my hall on the case for and against slowing frontier development, " +
+  "and what I learned there is that I argue better when somebody who disagrees is in the room, which " +
+  "is exactly what a fellowship group would give me week after week.";
 
 /** Amara, with one answer long enough for Pangram. */
 function amaraWithALongAnswer() {

@@ -96,6 +96,7 @@ const { loadTs: loadPage } = createLoader({
         "export function DialogFrame({ children }) { return globalThis.__hubTimesUi.h('div', null, children); }",
     ],
     ["./TimesPicture.module.css", CLASS_NAMES],
+    ["./ArrangeGroups.module.css", CLASS_NAMES],
     ["./Select.module.css", CLASS_NAMES],
     ["@/features/applications/kit/kit.module.css", CLASS_NAMES],
     ["./GroupsViews.module.css", CLASS_NAMES],
@@ -204,6 +205,14 @@ describe("the Groups tab is the lead's and an admin's, decided before anybody is
     assert.match(drawn.text, /Who can make a 90-minute session starting at…/);
     assert.match(drawn.text, /Monday 6pm: 2 of 3 free\. Monday evening meets then\./);
     assert.equal(drawn.wrote, false);
+    // Arrange with Claude asks Claude about named people, which is an admin's alone.
+    assert.doesNotMatch(drawn.text, /Arrange with Claude/);
+  });
+
+  test("an admin is offered Arrange with Claude under the picture", async () => {
+    const drawn = await draw("zach");
+    assert.match(drawn.text, /Arrange with Claude/);
+    assert.match(drawn.text, /nothing is saved until you press Apply/);
   });
 
   test("the programme's reviewer is told it is the lead's and an admin's, and only the form's settings were read", async () => {
@@ -413,15 +422,18 @@ describe("what the cards say", () => {
     assert.equal(text(editor[1]), "Add or change groups in the run editor");
     assert.ok(!said.includes("set in Settings"), "the page offers set in Settings");
     // Since Times in full (st-times) the page offers exactly the board's three
-    // controls and nothing else: "Use for a group" beside each of the 4 best
-    // times no group meets at, "Change" beside each of the 3 groups, and one
-    // "Add a group". Until then it offered no button at all.
+    // controls: "Use for a group" beside each of the 4 best times no group
+    // meets at, "Change" beside each of the 3 groups, and one "Add a group".
+    // Under the picture an admin also has Arrange with Claude's two, which
+    // propose and write nothing until Apply (ArrangeGroups.tsx).
     assert.deepEqual(
       [...html.matchAll(/<button([^>]*)>(.*?)<\/button>/g)].map((m) => text(m[2])),
       [
         ...Array(4).fill("Use for a group"),
         ...Array(3).fill("Change"),
         "Add a group",
+        "Suggest an arrangement",
+        "Times only, without Claude",
       ],
     );
     for (const m of html.matchAll(/<button([^>]*)>/g)) assert.match(m[1], /type="button"/, "a button that would send a form");

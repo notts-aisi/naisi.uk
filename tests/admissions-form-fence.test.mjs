@@ -619,6 +619,13 @@ const ROUND_SURFACES = {
       "through changeProgramme, and both stop at a round that is not a form before anything " +
       "is read as a programme",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/arrangement": {
+    kind: "form",
+    why:
+      "an admin asks for an arrangement of a programme's people into groups through " +
+      "loadArranging, which starts from the form's own loader and answers 404 for a round " +
+      "that is not a form, before anybody's application is read",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/assessments": {
     kind: "form",
     why:

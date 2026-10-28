@@ -192,6 +192,11 @@ const READS_THE_LISTS = {
     why: "the number beside a programme's People tab: everybody who holds a place on it, an admin who applied included, by the hand-over's own test. It counts nobody until the term is marked as sent",
     holds: "after-the-send",
   },
+  "lib/applications/arrange/load.ts#loadArranging": {
+    kind: "everybody",
+    why: "an arrangement seats everybody who holds a place by when they said they are free, an admin who applied included: it decides nobody's place, only which group's time suits them. It reads nobody until the term is marked as sent, when there is nothing left for anybody to learn early",
+    holds: "after-the-send",
+  },
   "lib/applications/handover/timesLoad.ts#loadTimesPicture": {
     kind: "everybody",
     why: "the times picture counts everybody who holds a place by when they said they are free, and names who no group suits, an admin who applied included. It reads nobody until the term is marked as sent, when there is nothing left for anybody to learn early",

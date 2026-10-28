@@ -877,6 +877,15 @@ export const ROUTES = {
         "every signed-in persona meets the same 400 on an empty body.",
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/arrangement": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Asking for an arrangement into groups is admin only, decided before the body is read; " +
+        "the admin then meets the body check, which an empty body fails before anything is read " +
+        "or sent anywhere.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/assessments": {
     GET: {
       expect: adminOnly(404),
@@ -4458,6 +4467,12 @@ export const REAL_ROUTES = {
       },
     },
     POST: bodyFirst("A bulk decision is decided from the form once a valid one arrives."),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/arrangement": {
+    POST: adminAlone(
+      "Asking for an arrangement into groups",
+      c(400, "An admin meets the body check: an empty body does not say whether to ask Claude, so nothing is read or sent."),
+    ),
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/assessments": {
     GET: adminAlone(

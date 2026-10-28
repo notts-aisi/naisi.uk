@@ -219,6 +219,10 @@ const THROUGH = {
     via: "lib/courses/allocationPublish.ts",
     why: "a group's time, changed from the Groups tab, which takes only the address of the facilitators' told markers from Publish's module and never asks its plan",
   },
+  "app/api/admissions/forms/[roundId]/programmes/[programmeId]/arrangement/route.ts": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "an admin's proposed arrangement into groups, which reads the run's groups the way the Groups tab's times do, taking only the address of the facilitators' told markers from Publish's module and never asking its plan",
+  },
   "app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/route.ts": {
     via: "lib/courses/allocationPublish.ts",
     why: "the Groups tab's own route, which takes only the address of the facilitators' told markers from Publish's module and never asks its plan",
