@@ -598,6 +598,12 @@ const NOT_COVERED = {
   // The application form's review screens. The loaders and writers behind
   // every one of these are executed offline by
   // tests/applications-review-routes.test.mjs against an in-memory database.
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/arrangement": {
+    reason:
+      "An admin's proposed arrangement into groups, with Claude's facilitators and moves. It writes nothing; the plan and the checks on Claude's advice are executed by tests/applications-arrange-plan.test.mjs and tests/applications-arrange-advice.test.mjs.",
+    coverWhen:
+      "With the assessment route's spec, once the harness can stand in for Anthropic: a course hub world after the hand-over, Suggest, then Apply through the site's own routes.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/assessments": {
     reason:
       "The Claude and Pangram marks on a programme's list, and Claude's comparison of its applications or a question about them. The gate, the labels sent and the names put back are executed by tests/applications-assessment.test.mjs; a browser spec waits on the same fake as the assessment route.",

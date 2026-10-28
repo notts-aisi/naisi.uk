@@ -394,7 +394,16 @@ function actionsSetup(view: TimesView, picture: Picture): TimesActionsSetup | nu
   };
 }
 
-export default function TimesPicture({ view, views }: { view: TimesView; views: ReactNode }) {
+export default function TimesPicture({
+  view,
+  views,
+  arrange = null,
+}: {
+  view: TimesView;
+  views: ReactNode;
+  /** Arrange with Claude, which the page draws for an admin once there is a picture. */
+  arrange?: ReactNode;
+}) {
   const picture = view.picture;
   const drawn = picture !== null && picture.said > 0;
   const names = new Map((picture?.groups ?? []).map((group) => [group.id, group.name] as const));
@@ -445,6 +454,7 @@ export default function TimesPicture({ view, views }: { view: TimesView; views: 
           )}
         </>
       )}
+      {picture !== null ? arrange : null}
     </div>
   );
 }

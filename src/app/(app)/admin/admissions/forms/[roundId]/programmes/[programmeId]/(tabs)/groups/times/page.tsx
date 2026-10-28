@@ -1,6 +1,7 @@
 import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import GroupsViews from "@/features/applications/groups/GroupsViews";
 import NotYours from "@/features/applications/groups/NotYours";
+import ArrangeGroups from "@/features/applications/times/ArrangeGroups";
 import TimesPicture from "@/features/applications/times/TimesPicture";
 import { loadTimesPicture } from "@/lib/applications/handover/timesLoad";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -21,6 +22,10 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * `?length=<minutes>` counts sessions of that length: one of the lengths the
  * group editor offers, or one a group of the run already has. Anything else
  * counts the default, which comes from the run's groups.
+ *
+ * For an admin, Arrange with Claude sits under the picture: a proposed split
+ * into groups with facilitators, applied only when they press Apply
+ * (`src/features/applications/times/ArrangeGroups.tsx`).
  */
 export default async function ProgrammeTimesPage({
   params,
@@ -49,6 +54,11 @@ export default async function ProgrammeTimesPage({
           current="times"
           pitches={view.pitchingWeek !== null}
         />
+      }
+      arrange={
+        // An admin's alone: it asks Claude about named people. The route asks
+        // again, and refuses anybody else before it reads anything.
+        view.viewer === "admin" ? <ArrangeGroups roundId={view.roundId} programmeId={view.programmeId} /> : null
       }
     />
   );

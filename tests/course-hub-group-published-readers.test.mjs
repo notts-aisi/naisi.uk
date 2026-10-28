@@ -358,6 +358,14 @@ const READERS = {
       "takes somebody off a run, for an admin, the run's track leads or the lead of the programme that names the run; " +
       "it answers with counts and names nobody to anybody else",
   },
+  "lib/applications/arrange/load.ts": {
+    kind: "staff",
+    proof: ['if (!canRunTerm(user)) return refuse(403, "Only an admin can ask for an arrangement.");'],
+    why:
+      "an admin's proposed arrangement into groups: it reads each seat on the run for the group somebody sits in now " +
+      "and whether Publish has told them it. A placement Publish has told stays where it is; one it has not told is " +
+      "only where somebody sits today, which the proposal may move. It shows the admin alone and writes nothing",
+  },
   "lib/applications/handover/load.ts": {
     kind: "staff",
     proof: ['if (!canRunTerm(actor)) return { status: "not-admin" };'],

@@ -684,6 +684,16 @@ const USERS = new Map([
       "term in which every kind of reply has been made, because each screen has to count the same place",
   ],
   [
+    "applications-arrange-advice.test.mjs",
+    "executes the pure advice module, whose imports reach the arrangement plan, because what " +
+      "Claude is told and which of its suggestions are kept are decided by the code that runs",
+  ],
+  [
+    "applications-arrange-plan.test.mjs",
+    "executes the pure arrangement plan, because who is seated where and why somebody is left " +
+      "for a person are decided by the code that runs, not by a reading of its source",
+  ],
+  [
     "applications-assessment.test.mjs",
     "executes the assessment routes and the marks route with the real gate, access.ts, the review " +
       "loaders and the Pangram client against an in-memory Firestore and a faked fetch, because who " +

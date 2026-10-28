@@ -17,6 +17,10 @@
  *     Claude can also compare those reads across a programme's applications;
  *     a comparison is shown to the admin who asked and is not kept
  *     (`src/lib/applications/assessment/programmeInput.ts`).
+ *     Once places are decided, Claude can suggest an arrangement into groups
+ *     and a facilitator for each, told which proposed session times each
+ *     person can make and never their week
+ *     (`src/lib/applications/arrange/advice.ts`).
  *  3. **Still no automated decisions.** The paragraph says what the two are
  *     for: one view the admin weighs, nothing acted on by itself.
  *
@@ -1071,7 +1075,14 @@ export default function PrivacyContentV8({
                   finding on its own. What comes back is kept with your
                   application, is deleted with it, and is never copied to your
                   member record. A comparison across a programme is shown to
-                  the admin who asked and is not kept.
+                  the admin who asked and is not kept. Once places are
+                  decided, an admin can also ask Claude to suggest how to
+                  arrange the people holding places on a programme into groups
+                  and who might facilitate each. Claude is told which of the
+                  proposed groups&apos; session times each person can make,
+                  never the times you marked, and the site checks every
+                  suggestion against those times. An admin decides, and
+                  nobody is placed until they apply it.
                 </li>
                 <li>
                   <strong>The decision,</strong> its date, who made it, and the

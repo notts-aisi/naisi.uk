@@ -1901,6 +1901,21 @@ says reaches the applicant.
   account-id order and reviewers lettered once across the programme. A name
   an admin types into a question is swapped for its label before it is
   sent. Neither answer is stored.
+- **Arranging groups.** On a programme's Times view an admin can ask for a
+  proposed arrangement of the people holding a place into groups
+  (`src/lib/applications/arrange/`). The site works out a first split from when each person said
+  they are free (`arrange/plan.ts`: nobody already told their group moves, the
+  run's groups first, more only when needed, the most constrained seated
+  first, then the groups evened out). Claude is then told the groups and
+  people by number, which other groups each person can make (never their
+  week), and its own reads, and suggests a facilitator per group and moves.
+  `arrange/advice.ts` keeps a suggestion only when it fits: a facilitator
+  must have offered and be able to make the group, and sits in it; a move
+  must be to a group the person can make, with room, and never of somebody
+  told. Nothing is written or stored. Apply on the page places people
+  through the site's own routes for groups, places and facilitators, in
+  that order, and stops at the first refusal; nobody is emailed until
+  Publish.
 - **Inside one request.** The backend stops a request at 300 seconds (it was
   60 until the comparison needed more). A read is given 150 seconds, a
   comparison 240, and no call is retried. The two parts of a read are
