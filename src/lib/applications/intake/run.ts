@@ -23,6 +23,7 @@ You are given every applicant in the term, numbered ("Applicant 3"), and every o
 An admin reads your suggestions and decides. You never decide, and nothing you write is sent to anybody.
 
 What to do:
+- A decision a programme's lead or an admin has already made stands: never suggest a change that would undo an acceptance, or put somebody on a programme whose lead pooled or declined them. The draft keeps them already.
 - Suggest changes to the draft that make the whole term better: a person who would clearly do better on another programme they ranked, a borderline call that should go the other way, a programme left with weak people while strong ones are turned away. Only programmes the person ranked, never one whose lead declined them, and never past a programme's places. Write "no place" to take somebody out. Few, well-reasoned changes beat many.
 - List the best facilitators for each programme from people who OFFERED to facilitate it: people whose reads suggest they would lead a discussion well.
 - List people who did NOT offer to facilitate but stand out as strong candidates and should be asked, with why.
@@ -81,8 +82,13 @@ export type IntakeRow = {
   plan: string | null;
   /** Whether Claude moved them from the draft, and why. */
   claudeWhy: string | null;
-  /** What Apply would decide for them. Empty when nothing changes. */
+  /** What Apply would decide for them. Empty when nothing changes, and when a decision already made holds the plan. */
   ops: DecisionOp[];
+  /**
+   * When the plan would have to undo a decision already made, which one, in
+   * a sentence: Apply leaves this person for a person. Null otherwise.
+   */
+  held: string | null;
   hasRead: boolean;
   hasPangram: boolean;
 };
@@ -150,6 +156,8 @@ export async function planIntake(
   const rows: IntakeRow[] = people
     .map((person) => {
       const plan = final.get(person.uid) ?? null;
+      const steps = decisionsFor(person, plan);
+      const heldName = steps.held ? (shortOf.get(steps.held.programmeId) ?? "another programme") : "";
       return {
         uid: person.uid,
         name: person.name,
@@ -163,13 +171,23 @@ export async function planIntake(
         now: { programmeId: person.placedNow, outcome: person.outcomeNow },
         plan,
         claudeWhy: why.get(person.uid) ?? null,
-        ops: decisionsFor(person, plan),
+        ops: steps.ops,
+        held: steps.held
+          ? steps.held.standing === "accepted"
+            ? `${heldName} has already accepted them. The plan would undo that, so it’s left for you.`
+            : `${heldName}’s lead ${steps.held.standing === "pooled" ? "pooled" : "declined"} them. The plan would undo that, so it’s left for you.`
+          : null,
         hasRead: person.hasRead,
         hasPangram: person.hasPangram,
       };
     })
-    // The people whose decisions would change first, then by name.
-    .sort((a, b) => Number(b.ops.length > 0) - Number(a.ops.length > 0) || a.name.localeCompare(b.name));
+    // The people whose decisions would change first, then those left for a person, then by name.
+    .sort(
+      (a, b) =>
+        Number(b.ops.length > 0) - Number(a.ops.length > 0) ||
+        Number(b.held !== null) - Number(a.held !== null) ||
+        a.name.localeCompare(b.name),
+    );
 
   return {
     ok: true,
