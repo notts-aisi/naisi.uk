@@ -835,6 +835,13 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/features/applications/times/ArrangeGroups.tsx",
+    {
+      built: ["chosen.href"],
+      from: "the person's application on the programme's review screen, built on the server (`arrange/advise.ts`) from the form's and the programme's ids and the person's uid, encoded",
+    },
+  ],
+  [
     "src/features/applications/apply/AboutStep.tsx",
     { built: ["email.profileHref", "email.profileHref"], from: "the profile page's fixed path, handed in by the form" },
   ],

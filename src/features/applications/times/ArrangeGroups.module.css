@@ -1,6 +1,7 @@
 /* ============================================================
-   Arrange with Claude, on a programme's Times view, for an
-   admin (ArrangeGroups.tsx).
+   Arrange groups, on a programme's Times view, for an admin
+   (ArrangeGroups.tsx): up to five options, each group a ring
+   with its people around the edge.
    ============================================================ */
 
 .panel {
@@ -12,6 +13,7 @@
   border: 1px dashed var(--color-border-strong);
   border-radius: var(--radius-lg);
   background: var(--color-bg);
+  min-width: 0;
 }
 
 .head {
@@ -31,6 +33,7 @@
   font-size: 13px;
   line-height: 1.45;
   color: var(--color-text-muted);
+  overflow-wrap: anywhere;
 }
 
 .actions {
@@ -49,6 +52,7 @@
   font-size: 14px;
   cursor: pointer;
   appearance: none;
+  -webkit-appearance: none;
 }
 
 .button {
@@ -78,7 +82,17 @@
 .result {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+  min-width: 0;
+}
+
+.preview {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--color-warning, var(--color-accent));
+  background: var(--color-surface);
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .notes {
@@ -87,13 +101,346 @@
   line-height: 1.55;
 }
 
-.groups {
+/* === The options === */
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 2.75rem;
+  max-width: 16rem;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.tabOn {
+  border-color: var(--color-accent);
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.tabKey {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.tabTitle {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.badge {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-on-accent, #fff);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.proscons {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
 
-.group,
+.label {
+  font-size: 13px;
+}
+
+.list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* === The rings, and the person beside them === */
+
+.board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: 16px;
+  align-items: start;
+}
+
+.rings {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: 16px;
+  min-width: 0;
+}
+
+.ringCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.ring {
+  position: relative;
+  width: 100%;
+  max-width: 22rem;
+  margin: 0 auto;
+  aspect-ratio: 1;
+}
+
+.circle {
+  position: absolute;
+  inset: 9%;
+  border: 2px solid var(--color-border-strong);
+  border-radius: 50%;
+}
+
+.ringWarn .circle {
+  border-color: var(--color-warning, var(--color-border-strong));
+}
+
+.centre {
+  position: absolute;
+  inset: 25%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  text-align: center;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.centre:disabled {
+  cursor: default;
+}
+
+.centreTarget {
+  outline: 2px dashed var(--color-accent);
+  outline-offset: 2px;
+  cursor: pointer;
+}
+
+.when {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.centreLine {
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+}
+
+.moveHint,
+.moveHintWarn {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.moveHint {
+  color: var(--color-accent-text, var(--color-accent));
+}
+
+.moveHintWarn {
+  color: var(--color-warning, var(--color-text));
+}
+
+.chip {
+  position: absolute;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 7.5rem;
+  min-height: 2rem;
+  padding: 3px 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.25;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  z-index: 1;
+}
+
+.chip > span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chipLead {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent, #fff);
+  font-weight: 600;
+}
+
+.chipSecond {
+  border: 2px solid var(--color-accent);
+}
+
+/* Somebody who can't make this group's time, or is only near it. */
+.chipOff {
+  border-color: var(--color-danger, #d33);
+  box-shadow: inset 0 0 0 1px var(--color-danger, #d33);
+}
+
+.chipSelected {
+  outline: 3px solid var(--color-accent-text, var(--color-accent));
+  outline-offset: 2px;
+  z-index: 2;
+}
+
+.chipRole {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.chipFlag {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-warning, #c80);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+.why,
+.facilitatorWhy {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.facilitatorWhy {
+  color: var(--color-text-muted);
+}
+
+.warnings {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-warning, var(--color-text));
+}
+
+.side {
+  position: sticky;
+  top: 16px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.person {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.personHead {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+
+.link {
+  font-size: 13px;
+  color: var(--color-accent-text, var(--color-accent));
+}
+
+.flagLine {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--color-warning, var(--color-text));
+}
+
+.read {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.personActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.small,
+.smallQuiet {
+  min-height: 2.75rem;
+  padding: 0 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.smallQuiet {
+  border-color: transparent;
+  background: transparent;
+}
+
+.small:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .unplaced {
   display: flex;
   flex-direction: column;
@@ -104,35 +451,29 @@
   background: var(--color-surface);
 }
 
-.groupHead {
+.tray {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-.facilitator {
-  margin: 0;
-  font-size: 14px;
+.trayChip {
+  min-height: 2.75rem;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
-.members {
-  margin: 0;
-  padding-left: 18px;
-  font-size: 14px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
-.tag {
-  font-size: 12px;
+.trayWhy {
   color: var(--color-text-muted);
-}
-
-/* Placed near their time, not in it: somebody checks with them. */
-.near {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-warning, var(--color-text));
 }
 
 .dropped summary {
@@ -155,9 +496,26 @@
   color: var(--color-danger, #d33);
 }
 
+@media (max-width: 60rem) { /* --bp-lg */
+  .board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* The person you picked sits under the options, above the rings, while they are stacked. */
+  .side {
+    position: static;
+    order: -1;
+  }
+}
+
 @media (max-width: 48rem) { /* --bp-md */
   .actions {
     flex-direction: column;
     align-items: stretch;
+  }
+  .proscons {
+    grid-template-columns: 1fr;
+  }
+  .rings {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
