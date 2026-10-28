@@ -14,7 +14,7 @@ import "server-only";
  *
  * FITTING A FULL-SIZE SEND INSIDE THE REQUEST TIMEOUT.
  *
- * `apphosting.yaml` sets `runConfig.timeoutSeconds: 60`. That number, not
+ * `apphosting.yaml` set `runConfig.timeoutSeconds: 60` when this was written (300 since 27 October 2026, for Claude's comparisons; every budget below still keeps inside 60). That number, not
  * politeness to the relay, is the binding constraint on how a broadcast is
  * dispatched, because every rate-limit claim in this estate is
  * RESERVE-BEFORE-SEND. A loop killed at the ceiling is the worst outcome in

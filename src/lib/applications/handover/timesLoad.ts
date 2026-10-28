@@ -111,10 +111,10 @@ export type TimesOutcome =
 const GROUPS_COLLECTION = "courseGroups";
 
 /** One live group of the run: what the picture reads, and what its controls ask about it. */
-type LiveGroup = TimesGroup & { facilitatorUids: string[]; capacity: number | null };
+export type LiveGroup = TimesGroup & { facilitatorUids: string[]; capacity: number | null };
 
 /** The run's groups that are not archived, reduced to what the picture and its controls read. */
-async function groupsOf(db: Firestore, runId: string): Promise<LiveGroup[]> {
+export async function groupsOf(db: Firestore, runId: string): Promise<LiveGroup[]> {
   // One equality on one field, so no declared index.
   const snap = await db.collection(GROUPS_COLLECTION).where("runId", "==", runId).get();
   const groups: LiveGroup[] = [];

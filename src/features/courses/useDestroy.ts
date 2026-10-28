@@ -214,6 +214,11 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "What each programme's lead decided about each applicant, the outcome picked for anybody who was pooled, and any exception an admin made. What decision day told each person is on their application, and that is copied to their member record before anything is removed.",
   },
+  assessments: {
+    label: "Claude and Pangram assessments",
+    fate: "destroyed",
+    note: "What Claude and Pangram made of each application, for the admins who decided. It is never copied to a member record.",
+  },
   enrolments: { label: "Enrolments", fate: "destroyed" },
   progress: {
     label: "Progress rows",

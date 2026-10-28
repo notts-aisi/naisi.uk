@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Select from "@/components/ui/Select";
 import kit from "@/features/applications/kit/kit.module.css";
 import { useHydrated } from "@/hooks/useHydrated";
@@ -11,6 +11,8 @@ import type {
   BulkDecisionResult,
   ProgrammeBoard,
 } from "@/lib/applications/review/types";
+import type { AssessmentMark, AssessmentPart } from "@/lib/applications/assessment/types";
+import { own } from "@/lib/applications/keys";
 import { PROGRAMME_STANDING_LABEL, ordinal } from "@/lib/applications/words";
 import {
   DEFAULT_QUERY,
@@ -23,6 +25,8 @@ import {
   type SortKey,
   type StatusFilter,
 } from "./listModel";
+import AssessAllBar from "./AssessAllBar";
+import ProgrammeClaude from "./ProgrammeClaude";
 import { changedMark } from "./changesWords";
 import { Avatar, Chip, Icon, ScoreBox, StandingChip } from "./parts";
 import styles from "./ApplicationsBoard.module.css";
@@ -53,13 +57,31 @@ type Props = {
    * number of places left, which is where a place given back shows.
    */
   freedPlacesPath?: string | null;
+  /**
+   * For an admin alone: where this list's Claude and Pangram marks are read
+   * from, and the form's API, which each application's assessment hangs off.
+   * Null for everybody else, and the column and the bar are not drawn.
+   */
+  assessments?: { marksPath: string; formApiBase: string } | null;
 };
+
+const LEAN_CHIP = {
+  strong: { text: "Strong", tone: "ok" },
+  borderline: { text: "Borderline", tone: "accent" },
+  weak: { text: "Weak", tone: "bad" },
+} as const;
 
 function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-export default function ApplicationsBoard({ board, listPath, apiPath, freedPlacesPath = null }: Props) {
+export default function ApplicationsBoard({
+  board,
+  listPath,
+  apiPath,
+  freedPlacesPath = null,
+  assessments = null,
+}: Props) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [query, setQuery] = useState<ListQuery>(DEFAULT_QUERY);
@@ -72,6 +94,39 @@ export default function ApplicationsBoard({ board, listPath, apiPath, freedPlace
 
   const { programme, progress, counts, viewer, round } = board;
   const canAct = viewer.canDecide && !round.decisionsSent;
+
+  const [marks, setMarks] = useState<Record<string, AssessmentMark> | null>(null);
+  const [configured, setConfigured] = useState<Record<AssessmentPart, boolean>>({
+    claude: false,
+    pangram: false,
+  });
+  /** Moved on to read the marks again, after "Assess the rest" finishes. */
+  const [marksRead, setMarksRead] = useState(0);
+  const marksPath = assessments?.marksPath ?? null;
+  // The applications Claude reads and compares: everybody still in the term who ranked this programme.
+  const compared = useMemo(() => board.rows.filter((row) => !row.withdrawn && !row.byInvitation), [board.rows]);
+  useEffect(() => {
+    if (!marksPath) return;
+    let live = true;
+    void (async () => {
+      try {
+        const res = await fetch(marksPath);
+        const body = (await res.json().catch(() => ({}))) as {
+          marks?: Record<string, AssessmentMark>;
+          configured?: Record<AssessmentPart, boolean>;
+        };
+        if (live && res.ok && body.marks) {
+          setMarks(body.marks);
+          if (body.configured) setConfigured(body.configured);
+        }
+      } catch {
+        // The marks are a reading aid: the list works without them.
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [marksPath, marksRead]);
 
   const matching = useMemo(() => filterRows(board.rows, query), [board.rows, query]);
   const visible = matching.slice(0, shown);
@@ -335,6 +390,27 @@ export default function ApplicationsBoard({ board, listPath, apiPath, freedPlace
         </div>
       </div>
 
+      {assessments ? (
+        <>
+          <AssessAllBar
+            formApiBase={assessments.formApiBase}
+            programmeId={programme.id}
+            uids={compared.map((row) => row.uid)}
+            marks={marks}
+            configured={configured}
+            onDone={() => setMarksRead((n) => n + 1)}
+          />
+          {configured.claude && marks !== null ? (
+            <ProgrammeClaude
+              askPath={assessments.marksPath}
+              listPath={listPath}
+              read={compared.filter((row) => own(marks, row.uid)?.lean).length}
+              total={compared.length}
+            />
+          ) : null}
+        </>
+      ) : null}
+
       {/* ---- The applications ---- */}
       <section className={`${styles.card} ${styles.tableCard}`} aria-label="Applications">
         {canAct && picked.length > 0 ? (
@@ -410,6 +486,7 @@ export default function ApplicationsBoard({ board, listPath, apiPath, freedPlace
                       {programme.shortName} score
                     </th>
                   ) : null}
+                  {assessments ? <th scope="col">Claude</th> : null}
                   <th scope="col">Facilitating</th>
                   <th scope="col">Comments</th>
                   <th scope="col">Status</th>
@@ -422,6 +499,7 @@ export default function ApplicationsBoard({ board, listPath, apiPath, freedPlace
                     row={row}
                     href={`${listPath}/${row.uid}`}
                     showScore={programme.usesScores}
+                    mark={assessments ? (own(marks, row.uid) ?? null) : undefined}
                     selectable={canAct}
                     selected={selected.has(row.uid)}
                     disabled={!hydrated}
@@ -708,6 +786,7 @@ function Row({
   row,
   href,
   showScore,
+  mark,
   selectable,
   selected,
   disabled,
@@ -716,6 +795,8 @@ function Row({
   row: ApplicationRow;
   href: string;
   showScore: boolean;
+  /** Undefined: no Claude column on this list. Null: nothing read yet. */
+  mark: AssessmentMark | null | undefined;
   selectable: boolean;
   selected: boolean;
   disabled: boolean;
@@ -779,6 +860,20 @@ function Row({
           ) : (
             <span className={styles.mutedText}>Not scored yet</span>
           )}
+        </td>
+      ) : null}
+      {mark !== undefined ? (
+        <td data-label="Claude">
+          {mark?.lean ? (
+            <Chip tone={LEAN_CHIP[mark.lean].tone}>{LEAN_CHIP[mark.lean].text}</Chip>
+          ) : (
+            <span className={styles.mutedText}>Not read</span>
+          )}
+          {mark?.worthALook ? (
+            <div className={styles.sub}>
+              Pangram: {mark.worthALook} worth a look
+            </div>
+          ) : null}
         </td>
       ) : null}
       <td data-label="Facilitating">

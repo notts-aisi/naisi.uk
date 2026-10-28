@@ -3428,6 +3428,16 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // `admissionAssessments` holds what Claude and Pangram made of an
+    // application, at the application's own id. It is an admin's reading aid
+    // and quotes the committee's reviews in Claude's words, so an own-row
+    // read is refused for the same reason as `admissionDecisions`: an
+    // applicant must not read what the committee thinks of them. One route
+    // writes it and two read it, all for admins (src/lib/applications/assessment/).
+    match /admissionAssessments/{applicationId} {
+      allow read, write: if false;
+    }
+
     // === end V3 W1 PR4: admissions =======================================
 
     // =====================================================================

@@ -1054,6 +1054,15 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/features/applications/review/ProgrammeClaude.tsx",
+    {
+      built: ["`${listPath}/${entry.uid}`"],
+      from:
+        "a programme's list of applications, and one application in Claude's comparison by its owner's " +
+        "account id, which the server maps from a label it gave and never from anything Claude wrote",
+    },
+  ],
+  [
     "src/features/applications/review/ReviewScreen.tsx",
     {
       built: [

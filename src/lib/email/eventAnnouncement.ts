@@ -69,7 +69,7 @@ export const MAX_ANNOUNCEMENT_ROWS = 500;
  * A row is not a message. A member with a verified university address on both
  * channels takes TWO sends, so a 500-row list is up to a thousand `sendEmail`
  * calls, and this whole announcement runs inside the publish REQUEST, against
- * `apphosting.yaml`'s `timeoutSeconds: 60`. `dispatch.ts` carries the
+ * `apphosting.yaml`'s `timeoutSeconds` (300 since 27 October 2026, for Claude's comparisons; it was 60 when this was written, and this path still keeps inside 60). `dispatch.ts` carries the
  * arithmetic; the figure it supports is 200 messages, the same number the run
  * composer's cap was sized to: ceil(200/6) = 34 rounds x 1.05s worst = ~36s,
  * ~19s typical.

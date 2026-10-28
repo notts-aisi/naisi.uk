@@ -70,12 +70,21 @@ export const POLICIES: Record<
     // finished is recorded, that facilitators see names only, and that a
     // programme's attendance is a third logged download.
     //
+    // v8 is the second reader's version. An admin can ask Claude (Anthropic)
+    // to read an application with its reviews, and Pangram to check its
+    // longer answers for writing produced with AI. Two new processors, and a
+    // new use of what an applicant wrote, so it moved the version and every
+    // member is asked again at their next sign-in. It says what is sent and
+    // what is left out, that only admins see what comes back, and that
+    // nothing is done because of it alone.
+    //
     // Keep this comment ABOVE `versions:`, never between the `[` and the first
     // `{`: tests/funnel-harness-guards.test.mjs reads the current version out
     // of this file with a regex that allows only whitespace across that gap,
     // so a comment sitting there leaves the guard unable to read the very
     // number it exists to pin. Anywhere else in the file is fine.
     versions: [
+      { version: 8, lastUpdated: "28 October 2026" },
       { version: 7, lastUpdated: "27 October 2026" },
       { version: 6, lastUpdated: "7 October 2026" },
       { version: 5, lastUpdated: "7 September 2026" },

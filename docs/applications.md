@@ -40,6 +40,7 @@ Applicants never read "waitlist" or "rejected" about a programme decision.
 | An application | `admissionApplications/{roundId}__{uid}` | The applicant, through routes; decision day |
 | A review | `admissionReviews/{roundId}__{applicantUid}__{reviewerUid}` | That reviewer, through a route |
 | Decisions | `admissionDecisions/{roundId}__{uid}` | Leads and admins, through routes |
+| Assessments | `admissionAssessments/{roundId}__{uid}` | An admin asking Claude or Pangram, through a route |
 
 Every one of these is `allow read, write: if false`. Nothing is read or written
 from a browser. The routes run on the Admin SDK and are the boundary.
@@ -1810,8 +1811,8 @@ row, and draws the card somebody in a group then reads.
 
 | When | What goes | What stays |
 | --- | --- | --- |
-| A form is destroyed | The form, its question sets, every application with the access-requirements row beside it, every review, every decision document, and the log lines about the form's decisions | Each applicant's member record, the delivery log, the download log, the course runs, and on those runs the rows a hand-over wrote |
-| An account is deleted | Each of its applications with the access-requirements row and the decision document beside it, the reviews about it, the reviews it wrote, and its name wherever a round carries it: the reviewer list, the final decider, and the lead and reviewers of each programme | Its member record, the log lines |
+| A form is destroyed | The form, its question sets, every application with the access-requirements row, the decision document and the assessment beside it, every review, every decision document, and the log lines about the form's decisions | Each applicant's member record, the delivery log, the download log, the course runs, and on those runs the rows a hand-over wrote |
+| An account is deleted | Each of its applications with the access-requirements row, the decision document and the assessment beside it, the reviews about it, the reviews it wrote, and its name wherever a round carries it: the reviewer list, the final decider, and the lead and reviewers of each programme | Its member record, the log lines |
 | A course run is destroyed | Nothing on a form. The run's own rows go with it, the ones a hand-over wrote included | The form, with any programme whose `runId` named that run |
 | A course is destroyed | Nothing on a form | The form, with any programme whose `courseId` named that course |
 
@@ -1852,9 +1853,83 @@ row, and draws the card somebody in a group then reads.
 - **An application's earlier versions go with the application.** They are
   fields of its own document, so every delete above takes them in the same
   write, and nothing else holds a copy.
+- **So does the assessment at its id** (`admissionAssessments`), in the same
+  batch, for the same reason as the decision: it is a reading of the
+  application and of the reviews about it, and worth nothing without them.
 - **So does a freed place offered on it** (`freedPlace` and its
   `invitation`), and the record of a freed-place test goes with the form
   (`freedPlaceTests`). Neither has a collection of its own.
+
+## Claude and Pangram
+
+An admin can ask two outside services about an application, as a second
+reader beside the decision: Claude (Anthropic's API) writes a read of it, and
+Pangram, an AI-writing detector, checks its longer answers. Both are named in
+the privacy policy as processors. Neither decides anything, and nothing either
+says reaches the applicant.
+
+- **An admin's alone.** The routes refuse everybody else before anything is
+  read (`src/lib/applications/assessment/run.ts`). A lead scores blind first
+  and the read draws every reviewer together, so it is never shown to one.
+- **Asked for, never automatic.** Opening an application reads what is already
+  stored and sends nothing. The review screen's button, or "Assess the rest"
+  on a programme's list, sends.
+- **What is sent is built from the admin's own review payload**
+  (`assessment/input.ts`), so the fences above hold by construction: the
+  access-requirements answer and the SU membership answer are in no review
+  payload. On top of that it takes out the applicant's name, addresses and
+  account id, letters the reviewers ("Reviewer A") instead of naming them,
+  and leaves out availability. Words an applicant typed are sent as typed.
+- **Pangram sees only answers of 50 words or more** (`PANGRAM_MIN_WORDS`),
+  one answer per request. On a sentence or two a detector's verdict is close
+  to a guess, and a wrong flag on a student is an accusation. A flag reads
+  "worth a look", never a verdict. Claude is told not to judge whether
+  anything was written with AI, and not to mark anybody down for their
+  English.
+- **What is kept.** `admissionAssessments` holds Claude's read per programme
+  and Pangram's check, with the letters and the ACCOUNTS they stood for, never
+  a reviewer's name: the names are put back on the way to the screen. A read
+  carries a hash of what was sent, and is shown as out of date once the
+  answers or the reviews change. It goes with its application (see What
+  deletes what) and is never copied to a member record.
+- **Across a programme.** On a programme's list an admin can ask Claude to
+  compare the applications it has read (a shortlist up to the places, the
+  borderline, the clear no's, who is worth a second look, who would suit
+  another programme) or ask one question about them
+  (`assessment/programmeInput.ts`, `assessment/overview.ts`). It is made from
+  the stored reads, never the applications, with applicants numbered in
+  account-id order and reviewers lettered once across the programme. A name
+  an admin types into a question is swapped for its label before it is
+  sent. Neither answer is stored.
+- **Arranging groups.** On a programme's Times view an admin can ask for a
+  proposed arrangement of the people holding a place into groups
+  (`src/lib/applications/arrange/`). The site works out a first split from when each person said
+  they are free (`arrange/plan.ts`: nobody already told their group moves, the
+  run's groups first, more only when needed, the most constrained seated
+  first, then the groups evened out). Claude is then told the groups and
+  people by number, which other groups each person can make (never their
+  week), and its own reads, and suggests a facilitator per group and moves.
+  `arrange/advice.ts` keeps a suggestion only when it fits: a facilitator
+  must have offered and be able to make the group, and sits in it; a move
+  must be to a group the person can make, with room, and never of somebody
+  told. Nothing is written or stored. Apply on the page places people
+  through the site's own routes for groups, places and facilitators, in
+  that order, and stops at the first refusal; nobody is emailed until
+  Publish.
+- **Inside one request.** The backend stops a request at 300 seconds (it was
+  60 until the comparison needed more). A read is given 150 seconds, a
+  comparison 240, and no call is retried. The two parts of a read are
+  separate requests, and a programme's worth of reads is walked by the
+  browser two at a time.
+- **The keys** are `ANTHROPIC_API_KEY` and `PANGRAM_API_KEY`, secrets in each
+  project's own Secret Manager, `RUNTIME` only in `apphosting.yaml`. A site
+  with no key says so and sends nothing. Each project's key lives in its own
+  workspace on the Claude Platform, with its own monthly spend limit.
+
+`tests/applications-assessment.test.mjs` runs the routes: who is refused,
+that no name is sent or stored, that a changed review puts a read out of date,
+that Pangram is sent only the long answers, and that a comparison or a
+question sends labels, never names, and stores nothing.
 
 ## The modules
 

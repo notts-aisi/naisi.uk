@@ -79,7 +79,7 @@ export const dynamic = "force-dynamic";
  * The ceiling this tick INTENDS to run to. Documentation, not enforcement.
  *
  * What actually stops the request is `apphosting.yaml`'s
- * `runConfig.timeoutSeconds: 60`: Cloud Run kills the container at 60s
+ * `runConfig.timeoutSeconds` (300 since 27 October 2026, for Claude's comparisons; it was 60 when this was written, and this path still keeps inside 60): Cloud Run kills the request there
  * whatever this export says, and a killed tick leaves a receipt stuck at
  * "running". So this number is here to state the intent (45s, i.e. 15s of
  * headroom under the platform timeout) and to keep any future host that DOES

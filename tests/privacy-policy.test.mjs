@@ -172,15 +172,17 @@ const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
 const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
-const CURRENT = read("src/content/legal/privacy/v7.tsx");
+const CURRENT = read("src/content/legal/privacy/v8.tsx");
 /**
  * The current policy with every run of whitespace collapsed to one space. The
  * copy is JSX, so a sentence is wrapped and indented across several lines and
  * no pattern written as a sentence would ever match the raw source. Every
- * content check below runs against this, because v7 is the text the site
+ * content check below runs against this, because v8 is the text the site
  * serves at /privacy.
  */
 const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
+/** v7, frozen: read by §2h, which proves the second reader's sentences are not in it. */
+const V7_FLAT = read("src/content/legal/privacy/v7.tsx").replace(/\s+/g, " ");
 /** v6, frozen: read by §1b and by §2g, which proves the new sentences are not in it. */
 const V6 = read("src/content/legal/privacy/v6.tsx");
 const V6_FLAT = V6.replace(/\s+/g, " ");
@@ -212,15 +214,15 @@ const componentPrefix = (key) => `${key[0].toUpperCase()}${key.slice(1)}Content`
 const POLICY_KEYS = Object.keys(POLICIES);
 
 describe("policy versions", () => {
-  test("privacy v7 is current, and the combined version string moved with it", () => {
-    assert.equal(currentPolicy("privacy").version, 7);
-    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.7");
+  test("privacy v8 is current, and the combined version string moved with it", () => {
+    assert.equal(currentPolicy("privacy").version, 8);
+    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.8");
   });
 
-  test("privacy v7 is dated the day its words last changed", () => {
-    const seven = POLICIES.privacy.versions.find((v) => v.version === 7);
-    assert.equal(seven?.lastUpdated, "27 October 2026");
-    assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 7).length, 1);
+  test("privacy v8 is dated the day its words last changed", () => {
+    const eight = POLICIES.privacy.versions.find((v) => v.version === 8);
+    assert.equal(eight?.lastUpdated, "28 October 2026");
+    assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 8).length, 1);
   });
 
   test("versions are newest first, which entry [0] depends on", () => {
@@ -383,6 +385,13 @@ const FROZEN_VERSIONS = new Map([
     {
       sha256: "752d84f1765d1f0353fba8169011913e40d194b33f1be4755f1c3f550f5178a4",
       why: "the application form's version, current from 7 October 2026 until v7 replaced it; the wording every member and every applicant accepted in that time, frozen when the course hub moved the version rather than editing the certificates promise in place",
+    },
+  ],
+  [
+    "privacy/v7",
+    {
+      sha256: "063bebb317d17094091103942702d6cfdb037c968c6ec10e11f10f48191ce70b",
+      why: "the course hub's version, current from 27 October 2026 until v8 replaced it; the wording members accepted while the course hub went live, frozen when the second reader of applications moved the version rather than adding two processors in place",
     },
   ],
 ]);
@@ -914,7 +923,7 @@ const MUST_NAME = [
   ["showing a programme's last term on its page, among how we use data", /Show on a programme&apos;s page how its last term went: numbers from its own surveys, and comments their writers ticked to be quoted, with no name\./],
   ["the transactional emails, that feedback is waiting among them", /Send you transactional emails you have asked for, such as RSVP confirmations, application receipts and reminders, the decision on an application, the week&apos;s course materials, that feedback on your written answer is waiting, and account-related messages\./],
   ["consent, quoting a comment among it", /<strong>Consent<\/strong> for sending you the newsletter and any other marketing-style communication, and for push notifications\. You can withdraw consent at any time using the unsubscribe link in any such email, the notification settings on your profile, or by emailing us\. Quoting a comment of yours on our site rests on your consent too, given by ticking the box under it, and if you email us we will take the quote down\. Important notices about something you have signed up for, such as an event you are attending or a course group you are in, are sent under performance of a contract rather than consent, so your notification settings do not switch them off, and they are never marketing\./],
-  ["no automated decisions, who finished and teams among them", /<strong>No automated decisions\.<\/strong> No decision about you is made solely by automated means\. Scores are given by named reviewers, and a programme&apos;s score for an application is only the average of what those reviewers gave\. Where a programme uses scores, the site shows the people reviewing its applications which ones scored highest, as a guide\. On a programme, who finished starts from the number of sessions its lead chose, and the lead can change anybody&apos;s; on an incubator, the site can put teams together from pitches or rankings when the lead asks, and the lead can move anybody before telling people their team\. Every decision is taken by a person\./],
+  ["no automated decisions, who finished and teams among them", /<strong>No automated decisions\.<\/strong> No decision about you is made solely by automated means\. Scores are given by named reviewers, and a programme&apos;s score for an application is only the average of what those reviewers gave\. Where a programme uses scores, the site shows the people reviewing its applications which ones scored highest, as a guide\. On a programme, who finished starts from the number of sessions its lead chose, and the lead can change anybody&apos;s; on an incubator, the site can put teams together from pitches or rankings when the lead asks, and the lead can move anybody before telling people their team\. Where an admin asks Claude or Pangram about an application, what they say is one view the admin weighs beside the reviewers&apos;, and nothing is done because of it alone\. Every decision is taken by a person\./],
   ["what goes to Kairos, what Kairos does with it, and why we share it", /Kairos supports AI safety groups at universities and is one of our funders\. Unless you say no, when a programme ends we send Kairos a file with, for each person on it at the end: their name, the programme, how many sessions they came to, whether they finished, and the ratings they were given at the end \(described under Ratings at the end of a programme\)\. Kairos uses it to see what its support achieves and to point promising people towards work in AI safety\. We share it because it helps us make our case to our funders and sponsors, so leaving it on helps NAISI\. It never holds your email address, your survey answers, or who gave a rating\./],
   ["how long course records are kept", /<strong>Course applications and course records\.<\/strong>\{" "\} Applications are kept against your account for as long as it exists, so you can see what you sent us and so we can make sense of a later application from the same person\. We do not strip them after a fixed period\. The scores, comments and decisions about an application are kept for as long as it is\. The same goes for the rest of your course record: attendance, written work, feedback you gave us \(survey answers, below, are the exception\), and notes written about you\. If you want any of it removed sooner, email us\./],
   ["survey answers' names come off two years on, a survey after an event's two years after the event", /<strong>Survey answers\.<\/strong> We take your name off your answers to a survey on the day it tells you, two years after the programme&apos;s last session, and delete the record that it was sent to you, with your link to answer it and what you said about follow-ups\. Your answers stay in its totals, no longer linked to you\. For the survey after an event, that day is two years after the event\./],
@@ -1288,7 +1297,7 @@ describe("the courses section", () => {
       ["the export log names the kinds that exist", /Five\s+kinds are logged today, a membership list, the\s+responses to a circulated worksheet, a programme&apos;s\s+attendance, a survey&apos;s answers and the Kairos file,/i],
       ["Google's sign-in script and where it is loaded from", /sign-in script is loaded from/i],
     ]) {
-      assert.match(CURRENT_FLAT, pattern, `v7 no longer says: ${name}`);
+      assert.match(CURRENT_FLAT, pattern, `the current version no longer says: ${name}`);
     }
   });
 });
@@ -1369,7 +1378,7 @@ describe("the notification grid passage", () => {
     assert.match(
       CURRENT_FLAT,
       /by category, with a separate email choice and notification choice for each/i,
-      "v7 no longer says a category carries an email choice AND a notification " +
+      "the current version no longer says a category carries an email choice AND a notification " +
         "choice. The grid stores two parallel maps, and the page is where a " +
         "member is told that.",
     );
@@ -1675,7 +1684,7 @@ describe("the application form passage", () => {
     assert.match(
       PAGE_FLAT,
       /whether a programme you ranked higher has accepted you, and whether your request to join NAISI is still waiting/i,
-      "v7 no longer says that the people who read an application are shown " +
+      "the current version no longer says that the people who read an application are shown " +
         "when its owner's request to join is still waiting.",
     );
     assert.match(
@@ -3015,7 +3024,7 @@ describe("the course hub passage", () => {
     assert.match(lead, /reads every register of its groups,/);
     const SHARED_BY_FACILITATORS = " the notes its groups&apos; facilitators share,";
     const SHARED_ON_WEEK_PAGES = " and the notes each of its groups shares on its week pages,";
-    assert.ok(lead.includes(`reads every register of its groups,${SHARED_BY_FACILITATORS}${SHARED_ON_WEEK_PAGES} sees the pitches`), "v7 no longer says the lead reads the notes its groups' facilitators share and the notes each group shares, right after the registers");
+    assert.ok(lead.includes(`reads every register of its groups,${SHARED_BY_FACILITATORS}${SHARED_ON_WEEK_PAGES} sees the pitches`), "the current version no longer says the lead reads the notes its groups' facilitators share and the notes each group shares, right after the registers");
     const leadWithoutSharedNotes = lead.replace(SHARED_BY_FACILITATORS, "").replace(SHARED_ON_WEEK_PAGES, "");
     assert.ok(
       !/\bnotes?\b/i.test(leadWithoutSharedNotes),
@@ -6260,7 +6269,9 @@ describe("the last pass before version 7 goes live", () => {
   // and every file it names in the tree (a bare file name somewhere under
   // src, as the items name a module beside the folder they gave).
   test("the list of changes from v6 is numbered in order, cross-refers to items that are there, and names files that exist", () => {
-    const header = CURRENT.slice(0, CURRENT.indexOf("*/"));
+    // The list is v7's own, frozen with it; v8 carries its own short list above a copy.
+    const V7 = read("src/content/legal/privacy/v7.tsx");
+    const header = V7.slice(0, V7.indexOf("*/"));
     const numbers = [...header.matchAll(/^ \* {0,2}(\d+)\. \*\*/gm)].map((m) => Number(m[1]));
     assert.ok(numbers.length >= 38, "could not find the list of changes from v6");
     assert.deepEqual(numbers, numbers.map((_, at) => at + 1), "the list of changes from v6 skips or repeats a number");
@@ -7045,5 +7056,43 @@ describe("public numbers", () => {
     assert.match(withoutComments(read("src/app/api/surveys/public-numbers/take-down/route.ts")), /await ref\.delete\(\);/);
     // An account's deletion has nothing of it to find: the record holds no respondent.
     assert.ok(!/publicNumbers|PUBLIC_NUMBERS/.test(read("src/lib/firestore/accountDeletion.ts")), "an account's deletion now reaches what was published");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2h The second reader: what v8 says about Claude and Pangram is the code's
+// ---------------------------------------------------------------------------
+
+describe("v8 names Claude and Pangram, and says what they are sent", () => {
+  const SENTENCES = [
+    "An admin can ask Claude, an AI model made by Anthropic, to read your application together with the reviewers&apos; scores and comments and write a short assessment of it, and to compare those assessments across the applications to the same programme.",
+    // Nothing in askAboutProgramme (src/lib/applications/assessment/run.ts) writes.
+    "A comparison across a programme is shown to the admin who asked and is not kept.",
+    // adviceInputFrom (src/lib/applications/arrange/advice.ts) sends group numbers, never a week.
+    "Claude is told which of the proposed groups&apos; session times each person can make, never the times you marked, and the site checks every suggestion against those times.",
+    // Nothing in src/lib/applications/arrange/ writes; Apply is the admin's press.
+    "An admin decides, and nobody is placed until they apply it.",
+    // PANGRAM_MIN_WORDS in src/lib/ai/pangram.ts.
+    "those of 50 words or more, and nothing shorter.",
+    // src/lib/applications/assessment/input.ts takes these out.
+    "What is sent leaves out your name, your email addresses, your access-requirements answer and your answer about Students&apos; Union membership, and names each reviewer only by a letter.",
+    // canRunTerm in src/lib/applications/assessment/run.ts.
+    "Only admins see what comes back.",
+    // The account deletion and the form destroy take it in the application's batch.
+    "What comes back is kept with your application, is deleted with it, and is never copied to your member record.",
+    "<strong>Anthropic</strong> provides Claude",
+    "<strong>Pangram Labs</strong> checks the longer answers on an application",
+  ];
+
+  for (const sentence of SENTENCES) {
+    test(`v8 says: ${sentence.slice(0, 60)}`, () => {
+      assert.ok(CURRENT_FLAT.includes(sentence), `v8 no longer says: ${sentence}`);
+      assert.ok(!V7_FLAT.includes(sentence), `v7 already said it, so it is not v8's change: ${sentence}`);
+    });
+  }
+
+  test("the 50 words in the policy are the code's threshold", () => {
+    const pangram = read("src/lib/ai/pangram.ts");
+    assert.match(pangram, /export const PANGRAM_MIN_WORDS = 50;/);
   });
 });

@@ -38,7 +38,7 @@ import { announcementQueueEnabled } from "@/lib/scheduler/announcementQueue";
  *
  * ── TWO PATHS OUT OF THAT CLAIM, AND A SWITCH DECIDES WHICH ────────────────
  * The send itself runs inside this request, against `apphosting.yaml`'s
- * `timeoutSeconds: 60`, which is why it carries three ceilings. The way past
+ * `timeoutSeconds` (300 since 27 October 2026, for Claude's comparisons; it was 60 when this was written, and this path still keeps inside 60), which is why it carries three ceilings. The way past
  * them is the `event-announcements` scheduler job (docs/notifications.md), and
  * this route is where the two paths part.
  *

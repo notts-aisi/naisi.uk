@@ -187,6 +187,27 @@ const READS_WITHOUT_A_LIST = new Map([
 /** Modules the walk reaches that fetch an address it cannot read, each with what they fetch and why it lists no run's groups. */
 const FETCHES_IT_CANNOT_READ = new Map([
   [
+    "src/features/applications/times/ArrangeGroups.tsx",
+    "An admin's Arrange with Claude on the Times view, at the arrangement route and the group, place and " +
+      "facilitator routes under the addresses it builds: it draws the groups in the order the arrangement route " +
+      "answers them, which is compareGroupsByMeeting's (src/lib/applications/arrange/advise.ts).",
+  ],
+  [
+    "src/features/applications/review/AssessAllBar.tsx",
+    "An admin's \"Assess the rest\" on a programme's list, at each application's assessment route under the form's " +
+      "API base it is handed: Claude's and Pangram's reads of applications, never a run's groups.",
+  ],
+  [
+    "src/features/applications/review/ProgrammeClaude.tsx",
+    "An admin's Compare and Ask on a programme's list, at the programme's assessments route it is handed: " +
+      "Claude's comparison of applications, never a run's groups.",
+  ],
+  [
+    "src/features/applications/review/AssessmentBlock.tsx",
+    "An admin's Claude and Pangram block on one application, at that application's assessment route under the " +
+      "form's API base it is handed: one application's reads, never a run's groups.",
+  ],
+  [
     "src/features/courses/WeekBlocksLoader.tsx",
     "The week loader's card, at the address it is handed (the run's week, or one group's own copy of it, on the " +
       "Weeks tab): it reads and saves one week's blocks, never a run's groups.",
