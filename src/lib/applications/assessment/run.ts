@@ -1,7 +1,14 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { claudeConfigured } from "@/lib/ai/claude";
-import { checkWriting, pangramConfigured, PANGRAM_MIN_WORDS, wordCount, worthALook } from "@/lib/ai/pangram";
+import {
+  checkWriting,
+  pangramConfigured,
+  PANGRAM_MIN_WORDS,
+  readingsForParts,
+  wordCount,
+  worthALook,
+} from "@/lib/ai/pangram";
 import type { SessionUser } from "@/lib/firebase/session";
 import { admissionAssessmentId, ASSESSMENTS_COLLECTION } from "@/lib/firestore/admissionAssessments";
 import { canRunTerm } from "../access";
@@ -11,6 +18,7 @@ import { UNNAMED_STAFF } from "../review/people";
 import { refuse } from "../review/refusals";
 import type { Refusal, ReviewPayload } from "../review/types";
 import { askForClaudeRead } from "./claudeRead";
+import { storedReadFor } from "./stored";
 import { assessmentInputFrom, withNames, type LongAnswer } from "./input";
 import { askAboutTheProgramme, askForOverview } from "./overview";
 import { namedFor, programmeInputFrom, scrubbed, type StoredFor } from "./programmeInput";
@@ -21,10 +29,10 @@ import type {
   ClaudeRead,
   OverviewEntry,
   OverviewEntryView,
-  PangramAnswer,
   PangramCheck,
   ProgrammeAsk,
   ProgrammeOverviewView,
+  StoredApplicationRead,
   StoredClaudeRead,
 } from "./types";
 
@@ -61,11 +69,9 @@ function assessmentRef(db: Firestore, roundId: string, uid: string) {
   return db.collection(ASSESSMENTS_COLLECTION).doc(admissionAssessmentId(roundId, uid));
 }
 
+/** The stored read, as one programme's screens read it (`./stored.ts`). */
 function storedReadOf(data: Raw, programmeId: string): StoredClaudeRead | null {
-  const read = asRecord(own(asRecord(data.claude), programmeId));
-  return typeof read.summary === "string" && typeof read.lean === "string"
-    ? (read as unknown as StoredClaudeRead)
-    : null;
+  return storedReadFor(data, programmeId);
 }
 
 function storedPangramOf(data: Raw): PangramCheck | null {
@@ -92,6 +98,9 @@ async function shownRead(db: Firestore, stored: StoredClaudeRead): Promise<Claud
     fit: named(stored.fit),
     toWeigh: stored.toWeigh.map(named),
     thinAnswers: stored.thinAnswers.map(named),
+    independent: stored.independent
+      ? { ...stored.independent, leanReason: named(stored.independent.leanReason), summary: named(stored.independent.summary) }
+      : null,
     model: stored.model,
     at: stored.at,
   };
@@ -100,20 +109,25 @@ async function shownRead(db: Firestore, stored: StoredClaudeRead): Promise<Claud
 async function viewOf(
   db: Firestore,
   user: SessionUser,
-  review: ReviewPayload,
+  reviews: readonly ReviewPayload[],
   data: Raw,
 ): Promise<AssessmentView> {
-  const stored = storedReadOf(data, review.programme.id);
+  const stored = storedReadOf(data, reviews[0].programme.id);
   return {
     claudeConfigured: claudeConfigured(),
     pangramConfigured: pangramConfigured(),
     claude: stored ? await shownRead(db, stored) : null,
-    claudeOutOfDate: stored ? stored.fingerprint !== assessmentInputFrom(review, user.uid).fingerprint : false,
+    claudeOutOfDate: stored ? stored.fingerprint !== assessmentInputFrom(reviews, user.uid).fingerprint : false,
     pangram: storedPangramOf(data),
   };
 }
 
-type Gated = { ok: true; review: ReviewPayload } | Refusal;
+/**
+ * The application as an admin's review screen is sent it: first under the
+ * programme the screen is open under, then under each other programme it can
+ * be opened under, which is what a read of the whole application is made of.
+ */
+type Gated = { ok: true; review: ReviewPayload; reviews: ReviewPayload[] } | Refusal;
 
 async function gate(
   db: Firestore,
@@ -125,7 +139,17 @@ async function gate(
   if (!canRunTerm(user)) return refuse(403, ONLY_ADMINS);
   const loaded = await loadReview(db, user, roundId, uid, programmeId);
   if (!loaded.ok) return loaded;
-  return { ok: true, review: loaded.review };
+  const review = loaded.review;
+  const others = [
+    ...review.applicant.ranked.map((entry) => entry.programmeId),
+    ...(review.applicant.invitedTo ? [review.applicant.invitedTo.programmeId] : []),
+  ].filter((id, i, all) => id !== review.programme.id && all.indexOf(id) === i);
+  const more = await Promise.all(others.map((id) => loadReview(db, user, roundId, uid, id)));
+  return {
+    ok: true,
+    review,
+    reviews: [review, ...more.flatMap((result) => (result.ok ? [result.review] : []))],
+  };
 }
 
 export type AssessmentResult = { ok: true; assessment: AssessmentView } | Refusal;
@@ -141,7 +165,7 @@ export async function loadAssessment(
   const gated = await gate(db, user, roundId, uid, programmeId);
   if (!gated.ok) return gated;
   const snap = await assessmentRef(db, roundId, uid).get();
-  return { ok: true, assessment: await viewOf(db, user, gated.review, asRecord(snap.data())) };
+  return { ok: true, assessment: await viewOf(db, user, gated.reviews, asRecord(snap.data())) };
 }
 
 /** Under `PANGRAM_MIN_WORDS`: answers somebody typed that are too short to check. */
@@ -157,32 +181,44 @@ function shortAnswerCount(review: ReviewPayload): number {
   return count;
 }
 
-/** Pangram on every long answer, four at a time, all inside one deadline. */
+/** What goes between two answers in the one text Pangram is sent. */
+const BETWEEN_ANSWERS = "\n\n";
+
+/**
+ * Pangram on the long answers, joined into ONE text and sent ONCE
+ * (`readingsForParts` says why, and how each answer's reading is read back).
+ * Only answers long enough to check on their own are in it: joining never
+ * puts a short answer in front of Pangram.
+ */
 async function checkLongAnswers(answers: readonly LongAnswer[]): Promise<Omit<PangramCheck, "tooShort" | "at">> {
-  const deadline = Date.now() + 45_000;
-  const checked: PangramAnswer[] = [];
-  const failed: PangramCheck["failed"] = [];
-  const queue = [...answers];
-  const worker = async () => {
-    for (let answer = queue.shift(); answer; answer = queue.shift()) {
-      const result = await checkWriting(answer.text, deadline);
-      if (result.ok) {
-        checked.push({
-          key: answer.key,
-          question: answer.question,
-          words: answer.words,
-          ...result.reading,
-          worthALook: worthALook(result.reading),
-        });
-      } else {
-        failed.push({ key: answer.key, question: answer.question, reason: result.reason });
-      }
-    }
+  if (answers.length === 0) return { answers: [], failed: [], whole: null };
+  const parts: { start: number; end: number }[] = [];
+  let text = "";
+  for (const answer of answers) {
+    if (text) text += BETWEEN_ANSWERS;
+    parts.push({ start: text.length, end: text.length + answer.text.length });
+    text += answer.text;
+  }
+  const result = await checkWriting(text, Date.now() + 150_000);
+  if (!result.ok) {
+    return {
+      answers: [],
+      failed: answers.map((answer) => ({ key: answer.key, question: answer.question, reason: result.reason })),
+      whole: null,
+    };
+  }
+  const readings = readingsForParts(parts, result.reading, result.windows);
+  return {
+    answers: answers.map((answer, i) => ({
+      key: answer.key,
+      question: answer.question,
+      words: answer.words,
+      ...readings[i],
+      worthALook: worthALook(readings[i]),
+    })),
+    failed: [],
+    whole: answers.length > 1 ? result.reading : null,
   };
-  await Promise.all(Array.from({ length: Math.min(4, answers.length) }, worker));
-  const order = new Map(answers.map((answer, i) => [answer.key, i]));
-  const byOrder = (a: { key: string }, b: { key: string }) => (order.get(a.key) ?? 0) - (order.get(b.key) ?? 0);
-  return { answers: checked.sort(byOrder), failed: failed.sort(byOrder) };
 }
 
 /** Ask Claude or Pangram, keep what came back, and answer with the screen's view. */
@@ -196,25 +232,23 @@ export async function runAssessmentPart(
 ): Promise<AssessmentResult> {
   const gated = await gate(db, user, roundId, uid, programmeId);
   if (!gated.ok) return gated;
-  const { review } = gated;
-  const input = assessmentInputFrom(review, user.uid);
+  const { review, reviews } = gated;
+  const input = assessmentInputFrom(reviews, user.uid);
   const ref = assessmentRef(db, roundId, uid);
   const at = new Date().toISOString();
 
   if (part === "claude") {
     if (!claudeConfigured()) return refuse(409, "Claude isn’t set up on this site yet.");
-    const answer = await askForClaudeRead(input.message);
+    const answer = await askForClaudeRead(input);
     if (!answer.ok) return refuse(500, answer.reason);
-    const stored: StoredClaudeRead = {
+    const stored: StoredApplicationRead = {
       ...answer.read,
       at,
       fingerprint: input.fingerprint,
       reviewerUids: input.reviewerUids,
     };
-    await ref.set(
-      { roundId, uid, claude: { [review.programme.id]: stored }, updatedAt: FieldValue.serverTimestamp() },
-      { merge: true },
-    );
+    // One read of the whole application, replacing any before it.
+    await ref.set({ roundId, uid, read: stored, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   } else {
     if (!pangramConfigured()) return refuse(409, "Pangram isn’t set up on this site yet.");
     const checked = await checkLongAnswers(input.longAnswers);
@@ -223,7 +257,7 @@ export async function runAssessmentPart(
   }
 
   const snap = await ref.get();
-  return { ok: true, assessment: await viewOf(db, user, review, asRecord(snap.data())) };
+  return { ok: true, assessment: await viewOf(db, user, reviews, asRecord(snap.data())) };
 }
 
 export type MarksResult =

@@ -6,6 +6,9 @@
 
 export type Lean = "strong" | "borderline" | "weak";
 
+/** What Claude thought on its blind first pass, before it saw the committee. */
+export type IndependentRead = { lean: Lean; leanReason: string; summary: string };
+
 /** Claude's read of one application for one programme. */
 export type ClaudeRead = {
   lean: Lean;
@@ -17,6 +20,11 @@ export type ClaudeRead = {
   fit: string;
   toWeigh: string[];
   thinAnswers: string[];
+  /**
+   * Claude's own view from the blind first pass. Null on a read made before
+   * reads had two passes.
+   */
+  independent: IndependentRead | null;
   /** The model that answered, as Anthropic reported it. */
   model: string;
   /** ISO instant. */
@@ -53,6 +61,11 @@ export type PangramCheck = {
   failed: { key: string; question: string; reason: string }[];
   /** How many answers were too short to send. */
   tooShort: number;
+  /**
+   * Pangram's reading of the long answers taken together, when there were
+   * two or more (they are sent as one text). Absent on a check made before.
+   */
+  whole?: Omit<PangramAnswer, "key" | "question" | "words" | "worthALook"> | null;
   /** ISO instant. */
   at: string;
 };
@@ -111,3 +124,27 @@ export type ProgrammeOverviewView = Omit<
 
 /** What an admin can ask of a whole programme. */
 export type ProgrammeAsk = { kind: "overview" } | { kind: "question"; question: string };
+
+/** Claude's lean and fit for one programme the applicant ranked. */
+export type ProgrammeLean = { lean: Lean; leanReason: string; fit: string };
+
+/**
+ * ONE READ OF THE WHOLE APPLICATION, as it is stored: what Claude made of the
+ * person, and a lean and fit for each programme they ranked, by programme id.
+ * Reviewers are letters, with the account each stood for kept beside them.
+ */
+export type StoredApplicationRead = {
+  summary: string;
+  strengths: string[];
+  concerns: string[];
+  reviewers: string;
+  toWeigh: string[];
+  thinAnswers: string[];
+  programmes: Record<string, ProgrammeLean>;
+  /** The blind first pass: its summary and its lean for each programme. */
+  independent: { summary: string; programmes: Record<string, { lean: Lean; leanReason: string }> } | null;
+  model: string;
+  at: string;
+  fingerprint: string;
+  reviewerUids: Record<string, string | null>;
+};

@@ -1133,7 +1133,7 @@ const BUILT = new Map([
   [
     "src/app/(app)/admin/admissions/forms/[roundId]/page.tsx",
     {
-      built: ["`${base}/setup`", "`${home}/form`", "card?.action.href ?? `${base}/applications`"],
+      built: ["`${base}/setup`", "`${home}/form`", "`${home}/intake`", "card?.action.href ?? `${base}/applications`"],
       from: "pages of this term: the term's own path and a programme's id",
     },
   ],

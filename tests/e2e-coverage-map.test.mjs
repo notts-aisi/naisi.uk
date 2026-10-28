@@ -598,6 +598,24 @@ const NOT_COVERED = {
   // The application form's review screens. The loaders and writers behind
   // every one of these are executed offline by
   // tests/applications-review-routes.test.mjs against an in-memory database.
+  "/(app)/admin/admissions/forms/[roundId]/intake": {
+    reason:
+      "An admin's page for planning the whole intake. Its first plan is the site's own draft and sends nothing; the routes it calls are executed by tests/applications-intake-plan.test.mjs and the draft by tests/applications-intake-match.test.mjs.",
+    coverWhen:
+      "With the assessment route's spec, once the harness can stand in for Anthropic and Pangram: a term with reviews, Read everyone, Plan with Claude, then Apply through the decision route.",
+  },
+  "/api/admissions/forms/[roundId]/intake": {
+    reason:
+      "An admin's plan of the whole intake, with Claude's changes and facilitator lists. It writes nothing; who may ask, what Claude is sent and what is kept of its advice are executed by tests/applications-intake-plan.test.mjs.",
+    coverWhen:
+      "With the intake page's spec above, once the harness can stand in for Anthropic.",
+  },
+  "/api/admissions/forms/[roundId]/intake/clear": {
+    reason:
+      "Deletes every stored read on a form. Who may, the confirm in the body, and that only that form's assessments go are executed by tests/applications-intake-plan.test.mjs.",
+    coverWhen:
+      "With the intake page's spec above: Clear all reads after Read everyone, then the reads are gone.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/arrangement": {
     reason:
       "An admin's proposed arrangement into groups, with Claude's facilitators and moves. It writes nothing; the plan and the checks on Claude's advice are executed by tests/applications-arrange-plan.test.mjs and tests/applications-arrange-advice.test.mjs.",

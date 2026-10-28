@@ -172,15 +172,17 @@ const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
 const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
-const CURRENT = read("src/content/legal/privacy/v8.tsx");
+const CURRENT = read("src/content/legal/privacy/v9.tsx");
 /**
  * The current policy with every run of whitespace collapsed to one space. The
  * copy is JSX, so a sentence is wrapped and indented across several lines and
  * no pattern written as a sentence would ever match the raw source. Every
- * content check below runs against this, because v8 is the text the site
+ * content check below runs against this, because v9 is the text the site
  * serves at /privacy.
  */
 const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
+/** v8, frozen: read by §2i, which proves the whole term's sentences are not in it. */
+const V8_FLAT = read("src/content/legal/privacy/v8.tsx").replace(/\s+/g, " ");
 /** v7, frozen: read by §2h, which proves the second reader's sentences are not in it. */
 const V7_FLAT = read("src/content/legal/privacy/v7.tsx").replace(/\s+/g, " ");
 /** v6, frozen: read by §1b and by §2g, which proves the new sentences are not in it. */
@@ -214,12 +216,15 @@ const componentPrefix = (key) => `${key[0].toUpperCase()}${key.slice(1)}Content`
 const POLICY_KEYS = Object.keys(POLICIES);
 
 describe("policy versions", () => {
-  test("privacy v8 is current, and the combined version string moved with it", () => {
-    assert.equal(currentPolicy("privacy").version, 8);
-    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.8");
+  test("privacy v9 is current, and the combined version string moved with it", () => {
+    assert.equal(currentPolicy("privacy").version, 9);
+    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.9");
   });
 
-  test("privacy v8 is dated the day its words last changed", () => {
+  test("privacy v9 is dated the day its words last changed", () => {
+    const nine = POLICIES.privacy.versions.find((v) => v.version === 9);
+    assert.equal(nine?.lastUpdated, "28 October 2026");
+    assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 9).length, 1);
     const eight = POLICIES.privacy.versions.find((v) => v.version === 8);
     assert.equal(eight?.lastUpdated, "28 October 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 8).length, 1);
@@ -385,6 +390,13 @@ const FROZEN_VERSIONS = new Map([
     {
       sha256: "752d84f1765d1f0353fba8169011913e40d194b33f1be4755f1c3f550f5178a4",
       why: "the application form's version, current from 7 October 2026 until v7 replaced it; the wording every member and every applicant accepted in that time, frozen when the course hub moved the version rather than editing the certificates promise in place",
+    },
+  ],
+  [
+    "privacy/v8",
+    {
+      sha256: "c37a9fc88375a76ac6dc6d4f60238b6cebeaafde236a259ea667235e7bc81f10",
+      why: "the second reader's version, current from 28 October 2026 until v9 replaced it; the wording members accepted when Claude and Pangram began reading applications, frozen when planning the whole term at once moved the version rather than adding the sentences in place",
     },
   ],
   [
@@ -7094,5 +7106,40 @@ describe("v8 names Claude and Pangram, and says what they are sent", () => {
   test("the 50 words in the policy are the code's threshold", () => {
     const pangram = read("src/lib/ai/pangram.ts");
     assert.match(pangram, /export const PANGRAM_MIN_WORDS = 50;/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2i The whole term at once: what v9 adds is the code's
+// ---------------------------------------------------------------------------
+
+describe("v9 says Claude reads blind first, and may plan the whole term", () => {
+  const SENTENCES = [
+    // askForClaudeRead in src/lib/applications/assessment/claudeRead.ts: the blind pass, then the second.
+    "Claude reads your application first on its own, and only then with the reviewers&apos; scores and comments, and its first view is kept beside the second.",
+    // loadIntake (src/lib/applications/intake/load.ts) refuses once decisions have gone out.
+    "Before decision day, an admin can also ask Claude to look across every programme at once and suggest who might suit which programme they ranked, and who would make a good facilitator, including people who did not offer to facilitate.",
+    // intakeInputFrom (src/lib/applications/intake/advice.ts) labels people "Applicant N".
+    "For that, Claude is told each applicant&apos;s ranking, each programme&apos;s decision on them so far, the reviewers&apos; scores, its own earlier assessments and whether they offered to facilitate, under a number and never a name.",
+    // Nothing in src/lib/applications/intake/ writes; Apply is the admin's press, through the decision route.
+    "Nothing changes until an admin applies the plan, and somebody who did not offer to facilitate is only ever asked.",
+  ];
+
+  for (const sentence of SENTENCES) {
+    test(`v9 says: ${sentence.slice(0, 60)}`, () => {
+      assert.ok(CURRENT_FLAT.includes(sentence), `v9 no longer says: ${sentence}`);
+      assert.ok(!V8_FLAT.includes(sentence), `v8 already said it, so it is not v9's change: ${sentence}`);
+    });
+  }
+
+  test("nothing under src/lib/applications/intake/ writes to the database", () => {
+    for (const file of ["load.ts", "advice.ts", "run.ts", "match.ts"]) {
+      const source = read(`src/lib/applications/intake/${file}`);
+      // A Firestore write, not a Map's `.set`: a document's write, a batch, a transaction or a sentinel.
+      assert.ok(
+        !/\.doc\([^)]*\)\s*\.(set|update|create|delete)\(|\.batch\(\)|runTransaction|FieldValue/.test(source),
+        `intake/${file} writes`,
+      );
+    }
   });
 });

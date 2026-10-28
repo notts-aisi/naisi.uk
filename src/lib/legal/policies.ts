@@ -78,12 +78,20 @@ export const POLICIES: Record<
     // what is left out, that only admins see what comes back, and that
     // nothing is done because of it alone.
     //
+    // v9 is the whole term's version. Claude reads an application blind
+    // first, then with its reviews, and before decision day an admin can ask
+    // it to look across every programme at once: who might suit which
+    // programme, and who would make a good facilitator, including people who
+    // did not offer. A new use of what an applicant wrote, and of each
+    // programme's decision on them, so it moved the version.
+    //
     // Keep this comment ABOVE `versions:`, never between the `[` and the first
     // `{`: tests/funnel-harness-guards.test.mjs reads the current version out
     // of this file with a regex that allows only whitespace across that gap,
     // so a comment sitting there leaves the guard unable to read the very
     // number it exists to pin. Anywhere else in the file is fine.
     versions: [
+      { version: 9, lastUpdated: "28 October 2026" },
       { version: 8, lastUpdated: "28 October 2026" },
       { version: 7, lastUpdated: "27 October 2026" },
       { version: 6, lastUpdated: "7 October 2026" },

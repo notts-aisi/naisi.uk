@@ -164,8 +164,9 @@ export default function AssessmentBlock({
       </div>
       <div className={`${screen.adminBox} ${styles.box}`}>
         <p className={styles.rule}>
-          Only admins see this. It’s a second reader to help you decide, never the decision.
-          Asking sends the answers and the reviews, with no names, to Anthropic and Pangram.
+          Only admins see this. It’s a second reader to help you decide, never the decision. Claude
+          reads the application on its own first, then again with the committee’s views. Asking sends
+          the answers and the reviews, with no names, to Anthropic and Pangram.
         </p>
 
         {loadError ? (
@@ -186,7 +187,11 @@ export default function AssessmentBlock({
             >
               {busy ? "Reading…" : claude || pangram ? "Ask again" : "Ask Claude and Pangram"}
             </button>
-            {busy ? <span className={styles.quietLine}>Claude takes up to a minute.</span> : null}
+            {busy ? (
+              <span className={styles.quietLine}>
+                Claude reads it twice: on its own first, then with the committee. One to two minutes.
+              </span>
+            ) : null}
           </div>
         )}
 
@@ -208,6 +213,12 @@ export default function AssessmentBlock({
               <Chip tone={LEAN_WORDS[claude.lean].tone}>{LEAN_WORDS[claude.lean].text}</Chip>
             </div>
             {claude.leanReason ? <p className={styles.leanReason}>{claude.leanReason}</p> : null}
+            {claude.independent ? (
+              <p className={styles.quietLine}>
+                On its own, before seeing the committee: {LEAN_WORDS[claude.independent.lean].text}
+                {claude.independent.lean !== claude.lean ? ` → ${LEAN_WORDS[claude.lean].text} after reading them.` : ", and the same after reading them."}
+              </p>
+            ) : null}
             {view?.claudeOutOfDate ? (
               <p className={styles.stale} role="note">
                 The answers or the reviews have changed since this was made. Ask again for an up-to-date read.
@@ -252,6 +263,9 @@ export default function AssessmentBlock({
               </ul>
             )}
             <p className={styles.quietLine}>
+              {pangram.whole
+                ? `Read together as one text: ${pangram.whole.headline || pangram.whole.label}. Each answer’s line is the part of that check that covers it. `
+                : ""}
               {pangram.tooShort > 0
                 ? `${pangram.tooShort} shorter ${pangram.tooShort === 1 ? "answer wasn’t" : "answers weren’t"} checked: too short to tell. `
                 : ""}
