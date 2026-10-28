@@ -204,59 +204,80 @@ export type DecisionOp = {
 };
 
 /**
- * A decision already made that the plan would have to undo: the programme,
- * and how it was decided. Apply never undoes one. The person is left for a
- * person to decide, with this said beside them.
+ * A decision already made that a placement would change: the programme, and
+ * how it was decided. The plan never changes one: the person is left for a
+ * person. An admin's own pick may, and is told which first.
  */
 export type HeldBy = { programmeId: string; standing: "accepted" | "pooled" | "declined" };
 
-export type PlanSteps = { ops: DecisionOp[]; held: HeldBy | null };
+export type PlanSteps = {
+  ops: DecisionOp[];
+  /** The plan would have to change a decision already made: nothing is done. Always null for an admin's own pick. */
+  held: HeldBy | null;
+  /** An admin's own pick: every decision already made that it changes, in ranked order. */
+  overrides: HeldBy[];
+};
+
+/** What `decisionsFor` reads of a person: their ranking, and each programme's decision so far. */
+export type Placeable = Pick<IntakePerson, "ranked"> & {
+  on: Readonly<Record<string, { standing: IntakePerson["on"][string]["standing"] }>>;
+};
 
 /**
- * The decisions that turn somebody's decisions as they stand into the plan's
- * programme for them, through the one-place rule (a person gets the highest
- * programme they ranked that accepted them, once none ranked higher still
- * owes a decision).
+ * The decisions that turn somebody's decisions as they stand into one
+ * placement, through the one-place rule (a person gets the highest programme
+ * they ranked that accepted them, once none ranked higher still owes a
+ * decision): pool what is ranked above the placement, as a better fit
+ * elsewhere, and accept the placement. Nothing ranked below it is touched. For
+ * no place, pool every programme still open to them, for capacity.
  *
- * APPLY ONLY FILLS IN DECISIONS NOBODY HAS MADE. A decision a lead or an admin
- * already made (accepted, pooled or declined) is never changed. So:
+ * THE PLAN ONLY FILLS IN DECISIONS NOBODY HAS MADE. A decision already made
+ * (accepted, pooled or declined) is never changed: a placement that needs one
+ * changed is held, and no step is taken for that person at all, so nobody is
+ * left half moved.
  *
- *  - every programme ranked above the plan's that is still undecided is
- *    pooled, as a better fit elsewhere; one ranked above it that ACCEPTED them
- *    holds the plan (taking them would mean undoing that acceptance);
- *  - the plan's programme is accepted when it is undecided, left alone when it
- *    already accepted them, and holds the plan when its lead pooled or
- *    declined them;
- *  - for no place, every undecided programme pools them for capacity, and any
- *    acceptance holds the plan;
- *  - nothing ranked below the plan's programme is touched.
- *
- * When something holds the plan, no step is taken for that person at all, so
- * Apply never leaves anybody half moved.
+ * AN ADMIN'S OWN PICK (`override`) may change them, and says which it changes
+ * (`overrides`) before anything is written: an acceptance above the pick is
+ * pooled, and a Pool or Decline on the pick itself becomes an Accept.
  */
-export function decisionsFor(person: IntakePerson, target: string | null): PlanSteps {
+export function decisionsFor(person: Placeable, target: string | null, override = false): PlanSteps {
   const ops: DecisionOp[] = [];
+  const overrides: HeldBy[] = [];
   const standingOn = (programmeId: string) => own(person.on, programmeId)?.standing ?? null;
   const hold = (programmeId: string, standing: HeldBy["standing"]): PlanSteps => ({
     ops: [],
     held: { programmeId, standing },
+    overrides: [],
   });
   if (target === null) {
     for (const programmeId of person.ranked) {
       const standing = standingOn(programmeId);
-      if (standing === "accepted") return hold(programmeId, "accepted");
-      if (standing === "to-review") ops.push({ programmeId, decision: "pool", poolReason: "capacity" });
+      if (standing === "accepted") {
+        if (!override) return hold(programmeId, "accepted");
+        overrides.push({ programmeId, standing });
+      }
+      if (standing === "to-review" || standing === "accepted") {
+        ops.push({ programmeId, decision: "pool", poolReason: "capacity" });
+      }
     }
-    return { ops, held: null };
+    return { ops, held: null, overrides };
   }
   for (const programmeId of person.ranked) {
     if (programmeId === target) break;
     const standing = standingOn(programmeId);
-    if (standing === "accepted") return hold(programmeId, "accepted");
-    if (standing === "to-review") ops.push({ programmeId, decision: "pool", poolReason: "better-fit" });
+    if (standing === "accepted") {
+      if (!override) return hold(programmeId, "accepted");
+      overrides.push({ programmeId, standing });
+    }
+    if (standing === "to-review" || standing === "accepted") {
+      ops.push({ programmeId, decision: "pool", poolReason: "better-fit" });
+    }
   }
   const here = standingOn(target);
-  if (here === "pooled" || here === "declined") return hold(target, here);
+  if (here === "pooled" || here === "declined") {
+    if (!override) return hold(target, here);
+    overrides.push({ programmeId: target, standing: here });
+  }
   if (here !== "accepted") ops.push({ programmeId: target, decision: "accept", poolReason: null });
-  return { ops, held: null };
+  return { ops, held: null, overrides };
 }

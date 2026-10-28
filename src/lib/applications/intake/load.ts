@@ -16,6 +16,7 @@ import type { Refusal } from "../review/types";
 import { scorableKeysFor, sectionScore } from "../scoring";
 import { listDecisions, listReviews, listSentApplications } from "../staffRepo";
 import { matchIntake, type MatchPerson, type Standing } from "./match";
+import { suggestionOf, type StoredSuggestion } from "./suggestion";
 
 /**
  * EVERYTHING A WHOLE-TERM PLAN IS WORKED OUT FROM, for an admin.
@@ -48,7 +49,16 @@ export type IntakePerson = {
   ranked: string[];
   on: Record<
     string,
-    { standing: Standing; lean: Lean | null; score: number | null; summary: string | null; fit: string | null; facilitates: boolean }
+    {
+      standing: Standing;
+      /** Who made the decision on this programme, or null while nobody has. */
+      byUid: string | null;
+      lean: Lean | null;
+      score: number | null;
+      summary: string | null;
+      fit: string | null;
+      facilitates: boolean;
+    }
   >;
   /** The place the decisions as they stand give them, or null. */
   placedNow: string | null;
@@ -57,6 +67,10 @@ export type IntakePerson = {
   /** Whether Claude has read the application, and whether Pangram has checked it. */
   hasRead: boolean;
   hasPangram: boolean;
+  /** How many long answers Pangram thought worth a look; null until a clean check. */
+  flags: number | null;
+  /** The last plan's suggestion for them (`./suggestion.ts`), or null. */
+  suggestion: StoredSuggestion | null;
 };
 
 export type IntakeLoaded = {
@@ -87,7 +101,8 @@ export async function loadIntake(db: Firestore, user: SessionUser, roundId: stri
 
   // Claude's stored reads, one per application, and who Pangram has checked.
   const stored = new Map<string, StoredApplicationRead>();
-  const checked = new Set<string>();
+  const checked = new Map<string, number>();
+  const suggestions = new Map<string, StoredSuggestion>();
   const uids = inTerm.map((application) => application.uid);
   for (let i = 0; i < uids.length; i += 100) {
     const refs = uids
@@ -103,8 +118,10 @@ export async function loadIntake(db: Firestore, user: SessionUser, roundId: stri
       // a check: Read everyone asks again.
       const pangram = data.pangram as { answers?: unknown; failed?: unknown } | null | undefined;
       if (pangram && Array.isArray(pangram.answers) && !(Array.isArray(pangram.failed) && pangram.failed.length > 0)) {
-        checked.add(data.uid);
+        checked.set(data.uid, (pangram.answers as { worthALook?: unknown }[]).filter((a) => a?.worthALook === true).length);
       }
+      const suggestion = suggestionOf(data);
+      if (suggestion) suggestions.set(data.uid, suggestion);
     }
   }
 
@@ -126,6 +143,7 @@ export async function loadIntake(db: Firestore, user: SessionUser, roundId: stri
         : null;
       on[programmeId] = {
         standing: standingWith(decision, programmeId) as Standing,
+        byUid: own(decision?.programmes, programmeId)?.decidedByUid || null,
         lean: read && typeof read.lean === "string" ? read.lean : null,
         score,
         summary: read && typeof read.summary === "string" ? read.summary : null,
@@ -142,6 +160,8 @@ export async function loadIntake(db: Firestore, user: SessionUser, roundId: stri
       outcomeNow: outcomeFor(ranked, decision, invitable).kind,
       hasRead: stored.has(application.uid),
       hasPangram: checked.has(application.uid),
+      flags: checked.get(application.uid) ?? null,
+      suggestion: suggestions.get(application.uid) ?? null,
     });
   }
 

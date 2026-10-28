@@ -27,6 +27,7 @@ import { hiddenReviewsLine } from "./otherReviewsWords";
 import { Avatar, Chip, Icon, Key, ScoreBox, StandingChip } from "./parts";
 import parts from "./parts.module.css";
 import AccessRequirementsBlock from "./AccessRequirementsBlock";
+import PlacementPanel from "@/features/applications/intake/PlacementPanel";
 import AssessmentBlock from "./AssessmentBlock";
 import styles from "./ReviewScreen.module.css";
 
@@ -1077,6 +1078,14 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
             Keyed by applicant and programme, because a read is of one
             application for one programme.
           */}
+          {/*
+            Where this person goes this term: the same box, read from the
+            same place, whichever programme the application is opened from.
+          */}
+          {viewer.isAdmin ? (
+            <PlacementPanel key={`placement:${applicant.uid}`} apiBase={apiBase} applicantUid={applicant.uid} />
+          ) : null}
+
           {viewer.isAdmin ? (
             <AssessmentBlock
               key={`${applicant.uid}:${programme.id}`}

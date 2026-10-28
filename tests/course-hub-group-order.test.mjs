@@ -187,6 +187,16 @@ const READS_WITHOUT_A_LIST = new Map([
 /** Modules the walk reaches that fetch an address it cannot read, each with what they fetch and why it lists no run's groups. */
 const FETCHES_IT_CANNOT_READ = new Map([
   [
+    "src/features/applications/intake/PlacementBox.tsx",
+    "One person's Placement box, at the placement route under the form address it is handed: it draws " +
+      "programmes in the order the person ranked them, and no group.",
+  ],
+  [
+    "src/features/applications/intake/PlacementPanel.tsx",
+    "Reads one person's placement for the box beside their application, at the placement route under the " +
+      "form address it is handed: no group is in what it draws.",
+  ],
+  [
     "src/features/applications/times/ArrangeGroups.tsx",
     "An admin's Arrange with Claude on the Times view, at the arrangement route and the group, place and " +
       "facilitator routes under the addresses it builds: it draws the groups in the order the arrangement route " +

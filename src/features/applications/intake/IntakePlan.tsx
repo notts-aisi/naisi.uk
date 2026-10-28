@@ -1,12 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { useHydrated } from "@/hooks/useHydrated";
-import { own } from "@/lib/applications/keys";
-import type { DecisionOp } from "@/lib/applications/intake/advice";
-import type { IntakeRow, IntakeView } from "@/lib/applications/intake/run";
+import type { PlacementView } from "@/lib/applications/intake/placement";
+import type { IntakeView } from "@/lib/applications/intake/run";
 import styles from "./IntakePlan.module.css";
+import PlacementBox from "./PlacementBox";
 
 /**
  * Plan the intake, for an admin: the whole term on one page, in the order it
@@ -14,37 +13,30 @@ import styles from "./IntakePlan.module.css";
  *
  *  1. READ EVERYONE. The browser walks the applications with no read or no
  *     clean Pangram check, two at a time, through the same assessment route
- *     the review screen uses, so each is read once and every rule that route
- *     keeps is kept. Stop halts it after the two in hand.
- *  2. PLAN. The intake route drafts who goes where; with Claude, it adds
- *     Claude's changes and facilitator lists, kept only where they fit.
- *  3. APPLY. Each person's decisions are made through the decision route, one
- *     at a time, and a person's next decision waits for their last. Nobody is
- *     emailed: decision day still does that.
+ *     the review screen uses. Stop halts it after the two in hand.
+ *  2. PLAN. Claude suggests a placement for everybody across every
+ *     programme, kept with each application, and a facilitator shortlist.
+ *  3. PLACEMENTS. Everybody as their Placement box shows them
+ *     (`./PlacementBox.tsx`, the same box beside each application): pick for
+ *     anybody, or press the one button that places everybody nobody has
+ *     placed yet as suggested. That button never changes a decision a lead or
+ *     an admin already made. Nobody is emailed: decision day does that.
  *
- * Clear all reads deletes every stored read and Pangram check on the form, so
- * the term can be read again under the same instructions.
+ * Clear all reads deletes every stored read, Pangram check and suggestion on
+ * the form, so the term can be read again under the same instructions.
  */
 
 type Sent = { ok: boolean; status: number; data: Record<string, unknown>; error: string };
-type Step = { label: string; ok: boolean; detail?: string };
 type Progress = { done: number; total: number; failed: { name: string; reason: string }[]; stopped: string | null };
+type Filter = "everyone" | "open" | "differs" | "flagged" | "fill";
 
-const STANDING: Record<string, string> = {
-  accepted: "accepted",
-  "to-review": "not decided",
-  pooled: "pooled",
-  declined: "declined",
-};
-
-/** `outcomeFor`'s kinds, for somebody with no place as the decisions stand. */
-const OUTCOME: Record<string, string> = {
-  undecided: "Not decided yet",
-  "needs-outcome": "Pooled, needs an outcome",
-  "no-offer": "Pooled, no offer",
-  invited: "Pooled, invited elsewhere",
-  declined: "Declined",
-};
+const FILTERS: { id: Filter; label: string }[] = [
+  { id: "everyone", label: "Everyone" },
+  { id: "open", label: "Not placed yet" },
+  { id: "fill", label: "The button would place" },
+  { id: "differs", label: "Suggestion differs" },
+  { id: "flagged", label: "Pangram flagged" },
+];
 
 async function send(url: string, method: string, body: unknown): Promise<Sent> {
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -59,8 +51,26 @@ async function send(url: string, method: string, body: unknown): Promise<Sent> {
 
 const money = (n: number) => `$${n.toFixed(2)}`;
 
+/** Where the decisions place somebody now, as the box compares it: a programme, "none", or null while a decision is owed. */
+const nowOf = (person: PlacementView): string | null =>
+  person.now.kind === "placed" ? person.now.programmeId : person.now.kind === "no-place" ? "none" : null;
+
+function matches(person: PlacementView, filter: Filter): boolean {
+  switch (filter) {
+    case "open":
+      return person.now.kind === "open";
+    case "fill":
+      return person.fill !== null && "ops" in person.fill;
+    case "differs":
+      return person.suggestion !== null && (person.suggestion.programmeId ?? "none") !== nowOf(person);
+    case "flagged":
+      return (person.flags ?? 0) > 0;
+    default:
+      return true;
+  }
+}
+
 export default function IntakePlan({ roundId, initial }: { roundId: string; initial: IntakeView }) {
-  const router = useRouter();
   const hydrated = useHydrated();
   const [view, setView] = useState<IntakeView>(initial);
   const [planning, setPlanning] = useState(false);
@@ -68,29 +78,27 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
   const [progress, setProgress] = useState<Progress | null>(null);
   const [reading, setReading] = useState(false);
   const stop = useRef(false);
-  const [confirming, setConfirming] = useState<"apply" | "clear" | null>(null);
-  const [applying, setApplying] = useState(false);
-  const [steps, setSteps] = useState<Step[]>([]);
-  const [showEveryone, setShowEveryone] = useState(false);
+  const [confirming, setConfirming] = useState<"fill" | "clear" | null>(null);
+  const [filling, setFilling] = useState(false);
+  const [filled, setFilled] = useState<{ placed: number; left: { name: string; why: string }[] } | null>(null);
+  const [filter, setFilter] = useState<Filter>("everyone");
   const [cleared, setCleared] = useState<string | null>(null);
 
   const form = `/api/admissions/forms/${encodeURIComponent(roundId)}`;
+  const people = view.people;
+  const nameOfUid = new Map(people.map((p) => [p.uid, p.name] as const));
   const shortOf = new Map(view.programmes.map((p) => [p.id, p.shortName] as const));
-  const nameOf = (id: string | null) => (id ? (shortOf.get(id) ?? "a closed programme") : "No place");
-  const busy = planning || reading || applying;
+  const busy = planning || reading || filling;
 
-  const unread = view.rows.filter((row) => !row.hasRead || !row.hasPangram);
-  const needClaude = view.rows.filter((row) => !row.hasRead).length;
-  const needPangram = view.rows.filter((row) => !row.hasPangram).length;
-  const changed = view.rows.filter((row) => row.ops.length > 0);
-  // People the plan would move by undoing a decision already made: Apply leaves them for a person.
-  const held = view.rows.filter((row) => row.held !== null);
-  const opCount = changed.reduce((sum, row) => sum + row.ops.length, 0);
+  const unread = people.filter((p) => !p.read.claude || !p.read.pangram);
+  const needClaude = people.filter((p) => !p.read.claude).length;
+  const needPangram = people.filter((p) => !p.read.pangram).length;
+  const toFill = people.filter((p) => p.fill !== null && "ops" in p.fill);
+  const shown = people.filter((p) => matches(p, filter));
 
   const plan = async (askClaude: boolean) => {
     setPlanning(true);
     setError(null);
-    setSteps([]);
     setConfirming(null);
     try {
       const answer = await send(`${form}/intake`, "POST", { askClaude });
@@ -117,26 +125,26 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
       stop.current = true;
     };
     const worker = async () => {
-      for (let row = queue.shift(); row && !stop.current; row = queue.shift()) {
-        const url = `${form}/applications/${encodeURIComponent(row.uid)}/assessment`;
-        const programmeId = row.ranked[0]?.programmeId ?? null;
+      for (let person = queue.shift(); person && !stop.current; person = queue.shift()) {
+        const url = `${form}/applications/${encodeURIComponent(person.uid)}/assessment`;
+        const programmeId = person.choices[0]?.programmeId ?? null;
         try {
-          if (!row.hasRead && !claudeOff) {
+          if (!person.read.claude && !claudeOff) {
             const answer = await send(url, "POST", { part: "claude", programmeId });
             if (!answer.ok) {
-              state.failed.push({ name: row.name, reason: `Claude: ${answer.error}` });
+              state.failed.push({ name: person.name, reason: `Claude: ${answer.error}` });
               if (answer.status === 409 || /refused this site/.test(answer.error)) {
                 claudeOff = true;
-                if (pangramOff || row.hasPangram) halt(`Claude: ${answer.error}`);
+                if (pangramOff || person.read.pangram) halt(`Claude: ${answer.error}`);
               }
             }
           }
-          if (!row.hasPangram && !pangramOff) {
+          if (!person.read.pangram && !pangramOff) {
             const answer = await send(url, "POST", { part: "pangram", programmeId });
             const check = (answer.data.assessment as { pangram?: { failed?: { reason: string }[] } } | undefined)?.pangram;
             const reason = !answer.ok ? answer.error : (check?.failed?.[0]?.reason ?? null);
             if (reason) {
-              state.failed.push({ name: row.name, reason: `Pangram: ${reason}` });
+              state.failed.push({ name: person.name, reason: `Pangram: ${reason}` });
               if (answer.status === 409 || /no API credit|refused this site/.test(reason)) {
                 pangramOff = true;
                 if (claudeOff) halt(`Pangram: ${reason}`);
@@ -144,7 +152,7 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
             }
           }
         } catch {
-          state.failed.push({ name: row.name, reason: "That couldn’t be sent. Check your connection." });
+          state.failed.push({ name: person.name, reason: "That couldn’t be sent. Check your connection." });
         }
         state.done += 1;
         setProgress({ ...state, failed: [...state.failed] });
@@ -157,38 +165,28 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
     await plan(false);
   };
 
-  const apply = async () => {
+  const fill = async () => {
     setConfirming(null);
-    setApplying(true);
+    setFilling(true);
     setError(null);
-    const done: Step[] = [];
-    const note = (step: Step) => {
-      done.push(step);
-      setSteps([...done]);
-    };
-    const words = (op: DecisionOp) =>
-      op.decision === "accept"
-        ? `accept on ${nameOf(op.programmeId)}`
-        : `pool on ${nameOf(op.programmeId)} (${op.poolReason === "better-fit" ? "better fit elsewhere" : "capacity"})`;
+    setFilled(null);
     try {
-      for (const row of changed) {
-        for (const op of row.ops) {
-          const answer = await send(`${form}/applications/${encodeURIComponent(row.uid)}/decision`, "PUT", {
-            programmeId: op.programmeId,
-            decision: op.decision,
-            poolReason: op.poolReason,
-          });
-          note({ label: `${row.name}: ${words(op)}`, ok: answer.ok, detail: answer.ok ? undefined : answer.error });
-          // Their next decision depends on this one: leave them for a person.
-          if (!answer.ok) break;
-        }
+      const answer = await send(`${form}/intake/fill`, "POST", {
+        people: toFill.map((p) => ({ uid: p.uid, programmeId: p.suggestion?.programmeId ?? null })),
+      });
+      if (!answer.ok) {
+        setError(answer.error);
+      } else {
+        const placed = Array.isArray(answer.data.placed) ? answer.data.placed.length : 0;
+        const left = (Array.isArray(answer.data.left) ? (answer.data.left as { uid: string; why: string }[]) : []).map(
+          (entry) => ({ name: nameOfUid.get(entry.uid) ?? entry.uid, why: entry.why }),
+        );
+        setFilled({ placed, left });
       }
-      note({ label: "Done. Nobody has been emailed: decision day tells people.", ok: true });
-      router.refresh();
     } catch {
-      note({ label: "That couldn’t be sent. Check your connection; what is ticked above was saved.", ok: false });
+      setError("That couldn’t be sent. Check your connection; anybody already placed stays placed.");
     } finally {
-      setApplying(false);
+      setFilling(false);
     }
     await plan(false);
   };
@@ -209,7 +207,11 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
     await plan(false);
   };
 
-  const rows = showEveryone ? view.rows : [...changed, ...held];
+  const replace = (next: PlacementView) =>
+    setView((was) => ({ ...was, people: was.people.map((p) => (p.uid === next.uid ? { ...next, suggestion: p.suggestion } : p)) }));
+
+  // Counts from the boxes, so a pick shows at once.
+  const placedOn = (id: string) => people.filter((p) => p.now.kind === "placed" && p.now.programmeId === id).length;
 
   return (
     <div className={styles.page}>
@@ -225,12 +227,10 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
         </h2>
         <p className={styles.line}>
           Claude reads each application once, blind first and then with the committee’s scores and comments, with a
-          lean for every programme the person ranked. Pangram checks their long answers together in one request.
-          {" "}
-          {view.rows.length - needClaude} of {view.rows.length} read by Claude, {view.rows.length - needPangram} checked by
-          Pangram.
+          lean for every programme the person ranked. Pangram checks their long answers together in one request.{" "}
+          {people.length - needClaude} of {people.length} read by Claude, {people.length - needPangram} checked by Pangram.
         </p>
-        {unread.length > 0 ? (
+        {unread.length > 0 && !reading ? (
           <p className={styles.line}>
             Roughly {money(needClaude * 0.1)} to {money(needClaude * 0.25)} of Claude credit and {money(needPangram * 0.3)} to{" "}
             {money(needPangram * 0.5)} of Pangram credit. Top Pangram up first: it stops when its credit runs out.
@@ -274,13 +274,12 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
 
       <section className={styles.panel} aria-labelledby="intake-plan">
         <h2 id="intake-plan" className={styles.title}>
-          2. Plan the intake
+          2. Plan
         </h2>
         <p className={styles.line}>
-          The draft puts each person on the highest programme they ranked that has room and would have them, preferring
-          the lead’s acceptances, then Claude’s leans, then the committee’s scores. Claude then suggests changes across
-          the term and who should facilitate. Only suggestions that fit the rankings, the leads’ declines and the places
-          are kept.
+          Claude suggests a placement for everybody, across every programme, and who should facilitate. Decisions already
+          made stand: it never suggests undoing a lead’s Accept, Pool or Decline. Its suggestions are kept with each
+          application, so they show beside it too.
         </p>
         <div className={styles.actions}>
           <button
@@ -292,7 +291,7 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
             {planning ? "Working it out…" : "Plan with Claude"}
           </button>
           <button type="button" className={styles.quiet} disabled={!hydrated || busy} onClick={() => void plan(false)}>
-            Draft only, without Claude
+            Refresh
           </button>
           {planning ? <span className={styles.line}>Claude takes a minute or two.</span> : null}
         </div>
@@ -303,8 +302,8 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
               <tr>
                 <th scope="col">Programme</th>
                 <th scope="col">Places</th>
-                <th scope="col">Hold a place now</th>
-                <th scope="col">In the plan</th>
+                <th scope="col">Placed now</th>
+                <th scope="col">Suggested</th>
               </tr>
             </thead>
             <tbody>
@@ -315,36 +314,16 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
                     {programme.note ? <span className={styles.note}>{programme.note}</span> : null}
                   </th>
                   <td>{programme.places ?? "No limit"}</td>
-                  <td>{programme.placedNow}</td>
-                  <td className={programme.places !== null && programme.inPlan > programme.places ? styles.over : undefined}>
-                    {programme.inPlan}
+                  <td className={programme.places !== null && placedOn(programme.id) > programme.places ? styles.over : undefined}>
+                    {placedOn(programme.id)}
                   </td>
+                  <td>{programme.suggested}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         {view.claude?.notes ? <p className={styles.notes}>{view.claude.notes}</p> : null}
-
-        <div className={styles.rowsHead}>
-          <h3 className={styles.subtitle}>
-            {changed.length === 0
-              ? "The plan matches the decisions as they stand"
-              : `${changed.length} ${changed.length === 1 ? "person" : "people"} whose decisions would change`}
-            {held.length > 0 ? `, and ${held.length} left for you` : ""}
-          </h3>
-          <label className={styles.toggle}>
-            <input type="checkbox" checked={showEveryone} onChange={(e) => setShowEveryone(e.target.checked)} />
-            Show everyone ({view.rows.length})
-          </label>
-        </div>
-        {rows.length > 0 ? (
-          <ul className={styles.people}>
-            {rows.map((row) => (
-              <PersonRow key={row.uid} row={row} nameOf={nameOf} />
-            ))}
-          </ul>
-        ) : null}
 
         {view.facilitators.length > 0 || view.shouldFacilitate.length > 0 ? (
           <div className={styles.facilitators}>
@@ -354,7 +333,7 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
                 <ul className={styles.list}>
                   {view.facilitators.map((f) => (
                     <li key={`${f.uid}:${f.programmeId}`}>
-                      <strong>{f.name}</strong> for {nameOf(f.programmeId)}
+                      <strong>{f.name}</strong> for {shortOf.get(f.programmeId) ?? "a programme"}
                       {f.why ? <span className={styles.line}> · {f.why}</span> : null}
                     </li>
                   ))}
@@ -367,7 +346,7 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
                 <ul className={styles.list}>
                   {view.shouldFacilitate.map((f) => (
                     <li key={`${f.uid}:${f.programmeId}`}>
-                      <strong>{f.name}</strong> for {nameOf(f.programmeId)}
+                      <strong>{f.name}</strong> for {shortOf.get(f.programmeId) ?? "a programme"}
                       {f.why ? <span className={styles.line}> · {f.why}</span> : null}
                     </li>
                   ))}
@@ -391,20 +370,20 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
         ) : null}
       </section>
 
-      <section className={styles.panel} aria-labelledby="intake-apply">
-        <h2 id="intake-apply" className={styles.title}>
-          3. Apply
+      <section className={styles.panel} aria-labelledby="intake-placements">
+        <h2 id="intake-placements" className={styles.title}>
+          3. Placements
         </h2>
         <p className={styles.line}>
-          Makes {opCount} {opCount === 1 ? "decision" : "decisions"} through the usual decision route, as you. It only
-          fills in decisions nobody has made yet: a lead’s Accept, Pool or Decline is never changed. A person whose
-          decision is refused is left for you, with why. Nobody is emailed until decision day.
+          Everybody, with where the decisions place them now and the plan’s suggestion. Pick for anybody: a pick that
+          changes somebody else’s decision says whose first, and is recorded as yours. The button places only people
+          nobody has placed yet, and never changes a decision already made. Nobody is emailed until decision day.
         </p>
         <div className={styles.actions}>
-          {confirming === "apply" ? (
+          {confirming === "fill" ? (
             <>
-              <button type="button" className={styles.button} disabled={!hydrated || busy} onClick={() => void apply()}>
-                Yes, make {opCount} {opCount === 1 ? "decision" : "decisions"}
+              <button type="button" className={styles.button} disabled={!hydrated || busy} onClick={() => void fill()}>
+                Yes, place {toFill.length} {toFill.length === 1 ? "person" : "people"}
               </button>
               <button type="button" className={styles.quiet} onClick={() => setConfirming(null)}>
                 Cancel
@@ -414,23 +393,54 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
             <button
               type="button"
               className={styles.button}
-              disabled={!hydrated || busy || opCount === 0}
-              onClick={() => setConfirming("apply")}
+              disabled={!hydrated || busy || toFill.length === 0}
+              onClick={() => setConfirming("fill")}
             >
-              {applying ? "Applying…" : "Apply this plan"}
+              {filling
+                ? "Placing…"
+                : toFill.length === 0
+                  ? "Nobody left for the button to place"
+                  : `Place the ${toFill.length} not yet placed as suggested`}
             </button>
           )}
         </div>
-        {steps.length > 0 ? (
-          <ol className={styles.steps}>
-            {steps.map((step, i) => (
-              <li key={i} className={step.ok ? styles.stepOk : styles.stepFailed}>
-                {step.ok ? "✓" : "✗"} {step.label}
-                {step.detail ? <span className={styles.line}> · {step.detail}</span> : null}
-              </li>
-            ))}
-          </ol>
+        {filled ? (
+          <div className={styles.line} role="status">
+            Placed {filled.placed}.{filled.left.length > 0 ? ` Left for you (${filled.left.length}):` : ""}
+            {filled.left.length > 0 ? (
+              <ul className={styles.list}>
+                {filled.left.map((entry, i) => (
+                  <li key={i}>
+                    {entry.name}: {entry.why}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         ) : null}
+
+        <div className={styles.filters} role="group" aria-label="Show">
+          {FILTERS.map((each) => (
+            <button
+              key={each.id}
+              type="button"
+              aria-pressed={filter === each.id}
+              className={filter === each.id ? `${styles.filter} ${styles.filterOn}` : styles.filter}
+              onClick={() => setFilter(each.id)}
+            >
+              {each.label} ({people.filter((p) => matches(p, each.id)).length})
+            </button>
+          ))}
+        </div>
+        {shown.length === 0 ? (
+          <p className={styles.line}>Nobody here.</p>
+        ) : (
+          <div className={styles.people}>
+            {shown.map((person) => (
+              <PlacementBox key={person.uid} apiBase={form} view={person} compact onPlaced={replace} />
+            ))}
+          </div>
+        )}
       </section>
 
       <section className={styles.quietPanel} aria-labelledby="intake-clear">
@@ -438,8 +448,8 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
           Clear all reads
         </h2>
         <p className={styles.line}>
-          Deletes every Claude read and Pangram check on this form, so the whole term can be read again. The
-          applications, scores and comments are untouched. Reading everyone again costs the credit above.
+          Deletes every Claude read, Pangram check and suggestion on this form, so the whole term can be read again. The
+          applications, scores, comments and decisions are untouched. Reading everyone again costs the credit above.
         </p>
         <div className={styles.actions}>
           {confirming === "clear" ? (
@@ -460,45 +470,5 @@ export default function IntakePlan({ roundId, initial }: { roundId: string; init
         </div>
       </section>
     </div>
-  );
-}
-
-function PersonRow({ row, nameOf }: { row: IntakeRow; nameOf: (id: string | null) => string }) {
-  const now = row.now.programmeId ? `On ${nameOf(row.now.programmeId)}` : (own(OUTCOME, row.now.outcome) ?? row.now.outcome);
-  return (
-    <li className={styles.person}>
-      <div className={styles.personHead}>
-        <strong>{row.name}</strong>
-        <span className={styles.line}>
-          {now} → <strong>{nameOf(row.plan)}</strong>
-          {row.hasRead ? "" : " · not read by Claude"}
-        </span>
-      </div>
-      <ol className={styles.ranked}>
-        {row.ranked.map((entry) => (
-          <li key={entry.programmeId}>
-            {entry.shortName}: {own(STANDING, entry.standing) ?? entry.standing}
-            {entry.lean ? `, Claude ${entry.lean}` : ""}
-            {entry.score !== null ? `, score ${entry.score.toFixed(1)}` : ""}
-            {entry.facilitates ? ", would facilitate" : ""}
-          </li>
-        ))}
-      </ol>
-      {row.claudeWhy ? <p className={styles.why}>Claude: {row.claudeWhy}</p> : null}
-      {row.held ? <p className={styles.held}>{row.held}</p> : null}
-      {row.ops.length > 0 ? (
-        <p className={styles.line}>
-          Apply would{" "}
-          {row.ops
-            .map((op) =>
-              op.decision === "accept"
-                ? `accept on ${nameOf(op.programmeId)}`
-                : `pool on ${nameOf(op.programmeId)} (${op.poolReason === "better-fit" ? "better fit" : "capacity"})`,
-            )
-            .join(", then ")}
-          .
-        </p>
-      ) : null}
-    </li>
   );
 }

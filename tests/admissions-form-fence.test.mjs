@@ -625,6 +625,18 @@ const ROUND_SURFACES = {
       "an admin plans the whole intake from the form's own loader (loadForm), and not found " +
       "answers a round that is not a form before anybody's application is read",
   },
+  "/api/admissions/forms/[roundId]/applications/[uid]/placement": {
+    kind: "form",
+    why:
+      "one person's placement goes through loadIntake, which starts from the form's own loader and " +
+      "answers 404 for a round that is not a form, before anybody's application is read",
+  },
+  "/api/admissions/forms/[roundId]/intake/fill": {
+    kind: "form",
+    why:
+      "the fill goes through loadIntake, which starts from the form's own loader and answers 404 for " +
+      "a round that is not a form, before anybody's application is read",
+  },
   "/api/admissions/forms/[roundId]/intake": {
     kind: "form",
     why:
