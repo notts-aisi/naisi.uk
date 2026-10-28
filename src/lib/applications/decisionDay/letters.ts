@@ -2,9 +2,11 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { admissionApplicationUrl } from "@/lib/email/admissionEmails";
 import type { ApplicationForm } from "../normalise";
+import type { DecisionEmail } from "./emailCopy";
 import { loadFirstNames } from "./people";
 import { civilDateLabel } from "./plan";
 import { programmeOf } from "./programmes";
+import type { EmailPreview } from "./views";
 
 /**
  * What every decision-day email needs to know about the form it comes from:
@@ -49,5 +51,18 @@ export async function emailContext(db: Firestore, form: ApplicationForm): Promis
       application: admissionApplicationUrl(form.round.id, "status"),
       events: `${appUrl()}/events`,
     },
+  };
+}
+
+/** An email as the page shows it: to a name, never an address. */
+export function previewOf(person: { name: string }, email: DecisionEmail): EmailPreview {
+  return {
+    kind: email.kind,
+    to: person.name,
+    subject: email.subject,
+    greeting: email.greeting,
+    paragraphs: email.paragraphs,
+    buttons: email.buttons.map((button) => ({ label: button.label, look: button.look })),
+    signOff: { name: email.signOff.name, role: email.signOff.role },
   };
 }

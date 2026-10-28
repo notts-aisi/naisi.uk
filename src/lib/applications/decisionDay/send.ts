@@ -30,13 +30,14 @@ import {
   type DecisionEmailOutcome,
 } from "./emailCopy";
 import { emailStanding, handoverAfter } from "./emailState";
-import { appUrl, emailContext, type EmailContext } from "./letters";
+import { appUrl, emailContext, previewOf, type EmailContext } from "./letters";
 import { loadAccountRoles, loadFirstNames } from "./people";
 import {
   countOf,
   emailCount,
   emailOutcomeFor,
   everybodyAddressed,
+  inviteNoteFor,
   isInTerm,
   owedBlockers,
   owedEmails,
@@ -53,7 +54,7 @@ import {
 import { DECISIONS_SENT_AUDIT_KIND, programmeOf } from "./programmes";
 import { loadTerm } from "./term";
 import { testStanding, wordingFingerprint, type TestStanding } from "./tested";
-import type { EmailPreview, ReadinessRow, SendBoard, SendGroup, SendReport } from "./views";
+import type { ReadinessRow, SendBoard, SendGroup, SendReport } from "./views";
 
 /**
  * DECISION DAY: the one send that tells every applicant what happened.
@@ -203,6 +204,7 @@ function emailFor(
     leadNames: context.leadNames,
     replyBy: context.replyBy,
     confirmBy: context.confirmBy,
+    note: outcome.kind === "invited" ? inviteNoteFor(person.decision, outcome.programmeId) : null,
     links: context.links,
   });
 }
@@ -221,18 +223,6 @@ const GROUP_OF: Record<DecisionEmailKind, Publication["kind"]> = {
 // ---------------------------------------------------------------------------
 // The page
 // ---------------------------------------------------------------------------
-
-function previewOf(person: TermPerson, email: DecisionEmail): EmailPreview {
-  return {
-    kind: email.kind,
-    to: person.name,
-    subject: email.subject,
-    greeting: email.greeting,
-    paragraphs: email.paragraphs,
-    buttons: email.buttons.map((button) => ({ label: button.label, look: button.look })),
-    signOff: { name: email.signOff.name, role: email.signOff.role },
-  };
-}
 
 function groupOf(
   context: EmailContext,

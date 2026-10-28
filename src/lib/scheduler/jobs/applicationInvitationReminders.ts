@@ -33,8 +33,10 @@ import "server-only";
  * the day stays taken.
  *
  * This is the one place outside decision day that writes to an applicant's
- * own document, and it writes that one field. It reads no decision document
- * and changes nothing the person was told.
+ * own document, and it writes that one field. It reads one decision document,
+ * the person's own, for the personal note their invitation carried (it is
+ * the invitation again, word for word), and changes nothing the person was
+ * told.
  *
  * ## The courses row is its off switch
  *
@@ -58,7 +60,7 @@ import {
 import { sendDecisionEmail } from "@/lib/applications/decisionDay/deliver";
 import { handoverAfter } from "@/lib/applications/decisionDay/emailState";
 import { appUrl, emailContext, type EmailContext } from "@/lib/applications/decisionDay/letters";
-import { civilDateLabel, firstNameOf } from "@/lib/applications/decisionDay/plan";
+import { civilDateLabel, firstNameOf, inviteNoteFor } from "@/lib/applications/decisionDay/plan";
 import {
   formRemindsInvitations,
   invitationReminderDue,
@@ -74,7 +76,7 @@ import {
 } from "@/lib/applications/normalise";
 import { applicationRef } from "@/lib/applications/repo";
 import { rankedProgrammes } from "@/lib/applications/sections";
-import { listSentApplications } from "@/lib/applications/staffRepo";
+import { listSentApplications, loadDecision } from "@/lib/applications/staffRepo";
 import { hasOptedOutOfCourseAnnouncements } from "@/lib/email/courseFacilitatorEmails";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { ROUNDS_COLLECTION } from "@/lib/firestore/admissionRounds";
@@ -128,7 +130,7 @@ type Claim =
  * the whole rule on what was read, and write today into the invitation. The
  * email is composed from that same read, so it says what is true now.
  */
-function claimToday(
+async function claimToday(
   db: Firestore,
   context: EmailContext,
   uid: string,
@@ -136,6 +138,9 @@ function claimToday(
 ): Promise<Claim> {
   const { form } = context;
   const ref = applicationRef(db, form.round.id, uid);
+  // For the personal note the invitation carried. It was fixed when the term
+  // was sent, so it is read once, outside the claim.
+  const decision = await loadDecision(db, form.round.id, uid);
   return db.runTransaction<Claim>(async (tx) => {
     const snap = await tx.get(ref);
     const application = snap.exists
@@ -158,6 +163,7 @@ function claimToday(
               : [],
             leadNames: context.leadNames,
             replyBy,
+            note: inviteNoteFor(decision, check.programmeId),
             links: context.links,
           },
           { replyBy, lastDay: check.lastDay },

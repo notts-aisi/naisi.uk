@@ -687,6 +687,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the first application form has closed on dev and a whole decision day is rehearsed there, because that rehearsal is the journey a spec would drive.",
   },
+  "/api/admissions/forms/[roundId]/pool/note": {
+    reason:
+      "The personal note in a pooled applicant's invitation: who may save or draft one, that only a save reaches the email, what Claude is sent and that its draft is kept apart are executed by tests/applications-invite-notes.test.mjs.",
+    coverWhen:
+      "With the pooled applicants route above, when a whole decision day is rehearsed on dev and the harness can stand in for Anthropic.",
+  },
   "/api/admissions/forms/[roundId]/send": {
     reason:
       "Application system: /api/admissions/forms/[roundId]/send publishes a term's outcomes and emails every applicant, so it must never be automated against a database other people are using; the send is executed by tests/applications-decision-day-send.test.mjs.",

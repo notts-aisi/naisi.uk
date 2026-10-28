@@ -699,6 +699,11 @@ const USERS = new Map([
       "refused, what Claude is sent and which decisions Apply would make are decided by the code that runs",
   ],
   [
+    "applications-invite-notes.test.mjs",
+    "executes the note routes, the words of the invitation and the send's own composer, because who " +
+      "may save or draft a note, what Claude is sent and which words reach an email are decided by the code that runs",
+  ],
+  [
     "applications-arrange-advice.test.mjs",
     "executes the pure advice module, whose imports reach the arrangement plan, because what " +
       "Claude is told and which of its suggestions are kept are decided by the code that runs",

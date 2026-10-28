@@ -12,12 +12,16 @@ import { admissionApplicationId } from "./admissionApplications";
  *   claude:  (from before reads were per application: never read, cleared
  *            with the rest by "Clear all reads")
  *   pangram: PangramCheck | null,             // the application's long answers
+ *   suggestion: StoredSuggestion,             // the intake plan's placement for them
+ *   inviteDraft: StoredInviteDraft,           // Claude's draft of an invitation's
+ *                                             // personal note: never sent
  *   updatedAt }
  * ```
  *
  * Server only, like every admissions collection: `allow read, write: if false`
- * in `firestore.rules`. Written by the assessment route, for an admin, and
- * read by it and by the programme list's marks route, for an admin. Never in
+ * in `firestore.rules`. Written by the assessment route, the intake plan and
+ * the invitation-note draft, each for an admin, and read by those and by the
+ * programme list's marks route and Pooled applicants, for an admin. Never in
  * a payload a lead or a reviewer is sent.
  *
  * It is DERIVED from the application and its reviews, so it goes wherever the

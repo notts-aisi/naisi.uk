@@ -553,6 +553,10 @@ describe("the pooled applicants page", () => {
         outcome: null,
         inviteOptions: undefined,
         told: false,
+        // Nothing is picked for her, so there is no invitation to carry a note.
+        note: null,
+        draft: null,
+        email: null,
       },
     );
     assert.deepEqual(row(view, "nina").couldSuit, [], "nobody named a programme, so the page says next term");

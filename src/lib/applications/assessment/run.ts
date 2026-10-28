@@ -154,6 +154,25 @@ async function gate(
 
 export type AssessmentResult = { ok: true; assessment: AssessmentView } | Refusal;
 
+/**
+ * The application alone, as Claude's blind first pass reads it: what the
+ * applicant wrote, and nothing the committee scored or wrote. Through the same
+ * gate as a read, for an admin, so everything a read leaves out (a name, an
+ * address, the access-requirements and Students' Union answers, the times
+ * they marked) is left out here too. For drafting an invitation's note
+ * (`../decisionDay/inviteNote.ts`).
+ */
+export async function applicationAlone(
+  db: Firestore,
+  user: SessionUser,
+  roundId: string,
+  uid: string,
+): Promise<{ ok: true; application: string } | Refusal> {
+  const gated = await gate(db, user, roundId, uid, null);
+  if (!gated.ok) return gated;
+  return { ok: true, application: assessmentInputFrom(gated.reviews, user.uid).application };
+}
+
 /** What has already been made of one application, for its review screen. */
 export async function loadAssessment(
   db: Firestore,

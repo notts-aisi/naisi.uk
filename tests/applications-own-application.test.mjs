@@ -232,6 +232,8 @@ const PLANS_THE_TERM = {
   "lib/applications/decisionDay/plan.ts#termsFor": "the one place the viewer's own application is left out",
   "lib/applications/decisionDay/pool.ts#setPooledOutcome": "the writer's own count of free places, inside its transaction",
   "lib/applications/freedPlaces/offer.ts#offerFreedPlaces": "the freed-place writer's own count of free places, inside its transaction",
+  "lib/applications/decisionDay/plan.ts#onePerson":
+    "one person's standing from their own two documents, for an invitation's note and its draft: nobody else is in it, and both refuse the caller's own id first",
 };
 
 /**

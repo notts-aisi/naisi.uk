@@ -143,6 +143,22 @@ const HANDED = {
     gatedIn: ["app/api/admissions/forms/[roundId]/pool/route.ts"],
     why: "what a pooled applicant hears is picked by an admin: the one route that calls this refuses everybody else first",
   },
+  "decisionDay/pool.ts#setInviteNote": {
+    kind: "admin",
+    own: "refuses",
+    gatedIn: ["app/api/admissions/forms/[roundId]/pool/note/route.ts"],
+    why: "the personal note in a pooled applicant's invitation is an admin's, like the invitation: the one route that calls this refuses everybody else first",
+  },
+  "decisionDay/inviteNote.ts#draftInviteNote": {
+    kind: "admin",
+    own: "refuses",
+    gatedIn: ["app/api/admissions/forms/[roundId]/pool/note/route.ts"],
+    why: "Claude drafts that note for an admin alone: this refuses anybody else before it reads, and so does the one route that calls it",
+  },
+  "decisionDay/inviteDraft.ts#loadInviteDrafts": {
+    kind: "internal",
+    why: "Claude's drafts for the pooled people the page already lists, handed their ids by buildPoolBoard, which chose them",
+  },
   "review/load.ts#loadStaffNames": {
     kind: "internal",
     why: "first names of the committee members a screen already names; it reads accounts, never an application",

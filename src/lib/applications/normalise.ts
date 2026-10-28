@@ -43,6 +43,7 @@ import {
   type FreedPlace,
   type FreedPlaceTest,
   type Invitation,
+  type InviteNote,
   type PlacementException,
   type PoolReason,
   type PooledOutcome,
@@ -686,13 +687,20 @@ function asProgrammeDecision(v: unknown): ProgrammeDecision | null {
   };
 }
 
+function asInviteNote(v: unknown): InviteNote | null {
+  const raw = asRecord(v);
+  const text = str(raw.text, APPLICATION_LIMITS.inviteNote).trim();
+  if (!text || typeof raw.setByUid !== "string" || !raw.setByUid) return null;
+  return { text, setByUid: raw.setByUid, setAt: tsToDate(raw.setAt) };
+}
+
 function asPooledOutcome(v: unknown): PooledOutcome | null {
   const raw = asRecord(v);
   if (typeof raw.setByUid !== "string" || !raw.setByUid) return null;
   const setAt = tsToDate(raw.setAt);
   if (raw.kind === "no-offer") return { kind: "no-offer", setByUid: raw.setByUid, setAt };
   if (raw.kind === "invite" && isId(raw.programmeId)) {
-    return { kind: "invite", programmeId: raw.programmeId, setByUid: raw.setByUid, setAt };
+    return { kind: "invite", programmeId: raw.programmeId, setByUid: raw.setByUid, setAt, note: asInviteNote(raw.note) };
   }
   return null;
 }
