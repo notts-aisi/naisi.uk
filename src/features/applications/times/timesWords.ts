@@ -52,6 +52,17 @@ export function saidSentence(said: number, holders: number, programmeName: strin
   return `${said} of the ${holders} people holding a place ${said === 1 ? "has" : "have"} said when they’re free.`;
 }
 
+/**
+ * Who the counts leave out: people who marked under four hours, read "from
+ * then on" and fitted to the groups the rest choose (`paintedWeek.ts`).
+ */
+export function littleMarkedSentence(littleMarked: number): string {
+  if (littleMarked === 0) return "";
+  return littleMarked === 1
+    ? "1 person marked under 4 hours, so they don’t count towards when groups meet. They’re read as free from their first time each day, and fitted to the groups the others choose."
+    : `${littleMarked} people marked under 4 hours, so they don’t count towards when groups meet. They’re read as free from their first time each day, and fitted to the groups the others choose.`;
+}
+
 /** How long the sessions counted are, and where that length came from. */
 export function lengthSentence(source: LengthSource, counted: number): string {
   const counts = `This counts ${lengthBefore(counted)} sessions`;

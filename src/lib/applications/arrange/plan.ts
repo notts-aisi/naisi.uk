@@ -21,15 +21,24 @@ import type { PaintedWeek } from "../handover/paintedWeek";
  *  3. MORE GROUPS ONLY WHEN THEY ARE NEEDED. Enough groups for everybody at
  *     the group size; any extra group meets at the next best time no group
  *     meets at, from the times picture's own count (`../handover/times.ts`).
- *  4. THE MOST CONSTRAINED ARE SEATED FIRST, then a seat is found for each
- *     of the rest by moving people already seated where that frees one
- *     (augmenting paths), so the number seated is as large as it can be.
+ *  4. EVERYBODY WHO MARKED A REAL WEEK IS SEATED BEFORE ANYBODY WHO MARKED
+ *     LITTLE TIME (under four hours: `minimal`, read "from then on" by
+ *     `../handover/paintedWeek.ts`). Within each, the most constrained first,
+ *     then a seat is found for each of the rest by moving people already
+ *     seated where that frees one (augmenting paths), so the number seated
+ *     is as large as it can be and nobody who marked a real week loses a
+ *     seat to somebody who did not.
  *  5. THEN THE GROUPS ARE EVENED OUT: somebody moves from the largest group to
  *     a smaller one they can make, while that narrows the gap.
+ *  6. SOMEBODY WHO MARKED LITTLE TIME AND STILL HAS NO SEAT goes to the
+ *     nearest group with room (`nearness`): one meeting after their first
+ *     marked time on a day they marked, then after it on another day, then
+ *     before it. They are listed as `nearUids`, so the screen says "near their
+ *     time, not in it" and somebody checks with them.
  *
- * Somebody who painted no week, or whose week makes none of the groups, is
- * left for a person to place, with that reason. Pure, with no imports beyond
- * types.
+ * Somebody who painted no week, or who marked a real week that makes none of
+ * the groups, is left for a person to place, with that reason. Pure, with no
+ * imports beyond types.
  */
 
 export type ArrangePerson = {
@@ -74,7 +83,32 @@ export type Plan = {
   unplaced: Unplaced[];
   /** People who were told their group and were left in it. */
   keptUids: string[];
+  /** People who marked little time, seated in the group nearest their time rather than one they marked (rule 6). */
+  nearUids: string[];
 };
+
+const minutesOf = (hhmm: string): number => {
+  const [h, m] = hhmm.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+
+/**
+ * How near a group is to when somebody said they are free, best first: after
+ * their first marked time on that day (0), after their earliest marked time
+ * on another day (1), before it on that day (2), before it on another (3);
+ * then by how far. Rule 6.
+ */
+export function nearness(firstMarks: readonly (number | null)[], session: SessionSlot): [number, number] {
+  const start = minutesOf(session.startTimeLocal);
+  const mark = firstMarks[session.weekday] ?? null;
+  if (mark !== null) return start >= mark ? [0, start - mark] : [2, mark - start];
+  const marks = firstMarks.filter((m): m is number => m !== null);
+  if (marks.length === 0) return [3, 0];
+  const earliest = Math.min(...marks);
+  return start >= earliest ? [1, start - earliest] : [3, earliest - start];
+}
+
+const isMinimal = (person: Pick<ArrangePerson, "week">) => person.week.kind === "given" && person.week.minimal === true;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -180,8 +214,12 @@ export function planGroups(input: {
   // Who this plan seats in each group, beside the people kept there.
   const occupants: string[][] = planned.map(() => []);
   const free = (index: number) => planned[index].room - planned[index].memberUids.length - occupants[index].length;
+  const minimalUids = new Set(toSeat.filter(isMinimal).map((person) => person.uid));
   const order = [...options.keys()].sort(
-    (a, b) => options.get(a)!.length - options.get(b)!.length || a.localeCompare(b),
+    (a, b) =>
+      Number(minimalUids.has(a)) - Number(minimalUids.has(b)) ||
+      options.get(a)!.length - options.get(b)!.length ||
+      a.localeCompare(b),
   );
   const tryToSeat = (uid: string, visited: Set<number>): boolean => {
     for (const index of options.get(uid)!) {
@@ -237,6 +275,29 @@ export function planGroups(input: {
     }
   }
 
+  // 6: somebody who marked little time and has no seat goes to the nearest group with room.
+  const nearUids: string[] = [];
+  const firstMarksOf = new Map(
+    toSeat.flatMap((person) =>
+      person.week.kind === "given" && person.week.minimal ? [[person.uid, person.week.firstMarks ?? []] as const] : [],
+    ),
+  );
+  for (const entry of [...unplaced].sort((a, b) => a.uid.localeCompare(b.uid))) {
+    const firstMarks = firstMarksOf.get(entry.uid);
+    if (!firstMarks || entry.reason === "no-week") continue;
+    const nearest = planned
+      .map((group, index) => ({ index, near: nearness(firstMarks, group.session) }))
+      .filter(({ index }) => free(index) > 0)
+      .sort(
+        (a, b) =>
+          a.near[0] - b.near[0] || a.near[1] - b.near[1] || sizeOf(a.index) - sizeOf(b.index) || a.index - b.index,
+      )[0];
+    if (!nearest) continue;
+    occupants[nearest.index].push(entry.uid);
+    nearUids.push(entry.uid);
+    unplaced.splice(unplaced.indexOf(entry), 1);
+  }
+
   planned.forEach((group, index) => {
     group.memberUids = [...group.memberUids, ...occupants[index].sort()];
   });
@@ -244,5 +305,6 @@ export function planGroups(input: {
     groups: planned,
     unplaced: unplaced.sort((a, b) => a.uid.localeCompare(b.uid)),
     keptUids,
+    nearUids: nearUids.sort(),
   };
 }

@@ -128,6 +128,13 @@
   color: var(--color-text-muted);
 }
 
+/* Placed near their time, not in it: somebody checks with them. */
+.near {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-warning, var(--color-text));
+}
+
 .dropped summary {
   cursor: pointer;
   font-size: 14px;

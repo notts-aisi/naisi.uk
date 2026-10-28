@@ -688,7 +688,7 @@ describe("7. the page hands its controls what the records say, and each dialog s
     const open = dialogText(setup, controls.ChangeDialog, { group: monday });
     assert.match(
       open.text,
-      /^Change Monday evening’s time Day Monday Tuesday Wednesday Thursday Friday Saturday Sunday Starts at Like 6pm or 6:30pm\. 2 of 3 can make it /,
+      /^Change Monday evening’s time Day Monday Tuesday Wednesday Thursday Friday Saturday Sunday Starts at Like 6pm or 6:30pm\. 1 of 2 can make it /,
     );
     assert.ok(open.text.includes(words.EMAILS_NOBODY));
     assert.match(open.text, /Cancel Change the time$/);
@@ -710,7 +710,8 @@ describe("7. the page hands its controls what the records say, and each dialog s
     assert.match(open.html, /value="Group D"/);
     assert.match(open.html, /value="8"/);
     assert.match(open.html, /<option value="90" selected="">90 minutes<\/option>/);
-    assert.match(open.text, /1 of 3 can make it/);
+    // Out of the two who choose when groups meet: Dev marked under four hours.
+    assert.match(open.text, /1 of 2 can make it/);
     assert.ok(open.text.includes(words.ADDS_EMAILS_NOBODY), "a new group's dialog says what adding it does");
     assert.ok(!open.text.includes(words.EMAILS_NOBODY), "a new group's dialog talks of changing a time");
     assert.match(open.text, /Cancel Add the group$/);

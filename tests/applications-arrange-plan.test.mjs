@@ -135,3 +135,95 @@ test("whoever is seated can make their group", () => {
     assert.ok(group.memberUids.length <= group.room);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Somebody who marked little time (under four hours in the week)
+// ---------------------------------------------------------------------------
+
+const availability = await loadTs("lib/admissions/availability.ts");
+const { paintedWeekOf, LITTLE_MARKED_MINUTES } = await loadTs("lib/applications/handover/paintedWeek.ts");
+const { nearness } = await loadTs("lib/applications/arrange/plan.ts");
+const { timesPicture } = await loadTs("lib/applications/handover/times.ts");
+
+/** The form's grid: 09:00 to 21:00 in quarter hours. */
+const GRID = { version: 1, startMinute: 540, endMinute: 1260, slotMinutes: 15 };
+
+/** A sent application whose week marks `[weekday, from, to]` ranges (minutes past midnight). */
+function sentWith(...ranges) {
+  const count = (GRID.endMinute - GRID.startMinute) / GRID.slotMinutes;
+  const days = Array.from({ length: 7 }, () => Array.from({ length: count }, () => false));
+  for (const [weekday, from, to] of ranges) {
+    for (let m = from; m < to; m += GRID.slotMinutes) days[weekday][(m - GRID.startMinute) / GRID.slotMinutes] = true;
+  }
+  return { sent: { availability: { ...GRID, days: availability.encodeMask(days, GRID) } } };
+}
+const at = (weekday, hhmm, minutes = 120) => ({ weekday, startTimeLocal: hhmm, durationMinutes: minutes });
+
+test("an hour on three evenings is under four hours, so it is read as free from then until the grid closes", () => {
+  const week = paintedWeekOf(GRID, sentWith([1, 18 * 60, 19 * 60], [3, 18 * 60, 19 * 60], [4, 18 * 60, 19 * 60]));
+  assert.equal(LITTLE_MARKED_MINUTES, 240);
+  assert.equal(week.minimal, true);
+  assert.equal(week.covers(at(1, "18:00")), true, "Monday 6pm to 8pm: from their hour onwards");
+  assert.equal(week.covers(at(1, "19:00")), true, "Monday 7pm to 9pm, ending as the grid closes");
+  assert.equal(week.covers(at(1, "17:00")), false, "before their hour");
+  assert.equal(week.covers(at(2, "19:00")), false, "a day they marked nothing");
+  assert.deepEqual(week.firstMarks, [null, 1080, null, 1080, 1080, null, null]);
+});
+
+test("a real week is read exactly as marked", () => {
+  const week = paintedWeekOf(GRID, sentWith([1, 17 * 60, 21 * 60], [3, 17 * 60, 21 * 60]));
+  assert.equal(week.minimal, false);
+  assert.equal(week.covers(at(1, "18:00")), true);
+  assert.equal(week.covers(at(2, "18:00")), false);
+  assert.equal(week.covers(at(1, "10:00")), false);
+});
+
+test("people who marked little time do not choose when groups meet", () => {
+  const people = [
+    { uid: "a", name: "a", week: paintedWeekOf(GRID, sentWith([2, 17 * 60, 21 * 60])) },
+    { uid: "m", name: "m", week: paintedWeekOf(GRID, sentWith([1, 18 * 60, 19 * 60])) },
+  ];
+  const picture = timesPicture({ grid: GRID, minutes: 120, people, groups: [] });
+  assert.equal(picture.said, 2);
+  assert.equal(picture.littleMarked, 1);
+  const total = picture.counts.flat().reduce((sum, n) => sum + n, 0);
+  const tuesday = picture.counts.map((row) => row[1]).reduce((sum, n) => sum + n, 0);
+  assert.equal(total, tuesday, "only the real week's Tuesday is counted; the little-marked Monday chooses nothing");
+});
+
+test("everybody who marked a real week is seated before anybody who marked little time", () => {
+  // One seat on Tuesday. The little-marked person could make it too, but the real week gets it.
+  const real = person("z-real", freeAt(TUE_18));
+  const little = person("a-little", { ...freeAt(TUE_18), minimal: true, firstMarks: [null, null, 1080, null, null, null, null] });
+  const groups = [{ id: "tue", name: "Tue", session: slotFor(TUE_18, MINUTES), capacity: 1 }];
+  // No spare start times, so no group is added: the one seat is the question.
+  const result = plan([little, real], groups, { best: [] });
+  assert.deepEqual(result.groups[0].memberUids, ["z-real"]);
+  assert.deepEqual(result.unplaced, [{ uid: "a-little", reason: "no-room" }]);
+  assert.deepEqual(result.nearUids, []);
+});
+
+test("somebody who marked little time and fits no group goes to the nearest one after their time, flagged", () => {
+  // Marked Wednesday 7pm. Groups meet Tuesday 6pm and Thursday 6pm: neither is a Wednesday.
+  const little = person("m", { kind: "given", covers: () => false, minimal: true, firstMarks: [null, null, null, 1140, null, null, null] });
+  const groups = [
+    { id: "tue", name: "Tue", session: slotFor(TUE_18, MINUTES), capacity: 3 },
+    { id: "thu", name: "Thu", session: slotFor(THU_18, MINUTES), capacity: 3 },
+  ];
+  const result = plan([little], groups);
+  assert.deepEqual(result.nearUids, ["m"]);
+  assert.deepEqual(result.unplaced, []);
+  assert.ok(result.groups.some((g) => g.memberUids.includes("m")));
+  // Nearness: after their time on their own day first, then after it on another day, then before.
+  assert.deepEqual(nearness([null, null, null, 1140, null, null, null], slotFor({ weekday: 3, start: 1200 }, 90)), [0, 60]);
+  assert.deepEqual(nearness([null, null, null, 1140, null, null, null], slotFor({ weekday: 3, start: 1080 }, 90)), [2, 60]);
+  assert.deepEqual(nearness([null, null, null, 1140, null, null, null], slotFor({ weekday: 4, start: 1200 }, 90)), [1, 60]);
+  assert.deepEqual(nearness([null, null, null, 1140, null, null, null], slotFor({ weekday: 4, start: 1080 }, 90)), [3, 60]);
+});
+
+test("somebody who marked a real week that fits no group is still left for a person", () => {
+  const groups = [{ id: "tue", name: "Tue", session: slotFor(TUE_18, MINUTES), capacity: 3 }];
+  const result = plan([person("r", freeAt(WED_18))], groups);
+  assert.deepEqual(result.unplaced, [{ uid: "r", reason: "fits-none" }]);
+  assert.deepEqual(result.nearUids, []);
+});

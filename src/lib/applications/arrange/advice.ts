@@ -53,6 +53,7 @@ export function adviceInputFrom(input: {
   });
 
   const kept = new Set(input.plan.keptUids);
+  const near = new Set(input.plan.nearUids);
   const describe = (uid: string, here: number | null): string => {
     const person = input.people.get(uid)!;
     const others = input.plan.groups
@@ -63,9 +64,11 @@ export function adviceInputFrom(input: {
       `${labelOf.get(uid)}:`,
       person.facilitates ? "would like to facilitate." : "has not offered to facilitate.",
       kept.has(uid) ? "Already told their group, so stays." : others.length ? `Can also make ${others.join(", ")}.` : "Can make no other group.",
+      person.week.kind === "given" && person.week.minimal ? "Marked under 4 hours in the week, so read as free from their first time each day." : "",
+      near.has(uid) ? "Placed near their time, not in it: none of the groups is at a time they marked." : "",
       read ? `Lean ${read.lean}. ${read.summary.replace(/\bReviewer [A-Z]\b/g, "a reviewer")}` : "Not read by Claude.",
     ];
-    return `- ${parts.join(" ")}`;
+    return `- ${parts.filter(Boolean).join(" ")}`;
   };
 
   const lines = [

@@ -850,13 +850,20 @@ function minutesOf(hhmm) {
   return hour * 60 + minute;
 }
 
-/** Free from half an hour before each group's session until half an hour after it. */
+/**
+ * Free from an hour and a half before each group's session until an hour
+ * after it: four hours round a ninety-minute session, so every week here is a
+ * real week, read exactly as painted. A week under four hours is read "from
+ * then on" and kept out of the times picture's counts
+ * (`src/lib/applications/handover/paintedWeek.ts`); the unit suites cover
+ * that, and these worlds keep to weeks whose groups follow from the plan.
+ */
 function weekFor(canMake, groups) {
   return paintWeek(
     canMake.map((key) => {
       const group = groups.find((g) => g.key === key);
       const start = minutesOf(group.startTimeLocal);
-      return [group.weekday, start - 30, start + group.durationMinutes + 30];
+      return [group.weekday, start - 90, start + group.durationMinutes + 60];
     }),
   );
 }
