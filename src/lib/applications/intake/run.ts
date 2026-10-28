@@ -4,8 +4,11 @@ import { askClaudeForJson, claudeConfigured } from "@/lib/ai/claude";
 import type { SessionUser } from "@/lib/firebase/session";
 import { own } from "../keys";
 import type { Refusal } from "../review/types";
-import { applyIntakeAdvice, decisionsFor, intakeInputFrom, type DecisionOp, type IntakeAdvice } from "./advice";
-import { loadIntake } from "./load";
+import { admissionAssessmentId, ASSESSMENTS_COLLECTION } from "@/lib/firestore/admissionAssessments";
+import { applyIntakeAdvice, intakeInputFrom, type IntakeAdvice } from "./advice";
+import { decidersNames, keptSuggestion, placementViewOf, type PlacementView } from "./placement";
+import type { StoredSuggestion } from "./suggestion";
+import { loadIntake, type IntakePerson } from "./load";
 
 /**
  * A PLAN FOR THE WHOLE TERM, for an admin: the draft (`./match.ts`), then,
@@ -73,29 +76,19 @@ function adviceFrom(value: unknown): IntakeAdvice | null {
   };
 }
 
-export type IntakeRow = {
-  uid: string;
-  name: string;
-  /** Their ranking, with each programme's decision so far. */
-  ranked: { programmeId: string; shortName: string; standing: string; lean: string | null; score: number | null; facilitates: boolean }[];
-  now: { programmeId: string | null; outcome: string };
-  plan: string | null;
-  /** Whether Claude moved them from the draft, and why. */
-  claudeWhy: string | null;
-  /** What Apply would decide for them. Empty when nothing changes, and when a decision already made holds the plan. */
-  ops: DecisionOp[];
-  /**
-   * When the plan would have to undo a decision already made, which one, in
-   * a sentence: Apply leaves this person for a person. Null otherwise.
-   */
-  held: string | null;
-  hasRead: boolean;
-  hasPangram: boolean;
-};
-
 export type IntakeView = {
-  programmes: { id: string; shortName: string; places: number | null; placedNow: number; inPlan: number; note: string | null }[];
-  rows: IntakeRow[];
+  programmes: {
+    id: string;
+    shortName: string;
+    places: number | null;
+    /** How many the decisions as they stand place on it. */
+    placedNow: number;
+    /** How many the suggestions put on it. */
+    suggested: number;
+    note: string | null;
+  }[];
+  /** Everybody in the term, each as their Placement box shows them (`./placement.ts`). */
+  people: PlacementView[];
   facilitators: { uid: string; name: string; programmeId: string; why: string }[];
   shouldFacilitate: { uid: string; name: string; programmeId: string; why: string }[];
   claude: { notes: string; dropped: { suggestion: string; why: string }[] } | null;
@@ -103,6 +96,29 @@ export type IntakeView = {
 };
 
 export type IntakeResult = { ok: true; intake: IntakeView } | Refusal;
+
+/**
+ * Keep each person's suggestion with their application (`./suggestion.ts`),
+ * on their assessment document, so it is there wherever they are opened.
+ * The one write under this folder: it changes no decision.
+ */
+async function keepSuggestions(
+  db: Firestore,
+  roundId: string,
+  entries: readonly { uid: string; suggestion: StoredSuggestion }[],
+): Promise<void> {
+  for (let i = 0; i < entries.length; i += 400) {
+    const batch = db.batch();
+    for (const { uid, suggestion } of entries.slice(i, i + 400)) {
+      batch.set(
+        db.collection(ASSESSMENTS_COLLECTION).doc(admissionAssessmentId(roundId, uid)),
+        { roundId, uid, suggestion },
+        { merge: true },
+      );
+    }
+    await batch.commit();
+  }
+}
 
 export async function planIntake(
   db: Firestore,
@@ -114,10 +130,8 @@ export async function planIntake(
   if (!loaded.ok) return loaded;
   const { programmes, people, draft } = loaded.intake;
   const nameOf = new Map(people.map((p) => [p.uid, p.name] as const));
-  const shortOf = new Map(programmes.map((p) => [p.id, p.shortName] as const));
 
-  let final = new Map(draft);
-  let why = new Map<string, string>();
+  let suggested: Map<string, PlacementView["suggestion"]> | null = null;
   let facilitators: IntakeView["facilitators"] = [];
   let shouldFacilitate: IntakeView["shouldFacilitate"] = [];
   let claude: IntakeView["claude"] = null;
@@ -139,8 +153,14 @@ export async function planIntake(
     const applied = applyIntakeAdvice({ programmes, people, draft, labels, advice });
     const named = (text: string) =>
       text.replace(/\bApplicant (\d+)\b/g, (w) => nameOf.get(own(labels.applicants, w) ?? "") ?? w);
-    final = applied.final;
-    why = new Map(applied.changes.map((c) => [c.uid, named(c.why)]));
+    const why = new Map(applied.changes.map((c) => [c.uid, named(c.why)]));
+    const at = new Date().toISOString();
+    const kept = people.map((person) => ({
+      uid: person.uid,
+      suggestion: { programmeId: applied.final.get(person.uid) ?? null, why: why.get(person.uid) ?? "", at },
+    }));
+    await keepSuggestions(db, loaded.intake.roundId, kept);
+    suggested = new Map(kept.map(({ uid, suggestion }) => [uid, { ...suggestion, source: "claude" as const }]));
     facilitators = applied.facilitators.map((f) => ({ ...f, name: nameOf.get(f.uid) ?? "", why: named(f.why) }));
     shouldFacilitate = applied.shouldFacilitate.map((f) => ({ ...f, name: nameOf.get(f.uid) ?? "", why: named(f.why) }));
     for (const entry of advice.programmes) {
@@ -153,41 +173,17 @@ export async function planIntake(
     };
   }
 
-  const rows: IntakeRow[] = people
-    .map((person) => {
-      const plan = final.get(person.uid) ?? null;
-      const steps = decisionsFor(person, plan);
-      const heldName = steps.held ? (shortOf.get(steps.held.programmeId) ?? "another programme") : "";
-      return {
-        uid: person.uid,
-        name: person.name,
-        ranked: person.ranked.flatMap((programmeId) => {
-          const on = own(person.on, programmeId);
-          const shortName = shortOf.get(programmeId);
-          return on && shortName
-            ? [{ programmeId, shortName, standing: on.standing, lean: on.lean, score: on.score, facilitates: on.facilitates }]
-            : [];
-        }),
-        now: { programmeId: person.placedNow, outcome: person.outcomeNow },
-        plan,
-        claudeWhy: why.get(person.uid) ?? null,
-        ops: steps.ops,
-        held: steps.held
-          ? steps.held.standing === "accepted"
-            ? `${heldName} has already accepted them. The plan would undo that, so it’s left for you.`
-            : `${heldName}’s lead ${steps.held.standing === "pooled" ? "pooled" : "declined"} them. The plan would undo that, so it’s left for you.`
-          : null,
-        hasRead: person.hasRead,
-        hasPangram: person.hasPangram,
-      };
-    })
-    // The people whose decisions would change first, then those left for a person, then by name.
-    .sort(
-      (a, b) =>
-        Number(b.ops.length > 0) - Number(a.ops.length > 0) ||
-        Number(b.held !== null) - Number(a.held !== null) ||
-        a.name.localeCompare(b.name),
-    );
+  // Each person's suggestion: the plan just made, else the one kept from the
+  // last plan, else the site's draft (shown, never kept).
+  const suggestionFor = (person: IntakePerson): PlacementView["suggestion"] =>
+    suggested?.get(person.uid) ??
+    keptSuggestion(person) ?? { programmeId: draft.get(person.uid) ?? null, why: "", at: "", source: "draft" };
+  const names = await decidersNames(db, people);
+  const views = people
+    .map((person) =>
+      placementViewOf(person, { roundId: loaded.intake.roundId, programmes, names, suggestion: suggestionFor(person) }),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name, "en") || a.uid.localeCompare(b.uid));
 
   return {
     ok: true,
@@ -197,10 +193,10 @@ export async function planIntake(
         shortName: p.shortName,
         places: p.places,
         placedNow: p.placedNow,
-        inPlan: [...final.values()].filter((id) => id === p.id).length,
+        suggested: views.filter((view) => view.suggestion?.programmeId === p.id).length,
         note: notes.get(p.id) ?? null,
       })),
-      rows,
+      people: views,
       facilitators,
       shouldFacilitate,
       claude,

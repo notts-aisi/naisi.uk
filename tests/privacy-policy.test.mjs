@@ -7163,8 +7163,17 @@ describe("v9 says Claude reads blind first, and may plan the whole term", () => 
     });
   }
 
-  test("nothing under src/lib/applications/intake/ writes to the database", () => {
-    for (const file of ["load.ts", "advice.ts", "run.ts", "match.ts"]) {
+  test("nothing under src/lib/applications/intake/ writes to the database but a suggestion, and the decisions an admin places", () => {
+    // run.ts keeps each person's suggestion with their application (on the
+    // assessment document, as a read is kept), and only that field.
+    const run = read("src/lib/applications/intake/run.ts");
+    assert.match(run, /batch\.set\(\s*db\.collection\(ASSESSMENTS_COLLECTION\)[\s\S]*?\{ roundId, uid, suggestion \},\s*\{ merge: true \},?\s*\)/);
+    assert.equal((run.match(/\.batch\(\)/g) ?? []).length, 1);
+    // placement.ts writes decisions only through the decision route's own writer, as the admin who pressed.
+    const placement = read("src/lib/applications/intake/placement.ts");
+    assert.ok(!/\.doc\([^)]*\)\s*\.(set|update|create|delete)\(|\.batch\(\)|runTransaction|FieldValue/.test(placement), "placement.ts writes by itself");
+    assert.match(placement, /decideApplication\(db, user, roundId, uid, \{/);
+    for (const file of ["load.ts", "advice.ts", "match.ts", "suggestion.ts"]) {
       const source = read(`src/lib/applications/intake/${file}`);
       // A Firestore write, not a Map's `.set`: a document's write, a batch, a transaction or a sentinel.
       assert.ok(

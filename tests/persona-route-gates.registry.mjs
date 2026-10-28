@@ -829,6 +829,28 @@ export const ROUTES = {
         "signed-in persona meets the same 400 on an empty one.",
     },
   },
+  "/api/admissions/forms/[roundId]/applications/[uid]/placement": {
+    GET: {
+      expect: adminOnly(404),
+      why:
+        "One person's placement is an admin's alone, decided on the session before anything is read; " +
+        "the admin is then told the form is missing.",
+    },
+    PUT: {
+      expect: adminOnly(400),
+      why:
+        "Placing somebody is admin only, decided before the body is read; the admin then meets the " +
+        "body check, which an empty body fails before anything is read or written.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/intake/fill": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "The one-button fill is admin only, decided before the body is read; the admin then meets the " +
+        "body check, which an empty body fails before anything is read or written.",
+    },
+  },
   "/api/admissions/forms/[roundId]/intake": {
     POST: {
       expect: adminOnly(400),

@@ -68,6 +68,7 @@ const STYLESHEETS = [
   "./ReviewScreen.module.css",
   "./AccessRequirementsBlock.module.css",
   "./AssessmentBlock.module.css",
+  "./PlacementBox.module.css",
   "./MemberText.module.css",
 ];
 const made = makeFreedWorld("__freedPageWorld", [
