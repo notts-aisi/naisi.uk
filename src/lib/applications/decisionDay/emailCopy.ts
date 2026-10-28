@@ -60,6 +60,14 @@ import { programmeOf } from "./programmes";
  * paragraph about replying and the line under the button on the person's own
  * page both take it from there.
  *
+ * ## An invitation may carry a personal note
+ *
+ * An admin can save a few sentences for one pooled applicant on why the
+ * programme they are invited to suits them (`PooledOutcome.note`). It goes
+ * under the invitation's first paragraph, in that person's email and in its
+ * daily reminder, and in nothing else. Claude may have drafted the words, but
+ * only an admin's Save puts them here (`./pool.ts`, `./inviteNote.ts`).
+ *
  * ## An email changes nothing by being opened
  *
  * Every button is a link to a page. The reply buttons go to the person's own
@@ -132,6 +140,13 @@ export type ComposeInput = {
    * place is presumed, and the email says nobody needs to reply.
    */
   confirmBy?: string | null;
+  /**
+   * An invitation's personal note, as an admin saved it
+   * (`PooledOutcome.note`): a few sentences on why the programme suits them.
+   * Absent or empty: the invitation reads as it always has. Nothing else
+   * carries one.
+   */
+  note?: string | null;
   links: {
     /** The person's own application page. */
     application: string;
@@ -353,6 +368,18 @@ function acceptedEmail(input: ComposeInput, programme: ProgrammeSettings): Decis
   };
 }
 
+/**
+ * An invitation's personal note, under its first paragraph: after the
+ * paragraph that says why they are invited, and before the one that asks for
+ * their answer, in the standard wording and a programme's own alike. Typed by
+ * an admin, so it is cut into paragraphs at blank lines like any wording.
+ */
+function withNote(paragraphs: string[], note: string | null | undefined): string[] {
+  const own = paragraphsOf(note ?? "");
+  if (own.length === 0) return paragraphs;
+  return [...paragraphs.slice(0, 1), ...own, ...paragraphs.slice(1)];
+}
+
 function invitationEmail(input: ComposeInput, programme: ProgrammeSettings): DecisionEmail {
   const applied = input.ranked
     .map((programmeId) => programmeOf(input.form, programmeId))
@@ -363,13 +390,16 @@ function invitationEmail(input: ComposeInput, programme: ProgrammeSettings): Dec
     kind: "invitation",
     subject: programmeEmailSubject(input.form, programme, "invitation"),
     greeting: greetingFor(input.firstName),
-    paragraphs: paragraphsOr(programme.emailWording.invitation, [
-      `${thanks} The pool was really strong and we don’t have space for you this time, ` +
-        `but we think you’d be a great fit for the ${programme.name} instead.`,
-      input.replyBy
-        ? `Accept your invitation by ${input.replyBy} to let us know you’re coming.`
-        : "Accept your invitation to let us know you’re coming.",
-    ]),
+    paragraphs: withNote(
+      paragraphsOr(programme.emailWording.invitation, [
+        `${thanks} The pool was really strong and we don’t have space for you this time, ` +
+          `but we think you’d be a great fit for the ${programme.name} instead.`,
+        input.replyBy
+          ? `Accept your invitation by ${input.replyBy} to let us know you’re coming.`
+          : "Accept your invitation to let us know you’re coming.",
+      ]),
+      input.note,
+    ),
     buttons: [
       { label: "Accept your invitation", href: input.links.application, look: "primary" },
       { label: "No thanks", href: input.links.application, look: "quiet" },

@@ -1,10 +1,11 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { claudeConfigured } from "@/lib/ai/claude";
 import { formatRoundDate } from "@/lib/admissions/window";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import { freePlaces, isPooled } from "../decisions";
 import { own } from "../keys";
-import type { ApplicationDoc, DecisionDoc, ReviewDoc } from "../model";
+import { APPLICATION_LIMITS, type ApplicationDoc, type DecisionDoc, type ReviewDoc } from "../model";
 import {
   isApplicationForm,
   normaliseApplication,
@@ -19,12 +20,16 @@ import { gaveBackOf } from "../status/reasons";
 import { standingOf } from "../status/standing";
 import { POOL_REASON_LABEL } from "../words";
 import { studyLine } from "./boardWords";
+import { composeDecisionEmail } from "./emailCopy";
+import { loadInviteDrafts, type StoredInviteDraft } from "./inviteDraft";
+import { emailContext, previewOf, type EmailContext } from "./letters";
 import { loadFirstNames } from "./people";
 import {
   civilDateLabel,
   invitableFor,
   inviteProblem,
   isInTerm,
+  onePerson,
   planTerm,
   poolProblem,
   type PoolChoice,
@@ -77,18 +82,37 @@ import type { PoolBoard, PoolComment, PoolLeftRow, PoolProgramme, PoolRow } from
  *  - EVERY CHANGE IS LOGGED: who picked, for whom, and when, as one audit row
  *    in the same transaction. The row names the applicant by uid and not by
  *    name, so the log does not keep somebody's name after their account goes.
+ *
+ * ## An invitation's personal note
+ *
+ * {@link setInviteNote} is the one writer of the few sentences an admin adds
+ * to one person's invitation email (`PooledOutcome.note`), under the same
+ * rules: admins only, never the caller's own, nobody already told, nothing
+ * once the term is sent, one audit row (which says a note was written, never
+ * what it says). The note belongs to the invitation it was written for:
+ * picking another programme, or no offer, replaces the outcome whole and the
+ * note goes with it. Claude may draft the words (`./inviteNote.ts`), and its
+ * draft is kept apart, on the assessment document, where nothing sends it.
  */
 
 // ---------------------------------------------------------------------------
 // The page
 // ---------------------------------------------------------------------------
 
+type RowExtras = {
+  comments: PoolComment[];
+  context: EmailContext;
+  /** Who saved each note, by first name. */
+  names: ReadonlyMap<string, string>;
+  draft: StoredInviteDraft | null;
+};
+
 function rowFor(
   form: ApplicationForm,
   term: Term,
   person: TermPerson,
   application: ApplicationDoc | undefined,
-  comments: PoolComment[],
+  { comments, context, names, draft }: RowExtras,
 ): PoolRow {
   const about = application?.sent?.aboutYou;
   const reasons: string[] = [];
@@ -109,6 +133,23 @@ function rowFor(
   } else if (person.outcome.kind === "no-offer") {
     outcome = { kind: "no-offer" };
   }
+
+  const invitedTo = outcome?.kind === "invite" ? outcome.programmeId : null;
+  const picked = person.decision?.pooledOutcome ?? null;
+  const saved = invitedTo && picked?.kind === "invite" && picked.programmeId === invitedTo ? picked.note : null;
+  const email = invitedTo
+    ? composeDecisionEmail({
+        outcome: { kind: "invited", programmeId: invitedTo },
+        firstName: person.firstName,
+        form: context.form,
+        ranked: person.ranked,
+        leadNames: context.leadNames,
+        replyBy: context.replyBy,
+        confirmBy: context.confirmBy,
+        note: saved?.text ?? null,
+        links: context.links,
+      })
+    : null;
 
   return {
     uid: person.uid,
@@ -131,6 +172,9 @@ function rowFor(
           shortName: shortNameOf(form, programmeId),
         })),
     told,
+    note: saved ? { text: saved.text, by: names.get(saved.setByUid) ?? "" } : null,
+    draft: invitedTo && draft?.programmeId === invitedTo ? { text: draft.text, basis: draft.basis } : null,
+    email: email ? previewOf(person, email) : null,
   };
 }
 
@@ -185,10 +229,17 @@ export async function buildPoolBoard(
     list.push(review);
     written.set(review.applicantUid, list);
   }
-  const reviewers = await loadFirstNames(
-    db,
-    [...written.values()].flat().map((review) => review.reviewerUid),
-  );
+  // Only the people with an invitation picked can have a note or a draft.
+  const invited = pooled.filter((person) => person.outcome.kind === "invited");
+  const noteSetters = invited.flatMap((person) => {
+    const picked = person.decision?.pooledOutcome;
+    return picked?.kind === "invite" && picked.note ? [picked.note.setByUid] : [];
+  });
+  const [reviewers, context, drafts] = await Promise.all([
+    loadFirstNames(db, [...[...written.values()].flat().map((review) => review.reviewerUid), ...noteSetters]),
+    emailContext(db, form),
+    loadInviteDrafts(db, form.round.id, invited.map((person) => person.uid)),
+  ]);
   const commentsOf = (uid: string): PoolComment[] =>
     (written.get(uid) ?? [])
       .sort((a, b) => (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0))
@@ -230,8 +281,14 @@ export async function buildPoolBoard(
     ownApplication,
     programmes,
     rows: pooled.map((person) =>
-      rowFor(form, term, person, applications.get(person.uid), commentsOf(person.uid)),
+      rowFor(form, term, person, applications.get(person.uid), {
+        comments: commentsOf(person.uid),
+        context,
+        names: reviewers,
+        draft: drafts.get(person.uid) ?? null,
+      }),
     ),
+    claudeConfigured: claudeConfigured(),
     // Listed, and not counted: they left the term when they replied.
     left: term.left
       .filter((person) => isPooled(person.outcome))
@@ -414,5 +471,101 @@ export async function setPooledOutcome(
       );
     }
     return { ok: true, changed } satisfies PoolWrite;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// An invitation's personal note
+// ---------------------------------------------------------------------------
+
+/** The most a note may say. */
+export const INVITE_NOTE_LIMIT = APPLICATION_LIMITS.inviteNote;
+
+/**
+ * Save the personal note in one pooled applicant's invitation email, or take
+ * it off with an empty `text`. The note is written as the caller's, whoever
+ * drafted the words, and is sent on decision day with the invitation it was
+ * saved with. Nobody is told anything now.
+ */
+export async function setInviteNote(
+  db: Firestore,
+  actor: PoolActor,
+  roundId: string,
+  applicantUid: string,
+  text: string,
+): Promise<PoolWrite> {
+  // Before anything is read, as for an outcome.
+  if (applicantUid === actor.uid) return refuse(403, OWN_APPLICATION);
+  const note = text.replace(/\r\n?/g, "\n").trim();
+  if (note.length > INVITE_NOTE_LIMIT) {
+    return refuse(400, `Keep the note to ${INVITE_NOTE_LIMIT} characters.`);
+  }
+  const form = await loadForm(db, roundId);
+  if (!form) return refuse(404, "There is no application form here.");
+
+  return db.runTransaction(async (tx) => {
+    const formSnap = await tx.get(formRef(db, roundId));
+    if (!formSnap.exists || !isApplicationForm(formSnap.data())) {
+      return refuse(404, "There is no application form here.");
+    }
+    const live = normaliseForm(formSnap.id, formSnap.data());
+    if (live.decisionsSentAt) return refuse(409, pickedNoMore(live.round.label));
+
+    const [applicationSnap, decisionSnap] = await Promise.all([
+      tx.get(applicationRef(db, roundId, applicantUid)),
+      tx.get(decisionRef(db, roundId, applicantUid)),
+    ]);
+    const application = applicationSnap.exists
+      ? normaliseApplication(applicationSnap.id, applicationSnap.data(), live.round.availabilityGrid)
+      : null;
+    if (!application || !isInTerm(application)) {
+      return refuse(404, "Nobody by that id has an application on this form.");
+    }
+    // This one person's standing: whether they are pooled, and told, reads
+    // nobody else's decisions.
+    const decision = decisionSnap.exists ? normaliseDecision(decisionSnap.id, decisionSnap.data()) : null;
+    const person = onePerson(live, application, decision);
+    if (!person) return refuse(404, "Nobody by that id has an application on this form.");
+    const notPooled = poolProblem(live, person);
+    if (notPooled) return refuse(409, notPooled);
+    const picked = person.decision?.pooledOutcome ?? null;
+    if (person.outcome.kind !== "invited" || picked?.kind !== "invite") {
+      return refuse(409, `Pick an invitation for ${person.name} first: a note goes with an invitation.`);
+    }
+    if ((picked.note?.text ?? "") === note) return { ok: true, changed: 0 } satisfies PoolWrite;
+
+    tx.set(
+      decisionRef(db, roundId, applicantUid),
+      {
+        roundId,
+        uid: applicantUid,
+        // The invitation as it was picked, with the note beside it.
+        pooledOutcome: {
+          kind: "invite",
+          programmeId: picked.programmeId,
+          setByUid: picked.setByUid,
+          setAt: picked.setAt,
+          note: note ? { text: note, setByUid: actor.uid, setAt: FieldValue.serverTimestamp() } : null,
+        },
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { mergeFields: OUTCOME_FIELDS },
+    );
+    // What the note says stays out of the log: it is about the applicant.
+    tx.create(db.collection(COURSE_AUDIT_COLLECTION).doc(), {
+      kind: POOLED_OUTCOME_AUDIT_KIND,
+      runId: "",
+      roundId,
+      groupId: null,
+      subjectUid: applicantUid,
+      actorUid: actor.uid,
+      actorName: actor.displayName ?? "",
+      targetLabel: live.round.label,
+      detail: note
+        ? `Saved the personal note in a pooled applicant’s invitation to ${shortNameOf(live, picked.programmeId)}.`
+        : `Took the personal note off a pooled applicant’s invitation to ${shortNameOf(live, picked.programmeId)}.`,
+      at: FieldValue.serverTimestamp(),
+    });
+    return { ok: true, changed: 1 } satisfies PoolWrite;
   });
 }

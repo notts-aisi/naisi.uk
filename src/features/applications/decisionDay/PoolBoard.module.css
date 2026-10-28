@@ -283,6 +283,16 @@
   border-color: var(--color-border-strong);
 }
 
+/* A person with an invitation picked: their note sits under them, as one row. */
+.hasNote td {
+  border-bottom: 0;
+  padding-bottom: 6px;
+}
+
+.noteRow td {
+  padding-top: 0;
+}
+
 .empty {
   padding: var(--space-8) 10px;
   text-align: center;

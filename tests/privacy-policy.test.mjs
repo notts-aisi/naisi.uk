@@ -172,15 +172,17 @@ const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
 const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
-const CURRENT = read("src/content/legal/privacy/v10.tsx");
+const CURRENT = read("src/content/legal/privacy/v11.tsx");
 /**
  * The current policy with every run of whitespace collapsed to one space. The
  * copy is JSX, so a sentence is wrapped and indented across several lines and
  * no pattern written as a sentence would ever match the raw source. Every
- * content check below runs against this, because v10 is the text the site
+ * content check below runs against this, because v11 is the text the site
  * serves at /privacy.
  */
 const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
+/** v10, frozen: read by §2k, which proves the invitation's note is not in it. */
+const V10_FLAT = read("src/content/legal/privacy/v10.tsx").replace(/\s+/g, " ");
 /** v9, frozen: read by §2j, which proves confirming a place is not in it. */
 const V9_FLAT = read("src/content/legal/privacy/v9.tsx").replace(/\s+/g, " ");
 /** v8, frozen: read by §2i, which proves the whole term's sentences are not in it. */
@@ -218,12 +220,15 @@ const componentPrefix = (key) => `${key[0].toUpperCase()}${key.slice(1)}Content`
 const POLICY_KEYS = Object.keys(POLICIES);
 
 describe("policy versions", () => {
-  test("privacy v10 is current, and the combined version string moved with it", () => {
-    assert.equal(currentPolicy("privacy").version, 10);
-    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.10");
+  test("privacy v11 is current, and the combined version string moved with it", () => {
+    assert.equal(currentPolicy("privacy").version, 11);
+    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.11");
   });
 
-  test("privacy v10 is dated the day its words last changed", () => {
+  test("privacy v11 is dated the day its words last changed", () => {
+    const eleven = POLICIES.privacy.versions.find((v) => v.version === 11);
+    assert.equal(eleven?.lastUpdated, "28 October 2026");
+    assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 11).length, 1);
     const ten = POLICIES.privacy.versions.find((v) => v.version === 10);
     assert.equal(ten?.lastUpdated, "28 October 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 10).length, 1);
@@ -395,6 +400,13 @@ const FROZEN_VERSIONS = new Map([
     {
       sha256: "752d84f1765d1f0353fba8169011913e40d194b33f1be4755f1c3f550f5178a4",
       why: "the application form's version, current from 7 October 2026 until v7 replaced it; the wording every member and every applicant accepted in that time, frozen when the course hub moved the version rather than editing the certificates promise in place",
+    },
+  ],
+  [
+    "privacy/v10",
+    {
+      sha256: "e4ce29daa6b37f328eadca0ca4276ccf6ec189539164109f988b3fe673f22add",
+      why: "the confirming-a-place version, current from 28 October 2026 until v11 replaced it; the wording members accepted when a place could be confirmed by a day, frozen when a personal note with an invitation moved the version rather than adding the paragraph in place",
     },
   ],
   [
@@ -7218,5 +7230,55 @@ describe("v10 says how a place is confirmed, and that somebody who did not offer
     }
     const job = read("src/lib/scheduler/jobs/applicationPlaceConfirmations.ts");
     assert.deepEqual([...job.matchAll(/tx\.update\(ref, \{ (\w+):/g)].map((m) => m[1]), ["confirmReminderOn", "confirmReminderOn"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2k A personal note with an invitation: v11's words are the code's
+// ---------------------------------------------------------------------------
+
+describe("v11 says an invitation may carry a note an admin saved, which Claude may have drafted", () => {
+  const SENTENCES = [
+    // PooledOutcome.note, under the invitation's first paragraph (emailCopy.ts withNote).
+    "If you are invited to a programme you did not rank, an admin may add a few sentences of their own to the invitation email on why we think that programme suits you, drawn from your application.",
+    // inviteNote.ts: the application alone (assessment/run.ts applicationAlone) and the programmes' descriptions.
+    "For that, Claude is sent your application alone, as for its first reading, with the descriptions of the programmes, and never the reviewers&apos; scores or comments.",
+    // inviteDraft on the assessment document; setInviteNote is the only writer of the note.
+    "Claude&apos;s draft is shown only to admins and is never sent unless an admin saves it:",
+    "This is the one place words Claude drafted can reach you.",
+    // inviteNoteFor in the send and in the invitation reminder job.
+    "The saved note is kept with the record of the decisions about you and is repeated in any reminder about the invitation;",
+    "Both are deleted with your application.",
+  ];
+
+  for (const sentence of SENTENCES) {
+    test(`v11 says: ${sentence.slice(0, 60)}`, () => {
+      assert.ok(CURRENT_FLAT.includes(sentence), `v11 no longer says: ${sentence}`);
+      assert.ok(!V10_FLAT.includes(sentence), `v10 already said it, so it is not v11's change: ${sentence}`);
+    });
+  }
+
+  test("what Claude drafts is written only beside its read, and what an email carries comes only from the saved note", () => {
+    const strip = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    // The draft's one write: the assessment document, merged, as `inviteDraft`.
+    const drafting = strip(read("src/lib/applications/decisionDay/inviteNote.ts"));
+    assert.deepEqual([...drafting.matchAll(/\.set\(\s*\{([^}]*)\}/g)].map((m) => m[1].trim()), [
+      "roundId, uid: applicantUid, inviteDraft: draft, updatedAt: FieldValue.serverTimestamp()",
+    ]);
+    assert.match(drafting, /\.collection\(ASSESSMENTS_COLLECTION\)/);
+    assert.doesNotMatch(drafting, /decisionRef\([^)]*\)\s*,\s*\{|tx\.set|\.update\(/, "drafting writes nothing but the draft");
+    // Claude is sent the application alone: never the committee's part of a read.
+    assert.match(drafting, /applicationAlone\(/);
+    assert.doesNotMatch(drafting, /\.committee\b|\.message\b/);
+    const alone = strip(read("src/lib/applications/assessment/run.ts"));
+    assert.match(alone, /application: assessmentInputFrom\(gated\.reviews, user\.uid\)\.application/);
+    // An email's note is read through one function, from the saved note on the invitation.
+    const plan = strip(read("src/lib/applications/decisionDay/plan.ts"));
+    assert.match(plan, /return picked\.note\?\.text \?\? null;/);
+    for (const file of ["src/lib/applications/decisionDay/send.ts", "src/lib/scheduler/jobs/applicationInvitationReminders.ts"]) {
+      const source = strip(read(file));
+      assert.match(source, /note: [^\n]*inviteNoteFor\(/, `${file} takes the note from the saved invitation`);
+      assert.doesNotMatch(source, /inviteDraft/, `${file} never reads a draft`);
+    }
   });
 });

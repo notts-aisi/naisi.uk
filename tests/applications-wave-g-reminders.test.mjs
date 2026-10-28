@@ -629,6 +629,31 @@ describe("a run on the day after decision day", () => {
     assert.equal(db.counters.writes, 1);
   });
 
+  test("the reminder repeats the personal note the invitation carried, and only that invitation's", async () => {
+    const DECISION = `admissionDecisions/${ROUND}__oliver`;
+    const note = "Your classifier is the kind of thing this programme builds on.";
+    const invite = (programmeId) => ({
+      roundId: ROUND,
+      uid: "oliver",
+      programmes: {},
+      pooledOutcome: { kind: "invite", programmeId, setByUid: "zach", setAt: DECISION_DAY, note: { text: note, setByUid: "zach", setAt: DECISION_DAY } },
+      exception: null,
+    });
+    const db = makeDb(seed({ [DECISION]: invite(TAIS) }));
+    await run(db, SAT);
+    const text = await render(globalThis.__rmMail.calls[0].react, { plainText: true });
+    assert.ok(text.includes(note), "the note is in the reminder");
+    assert.ok(text.indexOf(note) < text.indexOf("Accept your invitation by Sun 25 Oct"));
+    assert.deepEqual(db.read(DECISION), invite(TAIS), "and the decision document is only read");
+
+    // A note saved with an invitation to something else is not this invitation's.
+    globalThis.__rmMail = { calls: [], verdict: null };
+    const other = makeDb(seed({ [DECISION]: invite(AGI) }));
+    await run(other, SAT);
+    const plain = await render(globalThis.__rmMail.calls[0].react, { plainText: true });
+    assert.ok(!plain.includes(note));
+  });
+
   test("a second run the same day sends nothing more", async () => {
     const db = makeDb(seed());
     await run(db, SAT);

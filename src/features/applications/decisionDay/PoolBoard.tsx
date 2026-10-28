@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import InitialsChip from "@/components/ui/InitialsChip";
 import Select from "@/components/ui/Select";
 import kit from "@/features/applications/kit/kit.module.css";
@@ -19,6 +19,7 @@ import type {
 } from "@/lib/applications/decisionDay/views";
 import shared from "./decisionDay.module.css";
 import Icon from "./Icon";
+import InviteNote from "./InviteNote";
 import { Page, Pill } from "./parts";
 import styles from "./PoolBoard.module.css";
 
@@ -38,6 +39,13 @@ import styles from "./PoolBoard.module.css";
  *
  * This page only records what each person will hear. They hear it on decision
  * day, from the send.
+ *
+ * ## A personal note with an invitation
+ *
+ * Under each person with an invitation picked, a few sentences of the
+ * admin's own on why that programme suits them can be saved, and go in the
+ * invitation email (`InviteNote.tsx`). Claude can draft them, one person at a
+ * time or "the rest" in turn; a draft is never sent until somebody saves it.
  *
  * ## Nobody disappears
  *
@@ -90,13 +98,18 @@ export default function PoolBoard({ initial }: { initial: Board }) {
   const [filter, setFilter] = useState<string>("all");
   const [saving, setSaving] = useState<Saving>("saved");
   const [problem, setProblem] = useState<string | null>(null);
+  /** "Draft the rest": who Claude is drafting for now, and how far through it is. */
+  const [drafting, setDrafting] = useState<{ uid: string; done: number; total: number } | null>(null);
   // A select is live only once the page's script is running: before that a
   // change would be lost without a word.
   const hydrated = useHydrated();
 
   const sent = board.sentOn !== null;
   const told = board.rows.filter((row) => row.told).length;
-  const busy = saving === "saving";
+  const busy = saving === "saving" || drafting !== null;
+  const invited = board.rows.filter((row) => row.outcome?.kind === "invite");
+  const withNote = invited.filter((row) => row.note !== null).length;
+  const toDraft = invited.filter((row) => !row.told && row.note === null && row.draft === null);
   const shown =
     filter === "all" ? board.rows : board.rows.filter((row) => row.ranked[0]?.programmeId === filter);
   const waiting = board.counts.needsOutcome;
@@ -124,6 +137,32 @@ export default function PoolBoard({ initial }: { initial: Board }) {
       setProblem("Could not reach the site to save that. Check your connection and try again.");
       setSaving("failed");
     }
+  }
+
+  /** Claude drafts a note for everybody invited with neither a note nor a draft, one at a time. */
+  async function draftTheRest() {
+    const uids = toDraft.map((row) => row.uid);
+    setProblem(null);
+    for (let at = 0; at < uids.length; at += 1) {
+      setDrafting({ uid: uids[at], done: at, total: uids.length });
+      try {
+        const response = await fetch(`/api/admissions/forms/${encodeURIComponent(board.roundId)}/pool/note`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ uid: uids[at] }),
+        });
+        const answer = (await response.json().catch(() => null)) as { board?: Board; error?: string } | null;
+        if (!response.ok || !answer?.board) {
+          setProblem(`${answer?.error ?? "Claude couldn’t draft a note."} The rest were left.`);
+          break;
+        }
+        setBoard(answer.board);
+      } catch {
+        setProblem("Could not reach the site. Check your connection and try again.");
+        break;
+      }
+    }
+    setDrafting(null);
   }
 
   function pick(row: PoolRow, value: string) {
@@ -249,8 +288,13 @@ export default function PoolBoard({ initial }: { initial: Board }) {
                       ?.shortName ?? "that programme";
                   options.unshift({ value, label: `Invite to ${name}` });
                 }
+                const invitedId = row.outcome?.kind === "invite" ? row.outcome.programmeId : null;
+                const invitedTo = invitedId
+                  ? (board.programmes.find((programme) => programme.id === invitedId)?.shortName ?? "that programme")
+                  : null;
                 return (
-                  <tr key={row.uid}>
+                  <Fragment key={row.uid}>
+                  <tr className={invitedTo ? styles.hasNote : undefined}>
                     <td>
                       <div className={styles.person}>
                         <span className={styles.personDisc}>
@@ -331,6 +375,22 @@ export default function PoolBoard({ initial }: { initial: Board }) {
                       </div>
                     </td>
                   </tr>
+                  {invitedTo ? (
+                    <tr className={styles.noteRow}>
+                      <td colSpan={6}>
+                        <InviteNote
+                          roundId={board.roundId}
+                          row={row}
+                          programme={invitedTo}
+                          claudeConfigured={board.claudeConfigured}
+                          locked={!hydrated || sent || row.told}
+                          drafting={drafting?.uid === row.uid}
+                          onBoard={setBoard}
+                        />
+                      </td>
+                    </tr>
+                  ) : null}
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -351,7 +411,22 @@ export default function PoolBoard({ initial }: { initial: Board }) {
             <p className={styles.totalsNote}>
               Showing {shown.length} of {board.rows.length}. Anyone without an invitation gets “No
               offer this time”.
+              {invited.length > 0
+                ? ` ${withNote} of ${invited.length} ${invited.length === 1 ? "invitation carries" : "invitations carry"} a personal note.`
+                : ""}
             </p>
+            {board.claudeConfigured && toDraft.length > 0 && !sent ? (
+              <button
+                type="button"
+                className={`${shared.quiet} ${styles.everyone}`}
+                disabled={!hydrated || busy}
+                onClick={() => void draftTheRest()}
+              >
+                {drafting
+                  ? `Claude is drafting notes: ${drafting.done + 1} of ${drafting.total}…`
+                  : `Draft notes with Claude for the ${toDraft.length} ${toDraft.length === 1 ? "invitation" : "invitations"} without one`}
+              </button>
+            ) : null}
             {waiting > 0 && !sent ? (
               <button
                 type="button"

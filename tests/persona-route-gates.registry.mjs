@@ -881,6 +881,20 @@ export const ROUTES = {
         "the admin meets the validation. A pooled outcome has to say who it is for.",
     },
   },
+  "/api/admissions/forms/[roundId]/pool/note": {
+    PUT: {
+      expect: adminOnly(400),
+      why:
+        "Saving an invitation's personal note is admin only, decided before the body is read; the " +
+        "admin then meets the body check, which an empty body fails before anything is read or written.",
+    },
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Asking Claude to draft that note is admin only, decided before the body is read; the admin " +
+        "then meets the body check, which an empty body fails before anything is read or sent to Claude.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]": {
     GET: {
       expect: signedIn(404),

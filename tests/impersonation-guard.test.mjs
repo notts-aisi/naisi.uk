@@ -371,6 +371,7 @@ const MUST_GUARD = [
     "switches what every reviewer on the form is shown on a first review",
   ],
   ["src/app/api/admissions/forms/[roundId]/pool/route.ts", "picks what a pooled applicant will hear on decision day, recorded under whoever the session says is acting"],
+  ["src/app/api/admissions/forms/[roundId]/pool/note/route.ts", "saves the personal note in a pooled applicant's invitation as the session's own words, or asks Claude to draft one"],
   ["src/app/api/admissions/forms/[roundId]/send/route.ts", "publishes every applicant's outcome and emails them, which cannot be unsent"],
   ["src/app/api/admissions/forms/[roundId]/send/test/route.ts", "sends a decision-day email to the address on the session, which during view-as is the member's, and records on the form who tested and when"],
   ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/test-email/route.ts", "sends one of a programme's decision emails to the address on the session, which during view-as is the member's"],
