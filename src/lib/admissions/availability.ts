@@ -364,6 +364,39 @@ export function maskCoversSession(
   return true;
 }
 
+/** How many minutes somebody marked across the whole week. */
+export function markedMinutes(mask: AvailabilityMask, fallback?: AvailabilityGrid): number {
+  const grid = gridOf(mask, fallback);
+  return isUsableGrid(grid) ? markedSlotCount(mask, fallback) * grid.slotMinutes : 0;
+}
+
+/** Each weekday's first marked minute, Sunday first as the mask is, or null for a day with nothing marked. */
+export function firstMarkedMinutes(mask: AvailabilityMask, fallback?: AvailabilityGrid): (number | null)[] {
+  const grid = gridOf(mask, fallback);
+  if (!isUsableGrid(grid)) return Array.from({ length: AVAILABILITY_DAYS }, () => null);
+  return decodeMask(mask.days, grid).map((column) => {
+    const first = column.indexOf(true);
+    return first < 0 ? null : grid.startMinute + first * grid.slotMinutes;
+  });
+}
+
+/**
+ * The week read "from then on": on each day somebody marked anything, free
+ * from their first marked slot until the grid closes. How a short mark is
+ * read for somebody who marked little time in all (a single hour on several
+ * evenings usually means "any time after then"); see
+ * `src/lib/applications/handover/paintedWeek.ts`.
+ */
+export function fromFirstMark(mask: AvailabilityMask, fallback?: AvailabilityGrid): AvailabilityMask {
+  const grid = gridOf(mask, fallback);
+  if (!isUsableGrid(grid)) return mask;
+  const days = decodeMask(mask.days, grid).map((column) => {
+    const first = column.indexOf(true);
+    return first < 0 ? column : column.map((_, i) => i >= first);
+  });
+  return { ...grid, days: encodeMask(days, grid) };
+}
+
 // ---------------------------------------------------------------------------
 // Normalisers
 // ---------------------------------------------------------------------------

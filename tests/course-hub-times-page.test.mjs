@@ -174,6 +174,14 @@ function flagReviewers() {
   for (const uid of ["claudia", "lloyd", "tess"]) world.db.poke(`users/${uid}`, { admissionsReviewer: true });
 }
 
+/*
+ * In the world, Dev marked under four hours (Monday 18:00 to 19:30), so Dev
+ * is read "from then on" (`paintedWeek.ts`): free from 18:00 on Mondays, and
+ * left out of the counts that choose when groups meet. Amara and Tariq marked
+ * real weeks; Tariq's Monday evening hour is half of the Monday evening
+ * session, which is not the session.
+ */
+
 beforeEach(() => {
   reset(namedSeed());
   flagReviewers();
@@ -203,7 +211,7 @@ describe("the Groups tab is the lead's and an admin's, decided before anybody is
     const drawn = await draw("claudia");
     assert.equal(drawn.to, null);
     assert.match(drawn.text, /Who can make a 90-minute session starting at…/);
-    assert.match(drawn.text, /Monday 6pm: 2 of 3 free\. Monday evening meets then\./);
+    assert.match(drawn.text, /Monday 6pm: 1 of 2 free\. Monday evening meets then\./);
     assert.equal(drawn.wrote, false);
     // Arrange with Claude asks Claude about named people, which is an admin's alone.
     assert.doesNotMatch(drawn.text, /Arrange with Claude/);
@@ -329,12 +337,13 @@ describe("who is counted is who holds a place", () => {
   test("the people holding a place, and the ones who said when they are free", async () => {
     const { text: said } = await draw("zach");
     assert.match(said, /3 of the 4 people holding a place have said when they’re free\. Sessions last 90 minutes\./);
-    // Amara and Dev can make the whole of Monday 18:00 to 19:30. Tariq has
-    // half of it. Nina, who gave her place back and painted the same Monday
-    // as Amara, is not counted.
-    assert.match(said, /Monday 6pm: 2 of 3 free\. Monday evening meets then\./);
-    assert.match(said, /Thursday 10am: 1 of 3 free\. Thursday morning meets then\./);
-    assert.match(said, /Monday 9am: 0 of 3 free/);
+    // Dev marked under four hours, so the cells count Amara and Tariq.
+    // Nina, who gave her place back and painted the same Monday as Amara, is
+    // not counted.
+    assert.match(said, /1 person marked under 4 hours, so they don’t count towards when groups meet\./);
+    assert.match(said, /Monday 6pm: 1 of 2 free\. Monday evening meets then\./);
+    assert.match(said, /Thursday 10am: 1 of 2 free\. Thursday morning meets then\./);
+    assert.match(said, /Monday 9am: 1 of 2 free/, "Tariq's Monday morning");
   });
 
   test("nobody who does not hold a place is named or counted", async () => {
@@ -355,12 +364,14 @@ describe("who is counted is who holds a place", () => {
   test("an invitation is counted once it is accepted, and not before", async () => {
     const before = await draw("zach");
     assert.ok(!before.text.includes("Ines"));
-    assert.match(before.text, /Monday 6pm: 2 of 3 free/);
+    assert.match(before.text, /Monday 6pm: 1 of 2 free/);
     const accepted = await reply("ines", { reply: "accept-invitation" });
     assert.equal(accepted.status, 200);
     const after = await draw("zach");
     assert.match(after.text, /4 of the 5 people holding a place have said when they’re free\./);
-    assert.match(after.text, /Monday 6pm: 3 of 4 free\. Monday evening meets then\./);
+    // Ines marked under four hours too: she is counted among those who said, and fitted to the groups.
+    assert.match(after.text, /2 people marked under 4 hours/);
+    assert.match(after.text, /Monday 6pm: 1 of 2 free\. Monday evening meets then\./);
   });
 
   test("the start times run from the grid's opening to the last that fits the length", async () => {
@@ -380,11 +391,11 @@ describe("what the cards say", () => {
     // no control at all.
     assert.match(
       said,
-      /Best times Mon 6pm · 2 free Monday evening Mon 5pm · 1 free Use for a group Mon 7pm · 1 free Use for a group Thu 9am · 1 free Use for a group Thu 10am · 1 free Thursday morning Thu 11am · 1 free Use for a group Your/,
+      /Best times Mon 9am · 1 free Use for a group Mon 10am · 1 free Use for a group Mon 5pm · 1 free Use for a group Mon 6pm · 1 free Monday evening Mon 7pm · 1 free Use for a group Thu 9am · 1 free Use for a group Your/,
     );
     assert.deepEqual(
       [...html.matchAll(/aria-label="(Use [^"]+ for a group)"/g)].map((m) => m[1]),
-      ["Use Mon 5pm for a group", "Use Mon 7pm for a group", "Use Thu 9am for a group", "Use Thu 11am for a group"],
+      ["Use Mon 9am for a group", "Use Mon 10am for a group", "Use Mon 5pm for a group", "Use Mon 7pm for a group", "Use Thu 9am for a group"],
     );
   });
 
@@ -395,6 +406,7 @@ describe("what the cards say", () => {
     // named for the group as the board names it.
     assert.match(
       said,
+      // Who can make a group counts everybody: Amara, and Dev read from 18:00 on.
       /Your 3 groups Monday evening Mon 6pm · 2 can make it Change To be arranged No session time set Change Thursday morning Thu 10am · 1 can make it Change 2 of 3/,
     );
     const { html } = await draw("zach");
@@ -406,10 +418,7 @@ describe("what the cards say", () => {
 
   test("who fits none of the groups, by name and with no pronoun, with a link to see them", async () => {
     const { text: said, html } = await draw("zach");
-    assert.match(
-      said,
-      /2 of 3 can make at least one of these times\. Tariq Mensah can’t: not free for a 90-minute session at any of these start times\. See Tariq Mensah/,
-    );
+    assert.match(said, /2 of 3 can make at least one of these times\. Tariq Mensah can’t: free on Mondays only\. See Tariq Mensah/);
     assert.match(html, new RegExp(`href="${PAGE_PATH}/applications/tariq"`));
     // Bea painted nothing: she is not one of those who cannot make a time.
     assert.ok(!said.includes("Bea Lindqvist"));
@@ -422,14 +431,14 @@ describe("what the cards say", () => {
     assert.equal(text(editor[1]), "Add or change groups in the run editor");
     assert.ok(!said.includes("set in Settings"), "the page offers set in Settings");
     // Since Times in full (st-times) the page offers exactly the board's three
-    // controls: "Use for a group" beside each of the 4 best times no group
+    // controls: "Use for a group" beside each of the 5 best times no group
     // meets at, "Change" beside each of the 3 groups, and one "Add a group".
     // Under the picture an admin also has Arrange with Claude's two, which
     // propose and write nothing until Apply (ArrangeGroups.tsx).
     assert.deepEqual(
       [...html.matchAll(/<button([^>]*)>(.*?)<\/button>/g)].map((m) => text(m[2])),
       [
-        ...Array(4).fill("Use for a group"),
+        ...Array(5).fill("Use for a group"),
         ...Array(3).fill("Change"),
         "Add a group",
         "Suggest an arrangement",
@@ -481,7 +490,8 @@ describe("the length counted", () => {
       said,
       /Your groups’ sessions last 90 minutes or 2 hours\. This counts 2-hour sessions, the length most of them have\./,
     );
-    assert.match(said, /Monday evening Mon 6pm · 2 hours · 1 can make it/);
+    // Amara, and Dev read from 18:00 on. Tariq's hour is half of it.
+    assert.match(said, /Monday evening Mon 6pm · 2 hours · 2 can make it/);
     assert.match(said, /Thursday morning Thu 10am · 90 minutes · 1 can make it/);
   });
 });
@@ -526,7 +536,7 @@ describe("every state has a sentence", () => {
     assert.match(said, /No group has a session time yet\. This counts 90-minute sessions, the length a new group starts with\./);
     // "Add a group" (st-times) sits above the admin's way to the run editor.
     assert.match(said, /Your groups This run has no groups yet\. Add a group Add groups in the run editor/);
-    assert.match(said, /Monday 6pm: 2 of 3 free/);
+    assert.match(said, /Monday 6pm: 1 of 2 free/);
   });
 
   test("an archived group is left out, as the board leaves it out", async () => {

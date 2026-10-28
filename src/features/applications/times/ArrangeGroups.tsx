@@ -142,9 +142,11 @@ export default function ArrangeGroups({ roundId, programmeId }: { roundId: strin
       <div className={styles.head}>
         <h2 className={styles.title}>Arrange with Claude</h2>
         <p className={styles.line}>
-          The site splits everybody holding a place into groups by when they’re free. Claude then suggests a
-          facilitator for each group and any moves, and only moves that fit the times are kept. Only admins see this,
-          and nothing is saved until you press Apply.
+          The site splits everybody holding a place into groups by when they’re free. Group times are chosen by the
+          people who marked a real week. Anybody who marked under 4 hours is read as free from their first time each
+          day, seated after everybody else, and if nothing fits, put in the nearest group after their time and flagged.
+          Claude then suggests a facilitator for each group and any moves, and only moves that fit the times are kept.
+          Only admins see this, and nothing is saved until you press Apply.
         </p>
       </div>
       <div className={styles.actions}>
@@ -188,6 +190,11 @@ export default function ArrangeGroups({ roundId, programmeId }: { roundId: strin
                       {member.name}
                       {member.facilitates ? <span className={styles.tag}> would facilitate</span> : null}
                       {member.moved ? <span className={styles.tag}> moved by Claude</span> : null}
+                      {member.near ? (
+                        <span className={styles.near}> near their time, not in it: check with them</span>
+                      ) : member.littleMarked ? (
+                        <span className={styles.tag}> marked under 4 hours</span>
+                      ) : null}
                     </li>
                   ))}
                 </ul>

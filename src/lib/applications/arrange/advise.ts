@@ -27,6 +27,8 @@ You are given a first arrangement, worked out from when each person said they ar
 What to do:
 - Suggest one facilitator for each group, only from people in that group or who can make it and would like to facilitate. Prefer someone the reads suggest would lead a discussion well. Leave the applicant empty for a group with nobody suitable.
 - Suggest moves that make the groups work better: a mix of backgrounds and experience in each, no group of only beginners or only experts, sizes kept close. Only move someone to a group they can make, and never someone already told their group.
+- People who marked under 4 hours in the week are fitted to the groups everybody else's times chose. Never move somebody who marked a real week out of a group to make room for them.
+- Somebody placed near their time, not in it, can make none of the groups as marked: leave them where they are.
 - Do not use or guess at personal characteristics such as age, gender, nationality or health.
 - Keep it short, and refer to people and groups only by their labels.`;
 
@@ -84,7 +86,16 @@ export type ArrangedGroup = {
   session: SessionSlot;
   timeIsNew: boolean;
   room: number;
-  members: { uid: string; name: string; facilitates: boolean; moved: boolean }[];
+  members: {
+    uid: string;
+    name: string;
+    facilitates: boolean;
+    moved: boolean;
+    /** They marked under four hours in the week, read "from then on" (`../handover/paintedWeek.ts`). */
+    littleMarked: boolean;
+    /** Placed in the group nearest their time, not one they marked: somebody checks with them. */
+    near: boolean;
+  }[];
   facilitator: { uid: string; name: string; why: string } | null;
   /** For a group the run has: its facilitators now, and its stored slot (for a change of time). */
   existing: { facilitatorUids: string[]; slot: { weekday: number; start: string } } | null;
@@ -184,6 +195,7 @@ export async function arrangeProgramme(
         .sort((a, b) => compareGroupsByMeeting(a.group, b.group))
         .map(({ group, index }) => {
         const chosen = facilitators.get(index);
+        const nearUids = new Set(plan.nearUids);
         return {
           id: group.id,
           name: group.name,
@@ -195,6 +207,11 @@ export async function arrangeProgramme(
             name: nameOf(uid),
             facilitates: arranging.people.get(uid)?.facilitates ?? false,
             moved: movedUids.has(uid),
+            littleMarked: (() => {
+              const week = arranging.people.get(uid)?.week;
+              return week?.kind === "given" && week.minimal === true;
+            })(),
+            near: nearUids.has(uid),
           })),
           facilitator: chosen ? { uid: chosen.uid, name: nameOf(chosen.uid), why: chosen.why } : null,
           existing: (() => {

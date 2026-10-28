@@ -27,6 +27,7 @@ import {
   groupTag,
   lengthSentence,
   lengthWords,
+  littleMarkedSentence,
   saidSentence,
   seePerson,
   whenShort,
@@ -156,7 +157,11 @@ function Blank({ view }: { view: TimesView }) {
 }
 
 function Grid({ picture, names }: { picture: Picture; names: Map<string, string> }) {
-  const { said, minutes, rows, counts, meets } = picture;
+  const { minutes, rows, counts, meets } = picture;
+  // The cells count only the people who choose when groups meet: everybody
+  // who said, less those who marked under four hours (the sentence above says
+  // so), so "2 of 2 free" never reads as somebody not being free.
+  const said = picture.said - picture.littleMarked;
   const marked = meets.some((row) => row.some((ids) => ids.length > 0));
   return (
     <section className={styles.card}>
@@ -385,7 +390,12 @@ function actionsSetup(view: TimesView, picture: Picture): TimesActionsSetup | nu
     })),
     counts:
       picture.said > 0
-        ? { said: picture.said, minutes: picture.minutes, rows: [...picture.rows], cells: picture.counts.map((row) => [...row]) }
+        ? {
+            said: picture.said - picture.littleMarked,
+            minutes: picture.minutes,
+            rows: [...picture.rows],
+            cells: picture.counts.map((row) => [...row]),
+          }
         : null,
     lengths: [...view.length.options],
     counted: view.length.counted,
@@ -421,6 +431,7 @@ export default function TimesPicture({
           <p className={styles.lede}>
             {saidSentence(picture.said, picture.holders, view.programmeName)}
             {drawn ? ` ${lengthSentence(view.length.source, view.length.counted)}` : ""}
+            {picture.littleMarked > 0 ? ` ${littleMarkedSentence(picture.littleMarked)}` : ""}
           </p>
           {/* Nobody has said when they are free yet: no picture to draw, but
               the groups can still be given a time, or added, here. Their lines

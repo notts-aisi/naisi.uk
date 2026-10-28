@@ -1,4 +1,7 @@
 import {
+  firstMarkedMinutes,
+  fromFirstMark,
+  markedMinutes,
   markedSlotCount,
   maskCoversSession,
   type AvailabilityGrid,
@@ -24,6 +27,18 @@ import type { ApplicationDoc } from "../model";
  * drawn on. A session that starts before the grid opens or ends after it
  * closes is never covered, because the form never asked about those times.
  *
+ * ## Somebody who marked little time
+ *
+ * Somebody who marked under four hours in the whole week (`minimal`) is read
+ * "from then on": on each day they marked anything, free from their first
+ * marked time until the grid closes. A single hour on several evenings
+ * usually means "any time after then", and read literally it fits no
+ * session at all. Their marks never choose when groups meet (`./times.ts`
+ * leaves them out of the count), they are seated after everybody else, and
+ * one who still fits no group goes to the nearest one, flagged
+ * (`../arrange/plan.ts`). Every screen reads them this one way, so the board,
+ * the People tab and an arrangement agree.
+ *
  * ## Three answers
  *
  *  - `given`: they painted something, and `covers` answers for any session.
@@ -35,8 +50,18 @@ import type { ApplicationDoc } from "../model";
  * Pure, with no server import.
  */
 
+/** Under this many minutes marked in the week, a week is read "from then on" (above). */
+export const LITTLE_MARKED_MINUTES = 240;
+
 export type PaintedWeek =
-  | { kind: "given"; covers: (session: SessionSlot) => boolean }
+  | {
+      kind: "given";
+      covers: (session: SessionSlot) => boolean;
+      /** They marked under `LITTLE_MARKED_MINUTES` in the week, so `covers` reads them "from then on". */
+      minimal?: boolean;
+      /** Each weekday's first marked minute, Sunday first, or null: where the nearest group is measured from. */
+      firstMarks?: (number | null)[];
+    }
   | { kind: "none-given" }
   | { kind: "not-on-file" };
 
@@ -52,5 +77,12 @@ export function paintedWeekOf(
   if (!application || !application.sent) return { kind: "not-on-file" };
   const mask = application.sent.availability;
   if (markedSlotCount(mask, grid) === 0) return { kind: "none-given" };
-  return { kind: "given", covers: (session) => maskCoversSession(mask, grid, session) };
+  const minimal = markedMinutes(mask, grid) < LITTLE_MARKED_MINUTES;
+  const read = minimal ? fromFirstMark(mask, grid) : mask;
+  return {
+    kind: "given",
+    covers: (session) => maskCoversSession(read, grid, session),
+    minimal,
+    firstMarks: firstMarkedMinutes(mask, grid),
+  };
 }

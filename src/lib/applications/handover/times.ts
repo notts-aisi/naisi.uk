@@ -185,6 +185,11 @@ export type TimesPicture = {
   holders: number;
   /** Of them, people who painted a week. Every count below is out of this. */
   said: number;
+  /**
+   * Of those, people who marked under four hours (`../handover/paintedWeek.ts`):
+   * left out of the start-time counts, so they never choose when groups meet.
+   */
+  littleMarked: number;
   /** The length counted, in minutes. */
   minutes: number;
   /** The start times down the side, in minutes past midnight. */
@@ -225,17 +230,21 @@ export function timesPicture(input: {
   groups: readonly TimesGroup[];
 }): TimesPicture {
   const { grid, minutes } = input;
-  const covering: { uid: string; name: string; covers: (session: SessionSlot) => boolean }[] = [];
+  const covering: { uid: string; name: string; covers: (session: SessionSlot) => boolean; minimal: boolean }[] = [];
   for (const person of input.people) {
     if (person.week.kind === "given") {
-      covering.push({ uid: person.uid, name: person.name, covers: person.week.covers });
+      covering.push({ uid: person.uid, name: person.name, covers: person.week.covers, minimal: person.week.minimal === true });
     }
   }
   const rows = startRows(grid, minutes);
 
+  // Somebody who marked little time does not choose when groups meet
+  // (`./paintedWeek.ts`): the counts that pick a start time are everybody
+  // else's, and they are fitted to the groups those choose.
+  const choosing = covering.filter((person) => !person.minimal);
   const counts = rows.map((start) =>
     WEEK_FROM_MONDAY.map(
-      (weekday) => covering.filter((person) => person.covers(slotAt(weekday, start, minutes))).length,
+      (weekday) => choosing.filter((person) => person.covers(slotAt(weekday, start, minutes))).length,
     ),
   );
 
@@ -289,6 +298,7 @@ export function timesPicture(input: {
   return {
     holders: input.people.length,
     said: covering.length,
+    littleMarked: covering.length - choosing.length,
     minutes,
     rows,
     counts,
