@@ -1942,7 +1942,17 @@ says reaches the applicant.
   (`src/lib/applications/arrange/`). The site works out a first split from when each person said
   they are free (`arrange/plan.ts`: nobody already told their group moves, the
   run's groups first, more only when needed, the most constrained seated
-  first, then the groups evened out). Claude is then told the groups and
+  first, then the groups evened out). SOMEBODY WHO MARKED UNDER FOUR HOURS IN
+  THE WEEK (`handover/paintedWeek.ts`, `minimal`) is read "from then on": on
+  each day they marked anything, free from their first marked time until the
+  grid closes, on every screen (the board, the People tab, the times picture,
+  an arrangement). They never choose when groups meet (the times picture
+  leaves them out of its counts and says how many), they are seated after
+  everybody who marked a real week, and one who still fits no group goes to
+  the nearest group with room (after their time on a day they marked, then
+  after it on another day, then before it), flagged "near their time, not in
+  it". Somebody who marked a real week that fits no group is still left for a
+  person. Claude is then told the groups and
   people by number, which other groups each person can make (never their
   week), and its own reads, and suggests a facilitator per group and moves.
   `arrange/advice.ts` keeps a suggestion only when it fits: a facilitator

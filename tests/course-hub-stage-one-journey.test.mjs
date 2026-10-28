@@ -1490,8 +1490,12 @@ describe("stage one of the course hub, one term from decision day to the first s
         canMake: { "Group A": 2, "Group B": 3 },
         canMakeOne: 4,
         fitsNone: ["Joel Adeyemi"],
-        // [weekday, start in minutes, count]: Tuesday 5pm and 6pm, Thursday 6pm and 7pm, Tuesday 7pm, Friday 9am.
-        best: [[2, 1020, 3], [2, 1080, 3], [4, 1080, 2], [4, 1140, 2], [2, 1140, 1], [5, 540, 1]],
+        // [weekday, start in minutes, count]. Amara and Priya each marked one
+        // evening, 3.5 hours, under four hours in the week, so they do not
+        // choose when groups meet (`paintedWeek.ts`): Ella, Joel and Kofi do.
+        // Tuesday 5pm and 6pm (Ella, Kofi), Tuesday 7pm (Ella: Kofi's evening
+        // ends at 8:30), Thursday 6pm and 7pm (Kofi), Friday 9am (Joel).
+        best: [[2, 1020, 2], [2, 1080, 2], [2, 1140, 1], [4, 1080, 1], [4, 1140, 1], [5, 540, 1]],
       });
     });
 

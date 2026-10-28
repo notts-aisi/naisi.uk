@@ -437,8 +437,9 @@ describe("4. every value from records", () => {
       bea: ["Group A", "Yes, Sun 25 Oct", "Not said", "Holding a place", null, null],
       zach: ["Group A", "Not yet", "Fits B", "Holding a place", null, null],
       dev: [words.NOT_IN_A_GROUP, "Not yet", "Fits C", "Holding a place", null, null],
-      // An hour on Tuesday is less than any group's two-hour session.
-      tariq: [words.NOT_IN_A_GROUP, "Not yet", "Fits none of the 3 times", "Holding a place", null, null],
+      // An hour on Tuesday is under four hours in the week, so it is read "from
+      // then on" (`paintedWeek.ts`): Group B meets later that Tuesday.
+      tariq: [words.NOT_IN_A_GROUP, "Not yet", "Fits B", "Holding a place", null, null],
       // Taken off the run by staff, which gave the form's place back: under
       // Gave their place back, and the run says Callum was taken off, and
       // when, in the words the hand-over panel and Callum's own page use

@@ -132,8 +132,13 @@ export function week(spans = {}) {
 const BOTH = week({ 1: [["17:00", "21:00"]], 4: [["09:00", "13:00"]] });
 /** Free Monday evening only. */
 const MONDAY_ONLY = week({ 1: [["18:00", "19:30"]] });
-/** Free Monday from 18:00 to 19:00: half of the session, which is not the session. */
-const HALF_OF_MONDAY = week({ 1: [["18:00", "19:00"]] });
+/**
+ * Free Monday morning, and Monday from 18:00 to 19:00: half of the evening
+ * session, which is not the session. Four hours in all, so a real week, read
+ * exactly as marked (`paintedWeek.ts`); with only the evening hour it would
+ * be read "from then on" and make the session.
+ */
+const HALF_OF_MONDAY = week({ 1: [["09:00", "12:00"], ["18:00", "19:00"]] });
 /** Painted nothing. */
 const NOTHING = week({});
 

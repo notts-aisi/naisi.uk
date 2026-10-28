@@ -98,15 +98,20 @@ describe("one reading of a painted week", () => {
     const file = "src/lib/applications/handover/paintedWeek.ts";
     const code = codeOf(file);
     assert.match(code, /markedSlotCount\(mask, grid\) === 0/);
-    assert.match(code, /covers: \(session\) => maskCoversSession\(mask, grid, session\)/);
-    // What comes back is one of three answers, a kind and at most a
-    // predicate, and never the painted week itself.
+    // Somebody who marked under four hours is read "from then on", through the
+    // availability module's own reading of a week (`fromFirstMark`).
+    assert.match(code, /const read = minimal \? fromFirstMark\(mask, grid\) : mask;/);
+    assert.match(code, /covers: \(session\) => maskCoversSession\(read, grid, session\)/);
+    // What comes back is one of three answers: a kind, at most a predicate,
+    // whether they marked little time, and each day's first marked minute
+    // (where the nearest group is measured from), and never the painted week
+    // itself.
     const kept = stripSource(readFileSync(join(REPO_ROOT, file), "utf8"), { keepStrings: true });
     const returned = [...kept.matchAll(/\breturn\s+([^;]+);/g)].map((match) => match[1].replace(/\s+/g, " ").trim());
     assert.deepEqual(returned, [
       '{ kind: "not-on-file" }',
       '{ kind: "none-given" }',
-      '{ kind: "given", covers: (session) => maskCoversSession(mask, grid, session) }',
+      '{ kind: "given", covers: (session) => maskCoversSession(read, grid, session), minimal, firstMarks: firstMarkedMinutes(mask, grid), }',
     ]);
   });
 

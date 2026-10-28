@@ -72,6 +72,13 @@ const DEV = person("dev", { 1: [["18:00", "19:30"]] });
 const TARIQ = person("tariq", { 1: [["18:00", "19:00"]] });
 // Painted nothing.
 const BEA = person("bea", {});
+// Dev and Tariq each marked under four hours, so they are read "from then on"
+// (`paintedWeek.ts`): free from 18:00 until the grid closes on Mondays, and
+// left out of the counts that choose when groups meet. Their twins below
+// marked a real week (the same Monday, and a Wednesday morning), so they are
+// read exactly as marked.
+const DEV_REAL = person("dev", { 1: [["18:00", "19:30"]], 3: [["09:00", "12:00"]] });
+const TARIQ_REAL = person("tariq", { 1: [["18:00", "19:00"]], 3: [["09:00", "12:00"]] });
 
 const MONDAY = group("g-mon", "Monday evening", 1, "18:00", 90);
 const THURSDAY = group("g-thu", "Thursday morning", 4, "10:00", 90);
@@ -141,12 +148,24 @@ describe("a painted week, read once for the board and the picture", () => {
     assert.equal(AMARA.week.kind, "given");
   });
 
-  test("a week covers a session only when it covers every minute of it", () => {
+  test("a real week covers a session only when it covers every minute of it", () => {
     const monday = (start, durationMinutes) => ({ weekday: 1, startTimeLocal: start, durationMinutes });
-    assert.equal(DEV.week.covers(monday("18:00", 90)), true);
-    assert.equal(DEV.week.covers(monday("18:00", 120)), false, "longer than any stretch they painted");
-    assert.equal(TARIQ.week.covers(monday("18:00", 90)), false, "half of the session is not the session");
-    assert.equal(TARIQ.week.covers(monday("18:00", 60)), true);
+    assert.equal(DEV_REAL.week.minimal, false);
+    assert.equal(DEV_REAL.week.covers(monday("18:00", 90)), true);
+    assert.equal(DEV_REAL.week.covers(monday("18:00", 120)), false, "longer than any stretch they painted");
+    assert.equal(TARIQ_REAL.week.covers(monday("18:00", 90)), false, "half of the session is not the session");
+    assert.equal(TARIQ_REAL.week.covers(monday("18:00", 60)), true);
+  });
+
+  test("a week under four hours is read from the first mark each day until the grid closes", () => {
+    const monday = (start, durationMinutes) => ({ weekday: 1, startTimeLocal: start, durationMinutes });
+    assert.equal(DEV.week.minimal, true);
+    assert.equal(TARIQ.week.minimal, true);
+    assert.equal(TARIQ.week.covers(monday("18:00", 90)), true, "an hour from 18:00 reads as any time after");
+    assert.equal(DEV.week.covers(monday("18:00", 120)), true);
+    assert.equal(DEV.week.covers(monday("19:30", 90)), true, "ends as the grid closes");
+    assert.equal(DEV.week.covers(monday("17:00", 90)), false, "before their first mark");
+    assert.equal(DEV.week.covers({ weekday: 2, startTimeLocal: "18:00", durationMinutes: 90 }), false, "a day they marked nothing");
   });
 
   test("a session that runs past the grid's close is never covered, whatever was painted", () => {
@@ -164,13 +183,15 @@ describe("the picture counts who is free for a whole session at each start", () 
     const shown = picture();
     assert.equal(shown.holders, 4);
     assert.equal(shown.said, 3, "somebody who painted nothing is not one of those who said");
+    assert.equal(shown.littleMarked, 2, "Dev and Tariq marked under four hours");
   });
 
   test("each cell counts the people whose week covers the whole session from that start", () => {
     const shown = picture();
-    assert.equal(cell(shown, 1, "18:00"), 2, "Amara and Dev; Tariq has half of it");
+    // Only Amara marked a real week, so only Amara chooses when groups meet.
+    assert.equal(cell(shown, 1, "18:00"), 1, "Amara; Dev and Tariq marked under four hours");
     assert.equal(cell(shown, 1, "17:00"), 1);
-    assert.equal(cell(shown, 1, "19:00"), 1, "Dev's week stops at 19:30");
+    assert.equal(cell(shown, 1, "19:00"), 1);
     assert.equal(cell(shown, 4, "11:00"), 1);
     assert.equal(cell(shown, 4, "12:00"), 0, "12:00 to 13:30 runs past Amara's 13:00");
     assert.equal(cell(shown, 0, "09:00"), 0);
@@ -178,7 +199,7 @@ describe("the picture counts who is free for a whole session at each start", () 
     for (const [row, start] of shown.rows.entries()) {
       for (const [column, weekday] of times.WEEK_FROM_MONDAY.entries()) {
         const slot = { weekday, startTimeLocal: `${String(start / 60).padStart(2, "0")}:00`, durationMinutes: 90 };
-        const recount = [AMARA, DEV, TARIQ].filter((one) => one.week.covers(slot)).length;
+        const recount = [AMARA, DEV, TARIQ].filter((one) => !one.week.minimal && one.week.covers(slot)).length;
         assert.equal(shown.counts[row][column], recount, `${weekday} ${start}`);
       }
     }
@@ -210,8 +231,8 @@ describe("the picture counts who is free for a whole session at each start", () 
     assert.deepEqual(
       shown.best.map((best) => [best.weekday, best.start / 60, best.count, best.groupIds]),
       [
-        [1, 18, 2, ["g-mon"]],
         [1, 17, 1, []],
+        [1, 18, 1, ["g-mon"]],
         [1, 19, 1, []],
         [4, 9, 1, []],
         [4, 10, 1, ["g-thu"]],
@@ -230,13 +251,14 @@ describe("the picture counts who is free for a whole session at each start", () 
     assert.deepEqual(
       shown.groups.map((one) => [one.name, one.canMake]),
       [
-        ["Monday evening", 2],
+        // Amara, and Dev and Tariq read from 18:00 on: who can make a group counts everybody.
+        ["Monday evening", 3],
         ["To be arranged", null],
         ["Thursday morning", 1],
       ],
     );
     // Counted at the group's own length, whatever length the grid counts.
-    assert.equal(picture({ minutes: 60 }).groups[0].canMake, 2);
+    assert.equal(picture({ minutes: 60 }).groups[0].canMake, 3);
     assert.equal(words.groupLine({ weekday: 2, startMinute: null, durationMinutes: 90 }, null, false), "No session time set");
   });
 
@@ -248,11 +270,15 @@ describe("the picture counts who is free for a whole session at each start", () 
   });
 
   test("who fits none of the groups, with the days they are free for the length counted", () => {
-    const shown = picture();
-    assert.equal(shown.fit.canMakeOne, 2);
-    assert.deepEqual(shown.fit.none, [{ uid: "tariq", name: "Tariq Example", freeDays: [] }]);
-    // Counting hour-long sessions, Tariq is free on Mondays.
-    assert.deepEqual(picture({ minutes: 60 }).fit.none[0].freeDays, [1]);
+    // Read from 18:00 on, Tariq makes the Monday evening group: nobody here fits none.
+    assert.equal(picture().fit.canMakeOne, 3);
+    assert.deepEqual(picture().fit.none, []);
+    // Tariq's twin marked a real week: half of Monday evening is not the session.
+    const shown = picture({ people: [AMARA, TARIQ_REAL, BEA] });
+    assert.equal(shown.fit.canMakeOne, 1);
+    assert.deepEqual(shown.fit.none, [{ uid: "tariq", name: "Tariq Example", freeDays: [3] }]);
+    // Counting hour-long sessions, the twin is free on Mondays as well.
+    assert.deepEqual(picture({ minutes: 60, people: [AMARA, TARIQ_REAL] }).fit.none[0].freeDays, [1, 3]);
     // Nobody who painted nothing is listed.
     assert.ok(!shown.fit.none.some((one) => one.uid === "bea"));
   });
