@@ -7123,7 +7123,7 @@ describe("v8 names Claude and Pangram, and says what they are sent", () => {
     "An admin can ask Claude, an AI model made by Anthropic, to read your application together with the reviewers&apos; scores and comments and write a short assessment of it, and to compare those assessments across the applications to the same programme.",
     // Nothing in askAboutProgramme (src/lib/applications/assessment/run.ts) writes.
     "A comparison across a programme is shown to the admin who asked and is not kept.",
-    // adviceInputFrom (src/lib/applications/arrange/advice.ts) sends group numbers, never a week.
+    // choiceInputFrom (src/lib/applications/arrange/advice.ts) sends group labels, never a week.
     "Claude is told which of the proposed groups&apos; session times each person can make, never the times you marked, and the site checks every suggestion against those times.",
     // Nothing in src/lib/applications/arrange/ writes; Apply is the admin's press.
     "An admin decides, and nobody is placed until they apply it.",

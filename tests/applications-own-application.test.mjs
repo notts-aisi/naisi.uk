@@ -206,6 +206,10 @@ const READS_THE_LISTS = {
     why: "an arrangement seats everybody who holds a place by when they said they are free, an admin who applied included: it decides nobody's place, only which group's time suits them. It reads nobody until the term is marked as sent, when there is nothing left for anybody to learn early",
     holds: "after-the-send",
   },
+  "lib/applications/arrange/load.ts#loadPreviewArranging": {
+    kind: "viewer",
+    why: "a preview of groups before decision day is built from the term as the review screens read it, so the admin's own application is left out of it, as from every screen before decision day",
+  },
   "lib/applications/handover/timesLoad.ts#loadTimesPicture": {
     kind: "everybody",
     why: "the times picture counts everybody who holds a place by when they said they are free, and names who no group suits, an admin who applied included. It reads nobody until the term is marked as sent, when there is nothing left for anybody to learn early",

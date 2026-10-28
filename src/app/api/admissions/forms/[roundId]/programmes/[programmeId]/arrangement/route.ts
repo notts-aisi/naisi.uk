@@ -1,22 +1,25 @@
 import { NextResponse } from "next/server";
 import { isAddressableId } from "@/lib/addressableId";
 import { canRunTerm } from "@/lib/applications/access";
-import { arrangeProgramme } from "@/lib/applications/arrange/advise";
+import { arrangeOptions } from "@/lib/applications/arrange/advise";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
- * A proposed arrangement of a programme's people into groups, for an admin:
+ * Up to five arrangements of a programme's people into groups, for an admin:
  * `{ askClaude, minutes?, size? }`.
  *
- * The site works out a first arrangement from when each person said they are
- * free (`src/lib/applications/arrange/plan.ts`); with `askClaude`, Claude
- * suggests a facilitator for each group and moves, and only what the plan's
- * rules allow is kept (`arrange/advice.ts`). NOTHING IS WRITTEN AND NOTHING IS
- * STORED: the admin reads the answer, and Apply on the page places people
- * through the site's own routes for groups, places and facilitators, which
- * ask every question they always ask. Nobody is emailed until Publish.
+ * The site works out several from when each person said they are free
+ * (`src/lib/applications/arrange/options.ts`); with `askClaude`, Claude ranks
+ * them with pros and cons, gives a reason for each group, a facilitator for
+ * each and any moves, and only what the rules allow is kept
+ * (`arrange/advice.ts`). Before decision day it is a preview of the people
+ * the decisions as they stand place on the programme, the caller's own
+ * application left out. NOTHING IS WRITTEN AND NOTHING IS STORED: the admin
+ * reads the answer, and Apply on the page places people through the site's
+ * own routes for groups, places and facilitators, which ask every question
+ * they always ask. Nobody is emailed until Publish.
  *
  * A POST, because asking Claude sends the people's numbered reads to
  * Anthropic. Only an admin, refused before the body is read; a view-as
@@ -53,7 +56,7 @@ export async function POST(
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });
 
-  const result = await arrangeProgramme(db, user, roundId, programmeId, {
+  const result = await arrangeOptions(db, user, roundId, programmeId, {
     askClaude: body.askClaude,
     minutes: body.minutes,
     size: body.size,

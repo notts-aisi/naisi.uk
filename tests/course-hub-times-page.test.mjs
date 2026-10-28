@@ -213,13 +213,13 @@ describe("the Groups tab is the lead's and an admin's, decided before anybody is
     assert.match(drawn.text, /Who can make a 90-minute session starting at…/);
     assert.match(drawn.text, /Monday 6pm: 1 of 2 free\. Monday evening meets then\./);
     assert.equal(drawn.wrote, false);
-    // Arrange with Claude asks Claude about named people, which is an admin's alone.
-    assert.doesNotMatch(drawn.text, /Arrange with Claude/);
+    // Arrange groups asks Claude about named people, which is an admin's alone.
+    assert.doesNotMatch(drawn.text, /Arrange groups/);
   });
 
-  test("an admin is offered Arrange with Claude under the picture", async () => {
+  test("an admin is offered Arrange groups under the picture", async () => {
     const drawn = await draw("zach");
-    assert.match(drawn.text, /Arrange with Claude/);
+    assert.match(drawn.text, /Arrange groups/);
     assert.match(drawn.text, /nothing is saved until you press Apply/);
   });
 
@@ -433,15 +433,15 @@ describe("what the cards say", () => {
     // Since Times in full (st-times) the page offers exactly the board's three
     // controls: "Use for a group" beside each of the 5 best times no group
     // meets at, "Change" beside each of the 3 groups, and one "Add a group".
-    // Under the picture an admin also has Arrange with Claude's two, which
-    // propose and write nothing until Apply (ArrangeGroups.tsx).
+    // Under the picture an admin also has Arrange groups' two, which propose
+    // and write nothing until Apply (ArrangeGroups.tsx).
     assert.deepEqual(
       [...html.matchAll(/<button([^>]*)>(.*?)<\/button>/g)].map((m) => text(m[2])),
       [
         ...Array(5).fill("Use for a group"),
         ...Array(3).fill("Change"),
         "Add a group",
-        "Suggest an arrangement",
+        "Suggest options with Claude",
         "Times only, without Claude",
       ],
     );
