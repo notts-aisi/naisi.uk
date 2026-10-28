@@ -195,6 +195,9 @@ export default function ProgrammePeople({ view }: { view: PeopleView }) {
         })}
       </div>
       <p className={styles.sentence}>{view.sentence}</p>
+      {view.confirm ? (
+        <p className={view.confirm.overdue ? `${styles.sentence} ${styles.overdue}` : styles.sentence}>{view.confirm.sentence}</p>
+      ) : null}
 
       <div className={styles.tools}>
         <label className={styles.search}>

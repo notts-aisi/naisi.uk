@@ -772,6 +772,7 @@ function TermDialog({
   const [closesTime, setClosesTime] = useState(form.closes?.time ?? "23:59");
   const [decisions, setDecisions] = useState(form.decisions?.date ?? "");
   const [replyBy, setReplyBy] = useState(form.replyBy?.date ?? "");
+  const [confirmBy, setConfirmBy] = useState(form.confirmBy?.date ?? "");
   const [asksFacilitating, setAsksFacilitating] = useState(form.asksFacilitating);
   const { busy, problem, run } = useSaving();
 
@@ -783,6 +784,7 @@ function TermDialog({
         closes: closesDate ? { date: closesDate, time: closesTime || "23:59" } : null,
         decisions: decisions || null,
         replyBy: replyBy || null,
+        confirmBy: confirmBy || null,
         ...(asksFacilitating !== form.asksFacilitating ? { asksFacilitating } : {}),
       });
       onSaved(saved.form);
@@ -883,6 +885,23 @@ function TermDialog({
               value={replyBy}
               onChange={(event) => setReplyBy(event.target.value)}
             />
+          </div>
+          <div className={shared.field}>
+            <label htmlFor={`${ids}-confirm`} className={shared.label}>
+              Places confirmed by
+            </label>
+            <input
+              id={`${ids}-confirm`}
+              type="date"
+              className={shared.input}
+              value={confirmBy}
+              aria-describedby={`${ids}-confirm-note`}
+              onChange={(event) => setConfirmBy(event.target.value)}
+            />
+            <span id={`${ids}-confirm-note`} className={shared.hint}>
+              Optional. People holding a place are asked to press “I’m coming” by this day, and reminded each day until
+              they do. Leave it empty and a place is presumed.
+            </span>
           </div>
         </div>
         <Toggle

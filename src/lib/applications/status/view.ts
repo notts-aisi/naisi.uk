@@ -144,6 +144,12 @@ export type StatusView =
       comingHelps: string;
       saidComing: boolean;
       /**
+       * The day to confirm by, while the form asks for one and they have not
+       * said they are coming: its label, and whether it has passed. Null
+       * otherwise, when "I'm coming" is optional.
+       */
+      confirm: { label: string; overdue: boolean } | null;
+      /**
        * Their group, once Publish has told them it. Then the page offers no
        * "I’m coming" and no "I can’t make it": it points them to their
        * programme's page, where leaving is, and says what giving the place
@@ -454,6 +460,10 @@ export function statusViewFor(
       next: standing.via === "ranking" ? next.page : next.card,
       comingHelps: comingHelps(placedOn?.kind ?? null),
       saidComing: standing.saidComing,
+      confirm:
+        !standing.saidComing && form.confirmBy
+          ? { label: form.confirmBy.label, overdue: today > form.confirmBy.day }
+          : null,
       ...(inGroup ? { inGroup } : {}),
     };
   }

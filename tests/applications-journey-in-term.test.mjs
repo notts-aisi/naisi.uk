@@ -492,6 +492,15 @@ const HANDS_ON = new Map([
     },
   ],
   [
+    "src/lib/scheduler/jobs/applicationPlaceConfirmations.ts",
+    {
+      to: "src/lib/applications/status/confirming.ts",
+      why:
+        "hands each sent application to confirmationReminderDue, which asks first whether the " +
+        "application is still in the term, so nobody who has left is reminded",
+    },
+  ],
+  [
     "src/lib/scheduler/jobs/applicationInvitationReminders.ts",
     {
       to: "src/lib/applications/decisionDay/reminders.ts",

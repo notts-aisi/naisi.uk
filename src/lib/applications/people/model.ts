@@ -14,7 +14,7 @@ import { reasonInWords } from "../status/reasons";
 import { standingOf } from "../status/standing";
 import { countRows } from "./filters";
 import type { PeopleCounts, PersonCategory, PersonFree, PersonRow, PersonStatus } from "./views";
-import { placesSentence } from "./words";
+import { confirmSentence, placesSentence } from "./words";
 
 /**
  * EVERYONE WHO HOLDS A PLACE ON A PROGRAMME OR GAVE IT BACK (board st-people),
@@ -84,6 +84,8 @@ export type PeopleInput = {
   programmePath: string;
   /** Whether the programme names a run, so somebody holding a place can be put in a group there. */
   runNamed: boolean;
+  /** Today in London, against the form's day to confirm by. Absent: nobody is shown as not having confirmed. */
+  today?: string;
 };
 
 export type PeopleModel = {
@@ -91,6 +93,8 @@ export type PeopleModel = {
   counts: PeopleCounts;
   /** "30 hold a place; 2 gave theirs back." */
   sentence: string;
+  /** The People view's `confirm`. */
+  confirm: { sentence: string; overdue: boolean } | null;
 };
 
 /** "Mon 26 Oct", in London, or null. */
@@ -124,6 +128,9 @@ export function programmePeople(input: PeopleInput): PeopleModel {
   const { form, programmeId, decisions, viewer, groups, seats, programmePath } = input;
   const invitable = new Set(form.programmeIds);
   const groupAt = new Map(groups.map((group, at) => [group.id, { group, at }] as const));
+
+  // The form's day to confirm a place by, once it has passed (`../status/confirming.ts`).
+  const overdue = Boolean(form.placeConfirmBy && input.today && input.today > form.placeConfirmBy);
 
   const rows: (PersonRow & { order: number })[] = [];
   for (const application of input.applications) {
@@ -176,7 +183,9 @@ export function programmePeople(input: PeopleInput): PeopleModel {
         category === "holding"
           ? reply.said
             ? { kind: "yes", on: dayOf(reply.on) }
-            : { kind: "not-yet" }
+            : overdue && form.placeConfirmBy
+              ? { kind: "not-confirmed", by: dayWords(form.placeConfirmBy) }
+              : { kind: "not-yet" }
           : category === "gave-back"
             ? { kind: "no" }
             : { kind: "not-yet" },
@@ -201,5 +210,15 @@ export function programmePeople(input: PeopleInput): PeopleModel {
     rows: out,
     counts,
     sentence: placesSentence(out.filter((row) => row.category === "holding").length, gaveBack.length - left, left),
+    confirm: form.placeConfirmBy
+      ? {
+          sentence: confirmSentence(
+            dayWords(form.placeConfirmBy),
+            out.filter((row) => row.category === "holding" && row.coming.kind !== "yes").length,
+            overdue,
+          ),
+          overdue,
+        }
+      : null,
   };
 }
