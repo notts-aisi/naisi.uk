@@ -159,3 +159,33 @@ export function hrefUrls(html) {
 export function textUrls(text) {
   return [...text.matchAll(/https?:\/\/[^\s<>"')\]]+/g)].map((m) => m[0]);
 }
+
+/** What a template value that failed to render looks like in an email. */
+export const BROKEN_OUTPUT = ["undefined", "[object Object]", "NaN"];
+
+/**
+ * Broken output in one part of an email (its HTML or its text): each of
+ * {@link BROKEN_OUTPUT} that turns up, or [] for none.
+ *
+ * NEVER A WORD SEARCH OVER THE RAW BODY. A link carries a random base64url
+ * token, and three letters like "NaN" turn up in one by chance about once in
+ * two thousand emails: a raw search failed a promotion that way on
+ * 28 October 2026, over an email nothing had changed. So:
+ *
+ *  - "NaN" is looked for in the email's words, with every link and every
+ *    href and src value taken out, and in each link only where it stands as
+ *    a whole path segment or parameter value (`/NaN`, `=NaN`), which a token
+ *    cannot spell: "/" and "=" are not in its alphabet.
+ *  - "undefined" and "[object Object]" are looked for everywhere, links
+ *    included. Neither can come out of a token: one is nine letters, the
+ *    other has a space and brackets.
+ */
+export function brokenOutputIn(body) {
+  const links = [...hrefUrls(body), ...textUrls(body)];
+  const words = body.replace(/\b(href|src)="[^"]*"/g, '$1=""').replace(/https?:\/\/[^\s<>"')\]]+/g, "");
+  return BROKEN_OUTPUT.filter((artefact) =>
+    artefact === "NaN"
+      ? words.includes("NaN") || links.some((link) => /[/=]NaN(?=[/?&#]|$)/.test(link))
+      : body.includes(artefact),
+  );
+}

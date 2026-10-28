@@ -321,7 +321,16 @@ describe("the length counted comes from the run's groups, or from the editor's o
 
   test("the lengths offered are the group editor's, and any a group already has", () => {
     assert.deepEqual(lengthOptions([]), [...lengths.SESSION_LENGTH_PRESETS]);
-    assert.deepEqual(lengthOptions([group("x", "x", 1, "18:00", 75)]), [60, 75, 90, 120]);
+    assert.deepEqual(lengthOptions([group("x", "x", 1, "18:00", 75)]), [60, 75, 90, 120, 180, 240]);
+  });
+
+  test("with no group that has a time, the programme's usual length: two hours for a fellowship, four for an incubator", () => {
+    const none = lengthFromGroups([UNSET]);
+    assert.equal(defaultLength(none, "fellowship"), 120);
+    assert.equal(defaultLength(none, "incubator"), 240);
+    // The groups' own length always wins.
+    assert.equal(defaultLength(lengthFromGroups([MONDAY]), "incubator"), 90);
+    assert.ok(lengths.SESSION_LENGTH_PRESETS.includes(240), "four hours cannot be picked");
   });
 
   test("an address can pick only a length that is offered", () => {

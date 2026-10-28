@@ -98,6 +98,7 @@ const { loadTs: loadPage } = createLoader({
     ["./TimesPicture.module.css", CLASS_NAMES],
     ["./ArrangeGroups.module.css", CLASS_NAMES],
     ["./Select.module.css", CLASS_NAMES],
+    ["./Input.module.css", CLASS_NAMES],
     ["@/features/applications/kit/kit.module.css", CLASS_NAMES],
     ["./GroupsViews.module.css", CLASS_NAMES],
     ["./editor.module.css", CLASS_NAMES],
@@ -527,13 +528,14 @@ describe("every state has a sentence", () => {
     assert.ok(!drawn.text.includes("Amara"));
   });
 
-  test("a run with no groups is drawn with a new group's length, and says where groups are made", async () => {
+  test("a run with no groups is drawn with the programme's usual length, and says where groups are made", async () => {
     const seed = namedSeed();
     for (const id of Object.values(GROUP)) delete seed[`courseGroups/${id}`];
     reset(seed);
     flagReviewers();
     const { text: said } = await draw("zach");
-    assert.match(said, /No group has a session time yet\. This counts 90-minute sessions, the length a new group starts with\./);
+    // A fellowship meets for two hours (`usualLength`).
+    assert.match(said, /No group has a session time yet\. This counts 2-hour sessions, how long this programme usually meets\./);
     // "Add a group" (st-times) sits above the admin's way to the run editor.
     assert.match(said, /Your groups This run has no groups yet\. Add a group Add groups in the run editor/);
     assert.match(said, /Monday 6pm: 1 of 2 free/);

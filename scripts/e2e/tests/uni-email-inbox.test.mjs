@@ -47,6 +47,7 @@ import {
 import { anonFetch, authedFetch, withHarnessSession } from "../lib/session.mjs";
 import { opaqueId, signToken } from "../lib/tokens.mjs";
 import {
+  brokenOutputIn,
   getMessage,
   hrefUrls,
   proveSmtpReachesMailpit,
@@ -286,9 +287,9 @@ describe("uni-email inbox enumeration (Mailpit)", () => {
       );
       assert.ok(!body.includes(owner.uid), `${name}: leaks the owner's uid.`);
       assert.ok(!body.includes(claimant.uid), `${name}: leaks the caller's uid.`);
-      for (const artefact of ["undefined", "[object Object]", "NaN"]) {
-        assert.ok(!body.includes(artefact), `${name}: contains "${artefact}".`);
-      }
+      // Never a word search over the raw body: a link's random token can
+      // spell "NaN" (lib/mailpit.mjs says how this looks instead).
+      assert.deepEqual(brokenOutputIn(body), [], `${name}: renders a value that failed.`);
     }
     // The two recipients' addresses must not cross over.
     assert.ok(

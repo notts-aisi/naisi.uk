@@ -59,7 +59,14 @@ export default async function ProgrammeTimesPage({
       arrange={
         // An admin's alone: it asks Claude about named people. The route asks
         // again, and refuses anybody else before it reads anything.
-        view.viewer === "admin" ? <ArrangeGroups roundId={view.roundId} programmeId={view.programmeId} /> : null
+        view.viewer === "admin" ? (
+          <ArrangeGroups
+            roundId={view.roundId}
+            programmeId={view.programmeId}
+            lengths={view.length.options.length > 0 ? view.length.options : [view.length.usual]}
+            counted={view.length.counted || view.length.usual}
+          />
+        ) : null
       }
     />
   );

@@ -25,7 +25,9 @@ import { createLoader } from "./lib/tsLoader.mjs";
 
 const { loadTs } = createLoader({ stubs: new Map() });
 const { candidatePlans, spreadFacilitators, MAX_CANDIDATES } = await loadTs("lib/applications/arrange/options.ts");
-const { applyChoice, choiceFrom, choiceInputFrom, siteOption } = await loadTs("lib/applications/arrange/advice.ts");
+const { applyChoice, askAnswerFrom, askInputFrom, choiceFrom, choiceInputFrom, keepMoves, screenGroupsFrom, siteOption } = await loadTs(
+  "lib/applications/arrange/advice.ts",
+);
 const { canMake, slotFor } = await loadTs("lib/applications/arrange/plan.ts");
 
 const MINUTES = 90;
@@ -300,3 +302,88 @@ describe("what is kept of Claude's choice", () => {
     assert.deepEqual(site.groups.map((g) => g.facilitators.map((f) => [f.uid, f.bySite])), [[["ada", true]], [["di", true]]]);
   });
 });
+
+describe("a question about the groups on the screen", () => {
+  const people = asMap([
+    person("ada", freeAt(TUE, WED), { facilitates: true }),
+    person("bo", freeAt(TUE)),
+    person("cy", freeAt(TUE, WED), { told: true, groupId: "g1" }),
+    person("di", freeAt(WED)),
+  ]);
+  const screen = (over = {}) => [
+    { key: "A1", name: "Group A", session: slotFor(TUE, MINUTES), room: 3, memberUids: ["ada", "bo", "cy"], facilitators: [{ uid: "ada", role: "lead" }], ...over },
+    { key: "A2", name: "Group B", session: slotFor(WED, MINUTES), room: 2, memberUids: ["di"], facilitators: [] },
+  ];
+
+  test("only groups with a real time, and only people being arranged, each once", () => {
+    const groups = screenGroupsFrom(
+      [
+        ...screen(),
+        { key: "A3", name: "x", session: { weekday: 9, startTimeLocal: "18:00", durationMinutes: 90 }, room: 3, memberUids: [], facilitators: [] },
+        { key: "A4", name: "y", session: { weekday: 1, startTimeLocal: "25:00", durationMinutes: 90 }, room: 3, memberUids: [], facilitators: [] },
+        { key: "A5", name: "z", session: slotFor(THU, MINUTES), room: 3, memberUids: ["ada", "stranger"], facilitators: [{ uid: "stranger", role: "lead" }] },
+      ],
+      people,
+    );
+    assert.deepEqual(groups.map((g) => g.key), ["A1", "A2", "A5"]);
+    assert.deepEqual(groups[2].memberUids, [], "somebody seated twice, or a stranger, was kept");
+    assert.deepEqual(groups[2].facilitators, []);
+  });
+
+  test("Claude is told labels, who can make what, and counts for each programme, never a name or a week", () => {
+    const input = askInputFrom({
+      programmeName: "Research Incubator",
+      minutes: 240,
+      people,
+      reads: new Map(),
+      kept: new Set(["cy"]),
+      groups: screen(),
+      programmes: [
+        { shortName: "Incubator", people: 4, counts: [{ weekday: 2, start: 18 * 60, count: 3 }] },
+        { shortName: "Technical AI Safety", people: 6, counts: [{ weekday: 2, start: 18 * 60, count: 4 }, { weekday: 3, start: 13 * 60, count: 5 }] },
+      ],
+      history: [{ question: "Who should lead Group A1?", answer: "Applicant 1." }],
+      question: "Which times suit both streams?",
+    });
+    for (const leak of ["Person ADA", "Person BO", "ada", "Group A ", "covers"]) {
+      assert.equal(input.message.includes(leak), false, `the message carries ${leak}`);
+    }
+    assert.match(input.message, /### Group A1: Tue 18:00, 90 minutes \(room for 3; Applicant 1 leads\)/);
+    assert.match(input.message, /- Applicant 1 \(can make it; can also make Group A2\)/);
+    assert.match(input.message, /- Tue 18:00: Incubator 3 of 4; Technical AI Safety 4 of 6/);
+    assert.match(input.message, /- Wed 13:00: Incubator 0 of 4; Technical AI Safety 5 of 6/);
+    assert.match(input.message, /Admin: Who should lead Group A1\?\nYou: Applicant 1\./);
+    assert.match(input.message, /## The admin asks\nWhich times suit both streams\?$/);
+    assert.deepEqual(input.groups, { "Group A1": "A1", "Group A2": "A2" });
+  });
+
+  test("a suggested move is kept only to a group on the screen they can make, with room, never of somebody told", () => {
+    const labels = askInputFrom({
+      programmeName: "x", minutes: 90, people, reads: new Map(), kept: new Set(["cy"]), groups: screen(), programmes: [], history: [], question: "?",
+    });
+    const said = askAnswerFrom({
+      answer: "Move them.",
+      moves: [
+        { applicant: "Applicant 2", to: "Group A2", why: "x" }, // bo cannot make Wednesday
+        { applicant: "Applicant 3", to: "Group A2", why: "x" }, // cy was told
+        { applicant: "Applicant 1", to: "Group A2", why: "fits" }, // fits: B has room for 2
+        { applicant: "Applicant 4", to: "Group A9", why: "x" }, // no such group
+      ],
+    });
+    const kept = keepMoves(screen(), people, new Set(["cy"]), labels, said.moves);
+    assert.deepEqual(kept.moves, [{ uid: "ada", toKey: "A2", why: "fits" }]);
+    assert.deepEqual(kept.dropped.map((d) => d.why), [
+      "Applicant 2 cannot make that group's time",
+      "Applicant 3 has already been told their group",
+      "names somebody or a group that is not on the screen",
+    ]);
+    // Group B is full once Ada is in it.
+    const full = keepMoves(screen(), people, new Set(), labels, [
+      { applicant: "Applicant 1", to: "Group A2", why: "" },
+      { applicant: "Applicant 3", to: "Group A2", why: "" },
+    ]);
+    assert.deepEqual(full.dropped.map((d) => d.why), ["Group A2 is full"]);
+    assert.equal(askAnswerFrom({ answer: "  ", moves: [] }), null);
+  });
+});
+

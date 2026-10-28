@@ -431,7 +431,7 @@ export default function TimesPicture({
         <>
           <p className={styles.lede}>
             {saidSentence(picture.said, picture.holders, view.programmeName)}
-            {drawn ? ` ${lengthSentence(view.length.source, view.length.counted)}` : ""}
+            {drawn ? ` ${lengthSentence(view.length.source, view.length.counted, view.length.usual)}` : ""}
             {picture.littleMarked > 0 ? ` ${littleMarkedSentence(picture.littleMarked)}` : ""}
           </p>
           {/* Nobody has said when they are free yet: no picture to draw, but

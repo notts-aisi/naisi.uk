@@ -19,6 +19,7 @@ import {
   lengthFromGroups,
   lengthOptions,
   pickLength,
+  usualLength,
   timesPicture,
   type LengthSource,
   type TimesGroup,
@@ -79,7 +80,8 @@ export type TimesView = {
    */
   blank: "no-run" | "run-gone" | "not-sent" | null;
   /** The length counted, the lengths that can be picked, and where the default came from. */
-  length: { counted: number; options: number[]; source: LengthSource };
+  /** `usual` is the programme's usual length (`usualLength`), counted while no group has a time. */
+  length: { counted: number; options: number[]; source: LengthSource; usual: number };
   /** Null whenever `blank` says why. */
   picture: TimesPicture | null;
   /**
@@ -162,7 +164,7 @@ export async function loadTimesPicture(
     programmeName: programme.shortName,
     run: null,
     blank: "no-run",
-    length: { counted: 0, options: [], source: { kind: "none" } },
+    length: { counted: 0, options: [], source: { kind: "none" }, usual: usualLength(programme.kind) },
     picture: null,
     pitchingWeek: null,
     actions: null,
@@ -180,8 +182,8 @@ export async function loadTimesPicture(
   const groups = await groupsOf(db, view.run.id);
   const source = lengthFromGroups(groups);
   const options = lengthOptions(groups);
-  const counted = pickLength(requestedLength, options, defaultLength(source));
-  view.length = { counted, options, source };
+  const counted = pickLength(requestedLength, options, defaultLength(source, programme.kind));
+  view.length = { counted, options, source, usual: usualLength(programme.kind) };
   const told = await toldGroupIds(db, readsOf(db), view.run.id, groups);
   view.actions = {
     told: groups.filter((group) => told.has(group.id)).map((group) => group.id),
