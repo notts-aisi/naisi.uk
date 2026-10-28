@@ -4,9 +4,10 @@ import { askClaudeForJson, claudeConfigured } from "@/lib/ai/claude";
 import type { SessionUser } from "@/lib/firebase/session";
 import { admissionAssessmentId, ASSESSMENTS_COLLECTION } from "@/lib/firestore/admissionAssessments";
 import { compareGroupsByMeeting } from "@/lib/firestore/courseGroups";
+import { storedReadFor } from "../assessment/stored";
 import { own } from "../keys";
 import type { Refusal } from "../review/types";
-import type { Lean, StoredClaudeRead } from "../assessment/types";
+import type { Lean } from "../assessment/types";
 import { adviceInputFrom, applyAdvice, type Advice, type ReadNote } from "./advice";
 import { loadArranging } from "./load";
 import type { SessionSlot } from "@/lib/admissions/availability";
@@ -110,7 +111,7 @@ async function readsFor(db: Firestore, roundId: string, programmeId: string, uid
     for (const snap of await db.getAll(...refs)) {
       const data = snap.exists ? (snap.data() as Record<string, unknown>) : null;
       const uid = typeof data?.uid === "string" ? data.uid : "";
-      const read = data ? (own((data.claude ?? {}) as Record<string, StoredClaudeRead>, programmeId) ?? null) : null;
+      const read = data ? storedReadFor(data, programmeId) : null;
       if (uid && read && typeof read.summary === "string") reads.set(uid, { lean: read.lean as Lean, summary: read.summary });
     }
   }

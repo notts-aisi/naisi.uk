@@ -829,6 +829,22 @@ export const ROUTES = {
         "signed-in persona meets the same 400 on an empty one.",
     },
   },
+  "/api/admissions/forms/[roundId]/intake": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Planning the whole intake is admin only, decided before the body is read; the admin " +
+        "then meets the body check, which an empty body fails before anything is read or sent anywhere.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/intake/clear": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Clearing every read is admin only, decided before the body is read; the admin then " +
+        "meets the body check, which an empty body fails without confirm: true, so nothing is deleted.",
+    },
+  },
   "/api/admissions/forms/[roundId]/pool": {
     GET: {
       expect: adminOnly(404),
@@ -3501,6 +3517,15 @@ export const PAGES = {
       "here' in place of the page with a 200. " +
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
       "and with an address that names nothing is drawn the same not-here state.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/intake": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "The admissions console, as the pooled applicants page: requireAdmissionsPage admits round " +
+      "authors (admin or approveCourse) and named reviewers; a draftCourse holder is sent on to the " +
+      "dashboard. A missing form, or one the caller has no role on, renders not found for those " +
+      "admitted; a lead or a reviewer on the form is shown a notice that planning the intake is an " +
+      "admin's, before anything about an applicant is read. Nothing is sent to Claude on the way in.",
   },
   "/(app)/admin/admissions/forms/[roundId]/pool": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),

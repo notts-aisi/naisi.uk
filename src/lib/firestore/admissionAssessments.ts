@@ -7,7 +7,10 @@ import { admissionApplicationId } from "./admissionApplications";
  *
  * ```
  * { roundId, uid,
- *   claude:  { [programmeId]: StoredClaudeRead },  // one read per programme
+ *   read:    StoredApplicationRead | null,     // one read of the whole application,
+ *                                             // with a lean per programme ranked
+ *   claude:  (from before reads were per application: never read, cleared
+ *            with the rest by "Clear all reads")
  *   pangram: PangramCheck | null,             // the application's long answers
  *   updatedAt }
  * ```
@@ -24,8 +27,9 @@ import { admissionApplicationId } from "./admissionApplications";
  * name, so deleting a reviewer's account leaves nothing here that names them.
  *
  * The id is `admissionApplicationId(roundId, uid)`, the application's own:
- * the assessment of an application is found by the application, never by a
- * query.
+ * the assessment of an application is found by the application. The one
+ * query is "Clear all reads" (`src/lib/applications/assessment/clear.ts`),
+ * which takes every assessment in a round by `roundId`.
  */
 export const ASSESSMENTS_COLLECTION = "admissionAssessments";
 

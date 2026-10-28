@@ -684,6 +684,16 @@ const USERS = new Map([
       "term in which every kind of reply has been made, because each screen has to count the same place",
   ],
   [
+    "applications-intake-match.test.mjs",
+    "executes the pure draft of who goes where, because the order a programme keeps people in and " +
+      "who is turned away to their next choice are decided by the code that runs",
+  ],
+  [
+    "applications-intake-plan.test.mjs",
+    "executes the intake routes and the rules that keep or drop Claude's advice, because who is " +
+      "refused, what Claude is sent and which decisions Apply would make are decided by the code that runs",
+  ],
+  [
     "applications-arrange-advice.test.mjs",
     "executes the pure advice module, whose imports reach the arrangement plan, because what " +
       "Claude is told and which of its suggestions are kept are decided by the code that runs",

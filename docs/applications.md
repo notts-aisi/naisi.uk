@@ -1872,8 +1872,15 @@ says reaches the applicant.
   read (`src/lib/applications/assessment/run.ts`). A lead scores blind first
   and the read draws every reviewer together, so it is never shown to one.
 - **Asked for, never automatic.** Opening an application reads what is already
-  stored and sends nothing. The review screen's button, or "Assess the rest"
-  on a programme's list, sends.
+  stored and sends nothing. The review screen's button, "Assess the rest" on a
+  programme's list, or "Read everyone" on Plan the intake, sends.
+- **One read per application, in two passes**
+  (`assessment/claudeRead.ts`). Claude reads the application blind first,
+  with nothing the committee scored or wrote, then again with its own first
+  view and the committee's scores and comments. The read is of the whole
+  application, with a lean and a fit for every programme the person ranked,
+  so it is made once and every programme's screens read their part of it
+  through `assessment/stored.ts`. The blind view is kept beside it.
 - **What is sent is built from the admin's own review payload**
   (`assessment/input.ts`), so the fences above hold by construction: the
   access-requirements answer and the SU membership answer are in no review
@@ -1881,13 +1888,16 @@ says reaches the applicant.
   account id, letters the reviewers ("Reviewer A") instead of naming them,
   and leaves out availability. Words an applicant typed are sent as typed.
 - **Pangram sees only answers of 50 words or more** (`PANGRAM_MIN_WORDS`),
-  one answer per request. On a sentence or two a detector's verdict is close
+  joined into one text and sent once per application, because Pangram
+  charges by the request as well as by the word. Each answer's reading is
+  made from the stretches (`windows`) of that check that cover it
+  (`readingsForParts` in `src/lib/ai/pangram.ts`). On a sentence or two a detector's verdict is close
   to a guess, and a wrong flag on a student is an accusation. A flag reads
   "worth a look", never a verdict. Claude is told not to judge whether
   anything was written with AI, and not to mark anybody down for their
   English.
-- **What is kept.** `admissionAssessments` holds Claude's read per programme
-  and Pangram's check, with the letters and the ACCOUNTS they stood for, never
+- **What is kept.** `admissionAssessments` holds Claude's read (`read`) and
+  Pangram's check, with the letters and the ACCOUNTS they stood for, never
   a reviewer's name: the names are put back on the way to the screen. A read
   carries a hash of what was sent, and is shown as out of date once the
   answers or the reviews change. It goes with its application (see What
@@ -1916,6 +1926,20 @@ says reaches the applicant.
   through the site's own routes for groups, places and facilitators, in
   that order, and stops at the first refusal; nobody is emailed until
   Publish.
+- **The whole term at once.** Plan the intake
+  (`/admin/admissions/forms/[roundId]/intake`, admin only, before decision
+  day) drafts who goes where across every programme: applicant-proposing
+  deferred acceptance (`intake/match.ts`), each programme preferring its
+  lead's acceptances, then Claude's leans, then the committee's scores, never
+  past its places and never overruling a lead's Decline. Claude is then told
+  the term by number (`intake/advice.ts`) and suggests changes, a facilitator
+  shortlist from those who offered, and people who did NOT offer but should
+  be asked; only what fits the rankings, the declines and the places is kept.
+  Nothing is written. Apply makes each person's decisions through the
+  decision route (`decisionsFor`: pool everything ranked above the plan's
+  programme as a better fit, then accept it), and nobody is emailed until
+  decision day. Clear all reads deletes every `admissionAssessments` document
+  on the form (`assessment/clear.ts`).
 - **Inside one request.** The backend stops a request at 300 seconds (it was
   60 until the comparison needed more). A read is given 150 seconds, a
   comparison 240, and no call is retried. The two parts of a read are
@@ -1928,8 +1952,10 @@ says reaches the applicant.
 
 `tests/applications-assessment.test.mjs` runs the routes: who is refused,
 that no name is sent or stored, that a changed review puts a read out of date,
-that Pangram is sent only the long answers, and that a comparison or a
-question sends labels, never names, and stores nothing.
+that Pangram is sent only the long answers, in one request, and that a
+comparison or a question sends labels, never names, and stores nothing.
+`tests/applications-intake-plan.test.mjs` runs Plan the intake and Clear all
+reads, and `tests/applications-intake-match.test.mjs` the draft.
 
 ## The modules
 
