@@ -600,7 +600,8 @@ describe("the page draws the view's words, and the view takes them from the emai
     assert.equal(buttons.split("{helps}").length - 1, 1);
     // The email's paragraph about replying asks with the kind of the programme it is about.
     const email = codeOf("lib", "applications", "decisionDay", "emailCopy.ts");
-    assert.ok(email.includes("acceptedReply(programme.kind),"));
+    // With the form's day to confirm by, when there is one (`confirmWords`).
+    assert.ok(email.includes("acceptedReply(programme.kind, confirmBy),"));
     assert.ok(email.includes("`You don’t need to reply. If you’re coming, tap the button. ${comingHelps(kind)} ` +"));
   });
 });

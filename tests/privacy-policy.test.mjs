@@ -172,15 +172,17 @@ const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
 const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
-const CURRENT = read("src/content/legal/privacy/v9.tsx");
+const CURRENT = read("src/content/legal/privacy/v10.tsx");
 /**
  * The current policy with every run of whitespace collapsed to one space. The
  * copy is JSX, so a sentence is wrapped and indented across several lines and
  * no pattern written as a sentence would ever match the raw source. Every
- * content check below runs against this, because v9 is the text the site
+ * content check below runs against this, because v10 is the text the site
  * serves at /privacy.
  */
 const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
+/** v9, frozen: read by §2j, which proves confirming a place is not in it. */
+const V9_FLAT = read("src/content/legal/privacy/v9.tsx").replace(/\s+/g, " ");
 /** v8, frozen: read by §2i, which proves the whole term's sentences are not in it. */
 const V8_FLAT = read("src/content/legal/privacy/v8.tsx").replace(/\s+/g, " ");
 /** v7, frozen: read by §2h, which proves the second reader's sentences are not in it. */
@@ -216,12 +218,15 @@ const componentPrefix = (key) => `${key[0].toUpperCase()}${key.slice(1)}Content`
 const POLICY_KEYS = Object.keys(POLICIES);
 
 describe("policy versions", () => {
-  test("privacy v9 is current, and the combined version string moved with it", () => {
-    assert.equal(currentPolicy("privacy").version, 9);
-    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.9");
+  test("privacy v10 is current, and the combined version string moved with it", () => {
+    assert.equal(currentPolicy("privacy").version, 10);
+    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.10");
   });
 
-  test("privacy v9 is dated the day its words last changed", () => {
+  test("privacy v10 is dated the day its words last changed", () => {
+    const ten = POLICIES.privacy.versions.find((v) => v.version === 10);
+    assert.equal(ten?.lastUpdated, "28 October 2026");
+    assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 10).length, 1);
     const nine = POLICIES.privacy.versions.find((v) => v.version === 9);
     assert.equal(nine?.lastUpdated, "28 October 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 9).length, 1);
@@ -390,6 +395,13 @@ const FROZEN_VERSIONS = new Map([
     {
       sha256: "752d84f1765d1f0353fba8169011913e40d194b33f1be4755f1c3f550f5178a4",
       why: "the application form's version, current from 7 October 2026 until v7 replaced it; the wording every member and every applicant accepted in that time, frozen when the course hub moved the version rather than editing the certificates promise in place",
+    },
+  ],
+  [
+    "privacy/v9",
+    {
+      sha256: "1f2333cd3b43a5c3293ee70de0c345fef388e5c5cb36b5007d14dee52bf7474f",
+      why: "the whole term's version, current from 28 October 2026 until v10 replaced it; the wording members accepted when Claude began planning the intake, frozen when confirming a place by a day moved the version rather than adding the paragraph in place",
     },
   ],
   [
@@ -7160,5 +7172,42 @@ describe("v9 says Claude reads blind first, and may plan the whole term", () => 
         `intake/${file} writes`,
       );
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2j Confirming a place, and being asked when you did not offer: v10's words are the code's
+// ---------------------------------------------------------------------------
+
+describe("v10 says how a place is confirmed, and that somebody who did not offer may be asked", () => {
+  const SENTENCES = [
+    // placeConfirmBy on the form; "I'm coming" is the reply that confirms (src/lib/applications/status/confirming.ts).
+    "We may ask everybody holding a place to confirm it by a day, by pressing “I’m coming” on their application page.",
+    // confirmationReminderDue: once a day, up to the day; the job reads the courses row.
+    "Until you do, we may email you a reminder once a day, up to that day.",
+    // confirmReminderOn on the application, written only by the job.
+    "We record the date of the last one on your application. If the day passes and you have not confirmed, nothing happens by itself: your place is still yours,",
+    // Nothing writes a place after the day: the People tab says so, and Remove is a person's press.
+    "They may then take you off the programme so that your place can be offered to somebody else, and a person decides that.",
+    // loadCasePeople: holding a place, did not offer; an admin's alone (act.ts, CASE_ADMINS_ONLY).
+    "If you hold a place and did not say you would like to facilitate, an admin may still ask you to facilitate one of its groups, in the same way and with the same record, adding a sentence of their own on why we think you would be good at it.",
+    // The ask's `case` field.
+    "That sentence is part of the email, and is kept with the ask so that a reminder can say it again.",
+  ];
+
+  for (const sentence of SENTENCES) {
+    test(`v10 says: ${sentence.slice(0, 60)}`, () => {
+      assert.ok(CURRENT_FLAT.includes(sentence), `v10 no longer says: ${sentence}`);
+      assert.ok(!V9_FLAT.includes(sentence), `v9 already said it, so it is not v10's change: ${sentence}`);
+    });
+  }
+
+  test("nothing writes a place because a day to confirm by passed", () => {
+    for (const file of ["src/lib/applications/status/confirming.ts", "src/lib/scheduler/jobs/applicationPlaceConfirmations.ts"]) {
+      const source = read(file);
+      assert.ok(!/attendance|status:|withdrawn|givePlaceBack/.test(source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "").replace(/"attendance"/g, "")), `${file} changes a place`);
+    }
+    const job = read("src/lib/scheduler/jobs/applicationPlaceConfirmations.ts");
+    assert.deepEqual([...job.matchAll(/tx\.update\(ref, \{ (\w+):/g)].map((m) => m[1]), ["confirmReminderOn", "confirmReminderOn"]);
   });
 });

@@ -700,6 +700,7 @@ describe("what the staff screens are handed", () => {
       "asksFacilitating",
       "canRunTerm",
       "closes",
+      "confirmBy",
       "decisions",
       "draft",
       "id",

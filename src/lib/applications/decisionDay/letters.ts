@@ -19,6 +19,8 @@ export type EmailContext = {
   form: ApplicationForm;
   leadNames: Record<string, string>;
   replyBy: string | null;
+  /** The day places are confirmed by, formatted ("Fri 30 Oct"), or null when a place is presumed. */
+  confirmBy: string | null;
   links: { application: string; events: string };
 };
 
@@ -42,6 +44,7 @@ export async function emailContext(db: Firestore, form: ApplicationForm): Promis
     form,
     leadNames,
     replyBy: civilDateLabel(form.invitationReplyBy),
+    confirmBy: civilDateLabel(form.placeConfirmBy),
     links: {
       application: admissionApplicationUrl(form.round.id, "status"),
       events: `${appUrl()}/events`,

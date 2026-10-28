@@ -126,6 +126,12 @@ export type ComposeInput = {
   leadNames: Readonly<Record<string, string>>;
   /** The reply-by day for an invitation, already formatted: "Sun 25 Oct". */
   replyBy: string | null;
+  /**
+   * The day a place is confirmed by, already formatted ("Fri 30 Oct"), when
+   * the form asks people to confirm (`placeConfirmBy`). Absent or null: a
+   * place is presumed, and the email says nobody needs to reply.
+   */
+  confirmBy?: string | null;
   links: {
     /** The person's own application page. */
     application: string;
@@ -214,11 +220,17 @@ export function comingHelps(kind: ProgrammeKind | null): string {
 }
 
 /** The standard "You're in" email's paragraph about replying, for a place on a programme of this kind. */
-function acceptedReply(kind: ProgrammeKind): string {
+function acceptedReply(kind: ProgrammeKind, confirmBy: string | null): string {
+  if (confirmBy) return `${confirmWords(confirmBy)} If you can’t make it, tell us and we’ll give your place to someone else.`;
   return (
     `You don’t need to reply. If you’re coming, tap the button. ${comingHelps(kind)} ` +
     "If you can’t make it, tell us and we’ll give your place to someone else."
   );
+}
+
+/** "Please confirm your place by Fri 30 Oct: tap “I’m coming”." The one sentence every place to confirm says. */
+export function confirmWords(confirmBy: string): string {
+  return `Please confirm your place by ${confirmBy}: tap “I’m coming”.`;
 }
 
 const NO_OFFER_BODY = [
@@ -306,19 +318,33 @@ function greetingFor(firstName: string): string {
   return `Hi ${firstName.trim() || "there"},`;
 }
 
+/**
+ * A programme's own "You're in" wording says nothing of a day to confirm by,
+ * so with one set its sentence follows that wording. The standard wording
+ * says it already (`acceptedReply`), and is left alone.
+ */
+function withConfirm(paragraphs: string[], confirmBy: string | null): string[] {
+  if (!confirmBy || paragraphs.some((paragraph) => paragraph.includes(confirmWords(confirmBy)))) return paragraphs;
+  return [...paragraphs, confirmWords(confirmBy)];
+}
+
 function acceptedEmail(input: ComposeInput, programme: ProgrammeSettings): DecisionEmail {
   const starts = programme.starts.trim();
+  const confirmBy = input.confirmBy ?? null;
   return {
     kind: "accepted",
     subject: programmeEmailSubject(input.form, programme, "accepted"),
     greeting: greetingFor(input.firstName),
-    paragraphs: paragraphsOr(programme.emailWording.accepted, [
-      // A programme with no start written down yet says nothing about when,
-      // rather than "It starts ." with a hole in it.
-      `You’re in the ${programme.name}.${starts ? ` It starts ${starts}.` : ""} ` +
-        placeNextWords(programme.kind).email,
-      acceptedReply(programme.kind),
-    ]),
+    paragraphs: withConfirm(
+      paragraphsOr(programme.emailWording.accepted, [
+        // A programme with no start written down yet says nothing about when,
+        // rather than "It starts ." with a hole in it.
+        `You’re in the ${programme.name}.${starts ? ` It starts ${starts}.` : ""} ` +
+          placeNextWords(programme.kind).email,
+        acceptedReply(programme.kind, confirmBy),
+      ]),
+      confirmBy,
+    ),
     buttons: [
       { label: "I’m coming", href: input.links.application, look: "primary" },
       { label: "I can’t make it", href: input.links.application, look: "quiet" },
@@ -419,6 +445,32 @@ export function composeInvitationReminder(
       `This is a reminder. We haven’t had your reply yet, and ${when}.`,
       ...invitation.paragraphs,
     ],
+  };
+}
+
+/**
+ * The reminder to confirm a place: the "You're in" email again, as it would
+ * go today with the day to confirm by, under the line that says it is a
+ * reminder, so somebody whose first email went astray learns everything from
+ * this one (`src/lib/applications/status/confirming.ts`). Null when the
+ * programme has left the form.
+ */
+export function composeConfirmReminder(
+  input: ComposeInput & { outcome: { kind: "accepted"; programmeId: string } },
+  due: {
+    /** The day to confirm by, already formatted: "Fri 30 Oct". */
+    confirmBy: string;
+    /** True on that day itself. */
+    lastDay: boolean;
+  },
+): DecisionEmail | null {
+  const place = composeDecisionEmail({ ...input, confirmBy: due.confirmBy });
+  if (!place || place.kind !== "accepted") return null;
+  const when = due.lastDay ? `today, ${due.confirmBy}, is the last day to confirm it` : `it’s to be confirmed by ${due.confirmBy}`;
+  return {
+    ...place,
+    subject: `Please confirm your place: ${place.subject}`,
+    paragraphs: [`This is a reminder. You haven’t confirmed your place yet, and ${when}.`, ...place.paragraphs],
   };
 }
 

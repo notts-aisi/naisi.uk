@@ -85,6 +85,7 @@ export type FormPatch = {
   closes?: MomentInput;
   decisions?: string | null;
   replyBy?: string | null;
+  confirmBy?: string | null;
   asksFacilitating?: boolean;
   programmeIds?: string[];
   addProgramme?: { name: string; shortName: string; kind: ProgrammeKind };

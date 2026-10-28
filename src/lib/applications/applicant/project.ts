@@ -89,6 +89,9 @@ export function projectFormForApplicant(form: ApplicationForm, now: Date): Appli
     decisionsLabel: round.decisionsByDate
       ? (formatRunStartShort(round.decisionsByDate) ?? null)
       : null,
+    confirmBy: form.placeConfirmBy
+      ? { day: form.placeConfirmBy, label: formatRunStartShort(form.placeConfirmBy) ?? form.placeConfirmBy }
+      : null,
     programmes,
     questionSetIds: [...form.questionSetIds],
     asksFacilitating: form.asksFacilitating,

@@ -353,6 +353,13 @@ export type ApplicationFormFields = {
   asksFacilitating: boolean;
   /** Invitations are accepted by this day. A civil date, Europe/London. */
   invitationReplyBy: string | null;
+  /**
+   * Somebody holding a place is asked to confirm it ("I'm coming") by this
+   * day, and reminded each day until they do (`src/lib/applications/status/
+   * confirming.ts`). A civil date, Europe/London. Null: a place is presumed,
+   * and "I'm coming" is optional.
+   */
+  placeConfirmBy: string | null;
   /** An admin's switch: show other reviewers' scores on a first review. */
   revealOtherReviews: boolean;
   /** The "No offer this time" email, the same for every programme. */
@@ -618,6 +625,13 @@ export type ApplicationFields = {
   /** A freed place offered after decision day, beside its `invitation`. Null for everybody else. */
   freedPlace: FreedPlace | null;
   attendance: Attendance | null;
+  /**
+   * The civil date of the last reminder to confirm a place, so a day sends at
+   * most one. Written only by the place-confirmation job
+   * (`src/lib/applications/status/confirming.ts`), and only while the form
+   * asks people to confirm by a day.
+   */
+  confirmReminderOn: string | null;
   /**
    * The reason given with the reply that gave a place or an invitation back,
    * written by that reply and by nothing else. Null until then, and for a

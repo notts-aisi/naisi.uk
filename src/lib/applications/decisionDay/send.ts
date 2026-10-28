@@ -202,6 +202,7 @@ function emailFor(
     ranked: person.ranked,
     leadNames: context.leadNames,
     replyBy: context.replyBy,
+    confirmBy: context.confirmBy,
     links: context.links,
   });
 }
@@ -596,6 +597,7 @@ export async function sendProgrammeTestEmail(
     ranked: kind === "invitation" ? [] : [programmeId],
     leadNames: context.leadNames,
     replyBy: context.replyBy,
+    confirmBy: context.confirmBy,
     links: context.links,
   });
   if (!email) return none;

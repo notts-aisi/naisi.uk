@@ -38,6 +38,7 @@ import { admissionsRemindersJob } from "./jobs/admissionsReminders";
 import { admissionsStageReleaseJob } from "./jobs/admissionsStageRelease";
 import { anonymousFeedbackMoveJob } from "./jobs/anonymousFeedbackMove";
 import { applicationInvitationRemindersJob } from "./jobs/applicationInvitationReminders";
+import { applicationPlaceConfirmationsJob } from "./jobs/applicationPlaceConfirmations";
 import { eventAnnouncementsJob } from "./jobs/eventAnnouncements";
 import { eventCheckInsTidyJob } from "./jobs/eventCheckInsTidy";
 import { heartbeatJob } from "./jobs/heartbeat";
@@ -71,6 +72,10 @@ export const SCHEDULER_JOB_IDS = [
   // tick receipts to say whether reminders are running, so it is load-bearing
   // in two places: rename it and that page stops promising a reminder.
   "application-invitation-reminders",
+  // The daily reminder to confirm a place while a form asks people to confirm
+  // by a day (`src/lib/applications/status/confirming.ts`). It emails people,
+  // so it registers with `enabledByDefault: false`.
+  "application-place-confirmations",
   "courses-unmarked-registers",
   "courses-break-return",
   // Next week's email on a schedule (wk-register, option B). Its switch is
@@ -250,6 +255,7 @@ export const JOBS: readonly JobRegistration[] = [
   admissionsStageReleaseJob,
   anonymousFeedbackMoveJob,
   applicationInvitationRemindersJob,
+  applicationPlaceConfirmationsJob,
   nextWeekEmailJob,
   registerRemindersJob,
   unmarkedRegistersJob,

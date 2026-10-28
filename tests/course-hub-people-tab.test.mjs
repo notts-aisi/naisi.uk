@@ -178,6 +178,8 @@ describe("2. nothing a lead may not read", () => {
     const { view } = await open("claudia");
     assert.deepEqual(Object.keys(view).sort(), [
       "blank",
+      // The line about confirming a place by a day, or null: a count and a day, never a name.
+      "confirm",
       "counts",
       "programmeId",
       "programmeName",

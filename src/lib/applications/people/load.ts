@@ -1,6 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { groupTagOf } from "@/lib/courses/programmeAttendance";
+import { londonDateKey } from "@/lib/courses/weekPlan";
 import type { SessionUser } from "@/lib/firebase/session";
 import { enrolmentHasLeft, normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
 import { compareGroupsByMeeting, normalizeCourseGroup } from "@/lib/firestore/courseGroups";
@@ -130,6 +131,7 @@ export async function loadProgrammePeople(
     viewer: role === "admin" ? "admin" : "lead",
     blank: "not-sent",
     sentence: placesSentence(0, 0),
+    confirm: null,
     counts: { everyone: 0, coming: 0, "havent-said": 0, "not-said-free": 0, "gave-back": 0, invited: 0 },
     rows: [],
   };
@@ -139,7 +141,7 @@ export async function loadProgrammePeople(
   const read = await readProgrammePeople(db, actor, form, programme);
   if (!read) return { status: "ok", view };
   const { model } = read;
-  return { status: "ok", view: { ...view, blank: null, sentence: model.sentence, counts: model.counts, rows: model.rows } };
+  return { status: "ok", view: { ...view, blank: null, sentence: model.sentence, confirm: model.confirm, counts: model.counts, rows: model.rows } };
 }
 
 /** The People tab's model, and what it was worked out from that another reader of the same people needs. */
@@ -195,6 +197,7 @@ export async function readProgrammePeople(
     seats,
     programmePath,
     runNamed: runId !== null,
+    today: londonDateKey(new Date()),
   });
   return { model, applications, groups };
 }

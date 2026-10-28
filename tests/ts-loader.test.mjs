@@ -684,6 +684,11 @@ const USERS = new Map([
       "term in which every kind of reply has been made, because each screen has to count the same place",
   ],
   [
+    "applications-place-confirmations.test.mjs",
+    "executes the rule of who is reminded to confirm a place, the emails that say the day, the job " +
+      "that sends, and the People tab after the day, because each is decided by the code that runs",
+  ],
+  [
     "applications-intake-match.test.mjs",
     "executes the pure draft of who goes where, because the order a programme keeps people in and " +
       "who is turned away to their next choice are decided by the code that runs",

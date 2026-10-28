@@ -256,16 +256,30 @@ function GiveBack({
   );
 }
 
+/**
+ * The line under "I’m coming" while the form asks people to confirm by a day
+ * (`src/lib/applications/status/confirming.ts`), in place of "Optional.".
+ * After the day it says what may happen, never that it has.
+ */
+function confirmNote(confirm: { label: string; overdue: boolean }, why: string): string {
+  return confirm.overdue
+    ? `We asked you to confirm by ${confirm.label}. Please confirm now, or your place may go to someone else.`
+    : `Please confirm by ${confirm.label}. ${why}`;
+}
+
 /** For somebody holding a place: "I’m coming" (until they have said so) and "I can’t make it". */
 export function PlaceReply({
   roundId,
   said,
   helps,
+  confirm = null,
   locked,
 }: {
   roundId: string;
   /** What they have already told us, as a sentence, or null when they have said nothing yet. */
   said: string | null;
+  /** The day to confirm by, while the form asks for one: the view's `confirm`. Null: "I’m coming" is optional. */
+  confirm?: { label: string; overdue: boolean } | null;
   /**
    * Why saying they are coming helps, for the kind of programme the place is
    * on, shown after "Optional." under the button. The view's `comingHelps`:
@@ -315,7 +329,11 @@ export function PlaceReply({
           >
             {sending === "coming" ? "Saving…" : "I’m coming"}
           </button>
-          <p className={styles.note}>Optional. {helps}</p>
+          {confirm ? (
+            <p className={styles.note}>{confirmNote(confirm, helps)}</p>
+          ) : (
+            <p className={styles.note}>Optional. {helps}</p>
+          )}
         </>
       )}
       <button type="button" className={styles.quiet} onClick={() => setAsking(true)} disabled={off}>

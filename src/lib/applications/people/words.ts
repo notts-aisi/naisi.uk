@@ -95,7 +95,26 @@ export function someoneLeftOf(rows: readonly Pick<PersonRow, "category" | "statu
 /** "Yes, Mon 26 Oct", "Not yet", "No". */
 export function comingWords(coming: PersonComing): string {
   if (coming.kind === "yes") return coming.on ? `Yes, ${coming.on}` : "Yes";
+  if (coming.kind === "not-confirmed") return `Not confirmed by ${coming.by}`;
   return coming.kind === "not-yet" ? "Not yet" : "No";
+}
+
+/**
+ * The line under the filters while the form asks people to confirm by a day.
+ * Before it: who has not yet. After it: who did not, and that nothing
+ * happened by itself, so a person decides and how.
+ */
+export function confirmSentence(by: string, notYet: number, overdue: boolean): string {
+  if (!overdue) {
+    return notYet === 0
+      ? `Everyone holding a place has confirmed it. They were asked to by ${by}.`
+      : `${notYet === 1 ? "1 person hasn’t" : `${notYet} people haven’t`} confirmed their place yet. They’re asked to by ${by}, and reminded each day while reminders are on.`;
+  }
+  if (notYet === 0) return `Everyone holding a place confirmed it by ${by}.`;
+  return (
+    `${notYet === 1 ? "1 person" : `${notYet} people`} didn’t confirm by ${by}. Their places are still theirs. ` +
+    "To give one to somebody else, take them off on People in groups (Remove), then offer the place from Freed places."
+  );
 }
 
 /** "Fits A, B, D", "Fits none of the 4 times", "Not said". */
