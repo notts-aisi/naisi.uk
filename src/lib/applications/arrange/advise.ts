@@ -18,6 +18,7 @@ import {
   choiceFrom,
   choiceInputFrom,
   keepMoves,
+  namesForLabels,
   screenGroupsFrom,
   siteOption,
   type AppliedChoice,
@@ -68,7 +69,7 @@ What to do:
 - You may suggest moves within an option to improve a group's mix or put a facilitator where they are needed. Only move somebody to a group in the same option that they can make, and never somebody already told their group.
 - Say which option you prefer and why.
 - Do not use or guess at personal characteristics such as age, gender, nationality or health.
-- Refer to people, groups and options only by their labels. Be brief, in British English, and never use an em dash or an en dash.`;
+- Refer to people, groups and options only by their labels, and write every label out in full each time: "Applicant 3 and Applicant 7", "Group B2", never "Applicants 3 and 7" or a bare "B2". Be brief, in British English, and never use an em dash or an en dash.`;
 
 const person = (extra: Record<string, unknown>) => ({
   type: "object",
@@ -255,13 +256,14 @@ export async function arrangeOptions(
     // Each option is shown under the letter of its place in Claude's order.
     const shownAs = new Map(applied.options.map((option, index) => [option.candidate, LETTERS[index]] as const));
     named = (text: string) =>
-      text
-        .replace(/\bApplicant (\d+)\b/g, (w) => arranging.people.get(own(input.applicants, w) ?? "")?.name ?? w)
-        .replace(/\bGroup ([A-H]\d+)\b/g, (w) => {
-          const at = own(input.groups, w);
-          return at ? (candidates.at(at[0])?.plan.groups.at(at[1])?.name ?? w) : w;
-        })
-        .replace(/\bOption ([A-H])\b/g, (w) => {
+      namesForLabels(
+        text,
+        (label) => arranging.people.get(own(input.applicants, label) ?? "")?.name,
+        (label) => {
+          const at = own(input.groups, label);
+          return at ? candidates.at(at[0])?.plan.groups.at(at[1])?.name : undefined;
+        },
+      ).replace(/\bOption ([A-H])\b/g, (w) => {
           const index = own(input.optionAt, w);
           const letter = index === undefined ? undefined : shownAs.get(index);
           return letter ? `Option ${letter}` : w;
@@ -321,6 +323,11 @@ export async function arrangeOptions(
       offered: person.facilitates,
       told: person.told,
       littleMarked: person.week.kind === "given" && person.week.minimal === true,
+      week: {
+        said: person.week.kind === "given",
+        marked: [...(person.marked ?? [])],
+        fromFirstMark: person.week.kind === "given" && person.week.minimal === true,
+      },
       potential: (() => {
         const said = applied.potential.get(person.uid);
         return said ? { level: said.level, why: named(said.why) } : null;
@@ -345,6 +352,7 @@ export async function arrangeOptions(
       preview: arranging.preview,
       programmeName: arranging.programmeName,
       programmeShortName: arranging.programmeShortName,
+      grid: arranging.grid,
       minutes: arranging.minutes,
       size: arranging.size,
       people,
@@ -372,7 +380,7 @@ What to do:
 - For a question about several programmes meeting together, use the counts: a time where many on each programme can come.
 - For facilitators, we want people who might help run the society one day: their values and how they engage, not only their fit. Thin or brief answers count against them. Do not judge whether anything was written with AI.
 - Do not use or guess at personal characteristics such as age, gender, nationality or health.
-- Refer to people and groups only by their labels. Be brief, in British English, and never use an em dash or an en dash.`;
+- Refer to people and groups only by their labels, and write every label out in full each time: "Applicant 3 and Applicant 7", "Group A2", never "Applicants 3 and 7" or a bare "A2". Be brief, in British English, and never use an em dash or an en dash.`;
 
 const ASK_SCHEMA = {
   type: "object",
@@ -471,12 +479,14 @@ export async function askAboutArrangement(
   if (!said) return { ok: false, status: 500, error: "Claude’s answer couldn’t be read. Try again." };
   const fitting = keepMoves(groups, arranging.people, kept, ask, said.moves);
   const nameOf = (text: string) =>
-    text
-      .replace(/\bApplicant (\d+)\b/g, (w) => arranging.people.get(own(ask.applicants, w) ?? "")?.name ?? w)
-      .replace(/\bGroup ([A-H]\d+)\b/g, (w) => {
-        const key = own(ask.groups, w);
-        return groups.find((group) => group.key === key)?.name ?? w;
-      });
+    namesForLabels(
+      text,
+      (label) => arranging.people.get(own(ask.applicants, label) ?? "")?.name,
+      (label) => {
+        const key = own(ask.groups, label);
+        return key ? groups.find((group) => group.key === key)?.name : undefined;
+      },
+    );
   return {
     ok: true,
     ask: {

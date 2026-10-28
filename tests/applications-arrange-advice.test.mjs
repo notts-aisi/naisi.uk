@@ -25,9 +25,9 @@ import { createLoader } from "./lib/tsLoader.mjs";
 
 const { loadTs } = createLoader({ stubs: new Map() });
 const { candidatePlans, spreadFacilitators, MAX_CANDIDATES } = await loadTs("lib/applications/arrange/options.ts");
-const { applyChoice, askAnswerFrom, askInputFrom, choiceFrom, choiceInputFrom, keepMoves, screenGroupsFrom, siteOption } = await loadTs(
-  "lib/applications/arrange/advice.ts",
-);
+const { applyChoice, askAnswerFrom, askInputFrom, choiceFrom, choiceInputFrom, keepMoves, namesForLabels, screenGroupsFrom, siteOption } =
+  await loadTs("lib/applications/arrange/advice.ts");
+const { markedRanges } = await loadTs("lib/admissions/availability.ts");
 const { canMake, slotFor } = await loadTs("lib/applications/arrange/plan.ts");
 
 const MINUTES = 90;
@@ -384,6 +384,42 @@ describe("a question about the groups on the screen", () => {
     ]);
     assert.deepEqual(full.dropped.map((d) => d.why), ["Group A2 is full"]);
     assert.equal(askAnswerFrom({ answer: "  ", moves: [] }), null);
+  });
+});
+
+describe("people left out, and the words that come back", () => {
+  test("three or more left out get an option with a group at a time most of them can make", () => {
+    const SAT = { weekday: 6, start: 14 * 60 };
+    const people = [
+      ...["a", "b", "c", "d"].map((uid) => person(uid, freeAt(TUE, WED))),
+      ...["x", "y", "z"].map((uid) => person(uid, freeAt(SAT))),
+    ];
+    // Groups of up to 4: Tuesday's people fill one group, and nobody needs Saturday's time.
+    const found = candidatePlans({ people, groups: [], best: [TUE, WED, THU, SAT], minutes: MINUTES, size: 4, names, strength: new Map() });
+    const seatsAll = found.find((candidate) => candidate.plan.unplaced.length === 0);
+    assert.ok(seatsAll, "no option makes room for the three free on Saturday");
+    assert.ok(seatsAll.plan.groups.some((group) => group.session.weekday === 6 && ["x", "y", "z"].every((uid) => group.memberUids.includes(uid))));
+    assert.equal(found[0].plan.unplaced.length, 0, "the option seating everybody is not the best");
+  });
+
+  test("a week's marked stretches, for the admin's chart", () => {
+    const grid = { version: 1, startMinute: 540, endMinute: 1260, slotMinutes: 15 };
+    // Monday: 09:00 to 10:00 and 18:00 to 21:00.
+    const mask = { ...grid, days: ["", "f00000000fff", "", "", "", "", ""] };
+    assert.deepEqual(markedRanges(mask), [
+      { weekday: 1, start: 540, end: 600 },
+      { weekday: 1, start: 1080, end: 1260 },
+    ]);
+  });
+
+  test("labels become names, one at a time, in lists and bare", () => {
+    const person = (label) => ({ "Applicant 3": "Ada", "Applicant 4": "Bo", "Applicant 7": "Cy" })[label];
+    const group = (label) => ({ "Group A2": "Group C", "Group A5": "Group E" })[label];
+    assert.equal(
+      namesForLabels("Applicants 3, 4 and 7 suit Group A2; Applicant 3 leads. A5 is thin, unlike Groups A2 and A5.", person, group),
+      "Ada, Bo and Cy suit Group C; Ada leads. Group E is thin, unlike Group C and Group E.",
+    );
+    assert.equal(namesForLabels("Applicant 99 and B9 are unknown.", person, group), "Applicant 99 and B9 are unknown.");
   });
 });
 

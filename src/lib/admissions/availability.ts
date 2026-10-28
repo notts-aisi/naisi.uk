@@ -380,6 +380,32 @@ export function firstMarkedMinutes(mask: AvailabilityMask, fallback?: Availabili
   });
 }
 
+/** One stretch of marked time on one day, in minutes past London midnight, `end` exclusive. */
+export type MarkedRange = { weekday: number; start: number; end: number };
+
+/**
+ * Each unbroken stretch somebody marked, Sunday first as the mask is: what a
+ * chart of their week draws. Nothing reads a person's week out but this and
+ * the predicates above.
+ */
+export function markedRanges(mask: AvailabilityMask, fallback?: AvailabilityGrid): MarkedRange[] {
+  const grid = gridOf(mask, fallback);
+  if (!isUsableGrid(grid)) return [];
+  const out: MarkedRange[] = [];
+  decodeMask(mask.days, grid).forEach((column, weekday) => {
+    let from = -1;
+    column.forEach((slot, i) => {
+      if (slot && from < 0) from = i;
+      if (!slot && from >= 0) {
+        out.push({ weekday, start: grid.startMinute + from * grid.slotMinutes, end: grid.startMinute + i * grid.slotMinutes });
+        from = -1;
+      }
+    });
+    if (from >= 0) out.push({ weekday, start: grid.startMinute + from * grid.slotMinutes, end: grid.startMinute + column.length * grid.slotMinutes });
+  });
+  return out;
+}
+
 /**
  * The week read "from then on": on each day somebody marked anything, free
  * from their first marked slot until the grid closes. How a short mark is

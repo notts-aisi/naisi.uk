@@ -675,3 +675,29 @@ export function keepMoves(
   }
   return { moves, dropped };
 }
+
+const LIST_JOIN = /,\s*and\s+|\s+and\s+|,\s*/;
+const inWords = (items: readonly string[]) =>
+  items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+
+/**
+ * Claude's labels back to the words an admin reads: "Applicant 3" and
+ * "Applicants 3, 4 and 7" to names, "Group B2", "Groups B1 and B2" and a bare
+ * "B2" to the group's name. A label nothing answers is left as it is.
+ */
+export function namesForLabels(
+  text: string,
+  person: (label: string) => string | undefined,
+  group: (label: string) => string | undefined,
+): string {
+  return text
+    .replace(/\bApplicants (\d+(?:(?:,\s*and\s+|\s+and\s+|,\s*)\d+)+)\b/g, (_, list: string) =>
+      inWords(list.split(LIST_JOIN).map((n) => person(`Applicant ${n}`) ?? `Applicant ${n}`)),
+    )
+    .replace(/\bApplicant (\d+)\b/g, (label) => person(label) ?? label)
+    .replace(/\bGroups ([A-H]\d+(?:(?:,\s*and\s+|\s+and\s+|,\s*)[A-H]\d+)+)\b/g, (_, list: string) =>
+      inWords(list.split(LIST_JOIN).map((key) => group(`Group ${key}`) ?? `Group ${key}`)),
+    )
+    .replace(/\bGroup ([A-H]\d+)\b/g, (label) => group(label) ?? label)
+    .replace(/\b([A-H]\d{1,2})\b/g, (bare) => group(`Group ${bare}`) ?? bare);
+}
