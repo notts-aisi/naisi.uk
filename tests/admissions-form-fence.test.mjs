@@ -612,6 +612,13 @@ const ROUND_SURFACES = {
       "form's own loader, and setPooledOutcome reads it again inside its transaction and stops " +
       "unless it is a form",
   },
+  "/api/admissions/forms/[roundId]/pool/note": {
+    kind: "form",
+    why:
+      "saves or drafts the personal note in a pooled applicant's invitation. setInviteNote reads the " +
+      "round inside its transaction and stops unless it is a form; draftInviteNote starts from the " +
+      "form's own loader; and the page it answers with is built from the form's own loader",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]": {
     kind: "form",
     why:
@@ -1490,12 +1497,12 @@ const ROUND_READERS = new Map([
     "src/lib/applications/decisionDay/pool.ts",
     {
       kind: "form",
-      asks: 1,
+      asks: 2,
       proof: ["const form = await loadForm(db, roundId);"],
       why:
-        "the pooled applicants' board and the one writer of a pooled outcome. The writer loads " +
-        "the round with the form's own loader, then reads it again inside its transaction and " +
-        "asks before it writes a decision document",
+        "the pooled applicants' board, the one writer of a pooled outcome and the one writer of an " +
+        "invitation's note. Each writer loads the round with the form's own loader, then reads it " +
+        "again inside its transaction and asks before it writes a decision document",
     },
   ],
   [

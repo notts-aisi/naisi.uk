@@ -38,6 +38,10 @@ const { loadTs } = createLoader({
   stubs: new Map([
     ["server-only", "export {};"],
     ["firebase-admin/firestore", "export const FieldValue = { serverTimestamp: () => new Date() }; export class Timestamp {}"],
+    // The pooled page builds each invitation as it would go, and the email
+    // module it reaches imports the Admin SDK handle. Every store here is the
+    // suite's own, handed in.
+    ["@/lib/firebase/admin", "export function getAdminDb() { return null; }"],
   ]),
 });
 const lib = (...parts) => join("lib", "applications", ...parts);

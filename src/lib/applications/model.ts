@@ -105,6 +105,8 @@ export const APPLICATION_LIMITS = {
   overallComment: 4000,
   poolNote: 300,
   exceptionReason: 500,
+  /** An admin's personal note in a pooled applicant's invitation email. */
+  inviteNote: 1200,
   revokeReason: 500,
   releaseReasonOther: 300,
 } as const;
@@ -720,9 +722,16 @@ export type ProgrammeDecision = {
   decidedAt: Date | null;
 };
 
+/**
+ * A few sentences of an admin's own in a pooled applicant's invitation email,
+ * on why the programme suits them. Only an admin's Save writes it, whoever
+ * drafted the words (`decisionDay/pool.ts#setInviteNote`).
+ */
+export type InviteNote = { text: string; setByUid: string; setAt: Date | null };
+
 /** What a pooled applicant will hear, picked before decision day. */
 export type PooledOutcome =
-  | { kind: "invite"; programmeId: string; setByUid: string; setAt: Date | null }
+  | { kind: "invite"; programmeId: string; setByUid: string; setAt: Date | null; note: InviteNote | null }
   | { kind: "no-offer"; setByUid: string; setAt: Date | null };
 
 /** An admin's rare second place for one person. */

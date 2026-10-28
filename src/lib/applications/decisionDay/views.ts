@@ -68,6 +68,18 @@ export type PoolRow = {
   inviteOptions: { programmeId: string; shortName: string }[];
   /** True once decision day has told them: their outcome no longer changes. */
   told: boolean;
+  /**
+   * The personal note an admin saved for their invitation: it goes in the
+   * email. Null with none, and whenever no invitation is picked.
+   */
+  note: { text: string; by: string } | null;
+  /**
+   * Claude's latest draft of that note, for the invitation picked now. Never
+   * sent: only a Save puts words in the email. Null with none.
+   */
+  draft: { text: string; basis: string } | null;
+  /** Their invitation email as it would go now, note and all. Null unless an invitation is picked. */
+  email: EmailPreview | null;
 };
 
 /**
@@ -106,6 +118,8 @@ export type PoolBoard = {
   ownApplication: OwnApplication;
   programmes: PoolProgramme[];
   rows: PoolRow[];
+  /** Whether this site can ask Claude to draft a note. */
+  claudeConfigured: boolean;
   /**
    * Pooled people who gave a place or an invitation back after they were
    * told, with what they said and why. In no count above: `counts.pooled` is

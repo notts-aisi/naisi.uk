@@ -1009,7 +1009,10 @@ after they were told up to their own reply-by day, until they reply
 page says invited people are reminded only while a scheduled run has
 actually run it (`decisionDay/armed.ts`). A freed place offered after
 decision day is not reminded, by name (`freed-place`): see "A place given
-back after decision day".
+back after decision day". A reminder is the invitation again, word for word,
+so it repeats the personal note the invitation carried, if an admin saved
+one (see "Claude and Pangram"); the job reads the person's own decision
+document for that and writes nothing to it.
 
 ### Confirming a place by a day
 
@@ -1892,7 +1895,9 @@ An admin can ask two outside services about an application, as a second
 reader beside the decision: Claude (Anthropic's API) writes a read of it, and
 Pangram, an AI-writing detector, checks its longer answers. Both are named in
 the privacy policy as processors. Neither decides anything, and nothing either
-says reaches the applicant.
+says reaches the applicant, with one exception an admin controls: the
+personal note in an invitation, which Claude may draft and only an admin's
+Save sends (below).
 
 - **An admin's alone.** The routes refuse everybody else before anything is
   read (`src/lib/applications/assessment/run.ts`). A lead scores blind first
@@ -1995,6 +2000,26 @@ says reaches the applicant.
   Claude's suggestion for each person is kept on their assessment document
   (`suggestion`), so it shows after a reload, and Clear all reads clears it. Clear all reads deletes every `admissionAssessments` document
   on the form (`assessment/clear.ts`).
+- **A personal note with an invitation** (`decisionDay/inviteNote.ts`,
+  `decisionDay/pool.ts#setInviteNote`, privacy v11). On Pooled applicants,
+  under each person with an invitation picked, an admin can save a few
+  sentences on why that programme suits them. The note is kept on the
+  invitation itself (`PooledOutcome.note`, on the decision document, so no
+  browser reads it), goes under the invitation email's first paragraph on
+  decision day and in its daily reminder (`inviteNoteFor`), and nowhere
+  else. Claude can draft it ("Draft with Claude", or "Draft notes with
+  Claude" for everybody invited without one, one at a time): it is sent the
+  application ALONE, exactly as its blind first pass is
+  (`assessment/run.ts#applicationAlone`), with the programmes' names and
+  descriptions, and never the committee's scores or comments, because the
+  note is written to the applicant. The draft is kept beside Claude's read
+  (`inviteDraft` on the assessment document, `decisionDay/inviteDraft.ts`),
+  where nothing that emails reads it, and is shown only for the invitation
+  it was drafted for. ONLY AN ADMIN'S SAVE PUTS WORDS IN AN EMAIL, as theirs.
+  Picking another programme, or no offer, drops the note with the old pick;
+  nothing changes once the term is sent; the audit row says a note was saved
+  and never what it says. `tests/applications-invite-notes.test.mjs` runs
+  both routes, the words and the send's own composer.
 - **Inside one request.** The backend stops a request at 300 seconds (it was
   60 until the comparison needed more). A read is given 150 seconds, a
   comparison 240, and no call is retried. The two parts of a read are

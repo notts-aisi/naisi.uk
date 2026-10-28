@@ -275,6 +275,33 @@ export function emailOutcomeFor(
   return null;
 }
 
+/**
+ * ONE PERSON, from their own application and decision document alone: where
+ * they stand, for the writer of their invitation's note and for its draft,
+ * which touch nobody else. It reads nobody else's decisions, so it says
+ * nothing about free places, and both callers refuse the caller's own id
+ * before they read it. Null when the application is not in the term.
+ */
+export function onePerson(form: ApplicationForm, application: Sent, decision: DecisionDoc | null): TermPerson | null {
+  const decisions = new Map<string, DecisionDoc>();
+  if (decision) decisions.set(application.uid, decision);
+  return planTerm(form, [application], decisions).people.find((person) => person.uid === application.uid) ?? null;
+}
+
+/**
+ * The personal note an invitation to this programme carries, as an admin
+ * saved it, or null. Only the note saved with an invitation to that same
+ * programme: picking another programme drops the note with the old pick.
+ */
+export function inviteNoteFor(
+  decision: Pick<DecisionDoc, "pooledOutcome"> | null,
+  invitedTo: string | null,
+): string | null {
+  const picked = decision?.pooledOutcome ?? null;
+  if (!invitedTo || picked?.kind !== "invite" || picked.programmeId !== invitedTo) return null;
+  return picked.note?.text ?? null;
+}
+
 /** People decision day has not reached yet, in the order it will reach them. */
 export function unpublished(term: Term): TermPerson[] {
   return term.people.filter((person) => person.result === null);
