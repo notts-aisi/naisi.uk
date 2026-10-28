@@ -221,7 +221,7 @@ describe("policy versions", () => {
 
   test("privacy v8 is dated the day its words last changed", () => {
     const eight = POLICIES.privacy.versions.find((v) => v.version === 8);
-    assert.equal(eight?.lastUpdated, "27 October 2026");
+    assert.equal(eight?.lastUpdated, "28 October 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 8).length, 1);
   });
 
