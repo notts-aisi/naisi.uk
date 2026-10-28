@@ -1,4 +1,4 @@
-import { idIn, parseWallClock, type Parsed, type WallClock } from "./model";
+import { FACILITATING_LIMITS, idIn, parseWallClock, type Parsed, type WallClock } from "./model";
 
 /**
  * WHAT EACH REQUEST ABOUT ASKING MAY CARRY, checked before anything is read.
@@ -9,8 +9,12 @@ import { idIn, parseWallClock, type Parsed, type WallClock } from "./model";
 
 const NOT_JSON = "Send the request as an object.";
 
-/** "Send a test to me": the person whose email to send, the group it names, and the day and time to answer by. */
-export type TestRequest = { uid: string; groupId: string; replyBy: WallClock };
+/**
+ * "Send a test to me": the person whose email to send, the group it names,
+ * the day and time to answer by, and, for somebody who did not offer, the
+ * admin's sentence that makes the case (`case`, null otherwise).
+ */
+export type TestRequest = { uid: string; groupId: string; replyBy: WallClock; case: string | null };
 
 /** An ask: as a test, with the number of emails the button showed, and the seat for "Ask someone else". */
 export type AskRequest = TestRequest & { emails: number; seat: string | null };
@@ -34,7 +38,17 @@ export function parseTestRequest(raw: unknown): Parsed<TestRequest> {
   if (!groupId) return { ok: false, error: "Choose the group the email asks them to facilitate." };
   const replyBy = parseWallClock(b.replyBy);
   if (!replyBy.ok) return replyBy;
-  return { ok: true, value: { uid, groupId, replyBy: replyBy.value } };
+  let made: string | null = null;
+  if (b.case !== undefined && b.case !== null) {
+    if (typeof b.case !== "string" || b.case.trim() === "") {
+      return { ok: false, error: "Say in a sentence why you’re asking them." };
+    }
+    made = b.case.trim();
+    if (made.length > FACILITATING_LIMITS.caseText) {
+      return { ok: false, error: `Make the case in ${FACILITATING_LIMITS.caseText} characters or fewer.` };
+    }
+  }
+  return { ok: true, value: { uid, groupId, replyBy: replyBy.value, case: made } };
 }
 
 export function parseAskRequest(raw: unknown): Parsed<AskRequest> {

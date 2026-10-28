@@ -3,12 +3,13 @@ import type { Firestore } from "firebase-admin/firestore";
 import { isAddressableId } from "@/lib/addressableId";
 import {
   FACILITATING_COLLECTION,
-  askTestId,
   normalizeAsk,
   normalizeAskTest,
   normalizeTraining,
+  testIdFor,
   trainingId,
   type AskTest,
+  type AskWording,
   type FacilitatorAsk,
   type FacilitatorTraining,
 } from "./model";
@@ -28,10 +29,10 @@ export async function readTraining(db: Firestore, runId: string): Promise<Facili
   return training && training.runId === runId ? training : null;
 }
 
-/** The run's last test of the ask's email, or null. */
-export async function readAskTest(db: Firestore, runId: string): Promise<AskTest | null> {
+/** The run's last test of the ask's email (or of the email that makes the case), or null. */
+export async function readAskTest(db: Firestore, runId: string, wording: AskWording = "offered"): Promise<AskTest | null> {
   if (!runId || !isAddressableId(runId)) return null;
-  const snap = await db.collection(FACILITATING_COLLECTION).doc(askTestId(runId)).get();
+  const snap = await db.collection(FACILITATING_COLLECTION).doc(testIdFor(runId, wording)).get();
   if (!snap.exists) return null;
   const test = normalizeAskTest(snap.id, snap.data() as Record<string, unknown>);
   return test && test.runId === runId ? test : null;

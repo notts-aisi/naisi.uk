@@ -12,14 +12,15 @@ import { askLinkFor } from "./load";
 import {
   FACILITATING_COLLECTION,
   FACILITATING_LIMITS,
-  askTestId,
+  testIdFor,
   normalizeAsk,
   trainingId,
   type AskDelivery,
+  type AskWording,
   type FacilitatorAsk,
   type WallClock,
 } from "./model";
-import { loadFacilitatorPeople, type FacilitatorPerson } from "./people";
+import { loadCasePeople, loadFacilitatorPeople, type FacilitatorPerson } from "./people";
 import { readAsk, readAskTest, readTraining } from "./read";
 import type { AskRequest, RemindRequest, TestRequest } from "./requests";
 import {
@@ -34,6 +35,9 @@ import {
 import { askFingerprint, askIsTested, askTestStanding } from "./tested";
 import {
   ASK_REPLY_TO,
+  CASE_ADMINS_ONLY,
+  CASE_FOR_OFFERER,
+  NOT_A_CASE,
   NOT_ON_THE_LIST,
   NOT_SENT_YET,
   NOT_WAITING,
@@ -145,6 +149,7 @@ function emailInput(
   run: RunFacts,
   replyBy: WallClock,
   link: string,
+  made: string | null,
 ): AskEmailInput {
   return {
     firstName: person.firstName,
@@ -160,13 +165,19 @@ function emailInput(
     replyBy: { day: dayIn(replyBy.dateKey) ?? "", time: clockIn(replyBy.time) ?? "" },
     leadName: run.leadName,
     link,
+    case: made,
   };
 }
 
 /** The sentence that holds an ask until the email has been tested for this day and time. */
-function testProblem(context: AskContext, test: Awaited<ReturnType<typeof readAskTest>>, replyBy: WallClock): string | null {
-  if (askIsTested(test, context.programme.id, replyBy)) return null;
-  const standing = askTestStanding(test, context.programme.id);
+function testProblem(
+  context: AskContext,
+  test: Awaited<ReturnType<typeof readAskTest>>,
+  replyBy: WallClock,
+  wording: AskWording,
+): string | null {
+  if (askIsTested(test, context.programme.id, replyBy, wording)) return null;
+  const standing = askTestStanding(test, context.programme.id, wording);
   if (standing.state === "none") return "Send yourself a test of this email first. “Send a test to me” does it.";
   if (standing.state === "stale") {
     return "This email’s wording has changed since your last test. Send yourself a test again before you ask.";
@@ -217,8 +228,17 @@ async function personAndGroup(
   const facts = groupAskFacts(context.run, group, now);
   if (!facts.askable) return refuse(409, notWholeWords(facts.name));
   const people = await loadFacilitatorPeople(db, context.form, context.sets, context.programme, actor.uid);
-  const person = people.find((each) => each.uid === request.uid);
-  if (!person) return refuse(409, NOT_ON_THE_LIST);
+  let person = people.find((each) => each.uid === request.uid);
+  if (request.case !== null) {
+    // Making the case: an admin's, to somebody holding a place who did not offer.
+    if (person) return refuse(409, CASE_FOR_OFFERER);
+    if (context.viewer !== "admin") return refuse(403, CASE_ADMINS_ONLY);
+    const cases = await loadCasePeople(db, context.form, context.sets, context.programme, actor.uid);
+    person = cases.find((each) => each.uid === request.uid);
+    if (!person) return refuse(409, NOT_A_CASE);
+  } else if (!person) {
+    return refuse(409, NOT_ON_THE_LIST);
+  }
 
   // Could a yes place them in this group? Asked of their row on the run as it
   // stands, so the lead is told before anybody is emailed; the answer asks
@@ -262,8 +282,9 @@ export async function sendAskTest(
   const link = askLinkFor("test");
   if (!link) return refuse(409, NO_SITE_ADDRESS);
 
+  const wording: AskWording = request.case !== null ? "case" : "offered";
   const email = composeAskEmail(
-    emailInput(context, found.person, found.facts, await runFacts(db, context.run.id), request.replyBy, link),
+    emailInput(context, found.person, found.facts, await runFacts(db, context.run.id), request.replyBy, link, request.case),
   );
   if (!email) return refuse(409, notWholeWords(found.facts.name));
 
@@ -278,13 +299,13 @@ export async function sendAskTest(
   if (delivered.delivery === "sent") {
     await db
       .collection(FACILITATING_COLLECTION)
-      .doc(askTestId(context.run.id))
+      .doc(testIdFor(context.run.id, wording))
       .set({
-        kind: "ask-test",
+        kind: wording === "case" ? "case-test" : "ask-test",
         runId: context.run.id,
         byUid: actor.uid,
         at: FieldValue.serverTimestamp(),
-        wording: askFingerprint(context.programme.id, request.replyBy),
+        wording: askFingerprint(context.programme.id, request.replyBy, wording),
         replyBy: request.replyBy,
       });
   }
@@ -310,7 +331,8 @@ export async function askToFacilitate(
   const context = await askContext(db, actor, roundId, programmeId);
   if (!context.ok) return context;
   if (context.form.decisionsSentAt === null) return refuse(409, NOT_SENT_YET);
-  const problem = testProblem(context, await readAskTest(db, context.run.id), request.replyBy);
+  const wording: AskWording = request.case !== null ? "case" : "offered";
+  const problem = testProblem(context, await readAskTest(db, context.run.id, wording), request.replyBy, wording);
   if (problem) return refuse(409, problem);
 
   const found = await personAndGroup(db, actor, context, request, now);
@@ -326,7 +348,7 @@ export async function askToFacilitate(
   const link = askLinkFor(ref.id);
   if (!link) return refuse(409, NO_SITE_ADDRESS);
   const run = await runFacts(db, context.run.id);
-  const email = composeAskEmail(emailInput(context, person, facts, run, request.replyBy, link));
+  const email = composeAskEmail(emailInput(context, person, facts, run, request.replyBy, link, request.case));
   if (!email) return refuse(409, notWholeWords(facts.name));
 
   // The claim: written before the email goes, after every ask of the run is
@@ -370,6 +392,7 @@ export async function askToFacilitate(
       toName: person.name,
       firstName: person.firstName,
       leadName: run.leadName,
+      case: request.case,
     });
     return null;
   });
@@ -421,7 +444,7 @@ export async function remindAsk(
   // Called what the ask called them, by the facts as they stand now.
   const firstName = ask.firstName || "there";
   const run = await runFacts(db, context.run.id);
-  const email = composeAskReminder(emailInput(context, { firstName }, facts, run, ask.replyBy, link), {
+  const email = composeAskReminder(emailInput(context, { firstName }, facts, run, ask.replyBy, link, ask.case), {
     lastDay: ask.replyBy.dateKey === londonDateKey(now),
   });
   if (!email) return refuse(409, notWholeWords(facts.name));

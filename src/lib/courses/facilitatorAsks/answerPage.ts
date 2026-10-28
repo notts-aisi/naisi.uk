@@ -128,7 +128,8 @@ export async function loadAnswerPage(
     yes: null,
     no: saidNoText(shortName || "this programme"),
     late: lateWords(replyDay, replyTime),
-    taken: seatGoneWords(groupName),
+    // Somebody who did not offer was never somebody who said they would like to.
+    taken: seatGoneWords(groupName, ask.case === null),
     closed: NO_LONGER_OPEN,
   };
 

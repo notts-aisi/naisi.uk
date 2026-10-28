@@ -1021,3 +1021,99 @@ describe("6. nothing from an application reaches the person asked beyond what th
     assert.deepEqual(said.body, { ok: true, answer: "no" });
   });
 });
+
+// ---------------------------------------------------------------------------
+// 7. Making the case to somebody who did not offer (an admin's)
+// ---------------------------------------------------------------------------
+
+describe("7. making the case to somebody who did not offer", () => {
+  /** Tariq holds an AGI Strategy place and offered for Technical AI Safety only, so did not offer for AGI Strategy. */
+  const CASE = "You ran the lab demonstrations brilliantly last year";
+  const TARIQ_B = { uid: "tariq", groupId: B, replyBy: REPLY_BY, case: CASE };
+
+  test("only an admin, and only to somebody holding a place who did not offer", async (t) => {
+    begin(t);
+    const lead = await test_("claudia", TARIQ_B);
+    assert.equal(lead.status, 403);
+    assert.equal(lead.body.error, "Only an admin can ask somebody who didn’t offer to facilitate.");
+    const offered = await test_("zach", { ...TARIQ_B, uid: "omar" });
+    assert.equal(offered.status, 409);
+    assert.equal(
+      offered.body.error,
+      "That person said they’d like to facilitate, so ask them the usual way, without making the case.",
+    );
+    // Somebody who sent no application this term holds no place to make the case for.
+    const noPlace = await test_("zach", { ...TARIQ_B, uid: "nobody-applied" });
+    assert.equal(noPlace.status, 409);
+    assert.equal(
+      noPlace.body.error,
+      "That person can’t be asked this way: it’s for somebody holding a place on this programme who didn’t offer to facilitate it.",
+    );
+    assert.equal(world.mail.length, 0, "a refused case emailed somebody");
+    assert.equal(asksStored().length, 0);
+  });
+
+  test("an empty or long sentence is refused before anything is read", async (t) => {
+    begin(t);
+    for (const made of ["   ", "x".repeat(601), 7]) {
+      const refused = await test_("zach", { ...TARIQ_B, case: made });
+      assert.equal(refused.status, 400, JSON.stringify(refused.body));
+    }
+    assert.equal(world.mail.length, 0);
+  });
+
+  test("the email makes the case in the admin's words, and its test stands apart from the usual one", async (t) => {
+    begin(t);
+    // The usual test first, then the case's: neither makes the other stale.
+    assert.equal((await test_("zach", OMAR_B)).status, 200);
+    const untested = await ask("zach", { ...TARIQ_B, emails: 1 });
+    assert.equal(untested.status, 409, "the usual test unlocked the case");
+    assert.equal((await test_("zach", TARIQ_B)).status, 200);
+    const asked = await ask("zach", { ...TARIQ_B, emails: 1 });
+    assert.equal(asked.status, 200, JSON.stringify(asked.body));
+    const omar = await ask("zach", { ...OMAR_B, emails: 1 });
+    assert.equal(omar.status, 200, "the case's test made the usual one stale");
+
+    const sent = realMail().find((message) => message.to === world.db.read("users/tariq").email);
+    assert.ok(sent, "Tariq was not emailed");
+    assert.equal(sent.replyTo, "ai-safety@uonsu.com");
+    const words = wordsOf(sent);
+    assert.equal(words.subject, "Would you facilitate a group on AGI Strategy?");
+    assert.equal(
+      words.paragraphs[0],
+      "You didn’t put yourself forward to facilitate, but we think you’d be very good at it. You ran the lab demonstrations brilliantly last year. Would you take Group B of the AGI Strategy Fellowship?",
+    );
+    const stored = asksStored().find((each) => each.uid === "tariq");
+    assert.equal(stored.case, CASE);
+    assert.equal(asksStored().find((each) => each.uid === "omar").case, null);
+
+    // A reminder makes the case again.
+    world.mail.length = 0;
+    const reminded = await remind("zach", { askId: asked.body.askId, emails: 1 });
+    assert.equal(reminded.status, 200, JSON.stringify(reminded.body));
+    assert.match(wordsOf(world.mail[0]).paragraphs[1], /^You didn’t put yourself forward to facilitate/);
+  });
+
+  test("a yes appoints them as any yes does", async (t) => {
+    begin(t);
+    await test_("zach", TARIQ_B);
+    const { body } = await ask("zach", { ...TARIQ_B, emails: 1 });
+    // A yes from somebody holding a place waits until they are on the run, as for anybody.
+    await handOver();
+    const said = await answer("tariq", body.askId, "yes");
+    assert.equal(said.status, 200, JSON.stringify(said.body));
+    assert.ok(groupOf(B).facilitatorUids.includes("tariq"));
+  });
+
+  test("the view lists who did not offer to an admin, and to nobody else", async (t) => {
+    begin(t);
+    const admin = (await asking("zach")).body;
+    const uids = admin.notOffered.map((each) => each.uid);
+    assert.ok(uids.includes("tariq"), JSON.stringify(uids));
+    for (const offered of ["omar", "amara", "wen", "nina", "ines"]) assert.ok(!uids.includes(offered), `${offered} offered`);
+    assert.equal(admin.caseTest.state, "none");
+    assert.deepEqual(admin.notOffered.find((each) => each.uid === "tariq").answers, {}, "a person who did not offer gave no answers to show");
+    const lead = (await asking("claudia")).body;
+    assert.deepEqual(lead.notOffered, []);
+  });
+});
