@@ -68,8 +68,6 @@ const { loadTs } = createLoader({ stubs: STUBS });
 const FORMS = join("app", "api", "admissions", "forms", "[roundId]");
 const route = await loadTs(join(FORMS, "intake", "route.ts"));
 const clearRoute = await loadTs(join(FORMS, "intake", "clear", "route.ts"));
-// The route Apply sends each decision through: the plan's decisions are held to what it accepts.
-const decisionRoute = await loadTs(join(FORMS, "applications", "[uid]", "decision", "route.ts"));
 const { applyIntakeAdvice, decisionsFor } = await loadTs("lib/applications/intake/advice.ts");
 const { NextResponse } = await import(
   `data:text/javascript;base64,${Buffer.from(STUBS.get("next/server")).toString("base64")}`
@@ -103,17 +101,19 @@ describe("the decisions Apply would make", () => {
         { programmeId: "tech", decision: "accept", poolReason: null },
       ],
       held: null,
+      overrides: [],
     });
   });
 
   test("nothing changes for somebody already accepted where the plan puts them", () => {
-    assert.deepEqual(decisionsFor(person("a", ["agi", "tech"], { agi: "accepted" }), "agi"), { ops: [], held: null });
+    assert.deepEqual(decisionsFor(person("a", ["agi", "tech"], { agi: "accepted" }), "agi"), { ops: [], held: null, overrides: [] });
   });
 
   test("a programme already pooled or declined above it is left alone", () => {
     assert.deepEqual(decisionsFor(person("a", ["agi", "inc", "tech"], { agi: "declined", inc: "pooled" }), "tech"), {
       ops: [{ programmeId: "tech", decision: "accept", poolReason: null }],
       held: null,
+      overrides: [],
     });
   });
 
@@ -121,6 +121,31 @@ describe("the decisions Apply would make", () => {
     assert.deepEqual(decisionsFor(person("a", ["agi", "tech"], { tech: "pooled" }), null), {
       ops: [{ programmeId: "agi", decision: "pool", poolReason: "capacity" }],
       held: null,
+      overrides: [],
+    });
+  });
+
+  test("an admin's own pick may change decisions already made, and says which", () => {
+    // Moving somebody accepted on their first choice down to their second.
+    assert.deepEqual(decisionsFor(person("a", ["gov", "agi"], { gov: "accepted" }), "agi", true), {
+      ops: [
+        { programmeId: "gov", decision: "pool", poolReason: "better-fit" },
+        { programmeId: "agi", decision: "accept", poolReason: null },
+      ],
+      held: null,
+      overrides: [{ programmeId: "gov", standing: "accepted" }],
+    });
+    // Accepting where the lead pooled them.
+    assert.deepEqual(decisionsFor(person("a", ["gov", "agi"], { gov: "pooled", agi: "pooled" }), "agi", true), {
+      ops: [{ programmeId: "agi", decision: "accept", poolReason: null }],
+      held: null,
+      overrides: [{ programmeId: "agi", standing: "pooled" }],
+    });
+    // No place for somebody accepted: their acceptance is pooled too.
+    assert.deepEqual(decisionsFor(person("a", ["gov"], { gov: "accepted" }), null, true), {
+      ops: [{ programmeId: "gov", decision: "pool", poolReason: "capacity" }],
+      held: null,
+      overrides: [{ programmeId: "gov", standing: "accepted" }],
     });
   });
 
@@ -129,16 +154,19 @@ describe("the decisions Apply would make", () => {
     assert.deepEqual(decisionsFor(person("a", ["gov", "agi"], { gov: "accepted" }), "agi"), {
       ops: [],
       held: { programmeId: "gov", standing: "accepted" },
+      overrides: [],
     });
     // The plan's programme pooled them: accepting there would undo its lead's Pool.
     assert.deepEqual(decisionsFor(person("a", ["gov", "agi"], { agi: "pooled" }), "agi"), {
       ops: [],
       held: { programmeId: "agi", standing: "pooled" },
+      overrides: [],
     });
     // No place for somebody accepted somewhere.
     assert.deepEqual(decisionsFor(person("a", ["gov", "agi"], { agi: "accepted" }), null), {
       ops: [],
       held: { programmeId: "agi", standing: "accepted" },
+      overrides: [],
     });
   });
 });
@@ -311,6 +339,26 @@ describe("who may plan the intake or clear the reads", () => {
   });
 });
 
+const placementRoute = await loadTs(join(FORMS, "applications", "[uid]", "placement", "route.ts"));
+const fillRoute = await loadTs(join(FORMS, "intake", "fill", "route.ts"));
+const jsonRequest = (method, body) =>
+  new Request("http://naisi.invalid/api", {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+const GET_PLACEMENT = (uid) => placementRoute.GET(jsonRequest("GET"), { params: Promise.resolve({ roundId: ROUND, uid }) });
+const PICK = (uid, programmeId) =>
+  placementRoute.PUT(jsonRequest("PUT", { programmeId }), { params: Promise.resolve({ roundId: ROUND, uid }) });
+const FILL = (people) => fillRoute.POST(jsonRequest("POST", { people }), params);
+const DECISION = (uid) => db.read(`admissionDecisions/${ROUND}__${uid}`)?.programmes ?? {};
+const acceptedBy = (uid, programmeId, by) =>
+  db.seed(`admissionDecisions/${ROUND}__${uid}`, {
+    roundId: ROUND,
+    uid,
+    programmes: { [programmeId]: { decision: "accept", poolReason: null, couldSuitProgrammeId: null, decidedByUid: by, decidedAt: WHILE_DECIDING } },
+  });
+
 describe("a plan", () => {
   test("the draft alone asks nothing of Claude and writes nothing", async () => {
     as("zach");
@@ -320,12 +368,13 @@ describe("a plan", () => {
     assert.equal(globalThis.__claudeAsked.length, 0);
     assert.equal(db.paths().length, paths);
     const { intake } = response.body;
-    assert.deepEqual(intake.rows.map((row) => row.uid).sort(), ["amara", "dev", "wen"]);
+    assert.deepEqual(intake.people.map((p) => p.uid).sort(), ["amara", "dev", "wen"]);
     assert.equal(intake.claude, null);
-    assert.ok(intake.rows.every((row) => !row.hasRead && !row.hasPangram));
+    assert.ok(intake.people.every((p) => !p.read.claude && !p.read.pangram));
+    assert.ok(intake.people.every((p) => p.suggestion.source === "draft"));
   });
 
-  test("Claude sees labels and programmes, never a name, and only what fits is kept", async () => {
+  test("Claude sees labels and programmes, never a name; only what fits is kept, and each suggestion is kept with the application", async () => {
     as("zach");
     const response = await PLAN({ askClaude: true });
     assert.equal(response.status, 200);
@@ -337,61 +386,144 @@ describe("a plan", () => {
     assert.match(message, /AGI Strategy/);
 
     const { intake } = response.body;
-    const amara = intake.rows.find((row) => row.uid === "amara");
-    assert.equal(amara.plan, TAIS);
-    assert.equal(amara.claudeWhy, "Amara Okafor suits the technical side.");
-    assert.deepEqual(amara.ops, [
-      { programmeId: AGI, decision: "pool", poolReason: "better-fit" },
-      { programmeId: TAIS, decision: "accept", poolReason: null },
-    ]);
-    assert.equal(intake.rows[0].uid, "amara", "the people whose decisions change come first");
+    const amara = intake.people.find((p) => p.uid === "amara");
+    assert.equal(amara.suggestion.programmeId, TAIS);
+    assert.equal(amara.suggestion.source, "claude");
+    assert.equal(amara.suggestion.why, "Amara Okafor suits the technical side.");
+    assert.deepEqual(amara.fill, {
+      ops: [
+        { programmeId: AGI, decision: "pool", poolReason: "better-fit" },
+        { programmeId: TAIS, decision: "accept", poolReason: null },
+      ],
+    });
+    // Kept with the application, so her box shows it wherever she is opened.
+    assert.equal(db.read(ASSESSMENT("amara")).suggestion.programmeId, TAIS);
+    const box = (await GET_PLACEMENT("amara")).body.placement;
+    assert.equal(box.suggestion.programmeId, TAIS);
+    assert.equal(box.suggestion.source, "claude");
 
-    // Apply sends each of them through the decision route, as the admin, in order:
-    // every one is accepted there, and Amara ends on the plan's programme.
-    for (const op of amara.ops) {
-      const decided = await decisionRoute.PUT(
-        new Request("http://naisi.invalid/api", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ programmeId: op.programmeId, decision: op.decision, poolReason: op.poolReason, couldSuitProgrammeId: null }),
-        }),
-        { params: Promise.resolve({ roundId: ROUND, uid: "amara" }) },
-      );
-      assert.equal(decided.status, 200, `${op.decision} on ${op.programmeId}: ${JSON.stringify(decided.body)}`);
-    }
-    const stored = db.read(`admissionDecisions/${ROUND}__amara`).programmes;
-    assert.equal(stored[AGI].decision, "pool");
-    assert.equal(stored[AGI].poolReason, "better-fit");
-    assert.equal(stored[TAIS].decision, "accept");
     assert.deepEqual(intake.facilitators, [], "nobody offered on this form");
     assert.deepEqual(intake.shouldFacilitate.map((f) => [f.uid, f.programmeId]), [["wen", TAIS]]);
     assert.equal(intake.programmes.find((p) => p.id === AGI).note, "Dev Patel is the surest yes.");
     assert.ok(intake.claude.dropped.some((d) => /did not rank/.test(d.why)));
   });
-});
 
-describe("a lead's decision stands", () => {
-  test("Claude's move away from a programme that accepted somebody is dropped, and Apply leaves the decision alone", async () => {
-    // Claudia, AGI Strategy's lead, has accepted Amara.
-    db.seed(`admissionDecisions/${ROUND}__amara`, {
-      roundId: ROUND,
-      uid: "amara",
-      programmes: {
-        [AGI]: { decision: "accept", poolReason: null, couldSuitProgrammeId: null, decidedByUid: "claudia", decidedAt: WHILE_DECIDING },
-      },
-    });
+  test("Claude's move away from a programme that accepted somebody is dropped", async () => {
+    acceptedBy("amara", AGI, "claudia");
     const before = JSON.stringify(db.read(`admissionDecisions/${ROUND}__amara`));
     as("zach");
     const { intake } = (await PLAN({ askClaude: true })).body;
-    const amara = intake.rows.find((row) => row.uid === "amara");
-    assert.equal(amara.plan, AGI, "the plan moved somebody a lead had accepted");
-    assert.equal(amara.claudeWhy, null);
-    assert.deepEqual(amara.ops, []);
+    const amara = intake.people.find((p) => p.uid === "amara");
+    assert.equal(amara.suggestion.programmeId, AGI, "the plan moved somebody a lead had accepted");
+    assert.equal(amara.suggestion.why, "");
+    assert.deepEqual(amara.now, { kind: "placed", programmeId: AGI, by: "Claudia" });
     assert.ok(
       intake.claude.dropped.some((d) => d.why === "it would undo AGI Strategy's decision (accepted), which stands"),
       JSON.stringify(intake.claude.dropped),
     );
     assert.equal(JSON.stringify(db.read(`admissionDecisions/${ROUND}__amara`)), before);
+  });
+});
+
+describe("one person's placement", () => {
+  for (const who of ["claudia", "lloyd", "tess", "amara"]) {
+    test(`not ${who}: refused, and nothing is written`, async () => {
+      as(who);
+      assert.equal((await GET_PLACEMENT("dev")).status, 403);
+      assert.equal((await PICK("dev", AGI)).status, 403);
+      assert.equal((await FILL([{ uid: "dev", programmeId: AGI }])).status, 403);
+      assert.deepEqual(DECISION("dev"), {});
+    });
+  }
+
+  test("a view-as session places nobody", async () => {
+    as("zach");
+    globalThis.__iBlocked = NextResponse.json({ error: "view-as" }, { status: 403 });
+    assert.equal((await PICK("dev", AGI)).status, 403);
+    assert.equal((await FILL([{ uid: "dev", programmeId: AGI }])).status, 403);
+    assert.deepEqual(DECISION("dev"), {});
+  });
+
+  test("the box lists their choices in order, with each decision and who made it", async () => {
+    acceptedBy("amara", AGI, "claudia");
+    as("zach");
+    const box = (await GET_PLACEMENT("amara")).body.placement;
+    assert.deepEqual(
+      box.choices.map((c) => [c.shortName, c.standing, c.by]),
+      [
+        ["AGI Strategy", "accepted", "Claudia"],
+        ["Technical AI Safety", "to-review", null],
+      ],
+    );
+    assert.deepEqual(box.now, { kind: "placed", programmeId: AGI, by: "Claudia" });
+    assert.match(box.href, /\/applications\/amara$/);
+  });
+
+  test("an admin's pick writes the decisions that place them, through the decision route, as the admin", async () => {
+    as("zach");
+    const placed = await PICK("amara", TAIS);
+    assert.equal(placed.status, 200, JSON.stringify(placed.body));
+    assert.deepEqual(placed.body.placement.now, { kind: "placed", programmeId: TAIS, by: "Zach" });
+    const decided = DECISION("amara");
+    assert.equal(decided[AGI].decision, "pool");
+    assert.equal(decided[AGI].poolReason, "better-fit");
+    assert.equal(decided[AGI].couldSuitProgrammeId, null);
+    assert.equal(decided[TAIS].decision, "accept");
+    assert.equal(decided[TAIS].decidedByUid, "zach");
+  });
+
+  test("a pick may override a lead's acceptance, and is recorded as the admin's", async () => {
+    acceptedBy("amara", AGI, "claudia");
+    as("zach");
+    assert.equal((await PICK("amara", TAIS)).status, 200);
+    const decided = DECISION("amara");
+    assert.equal(decided[AGI].decision, "pool");
+    assert.equal(decided[AGI].decidedByUid, "zach");
+    assert.equal(decided[TAIS].decision, "accept");
+  });
+
+  test("no place pools every programme still open to them", async () => {
+    as("zach");
+    const placed = await PICK("amara", null);
+    assert.equal(placed.status, 200, JSON.stringify(placed.body));
+    assert.deepEqual(placed.body.placement.now, { kind: "no-place" });
+    assert.deepEqual(Object.values(DECISION("amara")).map((d) => [d.decision, d.poolReason]), [
+      ["pool", "capacity"],
+      ["pool", "capacity"],
+    ]);
+  });
+
+  test("a programme they did not rank, or a bad body, is refused and writes nothing", async () => {
+    as("zach");
+    assert.equal((await PICK("dev", TAIS)).status, 400);
+    assert.equal((await placementRoute.PUT(jsonRequest("PUT", {}), { params: Promise.resolve({ roundId: ROUND, uid: "dev" }) })).status, 400);
+    assert.deepEqual(DECISION("dev"), {});
+  });
+});
+
+describe("the one-button fill", () => {
+  test("places only people nobody has placed, never overriding, and says why it left the rest", async () => {
+    acceptedBy("amara", AGI, "claudia");
+    as("zach");
+    const filled = await FILL([
+      { uid: "amara", programmeId: TAIS },
+      { uid: "dev", programmeId: AGI },
+      { uid: "wen", programmeId: "a-programme-she-did-not-rank" },
+    ]);
+    assert.equal(filled.status, 200, JSON.stringify(filled.body));
+    assert.deepEqual(filled.body.placed, ["dev"]);
+    assert.deepEqual(filled.body.left, [
+      { uid: "amara", why: "Somebody has already placed them." },
+      { uid: "wen", why: "That programme is not one they ranked that is still open." },
+    ]);
+    assert.equal(DECISION("amara")[AGI].decidedByUid, "claudia", "the fill changed a lead's decision");
+    assert.equal(DECISION("dev")[AGI].decision, "accept");
+  });
+
+  test("a body with nobody in it, or too many, is refused", async () => {
+    as("zach");
+    assert.equal((await FILL([])).status, 400);
+    assert.equal((await FILL([{ uid: "dev" }])).status, 400);
   });
 });
 

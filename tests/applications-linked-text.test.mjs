@@ -1131,6 +1131,13 @@ const BUILT = new Map([
     { built: ["row.href"], from: "one of the older rounds' own pages, from the status hub's rows" },
   ],
   [
+    "src/features/applications/intake/PlacementBox.tsx",
+    {
+      built: ["view.href"],
+      from: "the placement route's own address for the person's application, made from the form's, the programme's and the person's ids. Nothing anybody typed",
+    },
+  ],
+  [
     "src/app/(app)/admin/admissions/forms/[roundId]/page.tsx",
     {
       built: ["`${base}/setup`", "`${home}/form`", "`${home}/intake`", "card?.action.href ?? `${base}/applications`"],

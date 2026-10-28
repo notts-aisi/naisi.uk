@@ -610,6 +610,17 @@ const NOT_COVERED = {
     coverWhen:
       "With the intake page's spec above, once the harness can stand in for Anthropic.",
   },
+  "/api/admissions/forms/[roundId]/applications/[uid]/placement": {
+    reason:
+      "One person's placement: who may, what a pick writes through the decision route, and that it is recorded as the admin's, are executed by tests/applications-intake-plan.test.mjs.",
+    coverWhen:
+      "With the intake page's spec: a term with decisions, a pick on the Placement box beside an application, then the programme lists agree.",
+  },
+  "/api/admissions/forms/[roundId]/intake/fill": {
+    reason:
+      "The one-button fill: that it places only people nobody has placed and never overrides are executed by tests/applications-intake-plan.test.mjs.",
+    coverWhen: "With the intake page's spec above.",
+  },
   "/api/admissions/forms/[roundId]/intake/clear": {
     reason:
       "Deletes every stored read on a form. Who may, the confirm in the body, and that only that form's assessments go are executed by tests/applications-intake-plan.test.mjs.",

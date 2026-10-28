@@ -1969,7 +1969,21 @@ says reaches the applicant.
   only be carried out by undoing one leaves that person for a person, saying
   whose decision it is, and Claude's suggestions that would do so are dropped
   with that reason. `tests/applications-intake-plan.test.mjs` also sends
-  Apply's decisions through the real decision route. Clear all reads deletes every `admissionAssessments` document
+  Apply's decisions through the real decision route.
+- **One placement per person** (`intake/placement.ts`). A placement is where
+  somebody goes this term: one programme they ranked, or no place. It is not
+  stored; it is what the per-programme decisions say through the one-place
+  rule, so every other screen agrees with it. The Placement box beside each
+  application (whichever programme it is opened from) and the Placements
+  list on Plan the intake are the same box, read from one route
+  (`applications/[uid]/placement`). It shows each choice with its decision
+  and who made it, where they stand now, and the plan's suggestion. An
+  admin's pick writes the decisions that make it so, through the decision
+  route's own writer, as the admin, and may change decisions already made
+  (the box says whose first). The one button (`intake/fill`) places only
+  people nobody has placed and never changes a decision already made.
+  Claude's suggestion for each person is kept on their assessment document
+  (`suggestion`), so it shows after a reload, and Clear all reads clears it. Clear all reads deletes every `admissionAssessments` document
   on the form (`assessment/clear.ts`).
 - **Inside one request.** The backend stops a request at 300 seconds (it was
   60 until the comparison needed more). A read is given 150 seconds, a

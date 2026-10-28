@@ -1,0 +1,181 @@
+/* ============================================================
+   One person's placement (PlacementBox.tsx): beside an
+   application, and on the Placements list.
+   ============================================================ */
+
+.box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.name {
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.quiet,
+.flagged {
+  font-size: 13px;
+}
+
+.quiet {
+  color: var(--color-text-muted);
+}
+
+.flagged {
+  font-weight: 600;
+  color: var(--color-warning, var(--color-text));
+}
+
+.options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 8px;
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 2.75rem;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  appearance: none;
+}
+
+.option:disabled {
+  cursor: default;
+}
+
+/* Where the decisions place them now. */
+.now {
+  border-color: var(--color-accent);
+  background: var(--color-accent-subtle, var(--color-surface));
+}
+
+/* The admin's pick, before Place. */
+.picked {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.optionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.optionName {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.optionLine {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
+.badgeNow,
+.badgeSuggested {
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.badgeNow {
+  background: var(--color-accent);
+  color: var(--color-on-accent, #fff);
+}
+
+.badgeSuggested {
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text);
+}
+
+.line {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.warn {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-warning, var(--color-text));
+}
+
+.place {
+  min-height: 2.75rem;
+  padding: 0 16px;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  background: var(--color-accent);
+  color: var(--color-on-accent, #fff);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  appearance: none;
+}
+
+.place:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-danger, #d33);
+}
+
+@media (max-width: 48rem) { /* --bp-md */
+  .options {
+    grid-template-columns: 1fr;
+  }
+
+  .place {
+    width: 100%;
+  }
+}
