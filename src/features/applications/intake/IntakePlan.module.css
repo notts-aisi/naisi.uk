@@ -200,6 +200,14 @@
   line-height: 1.5;
 }
 
+/* The plan would undo a decision already made: a person decides. */
+.held {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-warning, var(--color-text));
+}
+
 .facilitators {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));

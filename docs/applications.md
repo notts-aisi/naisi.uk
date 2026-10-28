@@ -1962,9 +1962,14 @@ says reaches the applicant.
   shortlist from those who offered, and people who did NOT offer but should
   be asked; only what fits the rankings, the declines and the places is kept.
   Nothing is written. Apply makes each person's decisions through the
-  decision route (`decisionsFor`: pool everything ranked above the plan's
-  programme as a better fit, then accept it), and nobody is emailed until
-  decision day. Clear all reads deletes every `admissionAssessments` document
+  decision route (`decisionsFor`: pool everything still undecided above the
+  plan's programme as a better fit, then accept it), and nobody is emailed
+  until decision day. APPLY ONLY FILLS IN DECISIONS NOBODY HAS MADE: a lead's
+  or an admin's Accept, Pool or Decline is never changed. A plan that could
+  only be carried out by undoing one leaves that person for a person, saying
+  whose decision it is, and Claude's suggestions that would do so are dropped
+  with that reason. `tests/applications-intake-plan.test.mjs` also sends
+  Apply's decisions through the real decision route. Clear all reads deletes every `admissionAssessments` document
   on the form (`assessment/clear.ts`).
 - **Inside one request.** The backend stops a request at 300 seconds (it was
   60 until the comparison needed more). A read is given 150 seconds, a
