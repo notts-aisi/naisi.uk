@@ -23,7 +23,8 @@ import { getCurrentUser } from "@/lib/firebase/session";
  * the body is read, so nobody else learns what a valid request looks like.
  *
  * A POST may take most of the backend's 300-second request limit: Claude's
- * part is told to stop at 150 seconds, and usually takes under one minute.
+ * part is two passes (blind, then with the committee), each told to stop at
+ * 130 seconds, and usually takes one to two minutes.
  */
 export const maxDuration = 290;
 

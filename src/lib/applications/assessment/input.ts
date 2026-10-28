@@ -34,10 +34,21 @@ import type { AnswerView, ReviewPayload } from "../review/types";
 export type LongAnswer = { key: string; question: string; text: string; words: number };
 
 export type AssessmentInput = {
-  /** The message Claude is sent. */
+  /** Everything, the application and what the committee said: what a read is hashed from. */
   message: string;
+  /**
+   * The application alone, for Claude's first, BLIND, pass: nothing the
+   * committee scored or wrote, as a reviewer reads before their own review.
+   */
+  application: string;
+  /** What the committee scored and wrote, for the second pass. */
+  committee: string;
+  /** Whether anybody on the committee has said anything yet. */
+  reviewed: boolean;
   /** "Reviewer A" to the reviewer's account, or null when only a name is known. */
   reviewerUids: Record<string, string | null>;
+  /** The programmes the read gives a lean for, in the order the message names them. */
+  programmes: { id: string; shortName: string }[];
   /** Answers long enough to send to Pangram, by the key a comment uses. */
   longAnswers: LongAnswer[];
   /** A hash of `message`, kept with a result to tell when it is out of date. */
@@ -55,41 +66,68 @@ function answerText(answer: Pick<AnswerView, "answered" | "text" | "items" | "sc
   return answer.text ?? "(left blank)";
 }
 
-type Reviewer = { name: string; uid: string | null; score: string | null; overallComment: string };
+type Reviewer = {
+  name: string;
+  uid: string | null;
+  /** Their score for each programme they scored, by short name. */
+  scores: Map<string, string>;
+  overallComment: string;
+};
 
-/** Every review an admin is shown, the admin's own among them, in name order. */
-function reviewersOf(review: ReviewPayload, viewerUid: string): Reviewer[] {
-  const list: Reviewer[] = review.review.others.visible.map((other) => ({
-    name: other.name,
-    uid: other.reviewerUid,
-    score: other.score,
-    overallComment: other.overallComment.trim(),
-  }));
-  const own = review.review;
-  const ownComments = own.comments.some((comment) => comment.mine);
-  if (own.ownScore !== null || own.overallComment.trim() || ownComments) {
-    list.push({
-      name: review.viewer.name,
-      uid: viewerUid,
-      score: own.ownScore,
-      overallComment: own.overallComment.trim(),
-    });
-  }
-  // Somebody who commented on a shared answer for another programme has no
-  // review of this one: they are lettered too, by name alone.
-  for (const comment of own.comments) {
-    if (!list.some((reviewer) => reviewer.name === comment.authorName)) {
-      list.push({ name: comment.authorName, uid: null, score: null, overallComment: "" });
+/**
+ * Every review an admin is shown on ANY of the programmes this application
+ * can be opened under, the admin's own among them, once each, in name order.
+ * Each programme's screen lists the reviewers of that programme, so the
+ * union is everybody who said anything about the person.
+ */
+function reviewersOf(reviews: readonly ReviewPayload[], viewerUid: string): Reviewer[] {
+  const byKey = new Map<string, Reviewer>();
+  const take = (key: string, name: string, uid: string | null) => {
+    let reviewer = byKey.get(key);
+    if (!reviewer) {
+      reviewer = { name, uid, scores: new Map(), overallComment: "" };
+      byKey.set(key, reviewer);
+    }
+    return reviewer;
+  };
+  for (const review of reviews) {
+    const programme = review.programme.shortName;
+    for (const other of review.review.others.visible) {
+      const reviewer = take(`uid:${other.reviewerUid}`, other.name, other.reviewerUid);
+      if (other.score !== null) reviewer.scores.set(programme, other.score);
+      if (other.overallComment.trim()) reviewer.overallComment = other.overallComment.trim();
+    }
+    const mine = review.review;
+    if (mine.ownScore !== null || mine.overallComment.trim() || mine.comments.some((comment) => comment.mine)) {
+      const reviewer = take(`uid:${viewerUid}`, review.viewer.name, viewerUid);
+      if (mine.ownScore !== null) reviewer.scores.set(programme, mine.ownScore);
+      if (mine.overallComment.trim()) reviewer.overallComment = mine.overallComment.trim();
     }
   }
-  return list.sort((a, b) => a.name.localeCompare(b.name) || (a.uid ?? "").localeCompare(b.uid ?? ""));
+  // Somebody who only commented on an answer is lettered too, by name alone.
+  for (const review of reviews) {
+    for (const comment of review.review.comments) {
+      if (![...byKey.values()].some((reviewer) => reviewer.name === comment.authorName)) {
+        take(`name:${comment.authorName}`, comment.authorName, null);
+      }
+    }
+  }
+  return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name) || (a.uid ?? "").localeCompare(b.uid ?? ""));
 }
 
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-export function assessmentInputFrom(review: ReviewPayload, viewerUid: string): AssessmentInput {
-  const { applicant, programme } = review;
-  const reviewers = reviewersOf(review, viewerUid);
+/**
+ * The message for ONE read of the whole application. `reviews` is the
+ * application as an admin's review screen is sent it, once for each programme
+ * it can be opened under (the programmes it ranked, and one it joined by an
+ * invitation); the first gives the person and their answers, which are the
+ * same on every one.
+ */
+export function assessmentInputFrom(reviews: readonly ReviewPayload[], viewerUid: string): AssessmentInput {
+  const review = reviews[0];
+  const { applicant } = review;
+  const reviewers = reviewersOf(reviews, viewerUid);
   const labelOf = new Map<string, string>();
   const reviewerUids: Record<string, string | null> = {};
   reviewers.forEach((reviewer, i) => {
@@ -101,11 +139,14 @@ export function assessmentInputFrom(review: ReviewPayload, viewerUid: string): A
   const questionOf = new Map<string, string>([[applicant.about.motivationKey, "Why are you applying?"]]);
   const lines: string[] = [];
   const longAnswers: LongAnswer[] = [];
+  const programmes = reviews.map((payload) => ({ id: payload.programme.id, shortName: payload.programme.shortName }));
 
-  lines.push(`# The programme being decided: ${programme.name}`);
-  // Places, never places LEFT: that moves with every decision, and would mark
-  // every read out of date the moment anybody was accepted.
-  if (programme.places !== null) lines.push(`Places: ${programme.places}.`);
+  lines.push("# The programmes this application is being decided for");
+  for (const payload of reviews) {
+    // Places, never places LEFT: that moves with every decision, and would mark
+    // every read out of date the moment anybody was accepted.
+    lines.push(`- ${payload.programme.shortName}${payload.programme.places !== null ? ` (${payload.programme.places} places)` : ""}`);
+  }
   lines.push("", "# The applicant");
   lines.push(`Status: ${applicant.about.status || "not given"}`);
   if (applicant.about.subject) lines.push(`${applicant.about.subjectLabel || "Subject"}: ${applicant.about.subject}`);
@@ -145,6 +186,7 @@ export function assessmentInputFrom(review: ReviewPayload, viewerUid: string): A
     }
   }
 
+  const committeeStarts = lines.length;
   lines.push("", "# What the committee said");
   if (review.admin) {
     const scored = review.admin.sections.filter((section) => section.score !== null);
@@ -155,23 +197,37 @@ export function assessmentInputFrom(review: ReviewPayload, viewerUid: string): A
     }
   }
   if (reviewers.length === 0) lines.push("Nobody has reviewed this application yet.");
+  const comments = new Map<string, { key: string; text: string; authorName: string }>();
+  for (const payload of reviews) {
+    for (const comment of payload.review.comments) comments.set(comment.id, comment);
+  }
   for (const reviewer of reviewers) {
     const label = labelOf.get(reviewer.name) ?? "A reviewer";
     lines.push("", `## ${label}`);
-    lines.push(`Score for ${programme.shortName}: ${reviewer.score ?? "not scored"}`);
+    lines.push(
+      reviewer.scores.size > 0
+        ? `Scores: ${[...reviewer.scores].map(([programme, score]) => `${programme} ${score}`).join(", ")}`
+        : "Scores: none given",
+    );
     lines.push(`Overall comment: ${reviewer.overallComment || "(none)"}`);
-    for (const comment of review.review.comments) {
+    for (const comment of comments.values()) {
       if (comment.authorName !== reviewer.name) continue;
       lines.push(`On "${questionOf.get(comment.key) ?? "an answer"}": ${comment.text.trim()}`);
     }
   }
 
   const message = lines.join("\n");
+  const application = lines.slice(0, committeeStarts).join("\n");
+  const committee = lines.slice(committeeStarts).join("\n").trim();
   return {
     message,
+    programmes,
     reviewerUids,
     longAnswers,
     fingerprint: createHash("sha256").update(message).digest("hex").slice(0, 32),
+    application,
+    committee,
+    reviewed: reviewers.length > 0,
   };
 }
 

@@ -619,6 +619,24 @@ const ROUND_SURFACES = {
       "through changeProgramme, and both stop at a round that is not a form before anything " +
       "is read as a programme",
   },
+  "/(app)/admin/admissions/forms/[roundId]/intake": {
+    kind: "form",
+    why:
+      "an admin plans the whole intake from the form's own loader (loadForm), and not found " +
+      "answers a round that is not a form before anybody's application is read",
+  },
+  "/api/admissions/forms/[roundId]/intake": {
+    kind: "form",
+    why:
+      "an admin's plan of the whole intake goes through loadIntake, which starts from the form's " +
+      "own loader and answers 404 for a round that is not a form, before anybody's application is read",
+  },
+  "/api/admissions/forms/[roundId]/intake/clear": {
+    kind: "form",
+    why:
+      "clearing every read goes through clearReads, which starts from the form's own loader and " +
+      "answers 404 for a round that is not a form, before anything is deleted",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/arrangement": {
     kind: "form",
     why:

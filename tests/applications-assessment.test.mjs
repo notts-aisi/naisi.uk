@@ -126,11 +126,8 @@ let db;
 /** What Pangram was sent, as request bodies. */
 let pangramBodies;
 
-function world(over = {}) {
-  db = makeDb(
-    seedTerm({
-      over: {
-        [applicationPath("amara")]: amaraWithALongAnswer(),
+function world(over = {}, { reviews = true } = {}) {
+  const reviewDocs = !reviews ? {} : {
         [`admissionReviews/${ROUND}__amara__claudia`]: reviewDoc(
           "amara",
           "claudia",
@@ -145,6 +142,12 @@ function world(over = {}) {
           [],
           "A bit general.",
         ),
+  };
+  db = makeDb(
+    seedTerm({
+      over: {
+        [applicationPath("amara")]: amaraWithALongAnswer(),
+        ...reviewDocs,
         ...over,
       },
     }),
@@ -160,13 +163,19 @@ function world(over = {}) {
     model: "claude-opus-5-5",
     usage: { inputTokens: 1, outputTokens: 1 },
     value: {
-      lean: "strong",
-      leanReason: "Reviewer A and Reviewer B differ, and the answers side with Reviewer A.",
       summary: "A philosophy student who wants to test arguments.",
       strengths: ["Reviewer A liked the event answer."],
       concerns: [],
       reviewers: "Reviewer A scored 4 and Reviewer B 2.",
-      fit: "Suits AGI Strategy.",
+      programmes: [
+        {
+          programme: "AGI Strategy",
+          lean: "strong",
+          leanReason: "Reviewer A and Reviewer B differ, and the answers side with Reviewer A.",
+          fit: "Suits AGI Strategy.",
+        },
+        { programme: "A programme nobody listed", lean: "weak", leanReason: "Dropped.", fit: "" },
+      ],
       toWeigh: [],
       thinAnswers: [],
     },
@@ -274,8 +283,16 @@ describe("what Claude is sent", () => {
   test("no word of the applicant's name, no address, no account id, no reviewer name", async () => {
     as("zach");
     assert.equal((await ASK("claude")).status, 200);
-    assert.equal(globalThis.__claudeAsked.length, 1);
-    const { message, system } = globalThis.__claudeAsked[0];
+    assert.equal(globalThis.__claudeAsked.length, 2, "two passes: blind, then with the committee");
+    const blind = globalThis.__claudeAsked[0];
+    // The first pass is blind: nothing the committee scored or wrote.
+    for (const said of ["Argued from both sides.", "A bit general.", "Reviewer A", "What the committee said", "Average scores"]) {
+      assert.equal(blind.message.includes(said), false, `the blind pass saw ${said}`);
+    }
+    assert.match(blind.system, /FIRST read/);
+    assert.match(blind.message, /philosophy of mind/);
+    const { message, system } = globalThis.__claudeAsked[1];
+    assert.match(message, /# Your first read, made without seeing the committee/);
     for (const word of [...namesOf("amara"), "amara"]) {
       assert.equal(message.includes(word), false, `the message names the applicant: ${word}`);
     }
@@ -292,6 +309,12 @@ describe("what Claude is sent", () => {
     assert.doesNotMatch(message, /availab|free on|Monday|Tuesday/i);
     // And the instructions say who decides.
     assert.match(system, /You never decide/);
+    assert.match(system, /SECOND read/);
+    for (const call of globalThis.__claudeAsked) {
+      for (const word of [...namesOf("amara"), "amara", "Claudia", "Lloyd"]) {
+        assert.equal(call.message.includes(word), false, `a pass sent ${word}`);
+      }
+    }
   });
 
   test("the stored read keeps letters and accounts, never a reviewer's name", async () => {
@@ -302,12 +325,29 @@ describe("what Claude is sent", () => {
     for (const name of ["Claudia", "Lloyd", ...namesOf("amara")]) {
       assert.equal(strings.some((s) => s.includes(name)), false, `the stored read names ${name}`);
     }
-    const read = stored.claude[AGI];
-    assert.equal(read.lean, "strong");
+    const read = stored.read;
+    assert.equal(read.programmes[AGI].lean, "strong");
+    assert.deepEqual(Object.keys(read.programmes), [AGI], "a programme the message did not list is dropped");
     assert.deepEqual(
       Object.values(read.reviewerUids).filter(Boolean).sort(),
       ["claudia", "lloyd"],
     );
+  });
+
+  test("the blind first view is kept beside the read", async () => {
+    as("zach");
+    const response = await ASK("claude");
+    assert.deepEqual(Object.keys(response.body.assessment.claude.independent).sort(), ["lean", "leanReason", "summary"]);
+    assert.equal(db.read(ASSESSMENT).read.independent.programmes[AGI].lean, "strong");
+  });
+
+  test("with nobody on the committee yet, there is one pass and it says so", async () => {
+    world({}, { reviews: false });
+    as("zach");
+    const response = await ASK("claude");
+    assert.equal(response.status, 200);
+    assert.equal(globalThis.__claudeAsked.length, 1);
+    assert.match(response.body.assessment.claude.reviewers, /Nobody on the committee has reviewed/);
   });
 
   test("the admin's screen gets the names back", async () => {
@@ -355,7 +395,7 @@ describe("what Claude is sent", () => {
 
   test("a malformed read is refused, never stored", async () => {
     as("zach");
-    globalThis.__claudeAnswer = { ...globalThis.__claudeAnswer, value: { lean: "maybe", summary: "" } };
+    globalThis.__claudeAnswer = { ...globalThis.__claudeAnswer, value: { summary: "", programmes: [{ programme: "AGI Strategy", lean: "maybe" }] } };
     assert.equal((await ASK("claude")).status, 500);
     assert.equal(db.paths().includes(ASSESSMENT), false);
   });
@@ -369,7 +409,7 @@ describe("what Claude is sent", () => {
 });
 
 describe("what Pangram is sent", () => {
-  test("only the long answers, one at a time, and only their words", async () => {
+  test("only the long answers, and only their words", async () => {
     as("zach");
     const response = await ASK("pangram");
     assert.equal(response.status, 200);
@@ -385,6 +425,59 @@ describe("what Pangram is sent", () => {
     assert.equal(check.answers[0].worthALook, true);
     assert.ok(check.tooShort >= 1, "the short answers are counted, not sent");
     assert.equal(globalThis.__claudeAsked.length, 0, "asking Pangram asks nothing of Claude");
+  });
+
+  test("two long answers go in ONE request, and each is read back from the part that covers it", async () => {
+    const SECOND =
+      "Most of what I know about alignment came from arguing with people who disagreed with me, so I " +
+      "want the fellowship for its discussions more than its reading list. In my hall group we spent " +
+      "three weeks on whether interpretability could ever give us guarantees, and I changed my mind " +
+      "twice, which is the most useful thing that has happened to my thinking this year.";
+    const doc = amaraWithALongAnswer();
+    doc.sent = { ...doc.sent, answers: { ...doc.sent.answers, fellowships: { why: SECOND } } };
+    doc.draft = doc.sent;
+    db.seed(applicationPath("amara"), doc);
+    const at = LONG.length + 2;
+    const original = globalThis.fetch;
+    globalThis.fetch = async (url, init = {}) => {
+      if (init.method === "POST") return original(url, init);
+      return new Response(
+        JSON.stringify({
+          stage: "STAGE_SUCCESS",
+          prediction_short: "Mixed",
+          headline: "Mixed",
+          fraction_ai: 0.5,
+          fraction_ai_assisted: 0,
+          fraction_human: 0.5,
+          windows: [
+            { start_index: 0, end_index: LONG.length, label: "AI-Generated" },
+            { start_index: at, end_index: at + SECOND.length, label: "Human Written" },
+          ],
+        }),
+        { status: 200 },
+      );
+    };
+    as("zach");
+    const response = await ASK("pangram");
+    assert.equal(response.status, 200);
+    assert.deepEqual(pangramBodies.map((body) => body.text), [`${LONG}\n\n${SECOND}`]);
+    const check = response.body.assessment.pangram;
+    assert.deepEqual(
+      check.answers.map((answer) => [answer.label, answer.headline, answer.worthALook]),
+      [
+        ["AI", "AI-Generated", true],
+        ["Human", "Human Written", false],
+      ],
+    );
+    assert.equal(check.whole.label, "Mixed");
+  });
+
+  test("when Pangram refuses, every long answer says why, and nothing else is asked", async () => {
+    globalThis.fetch = async () => new Response("insufficient credits", { status: 402 });
+    as("zach");
+    const check = (await ASK("pangram")).body.assessment.pangram;
+    assert.equal(check.answers.length, 0);
+    assert.deepEqual(check.failed.map((answer) => answer.reason), ["Pangram has no API credit left. Add credit in Pangram’s API dashboard."]);
   });
 
   test("with no key, Pangram is never asked", async () => {

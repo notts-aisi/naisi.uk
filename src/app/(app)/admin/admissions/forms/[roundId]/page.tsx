@@ -116,6 +116,12 @@ export default async function TermPage({ params }: { params: Promise<{ roundId: 
               <PencilIcon />
               <span>Application form</span>
             </Link>
+            {/* The whole term at once, until decision day has gone out (`intake/page.tsx`). */}
+            {loaded.form.decisionsSentAt === null && (
+              <Link href={`${home}/intake`} className={`${shared.btn} ${shared.btnQuiet}`}>
+                <span>Plan the intake</span>
+              </Link>
+            )}
             {/*
               Offered until decision day has gone out. After that a new
               programme could take no applications and would never be
