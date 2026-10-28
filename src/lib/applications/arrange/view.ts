@@ -28,6 +28,13 @@ export type RingPerson = {
    * check. Shown for a person to weigh; nothing here scores by it.
    */
   flags: number | null;
+  /**
+   * When they said they are free, for the admin's chart: each stretch they
+   * marked, Sunday first. `fromFirstMark` is true for somebody who marked
+   * under four hours, whose week is read as free from their first mark each
+   * day. Never sent to Claude.
+   */
+  week: { said: boolean; marked: { weekday: number; start: number; end: number }[]; fromFirstMark: boolean };
   /** Claude's earlier read of their application, reviewers made "a reviewer". Null until read. */
   read: { lean: Lean | null; summary: string; strengths: string[]; concerns: string[]; thin: number } | null;
 };
@@ -83,6 +90,8 @@ export type ArrangementOptionsView = {
   preview: boolean;
   programmeName: string;
   programmeShortName: string;
+  /** The hours the form's grid asked about, in minutes past midnight. */
+  grid: { startMinute: number; endMinute: number };
   minutes: number;
   size: number;
   people: Record<string, RingPerson>;

@@ -7,8 +7,10 @@ import Select from "@/components/ui/Select";
 import { useHydrated } from "@/hooks/useHydrated";
 import { own } from "@/lib/applications/keys";
 import { lengthWords } from "@/lib/courses/sessionLength";
+import type { SessionSlot } from "@/lib/admissions/availability";
 import type { ArrangementOptionsView, RingFacilitator, RingGroup, RingOption, RingPerson } from "@/lib/applications/arrange/view";
 import styles from "./ArrangeGroups.module.css";
+import WeekChart from "./WeekChart";
 
 /**
  * Arrange groups, on a programme's Times view, for an admin.
@@ -76,6 +78,46 @@ function tagName(name: string): string {
   return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : name;
 }
 
+const pad = (n: number) => String(n).padStart(2, "0");
+const hhmm = (minutes: number) => `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
+const minutesOf = (text: string) => {
+  const [h, m] = text.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+
+/**
+ * Whether somebody can make a whole session, from the stretches they marked:
+ * the same reading the site uses (`handover/paintedWeek.ts`), so a group added
+ * on this page is checked as the site's own are. Somebody who marked under
+ * four hours is read as free from their first mark that day to the grid's end.
+ */
+function canMakeHere(person: RingPerson | undefined, session: SessionSlot, gridEnd: number): boolean {
+  if (!person || !person.week.said) return false;
+  const start = minutesOf(session.startTimeLocal);
+  const end = start + session.durationMinutes;
+  if (end > gridEnd) return false;
+  const day = person.week.marked.filter((range) => range.weekday === session.weekday);
+  if (person.week.fromFirstMark) {
+    const first = Math.min(...day.map((range) => range.start));
+    return Number.isFinite(first) && start >= first;
+  }
+  let reach = start;
+  for (const range of [...day].sort((a, b) => a.start - b.start)) {
+    if (range.start <= reach && range.end > reach) reach = range.end;
+  }
+  return reach >= end;
+}
+
+/** The next "Group X" an option does not have. */
+function nextName(groups: readonly RingGroup[]): string {
+  const taken = new Set(groups.map((group) => group.name.trim().toLowerCase()));
+  for (let code = 65; code <= 90; code += 1) {
+    const name = `Group ${String.fromCharCode(code)}`;
+    if (!taken.has(name.toLowerCase())) return name;
+  }
+  return `Group ${groups.length + 1}`;
+}
+
 const copyOf = (option: RingOption): RingOption => ({
   ...option,
   groups: option.groups.map((group) => ({
@@ -124,6 +166,9 @@ export default function ArrangeGroups({
   const [question, setQuestion] = useState("");
   const [chatting, setChatting] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  /** The "Add a group" form: a day (Sunday first) and a start, in minutes past midnight. */
+  const [newDay, setNewDay] = useState(1);
+  const [newStart, setNewStart] = useState(18 * 60);
   const [view, setView] = useState<ArrangementOptionsView | null>(null);
   const [working, setWorking] = useState<Record<string, RingOption>>({});
   const [active, setActive] = useState<string | null>(null);
@@ -145,6 +190,36 @@ export default function ArrangeGroups({
     : [];
   const reasonOf = (uid: string) => option?.unplaced.find((entry) => entry.uid === uid)?.reason ?? null;
   const busy = !hydrated || asking || applying || chatting;
+  const gridStart = view?.grid.startMinute ?? 540;
+  const gridEnd = view?.grid.endMinute ?? 1260;
+  const sessionMinutes = view?.minutes ?? minutes;
+  const startTimes: number[] = [];
+  for (let at = gridStart; at + sessionMinutes <= gridEnd; at += 30) startTimes.push(at);
+  const newSession: SessionSlot = { weekday: newDay, startTimeLocal: hhmm(newStart), durationMinutes: sessionMinutes };
+  const newCounts = {
+    leftOut: unplaced.filter((uid) => canMakeHere(own(people, uid), newSession, gridEnd)).length,
+    everybody: Object.keys(people).filter((uid) => canMakeHere(own(people, uid), newSession, gridEnd)).length,
+  };
+  /**
+   * Up to six whole sessions on the hour inside the time somebody marked, at
+   * most two a day: the ones most of the people left out can make first, then
+   * the ones most people can make.
+   */
+  const startsFor = (person: RingPerson): { session: SessionSlot; leftOut: number; everybody: number }[] => {
+    const found: { session: SessionSlot; leftOut: number; everybody: number }[] = [];
+    for (const weekday of [1, 2, 3, 4, 5, 6, 0]) {
+      const day: typeof found = [];
+      for (let at = Math.ceil(gridStart / 60) * 60; at + sessionMinutes <= gridEnd; at += 60) {
+        const session = { weekday, startTimeLocal: hhmm(at), durationMinutes: sessionMinutes };
+        if (!canMakeHere(person, session, gridEnd)) continue;
+        if (option?.groups.some((group) => group.session.weekday === weekday && group.session.startTimeLocal === session.startTimeLocal)) continue;
+        const can = (uid: string) => canMakeHere(own(people, uid), session, gridEnd);
+        day.push({ session, leftOut: unplaced.filter(can).length, everybody: Object.keys(people).filter(can).length });
+      }
+      found.push(...day.sort((a, b) => b.leftOut - a.leftOut || b.everybody - a.everybody).slice(0, 2));
+    }
+    return found.sort((a, b) => b.leftOut - a.leftOut || b.everybody - a.everybody).slice(0, 6);
+  };
 
   const suggest = async (askClaude: boolean) => {
     setAsking(true);
@@ -253,6 +328,38 @@ export default function ArrangeGroups({
       setChatting(false);
     }
   };
+
+  /** A group of the admin's own, at a time they pick, with somebody already in it if they started it from them. */
+  const addGroup = (session: SessionSlot, withUid: string | null) =>
+    change((draft) => {
+      if (withUid) {
+        for (const group of draft.groups) {
+          group.memberUids = group.memberUids.filter((each) => each !== withUid);
+          group.facilitators = group.facilitators.filter((f) => f.uid !== withUid);
+        }
+      }
+      let n = draft.groups.length + 1;
+      while (draft.groups.some((group) => group.key === `${draft.key}${n}`)) n += 1;
+      draft.groups.push({
+        key: `${draft.key}${n}`,
+        id: null,
+        name: nextName(draft.groups),
+        session,
+        timeIsNew: true,
+        room: view?.size ?? 8,
+        memberUids: withUid ? [withUid] : [],
+        facilitators: [],
+        why: "",
+        canMake: Object.keys(people).filter((uid) => canMakeHere(own(people, uid), session, view?.grid.endMinute ?? 1260)),
+        existing: null,
+      });
+    });
+
+  /** Take away a group this page would add; its people go back to "Not in a group". */
+  const removeGroup = (key: string) =>
+    change((draft) => {
+      draft.groups = draft.groups.filter((group) => group.key !== key || group.id !== null);
+    });
 
   const reset = () => {
     const sent = view?.options.find((each) => each.key === active);
@@ -430,6 +537,16 @@ export default function ArrangeGroups({
             ))}
           </ul>
         ) : null}
+        {group.id === null ? (
+          <button type="button" className={styles.smallQuiet} disabled={busy} onClick={() => removeGroup(group.key)}>
+            Remove this group
+            {group.memberUids.length === 1
+              ? " (its 1 person goes to “Not in a group”)"
+              : group.memberUids.length > 1
+                ? ` (its ${group.memberUids.length} people go to “Not in a group”)`
+                : ""}
+          </button>
+        ) : null}
       </div>
     );
   };
@@ -596,9 +713,48 @@ export default function ArrangeGroups({
                       )}
                       <p className={styles.line}>
                         {chosenGroup
-                          ? `In ${chosenGroup.name}. Click another ring to move them there.`
-                          : "Not in a group. Click a ring to put them in it."}
+                          ? `In ${chosenGroup.name}. Pick a group on the chart, or click another ring, to move them.`
+                          : "Not in a group. Pick a group on the chart, or click a ring, to put them in it."}
                       </p>
+                      {chosen.week.said ? null : (
+                        <p className={styles.flagLine}>They haven’t said when they’re free, so nothing is shaded.</p>
+                      )}
+                      <WeekChart
+                        grid={view.grid}
+                        marked={chosen.week.marked}
+                        fromFirstMark={chosen.week.fromFirstMark}
+                        groups={option.groups.map((group) => ({
+                          key: group.key,
+                          name: group.name,
+                          session: group.session,
+                          fits: selected !== null && group.canMake.includes(selected),
+                          current: selected !== null && group.memberUids.includes(selected),
+                        }))}
+                        disabled={busy}
+                        onPick={(key) => selected && moveTo(selected, key)}
+                      />
+                      {startsFor(chosen).length > 0 ? (
+                        <div className={styles.starts}>
+                          <span className={styles.line}>Or start a new group at a time they marked:</span>
+                          <div className={styles.tray}>
+                            {startsFor(chosen).map((start) => (
+                              <button
+                                key={`${start.session.weekday}@${start.session.startTimeLocal}`}
+                                type="button"
+                                className={styles.trayChip}
+                                disabled={busy}
+                                onClick={() => addGroup(start.session, chosen.uid)}
+                              >
+                                {DAY[start.session.weekday]} {start.session.startTimeLocal}
+                                <span className={styles.trayWhy}>
+                                  {" "}
+                                  · {start.leftOut} of {unplaced.length} not in a group, {start.everybody} in all
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
                       <div className={styles.personActions}>
                         {chosenGroup ? (
                           <>
@@ -636,6 +792,39 @@ export default function ArrangeGroups({
                     </p>
                   )}
                 </aside>
+              </div>
+
+              <div className={styles.unplaced}>
+                <strong>Add a group</strong>
+                <div className={styles.actions}>
+                  <label className={styles.length}>
+                    <span className={styles.line}>Day</span>
+                    <Select aria-label="Day of the new group" value={String(newDay)} disabled={busy} onChange={(event) => setNewDay(Number(event.target.value))}>
+                      {[1, 2, 3, 4, 5, 6, 0].map((day) => (
+                        <option key={day} value={String(day)}>
+                          {DAY[day]}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                  <label className={styles.length}>
+                    <span className={styles.line}>Starts</span>
+                    <Select aria-label="Start of the new group" value={String(newStart)} disabled={busy} onChange={(event) => setNewStart(Number(event.target.value))}>
+                      {startTimes.map((start) => (
+                        <option key={start} value={String(start)}>
+                          {hhmm(start)}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                  <button type="button" className={styles.quiet} disabled={busy} onClick={() => addGroup(newSession, null)}>
+                    Add this group
+                  </button>
+                </div>
+                <p className={styles.line}>
+                  {newCounts.leftOut} of the {unplaced.length} not in a group, and {newCounts.everybody} of all {Object.keys(people).length},
+                  can make {DAY[newDay]} {hhmm(newStart)} for {minutes} minutes.
+                </p>
               </div>
 
               {unplaced.length > 0 ? (

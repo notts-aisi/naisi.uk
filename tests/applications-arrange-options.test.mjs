@@ -207,9 +207,13 @@ describe("before decision day, a preview", () => {
     assert.equal(response.status, 200);
     assert.equal(globalThis.__claudeAsked.length, 1);
     const { message } = globalThis.__claudeAsked[0];
-    for (const leak of [...namesOf("amara"), ...namesOf("dev"), ...namesOf("zach"), "Pangram", "worth a look", "000000000fff"]) {
+    for (const leak of [...namesOf("amara"), ...namesOf("dev"), ...namesOf("zach"), "Pangram", "worth a look", "000000000fff", "ffffffffffff"]) {
       assert.ok(!message.includes(leak), `the message carries ${leak}`);
     }
+    assert.doesNotMatch(message, /"start"|"weekday"|\b(?:540|1260)\b/, "a week's stretches reached Claude");
+    // The admin's chart has their week; Claude never does.
+    assert.deepEqual(response.body.arrangement.people.amara.week.marked.slice(0, 1), [{ weekday: 1, start: 540, end: 1260 }]);
+    assert.deepEqual(response.body.arrangement.grid, { startMinute: 540, endMinute: 1260 });
     assert.match(message, /## Option A: groups of up to 8/);
     // The flag is the admin's to weigh, on the screen.
     assert.equal(response.body.arrangement.people.amara.flags, 1);

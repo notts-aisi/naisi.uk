@@ -2007,7 +2007,21 @@ Save sends (below).
   sends back (its last six turns), are swapped for labels first. Moves it
   suggests are kept only to a group on the screen the person can make, with
   room, never of somebody told, and the screen makes them on one press.
-  Nothing is stored. `tests/applications-arrange-advice.test.mjs` and
+  Nothing is stored. LOOSE ENDS ARE THE ADMIN'S: clicking anybody, in a ring
+  or in "Not in a group", draws their week (`WeekChart.tsx`: each stretch
+  they marked, the "from then on" reading for somebody who marked little,
+  every group's session as a bar, green where they can make all of it, red
+  where not) and lists the groups with how much of each falls in their time,
+  each with Move here. "Add a group" makes another group at any day and time,
+  saying how many of the people left out, and of everybody, can make it; a
+  person's panel offers a new group at a time they marked, with them in it;
+  a group the page adds can be removed. Who can make a group the page adds is
+  worked out on the page from the stretches marked, by the same reading as
+  the site's own. The stretches reach the admin's page only (`markedRanges`
+  in `src/lib/admissions/availability.ts`); Claude is told only which groups a
+  person can make. Where three or more who marked a real week are left out of
+  an option, the options include it with one or two more groups at the times
+  most of them can make. `tests/applications-arrange-advice.test.mjs` and
   `tests/applications-arrange-options.test.mjs` run it.
 - **The whole term at once.** Plan the intake
   (`/admin/admissions/forms/[roundId]/intake`, admin only, before decision
