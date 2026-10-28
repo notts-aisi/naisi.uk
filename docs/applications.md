@@ -1942,31 +1942,57 @@ Save sends (below).
   account-id order and reviewers lettered once across the programme. A name
   an admin types into a question is swapped for its label before it is
   sent. Neither answer is stored.
-- **Arranging groups.** On a programme's Times view an admin can ask for a
-  proposed arrangement of the people holding a place into groups
-  (`src/lib/applications/arrange/`). The site works out a first split from when each person said
-  they are free (`arrange/plan.ts`: nobody already told their group moves, the
-  run's groups first, more only when needed, the most constrained seated
-  first, then the groups evened out). SOMEBODY WHO MARKED UNDER FOUR HOURS IN
-  THE WEEK (`handover/paintedWeek.ts`, `minimal`) is read "from then on": on
-  each day they marked anything, free from their first marked time until the
-  grid closes, on every screen (the board, the People tab, the times picture,
-  an arrangement). They never choose when groups meet (the times picture
-  leaves them out of its counts and says how many), they are seated after
-  everybody who marked a real week, and one who still fits no group goes to
-  the nearest group with room (after their time on a day they marked, then
-  after it on another day, then before it), flagged "near their time, not in
-  it". Somebody who marked a real week that fits no group is still left for a
-  person. Claude is then told the groups and
-  people by number, which other groups each person can make (never their
-  week), and its own reads, and suggests a facilitator per group and moves.
-  `arrange/advice.ts` keeps a suggestion only when it fits: a facilitator
-  must have offered and be able to make the group, and sits in it; a move
-  must be to a group the person can make, with room, and never of somebody
-  told. Nothing is written or stored. Apply on the page places people
-  through the site's own routes for groups, places and facilitators, in
-  that order, and stops at the first refusal; nobody is emailed until
-  Publish.
+- **Arranging groups.** On a programme's Times view an admin can ask for up
+  to five arrangements of the people into groups
+  (`src/lib/applications/arrange/`). The site works out each from when each
+  person said they are free (`arrange/plan.ts`: nobody already told their
+  group moves, the run's groups first, more only when needed, the most
+  constrained seated first, then the groups evened out). SOMEBODY WHO MARKED
+  UNDER FOUR HOURS IN THE WEEK (`handover/paintedWeek.ts`, `minimal`) is read
+  "from then on": on each day they marked anything, free from their first
+  marked time until the grid closes, on every screen (the board, the People
+  tab, the times picture, an arrangement). They never choose when groups meet
+  (the times picture leaves them out of its counts and says how many), they
+  are seated after everybody who marked a real week, and one who still fits
+  no group goes to the nearest group with room (after their time on a day
+  they marked, then after it on another day, then before it), flagged "near
+  their time, not in it". Somebody who marked a real week that fits no group
+  is still left for a person. SEVERAL OPTIONS (`arrange/options.ts`): every
+  combination of the best start times for the groups that need one, and for
+  any group of the run nobody has been told they are in (a group somebody has
+  been told about keeps its time; the run's groups at their own times is
+  always among the first five), at the programme's group size and one
+  smaller, each evened out so every group has somebody who offered to
+  facilitate and the strongest are spread (no group holds two while another
+  has none); compared by how many are seated, how few only near their time,
+  how many groups have a facilitator, how even they are. A group that has
+  facilitators on the run already is drawn with their names, and the site
+  picks no other for it. Claude is then told the people and the options by number and label
+  (`arrange/advice.ts`): which of each option's groups a person can make
+  (never their week), whether they offered, and its own earlier read (lean,
+  summary, strengths, concerns, how many answers it found thin), never what
+  Pangram found. It rates each possible facilitator (the committee wants
+  people who might help run the society one day: values and engagement, not
+  only fit; thin answers count against), ranks up to five options with pros
+  and cons, gives a reason for every group, and picks one lead facilitator
+  per group, with a second who offered beside a lead who did not. Only what
+  fits is kept: a move within its option to a group the person can make,
+  with room, never of somebody told; a lead in the group they lead, leading
+  one; a missing back-up or lead filled by the site's best guess who offered.
+  The screen draws each group as a ring (its day, time and programme in the
+  middle, its people around the edge, the lead and back-up marked, Claude's
+  reason underneath); clicking a person shows Claude's read, their Pangram
+  flags for the admin to weigh and a link to the application, and lets the
+  admin make them a facilitator; clicking another ring moves them, and each
+  change is checked there and then. BEFORE DECISION DAY it is a preview of
+  the people the decisions as they stand place on the programme, with the
+  admin's own application left out (`loadPreviewArranging`), and there is
+  nothing to Apply. Nothing is written or stored. Apply places people through
+  the site's own routes for groups, places and facilitators, in that order,
+  and stops at the first refusal; somebody who did not offer is never made a
+  facilitator by it (the page says to ask them, from Groups, Facilitators);
+  nobody is emailed until Publish. `tests/applications-arrange-advice.test.mjs`
+  and `tests/applications-arrange-options.test.mjs` run it.
 - **The whole term at once.** Plan the intake
   (`/admin/admissions/forms/[roundId]/intake`, admin only, before decision
   day) drafts who goes where across every programme: applicant-proposing

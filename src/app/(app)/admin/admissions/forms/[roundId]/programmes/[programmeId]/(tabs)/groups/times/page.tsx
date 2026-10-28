@@ -23,8 +23,9 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * group editor offers, or one a group of the run already has. Anything else
  * counts the default, which comes from the run's groups.
  *
- * For an admin, Arrange with Claude sits under the picture: a proposed split
- * into groups with facilitators, applied only when they press Apply
+ * For an admin, Arrange groups sits under the picture, and before decision
+ * day under the sentence that stands in for it, as a preview: up to five
+ * splits into groups with facilitators, applied only when they press Apply
  * (`src/features/applications/times/ArrangeGroups.tsx`).
  */
 export default async function ProgrammeTimesPage({

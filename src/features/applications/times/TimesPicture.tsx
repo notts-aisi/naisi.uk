@@ -151,6 +151,7 @@ function Blank({ view }: { view: TimesView }) {
       <p className={styles.blankText}>
         Nobody holds a place until decisions have gone out. Once they have, this shows when the
         people holding a place are free.
+        {admin ? " Below, you can already preview groups from the decisions as they stand." : ""}
       </p>
     </section>
   );
@@ -411,7 +412,7 @@ export default function TimesPicture({
 }: {
   view: TimesView;
   views: ReactNode;
-  /** Arrange with Claude, which the page draws for an admin once there is a picture. */
+  /** Arrange groups, which the page draws for an admin once there is a picture, or as a preview before decision day. */
   arrange?: ReactNode;
 }) {
   const picture = view.picture;
@@ -465,7 +466,9 @@ export default function TimesPicture({
           )}
         </>
       )}
-      {picture !== null ? arrange : null}
+      {/* Before decision day an admin can preview arrangements from the
+          decisions as they stand; the arranger says it is a preview. */}
+      {picture !== null || view.blank === "not-sent" ? arrange : null}
     </div>
   );
 }
