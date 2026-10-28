@@ -7,7 +7,7 @@ import type { SessionUser } from "@/lib/firebase/session";
 import { askContext, type AskRefusal } from "./context";
 import { groupAskFacts, type GroupAskFacts } from "./groups";
 import type { SentAskEmail, WallClock } from "./model";
-import { loadFacilitatorPeople } from "./people";
+import { loadCasePeople, loadFacilitatorPeople, type FacilitatorPerson } from "./people";
 import { listRunAsks, readAskTest, readTraining } from "./read";
 import {
   askStateOf,
@@ -95,6 +95,14 @@ export type FacilitatorsModel = {
   leadName: string;
   columns: FacilitatorColumn[];
   people: ViewPerson[];
+  /**
+   * For an admin, and empty for a lead: everybody holding a place on this
+   * programme who did NOT offer to facilitate, each with where they stand, so
+   * an admin can make the case to one ("Making the case" in `./model.ts`).
+   */
+  notOffered: ViewPerson[];
+  /** Where the test of the email that makes the case stands, as `test` does for the usual one. */
+  caseTest: { state: "none" | "stale" | "fresh"; replyBy: WallClock | null };
   asksFacilitating: boolean;
   decisionsSent: boolean;
   /** Today in London, the first day an ask may ask for an answer by. */
@@ -122,11 +130,13 @@ export async function loadFacilitatorsModel(
   if (!context.ok) return context;
   const { form, programme, sets, run, groups } = context;
 
-  const [people, runAsks, training, test, lead, accounts] = await Promise.all([
+  const [people, cases, runAsks, training, test, caseTest, lead, accounts] = await Promise.all([
     loadFacilitatorPeople(db, form, sets, programme, actor.uid),
+    context.viewer === "admin" ? loadCasePeople(db, form, sets, programme, actor.uid) : Promise.resolve([]),
     listRunAsks(db, run.id),
     readTraining(db, run.id),
     readAskTest(db, run.id),
+    context.viewer === "admin" ? readAskTest(db, run.id, "case") : Promise.resolve(null),
     readRunLead(db, run.id),
     // Names of everybody who facilitates a group, for the groups card.
     (async () => {
@@ -141,7 +151,7 @@ export async function loadFacilitatorsModel(
       return [snap.id, typeof name === "string" && name.trim() ? name.trim() : "NAISI member"] as const;
     }),
   );
-  const personOf = new Map(people.map((person) => [person.uid, person] as const));
+  const personOf = new Map([...people, ...cases].map((person) => [person.uid, person] as const));
   const groupNames = new Map(groups.map((group) => [group.id, group.name.trim() || "Untitled group"] as const));
   const stateOf = new Map(asks.map((ask) => [ask.id, askStateOf(ask, runAsks, now)] as const));
 
@@ -214,7 +224,7 @@ export async function loadFacilitatorsModel(
       facilitatesByUid.set(uid, map);
     }
   }
-  const ranked = people.map((person) => {
+  const rankedOf = (person: FacilitatorPerson) => {
     const status = personStatus(person.uid, {
       programme,
       standing: person.standing,
@@ -239,10 +249,13 @@ export async function loadFacilitatorsModel(
     const band = status.ask === "asked" ? ORDER[status.chip?.tone ?? "quiet"] : status.ask === "button" ? 3 : 4;
     const when = (decided?.answeredAt ?? decided?.askedAt)?.getTime() ?? 0;
     return { view, band, when };
-  });
-  const viewPeople = ranked
-    .sort((a, b) => a.band - b.band || a.when - b.when || a.view.name.localeCompare(b.view.name, "en"))
-    .map(({ view }) => view);
+  };
+  const inOrder = (list: readonly FacilitatorPerson[]) =>
+    list
+      .map(rankedOf)
+      .sort((a, b) => a.band - b.band || a.when - b.when || a.view.name.localeCompare(b.view.name, "en"))
+      .map(({ view }) => view);
+  const viewPeople = inOrder(people);
 
   // ---- The email the last person asked got ----------------------------------
   // The board's card is the email of somebody still to answer: the latest ask
@@ -260,6 +273,7 @@ export async function loadFacilitatorsModel(
     : null;
 
   const standing = askTestStanding(test, programme.id);
+  const caseStanding = askTestStanding(caseTest, programme.id, "case");
   return {
     ok: true,
     model: {
@@ -277,6 +291,8 @@ export async function loadFacilitatorsModel(
       leadName: lead?.firstName ?? "",
       columns: facilitatorColumns(form, sets),
       people: viewPeople,
+      notOffered: inOrder(cases),
+      caseTest: { state: caseStanding.state, replyBy: caseStanding.state === "none" ? null : caseStanding.replyBy },
       asksFacilitating: form.asksFacilitating,
       decisionsSent,
       today: londonDateKey(now),

@@ -13,14 +13,16 @@
  * Written only by the routes under
  * `/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators` and
  * `/api/courses/facilitator-asks/[askId]/answer`, read only on the server, and
- * refused to every browser by `firestore.rules`. Three kinds of document, each
+ * refused to every browser by `firestore.rules`. Four kinds of document, each
  * telling which it is by `kind` and carrying every part of its id as a field:
  *
  *  - an ASK, at an id the database makes (it is the address in the email):
  *    `{ kind: "ask", runId, roundId, programmeId, groupId, uid, seat,
  *    askedByUid, askedAt, replyBy: { dateKey, time }, answer, answeredAt,
- *    remindedAt, reminders, delivery, email, toName, firstName, leadName }`.
- *    `email` is
+ *    remindedAt, reminders, delivery, email, toName, firstName, leadName,
+ *    case }`. `case` is null for somebody who offered on the form; for
+ *    somebody who did NOT offer it is the admin's sentence the email made the
+ *    case with (see "Making the case" below). `email` is
  *    the email as it went, so the lead's view shows it exactly as sent, and
  *    `toName` and `leadName` are the names it was sent to and signed with,
  *    so the answer page says what the email said. None holds an address.
@@ -29,6 +31,19 @@
  *    Deleted when the training is cleared.
  *  - `{runId}__asktest`: the last test of the ask's email that reached its
  *    sender. `{ kind: "ask-test", runId, byUid, at, wording, replyBy }`.
+ *  - `{runId}__casetest`: the same for the email that makes the case,
+ *    `{ kind: "case-test", ... }`, kept apart so testing one never makes the
+ *    other's test stale.
+ *
+ * ## Making the case
+ *
+ * An admin may also ask somebody who did NOT offer to facilitate, when the
+ * term's plan (or anybody's judgement) says they would be good at it: one
+ * person holding a place on this programme, one group, the same yes or no by
+ * a day and time, with a sentence of the admin's own saying why them. Only an
+ * admin, because the people who did not offer are only listed for an admin.
+ * It is meant for a group that already has a facilitator who offered, so the
+ * group never waits on the answer; the screen says so.
  *
  * ## The seat
  *
@@ -57,6 +72,8 @@ export const FACILITATING_LIMITS = {
   id: 128,
   /** The most asks one run keeps. Far above any term's facilitators. */
   maxAsksPerRun: 300,
+  /** The sentence that makes the case to somebody who did not offer. */
+  caseText: 600,
   /** Reminders to one person for one ask. */
   maxReminders: 3,
   /** The least time between two reminders to one person. */
@@ -71,6 +88,19 @@ export function trainingId(runId: string): string {
 /** The run's last test of the ask's email. CONSTRUCT-ONLY, NEVER PARSE. */
 export function askTestId(runId: string): string {
   return `${runId}__asktest`;
+}
+
+/** Which email an ask sends: the usual one, or the one that makes the case to somebody who did not offer. */
+export type AskWording = "offered" | "case";
+
+/** The run's last test of the email that makes the case. CONSTRUCT-ONLY, NEVER PARSE. */
+export function caseTestId(runId: string): string {
+  return `${runId}__casetest`;
+}
+
+/** The test document for one wording. */
+export function testIdFor(runId: string, wording: AskWording): string {
+  return wording === "case" ? caseTestId(runId) : askTestId(runId);
 }
 
 /** A London wall clock: a civil date and a 24-hour time. */
@@ -132,6 +162,8 @@ export type FacilitatorAsk = {
   toName: string;
   /** What the email called them: "Grace". A reminder calls them the same. */
   firstName: string;
+  /** The admin's sentence that made the case to somebody who did not offer, or null. */
+  case: string | null;
   /** The first name the email was signed with, or "" when it was signed NAISI. */
   leadName: string;
 };
@@ -246,6 +278,7 @@ export function normalizeAsk(id: string, data: Record<string, unknown> | undefin
     toName: text(data.toName, 200),
     firstName: text(data.firstName, 120),
     leadName: text(data.leadName, 120),
+    case: typeof data.case === "string" && data.case.trim() ? data.case.trim().slice(0, FACILITATING_LIMITS.caseText) : null,
   };
 }
 
@@ -271,8 +304,9 @@ export function normalizeTraining(
 
 /** The run's last test, or null for a document that is not it. */
 export function normalizeAskTest(id: string, data: Record<string, unknown> | undefined): AskTest | null {
-  if (!data || data.kind !== "ask-test") return null;
-  if (typeof data.runId !== "string" || askTestId(data.runId) !== id) return null;
+  if (!data || (data.kind !== "ask-test" && data.kind !== "case-test")) return null;
+  const wording: AskWording = data.kind === "case-test" ? "case" : "offered";
+  if (typeof data.runId !== "string" || testIdFor(data.runId, wording) !== id) return null;
   const replyBy = wallClockIn(data.replyBy);
   if (!replyBy || typeof data.wording !== "string" || typeof data.byUid !== "string") return null;
   return { runId: data.runId, byUid: data.byUid, at: asDate(data.at), wording: data.wording, replyBy };

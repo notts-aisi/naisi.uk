@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { AskTest, WallClock } from "./model";
+import type { AskTest, AskWording, WallClock } from "./model";
 import { composeAskEmail } from "./words";
 
 /**
@@ -26,7 +26,7 @@ import { composeAskEmail } from "./words";
  */
 
 /** The email with every slot marked: the wording, and nothing about anybody. */
-function markedWording(): unknown {
+function markedWording(wording: AskWording): unknown {
   const email = composeAskEmail({
     firstName: "{first}",
     shortName: "{short}",
@@ -41,14 +41,15 @@ function markedWording(): unknown {
     replyBy: { day: "{reply day}", time: "{reply time}" },
     leadName: "{lead}",
     link: "{link}",
+    case: wording === "case" ? "{case}" : null,
   });
   if (!email) return null;
   return [email.subject, email.greeting, email.paragraphs, email.button.label, email.signOff];
 }
 
 /** One string, equal for two asks exactly when the programme, the time to answer by and the wording are. */
-export function askFingerprint(programmeId: string, replyBy: WallClock): string {
-  const line = JSON.stringify([programmeId, replyBy.dateKey, replyBy.time, markedWording()]);
+export function askFingerprint(programmeId: string, replyBy: WallClock, wording: AskWording = "offered"): string {
+  const line = JSON.stringify([programmeId, replyBy.dateKey, replyBy.time, markedWording(wording)]);
   return createHash("sha256").update(line, "utf8").digest("hex");
 }
 
@@ -58,13 +59,22 @@ export type AskTestStanding =
   | { state: "stale" | "fresh"; at: Date | null; replyBy: WallClock };
 
 /** Where the run stands on its test: none sent, one whose wording has changed, or one that counts. */
-export function askTestStanding(test: AskTest | null, programmeId: string): AskTestStanding {
+export function askTestStanding(
+  test: AskTest | null,
+  programmeId: string,
+  wording: AskWording = "offered",
+): AskTestStanding {
   if (!test) return { state: "none" };
-  const fresh = test.wording === askFingerprint(programmeId, test.replyBy);
+  const fresh = test.wording === askFingerprint(programmeId, test.replyBy, wording);
   return { state: fresh ? "fresh" : "stale", at: test.at, replyBy: test.replyBy };
 }
 
 /** Is an ask for this programme, answered by this day and time, unlocked? */
-export function askIsTested(test: AskTest | null, programmeId: string, replyBy: WallClock): boolean {
-  return test !== null && test.wording === askFingerprint(programmeId, replyBy);
+export function askIsTested(
+  test: AskTest | null,
+  programmeId: string,
+  replyBy: WallClock,
+  wording: AskWording = "offered",
+): boolean {
+  return test !== null && test.wording === askFingerprint(programmeId, replyBy, wording);
 }

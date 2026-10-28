@@ -3395,7 +3395,7 @@ describe("the course hub passage", () => {
     );
     assert.match(
       load,
-      /const context = await askContext\(db, actor, roundId, programmeId\);\s*if \(!context\.ok\) return context;\s*const \{ form, programme, sets, run, groups \} = context;\s*const \[people, runAsks, training, test, lead, accounts\] = await Promise\.all\(\[\s*loadFacilitatorPeople\(db, form, sets, programme, actor\.uid\),/,
+      /const context = await askContext\(db, actor, roundId, programmeId\);\s*if \(!context\.ok\) return context;\s*const \{ form, programme, sets, run, groups \} = context;\s*const \[people, cases, runAsks, training, test, caseTest, lead, accounts\] = await Promise\.all\(\[\s*loadFacilitatorPeople\(db, form, sets, programme, actor\.uid\),\s*context\.viewer === "admin" \? loadCasePeople\(db, form, sets, programme, actor\.uid\) : Promise\.resolve\(\[\]\),/,
       "the Facilitators view reads the list before it asks whether the caller leads the programme",
     );
     // In the writer the list is read by one helper, which takes the gate's own answer.
@@ -3507,9 +3507,28 @@ describe("the course hub passage", () => {
       [
         "kind", "runId", "roundId", "programmeId", "groupId", "uid", "seat", "askedByUid", "askedAt", "replyBy",
         "answer", "answeredAt", "remindedAt", "reminders", "delivery", "email", "toName", "firstName", "leadName",
+        // The admin's sentence making the case to somebody who did not offer
+        // (v9: "somebody who did not offer to facilitate is only ever asked").
+        // It is also in "a copy of the email as it was sent", so the record
+        // holds nothing the policy does not list; it is kept on its own so a
+        // reminder can make the same case.
+        "case",
       ],
       "an ask is now kept with more, or less, than the policy lists",
     );
+    assert.match(created[1], /case: request\.case,/);
+    // The people an admin may make the case to are read for an admin alone.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bloadCasePeople\(/),
+      new Map([
+        ["src/lib/courses/facilitatorAsks/people.ts", "where the people holding a place who did not offer are read"],
+        ["src/lib/courses/facilitatorAsks/load.ts", "the Facilitators view's model, which reads them only when askContext answers an admin"],
+        ["src/lib/courses/facilitatorAsks/act.ts", "a case ask and its test, refused before this read unless askContext answers an admin"],
+      ]),
+      "reading the people an admin may make the case to",
+      "Only an admin is shown the people who did not offer to facilitate. If another file reads them, say who for.",
+    );
+    assert.match(act, /if \(context\.viewer !== "admin"\) return refuse\(403, CASE_ADMINS_ONLY\);\s*const cases = await loadCasePeople\(/);
     assert.match(created[1], /toName: person\.name,/);
     const person = /export type FacilitatorPerson = \{([\s\S]*?)\n\};/.exec(withoutComments(read("src/lib/courses/facilitatorAsks/people.ts")));
     assert.ok(person, "could not find what is kept of each person on the list");
