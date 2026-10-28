@@ -7,6 +7,8 @@ import {
 } from "@/lib/admissions/availability";
 import { NEW_GROUP_SESSION_MINUTES, SESSION_LENGTH_PRESETS } from "@/lib/courses/sessionLength";
 import { compareGroupsByMeeting } from "@/lib/firestore/courseGroups";
+import { own } from "../keys";
+import type { ProgrammeKind } from "../model";
 import type { PaintedWeek } from "./paintedWeek";
 
 /**
@@ -115,11 +117,24 @@ export function lengthFromGroups(groups: readonly TimesGroup[]): LengthSource {
   return { kind: "mixed", lengths, most };
 }
 
-/** The length counted when nobody has picked one. */
-export function defaultLength(source: LengthSource): number {
+/**
+ * How long a programme of each kind usually meets, in person (the committee's
+ * word, 28 October 2026): a fellowship's discussion group for two hours, an
+ * incubator for an afternoon of four. Counted while no group of the run has a
+ * time to say otherwise.
+ */
+const USUAL_MINUTES: Record<ProgrammeKind, number> = { fellowship: 120, incubator: 240 };
+
+/** The length a programme of this kind usually meets for, or a new group's when there is no kind to go by. */
+export function usualLength(kind: ProgrammeKind | null): number {
+  return kind ? (own(USUAL_MINUTES, kind) ?? NEW_GROUP_SESSION_MINUTES) : NEW_GROUP_SESSION_MINUTES;
+}
+
+/** The length counted when nobody has picked one: the groups' own, else the programme's usual length. */
+export function defaultLength(source: LengthSource, kind: ProgrammeKind | null = null): number {
   if (source.kind === "groups") return source.minutes;
   if (source.kind === "mixed") return source.most;
-  return NEW_GROUP_SESSION_MINUTES;
+  return usualLength(kind);
 }
 
 /**

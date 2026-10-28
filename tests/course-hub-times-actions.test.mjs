@@ -621,7 +621,7 @@ describe("7. the page hands its controls what the records say, and each dialog s
         ],
         who,
       );
-      assert.deepEqual([setup.lengths, setup.counted, setup.nextName, setup.places], [[60, 90, 120], 90, "", 8], who);
+      assert.deepEqual([setup.lengths, setup.counted, setup.nextName, setup.places], [[60, 90, 120, 180, 240], 90, "", 8], who);
       // Numbers only: the picture's counts, and never anybody's week.
       assert.deepEqual(Object.keys(setup.counts).sort(), ["cells", "minutes", "rows", "said"]);
       assert.doesNotMatch(JSON.stringify(setup), /[0-9a-f]{12}/, "a painted week reached the controls");

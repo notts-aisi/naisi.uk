@@ -240,3 +240,73 @@ describe("after decision day", () => {
     assert.equal(globalThis.__claudeAsked.length, 0);
   });
 });
+
+describe("asking Claude about the groups on the screen", () => {
+  const screen = [
+    { key: "A1", name: "Group A", session: { weekday: 1, startTimeLocal: "18:00", durationMinutes: 120 }, room: 8, memberUids: ["amara"], facilitators: [] },
+    { key: "A2", name: "Group B", session: { weekday: 2, startTimeLocal: "18:00", durationMinutes: 120 }, room: 8, memberUids: ["dev"], facilitators: [] },
+  ];
+  const ASK = (ask) => ARRANGE({ ask });
+
+  beforeEach(() => {
+    globalThis.__claudeAnswer = {
+      ok: true,
+      model: "claude-opus-5-5",
+      usage: { inputTokens: 1, outputTokens: 1 },
+      value: {
+        answer: "Applicant 1 should lead Group A1, and Applicant 2 could join them.",
+        moves: [
+          { applicant: "Applicant 2", to: "Group A1", why: "Applicant 2 can make Monday." },
+          { applicant: "Applicant 9", to: "Group A1", why: "x" },
+        ],
+      },
+    };
+  });
+
+  test("only an admin, and Claude is not asked otherwise", async () => {
+    assert.equal((await ASK({ question: "Who leads?", groups: screen })).status, 401);
+    as("claudia");
+    assert.equal((await ASK({ question: "Who leads?", groups: screen })).status, 403);
+    assert.equal(globalThis.__claudeAsked.length, 0);
+  });
+
+  test("a question is needed, and is kept short", async () => {
+    as("zach");
+    assert.equal((await ASK({ question: "  ", groups: screen })).status, 400);
+    assert.equal((await ASK({ question: "x".repeat(1001), groups: screen })).status, 400);
+    assert.equal(globalThis.__claudeAsked.length, 0);
+  });
+
+  test("names in the question become labels, every programme is counted, and only moves that fit come back", async () => {
+    as("zach");
+    const before = snapshot();
+    const response = await ASK({
+      question: "Should Amara Okafor lead, or Dev?",
+      history: [{ question: "Is Dev free on Mondays?", answer: "Dev Patel is." }],
+      groups: screen,
+    });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.equal(snapshot(), before, "a question wrote something");
+    const { message } = globalThis.__claudeAsked[0];
+    for (const leak of [...namesOf("amara"), ...namesOf("dev"), ...namesOf("zach")]) {
+      assert.ok(!message.includes(leak), `the message carries ${leak}`);
+    }
+    assert.match(message, /## The admin asks\nShould Applicant 1 lead, or Applicant 2\?/);
+    assert.match(message, /Admin: Is Applicant 2 free on Mondays\?\nYou: Applicant 2 is\./);
+    assert.match(message, /# AGI Strategy Fellowship: 2 people, sessions of 120 minutes/);
+    assert.match(message, /- Mon 18:00: AGI Strategy 2 of 2; Technical AI Safety 0 of 1; Research incubator 0 of 0/);
+
+    const { ask } = response.body;
+    assert.equal(ask.answer, "Amara Okafor should lead Group A, and Dev Patel could join them.");
+    assert.deepEqual(ask.moves, [{ uid: "dev", toKey: "A1", why: "Dev Patel can make Monday." }]);
+    assert.equal(ask.dropped.length, 1);
+  });
+});
+
+test("a group an arrangement adds always has a name", async () => {
+  const { newGroupName } = await loadTs(join("lib", "applications", "arrange", "load.ts"));
+  assert.equal(newGroupName([]), "Group A");
+  assert.equal(newGroupName(["Group A", "Group B"]), "Group C");
+  assert.equal(newGroupName(["Monday evening", "Group A"]), "Group B");
+});
+

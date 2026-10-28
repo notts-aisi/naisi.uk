@@ -63,8 +63,8 @@ export function littleMarkedSentence(littleMarked: number): string {
     : `${littleMarked} people marked under 4 hours, so they don’t count towards when groups meet. They’re read as free from their first time each day, and fitted to the groups the others choose.`;
 }
 
-/** How long the sessions counted are, and where that length came from. */
-export function lengthSentence(source: LengthSource, counted: number): string {
+/** How long the sessions counted are, and where that length came from. `usual` is the programme's usual length. */
+export function lengthSentence(source: LengthSource, counted: number, usual: number = NEW_GROUP_SESSION_MINUTES): string {
   const counts = `This counts ${lengthBefore(counted)} sessions`;
   if (source.kind === "groups") {
     const said = `Sessions last ${lengthWords(source.minutes)}.`;
@@ -75,9 +75,10 @@ export function lengthSentence(source: LengthSource, counted: number): string {
     return counted === source.most ? `${said} ${counts}, the length most of them have.` : `${said} ${counts}.`;
   }
   const said = "No group has a session time yet.";
-  return counted === NEW_GROUP_SESSION_MINUTES
+  if (counted !== usual) return `${said} ${counts}.`;
+  return usual === NEW_GROUP_SESSION_MINUTES
     ? `${said} ${counts}, the length a new group starts with.`
-    : `${said} ${counts}.`;
+    : `${said} ${counts}, how long this programme usually meets.`;
 }
 
 /** The grid's heading: "Who can make a 2-hour session starting at…". */

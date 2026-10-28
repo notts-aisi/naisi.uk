@@ -1991,8 +1991,24 @@ Save sends (below).
   the site's own routes for groups, places and facilitators, in that order,
   and stops at the first refusal; somebody who did not offer is never made a
   facilitator by it (the page says to ask them, from Groups, Facilitators);
-  nobody is emailed until Publish. `tests/applications-arrange-advice.test.mjs`
-  and `tests/applications-arrange-options.test.mjs` run it.
+  nobody is emailed until Publish. SESSION LENGTH: counted at the length
+  picked on the arranger, which starts as the Times view's own: the run's
+  groups' length, else the programme's usual one (`usualLength` in
+  `handover/times.ts`: a fellowship two hours, an incubator four, both in
+  person); three and four hours can be picked as well as the editor's
+  shorter lengths. A group an arrangement adds is always named
+  (`newGroupName`). ASK CLAUDE: under the rings an admin can ask about the
+  option on their screen, changes included (`askAboutArrangement`). Claude is
+  told the same people lines, which of the screen's groups each person can
+  make, and, for every programme on the form read as its own Times view reads
+  it, how many people can make each start time for a session of that length
+  (counts only, never who), so it can answer about joint sessions between
+  programmes. Names typed into a question, and in the conversation the screen
+  sends back (its last six turns), are swapped for labels first. Moves it
+  suggests are kept only to a group on the screen the person can make, with
+  room, never of somebody told, and the screen makes them on one press.
+  Nothing is stored. `tests/applications-arrange-advice.test.mjs` and
+  `tests/applications-arrange-options.test.mjs` run it.
 - **The whole term at once.** Plan the intake
   (`/admin/admissions/forms/[roundId]/intake`, admin only, before decision
   day) drafts who goes where across every programme: applicant-proposing

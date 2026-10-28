@@ -2,8 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import CountedTextarea from "@/components/ui/CountedTextarea";
+import Select from "@/components/ui/Select";
 import { useHydrated } from "@/hooks/useHydrated";
 import { own } from "@/lib/applications/keys";
+import { lengthWords } from "@/lib/courses/sessionLength";
 import type { ArrangementOptionsView, RingFacilitator, RingGroup, RingOption, RingPerson } from "@/lib/applications/arrange/view";
 import styles from "./ArrangeGroups.module.css";
 
@@ -21,6 +24,14 @@ import styles from "./ArrangeGroups.module.css";
  * free, the group's room and its facilitators. The options and every change
  * live on this page and nowhere else.
  *
+ * Sessions are counted at the length picked here, which starts as the
+ * Times view's own (the groups' length, else the programme's usual one).
+ *
+ * ASK CLAUDE: a question about the option on the screen, with the admin's
+ * changes, answered in words; the moves it suggests that fit can be made
+ * with one press. The conversation lives on this page; the last few turns
+ * are sent back with each question.
+ *
  * BEFORE DECISION DAY IT IS A PREVIEW, from the decisions as they stand:
  * nobody is on the run yet, so there is nothing to Apply.
  *
@@ -35,6 +46,15 @@ import styles from "./ArrangeGroups.module.css";
  */
 
 type Step = { label: string; ok: boolean; detail?: string };
+type Turn = {
+  question: string;
+  answer: string;
+  moves: { uid: string; toKey: string; why: string }[];
+  dropped: { suggestion: string; why: string }[];
+  /** The option the question was about. */
+  optionKey: string;
+  made: boolean;
+};
 
 const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const REASON: Record<string, string> = {
@@ -84,9 +104,26 @@ function warningsFor(group: RingGroup, people: Record<string, RingPerson>, nearU
   return out;
 }
 
-export default function ArrangeGroups({ roundId, programmeId }: { roundId: string; programmeId: string }) {
+export default function ArrangeGroups({
+  roundId,
+  programmeId,
+  lengths,
+  counted,
+}: {
+  roundId: string;
+  programmeId: string;
+  /** The session lengths that can be picked, in minutes. */
+  lengths: number[];
+  /** The length the Times view counts. */
+  counted: number;
+}) {
   const router = useRouter();
   const hydrated = useHydrated();
+  const [minutes, setMinutes] = useState(counted);
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [question, setQuestion] = useState("");
+  const [chatting, setChatting] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
   const [view, setView] = useState<ArrangementOptionsView | null>(null);
   const [working, setWorking] = useState<Record<string, RingOption>>({});
   const [active, setActive] = useState<string | null>(null);
@@ -107,7 +144,7 @@ export default function ArrangeGroups({ roundId, programmeId }: { roundId: strin
         .sort((a, b) => (own(people, a)?.name ?? "").localeCompare(own(people, b)?.name ?? ""))
     : [];
   const reasonOf = (uid: string) => option?.unplaced.find((entry) => entry.uid === uid)?.reason ?? null;
-  const busy = !hydrated || asking || applying;
+  const busy = !hydrated || asking || applying || chatting;
 
   const suggest = async (askClaude: boolean) => {
     setAsking(true);
@@ -115,7 +152,7 @@ export default function ArrangeGroups({ roundId, programmeId }: { roundId: strin
     setSteps([]);
     setSelected(null);
     try {
-      const answer = await send(`${base}/arrangement`, "POST", { askClaude });
+      const answer = await send(`${base}/arrangement`, "POST", { askClaude, minutes: String(minutes) });
       if (!answer.ok) {
         setError(answer.error);
         return;
@@ -163,6 +200,59 @@ export default function ArrangeGroups({ roundId, programmeId }: { roundId: strin
         group.facilitators.sort((a, b) => (a.role === b.role ? 0 : a.role === "lead" ? -1 : 1));
       }
     });
+
+  /** Claude's suggested moves, made together on the option they were about. */
+  const makeMoves = (turn: Turn, at: number) => {
+    const target = own(working, turn.optionKey);
+    if (!target) return;
+    const draft = copyOf(target);
+    for (const move of turn.moves) {
+      for (const group of draft.groups) {
+        if (!group.memberUids.includes(move.uid)) continue;
+        group.memberUids = group.memberUids.filter((each) => each !== move.uid);
+        group.facilitators = group.facilitators.filter((f) => f.uid !== move.uid);
+      }
+      draft.groups.find((group) => group.key === move.toKey)?.memberUids.push(move.uid);
+    }
+    setWorking({ ...working, [draft.key]: draft });
+    setTurns(turns.map((each, i) => (i === at ? { ...each, made: true } : each)));
+    setActive(draft.key);
+    setSteps([]);
+  };
+
+  const ask = async () => {
+    if (!option || !question.trim()) return;
+    setChatting(true);
+    setChatError(null);
+    try {
+      const answer = await send(`${base}/arrangement`, "POST", {
+        minutes: String(minutes),
+        ask: {
+          question: question.trim(),
+          history: turns.slice(-6).map((turn) => ({ question: turn.question, answer: turn.answer })),
+          groups: option.groups.map((group) => ({
+            key: group.key,
+            name: group.name,
+            session: group.session,
+            room: group.room,
+            memberUids: group.memberUids,
+            facilitators: group.facilitators.map((f) => ({ uid: f.uid, role: f.role })),
+          })),
+        },
+      });
+      if (!answer.ok) {
+        setChatError(answer.error);
+        return;
+      }
+      const said = answer.data.ask as Omit<Turn, "question" | "optionKey" | "made">;
+      setTurns([...turns, { question: question.trim(), ...said, optionKey: option.key, made: false }]);
+      setQuestion("");
+    } catch {
+      setChatError("That couldn’t be sent. Check your connection and try again.");
+    } finally {
+      setChatting(false);
+    }
+  };
 
   const reset = () => {
     const sent = view?.options.find((each) => each.key === active);
@@ -358,6 +448,23 @@ export default function ArrangeGroups({ roundId, programmeId }: { roundId: strin
         </p>
       </div>
       <div className={styles.actions}>
+        <label className={styles.length}>
+          <span className={styles.line}>Sessions of</span>
+          <Select
+            aria-label="Session length"
+            value={String(minutes)}
+            disabled={busy}
+            onChange={(event) => setMinutes(Number(event.target.value))}
+          >
+            {[...new Set([...lengths, counted])]
+              .sort((a, b) => a - b)
+              .map((length) => (
+                <option key={length} value={String(length)}>
+                  {lengthWords(length)}
+                </option>
+              ))}
+          </Select>
+        </label>
         <button type="button" className={styles.button} disabled={busy} onClick={() => void suggest(true)}>
           {asking ? "Working it out…" : view ? "Suggest again" : "Suggest options with Claude"}
         </button>
@@ -589,6 +696,73 @@ export default function ArrangeGroups({ roundId, programmeId }: { roundId: strin
                     </li>
                   ))}
                 </ol>
+              ) : null}
+
+              {view.claudeConfigured ? (
+                <section className={styles.chat} aria-label="Ask Claude about these groups">
+                  <h3 className={styles.chatTitle}>Ask Claude about these groups</h3>
+                  <p className={styles.line}>
+                    About option {option.key} as it is on your screen, your changes included. Claude also sees how many
+                    people on each programme can meet at each time, so you can ask about joint sessions. Nothing is saved.
+                  </p>
+                  {turns.map((turn, i) => (
+                    <div key={i} className={styles.turn}>
+                      <p className={styles.question}>
+                        <strong>You{turn.optionKey !== option.key ? ` (about option ${turn.optionKey})` : ""}:</strong>{" "}
+                        {turn.question}
+                      </p>
+                      <p className={styles.answer}>{turn.answer}</p>
+                      {turn.moves.length > 0 ? (
+                        <div className={styles.suggested}>
+                          <ul className={styles.list}>
+                            {turn.moves.map((move) => (
+                              <li key={`${move.uid}:${move.toKey}`}>
+                                {own(people, move.uid)?.name ?? "Somebody"} to{" "}
+                                {own(working, turn.optionKey)?.groups.find((g) => g.key === move.toKey)?.name ?? "a group"}
+                                {move.why ? `: ${move.why}` : ""}
+                              </li>
+                            ))}
+                          </ul>
+                          <button
+                            type="button"
+                            className={styles.small}
+                            disabled={busy || turn.made}
+                            onClick={() => makeMoves(turn, i)}
+                          >
+                            {turn.made
+                              ? "Made"
+                              : `Make ${turn.moves.length === 1 ? "this move" : `these ${turn.moves.length} moves`} in option ${turn.optionKey}`}
+                          </button>
+                        </div>
+                      ) : null}
+                      {turn.dropped.length > 0 ? (
+                        <p className={styles.line}>
+                          Left out because they don’t fit: {turn.dropped.map((d) => `${d.suggestion} (${d.why})`).join("; ")}.
+                        </p>
+                      ) : null}
+                    </div>
+                  ))}
+                  <CountedTextarea
+                    aria-label="Your question for Claude"
+                    value={question}
+                    max={1000}
+                    rows={3}
+                    disabled={busy}
+                    placeholder="For example: the governance and alignment streams should meet together for the first two sessions. Which times work for both?"
+                    onChange={(event) => setQuestion(event.target.value)}
+                  />
+                  <div className={styles.actions}>
+                    <button type="button" className={styles.button} disabled={busy || !question.trim()} onClick={() => void ask()}>
+                      {chatting ? "Claude is thinking…" : "Ask Claude"}
+                    </button>
+                    {chatting ? <span className={styles.line}>This can take a minute.</span> : null}
+                  </div>
+                  {chatError ? (
+                    <p className={styles.error} role="alert">
+                      {chatError}
+                    </p>
+                  ) : null}
+                </section>
               ) : null}
             </>
           ) : null}
