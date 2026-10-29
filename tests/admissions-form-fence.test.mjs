@@ -1621,6 +1621,18 @@ const ROUND_READERS = new Map([
     },
   ],
   [
+    "src/lib/applications/handover/onAcceptance.ts",
+    {
+      kind: "form",
+      asks: 1,
+      proof: ["await tx.get(formRef(db, form.round.id))"],
+      why:
+        "the hand-over that follows an accepted invitation, called by the reply route with the " +
+        "form it already loaded through the form's own loader. Its transaction reads the round " +
+        "again and asks before it writes the one row",
+    },
+  ],
+  [
     "src/lib/applications/handover/run.ts",
     {
       kind: "form",

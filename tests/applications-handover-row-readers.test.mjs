@@ -201,6 +201,13 @@ const READERS = {
     proof: ["if (!canRunTerm(actor)) return { ok: false, status: 403, error: ONLY_AN_ADMIN_HANDS_OVER };"],
     why: "the hand-over itself: it creates the rows, and reads only whether each is already there",
   },
+  "lib/applications/handover/onAcceptance.ts": {
+    kind: "own",
+    proof: ["db.collection(RUN_APPLICATIONS_COLLECTION).doc(courseApplicationId(runId, uid))"],
+    why:
+      "the hand-over that follows an accepted invitation: the reply route hands it the caller's own " +
+      "uid, and it asks only whether that one row exists before it makes it",
+  },
   "lib/applications/handover/load.ts": {
     kind: "admin",
     proof: ['if (!canRunTerm(actor)) return { status: "not-admin" };'],
