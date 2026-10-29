@@ -185,8 +185,8 @@ export function publishConfirmText(input: {
     if (input.noted && input.noted > 0) {
       lines.push(
         input.noted === 1
-          ? "1 of the people’s emails carries a note of your own above its details."
-          : `${input.noted} of the people’s emails carry a note of your own above their details.`,
+          ? "1 of the people’s emails carries a note above its details."
+          : `${input.noted} of the people’s emails carry a note above their details.`,
       );
     }
   }

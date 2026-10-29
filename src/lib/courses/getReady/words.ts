@@ -545,7 +545,7 @@ export function composeFreeReminder(input: {
 // ---------------------------------------------------------------------------
 
 /** Under the "Your group" card's first email, when the first person's carries no note: one that does. */
-export const NOTED_EMAIL = "An email with your note";
+export const NOTED_EMAIL = "An email with a note";
 
 export const SENDS_TITLE = "What this press sends";
 
@@ -564,11 +564,11 @@ export function joinedCountWords(count: number): string {
   return `“Who has joined” to ${count} ${count === 1 ? "facilitator" : "facilitators"} already told about their group`;
 }
 
-/** Whose "Your group" email carries a note of your own. */
+/** Whose "Your group" email carries a note of our own words, above the site's details. */
 export function notedWords(names: readonly string[]): string {
   return names.length === 1
-    ? `${names[0]}’s email carries your note above the details.`
-    : `${namesInWords(names)}’s emails carry your notes above the details.`;
+    ? `The email to ${names[0]} carries a note above its details.`
+    : `The emails to ${namesInWords(names)} carry a note above their details.`;
 }
 
 /**
