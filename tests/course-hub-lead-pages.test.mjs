@@ -63,6 +63,7 @@ const STYLESHEETS = [
   "@/features/courses/facilitator/facilitator.module.css",
   "./TimesPicture.module.css",
   "./Circles.module.css",
+  "./WeekChart.module.css",
   "./editor.module.css",
   "@/features/applications/editor/editor.module.css",
   "./ProgrammeFrame.module.css",

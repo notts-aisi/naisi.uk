@@ -317,7 +317,7 @@ describe("2. a test first", () => {
     assert.ok(
       person.text.includes(
         "Hi Amara, You’re in Group B. You’ll meet on Tuesdays at 6pm in Hallward B12, starting Tue 3 Nov. Sessions last 2 hours. " +
-          "Rahul and Sofia are your facilitators. There are 2 of you. Open your programme Claudia AGI Strategy lead, NAISI",
+          "Rahul and Sofia are your facilitators. There are 2 of you. Can you make this time? Tell us on your programme page. If you can’t, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . I can make it I can’t make this time Claudia AGI Strategy lead, NAISI",
       ),
       person.text,
     );

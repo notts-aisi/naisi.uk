@@ -54,6 +54,7 @@ import { resolveCalendar, resolveWeekDoc } from "./groupResolve";
 import { placedOutsideTheirTimes, sessionLabelOf } from "./outsideTheirTimes";
 import { gaveTheirPlaceBack, type PlaceOnTheForm } from "./placeGivenBack";
 import { noteStandingFor, withPlacementNote, type NoteStanding } from "./placementNotes/model";
+import { withTimeQuestion } from "./timeAnswer/emailSection";
 import { readPlacementNotes } from "./placementNotes/store";
 import { readNamingProgramme, readRunLead, type RunLead } from "./programmeLead";
 import { resolveSessions, sessionRange, type ResolvedSession } from "./sessions";
@@ -1282,13 +1283,26 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
     const written = incubator ? writeIncubatorStart(group, name) : writePlacement(group, name, row.uid);
     // A saved note goes above the site's own details, in this email only.
     const note = noteFor.get(row.uid);
+    const noted = written && note?.state === "noted" ? withPlacementNote(written, note.text) : written;
+    // The site's own section: the group's campus, and "Can you make this
+    // time?" with its two buttons, which a facilitator sitting in the group
+    // they facilitate is not asked (`./timeAnswer/emailSection.ts`).
+    const url = programmePageUrl(runId);
     people.push({
       uid: row.uid,
       name,
       to,
       groupId: group.id,
       groupName: group.name,
-      email: written && note?.state === "noted" ? withPlacementNote(written, note.text) : written,
+      email:
+        noted && url
+          ? withTimeQuestion(noted, {
+              campus: group.campus,
+              asks: !group.facilitatorUids.includes(row.uid),
+              incubator,
+              programmeUrl: url,
+            })
+          : noted,
     });
   }
 

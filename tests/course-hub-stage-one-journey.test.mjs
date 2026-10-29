@@ -1277,7 +1277,7 @@ const programmePage = (runId) => `${APP_URL}/learn/${runId}`;
 const placementWords = ({ first, group, slot, room, from, facilitators, size }) =>
   `Hi ${first}, You’re in ${group}. You’ll meet on ${slot} in ${room}, starting ${from}. Sessions last 2 hours. ` +
   (facilitators.length === 1 ? `${facilitators[0]} is your facilitator. ` : `${facilitators.join(" and ")} are your facilitators. `) +
-  `There are ${size} of you. Open your programme Claudia AGI Strategy lead, NAISI ${FOOTER}`;
+  `There are ${size} of you. Can you make this time? Tell us on your programme page. If you can’t, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com. I can make it I can’t make this time Claudia AGI Strategy lead, NAISI ${FOOTER}`;
 
 /**
  * The facilitators' email Publish writes, word for word, from its greeting to
@@ -1572,11 +1572,19 @@ describe("stage one of the course hub, one term from decision day to the first s
         enrolment: "withdrawn",
         emailed: true,
       });
-      // Hannah has accepted the freed place and is not handed over yet.
+      // Hannah has accepted the freed place, which handed her over: the board
+      // and the picture agree again, and her card is on the board in no group.
       const accepted = timesAt("Hannah accepted, before the hand-over");
       assert.deepEqual(accepted.picture.canMake, { "Group A": 2, "Group B": 3 });
-      assert.deepEqual(accepted.board.canMake, { "Group B": 2, "Group A": 2 });
-      assert.equal(accepted.board.cards.hannah, undefined);
+      assert.deepEqual(accepted.board.canMake, { "Group B": 3, "Group A": 2 });
+      assert.deepEqual(accepted.board.cards.hannah, {
+        availability: "given",
+        canMake: ["Group B"],
+        holdsPlace: true,
+        group: null,
+        enrolment: "none",
+        emailed: false,
+      });
     });
 
     test("the picture is the programme's lead's as well as an admin's: she is shown exactly the admin's, at every moment", () => {
@@ -1733,19 +1741,22 @@ describe("stage one of the course hub, one term from decision day to the first s
     // Each person's email has had the board's "Open your programme" since
   // October 2026: their own programme's page is its one link, as a
   // facilitator's group page is theirs. Until then it had no link at all.
-  test("no email Publish sends carries a meeting link or a token: the only link is the reader's own programme or group page", () => {
+  test("no email Publish sends carries a meeting link or a token: the only links are the reader's own programme or group page, and the society's address", () => {
       for (const mail of [...p().testMail, ...p().pressMail]) {
         assert.deepEqual([...`${mail.subject} ${mail.text}`.matchAll(/\{[a-zA-Z]+\}/g)].map((m) => m[0]), [], mail.to);
       }
+      // A person's email: the society's address, and the two "Can you make
+      // this time?" buttons, each to their programme page's card.
+      const asked = ["mailto:ai-safety@uonsu.com", `${programmePage(RUN)}#your-group-time`, `${programmePage(RUN)}#your-group-time`];
       assert.deepEqual(
         Object.fromEntries(p().pressMail.map((mail) => [mail.to, mail.links])),
         {
-          [address("amara")]: [programmePage(RUN)],
-          [address("dev")]: [programmePage(RUN)],
-          [address("ella")]: [programmePage(RUN)],
-          [address("joel")]: [programmePage(RUN)],
-          [address("kofi")]: [programmePage(RUN)],
-          [address("priya")]: [programmePage(RUN)],
+          [address("amara")]: asked,
+          [address("dev")]: asked,
+          [address("ella")]: asked,
+          [address("joel")]: asked,
+          [address("kofi")]: asked,
+          [address("priya")]: asked,
           [address("amelia")]: [groupPage(RUN, GROUP.A)],
           [address("rahul")]: [groupPage(RUN, GROUP.B)],
           [address("sofia")]: [groupPage(RUN, GROUP.B)],
@@ -1876,12 +1887,17 @@ describe("stage one of the course hub, one term from decision day to the first s
         assert.equal(
           readFrom(mail, "Hi "),
           `Hi ${NAME[to].split(" ")[0]}, You’ll meet on Mondays at 5pm, starting Mon 2 Nov. Where: Room B5 ` +
-            "Tess runs the sessions. Week 1 is on your programme’s page. Open your programme " +
+            "Tess runs the sessions. Week 1 is on your programme’s page. Can you make this time? Tell us on your programme page. If you can’t, say why and which other times would work, and we’ll see what we can do. You keep your place either way. You can also email ai-safety@uonsu.com. I can make it I can’t make this time " +
             `Tess Research incubator lead, NAISI ${FOOTER}`,
           mail.to,
         );
         // The one link is their programme's page, where week 1 is: no meeting link, no token.
-        assert.deepEqual(mail.links, [`${APP_URL}/learn/${INC_RUN}`], mail.to);
+        // The society's address, and the two "Can you make this time?" buttons to the programme page's card.
+        assert.deepEqual(
+          mail.links,
+          ["mailto:ai-safety@uonsu.com", `${APP_URL}/learn/${INC_RUN}#your-group-time`, `${APP_URL}/learn/${INC_RUN}#your-group-time`],
+          mail.to,
+        );
         assert.deepEqual([...`${mail.subject} ${mail.text}`.matchAll(/\{[a-zA-Z]+\}/g)].map((m) => m[0]), [], mail.to);
         // Never the word, and nothing a fellowship's people are told.
         assert.doesNotMatch(`${mail.subject} ${mail.text}`, /group|facilitat|small group|campus/i, mail.to);
@@ -2134,7 +2150,7 @@ describe("stage one of the course hub, one term from decision day to the first s
       assert.deepEqual(f().handOverBeforeTheAnswer.body.receipt, { handedOver: 0, alreadyThere: 5 });
     });
 
-    test("she accepts on her own page, and the next hand-over adds her alone", () => {
+    test("she accepts on her own page, which hands her over, and the next press adds nobody", () => {
       assert.equal(f().accepted.status, 200);
       assert.equal(
         f().hannahAccepted.text,
@@ -2143,7 +2159,8 @@ describe("stage one of the course hub, one term from decision day to the first s
           "your place for someone else.",
       );
       assert.deepEqual(readAt("Hannah accepted").hannah, NOTHING);
-      assert.deepEqual(f().handedOver.body.receipt, { handedOver: 1, alreadyThere: 5 });
+      // Accepting put her on the run's list (handOverAfterAcceptedInvitation), so the press finds her there.
+      assert.deepEqual(f().handedOver.body.receipt, { handedOver: 0, alreadyThere: 6 });
       assert.deepEqual(f().rows, [
         ["amara", "accepted"],
         ["dev", "accepted"],

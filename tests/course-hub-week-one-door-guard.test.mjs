@@ -62,6 +62,7 @@ const DOOR_ASKERS = {
 /** Every caller of the test the hand-over and Publish share. */
 const PLACE_TESTERS = {
   "lib/applications/handover/holders.ts": "placeHoldersOn, the hand-over's own list, asks it of each person",
+  "lib/applications/handover/onAcceptance.ts": "the hand-over that follows an accepted invitation: whether the place just taken is one the press would hand over, asked of the person's own document",
   "lib/applications/handover/board.ts": "the allocation board and Publish's plan: whether each person from the form still holds the place",
   "lib/courses/weekOne/door.ts": "week 1's door: whether this person holds a place on the programme that names the run",
   "lib/applications/people/model.ts": "the programme's People tab, for its lead and admins: everybody holding a place, by the same one test",

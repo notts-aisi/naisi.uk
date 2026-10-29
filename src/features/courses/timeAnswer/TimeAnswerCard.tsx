@@ -32,6 +32,7 @@ import {
   YOU_WROTE,
   meetsLine,
 } from "@/lib/courses/timeAnswer/words";
+import { TIME_ANSWER_ANCHOR } from "@/lib/courses/timeAnswer/emailSection";
 import weekly from "../weekly/weekly.module.css";
 import styles from "./TimeAnswerCard.module.css";
 
@@ -116,7 +117,11 @@ export default function TimeAnswerCard({
   const asking = answer === null || choosing;
 
   return (
-    <section className={[weekly.card, className ?? ""].filter(Boolean).join(" ")} aria-labelledby={titleId}>
+    <section
+      id={TIME_ANSWER_ANCHOR}
+      className={[weekly.card, className ?? ""].filter(Boolean).join(" ")}
+      aria-labelledby={titleId}
+    >
       <div className={weekly.cardHead}>
         <h2 id={titleId} className={weekly.cardTitle}>
           {CARD_TITLE}
