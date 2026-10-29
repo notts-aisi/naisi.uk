@@ -572,7 +572,7 @@ export const ROUTES = {
   "/api/admin/registrations/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePitchesCleared", "coursePredictionsDeleted", "courseProgressDeleted", "courseTeamEntriesCleared", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseTeamEntriesCleared", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -661,7 +661,7 @@ export const ROUTES = {
   "/api/admin/users/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePitchesCleared", "coursePredictionsDeleted", "courseProgressDeleted", "courseTeamEntriesCleared", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseTeamEntriesCleared", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -941,6 +941,7 @@ export const ROUTES = {
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
     GET: {
       expect: adminOnly(404),
+      fields: ["circles"],
       why:
         "Reading Circles (the run's groups as they are, each person's week and Claude's reads) is admin only, " +
         "decided on the session before anything is read; the admin is then told the programme is missing.",
@@ -1966,6 +1967,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/allocation/publish/notes": {
     GET: {
       expect: signedIn(404),
+      fields: ["ok", "section"],
       why:
         "The notes for people placed outside the times they gave, for Publish's own page: session required, then " +
         "the run is read. The battery's id addresses nothing, so every signed-in persona is told the run is " +
@@ -2176,7 +2178,7 @@ export const ROUTES = {
   "/api/courses/runs/[runId]/facilitators/asking": {
     GET: {
       expect: signedIn(404),
-      fields: ["roundId", "programmeId", "runId", "viewer", "shortName", "programmeName", "kind", "headline", "groups", "email", "training", "leadName", "columns", "people", "notOffered", "asksFacilitating", "decisionsSent", "today", "test", "caseTest", "siteAddress"],
+      fields: ["roundId", "programmeId", "runId", "viewer", "shortName", "programmeName", "kind", "headline", "groups", "email", "training", "leadName", "columns", "people", "notOffered", "asksFacilitating", "decisionsSent", "today", "test", "caseTest", "siteAddress", "grid"],
       why:
         "The Facilitators view as one model: session required, then the programme that names the run " +
         "is found, and its lead or an admin is answered. The battery's id names no run any programme " +
