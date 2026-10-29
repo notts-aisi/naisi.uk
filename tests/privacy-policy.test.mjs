@@ -172,7 +172,7 @@ const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
 const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
-const CURRENT = read("src/content/legal/privacy/v11.tsx");
+const CURRENT = read("src/content/legal/privacy/v12.tsx");
 /**
  * The current policy with every run of whitespace collapsed to one space. The
  * copy is JSX, so a sentence is wrapped and indented across several lines and
@@ -181,6 +181,8 @@ const CURRENT = read("src/content/legal/privacy/v11.tsx");
  * serves at /privacy.
  */
 const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
+/** v11, frozen: read by §2l, which proves the two new notes are not in it. */
+const V11_FLAT = read("src/content/legal/privacy/v11.tsx").replace(/\s+/g, " ");
 /** v10, frozen: read by §2k, which proves the invitation's note is not in it. */
 const V10_FLAT = read("src/content/legal/privacy/v10.tsx").replace(/\s+/g, " ");
 /** v9, frozen: read by §2j, which proves confirming a place is not in it. */
@@ -220,12 +222,15 @@ const componentPrefix = (key) => `${key[0].toUpperCase()}${key.slice(1)}Content`
 const POLICY_KEYS = Object.keys(POLICIES);
 
 describe("policy versions", () => {
-  test("privacy v11 is current, and the combined version string moved with it", () => {
-    assert.equal(currentPolicy("privacy").version, 11);
-    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.11");
+  test("privacy v12 is current, and the combined version string moved with it", () => {
+    assert.equal(currentPolicy("privacy").version, 12);
+    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.12");
   });
 
-  test("privacy v11 is dated the day its words last changed", () => {
+  test("privacy v12 is dated the day its words last changed", () => {
+    const twelve = POLICIES.privacy.versions.find((v) => v.version === 12);
+    assert.equal(twelve?.lastUpdated, "29 October 2026");
+    assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 12).length, 1);
     const eleven = POLICIES.privacy.versions.find((v) => v.version === 11);
     assert.equal(eleven?.lastUpdated, "28 October 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 11).length, 1);
@@ -360,6 +365,13 @@ describe("policy versions", () => {
  * identical. Anything that changes a word needs a new version instead.
  */
 const FROZEN_VERSIONS = new Map([
+  [
+    "privacy/v11",
+    {
+      sha256: "32d25e4940a0e3e0993fcd964b35e9b5fccf6b0e2066dde7855a13e386d77136",
+      why: "the invitation note's version, current from 28 October 2026 until v12 replaced it; the wording members accepted when Claude's words could first reach somebody, frozen when two more notes took back its \"the one place\" rather than editing it in place",
+    },
+  ],
   [
     "privacy/v1",
     {
@@ -3390,18 +3402,24 @@ describe("the course hub passage", () => {
     assert.match(people, /\(application\) => application\.sent !== null && wouldFacilitate\(form, sets, application\.sent, programme\),/);
     assert.match(
       people,
-      /return \{\s*uid: application\.uid,\s*name: applicantName\(sent\.aboutYou, application\.displayName\),\s*firstName: applicantFirstName\(sent\.aboutYou, application\.displayName\),\s*detail: applicantDetail\(sent\.aboutYou\),\s*answers: answersFor\(form, sets, sent\),\s*standing: standingOf\(application\),\s*role: roleOf\.get\(application\.uid\) \?\? null,\s*\};/,
+      /return \{\s*uid: application\.uid,\s*name: applicantName\(sent\.aboutYou, application\.displayName\),\s*firstName: applicantFirstName\(sent\.aboutYou, application\.displayName\),\s*detail: applicantDetail\(sent\.aboutYou\),\s*answers: answersFor\(form, sets, sent\),\s*standing: standingOf\(application\),\s*role: roleOf\.get\(application\.uid\) \?\? null,\s*painted: paintedWeekOf\(form\.round\.availabilityGrid, application\),\s*marked: markedRanges\(sent\.availability, form\.round\.availabilityGrid\),\s*\};/,
+      // The week is kept for an admin's chart beside an ask (v12) and the view
+      // below sends it to an admin alone: an admin reads the application, and
+      // the times in it, already. The lead's list still shows nothing else.
       "the list now keeps more of each application than the policy says it shows",
     );
     const load = withoutComments(read("src/lib/courses/facilitatorAsks/load.ts"));
     assert.match(
       load,
-      /const view: ViewPerson = \{\s*uid: person\.uid,\s*name: person\.name,\s*firstName: person\.firstName,\s*detail: person\.detail,\s*answers: person\.answers,\s*status: \{ chip: status\.chip, note: status\.note, ask: status\.ask \},\s*\};/,
+      /const view: ViewPerson = \{\s*uid: person\.uid,\s*name: person\.name,\s*firstName: person\.firstName,\s*detail: person\.detail,\s*answers: person\.answers,\s*status: \{ chip: status\.chip, note: status\.note, ask: status\.ask \},\s*week: context\.viewer === "admin" \? weekOf\(person\) : null,\s*\};/,
       "the view now sends more of each person on the list than the policy says it shows",
     );
     const viewPerson = /export type ViewPerson = \{([\s\S]*?)\n\};/.exec(load);
     assert.ok(viewPerson, "could not find what the view sends of each person on the list");
-    assert.deepEqual([...viewPerson[1].matchAll(/^\s*(\w+)\??:/gm)].map((match) => match[1]), ["uid", "name", "firstName", "detail", "answers", "status"]);
+    // `week` is null for a lead (pinned above, and executed through the route
+    // in tests/course-hub-facilitator-case-draft.test.mjs, "the lead gets no
+    // week for anybody"): the lead's list still shows nothing else.
+    assert.deepEqual([...viewPerson[1].matchAll(/^\s*(\w+)\??:/gm)].map((match) => match[1]), ["uid", "name", "firstName", "detail", "answers", "status", "week"]);
 
     // "The lead of each programme": the list is read behind the programme's
     // own gate, which answers its lead and admins and refuses a reviewer.
@@ -3556,7 +3574,7 @@ describe("the course hub passage", () => {
     assert.match(created[1], /toName: person\.name,/);
     const person = /export type FacilitatorPerson = \{([\s\S]*?)\n\};/.exec(withoutComments(read("src/lib/courses/facilitatorAsks/people.ts")));
     assert.ok(person, "could not find what is kept of each person on the list");
-    assert.deepEqual([...person[1].matchAll(/^\s*(\w+)\??:/gm)].map((match) => match[1]), ["uid", "name", "firstName", "detail", "answers", "standing", "role"]);
+    assert.deepEqual([...person[1].matchAll(/^\s*(\w+)\??:/gm)].map((match) => match[1]), ["uid", "name", "firstName", "detail", "answers", "standing", "role", "painted", "marked"]);
     const sentEmail = /export type SentAskEmail = \{([\s\S]*?)\n\};/.exec(withoutComments(read("src/lib/courses/facilitatorAsks/model.ts")));
     assert.ok(sentEmail, "could not find the shape of the email an ask keeps");
     assert.deepEqual([...sentEmail[1].matchAll(/^\s*(\w+)\??:/gm)].map((match) => match[1]), ["subject", "greeting", "paragraphs", "button", "signOff"]);
@@ -7245,7 +7263,6 @@ describe("v11 says an invitation may carry a note an admin saved, which Claude m
     "For that, Claude is sent your application alone, as for its first reading, with the descriptions of the programmes, and never the reviewers&apos; scores or comments.",
     // inviteDraft on the assessment document; setInviteNote is the only writer of the note.
     "Claude&apos;s draft is shown only to admins and is never sent unless an admin saves it:",
-    "This is the one place words Claude drafted can reach you.",
     // inviteNoteFor in the send and in the invitation reminder job.
     "The saved note is kept with the record of the decisions about you and is repeated in any reminder about the invitation;",
     "Both are deleted with your application.",
@@ -7279,6 +7296,47 @@ describe("v11 says an invitation may carry a note an admin saved, which Claude m
       const source = strip(read(file));
       assert.match(source, /note: [^\n]*inviteNoteFor\(/, `${file} takes the note from the saved invitation`);
       assert.doesNotMatch(source, /inviteDraft/, `${file} never reads a draft`);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2l Two more notes: v12's words are the code's
+// ---------------------------------------------------------------------------
+
+describe("v12 says a group's email and an ask may carry words Claude drafted, never anybody's times", () => {
+  const SENTENCES = [
+    // v11's "the one place", taken back (it stays in v11, frozen, below).
+    "This and the two below (a note with your group, and a sentence asking you to facilitate) are the only places words Claude drafted can reach you, and only once a person has saved or sent them.",
+    // caseDraft.ts: the application alone and the programme's description; nothing stored.
+    "An admin can ask Claude to draft that sentence. For that, Claude is sent your application alone, as for its first reading, with the programme&apos;s description, and never the reviewers&apos; scores or comments, the times you marked, or which group it is or when it meets.",
+    "Claude&apos;s draft is shown only to the admin who asked and is not kept: only the email the admin sends reaches you.",
+    // The note with a group, above the details in the Publish email.
+    "If the group we put you in meets at a time outside the times you told us you are free, the email that tells you your group may start with a few sentences written to you about it by an admin or the programme&apos;s lead.",
+    "with the programme&apos;s description and only the fact that your group meets outside the times you gave: never the times you marked, never when your group meets, and never the reviewers&apos; scores or comments.",
+    "The saved note, or the choice to send none, is kept with your place on the programme, where the programme&apos;s lead and admins can see it, and is deleted with your account or with the programme&apos;s run.",
+  ];
+
+  for (const sentence of SENTENCES) {
+    test(`v12 says: ${sentence.slice(0, 60)}`, () => {
+      assert.ok(CURRENT_FLAT.includes(sentence), `v12 no longer says: ${sentence}`);
+      assert.ok(!V11_FLAT.includes(sentence), `v11 already said it, so it is not v12's change: ${sentence}`);
+    });
+  }
+
+  test("v11 still says what it said, frozen: the one place", () => {
+    assert.ok(V11_FLAT.includes("This is the one place words Claude drafted can reach you."));
+    assert.ok(!CURRENT_FLAT.includes("This is the one place words Claude drafted can reach you."));
+  });
+
+  test("the case's draft writes nothing, and is sent the application alone and no times", () => {
+    const strip = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    const drafting = strip(read("src/lib/courses/facilitatorAsks/caseDraft.ts"));
+    assert.doesNotMatch(drafting, /\.set\(|\.update\(|\.create\(|tx\.|\.add\(/, "drafting the case stores nothing");
+    assert.match(drafting, /applicationAlone\(/);
+    assert.match(drafting, /message: caseMessage\(programme, alone\.application\)/);
+    for (const never of ["availability", "painted", "marked", "session", "slot", "startTime", "weekday"]) {
+      assert.doesNotMatch(drafting.match(/export function caseMessage[\s\S]*?\n}/)[0], new RegExp(never), `the case's message reads ${never}`);
     }
   });
 });
