@@ -981,9 +981,14 @@ gcloud iam service-accounts add-iam-policy-binding "$SA" \
 `scripts/check-api-key-restrictions.mjs` straight after authenticating. It
 reads the dev project's API key restrictions and fails when they drift from the
 allowlist the script carries, so it needs `apikeys.googleapis.com` enabled on
-the project and `roles/serviceusage.apiKeysViewer` for the CI identity. It is
-read-only: `keys.list` does not return key material, and the script never calls
-`getKeyString`.
+the project and `roles/serviceusage.apiKeysViewer` for the CI identity. It also
+reads the project's sign-in settings to learn which key is the project's
+default (the one Firebase writes into its email links) and looks that key up,
+which needs `firebaseauth.configs.get` (held through `roles/firebaseauth.admin`,
+which the harness has anyway) and `apikeys.keys.lookup` (in the viewer role
+above). It is read-only: `keys.list` does not return key material, the one key
+string it reads is the one every Firebase email already carries, and the script
+never calls `getKeyString`.
 
 Why it exists at all: `npm test` is offline by contract, so it guards
 `firestore.rules` and `firestore.indexes.json` and can see nothing that lives
