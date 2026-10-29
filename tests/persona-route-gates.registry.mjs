@@ -938,6 +938,14 @@ export const ROUTES = {
         "or sent anywhere.",
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
+    GET: {
+      expect: adminOnly(404),
+      why:
+        "Reading Circles (the run's groups as they are, each person's week and Claude's reads) is admin only, " +
+        "decided on the session before anything is read; the admin is then told the programme is missing.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/assessments": {
     GET: {
       expect: adminOnly(404),
@@ -3674,6 +3682,14 @@ export const PAGES = {
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
       "and with an address that names nothing is drawn the same not-here state.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/circles": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: Circles is an admin's alone, so " +
+      "the programme's lead is drawn a note saying so (200), a reviewer is told the tab is the lead's and an admin's, " +
+      "and a programme the caller has no role on, or one that does not exist, renders 'there is no programme here' " +
+      "with a 200.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/times": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
@@ -4544,6 +4560,9 @@ export const REAL_ROUTES = {
       "Asking for an arrangement into groups",
       c(400, "An admin meets the body check: an empty body does not say whether to ask Claude, so nothing is read or sent."),
     ),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
+    GET: adminAlone("Reading Circles", c(200, "An admin reads the run's groups as they are. Nothing is written and Claude is not asked.")),
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/assessments": {
     GET: adminAlone(
@@ -5732,6 +5751,7 @@ export const REAL_PAGES = {
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": programmePage("People in groups, the run's allocation board."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": programmePage("Publish's own page."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions": programmePage("the Sessions view."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/circles": programmePage("Circles for an admin; the lead is drawn a note that Circles is an admin's."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/times": programmePage("the Times view."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/facilitators": programmePage("the Facilitators view."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/people": programmePage("everybody who holds a place, by name, with their replies."),

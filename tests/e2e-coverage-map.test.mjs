@@ -633,6 +633,11 @@ const NOT_COVERED = {
     coverWhen:
       "With the assessment route's spec, once the harness can stand in for Anthropic: a course hub world after the hand-over, Suggest, then Apply through the site's own routes.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
+    reason:
+      "Circles reading the run's groups again after a change. It writes nothing; who may read it, who is on the screen and that a second Apply sends nothing are executed by tests/applications-circles.test.mjs.",
+    coverWhen: "With a course hub spec after the hand-over: open Circles, move one person, see them in the new ring.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/assessments": {
     reason:
       "The Claude and Pangram marks on a programme's list, and Claude's comparison of its applications or a question about them. The gate, the labels sent and the names put back are executed by tests/applications-assessment.test.mjs; a browser spec waits on the same fake as the assessment route.",
@@ -1740,6 +1745,11 @@ const NOT_COVERED = {
       "Course hub: the Groups tab's People in groups view is the run's own allocation board, drawn as st-groups draws it for the programme's lead and admins; its every caller, its words in every state and its one count are executed by tests/course-hub-people-in-groups.test.mjs and tests/course-hub-lead-pages.test.mjs, the board's routes by tests/course-hub-lead-routes.test.mjs and tests/applications-handover-board.test.mjs, and it was checked by hand at 1440 and 390.",
     coverWhen:
       "When the end-to-end fixtures can seed a programme that names a run with groups, with its lead signed in.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/circles": {
+    reason:
+      "An admin's Circles. Its read, its suggestions and Apply's differences are executed by tests/applications-circles.test.mjs and tests/applications-arrange-changes.test.mjs; the page's gate by the persona battery.",
+    coverWhen: "With a course hub spec after the hand-over: open Circles, move one person, see them in the new ring.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
     reason:
