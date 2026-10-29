@@ -1128,10 +1128,16 @@ programme names" below).
 4. **After decisions have been sent, press "Hand over".** On the same panel.
    Everybody who holds a place on the programme gets a row on the run's own
    list. Nobody is emailed and nobody is put in a group.
-5. **Open the allocation board** (the panel links to it, and the
-   programme's Groups tab draws it as People in groups) and put people in
-   groups. Each card says which groups that person can make, from the week
-   they painted on the form, or that they gave no availability.
+5. **Put people in groups**, on People in groups (the run's allocation
+   board) or, for an admin, on Circles (the same groups as rings, with each
+   person's week beside every group). Every move on either saves at once and
+   moves nobody else. Each card says which groups that person can make, from
+   the week they painted on the form, or that they gave no availability.
+   Circles' "Suggest" (with or without Claude) is a preview over the groups
+   as they are: it seats only people in no group, keeps every appointed
+   facilitator in their group, and "Apply N changes" sends only what it
+   lists. Give each group its campus (University Park, Jubilee or Online) on
+   Circles, the Sessions view or the run editor.
 6. **Publish** from the board when everybody is in a group. That is the
    email that tells each person their group, and the first email anybody
    gets after decision day. First press **Send a test to me**: it sends you
@@ -1142,12 +1148,33 @@ programme names" below).
    37 emails"), the confirmation says the same number, and afterwards the
    board says what became of every email: sent, held, on the do-not-email
    list, failed (named, and tried again by the next press) or no address
-   (named).
+   (named). Publish's own page lists, before the press, exactly what it
+   sends and to whom, and which scheduled course emails are switched on in
+   Site status (it only reads them).
+7. **Somebody placed outside the times they gave** (the board's "Not free"
+   mark, by one predicate, `placedOutsideTheirTimes`) is listed on Publish's
+   own page, and Publish waits until each has a note or "Send without a
+   note". A note is the admin's or the programme lead's own words, written
+   or drafted by Claude (admins only, from the application alone and the
+   bare fact, never anybody's times), and goes above the site's own details
+   in that person's email only. Kept server-only in `coursePlacementNotes`;
+   a move voids it.
 
 ### Things worth knowing before you do it
 
-- **Press "Hand over" again whenever somebody new has a place.** Somebody
-  who accepts an invitation after the first press is added by the next one.
+- **Somebody who accepts an invitation after decision day is handed over
+  by accepting** (a freed place included): they arrive in To place, in no
+  group, and nobody is emailed. "Hand over" stays for everybody else and as
+  the catch-all; pressing it again adds only who is missing.
+- **Every "Your group" email carries a section the site writes itself**
+  (`src/lib/courses/timeAnswer/emailSection.ts`), so an edited template
+  keeps it: the group's campus, and "Can you make this time?" with two
+  buttons to the person's programme page, where they answer. "I can't make
+  this time" asks why and which other times would work, KEEPS THEIR PLACE
+  (it is not leaving, Q12), and shows on their card on the board and in
+  Circles for the lead and admins, never facilitators. A move clears it.
+- **Publishing again after people join a group** emails each of its
+  facilitators already told, once per person who has joined it since.
   Pressing it twice writes nothing twice: a press that finds everybody
   already there says so and changes nothing.
 - **A run has to start with no applications of its own.** A run that

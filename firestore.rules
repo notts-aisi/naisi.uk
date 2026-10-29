@@ -2492,6 +2492,10 @@ service cloud.firestore {
           )
           && request.resource.data.get(['session', 'notes'], '').size() <= 500
           && request.resource.data.get('sessionOverrides', {}).size() <= 20
+          // The group's campus: one of the three Zach named on 29 Oct 2026
+          // ("the only options"), or none chosen yet.
+          // src/lib/courses/campus.ts is the same list.
+          && request.resource.data.get('campus', null) in [null, 'university-park', 'jubilee', 'online']
           // V3 W1 PR5: see groupCapacityOk().
           && groupCapacityOk();
       }
@@ -3128,6 +3132,18 @@ service cloud.firestore {
     // browser is refused, admins, the programme's lead, the group's own
     // people and a note's own writer included.
     match /courseGroupSharedNotes/{noteId} {
+      allow read, write: if false;
+    }
+
+    // === coursePlacementNotes ===
+    // What an admin or a programme's lead chose for somebody placed outside
+    // the times they gave: a note of their own words for the top of that
+    // person's "Your group" email, or none (src/lib/courses/placementNotes/).
+    // Written and read only by the notes route and Publish on the Admin SDK,
+    // after their own gate. So every browser is refused, the person a note is
+    // about, the programme's lead and admins included: a note may name a
+    // group before Publish has told its person, which no browser may learn.
+    match /coursePlacementNotes/{docId} {
       allow read, write: if false;
     }
 

@@ -1317,9 +1317,10 @@ wall, and the window closing stops offers, not replies.
 
 Once they accept they hold a place, and `holdingOf()` says so with no second
 reading: the hand-over, places left, the status page and the list of their
-applications all see it. So an admin presses Hand over again (it adds only
-who is missing), puts them in the group whose time their email named, and
-presses Publish, which emails only them. `tests/applications-freed-places-journey.test.mjs`
+applications all see it. Accepting hands them over to the run by itself (see
+"The hand-over", below), and puts them in no group: the group whose time
+their email named is where an admin will usually place them, by hand, and
+Publish then emails only them. `tests/applications-freed-places-journey.test.mjs`
 runs that whole path through the real handlers.
 
 The daily invitation reminder leaves a freed place alone: its day to accept
@@ -1497,6 +1498,23 @@ transaction of what that transaction read.
 
 It puts nobody in a group: the board's first placement goes on making the
 place on the run. It emails nobody. It writes no subscription.
+
+**After an accepted invitation, by itself.** Somebody who takes a place
+after decision day (an invitation decision day sent, or a freed place) is
+handed over in the reply that takes it, with the same row, the same count
+and a course log line that names them as the one who accepted
+(`handOverAfterAcceptedInvitation` in `handover/onAcceptance.ts`, called by
+the reply route after its transaction has committed, and never able to fail
+the reply). It decides from the person's own document only, because the
+reply route serves an applicant and may not reach the decisions
+(`tests/applications-boundary.test.mjs`): once somebody has been told, a
+place taken by accepting is read from their own document and nothing else,
+so `holdsPlaceOn` with no decision gives the press's answer. Whatever stops
+the press (`handOverBlocker`, which lives in `handover/blocker.ts` for that
+reason) stops it too, and the panel then names them for the press as
+before. It places nobody in a group, a freed place included, and emails
+nobody. `tests/applications-handover.test.mjs` walks every caller of the
+reply writer and fails one that takes a place without handing it over.
 
 **Nothing of the application crosses over.** A row carries who the person
 is and where the place came from. No address, no answer, no score, no
@@ -1895,9 +1913,11 @@ An admin can ask two outside services about an application, as a second
 reader beside the decision: Claude (Anthropic's API) writes a read of it, and
 Pangram, an AI-writing detector, checks its longer answers. Both are named in
 the privacy policy as processors. Neither decides anything, and nothing either
-says reaches the applicant, with one exception an admin controls: the
-personal note in an invitation, which Claude may draft and only an admin's
-Save sends (below).
+says reaches the applicant, with exceptions an admin controls: the personal
+note in an invitation, the note in a "Your group" email to somebody placed
+outside the times they gave, and the sentence that makes the case to somebody
+who did not offer to facilitate. Claude may draft each, and only words a
+person saved or sent go out (below).
 
 - **An admin's alone.** The routes refuse everybody else before anything is
   read (`src/lib/applications/assessment/run.ts`). A lead scores blind first
@@ -1942,12 +1962,39 @@ Save sends (below).
   account-id order and reviewers lettered once across the programme. A name
   an admin types into a question is swapped for its label before it is
   sent. Neither answer is stored.
-- **Arranging groups.** On a programme's Times view an admin can ask for up
-  to five arrangements of the people into groups
-  (`src/lib/applications/arrange/`). The site works out each from when each
-  person said they are free (`arrange/plan.ts`: nobody already told their
-  group moves, the run's groups first, more only when needed, the most
-  constrained seated first, then the groups evened out). SOMEBODY WHO MARKED
+- **Arranging groups: Circles.** A view of a programme's Groups tab, beside
+  People in groups, for an admin alone (it shows marked weeks and Claude's
+  reads; `src/features/applications/circles/`, the page under
+  `(tabs)/groups/circles`). IT OPENS ON THE RUN'S GROUPS AS THEY ARE
+  (`arrange/circles.ts`, read again through the `circles` GET after every
+  change, which writes nothing and asks Claude nothing): one ring per live
+  group with the people in it now and its facilitators, "Not in a group" for
+  everybody on the run's list in none, a line naming anybody who holds a
+  place but is not on that list yet (pointing to Settings' hand-over), and,
+  once the run has been published, "Not told yet" on anybody Publish has not
+  told their group. THE PEOPLE ARE THE RUN'S OWN LIST, as the allocate route
+  places them (`arrange/load.ts`): accepted, holding a place (or sitting in a
+  group), seat not left. EVERY CHANGE ON THE LIVE RINGS SAVES STRAIGHT AWAY
+  through the site's own routes, then reads again: a move is one placement to
+  the allocate route; somebody who offered is made a facilitator, or anybody
+  taken off a group's facilitators, through
+  the group's facilitators route (somebody who did not offer is asked first,
+  from Facilitators); a group is added, or an untold group given a time,
+  through the programme's groups routes. A refusal is said in the board's own
+  words (`notMovedWords`), never a code. Somebody who facilitates a group is
+  never moved: their panel says to change who facilitates it first. The
+  Times view keeps its heatmap, Best times and Your groups, with a link to
+  Circles where the rings were. SUGGESTIONS ARE A PREVIEW over the rings
+  ("Suggest groups", or "Suggest with Claude"), up to five options, worked
+  out from when each person said they are free (`arrange/plan.ts`):
+  EVERYBODY ALREADY PLACED STAYS WHERE THEY ARE, told or not, and every
+  appointed facilitator in the group they facilitate, unless the admin ticks
+  "Start again", which lets the placed and untold move and still never the
+  told or a facilitator; the run's groups first, more only when needed; THE
+  PEOPLE WHO OFFERED TO FACILITATE ARE SEATED FIRST, each to a group without
+  one where they can be, and a group the plan gives a time meets at a time
+  one of them can make where there is one; then the most constrained, then
+  the groups evened out. SOMEBODY WHO MARKED
   UNDER FOUR HOURS IN THE WEEK (`handover/paintedWeek.ts`, `minimal`) is read
   "from then on": on each day they marked anything, free from their first
   marked time until the grid closes, on every screen (the board, the People
@@ -1959,17 +2006,19 @@ Save sends (below).
   their time, not in it". Somebody who marked a real week that fits no group
   is still left for a person. SEVERAL OPTIONS (`arrange/options.ts`): every
   combination of the best start times for the groups that need one, and for
-  any group of the run nobody has been told they are in (a group somebody has
-  been told about keeps its time; the run's groups at their own times is
-  always among the first five), at the programme's group size and one
-  smaller, each evened out so every group has somebody who offered to
-  facilitate and the strongest are spread (no group holds two while another
-  has none); compared by how many are seated, how few only near their time,
-  how many groups have a facilitator, how even they are. A group that has
+  any group of the run nobody stays in (a group somebody stays in, one with a
+  facilitator, and one Publish has told anybody the time of keep their time;
+  the run's groups at their own times is always among the first five), at
+  the programme's group size and one smaller, each evened out so every group
+  has somebody who offered to facilitate and the strongest are spread (no
+  group holds two while another has none), never moving anybody who stays
+  put; compared by how many are seated, how few only near their time, how
+  many groups have a facilitator, how even they are. A group that has
   facilitators on the run already is drawn with their names, and the site
   picks no other for it. Claude is then told the people and the options by number and label
   (`arrange/advice.ts`): which of each option's groups a person can make
-  (never their week), whether they offered, and its own earlier read (lean,
+  (never their week), whether they offered, why somebody stays where they
+  are, and its own earlier read (lean,
   summary, strengths, concerns, how many answers it found thin), never what
   Pangram found. It rates each possible facilitator (the committee wants
   people who might help run the society one day: values and engagement, not
@@ -1977,28 +2026,29 @@ Save sends (below).
   and cons, gives a reason for every group, and picks one lead facilitator
   per group, with a second who offered beside a lead who did not. Only what
   fits is kept: a move within its option to a group the person can make,
-  with room, never of somebody told; a lead in the group they lead, leading
-  one; a missing back-up or lead filled by the site's best guess who offered.
-  The screen draws each group as a ring (its day, time and programme in the
-  middle, its people around the edge, the lead and back-up marked, Claude's
-  reason underneath); clicking a person shows Claude's read, their Pangram
-  flags for the admin to weigh and a link to the application, and lets the
-  admin make them a facilitator; clicking another ring moves them, and each
-  change is checked there and then. BEFORE DECISION DAY it is a preview of
-  the people the decisions as they stand place on the programme, with the
-  admin's own application left out (`loadPreviewArranging`), and there is
-  nothing to Apply. Nothing is written or stored. Apply places people through
-  the site's own routes for groups, places and facilitators, in that order,
-  and stops at the first refusal; somebody who did not offer is never made a
-  facilitator by it (the page says to ask them, from Groups, Facilitators);
-  nobody is emailed until Publish. SESSION LENGTH: counted at the length
-  picked on the arranger, which starts as the Times view's own: the run's
+  with room, never of somebody who stays put; a lead in the group they lead,
+  leading one; a missing back-up or lead filled by the site's best guess who
+  offered. The preview draws over the rings what would change: who moves in,
+  new groups, new times and new facilitators; moving somebody in it changes
+  the preview only. APPLY N CHANGES (`arrange/changes.ts`) lists every change
+  in plain words before the press and sends only the differences, in order:
+  new groups and times, then the places in one request to the allocate route
+  (out of a group first, then between groups, then into one), then the
+  facilitators who offered; somebody who did not offer is listed to ask, never
+  sent. A new group an earlier press made (its name at the same time) is
+  recognised, not made again. On any refusal it stops, reads the groups
+  again and says per person what saved and what did not; pressing Apply
+  again sends what is left. Nobody is emailed until Publish. BEFORE DECISION
+  DAY a suggestion is a preview of the people the decisions as they stand
+  place on the programme, with the admin's own application left out
+  (`loadPreviewArranging`), and there is nothing to Apply. SESSION LENGTH: counted at the length
+  picked on Circles, which starts as the Times view's own: the run's
   groups' length, else the programme's usual one (`usualLength` in
   `handover/times.ts`: a fellowship two hours, an incubator four, both in
-  person); three and four hours can be picked as well as the editor's
-  shorter lengths. A group an arrangement adds is always named
-  (`newGroupName`). ASK CLAUDE: under the rings an admin can ask about the
-  option on their screen, changes included (`askAboutArrangement`). Claude is
+  person). A group an arrangement adds is always named
+  (`newGroupName`, and `freeGroupName` on the screen). ASK CLAUDE: under the rings an admin can ask about the
+  groups on the screen, the run as it is or the preview, changes included
+  (`askAboutArrangement`). Claude is
   told the same people lines, which of the screen's groups each person can
   make, and, for every programme on the form read as its own Times view reads
   it, how many people can make each start time for a session of that length
@@ -2006,23 +2056,27 @@ Save sends (below).
   programmes. Names typed into a question, and in the conversation the screen
   sends back (its last six turns), are swapped for labels first. Moves it
   suggests are kept only to a group on the screen the person can make, with
-  room, never of somebody told, and the screen makes them on one press.
-  Nothing is stored. LOOSE ENDS ARE THE ADMIN'S: clicking anybody, in a ring
-  or in "Not in a group", draws their week (`WeekChart.tsx`: each stretch
-  they marked, the "from then on" reading for somebody who marked little,
-  every group's session as a bar, green where they can make all of it, red
-  where not) and lists the groups with how much of each falls in their time,
-  each with Move here. "Add a group" makes another group at any day and time,
-  saying how many of the people left out, and of everybody, can make it; a
-  person's panel offers a new group at a time they marked, with them in it;
-  a group the page adds can be removed. Who can make a group the page adds is
-  worked out on the page from the stretches marked, by the same reading as
-  the site's own. The stretches reach the admin's page only (`markedRanges`
-  in `src/lib/admissions/availability.ts`); Claude is told only which groups a
+  room, never of somebody told or facilitating, and the screen previews them
+  on one press, never saving them. Nothing is stored. LOOSE ENDS ARE THE
+  ADMIN'S: clicking anybody, in a ring or in "Not in a group", draws their
+  week (`WeekChart.tsx`: each stretch they marked, the "from then on" reading
+  for somebody who marked little, every group's session as a bar, green where
+  they can make all of it, red where not) and lists the groups with how much
+  of each falls in their time, each with Move here. "Add a group" makes
+  another group at any day and time, saying how many of the people left out,
+  and of everybody, can make it; a person's panel offers a new group at a
+  time they marked, with them in it; a group a preview adds can be removed.
+  Who can make a group the page adds is worked out on the page from the
+  stretches marked, by the same reading as the site's own. The stretches
+  reach the admin's page only (`markedRanges` in
+  `src/lib/admissions/availability.ts`); Claude is told only which groups a
   person can make. Where three or more who marked a real week are left out of
   an option, the options include it with one or two more groups at the times
-  most of them can make. `tests/applications-arrange-advice.test.mjs` and
-  `tests/applications-arrange-options.test.mjs` run it.
+  most of them can make. `tests/applications-arrange-plan.test.mjs`,
+  `tests/applications-arrange-advice.test.mjs`,
+  `tests/applications-arrange-options.test.mjs`,
+  `tests/applications-arrange-changes.test.mjs` and
+  `tests/applications-circles.test.mjs` run it.
 - **The whole term at once.** Plan the intake
   (`/admin/admissions/forms/[roundId]/intake`, admin only, before decision
   day) drafts who goes where across every programme: applicant-proposing
@@ -2076,6 +2130,20 @@ Save sends (below).
   nothing changes once the term is sent; the audit row says a note was saved
   and never what it says. `tests/applications-invite-notes.test.mjs` runs
   both routes, the words and the send's own composer.
+- **The sentence that makes the case** (`courses/facilitatorAsks/caseDraft.ts`,
+  `POST .../programmes/[programmeId]/facilitators/case/draft`, privacy v12).
+  Asking somebody who did not offer to facilitate carries a sentence of the
+  admin's on why them; "Draft with Claude" beside the box asks Claude for
+  it. Admins only, as making the case is, and only for somebody who holds a
+  place on the programme and did not offer. Claude is sent the application
+  ALONE (`applicationAlone`) and the programme's description: never a name
+  or address, never when they said they are free, never a group or its time,
+  because the email states when from records. NOTHING IS STORED: the draft
+  comes back to the admin's box, and only what is in the box when Ask is
+  pressed is sent. Beside any ask, an admin (never the lead) sees a chart of
+  the person's marked week against each group's session.
+  `tests/course-hub-facilitator-case-draft.test.mjs` holds who may, what
+  Claude is sent and that nothing is kept.
 - **Inside one request.** The backend stops a request at 300 seconds (it was
   60 until the comparison needed more). A read is given 150 seconds, a
   comparison 240, and no call is retried. The two parts of a read are

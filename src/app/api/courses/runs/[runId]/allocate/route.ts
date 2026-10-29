@@ -465,8 +465,10 @@ export async function POST(req: Request, ctx: Ctx) {
           if (enrolment.groupId !== groupId) {
             // The stamp certifies "emailed about their CURRENT group"; a
             // changed placement invalidates it, so the next publish emails
-            // them about the new group.
+            // them about the new group. Their answer to "can you make this
+            // time?" was about the group they leave, so it goes with it.
             patch.allocatedEmailAt = FieldValue.delete();
+            patch.timeAnswer = FieldValue.delete();
           }
           if (!facilitatorRow && enrolmentHasLeft(enrolment.status)) {
             // SOMEBODY WHO LEFT, PUT BACK. Leaving keeps the group and
@@ -477,6 +479,8 @@ export async function POST(req: Request, ctx: Ctx) {
             // has, and the day they left and why go with the leaving: on an
             // active row they would read as current to every later reader.
             patch.allocatedEmailAt = FieldValue.delete();
+            // A fresh placement is asked afresh whether its time works.
+            patch.timeAnswer = FieldValue.delete();
             patch.droppedOutAt = null;
             patch.dropOutReason = null;
             // THEIR PLACE ON THE FORM IS THEIRS AGAIN (`restorePlaces`, after

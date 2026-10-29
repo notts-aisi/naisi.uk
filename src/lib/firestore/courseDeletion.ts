@@ -26,6 +26,7 @@ import { COURSE_PAGES_COLLECTION } from "./coursePages";
 import { countCourseGuide, courseGuideRefs } from "@/lib/courses/facilitatorGuide/store";
 import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
+import { PLACEMENT_NOTES_COLLECTION } from "@/lib/courses/placementNotes/model";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import { RECORD_OPENINGS_COLLECTION } from "./recordOpenings";
@@ -326,6 +327,15 @@ export type RunDestroyCounts = {
    * the group is gone.
    */
   groupSharedNotes: number;
+  /**
+   * `coursePlacementNotes` rows: what somebody who may publish chose for a
+   * person placed outside the times they gave, a note of their own words or
+   * none (`src/lib/courses/placementNotes/`). Keyed by `runId` on the row
+   * like every other leaf here, and it dies with the run: the privacy policy
+   * says so, and a note is about a group this cascade deletes. Claude's
+   * drafts are not here: they live with the application.
+   */
+  placementNotes: number;
   /**
    * `coursePacksAndCases` rows: what each person had in this run's weeks'
    * packs and talks, the pack picked or given, the case given and their own
@@ -1128,6 +1138,7 @@ export async function countRunDestroyTargets(
     updates,
     groupNotes,
     groupSharedNotes,
+    placementNotes,
     packsAndCases,
     pairs,
     anonymousFeedbackCounts,
@@ -1204,6 +1215,8 @@ export async function countRunDestroyTargets(
     countAgg(db.collection(COURSE_GROUP_NOTES_COLLECTION).where("runId", "==", runId)),
     // The same single equality the group shared notes stage drains on.
     countAgg(db.collection(COURSE_GROUP_SHARED_NOTES_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the placement notes stage drains on.
+    countAgg(db.collection(PLACEMENT_NOTES_COLLECTION).where("runId", "==", runId)),
     // The same single equality the packs and cases stage drains on.
     countAgg(db.collection(COURSE_PACKS_AND_CASES_COLLECTION).where("runId", "==", runId)),
     // The same single equality the pairs stage drains on.
@@ -1249,6 +1262,7 @@ export async function countRunDestroyTargets(
     updates,
     groupNotes,
     groupSharedNotes,
+    placementNotes,
     packsAndCases,
     pairs,
     anonymousFeedback: anonymousFeedbackCounts.reduce((a, b) => a + b, 0),
@@ -1832,6 +1846,15 @@ export async function destroyRunCascade(
           byRunId(COURSE_GROUP_SHARED_NOTES_COLLECTION),
           budget,
         ),
+    },
+    {
+      key: "placementNotes",
+      // What was chosen for each person placed outside the times they gave:
+      // a leaf keyed by `runId`, drained with the other leaves. `write: if
+      // false` to every client, and the notes route refuses a run carrying
+      // the destroy marker, so nothing recreates one behind the cascade.
+      drain: () =>
+        drainQuery(db, PLACEMENT_NOTES_COLLECTION, byRunId(PLACEMENT_NOTES_COLLECTION), budget),
     },
     {
       key: "packsAndCases",

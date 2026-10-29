@@ -1601,11 +1601,12 @@ describe("publishing an allocation", { concurrency: false }, () => {
     assert.ok(
       mail.text.includes(
         "Hi Amara, You’re in Group A. You’ll meet on Tuesdays at 6pm in Hallward B12, starting Tue 27 Oct. " +
-          "Sessions last 90 minutes. Priya and Sam are your facilitators. There are 2 of you. Open your programme NAISI",
+          "Sessions last 90 minutes. Priya and Sam are your facilitators. There are 2 of you. Can you make this time? Tell us on your programme page. If you can’t, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . I can make it I can’t make this time NAISI",
       ),
       mail.text,
     );
-    assert.ok(mail.html.includes(`href="https://naisi.invalid/learn/${RUN}"`), "the button leads to the programme's page");
+    // Both buttons open the programme's page at its "Can you make this time?" card.
+    assert.ok(mail.html.includes(`href="https://naisi.invalid/learn/${RUN}#your-group-time"`), "the button leads to the programme's page");
     assert.ok((await stored(`courseEnrolments/${RUN}__amara`)).allocatedEmailAt, "the person told is not stamped");
     assert.ok((await stored(`courseRuns/${RUN}`)).allocationPublishedAt);
     assert.deepEqual(world.pushed, ["amara", "ben"]);
@@ -2020,14 +2021,14 @@ describe("Publish on a run a programme names", { concurrency: false }, () => {
     assert.ok(
       mails[0].text.includes(
         "Hi Amara, You’ll meet on Tuesdays at 6pm, starting Tue 27 Oct. Where: Hallward B12 Priya runs the sessions. " +
-          "Week 1 is on your programme’s page. Open your programme Priya Research incubator lead, NAISI",
+          "Week 1 is on your programme’s page. Can you make this time? Tell us on your programme page. If you can’t, say why and which other times would work, and we’ll see what we can do. You keep your place either way. You can also email ai-safety@uonsu.com . I can make it I can’t make this time Priya Research incubator lead, NAISI",
       ),
       mails[0].text,
     );
     for (const mail of mails) {
       assert.deepEqual(tokensIn(`${mail.subject}\n${mail.html}`), [], mail.to);
       assert.doesNotMatch(`${mail.subject} ${mail.text}`, /group|facilitat/i, mail.to);
-      assert.ok(mail.html.includes('href="https://naisi.invalid/learn/run-1"'), mail.to);
+      assert.ok(mail.html.includes('href="https://naisi.invalid/learn/run-1#your-group-time"'), mail.to);
     }
     // Each is pushed, as anybody placed is. What the push says is held in
     // tests/course-hub-stage-one-journey.test.mjs, whose stub keeps its words.
@@ -2053,7 +2054,7 @@ describe("Publish on a run a programme names", { concurrency: false }, () => {
     assert.ok(
       mail.text.includes(
         "Hi Amara, You’ll meet on Tuesdays at 6pm, starting Tue 27 Oct. Where: Hallward B12 Priya runs the sessions. " +
-          "Week 1 is on your programme’s page. Open your programme Priya Research incubator lead, NAISI",
+          "Week 1 is on your programme’s page. Can you make this time? Tell us on your programme page. If you can’t, say why and which other times would work, and we’ll see what we can do. You keep your place either way. You can also email ai-safety@uonsu.com . I can make it I can’t make this time Priya Research incubator lead, NAISI",
       ),
       mail.text,
     );
@@ -2077,7 +2078,7 @@ describe("Publish on a run a programme names", { concurrency: false }, () => {
       assert.equal(mail.subject, "Your AI Safety Fundamentals group: Tuesdays at 6pm", JSON.stringify(naming));
       assert.ok(mail.text.includes("Hi Amara, You’re in Group A. You’ll meet on Tuesdays at 6pm in Hallward B12, starting"), mail.text);
       assert.ok(mail.text.includes("Sam is your facilitator."), mail.text);
-      const signed = naming ? "Open your programme Priya AI Safety Fundamentals lead, NAISI" : "Open your programme NAISI";
+      const signed = naming ? "Can you make this time? Tell us on your programme page. If you can’t, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . I can make it I can’t make this time Priya AI Safety Fundamentals lead, NAISI" : "Can you make this time? Tell us on your programme page. If you can’t, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . I can make it I can’t make this time NAISI";
       assert.ok(mail.text.includes(signed), mail.text);
       assert.equal((await planNow()).incubator, false);
     }

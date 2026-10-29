@@ -654,6 +654,7 @@ export async function loadJoin(made) {
     allocate: await courseRoute("runs", "[runId]", "allocate"),
     publish: await courseRoute("runs", "[runId]", "allocation", "publish"),
     publishTest: await courseRoute("runs", "[runId]", "allocation", "publish", "test"),
+    publishNotes: await courseRoute("runs", "[runId]", "allocation", "publish", "notes"),
     queue: await courseRoute("runs", "[runId]", "applications"),
     decide: await courseRoute("runs", "[runId]", "applications", "[uid]", "decide"),
     notes: await courseRoute("runs", "[runId]", "applications", "[uid]", "notes"),
@@ -661,6 +662,23 @@ export async function loadJoin(made) {
     me: await courseRoute("me"),
   };
   const rowPath = (uid, runId = RUN.agi) => `courseApplications/${runId}__${uid}`;
+  /** See `withoutNotes` below. A caller Publish's notes route refuses chooses nothing. */
+  async function withoutNotes(who, runId) {
+    const read = await call(who, routes.publishNotes.GET, { runId }, { course: true });
+    if (read.status !== 200) return [];
+    const chosen = [];
+    for (const row of read.body.section.rows) {
+      if (row.note.state !== "missing") continue;
+      const saved = await call(
+        who,
+        routes.publishNotes.PUT,
+        { runId },
+        { body: { uid: row.uid, groupId: row.groupId, choice: "none" }, course: true },
+      );
+      if (saved.status === 200) chosen.push(row.name);
+    }
+    return chosen;
+  }
   return {
     routes,
     /** An admin's press of the hand-over, unless somebody else is named. */
@@ -674,13 +692,24 @@ export async function loadJoin(made) {
     place: (who, placements) =>
       call(who, routes.allocate.POST, { runId: RUN.agi }, { body: { placements }, course: true }),
     /**
-     * A press of Publish, made the way the board makes one: read the number
-     * on its button, send "a test to me" first when the board says one is
-     * owed, then press with that number. The test goes to whoever presses
-     * and is in `world.mail` with "[TEST]" at the start of its subject.
-     * `test: false` presses without one, to meet the refusal.
+     * "Send without a note" for everybody Publish waits on a choice for, as
+     * `who` would choose it on Publish's own page: what a press needs before
+     * it tells somebody placed outside the times they gave their group.
+     * Answers the names it chose for.
      */
-    publish: async (who = "zach", { test = true } = {}) => {
+    withoutNotes: (who = "zach", runId = RUN.agi) => withoutNotes(who, runId),
+    /**
+     * A press of Publish, made the way the board makes one: read the number
+     * on its button, choose "Send without a note" for anybody placed outside
+     * the times they gave who has nothing chosen yet (as Publish's page asks
+     * whoever presses to), send "a test to me" first when the board says one
+     * is owed, then press with that number. The test goes to whoever presses
+     * and is in `world.mail` with "[TEST]" at the start of its subject.
+     * `test: false` presses without one, and `notes: false` without the
+     * choices, to meet each refusal.
+     */
+    publish: async (who = "zach", { test = true, notes = true } = {}) => {
+      if (notes) await withoutNotes(who, RUN.agi);
       const read = async () =>
         (await call(who, routes.board.GET, { runId: RUN.agi }, { course: true })).body?.publish ?? null;
       let summary = await read();

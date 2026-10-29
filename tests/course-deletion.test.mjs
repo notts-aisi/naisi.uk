@@ -314,6 +314,11 @@ const RUN_COUNT_KEYS = [
   // share with the group (C29). Keyed by `runId`, added to the manifest in the
   // same change that gave the cascade a stage for it, as groupNotes was.
   "groupSharedNotes",
+  // `coursePlacementNotes`, what an admin or a programme's lead chose for each
+  // person placed outside the times they gave: a note, or none. A leaf keyed
+  // by `runId`, added to the manifest in the same change that gave the
+  // cascade a stage for it, as groupSharedNotes was.
+  "placementNotes",
   // `coursePacksAndCases`, what each person had in the weeks' packs and
   // talks (plan item 8). Keyed by `runId`, added to the manifest in the same
   // change that gave the cascade a stage for it, as groupSharedNotes was.
@@ -408,20 +413,21 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   const counts = Object.fromEntries(
     [...RUN_COUNT_KEYS, ...COURSE_COUNT_KEYS].map((k) => [k, 10]),
   );
-  // Thirty-six counters at ten rows each: thirty-one that die,
+  // Thirty-seven counters at ten rows each: thirty-two that die,
   // `materialNotes`, `auditRows`, `schedulerMarkers`, the V3 `coursePages`,
   // the V3 W2 `registerTasks`, the course hub's `pitches`, `updates`,
-  // `groupNotes`, `groupSharedNotes`, `packsAndCases`, `pairs`, `teams`,
+  // `groupNotes`, `groupSharedNotes`, `placementNotes`, `packsAndCases`,
+  // `pairs`, `teams`,
   // `teamEntries`, `finishing`, `facilitating`, `ratings`, `certificates`,
   // `anonymousFeedback`, `predictions` and `recordOpenings`, and the course's
   // `facilitatorGuide` among them, plus the five survivors
   // (`admissionSeatOffers` is released, `dataExportRows` is retained,
   // `certificatesKept` stays without its run).
-  assert.equal(sumCounts(counts), 360);
+  assert.equal(sumCounts(counts), 370);
   // The progress denominator counts only what actually dies, so a large
   // retained counter cannot inflate it into a bar that never fills. Adding a
   // survivor must not move this number; adding a DESTROYED counter must.
-  assert.equal(destroyedTotal(counts), 310);
+  assert.equal(destroyedTotal(counts), 320);
 });
 
 test("MODEL — every key the cascade can report has copy, including the ones the manifest never shows", () => {
@@ -633,6 +639,9 @@ test("MODEL — the cascade's declared stage order is the one the contract needs
     // The notes a group's people and facilitators share with it: a run-keyed
     // leaf, every note names its group, so it goes before the groups too.
     "groupSharedNotes",
+    // What was chosen for each person placed outside the times they gave: a
+    // run-keyed leaf, every choice names its group, so it goes before the groups.
+    "placementNotes",
     // What each person had in the weeks' packs and talks: a run-keyed leaf,
     // every record names a block of a week, so it goes before the weeks.
     "packsAndCases",
@@ -699,6 +708,8 @@ test("MODEL — leaf before index: every dependent stage precedes the one that n
       "groupNotes",
       // Every note shared with a group names it by `groupId`.
       "groupSharedNotes",
+      // Every choice names the group it was saved for by `groupId`.
+      "placementNotes",
       // Every record names a block of a week by its id.
       "packsAndCases",
       // Every pair record names its group by `groupId` and a block of a week by its id.

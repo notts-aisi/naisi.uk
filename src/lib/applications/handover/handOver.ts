@@ -1,23 +1,28 @@
 import "server-only";
 import { FieldValue, type Firestore, type Transaction } from "firebase-admin/firestore";
 import type { SessionUser } from "@/lib/firebase/session";
-import { COURSE_AUDIT_COLLECTION, type CourseAuditKind } from "@/lib/firestore/courseAudit";
+import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import { buildFormPlaceRow, courseApplicationId } from "@/lib/firestore/courseApplications";
 import { canRunTerm } from "../access";
 import { own } from "../keys";
-import type { ProgrammeSettings } from "../model";
-import { isApplicationForm, isId, normaliseForm, type ApplicationForm } from "../normalise";
+import { isApplicationForm, isId, normaliseForm } from "../normalise";
 import { formRef, loadForm } from "../repo";
 import { listDecisions, listSentApplications } from "../staffRepo";
+import {
+  CHANGED_WHILE_PRESSING,
+  DECISIONS_NOT_SENT,
+  HAND_OVER_AUDIT_KIND,
+  NO_RUN_NAMED,
+  RUN_IS_A_DRAFT,
+  handOverBlocker,
+} from "./blocker";
 import { placeHoldersOn, type PlaceHolder } from "./holders";
 import {
   RUN_APPLICATIONS_COLLECTION,
   readRun,
   runRef,
-  runStanding,
   type Done,
   type Refusal,
-  type RunRead,
 } from "./run";
 
 /**
@@ -64,53 +69,21 @@ import {
  * Admin only (`canRunTerm`, asked of the session before anything is read).
  */
 
-export const HAND_OVER_AUDIT_KIND = "run-hand-over" satisfies CourseAuditKind;
 
 export const ONLY_AN_ADMIN_HANDS_OVER = "Only an admin can hand people over to a course run.";
 const NO_FORM: Refusal = { ok: false, status: 404, error: "There is no application form here." };
 const NO_PROGRAMME: Refusal = { ok: false, status: 404, error: "That programme is not on this form." };
 
-export const DECISIONS_NOT_SENT =
-  "Decisions have not been sent yet. People are handed over once everybody has been told.";
-export const NO_RUN_NAMED = "Say which course run this programme places people on first.";
-export const RUN_IS_A_DRAFT =
-  "That run is still a draft. Move it on from draft first: its members cannot open a draft run.";
-export const CHANGED_WHILE_PRESSING =
-  "Something about this programme’s run changed while that was running. Check the run and press again.";
-
-/** What each way a named run can have stopped standing is told as, at a hand-over. */
-const RUN_NO_LONGER_STANDS: Record<
-  Exclude<ReturnType<typeof runStanding>, { ok: true }>["why"],
-  string
-> = {
-  "no-course": "This programme is no longer tied to a course page, so its run cannot take people.",
-  gone: "The run this programme names is no longer on the site. Pick another run.",
-  "other-course": "The run this programme names is not a run of the course it is tied to. Pick another run.",
-  archived: "The run this programme names has been archived, so nobody can be placed on it.",
-  over: "The run this programme names has finished or was cancelled, so nobody can be placed on it.",
-  "open-enrolment":
-    "The run this programme names takes sign-ups from a session picker, so nobody is placed on it from here.",
+// What stops a hand-over lives beside this file, so the hand-over that
+// follows an accepted invitation can ask it without reaching the decisions.
+export {
+  CHANGED_WHILE_PRESSING,
+  DECISIONS_NOT_SENT,
+  HAND_OVER_AUDIT_KIND,
+  NO_RUN_NAMED,
+  RUN_IS_A_DRAFT,
+  handOverBlocker,
 };
-
-/**
- * What stops a hand-over, as a sentence, or null when one can be pressed.
- * The same answer for the panel that draws the button and for the writer,
- * which asks it again of what its transaction read.
- */
-export function handOverBlocker(
-  form: Pick<ApplicationForm, "decisionsSentAt">,
-  programme: Pick<ProgrammeSettings, "runId" | "courseId">,
-  run: RunRead | null,
-): string | null {
-  if (form.decisionsSentAt === null) return DECISIONS_NOT_SENT;
-  if (programme.runId === null) return NO_RUN_NAMED;
-  const standing = runStanding(run, programme.courseId);
-  if (!standing.ok) return RUN_NO_LONGER_STANDS[standing.why];
-  // A draft run has never had anybody on it, and nothing in the member area
-  // is written for one: its own members cannot read a draft run's document.
-  if (run?.run.status === "draft") return RUN_IS_A_DRAFT;
-  return null;
-}
 
 export type HandOverReceipt = {
   /** Rows this press created. */

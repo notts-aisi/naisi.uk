@@ -203,6 +203,10 @@ const THROUGH = {
     via: "lib/courses/allocationPublish.ts",
     why: "Publish itself, which sends each facilitator the email its plan wrote, promising week 1's guide only while their group page shows it",
   },
+  "app/api/courses/runs/[runId]/allocation/publish/notes/route.ts": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "Outside the times they gave, on Publish's own page: reads Publish's plan for who it waits on a note for, and shows nothing of the guide",
+  },
   "app/api/courses/runs/[runId]/allocation/publish/preview/route.ts": {
     via: "lib/courses/allocationPublish.ts",
     why: "Publish's own page showing the two emails as each person will get them: the plan's first facilitators' email, saying of week 1's guide what a press would",
@@ -222,6 +226,14 @@ const THROUGH = {
   "app/api/admissions/forms/[roundId]/programmes/[programmeId]/arrangement/route.ts": {
     via: "lib/courses/allocationPublish.ts",
     why: "an admin's proposed arrangement into groups, which reads the run's groups the way the Groups tab's times do, taking only the address of the facilitators' told markers from Publish's module and never asking its plan",
+  },
+  "app/api/admissions/forms/[roundId]/programmes/[programmeId]/circles/route.ts": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "Circles reading the run's groups again after a change, which reads them the way the Groups tab's times do, taking only the address of the facilitators' told markers from Publish's module and never asking its plan",
+  },
+  "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/circles/page.tsx": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "the Groups tab's Circles, which reads the run's groups the way the Groups tab's times do, taking only the address of the facilitators' told markers from Publish's module and never asking its plan",
   },
   "app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/route.ts": {
     via: "lib/courses/allocationPublish.ts",

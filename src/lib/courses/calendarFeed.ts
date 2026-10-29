@@ -17,6 +17,7 @@ import {
   type CourseGroupDoc,
 } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, validateSubmissionUrl, type CourseRunDoc } from "@/lib/firestore/courses";
+import { campusLabel } from "./campus";
 import { programmePageAddress } from "./calendarLink";
 import { JOIN_ON_SITE, cancelledTitle, joinWords, sessionTitle, type CalendarLineGroup } from "./calendarWords";
 import { sessionsFromJoinWeek } from "./ownAttendance";
@@ -44,7 +45,8 @@ import { resolveSessions, sessionInstants, type ResolvedSession } from "./sessio
  *
  * ── WHAT EACH SESSION SAYS ──────────────────────────────────────────────────
  * Its date and time; the programme and the group ("AGI Strategy · Group B");
- * the week's own room; and for an online week "Join on naisi.uk" with the
+ * the week's own room, or while there is none the group's campus ("Jubilee");
+ * and for an online week "Join on naisi.uk" with the
  * person's programme page, which is where the session ticket's own Join
  * online is. ONLINE is the ticket's doctrine (`ticketFacts`): the week is held
  * online, or nothing is set for it and the session has a link to join. The
@@ -113,7 +115,8 @@ function sessionUid(run: CourseRunDoc, group: CourseGroupDoc, session: ResolvedS
 /**
  * One session as the calendar says it. The room is left out of an online
  * week, and the link to join is never put in: whether there is one is asked,
- * as the ticket asks it, to say where to join.
+ * as the ticket asks it, to say where to join. With no room and nowhere to
+ * join, the group's campus is where it meets.
  */
 function eventOf(
   run: CourseRunDoc,
@@ -128,7 +131,14 @@ function eventOf(
   const mode = session.occurrence === 1 ? sessionModeForWeek(group, session.weekId) : null;
   const hasLink = typeof slot.meetingUrl === "string" && validateSubmissionUrl(slot.meetingUrl, GROUP_FIELD_LIMITS.meetingUrl) === null;
   const online = mode === "virtual" || (mode === null && hasLink);
-  const room = mode !== "virtual" && slot.location.trim() ? slot.location.trim() : null;
+  // The week's own room; while there is none, and the week is not online,
+  // the group's campus stands in for it.
+  const room =
+    mode !== "virtual" && slot.location.trim()
+      ? slot.location.trim()
+      : !online
+        ? campusLabel(group.campus) || null
+        : null;
   return {
     uid: sessionUid(run, group, session),
     title: session.cancelled ? cancelledTitle(title) : title,

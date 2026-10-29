@@ -68,6 +68,11 @@ const STYLESHEETS = [
   "./Refusals.module.css",
   "./kit.module.css",
   "@/features/applications/kit/kit.module.css",
+  // Publish's page: Outside the times they gave, its text box and its week chart.
+  "./OutsideNotes.module.css",
+  "@/features/applications/decisionDay/decisionDay.module.css",
+  "./WeekChart.module.css",
+  "./Input.module.css",
 ];
 
 const made = makeWorld("__hubPeopleInGroups", [
@@ -494,10 +499,30 @@ describe("4. the line, the number beside Publish and the People tab count with o
     }
   });
 
-  test("somebody who accepts a freed place is holding one before anybody hands them over, and the line says they are not on the run yet", async () => {
+  test("somebody who accepts a freed place is handed over by accepting, in no group, and Publish waits for them", async () => {
     await termOnTheBoard();
     const accepted = await reply("omar", { reply: "accept-invitation" });
     assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
+    // On the run's list from the acceptance itself, so nobody is "not on the
+    // run yet"; still to place, because accepting places nobody.
+    const counts = await countsFor("claudia");
+    assert.deepEqual(counts, { holding: 5, inAGroup: 2, toPlace: 3, notOnTheRun: 0, invited: 0 });
+    const { text: said } = await open(PeoplePage, "zach");
+    assert.match(said, /5 holding a place · 2 in a group · 3 to place · 1 invited/);
+    assert.ok(!said.includes("not on the run yet"));
+    const refused = await publish("zach");
+    assert.deepEqual([...refused.body.unplaced].sort(), ["Bea Lindqvist", "Omar Haddad", "Tariq Mensah"]);
+  });
+
+  test("somebody who accepted while the run could not take people is named as not on the run yet", async () => {
+    await termOnTheBoard();
+    // The run cannot take anybody at the moment Omar accepts, so the
+    // acceptance hands nobody over (handOverBlocker); the run is put right after.
+    const status = world.db.read(`courseRuns/${RUN.agi}`).status;
+    world.db.poke(`courseRuns/${RUN.agi}`, { status: "draft" });
+    const accepted = await reply("omar", { reply: "accept-invitation" });
+    assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
+    world.db.poke(`courseRuns/${RUN.agi}`, { status });
     const counts = await countsFor("claudia");
     assert.deepEqual(counts, { holding: 5, inAGroup: 2, toPlace: 3, notOnTheRun: 1, invited: 0 });
     const { text: said, html } = await open(PeoplePage, "zach");
@@ -553,7 +578,19 @@ describe("5. Publish's own page draws Publish as the board did, under its readin
     assert.equal(find(element, "PublishReadiness").length, 1, "the readiness check is drawn above the Publish area");
     const area = find(element, "PublishGroups");
     assert.equal(area.length, 1);
-    assert.deepEqual(area[0].props, { runId: RUN.agi });
+    // The run, and what can follow by itself, read on the server from the
+    // scheduler's switches: next week's email off as it ships, so Group C's
+    // missing room holds nothing yet, but it is named for when it is on.
+    assert.deepEqual(area[0].props, {
+      runId: RUN.agi,
+      admin: false,
+      follows: {
+        paused: false,
+        nextWeekEmail: { on: false, waitsForRoom: ["Group C"] },
+        registerReminders: { on: false },
+        placeConfirmations: null,
+      },
+    });
     assert.match(said, /Send a test to me/);
     assert.match(said, /Publish and send \d+ emails?/);
     assert.ok(said.includes(getReadyWords.AFTER_YOU_PUBLISH), "what publishing does next is said above the buttons");
@@ -658,6 +695,19 @@ describe("6. each card's marks in every state, and its menu", () => {
     const stopped = { ...held, allocatedEmailDelivery: "suppressed" };
     assert.deepEqual(said(stopped, COLUMNS[0])[0].at(-1), "Not emailed: do-not-email list (warn)");
     assert.deepEqual(said({ ...held, allocatedEmailDelivery: "sent" }, COLUMNS[0])[0], ["Fits A, B (plain)"]);
+  });
+
+  test("their answer to Can you make this time?: a tick for yes, a warning for can't, nothing before they answer", () => {
+    const told = { groupId: "ga", enrolmentStatus: "active", allocatedEmailAt: "2026-10-28T10:00:00Z", allocatedEmailDelivery: "sent" };
+    assert.deepEqual(said(card({ ...told, timeAnswer: null }), COLUMNS[0])[0], ["Fits A, B (plain)"]);
+    assert.deepEqual(said(card({ ...told, timeAnswer: { kind: "yes", reason: null, alternatives: null } }), COLUMNS[0])[0], [
+      "Fits A, B (plain)",
+      "Can make it (ok)",
+    ]);
+    const cant = { kind: "cant", reason: "A lab then.", alternatives: "Mondays." };
+    assert.deepEqual(said(card({ ...told, timeAnswer: cant }), COLUMNS[0])[0], ["Fits A, B (plain)", "Can’t make this time (warn)"]);
+    // A can't does not outline the card: that is for a time the board knows they are not free.
+    assert.equal(said(card({ ...told, timeAnswer: cant }), COLUMNS[0])[1], false);
   });
 
   test("the menu: To place, each group with who sits there now, and taking an active seat off the run last", () => {

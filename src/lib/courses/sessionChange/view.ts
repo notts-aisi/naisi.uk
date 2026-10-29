@@ -1,5 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import { roomOrCampus, type GroupCampus } from "@/lib/courses/campus";
 import { readGroupWeek } from "@/lib/courses/packsAndCases/readers";
 import { pairsAskOf } from "@/lib/courses/pairs/model";
 import { pairsTitleWords } from "@/lib/courses/pairs/words";
@@ -119,6 +120,13 @@ export type SessionCardView = {
    * have the group page's card.
    */
   pairs: { href: string; label: string } | null;
+  /**
+   * The group's campus and the control that changes it, on the Groups tab's
+   * Sessions view: the group and its campus now (null for none chosen).
+   * Null on a group's own page: a group's campus is set by the programme's
+   * lead and admins, here, and in the run editor's group card.
+   */
+  campus: { groupId: string; groupName: string; value: GroupCampus | null } | null;
 };
 
 export type SessionsWeekView = {
@@ -316,7 +324,10 @@ function cardFor(
   return {
     key: `${group.id}__${session.sessionKey}`,
     heading: heading === "group" ? groupNameOf(group) : cardWeekWords(session.weekNumber),
-    sub: heading === "group" ? slotLine(slotWords(group.session.weekday, group.session.startTimeLocal), group.session.location) : "",
+    sub:
+      heading === "group"
+        ? slotLine(slotWords(group.session.weekday, group.session.startTimeLocal), roomOrCampus(group.session.location, group.campus))
+        : "",
     people: heading === "group" ? facilitators.map(({ uid, name }) => ({ uid, name })) : [],
     peopleLine: heading === "group" ? namesWords(facilitators.map((person) => person.name)) : "",
     eyebrow: heading === "group" ? cardWeekWords(session.weekNumber) : "",
@@ -326,6 +337,7 @@ function cardFor(
     note: started ? SESSION_STARTED : null,
     dialog: started ? null : dialogFor(group, session, context),
     pairs: null,
+    campus: null,
   };
 }
 
@@ -340,6 +352,11 @@ async function pairsFor(db: Firestore, runId: string, groupId: string, weekNumbe
   const ask = week ? pairsAskOf(week.blocks) : null;
   if (!ask) return null;
   return { href: `/learn/pairs/${encodeURIComponent(groupId)}?week=${weekNumber}`, label: pairsTitleWords(ask.laptops) };
+}
+
+/** A group's campus, for the Sessions view's control. */
+function campusControlOf(group: CourseGroupDoc): SessionCardView["campus"] {
+  return { groupId: group.id, groupName: groupNameOf(group), value: group.campus };
 }
 
 /**
@@ -411,15 +428,20 @@ export async function loadSessionsWeek(
     const sessions = resolveSessions(run, group);
     const session = sessionBetween(sessions, fromKey, toKey);
     if (session) {
-      // The lead reaches each group's pairs from here: the session's own week decides.
-      return { ...cardFor(group, session, context, "group"), pairs: await pairsFor(db, run.id, group.id, session.weekNumber) };
+      // The lead reaches each group's pairs from here: the session's own week
+      // decides. And sets where the group meets.
+      return {
+        ...cardFor(group, session, context, "group"),
+        pairs: await pairsFor(db, run.id, group.id, session.weekNumber),
+        campus: campusControlOf(group),
+      };
     }
     const facilitators = standingFacilitators(group, context);
     const pushed = pushedBetween(sessions, group, fromKey, toKey);
     return {
       key: `${group.id}__none`,
       heading: groupNameOf(group),
-      sub: slotLine(slotWords(group.session.weekday, group.session.startTimeLocal), group.session.location),
+      sub: slotLine(slotWords(group.session.weekday, group.session.startTimeLocal), roomOrCampus(group.session.location, group.campus)),
       people: facilitators.map(({ uid, name }) => ({ uid, name })),
       peopleLine: namesWords(facilitators.map((person) => person.name)),
       eyebrow: pushed ? cardWeekWords(pushed.weekNumber) : "",
@@ -429,6 +451,7 @@ export async function loadSessionsWeek(
       note: pushed ? pushedCardWords(pushed.dateKey) : NO_SESSION_THIS_WEEK,
       dialog: null,
       pairs: null,
+      campus: campusControlOf(group),
     };
   }));
   return { heading, previous, next, cards, blank: null };

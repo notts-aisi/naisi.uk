@@ -65,8 +65,15 @@ const groupOf = (id) => world.db.read(`courseGroups/${id}`);
 // ---- Publish, as the board presses it ----
 const summary = async (who = "zach") => (await join.board(who)).body.publish;
 const sendTest = (who = "zach") => call(who, join.routes.publishTest.POST, { runId: RUN.agi }, { course: true });
-const pressNow = async (who = "zach") =>
-  call(who, join.routes.publish.POST, { runId: RUN.agi }, { body: { emails: (await summary(who)).emails }, course: true });
+/**
+ * A press with the number the board shows, after choosing "Send without a
+ * note" for anybody placed outside the times they gave, as Publish's own page
+ * asks first (the choice is held in tests/course-publish-outside-notes.test.mjs).
+ */
+const pressNow = async (who = "zach") => {
+  await join.withoutNotes(who);
+  return call(who, join.routes.publish.POST, { runId: RUN.agi }, { body: { emails: (await summary(who)).emails }, course: true });
+};
 const isTest = (mail) => mail.subject.startsWith("[TEST]");
 const realMail = () => world.mail.filter((mail) => !isTest(mail));
 const isFacilitating = (mail) => mail.subject.startsWith("You’re facilitating");

@@ -11,7 +11,10 @@ import {
   testWhen,
   type TestState,
 } from "@/lib/courses/allocationPublish";
+import type { GroupCampus } from "@/lib/courses/campus";
 import { shortSlotWords } from "@/lib/courses/facilitatorAsks/words";
+import { sessionLabelOf } from "@/lib/courses/outsideTheirTimes";
+import { currentTimeAnswer, type TimeAnswerView } from "@/lib/courses/timeAnswer/model";
 import { groupTagOf } from "@/lib/courses/programmeAttendance";
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
@@ -27,11 +30,7 @@ import {
   normalizeCourseEnrolment,
   type CourseEnrolmentDoc,
 } from "@/lib/firestore/courseEnrolments";
-import {
-  compareGroupsByMeeting,
-  normalizeCourseGroup,
-  type GroupSession,
-} from "@/lib/firestore/courseGroups";
+import { compareGroupsByMeeting, normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { hasPaidMembership, normalizeUser } from "@/lib/firestore/users";
 
@@ -103,6 +102,11 @@ export type AllocGroup = {
   tag: string;
   when: string;
   room: string;
+  /**
+   * The campus the group meets on, or null while none is chosen
+   * (`src/lib/courses/campus.ts`): a place of the same tier as `room`.
+   */
+  campus: GroupCampus | null;
   /** The server-owned counter maintained by the allocation transaction. */
   memberCount: number;
   /**
@@ -176,6 +180,15 @@ export type AllocRow = {
    * every other row is exactly as it was.
    */
   putBack?: true;
+  /**
+   * Their answer to "can you make this time?" about the group they are in
+   * now (`currentTimeAnswer`: an answer about a group they were moved out of
+   * is never here): "yes", or "cant" with why and which other times would.
+   * Null before they answer, AND for a viewer who is neither an admin nor
+   * the lead of the programme that names the run: the person wrote it for
+   * the lead and admins, so a run's track lead is sent null.
+   */
+  timeAnswer: TimeAnswerView | null;
 };
 
 /**
@@ -205,6 +218,18 @@ export type PublishSummary = {
   emptyGroups: string[];
   /** Why a press would be refused because an email cannot be written. */
   refusals: string[];
+  /**
+   * How many facilitators already told about their group a press tells who
+   * has joined it: counted in `emails`. Present only when there is somebody,
+   * so a summary with nobody is exactly as it was before these were sent.
+   */
+  joined?: number;
+  /**
+   * Who a press waits for a note, or "Send without a note", for: people it
+   * would tell their group who are placed outside the times they gave.
+   * Present only when there is somebody.
+   */
+  notesNeeded?: string[];
   /**
    * How many people placed in a group and not told yet gave their place back
    * on the form: their cards say "Gave their place back", and a press leaves
@@ -246,39 +271,6 @@ export type AllocationPayload = {
  * not a real bound anyone reaches.
  */
 const MAX_FORKED_WEEKS = 60;
-
-/** Index = `GroupSession.weekday` (`Date.getDay()`, 0 = Sunday). */
-const WEEKDAY_NAMES = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
-
-function endTimeLabel(start: string, minutes: number): string | null {
-  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(start);
-  if (!m || minutes <= 0) return null;
-  const total = (Number(m[1]) * 60 + Number(m[2]) + minutes) % 1440;
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
-
-/**
- * "Tuesdays 18:00–19:30" — byte-for-byte the label the apply page renders as
- * availability chips and the P5 queue shows per group, so a row's
- * `availability` strings and this payload's group labels compare EQUAL on the
- * board (that equality is what powers the availability-conflict chips).
- * Deliberately duplicated from the P5 applications route — route handlers
- * don't import from one another. The format is the contract; change together.
- */
-function sessionLabel(session: GroupSession): string {
-  const day = WEEKDAY_NAMES[session.weekday];
-  if (!day || !session.startTimeLocal) return "";
-  const end = endTimeLabel(session.startTimeLocal, session.durationMinutes);
-  return `${day}s ${session.startTimeLocal}${end ? `–${end}` : ""}`;
-}
 
 /**
  * Display-name fallback chain: preferred name, then account name, then a
@@ -460,14 +452,25 @@ export async function GET(
     );
   }
 
+  // Who reads what people said about their group's time: the lead of the
+  // programme that names the run and admins, never a track lead by that alone.
+  const readsTimeAnswers = staffing.isAdmin || staffing.leadOf !== null;
+
   // Which groups each person from the form can make, and whether they still
   // hold their place there. Asked of the application system, which reads the
   // week they painted and hands back only the answer.
+  // Read against every group of the run, archived ones too, exactly as each
+  // route that reads Publish's plan reads them (`readGroupSessions`), so the
+  // plan below and the press agree about who is placed outside the times
+  // they gave. A card asks only about the columns it is drawn against.
   const formFacts = await formPlaceFactsFor(
     db,
     staffing,
     accepted.filter((a) => a.fromForm !== null),
-    groups.map((g) => ({ id: g.id, session: g.session })),
+    groupSnap.docs
+      .map((d) => normalizeCourseGroup(d.id, d.data() ?? {}))
+      .sort(compareGroupsByMeeting)
+      .map((g) => ({ id: g.id, session: g.session })),
   );
 
   const people: AllocRow[] = accepted.map((app) => {
@@ -497,6 +500,7 @@ export async function GET(
           }
         : null,
       ...(enrolment && enrolmentIsPutBack(enrolment) ? { putBack: true as const } : {}),
+      timeAnswer: readsTimeAnswers && enrolment ? currentTimeAnswer(enrolment) : null,
     };
   });
   // Unplaced first (the work), then alphabetical — the board reads as a queue.
@@ -529,6 +533,8 @@ export async function GET(
     noAddress: batch.noAddress,
     emptyGroups: plan.emptyGroups,
     refusals: plan.refusals,
+    ...(batch.joined.length > 0 ? { joined: batch.joined.length } : {}),
+    ...(plan.notesNeeded.length > 0 ? { notesNeeded: plan.notesNeeded } : {}),
     ...(plan.gaveBack.length > 0 ? { gaveBack: plan.gaveBack.length } : {}),
     test: {
       state: plan.test.state,
@@ -551,7 +557,7 @@ export async function GET(
       id: g.id,
       name: g.name,
       capacity: g.capacity,
-      sessionLabel: sessionLabel(g.session),
+      sessionLabel: sessionLabelOf(g.session),
       facilitatorNames: g.facilitatorUids.map(
         (uid) => nameByUid.get(uid) ?? "NAISI member",
       ),
@@ -560,6 +566,7 @@ export async function GET(
       tag: groupTagOf(g.name),
       when: shortSlotWords(g.session) ?? "",
       room: g.session.location.trim(),
+      campus: g.campus,
       memberCount: g.memberCount,
       // The autonomy triple, straight off the normalised doc plus the keys-only
       // subcollection read above. `normalizeCourseGroup` already coerces a

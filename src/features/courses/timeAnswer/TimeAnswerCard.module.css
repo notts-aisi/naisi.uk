@@ -1,0 +1,112 @@
+/* "Can you make this time?" on the programme page: the weekly card's frame
+   (weekly.module.css), with its answers, its short form and what they wrote. */
+
+.line {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.link {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.error {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-danger-text);
+  overflow-wrap: anywhere;
+}
+
+.said {
+  margin: var(--space-3) 0 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-accent-line);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.wrote {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.wroteTitle {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-meta);
+  font-size: var(--text-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.wroteList {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.wroteList dt {
+  color: var(--color-text-muted);
+}
+
+.wroteList dd {
+  margin: 0;
+  color: var(--color-text);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 36rem) {
+  .actions > * {
+    flex: 1 1 100%;
+  }
+
+  .wroteList {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wroteList dd + dt {
+    margin-top: var(--space-2);
+  }
+}

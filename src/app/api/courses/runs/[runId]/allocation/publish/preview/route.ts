@@ -2,7 +2,14 @@ import { NextResponse } from "next/server";
 import { render } from "@react-email/render";
 import ApplicationEmail from "@/emails/ApplicationEmail";
 import { formPlaceFactsFor } from "@/lib/applications/handover/board";
-import { loadPublishPlan, pressBatch, type PlannedFacilitator, type PlannedPerson } from "@/lib/courses/allocationPublish";
+import {
+  loadPublishPlan,
+  pressBatch,
+  readGroupSessions,
+  type PlannedFacilitator,
+  type PlannedJoined,
+  type PlannedPerson,
+} from "@/lib/courses/allocationPublish";
 import type { PreviewEmail, PreviewKind, PublishPreview } from "@/lib/courses/getReady/preview";
 import { fullNameOfUser } from "@/lib/courses/programmeLead";
 import { PUBLISH_ADMIN_ONLY } from "@/lib/courses/publishWords";
@@ -11,6 +18,8 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { normalizeCourseApplication, rowIsServedTo } from "@/lib/firestore/courseApplications";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
+import { normaliseNotifications, wantsPush } from "@/lib/firestore/notifications";
+import { isPushConfigured } from "@/lib/push/config";
 
 /**
  * PUBLISH'S TWO EMAILS, AS EACH PERSON WILL GET THEM (board st-publish), for
@@ -35,13 +44,20 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * NO ADDRESS LEAVES: names, the subject and the email's own body, which
  * carries none (a group's page and a programme's page are this site's).
  * Who it is from and where replies go are the mail door's own settings.
+ *
+ * AND EVERYTHING ELSE THE PRESS DOES, for "What this press sends": the
+ * facilitators told who has joined their group, whose email carries a note
+ * of our own (and the first such email, when the first person's carries
+ * none), who it waits for a choice for, and which of the people have the
+ * phone notification that mirrors their email switched on, each read from
+ * the same plan and the same batch as the press.
  */
 
 type Ctx = { params: Promise<{ runId: string }> };
 
 /** Each person once, in the order given, by the whole name on their account. */
 function namesOf(
-  recipients: readonly (PlannedPerson | PlannedFacilitator)[],
+  recipients: readonly (PlannedPerson | PlannedFacilitator | PlannedJoined)[],
   fullName: (uid: string, fallback: string) => string,
 ): PreviewKind["names"] {
   const seen = new Set<string>();
@@ -55,7 +71,7 @@ function namesOf(
 }
 
 async function drawn(
-  recipient: PlannedPerson | PlannedFacilitator | null,
+  recipient: PlannedPerson | PlannedFacilitator | PlannedJoined | null,
   fromName: string | undefined,
   fullName: (uid: string, fallback: string) => string,
 ): Promise<PreviewEmail | null> {
@@ -97,7 +113,12 @@ export async function GET(_req: Request, ctx: Ctx) {
   const accepted = served.filter((a) => a.status === "accepted");
   // As Publish reads it: a card that says "Gave their place back" is nobody
   // the press writes to, so their email is never shown either.
-  const formPlaces = await formPlaceFactsFor(db, staffing, accepted.filter((a) => a.fromForm !== null), []);
+  const formPlaces = await formPlaceFactsFor(
+    db,
+    staffing,
+    accepted.filter((a) => a.fromForm !== null),
+    await readGroupSessions(db, runId),
+  );
   const plan = await loadPublishPlan(db, run, {
     accepted,
     adminOnly: served.length < rows.length,
@@ -107,13 +128,26 @@ export async function GET(_req: Request, ctx: Ctx) {
 
   const batch = pressBatch(plan);
   // The whole name on each account, as the programme's tabs name people.
-  const uids = [...new Set([...batch.people, ...batch.facilitators].map((recipient) => recipient.uid))];
+  const uids = [...new Set([...batch.people, ...batch.facilitators, ...batch.joined].map((recipient) => recipient.uid))];
   const accounts = uids.length ? await db.getAll(...uids.map((uid) => db.collection("users").doc(uid))) : [];
   const nameByUid = new Map(accounts.filter((snap) => snap.exists).map((snap) => [snap.id, fullNameOfUser(snap.data() ?? {})] as const));
   const fullName = (uid: string, fallback: string) => nameByUid.get(uid) ?? fallback;
+  // The courses row of each person's notifications, read as the push mirror
+  // reads it: an account that is not there resolves the row's default.
+  const accountOf = new Map(accounts.filter((snap) => snap.exists).map((snap) => [snap.id, snap.data() ?? {}] as const));
+  const pushOn = (uid: string) => {
+    const profile = ((accountOf.get(uid) ?? {}).profile ?? {}) as Parameters<typeof normaliseNotifications>[0];
+    return wantsPush(normaliseNotifications(profile), "courses");
+  };
 
   const person = batch.people.find((candidate) => candidate.email) ?? null;
   const facilitator = batch.facilitators.find((candidate) => candidate.email) ?? null;
+  const joined = batch.joined.find((candidate) => candidate.email) ?? null;
+  const notedUids = new Set(plan.outside.filter((entry) => entry.note.state === "noted").map((entry) => entry.uid));
+  const notedPeople = batch.people.filter((candidate) => notedUids.has(candidate.uid));
+  const notedFirst =
+    person && notedUids.has(person.uid) ? null : (notedPeople.find((candidate) => candidate.email) ?? null);
+  const configured = isPushConfigured();
   const preview: PublishPreview = {
     incubator: plan.incubator,
     people: {
@@ -126,6 +160,18 @@ export async function GET(_req: Request, ctx: Ctx) {
       names: namesOf(batch.facilitators, fullName),
       email: await drawn(facilitator, plan.templates.facilitating.fromName, fullName),
     },
+    joined: {
+      emails: batch.joined.length,
+      names: namesOf(batch.joined, fullName),
+      email: await drawn(joined, plan.templates.facilitating.fromName, fullName),
+    },
+    noted: namesOf(notedPeople, fullName),
+    notedEmail: await drawn(notedFirst, plan.templates.allocated.fromName, fullName),
+    push: {
+      configured,
+      names: configured ? batch.people.filter((candidate) => pushOn(candidate.uid)).map((candidate) => fullName(candidate.uid, candidate.name)) : [],
+    },
+    notesNeeded: plan.notesNeeded,
     refusals: plan.refusals,
   };
   return NextResponse.json(preview);

@@ -7,7 +7,8 @@
  * page stops offering "I’m coming" and "I can’t make it" as if nothing had
  * happened. It points them to their programme's page, where everything for
  * each week is and where "Leave the programme" is, and says plainly what
- * giving the place back now means. Once they have left, by either door, it
+ * giving the place back now means, and that a time that doesn't work is said
+ * there instead, keeping the place. Once they have left, by either door, it
  * says so and when (the left page's own sentence, `leftOnLine`).
  *
  * No board draws the application page after groups go out
@@ -42,6 +43,17 @@ export function leavingNowLine(groupName: string | null): string {
   const leaving = groupName ? `leaving ${groupName}` : "leaving the programme";
   return `Changed your mind? Giving your place back now means ${leaving}. You can do that from your programme’s page.`;
 }
+
+/**
+ * Under what giving the place back means, for somebody who could leave from
+ * their programme's page: the other answer, which keeps the place. Their
+ * programme's page asks "Can you make this time?", and "I can’t make this
+ * time" there keeps their place and asks to be moved. Said here so nobody who
+ * only wants another time gives their place back by mistake. True of an
+ * incubator's people too, so it names no group.
+ */
+export const ONLY_THE_TIME =
+  "Only the time doesn’t work? Tell us on your programme’s page instead. You keep your place.";
 
 /**
  * For a seat the team takes somebody off (they applied to the run itself):

@@ -1,0 +1,157 @@
+/* "Outside the times they gave (N)" on Publish's own page (OutsideNotes.tsx):
+   one card, a row per person with their group, their week for an admin, and
+   the three choices. One column on a phone. */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 22px 24px;
+  border: 1px solid var(--color-warning-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-sizing: border-box;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.line {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.people {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.person {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px 0;
+}
+
+.person + .person {
+  border-top: 1px solid var(--color-border);
+}
+
+.who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.whoText {
+  display: flex;
+  flex: 1 1 200px;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.group {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.state {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.stateMissing {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+.stateNoted {
+  color: var(--color-ok);
+}
+
+.stateWithout {
+  color: var(--color-text-muted);
+}
+
+.week {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  max-width: 40rem;
+}
+
+.overlap {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.text {
+  margin: 0;
+  max-width: 46rem;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+  /* A blank line in a note is a new paragraph in the email. */
+  white-space: pre-line;
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 46rem;
+}
+
+.hint,
+.fence {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.basis {
+  color: var(--color-text-subtle);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+}
+
+@media (max-width: 48rem) {
+  .card {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .week {
+    max-width: 100%;
+  }
+}

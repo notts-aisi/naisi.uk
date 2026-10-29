@@ -8,18 +8,23 @@ import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
  * Up to five arrangements of a programme's people into groups, for an admin:
- * `{ askClaude, minutes?, size? }`.
+ * `{ askClaude, minutes?, size?, startAgain? }`.
  *
- * The site works out several from when each person said they are free
- * (`src/lib/applications/arrange/options.ts`); with `askClaude`, Claude ranks
+ * The site works out several over the run's groups as they are, from when
+ * each person said they are free (`src/lib/applications/arrange/options.ts`):
+ * everybody already placed stays where they are, and each facilitator in the
+ * group they facilitate, unless `startAgain` asks to seat afresh everybody
+ * placed and not told (the told and the facilitators still stay). With
+ * `askClaude`, Claude ranks
  * them with pros and cons, gives a reason for each group, a facilitator for
  * each and any moves, and only what the rules allow is kept
  * (`arrange/advice.ts`). Before decision day it is a preview of the people
  * the decisions as they stand place on the programme, the caller's own
- * application left out. NOTHING IS WRITTEN AND NOTHING IS STORED: the admin
- * reads the answer, and Apply on the page places people through the site's
- * own routes for groups, places and facilitators, which ask every question
- * they always ask. Nobody is emailed until Publish.
+ * application left out. NOTHING IS WRITTEN AND NOTHING IS STORED: Circles
+ * draws the answer over the run's groups as a preview, and "Apply N changes"
+ * sends only the differences through the site's own routes for groups,
+ * places and facilitators, which ask every question they always ask. Nobody
+ * is emailed until Publish.
  *
  * With `{ ask: { question, history, groups }, minutes? }` instead, it is a
  * question about the arrangement on the admin's screen (`groups`, with their
@@ -50,7 +55,7 @@ export async function POST(
   if (!isAddressableId(roundId) || !isAddressableId(programmeId)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  let body: { askClaude?: unknown; minutes?: unknown; size?: unknown; ask?: unknown };
+  let body: { askClaude?: unknown; minutes?: unknown; size?: unknown; ask?: unknown; startAgain?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -67,6 +72,7 @@ export async function POST(
     askClaude: body.askClaude,
     minutes: body.minutes,
     size: body.size,
+    startAgain: body.startAgain === true,
   });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json({ arrangement: result.arrangement }, { headers: { "Cache-Control": "no-store" } });

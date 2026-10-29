@@ -6,6 +6,7 @@ import { standardSubject } from "@/lib/applications/decisionDay/emailCopy";
 import {
   ASK_THE_TEAM_AFTER,
   GO_TO_YOUR_PROGRAMME,
+  ONLY_THE_TIME,
   inGroupLine,
   leavingNowLine,
 } from "@/lib/applications/status/runWords";
@@ -146,7 +147,8 @@ const withDay = (label: string, day: string | null) => (day ? `${label} · ${day
  * In place of "I’m coming" and "I can’t make it", once Publish has told them
  * their group: where everything is, the way to their programme's page, and
  * what giving the place back now means there (nothing, once the run's last
- * session is over).
+ * session is over), and that only the time not working is said on their
+ * programme's page instead, keeping their place.
  */
 function InGroup({ inGroup, card }: { inGroup: InGroupView; card: boolean }) {
   const line = inGroupLine(inGroup.groupName);
@@ -166,6 +168,9 @@ function InGroup({ inGroup, card }: { inGroup: InGroupView; card: boolean }) {
           <ArrowRightIcon />
         </Link>
         {inGroup.leave === "open" ? <p className={styles.note}>{leavingNowLine(inGroup.groupName)}</p> : null}
+        {/* The answer that keeps the place, so nobody who only wants another
+            time leaves by mistake (Zach, 29 Oct 2026). */}
+        {inGroup.leave === "open" ? <p className={styles.note}>{ONLY_THE_TIME}</p> : null}
         {inGroup.leave === "ask-the-team" ? (
           <p className={styles.note}>
             {CHANGED_YOUR_MIND} {CHANGED_BEFORE} <Contact /> {ASK_THE_TEAM_AFTER}

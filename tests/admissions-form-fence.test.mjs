@@ -341,6 +341,13 @@ const ROUND_SURFACES = {
       "admin's. It reaches the round only through loadPeopleInGroups, which starts from the form's own loader and " +
       "answers 'none' for a round that is not a form, and the page then says there is no programme here",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/circles": {
+    kind: "form",
+    why:
+      "one programme's Groups tab, its Circles view, an admin's alone. It reaches the round only through " +
+      "loadCircles, which starts from the form's own loader and answers 'none' for a round that is not a form, " +
+      "and the page then says there is no programme here",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
     kind: "form",
     why:
@@ -663,6 +670,13 @@ const ROUND_SURFACES = {
       "loadArranging, which starts from the form's own loader and answers 404 for a round " +
       "that is not a form, before anybody's application is read",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
+    kind: "form",
+    why:
+      "an admin's Circles reads the run's groups as they are again after each change through loadCircles, " +
+      "which starts from the form's own loader and answers 'none' (a 404) for a round that is not a form, " +
+      "before anybody's application is read",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/assessments": {
     kind: "form",
     why:
@@ -765,6 +779,13 @@ const ROUND_SURFACES = {
       "sends a test of the ask's email, through sendAskTest, which reaches the round as the ask does " +
       "and finds nothing for a round that is not a form",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/case/draft": {
+    kind: "form",
+    why:
+      "drafts the sentence that makes the case to somebody who did not offer, through draftCase, which " +
+      "reaches the round only through askContext and the form's own loader, and answers a round that " +
+      "is not a form as a programme that is not here",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/remind": {
     kind: "form",
     why:
@@ -796,6 +817,13 @@ const ROUND_SURFACES = {
     why:
       "adds a group to the run a programme names, from the Groups tab's Times view, reaching the round " +
       "only through loadProgrammeRun, which answers a round that is not a form as a programme that is not here",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/campus": {
+    kind: "form",
+    why:
+      "sets one group's campus on the run a programme names, from the Groups tab's Sessions view, " +
+      "reaching the round only through loadProgrammeRun, which answers a round that is not a form as a " +
+      "programme that is not here",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time": {
     kind: "form",
@@ -1618,6 +1646,18 @@ const ROUND_READERS = new Map([
         "the hand-over of a programme's place holders to its course run. The press starts from " +
         "the form's own loader, which answers null for a round that is not a form, and each " +
         "transaction that creates rows reads the round again and asks before it writes",
+    },
+  ],
+  [
+    "src/lib/applications/handover/onAcceptance.ts",
+    {
+      kind: "form",
+      asks: 1,
+      proof: ["await tx.get(formRef(db, form.round.id))"],
+      why:
+        "the hand-over that follows an accepted invitation, called by the reply route with the " +
+        "form it already loaded through the form's own loader. Its transaction reads the round " +
+        "again and asks before it writes the one row",
     },
   ],
   [

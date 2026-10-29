@@ -1337,8 +1337,23 @@ describe("the handler is written the way the guards read it", () => {
       [...code.matchAll(/\bapprove\w*\(/gi)].map((found) => found[0]),
       ["approveAfterAcceptedInvitation("],
     );
-    assert.match(code, /if \(recorded\.tookPlace\) await approveAfterAcceptedInvitation\(db, form, user\.uid\);/);
+    // The reply that took a place approves the account, then hands the place
+    // over to its run: both after the reply has committed.
+    assert.match(
+      code,
+      /if \(recorded\.tookPlace\) \{\s*await approveAfterAcceptedInvitation\(db, form, user\.uid\);[^}]*await handOverAfterAcceptedInvitation\(db, form, user\.uid\);\s*\}/,
+    );
     assert.ok(code.indexOf("approveAfterAcceptedInvitation(db") > code.indexOf("await recordReply("));
+    assert.ok(code.indexOf("handOverAfterAcceptedInvitation(db") > code.indexOf("await recordReply("));
+    // The hand-over answers and never throws either: its one transaction is
+    // inside a try whose catch returns.
+    const handOverCode = readFileSync(join(REPO_ROOT, "src", "lib", "applications", "handover", "onAcceptance.ts"), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+    assert.match(handOverCode, /try \{\s+return await db\.runTransaction\(/);
+    assert.match(handOverCode, /\} catch \(err\) \{[\s\S]*?return \{ did: "failed" \};\s+\}/);
+    assert.equal(/\bthrow\b/.test(handOverCode), false);
+    assert.equal(/staffRepo|admissionDecisions|admissionReviews|sendEmail|@\/lib\/email|@\/emails\//.test(handOverCode), false);
     // It answers and never throws: the one call that writes is inside a try
     // whose catch returns, and the admin named is the form's own.
     assert.match(helperCode, /const approvedByUid = form\.decisionsSentByUid;/);

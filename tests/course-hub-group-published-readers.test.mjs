@@ -264,6 +264,14 @@ const READERS = {
       "so neither says anything of a placement before Publish has; a seat staff took off reads as taken off, and " +
       "when, which names no group either",
   },
+  "lib/courses/timeAnswer/seat.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "\"can you make this time?\": the caller's own seat only, for the card on their programme page and the one " +
+      "write of their answer. A seat Publish has not told them about is no question, whoever they are, an admin's " +
+      "own untold seat included, so neither the card nor the refusal says anything of a group before Publish has",
+  },
   "app/api/courses/runs/[runId]/nudge/route.ts": {
     kind: "shown",
     asks: 1,
@@ -362,9 +370,10 @@ const READERS = {
     kind: "staff",
     proof: ['if (!canRunTerm(user)) return refuse(403, "Only an admin can ask for an arrangement.");'],
     why:
-      "an admin's proposed arrangement into groups: it reads each seat on the run for the group somebody sits in now " +
-      "and whether Publish has told them it. A placement Publish has told stays where it is; one it has not told is " +
-      "only where somebody sits today, which the proposal may move. It shows the admin alone and writes nothing",
+      "an admin's arrangement into groups, and Circles' picture of the run's groups as they are: it reads each seat " +
+      "on the run for the group somebody sits in now and whether Publish has told them it. Every placement stays " +
+      "where it is in a suggestion; one Publish has not told may be moved by the admin, or by a suggestion only when " +
+      "the admin starts again, and Circles marks it not told yet. It shows the admin alone and writes nothing",
   },
   "lib/applications/handover/load.ts": {
     kind: "staff",

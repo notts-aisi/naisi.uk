@@ -86,7 +86,46 @@ export const ENROLMENT_LIMITS = {
   /** Free text a member types when they leave. Optional, and never shown
       back to the cohort: the programme's lead and admins read it. */
   dropOutReason: 500,
+  /** Why their group's time does not work, from "I can't make this time".
+      Required with that answer; the programme's lead and admins read it. */
+  timeAnswerReason: 500,
+  /** Which other times would, from the same form. Required with it. */
+  timeAnswerAlternatives: 300,
 } as const;
+
+/**
+ * "CAN YOU MAKE THIS TIME?" (Zach, 29 Oct 2026): the person's own answer
+ * about the group Publish told them, kept on their seat.
+ *
+ *  - `yes`: they can make it.
+ *  - `cant`: they can't make this time, why, and which other times would.
+ *    It KEEPS their place and their seat and asks to be moved. It is not
+ *    leaving (`src/lib/courses/leaveRun.ts`), which gives the place back,
+ *    and nothing about it touches that path.
+ *
+ * `forGroupId` is the group the answer was given about. A seat that changes
+ * group has its answer deleted in the same write (every writer that clears
+ * Publish's stamp clears this too), and a reader shows an answer only while
+ * it is about the seat's group now (`currentTimeAnswer` in
+ * `src/lib/courses/timeAnswer/model.ts`), so a stale answer can never show.
+ *
+ * Written only by `POST /api/courses/runs/[runId]/time-answer`, on the
+ * caller's own seat. Read by the person, the programme's lead and admins,
+ * never by facilitators or the rest of the group. Kept with the seat, so it
+ * is deleted with the account and with the run.
+ */
+export type TimeAnswerKind = "yes" | "cant";
+
+export type StoredTimeAnswer = {
+  kind: TimeAnswerKind;
+  /** Why the time does not work: set with `cant`, null with `yes`. */
+  reason: string | null;
+  /** Which other times would: set with `cant`, null with `yes`. */
+  alternatives: string | null;
+  /** The group it was given about. */
+  forGroupId: string;
+  at: Date | null;
+};
 
 export type CourseEnrolmentDoc = {
   /** Firestore doc id: `courseEnrolmentId(runId, uid)`. */
@@ -192,6 +231,12 @@ export type CourseEnrolmentDoc = {
    * clears the stamp and leaves this for the next Publish to overwrite.
    */
   allocatedEmailDelivery?: "sent" | "held" | "suppressed";
+  /**
+   * The person's answer to "can you make this time?" (see
+   * `StoredTimeAnswer`). Absent until they answer, and on a stored value
+   * that is not a whole answer.
+   */
+  timeAnswer?: StoredTimeAnswer;
   createdAt?: Date | null;
   updatedAt?: Date | null;
 };
@@ -315,6 +360,32 @@ function asAttendanceRollup(v: unknown): EnrolmentAttendanceRollup {
   };
 }
 
+/** A line of the person's own, trimmed and capped, or null for nothing written. */
+function ownWords(v: unknown, max: number): string | null {
+  if (typeof v !== "string") return null;
+  const trimmed = v.trim();
+  return trimmed ? trimmed.slice(0, max) : null;
+}
+
+/**
+ * A stored answer, or undefined when it is not a whole one: a known kind, the
+ * group it is about, and for `cant` both of what they wrote. A `yes` carries
+ * no words, whatever the document holds.
+ */
+function asTimeAnswer(v: unknown): StoredTimeAnswer | undefined {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+  const raw = v as Raw;
+  if (raw.kind !== "yes" && raw.kind !== "cant") return undefined;
+  if (typeof raw.forGroupId !== "string" || !raw.forGroupId) return undefined;
+  if (raw.kind === "yes") {
+    return { kind: "yes", reason: null, alternatives: null, forGroupId: raw.forGroupId, at: tsToDate(raw.at) };
+  }
+  const reason = ownWords(raw.reason, ENROLMENT_LIMITS.timeAnswerReason);
+  const alternatives = ownWords(raw.alternatives, ENROLMENT_LIMITS.timeAnswerAlternatives);
+  if (!reason || !alternatives) return undefined;
+  return { kind: "cant", reason, alternatives, forGroupId: raw.forGroupId, at: tsToDate(raw.at) };
+}
+
 export function normalizeCourseEnrolment(id: string, data: Raw): CourseEnrolmentDoc {
   const status = data.status as CourseEnrolmentStatus;
   const doc: CourseEnrolmentDoc = {
@@ -356,5 +427,7 @@ export function normalizeCourseEnrolment(id: string, data: Raw): CourseEnrolment
   if (delivery === "sent" || delivery === "held" || delivery === "suppressed") {
     doc.allocatedEmailDelivery = delivery;
   }
+  const timeAnswer = asTimeAnswer(data.timeAnswer);
+  if (timeAnswer) doc.timeAnswer = timeAnswer;
   return doc;
 }

@@ -126,6 +126,7 @@ const MUST_GUARD = [
   ["src/app/api/courses/progress/[progressId]/moderate/route.ts", "moderates a learner's recorded progress"],
   ["src/app/api/courses/runs/[runId]/allocate/route.ts", "allocates applicants to groups"],
   ["src/app/api/courses/runs/[runId]/allocation/publish/route.ts", "publishes an allocation, which tells applicants their place"],
+  ["src/app/api/courses/runs/[runId]/allocation/publish/notes/route.ts", "saves a note, or none, for somebody placed outside the times they gave, and asks Claude to draft one"],
   ["src/app/api/courses/runs/[runId]/allocation/publish/test/route.ts", "sends Publish's first emails to the presser as a test, and records the test Publish waits for"],
   ["src/app/api/courses/runs/[runId]/applications/[uid]/decide/route.ts", "accepts, waitlists or rejects an application"],
   ["src/app/api/courses/runs/[runId]/applications/[uid]/notes/route.ts", "writes reviewer notes on an applicant"],
@@ -260,6 +261,10 @@ const MUST_GUARD = [
     "sends a test of the ask's email to the address on the session, and records it on the run",
   ],
   [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/case/draft/route.ts",
+    "sends one person's application to Claude to draft the sentence that makes the case to them, in the caller's name",
+  ],
+  [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/remind/route.ts",
     "reminds one person of their ask by email, in the caller's name, and counts the reminder",
   ],
@@ -278,6 +283,14 @@ const MUST_GUARD = [
   [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/route.ts",
     "adds a group to the run a programme names, from the Times view",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/campus/route.ts",
+    "sets a group's campus on the run a programme names, from the Groups tab's Sessions view",
+  ],
+  [
+    "src/app/api/courses/runs/[runId]/time-answer/route.ts",
+    "records the person's own answer to can you make this time on their own seat, which the programme's lead and admins read",
   ],
   [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time/route.ts",

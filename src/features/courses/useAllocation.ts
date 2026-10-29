@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { GroupCampus } from "@/lib/courses/campus";
 import type { PublishReport } from "@/lib/courses/publishWords";
+import type { TimeAnswerView } from "@/lib/courses/timeAnswer/model";
 import type { WeekPlanEntry } from "@/lib/courses/weekPlan";
 import type { FormPlace } from "./allocationFit";
 
@@ -76,6 +78,8 @@ export type AllocGroup = {
   tag: string;
   when: string;
   room: string;
+  /** The group's campus, or null while none is chosen: shown beside `room` ("" for none yet). */
+  campus: GroupCampus | null;
   memberCount: number;
   /**
    * ── THE AUTONOMY TRIPLE (V2-3) ────────────────────────────────────────────
@@ -139,6 +143,15 @@ export type AllocRow = {
    * only then.
    */
   putBack?: true;
+  /**
+   * What they said to "can you make this time?" about the group they are in
+   * now: "yes", or "cant" with why and which other times would. Null before
+   * they answer, and always null for a viewer who is not an admin or the
+   * programme's lead (the route decides). Facilitators never reach this
+   * payload. The words for a card's mark are in
+   * `src/lib/courses/timeAnswer/words.ts`.
+   */
+  timeAnswer: TimeAnswerView | null;
 };
 
 /**
@@ -163,6 +176,10 @@ export type PublishSummary = {
    * leaves them out. Present only when there is somebody.
    */
   gaveBack?: number;
+  /** Facilitators already told about their group whom a press tells who has joined. Present only when there is somebody. */
+  joined?: number;
+  /** Who a press waits for a note, or "Send without a note", for. Present only when there is somebody. */
+  notesNeeded?: string[];
   test: {
     state: "none" | "stale" | "fresh";
     /** "5:38pm", or "Mon 26 Oct at 5:38pm". */

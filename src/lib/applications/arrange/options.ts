@@ -1,4 +1,4 @@
-import { canMake, planGroups, slotFor, type ArrangeGroup, type ArrangePerson, type CandidateTime, type Plan } from "./plan";
+import { canMake, planGroups, slotFor, stayingIn, type ArrangeGroup, type ArrangePerson, type CandidateTime, type Plan } from "./plan";
 
 /**
  * SEVERAL WORKABLE ARRANGEMENTS, NOT ONE, for Claude to weigh and an admin to
@@ -17,9 +17,10 @@ import { canMake, planGroups, slotFor, type ArrangeGroup, type ArrangePerson, ty
  *    or two groups more, at the times most of them can make.
  *  - WHETHER A GROUP KEEPS ITS TIME. The run's groups at the times they have
  *    now is always one of the options. The others may give a new time to any
- *    group nobody has been told they are in (the screen marks it "new time",
- *    and Apply changes it through the group's own time route); a group
- *    somebody has been told about keeps its time in every option.
+ *    group nobody stays in (the screen marks it "new time", and Apply changes
+ *    it through the group's own time route); a group somebody stays in
+ *    (`./plan.ts` rule 1), a group with a facilitator, and a group Publish has
+ *    told anybody the time of keep their time in every option.
  *
  * Then each is evened out for FACILITATORS (`spreadFacilitators`): every
  * group with somebody in it who offered to facilitate, and the strongest of
@@ -27,8 +28,9 @@ import { canMake, planGroups, slotFor, type ArrangeGroup, type ArrangePerson, ty
  * site's guess before Claude has said anything (`Strength`): whether they
  * offered, then the lean of Claude's earlier read, less for thin answers.
  *
- * Everything `./plan.ts` promises holds for every option: nobody already told
- * their group moves, nobody is seated in a group they cannot make (except the
+ * Everything `./plan.ts` promises holds for every option: nobody already
+ * placed moves (unless the admin starts again, and then never the told or a
+ * facilitator), nobody is seated in a group they cannot make (except the
  * people who marked little time and were placed near it, rule 6), no group
  * goes past its room. Options are compared (`scoreOf`) by how many people who
  * marked a real week are seated, then how few are only near their time, then
@@ -142,8 +144,9 @@ export function compareScores(a: CandidateScore, b: CandidateScore): number {
  * the strongest (`strength` of 3 or more) are shared out the same way, so no
  * group holds two while another has none. A person moves only to a group
  * they can make, with room, or by swapping with somebody who did not offer
- * and can make the other group. Nobody already told their group moves, and
- * nobody placed near their time does either.
+ * and can make the other group. Nobody who stays where they are (`keptUids`:
+ * told, facilitating, or placed already) moves, and nobody placed near their
+ * time does either.
  */
 export function spreadFacilitators(
   plan: Plan,
@@ -213,14 +216,17 @@ export function candidatePlans(input: {
   size: number;
   names: (taken: readonly string[]) => string;
   strength: Strength;
+  /** Seat afresh everybody placed and not told (`./plan.ts`, rule 1). */
+  startAgain?: boolean;
 }): Candidate[] {
   const people = new Map(input.people.map((person) => [person.uid, person] as const));
+  const startAgain = input.startAgain === true;
   const sizes = [...new Set([input.size, input.size - 1])].filter((size) => size >= 3);
   const seen = new Set<string>();
   const found: Candidate[] = [];
 
   const consider = (groups: readonly ArrangeGroup[], best: readonly CandidateTime[], size: number, extra = 0): Candidate | null => {
-    const planned = planGroups({ people: input.people, groups, best, minutes: input.minutes, size, names: input.names, extra });
+    const planned = planGroups({ people: input.people, groups, best, minutes: input.minutes, size, names: input.names, extra, startAgain });
     // A group given back the time it has already is not a new time.
     for (const group of planned.groups) {
       const had = group.id ? input.groups.find((each) => each.id === group.id)?.session : null;
@@ -236,11 +242,13 @@ export function candidatePlans(input: {
     return candidate;
   };
 
-  // A group somebody has been told they are in keeps its time; any other may be given a new one.
-  const told = new Set(input.people.filter((person) => person.told && person.groupId).map((person) => person.groupId));
-  const loose = input.groups.map((group) => (told.has(group.id) ? group : { ...group, session: null }));
+  // A group somebody stays in, or that keeps its time, keeps it; any other may be given a new one.
+  const liveIds = new Set(input.groups.map((group) => group.id));
+  const occupied = new Set(input.people.map((person) => stayingIn(person, liveIds, startAgain)).filter((id) => id !== null));
+  const fixed = (group: ArrangeGroup) => group.keepsTime === true || group.staffed === true || occupied.has(group.id);
+  const loose = input.groups.map((group) => (fixed(group) ? group : { ...group, session: null }));
   // Only worth trying when some group with a time could be given another.
-  const layouts = input.groups.some((group) => group.session !== null && !told.has(group.id))
+  const layouts = input.groups.some((group) => group.session !== null && !fixed(group))
     ? [input.groups, loose]
     : [input.groups];
 
@@ -248,7 +256,7 @@ export function candidatePlans(input: {
   const asTheyAre = consider(input.groups, input.best, input.size);
   for (const groups of layouts) {
     for (const size of sizes) {
-      const base = planGroups({ people: input.people, groups, best: input.best, minutes: input.minutes, size, names: input.names });
+      const base = planGroups({ people: input.people, groups, best: input.best, minutes: input.minutes, size, names: input.names, startAgain });
       consider(groups, input.best, size);
       const needed = base.groups.filter((group) => group.timeIsNew).length;
       const top = input.best.slice(0, TOP_TIMES);

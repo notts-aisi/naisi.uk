@@ -1,4 +1,5 @@
 import "server-only";
+import type { GroupCampus } from "@/lib/courses/campus";
 import type { Firestore } from "firebase-admin/firestore";
 import { nextGroupName, sharedPlaces } from "@/lib/courses/groupTimes/rules";
 import { readsOf, toldGroupIds } from "@/lib/courses/groupTimes/told";
@@ -113,7 +114,7 @@ export type TimesOutcome =
 const GROUPS_COLLECTION = "courseGroups";
 
 /** One live group of the run: what the picture reads, and what its controls ask about it. */
-export type LiveGroup = TimesGroup & { facilitatorUids: string[]; capacity: number | null };
+export type LiveGroup = TimesGroup & { facilitatorUids: string[]; capacity: number | null; campus: GroupCampus | null };
 
 /** The run's groups that are not archived, reduced to what the picture and its controls read. */
 export async function groupsOf(db: Firestore, runId: string): Promise<LiveGroup[]> {
@@ -134,6 +135,7 @@ export async function groupsOf(db: Firestore, runId: string): Promise<LiveGroup[
       },
       facilitatorUids: [...group.facilitatorUids],
       capacity: group.capacity,
+      campus: group.campus,
     });
   }
   return groups;

@@ -1,7 +1,7 @@
+import { CirclesLink } from "@/features/applications/circles/CirclesNotes";
 import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import GroupsViews from "@/features/applications/groups/GroupsViews";
 import NotYours from "@/features/applications/groups/NotYours";
-import ArrangeGroups from "@/features/applications/times/ArrangeGroups";
 import TimesPicture from "@/features/applications/times/TimesPicture";
 import { loadTimesPicture } from "@/lib/applications/handover/timesLoad";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -23,10 +23,10 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * group editor offers, or one a group of the run already has. Anything else
  * counts the default, which comes from the run's groups.
  *
- * For an admin, Arrange groups sits under the picture, and before decision
- * day under the sentence that stands in for it, as a preview: up to five
- * splits into groups with facilitators, applied only when they press Apply
- * (`src/features/applications/times/ArrangeGroups.tsx`).
+ * For an admin, a short link under the picture (and before decision day
+ * under the sentence that stands in for it) leads to Circles, where groups
+ * are arranged: the run's groups as rings, and suggestions drawn over them
+ * (`src/features/applications/circles/Circles.tsx`).
  */
 export default async function ProgrammeTimesPage({
   params,
@@ -54,19 +54,12 @@ export default async function ProgrammeTimesPage({
           programmeId={view.programmeId}
           current="times"
           pitches={view.pitchingWeek !== null}
+          circles={view.viewer === "admin"}
         />
       }
       arrange={
-        // An admin's alone: it asks Claude about named people. The route asks
-        // again, and refuses anybody else before it reads anything.
-        view.viewer === "admin" ? (
-          <ArrangeGroups
-            roundId={view.roundId}
-            programmeId={view.programmeId}
-            lengths={view.length.options.length > 0 ? view.length.options : [view.length.usual]}
-            counted={view.length.counted || view.length.usual}
-          />
-        ) : null
+        // Circles is an admin's alone: it shows marked weeks and Claude's reads.
+        view.viewer === "admin" ? <CirclesLink roundId={view.roundId} programmeId={view.programmeId} /> : null
       }
     />
   );

@@ -32,7 +32,8 @@ import { own } from "@/lib/applications/keys";
 import { divergenceNote, type GroupDivergenceInput } from "@/lib/courses/groupResolve";
 import { GroupsFrame } from "./GroupsViews";
 import styles from "./PeopleInGroups.module.css";
-import { POOL, TAKE_OFF, marksOf, menuOptions, type Mark } from "./peopleInGroupsBoard";
+import { POOL, TAKE_OFF, marksOf, menuOptions, notToldYet, type Mark } from "./peopleInGroupsBoard";
+import { CANT_DETAILS, WHY, WOULD_WORK } from "@/lib/courses/timeAnswer/words";
 import * as words from "./peopleInGroupsWords";
 
 /**
@@ -57,6 +58,11 @@ import * as words from "./peopleInGroupsWords";
  * (a listbox that is a bottom sheet on a phone), with "Take off the run…"
  * last for a seat still on the run. The drag handle is the board's six dots,
  * for a pointer: the menu is the keyboard's and the touch screen's route.
+ *
+ * ONCE THE GROUPS ARE PUBLISHED, a card placed in a group and not told yet
+ * says "Not told yet", and a line over the board names everybody placed
+ * since ("3 placed since you published: Ana, Raj and Tom. Publish to tell
+ * them."), linking to Publish (`notToldYet`, one question for both).
  *
  * WHAT THE BOARD DRAWS AND THIS LEAVES OUT, because the feature does not
  * exist yet: "Remind" (when-you're-free open until groups go out, Q7, a
@@ -180,6 +186,17 @@ function PersonCard({ row, name, detail, marks, warns, columnId, options, onMenu
             ))}
           </span>
         )}
+        {row.timeAnswer?.kind === "cant" ? (
+          <details className={styles.why}>
+            <summary>{CANT_DETAILS}</summary>
+            <p>
+              <strong>{WHY}</strong> {row.timeAnswer.reason}
+            </p>
+            <p>
+              <strong>{WOULD_WORK}</strong> {row.timeAnswer.alternatives}
+            </p>
+          </details>
+        ) : null}
       </div>
     </div>
   );
@@ -496,10 +513,11 @@ export default function PeopleInGroups({ view, views }: Props) {
     );
   }
 
+  const published = Boolean(data.run.allocationPublishedAt);
   const cardFor = (row: AllocRow, columnId: string) => {
     const group = columnId === POOL ? null : (groupsById.get(columnId) ?? null);
     const facts = own(view.people, row.uid);
-    const { marks, warns } = marksOf(row, group, groups, facts?.coming === true);
+    const { marks, warns } = marksOf(row, group, groups, facts?.coming === true, published);
     return (
       <PersonCard
         key={row.uid}
@@ -533,11 +551,32 @@ export default function PeopleInGroups({ view, views }: Props) {
       ));
   const dragged = draggingUid ? rowsByUid.get(draggingUid) : undefined;
   const admin = view.viewer === "admin";
+  // Once published: everybody sitting in a group whom Publish has not told,
+  // in the board's order, by the name a menu item calls them.
+  const placedSince = published
+    ? groups.flatMap((group) =>
+        (byColumn.get(group.id) ?? [])
+          .filter((row) => !(row.uid in livePending) && notToldYet(row, group, true))
+          .map((row) => nameOf(row.uid).split(" ")[0]),
+      )
+    : [];
 
   return (
     <GroupsFrame views={views} beside={beside}>
       <div className={styles.body}>
         <p className={styles.line}>{view.sent ? words.boardLine(counts) : words.NOBODY_YET}</p>
+        {placedSince.length > 0 && (
+          <p className={styles.placedSince} role="status">
+            {words.placedSinceWords(placedSince).lead}{" "}
+            <Link
+              href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/publish`}
+              className={styles.noteLink}
+            >
+              {words.placedSinceWords(placedSince).link}
+            </Link>
+            .
+          </p>
+        )}
         {moveNote && (
           <p className={styles.moveNote} role="status">
             {moveNote}{" "}

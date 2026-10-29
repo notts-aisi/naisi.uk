@@ -242,6 +242,30 @@ export const CASE_LEDE =
 export const CASE_BUTTON = "Make the case…";
 export const CASE_LABEL = "Why them (the email says this)";
 
+/** Beside the box: Claude drafts the sentence from their application alone. Admins only, as the case is. */
+export const CASE_DRAFT_BUTTON = "Draft with Claude";
+export const CASE_DRAFTING = "Drafting…";
+
+/** Under a draft, for the admin: what Claude drew on, and that only the box is sent. */
+export function caseDraftedWords(basis: string): string {
+  const drew = basis.trim() ? ` It drew on: ${/[.!?]$/.test(basis.trim()) ? basis.trim() : `${basis.trim()}.`}` : "";
+  return `Claude’s draft is in the box.${drew} Read it and change it as you see fit: only what is in the box when you press Ask is sent.`;
+}
+
+/** Over the chart of a person's week beside an ask. */
+export function askWeekTitle(firstName: string): string {
+  return `When ${firstName} said they’re free, and when each group meets`;
+}
+export function askWeekNotSaid(firstName: string): string {
+  return `${firstName} didn’t say when they’re free.`;
+}
+/** The chart's words in an ask: picking a bar picks the group the email asks about, and sends nothing. */
+export const ASK_WEEK_PICK = "Ask for this group";
+export const ASK_WEEK_CURRENT = "the group you’re asking about";
+export function askWeekPickAria(group: string, when: string): string {
+  return `Ask for ${group}, ${when}`;
+}
+
 /** The button's accessible name. */
 export function caseButtonName(name: string): string {
   return `Make the case to ${name} to facilitate`;

@@ -2,6 +2,7 @@ import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import GroupsViews, { GroupsFrame } from "@/features/applications/groups/GroupsViews";
 import { PitchesAreTheLeads, ProgrammePitches } from "@/features/applications/pitches/ProgrammePitches";
 import { loadProgrammePitches } from "@/lib/applications/handover/pitchesLoad";
+import { canRunTerm } from "@/lib/applications/access";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
@@ -36,7 +37,9 @@ export default async function ProgrammePitchesPage({
   const { view } = outcome;
   return (
     <GroupsFrame
-      views={<GroupsViews roundId={view.roundId} programmeId={view.programmeId} current="pitches" pitches />}
+      views={
+        <GroupsViews roundId={view.roundId} programmeId={view.programmeId} current="pitches" pitches circles={canRunTerm(user)} />
+      }
     >
       <ProgrammePitches view={view} />
     </GroupsFrame>

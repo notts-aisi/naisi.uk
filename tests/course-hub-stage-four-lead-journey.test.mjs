@@ -518,6 +518,9 @@ async function tellTheStory() {
     { uid: "dev", groupId: C },
     { uid: "tariq", groupId: B },
   ]);
+  // Since 29 October 2026 Publish waits for a choice for anybody placed
+  // outside the times they gave: the lead chooses Send without a note.
+  seen.withoutNotes = await join_.withoutNotes("claudia");
   seen.overviewPlaced = await overview("claudia");
   seen.publishPlaced = await publishPage("claudia");
   seen.previewPlaced = await call("claudia", R.preview.GET, { runId: RUN.agi }, { course: true });

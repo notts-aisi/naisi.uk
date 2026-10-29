@@ -337,6 +337,7 @@ export default async function GroupHomePage({
       durationMinutes: group.session.durationMinutes,
       location: group.session.location,
     },
+    campus: group.campus,
     sessionNotice: changes.notice,
     cancelledSessions: changes.cancelled,
   };

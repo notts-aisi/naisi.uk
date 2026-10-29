@@ -411,6 +411,26 @@ describe("3. a change lands on the calendar's next fetch", () => {
     assert.ok(plain.every((e) => e.DESCRIPTION === undefined && e.LOCATION === "Hallward B12"));
   });
 
+  test("a group with no room yet is where its campus is; an online week still says Join on naisi.uk; a room wins", async () => {
+    // Zach, 29 Oct 2026: rooms are released separately, so a group may have
+    // a campus and no room for a while.
+    const slot = w.world.db.read(`courseGroups/${B}`).session;
+    changeGroup(B, { campus: "jubilee", session: { ...slot, location: "" }, sessionModes: { w05: "virtual" } });
+    const { events, token } = await w.calendarOf("chloe");
+    const online = events.find((e) => e.UID === uidOf(RUN.agi, B, "w05"));
+    assert.equal(online.LOCATION, "Join on naisi.uk");
+    for (const event of events.filter((e) => e !== online)) assert.equal(event.LOCATION, "Jubilee", event.UID);
+    // A group meeting online with no link yet is where its campus says.
+    changeGroup(B, { campus: "online", sessionModes: {} });
+    assert.ok(readCalendar((await w.fetchFeed(token)).body).events.every((e) => e.LOCATION === "Online"));
+    // No campus and no room: nothing, as before campuses.
+    changeGroup(B, { campus: null });
+    assert.ok(readCalendar((await w.fetchFeed(token)).body).events.every((e) => e.LOCATION === undefined));
+    // A room, with a campus: the room.
+    changeGroup(B, { campus: "jubilee", session: slot });
+    assert.ok(readCalendar((await w.fetchFeed(token)).body).events.every((e) => e.LOCATION === "Hallward B12"));
+  });
+
   test("the week the clocks go back: each session at its own London hour", async () => {
     const run = w.world.db.read(`courseRuns/${RUN.agi}`);
     put(`courseRuns/${RUN.agi}`, { ...run, startDate: "2026-10-15" });

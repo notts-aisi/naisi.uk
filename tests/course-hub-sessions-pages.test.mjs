@@ -199,13 +199,15 @@ describe("1. the Sessions view is the lead's and an admin's", () => {
         ],
       );
       assert.deepEqual(card("Group B").people.map((person) => person.name), ["Rahul Mehta", "Sofia Rossi"]);
-      // The views, with Sessions first and on screen.
+      // The views, with Sessions first and on screen. Circles, beside People
+      // in groups, is offered to an admin alone: it shows marked weeks and Claude's reads.
       const views = /<nav class="views" aria-label="Groups views">(.*?)<\/nav>/.exec(drawn.html);
       assert.deepEqual(
         [...views[1].matchAll(/<a href="([^"]+)"[^>]*>([^<]+)<\/a>/g)].map((m) => [m[2], m[1]]),
         [
           ["Sessions", `${PAGE_PATH}/groups/sessions`],
           ["People in groups", `${PAGE_PATH}/groups`],
+          ...(who === "zach" ? [["Circles", `${PAGE_PATH}/groups/circles`]] : []),
           ["Times", `${PAGE_PATH}/groups/times`],
           ["Facilitators", `${PAGE_PATH}/groups/facilitators`],
         ],

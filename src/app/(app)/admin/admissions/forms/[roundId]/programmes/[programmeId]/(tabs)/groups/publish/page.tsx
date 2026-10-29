@@ -6,6 +6,7 @@ import PublishReadiness from "@/features/applications/groups/PublishReadiness";
 import RunBlank from "@/features/applications/groups/RunBlank";
 import styles from "@/features/applications/groups/PublishGroups.module.css";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
+import { readWhatFollows } from "@/lib/courses/getReady/follows";
 import { buildReadiness } from "@/lib/courses/getReady/model";
 import { readGetReady } from "@/lib/courses/getReady/read";
 import { PUBLISH_BACK, publishHeading } from "@/lib/courses/getReady/words";
@@ -26,7 +27,9 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * worked out on the server from the facts the Overview's checklist reads
  * (`readGetReady`, `buildReadiness`); the emails and the buttons are
  * Publish's own, through its own routes, which decide again who may press
- * and refuse whatever Publish refuses, whatever this page shows.
+ * and refuse whatever Publish refuses, whatever this page shows. What can
+ * follow by itself is read here, on the server, from the scheduler's own
+ * switches (`readWhatFollows`), and never changed.
  */
 export default async function ProgrammePublishPage({
   params,
@@ -42,7 +45,12 @@ export default async function ProgrammePublishPage({
   if (!view.run) return <RunBlank view={view} />;
   const records = await readRunRecords(db, view.run.id);
   if (!records) return <RunBlank view={{ ...view, blank: "run-gone" }} />;
-  const ready = await readGetReady(db, user, view.roundId, view.programmeId, records, new Date());
+  const now = new Date();
+  const [ready, follows] = await Promise.all([
+    readGetReady(db, user, view.roundId, view.programmeId, records, now),
+    // What can follow by itself, read and never changed here.
+    readWhatFollows(db, view.roundId, records.groups, now).catch(() => null),
+  ]);
 
   return (
     <div className={styles.page}>
@@ -57,7 +65,7 @@ export default async function ProgrammePublishPage({
       </Link>
       <h2 className={styles.title}>{publishHeading(view.programmeName)}</h2>
       {ready ? <PublishReadiness model={buildReadiness(ready.facts)} roundId={view.roundId} programmeId={view.programmeId} /> : null}
-      <PublishGroups runId={view.run.id} />
+      <PublishGroups runId={view.run.id} follows={follows} admin={user.role === "admin"} />
     </div>
   );
 }

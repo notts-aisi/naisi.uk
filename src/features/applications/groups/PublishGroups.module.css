@@ -423,6 +423,53 @@
   border: 0;
 }
 
+/* A second email beside the first: one that carries a note of your own. */
+.emailSideItem {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.emailSideItem + .emailSideItem {
+  margin-top: 14px;
+}
+
+/* ── What this press sends, and what can follow by itself ──────────────── */
+
+.sends {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 16px;
+  padding: 0 0 0 18px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.sends strong {
+  font-weight: 600;
+}
+
+.sendsWarn {
+  color: var(--color-warning);
+}
+
+.inlineLink {
+  color: var(--color-accent-text);
+  font-weight: 600;
+}
+
+.inlineLink:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.inlineLink:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
 /* ── Who a press reaches, and the buttons ──────────────────────────────── */
 
 .foot {

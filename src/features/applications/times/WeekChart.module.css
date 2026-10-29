@@ -95,6 +95,15 @@
   cursor: default;
 }
 
+/* A bar on a chart that picks nothing (`words.pick` null): drawn, not pressed. */
+span.bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  cursor: default;
+}
+
 .barFits {
   border-color: var(--color-success, #2a8);
   background: color-mix(in srgb, var(--color-success, #2a8) 35%, transparent);

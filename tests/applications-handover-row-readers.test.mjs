@@ -106,6 +106,13 @@ const READERS = {
       "Publish's own page reads the run's accepted people to show who a press emails and the first email of each " +
       "kind, for the same callers as Publish: an admin, the run's track leads or the lead of the programme that names it",
   },
+  "lib/courses/placementNotes/section.ts": {
+    kind: "staff",
+    asks: 1,
+    why:
+      "Outside the times they gave, on Publish's own page, reads the run's accepted people exactly as Publish does, to " +
+      "list who a press waits for a note for, for an admin or the lead of the programme that names the run",
+  },
   "lib/courses/getReady/read.ts": {
     kind: "staff",
     asks: 1,
@@ -200,6 +207,13 @@ const READERS = {
     kind: "admin",
     proof: ["if (!canRunTerm(actor)) return { ok: false, status: 403, error: ONLY_AN_ADMIN_HANDS_OVER };"],
     why: "the hand-over itself: it creates the rows, and reads only whether each is already there",
+  },
+  "lib/applications/handover/onAcceptance.ts": {
+    kind: "own",
+    proof: ["db.collection(RUN_APPLICATIONS_COLLECTION).doc(courseApplicationId(runId, uid))"],
+    why:
+      "the hand-over that follows an accepted invitation: the reply route hands it the caller's own " +
+      "uid, and it asks only whether that one row exists before it makes it",
   },
   "lib/applications/handover/load.ts": {
     kind: "admin",
