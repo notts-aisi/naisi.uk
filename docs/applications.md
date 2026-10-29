@@ -1317,9 +1317,10 @@ wall, and the window closing stops offers, not replies.
 
 Once they accept they hold a place, and `holdingOf()` says so with no second
 reading: the hand-over, places left, the status page and the list of their
-applications all see it. So an admin presses Hand over again (it adds only
-who is missing), puts them in the group whose time their email named, and
-presses Publish, which emails only them. `tests/applications-freed-places-journey.test.mjs`
+applications all see it. Accepting hands them over to the run by itself (see
+"The hand-over", below), and puts them in no group: the group whose time
+their email named is where an admin will usually place them, by hand, and
+Publish then emails only them. `tests/applications-freed-places-journey.test.mjs`
 runs that whole path through the real handlers.
 
 The daily invitation reminder leaves a freed place alone: its day to accept
@@ -1497,6 +1498,23 @@ transaction of what that transaction read.
 
 It puts nobody in a group: the board's first placement goes on making the
 place on the run. It emails nobody. It writes no subscription.
+
+**After an accepted invitation, by itself.** Somebody who takes a place
+after decision day (an invitation decision day sent, or a freed place) is
+handed over in the reply that takes it, with the same row, the same count
+and a course log line that names them as the one who accepted
+(`handOverAfterAcceptedInvitation` in `handover/onAcceptance.ts`, called by
+the reply route after its transaction has committed, and never able to fail
+the reply). It decides from the person's own document only, because the
+reply route serves an applicant and may not reach the decisions
+(`tests/applications-boundary.test.mjs`): once somebody has been told, a
+place taken by accepting is read from their own document and nothing else,
+so `holdsPlaceOn` with no decision gives the press's answer. Whatever stops
+the press (`handOverBlocker`, which lives in `handover/blocker.ts` for that
+reason) stops it too, and the panel then names them for the press as
+before. It places nobody in a group, a freed place included, and emails
+nobody. `tests/applications-handover.test.mjs` walks every caller of the
+reply writer and fails one that takes a place without handing it over.
 
 **Nothing of the application crosses over.** A row carries who the person
 is and where the place came from. No address, no answer, no score, no
@@ -1895,9 +1913,11 @@ An admin can ask two outside services about an application, as a second
 reader beside the decision: Claude (Anthropic's API) writes a read of it, and
 Pangram, an AI-writing detector, checks its longer answers. Both are named in
 the privacy policy as processors. Neither decides anything, and nothing either
-says reaches the applicant, with one exception an admin controls: the
-personal note in an invitation, which Claude may draft and only an admin's
-Save sends (below).
+says reaches the applicant, with exceptions an admin controls: the personal
+note in an invitation, the note in a "Your group" email to somebody placed
+outside the times they gave, and the sentence that makes the case to somebody
+who did not offer to facilitate. Claude may draft each, and only words a
+person saved or sent go out (below).
 
 - **An admin's alone.** The routes refuse everybody else before anything is
   read (`src/lib/applications/assessment/run.ts`). A lead scores blind first
@@ -2076,6 +2096,20 @@ Save sends (below).
   nothing changes once the term is sent; the audit row says a note was saved
   and never what it says. `tests/applications-invite-notes.test.mjs` runs
   both routes, the words and the send's own composer.
+- **The sentence that makes the case** (`courses/facilitatorAsks/caseDraft.ts`,
+  `POST .../programmes/[programmeId]/facilitators/case/draft`, privacy v12).
+  Asking somebody who did not offer to facilitate carries a sentence of the
+  admin's on why them; "Draft with Claude" beside the box asks Claude for
+  it. Admins only, as making the case is, and only for somebody who holds a
+  place on the programme and did not offer. Claude is sent the application
+  ALONE (`applicationAlone`) and the programme's description: never a name
+  or address, never when they said they are free, never a group or its time,
+  because the email states when from records. NOTHING IS STORED: the draft
+  comes back to the admin's box, and only what is in the box when Ask is
+  pressed is sent. Beside any ask, an admin (never the lead) sees a chart of
+  the person's marked week against each group's session.
+  `tests/course-hub-facilitator-case-draft.test.mjs` holds who may, what
+  Claude is sent and that nothing is kept.
 - **Inside one request.** The backend stops a request at 300 seconds (it was
   60 until the comparison needed more). A read is given 150 seconds, a
   comparison 240, and no call is retried. The two parts of a read are
