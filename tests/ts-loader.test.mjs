@@ -1090,6 +1090,12 @@ const USERS = new Map([
       "only right if running them says so",
   ],
   [
+    "course-time-question-email.test.mjs",
+    "loads the \"Your group\" email's own section (src/lib/courses/timeAnswer/emailSection.ts), whose words " +
+      "come through the campus and time-answer word files and the society's contact address in " +
+      "src/content/socials.ts, to check where the section goes in a composed email and what it says",
+  ],
+  [
     "course-hub-times-page.test.mjs",
     "renders a programme's Groups tab (a .tsx server component) and the tabbed layout over it " +
       "as every kind of caller, through the real page gate, against a stored term and #67's " +
