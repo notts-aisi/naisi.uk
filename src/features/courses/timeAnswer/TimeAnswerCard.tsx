@@ -203,6 +203,12 @@ export default function TimeAnswerCard({
             >
               {CANT_MAKE_THIS_TIME}
             </Button>
+            {answer !== null && (
+              /* Changing their answer: keep the one they gave. */
+              <Button type="button" variant="ghost" disabled={busy} onClick={() => setChoosing(false)}>
+                {CANCEL}
+              </Button>
+            )}
           </div>
           <p className={styles.note}>{KEEP_YOUR_PLACE}</p>
           {error && (

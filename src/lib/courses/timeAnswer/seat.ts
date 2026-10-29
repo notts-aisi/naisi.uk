@@ -62,7 +62,9 @@ function askedOf(user: SessionUser, seat: CourseEnrolmentDoc, group: CourseGroup
   // copy, shown to nobody, so there is nothing to answer.
   if (!placementIsTold(seat)) return "not-asked";
   if (!isNamedWithStanding(user, "courseEnrolments.uid", seat.uid)) return "not-asked";
-  if (group.facilitatorUids.includes(user.uid)) return "facilitating";
+  // Named on the group as one of its facilitators, by the same bar every
+  // facilitator's power is asked by.
+  if (isNamedWithStanding(user, "courseGroups.facilitatorUids", group.facilitatorUids)) return "facilitating";
   return "asked";
 }
 
