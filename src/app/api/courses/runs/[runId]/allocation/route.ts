@@ -14,6 +14,7 @@ import {
 import type { GroupCampus } from "@/lib/courses/campus";
 import { shortSlotWords } from "@/lib/courses/facilitatorAsks/words";
 import { sessionLabelOf } from "@/lib/courses/outsideTheirTimes";
+import { currentTimeAnswer, type TimeAnswerView } from "@/lib/courses/timeAnswer/model";
 import { groupTagOf } from "@/lib/courses/programmeAttendance";
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
@@ -179,6 +180,15 @@ export type AllocRow = {
    * every other row is exactly as it was.
    */
   putBack?: true;
+  /**
+   * Their answer to "can you make this time?" about the group they are in
+   * now (`currentTimeAnswer`: an answer about a group they were moved out of
+   * is never here): "yes", or "cant" with why and which other times would.
+   * Null before they answer, AND for a viewer who is neither an admin nor
+   * the lead of the programme that names the run: the person wrote it for
+   * the lead and admins, so a run's track lead is sent null.
+   */
+  timeAnswer: TimeAnswerView | null;
 };
 
 /**
@@ -442,6 +452,10 @@ export async function GET(
     );
   }
 
+  // Who reads what people said about their group's time: the lead of the
+  // programme that names the run and admins, never a track lead by that alone.
+  const readsTimeAnswers = staffing.isAdmin || staffing.leadOf !== null;
+
   // Which groups each person from the form can make, and whether they still
   // hold their place there. Asked of the application system, which reads the
   // week they painted and hands back only the answer.
@@ -486,6 +500,7 @@ export async function GET(
           }
         : null,
       ...(enrolment && enrolmentIsPutBack(enrolment) ? { putBack: true as const } : {}),
+      timeAnswer: readsTimeAnswers && enrolment ? currentTimeAnswer(enrolment) : null,
     };
   });
   // Unplaced first (the work), then alphabetical — the board reads as a queue.

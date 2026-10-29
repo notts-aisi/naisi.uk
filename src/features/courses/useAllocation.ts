@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { GroupCampus } from "@/lib/courses/campus";
 import type { PublishReport } from "@/lib/courses/publishWords";
+import type { TimeAnswerView } from "@/lib/courses/timeAnswer/model";
 import type { WeekPlanEntry } from "@/lib/courses/weekPlan";
 import type { FormPlace } from "./allocationFit";
 
@@ -142,6 +143,15 @@ export type AllocRow = {
    * only then.
    */
   putBack?: true;
+  /**
+   * What they said to "can you make this time?" about the group they are in
+   * now: "yes", or "cant" with why and which other times would. Null before
+   * they answer, and always null for a viewer who is not an admin or the
+   * programme's lead (the route decides). Facilitators never reach this
+   * payload. The words for a card's mark are in
+   * `src/lib/courses/timeAnswer/words.ts`.
+   */
+  timeAnswer: TimeAnswerView | null;
 };
 
 /**
