@@ -499,10 +499,30 @@ describe("4. the line, the number beside Publish and the People tab count with o
     }
   });
 
-  test("somebody who accepts a freed place is holding one before anybody hands them over, and the line says they are not on the run yet", async () => {
+  test("somebody who accepts a freed place is handed over by accepting, in no group, and Publish waits for them", async () => {
     await termOnTheBoard();
     const accepted = await reply("omar", { reply: "accept-invitation" });
     assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
+    // On the run's list from the acceptance itself, so nobody is "not on the
+    // run yet"; still to place, because accepting places nobody.
+    const counts = await countsFor("claudia");
+    assert.deepEqual(counts, { holding: 5, inAGroup: 2, toPlace: 3, notOnTheRun: 0, invited: 0 });
+    const { text: said } = await open(PeoplePage, "zach");
+    assert.match(said, /5 holding a place · 2 in a group · 3 to place · 1 invited/);
+    assert.ok(!said.includes("not on the run yet"));
+    const refused = await publish("zach");
+    assert.deepEqual([...refused.body.unplaced].sort(), ["Bea Lindqvist", "Omar Haddad", "Tariq Mensah"]);
+  });
+
+  test("somebody who accepted while the run could not take people is named as not on the run yet", async () => {
+    await termOnTheBoard();
+    // The run cannot take anybody at the moment Omar accepts, so the
+    // acceptance hands nobody over (handOverBlocker); the run is put right after.
+    const status = world.db.read(`courseRuns/${RUN.agi}`).status;
+    world.db.poke(`courseRuns/${RUN.agi}`, { status: "draft" });
+    const accepted = await reply("omar", { reply: "accept-invitation" });
+    assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
+    world.db.poke(`courseRuns/${RUN.agi}`, { status });
     const counts = await countsFor("claudia");
     assert.deepEqual(counts, { holding: 5, inAGroup: 2, toPlace: 3, notOnTheRun: 1, invited: 0 });
     const { text: said, html } = await open(PeoplePage, "zach");
