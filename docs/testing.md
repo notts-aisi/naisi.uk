@@ -506,9 +506,10 @@ checks it, with a reason per entry; an offline guard ties the registry to the
 code; and the script compares the live setting with the registry.
 
 - `scripts/check-api-key-restrictions.mjs`: each project's web API key is
-  restricted to exactly the services the client calls. Needs a cloud identity,
-  so it runs in the end-to-end workflow, and by hand against any other
-  project.
+  restricted to exactly the services the client calls, and the project's
+  default key, which Firebase writes into its email links whether or not the
+  site uses it, is registered and exists. Needs a cloud identity, so it runs
+  in the end-to-end workflow, and by hand against any other project.
 - `scripts/check-auth-providers.mjs`, with `tests/auth-providers.test.mjs`:
   each project has switched on exactly the sign-in providers the code calls.
   The offline half reads every import from `firebase/auth` under `src` and
