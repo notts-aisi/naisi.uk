@@ -543,7 +543,13 @@ test(
           `Sessions last ${group.durationMinutes} minutes.`,
           ...(facilitator ? [`${facilitator.first} is your facilitator.`] : []),
           ...(size > 1 ? [`There are ${size} of you.`] : []),
-          "Open your programme",
+          // The site's own section (src/lib/courses/timeAnswer/emailSection.ts),
+          // in place of the template's "Open your programme".
+          "Can you make this time?",
+          "Tell us on your programme page.",
+          "You keep your place either way.",
+          "I can make it",
+          "I can’t make this time",
           "NAISI",
         ],
         absent: [
@@ -551,10 +557,18 @@ test(
           ...(size > 1 ? [] : [" of you."]),
           "Week 1’s reading",
           "lead, NAISI",
+          "Open your programme",
+          // No group here has a campus yet, so the email names none.
+          "Your group meets on",
         ],
       });
+      // The society's address, and the two buttons, each to the programme's page at its card.
       const programmePage = `${origin}${programmePath}`;
-      assert.deepEqual(email.links, [programmePage], `the placement email's one link is not the programme's page (${programmePage})`);
+      assert.deepEqual(
+        email.links,
+        ["mailto:ai-safety@uonsu.com", `${programmePage}#your-group-time`, `${programmePage}#your-group-time`],
+        `the placement email's links are not the society's address and the programme's page (${programmePage})`,
+      );
     }
 
     /**
