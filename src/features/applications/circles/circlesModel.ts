@@ -43,6 +43,8 @@ export type DrawnRing = {
   slot: { weekday: number; start: string } | null;
   /** The campus a live group meets on, or null (none chosen, or a preview's new group). */
   campus: "university-park" | "jubilee" | "online" | null;
+  /** The room a live group meets in every week, "" for none or a preview's new group. */
+  location: string;
 };
 
 const minutesOf = (text: string) => {
@@ -95,6 +97,7 @@ export function liveRings(view: CirclesView): DrawnRing[] {
     whys: [],
     slot: { ...group.slot },
     campus: group.campus,
+    location: group.location,
   }));
 }
 
@@ -131,6 +134,7 @@ export function previewRings(option: RingOption, view: CirclesView, people: Reco
       whys: group.facilitators.filter((f) => f.why).map((f) => ({ uid: f.uid, role: f.role, why: f.why })),
       slot: live ? { ...live.slot } : group.existing ? { ...group.existing.slot } : null,
       campus: live?.campus ?? null,
+      location: live?.location ?? "",
     };
   });
   for (const ring of liveRings(view)) {

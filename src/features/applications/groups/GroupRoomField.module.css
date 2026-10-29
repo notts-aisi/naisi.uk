@@ -1,0 +1,45 @@
+/* One group's room on the Groups tab: a label, the room and its button on one
+   line, wrapping under each other where the line is narrow. */
+
+.field {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+  margin: 0;
+}
+
+.label {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.input {
+  flex: 1 1 11rem;
+  min-width: 0;
+  max-width: 18rem;
+  min-height: 2.75rem;
+}
+
+.hint {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.error {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger-text);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 36rem) {
+  .input {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+}
