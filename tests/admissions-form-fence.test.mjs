@@ -818,6 +818,13 @@ const ROUND_SURFACES = {
       "adds a group to the run a programme names, from the Groups tab's Times view, reaching the round " +
       "only through loadProgrammeRun, which answers a round that is not a form as a programme that is not here",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/campus": {
+    kind: "form",
+    why:
+      "sets one group's campus on the run a programme names, from the Groups tab's Sessions view, " +
+      "reaching the round only through loadProgrammeRun, which answers a round that is not a form as a " +
+      "programme that is not here",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time": {
     kind: "form",
     why:

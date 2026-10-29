@@ -1,4 +1,4 @@
-import { CAMPUS_LABEL } from "./campusWords";
+import { CAMPUS_LABEL, CAMPUS_REFUSAL } from "./campusWords";
 
 /**
  * WHERE A GROUP MEETS, AS A CAMPUS: `courseGroups.campus`.
@@ -38,6 +38,21 @@ export function isGroupCampus(value: unknown): value is GroupCampus {
  */
 export function campusOf(raw: unknown): GroupCampus | null {
   return isGroupCampus(raw) ? raw : null;
+}
+
+/**
+ * The campus route's body, `{ campus }`: one of the three, or null to clear
+ * it. Nothing else is a campus, and a body without the key says nothing, so
+ * both are refused rather than read as "not chosen".
+ */
+export function parseCampusBody(
+  raw: unknown,
+): { ok: true; value: GroupCampus | null } | { ok: false; error: string } {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, error: CAMPUS_REFUSAL.body };
+  const body = raw as Record<string, unknown>;
+  if (!Object.hasOwn(body, "campus")) return { ok: false, error: CAMPUS_REFUSAL.notACampus };
+  if (body.campus === null) return { ok: true, value: null };
+  return isGroupCampus(body.campus) ? { ok: true, value: body.campus } : { ok: false, error: CAMPUS_REFUSAL.notACampus };
 }
 
 /** "Jubilee", or "" for no campus. */

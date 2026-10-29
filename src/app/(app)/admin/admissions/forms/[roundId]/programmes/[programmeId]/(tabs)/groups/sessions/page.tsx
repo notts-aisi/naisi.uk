@@ -24,6 +24,9 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * told the tab is the lead's and an admin's. The change route behind the
  * dialog asks again who the caller is on the run (`runStaffingOf`).
  *
+ * EACH GROUP'S CAMPUS is set on its card by the same people, through its own
+ * route (`.../groups/[groupId]/campus`), which asks the gate again.
+ *
  * WHEN GROUPS GO OUT is the run's own setting, set here above the sessions
  * by the same people (`GroupsGoOut`, saved through its own route, which asks
  * the gate again).
@@ -74,6 +77,7 @@ export default async function ProgrammeSessionsPage({
         next={link(shown.next)}
         cards={shown.cards}
         blank={shown.blank}
+        campusAt={{ roundId: view.roundId, programmeId: view.programmeId }}
       />
     </GroupsFrame>
   );
