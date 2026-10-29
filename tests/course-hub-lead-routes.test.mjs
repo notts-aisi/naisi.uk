@@ -273,6 +273,8 @@ describe("1 and 2. every route a track lead passes, as every kind of caller", ()
     const tested = await call("claudia", routes.publishTest.POST, run, { course: true });
     assert.equal(tested.status, 200, JSON.stringify(tested.body));
     assert.deepEqual([...new Set(world.mail.map((mail) => mail.to))], ["claudia@example.com"], "a test reached somebody else");
+    // The lead chooses for anybody placed outside the times they gave, as an admin would.
+    await join_.withoutNotes("claudia");
     const summary = (await join_.board("claudia")).body.publish;
     assert.equal(summary.test.state, "fresh");
     const published = await call("claudia", routes.publish.POST, run, { body: { emails: summary.emails }, course: true });

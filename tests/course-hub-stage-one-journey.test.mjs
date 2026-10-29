@@ -211,6 +211,7 @@ const courseRoutes = {
   allocate: await courseRoute("runs", "[runId]", "allocate"),
   publishTest: await courseRoute("runs", "[runId]", "allocation", "publish", "test"),
   publish: await courseRoute("runs", "[runId]", "allocation", "publish"),
+  publishNotes: await courseRoute("runs", "[runId]", "allocation", "publish", "notes"),
   remove: await courseRoute("runs", "[runId]", "enrolments", "[uid]", "remove"),
   decide: await courseRoute("runs", "[runId]", "applications", "[uid]", "decide"),
   me: await courseRoute("me"),
@@ -1025,10 +1026,33 @@ async function placesOnTheBoard() {
 // 5. "Send a test to me", then Publish
 // ---------------------------------------------------------------------------
 
+/**
+ * "Send without a note" for everybody placed outside the times they gave whom
+ * Publish waits on, as `who` chooses it on Publish's own page (29 October
+ * 2026). Answers the names chosen for.
+ */
+async function withoutNotes(who, runId = RUN) {
+  const read = await courseCall(who, courseRoutes.publishNotes.GET, { runId });
+  if (read.status !== 200) return [];
+  const chosen = [];
+  for (const row of read.body.section.rows) {
+    if (row.note.state !== "missing") continue;
+    const saved = await courseCall(who, courseRoutes.publishNotes.PUT, { runId }, {
+      body: { uid: row.uid, groupId: row.groupId, choice: "none" },
+    });
+    if (saved.status === 200) chosen.push(row.name);
+  }
+  return chosen;
+}
+
 async function testThenPublish() {
   at("publishing");
   const p = {};
   seen.publish = p;
+  // Since 29 October 2026 Publish waits for a choice for anybody it would
+  // tell who sits outside the times they gave: here, Send without a note,
+  // so the story's emails are the standard ones.
+  p.withoutNotes = await withoutNotes("zach");
   p.before = await publishSummary();
   const beforeTheUntestedPress = world.mail.length;
   p.untested = await courseCall("zach", courseRoutes.publish.POST, { runId: RUN }, { body: { emails: p.before?.emails ?? -1 } });
@@ -1069,6 +1093,8 @@ async function theIncubatorPublishes() {
   later(30);
   const i = {};
   seen.incubator = i;
+  // As for the fellowship: a choice for anybody outside the times they gave.
+  i.withoutNotes = await withoutNotes("zach", INC_RUN);
   i.before = await publishSummary("zach", INC_RUN);
   const beforeTheTest = world.mail.length;
   const pushesBefore = world.pushes.length;
@@ -2132,26 +2158,36 @@ describe("stage one of the course hub, one term from decision day to the first s
       assert.deepEqual(read.sofia, FACILITATING(["Amara", "Kofi"], true));
     });
 
-    test("Publish again owes one email, needs no new test, and sends it to her and to nobody else", () => {
+    // Until 29 October 2026 this press sent her email alone. Since then
+    // Group B's facilitators, told about it already, are told she has joined
+    // (Zach's decision of that day): one email each, after hers.
+    test("Publish again owes her email and her facilitators' that she joined, needs no new test, and sends nothing else", () => {
       assert.deepEqual(
-        [f().summary.emails, f().summary.people, f().summary.facilitators, f().summary.test],
-        [1, 1, 0, { state: "fresh", when: "Tue 27 Oct at 5:38pm", who: null }],
+        [f().summary.emails, f().summary.people, f().summary.facilitators, f().summary.joined, f().summary.test],
+        [3, 1, 0, 2, { state: "fresh", when: "Tue 27 Oct at 5:38pm", who: null }],
       );
       assert.deepEqual(f().published.body.report, {
         people: { sent: 1, held: 0, suppressed: 0 },
         facilitators: { sent: 0, held: 0, suppressed: 0 },
+        joined: { sent: 2, held: 0, suppressed: 0 },
         failed: [],
         noAddress: [],
         alreadyTold: 0,
         more: 0,
       });
-      assert.deepEqual(f().pressMail.map((mail) => [mail.to, mail.subject]), [[address("hannah"), B_SUBJECT]]);
+      assert.deepEqual(f().pressMail.map((mail) => [mail.to, mail.subject]), [
+        [address("hannah"), B_SUBJECT],
+        [address("rahul"), "Hannah has joined Group B"],
+        [address("sofia"), "Hannah has joined Group B"],
+      ]);
       assert.equal(readFrom(f().pressMail[0], "Hi "), B_PLACED("Hannah", HANNAH_GROUP_SIZE));
-      // From the freed place's test to the end: the lead's test, the offer, and her group.
+      // From the freed place's test to the end: the lead's test, the offer, her group, and who joined.
       assert.deepEqual(f().allMail, [
         [address("claudia"), "[TEST] A place has come up on AGI Strategy"],
         [address("hannah"), "A place has come up on AGI Strategy"],
         [address("hannah"), B_SUBJECT],
+        [address("rahul"), "Hannah has joined Group B"],
+        [address("sofia"), "Hannah has joined Group B"],
       ]);
     });
 

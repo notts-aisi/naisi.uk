@@ -203,6 +203,10 @@ const THROUGH = {
     via: "lib/courses/allocationPublish.ts",
     why: "Publish itself, which sends each facilitator the email its plan wrote, promising week 1's guide only while their group page shows it",
   },
+  "app/api/courses/runs/[runId]/allocation/publish/notes/route.ts": {
+    via: "lib/courses/allocationPublish.ts",
+    why: "Outside the times they gave, on Publish's own page: reads Publish's plan for who it waits on a note for, and shows nothing of the guide",
+  },
   "app/api/courses/runs/[runId]/allocation/publish/preview/route.ts": {
     via: "lib/courses/allocationPublish.ts",
     why: "Publish's own page showing the two emails as each person will get them: the plan's first facilitators' email, saying of week 1's guide what a press would",

@@ -44,7 +44,8 @@ import { syntheticWeekBlocks } from "./lib/weekBlocksFixture.mjs";
 
 const made = makeWorld("__hubGroupEmail");
 const { world, reset, call, lib } = made;
-const { routes, press, board, place } = await loadJoin(made);
+const join_ = await loadJoin(made);
+const { routes, press, board, place } = join_;
 const plan = await lib("courses", "allocationPublish.ts");
 const weekTime = await lib("courses", "weekTime.ts");
 
@@ -126,7 +127,15 @@ function hubSeed(over = {}) {
 
 const summary = async () => (await board("zach")).body.publish;
 const sendTest = () => call("zach", routes.publishTest.POST, { runId: RUN.agi }, { course: true });
-const pressNow = async () => call("zach", routes.publish.POST, { runId: RUN.agi }, { body: { emails: (await summary()).emails }, course: true });
+/**
+ * A press with the number the board shows, after choosing "Send without a
+ * note" for anybody placed outside the times they gave, as Publish's own page
+ * asks first, so the emails read here are the standard ones.
+ */
+const pressNow = async () => {
+  await join_.withoutNotes();
+  return call("zach", routes.publish.POST, { runId: RUN.agi }, { body: { emails: (await summary()).emails }, course: true });
+};
 
 const isTest = (mail) => mail.subject.startsWith("[TEST]");
 const isFacilitating = (mail) => mail.subject.replace("[TEST] ", "").startsWith("You’re facilitating");
@@ -392,7 +401,11 @@ describe("4. somebody told after the group first met", () => {
     const before = world.mail.length;
     const pressed = await pressNow();
     assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
-    const told = world.mail.slice(before).filter((mail) => !isFacilitating(mail));
+    // Since 29 October 2026 Sofia, told about Group A already, is also told
+    // that Amara has joined it: a facilitator's email, not a group's.
+    const joined = world.mail.slice(before).filter((mail) => mail.subject === "Amara has joined Group A");
+    assert.deepEqual(joined.map((mail) => mail.to), ["sofia@example.com"]);
+    const told = world.mail.slice(before).filter((mail) => !isFacilitating(mail) && !joined.includes(mail));
     assert.deepEqual(told.map((mail) => mail.to), ["amara@example.com"]);
     const amara = await opened(told[0]);
     assert.ok(

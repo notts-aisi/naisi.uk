@@ -447,10 +447,10 @@ export async function GET(
     db,
     staffing,
     accepted.filter((a) => a.fromForm !== null),
-    groupSnap.docs.map((d) => {
-      const g = normalizeCourseGroup(d.id, d.data() ?? {});
-      return { id: g.id, session: g.session };
-    }),
+    groupSnap.docs
+      .map((d) => normalizeCourseGroup(d.id, d.data() ?? {}))
+      .sort(compareGroupsByMeeting)
+      .map((g) => ({ id: g.id, session: g.session })),
   );
 
   const people: AllocRow[] = accepted.map((app) => {

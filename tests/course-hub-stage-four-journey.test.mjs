@@ -97,6 +97,7 @@ const routes = {
   board: await courseRoute("runs", "[runId]", "allocation"),
   publish: await courseRoute("runs", "[runId]", "allocation", "publish"),
   publishTest: await courseRoute("runs", "[runId]", "allocation", "publish", "test"),
+  publishNotes: await courseRoute("runs", "[runId]", "allocation", "publish", "notes"),
   facilitators: await courseRoute("groups", "[groupId]", "facilitators"),
   blocks: await courseRoute("runs", "[runId]", "weeks", "[weekId]", "blocks"),
   ready: await courseRoute("runs", "[runId]", "weeks", "[weekId]", "ready"),
@@ -486,6 +487,16 @@ describe("2. groups go out (Wed 28 Oct)", () => {
   test("Publish tells Bea twice: her group, which names only her co-facilitators, and that she facilitates it", async () => {
     at("2026-10-28T10:00:00Z");
     world.mail.length = 0;
+    // Since 29 October 2026 Publish waits for a choice for anybody placed
+    // outside the times they gave: Send without a note, as Publish's own page
+    // offers, so the emails read here are the standard ones.
+    const outside = ok(await asCourse("zach", routes.publishNotes.GET, { runId: RUN.agi }), "outside the times they gave");
+    for (const row of outside.section.rows.filter((each) => each.note.state === "missing")) {
+      ok(
+        await asCourse("zach", routes.publishNotes.PUT, { runId: RUN.agi }, { uid: row.uid, groupId: row.groupId, choice: "none" }),
+        `without a note for ${row.name}`,
+      );
+    }
     let summary = ok(await asCourse("zach", routes.board.GET, { runId: RUN.agi }), "board").publish;
     if (summary.emails > 0 && summary.test.state !== "fresh") {
       ok(await asCourse("zach", routes.publishTest.POST, { runId: RUN.agi }), "publish test");

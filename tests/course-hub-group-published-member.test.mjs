@@ -309,16 +309,20 @@ describe("a test of Publish's emails shows nobody their group, and a press shows
     const roster = await ask.roster("tess", GROUP.thursday);
     assert.deepEqual([roster.body.members.map((m) => m.uid), roster.body.notYetTold], [["amara"], true]);
 
-    // The next press writes to him alone, and then he reads his group.
+    // The next press writes to him, and then he reads his group. Since 29
+    // October 2026 Tess, told about the group by the first press, is told he
+    // has joined it: her roster said a name was still to come.
     world.mailFate = null;
     world.mail.length = 0;
     const again = await steps.publishes();
-    assert.deepEqual([again.report.people, again.report.facilitators, again.report.failed], [
+    assert.deepEqual([again.report.people, again.report.facilitators, again.report.joined, again.report.failed], [
       { sent: 1, held: 0, suppressed: 0 },
       { sent: 0, held: 0, suppressed: 0 },
+      { sent: 1, held: 0, suppressed: 0 },
       [],
     ]);
-    assert.deepEqual(world.mail.map((m) => m.to), [addressOf("tariq")]);
+    assert.deepEqual(world.mail.map((m) => m.to), [addressOf("tariq"), addressOf("tess")]);
+    assert.equal(world.mail[1].subject, "Tariq has joined Thursday morning");
     assert.deepEqual(stampedSeats(), ["amara", "bea", "dev", "tariq"]);
     assert.deepEqual((await ask.me("tariq")).map((entry) => entry.groupName), ["Thursday morning"]);
     assert.deepEqual(
