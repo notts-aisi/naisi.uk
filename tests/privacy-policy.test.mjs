@@ -4023,6 +4023,10 @@ describe("the course hub passage", () => {
           "src/lib/courses/weekOne/door.ts",
           "week 1's door: the caller's own application and decision, read only to answer whether they hold a place, which opens week 1 to them before groups go out. Nothing of either is shown to anybody, a facilitator least of all",
         ],
+        [
+          "src/lib/courses/placementNotes/section.ts",
+          "Outside the times they gave, on Publish's own page: the week somebody marked, read for an ADMIN alone to draw beside their group's session while a note to them is written. The section refuses everybody but an admin and the programme's lead, and the lead is sent no week. A facilitator never reaches it",
+        ],
       ]),
       "reading applications on the course side",
       "A facilitator is shown nothing from applications but whether each person in their group has said " +

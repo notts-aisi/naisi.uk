@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { isAddressableId } from "@/lib/addressableId";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
-import { getCurrentUser } from "@/lib/firebase/session";
+import { getCurrentUser, type SessionUser } from "@/lib/firebase/session";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { draftPlacementNote } from "@/lib/courses/placementNotes/draft";
 import { PLACEMENT_NOTE_LIMIT, tidyPlacementNote, type PlacementChoice } from "@/lib/courses/placementNotes/model";
@@ -65,9 +65,7 @@ function idOf(value: unknown): string | null {
   return id && id.length <= 160 && isAddressableId(id) ? id : null;
 }
 
-async function context(runId: string) {
-  const actor = await getCurrentUser();
-  if (!actor) return { error: NextResponse.json({ error: "Not signed in" }, { status: 401 }) } as const;
+async function context(runId: string, actor: SessionUser) {
   const db = getAdminDb();
   if (!db) return { error: NextResponse.json({ error: "Server not configured" }, { status: 500 }) } as const;
   const runSnap = await db.collection("courseRuns").doc(runId).get();
@@ -79,19 +77,21 @@ async function context(runId: string) {
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
   const read = await readOutsideSection(db, actor, run);
   if (!read.ok) return { error: NextResponse.json({ error: read.error }, { status: read.status }) } as const;
-  return { actor, db, run, read } as const;
+  return { db, run, read } as const;
 }
 
 /** The section again, after a change, for whoever made it. */
-async function sectionAfter(runId: string) {
-  const again = await context(runId);
+async function sectionAfter(runId: string, actor: SessionUser) {
+  const again = await context(runId, actor);
   if ("error" in again) return again.error;
   return NextResponse.json({ ok: true, section: again.read.section }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function GET(_req: Request, ctx: Ctx) {
   const { runId } = await ctx.params;
-  const found = await context(runId);
+  const actor = await getCurrentUser();
+  if (!actor) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const found = await context(runId, actor);
   if ("error" in found) return found.error;
   return NextResponse.json({ ok: true, section: found.read.section }, { headers: { "Cache-Control": "no-store" } });
 }
@@ -101,9 +101,11 @@ export async function PUT(req: Request, ctx: Ctx) {
   if (blocked) return blocked;
 
   const { runId } = await ctx.params;
-  const found = await context(runId);
+  const actor = await getCurrentUser();
+  if (!actor) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const found = await context(runId, actor);
   if ("error" in found) return found.error;
-  const { actor, db, read } = found;
+  const { db, read } = found;
 
   const body = await readBody(req);
   if (!body) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
@@ -139,7 +141,7 @@ export async function PUT(req: Request, ctx: Ctx) {
     console.error("[placement note] could not save", runId, err);
     return NextResponse.json({ error: "Could not save that. Try again." }, { status: 500 });
   }
-  return sectionAfter(runId);
+  return sectionAfter(runId, actor);
 }
 
 export async function POST(req: Request, ctx: Ctx) {
@@ -152,7 +154,7 @@ export async function POST(req: Request, ctx: Ctx) {
   // Claude drafts for an admin alone, refused before anything is read.
   if (actor.role !== "admin") return NextResponse.json({ error: ONLY_ADMINS_DRAFT }, { status: 403 });
 
-  const found = await context(runId);
+  const found = await context(runId, actor);
   if ("error" in found) return found.error;
   const { db, read } = found;
 
@@ -174,5 +176,5 @@ export async function POST(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Could not draft that note. Try again." }, { status: 500 });
   }
   if (!drafted.ok) return NextResponse.json({ error: drafted.error }, { status: drafted.status });
-  return sectionAfter(runId);
+  return sectionAfter(runId, actor);
 }

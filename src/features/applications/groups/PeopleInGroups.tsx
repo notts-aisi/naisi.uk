@@ -548,7 +548,6 @@ export default function PeopleInGroups({ view, views }: Props) {
           .map((row) => nameOf(row.uid).split(" ")[0]),
       )
     : [];
-  const publishHref = `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/publish`;
 
   return (
     <GroupsFrame views={views} beside={beside}>
@@ -557,7 +556,10 @@ export default function PeopleInGroups({ view, views }: Props) {
         {placedSince.length > 0 && (
           <p className={styles.placedSince} role="status">
             {words.placedSinceWords(placedSince).lead}{" "}
-            <Link href={publishHref} className={styles.noteLink}>
+            <Link
+              href={`/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/groups/publish`}
+              className={styles.noteLink}
+            >
               {words.placedSinceWords(placedSince).link}
             </Link>
             .
