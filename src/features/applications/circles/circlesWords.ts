@@ -91,14 +91,14 @@ export function moveAria(name: string, group: string): string {
 /** What is wrong with a group as it stands, a sentence each. */
 export const WARN = {
   near: (name: string) => `${name} is near their time, not in it: check with them.`,
-  cant: (name: string) => `${name} said they can’t make this time.`,
+  cant: (name: string) => `${name} didn’t mark this time as free on their application.`,
   over: (count: number, room: number) => `${count} people, and room for ${room}.`,
   noFacilitator: "No facilitator.",
   noBackUp: (name: string) => `${name} didn’t offer to facilitate, and nobody here who did is backing them up.`,
 };
 
 export const LEGEND =
-  "Click a person to see their week and what Claude made of their application, then click a ring, or a group on their chart, to move them. A red tag is somebody who can’t make that time, “!” is a Pangram flag, and “Not told yet” is somebody Publish hasn’t told their group.";
+  "Click a person to see their week and what Claude made of their application, then click a ring, or a group on their chart, to move them. A red tag is somebody who didn’t mark that time as free, “!” is a Pangram flag, and “Not told yet” is somebody Publish hasn’t told their group.";
 
 // ---------------------------------------------------------------------------
 // One person

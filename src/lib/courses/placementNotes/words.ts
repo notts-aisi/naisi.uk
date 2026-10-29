@@ -14,7 +14,7 @@ export function outsideTitle(count: number): string {
 }
 
 export const OUTSIDE_LINE =
-  "Each person here is in a group that meets at a time they said they can’t make. Publish waits until each has a note of your own, which goes above the details in their “Your group” email, or Send without a note. The site still writes their group, day, time and facilitators, and leaves the room out until the group has one.";
+  "Each person here is in a group that meets at a time they didn’t mark as free on their application. Publish waits until each has a note of your own, which goes above the details in their “Your group” email, or Send without a note. The site still writes their group, day, time and facilitators, and leaves the room out until the group has one.";
 
 /** "Group B · Tuesdays at 6pm", or the group alone with no day and time. */
 export function groupLine(groupName: string, meets: string | null): string {

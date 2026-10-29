@@ -367,13 +367,13 @@ export function moveButtonWords(firstName: string): string {
 }
 
 /**
- * "Joel Adeyemi is in Group A on Thursdays at 6pm, but said they’re not free
- * then." Somebody placed at a time the week they painted does not cover.
+ * "Joel Adeyemi is in Group A on Thursdays at 6pm, but didn’t mark that time
+ * as free." Somebody placed at a time the week they painted does not cover.
  */
 export function placedNotFreeWords(name: string, groupName: string, meets: string | null): string {
   return meets
-    ? `${name} is in ${groupName} on ${meets}, but said they’re not free then.`
-    : `${name} is in ${groupName}, but said they’re not free when it meets.`;
+    ? `${name} is in ${groupName} on ${meets}, but didn’t mark that time as free.`
+    : `${name} is in ${groupName}, but didn’t mark its time as free.`;
 }
 
 /** "32 of 32." / "26 of 30. Dev, Ben, Rory and Jasmine have no group yet." */

@@ -627,7 +627,7 @@ describe("4. Publish's readiness check: what Publish refuses for is needed, the 
     const fit = item(readiness, "fit-tariq");
     assert.deepEqual([fit.state, fit.title, fit.detail, fit.link], [
       "check",
-      "Tariq Mensah is in Group A on Thursdays at 6pm, but said they’re not free then.",
+      "Tariq Mensah is in Group A on Thursdays at 6pm, but didn’t mark that time as free.",
       "Publish anyway, or move Tariq first.",
       { to: "groups", label: "Move Tariq…" },
     ]);
