@@ -765,6 +765,13 @@ const ROUND_SURFACES = {
       "sends a test of the ask's email, through sendAskTest, which reaches the round as the ask does " +
       "and finds nothing for a round that is not a form",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/case/draft": {
+    kind: "form",
+    why:
+      "drafts the sentence that makes the case to somebody who did not offer, through draftCase, which " +
+      "reaches the round only through askContext and the form's own loader, and answers a round that " +
+      "is not a form as a programme that is not here",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/remind": {
     kind: "form",
     why:

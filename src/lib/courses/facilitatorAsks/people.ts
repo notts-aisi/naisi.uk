@@ -1,6 +1,8 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import { markedRanges, type MarkedRange } from "@/lib/admissions/availability";
 import { loadTerm } from "@/lib/applications/decisionDay/term";
+import { paintedWeekOf, type PaintedWeek } from "@/lib/applications/handover/paintedWeek";
 import type { ApplicationDoc, ProgrammeSettings, QuestionSetDoc } from "@/lib/applications/model";
 import type { ApplicationForm } from "@/lib/applications/normalise";
 import { applicantDetail, applicantFirstName, applicantName } from "@/lib/applications/review/people";
@@ -36,6 +38,13 @@ export type FacilitatorPerson = {
   standing: Standing;
   /** Their account's role now, or null for an account that is gone. */
   role: string | null;
+  /**
+   * When they said they are free, by the site's own reading, and the stretches
+   * they marked. For an admin's chart beside an ask only: the view leaves both
+   * out for anybody else, and neither is ever sent to Claude.
+   */
+  painted: PaintedWeek;
+  marked: MarkedRange[];
 };
 
 export async function loadFacilitatorPeople(
@@ -72,6 +81,8 @@ export async function loadFacilitatorPeople(
         answers: answersFor(form, sets, sent),
         standing: standingOf(application),
         role: roleOf.get(application.uid) ?? null,
+        painted: paintedWeekOf(form.round.availabilityGrid, application),
+        marked: markedRanges(sent.availability, form.round.availabilityGrid),
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name, "en") || a.uid.localeCompare(b.uid));
@@ -119,6 +130,8 @@ export async function loadCasePeople(
         answers: {},
         standing: standingOf(application),
         role: roleOf.get(application.uid) ?? null,
+        painted: paintedWeekOf(form.round.availabilityGrid, application),
+        marked: markedRanges(sent.availability, form.round.availabilityGrid),
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name, "en") || a.uid.localeCompare(b.uid));

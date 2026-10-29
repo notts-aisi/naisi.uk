@@ -260,6 +260,10 @@ const MUST_GUARD = [
     "sends a test of the ask's email to the address on the session, and records it on the run",
   ],
   [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/case/draft/route.ts",
+    "sends one person's application to Claude to draft the sentence that makes the case to them, in the caller's name",
+  ],
+  [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/remind/route.ts",
     "reminds one person of their ask by email, in the caller's name, and counts the reminder",
   ],

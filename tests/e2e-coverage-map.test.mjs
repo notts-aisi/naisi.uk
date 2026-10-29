@@ -740,6 +740,12 @@ const NOT_COVERED = {
       "Course hub: the test of the ask's email, sent only to the address on the session of whoever asks; tests/course-hub-facilitator-asks.test.mjs executes it and the lock it unlocks.",
     coverWhen: "With the spec for the ask above, because the test is the ask's first step.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/case/draft": {
+    reason:
+      "Course hub: Draft with Claude beside the sentence that makes the case, an admin's, on the Groups tab's Facilitators view. tests/course-hub-facilitator-case-draft.test.mjs executes it as every kind of caller with Claude stubbed, and holds what Claude is sent and that nothing is stored.",
+    coverWhen:
+      "Never against a live model: an end-to-end run would send a real application to Anthropic. With a stubbed model, when the fixtures can seed a term after decision day with somebody who did not offer.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/remind": {
     reason:
       "Course hub: Remind on an ask nobody has answered, emailing only that person; tests/course-hub-facilitator-asks.test.mjs executes it as every kind of caller and holds its limits.",

@@ -1068,6 +1068,15 @@ export const ROUTES = {
         "session.",
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/case/draft": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Claude's draft of the sentence that makes the case to somebody who did not offer: the body " +
+        "(whose sentence) is checked before anything is read, so every signed-in persona meets the same " +
+        "400 on an empty one. Who may is decided from the form after it: an admin, never the lead.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/remind": {
     POST: {
       expect: signedIn(400),
@@ -4617,6 +4626,9 @@ export const REAL_ROUTES = {
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/ask/test": {
     POST: bodyFirst("As the ask, then the role from the form."),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/case/draft": {
+    POST: bodyFirst("As making the case: an admin only, decided from the form after the body."),
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/remind": {
     POST: bodyFirst("As the ask, then the role from the form."),
