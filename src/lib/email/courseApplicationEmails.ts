@@ -84,10 +84,16 @@ export type CourseApplicationEmailKind =
   | "waitlisted"
   | "rejected"
   | "allocated"
-  | "facilitating";
+  | "facilitating"
+  | "joined";
 
-/** The two emails Publish writes with a composer and hands over finished. */
-export type ComposedCourseEmailKind = "allocated" | "facilitating";
+/**
+ * The emails Publish writes with a composer and hands over finished: the
+ * people's, the facilitators', and "Ana has joined Group B" to a facilitator
+ * already told about their group (`composeJoinedEmail`,
+ * `src/lib/courses/joinedEmail.ts`).
+ */
+export type ComposedCourseEmailKind = "allocated" | "facilitating" | "joined";
 
 const TEMPLATE_FOR_KIND: Record<Exclude<CourseApplicationEmailKind, ComposedCourseEmailKind>, CourseTemplateId> = {
   submitted: "course-application-submitted",
@@ -191,7 +197,7 @@ export function courseTestSubject(subject: string): string {
 function isComposed(
   opts: CourseApplicationEmailOptions | ComposedCourseEmailOptions,
 ): opts is ComposedCourseEmailOptions {
-  return opts.kind === "allocated" || opts.kind === "facilitating";
+  return opts.kind === "allocated" || opts.kind === "facilitating" || opts.kind === "joined";
 }
 
 export async function sendCourseApplicationEmail(
@@ -230,7 +236,8 @@ function asComposed(opts: ComposedCourseEmailOptions): CourseEmailTemplate {
   const { subject, blocks } = opts.composed;
   const left = unfilledTokens([subject, ...blocks.map(printedText)].join("\n"));
   if (left.length > 0) {
-    const what = opts.kind === "facilitating" ? "facilitators' email" : "placement email";
+    const what =
+      opts.kind === "facilitating" ? "facilitators' email" : opts.kind === "joined" ? "joined email" : "placement email";
     throw new Error(`${what} not sent: unfilled ${left.map((token) => `{${token}}`).join(", ")}`);
   }
   return { subject, blocks, fromName: opts.fromName };

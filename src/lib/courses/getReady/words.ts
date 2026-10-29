@@ -204,11 +204,15 @@ export function publishedWords(day: string, clock: string): string {
  * today, and nothing it does not. A room is not one of them: the email leaves
  * the room out while a group has none (`noRoomWords`).
  */
-export function publishNeedsWords(needs: { times: boolean; placed: boolean }): string | null {
-  if (needs.times && needs.placed) return "Needs a day and a time for every group, and everyone holding a place in a group.";
-  if (needs.times) return "Needs a day and a time for every group.";
-  if (needs.placed) return "Needs everyone holding a place in a group.";
-  return null;
+export function publishNeedsWords(needs: { times: boolean; placed: boolean; notes?: boolean }): string | null {
+  const parts = [
+    ...(needs.times ? ["a day and a time for every group"] : []),
+    ...(needs.placed ? ["everyone holding a place in a group"] : []),
+    ...(needs.notes ? ["a note, or none chosen, for everyone placed outside the times they gave"] : []),
+  ];
+  if (parts.length === 0) return null;
+  if (parts.length === 1) return `Needs ${parts[0]}.`;
+  return `Needs ${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}.`;
 }
 
 // ── The cards ──────────────────────────────────────────────────────────────
@@ -333,7 +337,24 @@ export const READY_ITEM = {
   facilitating: "Every group has a facilitator",
   placed: "Everyone holding a place is in a group",
   weekOne: "Week 1 is written",
+  /** Publish waits for a choice for each person it would tell who is placed outside the times they gave. */
+  notes: "Everyone outside the times they gave has a note, or none chosen",
 } as const;
+
+/** "Ana and Raj need a note, or Send without a note, below." */
+export function notesMissingWords(firstNames: readonly string[]): string {
+  const one = firstNames.length === 1;
+  return `${namesInWords(firstNames)} ${one ? "needs" : "need"} a note, or Send without a note, under Outside the times they gave below.`;
+}
+
+/** "2 notes saved, 1 going without one." */
+export function notesChosenWords(noted: number, without: number): string {
+  const parts = [
+    ...(noted > 0 ? [`${noted} ${noted === 1 ? "note" : "notes"} saved`] : []),
+    ...(without > 0 ? [`${without} going without one`] : []),
+  ];
+  return parts.length > 0 ? `${parts.join(", ")}.` : "Done.";
+}
 
 /** "Publish anyway, or move Joel first." */
 export function moveFirstWords(firstName: string): string {

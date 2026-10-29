@@ -1,7 +1,7 @@
 import { rowMatches } from "@/lib/applications/people/filters";
 import type { PeopleCounts, PersonRow } from "@/lib/applications/people/views";
 import { statusWords } from "@/lib/applications/people/words";
-import { groupTagOf, groupsInWords } from "@/lib/courses/programmeAttendance";
+import { groupsInWords } from "@/lib/courses/programmeAttendance";
 import type { WeekOneLine } from "@/lib/courses/weekOneLine";
 import {
   AFTER_PUBLISHED,
@@ -31,6 +31,8 @@ import {
   noFacilitatorWords,
   noRoomWords,
   noTimeWords,
+  notesChosenWords,
+  notesMissingWords,
   notOnTheListWords,
   notRepliedWords,
   notSaidFreeWords,
@@ -88,9 +90,13 @@ import {
  * for them. The boards draw the room as needed and the people as worth
  * checking; neither is what the site does, and this file says what it does.
  *
- * No reads and no clock of its own, and no address anywhere in it. A group's
- * letter and a list of groups in a sentence are the lead's tabs' own
- * (`groupTagOf`, `groupsInWords`), so a fit mark here is the People tab's.
+ * Who is placed outside the times they gave is the reader's answer, asked of
+ * `placedOutsideTheirTimes` (the board's "Not free" card's own), and Publish
+ * also waits for a note, or "Send without a note", for each of them it would
+ * tell: that is needed, and the rest is worth checking.
+ *
+ * No reads and no clock of its own, and no address anywhere in it. A list of
+ * groups in a sentence is the lead's tabs' own (`groupsInWords`).
  */
 
 // ---------------------------------------------------------------------------
@@ -116,6 +122,20 @@ export type ReadyFacilitating = {
   facilitators: { uid: string; name: string; saidYes: boolean }[];
   /** Each ask still waiting for an answer. */
   waiting: { uid: string; name: string; firstName: string }[];
+};
+
+/**
+ * Somebody seated in a group that meets at a time they said they cannot make
+ * (`placedOutsideTheirTimes`, asked by the reader), and, until Publish tells
+ * them their group, what was chosen for them: a note, none, or nothing yet.
+ */
+export type ReadyOutside = {
+  uid: string;
+  name: string;
+  firstName: string;
+  groupId: string;
+  told: boolean;
+  note: "noted" | "without" | "missing" | "told";
 };
 
 /** Where each person holding a place stands on the run's list, asked of `placingCounts`. */
@@ -150,6 +170,8 @@ export type GetReadyFacts = {
   handOver: { by: string; day: string; clock: string } | null;
   groups: ReadyGroup[];
   facilitating: ReadyFacilitating[];
+  /** Everybody seated outside the times they gave, in the People tab's order. */
+  outside: ReadyOutside[];
   training: { day: string; time: string; room: string } | null;
   /** The People tab's rows and counts, as this viewer may see them. Empty before decisions go out. */
   people: PersonRow[];
@@ -433,12 +455,17 @@ function weekOneStep(facts: GetReadyFacts): ReadyStep {
   });
 }
 
-/** What Publish refuses for now: a group it cannot write to, and somebody on the run's list with no group. */
-function publishNeeds(facts: GetReadyFacts): { times: boolean; placed: boolean } {
+/**
+ * What Publish refuses for now: a group it cannot write to, somebody on the
+ * run's list with no group, and somebody placed outside the times they gave
+ * with nothing chosen for them.
+ */
+function publishNeeds(facts: GetReadyFacts): { times: boolean; placed: boolean; notes: boolean } {
   const { untimed } = groupGaps(facts);
   return {
     times: facts.groups.length === 0 || untimed.length > 0 || !facts.runDated,
     placed: facts.placing.toPlaceOnList.length > 0,
+    notes: facts.outside.some((person) => !person.told && person.note === "missing"),
   };
 }
 
@@ -635,6 +662,27 @@ export function buildReadiness(facts: GetReadyFacts): ReadinessModel {
     );
   }
 
+  // ── A note, or none, for everybody placed outside the times they gave ──────
+  // Needed while somebody Publish would tell has nothing chosen: the press
+  // refuses on the same answer (`notesNeeded` on its plan).
+  const owedChoice = facts.outside.filter((person) => !person.told);
+  if (owedChoice.length > 0) {
+    const missing = owedChoice.filter((person) => person.note === "missing");
+    needed.push(
+      item(
+        "notes",
+        missing.length > 0 ? "blocks" : "done",
+        READY_ITEM.notes,
+        missing.length > 0
+          ? notesMissingWords(missing.map((person) => person.firstName || firstWordOf(person.name)))
+          : notesChosenWords(
+              owedChoice.filter((person) => person.note === "noted").length,
+              owedChoice.filter((person) => person.note === "without").length,
+            ),
+      ),
+    );
+  }
+
   // ── Worth checking ──────────────────────────────────────────────────────────
   const f = facilitatingOf(facts);
   const said = facilitatorsSaid(facts);
@@ -673,19 +721,16 @@ export function buildReadiness(facts: GetReadyFacts): ReadinessModel {
     );
   }
 
-  // Somebody placed at a time the week they painted does not cover: the
-  // People tab's own fit marks, against the group they sit in.
-  const groupByName = new Map(facts.groups.map((group) => [group.name, group] as const));
-  for (const row of holdersOf(facts)) {
-    if (row.group === null) continue;
-    const group = groupByName.get(row.group);
-    if (!group || group.meets === null) continue;
-    const tag = groupTagOf(group.name);
-    const fits = row.free.kind === "fits" ? row.free.tags.includes(tag) : row.free.kind === "fits-none" ? false : true;
-    if (fits) continue;
-    const firstName = row.firstName || firstWordOf(row.name);
+  // Somebody placed at a time they said they cannot make: the one answer
+  // the board's "Not free" card and Publish's plan ask
+  // (`placedOutsideTheirTimes`), asked by the reader of the same facts.
+  const groupById = new Map(facts.groups.map((group) => [group.id, group] as const));
+  for (const person of facts.outside) {
+    const group = groupById.get(person.groupId);
+    if (!group) continue;
+    const firstName = person.firstName || firstWordOf(person.name);
     worth.push(
-      item(`fit-${row.uid}`, "check", placedNotFreeWords(row.name, group.name, group.meets), moveFirstWords(firstName), {
+      item(`fit-${person.uid}`, "check", placedNotFreeWords(person.name, group.name, group.meets), moveFirstWords(firstName), {
         link: { to: "groups", label: moveButtonWords(firstName) },
       }),
     );

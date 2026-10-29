@@ -163,6 +163,10 @@ export type PublishSummary = {
    * leaves them out. Present only when there is somebody.
    */
   gaveBack?: number;
+  /** Facilitators already told about their group whom a press tells who has joined. Present only when there is somebody. */
+  joined?: number;
+  /** Who a press waits for a note, or "Send without a note", for. Present only when there is somebody. */
+  notesNeeded?: string[];
   test: {
     state: "none" | "stale" | "fresh";
     /** "5:38pm", or "Mon 26 Oct at 5:38pm". */

@@ -67,8 +67,12 @@ const SCHEMA = {
 
 const ONLY_ADMINS = "Only an admin can pick what pooled applicants hear.";
 
-/** One programme as Claude is told it: what it is called, what it is, and what it involves. */
-function programmeLines(programme: ProgrammeSettings): string[] {
+/**
+ * One programme as Claude is told it: what it is called, what it is, and what
+ * it involves. Also how a note for somebody placed outside the times they
+ * gave tells Claude about their programme (`src/lib/courses/placementNotes/draft.ts`).
+ */
+export function programmeLines(programme: ProgrammeSettings): string[] {
   const kind =
     programme.kind === "incubator"
       ? "A research incubator."

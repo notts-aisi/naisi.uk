@@ -371,7 +371,12 @@ describe("2. each step of Get ready for week 1, from records", () => {
       ],
     );
     assert.deepEqual(stepOf(checklist, "week-one").markReady, { runId: RUN.agi, weekId: "w01" });
-    assert.equal(stepOf(checklist, "publish").note, "Needs everyone holding a place in a group.");
+    // Tariq sits in Group A, outside the times he gave, with nothing chosen
+    // for him yet: since 29 October 2026 Publish waits for that too.
+    assert.equal(
+      stepOf(checklist, "publish").note,
+      "Needs everyone holding a place in a group, and a note, or none chosen, for everyone placed outside the times they gave.",
+    );
   });
 
   test("answers still to come about two groups name their people in the order the line names the groups", async () => {
@@ -639,6 +644,9 @@ describe("4. Publish's readiness check: what Publish refuses for is needed, the 
       { uid: "kofi", groupId: B },
       { uid: "tariq", groupId: B },
     ]);
+    // Somebody placed outside the times they gave needs a choice before
+    // Publish goes (held on its own in tests/course-publish-outside-notes.test.mjs).
+    assert.deepEqual(await join_.withoutNotes("claudia"), ["Zach"]);
     const { readiness } = await facts("claudia");
     assert.equal(readiness.ready, true);
     assert.deepEqual(item(readiness, "rooms"), {
@@ -649,7 +657,10 @@ describe("4. Publish's readiness check: what Publish refuses for is needed, the 
       markReady: null,
       link: null,
     });
-    assert.deepEqual(readiness.needed.map((entry) => [entry.key, entry.state, entry.title]), [["times", "done", "Every group has a day and a time"]]);
+    assert.deepEqual(readiness.needed.map((entry) => [entry.key, entry.state, entry.title]), [
+      ["times", "done", "Every group has a day and a time"],
+      ["notes", "done", "Everyone outside the times they gave has a note, or none chosen"],
+    ]);
     assert.equal((await join_.publish("claudia")).status, 200);
   });
 
@@ -728,6 +739,8 @@ describe("4. Publish's readiness check: what Publish refuses for is needed, the 
       { uid: "zach", groupId: B },
     ]);
     assert.equal(placed.status, 200);
+    // A choice for everybody placed outside the times they gave, which Publish needs.
+    await join_.withoutNotes("claudia");
     const before = await publishView("claudia");
     assert.match(before.text, /^People in groups Publish AGI Strategy’s groups Ready\? Ready to publish Needed to publish /);
     assert.equal(before.readiness.published, null);

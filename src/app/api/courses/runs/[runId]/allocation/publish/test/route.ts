@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { formPlaceFactsFor } from "@/lib/applications/handover/board";
-import { loadPublishPlan, pressBatch, recordPublishTest } from "@/lib/courses/allocationPublish";
+import { loadPublishPlan, pressBatch, readGroupSessions, recordPublishTest } from "@/lib/courses/allocationPublish";
 import { PUBLISH_ADMIN_ONLY } from "@/lib/courses/publishWords";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { sendCourseApplicationEmail, type CourseEmailDelivery } from "@/lib/email/courseApplicationEmails";
@@ -35,6 +35,11 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * When a press would send nobody of one kind, the test has no email of that
  * kind to show, and sends the other alone. Somebody who gave their place back
  * is owed nothing, so the test never shows their email.
+ *
+ * TWO MORE, WHEN A PRESS WOULD SEND THEM: the first "Ana has joined Group B"
+ * to a facilitator already told about their group, and, when the first
+ * person's email carries no note of our own, the first one that does, so
+ * whoever presses reads a noted email as its person will.
  */
 
 type Ctx = { params: Promise<{ runId: string }> };
@@ -75,7 +80,12 @@ export async function POST(_req: Request, ctx: Ctx) {
   const accepted = served.filter((a) => a.status === "accepted");
   // As Publish reads it: a card that says "Gave their place back" is nobody
   // the press writes to, so the test never borrows their email either.
-  const formPlaces = await formPlaceFactsFor(db, staffing, accepted.filter((a) => a.fromForm !== null), []);
+  const formPlaces = await formPlaceFactsFor(
+    db,
+    staffing,
+    accepted.filter((a) => a.fromForm !== null),
+    await readGroupSessions(db, runId),
+  );
   const plan = await loadPublishPlan(db, run, {
     accepted,
     adminOnly: served.length < rows.length,
@@ -92,9 +102,17 @@ export async function POST(_req: Request, ctx: Ctx) {
   const batch = pressBatch(plan);
   const person = batch.people.find((candidate) => candidate.email) ?? null;
   const facilitator = batch.facilitators.find((candidate) => candidate.email) ?? null;
+  const joined = batch.joined.find((candidate) => candidate.email) ?? null;
+  const notedUids = new Set(plan.outside.filter((entry) => entry.note.state === "noted").map((entry) => entry.uid));
+  const noted =
+    person && notedUids.has(person.uid)
+      ? null
+      : (batch.people.find((candidate) => candidate.email && notedUids.has(candidate.uid)) ?? null);
   const letters = [
     ...(person?.email ? [{ kind: "allocated" as const, email: person.email }] : []),
+    ...(noted?.email ? [{ kind: "allocated" as const, email: noted.email }] : []),
     ...(facilitator?.email ? [{ kind: "facilitating" as const, email: facilitator.email }] : []),
+    ...(joined?.email ? [{ kind: "joined" as const, email: joined.email }] : []),
   ];
   if (letters.length === 0) {
     return NextResponse.json(
@@ -111,7 +129,7 @@ export async function POST(_req: Request, ctx: Ctx) {
           kind: letter.kind,
           to: actor.email,
           composed: letter.email,
-          fromName: plan.templates[letter.kind].fromName,
+          fromName: plan.templates[letter.kind === "joined" ? "facilitating" : letter.kind].fromName,
           uid: actor.uid,
           runId,
           test: true,

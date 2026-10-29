@@ -6,17 +6,23 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import {
   claimFacilitatorEmail,
+  claimJoined,
   facilitatorEmailFor,
+  joinedEmailFor,
   loadPublishPlan,
   pressBatch,
   publishTestBlocker,
+  readGroupSessions,
   releasePressLock,
   settleFacilitatorEmail,
+  settleJoined,
   takePressLock,
   type PlannedFacilitator,
+  type PlannedJoined,
   type PlannedPerson,
 } from "@/lib/courses/allocationPublish";
-import { emptyPublishReport, PUBLISH_ADMIN_ONLY, type PublishReport } from "@/lib/courses/publishWords";
+import { markPlacementNoteSent } from "@/lib/courses/placementNotes/store";
+import { emptyPublishReport, notesNeededLine, PUBLISH_ADMIN_ONLY, type PublishReport } from "@/lib/courses/publishWords";
 import { doesTrackLeadWork, runStaffingOf } from "@/lib/courses/runStaffing";
 import { normalizeCourseApplication, rowIsServedTo } from "@/lib/firestore/courseApplications";
 import { courseEnrolmentId } from "@/lib/firestore/courseEnrolments";
@@ -55,14 +61,22 @@ import { mirrorCourseDecisionToPush } from "@/lib/push/courseNotifications";
  *     facilitator's is composed before anything goes, and publishing refuses
  *     (409) with sentences an admin can act on when one cannot be. NO EMAIL
  *     FROM THIS ROUTE CARRIES AN UNFILLED TOKEN OR A MEETING LINK.
- *  3. A TEST FIRST. A press that would send an email is refused until
+ *  3. SO IS A CHOICE FOR EVERYBODY PLACED OUTSIDE THE TIMES THEY GAVE. A
+ *     person this press would tell whose group meets at a time they said
+ *     they cannot make (`placedOutsideTheirTimes`, the board's "Not free"
+ *     card's own answer) waits until somebody who may publish has saved a
+ *     note for them in that group, or "Send without a note"
+ *     (`../publish/notes`). Publishing refuses (409, with names) until each
+ *     has one. A saved note goes above the details in their email, and is
+ *     marked sent once their email went.
+ *  4. A TEST FIRST. A press that would send an email is refused until
  *     somebody has sent themselves a test of the wording in force now
  *     ("Send a test to me", the `test` route beside this one). Changing the
  *     wording in Email designs needs a fresh test.
- *  4. THE NUMBER ON THE BUTTON IS A PROMISE. The body says how many emails
+ *  5. THE NUMBER ON THE BUTTON IS A PROMISE. The body says how many emails
  *     the board showed, and the press is refused when that is no longer
  *     what it would send.
- *  5. ONE PRESS AT A TIME. A press holds the run while it works
+ *  6. ONE PRESS AT A TIME. A press holds the run while it works
  *     (`takePressLock`), and reads its plan only once it holds it, so two
  *     presses cannot both send to the same people.
  *
@@ -72,6 +86,13 @@ import { mirrorCourseDecisionToPush } from "@/lib/push/courseNotifications";
  * email went (a move clears it), and a facilitator's marker is claimed before
  * theirs goes and given back if it fails. The run-level
  * `allocationPublishedAt` re-stamps on every publish.
+ *
+ * A FACILITATOR ALREADY TOLD ABOUT A GROUP IS TOLD WHO HAS JOINED IT. After
+ * the facilitators' emails, each facilitator who held their marker for a
+ * group before this press, of a group in which this press told somebody, is
+ * sent one email naming whoever of those people was not announced to them
+ * before, claimed person by person (`joined__` markers) so nobody is
+ * announced twice, and given back if the send fails.
  *
  * A FACILITATOR'S EMAIL COUNTS THE PEOPLE TOLD. The people's emails go
  * first; each facilitator's then says how many in the group have been told
@@ -127,10 +148,11 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-/** One email this press sends: a person's, or a facilitator's. */
+/** One email this press sends: a person's, a facilitator's, or "who has joined" to a facilitator. */
 type Letter =
   | { kind: "allocated"; who: PlannedPerson }
-  | { kind: "facilitating"; who: PlannedFacilitator };
+  | { kind: "facilitating"; who: PlannedFacilitator }
+  | { kind: "joined"; who: PlannedJoined };
 
 export async function POST(req: Request, ctx: Ctx) {
   const blocked = await assertNotImpersonating();
@@ -194,11 +216,19 @@ export async function POST(req: Request, ctx: Ctx) {
     const rows = appSnap.docs.map((d) => normalizeCourseApplication(d.id, d.data() ?? {}));
     const served = rows.filter((a) => rowIsServedTo(a, staffing));
     const accepted = served.filter((a) => a.status === "accepted");
-    // Whether each person the form put here still holds their place, read
-    // as the board's cards are (`formPlaceFactsFor`): a card that says "Gave
-    // their place back" is nobody this press writes to. Publish reads only
-    // that, so it hands over no groups to compare a painted week with.
-    const formPlaces = await formPlaceFactsFor(db, staffing, accepted.filter((a) => a.fromForm !== null), []);
+    // Whether each person the form put here still holds their place, and
+    // which groups their painted week covers, read as the board's cards are
+    // (`formPlaceFactsFor`): a card that says "Gave their place back" is
+    // nobody this press writes to, and one that says "Not free" waits for a
+    // choice. Only that answer comes back, never the week.
+    // Read against the run's groups, so the plan knows who is placed outside
+    // the times they gave by the board's own reading.
+    const formPlaces = await formPlaceFactsFor(
+      db,
+      staffing,
+      accepted.filter((a) => a.fromForm !== null),
+      await readGroupSessions(db, runId),
+    );
     const plan = await loadPublishPlan(db, run, {
       accepted,
       adminOnly: served.length < rows.length,
@@ -224,6 +254,17 @@ export async function POST(req: Request, ctx: Ctx) {
         {
           error: ["Nothing was published and nobody was emailed.", ...plan.refusals].join(" "),
           reasons: plan.refusals,
+          unplaced: [],
+        },
+        { status: 409 },
+      );
+    }
+
+    if (plan.notesNeeded.length > 0) {
+      return NextResponse.json(
+        {
+          error: `Nothing was published and nobody was emailed. ${notesNeededLine(plan.notesNeeded)}`,
+          notesNeeded: plan.notesNeeded,
           unplaced: [],
         },
         { status: 409 },
@@ -264,32 +305,68 @@ export async function POST(req: Request, ctx: Ctx) {
     const fromName = {
       allocated: plan.templates.allocated.fromName,
       facilitating: plan.templates.facilitating.fromName,
+      // "Who has joined" is the facilitators' too, from the same sender.
+      joined: plan.templates.facilitating.fromName,
     };
     /** People whose email went, for the push pass below the loop. */
     const placed: { uid: string; groupName: string }[] = [];
     const counted = (letter: Letter, delivery: CourseEmailDelivery) => {
-      const side = letter.kind === "allocated" ? report.people : report.facilitators;
+      const side =
+        letter.kind === "allocated"
+          ? report.people
+          : letter.kind === "facilitating"
+            ? report.facilitators
+            : (report.joined ??= { sent: 0, held: 0, suppressed: 0 });
       side[delivery] += 1;
     };
+    /** Whose email carried a choice made for them: it is spent once their email went. */
+    const chosenFor = new Set(plan.outside.filter((entry) => entry.note.state !== "missing").map((entry) => entry.uid));
 
     // WHO THIS PRESS WRITES TO is the plan's decision, never the request's:
     // the people owed their group's email, then the facilitators owed theirs,
     // in the order and to the number the board showed.
     const peopleRecipients = batch.people;
     const facilitatorRecipients = batch.facilitators;
+    const joinedRecipients = batch.joined;
     const letters: Letter[] = [
       ...peopleRecipients.map((who): Letter => ({ kind: "allocated", who })),
       ...facilitatorRecipients.map((who): Letter => ({ kind: "facilitating", who })),
+      ...joinedRecipients.map((who): Letter => ({ kind: "joined", who })),
     ];
     /** The people this press has told, by group: what each facilitator's email counts. */
     const toldByPress = new Map<string, number>();
+    /** The same people by uid: who a "joined" email may name. */
+    const toldNow = new Set<string>();
     for (const letter of letters) {
       const { who } = letter;
       // `pressBatch` takes only people with an address and an email written.
       if (!who.to || !who.email) continue;
       let composed = who.email;
+      /** The people a "joined" email claimed, to give back if it fails. */
+      let announced: PlannedJoined["people"] = [];
 
-      if (letter.kind === "facilitating") {
+      if (letter.kind === "joined") {
+        // Only those whose own email went, and each claimed before it goes.
+        const due = joinedEmailFor(letter.who, toldNow, toldByPress.get(who.groupId) ?? 0);
+        if (!due) {
+          // Nobody new in the group was told: the next press that tells them says so.
+          report.more += 1;
+          continue;
+        }
+        announced = await claimJoined(db, runId, letter.who, due.people, actor.uid);
+        if (announced.length === 0) {
+          report.alreadyTold += 1;
+          continue;
+        }
+        const claimed = new Set(announced.map((person) => person.uid));
+        const written = joinedEmailFor(
+          letter.who,
+          new Set([...toldNow].filter((uid) => claimed.has(uid))),
+          toldByPress.get(who.groupId) ?? 0,
+        );
+        if (!written) continue;
+        composed = written.email;
+      } else if (letter.kind === "facilitating") {
         // The people's emails are done, so the group's size is known: those
         // told before this press and those it has just told, never somebody
         // whose send failed. The plan wrote the email for that number.
@@ -355,11 +432,20 @@ export async function POST(req: Request, ctx: Ctx) {
             });
           // Stamped, so told: their group's facilitators count them.
           toldByPress.set(who.groupId, (toldByPress.get(who.groupId) ?? 0) + 1);
+          toldNow.add(who.uid);
+          // What was chosen for them, a note or none, went with it: spent.
+          if (chosenFor.has(who.uid)) {
+            await markPlacementNoteSent(db, runId, who.uid).catch((err) => {
+              console.error("[allocation publish] could not mark a note sent", runId, who.uid, err);
+            });
+          }
           // Owed the mirror push only when the email really went. Recorded
           // here and sent after the loop, never inside it: see the pass below.
           if (delivery === "sent") placed.push({ uid: who.uid, groupName: who.groupName });
-        } else {
+        } else if (letter.kind === "facilitating") {
           await settleFacilitatorEmail(db, letter.who, delivery);
+        } else {
+          await settleJoined(db, announced, delivery);
         }
         counted(letter, delivery);
         await sleep(SLEEP_MS);
@@ -370,6 +456,10 @@ export async function POST(req: Request, ctx: Ctx) {
         if (letter.kind === "facilitating") {
           await settleFacilitatorEmail(db, letter.who, "failed").catch((release) => {
             console.error("[allocation publish] could not give a facilitator's claim back", runId, who.uid, release);
+          });
+        } else if (letter.kind === "joined") {
+          await settleJoined(db, announced, "failed").catch((release) => {
+            console.error("[allocation publish] could not give a joined claim back", runId, who.uid, release);
           });
         }
         report.failed.push(who.name);

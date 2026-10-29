@@ -198,6 +198,11 @@ async function placed(who = "zach") {
     { uid: "tariq", groupId: A },
   ]);
   assert.equal(done.body.placed, 4, JSON.stringify(done.body));
+  // Dev and Tariq sit outside the times they gave: Publish waits for a
+  // choice for each, and here it is "Send without a note", so their emails
+  // are the standard ones. tests/course-publish-outside-notes.test.mjs holds
+  // the choice itself.
+  await join_.withoutNotes(who);
 }
 
 /** "I can’t make it" from somebody's application page, and what it sends after its answer. */
@@ -228,6 +233,9 @@ const realMail = () => world.mail.filter((mail) => !isTest(mail));
 
 /** A test first, then a press with the number on the button: the board's own way. Returns the number and the answer. */
 async function testThenPress(who) {
+  // A choice for anybody placed outside the times they gave, as Publish's
+  // page asks for first: "Send without a note".
+  await join_.withoutNotes(who);
   const tested = await sendTest(who);
   assert.equal(tested.status, 200, JSON.stringify(tested.body));
   const shown = (await summary(who)).emails;
@@ -433,6 +441,7 @@ describe("1. Publish leaves out somebody placed and not told who gave their plac
         { uid: "bea", groupId: A },
       ]);
       assert.equal(done.body.placed, 3, JSON.stringify(done.body));
+      await join_.withoutNotes(who);
       await cantMakeIt("tariq");
       assert.equal(seat("tariq"), undefined, "Tariq was never placed");
 
@@ -524,7 +533,10 @@ describe("1. Publish leaves out somebody placed and not told who gave their plac
 
 describe("2. beside a card that left by each door, one removed, a late placement and the people told", () => {
   for (const [label, who] of CALLERS) {
-    test(`as ${label}: the press sends Kit's and Tom's emails and nothing else, and Tom's counts Amara alone`, async () => {
+    // Since 29 October 2026 a facilitator already told about a group hears
+    // who has joined it: Sofia, told about Group A, is told Kit has joined.
+    // Until then the press sent Kit's and Tom's emails alone.
+    test(`as ${label}: the press sends Kit's and Tom's emails and Sofia's that Kit joined, and Tom's counts Amara alone`, async () => {
       await everyKindOfCard(who);
       // Who is where: Amara told in B; Bea and Dev left by themselves; Tariq
       // removed; Kit placed in A and not told; Una placed in B and not told,
@@ -542,21 +554,22 @@ describe("2. beside a card that left by each door, one removed, a late placement
       );
       const shown = await summary(who);
       assert.deepEqual(
-        [shown.emails, shown.people, shown.facilitators, shown.noAddress, shown.emptyGroups, shown.refusals, shown.gaveBack],
-        [2, 1, 1, [], ["Group C"], [], 1],
+        [shown.emails, shown.people, shown.facilitators, shown.joined, shown.noAddress, shown.emptyGroups, shown.refusals, shown.gaveBack],
+        [3, 1, 1, 1, [], ["Group C"], [], 1],
       );
 
       const mailBefore = world.mail.length;
       const { shown: number, pressed, sent } = await testThenPress(who);
-      // The test: Kit's email and Tom's, to the presser.
+      // The test: Kit's email, Tom's and Sofia's, to the presser.
       const tests = await Promise.all(world.mail.slice(mailBefore).filter(isTest).map(opened));
-      assert.deepEqual(tests.map((mail) => mail.to), [`${who}@example.com`, `${who}@example.com`]);
+      assert.deepEqual(tests.map((mail) => mail.to), [`${who}@example.com`, `${who}@example.com`, `${who}@example.com`]);
       // Kit's group email, the board's words since October 2026 (until then "You've been placed, Kit").
       assert.ok(tests[0].text.includes("Hi Kit, You’re in Group "), tests[0].text);
       // The press: the number on the button, and those two.
       assert.equal(sent.length, number);
-      assert.deepEqual(sent.map((mail) => mail.to), ["kit@example.com", "tom@example.com"]);
-      assert.deepEqual([pressed.body.report.people.sent, pressed.body.report.facilitators.sent], [1, 1]);
+      assert.deepEqual(sent.map((mail) => mail.to), ["kit@example.com", "tom@example.com", "sofia@example.com"]);
+      assert.deepEqual([pressed.body.report.people.sent, pressed.body.report.facilitators.sent, pressed.body.report.joined.sent], [1, 1, 1]);
+      assert.equal((await opened(sent[2])).subject, "Kit has joined Group A");
       const tom = await opened(sent[1]);
       assert.match(tom.subject, /^You’re facilitating Group B/);
       // Amara: told. Una gave the place back and Dev left: neither is counted.
@@ -587,7 +600,7 @@ describe("2. beside a card that left by each door, one removed, a late placement
     assert.deepEqual(saysItsGiven, ["bea", "dev", "tariq", "una"]);
     // Nobody whose card says it is written to by this press.
     const { sent } = await testThenPress("claudia");
-    assert.deepEqual(sent.map((mail) => mail.to), ["kit@example.com", "tom@example.com"]);
+    assert.deepEqual(sent.map((mail) => mail.to), ["kit@example.com", "tom@example.com", "sofia@example.com"]);
     for (const uid of saysItsGiven) assert.ok(!sent.some((mail) => mail.to === `${uid}@example.com`), uid);
   });
 });
@@ -602,8 +615,10 @@ describe("3. the board draws it: the sentence, the badges, the button's number a
       await everyKindOfCard(who);
       const view = await drawn(who);
       assert.ok(view.text.includes("1 person gave their place back, so they aren’t emailed. Remove them to free their seat."), view.text);
-      assert.ok(view.text.includes("1 person and 1 facilitator"));
-      assert.ok(view.text.includes("Publish and send 2 emails"));
+      // And Sofia, told about Group A, is told Kit has joined it (since 29
+      // October 2026: until then "1 person and 1 facilitator", 2 emails).
+      assert.ok(view.text.includes("1 person, 1 facilitator and 1 facilitator told who has joined"), view.text);
+      assert.ok(view.text.includes("Publish and send 3 emails"));
       // The badge on Una's card, on the two who left by giving theirs back,
       // and on Tariq's, whose removal gave it back (3 until the follow-ups to
       // Publish of October 2026, when a removal gave nothing back).
@@ -683,9 +698,11 @@ describe("4. putting somebody who left back is still how they come back", () => 
       assert.deepEqual([row.fromForm.holdsPlace, "putBack" in row], [true, false]);
       assert.equal((await cards(who)).bea, false);
       const shown = await summary(who);
-      assert.deepEqual([shown.emails, shown.people, "gaveBack" in shown], [1, 1, false]);
+      // Bea, and Sofia, told about Group A already, that Bea has joined it
+      // (since 29 October 2026; until then Bea's email alone).
+      assert.deepEqual([shown.emails, shown.people, shown.joined, "gaveBack" in shown], [2, 1, 1, false]);
       const { sent } = await testThenPress(who);
-      assert.deepEqual(sent.map((mail) => mail.to), ["bea@example.com"]);
+      assert.deepEqual(sent.map((mail) => mail.to), ["bea@example.com", "sofia@example.com"]);
       assert.ok(seat("bea").allocatedEmailAt instanceof Date);
     });
   }
@@ -828,10 +845,13 @@ const READS_THE_PUT_BACK = {
 const ASKS_THE_ANSWER = {
   "src/features/courses/allocationFit.ts": "the card: whether it says Gave their place back",
   "src/lib/courses/allocationPublish.ts": "Publish's plan: whom it leaves out",
+  "src/lib/courses/getReady/read.ts":
+    "Publish's readiness check: whom it leaves out of who is placed outside the times they gave, as the plan does",
 };
 const ASKS_THE_PUT_BACK = {
   "src/app/api/courses/runs/[runId]/allocation/route.ts": "the board's row, which the card hands to the one answer",
   "src/lib/courses/allocationPublish.ts": "Publish's plan, which hands it to the one answer",
+  "src/lib/courses/getReady/read.ts": "Publish's readiness check, which hands it to the one answer, as the plan does",
 };
 
 /** Every route that reads a plan of Publish. */
@@ -840,6 +860,8 @@ const READS_A_PLAN = [
   "src/app/api/courses/runs/[runId]/allocation/publish/test/route.ts",
   "src/app/api/courses/runs/[runId]/allocation/publish/preview/route.ts",
   "src/app/api/courses/runs/[runId]/allocation/route.ts",
+  // Outside the times they gave, on Publish's own page, and its notes route.
+  "src/lib/courses/placementNotes/section.ts",
 ];
 
 describe("6. one reading of each fact, one answer, and the facts handed to every plan", () => {

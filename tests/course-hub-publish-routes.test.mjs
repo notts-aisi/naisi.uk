@@ -129,6 +129,11 @@ async function placed() {
     { uid: "tariq", groupId: A },
   ]);
   assert.equal(done.body.placed, 4, JSON.stringify(done.body));
+  // Amara, Dev and Tariq sit outside the times they gave: Publish waits for a
+  // choice for each, and here it is "Send without a note", so the emails this
+  // file reads are the standard ones. The choice itself, and the note, are
+  // held in tests/course-publish-outside-notes.test.mjs.
+  await join_.withoutNotes();
 }
 
 const summary = async (who = "zach") => (await board(who)).body.publish;
@@ -546,6 +551,8 @@ describe("4. once per facilitator per group", () => {
     await pressNow();
     assert.ok(!realMail().some((mail) => mail.to === "tom@example.com"));
     await place("zach", [{ uid: "tariq", groupId: C }]);
+    // Moved, so what was chosen for him in Group A is void: chosen again.
+    await join_.withoutNotes();
     const shown = await summary();
     // Tariq again, with his new group, and Tom.
     assert.deepEqual([shown.emails, shown.people, shown.facilitators, shown.emptyGroups], [2, 1, 1, []]);
@@ -581,6 +588,7 @@ describe("4. once per facilitator per group", () => {
       { uid: "tariq", groupId: C },
     ]);
     world.db.poke(`courseGroups/${C}`, { archived: true });
+    await join_.withoutNotes();
     const shown = await summary();
     // Rahul and Sofia for Group B only: Group A has no facilitator, Group C is archived.
     assert.deepEqual([shown.people, shown.facilitators, shown.emptyGroups], [4, 2, []]);
@@ -755,6 +763,7 @@ describe("6. the emails", () => {
       { uid: "bea", groupId: A },
       { uid: "tariq", groupId: C },
     ]);
+    await join_.withoutNotes();
     const shown = await summary();
     // Rahul and Sofia for Group B, Sofia for Group A. Not Tom: nobody in Group C can be told.
     assert.deepEqual([shown.emails, shown.people, shown.facilitators, shown.noAddress, shown.emptyGroups], [6, 3, 3, ["Tariq"], []]);
@@ -785,6 +794,7 @@ describe("6. the emails", () => {
       { uid: "bea", groupId: A },
       { uid: "tariq", groupId: A },
     ]);
+    await join_.withoutNotes();
     await sendTest();
     await pressNow();
     const amara = await opened(realMail().find((mail) => mail.to === "amara@example.com"));
@@ -878,17 +888,24 @@ describe("6. the emails", () => {
     assert.ok(rahul.text.includes("from Thu 12 Nov to Thu 10 Dec"), rahul.text);
   });
 
-  test("somebody moved after Publish is told their new group, and nobody else hears anything", async () => {
+  // Until 29 October 2026 a move after Publish told the moved person alone.
+  // Since then the facilitators of the group they joined, told about it
+  // already, are told who has joined (Zach's decision of that day): one
+  // email each, held in tests/course-publish-outside-notes.test.mjs.
+  test("somebody moved after Publish is told their new group, and only its facilitator hears that they joined", async () => {
     await placed();
     await sendTest();
     await pressNow();
     const before = realMail().length;
     await place("zach", [{ uid: "amara", groupId: A }]);
+    await join_.withoutNotes();
     const shown = await summary();
-    assert.deepEqual([shown.emails, shown.people, shown.facilitators], [1, 1, 0]);
+    assert.deepEqual([shown.emails, shown.people, shown.facilitators, shown.joined], [2, 1, 0, 1]);
     assert.equal((await pressNow()).status, 200);
     const moved = realMail().slice(before);
-    assert.deepEqual(toOf(moved), ["amara@example.com"]);
+    assert.deepEqual(toOf(moved), ["amara@example.com", "sofia@example.com"]);
+    const sofia = await opened(moved[1]);
+    assert.equal(sofia.subject, "Amara has joined Group A");
     const amara = await opened(moved[0]);
     // Her new group, in the board's words since October 2026 (until then
     // "You're in Group A for AGI Strategy Fellowship"), counting Bea and Tariq, told before.
@@ -1044,6 +1061,7 @@ describe("8. the facilitators' email promises week 1's guide only while their gr
       { uid: "tariq", groupId: A },
     ]);
     assert.equal(done.body.placed, 4, JSON.stringify(done.body));
+    await join_.withoutNotes();
     await sendTest();
     assert.equal((await pressNow()).status, 200);
     const rahul = await opened(realMail().find((mail) => mail.to === "rahul@example.com" && isFacilitating(mail)));
