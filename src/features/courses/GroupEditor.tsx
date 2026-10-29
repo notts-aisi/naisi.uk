@@ -7,8 +7,11 @@ import Card from "@/components/ui/Card";
 import CountedTextarea from "@/components/ui/CountedTextarea";
 import { Field, Input } from "@/components/ui/Input";
 import PersonSelector from "@/components/ui/PersonSelector";
+import Select from "@/components/ui/Select";
 import Switch from "@/components/ui/Switch";
 import type { UserDoc } from "@/lib/firestore/users";
+import { GROUP_CAMPUSES, campusOf, type GroupCampus } from "@/lib/courses/campus";
+import { CAMPUS, CAMPUS_HINT, CAMPUS_LABEL, CAMPUS_NOT_CHOSEN } from "@/lib/courses/campusWords";
 import { NEW_GROUP_SESSION_MINUTES } from "@/lib/courses/sessionLength";
 import {
   validateSubmissionUrl,
@@ -33,8 +36,8 @@ import styles from "./GroupEditor.module.css";
 /**
  * One group's card in the run editor, plus the inline "new group" form.
  *
- * Two write paths, deliberately: the content fields (name, capacity, session)
- * go client-direct through `updateGroup` because the rules express that
+ * Two write paths, deliberately: the content fields (name, capacity, session,
+ * campus) go client-direct through `updateGroup` because the rules express that
  * invariant exactly, while `facilitatorUids` is server-owned and pinned in
  * rules — assigning a facilitator also upserts a `role:"facilitator"`
  * enrolment, which no client write can do. The card saves both in one gesture
@@ -109,6 +112,7 @@ export default function GroupEditor({
     group.capacity === null ? "" : String(group.capacity),
   );
   const [session, setSession] = useState<GroupSession>(group.session);
+  const [campus, setCampus] = useState<GroupCampus | null>(group.campus);
   const [facilitatorUids, setFacilitatorUids] = useState<string[]>(
     group.facilitatorUids,
   );
@@ -124,6 +128,7 @@ export default function GroupEditor({
     setName(group.name);
     setCapacity(group.capacity === null ? "" : String(group.capacity));
     setSession(group.session);
+    setCampus(group.campus);
     setFacilitatorUids(group.facilitatorUids);
     setError(null);
   }
@@ -174,6 +179,7 @@ export default function GroupEditor({
             name: trimmedName,
             capacity: nextCapacity,
             session: nextSession,
+            campus,
           },
           enrolMode,
         );
@@ -254,6 +260,22 @@ export default function GroupEditor({
           onChange={(next) => setSession({ ...session, ...next })}
           disabled={disabled}
         />
+
+        <Field id={`${fieldId}-campus`} label={CAMPUS} hint={CAMPUS_HINT}>
+          <Select
+            id={`${fieldId}-campus`}
+            value={campus ?? ""}
+            onChange={(e) => setCampus(campusOf(e.target.value))}
+            disabled={disabled}
+          >
+            <option value="">{CAMPUS_NOT_CHOSEN}</option>
+            {GROUP_CAMPUSES.map((each) => (
+              <option key={each} value={each}>
+                {CAMPUS_LABEL[each]}
+              </option>
+            ))}
+          </Select>
+        </Field>
 
         <div className={styles.twoCol}>
           <Field id={`${fieldId}-location`} label="Location">
