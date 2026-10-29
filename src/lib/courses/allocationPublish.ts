@@ -212,7 +212,8 @@ import { formatRunStart, formatRunStartShort } from "./window";
  *  - `publishing__{runId}`: a press in progress (`takePressLock`).
  *  - `joined__{runId}__{groupId}__{facilitatorUid}__{uid}`: a person
  *    announced to a facilitator who had already been told about the group.
- *    Created before the send, so two presses cannot both send it.
+ *    Created before the send, so two presses cannot both send it; a send
+ *    that fails leaves it `failed`, and the next press announces them again.
  */
 
 /**
@@ -305,8 +306,12 @@ export type PlannedFacilitator = Recipient & {
 export type PlannedJoined = Recipient & {
   /** How many people in the group Publish had told before this press. */
   toldBefore: number;
-  /** Who this press may announce to them, in the order a press tells people, each with its marker. */
-  people: { uid: string; firstName: string; markerId: string }[];
+  /**
+   * Who this press may announce to them, each with its marker: those it
+   * writes to, in the order it tells them, then anybody told before whose
+   * announcement failed to send (`already`), whose marker says so (`retry`).
+   */
+  people: { uid: string; firstName: string; markerId: string; already: boolean; retry: boolean }[];
   /** Everything the email says but who has joined and how many are in the group. */
   facts: Omit<JoinedFacts, "joined" | "groupSize">;
 };
@@ -771,9 +776,10 @@ export function joinedMarkerId(runId: string, groupId: string, facilitatorUid: s
 
 /**
  * Claim the announcement of each of these people to one facilitator, before
- * the email goes. Each marker is created at a fixed id, so of two presses only
- * one can announce a person. Answers the people this press claimed: an empty
- * list when another press had claimed them all.
+ * the email goes. A first announcement is created at a fixed id, so of two
+ * presses only one can claim it; one that failed before is taken back from
+ * `failed` in a transaction, for the same reason. Answers the people this
+ * press claimed: an empty list when another press had claimed them all.
  */
 export async function claimJoined(
   db: Firestore,
@@ -784,8 +790,19 @@ export async function claimJoined(
 ): Promise<PlannedJoined["people"]> {
   const claimed: PlannedJoined["people"] = [];
   for (const person of people) {
+    const ref = db.collection(NUDGES).doc(person.markerId);
+    if (person.retry) {
+      const taken = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists || (snap.data() ?? {}).state !== "failed") return false;
+        tx.update(ref, { state: "sending", claimedAt: FieldValue.serverTimestamp(), byUid });
+        return true;
+      });
+      if (taken) claimed.push(person);
+      continue;
+    }
     try {
-      await db.collection(NUDGES).doc(person.markerId).create({
+      await ref.create({
         kind: "group-joined",
         runId,
         groupId: letter.groupId,
@@ -803,16 +820,20 @@ export async function claimJoined(
   return claimed;
 }
 
-/** What became of a claimed announcement. A send that threw gives the claims back, so the next press tries again. */
+/**
+ * What became of a claimed announcement. A send that threw marks each claim
+ * `failed`, so the next press announces them again, whoever else it tells.
+ */
 export async function settleJoined(
   db: Firestore,
   people: readonly PlannedJoined["people"][number][],
   delivery: "sent" | "held" | "suppressed" | "failed",
 ): Promise<void> {
   for (const person of people) {
-    const ref = db.collection(NUDGES).doc(person.markerId);
-    if (delivery === "failed") await ref.delete();
-    else await ref.update({ state: delivery, settledAt: FieldValue.serverTimestamp() });
+    await db
+      .collection(NUDGES)
+      .doc(person.markerId)
+      .update({ state: delivery, settledAt: FieldValue.serverTimestamp() });
   }
 }
 
@@ -1078,6 +1099,8 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
     ? await db.getAll(...facilitatorSlots.map((slot) => db.collection(NUDGES).doc(slot.markerId)))
     : [];
   const toldMarkers = new Set(markers.filter((snap) => snap.exists).map((snap) => snap.id));
+  /** When each facilitator was told about each group: who has joined since is who they are told about. */
+  const toldAt = new Map(markers.filter((snap) => snap.exists).map((snap) => [snap.id, toDate(snap.data()?.claimedAt)] as const));
   const untold = facilitatorSlots.filter((slot) => !toldMarkers.has(slot.markerId));
   const mayTell = untold.filter((slot) => (placedIn.get(slot.group.id) ?? 0) > 0);
   const emptyGroups = [
@@ -1380,40 +1403,67 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   }
 
   // ── "Ana and Raj have joined Group B" ───────────────────────────────────
-  // Each facilitator already told about a group (they hold its marker) in
-  // which this press writes to somebody, once per press, naming each person
-  // not announced to them before. Never the lead (left out of the slots
-  // above), and never a facilitator about themselves.
-  const writtenTo = new Map<string, { uid: string }[]>();
+  // Each facilitator already told about a group (they hold its marker) is
+  // owed one email naming who has joined it since: everybody this press
+  // writes to in that group who was not announced to them before, and
+  // anybody told since whose announcement failed to send (its marker says
+  // `failed`, and the next press tries again). Never the lead (left out of
+  // the slots above), and never a facilitator about themselves.
+  const writtenTo = new Map<string, string[]>();
   for (const person of addressed) {
     if (!person.to) continue;
-    const list = writtenTo.get(person.group.id) ?? [];
-    list.push({ uid: person.row.uid });
-    writtenTo.set(person.group.id, list);
+    writtenTo.set(person.group.id, [...(writtenTo.get(person.group.id) ?? []), person.row.uid]);
   }
-  const toldSlots = facilitatorSlots.filter((slot) => toldMarkers.has(slot.markerId) && writtenTo.has(slot.group.id));
-  const pairs = toldSlots.flatMap((slot) =>
-    (writtenTo.get(slot.group.id) ?? [])
+  const toldSince = (slot: (typeof facilitatorSlots)[number]): string[] => {
+    const since = toldAt.get(slot.markerId) ?? null;
+    if (!since) return [];
+    return accepted
+      .filter((row) => {
+        const seat = enrolmentByUid.get(row.uid);
+        return groupOf(row.uid)?.id === slot.group.id && seat?.allocatedEmailAt instanceof Date && seat.allocatedEmailAt >= since;
+      })
+      .map((row) => row.uid);
+  };
+  const toldSlots = facilitatorSlots.filter((slot) => toldMarkers.has(slot.markerId));
+  const pairs = toldSlots.flatMap((slot) => {
+    const fresh = (writtenTo.get(slot.group.id) ?? []).map((uid) => ({ uid, already: false }));
+    const before = toldSince(slot).map((uid) => ({ uid, already: true }));
+    return [...fresh, ...before]
       .filter((person) => person.uid !== slot.uid)
-      .map((person) => ({ slot, uid: person.uid, markerId: joinedMarkerId(runId, slot.group.id, slot.uid, person.uid) })),
-  );
-  const announced = pairs.length
-    ? new Set(
-        (await db.getAll(...pairs.map((pair) => db.collection(NUDGES).doc(pair.markerId))))
-          .filter((snap) => snap.exists)
-          .map((snap) => snap.id),
-      )
-    : new Set<string>();
+      .map((person) => ({ slot, ...person, markerId: joinedMarkerId(runId, slot.group.id, slot.uid, person.uid) }));
+  });
+  const joinedState = new Map<string, unknown>();
+  if (pairs.length > 0) {
+    for (const snap of await db.getAll(...pairs.map((pair) => db.collection(NUDGES).doc(pair.markerId)))) {
+      if (snap.exists) joinedState.set(snap.id, (snap.data() ?? {}).state);
+    }
+  }
   const facilitatorData = toldSlots.length ? await readUsers(db, toldSlots.map((slot) => slot.uid).filter((uid) => !users.has(uid))) : new Map();
+  const peopleData = await readUsers(
+    db,
+    pairs.map((pair) => pair.uid).filter((uid) => !users.has(uid)),
+  );
   const joined: PlannedJoined[] = [];
   for (const slot of toldSlots) {
-    const due = pairs.filter((pair) => pair.slot === slot && !announced.has(pair.markerId));
+    // Somebody this press writes to with no announcement yet, or anybody
+    // whose announcement failed: never one that went, or is going.
+    const due = pairs.filter((pair) => {
+      if (pair.slot !== slot) return false;
+      const state = joinedState.get(pair.markerId);
+      return state === undefined ? !pair.already : state === "failed";
+    });
     if (due.length === 0) continue;
     const data = users.get(slot.uid) ?? facilitatorData.get(slot.uid);
     const toldBefore = toldIn.get(slot.group.id) ?? 0;
     const people = due.map((pair) => {
-      const account = users.get(pair.uid);
-      return { uid: pair.uid, firstName: (account ? firstNameOf(account) : "") || "Somebody new", markerId: pair.markerId };
+      const account = users.get(pair.uid) ?? peopleData.get(pair.uid);
+      return {
+        uid: pair.uid,
+        firstName: (account ? firstNameOf(account) : "") || "Somebody new",
+        markerId: pair.markerId,
+        already: pair.already,
+        retry: joinedState.get(pair.markerId) === "failed",
+      };
     });
     const facts: PlannedJoined["facts"] = {
       firstName: data ? firstNameOf(data) : "",
@@ -1521,8 +1571,9 @@ export function pressBatch(
 
 /**
  * The "joined your group" email a press sends once its people's emails are
- * done: naming those of `letter.people` whose own email went (`told`), and
- * counting everybody in the group told by then. Null when none of them was
+ * done: naming those of `letter.people` whose own email went (`told`), or who
+ * were told before and are announced again after a failed send (`already`),
+ * and counting everybody in the group told by then. Null when none of them was
  * told: there is nobody new to announce yet, and the next press will.
  */
 export function joinedEmailFor(
@@ -1530,7 +1581,7 @@ export function joinedEmailFor(
   told: ReadonlySet<string>,
   toldByPress: number,
 ): { email: WrittenEmail; people: PlannedJoined["people"] } | null {
-  const people = letter.people.filter((person) => told.has(person.uid));
+  const people = letter.people.filter((person) => person.already || told.has(person.uid));
   if (people.length === 0) return null;
   return {
     people,

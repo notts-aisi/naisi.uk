@@ -92,7 +92,8 @@ import { mirrorCourseDecisionToPush } from "@/lib/push/courseNotifications";
  * group before this press, of a group in which this press told somebody, is
  * sent one email naming whoever of those people was not announced to them
  * before, claimed person by person (`joined__` markers) so nobody is
- * announced twice, and given back if the send fails.
+ * announced twice, and marked failed if the send fails, so the next press
+ * announces them again.
  *
  * A FACILITATOR'S EMAIL COUNTS THE PEOPLE TOLD. The people's emails go
  * first; each facilitator's then says how many in the group have been told
@@ -360,8 +361,8 @@ export async function POST(req: Request, ctx: Ctx) {
         }
         const claimed = new Set(announced.map((person) => person.uid));
         const written = joinedEmailFor(
-          letter.who,
-          new Set([...toldNow].filter((uid) => claimed.has(uid))),
+          { ...letter.who, people: letter.who.people.filter((person) => claimed.has(person.uid)) },
+          toldNow,
           toldByPress.get(who.groupId) ?? 0,
         );
         if (!written) continue;
