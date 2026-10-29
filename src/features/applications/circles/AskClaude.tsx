@@ -53,7 +53,7 @@ export type Turn = {
   /** The preview option the question was about, or null for the run as it is. */
   about: string | null;
   /** What each group key was called when it was asked. */
-  names: Record<string, string>;
+  groupNames: Record<string, string>;
   made: boolean;
 };
 
@@ -114,7 +114,7 @@ export default function AskClaude({
           question: question.trim(),
           ...said,
           about,
-          names: Object.fromEntries(groups.map((group) => [group.key, group.name])),
+          groupNames: Object.fromEntries(groups.map((group) => [group.key, group.name])),
           made: false,
         },
       ]);
@@ -146,7 +146,7 @@ export default function AskClaude({
               <ul className={styles.list}>
                 {turn.moves.map((move) => (
                   <li key={`${move.uid}:${move.toKey}`}>
-                    {MOVE_TO(own(people, move.uid)?.name ?? SOMEBODY, own(turn.names, move.toKey) ?? A_GROUP, move.why)}
+                    {MOVE_TO(own(people, move.uid)?.name ?? SOMEBODY, own(turn.groupNames, move.toKey) ?? A_GROUP, move.why)}
                   </li>
                 ))}
               </ul>
