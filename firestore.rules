@@ -2492,6 +2492,10 @@ service cloud.firestore {
           )
           && request.resource.data.get(['session', 'notes'], '').size() <= 500
           && request.resource.data.get('sessionOverrides', {}).size() <= 20
+          // The group's campus: one of the three Zach named on 29 Oct 2026
+          // ("the only options"), or none chosen yet.
+          // src/lib/courses/campus.ts is the same list.
+          && request.resource.data.get('campus', null) in [null, 'university-park', 'jubilee', 'online']
           // V3 W1 PR5: see groupCapacityOk().
           && groupCapacityOk();
       }

@@ -767,6 +767,16 @@ const NOT_COVERED = {
     coverWhen:
       "When a browser spec signs in as a programme's lead and adds a group from the Times view.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/campus": {
+    reason:
+      "Course hub: a group's campus, from the Sessions view of a programme's Groups tab. tests/course-hub-time-answer.test.mjs executes it as every kind of caller, before Publish and after, with the board's columns carrying it.",
+    coverWhen: "When the groups-go-out spec sets a group's campus on the Sessions view before it presses Publish.",
+  },
+  "/api/courses/runs/[runId]/time-answer": {
+    reason:
+      "Course hub: a person's answer to Can you make this time? on their programme page. tests/course-hub-time-answer.test.mjs executes it as every kind of caller, with the card it is pressed from, every move that clears it and who reads it.",
+    coverWhen: "When a browser spec signs in as somebody Publish has told their group and answers the card on their programme page.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time": {
     reason:
       "Course hub: a group's day and start, from Change and Use for a group on a programme's Times view. tests/course-hub-times-actions.test.mjs executes it as every kind of caller, before Publish has told anybody and after, with a press of Publish landing between its read and its write.",

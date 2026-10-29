@@ -1128,6 +1128,15 @@ export const ROUTES = {
         "Only the programme's lead and admins set it.",
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/campus": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "A group's campus, from the Groups tab's Sessions view: view-as is refused first, then the session, " +
+        "then the body (one of the three campuses, or null) is checked before anything is read, then the role " +
+        "from the form. Only the programme's lead and admins change it, before Publish and after.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time": {
     PUT: {
       expect: signedIn(400),
@@ -1983,6 +1992,15 @@ export const ROUTES = {
         "Publish's two emails, for Publish's own page: session required, then the run is read and " +
         "Publish's own gate decides. The battery's id addresses nothing, so every signed-in persona " +
         "is told the run is missing. It writes nothing.",
+    },
+  },
+  "/api/courses/runs/[runId]/time-answer": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "View-as is refused first, then the session, then the body (a group id and yes or cant, with why and " +
+        "which times would for cant) is checked before anything is read, so every signed-in persona meets the " +
+        "same 400 on an empty one. The caller's own seat is read once a valid body arrives.",
     },
   },
   "/api/courses/runs/[runId]/applications": {
@@ -4721,6 +4739,21 @@ export const REAL_ROUTES = {
       },
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/campus": {
+    PUT: {
+      realDrive: { body: { campus: "jubilee" }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, before its group is read."),
+        admin: c(ACTS, "An admin sets any programme's group campuses, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "The programme's own lead sets its groups' campuses, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time": {
     PUT: {
       realDrive: { body: { weekday: 2, start: "18:00", from: { weekday: 1, start: "18:00" } }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
@@ -5140,6 +5173,26 @@ export const REAL_ROUTES = {
   },
   "/api/courses/runs/[runId]/allocation/publish/preview": {
     GET: runStaff("Publish's two emails, previewed", c(200, "Admitted, and every row on the run is served to them: the preview. It writes nothing.")),
+  },
+  "/api/courses/runs/[runId]/time-answer": {
+    POST: {
+      realDrive: {
+        body: { groupId: "e2e-battery-no-such-group", kind: "yes" },
+        why:
+          "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the " +
+          "refused (nobody with a told seat on the run) are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No seat on this run: there is no group time for them to answer."),
+        admin: c(404, "An admin holds no seat on this run, so there is no group time for them to answer."),
+      },
+      theirs: {
+        lead: c(404, "The programme's lead holds no seat on its run: there is nothing to answer."),
+        facilitator: c(ACTS, "Their own told seat reaches the answer's checks, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        participant: c(ACTS, "Their own told seat may answer, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent (it would write their answer)."),
+      },
+    },
   },
   "/api/courses/runs/[runId]/applications": {
     GET: runStaff("The run's applications queue", c(200, "Admitted: the rows served to the caller.")),
