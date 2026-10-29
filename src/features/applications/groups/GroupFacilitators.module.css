@@ -549,6 +549,27 @@
   color-scheme: dark;
 }
 
+/* "Draft with Claude" under the case's box, and what the draft drew on. */
+.draftRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.draftRow .muted {
+  flex: 1 1 16rem;
+  margin: 0;
+}
+
+/* The person's week beside the groups, for an admin choosing who to ask for which. */
+.week {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
 .askActions {
   display: flex;
   flex-wrap: wrap;
