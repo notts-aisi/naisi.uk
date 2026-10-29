@@ -1136,8 +1136,11 @@ programme names" below).
    Circles' "Suggest" (with or without Claude) is a preview over the groups
    as they are: it seats only people in no group, keeps every appointed
    facilitator in their group, and "Apply N changes" sends only what it
-   lists. Give each group its campus (University Park, Jubilee or Online) on
-   Circles, the Sessions view or the run editor.
+   lists. Give each group its campus (University Park, Jubilee or Online) and
+   the room it meets in every week on Circles, the Sessions view or the run
+   editor's group card ("Location"). Neither emails anybody: people see them
+   on their programme page and in their calendar. "Change a session" changes
+   one week's room, never the group's own.
 6. **Publish** from the board when everybody is in a group. That is the
    email that tells each person their group, and the first email anybody
    gets after decision day. First press **Send a test to me**: it sends you

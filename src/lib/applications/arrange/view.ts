@@ -133,6 +133,8 @@ export type CircleGroup = {
   canMake: string[];
   /** The campus it meets on, or null while none is chosen. */
   campus: "university-park" | "jubilee" | "online" | null;
+  /** The room it meets in every week, "" for none. */
+  location: string;
 };
 
 /**
