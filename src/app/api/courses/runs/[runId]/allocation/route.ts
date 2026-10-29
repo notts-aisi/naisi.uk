@@ -11,6 +11,7 @@ import {
   testWhen,
   type TestState,
 } from "@/lib/courses/allocationPublish";
+import type { GroupCampus } from "@/lib/courses/campus";
 import { shortSlotWords } from "@/lib/courses/facilitatorAsks/words";
 import { sessionLabelOf } from "@/lib/courses/outsideTheirTimes";
 import { groupTagOf } from "@/lib/courses/programmeAttendance";
@@ -100,6 +101,11 @@ export type AllocGroup = {
   tag: string;
   when: string;
   room: string;
+  /**
+   * The campus the group meets on, or null while none is chosen
+   * (`src/lib/courses/campus.ts`): a place of the same tier as `room`.
+   */
+  campus: GroupCampus | null;
   /** The server-owned counter maintained by the allocation transaction. */
   memberCount: number;
   /**
@@ -545,6 +551,7 @@ export async function GET(
       tag: groupTagOf(g.name),
       when: shortSlotWords(g.session) ?? "",
       room: g.session.location.trim(),
+      campus: g.campus,
       memberCount: g.memberCount,
       // The autonomy triple, straight off the normalised doc plus the keys-only
       // subcollection read above. `normalizeCourseGroup` already coerces a

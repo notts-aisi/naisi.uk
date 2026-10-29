@@ -53,6 +53,7 @@ import {
   withWords,
 } from "@/lib/courses/memberPageWords";
 import { slotWords } from "@/lib/courses/sessionChange/words";
+import { campusLabel } from "@/lib/courses/campus";
 import { sessionWhenLabel } from "@/lib/courses/londonLabels";
 import { ATTENDANCE_STATUS_LABEL, type AttendanceStatus } from "@/lib/firestore/courseAttendance";
 import { londonDateKey } from "@/lib/courses/weekPlan";
@@ -492,13 +493,14 @@ export default function RunHome({
   const ticketIsToday = facts !== null && facts.dateKey === todayKey;
   const firstSessionDate = group?.calendar.firstSessionDate ?? "";
 
-  // The head's line: "Group B · Tuesdays 6pm · Room C20 · with Rahul and
-  // Sofia", the group's USUAL slot and room: a week's own arrangement is the
-  // ticket's to say.
+  // The head's line: "Group B · Tuesdays 6pm · Jubilee · Room C20 · with
+  // Rahul and Sofia", the group's USUAL slot, campus and room: a week's own
+  // arrangement is the ticket's to say.
   const groupLine = group
     ? groupLineWords({
         groupName: group.name,
         slot: slotWords(group.usualSlot.weekday, group.usualSlot.startTimeLocal),
+        campus: campusLabel(group.campus ?? null),
         room: group.usualSlot.location,
         with: withWords(facilitatorPeople.map((person) => person.firstName)),
       })

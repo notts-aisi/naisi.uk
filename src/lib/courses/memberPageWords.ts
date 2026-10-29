@@ -47,9 +47,16 @@ export function withWords(firstNames: readonly string[]): string {
   return firstNames.length > 0 ? `with ${namesWords(firstNames)}` : "";
 }
 
-/** "Group B · Tuesdays 6pm · Room C20 · with Rahul and Sofia": what is known, in that order. */
-export function groupLineWords(parts: { groupName: string; slot: string; room: string; with: string }): string {
-  return [parts.groupName, parts.slot, parts.room, parts.with].map((part) => part.trim()).filter(Boolean).join(" · ");
+/**
+ * "Group B · Tuesdays 6pm · Jubilee · Room C20 · with Rahul and Sofia": what
+ * is known, in that order. The campus is the group's, beside its time; the
+ * caller hands "" for a group with none chosen.
+ */
+export function groupLineWords(parts: { groupName: string; slot: string; campus?: string; room: string; with: string }): string {
+  return [parts.groupName, parts.slot, parts.campus ?? "", parts.room, parts.with]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" · ");
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { GroupCampus } from "@/lib/courses/campus";
 import type { PublishReport } from "@/lib/courses/publishWords";
 import type { WeekPlanEntry } from "@/lib/courses/weekPlan";
 import type { FormPlace } from "./allocationFit";
@@ -76,6 +77,8 @@ export type AllocGroup = {
   tag: string;
   when: string;
   room: string;
+  /** The group's campus, or null while none is chosen: shown beside `room` ("" for none yet). */
+  campus: GroupCampus | null;
   memberCount: number;
   /**
    * ── THE AUTONOMY TRIPLE (V2-3) ────────────────────────────────────────────
