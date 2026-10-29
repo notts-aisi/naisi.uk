@@ -6,7 +6,12 @@
  * and asked directly.
  *
  * What it guards (the plan's own rules, in its own words):
- *  - nobody who has been told moves;
+ *  - nobody already placed moves: told or not, and nobody facilitating one of
+ *    the run's groups, unless the admin starts again, which still never moves
+ *    the told or a facilitator;
+ *  - the people who offered to facilitate are seated first, each at a time
+ *    they can make, and a group the plan adds meets at a time one of them can
+ *    make where there is one;
  *  - the run's groups come first, and a group with no time is given one;
  *  - more groups only when they are needed;
  *  - as many people seated as can be, the most constrained first;
@@ -19,7 +24,7 @@ import assert from "node:assert/strict";
 import { createLoader } from "./lib/tsLoader.mjs";
 
 const { loadTs } = createLoader({ stubs: new Map() });
-const { planGroups, slotFor, canMake } = await loadTs("lib/applications/arrange/plan.ts");
+const { planGroups, slotFor, canMake, stayingIn } = await loadTs("lib/applications/arrange/plan.ts");
 
 const MINUTES = 90;
 const TUE_18 = { weekday: 2, start: 18 * 60 };
@@ -102,6 +107,141 @@ test("nobody who has been told moves, and they count against the room", () => {
   );
   assert.deepEqual(result.keptUids, ["told"]);
   assert.deepEqual(membersOf(result), [["told"], ["new"]]);
+});
+
+// ---------------------------------------------------------------------------
+// Nobody already placed moves (Circles, 29 October 2026)
+// ---------------------------------------------------------------------------
+
+const where = (result, uid) => result.groups.find((group) => group.memberUids.includes(uid))?.id ?? null;
+
+test("nobody already placed moves, told or not, and they count against the room", () => {
+  // "placed" sits in Wednesday and could make Tuesday; "new" can only make
+  // Wednesday. Seating from scratch would swap them; a placed person stays.
+  const groups = [
+    { id: "tue", name: "Tue", session: slotFor(TUE_18, MINUTES), capacity: 1 },
+    { id: "wed", name: "Wed", session: slotFor(WED_18, MINUTES), capacity: 1 },
+  ];
+  const result = plan(
+    [person("placed", freeAt(TUE_18, WED_18), { groupId: "wed" }), person("new", freeAt(WED_18))],
+    groups,
+    { best: [] },
+  );
+  assert.equal(where(result, "placed"), "wed");
+  assert.deepEqual(result.keptUids, ["placed"]);
+  assert.deepEqual(result.unplaced, [{ uid: "new", reason: "no-room" }]);
+});
+
+test("a placed person stays even in a group whose time they cannot make", () => {
+  const groups = [
+    { id: "tue", name: "Tue", session: slotFor(TUE_18, MINUTES), capacity: 4 },
+    { id: "wed", name: "Wed", session: slotFor(WED_18, MINUTES), capacity: 4 },
+  ];
+  const result = plan([person("p", freeAt(WED_18), { groupId: "tue" })], groups, { best: [] });
+  assert.equal(where(result, "p"), "tue", "an admin placed them there; the plan does not overrule it");
+});
+
+test("everybody facilitating one of the run's groups stays in it, placed there if they sit nowhere yet", () => {
+  const groups = [
+    { id: "tue", name: "Tue", session: slotFor(TUE_18, MINUTES), capacity: 3 },
+    { id: "wed", name: "Wed", session: slotFor(WED_18, MINUTES), capacity: 3 },
+  ];
+  const people = [
+    person("lead", freeAt(TUE_18, WED_18), { facilitates: true, groupId: "wed", appointed: ["wed"] }),
+    person("fresh", freeAt(TUE_18), { facilitates: true, appointed: ["wed"] }),
+    ...["a", "b", "c"].map((uid) => person(uid, freeAt(TUE_18, WED_18))),
+  ];
+  for (const startAgain of [false, true]) {
+    const result = plan(people, groups, { best: [], startAgain });
+    assert.equal(where(result, "lead"), "wed", `startAgain ${startAgain}: a facilitator moved`);
+    assert.equal(where(result, "fresh"), "wed", `startAgain ${startAgain}: a facilitator was seated outside their group`);
+    assert.ok(result.keptUids.includes("lead") && result.keptUids.includes("fresh"));
+  }
+});
+
+test("starting again seats afresh the placed and untold, and never moves the told", () => {
+  const groups = [
+    { id: "tue", name: "Tue", session: slotFor(TUE_18, MINUTES), capacity: 1 },
+    { id: "wed", name: "Wed", session: slotFor(WED_18, MINUTES), capacity: 1 },
+  ];
+  const untold = plan(
+    [person("placed", freeAt(TUE_18, WED_18), { groupId: "wed" }), person("new", freeAt(WED_18))],
+    groups,
+    { best: [], startAgain: true },
+  );
+  assert.equal(where(untold, "placed"), "tue", "starting again should make room for somebody who can only make Wednesday");
+  assert.equal(where(untold, "new"), "wed");
+  assert.deepEqual(untold.keptUids, []);
+
+  const told = plan(
+    [person("told", freeAt(TUE_18, WED_18), { groupId: "wed", told: true }), person("new", freeAt(WED_18))],
+    groups,
+    { best: [], startAgain: true },
+  );
+  assert.equal(where(told, "told"), "wed", "starting again moved somebody Publish had told");
+  assert.deepEqual(told.keptUids, ["told"]);
+});
+
+test("whatever the people, the placed stay put unless starting again, and the told and facilitators always", () => {
+  // Twenty people over three groups, some placed, some told, some facilitating,
+  // each free at two of the three times. Every one of them is checked.
+  const sessions = [TUE_18, WED_18, THU_18];
+  const ids = ["tue", "wed", "thu"];
+  const groups = ids.map((id, i) => ({ id, name: id, session: slotFor(sessions[i], MINUTES), capacity: 8 }));
+  const people = Array.from({ length: 20 }, (_, i) => {
+    const groupId = i % 4 === 0 ? null : ids[i % 3];
+    return person(`p${String(i).padStart(2, "0")}`, freeAt(...sessions.filter((_, j) => (i + j) % 3 !== 0)), {
+      groupId,
+      told: groupId !== null && i % 5 === 0,
+      appointed: groupId !== null && i % 7 === 0 ? [groupId] : [],
+      facilitates: i % 7 === 0,
+    });
+  });
+  for (const startAgain of [false, true]) {
+    const result = plan(people, groups, { best: [], startAgain });
+    for (const p of people) {
+      if (p.groupId === null) continue;
+      const pinned = !startAgain || p.told || p.appointed.length > 0;
+      if (pinned) assert.equal(where(result, p.uid), p.groupId, `startAgain ${startAgain}: ${p.uid} moved`);
+      assert.equal(stayingIn(p, new Set(ids), startAgain), pinned ? p.groupId : null);
+    }
+  }
+});
+
+test("the people who offered to facilitate are seated first, one to a group where they can be", () => {
+  // Two seats in each of two groups and five people, all free at both times.
+  // The two who offered come last by account, so only their priority seats
+  // them: each is seated, in a group of their own, before anybody else.
+  const groups = [
+    { id: "tue", name: "Tue", session: slotFor(TUE_18, MINUTES), capacity: 2 },
+    { id: "wed", name: "Wed", session: slotFor(WED_18, MINUTES), capacity: 2 },
+  ];
+  const people = [
+    ...["c", "d", "e"].map((uid) => person(uid, freeAt(TUE_18, WED_18))),
+    person("y-f", freeAt(TUE_18, WED_18), { facilitates: true }),
+    person("z-f", freeAt(TUE_18, WED_18), { facilitates: true }),
+  ];
+  const result = plan(people, groups, { best: [] });
+  assert.notEqual(where(result, "y-f"), null, "somebody who offered lost their seat");
+  assert.notEqual(where(result, "z-f"), null, "somebody who offered lost their seat");
+  assert.notEqual(where(result, "y-f"), where(result, "z-f"), "both who offered sat in one group");
+  assert.equal(result.unplaced.length, 1);
+  assert.ok(!result.unplaced[0].uid.endsWith("-f"));
+});
+
+test("a group the plan adds meets at a time somebody who offered can make, where there is one", () => {
+  // Tuesday is the best time, but only Thursday suits the one who offered.
+  const people = [
+    person("f", freeAt(THU_18), { facilitates: true }),
+    ...["a", "b"].map((uid) => person(uid, freeAt(TUE_18, THU_18))),
+  ];
+  const result = plan(people, [], { size: 3 });
+  assert.equal(result.groups.length, 1);
+  assert.equal(result.groups[0].session.weekday, THU_18.weekday, "the new group was not at a time the facilitator can make");
+  assert.ok(result.groups[0].memberUids.includes("f"));
+  // With nobody who offered, the best time is taken as before.
+  const plain = plan(people.map((p) => ({ ...p, facilitates: false })), [], { size: 3 });
+  assert.equal(plain.groups[0].session.weekday, TUE_18.weekday);
 });
 
 test("no week, and a week that makes no group, are left for a person with the reason", () => {

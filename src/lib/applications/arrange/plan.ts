@@ -14,20 +14,30 @@ import type { PaintedWeek } from "../handover/paintedWeek";
  *
  * The rules, in order:
  *
- *  1. NOBODY WHO HAS BEEN TOLD MOVES. A person whose group Publish has told
- *     them stays in it, and counts against its room.
+ *  1. NOBODY ALREADY PLACED MOVES. A person whose group Publish has told
+ *     them stays in it; so does everybody an admin has placed in a group
+ *     already, told or not; and so does everybody who facilitates one of the
+ *     run's groups (`appointed`), in the group they facilitate, since that is
+ *     the only group the site will seat them in. Each counts against their
+ *     group's room. Only `startAgain` lets the people placed and not told be
+ *     seated afresh, and even then the told and the appointed stay.
  *  2. THE RUN'S GROUPS COME FIRST. A group with a time keeps it. A group with
- *     no time is given the best start time no group meets at.
+ *     no time is given the best start time no group meets at, one somebody
+ *     who offered to facilitate can make where there is one.
  *  3. MORE GROUPS ONLY WHEN THEY ARE NEEDED. Enough groups for everybody at
  *     the group size; any extra group meets at the next best time no group
- *     meets at, from the times picture's own count (`../handover/times.ts`).
+ *     meets at, from the times picture's own count (`../handover/times.ts`),
+ *     again one that somebody who offered and is not needed elsewhere can
+ *     make where there is one.
  *  4. EVERYBODY WHO MARKED A REAL WEEK IS SEATED BEFORE ANYBODY WHO MARKED
  *     LITTLE TIME (under four hours: `minimal`, read "from then on" by
- *     `../handover/paintedWeek.ts`). Within each, the most constrained first,
- *     then a seat is found for each of the rest by moving people already
- *     seated where that frees one (augmenting paths), so the number seated
- *     is as large as it can be and nobody who marked a real week loses a
- *     seat to somebody who did not.
+ *     `../handover/paintedWeek.ts`). Within each, THE PEOPLE WHO OFFERED TO
+ *     FACILITATE COME FIRST, each to a group they can make with nobody who
+ *     offered in it where there is one, then the most constrained first. A
+ *     seat is then found for each of the rest by moving people already
+ *     seated where that frees one (augmenting paths), which never unseats
+ *     anybody, so the number seated is as large as it can be and nobody who
+ *     marked a real week, or offered, loses a seat to somebody after them.
  *  5. THEN THE GROUPS ARE EVENED OUT: somebody moves from the largest group to
  *     a smaller one they can make, while that narrows the gap.
  *  6. SOMEBODY WHO MARKED LITTLE TIME AND STILL HAS NO SEAT goes to the
@@ -52,6 +62,11 @@ export type ArrangePerson = {
   /** Publish has told them their group: they stay in it. */
   told: boolean;
   /**
+   * The run's groups they facilitate, by id: they sit in that group and in no
+   * other (the allocate route refuses anything else), so they stay there.
+   */
+  appointed?: readonly string[];
+  /**
    * The stretches they marked, for an admin's chart of their week. Never in
    * anything sent to Claude: Claude is told only which groups they can make.
    */
@@ -65,6 +80,14 @@ export type ArrangeGroup = {
   session: SessionSlot | null;
   /** Null for no limit. */
   capacity: number | null;
+  /** It has a facilitator on the run already, who may hold no place on it. */
+  staffed?: boolean;
+  /**
+   * Its time stays as it is in every arrangement: Publish has told somebody
+   * it, or somebody facilitates it. Read by `./options.ts`, which may try
+   * another time for any other group nobody stays in.
+   */
+  keepsTime?: boolean;
 };
 
 export type CandidateTime = { weekday: number; start: number };
@@ -86,7 +109,11 @@ export type Unplaced = { uid: string; reason: "no-week" | "fits-none" | "no-room
 export type Plan = {
   groups: PlannedGroup[];
   unplaced: Unplaced[];
-  /** People who were told their group and were left in it. */
+  /**
+   * People who stay where they are (rule 1): told, facilitating the group
+   * they sit in, or (unless starting again) placed already. Somebody kept in
+   * a group this plan could not give a time is in no group of it, and stays.
+   */
   keptUids: string[];
   /** People who marked little time, seated in the group nearest their time rather than one they marked (rule 6). */
   nearUids: string[];
@@ -134,6 +161,24 @@ export function canMake(person: Pick<ArrangePerson, "week">, session: SessionSlo
 }
 
 /**
+ * The run's group somebody stays in whatever is suggested (rule 1), or null
+ * when they may be seated afresh: the group they facilitate (the one they sit
+ * in, if they facilitate several), else the group they are in when Publish
+ * has told them it or, unless starting again, when they are in one at all.
+ * `liveIds` is the run's live groups: a seat in any other group is no seat.
+ */
+export function stayingIn(
+  person: Pick<ArrangePerson, "groupId" | "told" | "appointed">,
+  liveIds: ReadonlySet<string>,
+  startAgain: boolean,
+): string | null {
+  const appointed = (person.appointed ?? []).filter((id) => liveIds.has(id));
+  if (appointed.length > 0) return person.groupId !== null && appointed.includes(person.groupId) ? person.groupId : appointed[0];
+  if (person.groupId === null || !liveIds.has(person.groupId)) return null;
+  return person.told || !startAgain ? person.groupId : null;
+}
+
+/**
  * The plan. `best` is the times picture's start times, best first; `size` the
  * group size to aim for; `names` makes the name of each group the plan adds.
  */
@@ -146,22 +191,53 @@ export function planGroups(input: {
   names: (taken: readonly string[]) => string;
   /** Groups to add beyond the ones the people need, at the next best times: an option with room for more fits. */
   extra?: number;
+  /**
+   * Seat afresh everybody placed and not yet told ("Start again"). The told,
+   * and everybody facilitating one of the run's groups, stay where they are.
+   */
+  startAgain?: boolean;
 }): Plan {
   const size = Math.max(1, Math.floor(input.size));
   const people = [...input.people].sort((a, b) => a.uid.localeCompare(b.uid));
+  const offered = (person: ArrangePerson) => person.facilitates === true;
+  const liveIds = new Set(input.groups.map((group) => group.id));
 
-  // 1 and 2: the run's groups, each with a time.
+  // Rule 1: who stays where they are, and in which of the run's groups.
+  const stayIn = new Map<string, string>();
+  for (const person of people) {
+    const groupId = stayingIn(person, liveIds, input.startAgain === true);
+    if (groupId !== null) stayIn.set(person.uid, groupId);
+  }
+
+  // People who offered to facilitate and are still to be seated. Each group
+  // the plan gives a time is given one one of them can make, where there is
+  // one, and that person is then counted on for it (`counted`).
+  const spare = people.filter((person) => offered(person) && !stayIn.has(person.uid) && person.week.kind === "given");
+  const counted = new Set<string>();
+  const offererFor = (session: SessionSlot) =>
+    spare.find((person) => !counted.has(person.uid) && canMake(person, session)) ?? null;
+
+  // 2: the run's groups, each with a time.
   const used: SessionSlot[] = input.groups.flatMap((group) => (group.session ? [group.session] : []));
   const nextTime = (): SessionSlot | null => {
-    for (const time of input.best) {
-      const slot = slotFor(time, input.minutes);
-      if (!used.some((other) => sameStart(other, slot))) {
-        used.push(slot);
-        return slot;
-      }
-    }
-    return null;
+    const free = input.best
+      .map((time) => slotFor(time, input.minutes))
+      .filter((slot) => !used.some((other) => sameStart(other, slot)));
+    const slot = free.find((each) => offererFor(each) !== null) ?? free[0] ?? null;
+    if (!slot) return null;
+    used.push(slot);
+    const offerer = offererFor(slot);
+    if (offerer) counted.add(offerer.uid);
+    return slot;
   };
+  // A group with a time, and nobody staying in it who offered and no
+  // facilitator, counts on somebody who offered and can make it, first.
+  for (const group of input.groups) {
+    if (!group.session || group.staffed) continue;
+    if (people.some((person) => stayIn.get(person.uid) === group.id && offered(person))) continue;
+    const offerer = offererFor(group.session);
+    if (offerer) counted.add(offerer.uid);
+  }
   const planned: PlannedGroup[] = [];
   for (const group of input.groups) {
     const session = group.session ?? nextTime();
@@ -176,17 +252,18 @@ export function planGroups(input: {
     });
   }
 
-  // Rule 1: the told stay where they are.
+  // Rule 1: everybody staying put, in their group. Somebody whose group the
+  // plan could give no time stays where they are, in no group of the plan.
   const keptUids: string[] = [];
   const toSeat: ArrangePerson[] = [];
   for (const person of people) {
-    const theirs = person.told && person.groupId ? planned.find((group) => group.id === person.groupId) : undefined;
-    if (theirs) {
-      theirs.memberUids.push(person.uid);
-      keptUids.push(person.uid);
-    } else {
+    const groupId = stayIn.get(person.uid);
+    if (groupId === undefined) {
       toSeat.push(person);
+      continue;
     }
+    planned.find((group) => group.id === groupId)?.memberUids.push(person.uid);
+    keptUids.push(person.uid);
   }
 
   // 3: more groups, only as many as the people need.
@@ -229,15 +306,25 @@ export function planGroups(input: {
     else options.set(person.uid, fits);
   }
 
-  // 4: seat the most constrained first, then augment.
+  // 4: seat the most constrained first, the people who offered before the
+  // rest, then augment.
   const seated = new Map<string, number>();
   // Who this plan seats in each group, beside the people kept there.
   const occupants: string[][] = planned.map(() => []);
   const free = (index: number) => planned[index].room - planned[index].memberUids.length - occupants[index].length;
+  const byUid = new Map(people.map((person) => [person.uid, person] as const));
+  const offerers = (index: number) =>
+    [...planned[index].memberUids, ...occupants[index]].filter((uid) => {
+      const person = byUid.get(uid);
+      return person !== undefined && offered(person);
+    }).length;
+  const staffedIds = new Set(input.groups.filter((group) => group.staffed).map((group) => group.id));
   const minimalUids = new Set(toSeat.filter(isMinimal).map((person) => person.uid));
+  const offeredUids = new Set(toSeat.filter(offered).map((person) => person.uid));
   const order = [...options.keys()].sort(
     (a, b) =>
       Number(minimalUids.has(a)) - Number(minimalUids.has(b)) ||
+      Number(offeredUids.has(b)) - Number(offeredUids.has(a)) ||
       options.get(a)!.length - options.get(b)!.length ||
       a.localeCompare(b),
   );
@@ -262,19 +349,22 @@ export function planGroups(input: {
     }
     return false;
   };
+  const sizeNow = (index: number) => planned[index].memberUids.length + occupants[index].length;
   for (const uid of order) {
-    // A fresh walk for each person, smallest groups first so the seats spread.
+    // A fresh walk for each person, smallest groups first so the seats spread;
+    // somebody who offered, groups with nobody who offered (and no facilitator) first.
+    const facilitates = offeredUids.has(uid);
+    const covered = (index: number) =>
+      facilitates ? (staffedIds.has(planned[index].id ?? "") ? 1 : 0) + offerers(index) : 0;
     options.set(
       uid,
-      [...options.get(uid)!].sort(
-        (a, b) => planned[a].memberUids.length + occupants[a].length - (planned[b].memberUids.length + occupants[b].length) || a - b,
-      ),
+      [...options.get(uid)!].sort((a, b) => covered(a) - covered(b) || sizeNow(a) - sizeNow(b) || a - b),
     );
     if (!tryToSeat(uid, new Set())) unplaced.push({ uid, reason: "no-room" });
   }
 
   // 5: even them out.
-  const sizeOf = (index: number) => planned[index].memberUids.length + occupants[index].length;
+  const sizeOf = sizeNow;
   for (let moved = true, guard = 0; moved && guard < 1000; guard += 1) {
     moved = false;
     const largest = planned.map((_, index) => index).sort((a, b) => sizeOf(b) - sizeOf(a) || a - b);

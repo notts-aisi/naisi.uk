@@ -11,7 +11,8 @@ import { canMake, type ArrangePerson, type Plan } from "./plan";
  * Claude sees the options `./options.ts` worked out, with people numbered
  * ("Applicant 3") and groups labelled by option ("Group B2"), never named.
  * For each person, once: whether they offered to facilitate, whether they
- * have been told their group, whether they marked little time, and Claude's
+ * stay in the group they are in (told it, facilitating it, or placed there
+ * already: `./plan.ts` rule 1), whether they marked little time, and Claude's
  * own earlier read of their application (its lean, summary, strengths,
  * concerns and how many answers it found thin), with reviewers made "a
  * reviewer". Never their week: under each option, only which of THAT
@@ -25,8 +26,7 @@ import { canMake, type ArrangePerson, type Plan } from "./plan";
  *
  * NOTHING IT SAYS IS TAKEN ON TRUST (`applyChoice`). An option it names has
  * to be one of the options it was shown. A move has to be to a group the
- * person can make, with room, and never of somebody already told their
- * group. A facilitator has to be one of the people, sits in the group they
+ * person can make, with room, and never of somebody who stays where they are. A facilitator has to be one of the people, sits in the group they
  * lead (moved there when that is allowed), and leads one group. A lead who
  * did not offer is given a second who did: Claude's if it named one who can
  * be, else the site's best guess in that group, else the screen says nobody
@@ -62,6 +62,20 @@ const LETTERS = "ABCDEFGH";
 
 const reviewerWords = (text: string) => text.replace(/\bReviewer [A-Z]\b/g, "a reviewer");
 
+/** Why somebody who stays where they are does, as Claude is told it: the first that is true of them. */
+function stayWords(person: Pick<ArrangePerson, "told" | "appointed">): string {
+  if (person.told) return "Already told their group, so stays in it.";
+  if ((person.appointed ?? []).length > 0) return "Facilitates the group they are in, so stays in it.";
+  return "Already placed in a group by an admin, so stays in it.";
+}
+
+/** Why a suggested move of somebody who stays where they are is not kept, after their label. */
+function stayReason(person: Pick<ArrangePerson, "told" | "appointed">): string {
+  if (person.told) return "has already been told their group";
+  if ((person.appointed ?? []).length > 0) return "facilitates the group they are in";
+  return "is already placed, and stays where they are";
+}
+
 /** One line for each person, as Claude is told them: never a name, a week or a Pangram finding. */
 function peopleLines(
   uids: readonly string[],
@@ -76,7 +90,7 @@ function peopleLines(
     const parts = [
       `${labelOf.get(uid)}:`,
       person.facilitates ? "offered to facilitate." : "did not offer to facilitate.",
-      kept.has(uid) ? "Already told their group, so stays in it." : "",
+      kept.has(uid) ? stayWords(person) : "",
       person.week.kind === "given" && person.week.minimal ? "Marked under 4 hours in the week." : "",
       person.week.kind !== "given" ? "Said nothing about when they are free." : "",
       read
@@ -330,7 +344,7 @@ export function applyChoice(
     const fits = (uid: string, to: number) => {
       const person = people.get(uid);
       if (!person) return "is not one of the people being arranged";
-      if (kept.has(uid)) return "has already been told their group";
+      if (kept.has(uid)) return stayReason(person);
       if (!canMake(person, groupAt(to).session)) return `cannot make that group's time`;
       if (groupAt(to).memberUids.length >= groupAt(to).room) return "would join a group that is full";
       return null;
@@ -629,7 +643,7 @@ export function askAnswerFrom(value: unknown): AskAnswer | null {
 
 /**
  * The moves Claude suggested that fit the groups on the screen, in order:
- * somebody being arranged, never somebody already told their group, to a
+ * somebody being arranged, never somebody who stays where they are, to a
  * group on the screen they can make, with room once the moves before it are
  * made. The rest, with why.
  */
@@ -654,7 +668,7 @@ export function keepMoves(
       continue;
     }
     if (kept.has(uid)) {
-      dropped.push({ suggestion: what, why: `${said.applicant} has already been told their group` });
+      dropped.push({ suggestion: what, why: `${said.applicant} ${stayReason(person)}` });
       continue;
     }
     if ((members.get(toKey) ?? []).includes(uid)) continue;
