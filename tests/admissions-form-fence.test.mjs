@@ -818,6 +818,12 @@ const ROUND_SURFACES = {
       "adds a group to the run a programme names, from the Groups tab's Times view, reaching the round " +
       "only through loadProgrammeRun, which answers a round that is not a form as a programme that is not here",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room": {
+    kind: "form",
+    why:
+      "sets a group's weekly room through setGroupRoom, after loadProgrammeRun, which reaches the round only " +
+      "through the form's own loader and answers a round that is not a form as a programme that is not here",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/campus": {
     kind: "form",
     why:

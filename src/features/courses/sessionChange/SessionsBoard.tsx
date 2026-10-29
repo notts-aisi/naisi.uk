@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import InitialsChip from "@/components/ui/InitialsChip";
 import GroupCampusPicker from "@/features/applications/groups/GroupCampusPicker";
+import GroupRoomField from "@/features/applications/groups/GroupRoomField";
 import { useHydrated } from "@/hooks/useHydrated";
 import type { SessionCardView } from "@/lib/courses/sessionChange/view";
 import { CHANGE_A_SESSION, STATE_WORDS } from "@/lib/courses/sessionChange/words";
@@ -162,6 +163,14 @@ export default function SessionsBoard({
                       groupId={card.campus.groupId}
                       groupName={card.campus.groupName}
                       value={card.campus.value}
+                      onSaved={(words) => setSaid(words || null)}
+                    />
+                    <GroupRoomField
+                      roundId={campusAt.roundId}
+                      programmeId={campusAt.programmeId}
+                      groupId={card.campus.groupId}
+                      groupName={card.campus.groupName}
+                      value={card.campus.room}
                       onSaved={(words) => setSaid(words || null)}
                     />
                   </div>

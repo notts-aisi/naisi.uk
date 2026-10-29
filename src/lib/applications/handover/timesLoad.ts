@@ -114,7 +114,13 @@ export type TimesOutcome =
 const GROUPS_COLLECTION = "courseGroups";
 
 /** One live group of the run: what the picture reads, and what its controls ask about it. */
-export type LiveGroup = TimesGroup & { facilitatorUids: string[]; capacity: number | null; campus: GroupCampus | null };
+export type LiveGroup = TimesGroup & {
+  facilitatorUids: string[];
+  capacity: number | null;
+  campus: GroupCampus | null;
+  /** The room it meets in every week, "" for none. Never the meeting link. */
+  location: string;
+};
 
 /** The run's groups that are not archived, reduced to what the picture and its controls read. */
 export async function groupsOf(db: Firestore, runId: string): Promise<LiveGroup[]> {
@@ -136,6 +142,7 @@ export async function groupsOf(db: Firestore, runId: string): Promise<LiveGroup[
       facilitatorUids: [...group.facilitatorUids],
       capacity: group.capacity,
       campus: group.campus,
+      location: group.session.location.trim(),
     });
   }
   return groups;

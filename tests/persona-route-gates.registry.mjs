@@ -1129,6 +1129,15 @@ export const ROUTES = {
         "Only the programme's lead and admins set it.",
     },
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "A group's weekly room, beside its campus on the Groups tab: view-as is refused first, then the session, " +
+        "then the body (the room as text) is checked before anything is read, then the role from the form. Only " +
+        "the programme's lead and admins change it, before Publish and after.",
+    },
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/campus": {
     PUT: {
       expect: signedIn(400),
@@ -4736,6 +4745,21 @@ export const REAL_ROUTES = {
       },
       theirs: {
         lead: c(ACTS, "The programme's own lead sets the day its groups go out, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room": {
+    PUT: {
+      realDrive: { body: { room: "Room E2E" }, why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, before its group is read."),
+        admin: c(ACTS, "An admin sets any programme's group rooms, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "The programme's own lead sets its groups' rooms, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
         facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
         participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
       },

@@ -767,6 +767,11 @@ const NOT_COVERED = {
     coverWhen:
       "When a browser spec signs in as a programme's lead and adds a group from the Times view.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/room": {
+    reason:
+      "Course hub: a group's weekly room, beside its campus on Circles and the Sessions view. tests/course-group-room-field.test.mjs executes it as every kind of caller, with what it writes and what it leaves alone.",
+    coverWhen: "When the groups-go-out spec sets a group's room on the Sessions view before it presses Publish.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/campus": {
     reason:
       "Course hub: a group's campus, from the Sessions view of a programme's Groups tab. tests/course-hub-time-answer.test.mjs executes it as every kind of caller, before Publish and after, with the board's columns carrying it.",

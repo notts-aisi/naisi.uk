@@ -73,6 +73,7 @@ function ringsOf(
       slot: { weekday: group.session.weekday, start: group.session.startTimeLocal },
       canMake: canMakeOf(group),
       campus: group.campus,
+      location: group.location,
     };
   });
 }

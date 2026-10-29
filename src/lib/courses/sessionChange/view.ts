@@ -121,12 +121,13 @@ export type SessionCardView = {
    */
   pairs: { href: string; label: string } | null;
   /**
-   * The group's campus and the control that changes it, on the Groups tab's
-   * Sessions view: the group and its campus now (null for none chosen).
+   * The group's campus and room and the controls that change them, on the
+   * Groups tab's Sessions view: the group, its campus now (null for none
+   * chosen) and the room it meets in every week ("" for none).
    * Null on a group's own page: a group's campus is set by the programme's
    * lead and admins, here, and in the run editor's group card.
    */
-  campus: { groupId: string; groupName: string; value: GroupCampus | null } | null;
+  campus: { groupId: string; groupName: string; value: GroupCampus | null; room: string } | null;
 };
 
 export type SessionsWeekView = {
@@ -356,7 +357,7 @@ async function pairsFor(db: Firestore, runId: string, groupId: string, weekNumbe
 
 /** A group's campus, for the Sessions view's control. */
 function campusControlOf(group: CourseGroupDoc): SessionCardView["campus"] {
-  return { groupId: group.id, groupName: groupNameOf(group), value: group.campus };
+  return { groupId: group.id, groupName: groupNameOf(group), value: group.campus, room: group.session.location.trim() };
 }
 
 /**
