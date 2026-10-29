@@ -400,6 +400,20 @@ const RECIPIENT_SOURCES = new Map([
     },
   ],
   [
+    "src/app/api/courses/runs/[runId]/allocation/publish/route.ts#local:joinedRecipients",
+    {
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "The facilitators `loadPublishPlan` found owed a who-joined email: `facilitatorUids` of each live group " +
+        "with a `facilitating__` marker in courseNudges, of a group in which this press tells somebody new or " +
+        "whose earlier announcement failed, less the programme's lead, at each account's own address.",
+      why:
+        "Each facilitator already told about a group, told once per person who has joined it since. The " +
+        "request names nobody.",
+    },
+  ],
+  [
     "src/app/api/courses/runs/[runId]/applications/[uid]/decide/route.ts#run.admissionsReviewerUids",
     {
       reads: 1,

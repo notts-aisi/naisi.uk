@@ -1109,6 +1109,11 @@ const NOT_COVERED = {
     coverWhen:
       "When the October curriculum rebuild lands, because a spec written against today's shape would be thrown away with it.",
   },
+  "/api/courses/runs/[runId]/allocation/publish/notes": {
+    reason:
+      "Course hub: the read and the writes behind Outside the times they gave on Publish's own page; tests/course-publish-outside-notes.test.mjs executes it as every kind of caller and holds that the lead is sent no week and no draft.",
+    coverWhen: "With the spec for Publish's own page, which opens it.",
+  },
   "/api/courses/runs/[runId]/allocation/publish/preview": {
     reason:
       "Course hub: the read behind Publish's own page's two emails; tests/course-hub-get-ready.test.mjs executes it as every kind of caller and holds each email it shows to be, byte for byte, the one the press then sends.",

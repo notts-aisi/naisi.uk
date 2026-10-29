@@ -3131,6 +3131,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === coursePlacementNotes ===
+    // What an admin or a programme's lead chose for somebody placed outside
+    // the times they gave: a note of their own words for the top of that
+    // person's "Your group" email, or none (src/lib/courses/placementNotes/).
+    // Written and read only by the notes route and Publish on the Admin SDK,
+    // after their own gate. So every browser is refused, the person a note is
+    // about, the programme's lead and admins included: a note may name a
+    // group before Publish has told its person, which no browser may learn.
+    match /coursePlacementNotes/{docId} {
+      allow read, write: if false;
+    }
+
     // === coursePacksAndCases ===
     // What each person has in a week's packs and talks (plan item 8, Q32 A,
     // src/lib/firestore/coursePacksAndCases.ts): the pack they picked or were

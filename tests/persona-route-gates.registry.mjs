@@ -1954,10 +1954,31 @@ export const ROUTES = {
         "read first.",
     },
   },
+  "/api/courses/runs/[runId]/allocation/publish/notes": {
+    GET: {
+      expect: signedIn(404),
+      why:
+        "The notes for people placed outside the times they gave, for Publish's own page: session required, then " +
+        "the run is read. The battery's id addresses nothing, so every signed-in persona is told the run is " +
+        "missing. It writes nothing.",
+    },
+    PUT: {
+      expect: signedIn(404),
+      why:
+        "Saving a note, or none: a view-as session is refused first, then the session, then the run is read before " +
+        "the body, so every signed-in persona is told the run is missing.",
+    },
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Asking Claude to draft a note is an admin's, refused before anything is read; the admin then meets the " +
+        "missing run.",
+    },
+  },
   "/api/courses/runs/[runId]/allocation/publish/preview": {
     GET: {
       expect: signedIn(404),
-      fields: ["incubator", "people", "facilitators", "refusals"],
+      fields: ["incubator", "people", "facilitators", "joined", "noted", "notedEmail", "push", "notesNeeded", "refusals"],
       why:
         "Publish's two emails, for Publish's own page: session required, then the run is read and " +
         "Publish's own gate decides. The battery's id addresses nothing, so every signed-in persona " +
@@ -5100,6 +5121,22 @@ export const REAL_ROUTES = {
       "A test of Publish's emails",
       c(ACTS, "Admitted, and it takes no body: it would send a test to the caller's own address."),
     ),
+  },
+  "/api/courses/runs/[runId]/allocation/publish/notes": {
+    GET: runStaff("Notes for people placed outside their times", c(200, "Admitted: the section, which carries no week and no draft for a lead. It writes nothing.")),
+    PUT: runStaff("Saving a note for somebody placed outside their times", c(400, "Admitted, then an empty body does not say who the note is for.")),
+    POST: {
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Only an admin can ask Claude to draft a note: refused before anything is read."),
+        admin: c(400, "An admin is admitted, then an empty body does not say whose note to draft."),
+      },
+      theirs: {
+        lead: c(403, "Only an admin can ask Claude to draft a note, the programme's lead included."),
+        facilitator: c(403, "Only an admin can ask Claude to draft a note."),
+        participant: c(403, "Only an admin can ask Claude to draft a note."),
+      },
+    },
   },
   "/api/courses/runs/[runId]/allocation/publish/preview": {
     GET: runStaff("Publish's two emails, previewed", c(200, "Admitted, and every row on the run is served to them: the preview. It writes nothing.")),

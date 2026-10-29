@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ComponentType } from "react";
+import { useCallback, useEffect, useState } from "react";
 import CountedTextarea from "@/components/ui/CountedTextarea";
 import InitialsChip from "@/components/ui/InitialsChip";
 import shared from "@/features/applications/decisionDay/decisionDay.module.css";
-import WeekChart, { type ChartGroup } from "@/features/applications/times/WeekChart";
+import WeekChart, { type ChartGroup, type WeekChartWords } from "@/features/applications/times/WeekChart";
 import { PLACEMENT_NOTE_LIMIT } from "@/lib/courses/placementNotes/model";
 import type { OutsideRow, OutsideSection } from "@/lib/courses/placementNotes/view";
 import * as words from "@/lib/courses/placementNotes/words";
@@ -47,9 +47,7 @@ type Answer = { section?: OutsideSection; error?: string } | null;
  * `pick: null` drawing no Move buttons); until it lands the chart draws them
  * disabled.
  */
-type ChartWords = { pick: string | null; pickAria: (group: string, when: string) => string; current: string };
-const Chart = WeekChart as unknown as ComponentType<Parameters<typeof WeekChart>[0] & { words?: ChartWords }>;
-const CHART_WORDS: ChartWords = { pick: null, pickAria: (group, when) => `${group}, ${when}`, current: "the group they’re in" };
+const CHART_WORDS: WeekChartWords = { pick: null, pickAria: (group, when) => `${group}, ${when}`, current: "the group they’re in" };
 
 function Person({
   runId,
@@ -152,7 +150,7 @@ function Person({
         row.week ? (
           <div className={styles.week}>
             <p className={styles.overlap}>{words.overlapWords(row.week.overlapMinutes, row.week.session.durationMinutes)}</p>
-            <Chart
+            <WeekChart
               grid={row.week.grid}
               marked={row.week.marked}
               fromFirstMark={row.week.fromFirstMark}
