@@ -14,6 +14,9 @@ import { normalizeCourseApplication, rowIsServedTo } from "@/lib/firestore/cours
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { PUBLISH_ADMIN_ONLY } from "@/lib/courses/publishWords";
 import { readPlacementDrafts } from "./store";
+import type { OutsideRow, OutsideSection } from "./view";
+
+export type { OutsideRow, OutsideSection };
 
 /**
  * "OUTSIDE THE TIMES THEY GAVE", read for one caller: the people a press of
@@ -35,44 +38,6 @@ import { readPlacementDrafts } from "./store";
  *
  * Nothing here writes.
  */
-
-/** One person, as the section draws them. Names, ids, days and times only: no address. */
-export type OutsideRow = {
-  uid: string;
-  name: string;
-  groupId: string;
-  groupName: string;
-  meets: string | null;
-  note:
-    | { state: "noted"; text: string; by: string | null; at: string | null }
-    | { state: "without"; by: string | null; at: string | null }
-    | { state: "missing" };
-  /** Claude's draft. Admins only; null for anybody else. */
-  draft: { text: string; basis: string } | null;
-  /** Claude can draft for them: an admin is looking, Claude is set up, and they applied on the form. */
-  canDraft: boolean;
-  /** The caller is this person: they may choose none, and write nothing. */
-  own: boolean;
-  /**
-   * Their week beside their group's session, for an admin: the stretches they
-   * marked, whether the site reads them "from then on", the session, and how
-   * many of its minutes fall in what they gave. Null for anybody else.
-   */
-  week: {
-    grid: { startMinute: number; endMinute: number };
-    marked: MarkedRange[];
-    fromFirstMark: boolean;
-    session: SessionSlot;
-    overlapMinutes: number;
-  } | null;
-};
-
-export type OutsideSection = {
-  admin: boolean;
-  rows: OutsideRow[];
-  /** Who a press waits for, by name. */
-  needed: string[];
-};
 
 export type OutsideRead =
   | { ok: true; section: OutsideSection; plan: PublishPlan; staffing: RunStaffing }

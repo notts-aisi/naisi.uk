@@ -68,6 +68,11 @@ const STYLESHEETS = [
   "./Refusals.module.css",
   "./kit.module.css",
   "@/features/applications/kit/kit.module.css",
+  // Publish's page: Outside the times they gave, its text box and its week chart.
+  "./OutsideNotes.module.css",
+  "@/features/applications/decisionDay/decisionDay.module.css",
+  "./WeekChart.module.css",
+  "./Input.module.css",
 ];
 
 const made = makeWorld("__hubPeopleInGroups", [
@@ -553,7 +558,19 @@ describe("5. Publish's own page draws Publish as the board did, under its readin
     assert.equal(find(element, "PublishReadiness").length, 1, "the readiness check is drawn above the Publish area");
     const area = find(element, "PublishGroups");
     assert.equal(area.length, 1);
-    assert.deepEqual(area[0].props, { runId: RUN.agi });
+    // The run, and what can follow by itself, read on the server from the
+    // scheduler's switches: next week's email off as it ships, so Group C's
+    // missing room holds nothing yet, but it is named for when it is on.
+    assert.deepEqual(area[0].props, {
+      runId: RUN.agi,
+      admin: false,
+      follows: {
+        paused: false,
+        nextWeekEmail: { on: false, waitsForRoom: ["Group C"] },
+        registerReminders: { on: false },
+        placeConfirmations: null,
+      },
+    });
     assert.match(said, /Send a test to me/);
     assert.match(said, /Publish and send \d+ emails?/);
     assert.ok(said.includes(getReadyWords.AFTER_YOU_PUBLISH), "what publishing does next is said above the buttons");

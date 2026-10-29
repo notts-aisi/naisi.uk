@@ -35,6 +35,17 @@
   overflow-wrap: anywhere;
 }
 
+/* "3 placed since you published: Ana, Raj and Tom. Publish to tell them." */
+.placedSince {
+  padding: 10px 14px;
+  border: 1px solid var(--color-warning-line);
+  border-radius: var(--radius-row);
+  background: var(--color-warning-soft);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
 .moveNote {
   padding: 10px 14px;
   border: 1px solid var(--color-border);

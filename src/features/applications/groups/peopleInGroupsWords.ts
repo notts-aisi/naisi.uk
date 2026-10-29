@@ -92,6 +92,25 @@ export function invitedWords(on: string | null, fits: readonly string[]): string
   return fits.length > 0 ? `${invited} · fits ${fits.join(", ")}` : invited;
 }
 
+/**
+ * Once the groups are published, on the card of somebody placed in a group
+ * whom Publish has not told yet: they see nothing of it until the next press.
+ */
+export const NOT_TOLD_YET = "Not told yet";
+
+/**
+ * Over the board once the groups are published: "3 placed since you
+ * published: Ana, Raj and Tom. Publish to tell them." First names, in the
+ * board's order. The link is "Publish to tell them".
+ */
+export function placedSinceWords(firstNames: readonly string[]): { lead: string; link: string } {
+  const names =
+    firstNames.length <= 1
+      ? (firstNames[0] ?? "")
+      : `${firstNames.slice(0, -1).join(", ")} and ${firstNames[firstNames.length - 1]}`;
+  return { lead: `${firstNames.length} placed since you published: ${names}.`, link: "Publish to tell them" };
+}
+
 /** What became of somebody's group email, when it did not go. */
 export const EMAIL_HELD = "Email held";
 export const EMAIL_STOPPED = "Not emailed: do-not-email list";

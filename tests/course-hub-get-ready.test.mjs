@@ -719,7 +719,19 @@ describe("4. Publish's readiness check: what Publish refuses for is needed, the 
       /^People in groups Publish AGI Strategy’s groups Ready\? Published Published Mon 26 Oct, 12pm\. Someone you move now sees nothing of their new group until you publish again, which emails only the people who haven’t been told\. Needed to publish Every group has a day, a time and a room 3 groups: Tue 6pm, Wed 1pm, Thu 6pm Worth checking These don’t stop you publishing\. Every group has a facilitator/,
     );
     assert.match(drawn.html, new RegExp(`<a href="${PROGRAMME_PATH}/groups" class="back">`));
-    assert.deepEqual(drawn.groups, { runId: RUN.agi });
+    // What can follow by itself is read on the server from the scheduler's
+    // switches (all as they ship here: off) and handed down; the lead gets
+    // no link to Site status.
+    assert.deepEqual(drawn.groups, {
+      runId: RUN.agi,
+      admin: false,
+      follows: {
+        paused: false,
+        nextWeekEmail: { on: false, waitsForRoom: [] },
+        registerReminders: { on: false },
+        placeConfirmations: null,
+      },
+    });
   });
 
   test("before the press the chip says Ready to publish; after it, the card says when the Overview does and what a later move emails", async () => {
