@@ -7315,6 +7315,10 @@ describe("v12 says a group's email and an ask may carry words Claude drafted, ne
     "If the group we put you in meets at a time outside the times you told us you are free, the email that tells you your group may start with a few sentences written to you about it by an admin or the programme&apos;s lead.",
     "with the programme&apos;s description and only the fact that your group meets outside the times you gave: never the times you marked, never when your group meets, and never the reviewers&apos; scores or comments.",
     "The saved note, or the choice to send none, is kept with your place on the programme, where the programme&apos;s lead and admins can see it, and is deleted with your account or with the programme&apos;s run.",
+    // The seat's timeAnswer: the person's own answer to their group's time.
+    "If you cannot, you tell us why and which other times would work, so that we can move you to another group; this keeps your place.",
+    "Your answer, your reason and the times you suggest are kept with your place on the programme, where the programme&apos;s lead and admins can see them and nobody else, not your group&apos;s facilitators.",
+    "Moving you to another group clears them, and they are deleted with your account or with the programme&apos;s run.",
   ];
 
   for (const sentence of SENTENCES) {

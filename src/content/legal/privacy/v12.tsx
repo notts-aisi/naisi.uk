@@ -18,6 +18,11 @@
  *  3. The invitation's note is no longer "the one place" Claude's words can
  *     reach somebody: it is one of these three, each only once a person has
  *     saved or sent the words.
+ *  4. **Your group's time.** Once told their group, somebody can say on their
+ *     programme page whether they can make its time, and if not, why and
+ *     which other times would work, keeping their place. Kept on their seat,
+ *     seen by the programme's lead and admins, never facilitators; a move
+ *     clears it.
  *
  * Everything else is v11's words, unchanged. v11's own notes follow.
  *
@@ -1336,6 +1341,18 @@ export default function PrivacyContentV12({
                   with the programme&apos;s run. Claude&apos;s draft is kept
                   with its other notes on your application until it is replaced
                   or cleared, and is deleted with your application.
+                </li>
+                <li>
+                  <strong>Your group&apos;s time.</strong> Once we have told
+                  you your group, you can tell us on your programme page
+                  whether you can make its time. If you cannot, you tell us why
+                  and which other times would work, so that we can move you to
+                  another group; this keeps your place. Your answer, your
+                  reason and the times you suggest are kept with your place on
+                  the programme, where the programme&apos;s lead and admins can
+                  see them and nobody else, not your group&apos;s facilitators.
+                  Moving you to another group clears them, and they are deleted
+                  with your account or with the programme&apos;s run.
                 </li>
                 <li>
                   <strong>Your reply.</strong> You answer on your own
