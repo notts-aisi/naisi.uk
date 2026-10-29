@@ -502,8 +502,10 @@ export default function Circles({ initial }: { initial: CirclesView }) {
     selected !== null && !ring.memberUids.includes(selected) && !pinned(selected) && inOption(ring) && (option !== null || (live.sent && ring.id !== null));
   const moveTo = (uid: string, key: string | null) => {
     if (pinned(uid)) return;
-    if (option) movePreview(uid, key);
-    else void moveLive(uid, key);
+    if (option) {
+      // Only into a group of the preview: one of the run's it leaves out is drawn as it is, and not moved into.
+      if (key === null || option.groups.some((group) => group.key === key)) movePreview(uid, key);
+    } else void moveLive(uid, key);
   };
   const reasonOf = (uid: string) => option?.unplaced.find((entry) => entry.uid === uid)?.reason ?? null;
 
