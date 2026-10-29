@@ -1304,17 +1304,22 @@ const KOFI_PAGE =
  * page and what giving the place back now means there. In the words written
  * for the boards' designers to confirm (`src/lib/applications/status/runWords.ts`).
  */
+// CHANGED ON PURPOSE (Zach, 29 Oct 2026, "can you make this time?"): both
+// pages now say, after what giving the place back means, that a time that
+// doesn't work is told on the programme's page instead, keeping the place.
 const AGI_TOLD_PAGE = (group) =>
   "Your application AGI Strategy Fellowship Accepted Autumn 2026 · Fri 23 Oct You’re in AGI Strategy. 6 WEEKS · " +
   `starts w/c 26 Oct You’re in ${group}. Your programme’s page has your sessions and each week’s reading. Go to ` +
   `your programme Changed your mind? Giving your place back now means leaving ${group}. You can do that from your ` +
-  "programme’s page. Questions? ai-safety@uonsu.com";
+  "programme’s page. Only the time doesn’t work? Tell us on your programme’s page instead. You keep your place. " +
+  "Questions? ai-safety@uonsu.com";
 
 /** An incubator place's page once Publish has told its owner: the same, naming no group. */
 const INCUBATOR_TOLD_PAGE =
   "Your application Research Incubator Accepted Autumn 2026 · Fri 23 Oct You’re in Research incubator. 10 WEEKS · " +
   "starts w/c 2 Nov Your programme’s page has your sessions and each week’s reading. Go to your programme Changed " +
   "your mind? Giving your place back now means leaving the programme. You can do that from your programme’s page. " +
+  "Only the time doesn’t work? Tell us on your programme’s page instead. You keep your place. " +
   "Questions? ai-safety@uonsu.com";
 
 /**
