@@ -7,6 +7,7 @@ import SessionsBoard from "@/features/courses/sessionChange/SessionsBoard";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { loadSessionsWeek } from "@/lib/courses/sessionChange/view";
 import { weekLinkWords } from "@/lib/courses/sessionChange/words";
+import { canRunTerm } from "@/lib/applications/access";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
@@ -46,6 +47,7 @@ export default async function ProgrammeSessionsPage({
       programmeId={view.programmeId}
       current="sessions"
       pitches={view.pitchingWeek !== null}
+      circles={canRunTerm(user)}
     />
   );
   const runSnap = view.run && db ? await db.collection("courseRuns").doc(view.run.id).get() : null;

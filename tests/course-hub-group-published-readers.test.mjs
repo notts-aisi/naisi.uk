@@ -362,9 +362,10 @@ const READERS = {
     kind: "staff",
     proof: ['if (!canRunTerm(user)) return refuse(403, "Only an admin can ask for an arrangement.");'],
     why:
-      "an admin's proposed arrangement into groups: it reads each seat on the run for the group somebody sits in now " +
-      "and whether Publish has told them it. A placement Publish has told stays where it is; one it has not told is " +
-      "only where somebody sits today, which the proposal may move. It shows the admin alone and writes nothing",
+      "an admin's arrangement into groups, and Circles' picture of the run's groups as they are: it reads each seat " +
+      "on the run for the group somebody sits in now and whether Publish has told them it. Every placement stays " +
+      "where it is in a suggestion; one Publish has not told may be moved by the admin, or by a suggestion only when " +
+      "the admin starts again, and Circles marks it not told yet. It shows the admin alone and writes nothing",
   },
   "lib/applications/handover/load.ts": {
     kind: "staff",

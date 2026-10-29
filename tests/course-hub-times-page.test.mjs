@@ -96,7 +96,6 @@ const { loadTs: loadPage } = createLoader({
         "export function DialogFrame({ children }) { return globalThis.__hubTimesUi.h('div', null, children); }",
     ],
     ["./TimesPicture.module.css", CLASS_NAMES],
-    ["./ArrangeGroups.module.css", CLASS_NAMES],
     ["./WeekChart.module.css", CLASS_NAMES],
     ["./Select.module.css", CLASS_NAMES],
     ["./Input.module.css", CLASS_NAMES],
@@ -219,10 +218,12 @@ describe("the Groups tab is the lead's and an admin's, decided before anybody is
     assert.doesNotMatch(drawn.text, /Arrange groups/);
   });
 
-  test("an admin is offered Arrange groups under the picture", async () => {
+  test("an admin is pointed to Circles under the picture, where groups are arranged", async () => {
     const drawn = await draw("zach");
     assert.match(drawn.text, /Arrange groups/);
-    assert.match(drawn.text, /nothing is saved until you press Apply/);
+    assert.match(drawn.html, new RegExp(`<a href="${PAGE_PATH}/groups/circles"[^>]*>Open Circles</a>`));
+    // The rings themselves moved to Circles: nothing here suggests or applies.
+    assert.ok(!drawn.text.includes("Suggest"), "the Times view still suggests groups");
   });
 
   test("the programme's reviewer is told it is the lead's and an admin's, and only the form's settings were read", async () => {
@@ -435,22 +436,17 @@ describe("what the cards say", () => {
     // Since Times in full (st-times) the page offers exactly the board's three
     // controls: "Use for a group" beside each of the 5 best times no group
     // meets at, "Change" beside each of the 3 groups, and one "Add a group".
-    // Under the picture an admin also has Arrange groups' two, which propose
-    // and write nothing until Apply (ArrangeGroups.tsx).
+    // Arranging groups moved to Circles (a link under the picture), so no
+    // other button is drawn here.
     assert.deepEqual(
       [...html.matchAll(/<button([^>]*)>(.*?)<\/button>/g)].map((m) => text(m[2])),
-      [
-        ...Array(5).fill("Use for a group"),
-        ...Array(3).fill("Change"),
-        "Add a group",
-        "Suggest options with Claude",
-        "Times only, without Claude",
-      ],
+      [...Array(5).fill("Use for a group"), ...Array(3).fill("Change"), "Add a group"],
     );
     for (const m of html.matchAll(/<button([^>]*)>/g)) assert.match(m[1], /type="button"/, "a button that would send a form");
-    // The views are the four that exist, each a page of the tab: Sessions
+    // The views are the five an admin has, each a page of the tab: Sessions
     // (first since changing a session landed, as wk-session draws the row), the
-    // run's allocation board (People in groups), this one, and Facilitators.
+    // run's allocation board (People in groups), Circles (an admin's alone),
+    // this one, and Facilitators.
     const views = /<nav class="views" aria-label="Groups views">(.*?)<\/nav>/.exec(html);
     assert.ok(views, "no views");
     assert.deepEqual(
@@ -458,6 +454,7 @@ describe("what the cards say", () => {
       [
         ["Sessions", `${PAGE_PATH}/groups/sessions`],
         ["People in groups", `${PAGE_PATH}/groups`],
+        ["Circles", `${PAGE_PATH}/groups/circles`],
         ["Times", `${PAGE_PATH}/groups/times`],
         ["Facilitators", `${PAGE_PATH}/groups/facilitators`],
       ],

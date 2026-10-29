@@ -5,7 +5,7 @@ import styles from "./WeekChart.module.css";
 
 /**
  * ONE PERSON'S WEEK BESIDE THE GROUPS, for an admin placing somebody by hand
- * (Arrange groups, `ArrangeGroups.tsx`).
+ * (Circles, `../circles/PersonPanel.tsx`).
  *
  * Monday to Sunday across, the form's hours down. Shaded: every stretch they
  * marked. For somebody who marked under four hours in the week, a lighter

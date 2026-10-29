@@ -709,6 +709,12 @@ const USERS = new Map([
       "Claude is told and which of its suggestions are kept are decided by the code that runs",
   ],
   [
+    "applications-arrange-changes.test.mjs",
+    "executes the pure differences Circles' Apply sends and the board's words for the allocate route's " +
+      "refusals, because which groups, places and facilitators a press sends, and that no refusal reaches " +
+      "a screen as a bare code, are decided by the code that runs",
+  ],
+  [
     "applications-arrange-options.test.mjs",
     "executes the arrangement route before decision day, because who is refused, whose application is " +
       "left out of a preview, what Claude is sent and that nothing is written are decided by the code that runs",

@@ -2,8 +2,9 @@ import type { SessionSlot } from "@/lib/admissions/availability";
 import type { Lean } from "../assessment/types";
 
 /**
- * WHAT THE ARRANGE SCREEN IS SENT: up to five arrangements of one
- * programme's people into groups, each with its facilitators and Claude's
+ * WHAT CIRCLES IS SENT: the run's groups as they are (`CirclesView`), and up
+ * to five arrangements of one programme's people into groups over them
+ * (`ArrangementOptionsView`), each with its facilitators and Claude's
  * reasons, and everything the screen needs to let an admin move people
  * between groups and see at once what a move breaks.
  *
@@ -17,8 +18,12 @@ export type RingPerson = {
   href: string;
   /** They said they would like to facilitate this programme. */
   offered: boolean;
-  /** Publish has told them their group: Apply leaves them in it. */
+  /** Publish has told them their group: a suggestion leaves them in it. */
   told: boolean;
+  /** The run's group they sit in now, or null. */
+  groupId: string | null;
+  /** The run's groups they facilitate, by id: they sit in that group and no other. */
+  appointed: string[];
   /** They marked under four hours in the week, read "from then on". */
   littleMarked: boolean;
   /** Claude's view of them as a facilitator, when it was asked. */
@@ -94,6 +99,8 @@ export type ArrangementOptionsView = {
   grid: { startMinute: number; endMinute: number };
   minutes: number;
   size: number;
+  /** Asked to seat afresh everybody placed and not told. */
+  startAgain: boolean;
   people: Record<string, RingPerson>;
   options: RingOption[];
   /** Whether Claude was asked, and answered. */
@@ -101,5 +108,57 @@ export type ArrangementOptionsView = {
   preferredWhy: string;
   notes: string;
   dropped: { suggestion: string; why: string }[];
+  claudeConfigured: boolean;
+};
+
+/** One of the run's groups as it is now, as Circles draws it. */
+export type CircleGroup = {
+  id: string;
+  name: string;
+  /** Null for a group with no time yet. */
+  session: SessionSlot | null;
+  /** Null for no limit. */
+  room: number | null;
+  /** Who sits in it now, by account. */
+  memberUids: string[];
+  /** Its facilitators, by first name, each saying whether they sit in it as one of its people. */
+  facilitators: { uid: string; name: string; member: boolean }[];
+  /** Publish has told somebody its time, so it is not changed here. */
+  told: boolean;
+  /** Its stored day and start ("" for none), which a change of time is sent with. */
+  slot: { weekday: number; start: string };
+  /** Everybody being arranged who can make its time. */
+  canMake: string[];
+};
+
+/**
+ * THE RUN'S GROUPS AS THEY ARE, for Circles: who sits in each, who
+ * facilitates it, who sits in none, and who holds a place but cannot be
+ * placed yet. Nothing in it was asked of Claude.
+ */
+export type CirclesView = {
+  roundId: string;
+  programmeId: string;
+  /** Null while the programme names no run (or the one it names is gone). */
+  runId: string | null;
+  /** Decisions have gone out. Until then nobody is on the run, and suggestions are a preview. */
+  sent: boolean;
+  /** Publish has been pressed on the run, so a placement can be "Not told yet". */
+  published: boolean;
+  programmeName: string;
+  programmeShortName: string;
+  /** The hours the form's grid asked about, in minutes past midnight. */
+  grid: { startMinute: number; endMinute: number };
+  /** The session length suggestions count, and the lengths a group may last. */
+  minutes: number;
+  lengths: number[];
+  /** The group size a new group is given. */
+  size: number;
+  /** Everybody on the run's list who holds a place (or sits in a group), by account. */
+  people: Record<string, RingPerson>;
+  /** The run's live groups, in the order every tab lists them. */
+  groups: CircleGroup[];
+  /** Holding a place and not on the run's list yet, so nobody can place them. */
+  notOnList: { uid: string; name: string }[];
   claudeConfigured: boolean;
 };
