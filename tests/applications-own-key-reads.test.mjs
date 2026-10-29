@@ -226,6 +226,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/courses/placementNotes/draft.ts",
+    {
+      why: "Claude's draft of a note for somebody placed outside the times they gave: it reads the form's programmes by the programme id the person's row on the run names (`fromForm.programmeId`), to tell Claude that programme's description",
+    },
+  ],
+  [
     "src/lib/courses/facilitatorAsks/",
     {
       why: "asking people to facilitate: it reads a form's programmes by the programme id an ask or a request names, and each applicant's answers by the facilitator question ids of the form's own question sets",

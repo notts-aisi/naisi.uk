@@ -33,6 +33,20 @@ export type PublishPreview = {
   incubator: boolean;
   people: PreviewKind;
   facilitators: PreviewKind;
+  /** "Ana has joined Group B", to each facilitator already told about their group. */
+  joined: PreviewKind;
+  /** Of the people a press emails, whose email carries a note of our own, by name. */
+  noted: { uid: string; name: string }[];
+  /** The first of those, drawn, when the first person's email (`people.email`) carries none. */
+  notedEmail: PreviewEmail | null;
+  /**
+   * The phone notification that mirrors "Your group": whether this copy of the
+   * site sends any, and which of the people a press emails have the courses
+   * row of their notifications switched on for it.
+   */
+  push: { configured: boolean; names: string[] };
+  /** Who a press waits for a note, or "Send without a note", for. */
+  notesNeeded: string[];
   /** Why an email cannot be written, a sentence each: the plan's own refusals. */
   refusals: string[];
 };

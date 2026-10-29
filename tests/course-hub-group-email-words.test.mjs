@@ -44,7 +44,8 @@ import { syntheticWeekBlocks } from "./lib/weekBlocksFixture.mjs";
 
 const made = makeWorld("__hubGroupEmail");
 const { world, reset, call, lib } = made;
-const { routes, press, board, place } = await loadJoin(made);
+const join_ = await loadJoin(made);
+const { routes, press, board, place } = join_;
 const plan = await lib("courses", "allocationPublish.ts");
 const weekTime = await lib("courses", "weekTime.ts");
 
@@ -126,7 +127,15 @@ function hubSeed(over = {}) {
 
 const summary = async () => (await board("zach")).body.publish;
 const sendTest = () => call("zach", routes.publishTest.POST, { runId: RUN.agi }, { course: true });
-const pressNow = async () => call("zach", routes.publish.POST, { runId: RUN.agi }, { body: { emails: (await summary()).emails }, course: true });
+/**
+ * A press with the number the board shows, after choosing "Send without a
+ * note" for anybody placed outside the times they gave, as Publish's own page
+ * asks first, so the emails read here are the standard ones.
+ */
+const pressNow = async () => {
+  await join_.withoutNotes();
+  return call("zach", routes.publish.POST, { runId: RUN.agi }, { body: { emails: (await summary()).emails }, course: true });
+};
 
 const isTest = (mail) => mail.subject.startsWith("[TEST]");
 const isFacilitating = (mail) => mail.subject.replace("[TEST] ", "").startsWith("You’re facilitating");
@@ -179,7 +188,7 @@ const AMARA =
   "Hi Amara, You’re in Group B. You’ll meet on Tuesdays at 6pm in Hallward B12, starting Tue 3 Nov. Sessions last 2 hours. " +
   "Rahul and Sofia are your facilitators. There are 2 of you. " +
   "Week 1’s reading takes about 80 minutes. Have a look before Tuesday. " +
-  "Open your programme Claudia AGI Strategy lead, NAISI";
+  "Can you make this time? Tell us on your programme page. If you can’t, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . I can make it I can’t make this time Claudia AGI Strategy lead, NAISI";
 
 beforeEach(() => {
   mock.timers.setTime(NOW.getTime());
@@ -202,8 +211,14 @@ describe("1. the board's email, from the records", () => {
     assert.equal(amara.subject, "Your AGI Strategy group: Tuesdays at 6pm");
     assert.equal(amara.words, AMARA);
     assert.ok(test.text.includes(AMARA), "the test is not the words Publish sends");
-    // One link: the person's own programme page. Never a meeting link.
-    assert.deepEqual([...amara.html.matchAll(/href="([^"]*)"/g)].map((m) => m[1]), [`https://naisi.invalid/learn/${RUN.agi}`]);
+    // The links: the society's address, and the two buttons, each to the
+    // person's own programme page at its "Can you make this time?" card.
+    // Never a meeting link.
+    assert.deepEqual([...amara.html.matchAll(/href="([^"]*)"/g)].map((m) => m[1]), [
+      "mailto:ai-safety@uonsu.com",
+      `https://naisi.invalid/learn/${RUN.agi}#your-group-time`,
+      `https://naisi.invalid/learn/${RUN.agi}#your-group-time`,
+    ]);
     assert.ok(!amara.html.includes("meet.example"));
   });
 
@@ -214,7 +229,7 @@ describe("1. the board's email, from the records", () => {
       (await saidTo("bea")).words,
       "Hi Bea, You’re in Group A. You’ll meet on Thursdays at 6pm in Portland A13, starting Thu 29 Oct. Sessions last 2 hours. " +
         "Sofia is your facilitator. There are 2 of you. Week 1’s reading takes about 80 minutes. Have a look before Thursday. " +
-        "Open your programme Claudia AGI Strategy lead, NAISI",
+        "Can you make this time? Tell us on your programme page. If you can’t, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . I can make it I can’t make this time Claudia AGI Strategy lead, NAISI",
     );
   });
 });
@@ -310,7 +325,7 @@ describe("3. what a group lacks is left out, and nothing else", () => {
       amara.words,
       "Hi Amara, You’re in Group C. You’ll meet on Wednesdays at 1pm online, starting Wed 4 Nov. Sessions last 2 hours. " +
         "The link to join is on your programme’s page. Tom is your facilitator. " +
-        "Week 1’s reading takes about 80 minutes. Have a look before Wed 4 Nov. Open your programme Claudia AGI Strategy lead, NAISI",
+        "Week 1’s reading takes about 80 minutes. Have a look before Wed 4 Nov. Can you make this time? Tell us on your programme page. If you can’t, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . I can make it I can’t make this time Claudia AGI Strategy lead, NAISI",
     );
     assert.ok(!amara.html.includes("meet.example"));
   });
@@ -392,13 +407,17 @@ describe("4. somebody told after the group first met", () => {
     const before = world.mail.length;
     const pressed = await pressNow();
     assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
-    const told = world.mail.slice(before).filter((mail) => !isFacilitating(mail));
+    // Since 29 October 2026 Sofia, told about Group A already, is also told
+    // that Amara has joined it: a facilitator's email, not a group's.
+    const joined = world.mail.slice(before).filter((mail) => mail.subject === "Amara has joined Group A");
+    assert.deepEqual(joined.map((mail) => mail.to), ["sofia@example.com"]);
+    const told = world.mail.slice(before).filter((mail) => !isFacilitating(mail) && !joined.includes(mail));
     assert.deepEqual(told.map((mail) => mail.to), ["amara@example.com"]);
     const amara = await opened(told[0]);
     assert.ok(
       amara.text.includes(
         "Hi Amara, You’re in Group A. You’ll meet on Thursdays at 6pm in Portland A13, starting Thu 5 Nov. Sessions last 2 hours. " +
-          "Sofia is your facilitator. There are 3 of you. Open your programme Claudia AGI Strategy lead, NAISI",
+          "Sofia is your facilitator. There are 3 of you. Can you make this time? Tell us on your programme page. If you can’t, say why and which other times would work, and we’ll do our best to move you to another group. You keep your place either way. You can also email ai-safety@uonsu.com . I can make it I can’t make this time Claudia AGI Strategy lead, NAISI",
       ),
       amara.text,
     );

@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import Chip from "@/components/ui/Chip";
 import InitialsChip from "@/components/ui/InitialsChip";
 import PersonSelector from "@/components/ui/PersonSelector";
+import WeekChart from "@/features/applications/times/WeekChart";
 import { setGroupFacilitators } from "@/features/courses/courseMutations";
 import { useHydrated } from "@/hooks/useHydrated";
 import { own } from "@/lib/applications/keys";
@@ -13,6 +14,8 @@ import type { FacilitatorsModel, ViewChip, ViewGroup, ViewPerson } from "@/lib/c
 import {
   ASKED,
   ASK_BUTTON,
+  ASK_WEEK_CURRENT,
+  ASK_WEEK_PICK,
   ASK_GROUP_LABEL,
   ASK_PERSON_LABEL,
   ASK_REPLY_DATE_LABEL,
@@ -31,14 +34,20 @@ import {
   TABLE_COLUMNS,
   ASK_AFTER_DECISIONS,
   CASE_BUTTON,
+  CASE_DRAFTING,
+  CASE_DRAFT_BUTTON,
   CASE_LABEL,
   CASE_LEDE,
   CASE_TITLE,
   askButtonName,
   askHeading,
+  askWeekNotSaid,
+  askWeekPickAria,
+  askWeekTitle,
   askSendLabel,
   askSomeoneElseHeading,
   caseButtonName,
+  caseDraftedWords,
   caseHeading,
   caseNoBackupWords,
   changeSavedWords,
@@ -253,6 +262,8 @@ export default function GroupFacilitators({ runId }: Props) {
   const [groupSaid, setGroupSaid] = useState<{ groupId: string; said: Said } | null>(null);
   const [openAnswers, setOpenAnswers] = useState<ReadonlySet<string>>(new Set());
   const [caseText, setCaseText] = useState("");
+  // What Claude drew on for the draft in the box, or null with no draft there.
+  const [drawnOn, setDrawnOn] = useState<string | null>(null);
 
   const base = model
     ? `/api/admissions/forms/${encodeURIComponent(model.roundId)}/programmes/${encodeURIComponent(model.programmeId)}/facilitators`
@@ -265,6 +276,7 @@ export default function GroupFacilitators({ runId }: Props) {
     setAskWho(next.mode === "seat" ? "" : next.uid);
     setAskGroup(next.mode === "seat" ? next.groupId : "");
     setCaseText("");
+    setDrawnOn(null);
   }
 
   const making = asking?.mode === "case";
@@ -304,6 +316,25 @@ export default function GroupFacilitators({ runId }: Props) {
 
   const off = !hydrated || busy !== null;
   const replyByWords = replyBy ? `${dayIn(replyBy.dateKey)} at ${clockIn(replyBy.time)}` : "";
+
+  async function draftWithClaude() {
+    if (!person) return;
+    setBusy("draft");
+    setSaid(null);
+    try {
+      const { ok, answer } = await post(`${base}/case/draft`, { uid: person.uid });
+      if (ok && typeof answer?.text === "string") {
+        setCaseText(answer.text);
+        setDrawnOn(typeof answer.basis === "string" ? answer.basis : "");
+      } else {
+        setSaid({ tone: "problem", text: String(answer?.error ?? COULD_NOT_REACH) });
+      }
+    } catch {
+      setSaid({ tone: "problem", text: COULD_NOT_REACH });
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function sendTest() {
     if (!person || !group || !replyBy) return;
@@ -493,9 +524,52 @@ export default function GroupFacilitators({ runId }: Props) {
                 setCaseText(event.target.value);
               }}
             />
+            <div className={styles.draftRow}>
+              <Button variant="secondary" size="sm" disabled={off || !person} onClick={() => void draftWithClaude()}>
+                {busy === "draft" ? CASE_DRAFTING : CASE_DRAFT_BUTTON}
+              </Button>
+              {drawnOn !== null ? <p className={styles.muted}>{caseDraftedWords(drawnOn)}</p> : null}
+            </div>
           </div>
         ) : null}
       </div>
+      {model.viewer === "admin" && person?.week ? (
+        <div className={styles.week}>
+          <p className={styles.fieldLabel}>{askWeekTitle(person.firstName)}</p>
+          {person.week.said ? (
+            <WeekChart
+              grid={model.grid}
+              marked={person.week.marked}
+              fromFirstMark={person.week.fromFirstMark}
+              groups={model.groups.flatMap((each) =>
+                each.slot && each.askable
+                  ? [
+                      {
+                        key: each.id,
+                        name: each.name,
+                        session: each.slot,
+                        fits: person.week?.fits.includes(each.id) ?? false,
+                        current: each.id === askGroup,
+                      },
+                    ]
+                  : [],
+              )}
+              disabled={off || asking.mode === "seat"}
+              onPick={(key) => {
+                setSaid(null);
+                setAskGroup(key);
+              }}
+              words={{
+                pick: asking.mode === "seat" ? null : ASK_WEEK_PICK,
+                pickAria: askWeekPickAria,
+                current: ASK_WEEK_CURRENT,
+              }}
+            />
+          ) : (
+            <p className={styles.muted}>{askWeekNotSaid(person.firstName)}</p>
+          )}
+        </div>
+      ) : null}
       {making && group && group.facilitators.length === 0 ? (
         <p className={styles.muted}>{caseNoBackupWords(group.name)}</p>
       ) : null}

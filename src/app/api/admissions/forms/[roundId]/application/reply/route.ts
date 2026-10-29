@@ -3,6 +3,7 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { requireApplicant } from "@/lib/admissions/applicantSession";
 import { clientIp, rateLimit } from "@/lib/rateLimit";
 import { approveAfterAcceptedInvitation } from "@/lib/applications/accounts/afterReply";
+import { handOverAfterAcceptedInvitation } from "@/lib/applications/handover/onAcceptance";
 import { isId } from "@/lib/applications/keys";
 import { loadForm, loadOwnApplication } from "@/lib/applications/repo";
 import { projectApplicationForOwner } from "@/lib/applications/applicant/project";
@@ -57,6 +58,14 @@ import { ENROLMENT_LIMITS } from "@/lib/firestore/courseEnrolments";
  * can never fail the reply: the rule, and why, is in
  * `src/lib/applications/accounts/afterReply.ts`. No other reply, and no
  * other kind of account, is touched.
+ *
+ * ## And hands them over to their programme's run
+ *
+ * After the same commit, and just as unable to fail the reply, the place
+ * just taken is put on the list its programme's run's allocation board
+ * reads (`src/lib/applications/handover/onAcceptance.ts`), as an admin's
+ * Hand over would put it there. Nobody is placed in a group and nobody is
+ * emailed: somebody still places them, and Publish tells them.
  *
  * ## "I can’t make it" from somebody in a group is leaving the programme
  *
@@ -166,7 +175,11 @@ export async function POST(req: Request, ctx: Ctx) {
 
     const recorded = await recordReply(db, form, user.uid, request, now);
     // After the reply has committed. It answers, and never throws.
-    if (recorded.tookPlace) await approveAfterAcceptedInvitation(db, form, user.uid);
+    if (recorded.tookPlace) {
+      await approveAfterAcceptedInvitation(db, form, user.uid);
+      // On the run's list for somebody to place; nobody is put in a group.
+      await handOverAfterAcceptedInvitation(db, form, user.uid);
+    }
 
     const mine = await loadOwnApplication(db, form, user.uid);
     return NextResponse.json({

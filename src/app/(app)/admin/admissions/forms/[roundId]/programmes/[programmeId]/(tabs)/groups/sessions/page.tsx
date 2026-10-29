@@ -7,6 +7,7 @@ import SessionsBoard from "@/features/courses/sessionChange/SessionsBoard";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { loadSessionsWeek } from "@/lib/courses/sessionChange/view";
 import { weekLinkWords } from "@/lib/courses/sessionChange/words";
+import { canRunTerm } from "@/lib/applications/access";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
@@ -22,6 +23,9 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * the form before the run is read, as the tab's other views are. A reviewer is
  * told the tab is the lead's and an admin's. The change route behind the
  * dialog asks again who the caller is on the run (`runStaffingOf`).
+ *
+ * EACH GROUP'S CAMPUS is set on its card by the same people, through its own
+ * route (`.../groups/[groupId]/campus`), which asks the gate again.
  *
  * WHEN GROUPS GO OUT is the run's own setting, set here above the sessions
  * by the same people (`GroupsGoOut`, saved through its own route, which asks
@@ -46,6 +50,7 @@ export default async function ProgrammeSessionsPage({
       programmeId={view.programmeId}
       current="sessions"
       pitches={view.pitchingWeek !== null}
+      circles={canRunTerm(user)}
     />
   );
   const runSnap = view.run && db ? await db.collection("courseRuns").doc(view.run.id).get() : null;
@@ -72,6 +77,7 @@ export default async function ProgrammeSessionsPage({
         next={link(shown.next)}
         cards={shown.cards}
         blank={shown.blank}
+        campusAt={{ roundId: view.roundId, programmeId: view.programmeId }}
       />
     </GroupsFrame>
   );

@@ -851,7 +851,9 @@ describe("the email Publish sends an incubator's people names no group either", 
     // the group's facilitators other than them (a facilitator who holds a
     // place is in the group they facilitate); the choice between the two
     // emails is still made here, by the kind alone.
-    assert.ok(plan.includes("email: incubator ? writeIncubatorStart(group, name) : writePlacement(group, name, row.uid),"));
+    // (Since 29 October 2026 a note of our own may go above it: the choice
+    // of email is still this one line, and the note is added after it.)
+    assert.ok(plan.includes("const written = incubator ? writeIncubatorStart(group, name) : writePlacement(group, name, row.uid);"));
     const route = codeOf("app", "api", "courses", "runs", "[runId]", "allocation", "publish", "route.ts");
     assert.ok(route.includes("body: plan.incubator ? `${run.courseTitle}: the details are in your email.` :"), "the push to an incubator's people");
   });

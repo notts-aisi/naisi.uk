@@ -1,4 +1,5 @@
 import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/route";
+import { campusLabel } from "@/lib/courses/campus";
 import { coversWords, LINK_WILL_BE_HERE } from "@/lib/courses/sessionChange/words";
 import { GROUP_FIELD_LIMITS, type GroupSessionMode } from "@/lib/firestore/courseGroups";
 import { validateSubmissionUrl, weekDocId } from "@/lib/firestore/courses";
@@ -55,8 +56,11 @@ export function coversTitle(group: OverviewGroup, weekNumber: number): string | 
  * one week reads as it will be held, and never as the group's usual slot.
  *
  * The room is left out of an online week and the link out of an in-person
- * one. The link is the site's only (Q23): it is checked as a web address
- * again here, and an online week with no link to show says where it will be,
+ * one. A week with no room yet that is not online names the group's campus
+ * in the room's place ("Jubilee"); a week set in person with no room still
+ * says the room is to come.
+ * The link is the site's only (Q23): it is checked as a web address again
+ * here, and an online week with no link to show says where it will be,
  * never that anybody will send it. Null once the group has no session left.
  */
 export type TicketFacts = {
@@ -81,13 +85,15 @@ export function ticketFacts(group: OverviewGroup): TicketFacts | null {
     next.meetingUrl && !validateSubmissionUrl(next.meetingUrl, GROUP_FIELD_LIMITS.meetingUrl) ? next.meetingUrl : null;
   const joinUrl = mode !== "in-person" ? link : null;
   const room = mode !== "virtual" && next.location.trim() ? next.location.trim() : null;
+  // Where the room would be, while there is none: the group's campus.
+  const standIn = mode !== "virtual" ? campusLabel(group.campus ?? null) || null : null;
   return {
     weekNumber: next.weekNumber,
     weekNumbers: next.weekNumbers.length > 0 ? next.weekNumbers : [next.weekNumber],
     dateKey: next.dateKey,
     startTimeLocal: next.startTimeLocal,
     durationMinutes: next.durationMinutes,
-    room,
+    room: room ?? standIn,
     mode,
     joinUrl,
     missing:

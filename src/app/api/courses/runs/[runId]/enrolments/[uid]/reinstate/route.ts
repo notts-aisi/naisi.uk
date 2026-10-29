@@ -203,6 +203,8 @@ export async function POST(_req: Request, ctx: Ctx) {
         // not been emailed about this placement since it came back, so the
         // next publish earns it again.
         allocatedEmailAt: FieldValue.delete(),
+        // Asked afresh, with the placement email the next publish sends.
+        timeAnswer: FieldValue.delete(),
         updatedAt: FieldValue.serverTimestamp(),
       });
       tx.update(groupRef, {

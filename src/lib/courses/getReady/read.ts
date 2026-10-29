@@ -1,6 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { freedPlaceWindow, lastDayLabel } from "@/lib/applications/freedPlaces/rules";
+import { formPlaceFactsFor } from "@/lib/applications/handover/board";
 import { HAND_OVER_AUDIT_KIND } from "@/lib/applications/handover/handOver";
 import { own } from "@/lib/applications/keys";
 import { rowMatches } from "@/lib/applications/people/filters";
@@ -13,6 +14,10 @@ import { weeklySlotWords } from "@/lib/courses/facilitatingEmail";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
 import { firstWeekOf, groupsGoOutDay } from "@/lib/courses/groupsGoOut";
 import { londonClockLabel, londonDayLabel } from "@/lib/courses/londonLabels";
+import { placedOutsideTheirTimes, sessionLabelOf } from "@/lib/courses/outsideTheirTimes";
+import { gaveTheirPlaceBack } from "@/lib/courses/placeGivenBack";
+import { noteStandingFor } from "@/lib/courses/placementNotes/model";
+import { readPlacementNotes } from "@/lib/courses/placementNotes/store";
 import { placementWhere } from "@/lib/courses/placementEmail";
 import { fullNameOfUser } from "@/lib/courses/programmeLead";
 import type { RunRecords } from "@/lib/courses/programmeAttendance";
@@ -27,6 +32,7 @@ import type { SessionUser } from "@/lib/firebase/session";
 import { firstWord } from "@/lib/firestore/applicationEmails";
 import { COURSE_AUDIT_COLLECTION, normalizeCourseAudit } from "@/lib/firestore/courseAudit";
 import { normalizeCourseApplication, rowIsServedTo } from "@/lib/firestore/courseApplications";
+import { enrolmentIsPutBack } from "@/lib/firestore/courseEnrolments";
 import { weekDocId } from "@/lib/firestore/courses";
 import type { GetReadyFacts, ReadyFacilitating, ReadyGroup } from "./model";
 import { readFreeReminders } from "./remind";
@@ -57,6 +63,15 @@ import { readFreeReminders } from "./remind";
  * The one count is asked once for everybody holding a place, once for the
  * people holding one who have not said when they are free, and once for each
  * person (to name who Publish waits for), so nothing here counts on its own.
+ *
+ * ## Who is placed outside the times they gave
+ *
+ * Asked of `placedOutsideTheirTimes`, the one answer the board's "Not free"
+ * card and Publish's plan ask, of the same facts: the run's own list, each
+ * seat, and which groups each painted week covers, read through
+ * `formPlaceFactsFor` (only that answer comes back, never the week). Of those
+ * not told yet, who still has nothing chosen (`noteStandingFor`) is who
+ * Publish waits for.
  *
  * NO ADDRESS LEAVES THIS FILE: names, days, times, rooms and counts only.
  */
@@ -145,6 +160,56 @@ export async function readGetReady(
     })
     .map((row) => ({ uid: row.uid, firstName: row.firstName || firstWord(row.name) }));
 
+  // ── Who is placed outside the times they gave ──────────────────────────────
+  // The board's own facts and the one answer, for everybody seated in a group
+  // that still meets and still holding their place; then, of those Publish
+  // has not told, what was chosen for each.
+  const formPlaces = await formPlaceFactsFor(
+    db,
+    staffing,
+    accepted.filter((row) => row.fromForm !== null),
+    records.groups.map((group) => ({ id: group.id, session: group.session })),
+  );
+  const groupById = new Map(records.groups.map((group) => [group.id, group] as const));
+  const personAt = new Map(people.map((row, at) => [row.uid, { row, at }] as const));
+  const seated = accepted.flatMap((row) => {
+    const seat = seatOf.get(row.uid);
+    const group = seat && seat.groupId ? groupById.get(seat.groupId) : undefined;
+    if (!seat || !group || seatState(seat.status) !== "active") return [];
+    const place = row.fromForm !== null ? formPlaces.get(row.uid) : undefined;
+    if (gaveTheirPlaceBack(place, { putBack: enrolmentIsPutBack(seat) })) return [];
+    const given = {
+      availability: row.availability
+        .split(",")
+        .map((label) => label.trim())
+        .filter(Boolean),
+      fromForm: place ? { availability: place.availability, canMakeGroupIds: place.canMakeGroupIds } : null,
+    };
+    if (!placedOutsideTheirTimes(given, { id: group.id, sessionLabel: sessionLabelOf(group.session) })) return [];
+    return [{ row, group, told: Boolean(seat.allocatedEmailAt) }];
+  });
+  const notes = await readPlacementNotes(
+    db,
+    run.id,
+    seated.filter((entry) => !entry.told).map((entry) => entry.row.uid),
+  );
+  const outside = seated
+    .map(({ row, group, told }) => {
+      const person = personAt.get(row.uid);
+      const name = person?.row.name || row.displayName || "NAISI member";
+      return {
+        uid: row.uid,
+        name,
+        firstName: person?.row.firstName || firstWord(name),
+        groupId: group.id,
+        told,
+        note: told ? ("told" as const) : noteStandingFor(notes.get(row.uid), group.id).state,
+        order: person?.at ?? Number.MAX_SAFE_INTEGER,
+      };
+    })
+    .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, "en-GB"))
+    .map(({ order: _order, ...entry }) => entry);
+
   // ── The groups, and who facilitates them ───────────────────────────────────
   const groups: ReadyGroup[] = records.groups.map((group) => ({
     id: group.id,
@@ -219,6 +284,7 @@ export async function readGetReady(
         : null,
       groups,
       facilitating,
+      outside,
       training: facilitatorsModel?.training ?? null,
       people,
       counts,

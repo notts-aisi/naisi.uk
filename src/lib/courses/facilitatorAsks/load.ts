@@ -1,5 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import type { MarkedRange, SessionSlot } from "@/lib/admissions/availability";
+import { hasSessionTime } from "@/lib/applications/handover/times";
 import type { ProgrammeKind } from "@/lib/applications/model";
 import { readRunLead } from "@/lib/courses/programmeLead";
 import { londonDateKey } from "@/lib/courses/weekPlan";
@@ -67,7 +69,17 @@ export type ViewGroup = GroupAskFacts & {
   asks: ViewAsk[];
   /** The uids that facilitate it now, for the picker's ticks. */
   facilitatorUids: string[];
+  /** Its weekly session, for the chart of a person's week beside an ask, or null with no time yet. */
+  slot: SessionSlot | null;
 };
+
+/**
+ * A person's week beside the groups, for an ADMIN's chart while asking them
+ * (null for anybody else, and for a lead always): the stretches they marked,
+ * whether the site reads them "from then on" (under four hours marked), and
+ * the groups whose whole session they can make by the site's own reading.
+ */
+export type ViewWeek = { said: boolean; marked: MarkedRange[]; fromFirstMark: boolean; fits: string[] };
 
 export type ViewPerson = {
   uid: string;
@@ -76,6 +88,7 @@ export type ViewPerson = {
   detail: string;
   answers: Record<string, string>;
   status: Pick<PersonStatus, "chip" | "note" | "ask">;
+  week: ViewWeek | null;
 };
 
 export type FacilitatorsModel = {
@@ -110,6 +123,8 @@ export type FacilitatorsModel = {
   test: { state: "none" | "stale" | "fresh"; replyBy: WallClock | null };
   /** False on a copy of the site that does not know its own address: nothing can be sent. */
   siteAddress: boolean;
+  /** The hours the form's week ran over, for the chart beside an ask. */
+  grid: { startMinute: number; endMinute: number };
 };
 
 const ORDER: Record<string, number> = { yes: 0, asked: 1, quiet: 2 };
@@ -203,7 +218,18 @@ export async function loadFacilitatorsModel(
           reminded: ask.remindedAt ? remindedWords(londonDayOf(ask.remindedAt)) : null,
         };
       });
-    return { ...facts, facilitators, asks: viewAsks, facilitatorUids: [...group.facilitatorUids] };
+    const slot: SessionSlot = {
+      weekday: group.session.weekday,
+      startTimeLocal: group.session.startTimeLocal,
+      durationMinutes: group.session.durationMinutes,
+    };
+    return {
+      ...facts,
+      facilitators,
+      asks: viewAsks,
+      facilitatorUids: [...group.facilitatorUids],
+      slot: hasSessionTime(slot) ? slot : null,
+    };
   });
 
   // The headline counts the people on the groups: those who facilitate, and
@@ -224,6 +250,18 @@ export async function loadFacilitatorsModel(
       facilitatesByUid.set(uid, map);
     }
   }
+  // A person's week against each group, for an admin's chart. The groups'
+  // slots and the site's own reading of the week, nothing else.
+  const slots = viewGroups.flatMap((group) => (group.slot ? [{ id: group.id, slot: group.slot }] : []));
+  const weekOf = (person: FacilitatorPerson): ViewWeek => {
+    const given = person.painted.kind === "given" ? person.painted : null;
+    return {
+      said: given !== null,
+      marked: given ? [...person.marked] : [],
+      fromFirstMark: given?.minimal === true,
+      fits: given ? slots.filter(({ slot }) => given.covers(slot)).map(({ id }) => id) : [],
+    };
+  };
   const rankedOf = (person: FacilitatorPerson) => {
     const status = personStatus(person.uid, {
       programme,
@@ -243,6 +281,7 @@ export async function loadFacilitatorsModel(
       detail: person.detail,
       answers: person.answers,
       status: { chip: status.chip, note: status.note, ask: status.ask },
+      week: context.viewer === "admin" ? weekOf(person) : null,
     };
     // The board's order: said yes, then asked, then said no; then those who
     // may be asked; then those who may not. Within each, by when, then name.
@@ -298,6 +337,7 @@ export async function loadFacilitatorsModel(
       today: londonDateKey(now),
       test: { state: standing.state, replyBy: standing.state === "none" ? null : standing.replyBy },
       siteAddress: siteBase() !== null,
+      grid: { startMinute: form.round.availabilityGrid.startMinute, endMinute: form.round.availabilityGrid.endMinute },
     },
   };
 }

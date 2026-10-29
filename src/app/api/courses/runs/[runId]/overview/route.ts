@@ -19,6 +19,7 @@ import { inLastWeek } from "@/lib/courses/programmeEnd";
 import { whatsNextFor, type WhatsNext } from "@/lib/courses/whatsNext";
 import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
 import { cardChangeFacts } from "@/lib/courses/sessionChange/model";
+import type { GroupCampus } from "@/lib/courses/campus";
 import { weekOneDoorFor, type PlaceBeforeGroups } from "@/lib/courses/weekOne/door";
 import { groupsGoOutDay, weekOneOpenWords } from "@/lib/courses/groupsGoOut";
 import type { WeekBlock } from "@/lib/courses/weekBlocks/model";
@@ -355,6 +356,12 @@ export type OverviewGroup = {
    * group's room. The link is not part of it.
    */
   usualSlot: { weekday: number; startTimeLocal: string; durationMinutes: number; location: string };
+  /**
+   * The campus the group meets on (`src/lib/courses/campus.ts`), or null while
+   * none is chosen: shown beside the group's time, and in place of the room
+   * while it has none. A display fact of the same tier as the room.
+   */
+  campus: GroupCampus | null;
   /**
    * A cancelled evening to tell the card's reader about (Q25), or null. The
    * reason travels because "the group sees this": it is written for exactly
@@ -1412,6 +1419,7 @@ export async function GET(
         durationMinutes: source.session.durationMinutes,
         location: source.session.location,
       },
+      campus: source.campus,
       sessionNotice: changes.notice,
       cancelledSessions: changes.cancelled,
     };

@@ -218,11 +218,16 @@ function sessionFor(uid) {
 const endOf = async () => record.readRunEndById(world.courseDb, RUN.agi, new Date());
 
 // The page's words, built from the words module so a change there is one change.
+// CHANGED ON PURPOSE (Zach, 29 Oct 2026, "can you make this time?"): after what
+// giving the place back means, the page now says that a time that doesn't work
+// is told on the programme's page instead, keeping the place. Nothing about the
+// leave changed: only this page gained the sentence.
 const AGI_TOLD = (group) =>
   "Your application AGI Strategy Fellowship Accepted Autumn 2026 · Fri 23 Oct You’re in AGI Strategy. 6 WEEKS · " +
   `starts w/c 26 Oct You’re in ${group}. Your programme’s page has your sessions and each week’s ` +
   "reading. Go to your programme Changed your mind? Giving your place back now means leaving " +
-  `${group}. You can do that from your programme’s page. Questions? ai-safety@uonsu.com`;
+  `${group}. You can do that from your programme’s page. Only the time doesn’t work? Tell us on your ` +
+  "programme’s page instead. You keep your place. Questions? ai-safety@uonsu.com";
 
 // CHANGED ON PURPOSE (somebody who leaves keeps nothing): the card said "Your
 // notes and the reading list are still on your programme’s page." between the

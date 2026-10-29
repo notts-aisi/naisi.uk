@@ -1,3 +1,4 @@
+import { campusOf, type GroupCampus } from "../courses/campus";
 import { isValidDateKey, type WeekPlanEntry } from "../courses/weekPlan";
 import {
   normalizeCourseWeek,
@@ -254,6 +255,14 @@ export type CourseGroupDoc = {
    * Bounded by `maxSessionOverrides`, taken in week order. See `SessionChange`.
    */
   sessionChanges: Record<string, SessionChange>;
+  /**
+   * The campus the group meets on (`src/lib/courses/campus.ts`): one of
+   * University Park, Jubilee and Online, or null while nobody has chosen,
+   * which is every group made before campuses. Written by the run editor's
+   * group card (client-direct, held by the rules to exactly these values)
+   * and by the Groups tab's campus route. Not a room and never a link.
+   */
+  campus: GroupCampus | null;
   archived: boolean;
   createdAt?: Date | null;
   updatedAt?: Date | null;
@@ -687,6 +696,9 @@ export function normalizeCourseGroup(id: string, data: Raw): CourseGroupDoc {
       ? sanitizeWeekPlan(data.paceWeekPlan)
       : null,
     sessionChanges: normalizeSessionChanges(data.sessionChanges),
+    // Absent, null and anything that is not one of the three all read as
+    // "not chosen yet" (`campusOf`).
+    campus: campusOf(data.campus),
     archived: data.archived === true,
     createdAt: tsToDate(data.createdAt),
     updatedAt: tsToDate(data.updatedAt),

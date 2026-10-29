@@ -33,9 +33,16 @@
  * so a card in the Unallocated column that says it is never counted, or
  * named, as somebody still to place.
  *
- * Pure, with one import (that answer, itself pure), so the board and a test
- * ask the same function.
+ * "NOT FREE" IS PUBLISH'S ANSWER TOO. Whether a card says its person sits in
+ * a group whose session they cannot make (`conflict`) is asked of
+ * `placedOutsideTheirTimes` (`src/lib/courses/outsideTheirTimes.ts`), the
+ * function Publish's readiness check and Publish's plan ask, so a card that
+ * says "Not free" is exactly somebody Publish asks a note for.
+ *
+ * Pure, with two imports (those answers, themselves pure), so the board and a
+ * test ask the same functions.
  */
+import { placedOutsideTheirTimes } from "@/lib/courses/outsideTheirTimes";
 import { gaveTheirPlaceBack } from "@/lib/courses/placeGivenBack";
 
 /** What the server says about somebody the application form placed on the run. */
@@ -120,16 +127,16 @@ export function cardGaveBack(row: Pick<FitRow, "fromForm" | "putBack">): boolean
  * `groups` is every column of the board, in the order they are drawn.
  */
 export function cardFit(row: FitRow, group: FitGroup | null, groups: readonly FitGroup[]): CardFit {
-  const inASession = group !== null && group.sessionLabel !== "";
   const gaveBack = cardGaveBack(row);
+  // They are sitting in a group whose session they cannot make: the one answer.
+  const conflict = placedOutsideTheirTimes(row, group);
 
   if (row.fromForm === null) {
     return {
       slots: row.availability,
       note: null,
       noteWarns: false,
-      // They ticked something, and this group's session is not among it.
-      conflict: inASession && row.availability.length > 0 && !row.availability.includes(group.sessionLabel),
+      conflict,
       gaveBack,
     };
   }
@@ -139,8 +146,7 @@ export function cardFit(row: FitRow, group: FitGroup | null, groups: readonly Fi
       slots: [],
       note: row.fromForm.availability === "none-given" ? NO_AVAILABILITY_GIVEN : AVAILABILITY_NOT_ON_FILE,
       noteWarns: false,
-      // Nothing to go on is not a clash.
-      conflict: false,
+      conflict,
       gaveBack,
     };
   }
@@ -157,7 +163,7 @@ export function cardFit(row: FitRow, group: FitGroup | null, groups: readonly Fi
     slots,
     note: none ? CAN_MAKE_NO_SESSION : null,
     noteWarns: none,
-    conflict: inASession && !canMake.has(group.id),
+    conflict,
     gaveBack,
   };
 }

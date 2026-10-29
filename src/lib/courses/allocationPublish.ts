@@ -47,10 +47,15 @@ import {
   type PlacementWhere,
   type RefusedGroup,
 } from "@/lib/courses/placementEmail";
+import { composeJoinedEmail, type JoinedFacts } from "@/lib/courses/joinedEmail";
 import { facilitatorGuideReaderForGroup } from "./facilitatorGuide/access";
 import { readGuideIndex } from "./facilitatorGuide/store";
 import { resolveCalendar, resolveWeekDoc } from "./groupResolve";
+import { placedOutsideTheirTimes, sessionLabelOf } from "./outsideTheirTimes";
 import { gaveTheirPlaceBack, type PlaceOnTheForm } from "./placeGivenBack";
+import { noteStandingFor, withPlacementNote, type NoteStanding } from "./placementNotes/model";
+import { withTimeQuestion } from "./timeAnswer/emailSection";
+import { readPlacementNotes } from "./placementNotes/store";
 import { readNamingProgramme, readRunLead, type RunLead } from "./programmeLead";
 import { resolveSessions, sessionRange, type ResolvedSession } from "./sessions";
 import { COURSE_TZ, daysBetween, isValidDateKey, londonDateKey } from "./weekPlan";
@@ -104,6 +109,28 @@ import { formatRunStart, formatRunStartShort } from "./window";
  *    its one group). They are left out before anything is counted, so the
  *    button, the test, the press and what it reports all leave them out
  *    alike, and no group waits on them.
+ *
+ *  - A FACILITATOR ALREADY TOLD about a group in which this press tells
+ *    somebody new: ONE email for the press naming who has joined, by first
+ *    name, as their group page names them ("Ana and Raj have joined Group
+ *    B", `composeJoinedEmail` in `./joinedEmail.ts`). Transactional, like
+ *    "You're facilitating", and never to the programme's lead. Each person is
+ *    announced to each facilitator once (`joinedMarkerId`), so a press that
+ *    finds everybody announced already sends nothing. A facilitator told for
+ *    the first time by this press gets "You're facilitating" alone, which
+ *    already counts the group. Sent after the people's emails, naming only
+ *    those whose email went, so a send that fails is never announced.
+ *
+ * ## Somebody placed outside the times they gave waits for a choice
+ *
+ * A person owed their group's email whose group meets at a time they said
+ * they cannot make (`placedOutsideTheirTimes`, the one answer the board's
+ * "Not free" card and the readiness check ask too) is told nothing until
+ * somebody who may publish has chosen, for them in that group, a note of our
+ * own words or "Send without a note" (`./placementNotes/`). Until then the
+ * plan names them in `notesNeeded` and Publish refuses. A saved note goes
+ * into their "Your group" email as a section above the site's own details
+ * (`withPlacementNote`), and nowhere else.
  *
  * ## What the people are sent depends on the programme
  *
@@ -184,6 +211,10 @@ import { formatRunStart, formatRunStartShort } from "./window";
  *  - `facilitating__{runId}__{groupId}__{uid}`: a facilitator told about a
  *    group. Created before the send, so two presses cannot both send it.
  *  - `publishing__{runId}`: a press in progress (`takePressLock`).
+ *  - `joined__{runId}__{groupId}__{facilitatorUid}__{uid}`: a person
+ *    announced to a facilitator who had already been told about the group.
+ *    Created before the send, so two presses cannot both send it; a send
+ *    that fails leaves it `failed`, and the next press announces them again.
  */
 
 /**
@@ -219,8 +250,18 @@ export type PlanInput = {
    * for (they applied to the run itself) has no place on the form to give
    * back. Every route that reads a plan hands it over:
    * `tests/course-publish-place-given-back.test.mjs` holds that.
+   *
+   * Read against the run's groups, each entry also says which groups their
+   * painted week covers, which is how the plan knows who is placed outside
+   * the times they gave. An entry without that says nothing about it.
    */
-  formPlaces: ReadonlyMap<string, PlaceOnTheForm>;
+  formPlaces: ReadonlyMap<string, PlanFormPlace>;
+};
+
+/** What the plan reads of somebody's place on the form: whether they hold it, and when they are free. */
+export type PlanFormPlace = PlaceOnTheForm & {
+  availability?: "given" | "none-given" | "not-on-file";
+  canMakeGroupIds?: readonly string[];
 };
 
 /** One finished email: what a composer returned, ready for the mail door. */
@@ -255,6 +296,41 @@ export type PlannedFacilitator = Recipient & {
    * one went). Never for nobody. See `facilitatorEmailFor`.
    */
   emailBySize: ReadonlyMap<number, WrittenEmail>;
+};
+
+/**
+ * A facilitator already told about a group, owed one email naming who has
+ * joined it since. `email` names every person this press may announce, and
+ * is what "Send a test to me" and the preview show; the press writes it again
+ * for those whose own email went (`joinedEmailFor`).
+ */
+export type PlannedJoined = Recipient & {
+  /** How many people in the group Publish had told before this press. */
+  toldBefore: number;
+  /**
+   * Who this press may announce to them, each with its marker: those it
+   * writes to, in the order it tells them, then anybody told before whose
+   * announcement failed to send (`already`), whose marker says so (`retry`).
+   */
+  people: { uid: string; firstName: string; markerId: string; already: boolean; retry: boolean }[];
+  /** Everything the email says but who has joined and how many are in the group. */
+  facts: Omit<JoinedFacts, "joined" | "groupSize">;
+};
+
+/**
+ * Somebody this press would tell their group who is placed outside the times
+ * they gave, and what was chosen for them. Names and ids only.
+ */
+export type PlannedOutside = {
+  uid: string;
+  name: string;
+  groupId: string;
+  groupName: string;
+  /** "Tuesdays at 6pm", or null. */
+  meets: string | null;
+  note: NoteStanding;
+  /** The form they applied on, for Claude's draft, or null for somebody who applied to the run itself. */
+  fromForm: { roundId: string; programmeId: string } | null;
 };
 
 export type TestState = "none" | "stale" | "fresh";
@@ -293,6 +369,12 @@ export type PublishPlan = {
   people: PlannedPerson[];
   /** Every facilitator owed theirs, in the order a press sends them. */
   facilitators: PlannedFacilitator[];
+  /** Every facilitator owed an email naming who has joined their group, in the order a press sends them. */
+  joined: PlannedJoined[];
+  /** Everybody `people` holds who is placed outside the times they gave, with what was chosen for them. */
+  outside: PlannedOutside[];
+  /** Of `outside`, who has nothing chosen yet, by name: a press waits for them. */
+  notesNeeded: string[];
   /** Groups with a facilitator who is not told yet because nobody is placed there. */
   emptyGroups: string[];
   /**
@@ -689,6 +771,73 @@ export async function settleFacilitatorEmail(
   await ref.update({ state: delivery, settledAt: FieldValue.serverTimestamp() });
 }
 
+export function joinedMarkerId(runId: string, groupId: string, facilitatorUid: string, uid: string): string {
+  return `joined__${runId}__${groupId}__${facilitatorUid}__${uid}`;
+}
+
+/**
+ * Claim the announcement of each of these people to one facilitator, before
+ * the email goes. A first announcement is created at a fixed id, so of two
+ * presses only one can claim it; one that failed before is taken back from
+ * `failed` in a transaction, for the same reason. Answers the people this
+ * press claimed: an empty list when another press had claimed them all.
+ */
+export async function claimJoined(
+  db: Firestore,
+  runId: string,
+  letter: PlannedJoined,
+  people: readonly PlannedJoined["people"][number][],
+  byUid: string,
+): Promise<PlannedJoined["people"]> {
+  const claimed: PlannedJoined["people"] = [];
+  for (const person of people) {
+    const ref = db.collection(NUDGES).doc(person.markerId);
+    if (person.retry) {
+      const taken = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists || (snap.data() ?? {}).state !== "failed") return false;
+        tx.update(ref, { state: "sending", claimedAt: FieldValue.serverTimestamp(), byUid });
+        return true;
+      });
+      if (taken) claimed.push(person);
+      continue;
+    }
+    try {
+      await ref.create({
+        kind: "group-joined",
+        runId,
+        groupId: letter.groupId,
+        uid: letter.uid,
+        joinedUid: person.uid,
+        state: "sending",
+        claimedAt: FieldValue.serverTimestamp(),
+        byUid,
+      });
+      claimed.push(person);
+    } catch (err) {
+      if (!isAlreadyExists(err)) throw err;
+    }
+  }
+  return claimed;
+}
+
+/**
+ * What became of a claimed announcement. A send that threw marks each claim
+ * `failed`, so the next press announces them again, whoever else it tells.
+ */
+export async function settleJoined(
+  db: Firestore,
+  people: readonly PlannedJoined["people"][number][],
+  delivery: "sent" | "held" | "suppressed" | "failed",
+): Promise<void> {
+  for (const person of people) {
+    await db
+      .collection(NUDGES)
+      .doc(person.markerId)
+      .update({ state: delivery, settledAt: FieldValue.serverTimestamp() });
+  }
+}
+
 export function pressLockId(runId: string): string {
   return `publishing__${runId}`;
 }
@@ -762,6 +911,25 @@ async function namingOf(db: Firestore, runId: string): Promise<Naming> {
 // The plan
 // ---------------------------------------------------------------------------
 
+/**
+ * The run's groups as the form's facts are read against them: each one's id
+ * and weekly session, archived ones included, because a group archived after
+ * placements landed still holds its people and Publish still writes to them.
+ * Every route that reads a plan reads this, and hands it to
+ * `formPlaceFactsFor`, so the plan knows who is placed outside the times they
+ * gave by the board's own reading.
+ */
+export async function readGroupSessions(
+  db: Firestore,
+  runId: string,
+): Promise<{ id: string; session: CourseGroupDoc["session"] }[]> {
+  const snap = await db.collection("courseGroups").where("runId", "==", runId).limit(50).get();
+  return snap.docs.map((doc) => {
+    const group = normalizeCourseGroup(doc.id, doc.data() ?? {});
+    return { id: group.id, session: group.session };
+  });
+}
+
 async function readUsers(db: Firestore, uids: Iterable<string>): Promise<Map<string, Record<string, unknown>>> {
   const list = [...new Set([...uids].filter(Boolean))];
   const out = new Map<string, Record<string, unknown>>();
@@ -810,6 +978,9 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
     refusals: [],
     people: [],
     facilitators: [],
+    joined: [],
+    outside: [],
+    notesNeeded: [],
     emptyGroups: [],
     templates,
     wording,
@@ -929,6 +1100,8 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
     ? await db.getAll(...facilitatorSlots.map((slot) => db.collection(NUDGES).doc(slot.markerId)))
     : [];
   const toldMarkers = new Set(markers.filter((snap) => snap.exists).map((snap) => snap.id));
+  /** When each facilitator was told about each group: who has joined since is who they are told about. */
+  const toldAt = new Map(markers.filter((snap) => snap.exists).map((snap) => [snap.id, toDate(snap.data()?.claimedAt)] as const));
   const untold = facilitatorSlots.filter((slot) => !toldMarkers.has(slot.markerId));
   const mayTell = untold.filter((slot) => (placedIn.get(slot.group.id) ?? 0) > 0);
   const emptyGroups = [
@@ -993,6 +1166,45 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
   for (const person of addressed) {
     if (person.to) writesIn.set(person.group.id, (writesIn.get(person.group.id) ?? 0) + 1);
   }
+
+  // ── Who is placed outside the times they gave ────────────────────────────
+  // Of the people owed their group's email, those whose group meets at a time
+  // they said they cannot make: the one answer the board's card and the
+  // readiness check ask (`placedOutsideTheirTimes`), of the same facts. Each
+  // waits for a choice, made for them in that group (`noteStandingFor`).
+  const timesGiven = (row: CourseApplicationDoc) => {
+    const place = row.fromForm !== null ? input.formPlaces?.get(row.uid) : undefined;
+    return {
+      availability: row.availability
+        .split(",")
+        .map((label) => label.trim())
+        .filter(Boolean),
+      fromForm:
+        place && place.availability !== undefined && place.canMakeGroupIds !== undefined
+          ? { availability: place.availability, canMakeGroupIds: place.canMakeGroupIds }
+          : null,
+    };
+  };
+  // Everybody owed, with an address or not, so this is the same list the
+  // readiness check names from the seats alone.
+  const outsideOwed = addressed.filter(({ row, group }) =>
+    placedOutsideTheirTimes(timesGiven(row), { id: group.id, sessionLabel: sessionLabelOf(group.session) }),
+  );
+  const notes = outsideOwed.length > 0 ? await readPlacementNotes(db, runId, outsideOwed.map(({ row }) => row.uid)) : new Map();
+  const outside: PlannedOutside[] = outsideOwed.map(({ row, group, name }) => {
+    const stored = notes.get(row.uid) ?? null;
+    return {
+      uid: row.uid,
+      name,
+      groupId: group.id,
+      groupName: group.name.trim() || "A group with no name",
+      meets: weeklySlotWords(group.session),
+      note: noteStandingFor(stored, group.id),
+      fromForm: row.fromForm ? { roundId: row.fromForm.roundId, programmeId: row.fromForm.programmeId } : null,
+    };
+  });
+  const noteFor = new Map(outside.map((entry) => [entry.uid, entry.note] as const));
+  const notesNeeded = outside.filter((entry) => entry.note.state === "missing").map((entry) => entry.name);
 
   // ── Week 1's time ────────────────────────────────────────────────────────
   // Read for each group of a fellowship's run whose people are owed their
@@ -1068,13 +1280,29 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
     return written.ok ? { subject: written.subject, blocks: written.blocks } : null;
   };
   for (const { row, group, name, to } of addressed) {
+    const written = incubator ? writeIncubatorStart(group, name) : writePlacement(group, name, row.uid);
+    // A saved note goes above the site's own details, in this email only.
+    const note = noteFor.get(row.uid);
+    const noted = written && note?.state === "noted" ? withPlacementNote(written, note.text) : written;
+    // The site's own section: the group's campus, and "Can you make this
+    // time?" with its two buttons, which a facilitator sitting in the group
+    // they facilitate is not asked (`./timeAnswer/emailSection.ts`).
+    const url = programmePageUrl(runId);
     people.push({
       uid: row.uid,
       name,
       to,
       groupId: group.id,
       groupName: group.name,
-      email: incubator ? writeIncubatorStart(group, name) : writePlacement(group, name, row.uid),
+      email:
+        noted && url
+          ? withTimeQuestion(noted, {
+              campus: group.campus,
+              asks: !group.facilitatorUids.includes(row.uid),
+              incubator,
+              programmeUrl: url,
+            })
+          : noted,
     });
   }
 
@@ -1188,6 +1416,94 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
     });
   }
 
+  // ── "Ana and Raj have joined Group B" ───────────────────────────────────
+  // Each facilitator already told about a group (they hold its marker) is
+  // owed one email naming who has joined it since: everybody this press
+  // writes to in that group who was not announced to them before, and
+  // anybody told since whose announcement failed to send (its marker says
+  // `failed`, and the next press tries again). Never the lead (left out of
+  // the slots above), and never a facilitator about themselves.
+  const writtenTo = new Map<string, string[]>();
+  for (const person of addressed) {
+    if (!person.to) continue;
+    writtenTo.set(person.group.id, [...(writtenTo.get(person.group.id) ?? []), person.row.uid]);
+  }
+  const toldSince = (slot: (typeof facilitatorSlots)[number]): string[] => {
+    const since = toldAt.get(slot.markerId) ?? null;
+    if (!since) return [];
+    return accepted
+      .filter((row) => {
+        const seat = enrolmentByUid.get(row.uid);
+        return groupOf(row.uid)?.id === slot.group.id && seat?.allocatedEmailAt instanceof Date && seat.allocatedEmailAt >= since;
+      })
+      .map((row) => row.uid);
+  };
+  const toldSlots = facilitatorSlots.filter((slot) => toldMarkers.has(slot.markerId));
+  const pairs = toldSlots.flatMap((slot) => {
+    const fresh = (writtenTo.get(slot.group.id) ?? []).map((uid) => ({ uid, already: false }));
+    const before = toldSince(slot).map((uid) => ({ uid, already: true }));
+    return [...fresh, ...before]
+      .filter((person) => person.uid !== slot.uid)
+      .map((person) => ({ slot, ...person, markerId: joinedMarkerId(runId, slot.group.id, slot.uid, person.uid) }));
+  });
+  const joinedState = new Map<string, unknown>();
+  if (pairs.length > 0) {
+    for (const snap of await db.getAll(...pairs.map((pair) => db.collection(NUDGES).doc(pair.markerId)))) {
+      if (snap.exists) joinedState.set(snap.id, (snap.data() ?? {}).state);
+    }
+  }
+  const facilitatorData = toldSlots.length ? await readUsers(db, toldSlots.map((slot) => slot.uid).filter((uid) => !users.has(uid))) : new Map();
+  const peopleData = await readUsers(
+    db,
+    pairs.map((pair) => pair.uid).filter((uid) => !users.has(uid)),
+  );
+  const joined: PlannedJoined[] = [];
+  for (const slot of toldSlots) {
+    // Somebody this press writes to with no announcement yet, or anybody
+    // whose announcement failed: never one that went, or is going.
+    const due = pairs.filter((pair) => {
+      if (pair.slot !== slot) return false;
+      const state = joinedState.get(pair.markerId);
+      return state === undefined ? !pair.already : state === "failed";
+    });
+    if (due.length === 0) continue;
+    const data = users.get(slot.uid) ?? facilitatorData.get(slot.uid);
+    const toldBefore = toldIn.get(slot.group.id) ?? 0;
+    const people = due.map((pair) => {
+      const account = users.get(pair.uid) ?? peopleData.get(pair.uid);
+      return {
+        uid: pair.uid,
+        firstName: (account ? firstNameOf(account) : "") || "Somebody new",
+        markerId: pair.markerId,
+        already: pair.already,
+        retry: joinedState.get(pair.markerId) === "failed",
+      };
+    });
+    const facts: PlannedJoined["facts"] = {
+      firstName: data ? firstNameOf(data) : "",
+      groupName: slot.group.name.trim(),
+      weeklySlot: weeklySlotWords(slot.group.session),
+      groupUrl: groupPageUrl(runId, slot.group.id),
+      leadName: naming.programmeName ? leadName : null,
+      programmeName: naming.programmeName,
+    };
+    joined.push({
+      uid: slot.uid,
+      name: data ? displayNameOf(data) : "NAISI member",
+      to: emailOf(data) || null,
+      groupId: slot.group.id,
+      groupName: slot.group.name,
+      toldBefore,
+      people,
+      facts,
+      email: composeJoinedEmail({
+        ...facts,
+        joined: people.map((person) => person.firstName),
+        groupSize: toldBefore + (writesIn.get(slot.group.id) ?? 0),
+      }),
+    });
+  }
+
   // A group whose people's email cannot be written is refused for that, in
   // the people's words, and its facilitators' email adds nothing new to say:
   // its sentences are for groups the first list does not name.
@@ -1208,6 +1524,9 @@ export async function loadPublishPlan(db: Firestore, run: CourseRunDoc, input: P
     refusals: [...new Set(refusals)],
     people,
     facilitators,
+    joined,
+    outside,
+    notesNeeded,
     emptyGroups,
     templates,
     wording,
@@ -1225,6 +1544,8 @@ export type PressBatch = {
   emails: number;
   people: PlannedPerson[];
   facilitators: PlannedFacilitator[];
+  /** The facilitators this press tells who has joined their group. */
+  joined: PlannedJoined[];
   /** Emails still owed after this press, past the cap. */
   more: number;
   /** People and facilitators owed an email with no address to send it to, by name. */
@@ -1233,23 +1554,56 @@ export type PressBatch = {
 
 /**
  * What one press sends, counted the one way: the people owed an email who
- * have an address, then the facilitators, at most `MAX_EMAILS_PER_PRESS`.
+ * have an address, then the facilitators, then the facilitators told who has
+ * joined their group, at most `MAX_EMAILS_PER_PRESS`.
  */
-export function pressBatch(plan: Pick<PublishPlan, "people" | "facilitators">): PressBatch {
+export function pressBatch(
+  plan: Pick<PublishPlan, "people" | "facilitators"> & Partial<Pick<PublishPlan, "joined">>,
+): PressBatch {
   const people = plan.people.filter((person) => person.to);
   const facilitators = plan.facilitators.filter((facilitator) => facilitator.to);
+  const joinedAll = plan.joined ?? [];
+  const joined = joinedAll.filter((letter) => letter.to);
   const takenPeople = people.slice(0, MAX_EMAILS_PER_PRESS);
   const takenFacilitators = facilitators.slice(0, Math.max(0, MAX_EMAILS_PER_PRESS - takenPeople.length));
-  const emails = takenPeople.length + takenFacilitators.length;
+  const takenJoined = joined.slice(0, Math.max(0, MAX_EMAILS_PER_PRESS - takenPeople.length - takenFacilitators.length));
+  const emails = takenPeople.length + takenFacilitators.length + takenJoined.length;
+  const noAddress = [
+    ...plan.people.filter((person) => !person.to).map((person) => person.name),
+    ...plan.facilitators.filter((facilitator) => !facilitator.to).map((facilitator) => facilitator.name),
+    ...joinedAll.filter((letter) => !letter.to).map((letter) => letter.name),
+  ];
   return {
     emails,
     people: takenPeople,
     facilitators: takenFacilitators,
-    more: people.length + facilitators.length - emails,
-    noAddress: [
-      ...plan.people.filter((person) => !person.to).map((person) => person.name),
-      ...plan.facilitators.filter((facilitator) => !facilitator.to).map((facilitator) => facilitator.name),
-    ],
+    joined: takenJoined,
+    more: people.length + facilitators.length + joined.length - emails,
+    noAddress: [...new Set(noAddress)],
+  };
+}
+
+/**
+ * The "joined your group" email a press sends once its people's emails are
+ * done: naming those of `letter.people` whose own email went (`told`), or who
+ * were told before and are announced again after a failed send (`already`),
+ * and counting everybody in the group told by then. Null when none of them was
+ * told: there is nobody new to announce yet, and the next press will.
+ */
+export function joinedEmailFor(
+  letter: PlannedJoined,
+  told: ReadonlySet<string>,
+  toldByPress: number,
+): { email: WrittenEmail; people: PlannedJoined["people"] } | null {
+  const people = letter.people.filter((person) => person.already || told.has(person.uid));
+  if (people.length === 0) return null;
+  return {
+    people,
+    email: composeJoinedEmail({
+      ...letter.facts,
+      joined: people.map((person) => person.firstName),
+      groupSize: letter.toldBefore + toldByPress,
+    }),
   };
 }
 

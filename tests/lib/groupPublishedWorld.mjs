@@ -297,6 +297,7 @@ export async function makeGroupWorld(key = "__groupPublished") {
     board: await courseRoute("runs", "[runId]", "allocation"),
     publishTest: await courseRoute("runs", "[runId]", "allocation", "publish", "test"),
     publish: await courseRoute("runs", "[runId]", "allocation", "publish"),
+    publishNotes: await courseRoute("runs", "[runId]", "allocation", "publish", "notes"),
     me: await courseRoute("me"),
     overview: await courseRoute("runs", "[runId]", "overview"),
     roster: await courseRoute("groups", "[groupId]", "roster"),
@@ -334,11 +335,31 @@ export async function makeGroupWorld(key = "__groupPublished") {
     /** "Send a test to me" on the allocation board. */
     sendTest: (who = "zach") => call(who, routes.publishTest.POST, { runId: RUN.agi }),
     /**
-     * A press of Publish, made the way the board makes one: read the number
-     * on its button, send "a test to me" first when the board says one is
-     * owed, then press with that number.
+     * "Send without a note" for everybody Publish waits on a choice for, as
+     * `who` would choose it on Publish's own page (since 29 October 2026,
+     * Publish waits for one for anybody placed outside the times they gave).
+     */
+    withoutNotes: async (who = "zach") => {
+      const read = await call(who, routes.publishNotes.GET, { runId: RUN.agi });
+      if (read.status !== 200) return [];
+      const chosen = [];
+      for (const row of read.body.section.rows) {
+        if (row.note.state !== "missing") continue;
+        const saved = await call(who, routes.publishNotes.PUT, { runId: RUN.agi }, {
+          body: { uid: row.uid, groupId: row.groupId, choice: "none" },
+        });
+        if (saved.status === 200) chosen.push(row.name);
+      }
+      return chosen;
+    },
+    /**
+     * A press of Publish, made the way the board makes one: choose "Send
+     * without a note" for anybody placed outside the times they gave, read
+     * the number on its button, send "a test to me" first when the board says
+     * one is owed, then press with that number.
      */
     publish: async (who = "zach") => {
+      await steps.withoutNotes(who);
       let summary = await ask.publishSummary(who);
       if (summary && summary.emails > 0 && summary.test?.state !== "fresh") {
         await steps.sendTest(who);

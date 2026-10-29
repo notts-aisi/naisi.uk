@@ -8,15 +8,18 @@
  *
  * Somebody who accepts a freed place holds a place, read by `holdingOf()` and
  * nothing else, so the path #67 built for everybody holding one is theirs
- * with no second reading: an admin presses Hand over again and it adds only
- * who is missing, places them on the allocation board, and presses Publish,
- * which emails only them. Before they accept, none of it moves: an offer
+ * with no second reading: accepting hands them over to the run by itself
+ * (a press of Hand over then finds them there and adds nobody), an admin
+ * places them on the allocation board, and Publish emails only them. The
+ * group the offer's email named is NOT where accepting puts them: placing
+ * stays a person's decision. Before they accept, none of it moves: an offer
  * nobody has answered is not a place.
  *
  * Driven, in order: the hand-over, a placement and Publish for the people
  * decision day placed; then the freed place's test and offer; the person's
- * reply; the hand-over again; their placement; Publish again; and their own
- * member area. Each as the caller who really makes it.
+ * reply, which hands them over; the press again, which adds nobody; their
+ * placement; Publish again; and their own member area. Each as the caller
+ * who really makes it.
  *
  * Real: every handler, the libraries behind them, the email templates.
  * Stubbed: what `tests/lib/freedPlacesWorld.mjs` stubs.
@@ -108,16 +111,15 @@ describe("from a freed place to a group", () => {
     assert.deepEqual(await api.me("omar"), []);
   });
 
-  test("Hand over again adds only him, and says so", async () => {
-    const before_ = world.db.read(`courseRuns/${RUN.agi}`).applicationCounts.accepted;
-    const pressed = await api.handOver();
-    assert.deepEqual(pressed.body.receipt, { handedOver: 1, alreadyThere: 4 });
+  test("accepting handed him over, in no group, and Hand over again adds nobody", async () => {
     assert.deepEqual(rowsOnTheRun(), [...HOLDERS, "omar"].sort());
     const row = world.db.read(`courseApplications/${RUN.agi}__omar`);
     assert.deepEqual([row.status, row.fromForm], ["accepted", { roundId: ROUND, programmeId: AGI }]);
-    assert.equal(world.db.read(`courseRuns/${RUN.agi}`).applicationCounts.accepted, before_ + 1);
-    // And a press after that writes nothing at all.
+    // Not in the group his offer named, or any other: somebody places him.
+    assert.equal(world.db.read(`courseEnrolments/${RUN.agi}__omar`), undefined);
+    const counted = world.db.read(`courseRuns/${RUN.agi}`).applicationCounts.accepted;
     assert.deepEqual((await api.handOver()).body.receipt, { handedOver: 0, alreadyThere: 5 });
+    assert.equal(world.db.read(`courseRuns/${RUN.agi}`).applicationCounts.accepted, counted);
   });
 
   test("he is placed in the group whose time his email named", async () => {

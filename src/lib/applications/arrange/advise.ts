@@ -66,7 +66,7 @@ What to do:
 - Pick the options worth the admin's time, at most five, ranked best first. For each: a short title, pros and cons (times, sizes, how evenly the strongest facilitators are spread, the mix of each group, anybody only near their time or not placed), a sentence for every group on why its people suit each other, and a lead facilitator for every group.
 - One facilitator per group. Spread the strongest across the groups: never two strong facilitators in one group while another group has a weak one or none.
 - A lead should usually be somebody who offered. You may pick somebody who did not offer when they clearly stand out; for that group, also name a second facilitator who did offer, as their back-up.
-- You may suggest moves within an option to improve a group's mix or put a facilitator where they are needed. Only move somebody to a group in the same option that they can make, and never somebody already told their group.
+- You may suggest moves within an option to improve a group's mix or put a facilitator where they are needed. Only move somebody to a group in the same option that they can make, and never somebody who stays in their group.
 - Say which option you prefer and why.
 - Do not use or guess at personal characteristics such as age, gender, nationality or health.
 - Refer to people, groups and options only by their labels, and write every label out in full each time: "Applicant 3 and Applicant 7", "Group B2", never "Applicants 3 and 7" or a bare "B2". Be brief, in British English, and never use an em dash or an en dash.`;
@@ -122,10 +122,10 @@ const SCHEMA = {
   },
 };
 
-type Note = { read: ReadNote; flags: number | null };
+export type Note = { read: ReadNote; flags: number | null };
 
 /** Claude's earlier read for this programme, and how many answers Pangram thought worth a look, for each person. */
-async function notesFor(db: Firestore, roundId: string, programmeId: string, uids: readonly string[]): Promise<Map<string, Note>> {
+export async function notesFor(db: Firestore, roundId: string, programmeId: string, uids: readonly string[]): Promise<Map<string, Note>> {
   const notes = new Map<string, Note>();
   for (let i = 0; i < uids.length; i += 100) {
     const refs = uids.slice(i, i + 100).map((uid) => db.collection(ASSESSMENTS_COLLECTION).doc(admissionAssessmentId(roundId, uid)));
@@ -185,12 +185,61 @@ export type ArrangementOptionsResult = { ok: true; arrangement: ArrangementOptio
 const LETTERS = "ABCDEFGH";
 const reviewerWords = (text: string) => text.replace(/\bReviewer [A-Z]\b/g, "a reviewer");
 
+/**
+ * Everybody being arranged, as the admin's screen draws them: their name, a
+ * link to their application, whether they offered, where they sit now and
+ * whether they have been told it, the groups they facilitate, their marked
+ * week for the chart (never Claude's), Claude's earlier read (reviewers made
+ * "a reviewer") and how many answers Pangram thought worth a look.
+ */
+export function ringPeopleOf(
+  arranging: Arranging,
+  notes: ReadonlyMap<string, Note>,
+  roundId: string,
+  programmeId: string,
+  potential: (uid: string) => RingPerson["potential"] = () => null,
+): Record<string, RingPerson> {
+  const people: Record<string, RingPerson> = {};
+  for (const person of arranging.people.values()) {
+    const note = notes.get(person.uid);
+    const read = note?.read ?? null;
+    people[person.uid] = {
+      uid: person.uid,
+      name: person.name,
+      href: `/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/applications/${encodeURIComponent(person.uid)}`,
+      offered: person.facilitates,
+      told: person.told,
+      timeAnswer: person.timeAnswer ?? null,
+      groupId: person.groupId,
+      appointed: [...(person.appointed ?? [])],
+      littleMarked: person.week.kind === "given" && person.week.minimal === true,
+      week: {
+        said: person.week.kind === "given",
+        marked: [...(person.marked ?? [])],
+        fromFirstMark: person.week.kind === "given" && person.week.minimal === true,
+      },
+      potential: potential(person.uid),
+      flags: note?.flags ?? null,
+      read: read
+        ? {
+            lean: read.lean,
+            summary: reviewerWords(read.summary),
+            strengths: read.strengths.map(reviewerWords),
+            concerns: read.concerns.map(reviewerWords),
+            thin: read.thin,
+          }
+        : null,
+    };
+  }
+  return people;
+}
+
 export async function arrangeOptions(
   db: Firestore,
   user: SessionUser,
   roundId: string,
   programmeId: string,
-  wanted: { minutes?: unknown; size?: unknown; askClaude: boolean },
+  wanted: { minutes?: unknown; size?: unknown; askClaude: boolean; startAgain?: boolean },
 ): Promise<ArrangementOptionsResult> {
   if (!canRunTerm(user)) return refuse(403, "Only an admin can ask for an arrangement.");
   const form = await loadForm(db, roundId);
@@ -218,6 +267,7 @@ export async function arrangeOptions(
     size: arranging.size,
     names: newGroupName,
     strength,
+    startAgain: wanted.startAgain === true,
   });
 
   let applied: AppliedChoice = {
@@ -312,38 +362,10 @@ export async function arrangeOptions(
     };
   });
 
-  const people: Record<string, RingPerson> = {};
-  for (const person of everybody) {
-    const note = notes.get(person.uid);
-    const read = note?.read ?? null;
-    people[person.uid] = {
-      uid: person.uid,
-      name: person.name,
-      href: `/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/applications/${encodeURIComponent(person.uid)}`,
-      offered: person.facilitates,
-      told: person.told,
-      littleMarked: person.week.kind === "given" && person.week.minimal === true,
-      week: {
-        said: person.week.kind === "given",
-        marked: [...(person.marked ?? [])],
-        fromFirstMark: person.week.kind === "given" && person.week.minimal === true,
-      },
-      potential: (() => {
-        const said = applied.potential.get(person.uid);
-        return said ? { level: said.level, why: named(said.why) } : null;
-      })(),
-      flags: note?.flags ?? null,
-      read: read
-        ? {
-            lean: read.lean,
-            summary: reviewerWords(read.summary),
-            strengths: read.strengths.map(reviewerWords),
-            concerns: read.concerns.map(reviewerWords),
-            thin: read.thin,
-          }
-        : null,
-    };
-  }
+  const people = ringPeopleOf(arranging, notes, roundId, programmeId, (uid) => {
+    const said = applied.potential.get(uid);
+    return said ? { level: said.level, why: named(said.why) } : null;
+  });
 
   return {
     ok: true,
@@ -355,6 +377,7 @@ export async function arrangeOptions(
       grid: arranging.grid,
       minutes: arranging.minutes,
       size: arranging.size,
+      startAgain: wanted.startAgain === true,
       people,
       options,
       asked,
@@ -376,7 +399,7 @@ You are given the people, numbered ("Applicant 3"), with your own earlier read o
 
 What to do:
 - Answer the admin's question directly and practically. Where it helps, suggest concrete changes: moves of people between the groups on the screen, or start times drawn from the counts.
-- Only suggest moving somebody to a group on the screen that they can make, and never somebody already told their group. List any moves you suggest in moves as well as in your answer.
+- Only suggest moving somebody to a group on the screen that they can make, and never somebody who stays in their group. List any moves you suggest in moves as well as in your answer.
 - For a question about several programmes meeting together, use the counts: a time where many on each programme can come.
 - For facilitators, we want people who might help run the society one day: their values and how they engage, not only their fit. Thin or brief answers count against them. Do not judge whether anything was written with AI.
 - Do not use or guess at personal characteristics such as age, gender, nationality or health.
@@ -453,7 +476,12 @@ export async function askAboutArrangement(
   const uids = [...arranging.people.keys()].sort();
   const label = (uid: string) => `Applicant ${uids.indexOf(uid) + 1}`;
   const named = uids.map((uid) => ({ label: label(uid), name: arranging.people.get(uid)?.name ?? "" }));
-  const kept = new Set([...arranging.people.values()].filter((person) => person.told).map((person) => person.uid));
+  // On the screen anybody may be moved by hand but the told and the facilitators, who stay in their group.
+  const kept = new Set(
+    [...arranging.people.values()]
+      .filter((person) => person.told || (person.appointed ?? []).length > 0)
+      .map((person) => person.uid),
+  );
   const ask = askInputFrom({
     programmeName: arranging.programmeName,
     minutes: arranging.minutes,

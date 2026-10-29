@@ -633,6 +633,11 @@ const NOT_COVERED = {
     coverWhen:
       "With the assessment route's spec, once the harness can stand in for Anthropic: a course hub world after the hand-over, Suggest, then Apply through the site's own routes.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
+    reason:
+      "Circles reading the run's groups again after a change. It writes nothing; who may read it, who is on the screen and that a second Apply sends nothing are executed by tests/applications-circles.test.mjs.",
+    coverWhen: "With a course hub spec after the hand-over: open Circles, move one person, see them in the new ring.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/assessments": {
     reason:
       "The Claude and Pangram marks on a programme's list, and Claude's comparison of its applications or a question about them. The gate, the labels sent and the names put back are executed by tests/applications-assessment.test.mjs; a browser spec waits on the same fake as the assessment route.",
@@ -740,6 +745,12 @@ const NOT_COVERED = {
       "Course hub: the test of the ask's email, sent only to the address on the session of whoever asks; tests/course-hub-facilitator-asks.test.mjs executes it and the lock it unlocks.",
     coverWhen: "With the spec for the ask above, because the test is the ask's first step.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/case/draft": {
+    reason:
+      "Course hub: Draft with Claude beside the sentence that makes the case, an admin's, on the Groups tab's Facilitators view. tests/course-hub-facilitator-case-draft.test.mjs executes it as every kind of caller with Claude stubbed, and holds what Claude is sent and that nothing is stored.",
+    coverWhen:
+      "Never against a live model: an end-to-end run would send a real application to Anthropic. With a stubbed model, when the fixtures can seed a term after decision day with somebody who did not offer.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/remind": {
     reason:
       "Course hub: Remind on an ask nobody has answered, emailing only that person; tests/course-hub-facilitator-asks.test.mjs executes it as every kind of caller and holds its limits.",
@@ -755,6 +766,16 @@ const NOT_COVERED = {
       "Course hub: Add a group, on a programme's Groups tab's Times view. tests/course-hub-times-actions.test.mjs executes it as every kind of caller, before Publish and after, and draws its dialog from the setup the page hands it.",
     coverWhen:
       "When a browser spec signs in as a programme's lead and adds a group from the Times view.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/campus": {
+    reason:
+      "Course hub: a group's campus, from the Sessions view of a programme's Groups tab. tests/course-hub-time-answer.test.mjs executes it as every kind of caller, before Publish and after, with the board's columns carrying it.",
+    coverWhen: "When the groups-go-out spec sets a group's campus on the Sessions view before it presses Publish.",
+  },
+  "/api/courses/runs/[runId]/time-answer": {
+    reason:
+      "Course hub: a person's answer to Can you make this time? on their programme page. tests/course-hub-time-answer.test.mjs executes it as every kind of caller, with the card it is pressed from, every move that clears it and who reads it.",
+    coverWhen: "When a browser spec signs in as somebody Publish has told their group and answers the card on their programme page.",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time": {
     reason:
@@ -1097,6 +1118,11 @@ const NOT_COVERED = {
       "Learn hub: /api/courses/runs/[runId]/exercises/[exerciseId]/submit belongs to the curriculum surface being rebuilt in October.",
     coverWhen:
       "When the October curriculum rebuild lands, because a spec written against today's shape would be thrown away with it.",
+  },
+  "/api/courses/runs/[runId]/allocation/publish/notes": {
+    reason:
+      "Course hub: the read and the writes behind Outside the times they gave on Publish's own page; tests/course-publish-outside-notes.test.mjs executes it as every kind of caller and holds that the lead is sent no week and no draft.",
+    coverWhen: "With the spec for Publish's own page, which opens it.",
   },
   "/api/courses/runs/[runId]/allocation/publish/preview": {
     reason:
@@ -1734,6 +1760,11 @@ const NOT_COVERED = {
       "Course hub: the Groups tab's People in groups view is the run's own allocation board, drawn as st-groups draws it for the programme's lead and admins; its every caller, its words in every state and its one count are executed by tests/course-hub-people-in-groups.test.mjs and tests/course-hub-lead-pages.test.mjs, the board's routes by tests/course-hub-lead-routes.test.mjs and tests/applications-handover-board.test.mjs, and it was checked by hand at 1440 and 390.",
     coverWhen:
       "When the end-to-end fixtures can seed a programme that names a run with groups, with its lead signed in.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/circles": {
+    reason:
+      "An admin's Circles. Its read, its suggestions and Apply's differences are executed by tests/applications-circles.test.mjs and tests/applications-arrange-changes.test.mjs; the page's gate by the persona battery.",
+    coverWhen: "With a course hub spec after the hand-over: open Circles, move one person, see them in the new ring.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": {
     reason:

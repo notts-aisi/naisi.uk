@@ -197,10 +197,16 @@ const FETCHES_IT_CANNOT_READ = new Map([
       "form address it is handed: no group is in what it draws.",
   ],
   [
-    "src/features/applications/times/ArrangeGroups.tsx",
-    "An admin's Arrange with Claude on the Times view, at the arrangement route and the group, place and " +
-      "facilitator routes under the addresses it builds: it draws the groups in the order the arrangement route " +
-      "answers them, which is compareGroupsByMeeting's (src/lib/applications/arrange/advise.ts).",
+    "src/features/applications/circles/Circles.tsx",
+    "An admin's Circles, at the circles and arrangement routes and the group, place and facilitator routes under " +
+      "the addresses it builds: it draws the run's groups in the order the circles route answers them, and a " +
+      "suggestion's in the order the arrangement route does, each compareGroupsByMeeting's " +
+      "(src/lib/applications/arrange/circles.ts, src/lib/applications/arrange/advise.ts).",
+  ],
+  [
+    "src/features/applications/circles/AskClaude.tsx",
+    "Circles' Ask Claude, at the arrangement route under the address it is handed: it lists Claude's answer and " +
+      "its moves, and draws no group.",
   ],
   [
     "src/features/applications/review/AssessAllBar.tsx",

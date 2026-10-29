@@ -226,9 +226,10 @@ jobs:
       # step holds the project's keys to the registry in
       # scripts/check-api-key-restrictions.mjs, on every run.
       #
-      # The run's identity needs permission to list the project's API keys.
-      # Read-only: `keys.list` never returns key material. See
-      # scripts/e2e/README.md, "In CI".
+      # The run's identity needs permission to list the project's API keys
+      # and to read its sign-in settings, which name the default key that
+      # Firebase's email links depend on. Read-only: `keys.list` never
+      # returns key material. See scripts/e2e/README.md, "In CI".
       - name: Check the dev project's API key restrictions
         if: matrix.part == 'batteries'
         run: node scripts/check-api-key-restrictions.mjs --project naisi-uk-dev
@@ -430,9 +431,10 @@ jobs:
       # step holds the project's keys to the registry in
       # scripts/check-api-key-restrictions.mjs, on every run.
       #
-      # The run's identity needs permission to list the project's API keys.
-      # Read-only: `keys.list` never returns key material. See
-      # scripts/e2e/README.md, "In CI".
+      # The run's identity needs permission to list the project's API keys
+      # and to read its sign-in settings, which name the default key that
+      # Firebase's email links depend on. Read-only: `keys.list` never
+      # returns key material. See scripts/e2e/README.md, "In CI".
       - name: Check the dev project's API key restrictions
         run: node scripts/check-api-key-restrictions.mjs --project naisi-uk-dev
 

@@ -412,7 +412,7 @@ export default function TimesPicture({
 }: {
   view: TimesView;
   views: ReactNode;
-  /** Arrange groups, which the page draws for an admin once there is a picture, or as a preview before decision day. */
+  /** The link to Circles, where groups are arranged, which the page draws for an admin once there is a picture, or before decision day. */
   arrange?: ReactNode;
 }) {
   const picture = view.picture;
@@ -466,8 +466,8 @@ export default function TimesPicture({
           )}
         </>
       )}
-      {/* Before decision day an admin can preview arrangements from the
-          decisions as they stand; the arranger says it is a preview. */}
+      {/* An admin is pointed to Circles, before decision day too, where a
+          suggestion is a preview from the decisions as they stand. */}
       {picture !== null || view.blank === "not-sent" ? arrange : null}
     </div>
   );

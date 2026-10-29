@@ -13,6 +13,7 @@ import type { CrestKey } from "@/lib/crests/keys";
 import { getClientAuth, getClientDb } from "@/lib/firebase/client";
 import { slugId } from "@/lib/firestore/slugId";
 import { isValidDateKey, type WeekPlanEntry } from "@/lib/courses/weekPlan";
+import { isGroupCampus, type GroupCampus } from "@/lib/courses/campus";
 import { cohortError, type RunCohort } from "@/lib/courses/cohortLabel";
 import { normalizeTeamsFrom, type TeamsFrom } from "@/lib/courses/teams/model";
 import { isClockTime } from "@/lib/courses/weekBlocks/model";
@@ -488,6 +489,8 @@ export type CourseGroupPatch = Partial<{
   /** Partial: only the slot fields present are written (dotted paths). */
   session: Partial<GroupSession>;
   sessionOverrides: Record<string, Partial<GroupSession>>;
+  /** One of the three campuses, or null for "not chosen yet" (`src/lib/courses/campus.ts`). */
+  campus: GroupCampus | null;
   archived: boolean;
 }>;
 
@@ -515,6 +518,10 @@ export async function updateGroup(
     out.capacity = capacity;
   }
   if (patch.archived !== undefined) out.archived = patch.archived;
+  // Exactly one of the three, or a real null: the rules allow this key with
+  // these values and no others, so anything else is written as null rather
+  // than refused as a permission error nobody can read.
+  if (patch.campus !== undefined) out.campus = isGroupCampus(patch.campus) ? patch.campus : null;
 
   // Dotted field paths so a partial slot edit (just the room, just the time)
   // merges into the stored session instead of replacing the whole map and

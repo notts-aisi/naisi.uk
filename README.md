@@ -110,6 +110,7 @@ Light theme: change `data-theme="dark"` to `"light"` in [src/app/layout.tsx](src
 - 1-1 booking calendar (Firestore availability + transactions)
 - Course & homework viewer (BlueDot-style)
 - Track-lead sub-role (admin-assigned heads of a reading group / project)
+- Our own password reset email and page (sent through Resend from naisi.uk and handled by a page on naisi.uk, in place of Firebase's stock email and its page on firebaseapp.com; it would show up in the deliverability log and stop depending on the project's default key)
 
 ## License
 

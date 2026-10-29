@@ -8,6 +8,7 @@ import {
   gaveBackLine,
   moreLine,
   noAddressLine,
+  notesNeededLine,
   publishAudienceLine,
   publishButtonLabel,
   testLine,
@@ -26,7 +27,8 @@ import styles from "./AllocationPublish.module.css";
  * `src/lib/courses/publishWords.ts`. The board's handlers do the pressing.
  *
  * PUBLISH IS LOCKED until a test of the wording in force has been sent, as
- * the server holds it, and while an email cannot be written. A press that
+ * the server holds it, while an email cannot be written, and while somebody
+ * placed outside the times they gave has no note or "Send without a note". A press that
  * would send nothing says so instead of offering to send 0, and needs no
  * test. A run the application form fills is an admin's to publish: anybody
  * else is told so and offered no button.
@@ -87,13 +89,14 @@ export default function AllocationPublish({
 }: Props) {
   const sends = summary.emails > 0;
   const fresh = summary.test.state === "fresh";
-  const blocked = summary.refusals.length > 0 || (sends && !fresh);
+  const notesNeeded = summary.notesNeeded ?? [];
+  const blocked = summary.refusals.length > 0 || notesNeeded.length > 0 || (sends && !fresh);
 
   return (
     <section className={styles.publish} aria-labelledby="allocation-publish-title">
       <div className={styles.words}>
         <h3 id="allocation-publish-title" className={styles.title}>
-          {publishAudienceLine(summary.people, summary.facilitators)}
+          {publishAudienceLine(summary.people, summary.facilitators, summary.joined ?? 0)}
         </h3>
         {note && !summary.adminOnly ? <p className={styles.line}>{note}</p> : null}
 
@@ -114,6 +117,7 @@ export default function AllocationPublish({
             {summary.gaveBack && summary.gaveBack > 0 ? (
               <p className={styles.lineWarn}>{gaveBackLine(summary.gaveBack)}</p>
             ) : null}
+            {notesNeeded.length > 0 ? <p className={styles.lineWarn}>{notesNeededLine(notesNeeded)}</p> : null}
             {summary.refusals.map((sentence) => (
               <p key={sentence} className={styles.lineWarn}>
                 {sentence}

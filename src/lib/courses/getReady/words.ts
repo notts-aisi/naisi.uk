@@ -204,11 +204,15 @@ export function publishedWords(day: string, clock: string): string {
  * today, and nothing it does not. A room is not one of them: the email leaves
  * the room out while a group has none (`noRoomWords`).
  */
-export function publishNeedsWords(needs: { times: boolean; placed: boolean }): string | null {
-  if (needs.times && needs.placed) return "Needs a day and a time for every group, and everyone holding a place in a group.";
-  if (needs.times) return "Needs a day and a time for every group.";
-  if (needs.placed) return "Needs everyone holding a place in a group.";
-  return null;
+export function publishNeedsWords(needs: { times: boolean; placed: boolean; notes?: boolean }): string | null {
+  const parts = [
+    ...(needs.times ? ["a day and a time for every group"] : []),
+    ...(needs.placed ? ["everyone holding a place in a group"] : []),
+    ...(needs.notes ? ["a note, or none chosen, for everyone placed outside the times they gave"] : []),
+  ];
+  if (parts.length === 0) return null;
+  if (parts.length === 1) return `Needs ${parts[0]}.`;
+  return `Needs ${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}.`;
 }
 
 // ── The cards ──────────────────────────────────────────────────────────────
@@ -333,7 +337,24 @@ export const READY_ITEM = {
   facilitating: "Every group has a facilitator",
   placed: "Everyone holding a place is in a group",
   weekOne: "Week 1 is written",
+  /** Publish waits for a choice for each person it would tell who is placed outside the times they gave. */
+  notes: "Everyone outside the times they gave has a note, or none chosen",
 } as const;
+
+/** "Ana and Raj need a note, or Send without a note, below." */
+export function notesMissingWords(firstNames: readonly string[]): string {
+  const one = firstNames.length === 1;
+  return `${namesInWords(firstNames)} ${one ? "needs" : "need"} a note, or Send without a note, under Outside the times they gave below.`;
+}
+
+/** "2 notes saved, 1 going without one." */
+export function notesChosenWords(noted: number, without: number): string {
+  const parts = [
+    ...(noted > 0 ? [`${noted} ${noted === 1 ? "note" : "notes"} saved`] : []),
+    ...(without > 0 ? [`${without} going without one`] : []),
+  ];
+  return parts.length > 0 ? `${parts.join(", ")}.` : "Done.";
+}
 
 /** "Publish anyway, or move Joel first." */
 export function moveFirstWords(firstName: string): string {
@@ -346,13 +367,13 @@ export function moveButtonWords(firstName: string): string {
 }
 
 /**
- * "Joel Adeyemi is in Group A on Thursdays at 6pm, but said they’re not free
- * then." Somebody placed at a time the week they painted does not cover.
+ * "Joel Adeyemi is in Group A on Thursdays at 6pm, but didn’t mark that time
+ * as free." Somebody placed at a time the week they painted does not cover.
  */
 export function placedNotFreeWords(name: string, groupName: string, meets: string | null): string {
   return meets
-    ? `${name} is in ${groupName} on ${meets}, but said they’re not free then.`
-    : `${name} is in ${groupName}, but said they’re not free when it meets.`;
+    ? `${name} is in ${groupName} on ${meets}, but didn’t mark that time as free.`
+    : `${name} is in ${groupName}, but didn’t mark its time as free.`;
 }
 
 /** "32 of 32." / "26 of 30. Dev, Ben, Rory and Jasmine have no group yet." */
@@ -396,6 +417,14 @@ export function publishHeading(programmeName: string): string {
 }
 
 export const EMAIL_CARD = {
+  /**
+   * "Ana has joined Group B", to each facilitator already told about their
+   * group when this press tells somebody new in it.
+   */
+  joined: {
+    title: "Who has joined",
+    line: "To each facilitator already told about their group, naming who has joined it since, by first name.",
+  },
   people: {
     title: "Your group",
     line: "To each person, with their group, day, room and facilitators’ first names.",
@@ -509,4 +538,75 @@ export function composeFreeReminder(input: {
     button: { label: "Say when you’re free", href: input.link },
     signOff: input.leadName ? { name: input.leadName, role: `${input.shortName} lead, NAISI` } : { name: "NAISI", role: "" },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Publish's own page: what this press sends, and what can follow by itself
+// ---------------------------------------------------------------------------
+
+/** Under the "Your group" card's first email, when the first person's carries no note: one that does. */
+export const NOTED_EMAIL = "An email with a note";
+
+export const SENDS_TITLE = "What this press sends";
+
+/** "“Your group” to 4 people:". */
+export function yourGroupCountWords(count: number, incubator: boolean): string {
+  return `${incubator ? "“Your sessions”" : "“Your group”"} to ${peopleWords(count)}`;
+}
+
+/** "“You’re facilitating” to 3 facilitators". */
+export function facilitatingCountWords(count: number): string {
+  return `“You’re facilitating” to ${count} ${count === 1 ? "facilitator" : "facilitators"}`;
+}
+
+/** "“Who has joined” to 2 facilitators already told about their group". */
+export function joinedCountWords(count: number): string {
+  return `“Who has joined” to ${count} ${count === 1 ? "facilitator" : "facilitators"} already told about their group`;
+}
+
+/** Whose "Your group" email carries a note of our own words, above the site's details. */
+export function notedWords(names: readonly string[]): string {
+  return names.length === 1
+    ? `The email to ${names[0]} carries a note above its details.`
+    : `The emails to ${namesInWords(names)} carry a note above their details.`;
+}
+
+/**
+ * The phone notification that mirrors "Your group": who has it switched on,
+ * or that this copy of the site sends none.
+ */
+export function pushWords(configured: boolean, count: number, of: number): string {
+  if (!configured) return "No phone notification: this copy of the site sends none.";
+  if (count === 0) return "No phone notification: none of them has course notifications switched on.";
+  const who = count === of ? (count === 1 ? "them" : `all ${count} of them`) : `the ${count} of them`;
+  return `A phone notification saying they have a place, to ${who} with course notifications switched on, for each email that goes.`;
+}
+
+export const NOTHING_ELSE = "Nothing else is sent by this press.";
+export const SENDS_NOTHING = "This press sends no email.";
+
+export const FOLLOWS_TITLE = "What can follow by itself";
+export const FOLLOWS_LINE = "Scheduled emails that go without a press, as Site status has them switched right now. This page changes none of them.";
+export const SITE_STATUS = "Site status";
+export const PAUSED = "The scheduler is paused on Site status, so none of these goes until it’s switched back on.";
+
+/** Next week's email, on or off, and the groups whose email waits for a room. */
+export function nextWeekWords(on: boolean, waitsForRoom: readonly string[]): string {
+  if (!on) return "Next week’s email: off. A group is sent it when its facilitator pushes the register.";
+  const head = "Next week’s email: on. Each group is emailed next week’s time, room and reading before each session after its first.";
+  if (waitsForRoom.length === 0) return head;
+  const one = waitsForRoom.length === 1;
+  return `${head} ${namesInWords(waitsForRoom)} ${one ? "has" : "have"} no room yet, so ${one ? "its email waits until it has" : "their emails wait until they have"} one.`;
+}
+
+export function registerRemindersWords(on: boolean): string {
+  return on
+    ? "Register reminders: on. A group’s facilitators get one reminder when a register is still not finished."
+    : "Register reminders: off.";
+}
+
+export function placeConfirmationsWords(on: boolean): string {
+  return on
+    ? "Reminders to confirm a place: on. Anybody holding a place who hasn’t said they’re coming is reminded once a day until the day to confirm by."
+    : "Reminders to confirm a place: off.";
 }

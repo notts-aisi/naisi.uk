@@ -222,6 +222,9 @@ export async function POST(_req: Request, ctx: Ctx) {
         // no current group any more, and a future re-placement must earn a
         // fresh placement email on the next publish.
         allocatedEmailAt: FieldValue.delete(),
+        // An answer about the group's time was about a group they are no
+        // longer in.
+        timeAnswer: FieldValue.delete(),
         // WHEN THEY WERE TAKEN OFF, in the field leaving writes, so the
         // programme's Overview, its Attendance tab and the register say
         // "Left Fri 13 Nov" for both kinds of leaving. Somebody who left by

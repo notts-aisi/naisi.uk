@@ -5,7 +5,7 @@ import styles from "./WeekChart.module.css";
 
 /**
  * ONE PERSON'S WEEK BESIDE THE GROUPS, for an admin placing somebody by hand
- * (Arrange groups, `ArrangeGroups.tsx`).
+ * (Circles, `../circles/PersonPanel.tsx`).
  *
  * Monday to Sunday across, the form's hours down. Shaded: every stretch they
  * marked. For somebody who marked under four hours in the week, a lighter
@@ -15,6 +15,10 @@ import styles from "./WeekChart.module.css";
  * group they are in now outlined. Pressing a bar moves them there. Under the
  * chart the same groups as a list, the ones they can make first, each saying
  * how much of the session falls in the time they marked.
+ *
+ * Other screens reuse the chart for something other than moving somebody
+ * (asking somebody to facilitate a group, a note about a group's time), with
+ * their own `words`; left out, the chart says what it always has.
  */
 
 export type ChartGroup = {
@@ -27,6 +31,23 @@ export type ChartGroup = {
   current: boolean;
 };
 
+/** Words for a chart that is not about moving somebody. */
+export type WeekChartWords = {
+  /** The button under a group they could be picked for, or null for no pick buttons (bars then not clickable). */
+  pick: string | null;
+  /** A bar's accessible name: (group name, "Mon 18:00") => string. */
+  pickAria: (group: string, when: string) => string;
+  /** What the list says of the `current` group. */
+  current: string;
+};
+
+/** The chart's own words, for moving somebody (Circles). */
+export const MOVE_WORDS: WeekChartWords = {
+  pick: "Move here",
+  pickAria: (group, when) => `Move them to ${group}, ${when}`,
+  current: "they are in it",
+};
+
 type Props = {
   grid: { startMinute: number; endMinute: number };
   marked: readonly { weekday: number; start: number; end: number }[];
@@ -34,6 +55,8 @@ type Props = {
   groups: readonly ChartGroup[];
   disabled: boolean;
   onPick: (key: string) => void;
+  /** Words for a chart that is not about moving somebody. Omitted: today's words, unchanged. */
+  words?: WeekChartWords;
 };
 
 /** Monday first, as every screen here lists a week. */
@@ -82,7 +105,7 @@ function lanesOf(groups: readonly ChartGroup[]): Map<string, { lane: number; of:
   return out;
 }
 
-export default function WeekChart({ grid, marked, fromFirstMark, groups, disabled, onPick }: Props) {
+export default function WeekChart({ grid, marked, fromFirstMark, groups, disabled, onPick, words = MOVE_WORDS }: Props) {
   const span = Math.max(60, grid.endMinute - grid.startMinute);
   const top = (minutes: number) => `${(Math.max(0, minutes - grid.startMinute) / span) * 100}%`;
   const height = (from: number, to: number) => `${(Math.max(0, Math.min(to, grid.endMinute) - Math.max(from, grid.startMinute)) / span) * 100}%`;
@@ -126,22 +149,33 @@ export default function WeekChart({ grid, marked, fromFirstMark, groups, disable
                   .map((group) => {
                     const start = minutesOf(group.session.startTimeLocal);
                     const place = lanes.get(group.key) ?? { lane: 0, of: 1 };
+                    const className = [styles.bar, group.fits ? styles.barFits : styles.barNot, group.current ? styles.barCurrent : ""]
+                      .filter(Boolean)
+                      .join(" ");
+                    const style = {
+                      top: top(start),
+                      height: height(start, start + group.session.durationMinutes),
+                      left: `${(place.lane / place.of) * 100}%`,
+                      width: `${100 / place.of}%`,
+                    };
+                    const title = `${group.name}, ${DAY[weekday]} ${group.session.startTimeLocal}: ${group.fits ? "they can make it" : "they can’t make all of it"}`;
+                    // No picking on this chart: the bar is drawn, and nothing happens on a press.
+                    if (words.pick === null) {
+                      return (
+                        <span key={group.key} className={className} style={style} title={title}>
+                          {group.name.replace(/^Group\s+/i, "")}
+                        </span>
+                      );
+                    }
                     return (
                       <button
                         key={group.key}
                         type="button"
-                        className={[styles.bar, group.fits ? styles.barFits : styles.barNot, group.current ? styles.barCurrent : ""]
-                          .filter(Boolean)
-                          .join(" ")}
-                        style={{
-                          top: top(start),
-                          height: height(start, start + group.session.durationMinutes),
-                          left: `${(place.lane / place.of) * 100}%`,
-                          width: `${100 / place.of}%`,
-                        }}
+                        className={className}
+                        style={style}
                         disabled={disabled || group.current}
-                        title={`${group.name}, ${DAY[weekday]} ${group.session.startTimeLocal}: ${group.fits ? "they can make it" : "they can’t make all of it"}`}
-                        aria-label={`Move them to ${group.name}, ${DAY[weekday]} ${group.session.startTimeLocal}`}
+                        title={title}
+                        aria-label={words.pickAria(group.name, `${DAY[weekday]} ${group.session.startTimeLocal}`)}
                         onClick={() => onPick(group.key)}
                       >
                         {group.name.replace(/^Group\s+/i, "")}
@@ -170,16 +204,16 @@ export default function WeekChart({ grid, marked, fromFirstMark, groups, disable
             <span>
               <strong>{group.name}</strong>, {DAY[group.session.weekday]} {group.session.startTimeLocal}:{" "}
               {group.current
-                ? "they are in it"
+                ? words.current
                 : group.fits
                   ? "they can make it"
                   : minutes > 0
                     ? `free for ${minutes} of its ${group.session.durationMinutes} minutes`
                     : "not a time they marked"}
             </span>
-            {!group.current ? (
+            {!group.current && words.pick !== null ? (
               <button type="button" className={styles.move} disabled={disabled} onClick={() => onPick(group.key)}>
-                Move here
+                {words.pick}
               </button>
             ) : null}
           </li>

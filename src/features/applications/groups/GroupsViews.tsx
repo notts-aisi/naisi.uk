@@ -8,17 +8,22 @@ import styles from "./GroupsViews.module.css";
  * Four views exist for every run, in the boards' order: Sessions (each
  * group's session in one week, and changing one), People in groups (the run's
  * allocation board), Times (when the people holding a place are free) and
- * Facilitators (who staffs each group). A run with a pitching week has a
- * fifth, Pitches (the pitches from that week, which teams are made from). Each
- * is its own address under the tab, so a view is a link and the one on screen
- * says so (`aria-current`). The tab itself opens on People in groups.
+ * Facilitators (who staffs each group). An admin has a fifth beside People in
+ * groups, Circles (each group a ring, each person's week against the groups'
+ * times, and suggestions drawn over them), which only an admin is offered
+ * because it shows painted weeks and Claude's reads. A run with a pitching
+ * week has one more, Pitches (the pitches from that week, which teams are
+ * made from). Each is its own address under the tab, so a view is a link and
+ * the one on screen says so (`aria-current`). The tab itself opens on People
+ * in groups.
  */
 
-export type GroupsView = "sessions" | "people" | "times" | "facilitators" | "pitches";
+export type GroupsView = "sessions" | "people" | "circles" | "times" | "facilitators" | "pitches";
 
 const VIEWS: readonly { view: GroupsView; label: string; segment: string }[] = [
   { view: "sessions", label: "Sessions", segment: "/sessions" },
   { view: "people", label: "People in groups", segment: "" },
+  { view: "circles", label: "Circles", segment: "/circles" },
   { view: "times", label: "Times", segment: "/times" },
   { view: "facilitators", label: "Facilitators", segment: "/facilitators" },
   { view: "pitches", label: "Pitches", segment: "/pitches" },
@@ -40,14 +45,20 @@ export default function GroupsViews({
   programmeId,
   current,
   pitches = false,
+  circles = false,
 }: {
   roundId: string;
   programmeId: string;
   current: GroupsView;
   /** The run has a pitching week, so its Pitches view is offered. */
   pitches?: boolean;
+  /** The viewer is an admin, so Circles is offered. */
+  circles?: boolean;
 }) {
-  const shown = VIEWS.filter(({ view }) => view !== "pitches" || pitches || current === "pitches");
+  const shown = VIEWS.filter(
+    ({ view }) =>
+      (view !== "pitches" || pitches || current === "pitches") && (view !== "circles" || circles || current === "circles"),
+  );
   return (
     <nav className={styles.views} aria-label="Groups views">
       {shown.map(({ view, label }) => {

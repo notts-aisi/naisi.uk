@@ -372,8 +372,28 @@ export async function loadRoutes(made) {
     board: await courseRoute("runs", "[runId]", "allocation"),
     publish: await courseRoute("runs", "[runId]", "allocation", "publish"),
     publishTest: await courseRoute("runs", "[runId]", "allocation", "publish", "test"),
+    publishNotes: await courseRoute("runs", "[runId]", "allocation", "publish", "notes"),
     me: await courseRoute("me"),
   };
+  /**
+   * "Send without a note" for everybody Publish waits on a choice for, as
+   * `who` would choose it on Publish's own page (the handover world's
+   * `withoutNotes`). Answers the names it chose for.
+   */
+  async function withoutNotes(who) {
+    const read = await call(who, routes.publishNotes.GET, { runId: RUN.agi }, { course: true });
+    if (read.status !== 200) return [];
+    const chosen = [];
+    for (const row of read.body.section.rows) {
+      if (row.note.state !== "missing") continue;
+      const saved = await call(who, routes.publishNotes.PUT, { runId: RUN.agi }, {
+        body: { uid: row.uid, groupId: row.groupId, choice: "none" },
+        course: true,
+      });
+      if (saved.status === 200) chosen.push(row.name);
+    }
+    return chosen;
+  }
   return {
     routes,
     offer: (who, body, options) => call(who, routes.offer.POST, programmeParams(AGI), { body, ...options }),
@@ -390,7 +410,11 @@ export async function loadRoutes(made) {
      * The test goes to whoever presses and is in `world.mail` with "[TEST]"
      * at the start of its subject.
      */
-    publish: async (who = "zach") => {
+    withoutNotes,
+    publish: async (who = "zach", { notes = true } = {}) => {
+      // Anybody placed outside the times they gave needs a choice first, as
+      // Publish's own page asks whoever presses: here, "Send without a note".
+      if (notes) await withoutNotes(who);
       const read = async () =>
         (await call(who, routes.board.GET, { runId: RUN.agi }, { course: true })).body?.publish ?? null;
       let summary = await read();

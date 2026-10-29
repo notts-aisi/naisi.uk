@@ -25,6 +25,12 @@ export type PublishReport = {
   people: { sent: number; held: number; suppressed: number };
   /** The facilitators told they are facilitating, by what became of each email. */
   facilitators: { sent: number; held: number; suppressed: number };
+  /**
+   * The facilitators told who has joined their group, by what became of each
+   * email. Present only when the press had one to send, so a report with none
+   * is exactly as it was before these were sent.
+   */
+  joined?: { sent: number; held: number; suppressed: number };
   /** Names whose send failed. They are still owed, and the next press tries them. */
   failed: string[];
   /** Names owed an email with no address on file. */
@@ -74,12 +80,31 @@ export function publishButtonLabel(emails: number): string {
   return emails > 0 ? `Publish and send ${emailsLabel(emails)}` : "Publish";
 }
 
-/** "32 people and 5 facilitators", the line above the buttons. */
-export function publishAudienceLine(people: number, facilitators: number): string {
-  if (people === 0 && facilitators === 0) return "Nobody is waiting for an email.";
-  if (facilitators === 0) return peopleLabel(people);
-  if (people === 0) return facilitatorsLabel(facilitators);
-  return `${peopleLabel(people)} and ${facilitatorsLabel(facilitators)}`;
+/**
+ * "32 people and 5 facilitators", the line above the buttons. `joined` is how
+ * many facilitators already told about their group are told who has joined
+ * it: "2 people and 1 facilitator told who has joined".
+ */
+export function publishAudienceLine(people: number, facilitators: number, joined = 0): string {
+  const parts = [
+    ...(people > 0 ? [peopleLabel(people)] : []),
+    ...(facilitators > 0 ? [facilitatorsLabel(facilitators)] : []),
+    ...(joined > 0 ? [`${facilitatorsLabel(joined)} told who has joined`] : []),
+  ];
+  if (parts.length === 0) return "Nobody is waiting for an email.";
+  return nameList(parts);
+}
+
+/**
+ * Publish waits for a choice for each person placed outside the times they
+ * gave: a note of our own, or "Send without a note". The sentence a press is
+ * refused with, and the one the readiness check and the board say.
+ */
+export function notesNeededLine(names: readonly string[]): string {
+  const one = names.length === 1;
+  return `${nameList(names)} ${one ? "is" : "are"} placed outside the times they gave. Write ${
+    one ? "them a note" : "each of them a note"
+  }, or choose “Send without a note”, before you publish.`;
 }
 
 /** What the board says beside a press that would send nothing. */
@@ -129,6 +154,10 @@ export function publishConfirmText(input: {
   emptyGroups: readonly string[];
   /** People placed and not told yet who gave their place back, whom the press leaves out. */
   gaveBack?: number;
+  /** Facilitators already told about their group, told who has joined it. */
+  joined?: number;
+  /** Of the people, those whose email carries a note of our own above its details. */
+  noted?: number;
   republish: boolean;
 }): string {
   const lines: string[] = [];
@@ -147,7 +176,19 @@ export function publishConfirmText(input: {
         `${emailsLabel(input.facilitators)} to ${input.facilitators === 1 ? "a facilitator" : "facilitators"}, with their group, day and room`,
       );
     }
+    if (input.joined && input.joined > 0) {
+      parts.push(
+        `${emailsLabel(input.joined)} to ${input.joined === 1 ? "a facilitator" : "facilitators"} already told about their group, naming who has joined it`,
+      );
+    }
     lines.push(`${parts.join(". ")}.`);
+    if (input.noted && input.noted > 0) {
+      lines.push(
+        input.noted === 1
+          ? "1 of the people’s emails carries a note above its details."
+          : `${input.noted} of the people’s emails carry a note above their details.`,
+      );
+    }
   }
   if (input.more > 0) lines.push(moreLine(input.more));
   if (input.noAddress.length > 0) lines.push(noAddressLine(input.noAddress));
@@ -162,14 +203,16 @@ export function publishConfirmText(input: {
 /** What a press did, in sentences whose numbers are the server's. */
 export function publishResultLines(report: PublishReport): string[] {
   const lines: string[] = [];
-  const sent = report.people.sent + report.facilitators.sent;
+  const joined = report.joined ?? { sent: 0, held: 0, suppressed: 0 };
+  const sent = report.people.sent + report.facilitators.sent + joined.sent;
   if (sent === 0) {
     lines.push("Published. No email was sent.");
   } else {
     const parts: string[] = [];
     if (report.people.sent > 0) parts.push(`${report.people.sent} to people with their group`);
     if (report.facilitators.sent > 0) parts.push(`${report.facilitators.sent} to facilitators`);
-    lines.push(`Published. ${emailsLabel(sent)} sent: ${parts.join(" and ")}.`);
+    if (joined.sent > 0) parts.push(`${joined.sent} to facilitators about who has joined their group`);
+    lines.push(`Published. ${emailsLabel(sent)} sent: ${nameList(parts)}.`);
   }
   if (report.failed.length > 0) {
     lines.push(
@@ -179,13 +222,13 @@ export function publishResultLines(report: PublishReport): string[] {
   if (report.noAddress.length > 0) {
     lines.push(`Not sent to ${nameList(report.noAddress)}, because there is no email address on file.`);
   }
-  const suppressed = report.people.suppressed + report.facilitators.suppressed;
+  const suppressed = report.people.suppressed + report.facilitators.suppressed + joined.suppressed;
   if (suppressed > 0) {
     lines.push(
       `Not sent to ${suppressed === 1 ? "1 address" : `${suppressed} addresses`} on the do-not-email list. ${suppressed === 1 ? "It counts" : "They count"} as told, so ${suppressed === 1 ? "it isn’t" : "they aren’t"} tried again.`,
     );
   }
-  const held = report.people.held + report.facilitators.held;
+  const held = report.people.held + report.facilitators.held + joined.held;
   if (held > 0) {
     lines.push(
       `Held, not sent: ${held === 1 ? "1 email" : `${held} emails`} to addresses this copy of the site doesn’t email. That is how a rehearsal works.`,

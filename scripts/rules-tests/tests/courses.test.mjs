@@ -836,6 +836,27 @@ describe("courseGroups", () => {
     await assertFails(db.collection("courseGroups").doc("g1").update({ runId: "run2" }));
   });
 
+  it("lets a group's editors set its campus to one of the three or none, and nothing else", async () => {
+    await seedCast();
+    await seedRun("run1", { trackLeadUids: ["lead"] });
+    await seed(async (db) => {
+      await db.collection("courseGroups").doc("g1").set(groupDoc({ facilitatorUids: ["facil"] }));
+    });
+    const facil = await asUser("facil");
+    for (const campus of ["university-park", "jubilee", "online", null]) {
+      await assertSucceeds(facil.collection("courseGroups").doc("g1").update({ campus }));
+    }
+    await assertSucceeds((await asUser("lead")).collection("courseGroups").doc("g1").update({ campus: "jubilee" }));
+    // Zach's three, as stored, and nothing else: not a label, not another campus, not another type.
+    for (const campus of ["Jubilee", "sutton-bonington", "kings-meadow", "", 3, true, { name: "jubilee" }]) {
+      await assertFails(facil.collection("courseGroups").doc("g1").update({ campus }));
+    }
+    // Born with one: the same list.
+    const approver = await asUser("approver");
+    await assertSucceeds(approver.collection("courseGroups").doc("g2").set(groupDoc({ campus: "online" })));
+    await assertFails(approver.collection("courseGroups").doc("g3").set(groupDoc({ campus: "Online" })));
+  });
+
   it("refuses client deletes even for admins (allocation must re-pool members)", async () => {
     await seedCast();
     await seed(async (db) => {

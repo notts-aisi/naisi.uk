@@ -3,13 +3,15 @@ import type { Firestore } from "firebase-admin/firestore";
 import { wouldFacilitate } from "@/lib/courses/facilitatorAsks/rules";
 import { nextGroupName, sharedPlaces } from "@/lib/courses/groupTimes/rules";
 import type { SessionUser } from "@/lib/firebase/session";
-import { normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
+import { readsOf, toldGroupIds } from "@/lib/courses/groupTimes/told";
+import { currentTimeAnswer } from "@/lib/courses/timeAnswer/model";
+import { enrolmentHasLeft, normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
 import { canRunTerm } from "../access";
 import { isInTerm, placementFor } from "../decisions";
-import { nameOnRecord, placeHoldersOn } from "../handover/holders";
+import { compareWithRun, nameOnRecord, placeHoldersOn, type PlaceHolder } from "../handover/holders";
 import { markedRanges } from "@/lib/admissions/availability";
 import { paintedWeekOf } from "../handover/paintedWeek";
-import { RUNS_COLLECTION, readRun } from "../handover/run";
+import { RUNS_COLLECTION, listRunRows, readRun } from "../handover/run";
 import { defaultLength, hasSessionTime, lengthFromGroups, lengthOptions, pickLength, timesPicture, WEEK_FROM_MONDAY } from "../handover/times";
 import { groupsOf, type LiveGroup } from "../handover/timesLoad";
 import { own } from "../keys";
@@ -20,17 +22,22 @@ import type { Refusal } from "../review/types";
 import { listDecisions, listReviews, listSentApplications } from "../staffRepo";
 import type { ApplicationForm } from "../normalise";
 import type { ProgrammeSettings } from "../model";
-import { planGroups, type ArrangeGroup, type ArrangePerson, type CandidateTime, type Plan } from "./plan";
+import type { ArrangeGroup, ArrangePerson, CandidateTime } from "./plan";
 
 /**
  * EVERYTHING AN ARRANGEMENT IS WORKED OUT FROM, for an admin.
  *
  * The same reads the Times view makes (`../handover/timesLoad.ts`), in the
  * same order, by the same helpers: the form, the programme's run and its
- * groups, then, once decisions have gone out, the people holding a place
- * and the week each painted, read only through `paintedWeekOf`. Then the
- * run's seats, for who is in which group now and who has been told. Then
- * `planGroups`.
+ * groups, then, once decisions have gone out, the week each person painted,
+ * read only through `paintedWeekOf`. THE PEOPLE ARE THE RUN'S OWN LIST, as
+ * the allocate route reads it: everybody on it, accepted, who holds a place
+ * on the programme (or sits in one of the run's groups), and whose seat has
+ * not left the run. Somebody who holds a place and is not on that list
+ * cannot be placed, so they are named apart (`notOnList`) for the hand-over.
+ * Then the run's seats, for who is in which group now and whether Publish
+ * has told them it, and the run's groups' facilitators, who sit in the
+ * group they facilitate and nowhere else (`appointed`).
  *
  * Only an admin: what follows asks Claude about named people, and Claude's
  * reads are an admin's (`../assessment/run.ts`).
@@ -77,11 +84,21 @@ export type Arranging = {
   groups: Map<string, LiveGroup>;
   /** The same groups as the planner reads them. */
   arrangeGroups: ArrangeGroup[];
-  plan: Plan;
   /** The hours the form's grid asked about, for a chart of somebody's week. */
   grid: { startMinute: number; endMinute: number };
   /** The times picture's start times, most people first: what other arrangements are drawn from. */
   best: (CandidateTime & { count: number })[];
+  /** The session lengths a group of the run may last, for the length picker. */
+  lengths: number[];
+  /**
+   * People holding a place who are not on the run's list, accepted, so
+   * nobody can place them until they are handed over. Empty for a preview.
+   */
+  notOnList: PlaceHolder[];
+  /** Publish has been pressed on the run at least once. */
+  published: boolean;
+  /** The run's groups Publish has told anybody the time of, by id. */
+  toldGroups: Set<string>;
 };
 
 export type ArrangingResult = { ok: true; arranging: Arranging } | Refusal;
@@ -121,41 +138,82 @@ export async function loadArranging(
   const askedSize = Number(wanted.size);
   const size = Number.isInteger(askedSize) && askedSize >= 2 && askedSize <= 30 ? askedSize : groupSizeOf(programme.groupSize, live);
 
-  const [applications, decisions, sets, seats] = await Promise.all([
+  const [applications, decisions, sets, seats, rows, toldGroups] = await Promise.all([
     listSentApplications(db, form),
     listDecisions(db, form.round.id),
     loadQuestionSets(db, form.round.id),
     // One equality on one field, so no declared index: every seat on the run.
     db.collection("courseEnrolments").where("runId", "==", runId).get(),
+    // The run's own list: who the allocate route places.
+    listRunRows(db, runId),
+    toldGroupIds(db, readsOf(db), runId, live),
   ]);
   const inTerm = applications.filter(isInTerm);
   const byUid = new Map(inTerm.map((application) => [application.uid, application] as const));
-  const seatOf = new Map<string, { groupId: string | null; told: boolean }>();
+  const liveIds = new Set(live.map((group) => group.id));
+  // Each seat: where a fellow sits now, whether Publish has told them it, and whether it has left the run.
+  const seatOf = new Map<
+    string,
+    { groupId: string | null; told: boolean; left: boolean; answer: ReturnType<typeof currentTimeAnswer> }
+  >();
   for (const doc of seats.docs) {
     const seat = normalizeCourseEnrolment(doc.id, doc.data() ?? {});
-    if (seat.status !== "active") continue;
-    seatOf.set(seat.uid, { groupId: seat.groupId ?? null, told: Boolean(seat.allocatedEmailAt) });
+    const left = enrolmentHasLeft(seat.status);
+    const sits = seat.role === "learner" && seat.status === "active" && seat.groupId !== null && liveIds.has(seat.groupId);
+    // A fellow's seat is told once Publish has emailed them its group (a move clears the stamp).
+    seatOf.set(seat.uid, {
+      groupId: sits ? seat.groupId : null,
+      told: sits && seat.allocatedEmailAt instanceof Date,
+      left,
+      // Their answer about the group they sit in, by the stale rule the board's rows read it by.
+      answer: sits ? currentTimeAnswer(seat) : null,
+    });
+  }
+  // Who facilitates which of the run's groups.
+  const appointed = new Map<string, string[]>();
+  for (const group of live) {
+    for (const uid of group.facilitatorUids) appointed.set(uid, [...(appointed.get(uid) ?? []), group.id]);
   }
 
+  const holders = placeHoldersOn(form, programme.id, inTerm, decisions);
+  const holding = new Set(holders.map((holder) => holder.uid));
+  const names = new Map(holders.map((holder) => [holder.uid, holder.name] as const));
+  const compared = compareWithRun({ holders, rows, roundId: form.round.id, programmeId: programme.id, names });
+  const notOnList = [...compared.toHandOver, ...compared.notAccepted];
+
   const people = new Map<string, ArrangePerson>();
-  for (const holder of placeHoldersOn(form, programme.id, inTerm, decisions)) {
-    const application = byUid.get(holder.uid) ?? null;
-    const seat = seatOf.get(holder.uid);
-    people.set(holder.uid, {
-      uid: holder.uid,
-      name: holder.name,
+  for (const row of rows) {
+    if (row.status !== "accepted" || people.has(row.uid)) continue;
+    const seat = seatOf.get(row.uid);
+    if (seat?.left) continue;
+    // Somebody who gave their place back is not arranged, unless they still sit in a group.
+    if (!holding.has(row.uid) && !seat?.groupId) continue;
+    const application = byUid.get(row.uid) ?? null;
+    people.set(row.uid, {
+      uid: row.uid,
+      name: names.get(row.uid) ?? (application ? nameOnRecord(application) : row.displayName.trim() || "NAISI member"),
       week: paintedWeekOf(form.round.availabilityGrid, application),
       facilitates: application?.sent ? wouldFacilitate(form, sets, application.sent, programme) : false,
       marked: application?.sent ? markedRanges(application.sent.availability, form.round.availabilityGrid) : [],
       groupId: seat?.groupId ?? null,
       told: seat?.told ?? false,
+      appointed: appointed.get(row.uid) ?? [],
+      timeAnswer: seat?.answer ?? null,
     });
   }
 
-  return { ok: true, arranging: arrangingFrom(form, programme, runId, live, people, minutes, size, false) };
+  return {
+    ok: true,
+    arranging: {
+      ...arrangingFrom(form, programme, runId, live, people, minutes, size, false, toldGroups),
+      lengths: options,
+      notOnList,
+      published: Boolean(runSnap.data()?.allocationPublishedAt),
+    },
+  };
 }
 
-/** The picture's best times and the plan, from the people and the run's groups. */
+/** The picture's best times and the groups as the planner reads them, from the people and the run's groups. */
 function arrangingFrom(
   form: ApplicationForm,
   programme: ProgrammeSettings,
@@ -165,6 +223,7 @@ function arrangingFrom(
   minutes: number,
   size: number,
   preview: boolean,
+  toldGroups: Set<string>,
 ): Arranging {
   // Every start time anybody can make, most people first: the picture's own count.
   const picture = timesPicture({
@@ -187,15 +246,9 @@ function arrangingFrom(
     name: group.name,
     session: hasSessionTime(group.session) ? group.session : null,
     capacity: group.capacity,
+    staffed: group.facilitatorUids.length > 0,
+    keepsTime: toldGroups.has(group.id) || group.facilitatorUids.length > 0,
   }));
-  const plan = planGroups({
-    people: [...people.values()],
-    groups: arrangeGroups,
-    best,
-    minutes,
-    size,
-    names: newGroupName,
-  });
 
   return {
     runId,
@@ -208,9 +261,12 @@ function arrangingFrom(
     people,
     groups: new Map(live.map((group) => [group.id, group])),
     arrangeGroups,
-    plan,
     grid: { startMinute: form.round.availabilityGrid.startMinute, endMinute: form.round.availabilityGrid.endMinute },
     best,
+    lengths: lengthOptions(live),
+    notOnList: [],
+    published: false,
+    toldGroups,
   };
 }
 
@@ -271,5 +327,5 @@ export async function loadPreviewArranging(
       told: false,
     });
   }
-  return { ok: true, arranging: arrangingFrom(form, programme, runId, live, people, minutes, size, true) };
+  return { ok: true, arranging: arrangingFrom(form, programme, runId, live, people, minutes, size, true, new Set()) };
 }

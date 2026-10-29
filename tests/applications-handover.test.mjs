@@ -38,6 +38,9 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   AGI,
   AGI_HOLDERS,
@@ -418,17 +421,52 @@ describe("5. who is handed over is who holds a place, and nobody else", () => {
     assert.deepEqual(rowsOn(), AGI_HOLDERS.filter((uid) => uid !== "dev"));
   });
 
-  test("somebody who accepts an invitation afterwards is added by the next press, once", async () => {
+  test("somebody who accepts an invitation afterwards is handed over by accepting, once", async () => {
     await press();
     const accepted = await reply("ines", { reply: "accept-invitation" });
     assert.equal(accepted.status, 200, accepted.body?.error);
-    assert.deepEqual(names((await panel()).toHandOver), ["Ines Carvalho"]);
-
-    const again = await press();
-    assert.deepEqual(again.body.receipt, { handedOver: 1, alreadyThere: AGI_HOLDERS.length });
+    // On the run's list from the acceptance itself, as the press would have
+    // put them there, and in no group: somebody still places them.
+    assert.deepEqual(names((await panel()).toHandOver), []);
     assert.deepEqual(rowsOn(), [...AGI_HOLDERS, "ines"].sort());
+    const row = world.db.read(rowPath("ines"));
+    assert.deepEqual([row.status, row.fromForm], ["accepted", { roundId: ROUND, programmeId: AGI }]);
+    assert.equal(world.db.read(`courseEnrolments/${RUN.agi}__ines`), undefined);
     assert.equal(run().applicationCounts.accepted, AGI_HOLDERS.length + 1);
+
+    // The press finds them there and writes nothing, so the count moved once.
     assert.deepEqual((await press()).body.receipt, { handedOver: 0, alreadyThere: AGI_HOLDERS.length + 1 });
+    assert.equal(run().applicationCounts.accepted, AGI_HOLDERS.length + 1);
+  });
+
+  test("an acceptance before anybody pressed Hand over hands over that one person", async () => {
+    const accepted = await reply("ines", { reply: "accept-invitation" });
+    assert.equal(accepted.status, 200, accepted.body?.error);
+    assert.deepEqual(rowsOn(), ["ines"]);
+    // The first press then adds everybody else, and not them again.
+    assert.deepEqual((await press()).body.receipt, { handedOver: AGI_HOLDERS.length, alreadyThere: 1 });
+    assert.equal(run().applicationCounts.accepted, AGI_HOLDERS.length + 1);
+  });
+
+  test("an acceptance while the run cannot take people writes nothing, and the press adds them later", async () => {
+    world.db.poke(`courseRuns/${RUN.agi}`, { status: "draft" });
+    const accepted = await reply("ines", { reply: "accept-invitation" });
+    // The reply stands whatever happens to the run.
+    assert.equal(accepted.status, 200, accepted.body?.error);
+    assert.equal(world.db.read(applicationPath("ines")).status, "accepted");
+    assert.deepEqual(rowsOn(), []);
+
+    world.db.poke(`courseRuns/${RUN.agi}`, { status: "applications-open" });
+    assert.deepEqual(names((await panel()).toHandOver).includes("Ines Carvalho"), true);
+    await press();
+    assert.ok(rowsOn().includes("ines"));
+  });
+
+  test("turning an invitation down hands nobody over", async () => {
+    await press();
+    const declined = await reply("ines", { reply: "decline-invitation", reason: { kind: "times" } });
+    assert.equal(declined.status, 200, declined.body?.error);
+    assert.deepEqual(rowsOn(), AGI_HOLDERS);
   });
 });
 
@@ -471,3 +509,41 @@ describe("the panel beside the button", () => {
   });
 });
 
+
+// ---------------------------------------------------------------------------
+// The tree: every door that takes a place also hands it over
+// ---------------------------------------------------------------------------
+
+describe("every route that records a reply hands over the place it takes", () => {
+  // A place taken after decision day is a reply (`recordReply` says so with
+  // `tookPlace`), so the one property to hold is that each caller of the
+  // writer hands the place over after it. A second door that records replies
+  // without it would leave people off the board until somebody pressed.
+  const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
+  const files = (dir, found = []) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) files(path, found);
+      else if (/\.tsx?$/.test(entry.name)) found.push(path);
+    }
+    return found;
+  };
+  const code = (path) => readFileSync(path, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/.*$/gm, " ");
+  const callers = files(SRC).filter(
+    (path) => !path.endsWith(join("status", "record.ts")) && /\brecordReply\(/.test(code(path)),
+  );
+
+  test("the writer has callers, so this walk is looking at something", () => {
+    assert.ok(callers.length > 0);
+  });
+
+  for (const path of callers) {
+    test(`${relative(join(SRC, ".."), path)} hands over whenever a reply took a place`, () => {
+      const source = code(path);
+      const at = source.search(/if \(recorded\.tookPlace\) \{/);
+      assert.ok(at !== -1, "it must branch on tookPlace");
+      const branch = source.slice(at, source.indexOf("}", at));
+      assert.match(branch, /handOverAfterAcceptedInvitation\(/);
+    });
+  }
+});

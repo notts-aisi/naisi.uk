@@ -255,6 +255,9 @@ export function writeFacilitatorChange(
       writer.update(ref, {
         groupId: input.groupRef.id,
         allocatedEmailAt: FieldValue.delete(),
+        // And any answer to "can you make this time?", which was about no
+        // group of theirs now.
+        timeAnswer: FieldValue.delete(),
         updatedAt: FieldValue.serverTimestamp(),
       });
       continue;

@@ -709,6 +709,12 @@ const USERS = new Map([
       "Claude is told and which of its suggestions are kept are decided by the code that runs",
   ],
   [
+    "applications-arrange-changes.test.mjs",
+    "executes the pure differences Circles' Apply sends and the board's words for the allocate route's " +
+      "refusals, because which groups, places and facilitators a press sends, and that no refusal reaches " +
+      "a screen as a bare code, are decided by the code that runs",
+  ],
+  [
     "applications-arrange-options.test.mjs",
     "executes the arrangement route before decision day, because who is refused, whose application is " +
       "left out of a preview, what Claude is sent and that nothing is written are decided by the code that runs",
@@ -1082,6 +1088,12 @@ const USERS = new Map([
       "reading of a painted week the allocation board shares (paintedWeek.ts) and the page's " +
       "words, because who is counted at each start time and what the page says about them are " +
       "only right if running them says so",
+  ],
+  [
+    "course-time-question-email.test.mjs",
+    "loads the \"Your group\" email's own section (src/lib/courses/timeAnswer/emailSection.ts), whose words " +
+      "come through the campus and time-answer word files and the society's contact address in " +
+      "src/content/socials.ts, to check where the section goes in a composed email and what it says",
   ],
   [
     "course-hub-times-page.test.mjs",

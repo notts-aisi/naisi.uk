@@ -96,12 +96,20 @@ export const POLICIES: Record<
     // suits them, and Claude may draft them from the application. Until now
     // nothing Claude wrote reached an applicant, so it moved the version.
     //
+    // v12 is the notes in two emails that are not the same for everybody: a
+    // note with your group for somebody placed outside the times they gave,
+    // and the sentence asking somebody who did not offer to facilitate. Claude
+    // may draft either, from the application alone and never anybody's times.
+    // v11 said the invitation's note was the one place Claude's words could
+    // reach somebody, so this took that back and moved the version.
+    //
     // Keep this comment ABOVE `versions:`, never between the `[` and the first
     // `{`: tests/funnel-harness-guards.test.mjs reads the current version out
     // of this file with a regex that allows only whitespace across that gap,
     // so a comment sitting there leaves the guard unable to read the very
     // number it exists to pin. Anywhere else in the file is fine.
     versions: [
+      { version: 12, lastUpdated: "29 October 2026" },
       { version: 11, lastUpdated: "28 October 2026" },
       { version: 10, lastUpdated: "28 October 2026" },
       { version: 9, lastUpdated: "28 October 2026" },

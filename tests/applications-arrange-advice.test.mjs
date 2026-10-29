@@ -7,8 +7,11 @@
  *
  *  - THE OPTIONS (`candidatePlans`) differ in their times, never seat anybody
  *    in a group they cannot make or past its room, never move somebody already
- *    told, and spread the people who offered to facilitate so each group has
- *    one where it can (`spreadFacilitators`), the strongest shared out.
+ *    placed (told or not) or anybody facilitating one of the run's groups,
+ *    unless the admin starts again, which still never moves the told or a
+ *    facilitator, and spread the people who offered to facilitate so each
+ *    group has one where it can (`spreadFacilitators`), the strongest shared
+ *    out. A group somebody stays in keeps its time.
  *  - CLAUDE IS TOLD numbers and labels, never a name, never anybody's week,
  *    and never what Pangram found.
  *  - NOTHING CLAUDE SAYS IS TAKEN ON TRUST (`applyChoice`): an option has to
@@ -110,6 +113,91 @@ describe("the options", () => {
     for (const candidate of options(people, { groups })) {
       assert.ok(candidate.plan.groups.find((g) => g.id === "g1").memberUids.includes("t"));
     }
+  });
+});
+
+describe("the options over the run's groups as they are (Circles)", () => {
+  // The 29 October failure: options moved people who facilitate a group, and
+  // Apply was refused for each. Two groups, each with a facilitator who
+  // offered sitting in it, both of whom could make the other group; people
+  // placed and not told; and newcomers to seat.
+  const groups = [
+    { id: "g1", name: "Group A", session: slotFor(TUE, MINUTES), capacity: 4, staffed: true, keepsTime: true },
+    { id: "g2", name: "Group B", session: slotFor(WED, MINUTES), capacity: 4, staffed: true, keepsTime: true },
+    { id: "g3", name: "Group C", session: slotFor(THU, MINUTES), capacity: 4 },
+  ];
+  const people = [
+    person("f1", freeAt(TUE, WED, THU), { facilitates: true, groupId: "g1", appointed: ["g1"] }),
+    person("f2", freeAt(TUE, WED, THU), { facilitates: true, groupId: "g2", appointed: ["g2"] }),
+    person("f3", freeAt(TUE, WED, THU), { facilitates: true }),
+    person("f4", freeAt(TUE, WED, THU), { facilitates: true }),
+    person("p1", freeAt(TUE, WED, THU), { groupId: "g1" }),
+    person("p2", freeAt(TUE, WED, THU), { groupId: "g1" }),
+    person("p3", freeAt(TUE, WED, THU), { groupId: "g3" }),
+    person("t1", freeAt(TUE, WED, THU), { groupId: "g2", told: true }),
+    person("n1", freeAt(TUE, WED)),
+    person("n2", freeAt(WED, THU)),
+  ];
+  const byUid = asMap(people);
+  const whereIn = (candidate, uid) => candidate.plan.groups.find((g) => g.memberUids.includes(uid))?.id ?? "none";
+  const strength = new Map([["f1", 3], ["f2", 3], ["f3", 3], ["f4", 1]]);
+
+  test("no option moves anybody placed, or a facilitator, and the newcomers are seated", () => {
+    const found = options(people, { groups, strength });
+    assert.ok(found.length >= 1);
+    for (const candidate of found) {
+      for (const p of people.filter((each) => each.groupId)) {
+        assert.equal(whereIn(candidate, p.uid), p.groupId, `${p.uid} moved from ${p.groupId}`);
+      }
+      assert.deepEqual([...candidate.plan.keptUids].sort(), ["f1", "f2", "p1", "p2", "p3", "t1"]);
+      for (const group of candidate.plan.groups) {
+        assert.ok(group.memberUids.length <= group.room);
+        for (const uid of group.memberUids) {
+          if (!candidate.plan.keptUids.includes(uid)) assert.ok(canMake(byUid.get(uid), group.session), `${uid} seated where they cannot go`);
+        }
+      }
+    }
+    // The group nobody facilitates is given somebody who offered, and none of the run's groups changes its time
+    // where somebody stays in it.
+    const [best] = found;
+    const c = best.plan.groups.find((g) => g.id === "g3");
+    assert.ok(c.memberUids.some((uid) => uid === "f3" || uid === "f4"), "Group C has nobody who offered");
+    for (const candidate of found) {
+      for (const id of ["g1", "g2", "g3"]) assert.equal(candidate.plan.groups.find((g) => g.id === id).timeIsNew, false, `${id} given a new time`);
+    }
+  });
+
+  test("starting again seats the placed and untold afresh, and still never the told or a facilitator", () => {
+    const found = options(people, { groups, strength, startAgain: true });
+    for (const candidate of found) {
+      for (const uid of ["f1", "f2", "t1"]) assert.equal(whereIn(candidate, uid), byUid.get(uid).groupId, `${uid} moved`);
+      assert.deepEqual([...candidate.plan.keptUids].sort(), ["f1", "f2", "t1"]);
+    }
+  });
+
+  test("Claude is told why somebody stays, and a move of them is not kept", () => {
+    const [candidate] = options(people, { groups, strength });
+    const kept = new Set(candidate.plan.keptUids);
+    const input = choiceInputFrom({ programmeName: "AGI Strategy", candidates: [candidate], people: byUid, reads: new Map(), kept, staffed: new Map() });
+    // Account-id order: f1 1, f2 2, f3 3, f4 4, n1 5, n2 6, p1 7, p2 8, p3 9, t1 10.
+    assert.match(input.message, /- Applicant 1: offered to facilitate\. Facilitates the group they are in, so stays in it\./);
+    assert.match(input.message, /- Applicant 7: did not offer to facilitate\. Already placed in a group by an admin, so stays in it\./);
+    assert.match(input.message, /- Applicant 10: did not offer to facilitate\. Already told their group, so stays in it\./);
+    const a2 = Object.entries(input.groups).find(([, at]) => candidate.plan.groups[at[1]].id === "g2")[0];
+    const applied = applyChoice([candidate], byUid, strength, input, choiceFrom({
+      potential: [],
+      options: [{ option: "Option A", rank: 1, title: "", pros: [], cons: [], groups: [], moves: [
+        { applicant: "Applicant 1", to: a2, why: "x" },
+        { applicant: "Applicant 7", to: a2, why: "x" },
+      ] }],
+      preferred: "Option A",
+      preferredWhy: "",
+      notes: "",
+    }));
+    assert.deepEqual(applied.dropped.map((d) => d.why), [
+      "Applicant 1 facilitates the group they are in",
+      "Applicant 7 is already placed, and stays where they are",
+    ]);
   });
 });
 

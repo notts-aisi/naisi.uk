@@ -736,8 +736,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
       };
       if (movingGroup) {
         // The stamp certifies "emailed about their CURRENT group"; a changed
-        // session invalidates it, exactly as it does on the allocate route.
+        // session invalidates it, exactly as it does on the allocate route,
+        // and so is an answer about the time of the session they leave.
         patch.allocatedEmailAt = FieldValue.delete();
+        patch.timeAnswer = FieldValue.delete();
       }
       tx.update(enrolmentRef, patch);
 

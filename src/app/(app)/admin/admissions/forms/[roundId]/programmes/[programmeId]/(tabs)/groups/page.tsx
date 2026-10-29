@@ -4,6 +4,7 @@ import NotYours from "@/features/applications/groups/NotYours";
 import PeopleInGroups from "@/features/applications/groups/PeopleInGroups";
 import RunBlank from "@/features/applications/groups/RunBlank";
 import { loadPeopleInGroups } from "@/lib/applications/handover/peopleInGroups";
+import { canRunTerm } from "@/lib/applications/access";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
@@ -40,6 +41,7 @@ export default async function ProgrammeGroupsPage({
       programmeId={view.programmeId}
       current="people"
       pitches={view.pitchingWeek !== null}
+      circles={canRunTerm(user)}
     />
   );
   if (!view.run) {

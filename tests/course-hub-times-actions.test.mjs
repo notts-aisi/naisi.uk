@@ -76,7 +76,7 @@ const UI_STUBS = [
     `export function DialogFrame({ title, children, actions }) { const h = ${HANDLE}.h; return h('section', { 'data-dialog': title }, h('h2', null, title), children, h('footer', null, actions)); }`,
   ],
   ["./TimesPicture.module.css", CLASS_NAMES],
-  ["./ArrangeGroups.module.css", CLASS_NAMES],
+  ["./Circles.module.css", CLASS_NAMES],
   ["./Select.module.css", CLASS_NAMES],
   ["@/features/applications/kit/kit.module.css", CLASS_NAMES],
   ["@/features/applications/editor/editor.module.css", CLASS_NAMES],

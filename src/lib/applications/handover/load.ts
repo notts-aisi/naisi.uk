@@ -11,7 +11,7 @@ import type { ProgrammeSettings } from "../model";
 import { isId, type ApplicationForm } from "../normalise";
 import { loadForm } from "../repo";
 import { listDecisions, listSentApplications } from "../staffRepo";
-import { handOverBlocker } from "./handOver";
+import { handOverBlocker } from "./blocker";
 import { compareWithRun, nameOnRecord, placeHoldersOn, splitBySeat, type PlaceHolder } from "./holders";
 import {
   RUNS_COLLECTION,

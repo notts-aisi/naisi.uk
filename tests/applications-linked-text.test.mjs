@@ -835,10 +835,24 @@ const BUILT = new Map([
     },
   ],
   [
-    "src/features/applications/times/ArrangeGroups.tsx",
+    "src/features/applications/circles/PersonPanel.tsx",
     {
-      built: ["chosen.href"],
-      from: "the person's application on the programme's review screen, built on the server (`arrange/advise.ts`) from the form's and the programme's ids and the person's uid, encoded",
+      built: ["person.href", "facilitatorsHref", "facilitatorsHref"],
+      from: "the person's application on the programme's review screen, built on the server (`arrange/advise.ts`) from the form's and the programme's ids and the person's uid, encoded; and the Groups tab's Facilitators view, from `groupsViewPath`",
+    },
+  ],
+  [
+    "src/features/applications/circles/Circles.tsx",
+    {
+      built: ["settingsHref"],
+      from: "the programme's Settings tab, from the form's and the programme's ids, encoded",
+    },
+  ],
+  [
+    "src/features/applications/circles/CirclesNotes.tsx",
+    {
+      built: ['groupsViewPath(roundId, programmeId, "circles")', 'groupsViewPath(roundId, programmeId, "people")'],
+      from: "the Groups tab's own views (Circles, People in groups), from `groupsViewPath` and the form's and the programme's ids",
     },
   ],
   [
