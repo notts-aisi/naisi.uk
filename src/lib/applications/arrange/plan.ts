@@ -71,6 +71,11 @@ export type ArrangePerson = {
    * anything sent to Claude: Claude is told only which groups they can make.
    */
   marked?: readonly { weekday: number; start: number; end: number }[];
+  /**
+   * Their answer to "Can you make this time?" about the group they sit in,
+   * for the admin's screen. Their own words: NEVER in anything sent to Claude.
+   */
+  timeAnswer?: { kind: "yes" | "cant"; reason: string | null; alternatives: string | null } | null;
 };
 
 export type ArrangeGroup = {

@@ -390,6 +390,29 @@
 }
 
 /* Somebody Publish hasn't told their group yet. */
+/* "Can't make this time" on a chip: what they said about their group's time. */
+.chipCant {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--color-warning);
+}
+
+/* The panel's "Can't make this time": why, and which times would work. */
+.why {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+.why summary {
+  cursor: pointer;
+  color: var(--color-text);
+}
+.why .line {
+  margin-top: 4px;
+  white-space: pre-line;
+}
+
 .chipNote {
   font-size: 10px;
   line-height: 1.2;

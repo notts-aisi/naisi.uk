@@ -12,6 +12,7 @@ import { lengthWords } from "@/lib/courses/sessionLength";
 import { groupsViewPath } from "../groups/GroupsViews";
 import { notMovedWords } from "../groups/peopleInGroupsWords";
 import AskClaude, { type ScreenGroup, type Turn } from "./AskClaude";
+import GroupCampusPicker from "../groups/GroupCampusPicker";
 import styles from "./Circles.module.css";
 import { canMakeHere, draftOf, liveFacts, liveRings, optionFromLive, previewRings, warningsFor, type DrawnRing } from "./circlesModel";
 import * as W from "./circlesWords";
@@ -580,6 +581,23 @@ export default function Circles({ initial }: { initial: CirclesView }) {
     ? changes.toAsk.map((ask) => W.CHANGE.ask(nameOf(ask.uid), draft.find((group) => group.key === ask.key)?.name ?? W.A_GROUP))
     : [];
 
+  /** A live group's campus, saved at once through the campus route; a preview changes no campus. */
+  const campusControl = (ring: DrawnRing) => {
+    if (option || !live.sent || !ring.id) return null;
+    return (
+      <GroupCampusPicker
+        roundId={live.roundId}
+        programmeId={live.programmeId}
+        groupId={ring.id}
+        groupName={ring.name}
+        value={ring.campus}
+        onSaved={(message) => {
+          void reread().then((fresh) => setNotice(fresh ? { ok: true, lines: [message] } : { ok: false, lines: [message, W.READ_AGAIN_FAILED] }));
+        }}
+      />
+    );
+  };
+
   const timeControl = (ring: DrawnRing) => {
     if (option || !live.sent || !ring.id || !ring.slot) return null;
     if (ring.told) return null;
@@ -777,6 +795,7 @@ export default function Circles({ initial }: { initial: CirclesView }) {
                 onMoveHere={() => selected && moveTo(selected, ring.key)}
               >
                 {timeControl(ring)}
+                {campusControl(ring)}
                 {option && ring.id === null ? (
                   <button type="button" className={styles.smallQuiet} disabled={busy} onClick={() => removeGroup(ring.key)}>
                     {W.REMOVE_GROUP(ring.memberUids.length)}

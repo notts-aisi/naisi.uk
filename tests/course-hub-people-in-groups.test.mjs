@@ -697,6 +697,19 @@ describe("6. each card's marks in every state, and its menu", () => {
     assert.deepEqual(said({ ...held, allocatedEmailDelivery: "sent" }, COLUMNS[0])[0], ["Fits A, B (plain)"]);
   });
 
+  test("their answer to Can you make this time?: a tick for yes, a warning for can't, nothing before they answer", () => {
+    const told = { groupId: "ga", enrolmentStatus: "active", allocatedEmailAt: "2026-10-28T10:00:00Z", allocatedEmailDelivery: "sent" };
+    assert.deepEqual(said(card({ ...told, timeAnswer: null }), COLUMNS[0])[0], ["Fits A, B (plain)"]);
+    assert.deepEqual(said(card({ ...told, timeAnswer: { kind: "yes", reason: null, alternatives: null } }), COLUMNS[0])[0], [
+      "Fits A, B (plain)",
+      "Can make it (ok)",
+    ]);
+    const cant = { kind: "cant", reason: "A lab then.", alternatives: "Mondays." };
+    assert.deepEqual(said(card({ ...told, timeAnswer: cant }), COLUMNS[0])[0], ["Fits A, B (plain)", "Can’t make this time (warn)"]);
+    // A can't does not outline the card: that is for a time the board knows they are not free.
+    assert.equal(said(card({ ...told, timeAnswer: cant }), COLUMNS[0])[1], false);
+  });
+
   test("the menu: To place, each group with who sits there now, and taking an active seat off the run last", () => {
     const seated = (id) => ({ ga: 8, gb: 2, gc: 0 })[id];
     const uncapped = [COLUMNS[0], COLUMNS[1], { ...COLUMNS[2], capacity: null }];

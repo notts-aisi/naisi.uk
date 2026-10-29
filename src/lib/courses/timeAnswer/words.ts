@@ -137,5 +137,7 @@ export function markLabel(name: string, kind: "yes" | "cant"): string {
  * Over each half of what they wrote, on their own card and in a person's
  * panel for staff: "Why", then "Would work".
  */
+/** The fold under a "Can’t make this time" mark, on the board and in Circles. */
+export const CANT_DETAILS = "Why, and what would work";
 export const WHY = "Why";
 export const WOULD_WORK = "Would work";

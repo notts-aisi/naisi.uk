@@ -614,6 +614,17 @@ describe("6. the person, the programme's lead and admins read it; nobody else do
     ["app/api/courses/runs/[runId]/enrolments/[uid]/remove/route.ts", "taking somebody off deletes it"],
     ["app/api/courses/runs/[runId]/enrolments/[uid]/reinstate/route.ts", "putting somebody back deletes it"],
     ["lib/courses/groupFacilitators.ts", "an appointment that seats a facilitator who holds a place deletes it"],
+    ["features/applications/groups/peopleInGroupsBoard.ts", "the board's card marks, Can make it and Can't make this time, for the lead and admins"],
+    ["features/applications/groups/PeopleInGroups.tsx", "the board's card for the lead and admins: why, and what would work, under a can't"],
+    ["lib/applications/arrange/load.ts", "Circles' read of each seat, an admin's alone, through the stale-answer rule"],
+    ["lib/applications/arrange/plan.ts", "the arranged person's type, which carries the answer for the screen and is never sent to Claude"],
+    ["lib/applications/arrange/view.ts", "Circles' person as the admin's screen is sent it"],
+    [
+      "lib/applications/arrange/advise.ts",
+      "puts the answer on Circles' person for the admin's screen; Claude's message is written line by line and never names it (tests/applications-circles.test.mjs)",
+    ],
+    ["features/applications/circles/Ring.tsx", "Circles' rings, an admin's alone: a Can't make this time mark on the live run"],
+    ["features/applications/circles/PersonPanel.tsx", "Circles' person panel, an admin's alone: their answer, and for a can't why and what would work"],
   ]);
 
   test("every file that names it is listed with why, both ways", () => {

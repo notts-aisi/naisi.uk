@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { RingPerson } from "@/lib/applications/arrange/view";
 import { own } from "@/lib/applications/keys";
 import { lengthWords } from "@/lib/courses/sessionLength";
+import { MARK_CANT_MAKE } from "@/lib/courses/timeAnswer/words";
 import styles from "./Circles.module.css";
 import type { DrawnRing } from "./circlesModel";
 import {
@@ -139,6 +140,10 @@ export default function Ring({
               {!role && movesIn ? <span className={styles.chipRole}>{MOVES_IN}</span> : null}
               <span>{tagName(person?.name ?? "?")}</span>
               {notTold ? <span className={styles.chipNote}>{NOT_TOLD}</span> : null}
+              {/* Only on the live run: a preview shows where people would go, not what they said. */}
+              {showNotTold && person?.timeAnswer?.kind === "cant" ? (
+                <span className={`${styles.chipNote} ${styles.chipCant}`}>{MARK_CANT_MAKE}</span>
+              ) : null}
               {person?.flags ? (
                 <span className={styles.chipFlag} aria-label={PANGRAM_FLAG}>
                   !

@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { SessionSlot } from "@/lib/admissions/availability";
 import type { RingPerson } from "@/lib/applications/arrange/view";
 import { own } from "@/lib/applications/keys";
+import { CANT_DETAILS, MARK_CANT_MAKE, MARK_CAN_MAKE, WHY, WOULD_WORK } from "@/lib/courses/timeAnswer/words";
 import WeekChart from "../times/WeekChart";
 import styles from "./Circles.module.css";
 import type { DrawnRing } from "./circlesModel";
@@ -107,6 +108,20 @@ export default function PersonPanel({
         {person.told ? TOLD : ""}
         {person.littleMarked ? LITTLE_MARKED : ""}
       </p>
+      {person.timeAnswer?.kind === "yes" ? <p className={styles.line}>{MARK_CAN_MAKE}.</p> : null}
+      {person.timeAnswer?.kind === "cant" ? (
+        <details className={styles.why} open>
+          <summary>
+            <strong>{MARK_CANT_MAKE}.</strong> {CANT_DETAILS}
+          </summary>
+          <p className={styles.line}>
+            <strong>{WHY}</strong> {person.timeAnswer.reason}
+          </p>
+          <p className={styles.line}>
+            <strong>{WOULD_WORK}</strong> {person.timeAnswer.alternatives}
+          </p>
+        </details>
+      ) : null}
       {person.potential ? (
         <p className={styles.line}>
           <strong>{AS_A_FACILITATOR(own(POTENTIAL, person.potential.level) ?? person.potential.level)}</strong>{" "}

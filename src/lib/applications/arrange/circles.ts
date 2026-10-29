@@ -72,6 +72,7 @@ function ringsOf(
       told: toldGroups.has(group.id),
       slot: { weekday: group.session.weekday, start: group.session.startTimeLocal },
       canMake: canMakeOf(group),
+      campus: group.campus,
     };
   });
 }

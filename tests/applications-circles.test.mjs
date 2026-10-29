@@ -36,7 +36,11 @@ import { AGI, GROUP, RUN, loadJoin, makeWorld, namedSeed, programmeParams } from
 const CLAUDE_STUB = `
 export const CLAUDE_MODEL = "claude-opus-5-5";
 export function claudeConfigured() { return true; }
-export async function askClaudeForJson() { globalThis.__circlesClaude = true; return { ok: false, reason: "not here" }; }`;
+export async function askClaudeForJson(input) {
+  globalThis.__circlesClaude = true;
+  (globalThis.__circlesAsked ??= []).push(input);
+  return { ok: false, reason: "not here" };
+}`;
 
 const made = makeWorld("__circles", [["@/lib/ai/claude", CLAUDE_STUB]]);
 const { world, reset, call, everything, formRoute, courseRoute, loadTs } = made;
@@ -57,6 +61,7 @@ const seatPath = (uid) => `courseEnrolments/${RUN.agi}__${uid}`;
 beforeEach(() => {
   reset(namedSeed());
   globalThis.__circlesClaude = false;
+  globalThis.__circlesAsked = [];
 });
 
 describe("who may read the circles", () => {
@@ -125,6 +130,41 @@ describe("the people are the run's own list", () => {
     assert.deepEqual([people.amara.groupId, people.amara.told], [GROUP.thursday, true]);
     assert.deepEqual([people.dev.groupId, people.dev.told], [GROUP.monday, false], "dev is placed and not told yet");
     assert.deepEqual(groups.find((group) => group.id === GROUP.thursday).memberUids, ["amara"]);
+  });
+});
+
+describe("each person's answer to Can you make this time?", () => {
+  const WHY = "A lab on Thursday evenings this term.";
+  const WOULD = "Monday or Wednesday after 5pm.";
+
+  test("comes from their seat, for the group they sit in alone, and never reaches Claude", async () => {
+    await join.press();
+    await join.place("zach", [
+      { uid: "amara", groupId: GROUP.thursday },
+      { uid: "dev", groupId: GROUP.monday },
+    ]);
+    const told = new Date("2026-10-25T10:00:00Z");
+    world.db.poke(`courseRuns/${RUN.agi}`, { allocationPublishedAt: told });
+    world.db.poke(seatPath("amara"), {
+      allocatedEmailAt: told,
+      timeAnswer: { kind: "cant", reason: WHY, alternatives: WOULD, forGroupId: GROUP.thursday, at: told },
+    });
+    // An answer about a group dev is no longer in never shows.
+    world.db.poke(seatPath("dev"), {
+      allocatedEmailAt: told,
+      timeAnswer: { kind: "yes", reason: null, alternatives: null, forGroupId: GROUP.thursday, at: told },
+    });
+    const { body } = await circles();
+    assert.deepEqual(body.circles.people.amara.timeAnswer, { kind: "cant", reason: WHY, alternatives: WOULD });
+    assert.equal(body.circles.people.dev.timeAnswer, null);
+
+    // Asked for an arrangement with Claude, Claude is sent none of their words.
+    await suggest({ askClaude: true });
+    assert.ok(globalThis.__circlesAsked.length > 0, "Claude was not asked, so nothing was checked");
+    for (const asked of globalThis.__circlesAsked) {
+      const sent = JSON.stringify(asked);
+      assert.ok(!sent.includes(WHY) && !sent.includes(WOULD), "a person's own words were sent to Claude");
+    }
   });
 });
 

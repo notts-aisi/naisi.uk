@@ -4,6 +4,7 @@ import { wouldFacilitate } from "@/lib/courses/facilitatorAsks/rules";
 import { nextGroupName, sharedPlaces } from "@/lib/courses/groupTimes/rules";
 import type { SessionUser } from "@/lib/firebase/session";
 import { readsOf, toldGroupIds } from "@/lib/courses/groupTimes/told";
+import { currentTimeAnswer } from "@/lib/courses/timeAnswer/model";
 import { enrolmentHasLeft, normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
 import { canRunTerm } from "../access";
 import { isInTerm, placementFor } from "../decisions";
@@ -151,13 +152,22 @@ export async function loadArranging(
   const byUid = new Map(inTerm.map((application) => [application.uid, application] as const));
   const liveIds = new Set(live.map((group) => group.id));
   // Each seat: where a fellow sits now, whether Publish has told them it, and whether it has left the run.
-  const seatOf = new Map<string, { groupId: string | null; told: boolean; left: boolean }>();
+  const seatOf = new Map<
+    string,
+    { groupId: string | null; told: boolean; left: boolean; answer: ReturnType<typeof currentTimeAnswer> }
+  >();
   for (const doc of seats.docs) {
     const seat = normalizeCourseEnrolment(doc.id, doc.data() ?? {});
     const left = enrolmentHasLeft(seat.status);
     const sits = seat.role === "learner" && seat.status === "active" && seat.groupId !== null && liveIds.has(seat.groupId);
     // A fellow's seat is told once Publish has emailed them its group (a move clears the stamp).
-    seatOf.set(seat.uid, { groupId: sits ? seat.groupId : null, told: sits && seat.allocatedEmailAt instanceof Date, left });
+    seatOf.set(seat.uid, {
+      groupId: sits ? seat.groupId : null,
+      told: sits && seat.allocatedEmailAt instanceof Date,
+      left,
+      // Their answer about the group they sit in, by the stale rule the board's rows read it by.
+      answer: sits ? currentTimeAnswer(seat) : null,
+    });
   }
   // Who facilitates which of the run's groups.
   const appointed = new Map<string, string[]>();
@@ -188,6 +198,7 @@ export async function loadArranging(
       groupId: seat?.groupId ?? null,
       told: seat?.told ?? false,
       appointed: appointed.get(row.uid) ?? [],
+      timeAnswer: seat?.answer ?? null,
     });
   }
 

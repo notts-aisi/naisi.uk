@@ -33,6 +33,7 @@ import { divergenceNote, type GroupDivergenceInput } from "@/lib/courses/groupRe
 import { GroupsFrame } from "./GroupsViews";
 import styles from "./PeopleInGroups.module.css";
 import { POOL, TAKE_OFF, marksOf, menuOptions, notToldYet, type Mark } from "./peopleInGroupsBoard";
+import { CANT_DETAILS, WHY, WOULD_WORK } from "@/lib/courses/timeAnswer/words";
 import * as words from "./peopleInGroupsWords";
 
 /**
@@ -185,6 +186,17 @@ function PersonCard({ row, name, detail, marks, warns, columnId, options, onMenu
             ))}
           </span>
         )}
+        {row.timeAnswer?.kind === "cant" ? (
+          <details className={styles.why}>
+            <summary>{CANT_DETAILS}</summary>
+            <p>
+              <strong>{WHY}</strong> {row.timeAnswer.reason}
+            </p>
+            <p>
+              <strong>{WOULD_WORK}</strong> {row.timeAnswer.alternatives}
+            </p>
+          </details>
+        ) : null}
       </div>
     </div>
   );

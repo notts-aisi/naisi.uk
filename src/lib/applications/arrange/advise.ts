@@ -209,6 +209,7 @@ export function ringPeopleOf(
       href: `/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/applications/${encodeURIComponent(person.uid)}`,
       offered: person.facilitates,
       told: person.told,
+      timeAnswer: person.timeAnswer ?? null,
       groupId: person.groupId,
       appointed: [...(person.appointed ?? [])],
       littleMarked: person.week.kind === "given" && person.week.minimal === true,

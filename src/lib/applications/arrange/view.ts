@@ -20,6 +20,8 @@ export type RingPerson = {
   offered: boolean;
   /** Publish has told them their group: a suggestion leaves them in it. */
   told: boolean;
+  /** Their answer to "Can you make this time?" about the group they sit in, or null. Never sent to Claude. */
+  timeAnswer: { kind: "yes" | "cant"; reason: string | null; alternatives: string | null } | null;
   /** The run's group they sit in now, or null. */
   groupId: string | null;
   /** The run's groups they facilitate, by id: they sit in that group and no other. */
@@ -129,6 +131,8 @@ export type CircleGroup = {
   slot: { weekday: number; start: string };
   /** Everybody being arranged who can make its time. */
   canMake: string[];
+  /** The campus it meets on, or null while none is chosen. */
+  campus: "university-park" | "jubilee" | "online" | null;
 };
 
 /**
