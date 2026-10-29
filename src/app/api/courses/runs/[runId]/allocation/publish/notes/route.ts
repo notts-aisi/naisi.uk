@@ -71,7 +71,11 @@ async function context(runId: string) {
   const db = getAdminDb();
   if (!db) return { error: NextResponse.json({ error: "Server not configured" }, { status: 500 }) } as const;
   const runSnap = await db.collection("courseRuns").doc(runId).get();
-  if (!runSnap.exists) return { error: NextResponse.json({ error: "Run not found" }, { status: 404 }) } as const;
+  // A run being destroyed is gone: nothing here may write a choice behind
+  // the cascade that is deleting them.
+  if (!runSnap.exists || runSnap.data()?.destroying === true) {
+    return { error: NextResponse.json({ error: "Run not found" }, { status: 404 }) } as const;
+  }
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
   const read = await readOutsideSection(db, actor, run);
   if (!read.ok) return { error: NextResponse.json({ error: read.error }, { status: read.status }) } as const;

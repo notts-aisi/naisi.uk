@@ -29,6 +29,14 @@
  */
 import type { Block } from "@/lib/firestore/newsletterBlocks";
 
+/**
+ * The server-only collection a choice is kept in, one document per person per
+ * run (`./store.ts`). Named here, where nothing reaches the server, so the
+ * run's destroy and the account's deletion can name it without importing
+ * the store.
+ */
+export const PLACEMENT_NOTES_COLLECTION = "coursePlacementNotes";
+
 /** The longest note: the invitation note's limit, for the same few sentences. */
 export const PLACEMENT_NOTE_LIMIT = 1200;
 

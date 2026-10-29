@@ -1,7 +1,7 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { admissionAssessmentId, ASSESSMENTS_COLLECTION } from "@/lib/firestore/admissionAssessments";
-import type { PlacementChoice, StoredChoice } from "./model";
+import { PLACEMENT_NOTES_COLLECTION, type PlacementChoice, type StoredChoice } from "./model";
 
 /**
  * WHERE A NOTE FOR SOMEBODY PLACED OUTSIDE THE TIMES THEY GAVE IS KEPT, and
@@ -30,7 +30,7 @@ import type { PlacementChoice, StoredChoice } from "./model";
  * and nothing that emails reads it. Only words a person saved go in an email.
  */
 
-export const PLACEMENT_NOTES_COLLECTION = "coursePlacementNotes";
+export { PLACEMENT_NOTES_COLLECTION };
 
 export function placementNoteId(runId: string, uid: string): string {
   return `${runId}__${uid}`;
