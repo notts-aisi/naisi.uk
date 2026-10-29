@@ -264,6 +264,14 @@ const READERS = {
       "so neither says anything of a placement before Publish has; a seat staff took off reads as taken off, and " +
       "when, which names no group either",
   },
+  "lib/courses/timeAnswer/seat.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "\"can you make this time?\": the caller's own seat only, for the card on their programme page and the one " +
+      "write of their answer. A seat Publish has not told them about is no question, whoever they are, an admin's " +
+      "own untold seat included, so neither the card nor the refusal says anything of a group before Publish has",
+  },
   "app/api/courses/runs/[runId]/nudge/route.ts": {
     kind: "shown",
     asks: 1,

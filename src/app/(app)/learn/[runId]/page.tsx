@@ -8,6 +8,7 @@ import { leaveClosedLine } from "@/lib/courses/leavingWords";
 import { loadLeftView } from "@/lib/courses/leftView";
 import { pitchingCard } from "@/lib/courses/pitching/load";
 import { teamCardFor } from "@/lib/courses/teamPage/load";
+import { timeQuestionFor } from "@/lib/courses/timeAnswer/seat";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
@@ -128,6 +129,14 @@ export default async function RunHomePage({
   // and who gives them one.
   const leaveNote = leave !== null && "closed" in leave && leave.closed === "facilitating" ? leaveClosedLine(leave, access.run.courseTitle) : null;
 
+  // "Can you make this time?", for somebody taking part whom Publish has told
+  // their group (`timeQuestionFor`), from what the gate already read.
+  // Answering "I can't make this time" keeps their place: it is not the leave
+  // at the foot.
+  const timeQuestion = access.isEnrolled
+    ? timeQuestionFor({ user: access.user, runId: access.run.id, enrolment: access.enrolment, groups: access.groups })
+    : null;
+
   // "About this course" (wk-programme): the programme's Start here and
   // Glossary, each linked when the run has it; nothing for a run with neither.
   const guide = db ? await guideLinksOf(db, access.run.id).catch(() => null) : null;
@@ -164,6 +173,8 @@ export default async function RunHomePage({
       team={team}
       canLeave={canLeave}
       leaveNote={leaveNote}
+      timeQuestion={timeQuestion}
+      viewAs={viewAs}
       uid={access.user.uid}
       {...(guide ? { guide } : {})}
       {...(certificates.length > 0 ? { certificates } : {})}

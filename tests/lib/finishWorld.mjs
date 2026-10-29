@@ -348,6 +348,9 @@ export async function makeFinishWorld(key = "__finish") {
         `export default function PageHead({ title, description }) { return ${handle}.h('header', null, ${handle}.h('h1', null, title), description); }`,
       ],
       ["./FacilitatorGroupPanel", quiet("FacilitatorGroupPanel")],
+      // "Can you make this time?": a card for somebody told their group while
+      // the programme runs, which these suites about its end never hand over.
+      ["./timeAnswer/TimeAnswerCard", quiet("TimeAnswerCard")],
       ["./SessionCard", quiet("SessionCard")],
       ["./sessionChange/SessionNotice", quiet("SessionNotice")],
       [

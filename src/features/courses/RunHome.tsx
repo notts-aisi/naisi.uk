@@ -10,6 +10,7 @@ import Skeleton from "@/components/ui/Skeleton";
 import PageEnter from "@/components/motion/PageEnter";
 import { firstName, tilePartsOfDay } from "@/app/(app)/dashboard/homeWords";
 import FacilitatorGroupPanel from "./FacilitatorGroupPanel";
+import TimeAnswerCard from "./timeAnswer/TimeAnswerCard";
 import { ticketFacts } from "./sessionChange/cardFacts";
 import SessionNotice from "./sessionChange/SessionNotice";
 import RunUpdates from "./updates/RunUpdates";
@@ -24,6 +25,7 @@ import CertificateCard from "./CertificateCard";
 import type { CertificateCardView } from "@/lib/courses/certificates/card";
 import type { GuideLinks } from "@/lib/courses/guide/model";
 import type { TeamCardView } from "@/lib/courses/teamPage/views";
+import type { TimeQuestionView } from "@/lib/courses/timeAnswer/model";
 import { YOUR_TEAM, YOUR_TEAMS_PAGE } from "@/lib/courses/teamPage/words";
 import { useMaterialTicks } from "./weekly/useMaterialTicks";
 import AfterTheEnd, { type AfterEvent, type AfterSurvey, type KeepItem } from "./weekly/AfterTheEnd";
@@ -81,9 +83,14 @@ import styles from "./RunHome.module.css";
  * "Add to calendar" is on the ticket for somebody whose group it is, taking
  * part or facilitating (st-calendar-phone: their own calendar link).
  *
- * WHAT IS NOT HERE, though the boards draw it: "Can’t make it" on the ticket.
- * It does not exist yet, and the page draws no control for a feature that
- * does not.
+ * "CAN YOU MAKE THIS TIME?" (Zach, 29 Oct 2026) follows the ticket for
+ * somebody Publish has told their group: their group's day, time and campus,
+ * "I can make it" and "I can't make this time". Either keeps their place; it
+ * is not the leave at the foot.
+ *
+ * WHAT IS NOT HERE, though the boards draw it: "Can’t make it" on the ticket,
+ * for one session. It does not exist yet, and the page draws no control for
+ * a feature that does not.
  *
  * STAFF (a facilitator, an admin) read the same head, ticket and weeks, every
  * published week open, with their own panels below; no marks, no ticks.
@@ -132,6 +139,14 @@ type Props = {
    * (`leavePathFor`'s `facilitating`). Null for everybody else.
    */
   leaveNote?: string | null;
+  /**
+   * "Can you make this time?", worked out by the server page for somebody
+   * taking part whom Publish has told their group (`timeQuestionFor`). Null
+   * draws nothing.
+   */
+  timeQuestion?: TimeQuestionView | null;
+  /** An admin is looking at this as the member: the card's answers are drawn and cannot be pressed. */
+  viewAs?: boolean;
   /** The session's own uid, from the server gate: the ticks' row, and "(you)" in the group. */
   uid?: string | null;
   /**
@@ -405,6 +420,8 @@ export default function RunHome({
   team = null,
   canLeave = false,
   leaveNote = null,
+  timeQuestion = null,
+  viewAs = false,
   guide = null,
   uid = null,
   certificates = [],
@@ -703,6 +720,18 @@ export default function RunHome({
         <div className={weekly.colMain}>
           <CertificateCard certificates={certificates} />
           {ticket}
+          {timeQuestion && learner && (
+            /* After the ticket, on a phone too. An incubator's people are told
+               of no group, so the card names none for them. */
+            <TimeAnswerCard
+              className={weekly.order1}
+              runId={runId}
+              question={
+                data.programme?.kind === "incubator" ? { ...timeQuestion, groupName: "" } : timeQuestion
+              }
+              locked={viewAs}
+            />
+          )}
           {weekCard}
           {!beforeStart && weekList}
         </div>
