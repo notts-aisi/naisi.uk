@@ -6,6 +6,7 @@ import { getSessionUser } from "@/features/courses/runAccess";
 import { anonymousFormLinkFor } from "@/lib/anonymousFeedback/forms";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { answerScreenFor, type AnswerScreen as Screen } from "@/lib/surveys/answerView";
+import { blanksScreenFor } from "@/lib/surveys/blanksView";
 import { readPerson, readSurvey } from "@/lib/surveys/repo";
 import { STATE_WORDS } from "@/lib/surveys/words";
 import styles from "./page.module.css";
@@ -17,6 +18,10 @@ import styles from "./page.module.css";
  * The run's layout has already asked whether they hold any role on the
  * run; this page shows a survey only to somebody it was sent to, on this
  * run, and answers everybody else in one sentence.
+ *
+ * Once an admin has sent them the questions they left blank, and until they
+ * send those, it shows only those questions (`blanksScreenFor`), as their link
+ * of blanks does.
  *
  * Opening it records nothing. "Send my answers" goes to the signed-in answer
  * route, which refuses during a view-as session, so an admin viewing the site
@@ -45,15 +50,24 @@ export default async function SignedInSurveyPage({
     const person = survey && survey.runId === runId ? await readPerson(db, survey.id, { kind: "account", uid: user.uid }) : null;
     if (survey && person && person.sentAt !== null) {
       programmeName = survey.programmeName;
-      screen = await answerScreenFor(db, survey, {
-        uid: user.uid,
-        answered: person.answered,
-        answeredAt: null,
-        submit: { kind: "signed-in", surveyId: survey.id },
-        now: new Date(),
-        person,
-      });
-      anonymousForm = await anonymousFormLinkFor(db, survey.id, new Date());
+      if (person.answered && person.blanks && !person.blanks.spentAt) {
+        // An admin has sent them the questions they left blank: only those, never an earlier answer.
+        screen = await blanksScreenFor(db, { kind: "programme", survey, person }, {
+          submit: { kind: "signed-in", surveyId: survey.id },
+          signedInAs: null,
+          now: new Date(),
+        });
+      } else {
+        screen = await answerScreenFor(db, survey, {
+          uid: user.uid,
+          answered: person.answered,
+          answeredAt: null,
+          submit: { kind: "signed-in", surveyId: survey.id },
+          now: new Date(),
+          person,
+        });
+        anonymousForm = await anonymousFormLinkFor(db, survey.id, new Date());
+      }
     }
   }
 

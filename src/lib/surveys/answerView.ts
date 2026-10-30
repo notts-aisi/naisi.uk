@@ -109,8 +109,16 @@ export type AnswerConsent = { id: string; statement: string; boxes: { purpose: S
 
 export type AnswerPage = { heading: string; questions: AnswerQuestion[]; consents: AnswerConsent[] };
 
-/** Where the answers go: the person's own link, their own session, or nowhere (a test). */
-export type AnswerSubmit = { kind: "link"; token: string } | { kind: "signed-in"; surveyId: string } | { kind: "test" };
+/**
+ * Where the answers go: the person's own link, their own session, or nowhere
+ * (a test). `blanks` marks the questions somebody left blank, sent through
+ * their link of blanks or signed in (`./blanksView.ts`), which go to the
+ * routes that keep them beside the first answers.
+ */
+export type AnswerSubmit =
+  | { kind: "link"; token: string; blanks?: true }
+  | { kind: "signed-in"; surveyId: string; blanks?: true }
+  | { kind: "test" };
 
 /**
  * The Kairos choice at the end of the form, starting where the person's own
@@ -127,6 +135,8 @@ export type AnswerSurvey = {
   intro: string[];
   /** The line under the intro: every question needs an answer unless marked optional (`answerRuleWords`). */
   rule: string;
+  /** A line drawn in place of `rule`: the link of blanks' own, where every question shown is required. */
+  lead?: string;
   box: { heading: string; points: string[]; note: string };
   pages: AnswerPage[];
   /** "It closes on Wed 4 Nov. Once sent, your answers can’t change.", the second sentence alone for a leaving survey. */

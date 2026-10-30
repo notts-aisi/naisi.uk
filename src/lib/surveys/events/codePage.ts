@@ -6,6 +6,7 @@ import type { AnswerScreen } from "../answerView";
 import { closedOn, isOpen } from "../repo";
 import { STATE_WORDS } from "../words";
 import { mayAnswerSignedIn } from "./audience";
+import { blanksScreenFor } from "../blanksView";
 import { eventAnswerScreen } from "./answerView";
 import { eventSurveyOf, readEventFor } from "./records";
 import { readEventPerson } from "./store";
@@ -15,7 +16,8 @@ import { eventLine } from "./words";
  * WHERE A SURVEY'S QR CODE LANDS (`/events/<id>/survey`), decided for one
  * visitor (Q43: confidential, never anonymous):
  *
- *  - SIGNED IN, and they signed up or came: the survey, kept with their name.
+ *  - SIGNED IN, and they signed up or came: the survey, kept with their name;
+ *    once an admin has sent them the questions they left blank, only those.
  *  - SIGNED IN, and they did neither: a sentence, and the way to check in
  *    while the door is open.
  *  - SIGNED OUT: asked to sign in. A guest who signed up without an account,
@@ -60,6 +62,15 @@ export async function codePageFor(db: Firestore, eventId: string, user: SessionU
   }
   const respondent = { kind: "account" as const, uid: user.uid };
   const row = await readEventPerson(db, survey.id, respondent);
+  // An admin has sent them the questions they left blank: only those, until they send them.
+  if (row?.answered && row.blanks && !row.blanks.spentAt) {
+    const screen = await blanksScreenFor(db, { kind: "event", survey, person: row }, {
+      submit: { kind: "signed-in", surveyId: survey.id },
+      signedInAs: user.displayName?.trim() || null,
+      now,
+    });
+    return { kind: "survey", line, screen };
+  }
   const screen = await eventAnswerScreen(db, survey, {
     respondent,
     signedInAs: user.displayName?.trim() || null,

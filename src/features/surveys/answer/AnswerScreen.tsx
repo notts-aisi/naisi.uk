@@ -48,7 +48,7 @@ export default function AnswerScreen({ screen }: { screen: Screen }) {
             {paragraph}
           </p>
         ))}
-        <p className={styles.rule}>{survey.rule}</p>
+        <p className={styles.rule}>{survey.lead ?? survey.rule}</p>
       </header>
 
       <section className={styles.box} aria-label={survey.box.heading}>

@@ -5154,6 +5154,8 @@ describe("the course hub passage", () => {
       "src/app/(app)/learn/[runId]/survey/[surveyId]/page.tsx",
       "src/lib/surveys/answerView.ts",
       "src/lib/surveys/personFacts.ts",
+      // The page a link of the questions left blank opens, and the signed-in page when it shows them.
+      "src/lib/surveys/blanksView.ts",
     ]) {
       assert.ok(
         !/\.(?:set|update|add|create|delete)\(|runTransaction\(|\.batch\(\)/.test(withoutComments(read(file))),

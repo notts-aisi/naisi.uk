@@ -605,10 +605,11 @@ export default function SurveyForm({ pages, closing, submit, testWords, kairos }
     setError("");
     const { answers, consents, kairos: shared } = answersIn(formRef.current, pages);
     const extra = { ...(consents ? { consents } : {}), ...(shared === undefined ? {} : { kairos: shared }) };
+    // The questions somebody left blank go to the routes that keep them beside their first answers.
     const request =
       submit.kind === "link"
-        ? { url: "/api/surveys/answer", body: { token: submit.token, answers, ...extra } }
-        : { url: `/api/surveys/${encodeURIComponent(submit.surveyId)}/answer`, body: { answers, ...extra } };
+        ? { url: submit.blanks ? "/api/surveys/blanks" : "/api/surveys/answer", body: { token: submit.token, answers, ...extra } }
+        : { url: `/api/surveys/${encodeURIComponent(submit.surveyId)}/${submit.blanks ? "blanks" : "answer"}`, body: { answers, ...extra } };
     try {
       const response = await fetch(request.url, {
         method: "POST",
