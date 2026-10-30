@@ -7,7 +7,7 @@
  *
  * ## What this guards
  *
- *  1. THE TEMPLATE: three questions, about a minute, every one skippable,
+ *  1. THE TEMPLATE: three questions, about a minute, every one required,
  *     with ids of its own, the same for every programme.
  *  2. MAKING IT: admins only, one per programme, no closing day, pairing with
  *     nothing (the stages still pair with each other), and its test link
@@ -132,7 +132,7 @@ async function page(render, props, who = null) {
 // ---------------------------------------------------------------------------
 
 describe("1. the leaving template", () => {
-  test("three questions, about a minute, every one skippable, the same for every programme", () => {
+  test("three questions, about a minute, every one required, the same for every programme", () => {
     const items = lib.templates.templateItems("leaving", "fellowship", null);
     const questions = lib.items.surveyQuestionsOf(items);
     assert.deepEqual(
@@ -158,7 +158,10 @@ describe("1. the leaving template", () => {
     assert.equal(questions[1].hint, "Anything we could change, however small.");
     assert.deepEqual(questions[2].options.map((option) => option.label), ["Yes", "Maybe", "No"]);
     assert.deepEqual(lib.items.validateSurveyItems(items), []);
-    assert.ok(questions.every((question) => question.required !== true), "a leaving question is required");
+    // Zach, 30 Oct 2026: every survey question is required unless marked
+    // optional, and all three apply to everybody who left.
+    assert.ok(questions.every((question) => lib.items.isQuestionRequired(question)), "a leaving question is optional");
+    assert.deepEqual(lib.items.missingRequired(items, {}), ["q_leave_why", "q_leave_stay", "q_leave_again"]);
     assert.equal(lib.templates.templateMinutes("leaving"), 1);
     assert.deepEqual(lib.templates.templateItems("leaving", "incubator", "alignment"), items, "an incubator's leaving survey is the same");
     // None of its ids is a stage's: it compares with nothing they ask.

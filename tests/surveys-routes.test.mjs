@@ -196,9 +196,14 @@ describe("the questions change until the first send, and never after", () => {
     const refused = await call("zach", routes.questions.POST, { surveyId: id }, { body: fewer });
     assert.equal(refused.status, 400);
     assert.match(refused.body.error, /can’t be added, taken out or changed in kind/);
-    const required = structuredClone(items);
-    required.find((item) => item.id === "q_c3").required = true;
-    assert.equal((await call("zach", routes.questions.POST, { surveyId: id }, { body: { ...body, items: required } })).status, 400);
+    // Worksheets' `required` means nothing to a survey (Zach, 30 Oct 2026:
+    // the Required switch is `optional`), so it is refused only where it
+    // contradicts the switch.
+    const contradicted = structuredClone(items);
+    Object.assign(contradicted.find((item) => item.id === "q_c3"), { required: true, optional: true });
+    const named = await call("zach", routes.questions.POST, { surveyId: id }, { body: { ...body, items: contradicted } });
+    assert.equal(named.status, 400);
+    assert.match(named.body.error, /marked both required and optional/);
   });
 
   test("once sent, nothing about it changes", async (t) => {

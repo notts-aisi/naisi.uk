@@ -1,11 +1,13 @@
 import type { WorksheetOption } from "@/lib/firestore/worksheets";
-import type { SurveyChoiceQuestion, SurveyItem } from "../items";
+import { markNotForEverybody, type SurveyChoiceQuestion, type SurveyItem } from "../items";
 
 /**
  * "AFTER A SOCIAL" (sv-new, sv-social-phone): the template a survey after an
- * event is made from. Five questions, about a minute, every one of which can
- * be skipped. An admin rewords any of them, and their options, for each event
- * until the survey opens; the questions themselves stay (`sameQuestions`).
+ * event is made from. Five questions, about a minute, every one required but
+ * "Anything we should change?", a catch-all (`NOT_FOR_EVERYBODY` in
+ * `../items`). An admin rewords any of them, and their options, and turns
+ * each one's Required switch, for each event until the survey opens; the
+ * questions themselves stay (`sameQuestions`).
  *
  * THE IDS ARE FIXED STRINGS, the same for every event, so answers to one
  * question compare across events. Change the words freely; never an id.
@@ -64,7 +66,7 @@ const CHANGE: SurveyChoiceQuestion = {
 
 /** The template's questions, fresh each time. */
 export function eventTemplateItems(): SurveyItem[] {
-  return structuredClone<SurveyItem[]>([HOW, AGAIN, NEXT, HEARD, CHANGE]);
+  return markNotForEverybody(structuredClone<SurveyItem[]>([HOW, AGAIN, NEXT, HEARD, CHANGE]));
 }
 
 /** About how long it takes, as the board says: about a minute. The editor changes it. */
