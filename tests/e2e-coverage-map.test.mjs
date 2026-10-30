@@ -439,6 +439,21 @@ const NOT_COVERED = {
     coverWhen:
       "When impersonation can be driven on a project of its own rather than a shared one.",
   },
+  "/api/admin/members/[uid]/notes": {
+    reason:
+      "Notes admins keep about a person (privacy v13): scripts/e2e-fixtures/coursework-notes.mjs drives the list and a new note on the profile and beside an application, and is unverified: it was written where the dev project could not be reached. tests/coursework-claude.test.mjs executes the route as every kind of caller.",
+    coverWhen: "When scripts/e2e-fixtures/coursework-notes.mjs passes once, in the pull request's end-to-end job and against dev: that change marks it verified and removes this entry.",
+  },
+  "/api/admin/members/[uid]/notes/[noteId]": {
+    reason:
+      "Changing and deleting a note admins keep (privacy v13): the coursework notes spec drives both and is unverified; tests/coursework-claude.test.mjs executes them as every kind of caller.",
+    coverWhen: "With the coursework notes spec above.",
+  },
+  "/api/admin/members/[uid]/notes/draft": {
+    reason:
+      "Claude's draft of a note (privacy v13): the coursework notes spec meets it, the calm sentence in local mode and one press against a target with a key, and is unverified; tests/coursework-claude.test.mjs executes it with Claude stubbed and reads every message that would go.",
+    coverWhen: "With the coursework notes spec above.",
+  },
   "/api/admin/members/[uid]/conduct-flag": {
     reason:
       "Admin CRUD: /api/admin/members/[uid]/conduct-flag answers one admin's deliberate press, and its failure lands on that admin's own screen.",
@@ -744,6 +759,24 @@ const NOT_COVERED = {
     reason:
       "Course hub: the test of the ask's email, sent only to the address on the session of whoever asks; tests/course-hub-facilitator-asks.test.mjs executes it and the lock it unlocks.",
     coverWhen: "With the spec for the ask above, because the test is the ask's first step.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers": {
+    reason:
+      "Course hub: Claude's best answers to a week (privacy v13), on the programme's Coursework tab, for an admin and the lead. tests/coursework-claude.test.mjs executes it as every kind of caller with Claude stubbed, and holds that labels go and names come back.",
+    coverWhen:
+      "When the Coursework tab is on dev: the coursework notes spec gains the lead reading the panel, then passes once, and this entry goes in that change.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/pangram": {
+    reason:
+      "Course hub: who a week's Pangram check would send, an admin's alone, on the Coursework tab. tests/coursework-claude.test.mjs executes it, the lead refused.",
+    coverWhen:
+      "Never against a live detector from a fixture: a check would send a fixture's words to Pangram. With the Coursework tab's spec, for the count before the press alone.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]/pangram": {
+    reason:
+      "Course hub: Pangram on one person's coursework, an admin's alone, on the person page. tests/coursework-claude.test.mjs executes it with Pangram's client faked, the lead refused and never shown a reading.",
+    coverWhen:
+      "Never against a live detector from a fixture. With the Coursework tab's spec, for the readings already kept and the calm sentence where Pangram is not set up.",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/case/draft": {
     reason:
