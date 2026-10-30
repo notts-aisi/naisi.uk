@@ -4,6 +4,7 @@ import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getSessionUid } from "@/lib/firebase/session";
 import { hasProfile } from "@/lib/firestore/registrationProfiles";
 import { markRegistrationProfileComplete } from "@/lib/firestore/registrationWrites";
+import { stampCourseworkUse } from "@/lib/legal/courseworkUseStamp";
 
 /**
  * Flip the signed-in user's signup-tracker row to "profile complete" once their
@@ -45,7 +46,19 @@ export async function POST() {
       // for the tracker to go on saying.
       console.error("[/api/register/profile-complete] profile lookup failed", err);
     }
-    if (profiled) await markRegistrationProfileComplete(session.uid);
+    if (profiled) {
+      await markRegistrationProfileComplete(session.uid);
+      // The account was written in the browser with its agreement to the
+      // privacy policy; the moment of a first agreement to v13 or later is
+      // kept here, on the server, once (src/lib/legal/courseworkUse.ts).
+      // Best-effort as the flag is: until it lands, the account's own
+      // agreement time stands in for it, which is never earlier.
+      try {
+        await stampCourseworkUse(db, session.uid);
+      } catch (err) {
+        console.error("[/api/register/profile-complete] coursework agreement stamp failed", err);
+      }
+    }
   }
   return NextResponse.json({ ok: true });
 }

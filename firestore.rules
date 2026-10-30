@@ -151,6 +151,14 @@ service cloud.firestore {
           !('policyAgreedAt' in request.resource.data)
           || request.resource.data.policyAgreedAt == request.time
         )
+        // `courseworkUseAgreedAt` is the moment this person FIRST agreed to
+        // privacy v13 or later, from which what they write on a course may be
+        // used outside its programme (src/lib/legal/courseworkUse.ts). It is
+        // stamped on the server only (the re-consent route, and the
+        // registration's profile-complete route straight after this create),
+        // so a browser's create never carries it: one that did could date
+        // the moment before writing it never agreed to.
+        && !('courseworkUseAgreedAt' in request.resource.data)
         // `uniEmailVerifiedAt` is a trusted signal (gates uni-email ownership +
         // the admin "verified" badge). It is stamped SERVER-SIDE from the
         // server-only `emailVerifications` record (via /api/verify-email/reconcile
@@ -404,6 +412,13 @@ service cloud.firestore {
             // self-update disjunct on purpose, like the consent lines: the
             // isAdmin() branch is unaffected.
             && studyChangesHold()))
+        // The moment of a first agreement to privacy v13 or later is kept
+        // once and never moved, by anybody's browser, an admin's included:
+        // outside the self-update disjunct on purpose. Only the server writes
+        // it (src/lib/legal/courseworkUseStamp.ts), on the Admin SDK, which
+        // these rules do not see. No admin screen writes it.
+        && request.resource.data.get('courseworkUseAgreedAt', null)
+          == resource.data.get('courseworkUseAgreedAt', null)
         && smallEnough();
 
       allow delete: if isAdmin();

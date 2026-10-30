@@ -1270,6 +1270,13 @@ const USERS = new Map([
       "whether the lead is handed a Surveys link is only real when the bar is drawn. `next/navigation`, `next/link` and " +
       "the bar's stylesheet are stubbed",
   ],
+  [
+    "coursework-use-cut-off.test.mjs",
+    "it executes the privacy v13 cut-off (src/lib/legal/courseworkUse.ts) and the stamps that keep it " +
+      "(courseworkUseStamp.ts) at their boundaries, because whether a row of coursework may leave its programme is " +
+      "decided by comparing two stored instants, and only running the comparison shows which side of the moment a " +
+      "row falls. Only `server-only` is stubbed; `firebase-admin/firestore` is the real one",
+  ],
 ]);
 
 /**

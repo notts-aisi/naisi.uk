@@ -31,6 +31,7 @@ import {
   ANSWER_TOO_LONG_TO_STORE,
   overLimitWords,
 } from "@/lib/courses/writtenAnswerWords";
+import { firstWrittenFor } from "@/lib/legal/courseworkUseStamp";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
 
 /**
@@ -257,6 +258,11 @@ export async function PUT(
       } else if (!prior) {
         write.submittedAt = null;
       }
+      // When the row was first written, stamped once on a new row (the merge
+      // keeps it after): an answer counts outside its programme only when it
+      // was written entirely after its writer agreed to privacy v13
+      // (courseworkUse.ts).
+      if (!prior) Object.assign(write, firstWrittenFor(null));
       tx.set(ref, write, { merge: true });
       // What the row holds once written, for the echo: the stamps are this moment's.
       const after: Record<string, unknown> = { ...(prior ?? {}), ...write, updatedAt: now };
