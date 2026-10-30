@@ -149,8 +149,10 @@ export default function CourseworkTable({ view, base }: { view: CourseworkTabVie
       ) : view.sections.length === 0 ? (
         <p className={styles.empty}>{NOBODY_HERE}</p>
       ) : (
-        <section className={styles.card} aria-label={COURSEWORK}>
-          {/* The weeks scroll inside the card, never the page; a keyboard can scroll it too. */}
+        <section className={styles.card}>
+          {/* The weeks scroll inside the card, never the page; a keyboard can scroll it too. The
+              scroll is the one region named Coursework: a second of the same name around it is
+              announced twice and is ambiguous to anybody finding the table by its name. */}
           <div className={styles.scroll} role="region" aria-label={COURSEWORK} tabIndex={0}>
             <table className={styles.table}>
               <thead>
