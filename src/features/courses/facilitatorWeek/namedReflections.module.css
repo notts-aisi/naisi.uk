@@ -117,6 +117,12 @@
   margin: 24px 0 0;
 }
 
+/* Under the sentence, the way to the page without names sits on a line of its own. */
+.switchLine .switchLink {
+  display: flex;
+  width: fit-content;
+}
+
 .switchLink {
   display: inline-flex;
   align-items: center;
