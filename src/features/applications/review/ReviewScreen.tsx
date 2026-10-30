@@ -30,6 +30,7 @@ import AccessRequirementsBlock from "./AccessRequirementsBlock";
 import PlacementPanel from "@/features/applications/intake/PlacementPanel";
 import AssessmentBlock from "./AssessmentBlock";
 import PersonNotes from "@/features/admin/memberNotes/PersonNotes";
+import { NOTES_WORDS } from "@/lib/memberNotes/words";
 import styles from "./ReviewScreen.module.css";
 
 /**
@@ -1103,7 +1104,17 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
             programme. Keyed by the applicant.
           */}
           {viewer.isAdmin ? (
-            <PersonNotes key={`notes:${applicant.uid}`} uid={applicant.uid} firstName={applicant.firstName} place="application" compact />
+            <section className={styles.admin} aria-labelledby={`notes-${applicant.uid}`}>
+              <div className={styles.adminHead}>
+                <div id={`notes-${applicant.uid}`} className={kit.mono}>
+                  {NOTES_WORDS.title(applicant.firstName)}
+                </div>
+                <span className={styles.adminLine} aria-hidden="true" />
+              </div>
+              <div className={styles.adminBox}>
+                <PersonNotes key={`notes:${applicant.uid}`} uid={applicant.uid} firstName={applicant.firstName} place="application" compact />
+              </div>
+            </section>
           ) : null}
 
           {/*

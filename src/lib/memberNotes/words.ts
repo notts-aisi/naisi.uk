@@ -10,6 +10,7 @@ const V = COURSEWORK_USE_FROM_VERSION;
 export const NOTES_WORDS = {
   title: (firstName: string) => `Notes about ${firstName || "this person"}`,
   whoReads: "Admins only",
+  adminsSeeThese: "Only admins see these.",
   neverShown: (firstName: string) => `${firstName || "They"} never sees these on the site. They can ask for a copy, like any data we hold about them.`,
 
   /** The one line that says the rule, on each place the notes are drawn. */

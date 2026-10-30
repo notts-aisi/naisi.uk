@@ -37,7 +37,10 @@ type Props = {
   place: NotesPlaceProp;
   /** Offer Claude's draft: with a programme picker (the profile), from this run, or not at all. */
   draft?: "picker" | "run" | "none";
-  /** A smaller head, for a narrow column beside other blocks (the application screen). */
+  /**
+   * No head of its own: the page frames it beside its other blocks (the
+   * application screen), with a heading whose id is `notes-<uid>`.
+   */
   compact?: boolean;
 };
 
@@ -217,15 +220,21 @@ export default function PersonNotes({ uid, firstName, place, draft = "none", com
     place === "profile" ? NOTES_WORDS.ruleProfile : place === "application" ? NOTES_WORDS.ruleApplication : NOTES_WORDS.ruleRun;
   const titleId = `notes-${uid}`;
 
+  const Frame = compact ? "div" : "section";
   return (
-    <section className={styles.notes} aria-labelledby={titleId}>
-      <div className={styles.head}>
-        <h2 id={titleId} className={compact ? styles.titleCompact : styles.title}>
-          {NOTES_WORDS.title(firstName)}
-        </h2>
-        <span className={`meta ${styles.tag}`}>{NOTES_WORDS.whoReads}</span>
-      </div>
-      <p className={styles.line}>{NOTES_WORDS.neverShown(firstName)}</p>
+    <Frame className={styles.notes} aria-labelledby={compact ? undefined : titleId}>
+      {!compact && (
+        <div className={styles.head}>
+          <h2 id={titleId} className={styles.title}>
+            {NOTES_WORDS.title(firstName)}
+          </h2>
+          <span className={`meta ${styles.tag}`}>{NOTES_WORDS.whoReads}</span>
+        </div>
+      )}
+      <p className={styles.line}>
+        {compact ? `${NOTES_WORDS.adminsSeeThese} ` : ""}
+        {NOTES_WORDS.neverShown(firstName)}
+      </p>
       <p className={styles.rule}>{rule}</p>
 
       {loadError && (
@@ -408,7 +417,7 @@ export default function PersonNotes({ uid, firstName, place, draft = "none", com
           )}
         </>
       )}
-    </section>
+    </Frame>
   );
 }
 
