@@ -1373,7 +1373,13 @@ test(
           await readSurveyHead(testPage, saved, { facilitators: null });
           await whenEnabled(testPage.getByRole("button", { name: PAGE.next, exact: true }), PAGE.next);
           const pages = pagesOf(saved.items);
+          let before = null;
           for (let n = 1; n < pages.length; n += 1) {
+            // Next holds a page with a required question blank on a test link as on a real one, so
+            // the admin answers each page as Dan does before moving on.
+            for (const question of pages[n - 1].questions) {
+              if (DAN_SAYS[question.id]) before = await answerQuestion(testPage, question, DAN_SAYS[question.id], before);
+            }
             await testPage.getByRole("region", { name: pages[n - 1].heading, exact: true }).getByRole("button", { name: PAGE.next, exact: true }).click();
           }
           const last = testPage.getByRole("region", { name: pages[pages.length - 1].heading, exact: true });
