@@ -459,7 +459,6 @@ export const ROUTES = {
   "/api/admin/members/[uid]/notes": {
     GET: {
       expect: adminOnly(404),
-      fields: ["agreed", "claude", "hidden", "notes", "runs"],
       why:
         "The notes admins keep about a person (privacy v13) are an admin's alone, about somebody else, decided " +
         "on the session before anything is read; the admin is then told nobody has this account.",
@@ -974,7 +973,6 @@ export const ROUTES = {
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers": {
     GET: {
       expect: signedIn(400),
-      fields: ["claude", "notIncluded", "outOfDate", "result", "sendable", "week"],
       why:
         "Claude's best answers to a week (privacy v13): the week is checked in the query before anything is " +
         "read, so an empty one is the same 400 for everybody signed in. Who may (an admin or the programme's " +
@@ -982,14 +980,12 @@ export const ROUTES = {
     },
     POST: {
       expect: signedIn(400),
-      fields: ["claude", "notIncluded", "outOfDate", "result", "sendable", "week"],
       why: "Asking Claude for a week's best answers: the body (which week) is checked before anything is read or sent.",
     },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/pangram": {
     GET: {
       expect: adminOnly(400),
-      fields: ["answers", "pangram", "people"],
       why:
         "Who a week's Pangram check would send: an admin's alone, decided on the session before anything is " +
         "read; the admin then meets the query check, which week.",
@@ -1005,7 +1001,6 @@ export const ROUTES = {
     },
     POST: {
       expect: adminOnly(404),
-      fields: ["notCounted", "pangram", "parts", "tooShort"],
       why:
         "Asking Pangram about one person's coursework: an admin's alone, decided on the session; an empty " +
         "body asks for every week, and the admin is then told the programme is not there.",

@@ -54,7 +54,7 @@ export const NOTES_WORDS = {
   notYours: "Notes about you are never shown to you, admin or not.",
   noAccount: "Nobody has this account.",
   empty400: "Write the note first.",
-  tooLong: (max: number) => `A note can be up to ${max.toLocaleString("en-GB")} characters.`,
+  tooLong: (max: number) => `A note can be up to ${max} characters.`,
   full: "This person’s record is full. Delete an old note first.",
   gone: "That note isn’t here any more. Reload the page.",
   badRun: "That programme isn’t one this person is on.",

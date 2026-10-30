@@ -1914,6 +1914,32 @@ export async function deleteAccountCascade(
     partialFailure = true;
   }
 
+  // 5c. NOTES ADMINS KEEP, AND CLAUDE AND PANGRAM ON COURSEWORK (privacy
+  //      v13). The notes about this account are about it alone, found by the
+  //      one equality on `uid`; a note it WROTE about somebody else is that
+  //      person's and stays, no longer naming its author. Pangram's readings
+  //      of its coursework are about it alone, one record per run, and go.
+  //      Claude's best answers to a week are about everybody on the run, so
+  //      they stay without this account in them (its picks, label and id).
+  try {
+    summary.memberNotesDeleted = await deleteMemberNotes(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] memberNotes delete failed:", uid, err);
+    partialFailure = true;
+  }
+  try {
+    summary.coursePangramChecksDeleted = await deleteOwnedCourseRows(db, PANGRAM_CHECKS_COLLECTION, uid);
+  } catch (err) {
+    console.error("[deleteAccount] coursePangramChecks delete failed:", uid, err);
+    partialFailure = true;
+  }
+  try {
+    summary.courseBestAnswersCleared = await clearBestAnswerPicks(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseBestAnswers clear failed:", uid, err);
+    partialFailure = true;
+  }
+
   // 5d. ADMISSIONS. Same tier as the course rows above and for the same
   //     reason: every one of these is keyed to the uid rather than owned by
   //     a document somebody can still administer, so with the users doc gone
@@ -2006,34 +2032,6 @@ export async function deleteAccountCascade(
     }
   } catch (err) {
     console.error("[deleteAccount] memberConductFlags delete failed:", uid, err);
-    partialFailure = true;
-  }
-
-  // The notes admins keep about this person (privacy v13, "Notes admins keep
-  // about you"). Each is about this account alone, found by the one equality
-  // on `uid` and deleted a page at a time. A note this account wrote about
-  // somebody else is that person's, and stays.
-  try {
-    summary.memberNotesDeleted = await deleteMemberNotes(db, uid);
-  } catch (err) {
-    console.error("[deleteAccount] memberNotes delete failed:", uid, err);
-    partialFailure = true;
-  }
-
-  // Claude and Pangram on coursework (privacy v13). Pangram's readings are
-  // about this account alone, one record per run, and go; Claude's best
-  // answers to a week are about everybody on it, so they stay without this
-  // account in them.
-  try {
-    summary.coursePangramChecksDeleted = await deleteOwnedCourseRows(db, PANGRAM_CHECKS_COLLECTION, uid);
-  } catch (err) {
-    console.error("[deleteAccount] coursePangramChecks delete failed:", uid, err);
-    partialFailure = true;
-  }
-  try {
-    summary.courseBestAnswersCleared = await clearBestAnswerPicks(db, uid);
-  } catch (err) {
-    console.error("[deleteAccount] courseBestAnswers clear failed:", uid, err);
     partialFailure = true;
   }
 

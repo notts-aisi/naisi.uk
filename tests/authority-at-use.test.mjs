@@ -285,11 +285,11 @@ function scanTree() {
 const RAW_SITES = {
   "src/lib/memberNotes/store.ts": {
     role: "not-a-gate",
-    matches: { authorUid: 2 },
+    matches: { authorUid: 1 },
     why:
-      "Not a gate. One comparison marks a note the viewer wrote ('By you'), and one decides whether an " +
-      "edit records `editedByUid`. Who may read or write a note is `gateNotes`, the admin role on the " +
-      "session, decided before anything is read; the author's uid grants nothing.",
+      "Not a gate. The one comparison decides whether an edit records `editedByUid` (an admin changing " +
+      "another admin's note). Who may read or write a note is `gateNotes`, the admin role on the session, " +
+      "decided before anything is read; the author's uid grants nothing.",
   },
   "src/app/(app)/events/manage/page.tsx": {
     role: "client",

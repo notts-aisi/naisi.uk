@@ -70,6 +70,11 @@ const STYLESHEETS = [
   "./AssessmentBlock.module.css",
   "./PlacementBox.module.css",
   "./MemberText.module.css",
+  // The notes admins keep about the person, beside their application (privacy v13).
+  "./PersonNotes.module.css",
+  "./Button.module.css",
+  "./Chip.module.css",
+  "./Input.module.css",
 ];
 const made = makeFreedWorld("__freedPageWorld", [
   ...STYLESHEETS.map((path) => [path, CLASS_NAMES]),

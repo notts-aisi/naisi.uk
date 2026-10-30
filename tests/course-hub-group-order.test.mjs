@@ -54,6 +54,15 @@ const COMPARATOR_HOME = "src/lib/firestore/courseGroups.ts";
  */
 const READS_WITHOUT_A_LIST = new Map([
   [
+    "src/lib/courses/coursework/gather.ts",
+    {
+      why:
+        "Claude and Pangram on coursework read the run's live groups only to know who facilitates (whose own work is " +
+        "left out of the best answers) and which group's copy of a week each person reads: maps by id, never a list of " +
+        "groups on any page.",
+    },
+  ],
+  [
     "src/lib/courses/fillInBoxes/access.ts",
     {
       why:
@@ -186,6 +195,11 @@ const READS_WITHOUT_A_LIST = new Map([
 
 /** Modules the walk reaches that fetch an address it cannot read, each with what they fetch and why it lists no run's groups. */
 const FETCHES_IT_CANNOT_READ = new Map([
+  [
+    "src/features/admin/memberNotes/PersonNotes.tsx",
+    "The notes admins keep about one person, at the notes route under the member address it builds from the " +
+      "person's id: it draws notes and the runs a note may come from by name, and no group.",
+  ],
   [
     "src/features/applications/intake/PlacementBox.tsx",
     "One person's Placement box, at the placement route under the form address it is handed: it draws " +

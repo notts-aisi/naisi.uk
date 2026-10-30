@@ -36,6 +36,9 @@ export type CourseworkDoor = {
   weeks: CourseworkWeek[];
 };
 
+/** A run before decision day, as far as coursework goes: nobody. */
+const NOBODY: RunPeople = { facilitatorsOf: new Map(), facilitators: new Set(), groupOf: new Map() };
+
 export async function openCourseworkDoor(
   db: Firestore,
   user: SessionUser,
@@ -53,6 +56,10 @@ export async function openCourseworkDoor(
 
   const form = await loadForm(db, roundId);
   if (!form) return { ok: false, status: 404, error: COURSEWORK_DOOR_WORDS.notHere };
+  // Nobody holds a place until decision day, and a list of everybody read
+  // before it could tell the person looking where their own application
+  // stands: so nothing is read until the term is marked as sent.
+  if (form.decisionsSentAt === null) return { ok: true, viewer: view.viewer, runId, programmeName: view.programmeName, holders: [], people: NOBODY, weeks: [] };
   const [applications, decisions, people] = await Promise.all([
     listSentApplications(db, form),
     listDecisions(db, form.round.id),

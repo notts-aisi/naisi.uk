@@ -1,6 +1,5 @@
 import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
-import { loadStaffNames } from "@/lib/applications/review/load";
 import type { SessionUser } from "@/lib/firebase/session";
 import { courseworkCountsFrom } from "@/lib/legal/courseworkUse";
 import {
@@ -44,6 +43,27 @@ export function gateNotes(user: SessionUser, subjectUid: string): NotesRefusal |
 export async function loadSubject(db: Firestore, uid: string): Promise<Record<string, unknown> | null> {
   const snap = await db.collection("users").doc(uid).get();
   return snap.exists ? ((snap.data() ?? {}) as Record<string, unknown>) : null;
+}
+
+/**
+ * The names of the admins who wrote notes, as a note shows them: each one's
+ * preferred name, else the first word of their account's name. An account
+ * that has gone is not in the answer, so its notes name nobody.
+ */
+async function authorNames(db: Firestore, uids: readonly string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const unique = [...new Set(uids.filter(Boolean))];
+  if (unique.length === 0) return out;
+  const snaps = await db.getAll(...unique.map((uid) => db.collection("users").doc(uid)));
+  for (const snap of snaps) {
+    if (!snap.exists) continue;
+    const data = (snap.data() ?? {}) as Record<string, unknown>;
+    const profile = (data.profile && typeof data.profile === "object" ? data.profile : {}) as Record<string, unknown>;
+    const preferred = typeof profile.preferredName === "string" ? profile.preferredName.trim() : "";
+    const display = typeof data.displayName === "string" ? data.displayName.trim().split(/\s+/)[0] ?? "" : "";
+    out.set(snap.id, preferred || display || "An admin");
+  }
+  return out;
 }
 
 /** Every note about one person, as stored. */
@@ -135,7 +155,7 @@ export async function loadNotes(
   const from = courseworkCountsFrom(subject);
   const [notes, runs] = await Promise.all([listNotes(db, subjectUid), runsOf(db, subjectUid)]);
   const { shown, hidden } = notesShownIn(place, notes, from);
-  const names = await loadStaffNames(db, [...new Set(shown.map((note) => note.authorUid).filter(Boolean))]);
+  const names = await authorNames(db, shown.map((note) => note.authorUid));
   return {
     ok: true,
     payload: {
