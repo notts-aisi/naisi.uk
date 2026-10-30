@@ -4,7 +4,7 @@ import { resolveWeekDocs, type ResolvedWeekEntry } from "@/lib/courses/groupReso
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { weekFillInBoxes, weekReflectionPrompts, weekWrittenAnswers } from "@/lib/courses/weekBlocks/reader";
 import { readWrittenAnswer } from "@/lib/courses/writtenAnswers/model";
-import { isFillInResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
+import { isFillInResponse, isOwnBoxResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { courseworkCountsFrom, rowCountsFrom } from "@/lib/legal/courseworkUse";
 import type { CourseworkAnswer, CourseworkQuestion, CourseworkWeek } from "./input";
@@ -153,7 +153,8 @@ function rowFits(question: CourseworkQuestion, data: Raw): boolean {
   if (question.kind === "fillIn") return isFillInResponse(data);
   // A written answer: an answer's row (no kind) that counts words, and SENT:
   // a draft is its writer's until they send it.
-  return !isReflectionResponse(data) && !isFillInResponse(data) && typeof data.words === "number" && readWrittenAnswer(data).firstSentAt !== null;
+  // Every kind of box its writer fills in is left out by the one question.
+  return !isOwnBoxResponse(data) && typeof data.words === "number" && readWrittenAnswer(data).firstSentAt !== null;
 }
 
 /**

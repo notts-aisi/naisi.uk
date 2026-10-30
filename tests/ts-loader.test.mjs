@@ -1277,6 +1277,14 @@ const USERS = new Map([
       "decided by comparing two stored instants, and only running the comparison shows which side of the moment a " +
       "row falls. Only `server-only` is stubbed; `firebase-admin/firestore` is the real one",
   ],
+  [
+    "coursework-claude.test.mjs",
+    "it drives the notes, draft, best-answers and Pangram routes (privacy v13) on the facilitator week's world, and " +
+      "runs the account cascade over their records, because who may, what leaves for Claude or Pangram and what is " +
+      "kept are decided across the routes, the shared coursework reader and the cut-off together. Claude's door is " +
+      "stubbed to record what it is asked; Pangram's real client runs with `fetch` faked; the cascade gets the " +
+      "cascade store's Firestore stub",
+  ],
 ]);
 
 /**

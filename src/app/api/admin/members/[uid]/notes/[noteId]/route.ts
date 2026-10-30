@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { isAddressableId } from "@/lib/addressableId";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
-import { getCurrentUser } from "@/lib/firebase/session";
+import { getCurrentUser, type SessionUser } from "@/lib/firebase/session";
 import { checkedText, deleteNote, editNote, gateNotes } from "@/lib/memberNotes/store";
 import { NOTES_WORDS } from "@/lib/memberNotes/words";
 
@@ -17,9 +17,7 @@ import { NOTES_WORDS } from "@/lib/memberNotes/words";
 
 type Ctx = { params: Promise<{ uid: string; noteId: string }> };
 
-async function gated(ctx: Ctx) {
-  const user = await getCurrentUser();
-  if (!user) return { error: NextResponse.json({ error: "Not signed in" }, { status: 401 }) } as const;
+async function gated(user: SessionUser, ctx: Ctx) {
   const { uid, noteId } = await ctx.params;
   const refused = gateNotes(user, uid);
   if (refused) return { error: NextResponse.json({ error: refused.error }, { status: refused.status }) } as const;
@@ -32,7 +30,9 @@ async function gated(ctx: Ctx) {
 export async function PATCH(req: Request, ctx: Ctx) {
   const blocked = await assertNotImpersonating();
   if (blocked) return blocked;
-  const gate = await gated(ctx);
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await gated(user, ctx);
   if ("error" in gate) return gate.error;
 
   let body: { text?: unknown };
@@ -54,7 +54,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
 export async function DELETE(_req: Request, ctx: Ctx) {
   const blocked = await assertNotImpersonating();
   if (blocked) return blocked;
-  const gate = await gated(ctx);
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const gate = await gated(user, ctx);
   if ("error" in gate) return gate.error;
 
   const db = getAdminDb();

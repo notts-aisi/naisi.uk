@@ -98,7 +98,8 @@ function wordRe(word: string, flags: string): RegExp {
  * person's label: a whole name first (in any case), then each part of a name
  * of three letters or more AS WRITTEN WITH ITS CAPITAL, because coursework is
  * prose and a first name like "Will", "May" or "Hope" is also a word. A part
- * two people share becomes "someone on the programme".
+ * two people share becomes "someone on the programme". An email address
+ * typed anywhere becomes "(an email address)".
  */
 export function scrubNames(text: string, people: readonly NameToLabel[]): string {
   let out = text;
@@ -121,7 +122,7 @@ export function scrubNames(text: string, people: readonly NameToLabel[]): string
     const replacement = labels.size === 1 ? [...labels][0] : "someone on the programme";
     out = out.replace(wordRe(part, "g"), replacement);
   }
-  return out;
+  return out.replace(/[^\s@<>()[\]"',;:]+@[^\s@<>()[\]"',;:]+\.[A-Za-z]{2,}/g, "(an email address)");
 }
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
+import { canRunTerm } from "@/lib/applications/access";
 import { isId } from "@/lib/applications/normalise";
 import { pangramWeekPlan } from "@/lib/courses/coursework/pangram";
-import { COURSEWORK_DOOR_WORDS } from "@/lib/courses/coursework/claudeWords";
+import { COURSEWORK_DOOR_WORDS, PANGRAM_WORDS } from "@/lib/courses/coursework/claudeWords";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 
@@ -19,6 +20,9 @@ type Ctx = { params: Promise<{ roundId: string; programmeId: string }> };
 export async function GET(req: Request, ctx: Ctx) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  // An admin's alone, decided on the session before anything is read: the
+  // programme's lead, a reviewer and everybody else stop here.
+  if (!canRunTerm(user)) return NextResponse.json({ error: PANGRAM_WORDS.onlyAdmins }, { status: 403 });
   const { roundId, programmeId } = await ctx.params;
   if (!isId(roundId) || !isId(programmeId)) return NextResponse.json({ error: COURSEWORK_DOOR_WORDS.notHere }, { status: 404 });
   const week = new URL(req.url).searchParams.get("week");

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
+import { canRunTerm } from "@/lib/applications/access";
 import { isId } from "@/lib/applications/normalise";
 import { checkPersonPangram, loadPersonPangram } from "@/lib/courses/coursework/pangram";
-import { COURSEWORK_DOOR_WORDS } from "@/lib/courses/coursework/claudeWords";
+import { COURSEWORK_DOOR_WORDS, PANGRAM_WORDS } from "@/lib/courses/coursework/claudeWords";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
@@ -32,6 +33,9 @@ function viewBody(view: Awaited<ReturnType<typeof loadPersonPangram>> & { ok: tr
 export async function GET(_req: Request, ctx: Ctx) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  // An admin's alone, decided on the session before anything is read: the
+  // programme's lead, a reviewer and everybody else stop here.
+  if (!canRunTerm(user)) return NextResponse.json({ error: PANGRAM_WORDS.onlyAdmins }, { status: 403 });
   const { roundId, programmeId, uid } = await ctx.params;
   if (!isId(roundId) || !isId(programmeId) || !isId(uid)) {
     return NextResponse.json({ error: COURSEWORK_DOOR_WORDS.notHere }, { status: 404 });
@@ -48,6 +52,9 @@ export async function POST(req: Request, ctx: Ctx) {
   if (blocked) return blocked;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  // An admin's alone, decided on the session before anything is read: the
+  // programme's lead, a reviewer and everybody else stop here.
+  if (!canRunTerm(user)) return NextResponse.json({ error: PANGRAM_WORDS.onlyAdmins }, { status: 403 });
   let raw: unknown;
   try {
     raw = await req.json();

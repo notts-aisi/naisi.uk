@@ -148,6 +148,10 @@ const READERS = {
     treats: "tells",
     why: "a group's week for its facilitators, the programme's lead and admins: reflections, of the people each viewer is shown, and fill-in boxes (week 6's action plan), of exactly the people the boxes' own gate admits; never an answer",
   },
+  "lib/courses/coursework/gather.ts": {
+    treats: "tells",
+    why: "Claude and Pangram on coursework (privacy v13): reflections, written answers sent and fill-in boxes, each matched to the kind its question asks for, and only the rows that count, for an admin or the programme's lead behind their door; an exercise answer of a week before blocks is left out",
+  },
   "lib/courses/finishing/whoFinished.ts": {
     treats: "tells",
     answers: true,
