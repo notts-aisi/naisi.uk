@@ -532,7 +532,11 @@ export default async function GroupHomePage({
   ) : null;
   const queueCard =
     groupWeek && groupWeek.counts.length > 0 && groupWeek.counts[0].of > 0 ? (
-      <ReflectionsQueueCard counts={groupWeek.counts} href={`${groupPath}/reflections?week=${groupWeek.weekNumber}`} />
+      <ReflectionsQueueCard
+        counts={groupWeek.counts}
+        href={`${groupPath}/reflections?week=${groupWeek.weekNumber}`}
+        namesHref={`${groupPath}/reflections/names?week=${groupWeek.weekNumber}`}
+      />
     ) : null;
   const summerWaiting = model.toReview.length > 0;
 

@@ -1835,6 +1835,72 @@ day, and only about the people Publish has told. Never a reason; somebody who
 gave their place back is not in it. From the first session's day, Home is the
 weekly Home above.
 
+## Reading coursework: reflections with names, and the Coursework tab
+
+Owner decision, 30 October 2026. Staff read what people write WITH their
+names; only the page where a facilitator picks lines to read out in the
+session stays without. Privacy policy v12 already says a person's
+reflections are read by their group's facilitators, the programme's lead and
+admins, and promises no names only on the read-out page.
+
+### Who reads which reflections, and where
+
+- The group's live facilitators (and admins):
+  `/learn/[runId]/group/[groupId]/reflections/names?week=N`, linked as "Read
+  them with names" from the group page's review queue and from the read-out
+  page. The group's FELLOWS only, each answer under the writer's whole name
+  with when it was last written, and the fellows who have not written one
+  yet. Never a facilitator's own reflections (an admin's view of this page
+  included) and never a private note.
+- The programme's lead and admins:
+  `.../programmes/[programmeId]/reflections?group=&week=` (from "Read them" on
+  the lead's view of a group's week). The same layout, plus each
+  facilitator's own reflections under their name, marked as theirs.
+- The read-out page, `/learn/[runId]/group/[groupId]/reflections`, is
+  unchanged: words only, in the order of the words, no name, no time. Its
+  loader (`loadReadOutWeek`) and component (`ReadOutView`) carry no name
+  beside an answer for anybody, and `tests/course-hub-facilitator-week.test.mjs`
+  fails if either page ever draws the other's layout.
+- Reflections get no "read" mark and no reply. Written answers keep their
+  own feedback flow.
+
+### The Coursework tab, `.../programmes/[programmeId]/coursework`
+
+For the programme's lead and admins (the Groups and Attendance tabs' gate,
+`loadProgrammeRun`); a reviewer is told it is theirs. A row per person holding
+a place (the People tab's set, in a group or not yet), anybody else placed in
+one of the run's live groups, and each facilitator, marked as facilitating. A
+column per week of the run's plan written as blocks. Each cell counts what the
+person did in the week they read (their group's copy once Publish has told
+them their group, the run's own week before that, so week 1 work written
+before groups go out is counted): reflection parts written, sources ticked,
+where the written answer stands (waiting for feedback stands out and opens the
+existing feedback page), boxes filled in. Never anybody's words in a cell.
+Filters are plain links: a group, "Not in a group yet", "Waiting for
+feedback".
+
+A placement Publish has not told is shown to admins alone (marked "Not told
+yet"); the lead sees that person under "Not in a group yet".
+
+### A person's page, `.../programmes/[programmeId]/coursework/[uid]`
+
+For the same two, and only for somebody who is a row of the tab (otherwise a
+calm not-here page). Newest week first: each reflection under its prompt with
+when it was written, the written answer with its state, its feedback (levels,
+comment, who gave it) and the way to the feedback page, the fill-in boxes
+(after their own gate, `boxesReaderFor`), and which sources they ticked.
+PRIVATE NOTES are shown to admins only, never to the lead, through the one
+reader of private notes. Survey answers never appear on the tab or the page.
+The page keeps a column beside the weeks for notes admins keep about a person.
+
+### Reads
+
+Everything is read on the server after the gate. One equality on the run per
+store (`readRunCoursework` in `src/lib/courses/facilitatorWeek/readers.ts`):
+the answers store whole, the progress store through a projection with no
+rating, comment or private note. No query needs a composite index. Nothing on
+either page writes.
+
 ## Changing a session
 
 One week's session of one group can be held online, moved for that week only,
@@ -2762,6 +2828,82 @@ certificate was sent in error, and tell its owner.
   `next.config.ts`), and the PDF's fonts are traced into its route
   (`outputFileTracingIncludes`). The fonts are in
   `src/lib/courses/certificates/fonts/`, each beside its licence.
+
+## Claude and Pangram on coursework, and the notes admins keep
+
+Privacy policy version 13 (`src/content/legal/privacy/v13.tsx`) took back
+version 12's promise that nothing written in a course is used outside its
+programme, from its own agreement on. Three features rest on that, each an
+admin's press (the best answers also the programme's lead's), never
+automatic, all built like the applications' second reader
+(`docs/applications.md`, "Claude and Pangram"): labels to Claude, names put
+back on the way to the screen, a hash of what was sent so a stored answer
+shows as out of date.
+
+- **The cut-off** (`src/lib/legal/courseworkUse.ts`). An account keeps
+  `courseworkUseAgreedAt`, the moment it FIRST agreed to version 13 or a later
+  one: written once, on the server only, by the re-consent route in the
+  agreement's own transaction and by registration's profile-complete route
+  (`courseworkUseStamp.ts`). The rules refuse it in a browser's create and
+  hold it unchanged in every browser's update, an admin's included. Until it
+  lands after a registration, an agreement to version 13 or later counts from
+  its own time, which is never earlier. A ROW OF COURSEWORK COUNTS only when
+  it was first written strictly after that moment: the reflection, fill-in
+  box and written answer routes stamp `firstWrittenAt` once on a new row, and
+  a row without it (every row written before this change) never counts. A
+  written answer counts only once sent. Somebody with no moment is sent to
+  nobody, and their writing is used only within its programme.
+- **Notes admins keep about a person** (`src/lib/memberNotes/`,
+  `memberNotes`, the routes under `/api/admin/members/[uid]/notes`). Admins
+  only, both ways; an admin is refused the notes about themselves; the person
+  never sees them on the site. One record per person: a note belongs to the
+  person, not a run, keeps the name of the programme it was written from, and
+  stays when that run is destroyed. WHERE A NOTE SHOWS (`notesShownIn`): the
+  profile (`/admin/members/[uid]`) shows every note and marks one written
+  before its person's moment; beside an application only notes written after
+  it; a programme's pages those, and earlier notes written from that
+  programme. Each place says its rule in one line. "Draft a note with Claude"
+  (`draft.ts`) sends that person's counted coursework on one run, with the
+  week's questions, a written answer's feedback as LEVELS and never its
+  comment, and every name of everybody on the run swapped for a label ("the
+  fellow"); the draft is returned and never stored, and only Save note keeps
+  it, with `draftedByClaude`. Deleted with the person's account; a note an
+  account wrote about somebody else stays, and no longer names its author.
+- **Best answers to a week** (`src/lib/courses/coursework/bestAnswers.ts`,
+  `courseBestAnswers/{runId}__{weekId}`, the route
+  `.../programmes/[programmeId]/coursework/best-answers`). The Coursework
+  tab's door: an admin or the programme's lead. Sent: every counted answer
+  to the week's questions (reflection prompts, written answers, fill-in
+  boxes; from every group's copy of the week, by prompt id) by somebody
+  holding a place, never a facilitator's own work, each person "Fellow N" in
+  account order, every typed name and email address swapped out. Claude picks
+  up to three per question with a reason and says what was hard. Kept by
+  account, never by name; names put back from who holds a place NOW, so a
+  pick of somebody who gave their place back is dropped. The panel says how
+  many answers can be sent and how many are "not included yet". Replaced by
+  the next press; deleted with the run; an account's deletion takes it out of
+  every week's picks (`clearBestAnswerPicks`).
+- **Pangram** (`src/lib/courses/coursework/pangram.ts`,
+  `coursePangramChecks/{runId}__{uid}`, the routes
+  `.../coursework/[uid]/pangram` and `.../coursework/pangram`). ADMINS ONLY,
+  refused on the session before anything is read: the programme's lead never
+  sees a reading on any page or route. One person's counted written answers
+  and reflections of 50 words or more (never a fill-in box), joined into one
+  request, each read back through `readingsForParts`; a week's check says who
+  and how many before the press, then the browser sends one person at a
+  time. Kept per answer with a hash of its words, so a changed answer shows
+  as out of date. A flag reads "worth a look". Deleted with the run and with
+  the account.
+- **What Claude is never sent**: a name, an email address, an account id, a
+  group's name, a facilitator's name, availability, a review score, a survey
+  answer, a private note, a tick, or anything written before its writer's
+  moment. Claude is told never to judge somebody's English or whether AI
+  wrote anything, and that a thin answer is thin.
+
+`tests/coursework-use-cut-off.test.mjs` holds the moment and the rows at the
+boundary; `tests/coursework-claude.test.mjs` drives every route as an admin,
+the lead, a reviewer, a facilitator and a fellow, reads every message that
+would go, and runs the account cascade over the three records.
 
 ## Cutover: membership periods
 

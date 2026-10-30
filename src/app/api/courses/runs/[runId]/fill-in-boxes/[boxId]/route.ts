@@ -19,6 +19,7 @@ import {
   exerciseResponseId,
   isFillInResponse,
 } from "@/lib/firestore/courseExercises";
+import { firstWrittenFor } from "@/lib/legal/courseworkUseStamp";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
 
 /**
@@ -192,6 +193,10 @@ export async function PUT(
         submittedAt: null,
         reviewStatus: "unreviewed",
         updatedAt: FieldValue.serverTimestamp(),
+        // When the row was first written, kept across every write after: a
+        // box counts outside its programme only when it was written entirely
+        // after its writer agreed to privacy v13 (courseworkUse.ts).
+        ...firstWrittenFor(snap.exists ? (snap.data() ?? {}) : null),
       });
     });
   } catch (err) {

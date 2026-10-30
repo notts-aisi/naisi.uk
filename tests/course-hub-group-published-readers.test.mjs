@@ -110,6 +110,14 @@ const READERS = {
     asks: 2,
     why: "pitching week's people: an untold seat cannot pitch or pick, is offered as nobody's partner, is named to nobody and is not counted on the lead's list",
   },
+  "lib/courses/coursework/load.ts": {
+    kind: "shown",
+    asks: 2,
+    why:
+      "the Coursework tab and a person's page, for the programme's lead and admins: a person sits in their group only where " +
+      "their placement may be shown to the caller, so the lead sees an untold one as not in a group yet; asked a second time " +
+      "about a caller who is no admin, to know whether the person was told and so reads the group's copy of a week",
+  },
   "lib/courses/updates/readers.ts": {
     kind: "shown",
     asks: 1,
@@ -347,6 +355,28 @@ const READERS = {
       "sends to them and a test, the first one only, to the presser alone; its facilitators' email counts only the " +
       "people in the group told by the end of the press, never an untold seat; and its answers name only the people it " +
       "cannot write to",
+  },
+  "lib/courses/coursework/gather.ts": {
+    kind: "staff",
+    proof: ["if (uid && groupId && facilitatorsOf.has(groupId)) groupOf.set(uid, groupId);"],
+    why:
+      "Claude and Pangram on coursework (privacy v13), behind the Coursework tab's door (an admin or the programme's " +
+      "lead) or an admin's notes: a seat's group only chooses which group's copy of a week a person's questions come " +
+      "from. No group, and nothing of a seat, is shown or sent to anybody",
+  },
+  "lib/memberNotes/draft.ts": {
+    kind: "staff",
+    proof: ['.map((doc) => (doc.data() ?? {}).uid)', "const refused = gateNotes(user, subjectUid);"],
+    why:
+      "Claude's draft of a note, an admin's alone: the run's seats are read for WHO is on it, so their names can be " +
+      "swapped out of what is sent. No group or seat is shown or sent",
+  },
+  "lib/memberNotes/store.ts": {
+    kind: "staff",
+    proof: ["const runId = (doc.data() ?? {}).runId;", 'if (user.role !== "admin") return refuse(403, NOTES_WORDS.onlyAdmins);'],
+    why:
+      "the notes admins keep, an admin's alone: a person's seats are read only for the runs they are on, to offer the " +
+      "programme a note is written from. No group or placement is shown",
   },
   "lib/courses/groupFacilitators.ts": {
     kind: "writer",

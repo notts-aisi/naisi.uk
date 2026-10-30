@@ -172,6 +172,11 @@ const READS_THE_LISTS = {
     kind: "viewer",
     why: "the freed-places page is read for whoever is looking: the term through loadTerm, and the reviews only for the people it lists",
   },
+  "lib/courses/coursework/door.ts#openCourseworkDoor": {
+    kind: "everybody",
+    why: "Claude and Pangram on coursework (privacy v13) need who holds a place on the programme, by the name on record, behind the Coursework tab's door. It reads nobody until the term is marked as sent, and hands on nothing an application or a decision says",
+    holds: "after-the-send",
+  },
   "lib/applications/freedPlaces/offer.ts#offerFreedPlaces": {
     kind: "everybody",
     why: "a place offered has to be really free, so the writer counts the whole term inside its transaction, the caller's own application included. It refuses the caller's own id before it reads, reads nobody before decisions have gone out, and lists nothing",
@@ -190,6 +195,11 @@ const READS_THE_LISTS = {
   "lib/applications/people/load.ts#readProgrammePeople": {
     kind: "everybody",
     why: "the People tab's model, read once for the People tab and for People in groups: everybody who holds a place on the programme or gave it back, an admin who applied included, as the hand-over and the times picture count them. It reads nobody until the term is marked as sent, when there is nothing left for anybody to learn early",
+    holds: "after-the-send",
+  },
+  "lib/applications/people/load.ts#listPlaceHolders": {
+    kind: "everybody",
+    why: "everybody who holds a place on the programme, by name, for the Coursework tab and a person's page: the people countPlaceHolders counts, an admin who applied included, by the hand-over's own test. It lists nobody until the term is marked as sent",
     holds: "after-the-send",
   },
   "lib/applications/people/load.ts#countPlaceHolders": {

@@ -85,6 +85,17 @@
   text-underline-offset: 3px;
 }
 
+/* A lede of more than one paragraph (from privacy v13, which says what is
+   new at the top): the paragraphs are spaced as the sections' are. */
+.lede > p + p {
+  margin-top: 0.85rem;
+}
+
+.lede strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
 /* === The policy: contents at the left, sections at the right === */
 
 /*

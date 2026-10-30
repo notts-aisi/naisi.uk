@@ -3,12 +3,12 @@ import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import NotYours from "@/features/applications/groups/NotYours";
 import RunBlank from "@/features/applications/groups/RunBlank";
 import facilitator from "@/features/courses/facilitator/facilitator.module.css";
-import ReadOutView from "@/features/courses/facilitatorWeek/ReadOutView";
+import NamedReflections from "@/features/courses/facilitatorWeek/NamedReflections";
 import weekly from "@/features/courses/weekly/weekly.module.css";
 import { runProgrammeOf } from "@/lib/applications/handover/runProgramme";
 import { loadFacilitatorGroup } from "@/lib/courses/facilitatorGroup";
 import { openLeadDoor } from "@/lib/courses/facilitatorWeek/leadDoor";
-import { loadReadOutWeek, weekOfGroup } from "@/lib/courses/facilitatorWeek/readers";
+import { loadNamedReflections, weekOfGroup } from "@/lib/courses/facilitatorWeek/readers";
 import {
   ATTENDANCE,
   NO_REFLECTIONS,
@@ -29,12 +29,16 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * `.../programmes/[programmeId]/reflections?group=&week=`, reached from
  * "Read them" on the lead's view of the group's week.
  *
- * The group's answers to each prompt are shown as its facilitators see them
- * when they pick lines to read out: the words, with no name on them, in the
- * order of the words. Nothing is picked or copied here: the lead runs no
- * session. Beside them, the group's FACILITATORS' OWN reflections, under each
- * facilitator's name and marked as theirs (Zach, Mon 26 Oct), which no
- * facilitator is ever shown and nobody reads out.
+ * WITH NAMES (Zach, Fri 30 Oct): every prompt of the week, each fellow's
+ * answer under their whole name, in the group's order of people, with when
+ * they last wrote it, and under each prompt the names of the fellows who
+ * have not written one yet (`loadNamedReflections`, drawn by
+ * `NamedReflections`, the layout the group's facilitators' own page with
+ * names draws too). Beside them, the group's FACILITATORS' OWN reflections,
+ * under each facilitator's name and marked as theirs (Zach, Mon 26 Oct),
+ * which no facilitator is ever shown and nobody reads out. Nothing is picked
+ * or copied here: the lead runs no session, and the page where lines are
+ * picked to read out stays without names.
  *
  * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`openLeadDoor`), decided from the
  * form before the run is read; a reviewer is told it is the lead's and an
@@ -89,7 +93,7 @@ export default async function LeadGroupReflectionsPage({
   const week =
     weekNumber === null
       ? null
-      : await loadReadOutWeek(db, { run, group, model, viewer, weekNumber, withOwn: true, now });
+      : await loadNamedReflections(db, { run, group, model, viewer, weekNumber, withOwn: true });
 
   const lead = viewer === "lead" ? { firstName: "", isReader: true } : programme?.leadFirstName ? { firstName: programme.leadFirstName, isReader: false } : null;
 
@@ -105,7 +109,7 @@ export default async function LeadGroupReflectionsPage({
       {week === null ? (
         <p className={weekly.cardLine}>{NO_REFLECTIONS}</p>
       ) : (
-        <ReadOutView prompts={week.prompts} tonight={false} readOut={false} own={week.own} ownLine={facilitatorsOwnLine(lead)} />
+        <NamedReflections prompts={week.prompts} ownLine={facilitatorsOwnLine(lead)} />
       )}
     </div>
   );

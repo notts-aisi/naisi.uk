@@ -1,0 +1,145 @@
+/* A group's reflections for one week, read with names: every prompt in turn,
+   each answer under its writer's whole name. The lead's page and the group's
+   facilitators' page draw it. */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8, 2rem);
+  max-width: 48rem;
+  min-width: 0;
+}
+
+.ownLine {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.prompt {
+  min-width: 0;
+}
+
+.part {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  line-height: 1.3;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.question {
+  margin: 8px 0 0;
+  font-size: 1.125rem;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--color-text);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+.answers {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.answer {
+  min-width: 0;
+  padding: 14px 18px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-sizing: border-box;
+}
+
+.answerHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.when {
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.text {
+  margin: 8px 0 0;
+  font-size: var(--text-base);
+  line-height: 1.55;
+  color: var(--color-text);
+  text-wrap: pretty;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.own {
+  margin-top: 16px;
+}
+
+.ownTitle {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* The way between the page with names and the page to read lines out. */
+.switchLine {
+  margin: 0 0 24px;
+  max-width: 48rem;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.switchFoot {
+  margin: 24px 0 0;
+}
+
+/* Under the sentence, the way to the page without names sits on a line of its own. */
+.switchLine .switchLink {
+  display: flex;
+  width: fit-content;
+}
+
+.switchLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 48rem) {
+  .list {
+    gap: var(--space-6, 1.5rem);
+  }
+
+  .answer {
+    padding: 12px 14px 14px;
+  }
+}

@@ -248,8 +248,9 @@ describe("the programme's head", () => {
     // the run's plan has: the incubator's run has seven. Groups counts the
     // run's groups that still meet, the head's "in 2 groups" (walk 4b, L10).
     // CHANGED ON PURPOSE (board sv-programme): Surveys sits between Messages
-    // and Settings.
-    assert.match(lead.text, /Overview Interest Applications 0 People 0 Groups 2 Teams 2 Weeks 7 Attendance Messages Surveys Settings/);
+    // and Settings. CHANGED ON PURPOSE (Zach, Fri 30 Oct): Coursework sits
+    // between Attendance and Messages.
+    assert.match(lead.text, /Overview Interest Applications 0 People 0 Groups 2 Teams 2 Weeks 7 Attendance Coursework Messages Surveys Settings/);
   });
 
   test("a reviewer sees the tab drawn and not a link", async () => {

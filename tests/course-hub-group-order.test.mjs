@@ -54,6 +54,15 @@ const COMPARATOR_HOME = "src/lib/firestore/courseGroups.ts";
  */
 const READS_WITHOUT_A_LIST = new Map([
   [
+    "src/lib/courses/coursework/gather.ts",
+    {
+      why:
+        "Claude and Pangram on coursework read the run's live groups only to know who facilitates (whose own work is " +
+        "left out of the best answers) and which group's copy of a week each person reads: maps by id, never a list of " +
+        "groups on any page.",
+    },
+  ],
+  [
     "src/lib/courses/fillInBoxes/access.ts",
     {
       why:
@@ -187,6 +196,11 @@ const READS_WITHOUT_A_LIST = new Map([
 /** Modules the walk reaches that fetch an address it cannot read, each with what they fetch and why it lists no run's groups. */
 const FETCHES_IT_CANNOT_READ = new Map([
   [
+    "src/features/admin/memberNotes/PersonNotes.tsx",
+    "The notes admins keep about one person, at the notes route under the member address it builds from the " +
+      "person's id: it draws notes and the runs a note may come from by name, and no group.",
+  ],
+  [
     "src/features/applications/intake/PlacementBox.tsx",
     "One person's Placement box, at the placement route under the form address it is handed: it draws " +
       "programmes in the order the person ranked them, and no group.",
@@ -222,6 +236,17 @@ const FETCHES_IT_CANNOT_READ = new Map([
     "src/features/applications/review/AssessmentBlock.tsx",
     "An admin's Claude and Pangram block on one application, at that application's assessment route under the " +
       "form's API base it is handed: one application's reads, never a run's groups.",
+  ],
+  [
+    "src/features/courses/courseworkClaude/BestAnswersPanel.tsx",
+    "Claude's best answers to one week under the Coursework tab, at the best answers route under the programme " +
+      "address it builds and asked again with that same address: it draws the week's questions and the people " +
+      "picked for each, and no group.",
+  ],
+  [
+    "src/features/courses/courseworkClaude/PangramPanel.tsx",
+    "An admin's Pangram on one person's page on the Coursework tab, at that person's Pangram route under the " +
+      "programme address it builds: their answers with each reading, and no group.",
   ],
   [
     "src/features/courses/WeekBlocksLoader.tsx",

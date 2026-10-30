@@ -32,6 +32,8 @@ import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
 import { PLACEMENT_NOTES_COLLECTION } from "@/lib/courses/placementNotes/model";
+import { MEMBER_NOTES_COLLECTION } from "@/lib/memberNotes/model";
+import { BEST_ANSWERS_COLLECTION, PANGRAM_CHECKS_COLLECTION } from "@/lib/courses/coursework/collections";
 import {
   MEMBER_RECORDS_COLLECTION,
   MEMBER_RECORD_APPLICATIONS,
@@ -262,6 +264,26 @@ export type AccountDeletionSummary = {
    */
   memberRecordApplicationsRetained: number;
   conductFlagDeleted: boolean;
+  /**
+   * The notes admins kept about this account (`memberNotes`, privacy v13).
+   * Deleted: each is about this account alone. A note this account WROTE
+   * about somebody else stays with that person, and no longer names its
+   * author, because the name is looked up when the note is read.
+   */
+  memberNotesDeleted: number;
+  /**
+   * Pangram's readings of this account's coursework (`coursePangramChecks`,
+   * privacy v13), one record per run. Deleted: each is about this account
+   * alone.
+   */
+  coursePangramChecksDeleted: number;
+  /**
+   * Claude's best answers (`courseBestAnswers`, privacy v13) that picked or
+   * numbered this account: each is a week of a run, about everybody on it,
+   * so it stays, and this account is taken out of it (its picks, its label
+   * and its account id). Counted once per document.
+   */
+  courseBestAnswersCleared: number;
   authDeleted: boolean;
   /** Set when the teardown was not fully clean (a best-effort step failed, or the
    *  Auth account could not be deleted). Routes return 207 when this is present. */
@@ -730,6 +752,43 @@ export async function deleteCourseGroupNotes(db: Firestore, uid: string): Promis
  */
 export async function deleteCourseGroupSharedNotes(db: Firestore, uid: string): Promise<number> {
   return deleteOwnedCourseRows(db, COURSE_GROUP_SHARED_NOTES_COLLECTION, uid, "authorUid");
+}
+
+/**
+ * Delete every note admins kept about this account (`memberNotes`, privacy
+ * v13), a page at a time. Found by the one equality on `uid`, the person a
+ * note is about; a note this account wrote about somebody else names it only
+ * as `authorUid` and is not touched.
+ */
+export async function deleteMemberNotes(db: Firestore, uid: string): Promise<number> {
+  return deleteOwnedCourseRows(db, MEMBER_NOTES_COLLECTION, uid);
+}
+
+/**
+ * Take this account out of every week of Claude's best answers that numbered
+ * it (`courseBestAnswers`, privacy v13): its picks, its label and its account
+ * id, found by the one `array-contains` on `uids`. The rest of each week
+ * stays for everybody else on the run; a reason that named this account's
+ * label then reads "a fellow" on the screen.
+ */
+export async function clearBestAnswerPicks(db: Firestore, uid: string): Promise<number> {
+  const snap = await db.collection(BEST_ANSWERS_COLLECTION).where("uids", "array-contains", uid).get();
+  let cleared = 0;
+  for (const doc of snap.docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    const questions = Array.isArray(data.questions) ? (data.questions as Array<Record<string, unknown>>) : [];
+    const labels = data.labels && typeof data.labels === "object" ? (data.labels as Record<string, unknown>) : {};
+    await doc.ref.update({
+      questions: questions.map((question) => ({
+        ...question,
+        picks: (Array.isArray(question.picks) ? (question.picks as Array<Record<string, unknown>>) : []).filter((pick) => pick.uid !== uid),
+      })),
+      labels: Object.fromEntries(Object.entries(labels).filter(([, value]) => value !== uid)),
+      uids: FieldValue.arrayRemove(uid),
+    });
+    cleared += 1;
+  }
+  return cleared;
 }
 
 /**
@@ -1387,6 +1446,9 @@ export async function deleteAccountCascade(
     worksheetResponsesRetained: 0,
     memberRecordApplicationsRetained: 0,
     conductFlagDeleted: false,
+    memberNotesDeleted: 0,
+    coursePangramChecksDeleted: 0,
+    courseBestAnswersCleared: 0,
     authDeleted: false,
   };
   // Tracks whether any best-effort step (2-5) failed after attempting, so we can
@@ -1849,6 +1911,32 @@ export async function deleteAccountCascade(
     summary.coursePredictionsDeleted = await deleteCoursePredictions(db, uid);
   } catch (err) {
     console.error("[deleteAccount] coursePredictions delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c. NOTES ADMINS KEEP, AND CLAUDE AND PANGRAM ON COURSEWORK (privacy
+  //      v13). The notes about this account are about it alone, found by the
+  //      one equality on `uid`; a note it WROTE about somebody else is that
+  //      person's and stays, no longer naming its author. Pangram's readings
+  //      of its coursework are about it alone, one record per run, and go.
+  //      Claude's best answers to a week are about everybody on the run, so
+  //      they stay without this account in them (its picks, label and id).
+  try {
+    summary.memberNotesDeleted = await deleteMemberNotes(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] memberNotes delete failed:", uid, err);
+    partialFailure = true;
+  }
+  try {
+    summary.coursePangramChecksDeleted = await deleteOwnedCourseRows(db, PANGRAM_CHECKS_COLLECTION, uid);
+  } catch (err) {
+    console.error("[deleteAccount] coursePangramChecks delete failed:", uid, err);
+    partialFailure = true;
+  }
+  try {
+    summary.courseBestAnswersCleared = await clearBestAnswerPicks(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseBestAnswers clear failed:", uid, err);
     partialFailure = true;
   }
 

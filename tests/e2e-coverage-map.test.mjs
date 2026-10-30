@@ -1598,12 +1598,6 @@ const NOT_COVERED = {
     coverWhen:
       "When a permission grant is next handed to somebody other than the admin who makes it.",
   },
-  "/(app)/admin/(admin-only)/members/[uid]": {
-    reason:
-      "One person's admin page is used by one admin: role changes, permission grants, the view-as button and deleting an account, each read back on the same page.",
-    coverWhen:
-      "When a permission grant is next handed to somebody other than the admin who makes it.",
-  },
   "/(app)/admin/(admin-only)/newsletter": {
     reason:
       "Newsletter: /(app)/admin/(admin-only)/newsletter is used by two people deliberately, and the result is read back on the page they are looking at.",
@@ -1735,18 +1729,6 @@ const NOT_COVERED = {
       "Course hub: the programme's lead's way to the review page, where a facilitator's own answer gets feedback; drawn as the lead, another programme's lead and somebody signed out in tests/course-hub-written-answers.test.mjs.",
     coverWhen:
       "When a browser spec signs in as the programme's lead and gives feedback on a facilitator's own answer.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications/[uid]": {
-    reason:
-      "Application review: the review screen is reached from the list only, and was checked by hand at 1440 and 390 as a lead, a reviewer and an admin, keyboard included.",
-    coverWhen:
-      "When the end-to-end fixtures can seed an application form with a sent application for a lead to score and decide.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections": {
-    reason:
-      "Course hub: the lead's and admins' reading of one group's reflections, its facilitators' own under their names; every caller is executed by tests/course-hub-facilitator-week.test.mjs, and it was checked in a browser on the preview kit at 1440 and 390.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a run whose weeks are written as blocks, with reflections written, and the programme's lead signed in.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week": {
     reason:
@@ -1925,12 +1907,6 @@ const NOT_COVERED = {
       "Learn hub: /(app)/learn/[runId]/group/[groupId]/email is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
     coverWhen:
       "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
-  },
-  "/(app)/learn/[runId]/group/[groupId]/reflections": {
-    reason:
-      "Course hub: the page where a group's facilitators pick reflections to read out without names (wk-reflections); every caller is executed by tests/course-hub-facilitator-week.test.mjs, and it was checked in a browser on the preview kit at 1440 and 390.",
-    coverWhen:
-      "When the end-to-end fixtures can seed a run whose weeks are written as blocks, with reflections written, and a group's facilitator signed in.",
   },
   "/(app)/learn/[runId]/group/[groupId]/ratings": {
     reason:

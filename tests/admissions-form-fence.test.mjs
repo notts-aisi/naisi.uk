@@ -381,6 +381,18 @@ const ROUND_SURFACES = {
       "one programme's Groups tab, its Facilitators view. It reaches the round only through loadProgrammeRun, which " +
       "starts from the form's own loader and answers 'none' for a round that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/coursework": {
+    kind: "form",
+    why:
+      "the programme's Coursework tab, for its lead and admins. It reaches the round only through loadProgrammeRun, " +
+      "which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]": {
+    kind: "form",
+    why:
+      "one person's coursework on the programme, for its lead and admins. It reaches the round only through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections": {
     kind: "form",
     why:
@@ -669,6 +681,25 @@ const ROUND_SURFACES = {
       "an admin asks for an arrangement of a programme's people into groups through " +
       "loadArranging, which starts from the form's own loader and answers 404 for a round " +
       "that is not a form, before anybody's application is read",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers": {
+    kind: "form",
+    why:
+      "Claude's best answers to a week of the programme's run, through openCourseworkDoor, which starts from " +
+      "loadProgrammeRun and the form's own loader and answers 'none' (a 404) for a round that is not a form, " +
+      "before anybody's coursework is read",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/pangram": {
+    kind: "form",
+    why:
+      "who a week's Pangram check would send, an admin's alone, through openCourseworkDoor, which answers " +
+      "'none' (a 404) for a round that is not a form before anybody's coursework is read",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]/pangram": {
+    kind: "form",
+    why:
+      "Pangram's readings of one person's coursework, an admin's alone, through openCourseworkDoor, which " +
+      "answers 'none' (a 404) for a round that is not a form before their coursework is read",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
     kind: "form",

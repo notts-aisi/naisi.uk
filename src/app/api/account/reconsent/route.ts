@@ -4,6 +4,7 @@ import { getAdminAuth, getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { clearSessionCookieOnly, getSessionUid } from "@/lib/firebase/session";
 import { deleteAccountCascade } from "@/lib/firestore/accountDeletion";
+import { courseworkUseStampFor } from "@/lib/legal/courseworkUseStamp";
 import { CURRENT_POLICY_VERSION } from "@/lib/legal/policies";
 
 /**
@@ -11,7 +12,9 @@ import { CURRENT_POLICY_VERSION } from "@/lib/legal/policies";
  * policies (we re-stamp their accepted version + timestamp on their own doc) or
  * DECLINES.
  *
- *  - accept → stamp { policyVersion: CURRENT_POLICY_VERSION, policyAgreedAt }.
+ *  - accept → stamp { policyVersion: CURRENT_POLICY_VERSION, policyAgreedAt },
+ *             and for a member, the first time the version agreed to is
+ *             privacy v13 or later, `courseworkUseAgreedAt` with it.
  *  - delete → tear the account down via the shared cascade, but ONLY for
  *             collaborators and unfinished accounts. A FINISHED member is
  *             refused (409): declining members are signed out and asked to
@@ -75,7 +78,18 @@ export async function POST(req: Request) {
     };
     try {
       if (isMember) {
-        await db.collection("users").doc(uid).update(stamp);
+        // In one transaction with the account as it stands, so the moment of a
+        // FIRST agreement to privacy v13 or later is kept once, with the same
+        // server time as the agreement, and never moved by a later one
+        // (src/lib/legal/courseworkUse.ts).
+        const ref = db.collection("users").doc(uid);
+        await db.runTransaction(async (tx) => {
+          const snap = await tx.get(ref);
+          tx.update(ref, {
+            ...stamp,
+            ...courseworkUseStampFor(snap.exists ? (snap.data() ?? {}) : null, CURRENT_POLICY_VERSION),
+          });
+        });
       } else if (collabDoc) {
         await collabDoc.ref.update(stamp);
       } else {
