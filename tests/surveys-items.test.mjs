@@ -214,8 +214,11 @@ describe("the before survey, word for word (the questionnaire's P3 to P7 and C1 
     assert.equal(TEMPLATE.at(-1), consent, "the consent closes the survey, where a second box can go beside it");
   });
 
-  test("nothing is required, and it is valid", () => {
-    assert.ok(questions.every((each) => each.required !== true));
+  test("every question is required (none of the before survey's is on the not-for-everybody list), and it is valid", () => {
+    // Zach, 30 Oct 2026: required unless marked optional. The walk of every
+    // template is tests/surveys-required.test.mjs; here, the before survey.
+    assert.ok(questions.length > 0 && questions.every((each) => items.isQuestionRequired(each)));
+    assert.deepEqual(items.missingRequired(TEMPLATE, {}), questions.map((each) => each.id));
     assert.deepEqual(items.validateSurveyItems(TEMPLATE), []);
   });
 });
@@ -504,9 +507,14 @@ describe("the item model, on Worksheets' parts", () => {
   });
 
   test("the validator names what a survey cannot ask", () => {
+    // Worksheets' `required` no longer means anything to a survey, so it is
+    // refused only where it contradicts the question's own switch.
     const required = structuredClone(TEMPLATE);
-    required.find((item) => item.id === "q_a1" || item.id === "q_c3").required = true;
-    assert.match(items.validateSurveyItems(required)[0].message, /can be skipped/);
+    const c3 = required.find((item) => item.id === "q_c3");
+    c3.required = true;
+    assert.deepEqual(items.validateSurveyItems(required), [], "required beside required is no problem");
+    c3.optional = true;
+    assert.deepEqual(items.validateSurveyItems(required), [{ itemId: "q_c3", message: items.REQUIRED_CONTRADICTION }]);
     const poll = [{ kind: "question", id: "p", type: "poll", title: "Poll", body: [], required: false, options: [{ id: "a", label: "A" }, { id: "b", label: "B" }], poll: { resultsVisibility: "staff" } }];
     assert.ok(items.validateSurveyItems(poll).some((problem) => /can’t ask this kind/.test(problem.message)));
     const blankLine = structuredClone(TEMPLATE);
@@ -887,8 +895,10 @@ describe("the survey's own questions: what the editor's save is refused", () => 
     assert.ok(broken("q_likely", (q) => (q.hint = "x".repeat(301))).some((m) => /line under this question/.test(m)));
   });
 
-  test("none of them can be required, and a consent box is no question", () => {
-    assert.ok(broken("q_stage", (q) => (q.required = true)).includes("Every question in a survey can be skipped, so none is required."));
+  test("Worksheets' required field is refused only where it contradicts the switch, and a consent box is no question", () => {
+    assert.deepEqual(broken("q_stage", (q) => (q.required = true)), []);
+    assert.ok(broken("q_stage", (q) => Object.assign(q, { required: true, optional: true })).includes(items.REQUIRED_CONTRADICTION));
+    assert.equal(items.isQuestionRequired(KINDS.find((item) => item.kind === "consent")), false);
   });
 
   test("the same questions: a consent block counts, and its boxes too", () => {

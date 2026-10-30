@@ -16,8 +16,11 @@
  * the button, and the questions lock -> Ada, signed out, answers every kind
  * of question through her own link, the percentage by keyboard, and sends ->
  * her link then says she has answered, and she stops the follow-ups there ->
- * Ben answers from the card on Home, signed in, and the card goes -> Dan
- * answers signed in at the survey's address inside the programme -> the
+ * Ben answers from the card on Home, signed in, after Send has refused his
+ * last question left blank (every question needs an answer unless marked
+ * optional), and the card goes -> Dan answers signed in at the survey's
+ * address inside the programme, after Next has refused a page with one left
+ * blank -> the
  * lead's results: totals with n and the response rate, the comments, and no
  * name -> Fern is refused the survey's pages and its download -> Who answered
  * names each person, and the download with names is that table, logged ->
@@ -127,7 +130,11 @@ const BEFORE = Object.freeze({
 const PAGE = Object.freeze({
   bar: "Survey",
   eyebrow: (programme) => `Fellowship: ${programme} · Week 1`,
-  skippable: "Every question can be skipped.",
+  // Zach, 30 Oct 2026: every question needs an answer unless it is marked
+  // optional, and the boxes asking permission are up to the person.
+  rule: "Every question needs an answer unless it’s marked optional. The boxes asking your permission are up to you.",
+  blank: "This question needs an answer.",
+  missing: (n) => `Question ${n} still needs an answer.`,
   pageOf: (n, of) => `Page ${n} of ${of}`,
   pickUpTo: (n) => `Pick up to ${n}`,
   next: "Next",
@@ -268,24 +275,53 @@ const ADA_SAYS = Object.freeze({
   q_p6: { write: "A reading habit that lasts past the last session." },
 });
 
-/** Ben, from the card on Home, skips most of it (every question can be skipped), 0 included as an answer. */
+/**
+ * Ben, from the card on Home, answers every question, as each needs an answer
+ * since 30 Oct 2026: 0 and "None of these" count as answers. He first leaves
+ * the last one blank and presses Send, which says so beside it and sends
+ * nothing (`BEN_BLANK`).
+ */
 const BEN_SAYS = Object.freeze({
+  q_p3_level: { menu: "Undergraduate, first year" },
+  q_p3_subject: { menu: "Computer science" },
+  q_p4: { tick: ["None of these"] },
+  q_p5: { tick: ["Friend"] },
   q_c1: { pick: "Thought about it, not a serious option" },
   q_c2: { type: "10" },
   q_c3: { tick: ["Engineering"] },
+  q_c4: { point: 2 },
+  q_c5: { point: 1 },
   q_c6: { type: "0" },
+  q_c7: { lines: { l_next: 2, l_contribute: 2 } },
+  q_c8: { tick: ["Nothing major"] },
+  q_c9: { tick: ["None of these"] },
   q_p6: { write: "Somebody to argue with about the arguments." },
 });
+const BEN_BLANK = "q_p6";
 
-/** Dan, signed in inside the programme, answers some, one line of the grid, and ticks the follow-ups box. */
+/**
+ * Dan, signed in inside the programme, answers every question, both lines of
+ * the grid among them, and ticks the follow-ups box. He first leaves the
+ * subject blank and presses Next, which keeps him on the page and says so
+ * beside it (`DAN_BLANK`).
+ */
 const DAN_SAYS = Object.freeze({
   q_p3_level: { menu: "Master’s" },
+  q_p3_subject: { menu: "Maths" },
+  q_p4: { tick: ["ML research or coursework"] },
+  q_p5: { tick: ["Lecturer or module"] },
   q_c1: { pick: "My leading plan, no concrete steps yet" },
   q_c2: { type: "70" },
+  q_c3: { tick: ["Technical research"] },
   q_c4: { point: 6 },
-  q_c7: { lines: { l_next: 5 } },
+  q_c5: { point: 4 },
+  q_c6: { type: "3" },
+  q_c7: { lines: { l_next: 5, l_contribute: 4 } },
+  q_c8: { tick: ["Technical skills", "Research experience"] },
+  q_c9: { tick: ["Had a 1:1 with someone in the field"] },
   q_p6: { write: "A way in that suits a maths student." },
 });
+const DAN_BLANK = "q_p3_subject";
 
 // ---------------------------------------------------------------------------
 // Dates, restated
@@ -844,16 +880,16 @@ test(
 
     /**
      * The answer page's head and box, read whole: the programme and week, the
-     * title and intro, that every question can be skipped, and the box with
-     * whom it names.
+     * title and intro, that every question needs an answer unless it is
+     * marked optional, and the box with whom it names.
      */
     async function readSurveyHead(pg, saved, { facilitators }) {
       await pg.getByRole("heading", { level: 1, name: saved.title, exact: true }).waitFor({ timeout: WAIT_MS });
       const head = await textsOf(pg.locator("main header p"));
       assert.deepEqual(
         head,
-        [PAGE.eyebrow(state.programmeName), ...saved.intro.split(/\n\s*\n/).map(flat), PAGE.skippable],
-        "the survey's head is not the programme and week, the intro as saved, and that every question can be skipped",
+        [PAGE.eyebrow(state.programmeName), ...saved.intro.split(/\n\s*\n/).map(flat), PAGE.rule],
+        "the survey's head is not the programme and week, the intro as saved, and that every question needs an answer unless marked optional",
       );
       const box = pg.getByRole("region", { name: BOX_HEADING, exact: true });
       assert.deepEqual(await textsOf(box.getByRole("listitem")), boxPoints({ facilitators, namesOff: namesOffWords }), "the confidential box's points");
@@ -865,8 +901,34 @@ test(
      * named by its heading and its place ("Page 2 of 5"), only its own
      * questions shown, Next between them; the follow-ups box ticked or not;
      * the Kairos box read and left as it was. Hands back what the press sent.
+     *
+     * `blank` is a question first left blank: its page's Next (or, on the
+     * last page, Send) is pressed with it blank, which keeps the person
+     * there, says so beside it and by the buttons, moves focus into it and
+     * sends nothing; then it is answered and the marker goes.
      */
-    async function answerSurvey(pg, saved, does, { followUps, sendsTo }) {
+    async function answerSurvey(pg, saved, does, { followUps, sendsTo, blank = null }) {
+      const numbers = new Map(questionsOf(saved.items).map((question, index) => [question.id, index + 1]));
+      let sentEarly = 0;
+      const counting = (request) => {
+        if (new URL(request.url()).pathname === sendsTo && request.method() === "POST") sentEarly += 1;
+      };
+      /** The button pressed with `blank` left blank, its refusal read, then the question answered. */
+      async function refusedThenAnswered(region, button, page, before) {
+        const question = page.questions.find((each) => each.id === blank);
+        const group = questionGroup(pg, question);
+        pg.on("request", counting);
+        await button.click();
+        await group.getByText(PAGE.blank, { exact: true }).waitFor({ timeout: WAIT_MS });
+        await region.getByRole("alert").filter({ hasText: PAGE.missing(numbers.get(blank)) }).waitFor({ timeout: WAIT_MS });
+        await waitFor(`focus to move into ${blank}`, async () => group.evaluate((el) => el.contains(document.activeElement)));
+        assert.equal(await region.isVisible(), true, "a page with a required question blank was left");
+        pg.off("request", counting);
+        assert.equal(sentEarly, 0, "answers with a required question blank were sent");
+        const last = await answerQuestion(pg, question, does[blank], before);
+        await waitFor(`${blank}'s marker to go once it is answered`, async () => (await group.getByText(PAGE.blank, { exact: true }).count()) === 0);
+        return last;
+      }
       // The page is live once its script has drawn Next: until then every page shows at once.
       await whenEnabled(pg.getByRole("button", { name: PAGE.next, exact: true }), "Next");
       const pages = pagesOf(saved.items);
@@ -878,10 +940,13 @@ test(
         await region.getByText(PAGE.pageOf(index + 1, pages.length), { exact: true }).waitFor({ timeout: WAIT_MS });
         for (const question of page.questions) {
           await questionGroup(pg, question).waitFor({ timeout: WAIT_MS });
-          if (does[question.id]) before = await answerQuestion(pg, question, does[question.id], before);
+          if (does[question.id] && question.id !== blank) before = await answerQuestion(pg, question, does[question.id], before);
         }
+        const here = page.questions.some((question) => question.id === blank);
         if (index < pages.length - 1) {
-          await region.getByRole("button", { name: PAGE.next, exact: true }).click();
+          const next = region.getByRole("button", { name: PAGE.next, exact: true });
+          if (here) before = await refusedThenAnswered(region, next, page, before);
+          await next.click();
           continue;
         }
         // The last page: the follow-ups box, the Kairos choice, and the closing line.
@@ -897,6 +962,7 @@ test(
         assert.equal(await kairos.getByRole("checkbox", { name: KAIROS.box, exact: true }).isChecked(), false, "the Kairos box starts ticked for somebody whose record says nothing");
         await region.getByText(PAGE.closing(closesDay), { exact: true }).waitFor({ timeout: WAIT_MS });
         const send = await whenEnabled(region.getByRole("button", { name: PAGE.send, exact: true }), PAGE.send);
+        if (here) before = await refusedThenAnswered(region, send, page, before);
         const [request, response] = await Promise.all([
           pg.waitForRequest((r) => new URL(r.url()).pathname === sendsTo && r.method() === "POST", { timeout: WAIT_MS }),
           responseTo(pg, sendsTo, "POST"),
@@ -1307,7 +1373,13 @@ test(
           await readSurveyHead(testPage, saved, { facilitators: null });
           await whenEnabled(testPage.getByRole("button", { name: PAGE.next, exact: true }), PAGE.next);
           const pages = pagesOf(saved.items);
+          let before = null;
           for (let n = 1; n < pages.length; n += 1) {
+            // Next holds a page with a required question blank on a test link as on a real one, so
+            // the admin answers each page as Dan does before moving on.
+            for (const question of pages[n - 1].questions) {
+              if (DAN_SAYS[question.id]) before = await answerQuestion(testPage, question, DAN_SAYS[question.id], before);
+            }
             await testPage.getByRole("region", { name: pages[n - 1].heading, exact: true }).getByRole("button", { name: PAGE.next, exact: true }).click();
           }
           const last = testPage.getByRole("region", { name: pages[pages.length - 1].heading, exact: true });
@@ -1514,11 +1586,12 @@ test(
 
         await Promise.all([benPage.waitForURL(`${origin}${linkOf.get("ben")}`, { timeout: WAIT_MS }), answer.click()]);
         await readSurveyHead(benPage, now, { facilitators: [fern.first] });
-        const sent = await answerSurvey(benPage, now, BEN_SAYS, { followUps: false, sendsTo: "/api/surveys/answer" });
+        const sent = await answerSurvey(benPage, now, BEN_SAYS, { followUps: false, sendsTo: "/api/surveys/answer", blank: BEN_BLANK });
         const expected = expectedAnswers(now, BEN_SAYS);
         assert.deepEqual(Object.keys(sent).sort(), ["answers", "consents", "token"], "the page sent more than the answers, the box and the link");
         assert.equal(sent.token, linkOf.get("ben").slice("/survey/".length), "the page sent another person's link");
-        assert.deepEqual(comparable(sent.answers), expected, "the answers the page sent, every one skipped left out");
+        assert.equal(Object.keys(expected).length, BEFORE.questions, "Ben's plan leaves a question blank");
+        assert.deepEqual(comparable(sent.answers), expected, "the answers the page sent");
         assert.deepEqual(sent.consents, { followUps: false }, "a box left unticked was not sent as a no");
         keptFor.set("ben", expected);
         const kept = (await answersOfSurvey()).get(ben.uid);
@@ -1549,8 +1622,9 @@ test(
           `/learn/${enc(state.runId)}`,
           "the signed-in survey's way back is not the programme's page",
         );
-        const sent = await answerSurvey(danPage, now, DAN_SAYS, { followUps: true, sendsTo: `/api/surveys/${surveyId}/answer` });
+        const sent = await answerSurvey(danPage, now, DAN_SAYS, { followUps: true, sendsTo: `/api/surveys/${surveyId}/answer`, blank: DAN_BLANK });
         const expected = expectedAnswers(now, DAN_SAYS);
+        assert.equal(Object.keys(expected).length, BEFORE.questions, "Dan's plan leaves a question blank");
         // Signed in, the session says who: the request carries no link.
         assert.deepEqual(Object.keys(sent).sort(), ["answers", "consents"], "the signed-in page sent a link, or the Kairos box it never touched");
         assert.deepEqual(comparable(sent.answers), expected, "the answers the page sent");

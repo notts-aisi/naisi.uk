@@ -16,6 +16,7 @@ import {
 import { writeKairosChoice } from "@/lib/kairos/choice";
 import { KAIROS_REFUSAL } from "@/lib/kairos/words";
 import { consentsAskedOf } from "./consent";
+import { blankRefusal } from "./blank";
 import { readSurveyAnswers, readSurveyConsents, withoutLines, type SurveyConsentPurpose } from "./items";
 import { groupHasMet, hiddenLinesFor, toldGroupOf } from "./personFacts";
 import { isOpen } from "./repo";
@@ -23,6 +24,10 @@ import { REFUSAL } from "./words";
 
 /**
  * "SEND MY ANSWERS": one person's answers, kept once.
+ *
+ * EVERY REQUIRED QUESTION ANSWERED (`missingRequired`): a send with one left
+ * blank is refused whole, naming them, before anything is written. A consent
+ * box, the Kairos box and the quote tick are never required.
  *
  * Nothing is kept before this: no draft, no record of the survey being opened,
  * nothing about how long somebody spent. What is kept is the answers, the
@@ -49,7 +54,11 @@ import { REFUSAL } from "./words";
  * so leaving it as it was writes nothing.
  */
 
-export type AnswerOutcome = { ok: true } | { ok: false; status: number; error: string };
+/**
+ * A refusal, with the ids of the required questions left blank when that is
+ * why (`missing`, in the survey's order), so the form can say so beside each.
+ */
+export type AnswerOutcome = { ok: true } | { ok: false; status: number; error: string; missing?: string[] };
 
 export async function recordAnswer(
   db: Firestore,
@@ -84,7 +93,11 @@ export async function recordAnswer(
   // Only the lines this person was shown: the Facilitator line is not shown to
   // somebody who facilitates a group of the run, and a line they were not
   // shown says nothing for them.
-  const answers = withoutLines(read.answers, await hiddenLinesFor(db, survey, person.respondent.uid));
+  const hidden = await hiddenLinesFor(db, survey, person.respondent.uid);
+  const answers = withoutLines(read.answers, hidden);
+  // Every required question answered (Zach, 30 Oct 2026), or nothing is kept.
+  const blank = blankRefusal(survey.items, answers, hidden);
+  if (blank) return blank;
   const kairos = input.kairos;
   if (kairos !== undefined && typeof kairos !== "boolean") return { ok: false, status: 400, error: REFUSAL.body };
   if (kairos !== undefined && !asksKairos(survey)) return { ok: false, status: 400, error: KAIROS_REFUSAL.notOnSurvey };

@@ -352,6 +352,19 @@ const docsUnder = (prefix) =>
 const surveyPeople = (id) => docsUnder("surveyPeople/").filter((row) => row.surveyId === id);
 const tokenOf = (id, uid) => surveyPeople(id).find((row) => row.respondent?.uid === uid)?.token ?? null;
 const choice = (optionId) => ({ type: "choice", optionId });
+/**
+ * Every question's Required switch turned off in the editor, as an admin may
+ * (Zach, 30 Oct 2026: required unless marked optional), so the journey's
+ * people answer only some questions, as they could when this walk was
+ * written; it is about the lead's journey, and the rule is held by
+ * tests/surveys-required.test.mjs and the answer routes' own suites.
+ */
+async function everyQuestionOptional(surveyId, closesOn) {
+  const stored = world.db.read(`surveys/${surveyId}`);
+  const items = stored.items.map((item) => (item.kind === "question" ? { ...item, optional: true } : item));
+  const saved = await call("zach", R.surveyQuestions.POST, { surveyId }, { body: { title: stored.title, intro: stored.intro, minutes: stored.minutes, closesOn, items } });
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+}
 const scale = (value) => ({ type: "scale", value });
 const words = (text, quote = false) => (quote ? { type: "text", text, quote: true } : { type: "text", text });
 
@@ -540,6 +553,7 @@ async function tellTheStory() {
   });
   const before = seen.surveyMade.body?.survey?.id ?? null;
   seen.beforeId = before;
+  await everyQuestionOptional(before, "2026-11-04");
   seen.sendDraft = await draw(P.surveySend, "zach", { surveyId: before });
   seen.surveyTested = await call("zach", R.surveyTest.POST, { surveyId: before }, { body: { email: "survey" } });
   seen.sendTested = await draw(P.surveySend, "zach", { surveyId: before });
@@ -558,6 +572,7 @@ async function tellTheStory() {
   at("2026-10-29T09:30:00Z");
   seen.leavingMade = await call("zach", R.surveys.POST, {}, { body: { roundId: ROUND, programmeId: AGI, stage: "leaving" } });
   seen.leavingId = seen.leavingMade.body?.survey?.id ?? null;
+  await everyQuestionOptional(seen.leavingId, null);
   seen.leavingOpened = await call("zach", R.surveyOpen.POST, { surveyId: seen.leavingId }, { body: {} });
   const leaving = seen.leavingId;
 
@@ -632,6 +647,7 @@ async function tellTheStory() {
   });
   const night = seen.eventSurveyMade.body?.survey?.id ?? null;
   seen.nightId = night;
+  await everyQuestionOptional(night, "2026-11-08");
   seen.doorCodeByIris = await call("iris", R.doorCode.POST, { id: EVENT_ID }, { body: {} });
   seen.doorCode = await call("sue", R.doorCode.POST, { id: EVENT_ID }, { body: {} });
   at("2026-11-01T14:05:00Z");
@@ -717,6 +733,7 @@ async function tellTheStory() {
   });
   const after = seen.afterMade.body?.survey?.id ?? null;
   seen.afterId = after;
+  await everyQuestionOptional(after, "2026-12-13");
   seen.afterTest = await call("zach", R.surveyTest.POST, { surveyId: after }, { body: { email: "survey" } });
   seen.afterWrongCount = await call("zach", R.surveySend.POST, { surveyId: after }, { body: { to: "everyone", emails: 0 } });
   world.mail.length = 0;

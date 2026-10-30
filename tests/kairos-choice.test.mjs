@@ -9,7 +9,9 @@
  * back; a member who holds no place; somebody signed out; a test link; and a
  * view-as session, which changes nothing.
  *
- * The world is `tests/lib/surveyWorld.mjs` (AGI Strategy on Thu 29 Oct 2026,
+ * The world is `tests/lib/surveyWorld.mjs` (AGI Strategy on Thu 29 Oct 2026;
+ * every send answers each required question plainly, `everyRequired`, as the
+ * answer routes insist since 30 Oct 2026,
  * week 1), with the profile page's browser-only neighbours stubbed. Run with
  * `npm test`.
  */
@@ -139,7 +141,7 @@ describe("every programme survey's form ends with the choice, starting where the
     clock(t);
     w.reset(surveySeed({ "kairosChoices/amara": said("amara", false) }));
     const before = await sentSurvey();
-    assert.equal((await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(before, "amara"), answers: {}, consents: { followUps: true } } })).status, 200);
+    assert.equal((await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(before, "amara"), answers: w.everyRequired(before), consents: { followUps: true } } })).status, 200);
     const after = await sentSurvey("after", 4);
     const six = await sentSurvey("followUp6", 1);
     for (const id of [after, six]) {
@@ -168,14 +170,14 @@ describe("the choice is kept with the answers, only when the person changed it",
     clock(t);
     w.reset(surveySeed());
     const id = await sentSurvey();
-    const amara = await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(id, "amara"), answers: {}, kairos: false } });
+    const amara = await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(id, "amara"), answers: w.everyRequired(id), kairos: false } });
     assert.equal(amara.status, 200, JSON.stringify(amara.body));
     const kept = choiceOf("amara");
     assert.equal(kept.uid, "amara");
     assert.equal(kept.shared, false);
     assert.equal(kept.via, "survey");
     assert.ok(kept.at, "when it was said is kept");
-    const bea = await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(id, "bea"), answers: {} } });
+    const bea = await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(id, "bea"), answers: w.everyRequired(id) } });
     assert.equal(bea.status, 200);
     assert.equal(choiceOf("bea"), undefined, "a fellow who kept the default has no record");
   });
@@ -185,7 +187,7 @@ describe("the choice is kept with the answers, only when the person changed it",
     w.reset(surveySeed());
     const id = await sentSurvey();
     const before = w.everything();
-    const refused = await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(id, "amara"), answers: {}, kairos: "no" } });
+    const refused = await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(id, "amara"), answers: w.everyRequired(id), kairos: "no" } });
     assert.equal(refused.status, 400);
     assert.equal(w.everything(), before, "a refused answer kept something");
   });
@@ -194,7 +196,7 @@ describe("the choice is kept with the answers, only when the person changed it",
     clock(t);
     w.reset(surveySeed({ "kairosChoices/amara": said("amara", false) }));
     const before = await sentSurvey();
-    const back = await call("amara", routes.answerSignedIn.POST, { surveyId: before }, { body: { answers: {}, kairos: true } });
+    const back = await call("amara", routes.answerSignedIn.POST, { surveyId: before }, { body: { answers: w.everyRequired(before), kairos: true } });
     assert.equal(back.status, 200, JSON.stringify(back.body));
     assert.equal(choiceOf("amara").shared, true, "the later word is the one kept");
     assert.equal(choiceOf("amara").via, "survey");
@@ -205,9 +207,9 @@ describe("the choice is kept with the answers, only when the person changed it",
     clock(t);
     w.reset(surveySeed());
     const id = await sentSurvey();
-    const viewAs = await call("amara", routes.answerSignedIn.POST, { surveyId: id }, { body: { answers: {}, kairos: false }, viewAs: true });
+    const viewAs = await call("amara", routes.answerSignedIn.POST, { surveyId: id }, { body: { answers: w.everyRequired(id), kairos: false }, viewAs: true });
     assert.equal(viewAs.status, 403);
-    const test = await call(null, routes.answerByLink.POST, {}, { body: { token: w.survey(id).testToken, answers: {}, kairos: false } });
+    const test = await call(null, routes.answerByLink.POST, {}, { body: { token: w.survey(id).testToken, answers: w.everyRequired(id), kairos: false } });
     assert.equal(test.status, 409);
     assert.equal(choiceOf("amara"), undefined);
   });

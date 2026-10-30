@@ -28,7 +28,18 @@ records), `src/app/api/surveys/` (the routes), `src/app/survey/[token]/` and
   The confidential box at the top of every survey says so, in sv-privacy's words.
   The one anonymous form on the site is not a survey and has no anonymous mode
   of one: it is the keep, change and drop form below, with its own records.
-- **Every question can be skipped.** No question is required.
+- **Every question needs an answer unless it is marked optional** (Zach, 30
+  Oct 2026), in every survey on the site, the ones already open included.
+  `isQuestionRequired` in `src/lib/surveys/items.ts` is the one rule: a
+  question's own `optional` wins (the editor's Required switch, below); with
+  none, a question is optional only when its id is on `NOT_FOR_EVERYBODY`,
+  the template text questions that do not apply to everybody, each with its
+  reason. Worksheets' `required` field is never read (every survey stored
+  before the rule carries `required: false`, which means nothing), so the
+  open surveys became required with no data migration. **Consent boxes are
+  never required** and have no switch: the follow-ups box, "Don’t share my
+  details with Kairos" and "You can quote this, without my name". Consent is
+  freely given.
 - **Nothing is kept before "Send my answers"**: no draft, no record of when the
   survey was opened or for how long, and no IP address, ever.
   `tests/surveys-no-tracking.test.mjs` walks every survey file for that.
@@ -92,6 +103,32 @@ P1 (the email registered with) and P2 (the programme) are not asked: the site
 knows both. The questionnaire's second opt-in, sharing with Kairos, is shared
 by default instead, with a way to say no at the end of every programme
 survey's form (see "The Kairos choice").
+
+**Optional by default: the questions that do not apply to everybody.** The
+site cannot show a question only to some people, so these template text
+questions start with their Required switch off (`NOT_FOR_EVERYBODY`; a
+survey made from a template writes `optional: true` on them, and nothing on
+the rest):
+
+| Id | Question | Why |
+| --- | --- | --- |
+| `q_i4_links` | Links to what your team produced | a team with nothing finished, or nothing public, has none |
+| `q_i4_when` | If nothing is finished yet, when do you expect it to be? | only for a team with nothing finished |
+| `q_f1_where` | The organisation or course | somebody doing independent work has none |
+| `q_f3` | What is that work? | only for somebody whose working time goes on AI safety |
+| `q_f4_applied` | Since the programme, which programmes or jobs have you applied to? | not everybody has applied |
+| `q_f4_accepted` | Which of those accepted you? | only for somebody who applied and was accepted |
+| `q_f7` | Anything else that happened partly because of NAISI? | a catch-all |
+| `q_ev_change` | Anything we should change? (after an event) | a catch-all |
+
+Every other question is required: every choice, scale, number, percentage and
+grid, and every text question anybody can answer ("What do you most want to
+get out of this programme?", "Did the programme have any negative effect on
+you or your plans?", "What would have helped you stay?"). An admin can turn
+any switch either way until the first send. `tests/surveys-required.test.mjs`
+walks every template both ways: every question not on the list is required,
+every listed one is a text question some template asks, and no consent box
+is ever required.
 
 **The ids are the pairing.** A question asked at more than one stage has the
 same id, type and option ids at every stage and in every programme (C1 is
@@ -254,7 +291,8 @@ own functions, with the questions Worksheets lacks defined beside them in
 ## The question types
 
 Every one is drawn phone first with real labelled form controls and targets
-of at least 44px, works before the page's script arrives, and can be skipped.
+of at least 44px, works before the page's script arrives, and needs an answer
+unless it is marked optional.
 
 | Kind | Stored as | Answer |
 | --- | --- | --- |
@@ -272,7 +310,20 @@ of at least 44px, works before the page's script arrives, and can be skipped.
 
 Any question may also carry a line under it (`hint`), the question it looks
 back on (`lookBackOf`, so results set a look-back beside what it looks back
-on) and an earlier answer of the person's own shown above it (`pipe`).
+on), an earlier answer of the person's own shown above it (`pipe`) and the
+editor's Required switch turned off or on (`optional`).
+
+**What answered means**, for a required question (`missingRequired` in
+`src/lib/surveys/items.ts`, which the answer form, both answer routes and the
+resend of blank questions all ask): a single choice, one option; pick any, at
+least one tick (a "none of these" counts; "which mattered most" is not
+needed); a scale, a percentage or a number, a value (0 counts); a text answer,
+something other than spaces; an agreement grid (every point has words), every
+line the person is shown; a grid of a programme's parts (words at its ends
+only, "How valuable was each part?"), any one line, since its own line says to
+leave a part blank you didn't have. A line somebody is not shown (the
+Facilitator line, to somebody who facilitates) is never needed. A menu offered
+from the profile counts once it holds an answer.
 
 **A consent box starts unticked**, and only a tick is a yes. When the answers
 are sent, each box's yes or no is written on the person's own row with when it
@@ -286,8 +337,13 @@ The menu starts on that answer and says so; the person can change it. Nothing
 else of the profile is read.
 
 **Until the first send** an admin may change the words, the options, the lines,
-the scale's words, the line under a question, the consent's words, the order,
-the title, the intro, the minutes and the closing day. Questions are never
+the scale's words, the line under a question, each question's Required switch,
+the consent's words, the order, the title, the intro, the minutes and the
+closing day. The switch writes `optional` on the question, true or false, so
+the admin's choice holds whatever the list says; the validator no longer
+refuses Worksheets' `required` and names only a contradiction (`required: true`
+on a question the survey holds optional). A sent survey's read-only list marks
+each optional question "(optional)". Questions are never
 added, taken out or retyped here (`sameQuestions`), and an answer that counts
 as a number is reworded, never added or taken out. **From the first send
 everything is fixed**: the email people got names the closing day, and the
@@ -375,10 +431,29 @@ sv-social-phone).
 One page, two doors: `/survey/<secret>` with no sign-in, and
 `/learn/<run>/survey/<survey>` signed in, the same page inside the programme.
 The cards on Home, My programmes, week 1 and the page that says somebody left
-link the first, the person's own link (see The cards). The page shows the programme, the title and intro, "Every question can be
-skipped.", the confidential box, the questions a page (a section) at a time
-with Back and Next, "Send my answers", and "It closes on Wed 4 Nov. Once sent,
-your answers can’t change."
+link the first, the person's own link (see The cards). The page shows the programme, the title and intro, "Every question
+needs an answer unless it’s marked optional." (followed by "The boxes asking
+your permission are up to you." on a form with a consent box, the Kairos box
+or the quote tick: `answerRuleWords`), the confidential box, the questions a
+page (a section) at a time with Back and Next, an optional question marked
+"(optional)", "Send my answers", and "It closes on Wed 4 Nov. Once sent, your
+answers can’t change."
+
+**A required question left blank.** Next does not leave a page with one, and
+Send does not send: each says "This question needs an answer." beside it (on
+every line for an agreement grid), a line by the buttons names them by number
+("Questions 3 and 7 still need an answer."), and focus moves to the first. The
+form checks with `missingOf` over each question's `need` (`requiredNeedOf`,
+built on the server for the person, hidden lines left out), the check the
+routes make. Before the script arrives the controls carry the browser's own
+`required` where the control allows it (a radio group, a menu, a typed box, a
+text box; never pick any, which has no "at least one", and never a consent
+box), and Send is disabled. **The server is the real check**: both answer
+writers (`recordAnswer`, and `recordEventAnswer` for a survey after an event)
+refuse a send with a required question blank, 400, before anything is
+written, with the questions by number in words and their ids in `missing`
+(`blankRefusal` in `src/lib/surveys/blank.ts`); the form marks those the same
+way.
 
 **The box** names the programme's lead (while they still stand as its lead) and
 the person's own group's facilitators, from records. A placement Publish has not
@@ -457,7 +532,7 @@ is no "then and now" page (Q47 A).
 Confidential, like every survey on the site (Zach: "to allow us to do better
 ... technically optional but we have good reason to ask"). One per programme,
 made by an admin from New survey's "Leaving a programme", from its own
-template (`templateItems("leaving", ...)`): three questions, about a minute,
+template (`templateItems("leaving", ...)`): three questions, all required, about a minute,
 written in the boards' voice for Zach to change before it is used. Its ids
 (`q_leave_why`, `q_leave_stay`, `q_leave_again`) are the same in every
 programme and are none of the stages', so leaving surveys compare with each
@@ -701,8 +776,10 @@ after an event `g_<signupId>` for a guest (`whoOf` and `subjectOf`).
   survey only.", "The after survey only." beside the change questions, the
   survey's name otherwise), a survey they were sent and did not answer said
   in a line. After an event, its one survey. Every question as the survey
-  holds it: its words, its line, its scale's words. A skipped question says
-  "No answer". The side column says when the name comes off (the surveys' own
+  holds it: its words, its line, its scale's words. A question left blank
+  says "No answer": an optional one, a part of a grid of parts, or any
+  question of answers sent before every question was required (30 Oct
+  2026). The side column says when the name comes off (the surveys' own
   `namesOffOn`) and who has opened these answers (the log, newest first). The
   head names their programme, their told group, and how many of the surveys
   they were on they answered ("Answered both").
@@ -835,7 +912,8 @@ with `isEventSurvey` and hand it over.
   programme code reads accounts only (`normalizeSurveyPerson`); the event code
   reads both (`normalizeEventPerson`).
 - **Made** from "After a social" (`events/template.ts`, five questions, about a
-  minute, fixed ids `q_ev_*`) for a published event that is coming up or no more
+  minute, fixed ids `q_ev_*`, every one required but "Anything we should
+  change?", which starts optional) for a published event that is coming up or no more
   than a week over, with who it emails and a closing day no earlier than the
   event's (`POST /api/surveys` with `template: "event"`). Names come off two
   years after the event (`eventNamesOffOn`), by the `surveys-names-off` job as
@@ -999,7 +1077,9 @@ survey has who came to send to. What it can rely on:
 ## The guards
 
 `tests/surveys-items.test.mjs` (the template word for word, the model, the box,
-both emails, totals), `tests/surveys-routes.test.mjs` (every route and page as
+both emails, totals), `tests/surveys-required.test.mjs` (required unless
+marked optional: the rule, every template walked both ways, what answered
+means for each type), `tests/surveys-routes.test.mjs` (every route and page as
 every kind of caller), `tests/surveys-deletion.test.mjs` (both cascades),
 `tests/surveys-no-tracking.test.mjs` (no activity, no address, no page that
 writes), `tests/surveys-quote-tick.test.mjs` (the box and the tick, one

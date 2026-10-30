@@ -1,13 +1,14 @@
 import type { WorksheetOption } from "@/lib/firestore/worksheets";
-import type {
-  SurveyAnchor,
-  SurveyChoiceQuestion,
-  SurveyConsentItem,
-  SurveyItem,
-  SurveyLinesQuestion,
-  SurveyNumberQuestion,
-  SurveyPercentQuestion,
-  SurveyScaleQuestion,
+import {
+  markNotForEverybody,
+  type SurveyAnchor,
+  type SurveyChoiceQuestion,
+  type SurveyConsentItem,
+  type SurveyItem,
+  type SurveyLinesQuestion,
+  type SurveyNumberQuestion,
+  type SurveyPercentQuestion,
+  type SurveyScaleQuestion,
 } from "./items";
 import { LEVEL_OPTION, SUBJECT_OPTION } from "./profileOffer";
 
@@ -29,8 +30,12 @@ import { LEVEL_OPTION, SUBJECT_OPTION } from "./profileOffer";
  *  - SAME WORDING EVERY TIME, except where the questionnaire says otherwise:
  *    "In the last 3 months" before becomes "Since the programme started" at
  *    the end.
- *  - NOTHING IS REQUIRED, and a consent box starts unticked. The survey at
- *    the end asks the follow-ups box again, of people the before survey
+ *  - EVERY QUESTION IS REQUIRED but the text questions that do not apply to
+ *    everybody (`NOT_FOR_EVERYBODY` in `./items`, one list), which a survey
+ *    made from here writes as optional (`markNotForEverybody`). Worksheets'
+ *    `required: false` below is that model's field and means nothing to a
+ *    survey. A consent box is never required and starts unticked. The survey
+ *    at the end asks the follow-ups box again, of people the before survey
  *    never asked.
  *
  * Pure: words and shapes only.
@@ -590,6 +595,10 @@ export const TEMPLATE_MEASURES: Record<string, string> = {
  * for every programme.
  */
 export function templateItems(stage: SurveyTemplate, programmeKind: "fellowship" | "incubator", strand: IncubatorStrand | null): SurveyItem[] {
+  return markNotForEverybody(stageItems(stage, programmeKind, strand));
+}
+
+function stageItems(stage: SurveyTemplate, programmeKind: "fellowship" | "incubator", strand: IncubatorStrand | null): SurveyItem[] {
   // An incubator's additions need its strand; a fellowship has none.
   const research: IncubatorStrand | null = programmeKind === "incubator" ? strand : null;
   const incubator = research !== null;

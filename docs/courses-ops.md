@@ -2831,9 +2831,10 @@ certificate was sent in error, and tell its owner.
 
 ## Claude and Pangram on coursework, and the notes admins keep
 
-Privacy policy version 13 (`src/content/legal/privacy/v13.tsx`) took back
-version 12's promise that nothing written in a course is used outside its
-programme, from its own agreement on. Three features rest on that, each an
+Privacy policy version 13 took back version 12's promise that nothing
+written in a course is used outside its programme, from its own agreement on,
+and the current policy (`src/content/legal/privacy/v14.tsx`) keeps those
+words. Three features rest on that, each an
 admin's press (the best answers also the programme's lead's), never
 automatic, all built like the applications' second reader
 (`docs/applications.md`, "Claude and Pangram"): labels to Claude, names put
