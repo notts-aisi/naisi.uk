@@ -23,8 +23,8 @@ export const NOTES_WORDS = {
       : `${count} earlier notes aren’t shown here: they were written before they agreed, so they stay with their own programmes.`,
   hiddenOnRun: (count: number) =>
     count === 1
-      ? "1 earlier note from another programme isn’t shown here."
-      : `${count} earlier notes from other programmes aren’t shown here.`,
+      ? "1 earlier note isn’t shown here: it wasn’t written from this programme."
+      : `${count} earlier notes aren’t shown here: they weren’t written from this programme.`,
 
   /** A note written before the agreement. */
   beforeFrom: (programme: string) =>

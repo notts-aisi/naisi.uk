@@ -13,7 +13,14 @@
  * sentence that says so; against a deployed target with a key, one press,
  * answered with a draft or one of the site's reasons, never Claude's words
  * asserted -> opens Ada's application, where only the note written after she
- * agreed shows, with its rule and the count of the earlier one.
+ * agreed shows, with its rule and the count of the earlier one -> names the
+ * running run on the programme's Settings tab -> reads, under the Coursework
+ * tab, Claude's best answers to week 3 (the panel the programme's lead reads)
+ * and Pangram's count before any press -> opens Ada's coursework page, where
+ * the column beside her weeks holds the notes written from this run with the
+ * earlier one held back, Claude's draft from this run, and Pangram with
+ * nothing of hers to send. Nothing on the tab or her page is pressed: neither
+ * Claude nor Pangram is sent a word by those steps.
  *
  * ## How to run it
  *
@@ -24,7 +31,8 @@
  *
  * ## The words it holds the pages to
  *
- * Restated from src/lib/memberNotes/words.ts, with their apostrophes. A
+ * Restated from src/lib/memberNotes/words.ts and
+ * src/lib/courses/coursework/claudeWords.ts, with their apostrophes. A
  * change to one of them changes this file in the same pull request.
  *
  * ## CHROMIUM ONLY
@@ -87,6 +95,12 @@ const WORDS = {
   remove: "Delete",
   draft: "Draft a note with Claude",
   cancel: "Cancel",
+  ruleRun: "Notes written after they agreed to version 13 of the privacy policy, and earlier notes written from this programme.",
+  hiddenOnRunOne: "1 earlier note isn’t shown here: it wasn’t written from this programme.",
+  bestOneSendable: "1 answer can be sent.",
+  pangramNotSetUp: "Pangram isn’t set up on this site yet.",
+  pangramNobodyThisWeek: "Nobody’s answers this week can be sent to Pangram.",
+  pangramTooShortOne: "1 answer is under 50 words and isn’t sent.",
 };
 
 /**
@@ -168,7 +182,8 @@ test(
     const ada = state.people[0];
     assert.ok(ada?.uid, "the term has nobody to keep notes about");
     const profileUrl = `${origin}/admin/members/${enc(ada.uid)}`;
-    const applicationUrl = `${origin}/admin/admissions/forms/${enc(state.formId)}/programmes/${enc(state.programmeId)}/applications/${enc(ada.uid)}`;
+    const formBase = `${origin}/admin/admissions/forms/${enc(state.formId)}/programmes/${enc(state.programmeId)}`;
+    const applicationUrl = `${formBase}/applications/${enc(ada.uid)}`;
 
     const { browser, context, page } = await openBrowser();
     const recorder = createStepRecorder({
@@ -280,6 +295,77 @@ test(
         assert.equal(await notes().getByText(EARLIER_NOTE).count(), 0, "a note written before the agreement shows beside the application");
         assert.ok(keptId, "no note was kept");
       });
+
+      await step("the admin names the running course run on the programme's Settings tab", async () => {
+        await page.goto(`${formBase}/setup`, { waitUntil: "domcontentloaded" });
+        const panel = page.getByRole("region", { name: "Course run" });
+        await panel.waitFor({ timeout: WAIT_MS });
+        const runBox = panel.getByLabel("Run", { exact: true });
+        await runBox.waitFor({ timeout: WAIT_MS });
+        const [response] = await Promise.all([
+          responseTo(`/programmes/${state.programmeId}/run`, "PUT"),
+          runBox.selectOption({ label: `${state.runLabel} · Running` }),
+        ]);
+        const body = await response.json().catch(() => null);
+        assert.ok(response.ok(), `naming the run answered ${response.status()}: ${JSON.stringify(body)}`);
+        assert.equal(body.changed, true, "naming the run changed nothing");
+        assert.equal(body.panel?.runId, state.runId, "the panel names another run");
+      });
+
+      await step(
+        "under the Coursework tab, Claude's best answers to week 3 as the lead reads them, and Pangram's count before any press, with nothing pressed",
+        async () => {
+          const bestRead = responseTo(`/programmes/${state.programmeId}/coursework/best-answers`, "GET");
+          const pangramRead = responseTo(`/programmes/${state.programmeId}/coursework/pangram`, "GET");
+          await page.goto(`${formBase}/coursework`, { waitUntil: "domcontentloaded" });
+          // Week 3 is the run's one week written as blocks, and the one Ada wrote in.
+          await page.getByRole("heading", { level: 2, name: /^Week 3\b/ }).waitFor({ timeout: WAIT_MS });
+          assert.equal((await bestRead).status(), 200, "reading Claude's best answers was refused");
+          assert.equal((await pangramRead).status(), 200, "reading Pangram's count was refused");
+
+          // In local mode the site has no key; against a target with one, Ada's answer is the one that may be sent.
+          const best = page.locator('section[aria-label="Best answers"]');
+          const bestSays = deployed ? [WORDS.claudeNotSetUp, WORDS.bestOneSendable] : [WORDS.claudeNotSetUp];
+          await waitFor("the best answers panel to say what Claude may be sent", async () => {
+            const text = await textOf(best);
+            return bestSays.some((words) => text.includes(words));
+          });
+
+          // Ada's one answer is under 50 words, so Pangram has nobody to check and no button.
+          const pangram = page.locator('section[aria-label="Pangram"]');
+          const pangramSays = deployed ? [WORDS.pangramNotSetUp, WORDS.pangramNobodyThisWeek] : [WORDS.pangramNotSetUp];
+          await waitFor("Pangram's panel to say who it would check", async () => {
+            const text = await textOf(pangram);
+            return pangramSays.some((words) => text.includes(words));
+          });
+          assert.equal(await pangram.getByRole("button").count(), 0, "a Pangram button with nothing of anybody's to send");
+        },
+      );
+
+      await step(
+        "beside Ada's weeks on her coursework page: the notes written from this run, Claude's draft from it, and Pangram with nothing of hers to send",
+        async () => {
+          const pangramRead = responseTo(`/coursework/${ada.uid}/pangram`, "GET");
+          await page.goto(`${formBase}/coursework/${enc(ada.uid)}`, { waitUntil: "domcontentloaded" });
+          await notes().getByText(WORDS.ruleRun, { exact: true }).waitFor({ timeout: WAIT_MS });
+          await notes().getByText("E2E note kept: would make a good facilitator.", { exact: true }).waitFor({ timeout: WAIT_MS });
+          await notes().getByText(WORDS.hiddenOnRunOne, { exact: true }).waitFor({ timeout: WAIT_MS });
+          assert.equal(await notes().getByText(EARLIER_NOTE).count(), 0, "a note written before the agreement from no programme shows on the programme's page");
+          if (!deployed) {
+            await notes().getByText(WORDS.claudeNotSetUp, { exact: true }).waitFor({ timeout: WAIT_MS });
+            assert.equal(await notes().getByRole("button", { name: WORDS.draft }).count(), 0, "a draft button with no key behind it");
+          } else {
+            await waitFor("Claude's draft from this run to be offered, or the sentence that says it cannot be", async () =>
+              (await notes().getByRole("button", { name: WORDS.draft }).count()) > 0 || (await notes().getByText(WORDS.claudeNotSetUp, { exact: true }).count()) > 0,
+            );
+          }
+
+          assert.equal((await pangramRead).status(), 200, "reading what Pangram found was refused");
+          const pangram = page.locator('section[aria-label="Pangram"]');
+          await pangram.getByText(WORDS.pangramTooShortOne, { exact: true }).waitFor({ timeout: WAIT_MS });
+          assert.equal(await pangram.getByRole("button").count(), 0, "a Pangram button with nothing of Ada's to send");
+        },
+      );
     } finally {
       await context.close().catch(() => {});
       await browser.close().catch(() => {});

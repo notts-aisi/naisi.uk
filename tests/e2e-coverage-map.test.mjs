@@ -764,19 +764,19 @@ const NOT_COVERED = {
     reason:
       "Course hub: Claude's best answers to a week (privacy v13), on the programme's Coursework tab, for an admin and the lead. tests/coursework-claude.test.mjs executes it as every kind of caller with Claude stubbed, and holds that labels go and names come back.",
     coverWhen:
-      "When the Coursework tab is on dev: the coursework notes spec gains the lead reading the panel, then passes once, and this entry goes in that change.",
+      "When the coursework notes spec, which now reads the panel under the Coursework tab as the lead is shown it and presses nothing, has passed once: this entry goes in that change.",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/pangram": {
     reason:
       "Course hub: who a week's Pangram check would send, an admin's alone, on the Coursework tab. tests/coursework-claude.test.mjs executes it, the lead refused.",
     coverWhen:
-      "Never against a live detector from a fixture: a check would send a fixture's words to Pangram. With the Coursework tab's spec, for the count before the press alone.",
+      "Never against a live detector from a fixture: a check would send a fixture's words to Pangram. For the count before the press alone, when the coursework notes spec, which now reads it and presses nothing, has passed once.",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]/pangram": {
     reason:
       "Course hub: Pangram on one person's coursework, an admin's alone, on the person page. tests/coursework-claude.test.mjs executes it with Pangram's client faked, the lead refused and never shown a reading.",
     coverWhen:
-      "Never against a live detector from a fixture. With the Coursework tab's spec, for the readings already kept and the calm sentence where Pangram is not set up.",
+      "Never against a live detector from a fixture. For the readings already kept and the calm sentence where Pangram is not set up, when the coursework notes spec, which now reads it on a person's page and presses nothing, has passed once.",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/case/draft": {
     reason:

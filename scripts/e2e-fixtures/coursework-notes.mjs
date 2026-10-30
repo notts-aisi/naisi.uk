@@ -21,16 +21,26 @@
  * who approves Ada, keeps and changes and deletes notes about her on her
  * profile, meets Claude's draft (the calm sentence where Claude is not set
  * up, one press against a deployed target that has a key), and reads the
- * notes beside her application.
+ * notes beside her application. Then, as the programme's lead reads them,
+ * the Coursework tab's panels: the admin names the running run on the
+ * programme's Settings tab (the fixture never does), reads Claude's best
+ * answers to week 3 under the tab and Pangram's count before any press, and
+ * opens Ada's page, where the column beside her weeks holds the notes written
+ * from this run, Claude's draft from it and Pangram, which has nothing of hers
+ * to send: her one answer is under 50 words. Nothing on the tab or her page
+ * is pressed, so neither Claude nor Pangram is sent a word.
  *
  * ## What it cannot drive, and where that is held instead
  *
- * The programme's lead is the harness's admin here, as at every course hub
- * spec: the harness cannot make a lead who is not an admin. So "the lead is
- * refused the notes" and "the lead never sees what Pangram found" are held by
- * the persona battery against a real build (`tests/persona-route-gates.registry.mjs`,
- * the `lead` persona on the notes and Pangram routes) and by
- * `tests/coursework-claude.test.mjs`, not here.
+ * Nobody leads the programme at this point of the term, and the harness
+ * cannot make a lead who is not an admin. So the best answers panel is read
+ * by the admin, who is shown it as the lead is, and "the lead is refused the
+ * notes", "the lead is handed no column beside a person's weeks" and "the
+ * lead never sees Pangram" are held by the persona battery against a real
+ * build (`tests/persona-route-gates.registry.mjs`, the `lead` persona on the
+ * notes and Pangram routes), by `tests/course-hub-coursework.test.mjs` (both
+ * pages drawn for the lead) and by `tests/coursework-claude.test.mjs`, not
+ * here.
  *
  * ## It sends nothing
  *
@@ -49,6 +59,9 @@ export const COURSEWORK_NOTES_STEPS = [
   "the admin keeps a note for the application screen",
   "Claude's draft: the calm sentence where Claude is not set up, or one press answered with a draft or a reason",
   "beside the application only the note written after the agreement shows, with its rule and the count of earlier notes",
+  "the admin names the running course run on the programme's Settings tab",
+  "under the Coursework tab, Claude's best answers to week 3 as the lead reads them, and Pangram's count before any press, with nothing pressed",
+  "beside Ada's weeks on her coursework page: the notes written from this run, Claude's draft from it, and Pangram with nothing of hers to send",
 ];
 
 /** Nothing here is reCAPTCHA-gated: sign-in is a password. */
@@ -173,12 +186,19 @@ export const SPEC = {
       "/api/admin/members/[uid]/notes",
       "/api/admin/members/[uid]/notes/[noteId]",
       "/api/admin/members/[uid]/notes/draft",
+      "/api/admissions/forms/[roundId]/programmes/[programmeId]/run",
+      "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers",
+      "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/pangram",
+      "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]/pangram",
     ],
     pages: [
       "/(auth)/login",
       "/(app)/admin/(admin-only)",
       "/(app)/admin/(admin-only)/members/[uid]",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications/[uid]",
+      "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup",
+      "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/coursework",
+      "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]",
     ],
   },
   /**
