@@ -269,7 +269,8 @@ describe("5. the tab in the programme's row", () => {
     for (const who of ["claudia", "zach"]) {
       const head = await draw(who, Layout, PARAMS, { segment: "weeks" });
       assert.match(head.html, new RegExp(`<a href="${PROGRAMME_PATH}/weeks"[^>]*aria-current="page"[^>]*>Weeks<span[^>]*>6</span></a>`), who);
-      assert.match(head.text, /Groups 4 Weeks 6 Attendance Messages/, who);
+      // Coursework sits between Attendance and Messages (Zach, Fri 30 Oct).
+      assert.match(head.text, /Groups 4 Weeks 6 Attendance Coursework Messages/, who);
     }
   });
 

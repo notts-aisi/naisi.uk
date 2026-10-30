@@ -1187,6 +1187,13 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]/page.tsx",
+    {
+      built: ["tabPath"],
+      from: "the way back to the programme's own Coursework tab: its path from the form's and the programme's ids in the address, encoded. Nothing anybody typed",
+    },
+  ],
+  [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/layout.tsx",
     { built: ["home"], from: "the term's own page, from the form's id" },
   ],

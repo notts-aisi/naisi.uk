@@ -776,8 +776,16 @@ describe("9. the tree", () => {
     const code = codeOf(join(SRC, "lib/courses/facilitatorWeek/readers.ts"));
     assert.match(code, /\.select\("uid", "itemId", "completed"\)/);
     assert.match(code, /\.select\("uid", "itemId", "privateNote"\)/);
-    assert.equal((code.match(/\breadPrivateNotes\(/g) ?? []).length, 2, "the private notes' reader is defined once and called once");
+    // Defined once and called twice: by a group's week, for a viewer who
+    // reads notes, and by one person's coursework page, only past the
+    // question of whose notes the viewer reads (an admin; never the lead).
+    assert.equal((code.match(/\breadPrivateNotes\(/g) ?? []).length, 3, "the private notes' reader is defined once and called twice");
     assert.match(code, /readsPrivateNotes\(viewer\) \? readPrivateNotes\(db, run\.id, at\.weekNumber, readable, sourceIds\)/);
+    const person = code.slice(code.indexOf("export async function readPersonPrivateNotes("));
+    const asked = person.indexOf("if (!privateNotesOf(viewer, person)) return null;");
+    assert.ok(asked !== -1 && person.indexOf("readPrivateNotes(db, runId, week.weekNumber, readable, week.sourceIds)") > asked, "a person's page reads a note before asking whose notes the viewer reads");
+    // The run-wide read for the Coursework tab and a person's page: ticks through a projection with no note.
+    assert.match(code, /db\.collection\("courseProgress"\)\.where\("runId", "==", runId\)\.select\("uid", "itemId", "completed"\)\.get\(\)/);
     assert.match(code, /if \(!isReflectionResponse\(data\) \|\| data\.runId !== runId\) continue;/);
     // The page to read lines out reads reflections, never a note.
     const readOut = code.slice(code.indexOf("export async function loadReadOutWeek("));

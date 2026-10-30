@@ -8,8 +8,9 @@ import { dayRangeWords } from "@/lib/courses/sessionChange/words";
 import { isBlockWeek, type FillInBlock, type WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { weekFillInBoxes } from "@/lib/courses/weekBlocks/reader";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
-import { instantOf } from "@/lib/courses/writtenAnswers/model";
-import { isFillInResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
+import { answerState, instantOf, isWordCountedAnswer, readWrittenAnswer, type AnswerState } from "@/lib/courses/writtenAnswers/model";
+import { workKey, type PersonAnswerWrite, type PersonWork, type PersonWrites } from "@/lib/courses/coursework/model";
+import { isFillInResponse, isOwnBoxResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import type { SessionUser } from "@/lib/firebase/session";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { weekDocId, type CourseRunDoc, type CourseWeekDoc } from "@/lib/firestore/courses";
@@ -542,6 +543,123 @@ export async function loadNamedReflections(
     });
   }
   return { weekNumber, prompts };
+}
+
+// ---------------------------------------------------------------------------
+// A programme's coursework: the Coursework tab and one person's page
+// ---------------------------------------------------------------------------
+
+/**
+ * EVERYTHING WRITTEN AND TICKED ON A RUN, for the Coursework tab and one
+ * person's page (`src/lib/courses/coursework/`), on the server, after the
+ * page's own gate has let in the programme's lead or an admin: one equality
+ * on the run for each store, filtered in memory.
+ *
+ *  - From the week's answers store, each person's reflections, fill-in boxes
+ *    and written answers, told apart by kind. For everybody, counts and
+ *    states only; the words (and when each was written) only for `wordsOf`,
+ *    the one person whose page is being drawn.
+ *  - From the progress store, who ticked which item, through a projection
+ *    with no rating, no comment and no private note.
+ *
+ * Survey answers live elsewhere and are never read here.
+ */
+export async function readRunCoursework(
+  db: Firestore,
+  runId: string,
+  wordsOf: string | null,
+): Promise<{ work: Map<string, PersonWork>; writes: PersonWrites }> {
+  const [responses, progress] = await Promise.all([
+    db.collection("courseExerciseResponses").where("runId", "==", runId).get(),
+    // The projection is the boundary: who, which item and whether it is ticked.
+    db.collection("courseProgress").where("runId", "==", runId).select("uid", "itemId", "completed").get(),
+  ]);
+  const work = new Map<string, { reflections: Set<string>; boxes: Set<string>; answers: Map<string, AnswerState>; ticked: Set<string> }>();
+  const of = (uid: string) => {
+    let found = work.get(uid);
+    if (!found) {
+      found = { reflections: new Set(), boxes: new Set(), answers: new Map(), ticked: new Set() };
+      work.set(uid, found);
+    }
+    return found;
+  };
+  // The one person's words, when a page asks for them.
+  const reflections = new Map<string, { text: string; at: Date | null }>();
+  const boxes = new Map<string, string>();
+  const answers: Map<string, PersonAnswerWrite> = new Map();
+  const ticked = new Set<string>();
+  for (const doc of responses.docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    if (data.runId !== runId) continue;
+    const uid = typeof data.uid === "string" ? data.uid : "";
+    const id = typeof data.exerciseId === "string" ? data.exerciseId : "";
+    const weekNumber = typeof data.weekNumber === "number" ? data.weekNumber : NaN;
+    if (!uid || !id || !Number.isInteger(weekNumber)) continue;
+    const key = workKey(weekNumber, id);
+    const text = typeof data.text === "string" ? data.text : "";
+    if (isReflectionResponse(data)) {
+      if (!text.trim()) continue;
+      of(uid).reflections.add(key);
+      if (uid === wordsOf) reflections.set(key, { text: text.trim(), at: instantOf(data.updatedAt) });
+    } else if (isFillInResponse(data)) {
+      if (!text.trim()) continue;
+      of(uid).boxes.add(key);
+      if (uid === wordsOf) boxes.set(key, text);
+    } else if (!isOwnBoxResponse(data) && isWordCountedAnswer(data)) {
+      // A block week's written answer; the summer's exercise answers have no words count.
+      const record = readWrittenAnswer(data);
+      const state = answerState(record);
+      of(uid).answers.set(key, state);
+      if (uid === wordsOf) {
+        answers.set(key, {
+          state,
+          words: record.words,
+          text: record.text,
+          boxes: record.boxes,
+          sentAt: record.firstSentAt,
+          feedback: record.feedback,
+        });
+      }
+    }
+  }
+  for (const doc of progress.docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    const uid = typeof data.uid === "string" ? data.uid : "";
+    const itemId = typeof data.itemId === "string" ? data.itemId : "";
+    if (data.completed !== true || !uid || !itemId) continue;
+    of(uid).ticked.add(itemId);
+    if (uid === wordsOf) ticked.add(itemId);
+  }
+  return { work, writes: { reflections, boxes, answers, ticked } };
+}
+
+/**
+ * ONE PERSON'S PRIVATE NOTES ON A RUN, by item, for their page: through the
+ * one reader of private notes (Q38), only where this viewer reads that
+ * person's notes (`privateNotesOf`: an admin; never the programme's lead,
+ * and a facilitator's own note an admin's alone). Null for a viewer who
+ * reads none.
+ */
+export async function readPersonPrivateNotes(
+  db: Firestore,
+  runId: string,
+  viewer: WeekViewer,
+  person: WeekPerson,
+  weeks: ReadonlyArray<{ weekNumber: number; sourceIds: ReadonlySet<string> }>,
+): Promise<Map<string, string> | null> {
+  if (!privateNotesOf(viewer, person)) return null;
+  const readable = new Set([person.uid]);
+  const read = await Promise.all(
+    weeks.filter((week) => week.sourceIds.size > 0).map((week) => readPrivateNotes(db, runId, week.weekNumber, readable, week.sourceIds)),
+  );
+  const out = new Map<string, string>();
+  for (const notes of read) {
+    for (const [itemId, list] of notes) {
+      const own = list.find((note) => note.uid === person.uid);
+      if (own) out.set(itemId, own.text);
+    }
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------

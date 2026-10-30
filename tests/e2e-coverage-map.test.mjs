@@ -1742,6 +1742,18 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed an application form with a sent application for a lead to score and decide.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/coursework": {
+    reason:
+      "Course hub: the Coursework tab, a row per person holding a place and per facilitator, a column per week; every caller is executed by tests/course-hub-coursework.test.mjs.",
+    coverWhen:
+      "When the coursework spec that seeds a run with reflections, ticks and a sent written answer and signs the lead in has passed end to end.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]": {
+    reason:
+      "Course hub: one person's coursework, newest week first, private notes for admins alone; every caller is executed by tests/course-hub-coursework.test.mjs.",
+    coverWhen:
+      "When the coursework spec that seeds a run with reflections, ticks and a sent written answer and signs the lead in has passed end to end.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections": {
     reason:
       "Course hub: the lead's and admins' reading of one group's reflections, its facilitators' own under their names; every caller is executed by tests/course-hub-facilitator-week.test.mjs, and it was checked in a browser on the preview kit at 1440 and 390.",

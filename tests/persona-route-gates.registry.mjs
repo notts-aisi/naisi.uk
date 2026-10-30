@@ -3693,6 +3693,26 @@ export const PAGES = {
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
       "and with an address that names nothing is drawn the same not-here state.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/coursework": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own (loadProgrammeRun, decided from the form " +
+      "before the run is read): what everybody holding a place has written, by name, is the programme's lead's and an " +
+      "admin's, so a reviewer on the form is told the tab is theirs, and a programme the caller has no role on, or one " +
+      "that does not exist, renders 'there is no programme here' with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "The admissions tree's gate, then the page's own (loadProgrammeRun, decided from the form before the run is read): " +
+      "one person's coursework is the programme's lead's and an admin's, so a reviewer on the form is told it is theirs, " +
+      "a programme the caller has no role on renders 'there is no programme here', and somebody who holds no place on it " +
+      "and facilitates none of its groups renders a calm not-here page, each with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
@@ -5871,6 +5891,8 @@ export const REAL_PAGES = {
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections": programmePage("its groups' reflections, its facilitators' own among them."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week": programmePage("a group's week, who ticked what by name."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/coursework": programmePage("the Coursework tab, everybody's work by week."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]": programmePage("one person's coursework page, or its calm not-here for an id that is nobody's."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups": programmePage("People in groups, the run's allocation board."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/publish": programmePage("Publish's own page."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/sessions": programmePage("the Sessions view."),

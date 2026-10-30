@@ -192,6 +192,11 @@ const READS_THE_LISTS = {
     why: "the People tab's model, read once for the People tab and for People in groups: everybody who holds a place on the programme or gave it back, an admin who applied included, as the hand-over and the times picture count them. It reads nobody until the term is marked as sent, when there is nothing left for anybody to learn early",
     holds: "after-the-send",
   },
+  "lib/applications/people/load.ts#listPlaceHolders": {
+    kind: "everybody",
+    why: "everybody who holds a place on the programme, by name, for the Coursework tab and a person's page: the people countPlaceHolders counts, an admin who applied included, by the hand-over's own test. It lists nobody until the term is marked as sent",
+    holds: "after-the-send",
+  },
   "lib/applications/people/load.ts#countPlaceHolders": {
     kind: "everybody",
     why: "the number beside a programme's People tab: everybody who holds a place on it, an admin who applied included, by the hand-over's own test. It counts nobody until the term is marked as sent",

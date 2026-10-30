@@ -8,7 +8,7 @@ import { compareGroupsByMeeting, normalizeCourseGroup } from "@/lib/firestore/co
 import { canReadApplication, opensProgrammeGroups, roleOnProgramme } from "../access";
 import { isInTerm } from "../decisions";
 import { isTimed } from "../freedPlaces/groups";
-import { placeHoldersOn } from "../handover/holders";
+import { placeHoldersOn, type PlaceHolder } from "../handover/holders";
 import { RUNS_COLLECTION, readRun } from "../handover/run";
 import { own } from "../keys";
 import type { ApplicationDoc, ProgrammeSettings } from "../model";
@@ -220,4 +220,23 @@ export async function countPlaceHolders(
   ]);
   // Counted from the people in the term, like every other count of places.
   return placeHoldersOn(form, programmeId, applications.filter(isInTerm), decisions).length;
+}
+
+/**
+ * Who holds a place on the programme now, by name: the same people
+ * `countPlaceHolders` counts, by the same test, for a reader that lists them
+ * (the Coursework tab and a person's page, for the programme's lead and
+ * admins). Empty until decisions have been sent, when nobody holds one yet.
+ */
+export async function listPlaceHolders(
+  db: Firestore,
+  form: ApplicationForm,
+  programmeId: string,
+): Promise<PlaceHolder[]> {
+  if (form.decisionsSentAt === null) return [];
+  const [applications, decisions] = await Promise.all([
+    listSentApplications(db, form),
+    listDecisions(db, form.round.id),
+  ]);
+  return placeHoldersOn(form, programmeId, applications.filter(isInTerm), decisions);
 }
