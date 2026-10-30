@@ -1265,6 +1265,12 @@ const USERS = new Map([
       "answer form and both answer routes ask. Only `server-only` is stubbed",
   ],
   [
+    "surveys-blanks-merge.test.mjs",
+    "it executes the one merge of a survey's later answers, the blanks it finds against the questionnaire's own " +
+      "templates, and the two answer normalisers that call it, so what every reader reads is the code that ships; " +
+      "the rest of the suite walks the source as text",
+  ],
+  [
     "surveys-deletion.test.mjs",
     "it runs the account cascade and the form's destroy end to end over survey records, so its graph is both " +
       "cascades, the member-record sweep and the survey modules; what is under test is what each leaves behind",
