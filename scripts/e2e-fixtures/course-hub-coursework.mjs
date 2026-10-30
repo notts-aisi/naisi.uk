@@ -92,11 +92,11 @@ export const SPEC = {
     ],
   },
   /**
-   * UNVERIFIED: written on 30 October 2026 and not yet run in a browser. It
-   * becomes verified, with the run that proved it written here, once it has
-   * passed end to end with a teardown manifest of zero.
+   * VERIFIED on 30 October 2026: in the pull request's end-to-end job
+   * (run 40996453948): all nine steps ran, 90 rows existed before teardown,
+   * and the fixture manifest read zero after it.
    */
-  status: "unverified",
+  status: "verified",
   seed: ({ runId, suppress, onState }) => seedTerm({ runId, suppress, onState, point: "coursework" }),
   countRows: countTerm,
   teardown: teardownTerm,
