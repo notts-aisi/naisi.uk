@@ -172,7 +172,7 @@ const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
 const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
-const CURRENT = read("src/content/legal/privacy/v12.tsx");
+const CURRENT = read("src/content/legal/privacy/v13.tsx");
 /**
  * The current policy with every run of whitespace collapsed to one space. The
  * copy is JSX, so a sentence is wrapped and indented across several lines and
@@ -181,6 +181,8 @@ const CURRENT = read("src/content/legal/privacy/v12.tsx");
  * serves at /privacy.
  */
 const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
+/** v12, frozen: read by §2m, which proves the coursework sentences are not in it and the promise is. */
+const V12_FLAT = read("src/content/legal/privacy/v12.tsx").replace(/\s+/g, " ");
 /** v11, frozen: read by §2l, which proves the two new notes are not in it. */
 const V11_FLAT = read("src/content/legal/privacy/v11.tsx").replace(/\s+/g, " ");
 /** v10, frozen: read by §2k, which proves the invitation's note is not in it. */
@@ -222,12 +224,15 @@ const componentPrefix = (key) => `${key[0].toUpperCase()}${key.slice(1)}Content`
 const POLICY_KEYS = Object.keys(POLICIES);
 
 describe("policy versions", () => {
-  test("privacy v12 is current, and the combined version string moved with it", () => {
-    assert.equal(currentPolicy("privacy").version, 12);
-    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.12");
+  test("privacy v13 is current, and the combined version string moved with it", () => {
+    assert.equal(currentPolicy("privacy").version, 13);
+    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.13");
   });
 
-  test("privacy v12 is dated the day its words last changed", () => {
+  test("privacy v13 is dated the day its words last changed", () => {
+    const thirteen = POLICIES.privacy.versions.find((v) => v.version === 13);
+    assert.equal(thirteen?.lastUpdated, "30 October 2026");
+    assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 13).length, 1);
     const twelve = POLICIES.privacy.versions.find((v) => v.version === 12);
     assert.equal(twelve?.lastUpdated, "29 October 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 12).length, 1);
@@ -365,6 +370,13 @@ describe("policy versions", () => {
  * identical. Anything that changes a word needs a new version instead.
  */
 const FROZEN_VERSIONS = new Map([
+  [
+    "privacy/v12",
+    {
+      sha256: "eeaafb72edf42ae7b6a686207b4665bbb7cf42d523ccf69a21cebda76ee2e733",
+      why: "the version of the notes in a group's email and in an ask, current from 29 October 2026 until v13 replaced it; the wording members accepted while it still promised that nothing written in a course is used outside its programme, frozen when v13 took that promise back from its own agreement on rather than editing it in place",
+    },
+  ],
   [
     "privacy/v11",
     {
@@ -948,7 +960,11 @@ const MUST_NAME = [
   ["being asked to facilitate: who asks, how it is emailed and answered, and what a yes does", /<strong>Being asked to facilitate\.<\/strong> If you said you would like to facilitate a group, then from decision day the lead of a programme you said you would facilitate, or an admin, may ask you to facilitate one of its groups\. We email you the ask whatever your notification settings say, because it answers what you said on your application, and while it waits for your answer we may send you up to three reminders, at least twelve hours apart\. You answer on our site, on a page that shows the ask to you and nobody else, by the day and time the ask gives\. If you say yes, you become one of that group&apos;s facilitators\. We keep a record of each ask: who asked you and when, which group it was for, the day and time to answer by, whether the email went, any reminders, your answer and when you gave it, and a copy of the email as it was sent, with the name it was sent to\. The record holds no email address\. The programme&apos;s lead and admins can see these records, and you can see your own ask on its page\. They are kept with the rest of your course record, and deleted with your account\. If you hold a place on that programme, saying yes also puts you in that group, as one of its people: a facilitator who holds a place sits in the group they facilitate\./],
   ["the calendar link: what it shows, who else can see it, replacing it, a leaver's, and deletion", /<strong>Your calendar link\.<\/strong> &quot;Add to calendar&quot; on your programme page gives you a private link to your sessions, which you can add to Apple Calendar, Google Calendar, Outlook or any calendar that subscribes to a link\. It shows the day, time and room of each session of your group \(and of any group you facilitate\), with the programme&apos;s and the group&apos;s name, and marks a session that is cancelled\. An online week says to join on naisi\.uk, never the meeting link\. It shows no names and no email address\. Once you add it, your calendar&apos;s provider \(Apple, Google or Microsoft, for example\) fetches it from us every so often and keeps what it shows, under its own privacy policy, so a session that moves or is cancelled changes in your calendar too\. Anyone else holding the link can see the same, so keep it to yourself\. You can replace it at any time from the same place, and the old link then shows nothing\. If you leave a programme, no session after the day you left is in it\. It is deleted with your account\./],
   ["the notes a group's facilitators share go with their writer's account", /<strong>Notes facilitators share\.<\/strong> A group&apos;s facilitators can keep notes for each other about how their group is going, and a note can mention you by name\. The group&apos;s facilitators, the programme&apos;s lead and admins read them; nobody in the group does\. A note goes when the account of the facilitator who wrote it is deleted\. If you ask to see what is written about you, we will show you these notes too\./],
-  ["written work: who reads it, saving and sending, the lock, Late, feedback and its email", /<strong>Your written work\.<\/strong> Your written answers, the feedback on them, and your progress through each week&apos;s materials\. A written answer is read by you, your group&apos;s facilitators, the programme&apos;s lead and admins, and by nobody else taking part; the week&apos;s page says so beside it\. If you facilitate a group, your own answer is read by the programme&apos;s lead and admins, and not by the group&apos;s other facilitators\. It saves as you type, and until you send it, the others who read it see only that you have started it, never what it says\. We record when you first send it, and when you change it after that\. You can change it until one of your group&apos;s facilitators opens it \(for a facilitator&apos;s own answer, the programme&apos;s lead or an admin\), or feedback is sent on it; we record when it was opened, and any of its readers can reopen it for you to change\. Its readers can see when you sent it, and whether that was after it was due\. Your own pages show when you sent it, but never mark it late\. Feedback is a level for each row of the course&apos;s rubric and a short comment, with the name of whoever gave it, and never a mark\. One short email tells you that feedback is waiting; the feedback itself stays on the site\. You can also keep a private note against a piece of material: it is never shown to the rest of your run or read out\. Your group&apos;s facilitators and admins can read it, with your name, and we use what it says to improve the course; if you facilitate the group, only admins read yours\. We do not publish anything you write to the rest of your group unless you choose to share it, apart from a line of a reflection your facilitators may read out without saying who wrote it \(see Reflections\), and we will not use anything you write in a course to make decisions about you outside the programme\./],
+  // CHANGED ON PURPOSE (v13): the passage ended with v12's promise that
+  // nothing written in a course is used outside its programme. v13 takes it
+  // back from its own agreement on and says the cut-off in its place, word
+  // for word, as strictly as the promise was held (§2m holds both versions).
+  ["written work: who reads it, saving and sending, the lock, Late, feedback and its email", /<strong>Your written work\.<\/strong> Your written answers, the feedback on them, and your progress through each week&apos;s materials\. A written answer is read by you, your group&apos;s facilitators, the programme&apos;s lead and admins, and by nobody else taking part; the week&apos;s page says so beside it\. If you facilitate a group, your own answer is read by the programme&apos;s lead and admins, and not by the group&apos;s other facilitators\. It saves as you type, and until you send it, the others who read it see only that you have started it, never what it says\. We record when you first send it, and when you change it after that\. You can change it until one of your group&apos;s facilitators opens it \(for a facilitator&apos;s own answer, the programme&apos;s lead or an admin\), or feedback is sent on it; we record when it was opened, and any of its readers can reopen it for you to change\. Its readers can see when you sent it, and whether that was after it was due\. Your own pages show when you sent it, but never mark it late\. Feedback is a level for each row of the course&apos;s rubric and a short comment, with the name of whoever gave it, and never a mark\. One short email tells you that feedback is waiting; the feedback itself stays on the site\. You can also keep a private note against a piece of material: it is never shown to the rest of your run or read out\. Your group&apos;s facilitators and admins can read it, with your name, and we use what it says to improve the course; if you facilitate the group, only admins read yours\. We do not publish anything you write to the rest of your group unless you choose to share it, apart from a line of a reflection your facilitators may read out without saying who wrote it \(see Reflections\)\. From version 13 of this policy, what you write on a course after you agree to version 13, and the notes admins keep about you, may also be used when we consider you for something else with us later: another application, facilitating a group, or the committee\. Anything you wrote before you agreed to version 13 is used only within its programme\./],
   ["pathways and cases: what is recorded and by whom, who sees it, a pick, and the ready box", /<strong>Pathways and cases\.<\/strong> Some weeks give you a pack to read, such as a pathway, and a case to give a short talk on\. When your facilitators hand these out on paper in a session, which ones you were given is recorded on the site, by them or by the programme&apos;s lead or an admin, and you see yours on that week&apos;s page\. Your group&apos;s facilitators, the programme&apos;s lead and admins see what everyone in the group was given; nobody else in your group sees yours\. If you facilitate the group you take part in, your co-facilitators see what you were given, as they see everybody&apos;s\. When a week lets you pick a pack yourself, we keep the one you picked, and you can change it until your session starts\. Your group&apos;s facilitators, the programme&apos;s lead and admins can see which one you picked, except that if you facilitate the group, your co-facilitators cannot\. You can say you are ready for your talk, and that is shown on your own pages and nobody else&apos;s\./],
   ["a week's boxes go with the account", /<strong>Boxes you fill in\.<\/strong> Some weeks have boxes for you to fill in, such as an action plan\. What you write saves as you type\. It is read by you, your group&apos;s facilitators, the programme&apos;s lead and admins, and by nobody else taking part; the page says so under the boxes\. If you facilitate a group, what you write is read by the programme&apos;s lead and admins, and not by the group&apos;s other facilitators\. If you leave the programme, the programme&apos;s lead and admins can still read it, and your group&apos;s facilitators and you no longer can\. It is deleted with your account\./],
   ["sealed predictions: filling in, sealing, opening, who reads a card, each admin opening recorded, and deletion", /<strong>Sealed predictions\.<\/strong> On a programme whose course has a card of predictions, a week&apos;s page gives you that card to fill in: each question asks for a percentage, a number on a scale or a sentence, and each answer saves as you type\. Once you seal your card, nobody can change it, you included, and you cannot read it again until your group&apos;s session before the week it opens in has ended and you open it there, after answering the same questions again\. You then see both side by side, and neither changes after that\. A card you never seal can no longer be changed once that session has ended, and you can still read it\. Your card is read by you and by admins, who can open anybody&apos;s at any time, and by nobody else: not your group&apos;s facilitators, not the programme&apos;s lead and not other fellows\. If you facilitate a group, its other facilitators do not read yours either\. Each time an admin opens a card, we record who opened it, whose card it was by account id, the course run and when, before anything on the card is read, and never what it says; if that record cannot be written, the card stays closed\. An admin cannot open their own card that way\. If you leave the programme, you no longer see your card, and admins still can\. Your card is deleted with your account, and when the programme&apos;s course run is destroyed\. The records of admins opening a card stay when an account is deleted, and are deleted when the run is destroyed\./],
@@ -7352,5 +7368,70 @@ describe("v12 says a group's email and an ask may carry words Claude drafted, ne
     for (const never of ["availability", "painted", "marked", "session", "slot", "startTime", "weekday"]) {
       assert.doesNotMatch(drafting.match(/export function caseMessage[\s\S]*?\n}/)[0], new RegExp(never), `the case's message reads ${never}`);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2m Coursework: what v13 says is the code's, and the promise it takes back
+// ---------------------------------------------------------------------------
+
+describe("v13 takes back the coursework promise from its own agreement on, and names admins' notes, Claude and Pangram on coursework", () => {
+  const PROMISE = "and we will not use anything you write in a course to make decisions about you outside the programme.";
+  /** The cut-off, said the same way at the top of the policy, in Your written work and on the accept page. */
+  const CUT_OFF = [
+    "what you write on a course after you agree to version 13, and the notes admins keep about you, may also be used when we consider you for something else with us later: another application, facilitating a group, or the committee.",
+    "Anything you wrote before you agreed to version 13 is used only within its programme.",
+  ];
+  const SENTENCES = [
+    ...CUT_OFF,
+    // The top of the policy says it first.
+    "<strong>New in version 13.</strong> Admins can keep notes about you, and Claude may draft them from your coursework.",
+    // memberNotes: admins only, never to the person, one record per person.
+    "Only admins read and write them, and they are never shown to you on the site.",
+    "There is one record of them for each person, and it follows you across programmes and terms.",
+    "Only what you sent after you agreed to version 13 is used, and Claude is never sent your name, your email address, your private notes, your survey answers or when you are free.",
+    "Claude&apos;s draft is shown only to the admin who asked and is not kept unless an admin saves it, and a saved note says it was drafted by Claude.",
+    "A note written before you agreed to version 13 is never used when we consider you for something else.",
+    "If you ask for a copy of your data, it includes these notes.",
+    // Best answers: admins and the lead, labels to Claude, names put back.
+    "An admin or a programme&apos;s lead can ask Claude to pick the strongest answers to each question of a week across the programme, with a reason for each, and to say what the people on it found hard.",
+    "No name, email address or account is sent: each person is a number, and the site puts the names back.",
+    "What comes back is shown to admins and the programme&apos;s lead only, never to other fellows.",
+    // Pangram: admins only, 50 words, a flag is not a verdict.
+    "An admin can ask Pangram to check your written answers and reflections of 50 words or more, and nothing shorter, only those sent after you agreed to version 13.",
+    "Only admins see what comes back, never the programme&apos;s lead or your facilitators.",
+    "A flag is a reason for a person to read it again, never a decision or an accusation.",
+    "The lead never sees what Pangram found.",
+    "Nothing about your coursework is decided by Claude or Pangram either:",
+  ];
+
+  for (const sentence of SENTENCES) {
+    test(`v13 says: ${sentence.slice(0, 60)}`, () => {
+      assert.ok(CURRENT_FLAT.includes(sentence), `v13 no longer says: ${sentence}`);
+      assert.ok(!V12_FLAT.includes(sentence), `v12 already said it, so it is not v13's change: ${sentence}`);
+    });
+  }
+
+  test("v13 no longer makes the promise, and v12, frozen, still does", () => {
+    assert.ok(V12_FLAT.includes(PROMISE), "v12 is frozen and should still carry the promise its readers accepted");
+    assert.ok(!CURRENT_FLAT.includes(PROMISE), "v13 still promises nothing written in a course is used outside its programme");
+    assert.ok(!/will not use anything you write in a course/i.test(CURRENT_FLAT.replace(/\/\*[\s\S]*?\*\//g, "")));
+  });
+
+  test("the cut-off is said at the top, in Your written work, and on the accept page", () => {
+    const top = CURRENT_FLAT.slice(CURRENT_FLAT.indexOf("className={styles.lede}"), CURRENT_FLAT.indexOf("{meta}"));
+    const written = CURRENT_FLAT.slice(CURRENT_FLAT.indexOf("<strong>Your written work.</strong>"), CURRENT_FLAT.indexOf("<strong>Notes admins keep about you.</strong>"));
+    const accept = read("src/app/re-consent/page.tsx").replace(/\s+/g, " ");
+    const since = accept.slice(accept.indexOf("Since version 13:"), accept.indexOf("</p>", accept.indexOf("Since version 13:")));
+    assert.ok(since.length > 100, "the accept page no longer says what version 13 changed, first");
+    for (const sentence of CUT_OFF) {
+      assert.ok(top.includes(sentence), `the top of v13 no longer says: ${sentence}`);
+      assert.ok(written.includes(sentence), `v13's Your written work no longer says: ${sentence}`);
+      // The accept page begins its own sentence with the clause, capitalised.
+      const words = sentence.replace(/^what/, "What");
+      assert.ok(since.includes(words), `the accept page no longer says: ${words}`);
+    }
+    // The accept page is read before the "What changed" paragraph, which its own test holds to v7.
+    assert.ok(accept.indexOf("Since version 13:") < accept.indexOf("What changed:"));
   });
 });

@@ -103,12 +103,26 @@ export const POLICIES: Record<
     // v11 said the invitation's note was the one place Claude's words could
     // reach somebody, so this took that back and moved the version.
     //
+    // v13 is Claude and Pangram on coursework, and the notes admins keep about
+    // a person. v12 promised "we will not use anything you write in a course
+    // to make decisions about you outside the programme". v13 takes that back
+    // from its own agreement on: what somebody writes on a course after they
+    // first agree to v13 or a later version, and the notes admins keep about
+    // them, may be used when they are considered for something else with us
+    // later. Anything written before stays inside its programme, and the site
+    // keeps the moment of that first agreement once (`courseworkUseAgreedAt`,
+    // `src/lib/legal/courseworkUse.ts`). It also names admins' notes, Claude
+    // picking a week's strongest answers and Pangram checking coursework. A
+    // taken-back promise is a material change, so it moved the version and
+    // every member is asked again at their next sign-in.
+    //
     // Keep this comment ABOVE `versions:`, never between the `[` and the first
     // `{`: tests/funnel-harness-guards.test.mjs reads the current version out
     // of this file with a regex that allows only whitespace across that gap,
     // so a comment sitting there leaves the guard unable to read the very
     // number it exists to pin. Anywhere else in the file is fine.
     versions: [
+      { version: 13, lastUpdated: "30 October 2026" },
       { version: 12, lastUpdated: "29 October 2026" },
       { version: 11, lastUpdated: "28 October 2026" },
       { version: 10, lastUpdated: "28 October 2026" },
