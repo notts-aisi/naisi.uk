@@ -4983,6 +4983,12 @@ describe("the course hub passage", () => {
         ["src/app/api/surveys/[surveyId]/answer/route.ts", "the person's own answers, signed in, to their own row: there is no uid in the request"],
         ["src/app/api/surveys/consent/route.ts", "the person's own follow-ups consent, changed through the secret in their link, on their own row"],
         ["src/app/api/surveys/[surveyId]/consent/route.ts", "the person's own follow-ups consent, changed signed in, on their own row: there is no uid in the request"],
+        // The questions somebody left blank (docs/surveys.md): an admin's
+        // press for one person, and the person's own later send, by the
+        // secret in their link of blanks or signed in on their own row.
+        ["src/app/api/surveys/[surveyId]/people/[who]/blanks/route.ts", `${ADMIN_ROUTE}; emails one person a link to the questions they left blank, never an answer`],
+        ["src/app/api/surveys/blanks/route.ts", "the person's own answers to the questions they left blank, sent through the secret in their link of blanks, beside their first answers"],
+        ["src/app/api/surveys/[surveyId]/blanks/route.ts", "the person's own answers to the questions they left blank, signed in, to their own row: there is no uid in the request"],
         ["src/lib/firestore/accountDeletion.ts", "deleting an account takes its name off its survey answers and deletes its survey rows"],
         ["src/lib/scheduler/jobs/surveyNamesOff.ts", "the job that takes names off two years after the programme"],
         // CHANGED ON PURPOSE (Q50 B): the cards of the surveys waiting for the
@@ -5058,6 +5064,12 @@ describe("the course hub passage", () => {
         // CHANGED ON PURPOSE (Q46): the leaving survey's row for a person is made as they leave.
         ["src/lib/surveys/leaving.ts", "the leaving survey's row for a person, made as they leave the programme, with their own link: never an answer"],
         ["src/lib/surveys/events/store.ts", "a survey after an event's rows and its one writer of answers: each person's row before their email, their own answers, once, by their link or signed in, and one person's row and answers for the admins' page that opens them, read once that opening is recorded"],
+        // The questions somebody left blank (docs/surveys.md): an admin's press
+        // writes the person's own link of blanks on their row, and the one
+        // writer of what they send through it keeps it beside their first
+        // answers. Their answer is read to count what is blank, and the admins
+        // are shown a count, never an answer.
+        ["src/lib/surveys/blanksStore.ts", "the questions left blank: a person's own link of blanks on their own row, made by an admin's press and recorded with it, their own answer read to count what is still blank, and the one writer of what they send later, kept beside their first answers"],
       ]),
       "addressing who a survey was sent to, or what somebody answered",
       "The policy says only admins see who said what or who has answered. If " +
@@ -5079,6 +5091,7 @@ describe("the course hub passage", () => {
       "src/app/api/surveys/[surveyId]/export/route.ts",
       "src/app/api/surveys/[surveyId]/open-at-event/route.ts",
       "src/app/api/surveys/[surveyId]/people/[who]/route.ts",
+      "src/app/api/surveys/[surveyId]/people/[who]/blanks/route.ts",
     ]) {
       const code = withoutComments(read(route));
       const refused = code.indexOf("if (!canRunSurveys(actor)) return NextResponse.json({ error: REFUSAL.adminOnly }, { status: 403 });");
@@ -5141,6 +5154,8 @@ describe("the course hub passage", () => {
       "src/app/(app)/learn/[runId]/survey/[surveyId]/page.tsx",
       "src/lib/surveys/answerView.ts",
       "src/lib/surveys/personFacts.ts",
+      // The page a link of the questions left blank opens, and the signed-in page when it shows them.
+      "src/lib/surveys/blanksView.ts",
     ]) {
       assert.ok(
         !/\.(?:set|update|add|create|delete)\(|runTransaction\(|\.batch\(\)/.test(withoutComments(read(file))),

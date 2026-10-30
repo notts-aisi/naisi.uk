@@ -1454,6 +1454,27 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a programme whose surveys have answers, so a spec can follow the Surveys tab's links from the programme's head.",
   },
+  // The questions somebody left blank (docs/surveys.md). A spec would need a
+  // world holding an answer kept before questions were required, which no
+  // fixture world holds and no page can make any more.
+  "/api/surveys/[surveyId]/people/[who]/blanks": {
+    reason:
+      "Surveys: an admin's press that emails one person the questions they left blank; tests/surveys-blanks.test.mjs presses it as an admin, the programme's lead, a facilitator, members, signed out and during view-as, for a programme's survey and a guest of an event, and reads back the link, the press and the one notice.",
+    coverWhen:
+      "When the survey specs' fixture worlds seed an answer sent before questions were required, so a spec can press for its blanks, read the email in Mailpit, answer through the link and find the later answers marked.",
+  },
+  "/api/surveys/blanks": {
+    reason:
+      "Surveys: the answers to the questions left blank, sent through the link of blanks; tests/surveys-blanks.test.mjs sends them signed out, refuses an answer to anything not blank, a question left blank again, a spent or replaced link and a closed survey, and reads back the first answers unchanged.",
+    coverWhen:
+      "When the survey specs' fixture worlds seed an answer sent before questions were required, so a spec can press for its blanks, read the email in Mailpit, answer through the link and find the later answers marked.",
+  },
+  "/api/surveys/[surveyId]/blanks": {
+    reason:
+      "Surveys: the answers to the questions left blank, sent signed in; tests/surveys-blanks.test.mjs sends them as the person and is refused for somebody with nothing blank, somebody with no row, signed out and during view-as.",
+    coverWhen:
+      "When the survey specs' fixture worlds seed an answer sent before questions were required, so a spec can press for its blanks and answer them signed in at the survey's address inside the programme.",
+  },
   "/api/surveys/[surveyId]/open": {
     reason:
       "Surveys: opening a leaving survey; tests/surveys-leaving.test.mjs opens one once as an admin, refuses everybody else and a second press, and finds it emailed nobody.",

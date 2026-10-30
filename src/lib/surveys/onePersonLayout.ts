@@ -1,5 +1,6 @@
 import { own } from "@/lib/applications/keys";
 import type { EventRespondent, SurveyKind } from "@/lib/firestore/surveys";
+import type { BlanksRow } from "./blanks";
 import { isLinesQuestion, questionNumbers, surveyQuestionsOf, type SurveyAnswer, type SurveyItem, type SurveyQuestion } from "./items";
 import { TEMPLATE_MEASURES } from "./templates";
 import {
@@ -10,6 +11,7 @@ import {
   otherWordingWords,
   personScaleWords,
   sameQuestionsWords,
+  sentLaterWords,
   sentNotAnsweredWords,
 } from "./words";
 
@@ -34,8 +36,12 @@ export function whoOf(respondent: EventRespondent): string {
   return respondent.kind === "account" ? respondent.uid : `g_${respondent.signupId}`;
 }
 
-/** A value in one column: its lines, or a muted note when there are none. */
-export type PersonCell = { lines: string[]; note: string };
+/**
+ * A value in one column: its lines, or a muted note when there are none, and
+ * when the answer came later, through the link of the questions left blank
+ * ("Sent later, Fri 30 Oct, 2:05pm"), or "".
+ */
+export type PersonCell = { lines: string[]; note: string; later: string };
 
 export type PersonRow =
   /** A survey's section, with what it measures where the questionnaire names it. */
@@ -87,6 +93,12 @@ export type PersonSurvey = {
   sentToThemAt: Date | null;
   /** Whether they have a row on it: it was sent to them, it reached them, or they answered it. */
   onIt: boolean;
+  /**
+   * What they answered later, through the link of the questions they left
+   * blank, and when (`laterAnswersOf`): by question id, and by
+   * `<question id>.<line id>` for a line. Absent when nothing came later.
+   */
+  later?: ReadonlyMap<string, Date | null>;
 };
 
 const columnOf = (survey: PersonSurvey): PersonColumn => ({
@@ -96,41 +108,48 @@ const columnOf = (survey: PersonSurvey): PersonColumn => ({
 
 /** The person's answer to one question, in that survey's own words. */
 export function cellFor(question: SurveyQuestion, answers: Record<string, SurveyAnswer> | null): PersonCell {
-  if (answers === null) return { lines: [], note: "" };
+  if (answers === null) return { lines: [], note: "", later: "" };
   const answer = own(answers, question.id);
-  if (!answer) return { lines: [], note: PERSON_WORDS.noAnswer };
+  if (!answer) return { lines: [], note: PERSON_WORDS.noAnswer, later: "" };
   const labelOf = (id: string) => ("options" in question ? (question.options?.find((option) => option.id === id)?.label ?? "") : "");
   switch (answer.type) {
     case "choice": {
       const label = labelOf(answer.optionId);
-      return label ? { lines: [label], note: "" } : { lines: [], note: PERSON_WORDS.noAnswer };
+      return label ? { lines: [label], note: "", later: "" } : { lines: [], note: PERSON_WORDS.noAnswer, later: "" };
     }
     case "choices": {
       const lines = answer.optionIds.map(labelOf).filter(Boolean);
       const most = answer.most && "most" in question && question.most ? labelOf(answer.most) : "";
       if (most && "most" in question && question.most) lines.push(`${question.most} ${most}`);
-      return lines.length > 0 ? { lines, note: "" } : { lines: [], note: PERSON_WORDS.noAnswer };
+      return lines.length > 0 ? { lines, note: "", later: "" } : { lines: [], note: PERSON_WORDS.noAnswer, later: "" };
     }
     case "text":
-      return answer.text.trim() ? { lines: [answer.text], note: "" } : { lines: [], note: PERSON_WORDS.noAnswer };
+      return answer.text.trim() ? { lines: [answer.text], note: "", later: "" } : { lines: [], note: PERSON_WORDS.noAnswer, later: "" };
     case "rating":
     case "scale":
     case "number":
-      return { lines: [String(answer.value)], note: "" };
+      return { lines: [String(answer.value)], note: "", later: "" };
     case "percent":
-      return { lines: [`${answer.value}%`], note: "" };
+      return { lines: [`${answer.value}%`], note: "", later: "" };
     default:
       // A lines question is answered line by line (`lineCell`); nothing else is a survey's.
-      return { lines: [], note: "" };
+      return { lines: [], note: "", later: "" };
   }
 }
 
 /** The person's number on one line of a lines question. */
-function lineCell(questionId: string, lineId: string, answers: Record<string, SurveyAnswer> | null): PersonCell {
-  if (answers === null) return { lines: [], note: "" };
+function lineCell(questionId: string, lineId: string, column: PersonSurvey): PersonCell {
+  const answers = column.answers;
+  if (answers === null) return { lines: [], note: "", later: "" };
   const answer = own(answers, questionId);
   const value = answer && answer.type === "lines" ? own(answer.values, lineId) : undefined;
-  return typeof value === "number" ? { lines: [String(value)], note: "" } : { lines: [], note: PERSON_WORDS.noAnswer };
+  if (typeof value !== "number") return { lines: [], note: PERSON_WORDS.noAnswer, later: "" };
+  return { lines: [String(value)], note: "", later: laterOf(column, `${questionId}.${lineId}`) };
+}
+
+/** "Sent later, Fri 30 Oct, 2:05pm" when this answer (or line) came through the link of blanks, else "". */
+function laterOf(column: PersonSurvey, key: string): string {
+  return column.later?.has(key) ? sentLaterWords(column.later.get(key) ?? null) : "";
 }
 
 /** Each question's section in its survey, by the question's id. */
@@ -183,11 +202,17 @@ function rowsFor(
     if (isLinesQuestion(question)) {
       rows.push({ ...head, cells: [] });
       for (const line of question.lines) {
-        rows.push({ kind: "line", label: line.label, cells: columns.map((column) => lineCell(question.id, line.id, column.answers)) });
+        rows.push({ kind: "line", label: line.label, cells: columns.map((column) => lineCell(question.id, line.id, column)) });
       }
       continue;
     }
-    rows.push({ ...head, cells: copies.map((copy, at) => cellFor(copy, columns[at].answers)) });
+    rows.push({
+      ...head,
+      cells: copies.map((copy, at) => {
+        const cell = cellFor(copy, columns[at].answers);
+        return cell.lines.length > 0 ? { ...cell, later: laterOf(columns[at], question.id) } : cell;
+      }),
+    });
   }
   return rows;
 }
@@ -267,4 +292,9 @@ export type PersonView = {
   /** "Amara’s name comes off on Sat 9 Dec 2028.", then "Their answers stay in the totals."; empty when no day is set. */
   namesOff: string[];
   openings: PersonOpeningLine[];
+  /** Each survey shown on which they left required questions blank, or were sent them: how many, the last press, the button. */
+  blanks: PersonBlanks[];
 };
+
+/** One survey's questions left blank, on the person's page: the survey, and its line (`blanksRowOf`). */
+export type PersonBlanks = { surveyId: string; name: string; row: BlanksRow };

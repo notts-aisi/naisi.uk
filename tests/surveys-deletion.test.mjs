@@ -101,6 +101,21 @@ describe("deleting an account takes the name off its survey answers at once", ()
     assert.equal(kept.surveyId, SURVEY);
   });
 
+  test("the questions left blank go the same way: the link of blanks with the row, a later send stays beside the answer, naming nobody", async () => {
+    const db = withSurvey();
+    const fill = { answers: { q_catastrophe: { type: "choice", optionId: "o_notsure" } }, sentAt: new Date("2026-10-30T10:00:00Z"), via: "link", afterFirstSession: false };
+    db.poke(`surveyPeople/${SURVEY}__amara`, {
+      blanks: { token: token("b"), sentAt: new Date("2026-10-30T09:00:00Z"), delivery: "sent", spentAt: new Date("2026-10-30T10:00:00Z") },
+      blanksPresses: [{ at: new Date("2026-10-30T09:00:00Z"), byUid: "zach", count: 1 }],
+    });
+    db.poke("surveyAnswers/answer-amara", { fills: [fill] });
+    await deleteAccountCascade(auth, db, "amara");
+    assert.equal(db.read(`surveyPeople/${SURVEY}__amara`), undefined, "the link of blanks still opens her row");
+    const kept = db.read("surveyAnswers/answer-amara");
+    assert.equal(kept.respondent, null);
+    assert.deepEqual(kept.fills, [fill], "the later send changed or went, so a total moved");
+  });
+
   test("nobody else's answers or rows are touched", async () => {
     const db = withSurvey();
     await deleteAccountCascade(auth, db, "amara");

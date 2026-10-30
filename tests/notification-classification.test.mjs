@@ -714,6 +714,9 @@ const REGISTRY = {
   "src/lib/surveys/events/sending.ts#sendNotice": N(
     "The survey after an event, its email to people who came since and its reminder (docs/surveys.md): an admin writing to the people who came to the event or everybody whose place was confirmed, each with their own link, whatever their events row says, with the marker (surface event-survey) and the lane's caps. A guest's and a walk-in's go to the address they gave the event. Email only: no push leg.",
   ),
+  "src/lib/surveys/blanksStore.ts#sendNotice": N(
+    "The questions somebody left blank on a survey they sent (docs/surveys.md): an admin's press, for that one person, sending a link of their own to just those questions, whatever their grid says, as the survey's own email did, with the marker (surface survey-blanks). Never in bulk and never on its own; one person a press, at most three a day, and the lane's hourly cap per admin. Email only: no push leg.",
+  ),
   "src/app/api/surveys/[surveyId]/test/route.ts#sendEmail": T(
     "\"Send a test to me\" under a survey's email or its reminder: the email, marked [TEST], to the address on the presser's own session and nobody else. Nobody's preference is passed over, so it is no notice.",
   ),

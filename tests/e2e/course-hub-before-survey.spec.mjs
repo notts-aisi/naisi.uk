@@ -1790,7 +1790,8 @@ test(
         await adminPage
           .getByRole("heading", { level: 2, name: ADMIN.answeredHeading(keptFor.size, people.length), exact: true })
           .waitFor({ timeout: WAIT_MS });
-        // By whole name, with when it went, when and how each answered.
+        // By whole name, with when it went, when and how each answered. The last column, the
+        // questions left blank, is empty: everybody here answered every required question.
         const expectedRows = [...people]
           .sort((a, b) => a.displayName.localeCompare(b.displayName, "en"))
           .map((person) => {
@@ -1800,6 +1801,7 @@ test(
               dayAndClock(instantOf(rows.get(person.uid).sentAt)),
               answer ? dayAndClock(instantOf(answer.sentAt)) : "Not yet",
               answer ? (answer.via === "signed-in" ? "Signed in" : "Personal link") : "",
+              "",
               "",
             ];
           });

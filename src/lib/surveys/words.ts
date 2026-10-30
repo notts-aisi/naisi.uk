@@ -1376,3 +1376,131 @@ export function personScaleWords(question: SurveyQuestion): string {
       return "";
   }
 }
+
+// ---------------------------------------------------------------------------
+// The questions somebody left blank (docs/surveys.md, "Sending the questions
+// left blank"): the admins' button, the email, and the page the link opens
+// ---------------------------------------------------------------------------
+
+/** What the admins' pages, the link's page and the routes say about the questions somebody left blank. */
+export const BLANKS_WORDS = {
+  /** The admin's button, beside somebody who sent the survey with required questions left blank. */
+  button: "Send the questions they left blank",
+  /** Who answered's column for it. */
+  column: "Left blank",
+  /** The confirmation's two buttons. */
+  confirmCancel: "Not now",
+  sending: "Sending…",
+  /** Why the button cannot be pressed on a survey that has closed. */
+  closed: "The survey has closed, so the questions they left blank can’t be sent.",
+  failed: "That didn’t send. Check your connection and try again.",
+  /** The line at the top of the page the link opens. */
+  lead: "These are the questions you left blank last time. Your first answers stay exactly as you sent them, and what you send now is added to them.",
+  /** The link's page, once its answers are in. */
+  spent: (sentAt: Date | null) => ({
+    title: "You’ve sent these",
+    body: sentAt ? `You sent the questions you left blank on ${dayWords(sentAt)}. Thank you.` : "Thank you.",
+  }),
+  /** The link's page when nothing is blank any more. */
+  nothingLeft: {
+    title: "Nothing is left blank",
+    body: "Every question you were asked has an answer. Thank you.",
+  },
+  /** One person's page: a heading over the surveys they left questions blank on. */
+  personTitle: "Questions left blank",
+  /** Beside an answer that came in through the link of blanks. */
+  later: "Sent later",
+} as const;
+
+/** The routes' refusals about the questions left blank, each one sentence a person can act on. */
+export const BLANKS_REFUSAL = {
+  notBlank: "One of those answers is to a question you had already answered. Your first answers stay as you sent them.",
+  spent: "You’ve already sent these answers. They’re in, and they can’t change.",
+  nothingLeft: "Nothing on this survey is left blank now, so there is nothing to send.",
+  notAnswered: "They haven’t sent this survey yet, so nothing is left blank. Remind them instead.",
+  namesOff: "Their name has come off this survey’s answers, so nothing can be sent to them.",
+  noAddress: "There’s no email address for them, so nothing was sent.",
+  tooMany: "They’ve been sent the questions they left blank three times today. Try again tomorrow.",
+  failed: "The email didn’t go. Nothing else changed: press again in a minute.",
+  closed: "This survey has closed, so the questions left blank can’t be sent.",
+  nobody: "There’s nobody by that address on this survey.",
+} as const;
+
+/** "Left 3 blank", beside a person on Who answered and on their own page. */
+export function leftBlankWords(n: number): string {
+  return `Left ${n} blank`;
+}
+
+/** The confirmation, naming the person and the count, before anything is sent. */
+export function blanksConfirmWords(name: string, n: number): string {
+  const these = n === 1 ? "the question" : `the ${n} questions`;
+  return `Email ${name} a link to ${these} they left blank? It shows only ${n === 1 ? "that question" : "those questions"}, never their answers, and their first answers stay as they sent them.`;
+}
+
+/** The confirmation's button that sends: "Email them the 3 questions". */
+export function blanksConfirmButtonWords(n: number): string {
+  return n === 1 ? "Email them the question" : `Email them the ${n} questions`;
+}
+
+/** After a press: "Sent Fri 30 Oct, 2:05pm by Zach Levin", or what became of it. */
+export function blanksPressedWords(press: { at: Date | null; by: string; delivery: "sent" | "held" | "suppressed" | null }): string {
+  const when = press.at ? ` ${dayAndClockWords(press.at)}` : "";
+  const by = press.by ? ` by ${press.by}` : "";
+  if (press.delivery === "held") return `Held by this copy of the site${when}${by}, so it reached nobody.`;
+  if (press.delivery === "suppressed") return `Not sent${when}${by}: the address is on the do-not-email list.`;
+  if (press.delivery === null) return `Pressed${when}${by}, and the email didn’t go.`;
+  return `Sent${when}${by}`;
+}
+
+/** "Answered them Fri 30 Oct, 2:05pm", once somebody has sent the questions they left blank. */
+export function blanksAnsweredWords(at: Date | null): string {
+  return at ? `Answered the blanks ${dayAndClockWords(at)}` : "Answered the blanks";
+}
+
+/** The count on the button no longer matches: nothing was sent, and the page is told the new number. */
+export function blanksCountChangedWords(now: number): string {
+  return `Nothing was sent: they now have ${questionsWords(now)} left blank. Check, then press again.`;
+}
+
+/** "Sent later, Fri 30 Oct, 2:05pm", beside an answer that came in through the link of blanks. */
+export function sentLaterWords(at: Date | null): string {
+  return at ? `${BLANKS_WORDS.later}, ${dayAndClockWords(at)}` : BLANKS_WORDS.later;
+}
+
+/** What the email of blanks is made from: the survey's own record, the count, and whoever pressed. */
+export type BlanksEmailFacts = {
+  /** "Before you start". */
+  title: string;
+  /** "AGI Strategy", or the event's title. */
+  about: string;
+  questions: number;
+  /** Null for a survey with no closing day (the survey about leaving). */
+  closesAt: Date | null;
+  /** The survey's own confidential line. */
+  confidential: string;
+  signer: string;
+};
+
+/**
+ * The email that carries a link of blanks: the survey's name, how many
+ * questions, that the link shows only those and never an answer, that the
+ * first answers stay as they were sent, and when it closes. Never an answer
+ * and never a result.
+ */
+export function blanksEmailWords(facts: BlanksEmailFacts): SurveyEmailWords {
+  const those = facts.questions === 1 ? "that question" : "those questions";
+  return {
+    subject: `${facts.title}: ${questionsWords(facts.questions)} you left blank`,
+    paragraphs: [
+      `You sent “${facts.title}” for ${facts.about} with ${questionsWords(facts.questions)} left blank. This link shows only ${those}, never your answers.`,
+      "Your first answers stay exactly as you sent them, and what you send now is added to them.",
+      facts.confidential,
+      ...(facts.closesAt ? [`It closes on ${dayWords(facts.closesAt)}.`] : []),
+    ],
+    button: `Answer the ${questionsWords(facts.questions)}`,
+    signOff: signOffOf(facts.signer),
+  };
+}
+
+/** A programme survey's confidential line, for an email that is not the survey's own. */
+export const PROGRAMME_CONFIDENTIAL_LINE = CONFIDENTIAL_LINE;

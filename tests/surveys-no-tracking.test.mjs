@@ -126,6 +126,9 @@ describe("no survey file records activity or an IP address", () => {
   test("the one route that reads the client's address reads it only for its rate limit", () => {
     const route = readFileSync(join(REPO_ROOT, "src", "app", "api", "surveys", "answer", "route.ts"), "utf8");
     assert.match(route, /rateLimit\(`surveys:answer:ip:\$\{clientIp\(req\)\}`, 30, 60_000\)/);
+    // The link of the questions left blank is answered the same way, with the same limit.
+    const blanks = readFileSync(join(REPO_ROOT, "src", "app", "api", "surveys", "blanks", "route.ts"), "utf8");
+    assert.match(blanks, /rateLimit\(`surveys:blanks:ip:\$\{clientIp\(req\)\}`, 30, 60_000\)/);
   });
 });
 

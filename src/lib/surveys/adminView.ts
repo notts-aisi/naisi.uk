@@ -5,12 +5,14 @@ import { readAudience, type AudienceRead } from "./audience";
 import { eventListRow } from "./events/listRow";
 import { eventPeopleOf } from "./events/store";
 import { eventMeta } from "./events/words";
+import { blanksOf, blanksRowOf, mergedAnswers, type BlanksRow } from "./blanks";
 import { changeBetween, lookBackBetween, type ChangeResult, type PairedAnswers } from "./change";
 import { emailWordsFor, siteAddress, surveyLinkPath } from "./emails";
 import { consentItemsOf, surveyQuestionsOf } from "./items";
 import { namesOf } from "./names";
 import { whoOf } from "./onePersonLayout";
-import { answersOf, chainOf, closedOn, peopleOf, readSurvey, sentCountOf, surveyState } from "./repo";
+import { hiddenLinesForEach } from "./personFacts";
+import { answersOf, chainOf, closedOn, isOpen, peopleOf, readSurvey, sentCountOf, surveyState } from "./repo";
 import { surveyResults, type QuestionResult } from "./results";
 import { readSendPlan, remindReach, signerOf, testStateFor } from "./sending";
 import {
@@ -371,16 +373,36 @@ export type AnsweredRow = {
   /** "After their first session", or "". */
   label: string;
   reminded: string;
+  /** How many required questions they left blank, the last press and whether it can be pressed now, or null. */
+  blanks: BlanksRow | null;
 };
 
-export async function answeredView(db: Firestore, survey: SurveyDoc): Promise<{ rows: AnsweredRow[]; answered: number; sent: number }> {
+export async function answeredView(
+  db: Firestore,
+  survey: SurveyDoc,
+  now: Date = new Date(),
+): Promise<{ rows: AnsweredRow[]; answered: number; sent: number }> {
   const [people, answers] = await Promise.all([peopleOf(db, survey.id), answersOf(db, survey)]);
   const byUid = new Map(answers.flatMap((answer) => (answer.respondent ? [[answer.respondent.uid, answer] as const] : [])));
   const sent = people.filter((person) => person.sentAt !== null);
-  const names = await namesOf(db, sent.map((person) => person.respondent.uid));
+  const pressers = sent.flatMap((person) => person.blanksPresses.map((press) => press.byUid));
+  const [names, hidden] = await Promise.all([
+    namesOf(db, [...sent.map((person) => person.respondent.uid), ...pressers]),
+    hiddenLinesForEach(db, survey, sent.filter((person) => byUid.has(person.respondent.uid)).map((person) => person.respondent.uid)),
+  ]);
+  const open = isOpen(survey, now);
   const rows = sent
     .map((person) => {
       const answer = byUid.get(person.respondent.uid);
+      const blanks = answer
+        ? blanksRowOf({
+            count: blanksOf(survey.items, answer.answers, { hiddenLines: hidden.get(person.respondent.uid) ?? [] }).length,
+            open,
+            link: person.blanks,
+            presses: person.blanksPresses,
+            nameOf: (uid) => names.get(uid) ?? "",
+          })
+        : null;
       return {
         name: names.get(person.respondent.uid) ?? "Somebody whose account has gone",
         who: whoOf(person.respondent),
@@ -389,6 +411,7 @@ export async function answeredView(db: Firestore, survey: SurveyDoc): Promise<{ 
         how: answer ? (answer.via === "signed-in" ? "Signed in" : "Personal link") : "",
         label: answer?.afterFirstSession ? "After their first session" : "",
         reminded: person.reminders > 0 ? `Reminded ${person.reminders === 1 ? "once" : `${person.reminders} times`}` : "",
+        blanks,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name, "en"));
@@ -450,8 +473,19 @@ export async function resultsView(
   options: { commentsInOrder?: "arrival" | "words" } = {},
 ): Promise<ResultsView> {
   const [answers, people, chain] = await Promise.all([answersOf(db, survey), peopleOf(db, survey.id), chainOf(db, survey)]);
+  // Before the first session: an answer sent after it is left out whole, and
+  // from one sent before it, so is anything the person sent later, after it,
+  // in the questions they had left blank (merged again without those sends).
   const leaveOut = (list: Awaited<ReturnType<typeof answersOf>>, kind: SurveyDoc["kind"]) =>
-    beforeFirstSession && kind === "before" ? list.filter((answer) => !answer.afterFirstSession) : list;
+    beforeFirstSession && kind === "before"
+      ? list
+          .filter((answer) => !answer.afterFirstSession)
+          .map((answer) =>
+            answer.fills.some((fill) => fill.afterFirstSession)
+              ? { ...answer, answers: mergedAnswers(answer.first, answer.fills.filter((fill) => !fill.afterFirstSession)) }
+              : answer,
+          )
+      : list;
   const kept = leaveOut(answers, survey.kind);
   let leftOut = answers.length - kept.length;
   const earlier = await Promise.all(

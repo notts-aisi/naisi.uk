@@ -234,6 +234,18 @@ const PUBLIC = new Map([
     },
   ],
   [
+    "src/app/api/surveys/blanks/route.ts#POST",
+    {
+      touches: "finds whose survey row the secret in the link of blanks is, reads that person's survey, answer, group and run, then keeps what they send beside their first answers once",
+      gate: "openBlanksLink(",
+      why:
+        "The questions somebody left blank, answered from the link of blanks an admin's press emailed them, " +
+        "which has no session to send: the random secret is the gate. One equality on it, and an unknown, " +
+        "replaced or malformed one reads nothing more; an in-memory per-IP throttle runs before it. The one " +
+        "write is the person's own later send, beside their first answers, once, in a transaction that spends the link.",
+    },
+  ],
+  [
     "src/app/api/surveys/consent/route.ts#POST",
     {
       touches: "finds whose survey row the secret in the link is, reads that person's survey and their row on the survey that asks the consent, then changes that row's consent",
