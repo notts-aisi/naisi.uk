@@ -174,7 +174,12 @@ async function teardown(state) {
   }
   await deleteQuery(fixtureQuery("courseBestAnswers").where("runId", "==", state.runId));
   await deleteQuery(fixtureQuery("coursePangramChecks").where("runId", "==", state.runId));
-  await teardownTerm(state);
+  // The runner reads the manifest this returns, and calls the fixture clean
+  // only when its total is zero: the term's own, plus what is left of the
+  // three collections above, counted again after the deletes.
+  const term = await teardownTerm(state);
+  const left = await countCoursework(state);
+  return { ...term, ...left, total: term.total + left.memberNotes + left.courseBestAnswers + left.coursePangramChecks };
 }
 
 export const SPEC = {
