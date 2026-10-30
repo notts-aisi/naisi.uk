@@ -69,6 +69,7 @@ import { PAIRS_WITH_LAPTOPS, withBeforeYouCome } from "./lib/pairsWorld.mjs";
 import { weekSixBlocks } from "./lib/weekSixWorld.mjs";
 import { CARD_TEXT } from "./lib/sealedPredictionsWorld.mjs";
 import { GLOSSARY_MARKDOWN, START_HERE_MARKDOWN } from "./lib/guideFixture.mjs";
+import { withEveryRequired } from "./lib/surveyAnswers.mjs";
 
 // ---------------------------------------------------------------------------
 // The clock: London is on GMT from Sun 25 Oct, so a London hour is the UTC one
@@ -132,6 +133,7 @@ const lib = {
   progress: await loadTs(join("lib", "firestore", "courseProgress.ts")),
   cards: await loadTs(join("lib", "courses", "weekOne", "cards.ts")),
   waiting: await loadTs(join("lib", "surveys", "waiting.ts")),
+  surveyItems: await loadTs(join("lib", "surveys", "items.ts")),
   queue: await loadTs(join("lib", "courses", "writtenAnswers", "queue.ts")),
   groups: await loadTs(join("lib", "firestore", "courseGroups.ts")),
   facilitatorWords: await loadTs(join("lib", "courses", "facilitatorPageWords.ts")),
@@ -143,6 +145,11 @@ const lib = {
   groupWeek: await loadTs(join("lib", "courses", "facilitatorWeek", "readers.ts")),
   facilitatorGroup: await loadTs(join("lib", "courses", "facilitatorGroup.ts")),
 };
+/**
+ * Every required question of survey `id` answered plainly, as the answer
+ * routes insist since 30 Oct 2026 (tests/lib/surveyAnswers.mjs).
+ */
+const everyRequired = (id) => withEveryRequired(lib.surveyItems, world.db.read(`surveys/${id}`).items, {});
 
 /**
  * Which form of Home `who` is given, as `HomeMember` decides it from the hub's list: the
@@ -741,7 +748,7 @@ describe("3. week 1 (Thu 29 Oct to Wed 4 Nov; Group B meets on Tue 3 Nov)", () =
     at("2026-11-03T21:10:00Z");
     const before = await w.weekPage("amara", 1, ticksOf("amara"));
     assert.match(before.text, /A survey for you Before you start/);
-    ok(await asForm(null, routes.surveyAnswer.POST, {}, { token: tokenOf(surveyOf("before").id, "amara"), answers: {} }), "Amara answers");
+    ok(await asForm(null, routes.surveyAnswer.POST, {}, { token: tokenOf(surveyOf("before").id, "amara"), answers: everyRequired(surveyOf("before").id) }), "Amara answers");
     const after = await w.weekPage("amara", 1, ticksOf("amara"));
     assert.doesNotMatch(after.text, /A survey for you/);
     assert.deepEqual(await lib.waiting.surveysWaitingFor(world.db, { uid: "amara" }, new Date()), []);
@@ -927,7 +934,7 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
     const leaving = surveyOf("leaving");
     const before = await serverPage(["[runId]", "page.tsx"], { runId: RUN.agi }, "dev");
     assert.match(before.text, /Tell us why Answer 3 questions, about a minute\./);
-    ok(await asForm(null, routes.surveyAnswer.POST, {}, { token: tokenOf(leaving.id, "dev"), answers: {} }), "Dev answers");
+    ok(await asForm(null, routes.surveyAnswer.POST, {}, { token: tokenOf(leaving.id, "dev"), answers: everyRequired(leaving.id) }), "Dev answers");
     assert.equal(await lib.waiting.leavingSurveyCardFor(world.db, { uid: "dev" }, RUN.agi, new Date()), null);
     const after = await serverPage(["[runId]", "page.tsx"], { runId: RUN.agi }, "dev");
     assert.doesNotMatch(after.text, /Tell us why/);
@@ -1228,7 +1235,7 @@ describe("7. week 6 (Group B meets on Tue 8 Dec, its last session)", () => {
     const notKnown = await w.homeCard("amara", ticksOf("amara"), { endSurvey: endCard });
     assert.match(notKnown.text, / About 10 minutes\. Open the survey It closes on Wed 16 Dec\. /);
     at("2026-12-08T19:45:00Z");
-    ok(await asForm(null, routes.surveyAnswer.POST, {}, { token: tokenOf(made.survey.id, "amara"), answers: {} }), "Amara answers");
+    ok(await asForm(null, routes.surveyAnswer.POST, {}, { token: tokenOf(made.survey.id, "amara"), answers: everyRequired(made.survey.id) }), "Amara answers");
     waiting = await lib.waiting.surveysWaitingFor(world.db, { uid: "amara" }, new Date());
     assert.deepEqual(waiting, []);
   });
