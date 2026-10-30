@@ -279,10 +279,13 @@ test(
           await notes().getByText(WORDS.drafted, { exact: true }).waitFor({ timeout: WAIT_MS });
           const drafted = await notes().locator(`#new-note-${ada.uid}`).inputValue();
           assert.ok(drafted.trim().length > 0, "a draft came back and the box is empty");
+          // Which way it went is said in the log, never the draft's words: a reason passes the step too.
+          console.log(`[coursework-notes-spec] Claude's draft: a draft came back (${drafted.trim().split(/\s+/).length} words).`);
           await notes().getByRole("button", { name: WORDS.cancel }).click();
         } else {
           const alert = await textOf(notes().getByRole("alert"));
           assert.ok(DRAFT_REASONS.some((reason) => alert.includes(reason)), `the draft was refused in words the site does not say: ${alert}`);
+          console.log(`[coursework-notes-spec] Claude's draft: answered ${answer.status()} with the reason "${alert}".`);
         }
         assert.equal((await storedNotes(ada.uid)).length, before, "drafting kept a note before anybody pressed Save");
       });
