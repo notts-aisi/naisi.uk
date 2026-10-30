@@ -5,6 +5,7 @@ import { readAudience, type AudienceRead } from "./audience";
 import { eventListRow } from "./events/listRow";
 import { eventPeopleOf } from "./events/store";
 import { eventMeta } from "./events/words";
+import { mergedAnswers } from "./blanks";
 import { changeBetween, lookBackBetween, type ChangeResult, type PairedAnswers } from "./change";
 import { emailWordsFor, siteAddress, surveyLinkPath } from "./emails";
 import { consentItemsOf, surveyQuestionsOf } from "./items";
@@ -450,8 +451,19 @@ export async function resultsView(
   options: { commentsInOrder?: "arrival" | "words" } = {},
 ): Promise<ResultsView> {
   const [answers, people, chain] = await Promise.all([answersOf(db, survey), peopleOf(db, survey.id), chainOf(db, survey)]);
+  // Before the first session: an answer sent after it is left out whole, and
+  // from one sent before it, so is anything the person sent later, after it,
+  // in the questions they had left blank (merged again without those sends).
   const leaveOut = (list: Awaited<ReturnType<typeof answersOf>>, kind: SurveyDoc["kind"]) =>
-    beforeFirstSession && kind === "before" ? list.filter((answer) => !answer.afterFirstSession) : list;
+    beforeFirstSession && kind === "before"
+      ? list
+          .filter((answer) => !answer.afterFirstSession)
+          .map((answer) =>
+            answer.fills.some((fill) => fill.afterFirstSession)
+              ? { ...answer, answers: mergedAnswers(answer.first, answer.fills.filter((fill) => !fill.afterFirstSession)) }
+              : answer,
+          )
+      : list;
   const kept = leaveOut(answers, survey.kind);
   let leftOut = answers.length - kept.length;
   const earlier = await Promise.all(

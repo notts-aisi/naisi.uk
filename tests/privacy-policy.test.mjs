@@ -5058,6 +5058,12 @@ describe("the course hub passage", () => {
         // CHANGED ON PURPOSE (Q46): the leaving survey's row for a person is made as they leave.
         ["src/lib/surveys/leaving.ts", "the leaving survey's row for a person, made as they leave the programme, with their own link: never an answer"],
         ["src/lib/surveys/events/store.ts", "a survey after an event's rows and its one writer of answers: each person's row before their email, their own answers, once, by their link or signed in, and one person's row and answers for the admins' page that opens them, read once that opening is recorded"],
+        // The questions somebody left blank (docs/surveys.md): an admin's press
+        // writes the person's own link of blanks on their row, and the one
+        // writer of what they send through it keeps it beside their first
+        // answers. Their answer is read to count what is blank, and the admins
+        // are shown a count, never an answer.
+        ["src/lib/surveys/blanksStore.ts", "the questions left blank: a person's own link of blanks on their own row, made by an admin's press and recorded with it, their own answer read to count what is still blank, and the one writer of what they send later, kept beside their first answers"],
       ]),
       "addressing who a survey was sent to, or what somebody answered",
       "The policy says only admins see who said what or who has answered. If " +
