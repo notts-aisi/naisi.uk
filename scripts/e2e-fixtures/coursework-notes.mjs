@@ -211,12 +211,13 @@ export const SPEC = {
     ],
   },
   /**
-   * UNVERIFIED: written on 30 October 2026 by a builder with no credentials
-   * for the dev project, so it has never run. The pull request's end-to-end
-   * job runs it in local mode first, then the end-to-end workflow against
-   * dev; it becomes "verified" in the change that records that green run.
+   * VERIFIED on 30 October 2026: against dev.naisi.uk, in the end-to-end
+   * workflow's dev job (run 41006846324): every step ran, the one press of
+   * Claude's draft came back with a draft, 86 rows existed before teardown,
+   * and the fixture manifest read zero after it. Its steps had passed in the
+   * pull request's end-to-end job in local mode before that.
    */
-  status: "unverified",
+  status: "verified",
   seed,
   countRows: async (state) => ({ ...(await countTerm(state)), ...(await countCoursework(state)) }),
   teardown,

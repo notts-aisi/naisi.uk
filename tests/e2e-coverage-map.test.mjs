@@ -439,21 +439,6 @@ const NOT_COVERED = {
     coverWhen:
       "When impersonation can be driven on a project of its own rather than a shared one.",
   },
-  "/api/admin/members/[uid]/notes": {
-    reason:
-      "Notes admins keep about a person (privacy v13): scripts/e2e-fixtures/coursework-notes.mjs drives the list and a new note on the profile and beside an application, and is unverified: it was written where the dev project could not be reached. tests/coursework-claude.test.mjs executes the route as every kind of caller.",
-    coverWhen: "When scripts/e2e-fixtures/coursework-notes.mjs passes once, in the pull request's end-to-end job and against dev: that change marks it verified and removes this entry.",
-  },
-  "/api/admin/members/[uid]/notes/[noteId]": {
-    reason:
-      "Changing and deleting a note admins keep (privacy v13): the coursework notes spec drives both and is unverified; tests/coursework-claude.test.mjs executes them as every kind of caller.",
-    coverWhen: "With the coursework notes spec above.",
-  },
-  "/api/admin/members/[uid]/notes/draft": {
-    reason:
-      "Claude's draft of a note (privacy v13): the coursework notes spec meets it, the calm sentence in local mode and one press against a target with a key, and is unverified; tests/coursework-claude.test.mjs executes it with Claude stubbed and reads every message that would go.",
-    coverWhen: "With the coursework notes spec above.",
-  },
   "/api/admin/members/[uid]/conduct-flag": {
     reason:
       "Admin CRUD: /api/admin/members/[uid]/conduct-flag answers one admin's deliberate press, and its failure lands on that admin's own screen.",
@@ -759,24 +744,6 @@ const NOT_COVERED = {
     reason:
       "Course hub: the test of the ask's email, sent only to the address on the session of whoever asks; tests/course-hub-facilitator-asks.test.mjs executes it and the lock it unlocks.",
     coverWhen: "With the spec for the ask above, because the test is the ask's first step.",
-  },
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers": {
-    reason:
-      "Course hub: Claude's best answers to a week (privacy v13), on the programme's Coursework tab, for an admin and the lead. tests/coursework-claude.test.mjs executes it as every kind of caller with Claude stubbed, and holds that labels go and names come back.",
-    coverWhen:
-      "When the coursework notes spec, which now reads the panel under the Coursework tab as the lead is shown it and presses nothing, has passed once: this entry goes in that change.",
-  },
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/pangram": {
-    reason:
-      "Course hub: who a week's Pangram check would send, an admin's alone, on the Coursework tab. tests/coursework-claude.test.mjs executes it, the lead refused.",
-    coverWhen:
-      "Never against a live detector from a fixture: a check would send a fixture's words to Pangram. For the count before the press alone, when the coursework notes spec, which now reads it and presses nothing, has passed once.",
-  },
-  "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]/pangram": {
-    reason:
-      "Course hub: Pangram on one person's coursework, an admin's alone, on the person page. tests/coursework-claude.test.mjs executes it with Pangram's client faked, the lead refused and never shown a reading.",
-    coverWhen:
-      "Never against a live detector from a fixture. For the readings already kept and the calm sentence where Pangram is not set up, when the coursework notes spec, which now reads it on a person's page and presses nothing, has passed once.",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/case/draft": {
     reason:
@@ -1631,12 +1598,6 @@ const NOT_COVERED = {
     coverWhen:
       "When a permission grant is next handed to somebody other than the admin who makes it.",
   },
-  "/(app)/admin/(admin-only)/members/[uid]": {
-    reason:
-      "One person's admin page is used by one admin: role changes, permission grants, the view-as button and deleting an account, each read back on the same page.",
-    coverWhen:
-      "When a permission grant is next handed to somebody other than the admin who makes it.",
-  },
   "/(app)/admin/(admin-only)/newsletter": {
     reason:
       "Newsletter: /(app)/admin/(admin-only)/newsletter is used by two people deliberately, and the result is read back on the page they are looking at.",
@@ -1768,12 +1729,6 @@ const NOT_COVERED = {
       "Course hub: the programme's lead's way to the review page, where a facilitator's own answer gets feedback; drawn as the lead, another programme's lead and somebody signed out in tests/course-hub-written-answers.test.mjs.",
     coverWhen:
       "When a browser spec signs in as the programme's lead and gives feedback on a facilitator's own answer.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/applications/[uid]": {
-    reason:
-      "Application review: the review screen is reached from the list only, and was checked by hand at 1440 and 390 as a lead, a reviewer and an admin, keyboard included.",
-    coverWhen:
-      "When the end-to-end fixtures can seed an application form with a sent application for a lead to score and decide.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week": {
     reason:
