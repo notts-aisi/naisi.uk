@@ -27,6 +27,7 @@ import { countCourseGuide, courseGuideRefs } from "@/lib/courses/facilitatorGuid
 import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
 import { PLACEMENT_NOTES_COLLECTION } from "@/lib/courses/placementNotes/model";
+import { BEST_ANSWERS_COLLECTION, PANGRAM_CHECKS_COLLECTION } from "@/lib/courses/coursework/collections";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import { RECORD_OPENINGS_COLLECTION } from "./recordOpenings";
@@ -336,6 +337,22 @@ export type RunDestroyCounts = {
    * drafts are not here: they live with the application.
    */
   placementNotes: number;
+  /**
+   * `courseBestAnswers` rows: Claude's pick of the strongest answers to each
+   * week of this run (privacy v13, `src/lib/courses/coursework/bestAnswers.ts`).
+   * Keyed by `runId` on the row like every other leaf here, and it dies with
+   * the run: the privacy policy says it is kept with the run until the run
+   * is deleted, and every pick is an answer this cascade deletes.
+   */
+  bestAnswers: number;
+  /**
+   * `coursePangramChecks` rows: Pangram's readings of each person's answers
+   * on this run (privacy v13, `src/lib/courses/coursework/pangram.ts`). Keyed
+   * by `runId` on the row like every other leaf here, and it dies with the
+   * run, as the privacy policy says: each reading is of an answer this
+   * cascade deletes.
+   */
+  pangramChecks: number;
   /**
    * `coursePacksAndCases` rows: what each person had in this run's weeks'
    * packs and talks, the pack picked or given, the case given and their own
@@ -1139,6 +1156,8 @@ export async function countRunDestroyTargets(
     groupNotes,
     groupSharedNotes,
     placementNotes,
+    bestAnswers,
+    pangramChecks,
     packsAndCases,
     pairs,
     anonymousFeedbackCounts,
@@ -1217,6 +1236,10 @@ export async function countRunDestroyTargets(
     countAgg(db.collection(COURSE_GROUP_SHARED_NOTES_COLLECTION).where("runId", "==", runId)),
     // The same single equality the placement notes stage drains on.
     countAgg(db.collection(PLACEMENT_NOTES_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the best answers stage drains on.
+    countAgg(db.collection(BEST_ANSWERS_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the Pangram readings stage drains on.
+    countAgg(db.collection(PANGRAM_CHECKS_COLLECTION).where("runId", "==", runId)),
     // The same single equality the packs and cases stage drains on.
     countAgg(db.collection(COURSE_PACKS_AND_CASES_COLLECTION).where("runId", "==", runId)),
     // The same single equality the pairs stage drains on.
@@ -1263,6 +1286,8 @@ export async function countRunDestroyTargets(
     groupNotes,
     groupSharedNotes,
     placementNotes,
+    bestAnswers,
+    pangramChecks,
     packsAndCases,
     pairs,
     anonymousFeedback: anonymousFeedbackCounts.reduce((a, b) => a + b, 0),
@@ -1855,6 +1880,20 @@ export async function destroyRunCascade(
       // the destroy marker, so nothing recreates one behind the cascade.
       drain: () =>
         drainQuery(db, PLACEMENT_NOTES_COLLECTION, byRunId(PLACEMENT_NOTES_COLLECTION), budget),
+    },
+    {
+      key: "bestAnswers",
+      // Claude's pick of each week's strongest answers: a leaf keyed by
+      // `runId`, drained with the other leaves. `write: if false` to every
+      // client, and its route reads the run first and finds nothing once it
+      // is being destroyed, so nothing recreates one behind the cascade.
+      drain: () => drainQuery(db, BEST_ANSWERS_COLLECTION, byRunId(BEST_ANSWERS_COLLECTION), budget),
+    },
+    {
+      key: "pangramChecks",
+      // Pangram's readings of each person's answers: a leaf keyed by `runId`,
+      // drained with the other leaves, for the same reasons as bestAnswers.
+      drain: () => drainQuery(db, PANGRAM_CHECKS_COLLECTION, byRunId(PANGRAM_CHECKS_COLLECTION), budget),
     },
     {
       key: "packsAndCases",

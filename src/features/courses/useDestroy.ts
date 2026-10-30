@@ -325,6 +325,16 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "What was chosen for each person told their group at a time they said they couldn’t make: a note of our own words, or none. They belong to this run’s places, so they go with the run. Claude’s drafts of them are kept with the applications, not here.",
   },
+  bestAnswers: {
+    label: "Claude’s best answers",
+    fate: "destroyed",
+    note: "Claude’s pick of the strongest answers to each week, asked for by an admin or the programme’s lead. Every pick is an answer this destroy deletes, so they go with the run.",
+  },
+  pangramChecks: {
+    label: "Pangram’s readings",
+    fate: "destroyed",
+    note: "What Pangram found in people’s written answers and reflections, asked for by an admin. Each is a reading of an answer this destroy deletes, so they go with the run.",
+  },
   packsAndCases: {
     label: "Packs, cases and ready marks",
     fate: "destroyed",

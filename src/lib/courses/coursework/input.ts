@@ -253,6 +253,8 @@ export type PangramPart = {
   key: string;
   weekId: string;
   kind: CourseworkKind;
+  /** The question it answers (`CourseworkQuestion.key`). */
+  questionKey: string;
   text: string;
   words: number;
   /** A hash of its words, kept with its reading. */
@@ -288,7 +290,15 @@ export function pangramPartsOf(
       tooShort += 1;
       continue;
     }
-    parts.push({ key: answer.rowId, weekId: answer.weekId, kind: answer.kind, text: answer.text, words, hash: fingerprintOf(answer.text) });
+    parts.push({
+      key: answer.rowId,
+      weekId: answer.weekId,
+      kind: answer.kind,
+      questionKey: answer.questionKey,
+      text: answer.text,
+      words,
+      hash: fingerprintOf(answer.text),
+    });
   }
   parts.sort((a, b) => a.weekId.localeCompare(b.weekId) || a.key.localeCompare(b.key));
   return { parts, tooShort, notCounted };

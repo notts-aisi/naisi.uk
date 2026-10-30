@@ -33,6 +33,7 @@ import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
 import { PLACEMENT_NOTES_COLLECTION } from "@/lib/courses/placementNotes/model";
 import { MEMBER_NOTES_COLLECTION } from "@/lib/memberNotes/model";
+import { BEST_ANSWERS_COLLECTION, PANGRAM_CHECKS_COLLECTION } from "@/lib/courses/coursework/collections";
 import {
   MEMBER_RECORDS_COLLECTION,
   MEMBER_RECORD_APPLICATIONS,
@@ -270,6 +271,19 @@ export type AccountDeletionSummary = {
    * author, because the name is looked up when the note is read.
    */
   memberNotesDeleted: number;
+  /**
+   * Pangram's readings of this account's coursework (`coursePangramChecks`,
+   * privacy v13), one record per run. Deleted: each is about this account
+   * alone.
+   */
+  coursePangramChecksDeleted: number;
+  /**
+   * Claude's best answers (`courseBestAnswers`, privacy v13) that picked or
+   * numbered this account: each is a week of a run, about everybody on it,
+   * so it stays, and this account is taken out of it (its picks, its label
+   * and its account id). Counted once per document.
+   */
+  courseBestAnswersCleared: number;
   authDeleted: boolean;
   /** Set when the teardown was not fully clean (a best-effort step failed, or the
    *  Auth account could not be deleted). Routes return 207 when this is present. */
@@ -748,6 +762,33 @@ export async function deleteCourseGroupSharedNotes(db: Firestore, uid: string): 
  */
 export async function deleteMemberNotes(db: Firestore, uid: string): Promise<number> {
   return deleteOwnedCourseRows(db, MEMBER_NOTES_COLLECTION, uid);
+}
+
+/**
+ * Take this account out of every week of Claude's best answers that numbered
+ * it (`courseBestAnswers`, privacy v13): its picks, its label and its account
+ * id, found by the one `array-contains` on `uids`. The rest of each week
+ * stays for everybody else on the run; a reason that named this account's
+ * label then reads "a fellow" on the screen.
+ */
+export async function clearBestAnswerPicks(db: Firestore, uid: string): Promise<number> {
+  const snap = await db.collection(BEST_ANSWERS_COLLECTION).where("uids", "array-contains", uid).get();
+  let cleared = 0;
+  for (const doc of snap.docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    const questions = Array.isArray(data.questions) ? (data.questions as Array<Record<string, unknown>>) : [];
+    const labels = data.labels && typeof data.labels === "object" ? (data.labels as Record<string, unknown>) : {};
+    await doc.ref.update({
+      questions: questions.map((question) => ({
+        ...question,
+        picks: (Array.isArray(question.picks) ? (question.picks as Array<Record<string, unknown>>) : []).filter((pick) => pick.uid !== uid),
+      })),
+      labels: Object.fromEntries(Object.entries(labels).filter(([, value]) => value !== uid)),
+      uids: FieldValue.arrayRemove(uid),
+    });
+    cleared += 1;
+  }
+  return cleared;
 }
 
 /**
@@ -1406,6 +1447,8 @@ export async function deleteAccountCascade(
     memberRecordApplicationsRetained: 0,
     conductFlagDeleted: false,
     memberNotesDeleted: 0,
+    coursePangramChecksDeleted: 0,
+    courseBestAnswersCleared: 0,
     authDeleted: false,
   };
   // Tracks whether any best-effort step (2-5) failed after attempting, so we can
@@ -1974,6 +2017,23 @@ export async function deleteAccountCascade(
     summary.memberNotesDeleted = await deleteMemberNotes(db, uid);
   } catch (err) {
     console.error("[deleteAccount] memberNotes delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // Claude and Pangram on coursework (privacy v13). Pangram's readings are
+  // about this account alone, one record per run, and go; Claude's best
+  // answers to a week are about everybody on it, so they stay without this
+  // account in them.
+  try {
+    summary.coursePangramChecksDeleted = await deleteOwnedCourseRows(db, PANGRAM_CHECKS_COLLECTION, uid);
+  } catch (err) {
+    console.error("[deleteAccount] coursePangramChecks delete failed:", uid, err);
+    partialFailure = true;
+  }
+  try {
+    summary.courseBestAnswersCleared = await clearBestAnswerPicks(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseBestAnswers clear failed:", uid, err);
     partialFailure = true;
   }
 

@@ -3162,6 +3162,29 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === courseBestAnswers ===
+    // Claude's pick of the strongest answers to one week of a run (privacy
+    // v13; src/lib/courses/coursework/bestAnswers.ts): the accounts it
+    // picked and why. Read and written only by the best-answers route on the
+    // Admin SDK, after the Coursework tab's own door (an admin or the
+    // programme's lead), which puts names back from who holds a place now.
+    // So every browser is refused, the people picked included: a fellow
+    // never reads which of their peers' answers were picked.
+    match /courseBestAnswers/{docId} {
+      allow read, write: if false;
+    }
+
+    // === coursePangramChecks ===
+    // Pangram's reading of each of one person's counted answers on a run
+    // (privacy v13; src/lib/courses/coursework/pangram.ts). Read and written
+    // only by the Pangram routes on the Admin SDK, after a door that admits
+    // admins alone. So every browser is refused: the person it is about, the
+    // programme's lead and the group's facilitators never see a reading, and
+    // an admin's screen reads it through the route.
+    match /coursePangramChecks/{docId} {
+      allow read, write: if false;
+    }
+
     // === coursePacksAndCases ===
     // What each person has in a week's packs and talks (plan item 8, Q32 A,
     // src/lib/firestore/coursePacksAndCases.ts): the pack they picked or were
