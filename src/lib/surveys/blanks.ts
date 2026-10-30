@@ -1,5 +1,14 @@
 import { own } from "@/lib/applications/keys";
-import { isLinesQuestion, surveyQuestionsOf, type SurveyAnswer, type SurveyItem, type SurveyQuestion } from "./items";
+import {
+  answerFills,
+  isLinesQuestion,
+  missingRequired,
+  requiredQuestionsOf,
+  surveyQuestionsOf,
+  type SurveyAnswer,
+  type SurveyItem,
+  type SurveyQuestion,
+} from "./items";
 import type { SurveyBlanksPress, SurveyBlanksLink } from "@/lib/firestore/surveys";
 import { BLANKS_REFUSAL, BLANKS_WORDS, blanksAnsweredWords, blanksPressedWords, leftBlankWords } from "./words";
 
@@ -27,6 +36,9 @@ import { BLANKS_REFUSAL, BLANKS_WORDS, blanksAnsweredWords, blanksPressedWords, 
  *    line by line: a later send adds the lines that were blank and never
  *    changes a line already answered. The merge holds that whatever is
  *    stored, and the route that keeps a later send refuses anything else.
+ *  - ONLY A REQUIRED QUESTION IS EVER A BLANK, by the survey's one rule
+ *    (`isQuestionRequired` and `missingRequired` in `./items`): a question
+ *    marked optional and left blank is not counted and never sent.
  *  - A CONSENT BOX IS NEVER A BLANK. It is not a question (`kind: "consent"`),
  *    and the Kairos choice and the quote tick are not questions either.
  *
@@ -64,19 +76,6 @@ export function mergedAnswers(first: Readonly<SurveyAnswers>, fills: readonly { 
   return out;
 }
 
-/** Whether a question must be answered. The rule is passed in, so the one definition of "required" decides. */
-export type RequiredRule = (question: SurveyQuestion) => boolean;
-
-/**
- * STAND-IN until the survey's own Required switch reaches this code: every
- * question is required, and a consent box, never a question, never is.
- * Replaced by `isQuestionRequired` from `./items` when that lands.
- */
-export const EVERY_QUESTION_REQUIRED: RequiredRule = () => true;
-
-/** The rule every caller of this file asks, so the survey's own definition of "required" is swapped in once. */
-export const IS_REQUIRED: RequiredRule = EVERY_QUESTION_REQUIRED;
-
 /** One question still blank: its id, and for a "1 to 5 for each line" question the lines still blank. */
 export type SurveyBlank = { id: string; lines: string[] | null };
 
@@ -86,51 +85,34 @@ function shownLines(question: SurveyQuestion, hiddenLines: readonly string[]): s
 }
 
 /**
- * Whether one answer answers its question: a choice picked, at least one tick,
- * a number, words other than spaces, and for a lines question every line the
- * person is shown.
- */
-function isAnswered(question: SurveyQuestion, answer: SurveyAnswer | undefined, hiddenLines: readonly string[]): boolean {
-  if (!answer) return false;
-  switch (answer.type) {
-    case "choice":
-      return Boolean(answer.optionId);
-    case "choices":
-      return answer.optionIds.length > 0;
-    case "text":
-      return answer.text.trim().length > 0;
-    case "rating":
-    case "scale":
-    case "percent":
-    case "number":
-      return Number.isFinite(answer.value);
-    case "lines":
-      return shownLines(question, hiddenLines).every((line) => own(answer.values, line) !== undefined);
-    default:
-      return false;
-  }
-}
-
-/**
- * THE QUESTIONS STILL BLANK: every question of the survey's items as they are
- * now that the rule says is required and the answers (merged, `mergedAnswers`)
- * leave blank, in the survey's order. A lines question with some lines
- * answered is blank in the lines that are not; a line hidden from the person
+ * THE QUESTIONS STILL BLANK: the REQUIRED questions of the survey's items as
+ * they are now that the answers (merged, `mergedAnswers`) leave blank, in the
+ * survey's order. Which questions are required, and what answering one takes,
+ * are the survey's own rule (`isQuestionRequired`, `missingRequired` in
+ * `./items`), the same the answer form and the answer routes ask, so a
+ * question marked optional is never a blank, and the admins' count never
+ * holds one. A consent box is not a question, so never a blank either.
+ *
+ * A lines question that is blank is blank in the lines it shows the person
+ * with no point yet: for an agreement grid that is the lines still needing
+ * one, and for a grid that rates a programme's parts (any one line answers
+ * it) every line, since none has a point. A line hidden from the person
  * (`hiddenLinesFor`) is never theirs to answer, so never blank.
  */
 export function blanksOf(
   items: readonly SurveyItem[],
   answers: Readonly<SurveyAnswers>,
-  options: { isRequired: RequiredRule; hiddenLines?: readonly string[] },
+  options: { hiddenLines?: readonly string[] } = {},
 ): SurveyBlank[] {
   const hidden = options.hiddenLines ?? [];
+  const missing = new Set(missingRequired(items, answers, { hiddenLines: hidden }));
   const out: SurveyBlank[] = [];
-  for (const question of surveyQuestionsOf(items)) {
-    if (!options.isRequired(question)) continue;
-    const answer = own(answers, question.id);
-    if (isAnswered(question, answer, hidden)) continue;
+  for (const question of requiredQuestionsOf(items)) {
+    if (!missing.has(question.id)) continue;
     if (isLinesQuestion(question)) {
-      const lines = shownLines(question, hidden).filter((line) => !(answer?.type === "lines" && own(answer.values, line) !== undefined));
+      const answer = own(answers, question.id);
+      // A line is blank when it has no point, in the rule's own words: what one line needs to be answered.
+      const lines = shownLines(question, hidden).filter((line) => !answerFills(answer, [line]));
       // A lines question every line of which is hidden from the person asks them nothing.
       if (lines.length > 0) out.push({ id: question.id, lines });
       continue;

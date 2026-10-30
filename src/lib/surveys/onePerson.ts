@@ -10,7 +10,7 @@ import {
   type SurveyKind,
   type SurveyPersonDoc,
 } from "@/lib/firestore/surveys";
-import { IS_REQUIRED, blanksOf, blanksRowOf, laterAnswersOf } from "./blanks";
+import { blanksOf, blanksRowOf, laterAnswersOf } from "./blanks";
 import { readEventAudience, respondentKey } from "./events/audience";
 import { eventPersonOn } from "./events/store";
 import { eventMeta } from "./events/words";
@@ -139,7 +139,7 @@ function blanksLine(
 ): PersonBlanks | null {
   if (!row || !answers) return null;
   const line = blanksRowOf({
-    count: blanksOf(survey.items, answers, { isRequired: IS_REQUIRED, hiddenLines: hidden }).length,
+    count: blanksOf(survey.items, answers, { hiddenLines: hidden }).length,
     open: isOpen(survey, now),
     link: row.blanks,
     presses: row.blanksPresses,

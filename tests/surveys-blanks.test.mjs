@@ -12,15 +12,18 @@
  *  2. THE LINK AND THE SIGNED-IN PAGE: only the questions still blank (a grid
  *     with only its blank lines), never an earlier answer, nothing written by
  *     opening. What comes back answers only what was blank, every one of it,
- *     once; it is kept beside the first answers, which never change; the link
- *     is then spent.
+ *     once (refused as the answer routes refuse, `blankRefusal`); it is kept
+ *     beside the first answers, which never change; the link is then spent.
+ *     A blank is a REQUIRED question by the survey's own rule: one switched
+ *     to optional is never counted, pressed, shown or taken, and a survey
+ *     stored before the switch (`required: false` everywhere) counts all.
  *  3. EVERY READER MERGES: Who answered, the results, the spreadsheet and one
  *     person's page (which marks what came later, and when); the admins'
  *     before-the-first-session switch leaves out a later send that came after.
  *  4. NAMES OFF AND DELETION: a later send is nameless with the answer it is
  *     beside, and the link goes with the row.
  *  5. A SURVEY AFTER AN EVENT: a guest with no account, by the address they
- *     gave the event.
+ *     gave the event; its optional catch-all left blank is no blank.
  *
  * The answers with blanks are written straight into the store, as answers
  * sent before every question was required were kept. Run with `npm test`.
@@ -242,8 +245,13 @@ describe("the link shows only what was left blank, and keeps what comes back bes
     const first = structuredClone(answerOf(id, "amara").answers);
     assert.deepEqual(short(await sendByLink(token, { ...FILL, q_c1: { type: "choice", optionId: "o_stage4" } })), [400, BLANKS_REFUSAL.notBlank]);
     assert.deepEqual(short(await sendByLink(token, { ...FILL, q_c7: { type: "lines", values: { l_next: 5, l_contribute: 5 } } })), [400, BLANKS_REFUSAL.notBlank]);
+    // Refused in the answer routes' own words and shape (`blankRefusal`), numbered as the link numbers them:
+    // C2, C7 and P6 are its questions 1, 2 and 3.
     const missing = await sendByLink(token, { q_c2: FILL.q_c2, q_c7: FILL.q_c7 });
-    assert.deepEqual([missing.status, missing.body], [400, { error: BLANKS_REFUSAL.missing, missing: ["q_p6"] }]);
+    assert.deepEqual([missing.status, missing.body], [400, { error: words.missingWords([3]), missing: ["q_p6"] }]);
+    assert.equal(words.missingWords([3]), "Question 3 still needs an answer.");
+    const twoMissing = await sendByLink(token, { q_c7: FILL.q_c7 });
+    assert.deepEqual([twoMissing.status, twoMissing.body], [400, { error: "Questions 1 and 3 still need an answer.", missing: ["q_c2", "q_p6"] }]);
     assert.deepEqual(short(await sendByLink(token, { ...FILL, q_c2: { type: "percent", value: 101 } })), [400, "Give a number from 0 to 100."]);
     assert.deepEqual(short(await sendByLink("x".repeat(43), FILL)), [404, REFUSAL.noLink]);
     assert.deepEqual(short(await sendByLink(rowOf(id, "amara").token, FILL)), [404, REFUSAL.noLink], "the first link keeps a later send");
@@ -288,6 +296,54 @@ describe("the link shows only what was left blank, and keeps what comes back bes
     assert.equal(answerOf(id, "amara").fills[0].via, "signed-in");
     assert.match(await page("amara"), /You’ve answered/);
     assert.deepEqual(short(await send("amara")), [409, BLANKS_REFUSAL.spent]);
+  });
+
+  test("a question switched to optional and left blank is never counted, pressed, shown or taken", async (t) => {
+    // P6 switched off by an admin (the Required switch): Amara left it blank, as she may. Her blanks are
+    // C2 and C7's empty line, two, never three.
+    clock(t);
+    w.reset();
+    const id = await sentSurvey();
+    const stored = w.survey(id);
+    w.world.db.seed(`surveys/${id}`, { ...stored, items: stored.items.map((item) => (item.id === "q_p6" ? { ...item, optional: true } : item)) });
+    answered(id, "amara", AMARA);
+    const tab = async () => (await w.page(w.pages.answered, { params: Promise.resolve({ surveyId: id }) }, "zach")).text;
+    assert.match(await tab(), /Amara Okafor .* Left 2 blank Send the questions they left blank/);
+    const stale = await press(id, "zach", { questions: 3 });
+    assert.equal(stale.status, 409, "a press counting the optional question was taken");
+    assert.equal(stale.body.questions, 2);
+    assert.deepEqual(w.world.mail, []);
+    assert.equal((await press(id, "zach", { questions: 2 })).status, 200);
+    assert.deepEqual(rowOf(id, "amara").blanksPresses.map((each) => each.count), [2]);
+    const token = rowOf(id, "amara").blanks.token;
+    const text = await linkPage(token);
+    assert.ok(text.includes("How likely is it that in 5 years"), "a required blank is not on the link");
+    assert.ok(!text.includes("What do you most want to get out of this programme"), "the optional question is on the link");
+    assert.deepEqual(short(await sendByLink(token, FILL)), [400, BLANKS_REFUSAL.notBlank], "an answer to the optional question was taken as a blank");
+    const fill = { q_c2: FILL.q_c2, q_c7: FILL.q_c7 };
+    assert.deepEqual(short(await sendByLink(token, fill)), [200, null]);
+    assert.deepEqual(answerOf(id, "amara").fills[0].answers, fill);
+    const after = await tab();
+    assert.ok(!/Left \d+ blank/.test(after), "the optional question still counts as blank once the required ones are in");
+    assert.deepEqual(short(await press(id, "zach", { questions: 1 })), [409, BLANKS_REFUSAL.nothingLeft]);
+  });
+
+  test("a survey stored before the switch, `required: false` on every question, counts every blank as required", async (t) => {
+    clock(t);
+    w.reset();
+    const id = await sentSurvey();
+    const stored = w.survey(id);
+    const legacy = stored.items.map((item) => {
+      if (item.kind !== "question") return item;
+      const { optional: _optional, ...rest } = item;
+      return { ...rest, required: false };
+    });
+    w.world.db.seed(`surveys/${id}`, { ...stored, items: legacy });
+    answered(id, "amara", AMARA);
+    const tab = (await w.page(w.pages.answered, { params: Promise.resolve({ surveyId: id }) }, "zach")).text;
+    assert.match(tab, /Amara Okafor .* Left 3 blank Send the questions they left blank/);
+    assert.equal((await press(id, "zach", { questions: 3 })).status, 200);
+    assert.ok((await linkPage(rowOf(id, "amara").blanks.token)).includes("What do you most want to get out of this programme"));
   });
 
   test("a survey that has closed: the link says so and keeps nothing", async (t) => {
@@ -419,7 +475,8 @@ describe("a survey after an event: a guest with no account, by the address they 
     await evPress((await e.route("surveys/[surveyId]/test")).POST, "zach", { email: "survey" });
     assert.equal((await evPress((await e.route("surveys/[surveyId]/send")).POST, "zach", { to: "everyone", emails: 5 })).status, 200);
     e.world.mail.length = 0;
-    // Gwen answered three of the five, before every question was required.
+    // Gwen answered three of the five, before every question was required. The fifth, "Anything we should
+    // change?", is optional (`NOT_FOR_EVERYBODY`), so only the fourth is blank: one, never two.
     const row = e.rowOf(id, RSVP.gwen);
     e.world.db.seed(`surveyAnswers/a_gwen`, {
       surveyId: id,
@@ -433,24 +490,36 @@ describe("a survey after an event: a guest with no account, by the address they 
     e.world.db.seed(path, { ...data, answered: true });
 
     const tab = async () => (await e.page("app/(app)/admin/(admin-only)/surveys/[surveyId]/answered/page.tsx", { params: Promise.resolve({ surveyId: id }) }, "zach")).text;
-    assert.match(await tab(), /Gwen Price .* Left 2 blank Send the questions they left blank/);
+    assert.match(await tab(), /Gwen Price .* Left 1 blank Send the questions they left blank/);
 
     const blanksPress = (await e.route("surveys/[surveyId]/people/[who]/blanks")).POST;
-    const pressed = await evPress(blanksPress, "zach", { questions: 2 }, { who: `g_${RSVP.gwen}` });
+    const stale = await evPress(blanksPress, "zach", { questions: 2 }, { who: `g_${RSVP.gwen}` });
+    assert.equal(stale.status, 409, "a press counting the optional question as blank was taken");
+    assert.equal(stale.body.questions, 1);
+    const pressed = await evPress(blanksPress, "zach", { questions: 1 }, { who: `g_${RSVP.gwen}` });
     assert.equal(pressed.status, 200, JSON.stringify(pressed.body));
     const mail = e.mailText();
     assert.deepEqual(mail.map((message) => [message.to, message.kind, message.surface]), [["gwen@example.com", "notice", "survey-blanks"]]);
-    assert.match(mail[0].text, /You sent “How was VR games night\?” for VR games night with 2 questions left blank\./);
+    assert.match(mail[0].text, /You sent “How was VR games night\?” for VR games night with 1 question left blank\./);
     const token = e.rowOf(id, RSVP.gwen).blanks.token;
     const page = await e.page("app/survey/[token]/page.tsx", { params: Promise.resolve({ token }) });
     assert.match(page.text, /VR games night · Sun 1 Nov/);
     assert.ok(page.text.includes(BLANKS_WORDS.lead));
     assert.ok(!page.text.includes("How was it?"), "a question Gwen answered is on the link");
+    assert.ok(page.text.includes("What should we run next?"), "the required question she left blank is not on the link");
+    assert.ok(!page.text.includes("Anything we should change?"), "the optional question she left blank is on the link");
 
-    const fill = { q_ev_next: { type: "choices", optionIds: ["o_ev_quiz"] }, q_ev_change: { type: "text", text: "More games." } };
-    const sent = await e.call(null, (await e.route("surveys/blanks")).POST, {}, { body: { token, answers: fill } });
+    const byLink = (await e.route("surveys/blanks")).POST;
+    const optional = { q_ev_next: { type: "choices", optionIds: ["o_ev_quiz"] }, q_ev_change: { type: "text", text: "More games." } };
+    const refused = await e.call(null, byLink, {}, { body: { token, answers: optional } });
+    assert.deepEqual([refused.status, refused.body.error], [400, BLANKS_REFUSAL.notBlank], "an answer to the optional question came in as a blank");
+    const empty = await e.call(null, byLink, {}, { body: { token, answers: {} } });
+    assert.deepEqual([empty.status, empty.body], [400, { error: "Question 1 still needs an answer.", missing: ["q_ev_next"] }]);
+    const fill = { q_ev_next: { type: "choices", optionIds: ["o_ev_quiz"] } };
+    const sent = await e.call(null, byLink, {}, { body: { token, answers: fill } });
     assert.equal(sent.status, 200, JSON.stringify(sent.body));
     const kept = e.answers(id).find((answer) => answer.respondent?.signupId === RSVP.gwen);
+    assert.deepEqual(kept.fills[0].answers, fill);
     assert.deepEqual(Object.keys(kept.fills[0]).sort(), ["answers", "sentAt", "via"], "a survey after an event keeps no group");
     assert.match(await tab(), /Answered the blanks Mon 2 Nov, 10am/);
   });

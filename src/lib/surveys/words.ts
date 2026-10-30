@@ -1417,7 +1417,6 @@ export const BLANKS_REFUSAL = {
   notBlank: "One of those answers is to a question you had already answered. Your first answers stay as you sent them.",
   spent: "You’ve already sent these answers. They’re in, and they can’t change.",
   nothingLeft: "Nothing on this survey is left blank now, so there is nothing to send.",
-  missing: "Answer every question here before you send.",
   notAnswered: "They haven’t sent this survey yet, so nothing is left blank. Remind them instead.",
   namesOff: "Their name has come off this survey’s answers, so nothing can be sent to them.",
   noAddress: "There’s no email address for them, so nothing was sent.",

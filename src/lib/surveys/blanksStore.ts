@@ -23,7 +23,8 @@ import {
   type SurveyDoc,
   type SurveyPersonDoc,
 } from "@/lib/firestore/surveys";
-import { IS_REQUIRED, blankItemsOf, blanksOf, outsideBlanks, type SurveyAnswers, type SurveyBlank } from "./blanks";
+import { blankRefusal } from "./blank";
+import { blankItemsOf, blanksOf, outsideBlanks, type SurveyAnswers, type SurveyBlank } from "./blanks";
 import { siteAddress, surveyLink } from "./emails";
 import { readEventAudience, respondentKey } from "./events/audience";
 import { readEventPerson } from "./events/store";
@@ -164,7 +165,7 @@ export async function blanksFor(
 ): Promise<{ answerId: string; blanks: SurveyBlank[]; hidden: string[] } | null> {
   const [answer, hidden] = await Promise.all([answerFor(db, target), hiddenFor(db, target)]);
   if (!answer) return null;
-  return { answerId: answer.id, blanks: blanksOf(target.survey.items, answer.answers, { isRequired: IS_REQUIRED, hiddenLines: hidden }), hidden };
+  return { answerId: answer.id, blanks: blanksOf(target.survey.items, answer.answers, { hiddenLines: hidden }), hidden };
 }
 
 // ---------------------------------------------------------------------------
@@ -204,9 +205,10 @@ export async function recordBlanks(
   const read = readSurveyAnswers(shown, input.raw, { quotes: asksQuotes(survey) });
   if (read.problems.length > 0) return { ok: false, status: 400, error: read.problems[0].message };
   const answers = withoutLines(read.answers, found.hidden);
-  // Every question on the link is required: one left blank again is refused, naming it.
-  const missing = blanksOf(shown, answers, { isRequired: () => true, hiddenLines: found.hidden }).map((blank) => blank.id);
-  if (missing.length > 0) return { ok: false, status: 400, error: BLANKS_REFUSAL.missing, missing };
+  // Every question on the link is required: one left blank again is refused, naming it by its number on
+  // the link, in the words and the shape both answer routes use (`blankRefusal`).
+  const blank = blankRefusal(shown, answers, found.hidden);
+  if (blank) return blank;
 
   // Whether their group had met: worked out now, kept with this send. A survey after an event keeps no group.
   const afterFirstSession =
@@ -230,7 +232,7 @@ export async function recordBlanks(
       : normalizeSurveyAnswer(answerSnap.id, (answerSnap.data() ?? {}) as Raw, readStored);
     if (stored.surveyId !== survey.id || !sameRespondent(person.respondent, stored.respondent)) return { ok: false, status: 409, error: BLANKS_REFUSAL.nothingLeft };
     // Held to what is blank now, so nothing a send already holds is ever answered again.
-    if (outsideBlanks(answers, blanksOf(survey.items, stored.answers, { isRequired: IS_REQUIRED, hiddenLines: found.hidden }))) {
+    if (outsideBlanks(answers, blanksOf(survey.items, stored.answers, { hiddenLines: found.hidden }))) {
       return { ok: false, status: 409, error: BLANKS_REFUSAL.spent };
     }
     const fill: Raw = { answers, sentAt: now, via };

@@ -6,7 +6,7 @@ import { NO_NAMES_OFF } from "@/lib/events/checkInView";
 import type { EventAudience, EventSurveyDoc } from "@/lib/firestore/surveys";
 import { shortLinkAddress } from "@/lib/qr/shortLinkCode";
 import { preview, testView, type EmailPreview, type SurveyState, type TestView } from "../adminView";
-import { IS_REQUIRED, blanksOf, blanksRowOf, type BlanksRow } from "../blanks";
+import { blanksOf, blanksRowOf, type BlanksRow } from "../blanks";
 import { emailWordsFor, siteAddress } from "../emails";
 import { surveyQuestionsOf } from "../items";
 import { whoOf } from "../onePersonLayout";
@@ -275,7 +275,7 @@ export async function eventAnsweredView(
       const answer = byKey.get(key);
       const blanks = answer
         ? blanksRowOf({
-            count: blanksOf(survey.items, answer.answers, { isRequired: IS_REQUIRED }).length,
+            count: blanksOf(survey.items, answer.answers).length,
             open,
             link: row.blanks,
             presses: row.blanksPresses,

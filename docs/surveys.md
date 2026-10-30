@@ -498,11 +498,16 @@ or deleted: what they send later is added beside them.
   what became of the email), and the button stays only while blanks remain.
   Never a bulk button, never automatic, never scheduled.
 - **What is blank** (`blanksOf` in `src/lib/surveys/blanks.ts`): every
-  question of the survey's items as they are now that is required and that
-  the person's merged answers leave blank, in the survey's order. A grid ("1
-  to 5 for each line") is blank in the lines it lacks, and a line hidden from
-  the person (the facilitators line, to a facilitator) is never theirs. A
-  consent box, the Kairos choice and the quote tick are never blanks.
+  REQUIRED question of the survey's items as they are now that the person's
+  merged answers leave blank, in the survey's order, by the survey's one rule
+  (`isQuestionRequired` and `missingRequired`, see "A required question left
+  blank"). A question marked optional and left blank is never a blank: it is
+  not counted and never sent. An agreement grid is blank in the lines it
+  shows the person with no point yet; "How valuable was each part?" (any one
+  line answers it) is blank only when no line has a point, and then shows
+  every line. A line hidden from the person (the facilitators line, to a
+  facilitator) is never theirs. A consent box, the Kairos choice and the
+  quote tick are never blanks.
 - **The press** (`POST /api/surveys/[surveyId]/people/[who]/blanks`, body
   `{ questions }`, `pressBlanks` in `src/lib/surveys/blanksStore.ts`): admins
   only, view-as refused first, the session and the admin bar, then the body,
@@ -542,8 +547,10 @@ or deleted: what they send later is added beside them.
   by a count in memory that keeps no address, and `POST
   /api/surveys/[surveyId]/blanks` signed in, view-as refused; `recordBlanks`):
   refused for an answer to a question that was not blank (or a grid's line
-  that was not), for a question still blank left blank again (400, naming
-  it), for a spent or replaced link and once the survey has closed. Kept once,
+  that was not), for a question still blank left blank again (400, the
+  answer routes' own `blankRefusal`, naming it by its number on the link and
+  its id in `missing`), for a spent or replaced link and once the survey has
+  closed. Kept once,
   in a transaction that reads the row, the answer and the survey again,
   appends one entry to the answer's `fills` (its answers, when, how, and on a
   programme's survey whether the group had met) and spends the link. The

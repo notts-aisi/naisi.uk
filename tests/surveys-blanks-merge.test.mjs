@@ -6,8 +6,11 @@
  *     blank, line by line on a lines question, and never replaces anything:
  *     with one later send, with two, and with a stored later send that tries.
  *  2. `blanksOf` finds the required questions still blank after merging, in
- *     the survey's order: never a consent box, never a line hidden from the
- *     person, and the lines of a lines question that are still blank.
+ *     the survey's order, by the survey's own rule (`missingRequired`): never
+ *     a question marked optional, always one stored with Worksheets'
+ *     `required: false`, never a consent box, never a line hidden from the
+ *     person; an agreement grid's lines still blank, and "How valuable was
+ *     each part?" blank only with no line answered.
  *  3. The two answer normalisers merge, so every read of the answers that goes
  *     through them reads the merged answers.
  *  4. THE WALK: every file in `src` that names the answers collection is in
@@ -44,7 +47,7 @@ const templates = await loadTs(join("lib", "surveys", "templates.ts"));
 const records = await loadTs(join("lib", "firestore", "surveys.ts"));
 const words = await loadTs(join("lib", "surveys", "words.ts"));
 
-const { mergedAnswers, blanksOf, blankItemsOf, outsideBlanks, laterAnswersOf, EVERY_QUESTION_REQUIRED } = blanks;
+const { mergedAnswers, blanksOf, blankItemsOf, outsideBlanks, laterAnswersOf } = blanks;
 
 /** The before survey's questions, as a programme's survey holds them. */
 const BEFORE = templates.templateItems("before", "fellowship", null);
@@ -121,21 +124,20 @@ describe("the one merge never overwrites and fills only what was blank", () => {
 // ---------------------------------------------------------------------------
 
 describe("the questions still blank", () => {
-  const rule = { isRequired: EVERY_QUESTION_REQUIRED };
-
   test("every required question with no answer, in the survey's order; a consent box never", () => {
-    const blank = blanksOf(BEFORE, {}, rule);
+    const blank = blanksOf(BEFORE, {});
     assert.deepEqual(
       blank.map((each) => each.id),
-      QUESTIONS.map((question) => question.id),
+      items.requiredQuestionsOf(BEFORE).map((question) => question.id),
     );
+    assert.deepEqual(items.requiredQuestionsOf(BEFORE), QUESTIONS, "the before survey asks nothing optional: this test means every question");
     assert.ok(!blank.some((each) => BEFORE.find((item) => item.id === each.id)?.kind === "consent"), "a consent box counted as a blank");
     assert.ok(BEFORE.some((item) => item.kind === "consent"), "the before survey still asks its consent: this test means something");
   });
 
-  test("an answered question is not blank; a lines question is blank in the lines it lacks", () => {
+  test("an answered question is not blank; an agreement grid is blank in the lines it lacks", () => {
     const answers = { q_c1: { type: "choice", optionId: "o_stage1" }, q_c7: { type: "lines", values: { l_next: 2 } } };
-    const blank = blanksOf(BEFORE, answers, rule);
+    const blank = blanksOf(BEFORE, answers);
     assert.ok(!blank.some((each) => each.id === "q_c1"));
     const c7 = blank.find((each) => each.id === "q_c7");
     assert.deepEqual(c7.lines, C7.lines.map((line) => line.id).filter((id) => id !== "l_next"));
@@ -143,44 +145,92 @@ describe("the questions still blank", () => {
 
   test("spaces are no words, and a pick-any question with no tick is blank", () => {
     const answers = { q_p6: { type: "text", text: "   " }, q_c3: { type: "choices", optionIds: [] } };
-    const ids = blanksOf(BEFORE, answers, rule).map((each) => each.id);
+    const ids = blanksOf(BEFORE, answers).map((each) => each.id);
     assert.ok(ids.includes("q_p6") && ids.includes("q_c3"));
   });
 
-  test("a question the rule says is not required is never blank", () => {
-    const blank = blanksOf(BEFORE, {}, { isRequired: (question) => question.id !== "q_p6" });
-    assert.ok(!blank.some((each) => each.id === "q_p6"));
+  test("what is blank is the survey's own rule, `missingRequired`, for every template and every answer", () => {
+    for (const [kind, programme] of [["before", "fellowship"], ["after", "fellowship"], ["after", "incubator"], ["followUp6", "fellowship"]]) {
+      const its = templates.templateItems(kind, programme, null);
+      for (const answers of [{}, { q_c1: { type: "choice", optionId: "o_stage1" } }, { q_q2: { type: "lines", values: { l_sessions: 3 } } }]) {
+        assert.deepEqual(
+          blanksOf(its, answers).map((each) => each.id),
+          items.missingRequired(its, answers),
+          `${kind} ${programme}`,
+        );
+      }
+    }
   });
 
-  test("a line hidden from the person is never theirs to answer", () => {
+  test("an optional question left blank is never a blank: a template's, and one an admin switched off", () => {
+    const follow = templates.templateItems("followUp6", "fellowship", null);
+    const optional = items.surveyQuestionsOf(follow).filter((question) => !items.isQuestionRequired(question));
+    assert.ok(optional.some((question) => question.id === "q_f7"), "the follow-up still asks an optional catch-all: this test means something");
+    const blank = blanksOf(follow, {}).map((each) => each.id);
+    for (const question of optional) assert.ok(!blank.includes(question.id), `${question.id} is optional and counted as a blank`);
+    assert.equal(blank.length, items.requiredQuestionsOf(follow).length, "the count holds an optional question");
+
+    const switchedOff = BEFORE.map((item) => (item.id === "q_p6" ? { ...item, optional: true } : item));
+    const ids = blanksOf(switchedOff, {}).map((each) => each.id);
+    assert.ok(!ids.includes("q_p6"), "a question switched to optional is counted as a blank");
+    assert.equal(ids.length, QUESTIONS.length - 1);
+  });
+
+  test("a question stored before the switch existed, with `required: false`, is required and counted", () => {
+    // Stored as surveys were before the switch: Worksheets' `required: false` on every question, no `optional`.
+    const legacy = BEFORE.map((item) => {
+      if (item.kind !== "question") return item;
+      const { optional: _optional, ...rest } = item;
+      return { ...rest, required: false };
+    });
+    assert.equal(legacy.find((item) => item.id === "q_p6").required, false);
+    assert.ok(legacy.every((item) => item.kind !== "question" || !("optional" in item)));
+    assert.ok(blanksOf(legacy, {}).some((each) => each.id === "q_p6"), "a legacy `required: false` question was read as optional");
+    assert.equal(blanksOf(legacy, {}).length, QUESTIONS.length);
+    // The switch turned back on wins over the list of questions that do not apply to everybody.
+    const follow = templates.templateItems("followUp6", "fellowship", null).map((item) => (item.id === "q_f7" ? { ...item, optional: false } : item));
+    assert.ok(blanksOf(follow, {}).some((each) => each.id === "q_f7"), "q_f7 switched on is not counted");
+  });
+
+  test("\"How valuable was each part?\" needs one line: blank only with none, and then every line it shows", () => {
     const after = templates.templateItems("after", "fellowship", null);
     const grid = items.surveyQuestionsOf(after).find((question) => question.type === "lines" && question.lines.some((line) => line.id === templates.FACILITATOR_LINE_ID));
     assert.ok(grid, "the survey at the end still rates the facilitators line by line");
-    const others = Object.fromEntries(grid.lines.filter((line) => line.id !== templates.FACILITATOR_LINE_ID).map((line) => [line.id, 4]));
-    const answers = { [grid.id]: { type: "lines", values: others } };
-    assert.ok(blanksOf(after, answers, rule).some((each) => each.id === grid.id), "the facilitators line is blank for somebody shown it");
-    assert.ok(
-      !blanksOf(after, answers, { ...rule, hiddenLines: [templates.FACILITATOR_LINE_ID] }).some((each) => each.id === grid.id),
-      "a facilitator, who is not shown the line, has nothing blank there",
-    );
+    assert.equal(grid.scale.points, undefined, "the grid rates the parts with words at its ends only: any one line answers it");
+    const every = grid.lines.map((line) => line.id);
+    assert.deepEqual(blanksOf(after, {}).find((each) => each.id === grid.id).lines, every, "somebody shown every line has every line blank");
+    assert.ok(!blanksOf(after, { [grid.id]: { type: "lines", values: { l_sessions: 4 } } }).some((each) => each.id === grid.id), "one line answered left it blank");
+    assert.ok(!blanksOf(after, { [grid.id]: { type: "lines", values: { [templates.FACILITATOR_LINE_ID]: 2 } } }).some((each) => each.id === grid.id));
+    // The facilitators line is hidden from a facilitator: never theirs, so never on their link.
+    const hidden = [templates.FACILITATOR_LINE_ID];
+    assert.deepEqual(blanksOf(after, {}, { hiddenLines: hidden }).find((each) => each.id === grid.id).lines, every.filter((id) => id !== templates.FACILITATOR_LINE_ID));
+    // Their link shows the grid with its lines, and one line answers it there too.
+    const shown = blankItemsOf(after, blanksOf(after, {}, { hiddenLines: hidden }));
+    const onLink = shown.find((question) => question.id === grid.id);
+    assert.deepEqual(onLink.lines.map((line) => line.id), every.filter((id) => id !== templates.FACILITATOR_LINE_ID));
+    assert.deepEqual(items.missingRequired([onLink], { [grid.id]: { type: "lines", values: { l_readings: 5 } } }, { hiddenLines: hidden }), []);
+    assert.deepEqual(items.missingRequired([onLink], {}, { hiddenLines: hidden }), [grid.id]);
   });
 
-  test("the link shows each blank question whole, and a lines question with its blank lines alone", () => {
+  test("the link shows each blank question whole, and an agreement grid with its blank lines alone", () => {
     const answers = { q_c7: { type: "lines", values: { l_next: 2 } } };
-    const shown = blankItemsOf(BEFORE, blanksOf(BEFORE, answers, rule));
+    const shown = blankItemsOf(BEFORE, blanksOf(BEFORE, answers));
     assert.ok(shown.every((item) => item.kind === "question"), "the link shows a section, a page break or a consent");
+    assert.ok(shown.every((question) => items.isQuestionRequired(question)), "a question on the link is not required");
     const c7 = shown.find((question) => question.id === "q_c7");
     assert.deepEqual(c7.lines.map((line) => line.id), C7.lines.map((line) => line.id).filter((id) => id !== "l_next"));
     assert.equal(c7.title, C7.title);
   });
 
   test("a later send may answer only what was blank, and only the blank lines", () => {
-    const blank = blanksOf(BEFORE, { q_c7: { type: "lines", values: { l_next: 2 } } }, rule);
+    const blank = blanksOf(BEFORE, { q_c7: { type: "lines", values: { l_next: 2 } } });
     assert.equal(outsideBlanks({ q_c2: { type: "percent", value: 1 } }, blank), null);
     assert.equal(outsideBlanks({ q_c7: { type: "lines", values: { l_contribute: 1 } } }, blank), null);
     assert.equal(outsideBlanks({ q_c7: { type: "lines", values: { l_next: 5 } } }, blank), words.BLANKS_REFUSAL.notBlank);
-    const answered = blanksOf(BEFORE, { q_c1: { type: "choice", optionId: "o_stage1" } }, rule);
+    const answered = blanksOf(BEFORE, { q_c1: { type: "choice", optionId: "o_stage1" } });
     assert.equal(outsideBlanks({ q_c1: { type: "choice", optionId: "o_stage4" } }, answered), words.BLANKS_REFUSAL.notBlank);
+    const follow = templates.templateItems("followUp6", "fellowship", null);
+    assert.equal(outsideBlanks({ q_f7: { type: "text", text: "Nothing else." } }, blanksOf(follow, {})), words.BLANKS_REFUSAL.notBlank, "an optional question took a later answer");
   });
 });
 

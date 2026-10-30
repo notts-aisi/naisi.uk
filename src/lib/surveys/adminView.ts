@@ -5,7 +5,7 @@ import { readAudience, type AudienceRead } from "./audience";
 import { eventListRow } from "./events/listRow";
 import { eventPeopleOf } from "./events/store";
 import { eventMeta } from "./events/words";
-import { IS_REQUIRED, blanksOf, blanksRowOf, mergedAnswers, type BlanksRow } from "./blanks";
+import { blanksOf, blanksRowOf, mergedAnswers, type BlanksRow } from "./blanks";
 import { changeBetween, lookBackBetween, type ChangeResult, type PairedAnswers } from "./change";
 import { emailWordsFor, siteAddress, surveyLinkPath } from "./emails";
 import { consentItemsOf, surveyQuestionsOf } from "./items";
@@ -396,7 +396,7 @@ export async function answeredView(
       const answer = byUid.get(person.respondent.uid);
       const blanks = answer
         ? blanksRowOf({
-            count: blanksOf(survey.items, answer.answers, { isRequired: IS_REQUIRED, hiddenLines: hidden.get(person.respondent.uid) ?? [] }).length,
+            count: blanksOf(survey.items, answer.answers, { hiddenLines: hidden.get(person.respondent.uid) ?? [] }).length,
             open,
             link: person.blanks,
             presses: person.blanksPresses,
