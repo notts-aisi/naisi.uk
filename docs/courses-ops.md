@@ -1835,6 +1835,72 @@ day, and only about the people Publish has told. Never a reason; somebody who
 gave their place back is not in it. From the first session's day, Home is the
 weekly Home above.
 
+## Reading coursework: reflections with names, and the Coursework tab
+
+Owner decision, 30 October 2026. Staff read what people write WITH their
+names; only the page where a facilitator picks lines to read out in the
+session stays without. Privacy policy v12 already says a person's
+reflections are read by their group's facilitators, the programme's lead and
+admins, and promises no names only on the read-out page.
+
+### Who reads which reflections, and where
+
+- The group's live facilitators (and admins):
+  `/learn/[runId]/group/[groupId]/reflections/names?week=N`, linked as "Read
+  them with names" from the group page's review queue and from the read-out
+  page. The group's FELLOWS only, each answer under the writer's whole name
+  with when it was last written, and the fellows who have not written one
+  yet. Never a facilitator's own reflections (an admin's view of this page
+  included) and never a private note.
+- The programme's lead and admins:
+  `.../programmes/[programmeId]/reflections?group=&week=` (from "Read them" on
+  the lead's view of a group's week). The same layout, plus each
+  facilitator's own reflections under their name, marked as theirs.
+- The read-out page, `/learn/[runId]/group/[groupId]/reflections`, is
+  unchanged: words only, in the order of the words, no name, no time. Its
+  loader (`loadReadOutWeek`) and component (`ReadOutView`) carry no name
+  beside an answer for anybody, and `tests/course-hub-facilitator-week.test.mjs`
+  fails if either page ever draws the other's layout.
+- Reflections get no "read" mark and no reply. Written answers keep their
+  own feedback flow.
+
+### The Coursework tab, `.../programmes/[programmeId]/coursework`
+
+For the programme's lead and admins (the Groups and Attendance tabs' gate,
+`loadProgrammeRun`); a reviewer is told it is theirs. A row per person holding
+a place (the People tab's set, in a group or not yet), anybody else placed in
+one of the run's live groups, and each facilitator, marked as facilitating. A
+column per week of the run's plan written as blocks. Each cell counts what the
+person did in the week they read (their group's copy once Publish has told
+them their group, the run's own week before that, so week 1 work written
+before groups go out is counted): reflection parts written, sources ticked,
+where the written answer stands (waiting for feedback stands out and opens the
+existing feedback page), boxes filled in. Never anybody's words in a cell.
+Filters are plain links: a group, "Not in a group yet", "Waiting for
+feedback".
+
+A placement Publish has not told is shown to admins alone (marked "Not told
+yet"); the lead sees that person under "Not in a group yet".
+
+### A person's page, `.../programmes/[programmeId]/coursework/[uid]`
+
+For the same two, and only for somebody who is a row of the tab (otherwise a
+calm not-here page). Newest week first: each reflection under its prompt with
+when it was written, the written answer with its state, its feedback (levels,
+comment, who gave it) and the way to the feedback page, the fill-in boxes
+(after their own gate, `boxesReaderFor`), and which sources they ticked.
+PRIVATE NOTES are shown to admins only, never to the lead, through the one
+reader of private notes. Survey answers never appear on the tab or the page.
+The page keeps a column beside the weeks for notes admins keep about a person.
+
+### Reads
+
+Everything is read on the server after the gate. One equality on the run per
+store (`readRunCoursework` in `src/lib/courses/facilitatorWeek/readers.ts`):
+the answers store whole, the progress store through a projection with no
+rating, comment or private note. No query needs a composite index. Nothing on
+either page writes.
+
 ## Changing a session
 
 One week's session of one group can be held online, moved for that week only,

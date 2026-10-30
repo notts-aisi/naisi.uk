@@ -1,4 +1,4 @@
-import { FEEDBACK_SENT } from "@/lib/courses/writtenAnswerWords";
+import { FEEDBACK_SENT, dayAndClockWords } from "@/lib/courses/writtenAnswerWords";
 
 /**
  * THE WORDS OF A GROUP'S WEEK (boards wk-fac-group, wk-fac-group-phone,
@@ -298,6 +298,35 @@ export function facilitatorsOwnLine(lead: { firstName: string; isReader: boolean
 
 /** A facilitator who has not written in a box. */
 export const NOT_WRITTEN = "Not written yet.";
+
+// ---------------------------------------------------------------------------
+// Reading reflections with names (Zach, Fri 30 Oct)
+// ---------------------------------------------------------------------------
+// The group's facilitators, the programme's lead and admins read reflections
+// with the names of whoever wrote them. Only the page to read lines out has
+// none. No board draws these: listed in the build notes for the boards'
+// designers to confirm.
+
+/** The way to the page that reads a group's reflections with names, from the group page and the page to read lines out. */
+export const READ_WITH_NAMES = "Read them with names";
+
+/** The way back from it to the page where lines are picked to read out. */
+export const PICK_LINES_TO_READ_OUT = "Pick lines to read out";
+
+/**
+ * Under the heading of the facilitators' page that reads reflections with
+ * names: who else reads them that way, and where lines are read out from.
+ */
+export function namedReadersLine(groupName: string, leadFirstName: string | null): string {
+  const lead = leadFirstName?.trim();
+  const who = lead ? `${groupName}’s facilitators, ${lead} and admins` : `${groupName}’s facilitators and admins`;
+  return `${who} read reflections with names. Fellows can’t see each other’s. To read a line out in the session, pick it on the page without names.`;
+}
+
+/** When a reflection was last written: "Sun 15 Nov, 4:12pm". */
+export function lastWrittenWords(at: Date): string {
+  return dayAndClockWords(at);
+}
 
 // ---------------------------------------------------------------------------
 // The lead's pages

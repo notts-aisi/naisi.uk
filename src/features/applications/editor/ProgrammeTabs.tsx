@@ -40,6 +40,11 @@ import styles from "./ProgrammeFrame.module.css";
  * and marked ready. Its count is how many weeks the run's plan has, given
  * only to the two who open it.
  *
+ * Coursework (Zach, Fri 30 Oct), after Attendance, is a link on the same
+ * terms: what everybody holding a place has written, week by week, by name.
+ * It is drawn like the tabs not built yet for a reviewer, and its page
+ * refuses anybody else on its own.
+ *
  * Surveys (board sv-programme), between Messages and Settings, is a link on
  * the same terms: the programme's surveys in totals and comments, never a
  * name, with Ratings and the anonymous form's answers linked from it. It is
@@ -49,7 +54,7 @@ import styles from "./ProgrammeFrame.module.css";
 
 type Tab = {
   /** The route segment under the programme, for the tabs that have a page. */
-  segment: "overview" | "applications" | "people" | "groups" | "teams" | "weeks" | "attendance" | "messages" | "surveys" | "setup" | null;
+  segment: "overview" | "applications" | "people" | "groups" | "teams" | "weeks" | "attendance" | "coursework" | "messages" | "surveys" | "setup" | null;
   label: string;
   count?: number | null;
 };
@@ -73,7 +78,7 @@ export default function ProgrammeTabs({
   groups: number | null;
   /** True for the programme's lead and for an admin. */
   canEdit: boolean;
-  /** True for an admin and the programme's lead: Overview, Groups, Teams, Attendance, Messages and Surveys are links. */
+  /** True for an admin and the programme's lead: Overview, Groups, Teams, Attendance, Coursework, Messages and Surveys are links. */
   groupsOpen: boolean;
   /** An incubator's Teams tab, with how many teams its run has; null for a fellowship. */
   teams?: { count: number | null } | null;
@@ -90,6 +95,7 @@ export default function ProgrammeTabs({
     ...(teams ? [{ segment: groupsOpen ? ("teams" as const) : null, label: "Teams", count: teams.count }] : []),
     { segment: groupsOpen ? "weeks" : null, label: "Weeks", count: groupsOpen ? weeks : null },
     { segment: groupsOpen ? "attendance" : null, label: "Attendance" },
+    { segment: groupsOpen ? "coursework" : null, label: "Coursework" },
     { segment: groupsOpen ? "messages" : null, label: "Messages" },
     { segment: groupsOpen ? "surveys" : null, label: "Surveys" },
   ];

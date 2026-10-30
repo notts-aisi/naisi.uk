@@ -110,6 +110,14 @@ const READERS = {
     asks: 2,
     why: "pitching week's people: an untold seat cannot pitch or pick, is offered as nobody's partner, is named to nobody and is not counted on the lead's list",
   },
+  "lib/courses/coursework/load.ts": {
+    kind: "shown",
+    asks: 2,
+    why:
+      "the Coursework tab and a person's page, for the programme's lead and admins: a person sits in their group only where " +
+      "their placement may be shown to the caller, so the lead sees an untold one as not in a group yet; asked a second time " +
+      "about a caller who is no admin, to know whether the person was told and so reads the group's copy of a week",
+  },
   "lib/courses/updates/readers.ts": {
     kind: "shown",
     asks: 1,

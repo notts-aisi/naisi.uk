@@ -338,7 +338,8 @@ describe("1. who opens the tab", () => {
     const drawn = (open) =>
       renderToStaticMarkup(createElement(ProgrammeTabs, { base: BASE, applications: 5, groups: 4, canEdit: open, groupsOpen: open }));
     globalThis.__surveysLeadTabBar.segment = "surveys";
-    assert.match(textOf(drawn(true)), /Attendance Messages Surveys Settings$/);
+    // CHANGED ON PURPOSE (Zach, Fri 30 Oct): Coursework sits between Attendance and Messages.
+    assert.match(textOf(drawn(true)), /Attendance Coursework Messages Surveys Settings$/);
     assert.match(drawn(true), new RegExp(`<a href="${BASE}/surveys" class="tab tabCurrent" aria-current="page">Surveys</a>`));
     globalThis.__surveysLeadTabBar.segment = null;
     assert.match(drawn(false), /<span class="tab tabPending" aria-disabled="true" title="Not built yet">Surveys<\/span>/);

@@ -3831,15 +3831,20 @@ describe("the course hub passage", () => {
     );
     // The pages that read a group's week, each behind its own gate (the
     // group's: a live facilitator or an admin; the lead's: the programme's
-    // lead or an admin, from the form).
+    // lead or an admin, from the form). Reading reflections WITH names is the
+    // group's facilitators', the lead's and admins' (Zach, Fri 30 Oct), which
+    // the passage above already says: "You, your group's facilitators, the
+    // programme's lead and admins can read your answers".
     assertExactlyTheseFiles(
-      sourceFilesNaming(/\b(?:loadGroupWeek|loadReadOutWeek)\(/),
+      sourceFilesNaming(/\b(?:loadGroupWeek|loadReadOutWeek|loadNamedReflections|readRunCoursework)\(/),
       new Map([
-        ["src/lib/courses/facilitatorWeek/readers.ts", "the two loaders, which ask nobody who is reading, so each caller decides that first"],
+        ["src/lib/courses/facilitatorWeek/readers.ts", "the loaders and the run-wide read, which ask nobody who is reading, so each caller decides that first"],
+        ["src/lib/courses/coursework/load.ts", "the Coursework tab and one person's page: everybody's reflections and ticks on a programme's run, for its lead and admins, after the programme's own gate"],
         ["src/app/(app)/learn/[runId]/group/[groupId]/page.tsx", "the group's page, for its live facilitators and admins"],
         ["src/app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx", "the page to read lines out, for the group's live facilitators and admins"],
+        ["src/app/(app)/learn/[runId]/group/[groupId]/reflections/names/page.tsx", "the group's fellows' reflections with names, for the group's live facilitators and admins, never a facilitator's own"],
         ["src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week/page.tsx", "the lead's view of a group's week, for the programme's lead and admins"],
-        ["src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections/page.tsx", "the lead's reading of a group's reflections, for the programme's lead and admins"],
+        ["src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections/page.tsx", "the lead's reading of a group's reflections with names, for the programme's lead and admins"],
       ]),
       "reading a group's reflections and ticks",
       "The policy says a person's reflections and ticks are read by their group's facilitators, the programme's lead and admins. A new reader is a new sentence.",
@@ -4550,6 +4555,7 @@ describe("the course hub passage", () => {
         [gateFile, "the gate itself: admins and the programme's lead for anybody's, a live facilitator of a fellow's own group for theirs, and nobody else for a facilitator's own"],
         [readerFile, "the one reader of somebody else's boxes, which asks the gate before a box is read"],
         ["src/lib/courses/facilitatorWeek/readers.ts", "a group's week for its facilitators, the programme's lead and admins: each person's boxes on the week the page shows, the gate asked person by person before a box is read, for exactly the people it admits"],
+        ["src/lib/courses/coursework/load.ts", "one person's coursework page, for the programme's lead and admins: the gate asked for that person, and their boxes drawn only when it answers"],
       ]),
       "deciding who reads somebody's fill-in boxes",
       "The policy says a person's boxes are read by them, their group's " +
