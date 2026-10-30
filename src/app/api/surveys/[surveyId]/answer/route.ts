@@ -63,7 +63,7 @@ export async function POST(req: Request, ctx: Ctx) {
       via: "signed-in",
       now: new Date(),
     });
-    if (!kept.ok) return NextResponse.json({ error: kept.error }, { status: kept.status });
+    if (!kept.ok) return refused(kept);
     return NextResponse.json({ ok: true });
   }
   const person = survey ? await readPerson(db, survey.id, { kind: "account", uid: actor.uid }) : null;
@@ -72,6 +72,14 @@ export async function POST(req: Request, ctx: Ctx) {
   }
 
   const outcome = await recordAnswer(db, { survey, person, raw: answers, consents, kairos, via: "signed-in", now: new Date() });
-  if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });
+  if (!outcome.ok) return refused(outcome);
   return NextResponse.json({ ok: true });
+}
+
+/**
+ * A refusal in one sentence, with the ids of the required questions left
+ * blank when that is why (`missing`), so the form says so beside each one.
+ */
+function refused(outcome: { status: number; error: string; missing?: string[] }) {
+  return NextResponse.json(outcome.missing ? { error: outcome.error, missing: outcome.missing } : { error: outcome.error }, { status: outcome.status });
 }

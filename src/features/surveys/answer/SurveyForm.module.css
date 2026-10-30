@@ -92,6 +92,27 @@
   color: var(--color-text-muted);
 }
 
+/* "(optional)" after a question's words, quieter than them. */
+.optional {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+/* A required question left blank when Next or Send was pressed: a calm edge
+   beside it and one line saying so, cleared as soon as it is answered. */
+.questionBlank {
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--color-danger-line);
+}
+
+.blank {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger-text);
+}
+
 .options {
   display: flex;
   flex-direction: column;

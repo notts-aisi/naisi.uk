@@ -1,14 +1,16 @@
 import { AnonymousFormCard } from "@/features/anonymousFeedback/AfterTheSurvey";
 import type { AnswerScreen as Screen } from "@/lib/surveys/answerView";
-import { ANSWER_WORDS, STATE_WORDS } from "@/lib/surveys/words";
+import { STATE_WORDS } from "@/lib/surveys/words";
 import ConsentPanel from "./ConsentPanel";
 import SurveyForm from "./SurveyForm";
 import styles from "./AnswerScreen.module.css";
 
 /**
  * One person's survey, as the answer page draws it (sv-before-phone): the
- * programme and week, the title and intro, "Every question can be skipped.",
- * the confidential box, then the questions. Or, instead, one calm message:
+ * programme and week, the title and intro, "Every question needs an answer
+ * unless it’s marked optional." (with "The boxes asking your permission are
+ * up to you." where the form has one), the confidential box, then the
+ * questions. Or, instead, one calm message:
  * answered, closed, or a link that opens nothing. Under either, when the
  * person can change a consent here ("Stop the follow-ups"), its panel.
  *
@@ -46,7 +48,7 @@ export default function AnswerScreen({ screen }: { screen: Screen }) {
             {paragraph}
           </p>
         ))}
-        <p className={styles.skippable}>{ANSWER_WORDS.skippable}</p>
+        <p className={styles.rule}>{survey.rule}</p>
       </header>
 
       <section className={styles.box} aria-label={survey.box.heading}>

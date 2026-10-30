@@ -537,7 +537,7 @@ export function questionNumbers(items: readonly SurveyItem[]): Map<string, numbe
 export const NOT_FOR_EVERYBODY: Readonly<Record<string, string>> = {
   q_i4_links: "Links to what your team produced: a team with nothing finished, or nothing public, has none.",
   q_i4_when: "If nothing is finished yet, when do you expect it to be?: only for a team with nothing finished.",
-  q_f1_where: "The organisation or course: not every main activity has one (independent work, for one).",
+  q_f1_where: "The organisation or course: somebody doing independent work has none.",
   q_f3: "What is that work?: only for somebody whose working time goes on AI safety.",
   q_f4_applied: "Since the programme, which programmes or jobs have you applied to?: not everybody has applied.",
   q_f4_accepted: "Which of those accepted you?: only for somebody who applied and was accepted.",

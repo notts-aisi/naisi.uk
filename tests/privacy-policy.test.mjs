@@ -5145,23 +5145,40 @@ describe("the course hub passage", () => {
     assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-no-tracking.test.mjs")));
   });
 
-  test("every question in a survey can be skipped, and no code of the applications, admissions or courses reads a survey", () => {
+  test("every question in a survey is required unless marked optional, the permission boxes never are, and no code of the applications, admissions or courses reads a survey", () => {
     assert.match(PAGE_FLAT, /<li> Every question can be skipped\. Nothing you say in a survey affects your place on a programme or an application\. <\/li>/);
-    // The rule, run: the before survey requires nothing, and a question stored
-    // as required is refused.
-    // CHANGED ON PURPOSE (Q46): the leaving survey's template is held to it too.
-    for (const [stage, kind, strand] of [["before", "fellowship", null], ["after", "fellowship", null], ["followUp6", "fellowship", null], ["before", "incubator", "alignment"], ["after", "incubator", "governance"], ["leaving", "fellowship", null]]) {
-      const each = surveyTemplates.templateItems(stage, kind, strand);
-      assert.deepEqual(surveyItems.validateSurveyItems(each), [], `the ${stage} template of a ${kind} is not valid`);
-      assert.ok(surveyItems.surveyQuestionsOf(each).every((question) => question.required !== true), `the ${stage} template of a ${kind} requires an answer`);
+    // CHANGED ON PURPOSE (Zach, 30 Oct 2026): this walk held "every question
+    // can be skipped". It now holds the rule that replaced it, run over every
+    // template, both kinds of programme, the leaving survey and the survey
+    // after an event: every question not on the not-for-everybody list is
+    // required, every listed one is written optional and is a text question,
+    // and every consent box is never required.
+    const every = [
+      ...[["before", "fellowship", null], ["after", "fellowship", null], ["followUp6", "fellowship", null], ["followUp12", "fellowship", null], ["before", "incubator", "alignment"], ["after", "incubator", "governance"], ["leaving", "fellowship", null]].map(
+        ([stage, kind, strand]) => [`the ${stage} template of a ${kind}`, surveyTemplates.templateItems(stage, kind, strand)],
+      ),
+      ["the survey after an event", eventSurveyTemplate.eventTemplateItems()],
+    ];
+    for (const [name, each] of every) {
+      assert.deepEqual(surveyItems.validateSurveyItems(each), [], `${name} is not valid`);
+      for (const question of surveyItems.surveyQuestionsOf(each)) {
+        const listed = surveyItems.NOT_FOR_EVERYBODY_IDS.includes(question.id);
+        assert.equal(surveyItems.isQuestionRequired(question), !listed, `${name}: ${question.id}`);
+        if (listed) assert.ok(question.optional === true && (question.type === "shortText" || question.type === "longText"), `${name}: ${question.id}`);
+      }
+      for (const consent of surveyItems.consentItemsOf(each)) assert.equal(surveyItems.isQuestionRequired(consent), false, `${name}: ${consent.id} is required`);
     }
+    // A blank required answer is refused by both answer writers, before anything is written.
+    for (const file of ["src/lib/surveys/answer.ts", "src/lib/surveys/events/store.ts"]) {
+      assert.match(withoutComments(read(file)), /const blank = blankRefusal\(survey\.items, [^)]*\);\s*if \(blank\) return blank;/, `${file} keeps an answer with a required question blank`);
+    }
+    // Worksheets' own `required` is never what decides; it only names a contradiction with the switch.
     const template = surveyTemplates.templateItems("before", "fellowship", null);
-    const required = template.map((item) => (item.id === "q_c1" ? { ...item, required: true } : item));
+    const contradicted = template.map((item) => (item.id === "q_c1" ? { ...item, required: true, optional: true } : item));
     assert.deepEqual(
-      surveyItems.validateSurveyItems(required).map((problem) => problem.message),
-      ["Every question in a survey can be skipped, so none is required."],
+      surveyItems.validateSurveyItems(contradicted).map((problem) => problem.message),
+      [surveyItems.REQUIRED_CONTRADICTION],
     );
-    assert.equal(surveyWords.ANSWER_WORDS.skippable, "Every question can be skipped.");
     // Nothing said in one reaches a place or an application: the code that
     // decides them reaches no survey code (the walk above names every file
     // that does).

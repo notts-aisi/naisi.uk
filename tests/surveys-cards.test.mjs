@@ -34,6 +34,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NOW, RUN, makeMemberPagesWorld, textOf } from "./lib/memberPagesWorld.mjs";
 import { AGI, ROUND } from "./lib/applicationsSmallTerm.mjs";
+import { withEveryRequired } from "./lib/surveyAnswers.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 const w = await makeMemberPagesWorld("__surveyCards");
@@ -46,6 +47,7 @@ const routes = {
   answer: await route("answer"),
 };
 const waiting = await w.loadTs(join("lib", "surveys", "waiting.ts"));
+const items = await w.loadTs(join("lib", "surveys", "items.ts"));
 
 const CLOSES_ON = "2026-11-30";
 const HOW_MANY = /\b\d+\s+(?:of\s+\d+\s+)?(?:people\s+)?(?:have\s+|has\s+)?answered\b/i;
@@ -62,6 +64,14 @@ const rows = () =>
     .filter((path) => path.startsWith("surveyPeople/"))
     .map((path) => w.world.db.read(path));
 const tokenOf = (uid) => rows().find((row) => row.respondent?.uid === uid)?.token ?? null;
+/**
+ * Every required question of the survey a link opens answered plainly, as the
+ * answer routes insist since 30 Oct 2026 (tests/lib/surveyAnswers.mjs).
+ */
+const everyRequired = (token) => {
+  const surveyId = rows().find((row) => row.token === token)?.surveyId;
+  return withEveryRequired(items, w.world.db.read(`surveys/${surveyId}`).items, {});
+};
 
 /** An admin makes AGI Strategy's survey of `stage`, tests it and sends it to everybody it reaches; answers its id. */
 async function sent(stage = "before", body = {}) {
@@ -123,7 +133,7 @@ describe("1. one answer: open, theirs, not answered", () => {
     const id = await sent();
     const waits = async (uid) => (await waiting.surveysWaitingFor(w.world.db, { uid }, new Date())).length;
     // Amara answers through Amara's own link: Amara's card is gone, Bea's stays.
-    const answered = await w.call(null, routes.answer.POST, {}, { body: { token: tokenOf("amara"), answers: {} } });
+    const answered = await w.call(null, routes.answer.POST, {}, { body: { token: tokenOf("amara"), answers: everyRequired(tokenOf("amara")) } });
     assert.equal(answered.status, 200, JSON.stringify(answered.body));
     assert.equal(await waits("amara"), 0);
     assert.equal(await waits("bea"), 1);
@@ -147,7 +157,7 @@ describe("1. one answer: open, theirs, not answered", () => {
 
   test("a follow-up waits for the person it was sent to, whatever their place says now", async () => {
     const before = await sent();
-    await w.call(null, routes.answer.POST, {}, { body: { token: tokenOf("amara"), answers: {}, consents: { followUps: true } } });
+    await w.call(null, routes.answer.POST, {}, { body: { token: tokenOf("amara"), answers: everyRequired(tokenOf("amara")), consents: { followUps: true } } });
     const followUp = await sent("followUp6", { closesOn: "2026-12-20" });
     assert.notEqual(followUp, before);
     // Amara's place given back since: the follow-up went because Amara said yes, so it is still Amara's.
@@ -197,7 +207,7 @@ describe("2. week 1's first card", () => {
   test("on every other week, once answered, and for somebody it was not sent to, there is no card", async () => {
     await sent();
     for (const n of [2, 3]) assert.equal((await w.weekShell("amara", n)).props?.survey, undefined, `week ${n}`);
-    await w.call(null, routes.answer.POST, {}, { body: { token: tokenOf("amara"), answers: {} } });
+    await w.call(null, routes.answer.POST, {}, { body: { token: tokenOf("amara"), answers: everyRequired(tokenOf("amara")) } });
     assert.equal((await w.weekShell("amara", 1)).props.survey, undefined);
     // A facilitator of the run and an admin read week 1 too, and were not sent it.
     for (const [who, role] of [["rahul", "facilitator"], ["zach", "admin"]]) {

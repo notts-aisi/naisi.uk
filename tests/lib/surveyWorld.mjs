@@ -37,6 +37,7 @@ import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { walkSource } from "./functionScan.mjs";
+import { withEveryRequired } from "./surveyAnswers.mjs";
 import { makeWorld } from "./handoverWorld.mjs";
 import { A, AGI, B, C, ROUND, RUN, TAIS, formPath, leadSeed } from "./leadWorld.mjs";
 import { COURSE } from "./handoverWorld.mjs";
@@ -209,8 +210,29 @@ export async function makeSurveyWorld(key = "__surveys", extraStubs = []) {
     return call(who, routes.send.POST, { surveyId: id }, { body: { to: "everyone", emails: emails ?? 4 } });
   }
 
-  /** A person's answers, by their own link. */
-  const answerByLink = (token, answers, who = null) => call(who, routes.answerByLink.POST, {}, { body: { token, answers } });
+  /** The survey a personal or test link opens, or null. */
+  const surveyOfToken = (token) => {
+    const row = world.db
+      .paths()
+      .filter((path) => path.startsWith("surveyPeople/"))
+      .map((path) => world.db.read(path))
+      .find((each) => each.token === token);
+    const id = row?.surveyId ?? surveyIds().find((each) => survey(each)?.testToken === token);
+    return id ? survey(id) : null;
+  };
+
+  /**
+   * A person's answers, by their own link, with every required question they
+   * leave out answered plainly (`withEveryRequired`), as the form insists
+   * since 30 Oct 2026. `answerByLinkAsIs` sends exactly what it is given.
+   */
+  /** `given`, with every required question of survey `id` it leaves out answered plainly (`withEveryRequired`). */
+  const everyRequired = (id, given = {}) => withEveryRequired(lib.items, survey(id).items, given);
+  const answerByLinkAsIs = (token, answers, who = null) => call(who, routes.answerByLink.POST, {}, { body: { token, answers } });
+  const answerByLink = (token, answers, who = null) => {
+    const opened = surveyOfToken(token);
+    return answerByLinkAsIs(token, opened ? withEveryRequired(lib.items, opened.items, answers) : answers, who);
+  };
 
   /** Every message the mail door was handed, read as the person it went to would read it. */
   const mailText = () => world.mail.map((message) => ({ to: message.to, subject: message.subject, kind: message.kind, surface: message.surface, text: textOf(renderToStaticMarkup(message.react)) }));
@@ -254,6 +276,8 @@ export async function makeSurveyWorld(key = "__surveys", extraStubs = []) {
     make,
     sendFirst,
     answerByLink,
+    answerByLinkAsIs,
+    everyRequired,
     mailText,
     page,
     exportAs,

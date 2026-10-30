@@ -47,6 +47,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { render } from "@react-email/render";
 import { AGI, NOW, OPEN_RUN, RUN, ROUND, makeLeavingWorld, textOf } from "./lib/leavingWorld.mjs";
 import { TAIS } from "./lib/applicationsSmallTerm.mjs";
+import { withEveryRequired } from "./lib/surveyAnswers.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 const w = await makeLeavingWorld("__surveysLeaving");
@@ -84,6 +85,12 @@ const lib = {
 };
 const NewSurveyForm = (await loadTs(join("features", "surveys", "admin", "NewSurveyForm.tsx"))).default;
 const { REFUSAL, OPEN_WORDS } = lib.words;
+/**
+ * `given`, with every required question of the leaving template it leaves out
+ * answered plainly, as the answer routes insist since 30 Oct 2026
+ * (tests/lib/surveyAnswers.mjs).
+ */
+const every = (given) => withEveryRequired(lib.items, lib.templates.templateItems("leaving", "fellowship", null), given);
 
 beforeEach(() => {
   mock.timers.setTime(NOW.getTime());
@@ -487,7 +494,8 @@ describe("6. reaching it: as somebody leaves by their own hand, and nobody else"
     }
     assert.ok(!before.text.includes("Tell us why"), "the card was drawn before Amara left");
     // Once answered, the page says only that Amara left.
-    const answered = await call(null, routes.answerByLink.POST, {}, { body: { token, answers: { q_leave_again: { type: "choice", optionId: "o_maybe" } } } });
+    // Every question needs an answer (Zach, 30 Oct 2026): all three, each time.
+    const answered = await call(null, routes.answerByLink.POST, {}, { body: { token, answers: every({ q_leave_again: { type: "choice", optionId: "o_maybe" } }) } });
     assert.equal(answered.status, 200, JSON.stringify(answered.body));
     const after = await draw(w.pages.home, "amara", { runId: RUN.agi });
     assert.ok(!after.text.includes("Tell us why") && !after.html.includes("/survey/"), after.text);
@@ -543,7 +551,7 @@ describe("6. reaching it: as somebody leaves by their own hand, and nobody else"
     const id = await opened();
     await w.leave("amara");
     const first = rowOf("amara");
-    const answered = await call(null, routes.answerByLink.POST, {}, { body: { token: first.token, answers: { q_leave_again: { type: "choice", optionId: "o_yes" } } } });
+    const answered = await call(null, routes.answerByLink.POST, {}, { body: { token: first.token, answers: every({ q_leave_again: { type: "choice", optionId: "o_yes" } }) } });
     assert.equal(answered.status, 200, JSON.stringify(answered.body));
     // An admin puts Amara back, and Amara leaves again.
     world.db.poke(`courseEnrolments/${RUN.agi}__amara`, { status: "active", droppedOutAt: null });
@@ -596,7 +604,7 @@ describe("7. results: for admins, and for the programme's lead, never a name", (
     await w.settle();
     for (const [uid, text] of [["amara", "Shorter readings in week 2."], ["dev", "A later session time."]]) {
       const answered = await call(null, routes.answerByLink.POST, {}, {
-        body: { token: rowOf(uid).token, answers: { q_leave_why: { type: "choices", optionIds: ["o_time"] }, q_leave_stay: { type: "text", text } } },
+        body: { token: rowOf(uid).token, answers: every({ q_leave_why: { type: "choices", optionIds: ["o_time"] }, q_leave_stay: { type: "text", text } }) },
       });
       assert.equal(answered.status, 200, JSON.stringify(answered.body));
     }
@@ -650,7 +658,8 @@ describe("7. results: for admins, and for the programme's lead, never a name", (
     w.reset();
     const one = await opened();
     await w.leave("amara");
-    await call(null, routes.answerByLink.POST, {}, { body: { token: rowOf("amara").token, answers: { q_leave_again: { type: "choice", optionId: "o_no" } } } });
+    const sent = await call(null, routes.answerByLink.POST, {}, { body: { token: rowOf("amara").token, answers: every({ q_leave_again: { type: "choice", optionId: "o_no" } }) } });
+    assert.equal(sent.status, 200, JSON.stringify(sent.body));
     assert.ok((await leadPage("claudia", one)).text.includes("1 answer from the 1 person it reached (100%)."));
   });
 

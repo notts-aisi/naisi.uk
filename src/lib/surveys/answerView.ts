@@ -12,12 +12,15 @@ import {
   isLinesQuestion,
   isNumberQuestion,
   isPercentQuestion,
+  isQuestionRequired,
   isQuotable,
   isScaleQuestion,
   questionNumbers,
+  requiredNeedOf,
   scoreOf,
   surveyPagesOf,
   surveyQuestionsOf,
+  type RequiredNeed,
   type SurveyChoiceQuestion,
   type SurveyConsentPurpose,
   type SurveyItem,
@@ -30,6 +33,7 @@ import {
   CONFIDENTIAL_HEADING,
   CONSENT_WORDS,
   STATE_WORDS,
+  answerRuleWords,
   closingWords,
   confidentialPoints,
   paragraphsOf,
@@ -62,6 +66,13 @@ type Base = {
   hint: string;
   /** The person's own earlier answer shown above the question, in words, or "". */
   piped: string;
+  /**
+   * What answering it takes when it is required (`requiredNeedOf`, less the
+   * lines this person is not shown), or null when its Required switch is off
+   * and the page marks it "(optional)". The form checks these with
+   * `missingOf`, the check the answer routes make.
+   */
+  need: RequiredNeed | null;
 };
 
 export type AnswerOption = { id: string; label: string; /** "0" to "5" for a described point, or "". */ point: string };
@@ -114,6 +125,8 @@ export type AnswerSurvey = {
   eyebrow: string[];
   title: string;
   intro: string[];
+  /** The line under the intro: every question needs an answer unless marked optional (`answerRuleWords`). */
+  rule: string;
   box: { heading: string; points: string[]; note: string };
   pages: AnswerPage[];
   /** "It closes on Wed 4 Nov. Once sent, your answers can’t change.", the second sentence alone for a leaving survey. */
@@ -205,6 +218,7 @@ export function answerPagesOf(survey: Pick<SurveyDoc, "items" | "kind">, persona
         title: item.title,
         hint: item.hint ?? "",
         piped: own(personal.piped, item.id) ?? "",
+        need: isQuestionRequired(item) ? requiredNeedOf(item, personal.hiddenLines ?? []) : null,
       };
       if (isLinesQuestion(item)) {
         questions.push({
@@ -247,6 +261,19 @@ export function answerPagesOf(survey: Pick<SurveyDoc, "items" | "kind">, persona
     }
     return { heading: section && section.kind === "section" ? section.heading : "", questions, consents };
   });
+}
+
+/**
+ * Whether the form has a box asking the person's permission: a consent
+ * block's box, the Kairos box, or the quote tick under a long answer. Each is
+ * theirs to tick or not, never required, and the line under the intro says so
+ * where there is one.
+ */
+export function asksPermission(pages: readonly AnswerPage[], kairos: AnswerKairos | null): boolean {
+  return (
+    kairos !== null ||
+    pages.some((page) => page.consents.length > 0 || page.questions.some((question) => question.kind === "text" && question.quote))
+  );
 }
 
 /**
@@ -406,14 +433,16 @@ export async function answerScreenFor(
     hiddenLinesFor(db, survey, input.uid),
   ]);
   const box = confidentialPoints(facts);
+  const pages = answerPagesOf(survey, { offered, piped, asked, hiddenLines });
   return {
     state: "open",
     survey: {
       eyebrow,
       title: survey.title,
       intro: paragraphsOf(survey.intro),
+      rule: answerRuleWords(asksPermission(pages, kairos)),
       box: { heading: CONFIDENTIAL_HEADING, points: box.points, note: box.note },
-      pages: answerPagesOf(survey, { offered, piped, asked, hiddenLines }),
+      pages,
       closing: closingWords(survey.closesAt),
       submit: input.submit,
       kairos,

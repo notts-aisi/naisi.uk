@@ -55,6 +55,7 @@ const routes = {
   open: await route("[surveyId]", "open"),
   send: await route("[surveyId]", "send"),
   test: await route("[surveyId]", "test"),
+  questions: await route("[surveyId]", "questions"),
   answerByLink: await route("answer"),
 };
 const TABS = join("app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "(tabs)");
@@ -140,11 +141,27 @@ const scale = (value) => ({ type: "scale", value });
 const lines = (values) => ({ type: "lines", values });
 const words = (text, quote = false) => (quote ? { type: "text", text, quote: true } : { type: "text", text });
 
+/**
+ * Every question's Required switch turned off in the editor, as an admin may
+ * (Zach, 30 Oct 2026: required unless marked optional). The story's people
+ * answer only some questions, as answers sent before that rule did, and the
+ * tab is read over those gaps; the rule itself is tests/surveys-required.test.mjs's
+ * and the answer routes' own.
+ */
+async function everyQuestionOptional(id, closesOn) {
+  const stored = world.db.read(`surveys/${id}`);
+  const items = stored.items.map((item) => (item.kind === "question" ? { ...item, optional: true } : item));
+  const body = { title: stored.title, intro: stored.intro, minutes: stored.minutes, closesOn, items };
+  const saved = await call("zach", routes.questions.POST, { surveyId: id }, { body });
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+}
+
 /** An admin makes a survey of the programme's, tests it and sends it to everybody it reaches; answers its id. */
 async function sent(body) {
   const made = await call("zach", routes.create.POST, {}, { body: { roundId: ROUND, programmeId: AGI, ...body } });
   assert.equal(made.status, 200, JSON.stringify(made.body));
   const id = made.body.survey.id;
+  await everyQuestionOptional(id, body.closesOn);
   const tested = await call("zach", routes.test.POST, { surveyId: id }, { body: { email: "survey" } });
   assert.equal(tested.status, 200, JSON.stringify(tested.body));
   const counted = await call("zach", routes.send.POST, { surveyId: id }, { body: { to: "everyone", emails: 0 } });
@@ -225,6 +242,7 @@ async function tellTheStory() {
   for (const [uid, text] of END_COMMENTS) await answer(made.after, uid, { ...end[uid], q_a5: words(text) });
 
   made.leaving = (await call("zach", routes.create.POST, {}, { body: { roundId: ROUND, programmeId: AGI, stage: "leaving" } })).body.survey.id;
+  await everyQuestionOptional(made.leaving, null);
   assert.equal((await call("zach", routes.open.POST, { surveyId: made.leaving }, { body: {} })).status, 200);
   assert.equal((await w.leave("hamza")).status, 200);
   await answer(made.leaving, "hamza", { q_leave_stay: words("Shorter readings in the busy weeks.") });

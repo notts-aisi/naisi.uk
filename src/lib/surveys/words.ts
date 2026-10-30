@@ -201,7 +201,16 @@ export function paragraphsOf(text: string): string[] {
 
 export const ANSWER_WORDS = {
   eyebrow: "Survey",
-  skippable: "Every question can be skipped.",
+  /** Under the intro (Zach, 30 Oct 2026: every survey question is required unless marked optional). */
+  required: "Every question needs an answer unless it’s marked optional.",
+  /** After it, on a survey whose form has a box asking the person's permission: consent is theirs to give. */
+  permission: "The boxes asking your permission are up to you.",
+  /** Beside the words of a question whose Required switch is off. */
+  optional: "(optional)",
+  /** Beside a required question left blank, when Next or Send is pressed. */
+  blank: "This question needs an answer.",
+  /** Beside an agreement grid with a line left blank. */
+  blankLines: "This question needs an answer on every line.",
   tickMany: "Tick as many as apply",
   chooseOne: "Choose one",
   fromProfile: "From your profile. Change it if it’s not right.",
@@ -217,6 +226,24 @@ export const ANSWER_WORDS = {
   quote: "You can quote this, without my name",
   quoteLine: "We might put it in a report for the committee or our funder, Kairos, or on our site.",
 } as const;
+
+/**
+ * The line under a survey's intro: every question needs an answer unless it
+ * is marked optional, and, on a form with a box asking the person's
+ * permission (a consent block, the Kairos box, the quote tick), that those
+ * boxes are up to them.
+ */
+export function answerRuleWords(asksPermission: boolean): string {
+  return asksPermission ? `${ANSWER_WORDS.required} ${ANSWER_WORDS.permission}` : ANSWER_WORDS.required;
+}
+
+/** "Question 3 still needs an answer.", "Questions 3, 5 and 7 still need an answer." */
+export function missingWords(numbers: readonly number[]): string {
+  if (numbers.length === 1) return `Question ${numbers[0]} still needs an answer.`;
+  const all = numbers.map(String);
+  const listed = `${all.slice(0, -1).join(", ")} and ${all[all.length - 1]}`;
+  return `Questions ${listed} still need an answer.`;
+}
 
 /** "Page 1 of 3". */
 export function pageWords(n: number, of: number): string {

@@ -538,7 +538,7 @@ describe("people who join since get it with one button; reminders go only to who
 // Answering
 // ---------------------------------------------------------------------------
 
-describe("answering: by a personal link or signed in, once, every question skippable", () => {
+describe("answering: by a personal link or signed in, once, every required question answered", () => {
   test("by the link, signed out: kept against the person, with the day and time, how, and whether their group had met", async (t) => {
     clock(t);
     w.reset(seed());
@@ -546,13 +546,24 @@ describe("answering: by a personal link or signed in, once, every question skipp
     assert.equal((await w.answerByLink(w.tokenOf(id, "amara"), CHOICES)).status, 200);
     // Bea's group meets at 6pm tonight: an answer after it is labelled.
     t.mock.timers.setTime(new Date("2026-10-29T20:30:00Z").getTime());
-    assert.equal((await w.answerByLink(w.tokenOf(id, "bea"), {})).status, 200, "every question can be skipped");
+    // Zach, 30 Oct 2026: every question is required unless marked optional.
+    // Sent blank, the answers are refused whole, naming every question, and
+    // nothing is kept; answered, they are kept.
+    const required = w.lib.items.requiredQuestionsOf(w.survey(id).items).map((question) => question.id);
+    assert.equal(required.length, 14, "every question of the before survey");
+    const blank = await w.answerByLinkAsIs(w.tokenOf(id, "bea"), {});
+    assert.equal(blank.status, 400);
+    assert.deepEqual(blank.body.missing, required);
+    assert.equal(blank.body.error, "Questions 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 and 14 still need an answer.");
+    assert.equal(w.answers(id).length, 1, "a refused send keeps nothing");
+    assert.equal(w.people(id).find((row) => row.respondent.uid === "bea").answered, false);
+    assert.equal((await w.answerByLink(w.tokenOf(id, "bea"), {})).status, 200);
     const [amara, bea] = ["amara", "bea"].map((uid) => w.answers(id).find((row) => row.respondent.uid === uid));
     assert.deepEqual(Object.keys(amara).sort(), ["afterFirstSession", "answers", "path", "respondent", "roundId", "sentAt", "surveyId", "via"]);
     assert.equal(amara.via, "link");
     assert.equal(amara.afterFirstSession, false, "Group B first meets on Tue 3 Nov");
     assert.equal(bea.afterFirstSession, true, "Group A met at 6pm");
-    assert.deepEqual(bea.answers, {});
+    assert.deepEqual(Object.keys(bea.answers), required, "every required question, and nothing else");
     assert.equal(new Date(amara.sentAt).toISOString(), NOW.toISOString());
     assert.equal(w.people(id).find((row) => row.respondent.uid === "amara").answered, true);
   });
@@ -589,15 +600,25 @@ describe("answering: by a personal link or signed in, once, every question skipp
     assert.equal((await w.answerByLink(token, { q_c3: { type: "choices", optionIds: ["o_research", "o_policy", "o_strategy", "o_founding"] } })).status, 400, "C3 takes up to 3");
     assert.equal((await w.answerByLink(token, { q_c2: { type: "percent", value: 101 } })).status, 400);
     assert.equal(w.answers(id).length, 0);
-    assert.equal((await w.answerByLink(token, { q_c7: { type: "lines", values: { l_next: 5, l_contribute: null } } })).status, 200);
-    assert.deepEqual(w.answers(id)[0].answers, { q_c7: { type: "lines", values: { l_next: 5 } } });
+    // A line left blank is no answer to the line, so an agreement grid with
+    // one is a question left blank, named by id and number.
+    const oneLine = await w.answerByLink(token, { q_c7: { type: "lines", values: { l_next: 5, l_contribute: null } } });
+    assert.deepEqual([oneLine.status, oneLine.body.missing, oneLine.body.error], [400, ["q_c7"], "Question 11 still needs an answer."]);
+    assert.equal(w.answers(id).length, 0);
+    assert.equal((await w.answerByLink(token, { q_c7: { type: "lines", values: { l_next: 5, l_contribute: 2 }, extra: "dropped" } })).status, 200);
+    assert.deepEqual(w.answers(id)[0].answers.q_c7, { type: "lines", values: { l_next: 5, l_contribute: 2 } });
   });
 
   test("signed in: the caller's own row, refused to anybody it wasn't sent to and during view-as", async (t) => {
     clock(t);
     w.reset(seed());
     const id = await sentSurvey();
-    const as = (who, options = {}) => call(who, routes.answerSignedIn.POST, { surveyId: id }, { body: { answers: CHOICES }, ...options });
+    const as = (who, options = {}) => call(who, routes.answerSignedIn.POST, { surveyId: id }, { body: { answers: w.everyRequired(id, CHOICES) }, ...options });
+    // Signed in, a required question left blank is refused the same way.
+    const blank = await call("amara", routes.answerSignedIn.POST, { surveyId: id }, { body: { answers: CHOICES } });
+    assert.equal(blank.status, 400);
+    assert.ok(blank.body.missing.length > 0 && blank.body.missing.every((each) => !(each in CHOICES)));
+    assert.equal(w.answers(id).length, 0);
     assert.equal((await as("amara", { viewAs: true })).status, 403);
     for (const who of ["claudia", "rahul", "nobody", "zach"]) {
       assert.deepEqual(short(await as(who)), [404, REFUSAL.notYours], who);
@@ -627,7 +648,7 @@ describe("the answer page, by link and signed in, records nothing", () => {
     for (const words of [
       "Fellowship: AGI Strategy · Week 1",
       "Before you start",
-      "Every question can be skipped.",
+      "Every question needs an answer unless it’s marked optional. The boxes asking your permission are up to you.",
       "Confidential",
       "Only NAISI’s admins can see who said what.",
       "Claudia sees totals and comments, never names. Rahul and Sofia never see your answers.",
@@ -692,7 +713,10 @@ describe("the answer page, by link and signed in, records nothing", () => {
     // Sending keeps only the lines the person was shown: the answer route drops
     // a value for a hidden line before anything is written.
     const answerCode = readFileSync(new URL("../src/lib/surveys/answer.ts", import.meta.url), "utf8");
-    assert.match(answerCode, /const answers = withoutLines\(read\.answers, await hiddenLinesFor\(db, survey, person\.respondent\.uid\)\);/);
+    assert.match(answerCode, /const hidden = await hiddenLinesFor\(db, survey, person\.respondent\.uid\);\n\s*const answers = withoutLines\(read\.answers, hidden\);/);
+    // And the line a person was not shown is never needed to send: the
+    // required check is asked of the same answers with the same lines hidden.
+    assert.match(answerCode, /const blank = blankRefusal\(survey\.items, answers, hidden\);\n\s*if \(blank\) return blank;/);
     assert.doesNotMatch(answerCode, /answers: read\.answers,/, "the answer is written as it was sent, hidden lines and all");
   });
 
@@ -823,7 +847,9 @@ describe("the admins' pages", () => {
     assert.match(file.headers["content-disposition"], /attachment; filename="agi-strategy-before-answers-2026-10-29\.csv"/);
     const [header, row] = file.text.trim().split(/\r?\n/);
     assert.match(header, /^Name,Sent,How,After their first session,1\. Level of study,2\. Subject of study,/);
-    assert.match(row, /^Amara Okafor,2026-10-29 09:00,Personal link,No,,,/);
+    // Every question answered (Zach, 30 Oct 2026): those CHOICES leaves out
+    // are answered plainly by the world, the first option of each menu here.
+    assert.match(row, /^Amara Okafor,2026-10-29 09:00,Personal link,No,"Undergraduate, first year",Computer science,/);
     assert.ok(row.includes("Thought about it, not a serious option"), "a choice is written in its words");
     assert.doesNotMatch(file.text, /@example\.com/, "never an address");
     const logged = w.world.db.paths().filter((path) => path.startsWith("dataExports/")).map((path) => w.world.db.read(path));
@@ -870,7 +896,7 @@ describe("names come off two years after the programme, and the totals stay", ()
     const due = await w.lib.job.surveyNamesOffJob.handler(ctx(new Date("2028-12-09T00:30:00Z")));
     assert.equal(due.processed, 1);
     assert.equal(w.answers(id)[0].respondent, null, "the answer stays without its person");
-    assert.deepEqual(w.answers(id)[0].answers, CHOICES, "the answers themselves are untouched");
+    assert.deepEqual(w.answers(id)[0].answers, w.everyRequired(id, CHOICES), "the answers themselves are untouched");
     assert.equal(w.people(id).length, 0, "nobody's link or row is left");
     assert.ok(w.survey(id).namesOffAt);
     assert.equal(w.world.mail.filter((message) => message.kind !== "course-test" && message.kind !== "notice").length, 0);
@@ -919,7 +945,8 @@ const EVERY_KIND = [
   { kind: "question", id: "q_stage", type: "singleChoice", title: "Which best describes you right now?", body: [], required: false, options: [{ id: "o_s0", label: "Haven’t thought about it" }, { id: "o_s1", label: "Thought about it" }], look: "points", scores: { o_s0: 0, o_s1: 1 } },
   { kind: "question", id: "q_likely", type: "percent", title: "How likely is it?", ends: { min: "Not at all", max: "Certain" } },
   { kind: "question", id: "q_kinds", type: "multipleChoice", title: "Which kinds of work interest you most?", body: [], required: false, options: [{ id: "o_a", label: "Research" }, { id: "o_b", label: "Policy" }, { id: "o_c", label: "Operations" }], maxPicks: 2 },
-  { kind: "question", id: "q_people", type: "number", title: "How many people could you message?", max: 1000 },
+  // Its Required switch turned off, as an admin may: drawn "(optional)", and fine left blank.
+  { kind: "question", id: "q_people", type: "number", title: "How many people could you message?", max: 1000, optional: true },
   { kind: "question", id: "q_explain", type: "scale", title: "How well could you explain it?", min: 1, max: 7, anchors: [{ at: 1, label: "Not at all" }, { at: 4, label: "The gist" }, { at: 7, label: "Hold my own" }] },
   { kind: "question", id: "q_recommend", type: "scale", title: "Would you recommend it?", min: 0, max: 10, anchors: [{ at: 0, label: "Not at all likely" }, { at: 10, label: "Extremely likely" }] },
   { kind: "question", id: "q_shaped", type: "multipleChoice", title: "What else has shaped your plans?", body: [], required: false, options: [{ id: "o_x", label: "Friends" }, { id: "o_y", label: "AI news" }], most: "Which mattered most?" },
@@ -975,6 +1002,21 @@ describe("every kind of question, on the page and through the routes", () => {
     assert.ok(!slider.includes("name="), "the slider sends nothing of its own");
     const [people] = tagsWith(html, 'name="q_people"');
     assert.ok(people.includes('type="number"') && people.includes('max="1000"') && people.includes('aria-labelledby="q-q_people"'), people);
+    // Required unless marked optional (Zach, 30 Oct 2026): the optional one
+    // says so beside its words and carries no `required`; every required
+    // control the browser can check carries it before the script arrives.
+    assert.ok(text.includes("4 How many people could you message? (optional)"), "the optional question is marked");
+    assert.equal((text.match(/\(optional\)/g) ?? []).length, 1, "only the optional question is marked");
+    assert.ok(!people.includes("required"), people);
+    assert.ok(typed.includes('required=""'), `the typed percentage is not required: ${typed}`);
+    for (const name of ["q_stage", "q_explain", "q_recommend"]) {
+      const tags = tagsWith(html, `name="${name}"`);
+      assert.ok(tags.length > 1 && tags.every((tag) => tag.includes('required=""')), `${name}: ${tags[0]}`);
+    }
+    assert.ok(tagsWith(html, 'name="q_subject"')[0].includes('required=""'), "the menu is required");
+    // A pick-any has no "at least one" of the browser's own, and a consent box is never required.
+    assert.ok(tagsWith(html, 'name="q_kinds"').every((tag) => !tag.includes("required")));
+    assert.ok(tagsWith(html, 'name="consent.followUps"').every((tag) => !tag.includes("required")));
     // Eleven points for 0 to 10, each with its words for a screen reader.
     assert.equal((html.match(/name="q_recommend"/g) ?? []).length, 11);
     assert.match(html, /aria-label="0 out of 10: Not at all likely"/);
@@ -1011,7 +1053,7 @@ describe("every kind of question, on the page and through the routes", () => {
       q_likely: { type: "percent", value: 0 },
       q_shaped: { type: "choices", optionIds: ["o_x", "o_y"], most: "o_y" },
     };
-    const said = await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(id, "amara"), answers, consents: { followUps: true } } });
+    const said = await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(id, "amara"), answers: w.everyRequired(id, answers), consents: { followUps: true } } });
     assert.equal(said.status, 200, JSON.stringify(said.body));
     assert.equal((await w.answerByLink(w.tokenOf(id, "bea"), {})).status, 200);
     const row = (uid) => w.people(id).find((each) => each.respondent.uid === uid);
@@ -1019,7 +1061,7 @@ describe("every kind of question, on the page and through the routes", () => {
     assert.ok(row("amara").consentsAt, "when it was said is kept");
     assert.deepEqual(row("bea").consents, { followUps: false }, "a box left unticked is a no");
     const amara = w.answers(id).find((each) => each.respondent.uid === "amara");
-    assert.deepEqual(amara.answers, answers, "the answers are only the questions'");
+    assert.deepEqual(amara.answers, w.everyRequired(id, answers), "the answers are only the questions'");
     assert.deepEqual(Object.keys(amara).sort(), ["afterFirstSession", "answers", "path", "respondent", "roundId", "sentAt", "surveyId", "via"]);
   });
 
@@ -1042,7 +1084,7 @@ describe("every kind of question, on the page and through the routes", () => {
     clock(t);
     w.reset(seed());
     const id = await everyKindSurvey();
-    const sent = await call("amara", routes.answerSignedIn.POST, { surveyId: id }, { body: { answers: {}, consents: { followUps: true } } });
+    const sent = await call("amara", routes.answerSignedIn.POST, { surveyId: id }, { body: { answers: w.everyRequired(id), consents: { followUps: true } } });
     assert.equal(sent.status, 200, JSON.stringify(sent.body));
     assert.deepEqual(w.people(id).find((each) => each.respondent.uid === "amara").consents, { followUps: true });
   });
@@ -1078,7 +1120,7 @@ describe("the survey at the end and the follow-ups pair with the one before, per
   /** The before survey sent, and answered by Amara (yes to follow-ups) and Bea (no). */
   async function beforeAnswered() {
     const id = await sentSurvey();
-    const amara = await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(id, "amara"), answers: CHOICES, consents: { followUps: true } } });
+    const amara = await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(id, "amara"), answers: w.everyRequired(id, CHOICES), consents: { followUps: true } } });
     assert.equal(amara.status, 200, JSON.stringify(amara.body));
     assert.equal((await w.answerByLink(w.tokenOf(id, "bea"), { q_c1: { type: "choice", optionId: "o_stage0" } })).status, 200);
     return id;
@@ -1134,9 +1176,14 @@ describe("the survey at the end and the follow-ups pair with the one before, per
     assert.ok(amara.includes("Fellowship: AGI Strategy · Week 6"), "the run's last week");
     assert.ok(amara.includes("At the start you said: “To explain the risk clearly.” Did you get") || amara.includes("At the start you said: “To explain the risk clearly.”"));
     assert.ok(amara.includes("We ask who you are so we can compare your answers at the start and the end."));
+    // P6 is required since 30 Oct 2026, so Bea's before answer says something
+    // to it ("Nothing to add.", as the world answers what a suite leaves out),
+    // and she is shown her own words and nobody else's.
     const bea = await page("bea");
-    assert.ok(!bea.includes("At the start you said"), "Bea said nothing to P6, so nothing is shown");
+    assert.ok(bea.includes("At the start you said: “Nothing to add.”"), "Bea is shown her own answer");
     assert.ok(!bea.includes("To explain the risk clearly."), "nobody sees another person's answer");
+    const dev = await page("dev");
+    assert.ok(!dev.includes("At the start you said"), "Dev never answered the before survey, so nothing is shown");
     // The test link shows where it would go, and nobody's words.
     await call("zach", routes.test.POST, { surveyId: after }, { body: { email: "survey" } });
     const test = (await w.page(w.pages.link, { params: Promise.resolve({ token: w.survey(after).testToken }) })).text;
@@ -1172,7 +1219,7 @@ describe("the survey at the end and the follow-ups pair with the one before, per
     // The same before survey, now sent and answered.
     const sent = await w.sendFirst(draft);
     assert.equal(sent.status, 200, JSON.stringify(sent.body));
-    const amara = await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(draft, "amara"), answers: CHOICES, consents: { followUps: true } } });
+    const amara = await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(draft, "amara"), answers: w.everyRequired(draft, CHOICES), consents: { followUps: true } } });
     assert.equal(amara.status, 200);
     assert.equal((await w.answerByLink(w.tokenOf(draft, "bea"), { q_c1: { type: "choice", optionId: "o_stage0" } })).status, 200);
     const before = draft;
@@ -1250,7 +1297,8 @@ describe("the survey at the end and the follow-ups pair with the one before, per
 describe("changing the follow-ups consent later, by the person alone", () => {
   async function beforeAnsweredByAmara(yes) {
     const id = await sentSurvey();
-    await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(id, "amara"), answers: {}, consents: { followUps: yes } } });
+    const sent = await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(id, "amara"), answers: w.everyRequired(id), consents: { followUps: yes } } });
+    assert.equal(sent.status, 200, JSON.stringify(sent.body));
     return id;
   }
 
@@ -1362,7 +1410,7 @@ describe("results for admins: n and the response rate beside every number, the c
     clock(t);
     w.reset(seed());
     const before = await sentSurvey();
-    await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(before, "amara"), answers: CHOICES, consents: { followUps: true } } });
+    await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(before, "amara"), answers: w.everyRequired(before, CHOICES), consents: { followUps: true } } });
     await w.answerByLink(w.tokenOf(before, "bea"), { q_c1: { type: "choice", optionId: "o_stage3" }, q_c2: { type: "percent", value: 50 } });
     await w.answerByLink(w.tokenOf(before, "dev"), { q_c1: { type: "choice", optionId: "o_stage0" } });
     const after = (await w.make("zach", { stage: "after", closesOn: "2026-12-20" })).body.survey.id;
@@ -1371,7 +1419,8 @@ describe("results for admins: n and the response rate beside every number, the c
       q_c1: { type: "choice", optionId: "o_stage3" },
       q_t1: { type: "choice", optionId: "o_stage0" },
       q_c2: { type: "percent", value: 45 },
-      q_c7: { type: "lines", values: { l_next: 4 } },
+      // An agreement grid needs every line (Zach, 30 Oct 2026).
+      q_c7: { type: "lines", values: { l_next: 4, l_contribute: 3 } },
     });
     await w.answerByLink(w.tokenOf(after, "bea"), { q_c1: { type: "choice", optionId: "o_stage3" }, q_t1: { type: "choice", optionId: "o_stage3" }, q_c2: { type: "percent", value: 40 } });
     const page = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: after }), searchParams: Promise.resolve({}) }, "zach");
@@ -1383,7 +1432,10 @@ describe("results for admins: n and the response rate beside every number, the c
       "Before and now Of the 2 who answered it both times (AGI Strategy: before): 1 moved up, 1 stayed, 0 moved down. Average 2 then, 3 now (up 1). Middle value 2 then, 3 now.",
       "Looking back Of the 2 who answered it both times (Looking back, which best described you before the programme?): 1 moved up, 1 stayed, 0 moved down. Average 1.5 then, 3 now (up 1.5).",
       "Average 35% then, 42.5% now (up 7.5 points).",
-      "I know what my next concrete step towards AI safety work would be. 2 → 4, 1 of 1 moved up",
+      // Bea answers every line both times too, as she must since 30 Oct 2026
+      // (1 each, as the world answers what a suite leaves out), so two pair.
+      "I know what my next concrete step towards AI safety work would be. 1.5 → 2.5, 1 of 2 moved up",
+      "I could make a meaningful contribution to AI safety. 2 → 2, 0 of 2 moved up",
       "Leave out before-survey answers sent after someone’s first session",
     ]) {
       assert.ok(page.text.includes(words), `missing "${words}"`);
@@ -1406,7 +1458,7 @@ describe("results for admins: n and the response rate beside every number, the c
     clock(t);
     w.reset(seed());
     const id = await sentSurvey();
-    await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(id, "amara"), answers: {}, consents: { followUps: true } } });
+    await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(id, "amara"), answers: w.everyRequired(id), consents: { followUps: true } } });
     await w.answerByLink(w.tokenOf(id, "bea"), {});
     const page = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
     assert.ok(page.text.includes("Consent 1 said yes, 25% of the 4 it was sent to: Contact me at 6 and 12 months with a short follow-up survey."), page.text.slice(0, 600));
