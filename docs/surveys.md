@@ -778,7 +778,8 @@ after an event `g_<signupId>` for a guest (`whoOf` and `subjectOf`).
   in a line. After an event, its one survey. Every question as the survey
   holds it: its words, its line, its scale's words. A question left blank
   says "No answer": an optional one, a part of a grid of parts, or any
-  question of answers sent before every question was required (30 Oct 2026). The side column says when the name comes off (the surveys' own
+  question of answers sent before every question was required (30 Oct
+  2026). The side column says when the name comes off (the surveys' own
   `namesOffOn`) and who has opened these answers (the log, newest first). The
   head names their programme, their told group, and how many of the surveys
   they were on they answered ("Answered both").
