@@ -150,6 +150,10 @@ async function seed({ runId, suppress, onState }) {
     createdAt: new Date(now.getTime() - DAY_MS),
     updatedAt: new Date(now.getTime() - DAY_MS),
   });
+
+  // The runner writes what this returns as the spec's state; nothing returned
+  // means the spec finds no term and skips itself.
+  return state;
 }
 
 /** The notes about the term's people, and what Claude and Pangram keep on its run. */
