@@ -99,6 +99,18 @@ export default async function ReConsentPage() {
           To keep using your NAISI account, please review and accept our updated
           Privacy Policy (version {privacy.version}, {privacy.lastUpdated}).
         </p>
+        {/* Said first, in its own paragraph, because it takes back what the
+            policy promised until version 12. The sentences match version 13's
+            own (tests/privacy-policy.test.mjs holds both sides). */}
+        <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
+          <strong style={{ color: "var(--color-text)" }}>Since version 13:</strong>{" "}
+          admins can keep notes about you, and Claude may draft them from your
+          coursework. What you write on a course after you agree to version 13,
+          and the notes admins keep about you, may also be used when we
+          consider you for something else with us later: another application,
+          facilitating a group, or the committee. Anything you wrote before you
+          agreed to version 13 is used only within its programme.
+        </p>
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
           <strong style={{ color: "var(--color-text)" }}>What changed:</strong>{" "}
           the section on courses and programmes now covers a programme while

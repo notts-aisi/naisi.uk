@@ -30,6 +30,7 @@ import {
 import { startImpersonation } from "@/auth/impersonation";
 import { degreeOf } from "@/features/profile/studyChange";
 import ConductFlagControl from "./ConductFlagControl";
+import PersonNotes from "./memberNotes/PersonNotes";
 import MemberApplicationHistory from "./MemberApplicationHistory";
 import MemberEditForm from "./MemberEditForm";
 import { ROLE_WORDS, accountName, joinedDay, roleTone } from "./MembersTable";
@@ -755,6 +756,16 @@ export default function MemberItem({ user, currentAdminUid, nameByUid }: Props) 
             which this page is. */}
         <MemberApplicationHistory uid={user.uid} />
       </section>
+
+      {/* The notes admins keep about this person (privacy v13): every note,
+          with Claude's draft from a programme they are on. Not on your own
+          page: notes about a person are never shown to them, an admin
+          included, and the route refuses the same request. */}
+      {!isSelf && (
+        <section className={styles.card}>
+          <PersonNotes uid={user.uid} firstName={firstName} place="profile" draft="picker" />
+        </section>
+      )}
 
       {/* Not on your own page. A conduct flag is a record one admin keeps
           about another person, so a self-set one has nobody outside it who

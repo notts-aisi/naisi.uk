@@ -168,13 +168,41 @@ export function readFilter(query: { group?: unknown; waiting?: unknown }, groupI
   return { group, waiting: query.waiting === "1" };
 }
 
-/** A tab address with this filter. */
-export function filterHref(base: string, filter: CourseworkFilter): string {
+/**
+ * A tab address with this filter, and the week chosen for the panels under
+ * the table when one was chosen in the address (`?week=3`), so a filter
+ * keeps it and a week keeps the filter.
+ */
+export function filterHref(base: string, filter: CourseworkFilter, week: number | null = null): string {
   const params = new URLSearchParams();
   if (filter.group !== "all") params.set("group", filter.group);
   if (filter.waiting) params.set("waiting", "1");
+  if (week !== null) params.set("week", String(week));
   const query = params.toString();
   return query ? `${base}?${query}` : base;
+}
+
+/**
+ * The week the panels under the table are about: the one asked for in the
+ * address when it is one of the tab's columns, else the latest week anybody
+ * shown has written in, else the first column. `asked` says whether the
+ * address chose it, so the filters carry it only then.
+ */
+export function chosenWeek(
+  query: { week?: unknown },
+  columns: ReadonlyArray<{ weekNumber: number }>,
+  sections: readonly CourseworkSection[],
+): { weekNumber: number; asked: boolean } | null {
+  if (columns.length === 0) return null;
+  const wanted = typeof query.week === "string" && /^\d{1,3}$/.test(query.week) ? Number(query.week) : null;
+  if (wanted !== null && columns.some((column) => column.weekNumber === wanted)) return { weekNumber: wanted, asked: true };
+  const written = (cell: CourseworkCell) =>
+    (cell.reflections?.written ?? 0) > 0 || (cell.boxes?.filled ?? 0) > 0 || (cell.answer !== null && cell.answer.state !== "not-started");
+  const latest = columns
+    .map((column) => column.weekNumber)
+    .filter((weekNumber) => sections.some((section) => section.rows.some((row) => row.cells.some((cell) => cell.weekNumber === weekNumber && written(cell)))))
+    .at(-1);
+  return { weekNumber: latest ?? columns[0].weekNumber, asked: false };
 }
 
 /** One cell, worked out from the week the person reads and what they wrote. */

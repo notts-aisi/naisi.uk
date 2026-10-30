@@ -26,6 +26,12 @@
  *     lead's; survey answers never.
  *  7. THE MODEL, run on its own.
  *  8. THE TREE: each page gates before it reads.
+ *  9. CLAUDE, PANGRAM AND THE NOTES ADMINS KEEP (privacy v13). Under the
+ *     tab's table, one week chosen by links that keep the filters: Claude's
+ *     best answers for the lead and an admin, Pangram for an admin alone.
+ *     Beside a person's weeks, for an admin alone: notes about them written
+ *     from this run, Claude's draft of one, and Pangram. The lead is handed
+ *     none of the three, and no word of Pangram reaches the lead's pages.
  *
  * Real: the two pages, the loader and the model, rendered to HTML. Faked:
  * see `tests/lib/facilitatorWeekWorld.mjs`.
@@ -424,6 +430,88 @@ describe("7. the model", () => {
   });
 });
 
+describe("9. Claude, Pangram and the notes admins keep", () => {
+  const COURSEWORK_PATH = `${PROGRAMME_PATH}/coursework`;
+  const panelsOf = (drawn) => find(drawn.element, "CourseworkWeekPanels")[0] ?? null;
+  /** What the panels under the table draw, one level down: the client panels and their props. */
+  const insideOf = (panels) => panels.type(panels.props);
+
+  test("the tab: under the table, the latest week written in, or the one the address asks for; best answers for the lead and an admin, Pangram for an admin alone", async () => {
+    const asLead = await tab("claudia");
+    const leadPanels = panelsOf(asLead);
+    assert.deepEqual([leadPanels.props.week, leadPanels.props.viewer, leadPanels.props.names], [{ weekNumber: 3, asked: false }, "lead", {}]);
+    const leadInside = insideOf(leadPanels);
+    assert.deepEqual(
+      find(leadInside, "BestAnswersPanel").map((panel) => [panel.props.weekId, panel.props.personBase]),
+      [["w03", COURSEWORK_PATH]],
+    );
+    assert.equal(find(leadInside, "PangramWeek").length, 0, "the lead is handed Pangram on a week");
+    assert.match(asLead.text, /Week 3 · The lamp makers/);
+    assert.match(asLead.text, /Best answers/);
+    assert.doesNotMatch(asLead.html, /Pangram/, "the lead's tab names Pangram");
+
+    const asAdmin = await tab("zach", { group: B, week: "1" });
+    const adminPanels = panelsOf(asAdmin);
+    assert.deepEqual(adminPanels.props.week, { weekNumber: 1, asked: true });
+    const adminInside = insideOf(adminPanels);
+    assert.deepEqual(find(adminInside, "BestAnswersPanel").map((panel) => panel.props.weekId), ["w01"]);
+    const pangram = find(adminInside, "PangramWeek");
+    assert.deepEqual(pangram.map((panel) => [panel.props.weekId, panel.props.personBase]), [["w01", COURSEWORK_PATH]]);
+    // Every row's name, whatever the filter: Tariq is in no group and still named.
+    assert.equal(pangram[0].props.names.tariq, "Tariq Mensah");
+    assert.equal(pangram[0].props.names.chloe, "Chloe Nguyen");
+    assert.match(asAdmin.text, /Pangram/);
+    // A filter keeps the week the address chose, and a week keeps the filter.
+    assert.match(asAdmin.html, new RegExp(`<a href="${COURSEWORK_PATH}\\?group=${B}&amp;week=1" class="filter filterOn" aria-current="page">Group B</a>`));
+    assert.match(asAdmin.html, new RegExp(`<a href="${COURSEWORK_PATH}\\?group=${B}&amp;week=3" class="filter">Week 3</a>`));
+    assert.match(asAdmin.html, new RegExp(`<a href="${COURSEWORK_PATH}\\?group=${B}&amp;week=1" class="filter filterOn" aria-current="page">Week 1</a>`));
+    // A week the tab has no column for is the latest written in, and the filters carry no week.
+    const unknown = await tab("zach", { week: "9" });
+    assert.deepEqual(panelsOf(unknown).props.week, { weekNumber: 3, asked: false });
+    assert.match(unknown.html, new RegExp(`<a href="${COURSEWORK_PATH}\\?waiting=1" class="filter filterWaiting">Waiting for feedback</a>`));
+  });
+
+  test("a person's page: the column beside the weeks is an admin's, with notes from this run, Claude's draft and Pangram; the lead is handed none of them", async () => {
+    for (const uid of ["chloe", "tariq", "rahul"]) {
+      const asLead = await person("claudia", uid);
+      assert.equal(personOf(asLead) && find(asLead.element, "PersonCoursework")[0].props.beside, null, `the lead is handed the column beside ${uid}'s weeks`);
+      assert.doesNotMatch(asLead.html, /<aside|Notes about|Draft a note|Pangram/, `the lead's page for ${uid}`);
+    }
+    const asAdmin = await person("zach", "chloe");
+    const beside = find(asAdmin.element, "PersonCoursework")[0].props.beside;
+    assert.equal(beside.type.name, "PersonBeside");
+    assert.deepEqual(beside.props, { roundId: ROUND, programmeId: AGI, runId: RUN.agi, uid: "chloe", name: "Chloe Nguyen", self: false });
+    const inside = beside.type(beside.props);
+    assert.deepEqual(
+      find(inside, "PersonNotes").map((notes) => [notes.props.uid, notes.props.place, notes.props.draft]),
+      [["chloe", { run: RUN.agi }, "run"]],
+    );
+    assert.deepEqual(find(inside, "PangramPanel").map((panel) => [panel.props.roundId, panel.props.programmeId, panel.props.uid]), [[ROUND, AGI, "chloe"]]);
+    assert.match(asAdmin.html, /<aside/);
+    assert.match(asAdmin.text, /Notes about Chloe Nguyen/);
+    assert.match(asAdmin.text, /Pangram/);
+    // An admin's own page carries no notes about them, as their profile does not.
+    const own = beside.type({ ...beside.props, self: true });
+    assert.equal(find(own, "PersonNotes").length, 0);
+    assert.equal(find(own, "PangramPanel").length, 1);
+  });
+
+  test("the model: a week from the address only when it is a column, else the latest written in, else the first", () => {
+    const columns = [{ weekNumber: 1 }, { weekNumber: 2 }, { weekNumber: 4 }];
+    const cell = (weekNumber, marks = {}) => ({ weekNumber, counted: true, reflections: null, ticks: null, answer: null, boxes: null, href: "", ...marks });
+    const sections = (cells) => [{ key: "g", title: "G", rows: [{ uid: "a", name: "A", cells }] }];
+    assert.deepEqual(model.chosenWeek({ week: "2" }, columns, []), { weekNumber: 2, asked: true });
+    assert.deepEqual(model.chosenWeek({ week: "3" }, columns, []), { weekNumber: 1, asked: false });
+    assert.deepEqual(model.chosenWeek({ week: ["2"] }, columns, []), { weekNumber: 1, asked: false });
+    assert.deepEqual(model.chosenWeek({}, columns, sections([cell(2, { reflections: { written: 1, of: 3 } }), cell(4, { ticks: { ticked: 2, of: 2 } })])), { weekNumber: 2, asked: false });
+    assert.deepEqual(model.chosenWeek({}, columns, sections([cell(1, { boxes: { filled: 1, of: 2 } }), cell(4, { answer: { state: "started", href: null } })])), { weekNumber: 4, asked: false });
+    assert.deepEqual(model.chosenWeek({}, columns, sections([cell(4, { answer: { state: "not-started", href: null } })])), { weekNumber: 1, asked: false });
+    assert.equal(model.chosenWeek({ week: "1" }, [], []), null);
+    assert.equal(model.filterHref("/c", { group: "g1", waiting: true }, 3), "/c?group=g1&waiting=1&week=3");
+    assert.equal(model.filterHref("/c", { group: "all", waiting: false }, 2), "/c?week=2");
+  });
+});
+
 describe("8. the tree", () => {
   test("each page gates before it reads, and every read waits for the programme's own gate", () => {
     for (const [page, loader] of [
@@ -458,6 +546,8 @@ describe("8. the tree", () => {
       "features/courses/coursework/CourseworkTable.tsx",
       "features/courses/coursework/PersonCoursework.tsx",
       "features/courses/coursework/coursework.module.css",
+      "features/courses/courseworkClaude/CourseworkWeekPanels.tsx",
+      "features/courses/courseworkClaude/PersonBeside.tsx",
       "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/coursework/page.tsx",
       "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]/page.tsx",
     ]) {

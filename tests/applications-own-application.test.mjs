@@ -172,6 +172,11 @@ const READS_THE_LISTS = {
     kind: "viewer",
     why: "the freed-places page is read for whoever is looking: the term through loadTerm, and the reviews only for the people it lists",
   },
+  "lib/courses/coursework/door.ts#openCourseworkDoor": {
+    kind: "everybody",
+    why: "Claude and Pangram on coursework (privacy v13) need who holds a place on the programme, by the name on record, behind the Coursework tab's door. It reads nobody until the term is marked as sent, and hands on nothing an application or a decision says",
+    holds: "after-the-send",
+  },
   "lib/applications/freedPlaces/offer.ts#offerFreedPlaces": {
     kind: "everybody",
     why: "a place offered has to be really free, so the writer counts the whole term inside its transaction, the caller's own application included. It refuses the caller's own id before it reads, reads nobody before decisions have gone out, and lists nothing",

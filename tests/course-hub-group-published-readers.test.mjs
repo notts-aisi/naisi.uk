@@ -356,6 +356,28 @@ const READERS = {
       "people in the group told by the end of the press, never an untold seat; and its answers name only the people it " +
       "cannot write to",
   },
+  "lib/courses/coursework/gather.ts": {
+    kind: "staff",
+    proof: ["if (uid && groupId && facilitatorsOf.has(groupId)) groupOf.set(uid, groupId);"],
+    why:
+      "Claude and Pangram on coursework (privacy v13), behind the Coursework tab's door (an admin or the programme's " +
+      "lead) or an admin's notes: a seat's group only chooses which group's copy of a week a person's questions come " +
+      "from. No group, and nothing of a seat, is shown or sent to anybody",
+  },
+  "lib/memberNotes/draft.ts": {
+    kind: "staff",
+    proof: ['.map((doc) => (doc.data() ?? {}).uid)', "const refused = gateNotes(user, subjectUid);"],
+    why:
+      "Claude's draft of a note, an admin's alone: the run's seats are read for WHO is on it, so their names can be " +
+      "swapped out of what is sent. No group or seat is shown or sent",
+  },
+  "lib/memberNotes/store.ts": {
+    kind: "staff",
+    proof: ["const runId = (doc.data() ?? {}).runId;", 'if (user.role !== "admin") return refuse(403, NOTES_WORDS.onlyAdmins);'],
+    why:
+      "the notes admins keep, an admin's alone: a person's seats are read only for the runs they are on, to offer the " +
+      "programme a note is written from. No group or placement is shown",
+  },
   "lib/courses/groupFacilitators.ts": {
     kind: "writer",
     proof: ['role: "facilitator"', 'if (existing.role === "facilitator") {', 'role: "learner"', "allocatedEmailAt: FieldValue.delete()"],

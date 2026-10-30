@@ -4,6 +4,7 @@ import NotYours from "@/features/applications/groups/NotYours";
 import RunBlank from "@/features/applications/groups/RunBlank";
 import ApplicationsRoot from "@/features/applications/kit/ApplicationsRoot";
 import PersonCoursework from "@/features/courses/coursework/PersonCoursework";
+import PersonBeside from "@/features/courses/courseworkClaude/PersonBeside";
 import { isAddressableId } from "@/lib/addressableId";
 import { loadPersonCoursework } from "@/lib/courses/coursework/load";
 import { BACK_TO_COURSEWORK, PERSON_NOT_HERE_TITLE, personNotHereWords } from "@/lib/courses/coursework/words";
@@ -28,8 +29,10 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * `(tabs)` route group beside it, so it is drawn with no programme head and
  * no tabs, and carries its own way back to the tab.
  *
- * THE COLUMN BESIDE THE WEEKS (`beside`) is where "Notes about this person",
- * which admins alone read and write, will sit. Nothing is handed to it yet.
+ * THE COLUMN BESIDE THE WEEKS (`beside`, privacy v13) is AN ADMIN'S ALONE:
+ * notes about this person written from this run, "Draft a note with Claude"
+ * and Pangram on their answers (`PersonBeside`). The programme's lead is
+ * handed nothing there, so the column is not drawn for the lead at all.
  */
 
 export const dynamic = "force-dynamic";
@@ -59,9 +62,21 @@ export default async function PersonCourseworkPage({
       </Refusal>
     );
   }
+  const { view } = outcome;
+  const beside =
+    view.viewer === "admin" ? (
+      <PersonBeside
+        roundId={view.roundId}
+        programmeId={view.programmeId}
+        runId={view.runId}
+        uid={view.person.uid}
+        name={view.person.name}
+        self={view.person.uid === user.uid}
+      />
+    ) : null;
   return (
     <ApplicationsRoot className={shared.page}>
-      <PersonCoursework view={outcome.view} backHref={tabPath} />
+      <PersonCoursework view={view} backHref={tabPath} beside={beside} />
     </ApplicationsRoot>
   );
 }

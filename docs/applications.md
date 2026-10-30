@@ -2154,6 +2154,12 @@ person saved or sent go out (below).
   with no key says so and sends nothing. Each project's key lives in its own
   workspace on the Claude Platform, with its own monthly spend limit.
 
+Claude and Pangram on COURSEWORK, and the notes admins keep about a person
+(privacy v13), are built the same way and described in `docs/courses-ops.md`,
+"Claude and Pangram on coursework, and the notes admins keep". Beside an
+application an admin sees only the notes written after its person agreed to
+v13.
+
 `tests/applications-assessment.test.mjs` runs the routes: who is refused,
 that no name is sent or stored, that a changed review puts a read out of date,
 that Pangram is sent only the long answers, in one request, and that a

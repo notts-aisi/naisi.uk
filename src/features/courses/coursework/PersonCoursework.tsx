@@ -43,10 +43,10 @@ import styles from "./coursework.module.css";
  * never for the programme's lead (`readPersonPrivateNotes`). Survey answers
  * are never here.
  *
- * `beside` is the column beside the weeks, kept for what admins keep about
- * a person ("Notes about this person", which admins alone read and write):
- * the page hands it nothing until that is built, and the column is drawn
- * only when it is handed something.
+ * `beside` is the column beside the weeks, for what admins keep about a
+ * person: notes about them, Claude's draft of one and Pangram on their
+ * answers. The page hands it something for an admin alone, and the column
+ * is drawn only when it is handed something, so never for the lead.
  */
 
 function Week({ week, notesShown }: { week: PersonWeek; notesShown: boolean }) {
@@ -183,7 +183,7 @@ export default function PersonCoursework({
 }: {
   view: PersonCourseworkView;
   backHref: string;
-  /** The column beside the weeks, for admins' notes about this person; nothing is drawn there until it is handed something. */
+  /** The column beside the weeks, an admin's alone (notes, Claude's draft, Pangram); nothing is drawn there unless it is handed something. */
   beside?: ReactNode;
 }) {
   const { person } = view;

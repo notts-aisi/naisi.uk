@@ -264,6 +264,17 @@ const MUST_GUARD = [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/case/draft/route.ts",
     "sends one person's application to Claude to draft the sentence that makes the case to them, in the caller's name",
   ],
+  // Claude and Pangram on coursework (privacy v13): each sends somebody's
+  // writing to an outside service and keeps what came back, in the caller's
+  // name.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers/route.ts",
+    "sends a week's answers to Claude and keeps its pick of the strongest with the run, in the caller's name",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]/pangram/route.ts",
+    "sends one person's answers to Pangram and keeps its readings with the run, in the caller's name",
+  ],
   [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/remind/route.ts",
     "reminds one person of their ask by email, in the caller's name, and counts the reminder",
@@ -402,6 +413,15 @@ const MUST_GUARD = [
   [
     "src/app/api/admin/members/[uid]/conduct-flag/route.ts",
     "sets and clears a member's conduct flag",
+  ],
+  // The notes admins keep about a person (privacy v13): a record about a
+  // named member that only admins read, written as the caller, which no
+  // client can read back to check what happened.
+  ["src/app/api/admin/members/[uid]/notes/route.ts", "keeps a note about a person in the caller's name"],
+  ["src/app/api/admin/members/[uid]/notes/[noteId]/route.ts", "changes or deletes a note about a person, as the caller"],
+  [
+    "src/app/api/admin/members/[uid]/notes/draft/route.ts",
+    "sends a person's coursework to Claude to draft a note about them, in the caller's name",
   ],
 
   // Membership. Money and provenance: who paid, in which year, recorded by

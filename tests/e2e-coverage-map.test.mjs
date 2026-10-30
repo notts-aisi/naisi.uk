@@ -439,6 +439,21 @@ const NOT_COVERED = {
     coverWhen:
       "When impersonation can be driven on a project of its own rather than a shared one.",
   },
+  "/api/admin/members/[uid]/notes": {
+    reason:
+      "Notes admins keep about a person (privacy v13): scripts/e2e-fixtures/coursework-notes.mjs drives the list and a new note on the profile and beside an application, and is unverified: it was written where the dev project could not be reached. tests/coursework-claude.test.mjs executes the route as every kind of caller.",
+    coverWhen: "When scripts/e2e-fixtures/coursework-notes.mjs passes once, in the pull request's end-to-end job and against dev: that change marks it verified and removes this entry.",
+  },
+  "/api/admin/members/[uid]/notes/[noteId]": {
+    reason:
+      "Changing and deleting a note admins keep (privacy v13): the coursework notes spec drives both and is unverified; tests/coursework-claude.test.mjs executes them as every kind of caller.",
+    coverWhen: "With the coursework notes spec above.",
+  },
+  "/api/admin/members/[uid]/notes/draft": {
+    reason:
+      "Claude's draft of a note (privacy v13): the coursework notes spec meets it, the calm sentence in local mode and one press against a target with a key, and is unverified; tests/coursework-claude.test.mjs executes it with Claude stubbed and reads every message that would go.",
+    coverWhen: "With the coursework notes spec above.",
+  },
   "/api/admin/members/[uid]/conduct-flag": {
     reason:
       "Admin CRUD: /api/admin/members/[uid]/conduct-flag answers one admin's deliberate press, and its failure lands on that admin's own screen.",
@@ -744,6 +759,24 @@ const NOT_COVERED = {
     reason:
       "Course hub: the test of the ask's email, sent only to the address on the session of whoever asks; tests/course-hub-facilitator-asks.test.mjs executes it and the lock it unlocks.",
     coverWhen: "With the spec for the ask above, because the test is the ask's first step.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers": {
+    reason:
+      "Course hub: Claude's best answers to a week (privacy v13), on the programme's Coursework tab, for an admin and the lead. tests/coursework-claude.test.mjs executes it as every kind of caller with Claude stubbed, and holds that labels go and names come back.",
+    coverWhen:
+      "When the coursework notes spec, which now reads the panel under the Coursework tab as the lead is shown it and presses nothing, has passed once: this entry goes in that change.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/pangram": {
+    reason:
+      "Course hub: who a week's Pangram check would send, an admin's alone, on the Coursework tab. tests/coursework-claude.test.mjs executes it, the lead refused.",
+    coverWhen:
+      "Never against a live detector from a fixture: a check would send a fixture's words to Pangram. For the count before the press alone, when the coursework notes spec, which now reads it and presses nothing, has passed once.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]/pangram": {
+    reason:
+      "Course hub: Pangram on one person's coursework, an admin's alone, on the person page. tests/coursework-claude.test.mjs executes it with Pangram's client faked, the lead refused and never shown a reading.",
+    coverWhen:
+      "Never against a live detector from a fixture. For the readings already kept and the calm sentence where Pangram is not set up, when the coursework notes spec, which now reads it on a person's page and presses nothing, has passed once.",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/case/draft": {
     reason:
@@ -1742,24 +1775,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed an application form with a sent application for a lead to score and decide.",
   },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/coursework": {
-    reason:
-      "Course hub: the Coursework tab, a row per person holding a place and per facilitator, a column per week; every caller is executed by tests/course-hub-coursework.test.mjs.",
-    coverWhen:
-      "When tests/e2e/course-hub-coursework.spec.mjs (the coursework point of the course hub term, written 30 October 2026) has passed end to end with a teardown manifest of zero and its status reads verified.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]": {
-    reason:
-      "Course hub: one person's coursework, newest week first, private notes for admins alone; every caller is executed by tests/course-hub-coursework.test.mjs.",
-    coverWhen:
-      "When tests/e2e/course-hub-coursework.spec.mjs (the coursework point of the course hub term, written 30 October 2026) has passed end to end with a teardown manifest of zero and its status reads verified.",
-  },
-  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections": {
-    reason:
-      "Course hub: the lead's and admins' reading of one group's reflections with each writer's name, its facilitators' own marked as theirs; every caller is executed by tests/course-hub-facilitator-week.test.mjs.",
-    coverWhen:
-      "When tests/e2e/course-hub-coursework.spec.mjs (the coursework point of the course hub term, written 30 October 2026) has passed end to end with a teardown manifest of zero and its status reads verified.",
-  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week": {
     reason:
       "Course hub: the lead's and admins' view of one group's week (This week's work with its pathway, written answer and case columns and each person's fill-in boxes, who ticked each source by name, its facilitators' own work); every caller is executed by tests/course-hub-facilitator-week.test.mjs, the columns and the boxes through the loaders the page calls by tests/course-hub-stage-four-journey.test.mjs, and it was checked in a browser on the preview kit at 1440 and 390.",
@@ -1937,18 +1952,6 @@ const NOT_COVERED = {
       "Learn hub: /(app)/learn/[runId]/group/[groupId]/email is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
     coverWhen:
       "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
-  },
-  "/(app)/learn/[runId]/group/[groupId]/reflections": {
-    reason:
-      "Course hub: the page where a group's facilitators pick reflections to read out without names (wk-reflections); every caller is executed by tests/course-hub-facilitator-week.test.mjs, and it was checked in a browser on the preview kit at 1440 and 390.",
-    coverWhen:
-      "When tests/e2e/course-hub-coursework.spec.mjs (the coursework point of the course hub term, written 30 October 2026) has passed end to end with a teardown manifest of zero and its status reads verified.",
-  },
-  "/(app)/learn/[runId]/group/[groupId]/reflections/names": {
-    reason:
-      "Course hub: a group's fellows' reflections read with names, for its live facilitators and admins; every caller is executed by tests/course-hub-facilitator-week.test.mjs.",
-    coverWhen:
-      "When tests/e2e/course-hub-coursework.spec.mjs (the coursework point of the course hub term, written 30 October 2026) has passed end to end with a teardown manifest of zero and its status reads verified.",
   },
   "/(app)/learn/[runId]/group/[groupId]/ratings": {
     reason:

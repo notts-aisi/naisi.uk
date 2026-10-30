@@ -102,7 +102,16 @@ function Row({ row }: { row: CourseworkRow }) {
   );
 }
 
-export default function CourseworkTable({ view, base }: { view: CourseworkTabView; base: string }) {
+export default function CourseworkTable({
+  view,
+  base,
+  week = null,
+}: {
+  view: CourseworkTabView;
+  base: string;
+  /** The week the address chose for the panels under the table, kept by every filter; null when it chose none. */
+  week?: number | null;
+}) {
   const lead = view.viewer === "lead" ? { firstName: "", isReader: true } : view.leadFirstName ? { firstName: view.leadFirstName, isReader: false } : null;
   const groupFilters = [
     { key: "all", label: EVERYBODY },
@@ -121,7 +130,7 @@ export default function CourseworkTable({ view, base }: { view: CourseworkTabVie
             return (
               <li key={filter.key}>
                 <Link
-                  href={filterHref(base, { group: filter.key, waiting: view.filter.waiting })}
+                  href={filterHref(base, { group: filter.key, waiting: view.filter.waiting }, week)}
                   className={on ? `${styles.filter} ${styles.filterOn}` : styles.filter}
                   aria-current={on ? "page" : undefined}
                 >
@@ -132,7 +141,7 @@ export default function CourseworkTable({ view, base }: { view: CourseworkTabVie
           })}
           <li>
             <Link
-              href={filterHref(base, { group: view.filter.group, waiting: !view.filter.waiting })}
+              href={filterHref(base, { group: view.filter.group, waiting: !view.filter.waiting }, week)}
               className={view.filter.waiting ? `${styles.filter} ${styles.filterWaiting} ${styles.filterOn}` : `${styles.filter} ${styles.filterWaiting}`}
               aria-current={view.filter.waiting ? "page" : undefined}
             >

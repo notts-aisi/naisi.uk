@@ -151,6 +151,14 @@ service cloud.firestore {
           !('policyAgreedAt' in request.resource.data)
           || request.resource.data.policyAgreedAt == request.time
         )
+        // `courseworkUseAgreedAt` is the moment this person FIRST agreed to
+        // privacy v13 or later, from which what they write on a course may be
+        // used outside its programme (src/lib/legal/courseworkUse.ts). It is
+        // stamped on the server only (the re-consent route, and the
+        // registration's profile-complete route straight after this create),
+        // so a browser's create never carries it: one that did could date
+        // the moment before writing it never agreed to.
+        && !('courseworkUseAgreedAt' in request.resource.data)
         // `uniEmailVerifiedAt` is a trusted signal (gates uni-email ownership +
         // the admin "verified" badge). It is stamped SERVER-SIDE from the
         // server-only `emailVerifications` record (via /api/verify-email/reconcile
@@ -404,6 +412,13 @@ service cloud.firestore {
             // self-update disjunct on purpose, like the consent lines: the
             // isAdmin() branch is unaffected.
             && studyChangesHold()))
+        // The moment of a first agreement to privacy v13 or later is kept
+        // once and never moved, by anybody's browser, an admin's included:
+        // outside the self-update disjunct on purpose. Only the server writes
+        // it (src/lib/legal/courseworkUseStamp.ts), on the Admin SDK, which
+        // these rules do not see. No admin screen writes it.
+        && request.resource.data.get('courseworkUseAgreedAt', null)
+          == resource.data.get('courseworkUseAgreedAt', null)
         && smallEnough();
 
       allow delete: if isAdmin();
@@ -3147,6 +3162,29 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === courseBestAnswers ===
+    // Claude's pick of the strongest answers to one week of a run (privacy
+    // v13; src/lib/courses/coursework/bestAnswers.ts): the accounts it
+    // picked and why. Read and written only by the best-answers route on the
+    // Admin SDK, after the Coursework tab's own door (an admin or the
+    // programme's lead), which puts names back from who holds a place now.
+    // So every browser is refused, the people picked included: a fellow
+    // never reads which of their peers' answers were picked.
+    match /courseBestAnswers/{docId} {
+      allow read, write: if false;
+    }
+
+    // === coursePangramChecks ===
+    // Pangram's reading of each of one person's counted answers on a run
+    // (privacy v13; src/lib/courses/coursework/pangram.ts). Read and written
+    // only by the Pangram routes on the Admin SDK, after a door that admits
+    // admins alone. So every browser is refused: the person it is about, the
+    // programme's lead and the group's facilitators never see a reading, and
+    // an admin's screen reads it through the route.
+    match /coursePangramChecks/{docId} {
+      allow read, write: if false;
+    }
+
     // === coursePacksAndCases ===
     // What each person has in a week's packs and talks (plan item 8, Q32 A,
     // src/lib/firestore/coursePacksAndCases.ts): the pack they picked or were
@@ -3418,6 +3456,18 @@ service cloud.firestore {
     }
 
     match /memberConductFlags/{uid} {
+      allow read, write: if false;
+    }
+
+    // === memberNotes ===
+    // The notes admins keep about a person (privacy v13, "Notes admins keep
+    // about you"; src/lib/memberNotes/). Read and written only by the notes
+    // routes on the Admin SDK, after their own gate: an admin, about somebody
+    // else. So every browser is refused, the person a note is about, the
+    // programme's lead and admins included: the person must never read one
+    // from their own browser, and an admin's screen reads them through the
+    // routes, which decide which notes each page may show.
+    match /memberNotes/{noteId} {
       allow read, write: if false;
     }
 

@@ -334,6 +334,10 @@ export const FIXTURE_COLLECTIONS = [
   // weeks in carries one from its first week, which the seed writes; the
   // updates route writes the ones a spec posts.
   "courseUpdates",
+  // The notes admins keep about a person (privacy v13), found by the person
+  // a note is about (`uid`). The coursework notes spec seeds one written
+  // before its person agreed, and the notes routes write the ones it keeps.
+  "memberNotes",
 
   // ── Swept: created by the routes the specs drive ──────────────────────────
   "admissionApplications",
@@ -370,6 +374,11 @@ export const FIXTURE_COLLECTIONS = [
   // route, by somebody holding a place on week 1 before groups go out too.
   // Written by nothing a fixture seeds.
   "courseExerciseResponses",
+  // What Claude picked from a week and what Pangram read in a person's
+  // answers (privacy v13), each with `runId` on it. Written by the best
+  // answers and Pangram routes a spec presses, and by nothing a fixture seeds.
+  "courseBestAnswers",
+  "coursePangramChecks",
   // The end of a programme: who finished (the run's rule, set on the
   // programme's Settings tab, and the lead's decisions on its Overview, each
   // with `runId` on it), and the certificates the Overview's send makes, one

@@ -1,0 +1,137 @@
+/* Notes admins keep about a person. A record, read quietly: each note a block
+   of the admin's own words, with who wrote it and where it came from under it,
+   and a warning band on a note that may be used only within its programme. */
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+.tag {
+  letter-spacing: 0.08em;
+}
+
+.line,
+.rule,
+.drafted {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.rule {
+  color: var(--color-text-soft);
+}
+
+.drafted {
+  color: var(--color-accent-text);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger-text);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
+}
+
+.before {
+  border-color: var(--color-warning-line);
+}
+
+.warning {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-warning-soft);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.text {
+  font-size: var(--text-ui);
+  line-height: var(--leading-normal);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.compose,
+.draft {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+@media (max-width: 48rem) {
+  .note {
+    padding: var(--space-3);
+  }
+
+  .row > * {
+    min-height: 44px;
+  }
+}

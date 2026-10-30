@@ -456,6 +456,38 @@ export const ROUTES = {
         "member is read.",
     },
   },
+  "/api/admin/members/[uid]/notes": {
+    GET: {
+      expect: adminOnly(404),
+      why:
+        "The notes admins keep about a person (privacy v13) are an admin's alone, about somebody else, decided " +
+        "on the session before anything is read; the admin is then told nobody has this account.",
+    },
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Keeping a note: an admin's alone, decided on the session; the admin then meets the body check, an " +
+        "empty note, before the account is read.",
+    },
+  },
+  "/api/admin/members/[uid]/notes/[noteId]": {
+    PATCH: {
+      expect: adminOnly(400),
+      why: "Changing a note's words: an admin's alone, decided on the session; the admin then meets the body check.",
+    },
+    DELETE: {
+      expect: adminOnly(404),
+      why: "Deleting a note: an admin's alone, decided on the session; the admin is then told the note is not here.",
+    },
+  },
+  "/api/admin/members/[uid]/notes/draft": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Claude's draft of a note: an admin's alone, decided on the session; the admin then meets the body " +
+        "check, which run to draft from, before anything is read or sent.",
+    },
+  },
   "/api/admin/membership/current": {
     POST: {
       expect: adminOnly(400),
@@ -572,7 +604,7 @@ export const ROUTES = {
   "/api/admin/registrations/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseTeamEntriesCleared", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseTeamEntriesCleared", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -661,7 +693,7 @@ export const ROUTES = {
   "/api/admin/users/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseTeamEntriesCleared", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseTeamEntriesCleared", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -936,6 +968,42 @@ export const ROUTES = {
         "Asking for an arrangement into groups is admin only, decided before the body is read; " +
         "the admin then meets the body check, which an empty body fails before anything is read " +
         "or sent anywhere.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers": {
+    GET: {
+      expect: signedIn(400),
+      why:
+        "Claude's best answers to a week (privacy v13): the week is checked in the query before anything is " +
+        "read, so an empty one is the same 400 for everybody signed in. Who may (an admin or the programme's " +
+        "lead) is decided from the form after it.",
+    },
+    POST: {
+      expect: signedIn(400),
+      why: "Asking Claude for a week's best answers: the body (which week) is checked before anything is read or sent.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/pangram": {
+    GET: {
+      expect: adminOnly(400),
+      why:
+        "Who a week's Pangram check would send: an admin's alone, decided on the session before anything is " +
+        "read; the admin then meets the query check, which week.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]/pangram": {
+    GET: {
+      expect: adminOnly(404),
+      fields: ["notCounted", "pangram", "parts", "tooShort"],
+      why:
+        "Pangram's readings of one person's coursework: an admin's alone, decided on the session before " +
+        "anything is read; the admin is then told the programme is not there.",
+    },
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Asking Pangram about one person's coursework: an admin's alone, decided on the session; an empty " +
+        "body asks for every week, and the admin is then told the programme is not there.",
     },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
@@ -4636,6 +4704,41 @@ export const REAL_ROUTES = {
     POST: adminAlone(
       "Asking for an arrangement into groups",
       c(400, "An admin meets the body check: an empty body does not say whether to ask Claude, so nothing is read or sent."),
+    ),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers": {
+    GET: {
+      realDrive: { query: "?week={weekId}", why: "A week is required in the query, which an empty one fails for everybody: the set's week 1 reaches the gate." },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No role on this programme: answered as a programme that is not there, before its run is read."),
+        admin: c(404, "An admin is let through on any programme, and told week 1 has no coursework: the world's weeks are written before blocks."),
+      },
+      theirs: {
+        lead: c(404, "The programme's own lead is let through, and told week 1 has no coursework: the world's weeks are written before blocks."),
+        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
+        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
+      },
+    },
+    POST: bodyFirst("Who may is the Coursework tab's door: an admin or the programme's lead, decided from the form."),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/pangram": {
+    GET: {
+      realDrive: { query: "?week={weekId}", why: "A week is required in the query: the set's week 1 reaches the admin's door." },
+      ...adminAlone(
+        "Pangram on coursework",
+        c(404, "An admin is let through on any programme, and told week 1 has no coursework: the world's weeks are written before blocks."),
+      ),
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]/pangram": {
+    GET: adminAlone(
+      "Pangram on coursework",
+      c(200, "An admin reads the readings kept for the set's participant, who holds a place: none here. Nothing is sent."),
+    ),
+    POST: adminAlone(
+      "Pangram on coursework",
+      c(ACTS, "An admin's empty body asks for every week of the participant's counted answers, which would send them to Pangram where it is set up: not sent."),
     ),
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
