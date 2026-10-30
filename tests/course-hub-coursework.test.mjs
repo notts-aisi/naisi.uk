@@ -462,7 +462,7 @@ describe("8. the tree", () => {
       "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]/page.tsx",
     ]) {
       const source = readFileSync(join(SRC, file), "utf8");
-      assert.doesNotMatch(source, /[–—]/, `${file} carries a dash`);
+      assert.doesNotMatch(source, /[\u2013\u2014]/, `${file} carries a dash`);
       assert.doesNotMatch(source, /\bcollate\b|\bwaitlist\b|\brejected\b|dropped out/i, file);
     }
     assert.match(readFileSync(join(SRC, "features/courses/coursework/coursework.module.css"), "utf8"), /@media \(max-width: 48rem\) \{[^]*\}\s*$/);
