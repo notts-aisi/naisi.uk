@@ -381,6 +381,18 @@ const ROUND_SURFACES = {
       "one programme's Groups tab, its Facilitators view. It reaches the round only through loadProgrammeRun, which " +
       "starts from the form's own loader and answers 'none' for a round that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/coursework": {
+    kind: "form",
+    why:
+      "the programme's Coursework tab, for its lead and admins. It reaches the round only through loadProgrammeRun, " +
+      "which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]": {
+    kind: "form",
+    why:
+      "one person's coursework on the programme, for its lead and admins. It reaches the round only through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections": {
     kind: "form",
     why:
