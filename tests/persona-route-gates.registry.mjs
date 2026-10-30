@@ -4169,6 +4169,13 @@ export const PAGES = {
       "missing, and the page's own gate (the group page's: a live facilitator of the group, or an admin) " +
       "sends everybody else to the run's home.",
   },
+  "/(app)/learn/[runId]/group/[groupId]/reflections/names": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
+      "missing, and the page's own gate (the page to read lines out's: a live facilitator of the group, or an " +
+      "admin) sends everybody else to the run's home before a reflection is read.",
+  },
   "/(app)/learn/[runId]/group/[groupId]/review": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
     why:
@@ -5929,6 +5936,7 @@ export const REAL_PAGES = {
   "/(app)/learn/[runId]/group/[groupId]/ratings": groupLearnPage("rating the group's people at the end"),
   "/(app)/learn/[runId]/group/[groupId]/register": groupLearnPage("the group's register"),
   "/(app)/learn/[runId]/group/[groupId]/reflections": groupLearnPage("the group's reflections"),
+  "/(app)/learn/[runId]/group/[groupId]/reflections/names": groupLearnPage("the group's reflections read with names"),
   "/(app)/learn/[runId]/group/[groupId]/review": groupLearnPage("the group's exercises to review (week 1 is a plain week, so the page draws)"),
   "/(app)/learn/[runId]/group/[groupId]/sessions": groupLearnPage("the group's sessions"),
   "/(app)/learn/[runId]/group/[groupId]/update": groupLearnPage("an update to the group"),

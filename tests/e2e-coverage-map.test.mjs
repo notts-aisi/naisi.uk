@@ -1932,6 +1932,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures can seed a run whose weeks are written as blocks, with reflections written, and a group's facilitator signed in.",
   },
+  "/(app)/learn/[runId]/group/[groupId]/reflections/names": {
+    reason:
+      "Course hub: a group's fellows' reflections read with names, for its live facilitators and admins; every caller is executed by tests/course-hub-facilitator-week.test.mjs.",
+    coverWhen:
+      "When the coursework spec that seeds a run with reflections written and signs a facilitator in has passed end to end.",
+  },
   "/(app)/learn/[runId]/group/[groupId]/ratings": {
     reason:
       "Course hub: a group's ratings for its facilitators once the run is over; tests/course-ratings.test.mjs renders it as a facilitator, a co-facilitator, an admin, a fellow and somebody signed out.",

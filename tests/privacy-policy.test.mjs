@@ -3831,15 +3831,19 @@ describe("the course hub passage", () => {
     );
     // The pages that read a group's week, each behind its own gate (the
     // group's: a live facilitator or an admin; the lead's: the programme's
-    // lead or an admin, from the form).
+    // lead or an admin, from the form). Reading reflections WITH names is the
+    // group's facilitators', the lead's and admins' (Zach, Fri 30 Oct), which
+    // the passage above already says: "You, your group's facilitators, the
+    // programme's lead and admins can read your answers".
     assertExactlyTheseFiles(
-      sourceFilesNaming(/\b(?:loadGroupWeek|loadReadOutWeek)\(/),
+      sourceFilesNaming(/\b(?:loadGroupWeek|loadReadOutWeek|loadNamedReflections)\(/),
       new Map([
-        ["src/lib/courses/facilitatorWeek/readers.ts", "the two loaders, which ask nobody who is reading, so each caller decides that first"],
+        ["src/lib/courses/facilitatorWeek/readers.ts", "the three loaders, which ask nobody who is reading, so each caller decides that first"],
         ["src/app/(app)/learn/[runId]/group/[groupId]/page.tsx", "the group's page, for its live facilitators and admins"],
         ["src/app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx", "the page to read lines out, for the group's live facilitators and admins"],
+        ["src/app/(app)/learn/[runId]/group/[groupId]/reflections/names/page.tsx", "the group's fellows' reflections with names, for the group's live facilitators and admins, never a facilitator's own"],
         ["src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week/page.tsx", "the lead's view of a group's week, for the programme's lead and admins"],
-        ["src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections/page.tsx", "the lead's reading of a group's reflections, for the programme's lead and admins"],
+        ["src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections/page.tsx", "the lead's reading of a group's reflections with names, for the programme's lead and admins"],
       ]),
       "reading a group's reflections and ticks",
       "The policy says a person's reflections and ticks are read by their group's facilitators, the programme's lead and admins. A new reader is a new sentence.",

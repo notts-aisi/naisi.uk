@@ -8,6 +8,7 @@ import { dayRangeWords } from "@/lib/courses/sessionChange/words";
 import { isBlockWeek, type FillInBlock, type WeekBlock } from "@/lib/courses/weekBlocks/model";
 import { weekFillInBoxes } from "@/lib/courses/weekBlocks/reader";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
+import { instantOf } from "@/lib/courses/writtenAnswers/model";
 import { isFillInResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import type { SessionUser } from "@/lib/firebase/session";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
@@ -405,6 +406,145 @@ export async function loadGroupWeekBoxes(
 }
 
 // ---------------------------------------------------------------------------
+// Reading a group's reflections WITH names (Zach, Fri 30 Oct)
+// ---------------------------------------------------------------------------
+
+/**
+ * Each person's reflections in a week, by prompt, with when each was last
+ * written: for the pages that read them WITH names, never for the page to
+ * read lines out, which is handed the words alone (`readReflections`).
+ */
+async function readNamedReflections(
+  db: Firestore,
+  runId: string,
+  weekNumber: number,
+  shown: ReadonlySet<string>,
+  promptIds: ReadonlySet<string>,
+): Promise<Map<string, Map<string, { text: string; at: Date | null }>>> {
+  const out = new Map<string, Map<string, { text: string; at: Date | null }>>();
+  if (shown.size === 0 || promptIds.size === 0) return out;
+  const snap = await db
+    .collection("courseExerciseResponses")
+    .where("runId", "==", runId)
+    .where("weekNumber", "==", weekNumber)
+    .get();
+  for (const doc of snap.docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    // Reflections only: an answer is the review queue's, behind its own gate.
+    if (!isReflectionResponse(data) || data.runId !== runId) continue;
+    const uid = typeof data.uid === "string" ? data.uid : "";
+    const promptId = typeof data.exerciseId === "string" ? data.exerciseId : "";
+    const text = typeof data.text === "string" ? data.text.trim() : "";
+    if (!shown.has(uid) || !promptIds.has(promptId) || !text) continue;
+    const own = out.get(uid) ?? new Map<string, { text: string; at: Date | null }>();
+    own.set(promptId, { text, at: instantOf(data.updatedAt) });
+    out.set(uid, own);
+  }
+  return out;
+}
+
+/** One reflection read with its writer's whole name, and when they last wrote it. */
+export type NamedReflection = {
+  name: string;
+  text: string;
+  /** When it was last written, or null for a row that does not say. */
+  at: Date | null;
+};
+
+/** A facilitator's own reflection to one prompt, for the lead and admins: under their name, or not written yet. */
+export type OwnNamedReflection = { name: string; text: string | null; at: Date | null };
+
+/** One prompt, with the group's fellows' answers to it under their names. */
+export type NamedPrompt = {
+  key: string;
+  partNumber: number;
+  /** "Part 1: Why alignment might be hard". */
+  label: string;
+  /** The question, as the week page asks it. */
+  text: string;
+  /** The fellows who wrote one, in the group's order of people. */
+  answers: NamedReflection[];
+  /** The whole names of the fellows who have not written one yet, in the same order. */
+  notYet: string[];
+  wrote: number;
+  of: number;
+  /** Each facilitator's own, for the lead and admins who asked for them; null otherwise. */
+  own: OwnNamedReflection[] | null;
+};
+
+export type NamedReflectionsWeek = {
+  weekNumber: number;
+  prompts: NamedPrompt[];
+};
+
+/**
+ * THE REFLECTIONS OF ONE WEEK OF A GROUP, WITH NAMES (Zach, Fri 30 Oct: the
+ * group's facilitators, the programme's lead and admins read reflections with
+ * the names of whoever wrote them; only the page to read lines out stays
+ * without). For each prompt, the group's FELLOWS' answers under their whole
+ * names, in the group's order of people, each with when it was last written,
+ * and the fellows who have not written one yet.
+ *
+ * A facilitator's own reflections are never among the fellows'. The lead and
+ * admins may be handed them apart (`withOwn`), under each facilitator's name,
+ * as the lead's page always showed them; a facilitator never is
+ * (`peopleShown`). Private notes are never read here.
+ */
+export async function loadNamedReflections(
+  db: Firestore,
+  input: {
+    run: CourseRunDoc;
+    group: CourseGroupDoc;
+    model: Pick<FacilitatorGroupModel, "people" | "facilitators">;
+    viewer: WeekViewer;
+    weekNumber: number;
+    withOwn: boolean;
+  },
+): Promise<NamedReflectionsWeek | null> {
+  const { run, group, model, viewer, weekNumber, withOwn } = input;
+  const week = await blockWeekOf(db, run.id, group.id, weekNumber);
+  if (!week) return null;
+
+  const people = peopleShown(viewer, model.people, model.facilitators);
+  const fellows = people.filter((person) => !person.own);
+  const own = withOwn && seesFacilitatorsOwnWork(viewer) ? people.filter((person) => person.own) : [];
+  const parts = reflectionPartsOf(week.blocks);
+  const promptIds = new Set(parts.flatMap((part) => part.prompts.map((prompt) => prompt.id)));
+  const reflections = await readNamedReflections(db, run.id, weekNumber, new Set([...fellows, ...own].map((person) => person.uid)), promptIds);
+
+  const prompts: NamedPrompt[] = [];
+  for (const part of parts) {
+    part.prompts.forEach((prompt, index) => {
+      const answers: NamedReflection[] = [];
+      const notYet: string[] = [];
+      for (const person of fellows) {
+        const written = reflections.get(person.uid)?.get(prompt.id);
+        if (written) answers.push({ name: person.name, text: written.text, at: written.at });
+        else notYet.push(person.name);
+      }
+      prompts.push({
+        key: `p${prompts.length + 1}`,
+        partNumber: part.number,
+        label: promptOptionWords(part.number, part.title, index, part.prompts.length),
+        text: prompt.text,
+        answers,
+        notYet,
+        wrote: answers.length,
+        of: fellows.length,
+        own:
+          withOwn && seesFacilitatorsOwnWork(viewer)
+            ? own.map((person) => {
+                const written = reflections.get(person.uid)?.get(prompt.id);
+                return { name: person.name, text: written?.text ?? null, at: written?.at ?? null };
+              })
+            : null,
+      });
+    });
+  }
+  return { weekNumber, prompts };
+}
+
+// ---------------------------------------------------------------------------
 // The page to read lines out (wk-reflections)
 // ---------------------------------------------------------------------------
 
@@ -424,19 +564,11 @@ export type ReadOutPrompt = {
   notYet: string[];
 };
 
-/** A facilitator's own reflections, for the lead and admins: under their name, never read out. */
-export type OwnReflections = {
-  name: string;
-  answers: Array<{ key: string; text: string | null }>;
-};
-
 export type ReadOutWeek = {
   weekNumber: number;
   /** When the group meets for this week, for the heading: the session's day and start, or null. */
   session: { dateKey: string; startTimeLocal: string; over: boolean } | null;
   prompts: ReadOutPrompt[];
-  /** Null unless the viewer reads facilitators' own work and asked for it. */
-  own: OwnReflections[] | null;
 };
 
 /** The names a sentence uses: each person's first name, or their whole name where two in the group share one. */
@@ -450,8 +582,10 @@ function sentenceNames(people: readonly WeekPerson[]): Map<string, string> {
  * The reflections of one week of a group, to read lines out: for each prompt,
  * the answers of the group's FELLOWS with no name on them, in the order of
  * their words, and how many wrote one. A facilitator's own reflections are
- * never among them (nobody reads those out); the lead and admins may be
- * handed them apart (`own`), under each facilitator's name.
+ * never among them (nobody reads those out). Nothing it hands carries a name,
+ * a uid or a time beside an answer, whoever asks: the pages that read
+ * reflections with names have a loader of their own
+ * (`loadNamedReflections`), which this page never calls.
  */
 export async function loadReadOutWeek(
   db: Firestore,
@@ -461,20 +595,18 @@ export async function loadReadOutWeek(
     model: Pick<FacilitatorGroupModel, "people" | "facilitators">;
     viewer: WeekViewer;
     weekNumber: number;
-    withOwn: boolean;
     now: Date;
   },
 ): Promise<ReadOutWeek | null> {
-  const { run, group, model, viewer, weekNumber, withOwn, now } = input;
+  const { run, group, model, viewer, weekNumber, now } = input;
   const week = await blockWeekOf(db, run.id, group.id, weekNumber);
   if (!week) return null;
 
   const people = peopleShown(viewer, model.people, model.facilitators);
   const fellows = people.filter((person) => !person.own);
-  const own = withOwn && seesFacilitatorsOwnWork(viewer) ? people.filter((person) => person.own) : [];
   const parts = reflectionPartsOf(week.blocks);
   const promptIds = new Set(parts.flatMap((part) => part.prompts.map((prompt) => prompt.id)));
-  const reflections = await readReflections(db, run.id, weekNumber, new Set([...fellows, ...own].map((person) => person.uid)), promptIds);
+  const reflections = await readReflections(db, run.id, weekNumber, new Set(fellows.map((person) => person.uid)), promptIds);
   const names = sentenceNames(fellows);
 
   const prompts: ReadOutPrompt[] = [];
@@ -509,15 +641,5 @@ export async function loadReadOutWeek(
           }
         : null,
     prompts,
-    own:
-      withOwn && seesFacilitatorsOwnWork(viewer)
-        ? own.map((person) => ({
-            name: person.name,
-            answers: prompts.map((prompt, index) => {
-              const id = parts.flatMap((part) => part.prompts)[index]?.id ?? "";
-              return { key: prompt.key, text: reflections.get(person.uid)?.get(id) ?? null };
-            }),
-          }))
-        : null,
   };
 }

@@ -1582,6 +1582,11 @@
   color: var(--color-accent-text-hover);
 }
 
+/* "Read them with names", beside "Read them". */
+.wkReadThem + .wkReadThem {
+  margin-left: 18px;
+}
+
 .wkReadThem:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);

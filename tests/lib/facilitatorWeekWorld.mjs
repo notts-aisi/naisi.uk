@@ -191,6 +191,7 @@ export async function makeFacilitatorWeekWorld(key = "__facilitatorWeek") {
   const pages = {
     ...w.pages,
     reflections: (await w.loadTs(join(GROUP, "reflections", "page.tsx"))).default,
+    namedReflections: (await w.loadTs(join(GROUP, "reflections", "names", "page.tsx"))).default,
     leadWeek: (await w.loadTs(join(PROGRAMME, "week", "page.tsx"))).default,
     leadReflections: (await w.loadTs(join(PROGRAMME, "reflections", "page.tsx"))).default,
   };
@@ -208,6 +209,10 @@ export async function makeFacilitatorWeekWorld(key = "__facilitatorWeek") {
   const reflectionsPage = (who, { groupId = B, week } = {}) =>
     w.draw(pages.reflections, who, { runId: RUN.agi, groupId }, week === undefined ? {} : { week: String(week) });
 
+  /** The group's facilitators' page that reads its reflections with names, as `who`, on `week` when given. */
+  const namedReflectionsPage = (who, { groupId = B, week } = {}) =>
+    w.draw(pages.namedReflections, who, { runId: RUN.agi, groupId }, week === undefined ? {} : { week: String(week) });
+
   /** The lead's view of a group's week as `who`. */
   const leadWeekPage = (who, { groupId = B } = {}) =>
     w.draw(pages.leadWeek, who, { roundId: ROUND, programmeId: AGI }, { group: groupId });
@@ -221,5 +226,5 @@ export async function makeFacilitatorWeekWorld(key = "__facilitatorWeek") {
       week === undefined ? { group: groupId } : { group: groupId, week: String(week) },
     );
 
-  return { ...w, pages, lib, reset, reflectionsPage, leadWeekPage, leadReflectionsPage };
+  return { ...w, pages, lib, reset, reflectionsPage, namedReflectionsPage, leadWeekPage, leadReflectionsPage };
 }

@@ -3,16 +3,13 @@
 import { useId, useState } from "react";
 import Select from "@/components/ui/Select";
 import { useHydrated } from "@/hooks/useHydrated";
-import type { OwnReflections, ReadOutPrompt } from "@/lib/courses/facilitatorWeek/readers";
+import type { ReadOutPrompt } from "@/lib/courses/facilitatorWeek/readers";
 import {
   COPIED,
   COPY_FAILED,
   COPY_FOR_THE_SESSION,
-  FACILITATOR,
-  FACILITATORS_OWN,
   NOBODY_WROTE,
   NOTHING_PICKED,
-  NOT_WRITTEN,
   NO_REFLECTIONS,
   PICK_LINES,
   PROMPT,
@@ -41,9 +38,10 @@ import styles from "@/features/courses/facilitator/facilitator.module.css";
  * browser. Picks live in this page alone: nothing is stored, and a reload
  * starts again.
  *
- * The lead's door hands `readOut: false`: the answers to read, with no
- * picking, and, beside them, the facilitators' own reflections under their
- * names (`own`), which are never read out.
+ * NEVER A NAME BESIDE AN ANSWER, for anybody: the group's facilitators, the
+ * programme's lead and admins read reflections with names on pages of their
+ * own (`NamedReflections`), and this component is handed no name to draw.
+ * `readOut: false` draws the answers with no picking.
  */
 
 function TickIcon() {
@@ -60,17 +58,12 @@ export default function ReadOutView({
   prompts,
   tonight,
   readOut,
-  own = null,
-  ownLine = null,
 }: {
   prompts: ReadOutPrompt[];
   /** The group meets tonight: "To read out tonight". */
   tonight: boolean;
-  /** The group's door: lines can be picked and copied. The lead's: read only. */
+  /** Lines can be picked and copied; false draws the answers to read alone. */
   readOut: boolean;
-  /** The lead's door: each facilitator's own reflections, under their name. */
-  own?: OwnReflections[] | null;
-  ownLine?: string | null;
 }) {
   const hydrated = useHydrated();
   const selectId = useId();
@@ -96,11 +89,6 @@ export default function ReadOutView({
       setCopy("failed");
     }
   }
-
-  const ownAnswers =
-    own && current
-      ? own.map((person) => ({ name: person.name, text: person.answers.find((answer) => answer.key === current.key)?.text ?? null }))
-      : null;
 
   return (
     <div className={styles.wkReadColumns}>
@@ -195,30 +183,6 @@ export default function ReadOutView({
             <p className={styles.wkCopyStatus} role="status">
               {copy === "copied" ? COPIED : copy === "failed" ? COPY_FAILED : ""}
             </p>
-          </section>
-        </div>
-      )}
-
-      {!readOut && ownAnswers && ownAnswers.length > 0 && (
-        <div className={styles.wkReadSide}>
-          <section className={styles.wkPanel} aria-labelledby="facilitators-own">
-            <div className={styles.wkPanelHead}>
-              <h2 id="facilitators-own" className={styles.wkPanelTitle}>
-                {FACILITATORS_OWN}
-              </h2>
-            </div>
-            {ownLine && <p className={styles.wkPanelLine}>{ownLine}</p>}
-            <ul className={styles.wkOwn}>
-              {ownAnswers.map((answer) => (
-                <li key={answer.name} className={styles.wkOwnPerson}>
-                  <p className={styles.wkOwnName}>
-                    <span>{answer.name}</span>
-                    <span className={styles.wkOwnChip}>{FACILITATOR}</span>
-                  </p>
-                  <p className={answer.text ? styles.wkOwnText : `${styles.wkOwnText} ${styles.wkMuted}`}>{answer.text ?? NOT_WRITTEN}</p>
-                </li>
-              ))}
-            </ul>
           </section>
         </div>
       )}

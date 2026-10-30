@@ -67,7 +67,7 @@ const inSrc = (path) => relative(SRC, path).split(sep).join("/");
 mock.timers.enable({ apis: ["Date"], now: NOW });
 
 const w = await makeFacilitatorWeekWorld("__facilitatorWeekSuite");
-const { world, at, reset, groupPage, reflectionsPage, leadWeekPage, leadReflectionsPage, attendanceTab, lib, call, routes } = w;
+const { world, at, reset, groupPage, reflectionsPage, namedReflectionsPage, leadWeekPage, leadReflectionsPage, attendanceTab, lib, call, routes } = w;
 
 const RUN_HOME = `/learn/${RUN.agi}`;
 const PROGRAMME = `/admin/admissions/forms/${ROUND}/programmes/${AGI}`;
@@ -76,6 +76,8 @@ const PROGRAMME = `/admin/admissions/forms/${ROUND}/programmes/${AGI}`;
 const weekOf = (drawn) => find(drawn.element, "ThisWeeksWork")[0]?.props.week ?? null;
 /** What the page handed the page to read lines out, or null. */
 const readOutOf = (drawn) => find(drawn.element, "ReadOutView")[0]?.props ?? null;
+/** What the page handed the layout that reads reflections with names, or null. */
+const namedOf = (drawn) => find(drawn.element, "NamedReflections")[0]?.props ?? null;
 /** The review queue's reflections card, or null. */
 const queueOf = (drawn) => find(drawn.element, "ReflectionsQueueCard")[0]?.props ?? null;
 /** A person as the suite reads them: their name, and "(facilitator)" for a facilitator's own. */
@@ -156,12 +158,37 @@ describe("1. who opens a group's week", () => {
     });
   });
 
+  test("the page that reads the group's reflections with names: exactly the page to read lines out's people, and it writes nothing", async () => {
+    const seen = {};
+    for (const who of EVERYBODY) {
+      const drawn = await namedReflectionsPage(who);
+      seen[who ?? "signed out"] = drawn.to ?? (namedOf(drawn) && !readOutOf(drawn) ? "drawn" : "nothing");
+      assert.equal(drawn.wrote, false, `${who}'s page wrote something`);
+    }
+    assert.deepEqual(seen, {
+      rahul: "drawn",
+      sofia: "drawn",
+      zach: "drawn",
+      claudia: RUN_HOME,
+      tess: RUN_HOME,
+      lloyd: RUN_HOME,
+      yusuf: RUN_HOME,
+      tom: RUN_HOME,
+      chloe: RUN_HOME,
+      amara: RUN_HOME,
+      isaac: RUN_HOME,
+      nobody: RUN_HOME,
+      "signed out": "/login",
+    });
+  });
+
   test("the lead's two pages: the programme's lead and an admin; a reviewer is told whose they are; another lead finds no programme", async () => {
     for (const page of [leadWeekPage, leadReflectionsPage]) {
       const seen = {};
       for (const who of EVERYBODY) {
         const drawn = await page(who);
-        const shown = weekOf(drawn) ? "week" : readOutOf(drawn) ? "reflections" : null;
+        // The lead's reflections are read with names: never the page to read lines out's layout.
+        const shown = weekOf(drawn) ? "week" : namedOf(drawn) && !readOutOf(drawn) ? "reflections" : null;
         seen[who ?? "signed out"] =
           drawn.to ??
           shown ??
@@ -290,6 +317,14 @@ describe("3. the page to read lines out, without names", () => {
       const props = readOutOf(await reflectionsPage(who));
       assert.equal(props.readOut, true, who);
       assert.equal(props.own ?? null, null, `${who} is handed a facilitator's own reflections`);
+      // THE SEPARATION (Zach, Fri 30 Oct: staff read reflections with names
+      // elsewhere, and this page stays without): the component is handed its
+      // prompts and two switches, and a prompt nothing that could carry a
+      // writer's name or time beside an answer. A new field fails here.
+      assert.deepEqual(Object.keys(props).sort(), ["prompts", "readOut", "tonight"], `${who}: the page to read lines out is handed more than words`);
+      for (const prompt of props.prompts) {
+        assert.deepEqual(Object.keys(prompt).sort(), ["cards", "key", "label", "notYet", "of", "partNumber", "text", "wrote"], `${who}: a prompt carries more than its words`);
+      }
       assert.deepEqual(
         props.prompts.map((prompt) => [prompt.label, prompt.wrote, prompt.of, prompt.notYet]),
         [
@@ -506,22 +541,75 @@ describe("5. the private notes: the group's facilitators and admins, never the l
 // ---------------------------------------------------------------------------
 
 describe("6. the lead's and admins' view of a group's week", () => {
-  test("the group's answers without names, and the facilitators' own under their names, never read out", async () => {
+  test("the group's answers with their writers' names, and the facilitators' own under their names, never read out", async () => {
     const asLead = await leadReflectionsPage("claudia");
-    const props = readOutOf(asLead);
-    assert.equal(props.readOut, false);
-    assert.deepEqual(props.prompts[0].cards.map((card) => card.text), [SAID.farah["k3-rp1"], SAID.chloe["k3-rp1"]]);
+    assert.equal(readOutOf(asLead), null, "the lead's page draws the page to read lines out's layout");
+    const props = namedOf(asLead);
+    // Every prompt, each fellow's answer under their whole name in the group's
+    // order of people (Chloe, Farah, Kofi), with when it was last written, and
+    // the fellows who have not written one yet.
     assert.deepEqual(
-      props.own.map((person) => [person.name, person.answers.map((answer) => answer.text)]),
+      props.prompts.map((prompt) => [prompt.label, prompt.answers.map((answer) => [answer.name, answer.text, answer.at?.toISOString() ?? null]), prompt.notYet, prompt.wrote, prompt.of]),
       [
-        ["Rahul Mehta", [SAID.rahul["k3-rp1"], SAID.rahul["k3-rp2"], null, null, null, null]],
-        ["Sofia Rossi", [SAID.sofia["k3-rp1"], null, null, null, null, null]],
+        ["Part 1: Start with what you think (1 of 2)", [["Chloe Nguyen", SAID.chloe["k3-rp1"], "2026-11-15T16:12:00.000Z"], ["Farah Hussain", SAID.farah["k3-rp1"], "2026-11-15T16:12:00.000Z"]], ["Kofi Asante"], 2, 3],
+        ["Part 1: Start with what you think (2 of 2)", [["Chloe Nguyen", SAID.chloe["k3-rp2"], "2026-11-15T16:12:00.000Z"], ["Farah Hussain", SAID.farah["k3-rp2"], "2026-11-15T16:12:00.000Z"]], ["Kofi Asante"], 2, 3],
+        ["Part 2: Two keepers' views (1 of 2)", [["Chloe Nguyen", SAID.chloe["k3-rp3"], "2026-11-15T16:12:00.000Z"], ["Farah Hussain", SAID.farah["k3-rp3"], "2026-11-15T16:12:00.000Z"]], ["Kofi Asante"], 2, 3],
+        ["Part 2: Two keepers' views (2 of 2)", [["Farah Hussain", SAID.farah["k3-rp4"], "2026-11-15T16:12:00.000Z"]], ["Chloe Nguyen", "Kofi Asante"], 1, 3],
+        ["Part 3: What would change your mind? (1 of 2)", [], ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"], 0, 3],
+        ["Part 3: What would change your mind? (2 of 2)", [], ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"], 0, 3],
       ],
     );
-    assert.match(asLead.text, new RegExp(`Facilitators’ own reflections Only you and admins read these\\. They’re never read out\\. Rahul Mehta Facilitator ${SAID.rahul["k3-rp1"]} Sofia Rossi Facilitator ${SAID.sofia["k3-rp1"]}`));
+    assert.deepEqual(
+      props.prompts.map((prompt) => prompt.own.map((person) => [person.name, person.text])),
+      [
+        [["Rahul Mehta", SAID.rahul["k3-rp1"]], ["Sofia Rossi", SAID.sofia["k3-rp1"]]],
+        [["Rahul Mehta", SAID.rahul["k3-rp2"]], ["Sofia Rossi", null]],
+        [["Rahul Mehta", null], ["Sofia Rossi", null]],
+        [["Rahul Mehta", null], ["Sofia Rossi", null]],
+        [["Rahul Mehta", null], ["Sofia Rossi", null]],
+        [["Rahul Mehta", null], ["Sofia Rossi", null]],
+      ],
+    );
+    assert.match(asLead.text, /Only you and admins read these\. They’re never read out\./);
+    assert.match(asLead.text, new RegExp(`Chloe Nguyen Sun 15 Nov, 4:12pm ${SAID.chloe["k3-rp1"]} Farah Hussain Sun 15 Nov, 4:12pm ${SAID.farah["k3-rp1"]}`));
+    assert.match(asLead.text, /2 of 3 wrote one · Kofi Asante hasn’t/);
+    assert.match(asLead.text, new RegExp(`Facilitators’ own reflections Rahul Mehta Facilitator Sun 15 Nov, 4:12pm ${SAID.rahul["k3-rp1"]} Sofia Rossi Facilitator Sun 15 Nov, 4:12pm ${SAID.sofia["k3-rp1"]}`));
     assert.doesNotMatch(asLead.html, /Read this out|To read out|Copy for the session/);
+    // Nobody who left and nobody of another group, and never a private note.
+    for (const uid of ["isaac", "amara"]) for (const text of Object.values(SAID[uid])) assert.ok(!asLead.html.includes(text), `the lead is shown ${uid}'s reflection`);
+    for (const [, text] of ALL_NOTES) assert.ok(!asLead.html.includes(text), "the lead is shown a private note");
     const asAdmin = await leadReflectionsPage("zach");
     assert.match(asAdmin.text, /Only Claudia and admins read these\. They’re never read out\./);
+  });
+
+  test("the group's facilitators read its fellows' reflections with names, never a facilitator's own, and lines are read out from the page without", async () => {
+    for (const who of ["rahul", "sofia", "zach"]) {
+      const drawn = await namedReflectionsPage(who);
+      const props = namedOf(drawn);
+      assert.deepEqual(
+        props.prompts.map((prompt) => [prompt.answers.map((answer) => answer.name), prompt.notYet]),
+        [
+          [["Chloe Nguyen", "Farah Hussain"], ["Kofi Asante"]],
+          [["Chloe Nguyen", "Farah Hussain"], ["Kofi Asante"]],
+          [["Chloe Nguyen", "Farah Hussain"], ["Kofi Asante"]],
+          [["Farah Hussain"], ["Chloe Nguyen", "Kofi Asante"]],
+          [[], ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"]],
+          [[], ["Chloe Nguyen", "Farah Hussain", "Kofi Asante"]],
+        ],
+        who,
+      );
+      // Fellows only, an admin included: a facilitator's own is the lead's page's.
+      for (const prompt of props.prompts) assert.equal(prompt.own, null, `${who} is handed a facilitator's own reflections`);
+      for (const uid of ["rahul", "sofia", "isaac", "amara"]) {
+        for (const text of Object.values(SAID[uid])) assert.ok(!drawn.html.includes(text) && !JSON.stringify(drawn.element).includes(text), `${who} is shown ${uid}'s reflection`);
+      }
+      for (const [, text] of ALL_NOTES) assert.ok(!drawn.html.includes(text), `${who} is shown a private note`);
+      assert.match(drawn.text, /Group B’s facilitators, Claudia and admins read reflections with names\. Fellows can’t see each other’s\./);
+      assert.match(drawn.html, new RegExp(`href="${RUN_HOME}/group/${B}/reflections\\?week=3"[^>]*>Pick lines to read out<`));
+    }
+    // The way there, from the page to read lines out and from the group page.
+    assert.match((await reflectionsPage("rahul")).html, new RegExp(`href="${RUN_HOME}/group/${B}/reflections/names\\?week=3"[^>]*>Read them with names<`));
+    assert.equal(find((await groupPage("rahul")).element, "ReflectionsQueueCard")[0]?.props.namesHref, `${RUN_HOME}/group/${B}/reflections/names?week=3`);
   });
 
   test("a co-facilitator never reads a facilitator's own work, on any page they can open", async () => {
@@ -706,22 +794,47 @@ describe("9. the tree", () => {
       "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week/page.tsx",
       "app/(app)/learn/[runId]/group/[groupId]/page.tsx",
     ]);
-    assert.deepEqual(callersOf("loadReadOutWeek"), [
+    // The page to read lines out is the one caller of its loader, and the
+    // pages that read reflections with names are the callers of theirs:
+    // neither ever calls the other's.
+    assert.deepEqual(callersOf("loadReadOutWeek"), ["app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx"]);
+    // The layout that draws names is never drawn by the page to read lines
+    // out, nor the read-out layout by a page with names.
+    const readOutPage = codeOf(join(SRC, "app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx"));
+    assert.doesNotMatch(readOutPage, /NamedReflections|loadNamedReflections/);
+    for (const page of [
+      "app/(app)/learn/[runId]/group/[groupId]/reflections/names/page.tsx",
       "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections/page.tsx",
-      "app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx",
+    ]) {
+      assert.doesNotMatch(codeOf(join(SRC, page)), /ReadOutView|loadReadOutWeek/, `${page} draws the page to read lines out's layout`);
+    }
+    assert.doesNotMatch(codeOf(join(SRC, "features/courses/facilitatorWeek/ReadOutView.tsx")), /NamedReflections|\.name\b|\bat:/);
+    // The read-out loader reads words alone; the timed reader is the named loader's.
+    const readersCode = codeOf(join(SRC, "lib/courses/facilitatorWeek/readers.ts"));
+    const readOutLoader = readersCode.slice(readersCode.indexOf("export async function loadReadOutWeek("));
+    assert.doesNotMatch(readOutLoader, /readNamedReflections|loadNamedReflections|updatedAt/);
+    assert.deepEqual(callersOf("loadNamedReflections"), [
+      "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections/page.tsx",
+      "app/(app)/learn/[runId]/group/[groupId]/reflections/names/page.tsx",
     ]);
-    for (const page of ["app/(app)/learn/[runId]/group/[groupId]/page.tsx", "app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx"]) {
+    for (const page of [
+      "app/(app)/learn/[runId]/group/[groupId]/page.tsx",
+      "app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx",
+      "app/(app)/learn/[runId]/group/[groupId]/reflections/names/page.tsx",
+    ]) {
       const code = codeOf(join(SRC, page));
       const gate = code.indexOf("if (group.runId !== runId || !(access.isAdmin || facilitatesThisGroup))");
-      const load = Math.max(code.indexOf("loadGroupWeek("), code.indexOf("loadReadOutWeek("));
+      const load = Math.max(code.indexOf("loadGroupWeek("), code.indexOf("loadReadOutWeek("), code.indexOf("loadNamedReflections("));
       assert.ok(gate !== -1 && load > gate, `${page} loads the week before its gate`);
       assert.match(code, /viewer: access\.isAdmin \? "admin" : "facilitator"/, `${page} decides the viewer some other way`);
     }
+    // The facilitators' page with names hands the loader no facilitator's own, an admin's view of it included.
+    assert.match(codeOf(join(SRC, "app/(app)/learn/[runId]/group/[groupId]/reflections/names/page.tsx")), /withOwn: false,/);
     for (const page of ["week", "reflections"]) {
       const code = codeOf(join(SRC, `app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/${page}/page.tsx`));
       assert.match(code, /requireAdmissionsPage\(\)/);
       const door = code.indexOf("openLeadDoor(");
-      const load = Math.max(code.indexOf("loadGroupWeek("), code.indexOf("loadReadOutWeek("));
+      const load = Math.max(code.indexOf("loadGroupWeek("), code.indexOf("loadNamedReflections("));
       assert.ok(door !== -1 && load > door, `the lead's ${page} page loads before its door`);
     }
     // The lead's door: an admin or the programme's lead, decided from the form.
@@ -763,6 +876,13 @@ describe("10. the words", () => {
     assert.equal(words.hideWhoNameWords("A keeper's diary"), "Hide names for A keeper's diary");
     assert.equal(words.hideNotesNameWords("A keeper's diary"), "Hide notes for A keeper's diary");
     assert.equal(words.promptOptionWords(1, "Why alignment might be hard", 0, 1), "Part 1: Why alignment might be hard");
+    // Reading reflections with names: who else reads them so, and where lines are read out from.
+    assert.equal(
+      words.namedReadersLine("Group B", "Claudia"),
+      "Group B’s facilitators, Claudia and admins read reflections with names. Fellows can’t see each other’s. To read a line out in the session, pick it on the page without names.",
+    );
+    assert.equal(words.namedReadersLine("Group B", null), "Group B’s facilitators and admins read reflections with names. Fellows can’t see each other’s. To read a line out in the session, pick it on the page without names.");
+    assert.equal(words.lastWrittenWords(new Date("2026-11-15T16:12:00Z")), "Sun 15 Nov, 4:12pm");
   });
 
   test("no dash of either kind, no gendered pronoun and no word the house does not use, in any file of this piece", () => {
@@ -774,7 +894,9 @@ describe("10. the words", () => {
       "features/courses/facilitatorWeek/ThisWeeksWork.tsx",
       "features/courses/facilitatorWeek/ReadOutView.tsx",
       "features/courses/facilitatorWeek/Disclosure.tsx",
+      "features/courses/facilitatorWeek/NamedReflections.tsx",
       "app/(app)/learn/[runId]/group/[groupId]/reflections/page.tsx",
+      "app/(app)/learn/[runId]/group/[groupId]/reflections/names/page.tsx",
       "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week/page.tsx",
       "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections/page.tsx",
     ];

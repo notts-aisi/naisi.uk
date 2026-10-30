@@ -20,6 +20,7 @@ import {
   NO_SOURCES,
   READING_TICKS,
   READ_THEM,
+  READ_WITH_NAMES,
   REFLECTIONS,
   REVIEW_QUEUE,
   SEE_IT,
@@ -351,11 +352,14 @@ export default function ThisWeeksWork({
 export function ReflectionsHalf({
   counts,
   href,
+  namesHref = null,
   separated = true,
   titled = true,
 }: {
   counts: GroupWeek["counts"];
   href: string;
+  /** The group's facilitators' page that reads the same reflections with names, beside "Read them"; null for none. */
+  namesHref?: string | null;
   separated?: boolean;
   /** False where the card's own heading already says "Reflections". */
   titled?: boolean;
@@ -372,6 +376,14 @@ export function ReflectionsHalf({
           <path d="M5 12h14M13 6l6 6-6 6" />
         </svg>
       </Link>
+      {namesHref && (
+        <Link href={namesHref} className={styles.wkReadThem}>
+          <span>{READ_WITH_NAMES}</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
+        </Link>
+      )}
     </div>
   );
 }
@@ -412,7 +424,18 @@ export function GroupWeeksCard({ groups }: { groups: Array<{ id: string; name: s
  * in its own place for it, and this card goes. On the lead's page, where
  * nothing is reviewed, the card is headed "Reflections" (`lead`).
  */
-export function ReflectionsQueueCard({ counts, href, lead = false }: { counts: GroupWeek["counts"]; href: string; lead?: boolean }) {
+export function ReflectionsQueueCard({
+  counts,
+  href,
+  namesHref = null,
+  lead = false,
+}: {
+  counts: GroupWeek["counts"];
+  href: string;
+  /** The group's facilitators' page with names (the lead's own page already has them); null for none. */
+  namesHref?: string | null;
+  lead?: boolean;
+}) {
   const headingId = lead ? "group-reflections" : "group-review-queue";
   return (
     <section className={weekly.card} aria-labelledby={headingId}>
@@ -421,7 +444,7 @@ export function ReflectionsQueueCard({ counts, href, lead = false }: { counts: G
           {lead ? REFLECTIONS : REVIEW_QUEUE}
         </h2>
       </div>
-      <ReflectionsHalf counts={counts} href={href} separated={false} titled={!lead} />
+      <ReflectionsHalf counts={counts} href={href} namesHref={namesHref} separated={false} titled={!lead} />
     </section>
   );
 }
