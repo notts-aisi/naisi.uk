@@ -116,12 +116,23 @@ export const POLICIES: Record<
     // taken-back promise is a material change, so it moved the version and
     // every member is asked again at their next sign-in.
     //
+    // v14 is required survey questions. v13 said "Every question can be
+    // skipped." v14 says every question needs an answer unless it is marked
+    // optional, and the boxes that ask permission (follow-ups, Kairos, being
+    // quoted) are always up to the person (`isQuestionRequired` in
+    // `src/lib/surveys/items.ts`). It also says an admin may send somebody a
+    // link to answer just the questions they left blank, which shows none of
+    // their earlier answers and adds to them without changing them. A
+    // taken-back promise is a material change, so it moved the version and
+    // every member is asked again at their next visit.
+    //
     // Keep this comment ABOVE `versions:`, never between the `[` and the first
     // `{`: tests/funnel-harness-guards.test.mjs reads the current version out
     // of this file with a regex that allows only whitespace across that gap,
     // so a comment sitting there leaves the guard unable to read the very
     // number it exists to pin. Anywhere else in the file is fine.
     versions: [
+      { version: 14, lastUpdated: "30 October 2026" },
       { version: 13, lastUpdated: "30 October 2026" },
       { version: 12, lastUpdated: "29 October 2026" },
       { version: 11, lastUpdated: "28 October 2026" },
