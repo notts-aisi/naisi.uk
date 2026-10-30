@@ -1,11 +1,12 @@
-import { surveyPagesOf, questionNumbers, scoreOf, type SurveyItem, type SurveyQuestion } from "@/lib/surveys/items";
-import { questionTypeWords } from "@/lib/surveys/words";
+import { isQuestionRequired, surveyPagesOf, questionNumbers, scoreOf, type SurveyItem, type SurveyQuestion } from "@/lib/surveys/items";
+import { ANSWER_WORDS, questionTypeWords } from "@/lib/surveys/words";
 import styles from "./surveyAdmin.module.css";
 
 /**
  * A sent survey's questions, as people answer them, for reading: once a
  * survey has been sent its words and questions are fixed (every later stage
- * of the programme asks the same), so there is nothing here to change.
+ * of the programme asks the same), so there is nothing here to change. A
+ * question whose Required switch is off says "(optional)", as people see it.
  */
 
 /** A question's answers, lines or scale words, on one line. */
@@ -86,7 +87,10 @@ export default function QuestionsList({
                 <div key={item.id} className={styles.question}>
                   <span className={styles.qNumber}>{numbers.get(item.id)}</span>
                   <div className={styles.qBody}>
-                    <p className={styles.qTitle}>{item.title}</p>
+                    <p className={styles.qTitle}>
+                      {item.title}
+                      {!isQuestionRequired(item) && <span className={styles.qOptional}> {ANSWER_WORDS.optional}</span>}
+                    </p>
                     {item.hint && <p className={styles.muted}>{item.hint}</p>}
                     {summary && <p className={styles.qOptions}>{summary}</p>}
                     <span className={styles.qType}>{questionTypeWords(item)}</span>

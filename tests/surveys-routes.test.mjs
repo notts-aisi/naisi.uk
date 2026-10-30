@@ -206,6 +206,62 @@ describe("the questions change until the first send, and never after", () => {
     assert.match(named.body.error, /marked both required and optional/);
   });
 
+  test("the Required switch: on unless marked optional, saved by the editor's route, none on a consent box, and \"(optional)\" wherever people or admins read it", async (t) => {
+    // Zach, 30 Oct 2026. The items are an incubator's survey at the end as a
+    // survey made before the switch stored them (no `optional` anywhere), so
+    // the not-for-everybody list decides: I4's links and "If nothing is
+    // finished yet" start off, every other question on.
+    clock(t);
+    w.reset(seed());
+    const id = (await w.make()).body.survey.id;
+    const legacy = w.lib.templates.templateItems("after", "incubator", "alignment").map(({ optional: _optional, ...item }) => item);
+    w.world.db.poke(`surveys/${id}`, { items: legacy });
+    const questions = w.lib.items.surveyQuestionsOf(legacy);
+    const switchOf = (html, qid) => [...html.matchAll(/<input[^>]*>/g)].map((match) => match[0]).find((tag) => tag.includes(`-required-${qid}"`));
+    const editor = await w.page(w.pages.questions, { params: Promise.resolve({ surveyId: id }) }, "zach");
+    assert.equal((editor.text.match(/Required/g) ?? []).length, questions.length, "one switch per question");
+    for (const question of questions) {
+      const tag = switchOf(editor.html, question.id);
+      assert.ok(tag && tag.includes('type="checkbox"'), `${question.id} has no switch`);
+      const off = question.id === "q_i4_links" || question.id === "q_i4_when";
+      assert.equal(tag.includes('checked=""'), !off, `${question.id} starts ${off ? "on" : "off"}`);
+    }
+    assert.ok(editor.text.includes("A consent box is never required: ticking it is up to each person."));
+    assert.ok(!switchOf(editor.html, "c_end"), "a consent box has a switch");
+    assert.ok(editor.text.includes("People can leave it blank. It shows “(optional)”."));
+
+    // The admin turns C1 off and "If nothing is finished yet" on; the route keeps each choice as it was made.
+    const items = structuredClone(legacy).map((item) =>
+      item.id === "q_c1" ? { ...item, optional: true } : item.id === "q_i4_when" ? { ...item, optional: false } : item,
+    );
+    const body = { title: "At the end", intro: "Hello.", minutes: 10, closesOn: "2026-11-05", items };
+    assert.equal((await call("zach", routes.questions.POST, { surveyId: id }, { body })).status, 200);
+    const saved = w.survey(id).items;
+    assert.equal(saved.find((item) => item.id === "q_c1").optional, true);
+    assert.equal(saved.find((item) => item.id === "q_i4_when").optional, false);
+    assert.equal("optional" in saved.find((item) => item.id === "q_c2"), false, "an untouched question keeps no switch of its own");
+    const again = await w.page(w.pages.questions, { params: Promise.resolve({ surveyId: id }) }, "zach");
+    assert.ok(!switchOf(again.html, "q_c1").includes('checked=""'));
+    assert.ok(switchOf(again.html, "q_i4_when").includes('checked=""'));
+    assert.ok(!switchOf(again.html, "q_i4_links").includes('checked=""'));
+
+    // People see "(optional)" beside exactly the questions switched off.
+    await call("zach", routes.test.POST, { surveyId: id }, { body: { email: "survey" } });
+    const page = await w.page(w.pages.link, { params: Promise.resolve({ token: w.survey(id).testToken }) });
+    assert.ok(page.text.includes("1 Which best describes you right now? (optional)"), "C1 is not marked optional");
+    assert.ok(page.text.includes("Links to what your team produced (optional)"));
+    assert.ok(!page.text.includes("If nothing is finished yet, when do you expect it to be? (optional)"));
+    assert.equal((page.text.match(/\(optional\)/g) ?? []).length, 2);
+
+    // Once sent, the read-only list says it too.
+    assert.equal((await w.sendFirst(id)).status, 200);
+    const fixed = await w.page(w.pages.questions, { params: Promise.resolve({ surveyId: id }) }, "zach");
+    assert.ok(fixed.text.includes("Which best describes you right now? (optional)"));
+    assert.ok(fixed.text.includes("Links to what your team produced (optional)"));
+    assert.equal((fixed.text.match(/\(optional\)/g) ?? []).length, 2);
+    assert.ok(!switchOf(fixed.html, "q_c1"), "a sent survey still offers the switch");
+  });
+
   test("once sent, nothing about it changes", async (t) => {
     clock(t);
     w.reset(seed());

@@ -451,6 +451,18 @@ export const TEST_LINE =
 // The admins' pages
 // ---------------------------------------------------------------------------
 
+/**
+ * The editor's Required switch on each question (Zach, 30 Oct 2026: every
+ * question is required unless an admin switches it off), and the line a
+ * consent block carries instead of one.
+ */
+export const REQUIRED_WORDS = {
+  label: "Required",
+  on: "People answer it before they can go on or send.",
+  off: "People can leave it blank. It shows “(optional)”.",
+  consent: "A consent box is never required: ticking it is up to each person.",
+} as const;
+
 /** "1, 4 and 7". */
 function pointsList(points: readonly number[]): string {
   return namesInWords(points.map(String));

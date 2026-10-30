@@ -553,6 +553,12 @@
   color: var(--color-text-muted);
 }
 
+/* "(optional)" after a sent question's words, quieter than them. */
+.qOptional {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
 .moves {
   display: flex;
   gap: var(--space-1);
