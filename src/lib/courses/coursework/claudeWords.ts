@@ -31,7 +31,7 @@ export const BEST_WORDS = {
   again: "Find them again",
   asking: "Claude is reading…",
   intro: "Claude picks up to three of the strongest answers to each question this week, with a reason, from every answer it may be sent. Names aren’t sent; the site puts them back.",
-  whoSees: "Admins and the programme’s lead only.",
+  whoSees: "Admins and the programme’s lead only",
   hard: "What people found hard",
   none: "No answer to this question stood out.",
   outOfDate: "Answers have changed since Claude read them. Find them again to include them.",
@@ -53,7 +53,7 @@ export const BEST_WORDS = {
 
 export const PANGRAM_WORDS = {
   title: "Pangram",
-  whoSees: "Admins only.",
+  whoSees: "Admins only",
   intro: "Pangram estimates whether writing was produced with AI. It checks written answers and reflections of 50 words or more, only those sent after they agreed. A flag is a reason to read it again, never a verdict.",
   personButton: "Check with Pangram",
   weekButton: (people: number) => plural(people, "Check 1 person with Pangram", "Check {n} people with Pangram"),

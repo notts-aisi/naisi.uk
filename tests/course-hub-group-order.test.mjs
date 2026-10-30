@@ -238,6 +238,17 @@ const FETCHES_IT_CANNOT_READ = new Map([
       "form's API base it is handed: one application's reads, never a run's groups.",
   ],
   [
+    "src/features/courses/courseworkClaude/BestAnswersPanel.tsx",
+    "Claude's best answers to one week under the Coursework tab, at the best answers route under the programme " +
+      "address it builds and asked again with that same address: it draws the week's questions and the people " +
+      "picked for each, and no group.",
+  ],
+  [
+    "src/features/courses/courseworkClaude/PangramPanel.tsx",
+    "An admin's Pangram on one person's page on the Coursework tab, at that person's Pangram route under the " +
+      "programme address it builds: their answers with each reading, and no group.",
+  ],
+  [
     "src/features/courses/WeekBlocksLoader.tsx",
     "The week loader's card, at the address it is handed (the run's week, or one group's own copy of it, on the " +
       "Weeks tab): it reads and saves one week's blocks, never a run's groups.",
