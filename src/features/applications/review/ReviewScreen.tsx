@@ -29,6 +29,7 @@ import parts from "./parts.module.css";
 import AccessRequirementsBlock from "./AccessRequirementsBlock";
 import PlacementPanel from "@/features/applications/intake/PlacementPanel";
 import AssessmentBlock from "./AssessmentBlock";
+import PersonNotes from "@/features/admin/memberNotes/PersonNotes";
 import styles from "./ReviewScreen.module.css";
 
 /**
@@ -1093,6 +1094,16 @@ export default function ReviewScreen({ initial, listPath, apiBase }: Props) {
               applicantUid={applicant.uid}
               programmeId={programme.id}
             />
+          ) : null}
+
+          {/*
+            An admin's alone: the notes admins keep about this person (privacy
+            v13). Beside an application, only notes written after they agreed
+            to v13 are sent: what was written before stays with its own
+            programme. Keyed by the applicant.
+          */}
+          {viewer.isAdmin ? (
+            <PersonNotes key={`notes:${applicant.uid}`} uid={applicant.uid} firstName={applicant.firstName} place="application" compact />
           ) : null}
 
           {/*

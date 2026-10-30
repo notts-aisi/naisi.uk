@@ -32,6 +32,7 @@ import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
 import { PLACEMENT_NOTES_COLLECTION } from "@/lib/courses/placementNotes/model";
+import { MEMBER_NOTES_COLLECTION } from "@/lib/memberNotes/model";
 import {
   MEMBER_RECORDS_COLLECTION,
   MEMBER_RECORD_APPLICATIONS,
@@ -262,6 +263,13 @@ export type AccountDeletionSummary = {
    */
   memberRecordApplicationsRetained: number;
   conductFlagDeleted: boolean;
+  /**
+   * The notes admins kept about this account (`memberNotes`, privacy v13).
+   * Deleted: each is about this account alone. A note this account WROTE
+   * about somebody else stays with that person, and no longer names its
+   * author, because the name is looked up when the note is read.
+   */
+  memberNotesDeleted: number;
   authDeleted: boolean;
   /** Set when the teardown was not fully clean (a best-effort step failed, or the
    *  Auth account could not be deleted). Routes return 207 when this is present. */
@@ -730,6 +738,16 @@ export async function deleteCourseGroupNotes(db: Firestore, uid: string): Promis
  */
 export async function deleteCourseGroupSharedNotes(db: Firestore, uid: string): Promise<number> {
   return deleteOwnedCourseRows(db, COURSE_GROUP_SHARED_NOTES_COLLECTION, uid, "authorUid");
+}
+
+/**
+ * Delete every note admins kept about this account (`memberNotes`, privacy
+ * v13), a page at a time. Found by the one equality on `uid`, the person a
+ * note is about; a note this account wrote about somebody else names it only
+ * as `authorUid` and is not touched.
+ */
+export async function deleteMemberNotes(db: Firestore, uid: string): Promise<number> {
+  return deleteOwnedCourseRows(db, MEMBER_NOTES_COLLECTION, uid);
 }
 
 /**
@@ -1387,6 +1405,7 @@ export async function deleteAccountCascade(
     worksheetResponsesRetained: 0,
     memberRecordApplicationsRetained: 0,
     conductFlagDeleted: false,
+    memberNotesDeleted: 0,
     authDeleted: false,
   };
   // Tracks whether any best-effort step (2-5) failed after attempting, so we can
@@ -1944,6 +1963,17 @@ export async function deleteAccountCascade(
     }
   } catch (err) {
     console.error("[deleteAccount] memberConductFlags delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // The notes admins keep about this person (privacy v13, "Notes admins keep
+  // about you"). Each is about this account alone, found by the one equality
+  // on `uid` and deleted a page at a time. A note this account wrote about
+  // somebody else is that person's, and stays.
+  try {
+    summary.memberNotesDeleted = await deleteMemberNotes(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] memberNotes delete failed:", uid, err);
     partialFailure = true;
   }
 

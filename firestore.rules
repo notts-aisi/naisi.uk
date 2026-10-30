@@ -3436,6 +3436,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === memberNotes ===
+    // The notes admins keep about a person (privacy v13, "Notes admins keep
+    // about you"; src/lib/memberNotes/). Read and written only by the notes
+    // routes on the Admin SDK, after their own gate: an admin, about somebody
+    // else. So every browser is refused, the person a note is about, the
+    // programme's lead and admins included: the person must never read one
+    // from their own browser, and an admin's screen reads them through the
+    // routes, which decide which notes each page may show.
+    match /memberNotes/{noteId} {
+      allow read, write: if false;
+    }
+
     // --- The application form (src/lib/applications/) --------------------
     // Two more documents in the same posture as the six above, and written
     // out for the same two reasons: a subcollection does not inherit its
