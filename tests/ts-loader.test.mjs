@@ -1259,6 +1259,12 @@ const USERS = new Map([
       "and the choice's own module; the rest of the suite drives the survey routes and pages through the survey world",
   ],
   [
+    "surveys-required.test.mjs",
+    "it executes the rule that a survey question is required unless marked optional (src/lib/surveys/items.ts), over " +
+      "every template a survey is made from, and what answered means for each type, so the rule tested is the one the " +
+      "answer form and both answer routes ask. Only `server-only` is stubbed",
+  ],
+  [
     "surveys-deletion.test.mjs",
     "it runs the account cascade and the form's destroy end to end over survey records, so its graph is both " +
       "cascades, the member-record sweep and the survey modules; what is under test is what each leaves behind",
