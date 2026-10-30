@@ -112,8 +112,12 @@ export default function PersonNotes({ uid, firstName, place, draft = "none", com
   );
 
   useEffect(() => {
+    // The page can be left while the request is in flight, so the result is
+    // dropped rather than written into an unmounted component.
     let cancelled = false;
-    void load(() => cancelled);
+    void (async () => {
+      await load(() => cancelled);
+    })();
     return () => {
       cancelled = true;
     };

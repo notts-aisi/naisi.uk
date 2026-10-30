@@ -1,0 +1,135 @@
+/* Claude's best answers and Pangram's readings on a programme's coursework.
+   A record to read: the question, then whose answers stood out and why. */
+
+.panel,
+.week,
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-md, 1rem);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text);
+}
+
+.tag {
+  letter-spacing: 0.08em;
+}
+
+.line,
+.reason,
+.questionText {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.questionText {
+  color: var(--color-text);
+}
+
+.reason {
+  color: var(--color-text-soft);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger-text);
+}
+
+.warning {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-warning-soft);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.questions,
+.parts,
+.picks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.question,
+.part,
+.hard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-bg);
+}
+
+.kind {
+  margin: 0;
+}
+
+.picks {
+  gap: var(--space-2);
+}
+
+.pick {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.name {
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+a.name {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 48rem) {
+  .question,
+  .part,
+  .hard {
+    padding: var(--space-3);
+  }
+
+  .row > * {
+    min-height: 44px;
+  }
+}

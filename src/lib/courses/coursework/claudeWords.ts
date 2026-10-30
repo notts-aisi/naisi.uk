@@ -9,6 +9,13 @@ const V = COURSEWORK_USE_FROM_VERSION;
 
 const plural = (count: number, one: string, many: string) => (count === 1 ? one : many.replace("{n}", String(count)));
 
+/** What each kind of answer is called on these screens. */
+export const KIND_LABEL = {
+  reflection: "Reflection",
+  written: "Written answer",
+  fillIn: "Box to fill in",
+} as const;
+
 export const COURSEWORK_DOOR_WORDS = {
   notHere: "There’s no programme here.",
   notYours: "The coursework is the programme’s lead’s and an admin’s.",
@@ -40,6 +47,8 @@ export const BEST_WORDS = {
   notSetUp: "Claude isn’t set up on this site yet.",
   failed: "Claude couldn’t read them just now. Try again.",
   aFellow: "a fellow",
+  loadFailed: "Couldn’t load Claude’s best answers. Try again.",
+  retry: "Try again",
 } as const;
 
 export const PANGRAM_WORDS = {
@@ -68,4 +77,12 @@ export const PANGRAM_WORDS = {
   notSetUp: "Pangram isn’t set up on this site yet.",
   onlyAdmins: "Only an admin can ask Pangram, or see what it found.",
   failed: "Pangram couldn’t check this just now. Try again.",
+  loadFailed: "Couldn’t load what Pangram found. Try again.",
+  retry: "Try again",
+  week: (n: number) => `Week ${n}`,
+  words: (n: number) => `${n} words`,
+  checked: (day: string) => `checked ${day}`,
+  flagged: (count: number) => plural(count, "1 answer worth a look:", "{n} answers worth a look:"),
+  noneFlagged: "Nothing this week to flag.",
+  stoppedAt: (name: string, reason: string) => `Stopped at ${name}: ${reason}`,
 } as const;
