@@ -1746,19 +1746,19 @@ const NOT_COVERED = {
     reason:
       "Course hub: the Coursework tab, a row per person holding a place and per facilitator, a column per week; every caller is executed by tests/course-hub-coursework.test.mjs.",
     coverWhen:
-      "When the coursework spec that seeds a run with reflections, ticks and a sent written answer and signs the lead in has passed end to end.",
+      "When tests/e2e/course-hub-coursework.spec.mjs (the coursework point of the course hub term, written 30 October 2026) has passed end to end with a teardown manifest of zero and its status reads verified.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]": {
     reason:
       "Course hub: one person's coursework, newest week first, private notes for admins alone; every caller is executed by tests/course-hub-coursework.test.mjs.",
     coverWhen:
-      "When the coursework spec that seeds a run with reflections, ticks and a sent written answer and signs the lead in has passed end to end.",
+      "When tests/e2e/course-hub-coursework.spec.mjs (the coursework point of the course hub term, written 30 October 2026) has passed end to end with a teardown manifest of zero and its status reads verified.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/reflections": {
     reason:
-      "Course hub: the lead's and admins' reading of one group's reflections, its facilitators' own under their names; every caller is executed by tests/course-hub-facilitator-week.test.mjs, and it was checked in a browser on the preview kit at 1440 and 390.",
+      "Course hub: the lead's and admins' reading of one group's reflections with each writer's name, its facilitators' own marked as theirs; every caller is executed by tests/course-hub-facilitator-week.test.mjs.",
     coverWhen:
-      "When the end-to-end fixtures can seed a run whose weeks are written as blocks, with reflections written, and the programme's lead signed in.",
+      "When tests/e2e/course-hub-coursework.spec.mjs (the coursework point of the course hub term, written 30 October 2026) has passed end to end with a teardown manifest of zero and its status reads verified.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/week": {
     reason:
@@ -1942,13 +1942,13 @@ const NOT_COVERED = {
     reason:
       "Course hub: the page where a group's facilitators pick reflections to read out without names (wk-reflections); every caller is executed by tests/course-hub-facilitator-week.test.mjs, and it was checked in a browser on the preview kit at 1440 and 390.",
     coverWhen:
-      "When the end-to-end fixtures can seed a run whose weeks are written as blocks, with reflections written, and a group's facilitator signed in.",
+      "When tests/e2e/course-hub-coursework.spec.mjs (the coursework point of the course hub term, written 30 October 2026) has passed end to end with a teardown manifest of zero and its status reads verified.",
   },
   "/(app)/learn/[runId]/group/[groupId]/reflections/names": {
     reason:
       "Course hub: a group's fellows' reflections read with names, for its live facilitators and admins; every caller is executed by tests/course-hub-facilitator-week.test.mjs.",
     coverWhen:
-      "When the coursework spec that seeds a run with reflections written and signs a facilitator in has passed end to end.",
+      "When tests/e2e/course-hub-coursework.spec.mjs (the coursework point of the course hub term, written 30 October 2026) has passed end to end with a teardown manifest of zero and its status reads verified.",
   },
   "/(app)/learn/[runId]/group/[groupId]/ratings": {
     reason:

@@ -77,6 +77,16 @@
  * people and an email to the group has a link it must never carry. The admin
  * appoints Fern to Group A on the real page, as at the second point.
  *
+ * ## The coursework point ("coursework")
+ *
+ * The term three weeks in with its weeks written as blocks (`COURSEWORK`):
+ * Ada and Ben in Group A and Cleo in Group B, told by Publish, and Dan, whom
+ * the programme accepted and nobody has placed, holding a place in no group.
+ * Weeks 1 to 3 are published, each with reflections, two sources and a
+ * written answer; Ada, Cleo and Dan have written, ticked and sent what the
+ * plan says. No register and no update. Fern is the account the admin
+ * appoints to Group A.
+ *
  * ## The fourth point ("pitching-week")
  *
  * An incubator in its pitching week (`PITCHING_WEEK`), read as the second
@@ -214,6 +224,7 @@ export const TERM_POINTS = Object.freeze([
   "first-day",
   "week-three",
   "week-three-unmarked",
+  "coursework",
   "pitching-week",
   "week-four",
   "last-week",
@@ -418,6 +429,7 @@ export function laterPlanOf(point) {
   if (point === "after-the-end") return AFTER_THE_END;
   if (point === "last-week") return LAST_WEEK;
   if (point === "programme-over") return PROGRAMME_OVER;
+  if (point === "coursework") return COURSEWORK;
   return null;
 }
 
@@ -487,6 +499,73 @@ export const WEEK_FOUR = Object.freeze({
     }),
   ]),
 });
+
+/**
+ * THE TERM THREE WEEKS IN, ITS WEEKS WRITTEN AS BLOCKS, WITH COURSEWORK DONE:
+ * the coursework point. The same day of the same run as `WEEK_THREE`, with
+ * one more person the programme accepted (Dan) who holds a place and was
+ * never placed in a group, so the Coursework tab has somebody "Not in a
+ * group yet" with week 1 work of their own. Weeks 1 to 3 are published and
+ * written as blocks (`blockWeeks`, `courseworkWeekDoc`): a part asking for
+ * two reflections, a part with two sources and a third reflection, and the
+ * week's written answer. `coursework` is what the people wrote, ticked and
+ * sent, each row as its route stores it: Ada's week 3 reflections, her tick
+ * with a private note on it and her written answer, sent and waiting for
+ * feedback; Cleo's week 3 reflection; Dan's week 1 reflections and tick.
+ * No register exists and nothing has been posted. Fern is the account the
+ * admin appoints to Group A.
+ */
+export const COURSEWORK = Object.freeze({
+  daysIn: WEEK_THREE.daysIn,
+  programme: FELLOWSHIP,
+  groups: GROUP_PLAN,
+  people: Object.freeze([...PEOPLE_PLAN, Object.freeze({ key: "dan", first: "Dan", canMake: Object.freeze(["A", "B"]) })]),
+  facilitator: FACILITATOR_PLAN,
+  places: Object.freeze({ ada: "A", ben: "A", cleo: "B" }),
+  marks: Object.freeze({}),
+  unfinished: null,
+  facilitated: "A",
+  published: 3,
+  earlierUpdate: false,
+  blockWeeks: true,
+  coursework: Object.freeze({
+    reflections: Object.freeze([
+      Object.freeze({ person: "ada", weekNumber: 3, prompt: "rp1", text: "Three lamps along this coast, I think." }),
+      Object.freeze({ person: "ada", weekNumber: 3, prompt: "rp2", text: "The harbour, since its boats use the light." }),
+      Object.freeze({ person: "cleo", weekNumber: 3, prompt: "rp1", text: "None of them is lit by hand any more." }),
+      Object.freeze({ person: "dan", weekNumber: 1, prompt: "rp1", text: "A keeper rows out at dusk to trim the wick." }),
+      Object.freeze({ person: "dan", weekNumber: 1, prompt: "rp2", text: "Whoever owns the rocks the ships avoid." }),
+    ]),
+    ticks: Object.freeze([
+      Object.freeze({ person: "ada", weekNumber: 3, source: "s1", note: "Skimmed the second half, worth a reread." }),
+      Object.freeze({ person: "dan", weekNumber: 1, source: "s1", note: "" }),
+    ]),
+    answers: Object.freeze([
+      Object.freeze({ person: "ada", weekNumber: 3, text: "The harbour board should keep the lamps lit, because it charges the ships that need them." }),
+    ]),
+  }),
+});
+
+/** The words a coursework week's blocks ask, by the key its ids end in. */
+export const COURSEWORK_PROMPTS = Object.freeze({
+  rp1: "How many lighthouses are still lit on this coast?",
+  rp2: "Who should pay for the lamp oil?",
+  rp3: "Where do the two keepers disagree?",
+});
+
+/** A coursework week's sources, by the key their ids end in. */
+export const COURSEWORK_SOURCES = Object.freeze({
+  s1: "A keeper's diary",
+  s2: "Lamps at night",
+});
+
+/** A coursework week's written answer's question. */
+export const COURSEWORK_ANSWER_PROMPT = "Who should keep the lamps lit, and why?";
+
+/** The id of one item of a coursework week: `e2e-w3-rp1`. Ids differ from week to week, as an editor's do. */
+export function courseworkItemId(weekNumber, key) {
+  return `e2e-w${weekNumber}-${key}`;
+}
 
 /** Every one of the six weeks, for the one person at the sixth point: Ivy came to each. */
 const IVY_CAME = Object.freeze({ ivy: "present" });
@@ -1391,6 +1470,168 @@ function progressDoc({ state, person, entry, at }) {
   };
 }
 
+/**
+ * One taught week of the coursework point, WRITTEN AS BLOCKS, as an editor
+ * publishes one: a part asking for two reflections, a part with two sources
+ * and a third reflection, and a part holding the week's written answer. Every
+ * id carries the week's number, so no two weeks share one.
+ */
+export function courseworkWeekDoc({ state, weekNumber, at }) {
+  const id = (key) => courseworkItemId(weekNumber, key);
+  const run = (text) => ({ text });
+  const p = (text) => ({ type: "p", runs: [run(text)] });
+  const source = (key, kind, url) => ({
+    id: id(key),
+    type: "source",
+    kind,
+    lead: "",
+    title: COURSEWORK_SOURCES[key],
+    // A reserved domain: nothing answers there.
+    url,
+    by: "E2E Example",
+    date: "2025",
+    time: "20 minutes",
+    compute: "",
+    note: [],
+  });
+  return {
+    e2eTermRunId: state.termRunId,
+    weekNumber,
+    title: `E2E week ${weekNumber} coursework`,
+    summary: "Seeded so the coursework point has weeks written as blocks.",
+    guideBlocks: [],
+    materials: [],
+    exercises: [],
+    checklist: [],
+    estimatedMinutes: null,
+    published: true,
+    ready: true,
+    updatedAt: at,
+    updatedByUid: null,
+    blocks: [
+      {
+        id: id("p1"),
+        type: "part",
+        title: "Start with what you think",
+        time: "About 5 minutes",
+        framing: [p("Write before you read anything.")],
+        blocks: [
+          {
+            id: id("rs1"),
+            type: "reflection",
+            prompts: [
+              { id: id("rp1"), text: COURSEWORK_PROMPTS.rp1 },
+              { id: id("rp2"), text: COURSEWORK_PROMPTS.rp2 },
+            ],
+          },
+        ],
+      },
+      {
+        id: id("p2"),
+        type: "part",
+        title: "Two keepers' views",
+        time: "About 45 minutes",
+        framing: [p("Two very different keepers.")],
+        blocks: [
+          source("s1", "read", `https://example.com/e2e-diary-${weekNumber}`),
+          source("s2", "watch", `https://example.org/e2e-lamps-${weekNumber}`),
+          { id: id("rs2"), type: "reflection", prompts: [{ id: id("rp3"), text: COURSEWORK_PROMPTS.rp3 }] },
+        ],
+      },
+      {
+        id: id("p3"),
+        type: "part",
+        title: "Your answer",
+        time: "About 30 minutes",
+        framing: [],
+        blocks: [
+          {
+            id: id("wa"),
+            type: "writtenAnswer",
+            prompt: [p(COURSEWORK_ANSWER_PROMPT)],
+            boxes: [],
+            guidance: [],
+            words: { min: 1, max: 300 },
+            due: "dayBefore",
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/**
+ * The coursework point's rows, each as its route writes it, saved an hour
+ * after the session of that week of the writer's group, or of Group A for
+ * somebody in no group (week 1's door opens before groups go out):
+ * reflections (`kind: "reflection"`), ticks with the note a person keeps on a
+ * source, and written answers, sent and waiting for feedback.
+ */
+async function seedCoursework(state, plan) {
+  const personOf = (key) => state.people.find((each) => each.key === key);
+  const savedAt = (person, weekNumber) => {
+    const group = state.groups.find((each) => each.key === person.groupKey) ?? state.groups[0];
+    return new Date(sessionOf(group, weekNumber).endsAt.getTime() - 26 * HOUR_MS);
+  };
+  for (const entry of plan.reflections) {
+    const person = personOf(entry.person);
+    const promptId = courseworkItemId(entry.weekNumber, entry.prompt);
+    await fixtureDoc("courseExerciseResponses", `${state.runId}__${person.uid}__${weekDocId(entry.weekNumber)}__${promptId}`).set({
+      e2eTermRunId: state.termRunId,
+      runId: state.runId,
+      uid: person.uid,
+      weekId: weekDocId(entry.weekNumber),
+      weekNumber: entry.weekNumber,
+      exerciseId: promptId,
+      kind: "reflection",
+      responseType: "text",
+      text: entry.text,
+      submittedAt: null,
+      reviewStatus: "unreviewed",
+      updatedAt: savedAt(person, entry.weekNumber),
+    });
+  }
+  for (const entry of plan.ticks) {
+    const person = personOf(entry.person);
+    const itemId = courseworkItemId(entry.weekNumber, entry.source);
+    const when = savedAt(person, entry.weekNumber);
+    await fixtureDoc("courseProgress", progressId(state.runId, person.uid, itemId)).set({
+      e2eTermRunId: state.termRunId,
+      runId: state.runId,
+      uid: person.uid,
+      weekNumber: entry.weekNumber,
+      itemKind: "material",
+      itemId,
+      completed: true,
+      completedAt: when,
+      hasPublicComment: false,
+      ...(entry.note ? { privateNote: entry.note } : {}),
+      updatedAt: when,
+    });
+  }
+  for (const entry of plan.answers) {
+    const person = personOf(entry.person);
+    const answerId = courseworkItemId(entry.weekNumber, "wa");
+    const when = savedAt(person, entry.weekNumber);
+    await fixtureDoc("courseExerciseResponses", `${state.runId}__${person.uid}__${weekDocId(entry.weekNumber)}__${answerId}`).set({
+      e2eTermRunId: state.termRunId,
+      runId: state.runId,
+      uid: person.uid,
+      weekId: weekDocId(entry.weekNumber),
+      weekNumber: entry.weekNumber,
+      exerciseId: answerId,
+      responseType: "text",
+      text: entry.text,
+      // Counted as Worksheets count words (`countWords`), restated for one plain sentence.
+      words: entry.text.trim().split(/\s+/).length,
+      firstSentAt: when,
+      submittedAt: when,
+      reviewStatus: "unreviewed",
+      updatedAt: when,
+    });
+  }
+}
+
 /** `courseProgressId` from src/lib/firestore/courseProgress.ts, restated. Construct-only. */
 function progressId(runIdValue, uid, itemId) {
   return `${runIdValue}__${uid}__${itemId}`;
@@ -1693,10 +1934,17 @@ async function seedWeekThree(state, plan, at) {
   for (let weekNumber = 1; weekNumber <= plan.published; weekNumber += 1) {
     await fixtureSubcollection("courseRuns", state.runId, "weeks")
       .doc(weekDocId(weekNumber))
-      .set(publishedWeekDoc({ state, weekNumber, at: at.weeksPublished }));
+      .set(
+        plan.blockWeeks
+          ? courseworkWeekDoc({ state, weekNumber, at: at.weeksPublished })
+          : publishedWeekDoc({ state, weekNumber, at: at.weeksPublished }),
+      );
   }
   for (const person of state.people) {
     const group = state.groups.find((each) => each.key === person.groupKey);
+    // Somebody the plan placed in no group holds a place and has no seat:
+    // Publish told them nothing, and they are on no cohort list.
+    if (!group) continue;
     await fixtureDoc("courseEnrolments", enrolmentId(state.runId, person.uid)).set(
       placementDoc({ state, plan, person, group, at }),
     );
@@ -1721,6 +1969,8 @@ async function seedWeekThree(state, plan, at) {
       earlierUpdateDoc({ state, postedAt: at.earlierUpdate }),
     );
   }
+  // The coursework point's reflections, ticks and written answers.
+  if (plan.coursework) await seedCoursework(state, plan.coursework);
   // What a person wrote on a reading, saved an hour after their group's
   // session of that week.
   for (const entry of state.notes ?? []) {
