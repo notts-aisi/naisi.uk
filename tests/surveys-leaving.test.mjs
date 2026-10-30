@@ -387,7 +387,8 @@ describe("5. the page people answer: confidential, in its own words, with no clo
     const shown = await page(pages.link, { params: Promise.resolve({ token: survey(id).testToken }) });
     const names = lib.words.dateKeyWords(survey(id).namesOffOn);
     for (const words of [
-      "Fellowship: AGI Strategy Why you left Tell us why you left, so we can do better. It’s 3 questions and takes about a minute.",
+      // Every question needs an answer (Zach, 30 Oct 2026); it has no box asking permission, so no line about one.
+      "Fellowship: AGI Strategy Why you left Tell us why you left, so we can do better. It’s 3 questions and takes about a minute. Every question needs an answer unless it’s marked optional. Confidential",
       "Confidential Only NAISI’s admins can see who said what. Claudia sees totals and comments, never names. Your facilitators never see your answers. " +
         "Nothing you say changes your account or a future application. Totals may go in reports to the committee and our funder, Kairos. " +
         `Your name comes off on ${names}, two years after the fellowship ends. The totals stay. We ask who you are so each person answers once.`,
@@ -399,6 +400,7 @@ describe("5. the page people answer: confidential, in its own words, with no clo
     }
     // Never the words the boards drew for an anonymous survey, and no closing day.
     assert.doesNotMatch(shown.text, /anonymous|never records who answers|It closes on/i);
+    assert.ok(!shown.text.includes("The boxes asking your permission") && !shown.text.includes("(optional)"), "the leaving survey speaks of a box it does not have");
     assert.ok(!shown.html.includes("Send my answers"), "a test link offers to send");
   });
 });
