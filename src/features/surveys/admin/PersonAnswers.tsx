@@ -6,8 +6,10 @@ import Button from "@/components/ui/Button";
 import InitialsChip from "@/components/ui/InitialsChip";
 import PageHead from "@/components/ui/PageHead";
 import type { PersonCell, PersonColumn, PersonRow, PersonTable, PersonView } from "@/lib/surveys/onePersonLayout";
-import { CONFIDENTIAL_HEADING, LIST_WORDS, PERSON_WORDS, TAB_WORDS } from "@/lib/surveys/words";
+import { BLANKS_WORDS, CONFIDENTIAL_HEADING, LIST_WORDS, PERSON_WORDS, TAB_WORDS } from "@/lib/surveys/words";
+import BlanksButton from "./BlanksButton";
 import { surveyTabHref } from "./SurveyHead";
+import blankStyles from "./blanks.module.css";
 import styles from "./onePerson.module.css";
 
 /**
@@ -17,7 +19,9 @@ import styles from "./onePerson.module.css";
  * change questions start and end side by side, each survey's own questions,
  * when their name comes off and who has opened them. Nothing of the person
  * is on the page until then, and nothing at all when the opening could not
- * be recorded.
+ * be recorded. An answer that came later, through the link of the questions
+ * they left blank, says so and when; and on each survey where required
+ * questions are still blank, the button that sends them those alone.
  *
  * The board's Export and Careful cards (a download of the person's answers,
  * and deleting them) are not drawn: neither is built yet, and a control for
@@ -123,13 +127,17 @@ export default function PersonAnswers({ surveyId, surveyName, who }: { surveyId:
           )}
         </div>
       )}
-      {view && <OpenedAnswers view={view} />}
+      {view && <OpenedAnswers view={view} who={who} />}
     </>
   );
 }
 
-/** The opened answers, drawn from what the route handed back. */
-export function OpenedAnswers({ view }: { view: PersonView }) {
+/**
+ * The opened answers, drawn from what the route handed back. `who` is the
+ * person's address segment, for the button that sends them the questions they
+ * left blank; without it no button is drawn.
+ */
+export function OpenedAnswers({ view, who }: { view: PersonView; who?: string }) {
   return (
     <div className={styles.layout}>
       <div className={styles.main}>
@@ -147,6 +155,19 @@ export function OpenedAnswers({ view }: { view: PersonView }) {
           <p className={styles.usually}>{PERSON_WORDS.usually}</p>
         </div>
         {view.nothing && <p className={styles.nothing}>{view.nothing}</p>}
+        {who && view.blanks.length > 0 && (
+          <section className={blankStyles.section} aria-labelledby="left-blank">
+            <h2 id="left-blank" className={blankStyles.sectionTitle}>
+              {BLANKS_WORDS.personTitle}
+            </h2>
+            {view.blanks.map((entry) => (
+              <div key={entry.surveyId} className={blankStyles.survey}>
+                <p className={blankStyles.surveyName}>{entry.name}</p>
+                <BlanksButton surveyId={entry.surveyId} who={who} name={view.name} row={entry.row} />
+              </div>
+            ))}
+          </section>
+        )}
         {view.change && <AnswersTable table={view.change} id="change-questions" />}
         {view.rest.map((table, at) => (
           <AnswersTable key={at} table={table} id={`survey-${at + 1}`} />
@@ -196,6 +217,7 @@ function Cell({ cell, column }: { cell: PersonCell; column: PersonColumn }) {
             </span>
           ))
         : cell.note && <span className={styles.note}>{cell.note}</span>}
+      {cell.later && <span className={blankStyles.later}>{cell.later}</span>}
     </td>
   );
 }
@@ -218,7 +240,7 @@ function Row({ row, columns }: { row: PersonRow; columns: PersonColumn[] }) {
           {row.label}
         </th>
         {columns.map((column, at) => (
-          <Cell key={at} cell={row.cells[at] ?? { lines: [], note: "" }} column={column} />
+          <Cell key={at} cell={row.cells[at] ?? { lines: [], note: "", later: "" }} column={column} />
         ))}
       </tr>
     );
@@ -238,7 +260,7 @@ function Row({ row, columns }: { row: PersonRow; columns: PersonColumn[] }) {
       </th>
       {row.cells.length === 0
         ? columns.map((_, at) => <td key={at} className={styles.blank} />)
-        : columns.map((column, at) => <Cell key={at} cell={row.cells[at] ?? { lines: [], note: "" }} column={column} />)}
+        : columns.map((column, at) => <Cell key={at} cell={row.cells[at] ?? { lines: [], note: "", later: "" }} column={column} />)}
     </tr>
   );
 }

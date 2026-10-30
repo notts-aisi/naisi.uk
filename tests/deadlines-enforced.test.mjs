@@ -157,6 +157,9 @@ const DEADLINE_NAMES = new Map([
         "src/lib/anonymousFeedback/forms.ts",
         "src/lib/anonymousFeedback/model.ts",
         "src/lib/surveys/sending.ts",
+        // The questions somebody left blank: `blanksStore.ts` hands the survey's
+        // close to the email of blanks and refuses a send past it.
+        "src/lib/surveys/blanksStore.ts",
       ],
       promises: [
         {
@@ -212,8 +215,15 @@ const DEADLINE_NAMES = new Map([
           why:
             "The last instant a survey takes answers: 23:59 in London on the day an admin picked, or earlier when " +
             "an admin closes it by hand. The email and the answer page both name the day.",
-          told: ["src/lib/surveys/answerView.ts", "src/lib/surveys/sending.ts", "src/lib/surveys/events/answerView.ts", "src/lib/surveys/events/words.ts"],
-          enforced: ["src/lib/surveys/answer.ts", "src/lib/surveys/events/store.ts"],
+          told: [
+            "src/lib/surveys/answerView.ts",
+            "src/lib/surveys/sending.ts",
+            "src/lib/surveys/events/answerView.ts",
+            "src/lib/surveys/events/words.ts",
+            "src/lib/surveys/blanksView.ts",
+            "src/lib/surveys/blanksStore.ts",
+          ],
+          enforced: ["src/lib/surveys/answer.ts", "src/lib/surveys/events/store.ts", "src/lib/surveys/blanksStore.ts"],
           predicate: "isOpen(",
         },
         {

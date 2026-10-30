@@ -44,6 +44,8 @@ const NOTICE_REASON: Record<EmailSendSurface, string> = {
   "course-follow-up": "you said we could send you follow-ups about this programme",
   // Whichever of the two the survey's audience is, the person is one of them.
   "event-survey": "you came to this event or signed up for it",
+  // Whichever survey it was, the person sent it, and these are its questions they left blank.
+  "survey-blanks": "you sent this survey with some of its questions left blank",
 };
 
 type Props = {

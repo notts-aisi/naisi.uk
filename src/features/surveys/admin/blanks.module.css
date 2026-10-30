@@ -1,0 +1,102 @@
+/* The questions somebody left blank, beside them on Who answered and on their own answers page. */
+
+.blanks {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 14rem;
+}
+
+.marker {
+  display: inline-block;
+  padding: 0.125rem var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-warning-soft);
+  border: 1px solid var(--color-warning-line);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.line {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 28rem;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.confirmText {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.confirmButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* A section of one person's answers page: the surveys they left questions blank on. */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.survey {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.surveyName {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* Beside an answer that came in later, through the link of blanks. */
+.later {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+@media (max-width: 48rem) {
+  .blanks {
+    min-width: 12rem;
+  }
+
+  .confirmButtons > * {
+    flex: 1 1 auto;
+  }
+}

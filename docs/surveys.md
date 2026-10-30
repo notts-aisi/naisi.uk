@@ -14,7 +14,9 @@ records), `src/app/api/surveys/` (the routes), `src/app/survey/[token]/` and
 `src/app/(app)/learn/[runId]/survey/[surveyId]/` (the answer page),
 `src/app/(app)/admin/(admin-only)/surveys/` (the admins' pages),
 `src/lib/scheduler/jobs/surveyNamesOff.ts` (names off),
-`src/lib/surveys/onePerson.ts` (one person's answers, opened by an admin).
+`src/lib/surveys/onePerson.ts` (one person's answers, opened by an admin),
+`src/lib/surveys/blanks.ts`, `blanksStore.ts` and `blanksView.ts` (the
+questions somebody left blank, sent to them by an admin's press).
 
 ## The rules, in one place
 
@@ -28,13 +30,30 @@ records), `src/app/api/surveys/` (the routes), `src/app/survey/[token]/` and
   The confidential box at the top of every survey says so, in sv-privacy's words.
   The one anonymous form on the site is not a survey and has no anonymous mode
   of one: it is the keep, change and drop form below, with its own records.
-- **Every question can be skipped.** No question is required.
+- **Every question needs an answer unless it is marked optional** (Zach, 30
+  Oct 2026), in every survey on the site, the ones already open included.
+  `isQuestionRequired` in `src/lib/surveys/items.ts` is the one rule: a
+  question's own `optional` wins (the editor's Required switch, below); with
+  none, a question is optional only when its id is on `NOT_FOR_EVERYBODY`,
+  the template text questions that do not apply to everybody, each with its
+  reason. Worksheets' `required` field is never read (every survey stored
+  before the rule carries `required: false`, which means nothing), so the
+  open surveys became required with no data migration. **Consent boxes are
+  never required** and have no switch: the follow-ups box, "Don’t share my
+  details with Kairos" and "You can quote this, without my name". Consent is
+  freely given.
 - **Nothing is kept before "Send my answers"**: no draft, no record of when the
   survey was opened or for how long, and no IP address, ever.
   `tests/surveys-no-tracking.test.mjs` walks every survey file for that.
-- **One answer per person**, and it cannot change once sent.
+- **One answer per person, and nothing in it ever changes once sent.**
+  Somebody who sent a survey with required questions left blank may be sent,
+  by an admin's press for that one person, a link to just those questions.
+  What they send through it is kept beside their first answers, never over
+  them, and every reader merges the two through one function (see "Sending
+  the questions left blank").
 - **No reminder goes on its own.** An admin presses Remind. No schedule sends
-  anything.
+  anything, and nothing sends the questions somebody left blank but an
+  admin's press for that one person.
 - **No floors.** Results show from the first answer (Zach, 25 Oct 2026), and
   public numbers have no threshold either (Zach, 26 Oct 2026): an admin
   chooses what is published, and every number says what it rests on.
@@ -52,8 +71,8 @@ is a server page or route. The rules blocks are deny-all.
 | Collection | One per | Holds |
 | --- | --- | --- |
 | `surveys/{autoId}` | survey | its stage (`before`, `after`, `followUp6`, `followUp12`), privacy (`confidential`), the admins' name, the title and intro people see, its items, about how many minutes, its audience (`{ kind: "programme", roundId, programmeId }`, or for a follow-up `{ kind: "followUps", roundId, programmeId, consentFrom }`), the programme's short name and kind as they were when it was made, the run the programme named, the survey it pairs with (`pairOf`), an incubator's strand, when it closes, when it was closed by hand, the day names come off and when they did, when it was first sent, a record of each press of a send button (kind, time, how many), the last test of each email (who, when, the wording's fingerprint), the secret of its test link |
-| `surveyPeople/{surveyId}__{uid}` | person a survey is for | the survey and form, the person (`respondent: { kind: "account", uid }`), the secret in their personal link, the press that sent it, when it was sent and what became of it, when they were last reminded and how often, whether they have answered, and what their consent boxes say (`consents`, `consentsAt`) |
-| `surveyAnswers/{autoId}` | person who answered | the survey and form, the person (`respondent`, null once names come off), the answers, when "Send my answers" was pressed (day and time), how (`link` or `signed-in`), and whether their group had met for the first time by then |
+| `surveyPeople/{surveyId}__{uid}` | person a survey is for | the survey and form, the person (`respondent: { kind: "account", uid }`), the secret in their personal link, the press that sent it, when it was sent and what became of it, when they were last reminded and how often, whether they have answered, what their consent boxes say (`consents`, `consentsAt`), and once an admin has sent them the questions they left blank, that link (`blanks`: its own secret, what became of its email, when it was used) and each press for it (`blanksPresses`: when, by whom, how many questions) |
+| `surveyAnswers/{autoId}` | person who answered | the survey and form, the person (`respondent`, null once names come off), the answers, when "Send my answers" was pressed (day and time), how (`link` or `signed-in`), and whether their group had met for the first time by then; and each later send of questions they had left blank (`fills`, oldest first: its answers, when, how, and whether the group had met by then), beside the first answers and never over them |
 
 **The person is a map**, `respondent: { kind: "account", uid }`, found by one
 equality on `respondent.uid`. Another kind (an event guest's sign-up,
@@ -61,7 +80,7 @@ equality on `respondent.uid`. Another kind (an event guest's sign-up,
 names come off by setting the whole map to null.
 
 **Every query is one equality on one field** (`surveyId`, `token`, `testToken`,
-`roundId`, `respondent.uid`) or a read of the whole `surveys` collection, a
+`blanks.token`, `roundId`, `respondent.uid`, `respondent.signupId`) or a read of the whole `surveys` collection, a
 handful a term, sorted in memory. Nothing needs a declared index. A person's
 own earlier answer (Q3's) is one equality on `respondent.uid`, filtered to the
 survey in memory.
@@ -92,6 +111,32 @@ P1 (the email registered with) and P2 (the programme) are not asked: the site
 knows both. The questionnaire's second opt-in, sharing with Kairos, is shared
 by default instead, with a way to say no at the end of every programme
 survey's form (see "The Kairos choice").
+
+**Optional by default: the questions that do not apply to everybody.** The
+site cannot show a question only to some people, so these template text
+questions start with their Required switch off (`NOT_FOR_EVERYBODY`; a
+survey made from a template writes `optional: true` on them, and nothing on
+the rest):
+
+| Id | Question | Why |
+| --- | --- | --- |
+| `q_i4_links` | Links to what your team produced | a team with nothing finished, or nothing public, has none |
+| `q_i4_when` | If nothing is finished yet, when do you expect it to be? | only for a team with nothing finished |
+| `q_f1_where` | The organisation or course | somebody doing independent work has none |
+| `q_f3` | What is that work? | only for somebody whose working time goes on AI safety |
+| `q_f4_applied` | Since the programme, which programmes or jobs have you applied to? | not everybody has applied |
+| `q_f4_accepted` | Which of those accepted you? | only for somebody who applied and was accepted |
+| `q_f7` | Anything else that happened partly because of NAISI? | a catch-all |
+| `q_ev_change` | Anything we should change? (after an event) | a catch-all |
+
+Every other question is required: every choice, scale, number, percentage and
+grid, and every text question anybody can answer ("What do you most want to
+get out of this programme?", "Did the programme have any negative effect on
+you or your plans?", "What would have helped you stay?"). An admin can turn
+any switch either way until the first send. `tests/surveys-required.test.mjs`
+walks every template both ways: every question not on the list is required,
+every listed one is a text question some template asks, and no consent box
+is ever required.
 
 **The ids are the pairing.** A question asked at more than one stage has the
 same id, type and option ids at every stage and in every programme (C1 is
@@ -254,7 +299,8 @@ own functions, with the questions Worksheets lacks defined beside them in
 ## The question types
 
 Every one is drawn phone first with real labelled form controls and targets
-of at least 44px, works before the page's script arrives, and can be skipped.
+of at least 44px, works before the page's script arrives, and needs an answer
+unless it is marked optional.
 
 | Kind | Stored as | Answer |
 | --- | --- | --- |
@@ -272,7 +318,20 @@ of at least 44px, works before the page's script arrives, and can be skipped.
 
 Any question may also carry a line under it (`hint`), the question it looks
 back on (`lookBackOf`, so results set a look-back beside what it looks back
-on) and an earlier answer of the person's own shown above it (`pipe`).
+on), an earlier answer of the person's own shown above it (`pipe`) and the
+editor's Required switch turned off or on (`optional`).
+
+**What answered means**, for a required question (`missingRequired` in
+`src/lib/surveys/items.ts`, which the answer form, both answer routes and the
+resend of blank questions all ask): a single choice, one option; pick any, at
+least one tick (a "none of these" counts; "which mattered most" is not
+needed); a scale, a percentage or a number, a value (0 counts); a text answer,
+something other than spaces; an agreement grid (every point has words), every
+line the person is shown; a grid of a programme's parts (words at its ends
+only, "How valuable was each part?"), any one line, since its own line says to
+leave a part blank you didn't have. A line somebody is not shown (the
+Facilitator line, to somebody who facilitates) is never needed. A menu offered
+from the profile counts once it holds an answer.
 
 **A consent box starts unticked**, and only a tick is a yes. When the answers
 are sent, each box's yes or no is written on the person's own row with when it
@@ -286,8 +345,13 @@ The menu starts on that answer and says so; the person can change it. Nothing
 else of the profile is read.
 
 **Until the first send** an admin may change the words, the options, the lines,
-the scale's words, the line under a question, the consent's words, the order,
-the title, the intro, the minutes and the closing day. Questions are never
+the scale's words, the line under a question, each question's Required switch,
+the consent's words, the order, the title, the intro, the minutes and the
+closing day. The switch writes `optional` on the question, true or false, so
+the admin's choice holds whatever the list says; the validator no longer
+refuses Worksheets' `required` and names only a contradiction (`required: true`
+on a question the survey holds optional). A sent survey's read-only list marks
+each optional question "(optional)". Questions are never
 added, taken out or retyped here (`sameQuestions`), and an answer that counts
 as a number is reworded, never added or taken out. **From the first send
 everything is fixed**: the email people got names the closing day, and the
@@ -375,10 +439,29 @@ sv-social-phone).
 One page, two doors: `/survey/<secret>` with no sign-in, and
 `/learn/<run>/survey/<survey>` signed in, the same page inside the programme.
 The cards on Home, My programmes, week 1 and the page that says somebody left
-link the first, the person's own link (see The cards). The page shows the programme, the title and intro, "Every question can be
-skipped.", the confidential box, the questions a page (a section) at a time
-with Back and Next, "Send my answers", and "It closes on Wed 4 Nov. Once sent,
-your answers can’t change."
+link the first, the person's own link (see The cards). The page shows the programme, the title and intro, "Every question
+needs an answer unless it’s marked optional." (followed by "The boxes asking
+your permission are up to you." on a form with a consent box, the Kairos box
+or the quote tick: `answerRuleWords`), the confidential box, the questions a
+page (a section) at a time with Back and Next, an optional question marked
+"(optional)", "Send my answers", and "It closes on Wed 4 Nov. Once sent, your
+answers can’t change."
+
+**A required question left blank.** Next does not leave a page with one, and
+Send does not send: each says "This question needs an answer." beside it (on
+every line for an agreement grid), a line by the buttons names them by number
+("Questions 3 and 7 still need an answer."), and focus moves to the first. The
+form checks with `missingOf` over each question's `need` (`requiredNeedOf`,
+built on the server for the person, hidden lines left out), the check the
+routes make. Before the script arrives the controls carry the browser's own
+`required` where the control allows it (a radio group, a menu, a typed box, a
+text box; never pick any, which has no "at least one", and never a consent
+box), and Send is disabled. **The server is the real check**: both answer
+writers (`recordAnswer`, and `recordEventAnswer` for a survey after an event)
+refuse a send with a required question blank, 400, before anything is
+written, with the questions by number in words and their ids in `missing`
+(`blankRefusal` in `src/lib/surveys/blank.ts`); the form marks those the same
+way.
 
 **The box** names the programme's lead (while they still stand as its lead) and
 the person's own group's facilitators, from records. A placement Publish has not
@@ -397,6 +480,98 @@ question. The answer is stamped with the day and time, how it came, and whether
 the person's group had met by then (from the start of its first session that is
 not cancelled). The signed-in route refuses during a view-as session. The link
 route is rate limited by a count in memory that keeps no address.
+
+## Sending the questions left blank
+
+Somebody may have sent a survey with required questions left blank (before
+every question was required, Zach, 30 Oct 2026). An admin can send that one
+person a link to just those questions. Their first answers are never changed
+or deleted: what they send later is added beside them.
+
+- **Where**: on the survey's Who answered tab (a programme's survey and a
+  survey after an event), in its "Left blank" column, and on the person's own
+  answers page, under "Questions left blank" for each survey shown: "Left 3
+  blank" and the button "Send the questions they left blank". The button asks
+  once more, naming the person and the count, before anything is sent.
+  While the survey does not take answers it says why instead. Once pressed,
+  the line says when and by whom ("Sent Fri 30 Oct, 2:05pm by Zach Levin", or
+  what became of the email), and the button stays only while blanks remain.
+  Never a bulk button, never automatic, never scheduled.
+- **What is blank** (`blanksOf` in `src/lib/surveys/blanks.ts`): every
+  REQUIRED question of the survey's items as they are now that the person's
+  merged answers leave blank, in the survey's order, by the survey's one rule
+  (`isQuestionRequired` and `missingRequired`, see "A required question left
+  blank"). A question marked optional and left blank is never a blank: it is
+  not counted and never sent. An agreement grid is blank in the lines it
+  shows the person with no point yet; "How valuable was each part?" (any one
+  line answers it) is blank only when no line has a point, and then shows
+  every line. A line hidden from the person (the facilitators line, to a
+  facilitator) is never theirs. A consent box, the Kairos choice and the
+  quote tick are never blanks.
+- **The press** (`POST /api/surveys/[surveyId]/people/[who]/blanks`, body
+  `{ questions }`, `pressBlanks` in `src/lib/surveys/blanksStore.ts`): admins
+  only, view-as refused first, the session and the admin bar, then the body,
+  before any read, as every other survey send. Refused while the survey does
+  not take answers, for nobody, for somebody who has not sent it, when
+  nothing is blank, and when the count the confirmation named is no longer
+  the count blank (nothing is sent and the answer carries the new count). It
+  mints a NEW secret for the person's link of blanks, so the first link never
+  reopens the whole survey, and writes it on their row with the press (who,
+  when, how many questions) before the email; a later press mints another,
+  and the old link opens nothing. At most three presses for one person in a
+  day, and twenty an hour for one admin on one survey (the notice lane's
+  durable counter).
+- **The email** is a notice, like the survey's own (`docs/notifications.md`,
+  surface `survey-blanks`, whose line says the person sent the survey with
+  some of its questions left blank), through the one door that reads the
+  do-not-email list, to an account's own address or the address a guest gave
+  the event, with the survey's own confidential line. Its words are
+  `blanksEmailWords`: the survey's name, how many questions, that the link
+  shows only those and never an answer, that the first answers stay as they
+  were sent, when it closes, and the presser's name. Never an answer, never a
+  result. It reuses the survey's email template (`SurveyEmail`).
+- **The link** (`/survey/<secret>`, the page every survey link opens, by
+  `openBlanksLink`, one equality on `blanks.token`), and the signed-in survey
+  pages (a programme's under `/learn`, and a survey after an event's QR code
+  page) while a link of blanks is waiting: the survey's title, "These are the
+  questions you left blank last time. ...", the survey's confidential box,
+  and only the questions still blank, each required, drawn by the survey's
+  own form (`blanksScreenFor` in `src/lib/surveys/blanksView.ts`). Never an
+  earlier answer: not their answers to this survey, and not an earlier
+  survey's answer a question would show above itself. A menu offered from the
+  profile is still offered. Nothing is kept before "Send my answers" and
+  nothing records the link being opened. Once used it says "You’ve sent
+  these"; a closed survey and a link with nothing left blank each say so in a
+  sentence.
+- **Sending them** (`POST /api/surveys/blanks` with the secret, rate limited
+  by a count in memory that keeps no address, and `POST
+  /api/surveys/[surveyId]/blanks` signed in, view-as refused; `recordBlanks`):
+  refused for an answer to a question that was not blank (or a grid's line
+  that was not), for a question still blank left blank again (400, the
+  answer routes' own `blankRefusal`, naming it by its number on the link and
+  its id in `missing`), for a spent or replaced link and once the survey has
+  closed. Kept once,
+  in a transaction that reads the row, the answer and the survey again,
+  appends one entry to the answer's `fills` (its answers, when, how, and on a
+  programme's survey whether the group had met) and spends the link. The
+  first send's `answers` are never written.
+- **ONE MERGE** (`mergedAnswers`): the first answers, then each later send in
+  order, each adding only to what was still blank; a grid merges line by
+  line. The two answer normalisers call it, so every reader reads merged
+  answers: the results and the lead's totals and comments, Who answered, one
+  person's page, the spreadsheet, This term in numbers, public numbers, the
+  Kairos report, before and after, and the leaving and event surveys'
+  results. The admins' switch that leaves out before-survey answers sent after
+  someone's first session merges again without the later sends that came
+  after it. `tests/surveys-blanks-merge.test.mjs` walks `src` for every file
+  that names the answers collection and fails on one that reads answers round
+  the normalisers.
+- **One person's page** marks each answer, or grid line, that came later:
+  "Sent later, Fri 30 Oct, 2:05pm".
+- **Names off and deletion**: a later send sits on the answer and names
+  nobody of its own, so names coming off and an account's deletion leave it
+  nameless with the answer; the link of blanks and its presses are on the
+  person's row, which both delete. No collection is added.
 
 ## The cards (Q50 B)
 
@@ -457,7 +632,7 @@ is no "then and now" page (Q47 A).
 Confidential, like every survey on the site (Zach: "to allow us to do better
 ... technically optional but we have good reason to ask"). One per programme,
 made by an admin from New survey's "Leaving a programme", from its own
-template (`templateItems("leaving", ...)`): three questions, about a minute,
+template (`templateItems("leaving", ...)`): three questions, all required, about a minute,
 written in the boards' voice for Zach to change before it is used. Its ids
 (`q_leave_why`, `q_leave_stay`, `q_leave_again`) are the same in every
 programme and are none of the stages', so leaving surveys compare with each
@@ -701,8 +876,10 @@ after an event `g_<signupId>` for a guest (`whoOf` and `subjectOf`).
   survey only.", "The after survey only." beside the change questions, the
   survey's name otherwise), a survey they were sent and did not answer said
   in a line. After an event, its one survey. Every question as the survey
-  holds it: its words, its line, its scale's words. A skipped question says
-  "No answer". The side column says when the name comes off (the surveys' own
+  holds it: its words, its line, its scale's words. A question left blank
+  says "No answer": an optional one, a part of a grid of parts, or any
+  question of answers sent before every question was required (30 Oct
+  2026). The side column says when the name comes off (the surveys' own
   `namesOffOn`) and who has opened these answers (the log, newest first). The
   head names their programme, their told group, and how many of the surveys
   they were on they answered ("Answered both").
@@ -717,7 +894,9 @@ after an event `g_<signupId>` for a guest (`whoOf` and `subjectOf`).
 
 - **An account deleted**: its survey rows are deleted and its name comes off
   its answers at once (`takeNamesOffForAccount`, step 1e of
-  `deleteAccountCascade`), both counted in the summary.
+  `deleteAccountCascade`), both counted in the summary. A link of blanks goes
+  with its row, and a later send of blanks stays, naming nobody, beside the
+  answer it belongs to.
 - **A form destroyed**: its surveys are left alone. A survey is the programme's,
   with its own retention, as the course run the form fed outlives the form; it
   stands without its form (it keeps the programme's name and kind), keeps its
@@ -824,7 +1003,8 @@ with `isEventSurvey` and hand it over.
   startAt, endAt }` as it was when made, so it stands without the event. The
   programme fields are empty. Its rows and answers are `surveyPeople` and
   `surveyAnswers` like every survey's, read and written by
-  `src/lib/surveys/events/store.ts` alone.
+  `src/lib/surveys/events/store.ts` alone, but for the questions somebody
+  left blank (`src/lib/surveys/blanksStore.ts`, as for a programme's survey).
 - **Who it reaches** (`events/audience.ts`, through `readAudience`): the people
   who came, from check-in (a sign-up's account, or the guest by their sign-up;
   an account that walked in; a walk-in with no account, by the check-in the door
@@ -835,7 +1015,8 @@ with `isEventSurvey` and hand it over.
   programme code reads accounts only (`normalizeSurveyPerson`); the event code
   reads both (`normalizeEventPerson`).
 - **Made** from "After a social" (`events/template.ts`, five questions, about a
-  minute, fixed ids `q_ev_*`) for a published event that is coming up or no more
+  minute, fixed ids `q_ev_*`, every one required but "Anything we should
+  change?", which starts optional) for a published event that is coming up or no more
   than a week over, with who it emails and a closing day no earlier than the
   event's (`POST /api/surveys` with `template: "event"`). Names come off two
   years after the event (`eventNamesOffOn`), by the `surveys-names-off` job as
@@ -999,8 +1180,13 @@ survey has who came to send to. What it can rely on:
 ## The guards
 
 `tests/surveys-items.test.mjs` (the template word for word, the model, the box,
-both emails, totals), `tests/surveys-routes.test.mjs` (every route and page as
-every kind of caller), `tests/surveys-deletion.test.mjs` (both cascades),
+both emails, totals), `tests/surveys-required.test.mjs` (required unless
+marked optional: the rule, every template walked both ways, what answered
+means for each type), `tests/surveys-routes.test.mjs` (every route and page as
+every kind of caller), `tests/surveys-blanks.test.mjs` (the questions left
+blank: the press, the link, the later send and every reader, as every kind of
+caller), `tests/surveys-blanks-merge.test.mjs` (the one merge, and no reader
+round it), `tests/surveys-deletion.test.mjs` (both cascades),
 `tests/surveys-no-tracking.test.mjs` (no activity, no address, no page that
 writes), `tests/surveys-quote-tick.test.mjs` (the box and the tick, one
 decision; the tick kept with its answer), `tests/surveys-public-numbers.test.mjs`

@@ -7,7 +7,7 @@
  *
  * ## What this guards
  *
- *  1. THE TEMPLATE: three questions, about a minute, every one skippable,
+ *  1. THE TEMPLATE: three questions, about a minute, every one required,
  *     with ids of its own, the same for every programme.
  *  2. MAKING IT: admins only, one per programme, no closing day, pairing with
  *     nothing (the stages still pair with each other), and its test link
@@ -47,6 +47,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { render } from "@react-email/render";
 import { AGI, NOW, OPEN_RUN, RUN, ROUND, makeLeavingWorld, textOf } from "./lib/leavingWorld.mjs";
 import { TAIS } from "./lib/applicationsSmallTerm.mjs";
+import { withEveryRequired } from "./lib/surveyAnswers.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 const w = await makeLeavingWorld("__surveysLeaving");
@@ -84,6 +85,12 @@ const lib = {
 };
 const NewSurveyForm = (await loadTs(join("features", "surveys", "admin", "NewSurveyForm.tsx"))).default;
 const { REFUSAL, OPEN_WORDS } = lib.words;
+/**
+ * `given`, with every required question of the leaving template it leaves out
+ * answered plainly, as the answer routes insist since 30 Oct 2026
+ * (tests/lib/surveyAnswers.mjs).
+ */
+const every = (given) => withEveryRequired(lib.items, lib.templates.templateItems("leaving", "fellowship", null), given);
 
 beforeEach(() => {
   mock.timers.setTime(NOW.getTime());
@@ -132,7 +139,7 @@ async function page(render, props, who = null) {
 // ---------------------------------------------------------------------------
 
 describe("1. the leaving template", () => {
-  test("three questions, about a minute, every one skippable, the same for every programme", () => {
+  test("three questions, about a minute, every one required, the same for every programme", () => {
     const items = lib.templates.templateItems("leaving", "fellowship", null);
     const questions = lib.items.surveyQuestionsOf(items);
     assert.deepEqual(
@@ -158,7 +165,10 @@ describe("1. the leaving template", () => {
     assert.equal(questions[1].hint, "Anything we could change, however small.");
     assert.deepEqual(questions[2].options.map((option) => option.label), ["Yes", "Maybe", "No"]);
     assert.deepEqual(lib.items.validateSurveyItems(items), []);
-    assert.ok(questions.every((question) => question.required !== true), "a leaving question is required");
+    // Zach, 30 Oct 2026: every survey question is required unless marked
+    // optional, and all three apply to everybody who left.
+    assert.ok(questions.every((question) => lib.items.isQuestionRequired(question)), "a leaving question is optional");
+    assert.deepEqual(lib.items.missingRequired(items, {}), ["q_leave_why", "q_leave_stay", "q_leave_again"]);
     assert.equal(lib.templates.templateMinutes("leaving"), 1);
     assert.deepEqual(lib.templates.templateItems("leaving", "incubator", "alignment"), items, "an incubator's leaving survey is the same");
     // None of its ids is a stage's: it compares with nothing they ask.
@@ -377,7 +387,8 @@ describe("5. the page people answer: confidential, in its own words, with no clo
     const shown = await page(pages.link, { params: Promise.resolve({ token: survey(id).testToken }) });
     const names = lib.words.dateKeyWords(survey(id).namesOffOn);
     for (const words of [
-      "Fellowship: AGI Strategy Why you left Tell us why you left, so we can do better. It’s 3 questions and takes about a minute.",
+      // Every question needs an answer (Zach, 30 Oct 2026); it has no box asking permission, so no line about one.
+      "Fellowship: AGI Strategy Why you left Tell us why you left, so we can do better. It’s 3 questions and takes about a minute. Every question needs an answer unless it’s marked optional. Confidential",
       "Confidential Only NAISI’s admins can see who said what. Claudia sees totals and comments, never names. Your facilitators never see your answers. " +
         "Nothing you say changes your account or a future application. Totals may go in reports to the committee and our funder, Kairos. " +
         `Your name comes off on ${names}, two years after the fellowship ends. The totals stay. We ask who you are so each person answers once.`,
@@ -389,6 +400,7 @@ describe("5. the page people answer: confidential, in its own words, with no clo
     }
     // Never the words the boards drew for an anonymous survey, and no closing day.
     assert.doesNotMatch(shown.text, /anonymous|never records who answers|It closes on/i);
+    assert.ok(!shown.text.includes("The boxes asking your permission") && !shown.text.includes("(optional)"), "the leaving survey speaks of a box it does not have");
     assert.ok(!shown.html.includes("Send my answers"), "a test link offers to send");
   });
 });
@@ -484,7 +496,8 @@ describe("6. reaching it: as somebody leaves by their own hand, and nobody else"
     }
     assert.ok(!before.text.includes("Tell us why"), "the card was drawn before Amara left");
     // Once answered, the page says only that Amara left.
-    const answered = await call(null, routes.answerByLink.POST, {}, { body: { token, answers: { q_leave_again: { type: "choice", optionId: "o_maybe" } } } });
+    // Every question needs an answer (Zach, 30 Oct 2026): all three, each time.
+    const answered = await call(null, routes.answerByLink.POST, {}, { body: { token, answers: every({ q_leave_again: { type: "choice", optionId: "o_maybe" } }) } });
     assert.equal(answered.status, 200, JSON.stringify(answered.body));
     const after = await draw(w.pages.home, "amara", { runId: RUN.agi });
     assert.ok(!after.text.includes("Tell us why") && !after.html.includes("/survey/"), after.text);
@@ -540,7 +553,7 @@ describe("6. reaching it: as somebody leaves by their own hand, and nobody else"
     const id = await opened();
     await w.leave("amara");
     const first = rowOf("amara");
-    const answered = await call(null, routes.answerByLink.POST, {}, { body: { token: first.token, answers: { q_leave_again: { type: "choice", optionId: "o_yes" } } } });
+    const answered = await call(null, routes.answerByLink.POST, {}, { body: { token: first.token, answers: every({ q_leave_again: { type: "choice", optionId: "o_yes" } }) } });
     assert.equal(answered.status, 200, JSON.stringify(answered.body));
     // An admin puts Amara back, and Amara leaves again.
     world.db.poke(`courseEnrolments/${RUN.agi}__amara`, { status: "active", droppedOutAt: null });
@@ -593,7 +606,7 @@ describe("7. results: for admins, and for the programme's lead, never a name", (
     await w.settle();
     for (const [uid, text] of [["amara", "Shorter readings in week 2."], ["dev", "A later session time."]]) {
       const answered = await call(null, routes.answerByLink.POST, {}, {
-        body: { token: rowOf(uid).token, answers: { q_leave_why: { type: "choices", optionIds: ["o_time"] }, q_leave_stay: { type: "text", text } } },
+        body: { token: rowOf(uid).token, answers: every({ q_leave_why: { type: "choices", optionIds: ["o_time"] }, q_leave_stay: { type: "text", text } }) },
       });
       assert.equal(answered.status, 200, JSON.stringify(answered.body));
     }
@@ -647,7 +660,8 @@ describe("7. results: for admins, and for the programme's lead, never a name", (
     w.reset();
     const one = await opened();
     await w.leave("amara");
-    await call(null, routes.answerByLink.POST, {}, { body: { token: rowOf("amara").token, answers: { q_leave_again: { type: "choice", optionId: "o_no" } } } });
+    const sent = await call(null, routes.answerByLink.POST, {}, { body: { token: rowOf("amara").token, answers: every({ q_leave_again: { type: "choice", optionId: "o_no" } }) } });
+    assert.equal(sent.status, 200, JSON.stringify(sent.body));
     assert.ok((await leadPage("claudia", one)).text.includes("1 answer from the 1 person it reached (100%)."));
   });
 

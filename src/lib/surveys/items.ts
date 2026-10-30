@@ -46,9 +46,16 @@ import {
  *
  * Rules a maintainer keeps:
  *
- *  - NO QUESTION IS REQUIRED. Every question in a survey can be skipped, so a
- *    stored `required: true` is a problem the validator names, and the
- *    templates write none. A box in a consent block starts unticked.
+ *  - EVERY QUESTION IS REQUIRED unless it is marked optional (Zach, 30 Oct
+ *    2026): `isQuestionRequired` is the one rule, `missingRequired` the one
+ *    check of what was left blank, asked by the answer form, the answer
+ *    routes and the resend of blank questions alike. A question's own
+ *    `optional` wins; with none, only the template questions that do not
+ *    apply to everybody (`NOT_FOR_EVERYBODY`) are optional. Worksheets'
+ *    `required` field is not read: surveys stored before this rule carry
+ *    `required: false` on every choice and text question, and it means
+ *    nothing. A consent block is no question, so it is never required, and
+ *    a box in it starts unticked: consent is freely given.
  *  - OPTION AND LINE IDS ARE STABLE. Answers store ids, never labels, so
  *    rewording an option or a line keeps every answer given to it. The
  *    templates' ids are fixed strings, the same in every programme and at
@@ -81,6 +88,12 @@ export type SurveyQuestionExtras = {
    * same programme, shown above this one ("At the start you said: ...").
    */
   pipe?: SurveyPipe;
+  /**
+   * The editor's Required switch, turned off (`true`) or on (`false`). Absent
+   * on a survey stored before the switch existed: `isQuestionRequired` then
+   * decides by the question's id.
+   */
+  optional?: boolean;
 };
 
 /** Where a piped answer comes from, and the words before it. */
@@ -289,6 +302,7 @@ function readExtras(raw: Raw): SurveyQuestionExtras {
   if (isRaw(raw.pipe) && typeof raw.pipe.from === "string" && raw.pipe.from) {
     out.pipe = { from: raw.pipe.from, words: str(raw.pipe.words) };
   }
+  if (typeof raw.optional === "boolean") out.optional = raw.optional;
   return out;
 }
 
@@ -502,6 +516,152 @@ export function questionNumbers(items: readonly SurveyItem[]): Map<string, numbe
   return new Map(surveyQuestionsOf(items).map((question, index) => [question.id, index + 1]));
 }
 
+// ---------------------------------------------------------------------------
+// Required questions
+// ---------------------------------------------------------------------------
+
+/**
+ * THE TEMPLATE QUESTIONS THAT DO NOT APPLY TO EVERYBODY, by id, each with why.
+ * The site cannot show a question only to some people, so a question here is
+ * optional unless an admin switches it on. Everything else is required: every
+ * choice, scale, number, percentage and grid, and every text question that
+ * anybody can answer ("What do you most want to get out of this programme?",
+ * "Did the programme have any negative effect on you or your plans?", "What
+ * would have helped you stay?").
+ *
+ * Surveys stored before the Required switch existed carry no `optional`, so
+ * this list decides for them, the moment the code is live; a survey made from
+ * a template since writes `optional: true` on these (`markNotForEverybody`).
+ * An id here is a template's fixed id, the same in every programme.
+ */
+export const NOT_FOR_EVERYBODY: Readonly<Record<string, string>> = {
+  q_i4_links: "Links to what your team produced: a team with nothing finished, or nothing public, has none.",
+  q_i4_when: "If nothing is finished yet, when do you expect it to be?: only for a team with nothing finished.",
+  q_f1_where: "The organisation or course: somebody doing independent work has none.",
+  q_f3: "What is that work?: only for somebody whose working time goes on AI safety.",
+  q_f4_applied: "Since the programme, which programmes or jobs have you applied to?: not everybody has applied.",
+  q_f4_accepted: "Which of those accepted you?: only for somebody who applied and was accepted.",
+  q_f7: "Anything else that happened partly because of NAISI?: a catch-all.",
+  q_ev_change: "Anything we should change?: a catch-all, after an event.",
+};
+
+/** The ids `NOT_FOR_EVERYBODY` names. */
+export const NOT_FOR_EVERYBODY_IDS: readonly string[] = Object.keys(NOT_FOR_EVERYBODY);
+
+/**
+ * Whether a question must be answered before a survey can be sent. The
+ * question's own `optional` wins (true optional, false required); with none,
+ * it is optional only when its id is on `NOT_FOR_EVERYBODY`. Worksheets'
+ * `required` field is never read. Anything that is not a question (a
+ * section, a page break, a consent block) is never required.
+ */
+export function isQuestionRequired(item: SurveyItem): boolean {
+  if (item.kind !== "question") return false;
+  if (item.optional === true) return false;
+  if (item.optional === false) return true;
+  return own(NOT_FOR_EVERYBODY, item.id) === undefined;
+}
+
+/** The required questions, in order. */
+export function requiredQuestionsOf(items: readonly SurveyItem[]): SurveyQuestion[] {
+  return surveyQuestionsOf(items).filter(isQuestionRequired);
+}
+
+/**
+ * A template's items with every question on `NOT_FOR_EVERYBODY` written as
+ * optional, and nothing written on the rest, so the editor's switch starts
+ * where the list says.
+ */
+export function markNotForEverybody(items: SurveyItem[]): SurveyItem[] {
+  return items.map((item) =>
+    item.kind === "question" && own(NOT_FOR_EVERYBODY, item.id) !== undefined ? { ...item, optional: true } : item,
+  );
+}
+
+/**
+ * What answering one required question takes. `lines` is null for every
+ * question but an agreement grid, where it names each line the person is
+ * shown, every one of which needs a point.
+ */
+export type RequiredNeed = { id: string; lines: string[] | null };
+
+/**
+ * What answering a required question takes, for a person who is not shown
+ * `hiddenLines` (the Facilitator line, for somebody who facilitates).
+ *
+ * A grid whose every point has words is an agreement grid: every line is a
+ * statement anybody can agree or disagree with, so every line it shows needs
+ * a point. A grid with words only at its ends rates a programme's parts, and
+ * its own line says to leave a part blank you didn't have, so any one line
+ * answers it.
+ */
+export function requiredNeedOf(question: SurveyQuestion, hiddenLines: readonly string[] = []): RequiredNeed {
+  if (isLinesQuestion(question) && question.scale.points !== undefined) {
+    return { id: question.id, lines: question.lines.map((line) => line.id).filter((id) => !hiddenLines.includes(id)) };
+  }
+  return { id: question.id, lines: null };
+}
+
+const isWhole = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+
+/**
+ * Whether an answer, in the shape the routes read or keep, says something:
+ * one option picked; at least one ticked (a "none of these" counts); a value
+ * on a scale, a percentage or a number (0 included); words that are more than
+ * spaces; and for a grid, a point on every line `lines` names, or on any one
+ * line when it names none.
+ */
+export function answerFills(answer: unknown, lines: readonly string[] | null = null): boolean {
+  if (!isRaw(answer)) return false;
+  switch (answer.type) {
+    case "choice":
+      return typeof answer.optionId === "string" && answer.optionId.length > 0;
+    case "choices":
+      return Array.isArray(answer.optionIds) && answer.optionIds.some((id) => typeof id === "string" && id.length > 0);
+    case "rating":
+      return isWhole(answer.value) && answer.value > 0;
+    case "scale":
+    case "percent":
+    case "number":
+      return isWhole(answer.value);
+    case "text":
+      return typeof answer.text === "string" && answer.text.trim().length > 0;
+    case "lines": {
+      const values = isRaw(answer.values) ? answer.values : {};
+      const point = (id: string) => {
+        const value = own(values, id);
+        return isWhole(value) && value >= 1;
+      };
+      return lines === null ? Object.keys(values).some(point) : lines.every(point);
+    }
+    default:
+      return false;
+  }
+}
+
+/** The ids of the needs `answers` leaves blank, in order. The one check the form and `missingRequired` share. */
+export function missingOf(needs: readonly RequiredNeed[], answers: unknown): string[] {
+  const given = isRaw(answers) ? answers : {};
+  return needs.filter((need) => !answerFills(own(given, need.id), need.lines)).map((need) => need.id);
+}
+
+/**
+ * The ids of the required questions `answers` leaves blank, in the survey's
+ * order. `answers` is by question id, in the shapes the answer routes read
+ * or keep. `hiddenLines` are the grid lines the person was not shown, which
+ * nobody needs to answer.
+ */
+export function missingRequired(
+  items: readonly SurveyItem[],
+  answers: unknown,
+  options: { hiddenLines?: readonly string[] } = {},
+): string[] {
+  return missingOf(
+    requiredQuestionsOf(items).map((question) => requiredNeedOf(question, options.hiddenLines ?? [])),
+    answers,
+  );
+}
+
 /** The number each option of a scored question stands for, or undefined. */
 export function scoreOf(question: SurveyQuestion, optionId: string): number | undefined {
   if (question.kind !== "question" || question.type !== "singleChoice") return undefined;
@@ -534,6 +694,9 @@ export function surveyPagesOf(items: readonly SurveyItem[]): SurveyItem[][] {
 // ---------------------------------------------------------------------------
 
 export type SurveyItemProblem = { itemId: string; message: string };
+
+/** A question stored both as required (Worksheets' field) and optional (the survey's switch). */
+export const REQUIRED_CONTRADICTION = "This question is marked both required and optional. Turn its Required switch on or off to settle it.";
 
 function titleProblems(question: { id: string; title: string }, say: (message: string) => void): void {
   if (question.title.trim().length === 0) say("This question needs its words.");
@@ -712,7 +875,10 @@ export function validateSurveyItems(items: readonly SurveyItem[]): SurveyItemPro
     else if (isScaleQuestion(item)) scaleProblems(item, say);
     else {
       if (!SURVEY_WORKSHEET_TYPES.includes(item.type)) say("A survey can’t ask this kind of question.");
-      if (item.required) say("Every question in a survey can be skipped, so none is required.");
+      // Worksheets' own field means nothing here (`isQuestionRequired`), so
+      // it only ever disagrees: a question it marks required that the survey
+      // holds optional is named, never quietly read one way or the other.
+      if (item.required && !isQuestionRequired(item)) say(REQUIRED_CONTRADICTION);
       choiceProblems(item, say);
     }
   }
@@ -854,10 +1020,11 @@ export function withoutLines(answers: Record<string, SurveyAnswer>, hidden: read
 
 /**
  * A person's answers, read from a request: only the survey's own questions,
- * each checked against its question, and nothing for one left blank. Every
- * question can be skipped, so an empty answer is no problem: it is simply not
- * kept. `quotes` is whether the survey draws "You can quote this, without my
- * name" under its long answers (`asksQuotes`); without it, a tick is refused.
+ * each checked against its question, and nothing for one left blank. A blank
+ * answer is simply not kept here; whether a blank was allowed is
+ * `missingRequired`'s question, asked of what this returns. `quotes` is
+ * whether the survey draws "You can quote this, without my name" under its
+ * long answers (`asksQuotes`); without it, a tick is refused.
  */
 export function readSurveyAnswers(
   items: readonly SurveyItem[],

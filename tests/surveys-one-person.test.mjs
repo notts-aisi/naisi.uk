@@ -34,6 +34,7 @@ import { NOW, RUN, makeSurveyWorld, surveySeed, textOf } from "./lib/surveyWorld
 import { EVENT_ID, LATE, NEXT_DAY, RSVP, makeEventSurveyWorld } from "./lib/eventSurveyWorld.mjs";
 import { walkSource } from "./lib/functionScan.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
+import { withEveryRequired } from "./lib/surveyAnswers.mjs";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 const read = (...parts) => readFileSync(join(SRC, ...parts), "utf8");
@@ -77,9 +78,12 @@ const AFTER = {
   q_c1: { type: "choice", optionId: "o_stage2" },
   q_c2: { type: "percent", value: 35 },
   q_c4: { type: "scale", value: 5 },
-  q_c7: { type: "lines", values: { l_next: 4 } },
+  // An agreement grid needs every line (Zach, 30 Oct 2026).
+  q_c7: { type: "lines", values: { l_next: 4, l_contribute: 3 } },
   q_c9: { type: "choices", optionIds: ["o_applied", "o_written"] },
   q_a4: { type: "choices", optionIds: ["o_80k", "o_friends"], most: "o_80k" },
+  // Looking back, not the first point, so nothing of Amara's reads as Bea's C1.
+  q_t1: { type: "choice", optionId: "o_stage1" },
   q_q1: { type: "scale", value: 9 },
   q_q2: { type: "lines", values: { l_sessions: 5, l_readings: 4 } },
   q_a5: { type: "text", text: "Writing the threat model. I finally had to decide what I actually think." },
@@ -367,6 +371,10 @@ describe("3. what an admin sees: the change questions side by side, each survey'
     assert.equal(person.nothing, "");
 
     // The change questions: the nine the start and the end both ask, numbered as the before survey numbers them.
+    // Every required question is answered since 30 Oct 2026; what BEFORE and
+    // AFTER leave out the world answers plainly (the first option, the lowest
+    // point, 0), so "No answer" is left for a part of a grid of parts left
+    // blank (Facilitator, below) and for answers sent before the rule.
     const change = person.change;
     assert.equal(change.title, "The change questions");
     assert.equal(change.line, "The same 9 at the start and at the end.");
@@ -378,16 +386,16 @@ describe("3. what an admin sees: the change questions side by side, each survey'
       "§ Where you are now [Career stage, intention and interests]",
       "5. Which best describes you right now? => Thought about it, not a serious option | One of several options I’m seriously considering",
       "6. How likely is it that in 5 years most of your working time goes on reducing risks from advanced AI? {0 to 100%} => 20% | 35%",
-      "7. Which kinds of work interest you most? {Pick up to 3} => Governance or policy / Strategy | No answer",
+      "7. Which kinds of work interest you most? {Pick up to 3} => Governance or policy / Strategy | Technical research",
       "§ What you know, and who [Understanding, field knowledge, network, clarity and confidence]",
       "8. How well could you explain why some researchers think advanced AI could be catastrophically dangerous, and the main objections? {1 Not at all to 7 Could hold my own with a researcher} => 3 | 5",
-      "9. How familiar are you with the main organisations, research agendas and policy debates in AI safety? {1 Couldn’t name any to 7 Could describe most major orgs’ agendas well enough that their staff would agree} => No answer | No answer",
-      "10. How many people working in AI safety would you feel comfortable messaging for 30 minutes of advice? => 2 | No answer",
+      "9. How familiar are you with the main organisations, research agendas and policy debates in AI safety? {1 Couldn’t name any to 7 Could describe most major orgs’ agendas well enough that their staff would agree} => 1 | 1",
+      "10. How many people working in AI safety would you feel comfortable messaging for 30 minutes of advice? => 2 | 0",
       "11. How much do you agree? {1 Strongly disagree to 5 Strongly agree}",
       "  I know what my next concrete step towards AI safety work would be.: 2 | 4",
-      "  I could make a meaningful contribution to AI safety.: 3 | No answer",
+      "  I could make a meaningful contribution to AI safety.: 3 | 3",
       "§ What you’ve done [Obstacles and concrete actions]",
-      "12. What, if anything, stands between you and contributing to AI safety? {Pick any} => No answer | No answer",
+      "12. What, if anything, stands between you and contributing to AI safety? {Pick any} => Not sure the risk is real | Not sure the risk is real",
       "13. In the last 3 months, have you… (End: Since the programme started, have you…) {Pick any} => Attended an AI safety event outside NAISI | Applied to an AI safety programme or job / Written something on AI safety",
     ]);
     // C2's line under it, as the survey holds it.
@@ -402,9 +410,9 @@ describe("3. what an admin sees: the change questions side by side, each survey'
     assert.deepEqual(rowsOf(beforeOnly).slice(0, 5), [
       "§ About you [Reach]",
       "-. Level of study => Master’s",
-      "-. Subject of study => No answer",
+      "-. Subject of study => Computer science",
       "-. Before this programme, which of these had you done? {Pick any} => AI safety books, LessWrong or 80,000 Hours / An AI safety talk or event",
-      "-. How did you first hear about NAISI? {Pick any} => No answer",
+      "-. How did you first hear about NAISI? {Pick any} => Freshers’ fair",
     ]);
     assert.ok(rowsOf(beforeOnly).includes("-. What do you most want to get out of this programme? => To explain the risk clearly."));
     const afterRows = rowsOf(afterOnly);
@@ -631,12 +639,15 @@ describe("5. an opening is kept as the record of downloads is", () => {
 
 describe("6. a survey after an event: an account's answers, and a guest's", async () => {
   const e = await makeEventSurveyWorld("__surveysOnePersonEvents");
+  const eventItems = await e.load("lib/surveys/items.ts");
   const eventOpening = await e.loadTs(join("app", "api", "surveys", "[surveyId]", "people", "[who]", "route.ts"));
   const press = async (path, who, id, body = {}) => e.call(who, (await e.route(`surveys/[surveyId]/${path}`)).POST, { surveyId: id }, { body });
   const ANSWERS = {
     q_ev_how: { type: "rating", value: 5 },
     q_ev_again: { type: "choice", optionId: "o_ev_yes" },
     q_ev_next: { type: "choices", optionIds: ["o_ev_games", "o_ev_quiz"] },
+    // Required since 30 Oct 2026, as every question not marked optional.
+    q_ev_heard: { type: "choice", optionId: "o_ev_friend" },
     q_ev_change: { type: "text", text: "More headsets." },
   };
   const eventOpenings = () => e.world.db.paths().filter((path) => path.startsWith("recordOpenings/")).map((path) => e.world.db.read(path));
@@ -655,7 +666,9 @@ describe("6. a survey after an event: an account's answers, and a guest's", asyn
     assert.equal((await press("send", "zach", id, { to: "everyone", emails: 4 })).status, 200);
     const link = e.linkIn(e.world.mail.find((message) => message.to === "gwen@example.com"));
     const token = link.slice(link.lastIndexOf("/") + 1);
-    const gwen = await e.call(null, (await e.route("surveys/answer")).POST, {}, { body: { token, answers: { q_ev_how: { type: "rating", value: 4 } } } });
+    // Every required question answered (Zach, 30 Oct 2026); "Anything we should change?" is optional, and Gwen leaves it.
+    const given = { q_ev_how: { type: "rating", value: 4 }, q_ev_again: { type: "choice", optionId: "o_ev_maybe" } };
+    const gwen = await e.call(null, (await e.route("surveys/answer")).POST, {}, { body: { token, answers: withEveryRequired(eventItems, e.survey(id).items, given) } });
     assert.equal(gwen.status, 200, JSON.stringify(gwen.body));
     return id;
   }
@@ -670,7 +683,8 @@ describe("6. a survey after an event: an account's answers, and a guest's", asyn
     assert.equal(person.change, null);
     assert.equal(person.rest.length, 1);
     assert.equal(person.rest[0].columns[0].label, "Answers");
-    assert.deepEqual(rowsOf(person.rest[0]).slice(0, 2), ["-. How was it? {1 Not good to 5 Great} => 4", "-. Would you come to another NAISI social? => No answer"]);
+    assert.deepEqual(rowsOf(person.rest[0]).slice(0, 2), ["-. How was it? {1 Not good to 5 Great} => 4", "-. Would you come to another NAISI social? => Maybe"]);
+    assert.ok(rowsOf(person.rest[0]).includes("-. Anything we should change? => No answer"), "an optional question left blank says so");
     assert.deepEqual(person.namesOff, ["Gwen’s name comes off on Wed 1 Nov 2028. Their answers stay in the totals."]);
     const [row] = eventOpenings();
     assert.deepEqual(Object.keys(row).sort(), ["actorName", "actorUid", "kind", "openedAt", "subjectSignupId", "surveyId", "surveyIds"]);
@@ -700,7 +714,7 @@ describe("6. a survey after an event: an account's answers, and a guest's", asyn
     const full = await readSurvey(e.world.db, id);
     const gwensOwn = await store.eventPersonOn(loose, full, { kind: "guest", signupId: RSVP.gwen });
     assert.deepEqual(gwensOwn.answer.respondent, { kind: "guest", signupId: RSVP.gwen });
-    assert.deepEqual(gwensOwn.answer.answers, { q_ev_how: { type: "rating", value: 4 } });
+    assert.deepEqual(gwensOwn.answer.answers, withEveryRequired(eventItems, full.items, { q_ev_how: { type: "rating", value: 4 }, q_ev_again: { type: "choice", optionId: "o_ev_maybe" } }));
     const kofisOwn = await store.eventPersonOn(loose, full, { kind: "account", uid: "kofi" });
     assert.deepEqual(kofisOwn.answer.respondent, { kind: "account", uid: "kofi" });
     // Who answered links the guest by their sign-up.

@@ -5,15 +5,17 @@ import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 import Button from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
+import Switch from "@/components/ui/Switch";
 import { useHydrated } from "@/hooks/useHydrated";
 import {
+  isQuestionRequired,
   newSurveyId,
   type SurveyChoiceQuestion,
   type SurveyConsentItem,
   type SurveyItem,
   type SurveyQuestion,
 } from "@/lib/surveys/items";
-import { questionTypeWords } from "@/lib/surveys/words";
+import { REQUIRED_WORDS, questionTypeWords } from "@/lib/surveys/words";
 import styles from "./surveyAdmin.module.css";
 
 /**
@@ -25,6 +27,13 @@ import styles from "./surveyAdmin.module.css";
  * questionnaire, asked again at the end and afterwards, so answers compare.
  * An answer that counts as a number (a stage, a share of working time) is
  * reworded, never added or taken out.
+ *
+ * Each question has a Required switch (Zach, 30 Oct 2026), on unless the
+ * question is marked optional (`isQuestionRequired`: its own `optional`, or
+ * for a survey made before the switch, the template's list of questions that
+ * do not apply to everybody). Turning it writes `optional` on the question,
+ * true or false, so what the admin chose is kept whatever the list says. A
+ * consent block has no switch: a consent box is never required.
  *
  * The whole survey is saved at once, through the route that refuses a survey
  * already sent. Nothing can be typed before the page's script has arrived
@@ -213,6 +222,7 @@ function ConsentWords({ item, onChange }: { item: SurveyConsentItem; onChange: (
         />
       ))}
       <p className={styles.muted}>Each box starts unticked. Only what people tick is kept.</p>
+      <p className={styles.muted}>{REQUIRED_WORDS.consent}</p>
     </div>
   );
 }
@@ -403,6 +413,13 @@ export default function QuestionsEditor({
                 <span className={styles.qType}>{questionTypeWords(question)}</span>
                 {question.pipe && <span className={styles.muted}>Shows each person what they said to it at an earlier stage.</span>}
                 <QuestionWords question={question} number={number} onChange={(next) => setItem(index, next)} />
+                <Switch
+                  id={`${id}-required-${question.id}`}
+                  checked={isQuestionRequired(question)}
+                  onChange={(on) => setItem(index, { ...question, optional: !on } as SurveyQuestion)}
+                  label={REQUIRED_WORDS.label}
+                  description={isQuestionRequired(question) ? REQUIRED_WORDS.on : REQUIRED_WORDS.off}
+                />
               </div>
               <div className={styles.moves}>
                 <button type="button" className={styles.iconButton} aria-label={`Move question ${number} up`} disabled={at <= 0} onClick={() => move(index, -1)}>

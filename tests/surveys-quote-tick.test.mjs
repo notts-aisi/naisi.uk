@@ -27,12 +27,14 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { AGI, NOW, ROUND, makeSurveyWorld, surveySeed } from "./lib/surveyWorld.mjs";
 import { EVENT_ID, LATE, makeEventSurveyWorld } from "./lib/eventSurveyWorld.mjs";
+import { withEveryRequired } from "./lib/surveyAnswers.mjs";
 
 const w = await makeSurveyWorld("__surveysQuoteTick");
 const { routes, call } = w;
 const { templates, words, records } = w.lib;
 const { answerPagesOf } = await w.loadTs(join("lib", "surveys", "answerView.ts"));
 const events = await makeEventSurveyWorld("__surveysQuoteTickEvents");
+const eventItems = await events.load("lib/surveys/items.ts");
 const eventWords = await events.load("lib/surveys/events/words.ts");
 const { eventTemplateItems } = await events.load("lib/surveys/events/template.ts");
 
@@ -174,7 +176,7 @@ describe("the tick is kept with the answer it is under, and nowhere else", () =>
     clock(t);
     w.reset(surveySeed());
     const after = await makeAndSend("after");
-    const send = (uid, a5) => call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(after, uid), answers: { q_a5: a5 } } });
+    const send = (uid, a5) => call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(after, uid), answers: w.everyRequired(after, { q_a5: a5 }) } });
     assert.deepEqual(short(await send("amara", { type: "text", text: WORDS, quote: true })), [200, null]);
     assert.deepEqual(short(await send("bea", { type: "text", text: "Nothing negative." })), [200, null]);
     assert.deepEqual(short(await send("dev", { type: "text", text: "None.", quote: false })), [200, null]);
@@ -185,16 +187,19 @@ describe("the tick is kept with the answer it is under, and nowhere else", () =>
     assert.ok(!("quote" in kept.get("bea")) && !("quote" in kept.get("dev")));
   });
 
-  test("signed in, the same; a tick under an answer left blank keeps nothing", async (t) => {
+  test("signed in, the same; a tick under a required answer left blank is no answer, so nothing is kept", async (t) => {
     clock(t);
     w.reset(surveySeed());
     const after = await makeAndSend("after");
-    const signedIn = (uid, answers) => call(uid, routes.answerSignedIn.POST, { surveyId: after }, { body: { answers } });
+    const signedIn = (uid, answers) => call(uid, routes.answerSignedIn.POST, { surveyId: after }, { body: { answers: w.everyRequired(after, answers) } });
     assert.deepEqual(short(await signedIn("amara", { q_a5: { type: "text", text: WORDS, quote: true } })), [200, null]);
-    assert.deepEqual(short(await signedIn("bea", { q_a5: { type: "text", text: "   ", quote: true } })), [200, null]);
+    // A5 is required (Zach, 30 Oct 2026): spaces with a tick are still a blank, refused whole.
+    const blank = await signedIn("bea", { q_a5: { type: "text", text: "   ", quote: true } });
+    assert.deepEqual([blank.status, blank.body.missing], [400, ["q_a5"]]);
     const kept = new Map(w.answers(after).map((answer) => [answer.respondent.uid, answer.answers]));
     assert.deepEqual(kept.get("amara").q_a5, { type: "text", text: WORDS, quote: true });
-    assert.deepEqual(kept.get("bea"), {}, "a tick with no words was kept as something to quote");
+    assert.equal(kept.has("bea"), false, "a tick with no words was kept as something to quote");
+    // Under an optional long answer the same blank is let through and keeps nothing: the event survey's case below.
   });
 
   test("refused where no box was drawn, or in a shape the form never sends, and nothing is kept", async (t) => {
@@ -211,7 +216,7 @@ describe("the tick is kept with the answer it is under, and nowhere else", () =>
     assert.deepEqual(short(await byLink(after, "amara", { q_a5: { type: "text", text: WORDS, quote: "yes" } })), [400, "That answer is not in a shape this question understands."]);
     assert.deepEqual(w.answers(after), []);
     // The same answer, sent as the form sends it, is then kept.
-    assert.deepEqual(short(await byLink(after, "amara", { q_a5: { type: "text", text: WORDS, quote: true } })), [200, null]);
+    assert.deepEqual(short(await byLink(after, "amara", w.everyRequired(after, { q_a5: { type: "text", text: WORDS, quote: true } }))), [200, null]);
   });
 
   test("the survey about leaving draws no box, so a tick sent to it is refused and nothing is kept", async (t) => {
@@ -240,7 +245,7 @@ describe("the tick is kept with the answer it is under, and nowhere else", () =>
     assert.deepEqual(short(sent), [400, NO_BOX]);
     assert.deepEqual(w.answers(id), []);
     // Without the tick it is kept, as it always was.
-    assert.deepEqual(short(await call(null, routes.answerByLink.POST, {}, { body: { token, answers: { q_leave_stay: { type: "text", text: "Earlier sessions." } } } })), [200, null]);
+    assert.deepEqual(short(await call(null, routes.answerByLink.POST, {}, { body: { token, answers: w.everyRequired(id, { q_leave_stay: { type: "text", text: "Earlier sessions." } }) } })), [200, null]);
     assert.deepEqual(w.answers(id)[0].answers.q_leave_stay, { type: "text", text: "Earlier sessions." });
   });
 
@@ -252,13 +257,18 @@ describe("the tick is kept with the answer it is under, and nowhere else", () =>
     const id = made.body.survey.id;
     const press = async (path, who, body = {}) => events.call(who, (await events.route(`surveys/[surveyId]/${path}`)).POST, { surveyId: id }, { body });
     assert.equal((await press("open-at-event", "zach")).status, 200);
-    const answers = {
+    const every = (given) => withEveryRequired(eventItems, events.survey(id).items, given);
+    const answers = every({
       q_ev_how: { type: "rating", value: 5 },
       q_ev_change: { type: "text", text: "Loved meeting people from the fellowships.", quote: true },
-    };
+    });
     assert.deepEqual(short(await press("answer", "kofi", { answers })), [200, null]);
     const kept = events.answers(id).find((answer) => answer.respondent?.uid === "kofi");
     assert.deepEqual(kept.answers.q_ev_change, { type: "text", text: "Loved meeting people from the fellowships.", quote: true });
+    // "Anything we should change?" is optional: left blank with the box ticked, it is let through and nothing of it is kept.
+    assert.deepEqual(short(await press("answer", "mo", { answers: every({ q_ev_change: { type: "text", text: "   ", quote: true } }) })), [200, null]);
+    const mo = events.answers(id).find((answer) => answer.respondent?.uid === "mo");
+    assert.equal("q_ev_change" in mo.answers, false, "a tick with no words was kept as something to quote");
     assert.equal(kept.eventId, EVENT_ID);
   });
 

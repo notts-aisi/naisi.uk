@@ -8,13 +8,17 @@ import {
   programmeOf,
   type SurveyDoc,
   type SurveyKind,
+  type SurveyPersonDoc,
 } from "@/lib/firestore/surveys";
+import { blanksOf, blanksRowOf, laterAnswersOf } from "./blanks";
 import { readEventAudience, respondentKey } from "./events/audience";
 import { eventPersonOn } from "./events/store";
 import { eventMeta } from "./events/words";
-import { personTables, type PersonSurvey, type PersonView } from "./onePersonLayout";
-import { toldGroupOf } from "./personFacts";
-import { listSurveys, personOnSurveys } from "./repo";
+import type { SurveyAnswer } from "./items";
+import { namesOf } from "./names";
+import { personTables, type PersonBlanks, type PersonSurvey, type PersonView } from "./onePersonLayout";
+import { hiddenLinesFor, toldGroupOf } from "./personFacts";
+import { isOpen, listSurveys, personOnSurveys } from "./repo";
 import {
   PERSON_WORDS,
   answeredSummaryWords,
@@ -104,6 +108,7 @@ type Read = {
   firstName: string;
   group: string;
   surveys: PersonSurvey[];
+  blanks: PersonBlanks[];
 };
 
 /** The person's name: their account's, or the name a guest gave the event. Null when the account or the guest is gone. */
@@ -120,10 +125,36 @@ async function nameOf(db: Firestore, survey: SurveyDoc, subject: OpeningSubject)
   return member ? { name: member.name, firstName: member.name.trim().split(/\s+/)[0] ?? "" } : { name: null, firstName: "" };
 }
 
+/**
+ * One survey's questions left blank, for the person's page: how many, the
+ * last press and whether it can be pressed now (`blanksRowOf`), or nothing.
+ */
+function blanksLine(
+  survey: SurveyDoc,
+  row: Pick<SurveyPersonDoc, "blanks" | "blanksPresses"> | null,
+  answers: Record<string, SurveyAnswer> | null,
+  hidden: readonly string[],
+  names: ReadonlyMap<string, string>,
+  now: Date,
+): PersonBlanks | null {
+  if (!row || !answers) return null;
+  const line = blanksRowOf({
+    count: blanksOf(survey.items, answers, { hiddenLines: hidden }).length,
+    open: isOpen(survey, now),
+    link: row.blanks,
+    presses: row.blanksPresses,
+    nameOf: (uid) => names.get(uid) ?? "",
+  });
+  return line ? { surveyId: survey.id, name: survey.name, row: line } : null;
+}
+
 /** Everything of the person on the surveys shown: called only once the opening is recorded. */
 async function readPerson(db: Firestore, opened: SurveyDoc, shown: readonly SurveyDoc[], subject: OpeningSubject): Promise<Read> {
   const { name, firstName } = await nameOf(db, opened, subject);
+  // Whether each survey takes answers, for the button beside what was left blank.
+  const now = new Date();
   const surveys: PersonSurvey[] = [];
+  const blanks: PersonBlanks[] = [];
   let group = "";
   if (isEventSurvey(opened)) {
     const { row, answer } = await eventPersonOn(db, opened, subject);
@@ -137,14 +168,20 @@ async function readPerson(db: Firestore, opened: SurveyDoc, shown: readonly Surv
       sentAt: answer?.sentAt ?? null,
       sentToThemAt: row?.sentAt ?? null,
       onIt: row !== null || answer !== null,
+      later: answer ? laterAnswersOf(answer.first, answer.fills) : undefined,
     });
+    const names = await namesOf(db, row?.blanksPresses.map((press) => press.byUid) ?? []);
+    const line = blanksLine(opened, row, answer?.answers ?? null, [], names, now);
+    if (line) blanks.push(line);
   } else if (subject.kind === "account") {
-    const [{ rows, answers }, told] = await Promise.all([
+    const [{ rows, answers }, told, hidden] = await Promise.all([
       personOnSurveys(db, shown, subject.uid),
       toldGroupOf(db, opened.runId, subject.uid),
+      Promise.all(shown.map((survey) => hiddenLinesFor(db, survey, subject.uid))),
     ]);
     group = told?.group.name ?? "";
-    for (const survey of shown) {
+    const names = await namesOf(db, [...rows.values()].flatMap((row) => row.blanksPresses.map((press) => press.byUid)));
+    shown.forEach((survey, at) => {
       const row = rows.get(survey.id) ?? null;
       const answer = answers.get(survey.id) ?? null;
       surveys.push({
@@ -157,10 +194,13 @@ async function readPerson(db: Firestore, opened: SurveyDoc, shown: readonly Surv
         sentAt: answer?.sentAt ?? null,
         sentToThemAt: row?.sentAt ?? null,
         onIt: row !== null || answer !== null,
+        later: answer ? laterAnswersOf(answer.first, answer.fills) : undefined,
       });
-    }
+      const line = blanksLine(survey, row, answer?.answers ?? null, hidden[at] ?? [], names, now);
+      if (line) blanks.push(line);
+    });
   }
-  return { name, firstName, group, surveys };
+  return { name, firstName, group, surveys, blanks };
 }
 
 /** "Amara’s name comes off on Sat 9 Dec 2028." and the totals line, or one line per survey when their days differ. */
@@ -231,6 +271,7 @@ export async function openPersonAnswers(
       change: nothing ? null : tables.change,
       rest: nothing ? [] : tables.rest,
       namesOff: nothing ? [] : namesOffLines(shown, read.surveys, read.firstName),
+      blanks: nothing ? [] : read.blanks,
       openings: openings.map((row) => ({
         name: row.actorName || "An admin",
         key: row.actorUid || row.id,

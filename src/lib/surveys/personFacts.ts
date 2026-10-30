@@ -127,3 +127,20 @@ export async function hiddenLinesFor(
   const groups = snap.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})).filter((group) => group.runId === survey.runId);
   return facilitatesOnRun(uid, groups) ? [FACILITATOR_LINE_ID] : [];
 }
+
+/**
+ * `hiddenLinesFor` for several people at once, with the run's groups read
+ * once: the admins' Who answered tab asks it of everybody who answered, to
+ * say how many questions each left blank. The same rule, person by person.
+ */
+export async function hiddenLinesForEach(
+  db: Firestore,
+  survey: Pick<SurveyDoc, "runId" | "items">,
+  uids: readonly string[],
+): Promise<Map<string, string[]>> {
+  const asks = survey.items.some((item) => isLinesQuestion(item) && item.lines.some((line) => line.id === FACILITATOR_LINE_ID));
+  if (!asks || uids.length === 0 || !survey.runId || survey.runId.includes("/")) return new Map();
+  const snap = await db.collection("courseGroups").where("runId", "==", survey.runId).get();
+  const groups = snap.docs.map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {})).filter((group) => group.runId === survey.runId);
+  return new Map(uids.map((uid) => [uid, facilitatesOnRun(uid, groups) ? [FACILITATOR_LINE_ID] : []]));
+}

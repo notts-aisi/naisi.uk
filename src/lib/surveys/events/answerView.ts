@@ -1,9 +1,9 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import type { EventRespondent, EventSurveyDoc } from "@/lib/firestore/surveys";
-import { answerPagesOf, type AnswerScreen, type AnswerSubmit } from "../answerView";
+import { answerPagesOf, asksPermission, type AnswerScreen, type AnswerSubmit } from "../answerView";
 import { closedOn, isOpen } from "../repo";
-import { CONFIDENTIAL_HEADING, STATE_WORDS, closingWords, paragraphsOf } from "../words";
+import { CONFIDENTIAL_HEADING, STATE_WORDS, answerRuleWords, closingWords, paragraphsOf } from "../words";
 import { readEventAudience, respondentKey } from "./audience";
 import { eventBoxPoints, eventLine } from "./words";
 
@@ -46,14 +46,16 @@ export async function eventAnswerScreen(
     came = read?.people.find((member) => member.key === key)?.came ?? false;
   }
   const box = eventBoxPoints({ namesOffOn: survey.namesOffOn, signedInAs: input.signedInAs, came });
+  const pages = answerPagesOf(survey);
   return {
     state: "open",
     survey: {
       eyebrow: [eventLine(survey.event.title, survey.event.startAt)],
       title: survey.title,
       intro: paragraphsOf(survey.intro),
+      rule: answerRuleWords(asksPermission(pages, null)),
       box: { heading: CONFIDENTIAL_HEADING, points: box.points, note: box.note },
-      pages: answerPagesOf(survey),
+      pages,
       closing: closingWords(survey.closesAt),
       submit: input.submit,
       kairos: null,

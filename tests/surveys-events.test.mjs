@@ -323,6 +323,29 @@ describe("the QR code takes answers once an admin opens it; the email skips anyb
     assert.equal(saved.status, 409);
   });
 
+  test("every required question answered or nothing is kept; the optional catch-all may be left blank (Zach, 30 Oct 2026)", async (t) => {
+    clock(t, LATE);
+    w.reset();
+    const id = await made();
+    await press("open-at-event", "zach", id);
+    const { q_ev_heard: _heard, ...noHeard } = ANSWERS;
+    // A required question left blank: refused whole, named by number and id, nothing kept, and the person may still answer.
+    const blank = await answerSignedIn("kofi", id, noHeard);
+    assert.deepEqual([blank.status, blank.body.error, blank.body.missing], [400, "Question 4 still needs an answer.", ["q_ev_heard"]]);
+    const spaces = await answerSignedIn("kofi", id, { ...ANSWERS, q_ev_again: { type: "choice", optionId: "" } });
+    assert.deepEqual([spaces.status, spaces.body.missing], [400, ["q_ev_again"]]);
+    assert.deepEqual(w.answers(id), []);
+    assert.equal(w.rowOf(id, "kofi"), null, "a refused send makes no row");
+    // The catch-all is optional: left out, or only spaces, the rest is kept.
+    const { q_ev_change: _change, ...noChange } = ANSWERS;
+    assert.deepEqual(short(await answerSignedIn("kofi", id, noChange)), [200, null]);
+    assert.deepEqual(short(await answerSignedIn("mo", id, { ...ANSWERS, q_ev_change: { type: "text", text: "   " } })), [200, null]);
+    assert.deepEqual(w.answers(id).map((answer) => Object.keys(answer.answers).sort()), [
+      ["q_ev_again", "q_ev_heard", "q_ev_how", "q_ev_next"],
+      ["q_ev_again", "q_ev_heard", "q_ev_how", "q_ev_next"],
+    ]);
+  });
+
   test("signed in, whoever came or signed up answers once; nobody who did neither, signed out or viewing as somebody", async (t) => {
     clock(t, LATE);
     w.reset();
@@ -417,7 +440,14 @@ describe("the QR code takes answers once an admin opens it; the email skips anyb
     assert.deepEqual(kept, [["guest", "ci-rosa", "link"], ["guest", RSVP.gwen, "link"]]);
     // The page by the link: the event, the box with the person's standing, and nothing of anybody else.
     const page = await w.page("app/survey/[token]/page.tsx", { params: Promise.resolve({ token: tokenOf(links.get("mo@example.com")) }) });
-    assert.match(page.text, /VR games night · Sun 1 Nov How was VR games night\? Thanks for coming on Sunday\. 5 quick questions, about a minute\. Every question can be skipped\./);
+    // Every question needs an answer unless marked optional (Zach, 30 Oct
+    // 2026), and the quote tick under the long answer is the person's to give.
+    assert.match(
+      page.text,
+      /VR games night · Sun 1 Nov How was VR games night\? Thanks for coming on Sunday\. 5 quick questions, about a minute\. Every question needs an answer unless it’s marked optional\. The boxes asking your permission are up to you\./,
+    );
+    assert.match(page.text, /5 Anything we should change\? \(optional\)/, "the catch-all is marked optional");
+    assert.equal((page.text.match(/\(optional\)/g) ?? []).length, 1, "only the catch-all");
     assert.match(
       page.text,
       /Confidential Only NAISI’s admins can see who said what\. Nothing you say here affects anything you sign up for\. Totals, and comments you tick to be quoted, may go in reports to the committee and our funder, Kairos, or on our site\. Your name comes off on Wed 1 Nov 2028, two years after the event\. The totals stay\. We keep your answers with your name, and that you came, so nobody is emailed it twice\./,

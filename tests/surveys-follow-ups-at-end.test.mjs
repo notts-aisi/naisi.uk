@@ -7,7 +7,9 @@
  * asked again: their word there decides, and they change it from any of the
  * programme's surveys.
  *
- * The world is `tests/lib/surveyWorld.mjs` (AGI Strategy, week 1). Amara says
+ * The world is `tests/lib/surveyWorld.mjs` (AGI Strategy, week 1); every
+ * send answers each required question plainly (`everyRequired`), as the
+ * answer routes insist since 30 Oct 2026. Amara says
  * yes on the before survey, Bea says no, and Dev and Tariq send nothing.
  * Run with `npm test`.
  */
@@ -38,7 +40,7 @@ async function makeAndSend(stage, emails) {
 async function world() {
   const before = await makeAndSend("before", 4);
   const answer = (uid, followUps) =>
-    call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(before, uid), answers: {}, consents: { followUps } } });
+    call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(before, uid), answers: w.everyRequired(before), consents: { followUps } } });
   assert.equal((await answer("amara", true)).status, 200);
   assert.equal((await answer("bea", false)).status, 200);
   const after = await makeAndSend("after", 4);
@@ -74,7 +76,7 @@ describe("who the survey at the end asks about follow-ups", () => {
     clock(t);
     w.reset(surveySeed());
     const { before, after } = await world();
-    const send = (uid, consents) => call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(after, uid), answers: {}, consents } });
+    const send = (uid, consents) => call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(after, uid), answers: w.everyRequired(after), consents } });
     assert.equal((await send("dev", { followUps: true })).status, 200);
     const row = (id, uid) => w.people(id).find((each) => each.respondent.uid === uid);
     assert.equal(row(after, "dev").consents.followUps, true);
@@ -94,7 +96,7 @@ describe("the follow-ups reach everybody who said yes, before or at the end", ()
     clock(t);
     w.reset(surveySeed());
     const { after } = await world();
-    await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(after, "dev"), answers: {}, consents: { followUps: true } } });
+    await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(after, "dev"), answers: w.everyRequired(after), consents: { followUps: true } } });
     // A yes at the end on Bea's row, as no writer here makes one: Bea's before survey's no still decides.
     w.world.db.poke(`surveyPeople/${after}__bea`, { "consents.followUps": true });
     const six = (await w.make("zach", { stage: "followUp6", closesOn: "2026-12-20" })).body.survey.id;
@@ -122,7 +124,7 @@ describe("the follow-ups reach everybody who said yes, before or at the end", ()
     clock(t);
     w.reset(surveySeed());
     const { after } = await world();
-    await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(after, "dev"), answers: {}, consents: { followUps: true } } });
+    await call(null, routes.answerByLink.POST, {}, { body: { token: w.tokenOf(after, "dev"), answers: w.everyRequired(after), consents: { followUps: true } } });
     const six = (await w.make("zach", { stage: "followUp6", closesOn: "2026-12-20" })).body.survey.id;
     await w.sendFirst(six, "zach", { emails: 2 });
     const page = await pageOf(six, "dev");

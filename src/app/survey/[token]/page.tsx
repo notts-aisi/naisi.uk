@@ -7,6 +7,8 @@ import { anonymousFormLinkFor } from "@/lib/anonymousFeedback/forms";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isEventSurvey } from "@/lib/firestore/surveys";
 import { answerScreenFor, type AnswerScreen as Screen } from "@/lib/surveys/answerView";
+import { openBlanksLink } from "@/lib/surveys/blanksStore";
+import { blanksScreenFor } from "@/lib/surveys/blanksView";
 import { eventAnswerScreen } from "@/lib/surveys/events/answerView";
 import { openLink } from "@/lib/surveys/repo";
 import { ANSWER_WORDS, STATE_WORDS } from "@/lib/surveys/words";
@@ -23,6 +25,10 @@ import styles from "./survey.module.css";
  * first. It sits under the root layout alone, like /links, with its own small
  * brand link home, and reads from the first HTML that arrives: every question
  * is a real form control before the page's script does anything.
+ *
+ * The same address opens a link of the questions somebody left blank
+ * (`openBlanksLink`), minted by an admin's press: only those questions, and
+ * never an earlier answer (`blanksScreenFor`).
  *
  * Opening it records nothing: no "opened", no time, no address. A link that
  * opens nothing, a survey that has closed and one already answered each get
@@ -78,6 +84,11 @@ export default async function SurveyLinkPage({ params }: { params: Promise<{ tok
         person: target.person,
       });
       anonymousForm = await anonymousFormLinkFor(db, target.survey.id, now);
+    } else {
+      // A link of the questions somebody left blank, which an admin's press
+      // sent them: only those questions, never an earlier answer.
+      const blanks = await openBlanksLink(db, token);
+      if (blanks) screen = await blanksScreenFor(db, blanks, { submit: { kind: "link", token }, signedInAs: null, now });
     }
   }
 

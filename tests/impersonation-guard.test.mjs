@@ -522,6 +522,9 @@ const MUST_GUARD = [
   ["src/app/api/surveys/answer/route.ts", "keeps a person's answers, once, through their link"],
   ["src/app/api/surveys/[surveyId]/consent/route.ts", "changes the session's person's own follow-ups consent"],
   ["src/app/api/surveys/consent/route.ts", "changes a person's own follow-ups consent through their link"],
+  ["src/app/api/surveys/[surveyId]/people/[who]/blanks/route.ts", "emails one person a link to the questions they left blank, recording the press in the presser's name"],
+  ["src/app/api/surveys/[surveyId]/blanks/route.ts", "keeps the session's person's answers to the questions they left blank, once, beside their first answers"],
+  ["src/app/api/surveys/blanks/route.ts", "keeps a person's answers to the questions they left blank, once, through their link of blanks"],
   ["src/app/api/surveys/public-numbers/route.ts", "publishes a programme's numbers and ticked quotes on its public page, in the admin's name"],
   ["src/app/api/surveys/public-numbers/take-down/route.ts", "takes a programme's public numbers off its public page"],
 

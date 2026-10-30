@@ -54,6 +54,15 @@ const COMPARATOR_HOME = "src/lib/firestore/courseGroups.ts";
  */
 const READS_WITHOUT_A_LIST = new Map([
   [
+    "src/lib/surveys/personFacts.ts",
+    {
+      why:
+        "A survey reads the run's groups only to know who facilitates one (the facilitators line of \"How valuable was " +
+        "each part?\" is hidden from them, and never blank for them): a yes or no per person, never a list of groups. " +
+        "A programme's page reaches it through the survey results the lead reads.",
+    },
+  ],
+  [
     "src/lib/courses/coursework/gather.ts",
     {
       why:

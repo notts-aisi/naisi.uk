@@ -255,3 +255,6 @@ export function eventNamesOffWords(key: string): string {
 }
 
 export { peopleWords };
+
+/** The confidential line of a survey after an event, for an email that is not the survey's own. */
+export const EVENT_CONFIDENTIAL_LINE = CONFIDENTIAL_LINE;

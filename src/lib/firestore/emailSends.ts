@@ -138,7 +138,10 @@ export type EmailSendSurface =
   | "course-follow-up"
   // The survey after an event and its reminder (docs/surveys.md), to the
   // people who came to it or signed up for it.
-  | "event-survey";
+  | "event-survey"
+  // The questions somebody left blank on a survey they sent (docs/surveys.md),
+  // to that one person, by an admin's press.
+  | "survey-blanks";
 
 export type EmailSend = {
   messageId: string;

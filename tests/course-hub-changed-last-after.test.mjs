@@ -57,6 +57,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AGI, ROUND, roundDoc } from "./lib/applicationsSmallTerm.mjs";
 import { B, NOW, RUN, makeMemberPagesWorld, textOf } from "./lib/memberPagesWorld.mjs";
+import { withEveryRequired } from "./lib/surveyAnswers.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 const w = await makeMemberPagesWorld("__changedLastAfter");
@@ -71,6 +72,7 @@ const surveyRoutes = {
 };
 const waiting = await w.loadTs(join("lib", "surveys", "waiting.ts"));
 const surveyWords = await w.loadTs(join("lib", "surveys", "words.ts"));
+const surveyItems = await w.loadTs(join("lib", "surveys", "items.ts"));
 const EndSurveyCard = (await w.loadTs(join("features", "surveys", "cards", "EndSurveyCard.tsx"))).default;
 const { whoStepsOut } = await w.loadTs(join("features", "courses", "weekly", "whoStepsOut.ts"));
 
@@ -259,9 +261,14 @@ async function sentSurvey(stage) {
   return id;
 }
 
-/** `uid` sends their answers to survey `id` through their own link. */
+/**
+ * `uid` sends their answers to survey `id` through their own link, every
+ * required question answered plainly, as the answer routes insist since 30 Oct
+ * 2026 (tests/lib/surveyAnswers.mjs).
+ */
 async function answerAs(uid, id) {
-  const answered = await w.call(null, surveyRoutes.answer.POST, {}, { body: { token: tokenOf(uid, id), answers: {} } });
+  const answers = withEveryRequired(surveyItems, w.world.db.read(`surveys/${id}`).items, {});
+  const answered = await w.call(null, surveyRoutes.answer.POST, {}, { body: { token: tokenOf(uid, id), answers } });
   assert.equal(answered.status, 200, JSON.stringify(answered.body));
 }
 

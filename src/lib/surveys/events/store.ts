@@ -15,6 +15,7 @@ import {
   type EventSurveyPersonDoc,
   type SurveyAnswerVia,
 } from "@/lib/firestore/surveys";
+import { blankRefusal } from "../blank";
 import { readSurveyAnswers, storedSurveyAnswers } from "../items";
 import { isOpen } from "../repo";
 import { mintSurveyToken } from "../token";
@@ -158,7 +159,7 @@ export async function stampEventReminder(db: Firestore, rowId: string): Promise<
     .update({ remindedAt: FieldValue.serverTimestamp(), reminders: FieldValue.increment(1) });
 }
 
-export type EventAnswerOutcome = { ok: true } | { ok: false; status: number; error: string };
+export type EventAnswerOutcome = { ok: true } | { ok: false; status: number; error: string; missing?: string[] };
 
 /**
  * "SEND MY ANSWERS" ON A SURVEY AFTER AN EVENT: the one writer of its
@@ -189,6 +190,9 @@ export async function recordEventAnswer(
   // A tick under a long answer is kept with it, as the form drew the box (`asksQuotes`).
   const read = readSurveyAnswers(survey.items, input.raw, { quotes: asksQuotes(survey) });
   if (read.problems.length > 0) return { ok: false, status: 400, error: read.problems[0].message };
+  // Every required question answered, as for every survey, or nothing is kept.
+  const blank = blankRefusal(survey.items, read.answers);
+  if (blank) return blank;
 
   const personRef = db.collection(SURVEY_PEOPLE_COLLECTION).doc(eventPersonId(survey.id, respondent));
   const surveyRef = db.collection(SURVEYS_COLLECTION).doc(survey.id);

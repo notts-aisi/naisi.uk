@@ -1,3 +1,4 @@
+import { mergedAnswers } from "@/lib/surveys/blanks";
 import { CONSENT_PURPOSES, sanitizeSurveyItems, type SurveyAnswer, type SurveyConsents, type SurveyItem } from "@/lib/surveys/items";
 import { INCUBATOR_STRANDS, SURVEY_TEMPLATES, type IncubatorStrand, type SurveyTemplate } from "@/lib/surveys/templates";
 
@@ -12,7 +13,9 @@ import { INCUBATOR_STRANDS, SURVEY_TEMPLATES, type IncubatorStrand, type SurveyT
  *                                     in their personal link, when it was
  *                                     sent and reminded, whether answered,
  *                                     and what their consent ticks say
- *   surveyAnswers/{autoId}            one person's answers, sent once
+ *   surveyAnswers/{autoId}            one person's answers, sent once,
+ *                                     and beside them each later send of
+ *                                     questions they had left blank
  *
  * SERVER-ONLY IN BOTH DIRECTIONS. `firestore.rules` shuts all three to every
  * browser, an admin's included: every read is a server page or route on the
@@ -205,6 +208,24 @@ export type SurveyDoc = {
 
 export type SurveyDelivery = "sent" | "held" | "suppressed";
 
+/**
+ * The link of the questions somebody left blank (docs/surveys.md, "Sending
+ * the questions left blank"): its own secret, minted by an admin's press (the
+ * first link never reopens the survey), what became of its email, and when
+ * the answers sent through it came in, after which it is spent. A later press
+ * mints a new secret, and the old link opens nothing.
+ */
+export type SurveyBlanksLink = {
+  /** Never in a log line or an error. */
+  token: string;
+  sentAt: Date | null;
+  delivery: SurveyDelivery | null;
+  spentAt: Date | null;
+};
+
+/** One press of "Send the questions they left blank": when, by whom, and how many questions it sent. */
+export type SurveyBlanksPress = { at: Date | null; byUid: string; count: number };
+
 export type SurveyPersonDoc = {
   id: string;
   surveyId: string;
@@ -228,10 +249,27 @@ export type SurveyPersonDoc = {
   consents: SurveyConsents;
   /** When the consents were last said, by sending the answers or changing them. */
   consentsAt: Date | null;
+  /** The link of the questions they left blank, once an admin has pressed for one; null before. */
+  blanks: SurveyBlanksLink | null;
+  /** Every press of "Send the questions they left blank" for them, oldest first. */
+  blanksPresses: SurveyBlanksPress[];
 };
 
 /** How somebody's answers came in. */
 export type SurveyAnswerVia = "link" | "signed-in";
+
+/**
+ * One later send of questions somebody had left blank, kept beside the first
+ * send and never over it: its answers (only to questions that were blank),
+ * when it was sent, how, and whether the person's group had met by then.
+ */
+export type SurveyFill = {
+  answers: Record<string, SurveyAnswer>;
+  sentAt: Date | null;
+  via: SurveyAnswerVia;
+  /** Always false on a survey after an event, which keeps no group. */
+  afterFirstSession: boolean;
+};
 
 export type SurveyAnswerDoc = {
   id: string;
@@ -239,7 +277,15 @@ export type SurveyAnswerDoc = {
   roundId: string;
   /** Null once names have come off: the answers stay in the totals. */
   respondent: SurveyRespondent | null;
+  /**
+   * Every answer the person has given: the first send's, with what each later
+   * send added (`mergedAnswers`). What every reader of the answers reads.
+   */
   answers: Record<string, SurveyAnswer>;
+  /** The first send's answers, exactly as they were sent. Never written again. */
+  first: Record<string, SurveyAnswer>;
+  /** The later sends of questions left blank, oldest first. */
+  fills: SurveyFill[];
   /** When "Send my answers" was pressed. */
   sentAt: Date | null;
   via: SurveyAnswerVia;
@@ -362,6 +408,47 @@ function readConsents(raw: unknown): SurveyConsents {
   return out;
 }
 
+function readBlanksLink(raw: unknown): SurveyBlanksLink | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Raw;
+  if (!isSurveyToken(r.token)) return null;
+  const delivery = r.delivery;
+  return {
+    token: r.token,
+    sentAt: tsToDate(r.sentAt),
+    delivery: delivery === "sent" || delivery === "held" || delivery === "suppressed" ? delivery : null,
+    spentAt: tsToDate(r.spentAt),
+  };
+}
+
+function readBlanksPresses(raw: unknown): SurveyBlanksPress[] {
+  if (!Array.isArray(raw)) return [];
+  const out: SurveyBlanksPress[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") continue;
+    const r = entry as Raw;
+    out.push({ at: tsToDate(r.at), byUid: str(r.byUid), count: count(r.count) });
+  }
+  return out;
+}
+
+/** The later sends of blanks, each read against the survey's questions, oldest first. */
+function readFills(raw: unknown, read: (raw: unknown) => Record<string, SurveyAnswer>): SurveyFill[] {
+  if (!Array.isArray(raw)) return [];
+  const out: SurveyFill[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") continue;
+    const r = entry as Raw;
+    out.push({
+      answers: read(r.answers),
+      sentAt: tsToDate(r.sentAt),
+      via: r.via === "signed-in" ? "signed-in" : "link",
+      afterFirstSession: r.afterFirstSession === true,
+    });
+  }
+  return out.sort((a, b) => (a.sentAt?.getTime() ?? 0) - (b.sentAt?.getTime() ?? 0));
+}
+
 function readTest(raw: unknown): SurveyTest | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Raw;
@@ -440,6 +527,8 @@ export function normalizeSurveyPerson(id: string, data: Raw): SurveyPersonDoc | 
     answered: data.answered === true,
     consents: readConsents(data.consents),
     consentsAt: tsToDate(data.consentsAt),
+    blanks: readBlanksLink(data.blanks),
+    blanksPresses: readBlanksPresses(data.blanksPresses),
   };
 }
 
@@ -468,11 +557,13 @@ export function normalizeEventPerson(id: string, data: Raw): EventSurveyPersonDo
     remindedAt: tsToDate(data.remindedAt),
     reminders: count(data.reminders),
     answered: data.answered === true,
+    blanks: readBlanksLink(data.blanks),
+    blanksPresses: readBlanksPresses(data.blanksPresses),
   };
 }
 
 /** One person's answers to a survey after an event: when, how, and who, while the name is on them. */
-export type EventSurveyAnswerDoc = Pick<SurveyAnswerDoc, "id" | "surveyId" | "answers" | "sentAt" | "via"> & {
+export type EventSurveyAnswerDoc = Pick<SurveyAnswerDoc, "id" | "surveyId" | "answers" | "first" | "fills" | "sentAt" | "via"> & {
   /** Null once names have come off. */
   respondent: EventRespondent | null;
 };
@@ -483,11 +574,16 @@ export function normalizeEventAnswer(
   data: Raw,
   read: (raw: unknown) => Record<string, SurveyAnswer>,
 ): EventSurveyAnswerDoc {
+  const first = read(data.answers);
+  const fills = readFills(data.fills, read);
   return {
     id,
     surveyId: str(data.surveyId),
     respondent: readEventRespondent(data.respondent),
-    answers: read(data.answers),
+    // Every reader reads the first send with each later send of blanks added, through the one merge.
+    answers: mergedAnswers(first, fills),
+    first,
+    fills,
     sentAt: tsToDate(data.sentAt),
     via: data.via === "signed-in" ? "signed-in" : "link",
   };
@@ -495,12 +591,17 @@ export function normalizeEventAnswer(
 
 /** A stored answer. `items` are the survey's, so only its own questions are read back. */
 export function normalizeSurveyAnswer(id: string, data: Raw, read: (raw: unknown) => Record<string, SurveyAnswer>): SurveyAnswerDoc {
+  const first = read(data.answers);
+  const fills = readFills(data.fills, read);
   return {
     id,
     surveyId: str(data.surveyId),
     roundId: str(data.roundId),
     respondent: readRespondent(data.respondent),
-    answers: read(data.answers),
+    // Every reader reads the first send with each later send of blanks added, through the one merge.
+    answers: mergedAnswers(first, fills),
+    first,
+    fills,
     sentAt: tsToDate(data.sentAt),
     via: data.via === "signed-in" ? "signed-in" : "link",
     afterFirstSession: data.afterFirstSession === true,

@@ -172,7 +172,7 @@ const { CURRENT_POLICY_VERSION, POLICIES, currentPolicy } =
 const notificationPrefs = await loadTs("lib/firestore/notifications.ts");
 
 const read = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
-const CURRENT = read("src/content/legal/privacy/v13.tsx");
+const CURRENT = read("src/content/legal/privacy/v14.tsx");
 /**
  * The current policy with every run of whitespace collapsed to one space. The
  * copy is JSX, so a sentence is wrapped and indented across several lines and
@@ -181,6 +181,8 @@ const CURRENT = read("src/content/legal/privacy/v13.tsx");
  * serves at /privacy.
  */
 const CURRENT_FLAT = CURRENT.replace(/\s+/g, " ");
+/** v13, frozen: read by §2n, which proves the required-questions sentences are not in it and "Every question can be skipped." is. */
+const V13_FLAT = read("src/content/legal/privacy/v13.tsx").replace(/\s+/g, " ");
 /** v12, frozen: read by §2m, which proves the coursework sentences are not in it and the promise is. */
 const V12_FLAT = read("src/content/legal/privacy/v12.tsx").replace(/\s+/g, " ");
 /** v11, frozen: read by §2l, which proves the two new notes are not in it. */
@@ -224,12 +226,15 @@ const componentPrefix = (key) => `${key[0].toUpperCase()}${key.slice(1)}Content`
 const POLICY_KEYS = Object.keys(POLICIES);
 
 describe("policy versions", () => {
-  test("privacy v13 is current, and the combined version string moved with it", () => {
-    assert.equal(currentPolicy("privacy").version, 13);
-    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.13");
+  test("privacy v14 is current, and the combined version string moved with it", () => {
+    assert.equal(currentPolicy("privacy").version, 14);
+    assert.equal(CURRENT_POLICY_VERSION, "terms.1+privacy.14");
   });
 
-  test("privacy v13 is dated the day its words last changed", () => {
+  test("privacy v14 is dated the day its words last changed", () => {
+    const fourteen = POLICIES.privacy.versions.find((v) => v.version === 14);
+    assert.equal(fourteen?.lastUpdated, "30 October 2026");
+    assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 14).length, 1);
     const thirteen = POLICIES.privacy.versions.find((v) => v.version === 13);
     assert.equal(thirteen?.lastUpdated, "30 October 2026");
     assert.equal(POLICIES.privacy.versions.filter((v) => v.version === 13).length, 1);
@@ -370,6 +375,13 @@ describe("policy versions", () => {
  * identical. Anything that changes a word needs a new version instead.
  */
 const FROZEN_VERSIONS = new Map([
+  [
+    "privacy/v13",
+    {
+      sha256: "a33cb4e40d95b6309a0ce8986b1788f65804d9ca5643b095d94b4b6ce9e33c9c",
+      why: "Claude and Pangram on coursework and the notes admins keep, current from 30 October 2026 until v14 replaced it; the wording members accepted while it still said every survey question could be skipped, frozen when v14 made survey questions required rather than editing it in place",
+    },
+  ],
   [
     "privacy/v12",
     {
@@ -909,7 +921,11 @@ const MUST_NAME = [
   // The survey at the end asks the same box of somebody the before survey
   // never had an answer from (part (b) of the questionnaire's build).
   ["the follow-ups go only to people who tick the box, which they can change later", /The survey before a programme asks whether we may contact you at 6 and 12 months with a short follow-up survey, in a box that starts unticked, and only people who tick it are sent the follow-ups\. If you did not answer it there, the survey at the end asks you the same\. You can change your answer at any time until your name comes off, on your survey&apos;s page, through its link or signed in, and the next follow-up goes by it\. We keep what you said, and when, with the record that the survey was sent to you\./i],
-  ["every question in a survey can be skipped, and nothing said in one affects a place", /Every question can be skipped\. Nothing you say in a survey affects your place on a programme or an application\./i],
+  // CHANGED ON PURPOSE (v14, Zach 30 Oct 2026): was "Every question can be
+  // skipped." The rule that replaced it, the three permission boxes, and the
+  // sentence about a place, word for word.
+  ["every question in a survey needs an answer unless marked optional, the permission boxes are up to the person, and nothing said in one affects a place", /Every question needs an answer unless it is marked optional\. The boxes that ask your permission are always up to you: whether we may contact you for follow-ups, whether we share your details with Kairos, and whether we may quote you\. Nothing you say in a survey affects your place on a programme or an application\./i],
+  ["the questions left blank: a link of your own to just those, never the earlier answers, added and never changed", /If you sent a survey with questions left blank, an admin may send you a link of your own to answer just those, as an important notice like the survey&apos;s own email\. It shows only the questions you left blank, never your earlier answers\. Your first answers are kept exactly as you sent them, and the new ones are added to them, with when you sent them\./i],
   ["a survey records nothing about how it is filled in", /A survey records nothing about how you fill it in: not when you opened it, how long you spent on it or which page you were on, and none of your answers is kept until you send them\./i],
   ["what a survey records with the answers, and never an IP address", /We record when you sent them, whether you used your own link or were signed in, and whether your group had met for the first time by then\. We never keep your IP address with them, and the request logs our hosting provider keeps \(see Operational logs\) are never matched to them\./i],
   ["a survey is emailed as an important notice, with a link of your own", /A survey and its reminder are emailed as important notices, so your notification settings do not switch them off\. Each email carries a link of your own, so you can answer without signing in\. Anyone holding it could answer in your name, so keep it to yourself\./i],
@@ -4967,6 +4983,12 @@ describe("the course hub passage", () => {
         ["src/app/api/surveys/[surveyId]/answer/route.ts", "the person's own answers, signed in, to their own row: there is no uid in the request"],
         ["src/app/api/surveys/consent/route.ts", "the person's own follow-ups consent, changed through the secret in their link, on their own row"],
         ["src/app/api/surveys/[surveyId]/consent/route.ts", "the person's own follow-ups consent, changed signed in, on their own row: there is no uid in the request"],
+        // The questions somebody left blank (docs/surveys.md): an admin's
+        // press for one person, and the person's own later send, by the
+        // secret in their link of blanks or signed in on their own row.
+        ["src/app/api/surveys/[surveyId]/people/[who]/blanks/route.ts", `${ADMIN_ROUTE}; emails one person a link to the questions they left blank, never an answer`],
+        ["src/app/api/surveys/blanks/route.ts", "the person's own answers to the questions they left blank, sent through the secret in their link of blanks, beside their first answers"],
+        ["src/app/api/surveys/[surveyId]/blanks/route.ts", "the person's own answers to the questions they left blank, signed in, to their own row: there is no uid in the request"],
         ["src/lib/firestore/accountDeletion.ts", "deleting an account takes its name off its survey answers and deletes its survey rows"],
         ["src/lib/scheduler/jobs/surveyNamesOff.ts", "the job that takes names off two years after the programme"],
         // CHANGED ON PURPOSE (Q50 B): the cards of the surveys waiting for the
@@ -5042,6 +5064,12 @@ describe("the course hub passage", () => {
         // CHANGED ON PURPOSE (Q46): the leaving survey's row for a person is made as they leave.
         ["src/lib/surveys/leaving.ts", "the leaving survey's row for a person, made as they leave the programme, with their own link: never an answer"],
         ["src/lib/surveys/events/store.ts", "a survey after an event's rows and its one writer of answers: each person's row before their email, their own answers, once, by their link or signed in, and one person's row and answers for the admins' page that opens them, read once that opening is recorded"],
+        // The questions somebody left blank (docs/surveys.md): an admin's press
+        // writes the person's own link of blanks on their row, and the one
+        // writer of what they send through it keeps it beside their first
+        // answers. Their answer is read to count what is blank, and the admins
+        // are shown a count, never an answer.
+        ["src/lib/surveys/blanksStore.ts", "the questions left blank: a person's own link of blanks on their own row, made by an admin's press and recorded with it, their own answer read to count what is still blank, and the one writer of what they send later, kept beside their first answers"],
       ]),
       "addressing who a survey was sent to, or what somebody answered",
       "The policy says only admins see who said what or who has answered. If " +
@@ -5063,6 +5091,7 @@ describe("the course hub passage", () => {
       "src/app/api/surveys/[surveyId]/export/route.ts",
       "src/app/api/surveys/[surveyId]/open-at-event/route.ts",
       "src/app/api/surveys/[surveyId]/people/[who]/route.ts",
+      "src/app/api/surveys/[surveyId]/people/[who]/blanks/route.ts",
     ]) {
       const code = withoutComments(read(route));
       const refused = code.indexOf("if (!canRunSurveys(actor)) return NextResponse.json({ error: REFUSAL.adminOnly }, { status: 403 });");
@@ -5125,6 +5154,8 @@ describe("the course hub passage", () => {
       "src/app/(app)/learn/[runId]/survey/[surveyId]/page.tsx",
       "src/lib/surveys/answerView.ts",
       "src/lib/surveys/personFacts.ts",
+      // The page a link of the questions left blank opens, and the signed-in page when it shows them.
+      "src/lib/surveys/blanksView.ts",
     ]) {
       assert.ok(
         !/\.(?:set|update|add|create|delete)\(|runTransaction\(|\.batch\(\)/.test(withoutComments(read(file))),
@@ -5145,23 +5176,49 @@ describe("the course hub passage", () => {
     assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-no-tracking.test.mjs")));
   });
 
-  test("every question in a survey can be skipped, and no code of the applications, admissions or courses reads a survey", () => {
-    assert.match(PAGE_FLAT, /<li> Every question can be skipped\. Nothing you say in a survey affects your place on a programme or an application\. <\/li>/);
-    // The rule, run: the before survey requires nothing, and a question stored
-    // as required is refused.
-    // CHANGED ON PURPOSE (Q46): the leaving survey's template is held to it too.
-    for (const [stage, kind, strand] of [["before", "fellowship", null], ["after", "fellowship", null], ["followUp6", "fellowship", null], ["before", "incubator", "alignment"], ["after", "incubator", "governance"], ["leaving", "fellowship", null]]) {
-      const each = surveyTemplates.templateItems(stage, kind, strand);
-      assert.deepEqual(surveyItems.validateSurveyItems(each), [], `the ${stage} template of a ${kind} is not valid`);
-      assert.ok(surveyItems.surveyQuestionsOf(each).every((question) => question.required !== true), `the ${stage} template of a ${kind} requires an answer`);
-    }
-    const template = surveyTemplates.templateItems("before", "fellowship", null);
-    const required = template.map((item) => (item.id === "q_c1" ? { ...item, required: true } : item));
-    assert.deepEqual(
-      surveyItems.validateSurveyItems(required).map((problem) => problem.message),
-      ["Every question in a survey can be skipped, so none is required."],
+  test("every question in a survey is required unless marked optional, the permission boxes never are, and no code of the applications, admissions or courses reads a survey", () => {
+    // CHANGED ON PURPOSE (v14): v13's "Every question can be skipped." is
+    // replaced by the rule; the sentence about a place or an application is
+    // kept word for word (§2n holds both versions).
+    assert.match(
+      PAGE_FLAT,
+      /<li> Every question needs an answer unless it is marked optional\. The boxes that ask your permission are always up to you: whether we may contact you for follow-ups, whether we share your details with Kairos, and whether we may quote you\. Nothing you say in a survey affects your place on a programme or an application\. <\/li>/,
     );
-    assert.equal(surveyWords.ANSWER_WORDS.skippable, "Every question can be skipped.");
+    // The answer page says the same rule, in one line.
+    assert.equal(surveyWords.answerRuleWords(true), "Every question needs an answer unless it’s marked optional. The boxes asking your permission are up to you.");
+    assert.equal(surveyWords.answerRuleWords(false), "Every question needs an answer unless it’s marked optional.");
+    // CHANGED ON PURPOSE (Zach, 30 Oct 2026): this walk held "every question
+    // can be skipped". It now holds the rule that replaced it, run over every
+    // template, both kinds of programme, the leaving survey and the survey
+    // after an event: every question not on the not-for-everybody list is
+    // required, every listed one is written optional and is a text question,
+    // and every consent box is never required.
+    const every = [
+      ...[["before", "fellowship", null], ["after", "fellowship", null], ["followUp6", "fellowship", null], ["followUp12", "fellowship", null], ["before", "incubator", "alignment"], ["after", "incubator", "governance"], ["leaving", "fellowship", null]].map(
+        ([stage, kind, strand]) => [`the ${stage} template of a ${kind}`, surveyTemplates.templateItems(stage, kind, strand)],
+      ),
+      ["the survey after an event", eventSurveyTemplate.eventTemplateItems()],
+    ];
+    for (const [name, each] of every) {
+      assert.deepEqual(surveyItems.validateSurveyItems(each), [], `${name} is not valid`);
+      for (const question of surveyItems.surveyQuestionsOf(each)) {
+        const listed = surveyItems.NOT_FOR_EVERYBODY_IDS.includes(question.id);
+        assert.equal(surveyItems.isQuestionRequired(question), !listed, `${name}: ${question.id}`);
+        if (listed) assert.ok(question.optional === true && (question.type === "shortText" || question.type === "longText"), `${name}: ${question.id}`);
+      }
+      for (const consent of surveyItems.consentItemsOf(each)) assert.equal(surveyItems.isQuestionRequired(consent), false, `${name}: ${consent.id} is required`);
+    }
+    // A blank required answer is refused by both answer writers, before anything is written.
+    for (const file of ["src/lib/surveys/answer.ts", "src/lib/surveys/events/store.ts"]) {
+      assert.match(withoutComments(read(file)), /const blank = blankRefusal\(survey\.items, [^)]*\);\s*if \(blank\) return blank;/, `${file} keeps an answer with a required question blank`);
+    }
+    // Worksheets' own `required` is never what decides; it only names a contradiction with the switch.
+    const template = surveyTemplates.templateItems("before", "fellowship", null);
+    const contradicted = template.map((item) => (item.id === "q_c1" ? { ...item, required: true, optional: true } : item));
+    assert.deepEqual(
+      surveyItems.validateSurveyItems(contradicted).map((problem) => problem.message),
+      [surveyItems.REQUIRED_CONTRADICTION],
+    );
     // Nothing said in one reaches a place or an application: the code that
     // decides them reaches no survey code (the walk above names every file
     // that does).
@@ -5941,6 +5998,9 @@ describe("the check-in passage", () => {
       for (const id of ids) assert.ok(asked.includes(id), `"${words}" covers ${id}, which the leaving template no longer asks`);
     }
     assert.deepEqual(asked.filter((id) => ![...ASKS.values()].flat().includes(id)), [], "the leaving template asks a question the policy does not name");
+    // v14: as in every survey, each needs an answer unless it is marked optional; the template marks none.
+    assert.match(PAGE_FLAT, /whether you would take part again\. As in every survey, each needs an answer unless it is marked optional\./);
+    assert.deepEqual(surveyItems.missingRequired(surveyTemplates.templateItems("leaving", "fellowship", null), {}), asked, "a question of the survey about leaving is optional");
     assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-leaving.test.mjs")), "tests/surveys-leaving.test.mjs runs both doors, the page and the email, and nobody else");
   });
 
@@ -6041,7 +6101,8 @@ const eventSurveyWords = await loadTs("lib/surveys/events/words.ts");
 
 describe("the survey after an event", () => {
   const WHO = /<li> After an event, NAISI&apos;s admins may send a survey to the people who came to it, or to everybody whose place on it was confirmed, and to nobody else\. It is confidential like every survey: your answers keep your name, and only NAISI&apos;s admins can see who said what and whether they came\. The event&apos;s organisers are told that it went and when, and nothing of its results\. <\/li>/;
-  const ASKS = /<li> The survey after an event asks how it was, whether you would come to another, what we should run next, how you heard about it and what we should change\. <\/li>/;
+  // CHANGED ON PURPOSE (v14): the passage now says which of its questions need an answer.
+  const ASKS = /<li> The survey after an event asks how it was, whether you would come to another, what we should run next, how you heard about it and what we should change\. The last is marked optional; as in every survey, the others need an answer\. <\/li>/;
   const CODE = /<li> At the end of an event its QR code opens the survey\. Signed in, you answer it there if you came or signed up, and its email afterwards skips you; signed out, it asks you to sign in\. Its email is an important notice, like every survey&apos;s, with a link of your own, sent to your account&apos;s address, or if you have no account to the address you gave when you signed up or at the door\. With your answers we keep when you sent them and whether you used your link or were signed in\. <\/li>/;
   const NAMES_OFF = /no longer linked to you\. For the survey after an event, that day is two years after the event\./;
   const FILE = /The file of a survey after an event has no column about a group, and names a guest by the name they gave the event\./;
@@ -6087,7 +6148,14 @@ describe("the survey after an event", () => {
       ],
       "the survey after an event asks something the policy does not say it asks",
     );
-    assert.ok(items.every((item) => item.required === false), "a question of the survey after an event is required");
+    // CHANGED ON PURPOSE (v14): was "no question is required". What the policy
+    // says, run: the last ("Anything we should change?") is optional and the
+    // others need an answer.
+    assert.deepEqual(
+      items.map((item) => surveyItems.isQuestionRequired(item)),
+      [true, true, true, true, false],
+      "the survey after an event's questions are not required as the policy says",
+    );
     assert.deepEqual(surveyItems.validateSurveyItems(items), []);
   });
 
@@ -7437,5 +7505,67 @@ describe("v13 takes back the coursework promise from its own agreement on, and n
     }
     // The accept page is read before the "What changed" paragraph, which its own test holds to v7.
     assert.ok(accept.indexOf("Since version 13:") < accept.indexOf("What changed:"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2n Required survey questions: what v14 says is the code's, and what it takes back
+// ---------------------------------------------------------------------------
+
+describe("v14 makes survey questions required unless marked optional, keeps the permission boxes up to the person, and names the questions left blank", () => {
+  const SKIPPED = "Every question can be skipped.";
+  const KEPT = "Nothing you say in a survey affects your place on a programme or an application.";
+  /** The rule, said the same way at the top of the policy and on the accept page. */
+  const RULE = "needs an answer unless it is marked optional, and the boxes that ask your permission are still up to you.";
+  const SENTENCES = [
+    // The top of the policy says it first.
+    `<strong>New in version 14.</strong> Every question in a survey now ${RULE}`,
+    "If you sent a survey with questions left blank, an admin may send you a link to answer just those.",
+    // When you answer a survey: the rule, and the permission boxes.
+    "Every question needs an answer unless it is marked optional.",
+    "The boxes that ask your permission are always up to you: whether we may contact you for follow-ups, whether we share your details with Kairos, and whether we may quote you.",
+    // The questions left blank: job FILL's resend.
+    "If you sent a survey with questions left blank, an admin may send you a link of your own to answer just those, as an important notice like the survey&apos;s own email.",
+    "It shows only the questions you left blank, never your earlier answers.",
+    "Your first answers are kept exactly as you sent them, and the new ones are added to them, with when you sent them.",
+    "They are confidential like the rest, none of them is kept until you send them, and your name comes off them on the same day as the rest.",
+    // The leaving survey and the survey after an event follow the same rule.
+    "whether you would take part again. As in every survey, each needs an answer unless it is marked optional.",
+    "how you heard about it and what we should change. The last is marked optional; as in every survey, the others need an answer.",
+  ];
+
+  for (const sentence of SENTENCES) {
+    test(`v14 says: ${sentence.slice(0, 60)}`, () => {
+      assert.ok(CURRENT_FLAT.includes(sentence), `v14 no longer says: ${sentence}`);
+      assert.ok(!V13_FLAT.includes(sentence), `v13 already said it, so it is not v14's change: ${sentence}`);
+    });
+  }
+
+  test("v14 no longer says every question can be skipped, and v13, frozen, still does; the sentence about a place stays in both", () => {
+    const body = (flat) => flat.replace(/\/\*[\s\S]*?\*\//g, "");
+    assert.ok(V13_FLAT.includes(SKIPPED), "v13 is frozen and should still carry the sentence its readers accepted");
+    assert.ok(!body(CURRENT_FLAT).includes(SKIPPED), "v14 still says every question can be skipped");
+    assert.ok(!/can be skipped/i.test(body(CURRENT_FLAT)), "v14 still says a question can be skipped");
+    assert.ok(body(CURRENT_FLAT).includes(KEPT) && V13_FLAT.includes(KEPT), "the sentence about a place or an application changed");
+  });
+
+  test("the surveys' own words and the policy agree: required unless optional, the three permission boxes never", () => {
+    // The not-for-everybody list is text questions only, and a consent box is never required (tests/surveys-required.test.mjs walks every template).
+    const template = surveyTemplates.templateItems("before", "fellowship", null);
+    assert.ok(surveyItems.surveyQuestionsOf(template).every((question) => surveyItems.isQuestionRequired(question)));
+    assert.ok(surveyItems.consentItemsOf(template).every((consent) => !surveyItems.isQuestionRequired(consent)));
+    // The quote tick and the Kairos box are not items at all: no answer route can require them.
+    assert.ok(!surveyItems.requiredQuestionsOf(template).some((question) => /quote|kairos/i.test(question.id)));
+  });
+
+  test("the rule is said at the top, and first on the accept page", () => {
+    const top = CURRENT_FLAT.slice(CURRENT_FLAT.indexOf("className={styles.lede}"), CURRENT_FLAT.indexOf("{meta}"));
+    assert.ok(top.includes(RULE), "the top of v14 no longer says the rule");
+    assert.ok(top.indexOf("New in version 14.") < top.indexOf("New in version 13."), "v14's news is not said first");
+    const accept = read("src/app/re-consent/page.tsx").replace(/\s+/g, " ");
+    const since = accept.slice(accept.indexOf("Since version 14:"), accept.indexOf("</p>", accept.indexOf("Since version 14:")));
+    assert.ok(since.includes(`every question in a survey ${RULE}`), `the accept page no longer says the rule: ${since}`);
+    assert.ok(since.includes("If you sent a survey with questions left blank, an admin may send you a link to answer just those."));
+    assert.ok(accept.indexOf("Since version 14:") < accept.indexOf("Since version 13:"), "the accept page does not say version 14's change first");
   });
 });

@@ -100,6 +100,17 @@ export default async function ReConsentPage() {
           Privacy Policy (version {privacy.version}, {privacy.lastUpdated}).
         </p>
         {/* Said first, in its own paragraph, because it takes back what the
+            policy promised until version 13 ("Every question can be
+            skipped."). The sentences match version 14's own
+            (tests/privacy-policy.test.mjs holds both sides). */}
+        <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
+          <strong style={{ color: "var(--color-text)" }}>Since version 14:</strong>{" "}
+          every question in a survey needs an answer unless it is marked
+          optional, and the boxes that ask your permission are still up to
+          you. If you sent a survey with questions left blank, an admin may
+          send you a link to answer just those.
+        </p>
+        {/* Said next, in its own paragraph, because it takes back what the
             policy promised until version 12. The sentences match version 13's
             own (tests/privacy-policy.test.mjs holds both sides). */}
         <p style={{ color: "var(--color-text-muted)", marginTop: "var(--space-4)", lineHeight: 1.6 }}>
