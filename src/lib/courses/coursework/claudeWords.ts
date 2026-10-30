@@ -85,4 +85,16 @@ export const PANGRAM_WORDS = {
   flagged: (count: number) => plural(count, "1 answer worth a look:", "{n} answers worth a look:"),
   noneFlagged: "Nothing this week to flag.",
   stoppedAt: (name: string, reason: string) => `Stopped at ${name}: ${reason}`,
+  /** A person the tab has no row for, named nowhere else. */
+  somebody: "Somebody on the programme",
+} as const;
+
+/**
+ * The part of the Coursework tab under the table: a week chosen by plain
+ * links, then Claude's best answers to it (admins and the programme's lead)
+ * and Pangram on it (admins only). Nothing here names Pangram: the lead
+ * reads it.
+ */
+export const WEEK_PANELS_WORDS = {
+  nav: "Choose a week",
 } as const;

@@ -34,8 +34,12 @@ type Props = {
   roundId: string;
   programmeId: string;
   weekId: string;
-  /** Where a person's name links: their page on the programme. */
-  personHref?: (uid: string) => string;
+  /**
+   * Where a person's name links: the programme's coursework pages, each
+   * person's page at `<personBase>/<uid>`. A string, as the tab is drawn on
+   * the server and hands this panel nothing but data.
+   */
+  personBase?: string;
 };
 
 function readView(body: unknown): View | null {
@@ -44,7 +48,7 @@ function readView(body: unknown): View | null {
   return raw as View;
 }
 
-export default function BestAnswersPanel({ roundId, programmeId, weekId, personHref }: Props) {
+export default function BestAnswersPanel({ roundId, programmeId, weekId, personBase }: Props) {
   const url = `/api/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/coursework/best-answers`;
   const [view, setView] = useState<View | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -152,8 +156,8 @@ export default function BestAnswersPanel({ roundId, programmeId, weekId, personH
                   <ul className={styles.picks}>
                     {question.picks.map((pick) => (
                       <li key={pick.uid} className={styles.pick}>
-                        {personHref ? (
-                          <Link href={personHref(pick.uid)} className={styles.name}>
+                        {personBase ? (
+                          <Link href={`${personBase}/${encodeURIComponent(pick.uid)}`} className={styles.name}>
                             {pick.name}
                           </Link>
                         ) : (

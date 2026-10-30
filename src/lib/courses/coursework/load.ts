@@ -198,6 +198,8 @@ export type CourseworkTabView = {
   counts: { holding: number; facilitating: number; waiting: number };
   /** The lead's first name, for the line about who opens the tab; null with no lead. */
   leadFirstName: string | null;
+  /** Every row's name by account, whatever the filter: the panels under the table name people by it. */
+  names: Record<string, string>;
 };
 
 export type CourseworkTabOutcome =
@@ -282,6 +284,7 @@ export async function loadCourseworkTab(
         waiting: everybody.filter((row) => row.waiting).length,
       },
       leadFirstName: programme?.leadFirstName ?? null,
+      names: Object.fromEntries(everybody.map((row) => [row.uid, row.name])),
     },
   };
 }
@@ -294,6 +297,8 @@ export type PersonCourseworkView = {
   roundId: string;
   programmeId: string;
   programmeName: string;
+  /** The programme's course run: an admin's notes about the person are written from it. */
+  runId: string;
   viewer: CourseworkViewer;
   person: {
     uid: string;
@@ -374,6 +379,7 @@ export async function loadPersonCoursework(
       roundId: view.roundId,
       programmeId: view.programmeId,
       programmeName: view.programmeName,
+      runId: run.id,
       viewer,
       person: {
         uid,

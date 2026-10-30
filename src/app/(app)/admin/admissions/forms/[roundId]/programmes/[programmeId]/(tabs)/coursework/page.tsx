@@ -2,7 +2,9 @@ import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import NotYours from "@/features/applications/groups/NotYours";
 import RunBlank from "@/features/applications/groups/RunBlank";
 import CourseworkTable from "@/features/courses/coursework/CourseworkTable";
+import CourseworkWeekPanels from "@/features/courses/courseworkClaude/CourseworkWeekPanels";
 import { loadCourseworkTab } from "@/lib/courses/coursework/load";
+import { chosenWeek } from "@/lib/courses/coursework/model";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 
@@ -22,6 +24,12 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * sits under "Not in a group yet". Private notes and survey answers are
  * never read for the tab. Server-rendered on the Admin SDK; the filters are
  * plain links (`?group=`, `?waiting=1`). Nothing here writes.
+ *
+ * UNDER THE TABLE, one week at a time (`?week=3`, else the latest week
+ * anybody shown has written in): Claude's best answers to it for an admin
+ * and the lead, and Pangram on it for an admin alone
+ * (`CourseworkWeekPanels`). Each panel asks its own route, behind the same
+ * door; Claude and Pangram are sent something only on a press.
  */
 
 export const dynamic = "force-dynamic";
@@ -31,11 +39,11 @@ export default async function ProgrammeCourseworkPage({
   searchParams,
 }: {
   params: Promise<{ roundId: string; programmeId: string }>;
-  searchParams?: Promise<{ group?: string | string[]; waiting?: string | string[] }>;
+  searchParams?: Promise<{ group?: string | string[]; waiting?: string | string[]; week?: string | string[] }>;
 }) {
   const [{ roundId, programmeId }, query, user] = await Promise.all([
     params,
-    searchParams ?? Promise.resolve({} as { group?: string | string[]; waiting?: string | string[] }),
+    searchParams ?? Promise.resolve({} as { group?: string | string[]; waiting?: string | string[]; week?: string | string[] }),
     requireAdmissionsPage(),
   ]);
   const db = getAdminDb();
@@ -43,6 +51,25 @@ export default async function ProgrammeCourseworkPage({
   if (!db || !outcome || outcome.status === "none") return <NoProgrammeHere roundId={roundId} />;
   if (outcome.status === "not-yours") return <NotYours roundId={roundId} programmeId={programmeId} tab="Coursework" />;
   if (outcome.status === "blank") return <RunBlank view={outcome.view} />;
-  const base = `/admin/admissions/forms/${encodeURIComponent(outcome.view.roundId)}/programmes/${encodeURIComponent(outcome.view.programmeId)}/coursework`;
-  return <CourseworkTable view={outcome.view} base={base} />;
+  const { view } = outcome;
+  const base = `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/coursework`;
+  // The panels sit under a table: none while nobody holds a place or no week has coursework.
+  const week = view.counts.holding + view.counts.facilitating > 0 ? chosenWeek(query, view.columns, view.sections) : null;
+  return (
+    <>
+      <CourseworkTable view={view} base={base} week={week?.asked ? week.weekNumber : null} />
+      {week && (
+        <CourseworkWeekPanels
+          roundId={view.roundId}
+          programmeId={view.programmeId}
+          base={base}
+          filter={view.filter}
+          columns={view.columns}
+          week={week}
+          viewer={view.viewer}
+          names={view.viewer === "admin" ? view.names : {}}
+        />
+      )}
+    </>
+  );
 }

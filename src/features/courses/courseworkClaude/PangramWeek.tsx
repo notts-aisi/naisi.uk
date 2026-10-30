@@ -22,13 +22,14 @@ type Props = {
   roundId: string;
   programmeId: string;
   weekId: string;
-  /** A person's name, as the tab shows it. */
-  nameOf: (uid: string) => string;
-  /** Where a person's name links: their page on the programme. */
-  personHref?: (uid: string) => string;
+  /** Each person's name by account, as the tab shows it. Data, not a function: the tab is drawn on the server. */
+  names: Readonly<Record<string, string>>;
+  /** Where a person's name links: each person's page at `<personBase>/<uid>`. */
+  personBase?: string;
 };
 
-export default function PangramWeek({ roundId, programmeId, weekId, nameOf, personHref }: Props) {
+export default function PangramWeek({ roundId, programmeId, weekId, names, personBase }: Props) {
+  const nameOf = (uid: string) => (Object.prototype.hasOwnProperty.call(names, uid) ? names[uid] : PANGRAM_WORDS.somebody);
   const base = `/api/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/coursework`;
   const [plan, setPlan] = useState<Plan | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -99,30 +100,28 @@ export default function PangramWeek({ roundId, programmeId, weekId, nameOf, pers
     setProgress(null);
   }
 
-  if (!plan) {
-    return problem ? (
-      <p className={styles.problem} role="alert">
-        {problem}
-      </p>
-    ) : null;
-  }
-
   return (
-    <div className={styles.week}>
-      {!plan.pangram ? (
-        <p className={styles.line}>{PANGRAM_WORDS.notSetUp}</p>
-      ) : plan.people.length === 0 ? (
-        <p className={styles.line}>{PANGRAM_WORDS.nobodyThisWeek}</p>
-      ) : (
-        <>
-          <p className={styles.line}>{PANGRAM_WORDS.weekCount(plan.people.length, plan.answers)}</p>
-          <div className={styles.row}>
-            <Button type="button" variant="secondary" disabled={progress !== null} onClick={() => void onCheck()}>
-              {progress ? PANGRAM_WORDS.checkingOf(progress.done, progress.total) : PANGRAM_WORDS.weekButton(plan.people.length)}
-            </Button>
-          </div>
-        </>
-      )}
+    <section className={styles.panel} aria-label={PANGRAM_WORDS.title}>
+      <div className={styles.head}>
+        <h3 className={styles.title}>{PANGRAM_WORDS.title}</h3>
+        <span className={`meta ${styles.tag}`}>{PANGRAM_WORDS.whoSees}</span>
+      </div>
+      <p className={styles.line}>{PANGRAM_WORDS.intro}</p>
+      {plan &&
+        (!plan.pangram ? (
+          <p className={styles.line}>{PANGRAM_WORDS.notSetUp}</p>
+        ) : plan.people.length === 0 ? (
+          <p className={styles.line}>{PANGRAM_WORDS.nobodyThisWeek}</p>
+        ) : (
+          <>
+            <p className={styles.line}>{PANGRAM_WORDS.weekCount(plan.people.length, plan.answers)}</p>
+            <div className={styles.row}>
+              <Button type="button" variant="secondary" disabled={progress !== null} onClick={() => void onCheck()}>
+                {progress ? PANGRAM_WORDS.checkingOf(progress.done, progress.total) : PANGRAM_WORDS.weekButton(plan.people.length)}
+              </Button>
+            </div>
+          </>
+        ))}
       {flagged &&
         (flagged.length === 0 ? (
           <p className={styles.line}>{PANGRAM_WORDS.noneFlagged}</p>
@@ -132,8 +131,8 @@ export default function PangramWeek({ roundId, programmeId, weekId, nameOf, pers
             <ul className={styles.picks}>
               {flagged.map((person) => (
                 <li key={person.uid} className={styles.pick}>
-                  {personHref ? (
-                    <Link href={personHref(person.uid)} className={styles.name}>
+                  {personBase ? (
+                    <Link href={`${personBase}/${encodeURIComponent(person.uid)}`} className={styles.name}>
                       {nameOf(person.uid)}
                     </Link>
                   ) : (
@@ -145,10 +144,17 @@ export default function PangramWeek({ roundId, programmeId, weekId, nameOf, pers
           </>
         ))}
       {problem && (
-        <p className={styles.problem} role="alert">
-          {problem}
-        </p>
+        <div className={styles.row}>
+          <p className={styles.problem} role="alert">
+            {problem}
+          </p>
+          {!plan && (
+            <Button type="button" variant="ghost" size="sm" onClick={() => void load(() => false)}>
+              {PANGRAM_WORDS.retry}
+            </Button>
+          )}
+        </div>
       )}
-    </div>
+    </section>
   );
 }
