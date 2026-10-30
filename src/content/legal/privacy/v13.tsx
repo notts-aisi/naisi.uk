@@ -1,7 +1,8 @@
 /**
  * Version 13 of the Privacy Policy, written for Claude and Pangram on
  * coursework and for the notes admins keep about a person
- * (`docs/courses-ops.md`, "Claude and Pangram on coursework").
+ * (`docs/courses-ops.md`, "Claude and Pangram on coursework, and the notes
+ * admins keep").
  *
  * What changed from v12, in the words a member would use:
  *
@@ -24,7 +25,7 @@
  *     coursework, with no name, and nothing is kept until an admin saves it,
  *     marked as drafted by Claude; kept with the course record, deleted with
  *     the account, and part of a copy of their data on request
- *     (`src/lib/courses/memberNotes/`).
+ *     (`src/lib/memberNotes/`).
  *  3. **Claude on coursework.** An admin or a programme's lead can ask Claude
  *     to pick the strongest answers to each question of a week, with no names
  *     sent; names are put back on the site; shown to admins and the lead

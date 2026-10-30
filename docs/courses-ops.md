@@ -2829,6 +2829,82 @@ certificate was sent in error, and tell its owner.
   (`outputFileTracingIncludes`). The fonts are in
   `src/lib/courses/certificates/fonts/`, each beside its licence.
 
+## Claude and Pangram on coursework, and the notes admins keep
+
+Privacy policy version 13 (`src/content/legal/privacy/v13.tsx`) took back
+version 12's promise that nothing written in a course is used outside its
+programme, from its own agreement on. Three features rest on that, each an
+admin's press (the best answers also the programme's lead's), never
+automatic, all built like the applications' second reader
+(`docs/applications.md`, "Claude and Pangram"): labels to Claude, names put
+back on the way to the screen, a hash of what was sent so a stored answer
+shows as out of date.
+
+- **The cut-off** (`src/lib/legal/courseworkUse.ts`). An account keeps
+  `courseworkUseAgreedAt`, the moment it FIRST agreed to version 13 or a later
+  one: written once, on the server only, by the re-consent route in the
+  agreement's own transaction and by registration's profile-complete route
+  (`courseworkUseStamp.ts`). The rules refuse it in a browser's create and
+  hold it unchanged in every browser's update, an admin's included. Until it
+  lands after a registration, an agreement to version 13 or later counts from
+  its own time, which is never earlier. A ROW OF COURSEWORK COUNTS only when
+  it was first written strictly after that moment: the reflection, fill-in
+  box and written answer routes stamp `firstWrittenAt` once on a new row, and
+  a row without it (every row written before this change) never counts. A
+  written answer counts only once sent. Somebody with no moment is sent to
+  nobody, and their writing is used only within its programme.
+- **Notes admins keep about a person** (`src/lib/memberNotes/`,
+  `memberNotes`, the routes under `/api/admin/members/[uid]/notes`). Admins
+  only, both ways; an admin is refused the notes about themselves; the person
+  never sees them on the site. One record per person: a note belongs to the
+  person, not a run, keeps the name of the programme it was written from, and
+  stays when that run is destroyed. WHERE A NOTE SHOWS (`notesShownIn`): the
+  profile (`/admin/members/[uid]`) shows every note and marks one written
+  before its person's moment; beside an application only notes written after
+  it; a programme's pages those, and earlier notes written from that
+  programme. Each place says its rule in one line. "Draft a note with Claude"
+  (`draft.ts`) sends that person's counted coursework on one run, with the
+  week's questions, a written answer's feedback as LEVELS and never its
+  comment, and every name of everybody on the run swapped for a label ("the
+  fellow"); the draft is returned and never stored, and only Save note keeps
+  it, with `draftedByClaude`. Deleted with the person's account; a note an
+  account wrote about somebody else stays, and no longer names its author.
+- **Best answers to a week** (`src/lib/courses/coursework/bestAnswers.ts`,
+  `courseBestAnswers/{runId}__{weekId}`, the route
+  `.../programmes/[programmeId]/coursework/best-answers`). The Coursework
+  tab's door: an admin or the programme's lead. Sent: every counted answer
+  to the week's questions (reflection prompts, written answers, fill-in
+  boxes; from every group's copy of the week, by prompt id) by somebody
+  holding a place, never a facilitator's own work, each person "Fellow N" in
+  account order, every typed name and email address swapped out. Claude picks
+  up to three per question with a reason and says what was hard. Kept by
+  account, never by name; names put back from who holds a place NOW, so a
+  pick of somebody who gave their place back is dropped. The panel says how
+  many answers can be sent and how many are "not included yet". Replaced by
+  the next press; deleted with the run; an account's deletion takes it out of
+  every week's picks (`clearBestAnswerPicks`).
+- **Pangram** (`src/lib/courses/coursework/pangram.ts`,
+  `coursePangramChecks/{runId}__{uid}`, the routes
+  `.../coursework/[uid]/pangram` and `.../coursework/pangram`). ADMINS ONLY,
+  refused on the session before anything is read: the programme's lead never
+  sees a reading on any page or route. One person's counted written answers
+  and reflections of 50 words or more (never a fill-in box), joined into one
+  request, each read back through `readingsForParts`; a week's check says who
+  and how many before the press, then the browser sends one person at a
+  time. Kept per answer with a hash of its words, so a changed answer shows
+  as out of date. A flag reads "worth a look". Deleted with the run and with
+  the account.
+- **What Claude is never sent**: a name, an email address, an account id, a
+  group's name, a facilitator's name, availability, a review score, a survey
+  answer, a private note, a tick, or anything written before its writer's
+  moment. Claude is told never to judge somebody's English or whether AI
+  wrote anything, and that a thin answer is thin.
+
+`tests/coursework-use-cut-off.test.mjs` holds the moment and the rows at the
+boundary; `tests/coursework-claude.test.mjs` drives every route as an admin,
+the lead, a reviewer, a facilitator and a fellow, reads every message that
+would go, and runs the account cascade over the three records.
+
 ## Cutover: membership periods
 
 Membership is a period-per-year object (`membershipPeriods/{periodId}`), and

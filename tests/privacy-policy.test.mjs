@@ -4048,6 +4048,10 @@ describe("the course hub passage", () => {
           "src/lib/courses/placementNotes/section.ts",
           "Outside the times they gave, on Publish's own page: the week somebody marked, read for an ADMIN alone to draw beside their group's session while a note to them is written. The section refuses everybody but an admin and the programme's lead, and the lead is sent no week. A facilitator never reaches it",
         ],
+        [
+          "src/lib/courses/coursework/door.ts",
+          "Claude and Pangram on coursework (v13): the form's applications and decisions, read only through placeHoldersOn to answer WHO holds a place on the programme, by the name on record, behind the Coursework tab's door (an admin or the programme's lead). Nothing an application says is sent or shown, and a facilitator never reaches it",
+        ],
       ]),
       "reading applications on the course side",
       "A facilitator is shown nothing from applications but whether each person in their group has said " +
