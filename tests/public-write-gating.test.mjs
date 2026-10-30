@@ -575,6 +575,22 @@ const PUBLIC_HANDLERS = new Map([
     },
   ],
   [
+    "src/app/api/surveys/blanks/route.ts#POST",
+    {
+      anonymous: true,
+      writes: true,
+      sends: false,
+      throttle: "rateLimit(`surveys:blanks:ip:${clientIp(req)}`",
+      credential: "openBlanksLink(",
+      why:
+        "A person's answers to the questions they left blank on a survey, from the link of blanks an admin's " +
+        "press emailed them, with no session to require. The 32-byte secret IS the credential: it opens that " +
+        "person's own row and nobody else's, a wrong or replaced one opens nothing, and a spent one keeps " +
+        "nothing more. An in-memory per-IP throttle runs first and keeps no address; the answers are kept once, " +
+        "beside the first ones, in a transaction that spends the link, and nothing is emailed.",
+    },
+  ],
+  [
     "src/app/api/surveys/consent/route.ts#POST",
     {
       anonymous: true,

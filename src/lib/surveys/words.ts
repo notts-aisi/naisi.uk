@@ -1386,6 +1386,8 @@ export function personScaleWords(question: SurveyQuestion): string {
 export const BLANKS_WORDS = {
   /** The admin's button, beside somebody who sent the survey with required questions left blank. */
   button: "Send the questions they left blank",
+  /** Who answered's column for it. */
+  column: "Left blank",
   /** The confirmation's two buttons. */
   confirmCancel: "Not now",
   sending: "Sending…",

@@ -29,6 +29,7 @@ import { readEventAudience, respondentKey } from "./events/audience";
 import { readEventPerson } from "./events/store";
 import { EVENT_CONFIDENTIAL_LINE } from "./events/words";
 import { readSurveyAnswers, storedSurveyAnswers, withoutLines } from "./items";
+import { namesOf } from "./names";
 import { whoOf } from "./onePersonLayout";
 import { groupHasMet, hiddenLinesFor, toldGroupOf } from "./personFacts";
 import { isOpen, readPerson, readSurvey } from "./repo";
@@ -42,6 +43,7 @@ import {
   SURVEY_REPLY_TO,
   blanksCountChangedWords,
   blanksEmailWords,
+  blanksPressedWords,
 } from "./words";
 
 /**
@@ -244,7 +246,8 @@ export async function recordBlanks(
 // ---------------------------------------------------------------------------
 
 export type BlanksPressOutcome =
-  | { ok: true; delivery: SurveyDelivery }
+  /** `pressed` is the line the admins' pages now show beside the person: "Sent Fri 30 Oct, 2:05pm by Zach Levin". */
+  | { ok: true; delivery: SurveyDelivery; pressed: string }
   | { ok: false; status: number; error: string; questions?: number; retryAfterSeconds?: number };
 
 /** Where the email goes: an account's own address, or the address a guest gave the event. */
@@ -344,5 +347,6 @@ export async function pressBlanks(
     return { ok: false, status: 502, error: BLANKS_REFUSAL.failed };
   }
   await personRef.update({ "blanks.sentAt": FieldValue.serverTimestamp(), "blanks.delivery": delivery });
-  return { ok: true, delivery };
+  const by = (await namesOf(db, [presserUid])).get(presserUid) ?? "";
+  return { ok: true, delivery, pressed: blanksPressedWords({ at: now, by, delivery }) };
 }

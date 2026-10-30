@@ -3108,6 +3108,33 @@ export const ROUTES = {
         "recorded.",
     },
   },
+  "/api/surveys/[surveyId]/people/[who]/blanks": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Sending one person the questions they left blank is an admin's alone: view-as first, then the session " +
+        "and the admin bar, then the body, so the admin meets the 400 for a press with no number of questions, " +
+        "and nothing is read or sent.",
+    },
+  },
+  "/api/surveys/[surveyId]/blanks": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Answering the questions one left blank, signed in, as the caller and nobody else: view-as first, then " +
+        "the session, then the body, so every signed-in persona meets the same 400 on an empty one. There is no " +
+        "uid in the request; a survey the caller has no row on is refused in one sentence once a body arrives.",
+    },
+  },
+  "/api/surveys/blanks": {
+    POST: {
+      expect: everyone(400),
+      why:
+        "Answering the questions one left blank by the link of blanks, with no session: the secret in the body " +
+        "is the credential, after an in-memory rate limit, so every caller meets the same 400 for a body with " +
+        "no secret in it, signed in or not.",
+    },
+  },
   "/api/surveys/[surveyId]/questions": {
     POST: {
       expect: adminOnly(404),
@@ -5910,6 +5937,12 @@ export const REAL_ROUTES = {
         participant: c(200, "Holding a place does not open the facilitator guide: the calm sentence, as text, and no PDF."),
       },
     },
+  },
+  "/api/surveys/[surveyId]/people/[who]/blanks": {
+    POST: adminAlone("Sending one person the questions they left blank", c(400, "An admin meets the body check: no number of questions.")),
+  },
+  "/api/surveys/[surveyId]/blanks": {
+    POST: bodyFirst("Then the caller's own row on the survey, and the link of blanks an admin's press made on it."),
   },
   "/api/surveys/[surveyId]/people/[who]": {
     POST: adminAlone(

@@ -4983,6 +4983,12 @@ describe("the course hub passage", () => {
         ["src/app/api/surveys/[surveyId]/answer/route.ts", "the person's own answers, signed in, to their own row: there is no uid in the request"],
         ["src/app/api/surveys/consent/route.ts", "the person's own follow-ups consent, changed through the secret in their link, on their own row"],
         ["src/app/api/surveys/[surveyId]/consent/route.ts", "the person's own follow-ups consent, changed signed in, on their own row: there is no uid in the request"],
+        // The questions somebody left blank (docs/surveys.md): an admin's
+        // press for one person, and the person's own later send, by the
+        // secret in their link of blanks or signed in on their own row.
+        ["src/app/api/surveys/[surveyId]/people/[who]/blanks/route.ts", `${ADMIN_ROUTE}; emails one person a link to the questions they left blank, never an answer`],
+        ["src/app/api/surveys/blanks/route.ts", "the person's own answers to the questions they left blank, sent through the secret in their link of blanks, beside their first answers"],
+        ["src/app/api/surveys/[surveyId]/blanks/route.ts", "the person's own answers to the questions they left blank, signed in, to their own row: there is no uid in the request"],
         ["src/lib/firestore/accountDeletion.ts", "deleting an account takes its name off its survey answers and deletes its survey rows"],
         ["src/lib/scheduler/jobs/surveyNamesOff.ts", "the job that takes names off two years after the programme"],
         // CHANGED ON PURPOSE (Q50 B): the cards of the surveys waiting for the
@@ -5085,6 +5091,7 @@ describe("the course hub passage", () => {
       "src/app/api/surveys/[surveyId]/export/route.ts",
       "src/app/api/surveys/[surveyId]/open-at-event/route.ts",
       "src/app/api/surveys/[surveyId]/people/[who]/route.ts",
+      "src/app/api/surveys/[surveyId]/people/[who]/blanks/route.ts",
     ]) {
       const code = withoutComments(read(route));
       const refused = code.indexOf("if (!canRunSurveys(actor)) return NextResponse.json({ error: REFUSAL.adminOnly }, { status: 403 });");

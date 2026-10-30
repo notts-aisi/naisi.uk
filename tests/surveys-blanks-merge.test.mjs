@@ -109,9 +109,10 @@ describe("the one merge never overwrites and fills only what was blank", () => {
       { answers: { q_c2: { type: "percent", value: 20 }, q_c1: { type: "choice", optionId: "o_stage4" } }, sentAt: at("2026-10-30T14:05:00Z") },
       { answers: { q_c7: { type: "lines", values: { l_contribute: 3 } } }, sentAt: at("2026-10-31T09:00:00Z") },
     ]);
-    assert.deepEqual([...later.keys()].sort(), ["q_c2", "q_c7"], "q_c1 was not blank, so nothing of it came later");
+    assert.deepEqual([...later.keys()].sort(), ["q_c2", "q_c7", "q_c7.l_contribute"], "q_c1 and l_next were not blank, so nothing of them came later");
     assert.equal(later.get("q_c2").toISOString(), "2026-10-30T14:05:00.000Z");
     assert.equal(later.get("q_c7").toISOString(), "2026-10-31T09:00:00.000Z");
+    assert.equal(later.get("q_c7.l_contribute").toISOString(), "2026-10-31T09:00:00.000Z");
   });
 });
 

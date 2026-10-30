@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { AnsweredRow } from "@/lib/surveys/adminView";
+import { BLANKS_WORDS } from "@/lib/surveys/words";
+import BlanksButton from "./BlanksButton";
 import ExportButton from "./ExportButton";
 import styles from "./surveyAdmin.module.css";
 
@@ -14,7 +16,9 @@ export function personHref(surveyId: string, who: string): string {
  * group first met. Names are here so an admin can remind people and answer a
  * request about someone's answers; nobody else is shown who has answered.
  * Each name opens that person's answers, on a page that records the opening
- * before it shows anything of them.
+ * before it shows anything of them. Beside somebody who sent it with required
+ * questions left blank: how many, and the button that sends them those
+ * questions alone, one person at a time (`BlanksButton`).
  */
 export default function AnsweredTab({
   surveyId,
@@ -49,6 +53,7 @@ export default function AnsweredTab({
                   <th scope="col">Answered</th>
                   <th scope="col">How</th>
                   <th scope="col">Note</th>
+                  <th scope="col">{BLANKS_WORDS.column}</th>
                 </tr>
               </thead>
               <tbody>
@@ -63,6 +68,7 @@ export default function AnsweredTab({
                     <td>{row.answered || "Not yet"}</td>
                     <td>{row.how}</td>
                     <td>{[row.label, row.reminded].filter(Boolean).join(" · ")}</td>
+                    <td>{row.blanks && <BlanksButton surveyId={surveyId} who={row.who} name={row.name} row={row.blanks} />}</td>
                   </tr>
                 ))}
               </tbody>

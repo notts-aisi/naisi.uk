@@ -6,10 +6,12 @@ import { NO_NAMES_OFF } from "@/lib/events/checkInView";
 import type { EventAudience, EventSurveyDoc } from "@/lib/firestore/surveys";
 import { shortLinkAddress } from "@/lib/qr/shortLinkCode";
 import { preview, testView, type EmailPreview, type SurveyState, type TestView } from "../adminView";
+import { IS_REQUIRED, blanksOf, blanksRowOf, type BlanksRow } from "../blanks";
 import { emailWordsFor, siteAddress } from "../emails";
 import { surveyQuestionsOf } from "../items";
 import { whoOf } from "../onePersonLayout";
-import { closedOn, surveyState } from "../repo";
+import { namesOf } from "../names";
+import { closedOn, isOpen, surveyState } from "../repo";
 import { signerOf, testStateFor } from "../sending";
 import {
   dayAndClockWords,
@@ -253,8 +255,9 @@ export async function eventAnsweredView(
   db: Firestore,
   survey: EventSurveyDoc,
   plan?: EventSendPlan,
+  now: Date = new Date(),
 ): Promise<{
-  rows: { name: string; who: string; sent: string; answered: string; how: string; label: string; reminded: string }[];
+  rows: { name: string; who: string; sent: string; answered: string; how: string; label: string; reminded: string; blanks: BlanksRow | null }[];
   answered: number;
   sent: number;
   heading: string;
@@ -263,11 +266,22 @@ export async function eventAnsweredView(
   const answers = await eventAnswersOf(db, survey);
   const names = new Map((read.read?.people ?? []).map((member) => [member.key, member.name]));
   const byKey = new Map(answers.flatMap((answer) => (answer.respondent ? [[respondentKey(answer.respondent), answer] as const] : [])));
+  const pressers = await namesOf(db, read.rows.flatMap((row) => row.blanksPresses.map((press) => press.byUid)));
+  const open = isOpen(survey, now);
   const rows = read.rows
     .filter((row) => row.sentAt !== null || row.answered)
     .map((row) => {
       const key = respondentKey(row.respondent);
       const answer = byKey.get(key);
+      const blanks = answer
+        ? blanksRowOf({
+            count: blanksOf(survey.items, answer.answers, { isRequired: IS_REQUIRED }).length,
+            open,
+            link: row.blanks,
+            presses: row.blanksPresses,
+            nameOf: (uid) => pressers.get(uid) ?? "",
+          })
+        : null;
       return {
         name: names.get(key) ?? (row.respondent.kind === "guest" ? "A guest no longer on the list" : "Somebody whose account has gone"),
         who: whoOf(row.respondent),
@@ -276,6 +290,7 @@ export async function eventAnsweredView(
         how: answer ? (answer.via === "signed-in" ? "With the QR code, signed in" : "Personal link") : "",
         label: "",
         reminded: row.reminders > 0 ? `Reminded ${row.reminders === 1 ? "once" : `${row.reminders} times`}` : "",
+        blanks,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name, "en"));

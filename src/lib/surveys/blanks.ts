@@ -179,32 +179,40 @@ export function outsideBlanks(raw: Readonly<Record<string, unknown>>, blanks: re
 }
 
 /**
- * The ids of the questions an answer came to later, by when: for each later
- * send, the questions it added an answer (or a line) to. One person's page
- * marks those answers as sent later, and when.
+ * What came later, and when: for each later send, the questions it answered
+ * (by question id) and, on a lines question, each line it added (by
+ * `<question id>.<line id>`), with the time of the send that added it. A
+ * lines question some of whose lines came later is listed too. One person's
+ * page marks those answers as sent later.
  */
 export function laterAnswersOf(
   first: Readonly<SurveyAnswers>,
   fills: readonly { answers: Readonly<SurveyAnswers>; sentAt: Date | null }[],
 ): Map<string, Date | null> {
   const out = new Map<string, Date | null>();
+  const mark = (key: string, at: Date | null) => {
+    if (!out.has(key)) out.set(key, at);
+  };
   let held: SurveyAnswers = { ...first };
   for (const fill of fills) {
     const next = mergedAnswers(held, [fill]);
-    for (const id of Object.keys(next)) {
-      if (out.has(id)) continue;
+    for (const [id, after] of Object.entries(next)) {
       const before = own(held, id);
-      const after = own(next, id);
-      const added =
-        before === undefined ||
-        (before.type === "lines" && after?.type === "lines" && Object.keys(after.values).length > Object.keys(before.values).length);
-      if (added) out.set(id, fill.sentAt);
+      if (before === undefined) {
+        mark(id, fill.sentAt);
+        if (after.type === "lines") for (const line of Object.keys(after.values)) mark(`${id}.${line}`, fill.sentAt);
+        continue;
+      }
+      if (before.type !== "lines" || after.type !== "lines") continue;
+      const added = Object.keys(after.values).filter((line) => own(before.values, line) === undefined);
+      if (added.length === 0) continue;
+      mark(id, fill.sentAt);
+      for (const line of added) mark(`${id}.${line}`, fill.sentAt);
     }
     held = next;
   }
   return out;
 }
-
 
 /**
  * Beside one person on the admins' pages: how many questions they left blank,
