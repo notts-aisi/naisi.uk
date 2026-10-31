@@ -17,7 +17,11 @@
  *  5. DELETIONS: an account deleted takes its name off at once (the real
  *     account cascade); an event deleted takes its check-ins (the real route).
  *  6. THE TREE: only two files address the collection, both server-only, so
- *     no browser ever reads or writes a check-in.
+ *     no browser ever reads or writes a check-in; and every call that writes
+ *     one says which way the person came in, from an expression registered
+ *     with the reason it is that person's own way, so no route can again
+ *     write one way for all of them (the old `qr`, which said "QR at the
+ *     door" of people who never scanned anything).
  *
  * Run with `npm test`.
  */
@@ -27,7 +31,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CASCADE_FIRESTORE_STUB, makeCascadeDb } from "./lib/cascadeStore.mjs";
-import { walkSource } from "./lib/functionScan.mjs";
+import { callsOf, walkSource } from "./lib/functionScan.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
 import {
   AFTER,
@@ -549,5 +553,53 @@ describe("no browser reaches a check-in", () => {
       /^import "server-only";/,
       "the reads and writes are server-only",
     );
+  });
+});
+
+describe("every check-in is written with its own way in", () => {
+  /**
+   * Every call of `recordCheckIn` under src, by file, with the expression its
+   * `how` is and why that is the way the person came. Both directions: a new
+   * writer fails until it is written down here, and an entry with no call
+   * fails as stale.
+   */
+  const WRITERS = {
+    "src/app/api/events/[id]/check-in/route.ts": [
+      [
+        "selfHow({ viaLink: decision.viaLink, doorCode: parsed.doorCode })",
+        "checking yourself in: the link in your email, the door code that opened the page, or the page itself, decided by `selfHow`",
+      ],
+    ],
+    "src/app/api/events/[id]/check-ins/route.ts": [
+      [
+        'parsed.from === "door" ? "door" : "page"',
+        "a walk-in added by somebody who runs check-in: on the door list, or from the event's page afterwards",
+      ],
+      [
+        'parsed.from === "door" ? "door" : "page"',
+        "a sign-up ticked by somebody who runs check-in: on the door list, or from the event's page afterwards",
+      ],
+    ],
+  };
+
+  test("each writer, and the way it writes, is registered with its reason", () => {
+    const found = {};
+    for (const file of walkSource(join(REPO_ROOT, "src"))) {
+      const path = relative(REPO_ROOT, file).split("\\").join("/");
+      for (const call of callsOf(file, "recordCheckIn")) {
+        const record = call.args[1]?.text ?? "";
+        const how = /\bhow:\s*([\s\S]+?),\s*\n/.exec(record);
+        assert.ok(how, `${path}:${call.line} writes a check-in without saying how they came in`);
+        (found[path] ||= []).push(how[1].replace(/\s+/g, " ").trim());
+      }
+    }
+    const registered = Object.fromEntries(Object.entries(WRITERS).map(([path, rows]) => [path, rows.map(([how]) => how)]));
+    assert.deepEqual(found, registered);
+    for (const [path, rows] of Object.entries(WRITERS)) {
+      for (const [how, why] of rows) {
+        assert.ok(why.length > 40, `${path}: say why ${how} is the person's own way in`);
+        assert.ok(!/"qr"/.test(how), `${path} writes the old catch-all`);
+      }
+    }
   });
 });
