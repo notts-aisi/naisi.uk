@@ -533,6 +533,25 @@ export type EventDoc = {
    * simply not used, so switching back loses nothing.
    */
   noSignup: boolean;
+  /**
+   * People can check themselves in: with the link in their confirmation
+   * email, with the door code, or on the check-in page while signed in. Off,
+   * only the people who run check-in check anybody in, at the door list or
+   * from the event's page afterwards, and the confirmation email says to give
+   * your name at the door. Off for a new event, and only a stored `true` is
+   * on, so every event made before this existed is off until its author turns
+   * it on.
+   */
+  selfCheckIn: boolean;
+  /**
+   * When the door was opened, and by whom: the door list takes a tick, and
+   * people check themselves in, only once the event's author or an admin has
+   * opened it, inside the door's hours. Written once, by
+   * `/api/events/[id]/door` alone, and pinned in `firestore.rules`. Null until
+   * then.
+   */
+  doorOpenedAt: Date | null;
+  doorOpenedBy: string | null;
   signupForm: FormQuestion[];
   /**
    * @deprecated Legacy food classification. New and edited events use
@@ -784,6 +803,9 @@ export function normalizeEvent(id: string, data: Raw): EventDoc {
     waitlistEnabled:
       capacity === null ? false : data.waitlistEnabled !== false,
     noSignup: data.noSignup === true,
+    selfCheckIn: data.selfCheckIn === true,
+    doorOpenedAt: tsToDate(data.doorOpenedAt),
+    doorOpenedBy: typeof data.doorOpenedBy === "string" && data.doorOpenedBy ? data.doorOpenedBy : null,
     signupForm: sanitizeSignupForm(data.signupForm),
     foodProvenance: asFoodProvenance(data.foodProvenance),
     foodProvenanceNote: (data.foodProvenanceNote as string | null | undefined) ?? null,

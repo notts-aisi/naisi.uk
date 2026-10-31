@@ -1,4 +1,5 @@
 import { own } from "@/lib/applications/keys";
+import { checkedThemselvesIn, type CheckInHow } from "@/lib/firestore/eventCheckIns";
 import { bothOf, type PairedAnswers } from "../change";
 import { surveyQuestionsOf, type SurveyItem } from "../items";
 import { valueOf } from "../results";
@@ -27,8 +28,13 @@ import {
  * Pure: no reads and no clock.
  */
 
-/** How one person was checked in: with the code at the door, on the door list, or added later from the event's page. */
-export type CheckInWay = "qr" | "door" | "page";
+/**
+ * How one person was checked in, as their record says it: by themselves (the
+ * door code, their email's link, the check-in page, or `qr`, a record from
+ * before those were told apart), on the door list, or added later from the
+ * event's page.
+ */
+export type CheckInWay = CheckInHow;
 
 /** One check-in an event's "came" counts. */
 export type CountedCheckIn = {
@@ -242,10 +248,11 @@ export function peopleAcross(events: readonly Pick<TermEvent, "counted">[]): { p
 export function eventNote(event: Pick<TermEvent, "endsAt" | "noSignup" | "counted">, checkInSince: Date | null): string {
   if (event.counted.length > 0) {
     if (!event.noSignup) return "";
-    // As the Check-in tab groups them: the code at the door, and the door list with those added later.
-    const byQr = event.counted.some((checkIn) => checkIn.how === "qr");
-    const atTheDoor = event.counted.some((checkIn) => checkIn.how !== "qr");
-    return noSignupWords(byQr, atTheDoor);
+    // As the Check-in tab groups them: by themselves, whichever way, and the
+    // door list with those added later.
+    const themselves = event.counted.some((checkIn) => checkedThemselvesIn(checkIn.how));
+    const atTheDoor = event.counted.some((checkIn) => !checkedThemselvesIn(checkIn.how));
+    return noSignupWords(themselves, atTheDoor);
   }
   if (checkInSince === null || event.endsAt.getTime() < checkInSince.getTime()) return TERM_WORDS.beforeCheckIn;
   return event.noSignup ? TERM_WORDS.noSignupNoCheckIn : TERM_WORDS.noCheckIn;

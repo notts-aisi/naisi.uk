@@ -60,10 +60,16 @@ type Props = {
   changeUrl?: string;
   /**
    * Absolute URL of the event's check-in page, carrying this sign-up and its
-   * token: somebody holding a place checks themselves in at the door with it,
-   * with no account. Only on the emails that hold a place.
+   * token: somebody holding a place checks themselves in with it, with no
+   * account. Only on the emails that hold a place, at an event that lets
+   * people check themselves in.
    */
   checkInUrl?: string;
+  /**
+   * An email that holds a place, at an event that does not let people check
+   * themselves in: "On the day, give your name at the door." and no link.
+   */
+  atTheDoor?: boolean;
   /** Optional Instagram handle for the contact footer ("naisi.uon"). */
   instagramHandle?: string;
   /** Optional contact email for the footer (defaults to the from address). */
@@ -149,6 +155,7 @@ export default function EventRsvpEmail({
   cancelUrl,
   changeUrl,
   checkInUrl,
+  atTheDoor,
   instagramHandle,
   contactEmail,
 }: Props) {
@@ -259,16 +266,18 @@ export default function EventRsvpEmail({
             </Section>
           )}
 
-          {showActions && (cancelUrl || changeUrl || checkInUrl) && (
+          {showActions && (cancelUrl || changeUrl || checkInUrl || atTheDoor) && (
             <Section style={{ margin: "20px 0 0" }}>
-              {checkInUrl && (
+              {checkInUrl ? (
                 <Text style={actionLine}>
-                  On the day, you can{" "}
+                  On the day,{" "}
                   <EmailLink href={checkInUrl} style={link}>
                     check yourself in
                   </EmailLink>{" "}
-                  at the door from this email, or give your name there.
+                  from this email, or give your name at the door.
                 </Text>
+              ) : (
+                atTheDoor && <Text style={actionLine}>On the day, give your name at the door.</Text>
               )}
               {changeUrl && (
                 <Text style={actionLine}>

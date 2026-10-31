@@ -94,6 +94,30 @@
   gap: var(--space-2);
 }
 
+/* "At the door": what the door is doing, with "Open the door" beside it for its author and admins. */
+.doorRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.doorWords {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.doorAction {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
 .codeBox {
   display: flex;
   flex-direction: column;
@@ -348,6 +372,16 @@
 @media (max-width: 48rem) {
   .stat {
     padding: var(--space-4);
+  }
+
+  /* The button goes under the words, the width of the card. */
+  .doorRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .doorAction {
+    align-items: stretch;
   }
 
   .statNumber {

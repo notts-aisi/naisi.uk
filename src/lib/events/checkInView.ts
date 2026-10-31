@@ -1,5 +1,11 @@
 import { clockWords, dayWords } from "@/features/events/manageWords";
-import type { CheckInHow, EventCheckInDoc } from "@/lib/firestore/eventCheckIns";
+import {
+  SELF_WAYS,
+  checkedThemselvesIn,
+  type CheckInHow,
+  type EventCheckInDoc,
+  type SelfWay,
+} from "@/lib/firestore/eventCheckIns";
 import type { RsvpDoc, RsvpStatus } from "@/lib/firestore/events";
 import type { CheckInPhase } from "./checkIns";
 
@@ -13,9 +19,19 @@ import type { CheckInPhase } from "./checkIns";
  * `runsCheckIn`, because every row carries a name.
  */
 
-/** What the event's page and a door code's sign say under the code. */
+/**
+ * What the event's page and a door code's sign say under the code, at an
+ * event that lets people check themselves in: guests with a place do it from
+ * their email, as signed-in people do with the code.
+ */
 export const DOOR_CODE_LINE =
-  "Signed-in people check themselves in. Everyone else gives their name at the door.";
+  "People with a place can check themselves in with this code or the link in their email. Everyone else gives their name at the door.";
+
+/** Over the door list's names, at an event that does not let people check themselves in. */
+export const SELF_OFF_DOOR_LIST = "Self check-in is off for this event: everyone gives their name here.";
+
+/** The door list inside the door's hours, before the event's author or an admin has opened the door. */
+export const DOOR_NOT_OPEN = "The door isn’t open yet. The event’s author or an admin opens it from the Check-in tab.";
 
 /** How somebody on the list stands: a confirmed sign-up, the waiting list, not decided yet, or a walk-in. */
 export type DoorStanding = "signed-up" | "waiting" | "undecided" | "walk-in";
@@ -25,6 +41,12 @@ export type DoorCheckIn = {
   how: CheckInHow;
   /** When, as an ISO instant. */
   at: string;
+  /**
+   * Who checked them in, by the name they go by, for the event's page. Null
+   * when they checked themselves in (`how` says so), and when the name was
+   * not looked up or is not known: the door list never shows it.
+   */
+  by: string | null;
   /** For a walk-in who gave an email: when it goes, as an ISO instant. */
   emailGoesAt: string | null;
   /**
@@ -58,29 +80,62 @@ export const STANDING_WORDS: Record<DoorStanding, string> = {
   "walk-in": "Walk-in",
 };
 
-/** "QR", "Door", "Added later": how somebody was checked in, as the door list says it. */
+/** "Door", "Door code", "Added later": how somebody was checked in, as the door list stamps it. */
 export const HOW_SHORT: Record<CheckInHow, string> = {
-  qr: "QR",
   door: "Door",
   page: "Added later",
+  code: "Door code",
+  email: "Email",
+  site: "Check-in page",
+  qr: "Themselves",
 };
 
-/** "QR at the door", "Door list", "Added later": as the event's page says it. */
+/**
+ * "Door list", "Scanned the door code", "From their email": how somebody was
+ * checked in, as the event's page says it, each way as itself. A record from
+ * before the ways were told apart (`qr`) says only that they checked
+ * themselves in. Somebody added at the door without a sign-up reads
+ * "Walk-in" (`howWords`).
+ */
 export const HOW_WORDS: Record<CheckInHow, string> = {
-  qr: "QR at the door",
   door: "Door list",
   page: "Added later",
+  code: "Scanned the door code",
+  email: "From their email",
+  site: "On the check-in page",
+  qr: "Checked themselves in",
 };
 
-function view(checkIn: EventCheckInDoc): DoorCheckIn {
+/** The How column of who came: a walk-in added at the door is a walk-in; every other way is itself. */
+export function howWords(row: Pick<DoorRow, "standing" | "checkIn">): string {
+  if (!row.checkIn) return "";
+  if (row.checkIn.how === "door" && row.standing === "walk-in") return "Walk-in";
+  return HOW_WORDS[row.checkIn.how];
+}
+
+/** The Checked in by column: "Themselves", or who checked them in. */
+export function byWords(checkIn: Pick<DoorCheckIn, "how" | "by">): string {
+  if (checkedThemselvesIn(checkIn.how)) return "Themselves";
+  return checkIn.by ?? "Not known";
+}
+
+function view(checkIn: EventCheckInDoc, names: ReadonlyMap<string, string>): DoorCheckIn {
   return {
     id: checkIn.id,
     how: checkIn.how,
     at: (checkIn.at ?? new Date(0)).toISOString(),
+    by: checkIn.byUid && !checkedThemselvesIn(checkIn.how) ? (names.get(checkIn.byUid) ?? null) : null,
     emailGoesAt: checkIn.email && checkIn.emailGoesAt ? checkIn.emailGoesAt.toISOString() : null,
     noEmail: checkIn.kind === "walk-in" && !checkIn.email && !checkIn.uid,
   };
 }
+
+/** How many checked themselves in, by the way they did. */
+export type SelfTally = Record<SelfWay, number>;
+
+export const NO_SELF: SelfTally = { code: 0, email: 0, site: 0, qr: 0 };
+
+const total = (tally: SelfTally) => SELF_WAYS.reduce((sum, way) => sum + tally[way], 0);
 
 /**
  * The check-ins whose names have come off, a year after the event or at once
@@ -93,42 +148,56 @@ function view(checkIn: EventCheckInDoc): DoorCheckIn {
 export type NamesOff = {
   /** Sign-ups who came. */
   signups: number;
-  /** Of those, how many checked themselves in with the code. */
-  signupsByQr: number;
+  /** Of those, how many checked themselves in, by the way they did. */
+  signupsThemselves: SelfTally;
   walkIns: number;
+  /** Of those, how many checked themselves in (an account with no sign-up), by the way they did. */
+  walkInsThemselves: SelfTally;
 };
 
-export const NO_NAMES_OFF: NamesOff = { signups: 0, signupsByQr: 0, walkIns: 0 };
+export const NO_NAMES_OFF: NamesOff = { signups: 0, signupsThemselves: NO_SELF, walkIns: 0, walkInsThemselves: NO_SELF };
 
 /** The event's check-ins whose names have come off, counted. Names nobody. */
 export function namesOffOf(checkIns: readonly EventCheckInDoc[]): NamesOff {
   const off = checkIns.filter((row) => row.namesOff);
   const signups = off.filter((row) => row.kind === "signup");
+  const themselves = (rows: readonly EventCheckInDoc[]): SelfTally => {
+    const tally = { ...NO_SELF };
+    for (const row of rows) if (checkedThemselvesIn(row.how)) tally[row.how] += 1;
+    return tally;
+  };
   return {
     signups: signups.length,
-    signupsByQr: signups.filter((row) => row.how === "qr").length,
+    signupsThemselves: themselves(signups),
     walkIns: off.length - signups.length,
+    walkInsThemselves: themselves(off.filter((row) => row.kind !== "signup")),
   };
 }
 
 /**
- * Whether a row is a walk-in who checked themselves in with the door code:
- * an account with no sign-up, which is the only way in by the code without
- * one (`decideSelf`, which tells them it checks them in as a walk-in). The
+ * Whether a row is a walk-in who checked themselves in: an account with no
+ * sign-up, which is the only way to check yourself in without one
+ * (`decideSelf`, which tells them it checks them in as a walk-in). The
  * Check-in tab counts them among who checked themselves in, and its row says
- * how they came ("QR at the door"), as a sign-up's does.
+ * the way they came, as a sign-up's does.
  */
-export function walkedInByCode(row: Pick<DoorRow, "standing" | "checkIn">): boolean {
-  return row.standing === "walk-in" && row.checkIn?.how === "qr";
+export function walkedInThemselves(row: Pick<DoorRow, "standing" | "checkIn">): boolean {
+  return row.standing === "walk-in" && !!row.checkIn && checkedThemselvesIn(row.checkIn.how);
 }
 
 /**
  * Every row of the door list: the sign-ups it shows (confirmed, then the
  * waiting list, then not decided), each with its check-in when there is one,
  * then the walk-ins. A check-in whose names have come off has no row: it is
- * counted from `namesOffOf` instead.
+ * counted from `namesOffOf` instead. `names` are the people who checked
+ * others in, by uid (`staffNames`), for the event's page to say who; the door
+ * list does without.
  */
-export function doorRows(signups: readonly RsvpDoc[], checkIns: readonly EventCheckInDoc[]): DoorRow[] {
+export function doorRows(
+  signups: readonly RsvpDoc[],
+  checkIns: readonly EventCheckInDoc[],
+  names: ReadonlyMap<string, string> = new Map(),
+): DoorRow[] {
   const live = checkIns.filter((row) => !row.namesOff);
   const bySignup = new Map<string, EventCheckInDoc>();
   for (const row of live) if (row.rsvpId) bySignup.set(row.rsvpId, row);
@@ -144,7 +213,7 @@ export function doorRows(signups: readonly RsvpDoc[], checkIns: readonly EventCh
       rsvpId: signup.id,
       name: signup.name.trim() || "No name given",
       standing,
-      checkIn: checkIn ? view(checkIn) : null,
+      checkIn: checkIn ? view(checkIn, names) : null,
     });
   }
   for (const row of live) {
@@ -154,7 +223,7 @@ export function doorRows(signups: readonly RsvpDoc[], checkIns: readonly EventCh
       rsvpId: null,
       name: row.name ?? "No name given",
       standing: "walk-in",
-      checkIn: view(row),
+      checkIn: view(row, names),
     });
   }
   return rows.sort(
@@ -181,8 +250,14 @@ export type DoorCounts = {
   here: number;
   /** Confirmed sign-ups not checked in. */
   toCome: number;
-  /** Checked themselves in with the code: sign-ups, and accounts with no sign-up. */
-  byQr: number;
+  /**
+   * Checked themselves in, every way (the door code, their email's link, the
+   * check-in page, or a way not recorded): sign-ups, and accounts with no
+   * sign-up.
+   */
+  themselves: number;
+  /** The same people, by the way they came in. */
+  themselvesBy: SelfTally;
   /** Sign-ups checked in on the door list or added later. */
   byList: number;
   /** Counted and on no row: the check-ins whose names have come off. */
@@ -194,8 +269,8 @@ export type DoorCounts = {
    * longer be told.
    */
   cameUnticked: number;
-  /** Of the walk-ins, the ones who checked themselves in with the code (`walkedInByCode`), counted in `byQr`. */
-  walkInsByCode: number;
+  /** Of the walk-ins, the ones who checked themselves in (`walkedInThemselves`), counted in `themselves`. */
+  walkInsThemselves: number;
 };
 
 /**
@@ -215,6 +290,10 @@ export function doorCounts(rows: readonly DoorRow[], namesOff: NamesOff = NO_NAM
   const walkInRows = rows.filter((row) => row.standing === "walk-in");
   const walkIns = walkInRows.length + namesOff.walkIns;
   const here = (standing: DoorStanding) => signups.filter((row) => row.standing === standing && row.checkIn).length;
+  // Each way in, as itself: the rows', then the records whose names have come off.
+  const themselvesBy = { ...NO_SELF };
+  for (const row of rows) if (row.checkIn && checkedThemselvesIn(row.checkIn.how)) themselvesBy[row.checkIn.how] += 1;
+  for (const way of SELF_WAYS) themselvesBy[way] += namesOff.signupsThemselves[way] + namesOff.walkInsThemselves[way];
   return {
     expected: signups.filter((row) => row.standing === "signed-up" || row.checkIn).length + namesOff.signups - cameUnticked,
     signupsHere,
@@ -227,9 +306,13 @@ export function doorCounts(rows: readonly DoorRow[], namesOff: NamesOff = NO_NAM
     walkIns,
     here: signupsHere + walkIns,
     toCome: unticked - cameUnticked,
-    byQr: rows.filter((row) => row.checkIn?.how === "qr").length + namesOff.signupsByQr,
-    byList: signups.filter((row) => row.checkIn && row.checkIn.how !== "qr").length + namesOff.signups - namesOff.signupsByQr,
-    walkInsByCode: walkInRows.filter(walkedInByCode).length,
+    themselves: total(themselvesBy),
+    themselvesBy,
+    byList:
+      signups.filter((row) => row.checkIn && !checkedThemselvesIn(row.checkIn.how)).length +
+      namesOff.signups -
+      total(namesOff.signupsThemselves),
+    walkInsThemselves: walkInRows.filter(walkedInThemselves).length + total(namesOff.walkInsThemselves),
     notListed: namesOff.signups + namesOff.walkIns,
     cameUnticked,
   };
@@ -278,18 +361,50 @@ export function cameWords(counts: DoorCounts): string {
   return parts.length < 2 ? parts[0] : `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
 }
 
+const SELF_WAY_ALONE: Record<SelfWay, string> = {
+  code: "With the door code",
+  email: "From their email",
+  site: "On the check-in page",
+  qr: "The way in wasn’t recorded",
+};
+
+const SELF_WAY_COUNTED: Record<SelfWay, (n: number) => string> = {
+  code: (n) => `${n} with the door code`,
+  email: (n) => `${n} from their email`,
+  site: (n) => `${n} on the check-in page`,
+  qr: (n) => (n === 1 ? "1 whose way in wasn’t recorded" : `${n} whose ways in weren’t recorded`),
+};
+
+/**
+ * Under "checked themselves in": the way they came in, each as itself, so a
+ * self check-in is never said to be a scan it was not. One way alone is said
+ * without its number ("With the door code"); several, with theirs ("2 with
+ * the door code, and 1 from their email"). A record from before the ways
+ * were told apart is counted as one whose way in wasn't recorded. Nobody yet:
+ * how they would, or that the event does not let them.
+ */
+export function themselvesWords(counts: Pick<DoorCounts, "themselves" | "themselvesBy">, selfCheckIn: boolean): string {
+  if (counts.themselves === 0) {
+    return selfCheckIn ? "With the door code, or the link in their email" : "Self check-in is off for this event";
+  }
+  const ways = SELF_WAYS.filter((way) => counts.themselvesBy[way] > 0);
+  if (ways.length === 1) return SELF_WAY_ALONE[ways[0]];
+  const parts = ways.map((way) => SELF_WAY_COUNTED[way](counts.themselvesBy[way]));
+  return `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
+}
+
 /**
  * Under "at the door list": the walk-ins, who came in at the door too, so
  * the three numbers add up to who came. "Plus the 3 walk-ins", the board's
- * words; once a walk-in checked themselves in with the code (counted under
- * "checked themselves in"), "Plus 2 of the 3 walk-ins" (not drawn: listed in
- * the build notes for the boards' designers to confirm). Null when every
- * walk-in checked themselves in, or there was none.
+ * words; once a walk-in checked themselves in (counted under "checked
+ * themselves in"), "Plus 2 of the 3 walk-ins" (not drawn: listed in the build
+ * notes for the boards' designers to confirm). Null when every walk-in
+ * checked themselves in, or there was none.
  */
 export function plusWalkInsWords(counts: DoorCounts): string | null {
-  const atTheDoor = counts.walkIns - counts.walkInsByCode;
+  const atTheDoor = counts.walkIns - counts.walkInsThemselves;
   if (atTheDoor <= 0) return null;
-  return counts.walkInsByCode > 0
+  return counts.walkInsThemselves > 0
     ? `Plus ${atTheDoor} of the ${counts.walkIns} walk-ins`
     : `Plus the ${plural(counts.walkIns, "walk-in", "walk-ins")}`;
 }
@@ -303,20 +418,83 @@ export function hereWords(counts: DoorCounts): { main: string; walkIns: string |
   };
 }
 
-/** "QR · 2:18pm". */
+/** "Door code · 2:18pm". */
 export function checkInStamp(checkIn: DoorCheckIn): string {
   return `${HOW_SHORT[checkIn.how]} · ${clockWords(new Date(checkIn.at))}`;
 }
 
-/** What the door list says when it cannot take a tick, or null when it can. */
+/**
+ * What the door list says when it cannot take a tick, or null when it can:
+ * inside the door's hours once the door is open (`opened`, from `openingOf`),
+ * which the event's author or an admin does from the Check-in tab.
+ */
 export function doorClosedWords(
   phase: CheckInPhase,
   window: { opensAt: Date; closesAt: Date } | null,
+  opened: boolean,
 ): string | null {
-  if (phase === "door") return null;
+  if (phase === "door") return opened ? null : DOOR_NOT_OPEN;
   if (phase === "undated" || !window) return "This event has no date yet, so it has no door list.";
   if (phase === "before") {
     return `The door list opens at ${clockWords(window.opensAt)} on ${dayWords(window.opensAt)}, an hour before the start.`;
   }
   return `The door list closed at ${clockWords(window.closesAt)}, an hour after the end. Add people who came from the event’s page.`;
+}
+
+/** What the Check-in tab's "At the door" card says, and whether it offers "Open the door". */
+export type AtTheDoorCard = {
+  /** Its sentences, in order. */
+  lines: string[];
+  /** "Open the door", for the event's author and admins until it is open: pressable only inside the door's hours. */
+  button: { enabled: boolean } | null;
+};
+
+/**
+ * The "At the door" card on the event's Check-in tab. The event's author and
+ * admins (`canOpen`) are told the door list opens when they open it, and are
+ * given the button, held until the door's hours; everybody else reads the
+ * door's state in words. Once open, everybody reads who opened it and when it
+ * closes by itself. `opening` is `openingOf`'s, with the opener's name.
+ */
+export function atTheDoorWords(input: {
+  phase: Exclude<CheckInPhase, "undated">;
+  window: { opensAt: Date; closesAt: Date };
+  opening: { at: Date; name: string | null; isViewer: boolean } | null;
+  canOpen: boolean;
+}): AtTheDoorCard {
+  const { phase, window, opening, canOpen } = input;
+  const who = opening ? (opening.isViewer ? "You" : (opening.name ?? "Somebody")) : "";
+  const closes = clockWords(window.closesAt);
+  if (phase === "later" || phase === "closed") {
+    return opening
+      ? {
+          lines: [
+            `${who} opened the door at ${clockWords(opening.at)}.`,
+            `It closed by itself at ${closes}, an hour after the end.`,
+          ],
+          button: null,
+        }
+      : { lines: [`The door closed at ${closes}, an hour after the end.`], button: null };
+  }
+  if (opening) {
+    return {
+      lines: [
+        `The door is open. ${who} opened it at ${clockWords(opening.at)}.`,
+        `It closes by itself at ${closes}, an hour after the end.`,
+      ],
+      button: null,
+    };
+  }
+  const from = `${clockWords(window.opensAt)} on ${dayWords(window.opensAt)}`;
+  if (canOpen) {
+    const intro = "The door list opens when you or an admin open it. Only the committee check people in.";
+    return phase === "before"
+      ? { lines: [intro, `You can open the door from ${from}, an hour before the start.`], button: { enabled: false } }
+      : { lines: [intro], button: { enabled: true } };
+  }
+  const intro = "The door list opens when the event’s author or an admin opens it. Only the committee check people in.";
+  return {
+    lines: [intro, phase === "before" ? `It can be opened from ${from}, an hour before the start.` : "The door isn’t open yet."],
+    button: null,
+  };
 }

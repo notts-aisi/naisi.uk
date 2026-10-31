@@ -176,6 +176,8 @@ export async function POST(
       foodProvenance: outcome.event.foodProvenance,
       foodProvenanceNote: outcome.event.foodProvenanceNote,
       signupForm: outcome.event.signupForm,
+      // Only a strict true lets the promoted email carry a check-in link.
+      selfCheckIn: outcome.event.selfCheckIn === true,
     };
 
     // Organiser cancelled someone else — notify the attendee. (Skip if the

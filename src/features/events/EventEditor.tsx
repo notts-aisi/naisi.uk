@@ -115,6 +115,7 @@ type FormValues = {
   capacity: number | null;
   waitlistEnabled: boolean;
   noSignup: boolean;
+  selfCheckIn: boolean;
   signupForm: FormQuestion[];
   foodText: string;
   dietaryTags: FoodTag[];
@@ -144,6 +145,7 @@ function formValuesOf(next: EventDoc): FormValues {
     capacity: next.capacity,
     waitlistEnabled: next.waitlistEnabled,
     noSignup: next.noSignup,
+    selfCheckIn: next.selfCheckIn,
     signupForm: next.signupForm,
     foodText: next.foodText ?? "",
     dietaryTags: next.dietaryTags ?? [],
@@ -450,6 +452,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
   const [capacity, setCapacity] = useState<number | null>(null);
   const [waitlistEnabled, setWaitlistEnabled] = useState(true);
   const [noSignup, setNoSignup] = useState(false);
+  const [selfCheckIn, setSelfCheckIn] = useState(false);
   const [signupForm, setSignupForm] = useState<FormQuestion[]>([]);
   const [foodText, setFoodText] = useState("");
   const [dietaryTags, setDietaryTags] = useState<FoodTag[]>([]);
@@ -579,6 +582,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
         setCapacity(pick("capacity"));
         setWaitlistEnabled(pick("waitlistEnabled"));
         setNoSignup(pick("noSignup"));
+        setSelfCheckIn(pick("selfCheckIn"));
         setSignupForm(pick("signupForm"));
         setFoodText(pick("foodText"));
         setDietaryTags(pick("dietaryTags"));
@@ -689,6 +693,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
       capacity,
       waitlistEnabled,
       noSignup,
+      selfCheckIn,
       signupForm,
       foodText,
       dietaryTags,
@@ -715,6 +720,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
       capacity,
       waitlistEnabled: capacity === null ? false : waitlistEnabled,
       noSignup,
+      selfCheckIn,
       signupForm,
       foodText: foodText.trim() ? foodText : null,
       dietaryTags,
@@ -1723,6 +1729,16 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                       description="If someone cancels, the next person on the list gets their place and an email."
                     />
                   )}
+                  <Switch
+                    checked={selfCheckIn}
+                    onChange={(value) => {
+                      setSelfCheckIn(value);
+                      markDirty();
+                    }}
+                    disabled={locked}
+                    label="People can check themselves in"
+                    description="Off: everyone gives their name at the door, and the confirmation email says so. On: they can also use the link in their email, or scan the door code."
+                  />
                   <Switch
                     checked={visibility === "members"}
                     onChange={(value) => {

@@ -10,6 +10,7 @@ import PageHead from "@/components/ui/PageHead";
 import { useHydrated } from "@/hooks/useHydrated";
 import {
   NO_NAMES_OFF,
+  SELF_OFF_DOOR_LIST,
   STANDING_WORDS,
   cameUntickedWords,
   checkInStamp,
@@ -31,7 +32,9 @@ type Props = {
   namesOff?: NamesOff;
   /** Why nobody can be checked in here right now, or null while the door is open. */
   closedWords: string | null;
-  /** The door code as people type it, when the event has one that is on. */
+  /** The event lets people check themselves in. Off, the list says everyone gives their name here. */
+  selfCheckIn: boolean;
+  /** The door code as people type it, when the event lets people check themselves in and has one that is on. */
   doorAddress: string | null;
   /** "VR games night · Sun 1 Nov", under the walk-in dialog's heading. */
   eventLine: string;
@@ -63,6 +66,7 @@ export default function DoorList({
   initialRows,
   namesOff = NO_NAMES_OFF,
   closedWords,
+  selfCheckIn,
   doorAddress,
   eventLine,
   emailGoesOn,
@@ -211,6 +215,11 @@ export default function DoorList({
         {words.walkIns && <span className={styles.countMore}> · {words.walkIns}</span>}
       </p>
 
+      {!selfCheckIn && (
+        <Notice tone="neutral" role="note">
+          {SELF_OFF_DOOR_LIST}
+        </Notice>
+      )}
       {closedWords && (
         <Notice tone="neutral" role="note">
           {closedWords}
@@ -302,7 +311,7 @@ export default function DoorList({
 
       {doorAddress && (
         <p className={styles.footnote}>
-          People with an account can check themselves in at <strong>{doorAddress}</strong>.
+          People with a place can check themselves in at <strong>{doorAddress}</strong>, or from their email.
         </p>
       )}
 

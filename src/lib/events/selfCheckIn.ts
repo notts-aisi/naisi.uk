@@ -1,17 +1,29 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import { isCampaignSlug } from "@/lib/campaign/attribution";
 import { clockWords, dayWords, timeRangeWords } from "@/features/events/manageWords";
 import { publicLocationLine } from "@/lib/events/location";
 import { verifyRsvpToken } from "@/lib/events/rsvpToken";
 import type { SessionUser } from "@/lib/firebase/session";
 import { normalizeRsvp, type EventDoc, type RsvpStatus } from "@/lib/firestore/events";
-import type { EventCheckInDoc } from "@/lib/firestore/eventCheckIns";
-import { checkInPhase, doorWindow, loadEventCheckIns, type CheckInPerson } from "./checkIns";
+import type { EventCheckInDoc, RecordedHow } from "@/lib/firestore/eventCheckIns";
+import {
+  checkInPhase,
+  doorWindow,
+  loadEventCheckIns,
+  openingOf,
+  type CheckInPerson,
+} from "./checkIns";
 
 /**
- * CHECKING YOURSELF IN with the code at the door (ev-self-phone), decided in
- * one place for the page (`/events/<id>/check-in`) and its route, so the two
- * never disagree about who may press "I'm here".
+ * CHECKING YOURSELF IN (ev-self-phone), decided in one place for the page
+ * (`/events/<id>/check-in`) and its route, so the two never disagree about
+ * who may press "I'm here".
+ *
+ * ONLY AT AN EVENT THAT LETS PEOPLE (`selfCheckIn`, off for a new event), and
+ * only once its door is open. Off, the page and the route say the one
+ * sentence `AT_THE_DOOR_ONLY` to everybody, signed in or not, and nothing is
+ * written: the committee check people in at the door list.
  *
  *  - SIGNED IN, with a confirmed sign-up: checked in as that sign-up.
  *  - SIGNED IN, with no sign-up (or a cancelled one): checked in as a walk-in,
@@ -24,10 +36,32 @@ import { checkInPhase, doorWindow, loadEventCheckIns, type CheckInPerson } from 
  *  - SIGNED OUT, with no link: asked to sign in. The page is a public address,
  *    so it names nobody, and says nothing about who signed up.
  *
- * Only while the door is open: an hour before the start to an hour after the
- * end. A scan of the door code is counted as every scan is (the beacon on the
- * page it lands on); nothing about the person is kept beyond the check-in.
+ * Only while the door is open: the event's author or an admin has opened it,
+ * inside its hours, an hour before the start to an hour after the end. A scan
+ * of the door code is counted as every scan is (the beacon on the page it
+ * lands on); nothing about the person is kept beyond the check-in.
+ *
+ * EACH WAY IN IS RECORDED AS ITSELF (`selfHow`): `email` through the link in
+ * a confirmation email, `code` on a page the door code opened (its address
+ * carries `q`, which the page hands to the press), `site` signed in and
+ * neither.
  */
+
+/** What the page and the route say, to everybody, at an event that does not let people check themselves in. */
+export const AT_THE_DOOR_ONLY = "Check-in for this event is at the door. Give your name to whoever’s there.";
+
+/** Inside the door's hours, before the event's author or an admin has opened the door. */
+export const DOOR_NOT_OPEN_YET = "The door isn’t open yet. Try again in a few minutes, or give your name at the door.";
+
+/**
+ * How a press checks somebody in: the link in their email when that is what
+ * let them in (it is a guest's whole credential, and it decides on its own),
+ * else the door code when the page was opened by it, else the page itself.
+ */
+export function selfHow(input: { viaLink: boolean; doorCode: boolean }): Extract<RecordedHow, "code" | "email" | "site"> {
+  if (input.viaLink) return "email";
+  return input.doorCode ? "code" : "site";
+}
 
 /** The event as the check-in page prints it: its name and the public facts of when and where. */
 export type EventLine = { id: string; title: string; line: string };
@@ -130,10 +164,16 @@ export function ownCheckIn(checkIns: readonly EventCheckInDoc[], person: CheckIn
   return null;
 }
 
-/** Why the door code cannot check anybody in right now, or null while the door is open. */
+/**
+ * Why nobody can check themselves in right now, or null when they can: the
+ * event does not let them, it has no date, the door's hours have not come or
+ * have gone, or the door has not been opened yet. Null exactly when
+ * `selfCheckInOpen` says yes, for a published event.
+ */
 export function selfClosedWords(event: EventDoc, now: Date): string | null {
+  if (event.selfCheckIn !== true) return AT_THE_DOOR_ONLY;
   const phase = checkInPhase(event, now);
-  if (phase === "door") return null;
+  if (phase === "door") return openingOf(event) ? null : DOOR_NOT_OPEN_YET;
   const window = doorWindow(event);
   if (phase === "undated" || !window) return "This event has no date yet, so there’s nothing to check in to.";
   if (phase === "before") {
@@ -141,6 +181,19 @@ export function selfClosedWords(event: EventDoc, now: Date): string | null {
   }
   return "Check-in at the door has closed.";
 }
+
+/** The check-in page's own address, carrying the door code that opened it, so a sign-in comes back the same way in. */
+export function checkInReturnPath(eventId: string, doorCode: string | null): string {
+  // `counted=1`: the scan was counted when the page first opened, and coming
+  // back from signing in is not a second scan (`src/lib/campaign/scanBeacon.ts`).
+  return doorCode ? `/events/${eventId}/check-in?q=${doorCode}&counted=1` : `/events/${eventId}/check-in`;
+}
+
+/** The door code a check-in page's address carries (`q`, as a scan leaves it), or null. */
+export function doorCodeParam(raw: Record<string, string | string[] | undefined>): string | null {
+  return typeof raw.q === "string" && isCampaignSlug(raw.q) ? raw.q : null;
+}
+
 
 /** Everything the page needs, read once: the decision and, when it is a person, whether they are already in. */
 export async function selfCheckInView(

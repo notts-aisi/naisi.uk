@@ -2,23 +2,27 @@ import "server-only";
 import type { DocumentReference, Firestore } from "firebase-admin/firestore";
 import { isSameSiteDay } from "@/lib/datetime/siteTime";
 import {
+  CHECK_IN_HOWS,
   CHECK_IN_LIMITS,
   EVENT_CHECK_INS_COLLECTION,
   normalizeCheckIn,
-  type CheckInHow,
   type EventCheckInDoc,
+  type RecordedHow,
 } from "@/lib/firestore/eventCheckIns";
-import type { EventDoc, RsvpDoc } from "@/lib/firestore/events";
+import { normalizeEvent, type EventDoc, type RsvpDoc } from "@/lib/firestore/events";
 
 /**
  * CHECK-IN: who came to an event, how, and when (`eventCheckIns`, see
  * `src/lib/firestore/eventCheckIns.ts` for the record).
  *
- * THE WINDOWS. The door list, and checking yourself in with the door code,
- * are open from an hour before the event starts to an hour after it ends.
- * After that, somebody who came is added from the event's page, until a week
- * after the event, or until the event's survey closes when that is sooner
- * (`surveyClosesAt`, from `src/lib/surveys/events/records.ts`).
+ * THE WINDOWS. The door's hours are from an hour before the event starts to
+ * an hour after it ends. Inside them the door list takes a tick once the
+ * door has been opened, by the event's author or an admin (`openDoor`), and
+ * at an event that lets people check themselves in (`selfCheckIn`) they can,
+ * once it is open, too (`selfCheckInOpen`). After that, somebody who came is
+ * added from the event's page, whether or not the door was opened, until a
+ * week after the event, or until the event's survey closes when that is
+ * sooner (`surveyClosesAt`, from `src/lib/surveys/events/records.ts`).
  *
  * WHAT IS KEPT. A walk-in's email goes when the event's survey closes or a
  * week after the event, whichever comes first (a survey closing on the day a
@@ -124,6 +128,96 @@ export function eventTakesCheckIns(event: Pick<EventDoc, "status">): boolean {
   return event.status === "published";
 }
 
+// ---------------------------------------------------------------------------
+// Opening the door
+// ---------------------------------------------------------------------------
+
+type Opened = Pick<EventDoc, "startAt" | "endAt" | "doorOpenedAt" | "doorOpenedBy">;
+
+/** Who opened the door, and when. */
+export type DoorOpening = { at: Date; by: string };
+
+/**
+ * The opening of the event's door in its hours as they stand, or null. An
+ * opening outside them is no opening of this door: the event was moved after
+ * it, so the door it opened is not the one people come to now.
+ */
+export function openingOf(event: Opened): DoorOpening | null {
+  const window = doorWindow(event);
+  const at = event.doorOpenedAt;
+  if (!window || !at || !event.doorOpenedBy) return null;
+  if (at.getTime() < window.opensAt.getTime() || at.getTime() > window.closesAt.getTime()) return null;
+  return { at, by: event.doorOpenedBy };
+}
+
+/** The door list takes a tick: inside the door's hours, once the door is open. */
+export function doorListOpen(event: Opened, now: Date): boolean {
+  return checkInPhase(event, now) === "door" && openingOf(event) !== null;
+}
+
+/**
+ * Somebody can check themselves in now: the event lets them (`selfCheckIn`,
+ * only a stored true), it is published, and its door is open. The check-in
+ * page, its route and every link to it ask this, through `selfClosedWords`
+ * where they need the words for why not.
+ */
+export function selfCheckInOpen(event: Opened & Pick<EventDoc, "status" | "selfCheckIn">, now: Date): boolean {
+  return event.selfCheckIn === true && eventTakesCheckIns(event) && doorListOpen(event, now);
+}
+
+export type OpenDoor =
+  | { kind: "opened"; created: boolean; opening: DoorOpening }
+  | { kind: "gone" }
+  | { kind: "not-published" }
+  | { kind: "outside"; phase: Exclude<CheckInPhase, "door"> };
+
+/**
+ * Opens the event's door, once. One transaction: the event is read inside it,
+ * so a door already open in its hours is handed back (`created: false`)
+ * however many people press at once, and a door is only opened for a
+ * published event inside its hours. The route decides who may press first.
+ */
+export async function openDoor(db: Firestore, eventId: string, byUid: string, now: Date): Promise<OpenDoor> {
+  const ref = db.collection("events").doc(eventId);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return { kind: "gone" } as const;
+    const event = normalizeEvent(snap.id, snap.data() ?? {});
+    if (!eventTakesCheckIns(event)) return { kind: "not-published" } as const;
+    const opening = openingOf(event);
+    if (opening) return { kind: "opened", created: false, opening } as const;
+    const phase = checkInPhase(event, now);
+    if (phase !== "door") return { kind: "outside", phase } as const;
+    tx.update(ref, { doorOpenedAt: now, doorOpenedBy: byUid });
+    return { kind: "opened", created: true, opening: { at: now, by: byUid } } as const;
+  });
+}
+
+/** A name as the event's page says it: the one the person goes by, else their account's. */
+function nameOf(data: Record<string, unknown>): string | null {
+  const profile = (data.profile as Record<string, unknown> | undefined) ?? {};
+  const preferred = typeof profile.preferredName === "string" ? profile.preferredName.trim() : "";
+  const display = typeof data.displayName === "string" ? data.displayName.trim() : "";
+  return preferred || display || null;
+}
+
+/**
+ * The names of the people who checked others in, or opened a door, by uid.
+ * One read of their accounts for all of them; an account that is gone, or
+ * has no name, is left out, and the page says so in its own words.
+ */
+export async function staffNames(db: Firestore, uids: readonly (string | null)[]): Promise<Map<string, string>> {
+  const unique = [...new Set(uids.filter((uid): uid is string => typeof uid === "string" && uid !== ""))];
+  const names = new Map<string, string>();
+  if (unique.length === 0) return names;
+  const snaps = await db.getAll(...unique.map((uid) => db.collection("users").doc(uid)));
+  for (const snap of snaps) {
+    const name = snap.exists ? nameOf(snap.data() ?? {}) : null;
+    if (name) names.set(snap.id, name);
+  }
+  return names;
+}
+
 /**
  * The sign-ups a door list shows: everybody whose place is confirmed, then the
  * waiting list and the ones not decided yet, whom the people at the door may
@@ -157,13 +251,17 @@ export type CheckInPerson =
 export type RecordCheckIn = {
   event: Pick<EventDoc, "id" | "startAt" | "endAt">;
   person: CheckInPerson;
-  how: CheckInHow;
+  /** The way they came in, as itself: never the old `qr`, which says no way at all. */
+  how: RecordedHow;
   /** Who is checking them in. Null when it is themselves. */
   byUid: string | null;
   now: Date;
   /** When the event's survey closes, or null when it has none: a walk-in's email goes no later. */
   surveyClosesAt?: Date | null;
 };
+
+/** The ways a check-in is written: every way a record can say but the old `qr`. */
+const RECORDED_HOWS: readonly string[] = CHECK_IN_HOWS.filter((how) => how !== "qr");
 
 /** Whether `existing` is already this person's check-in. A walk-in with no account is never matched. */
 function samePerson(existing: EventCheckInDoc, person: CheckInPerson): boolean {
@@ -190,6 +288,8 @@ export async function recordCheckIn(
   if (person.kind === "signup" && person.rsvp.eventId !== event.id) {
     throw new Error("That sign-up is for another event.");
   }
+  // Every way in is recorded as itself, so nothing writes the old catch-all.
+  if (!RECORDED_HOWS.includes(how)) throw new Error(`A check-in is never recorded as "${String(how)}".`);
   const col = db.collection(EVENT_CHECK_INS_COLLECTION);
   return db.runTransaction(async (tx) => {
     const existing = await tx.get(col.where("eventId", "==", event.id));

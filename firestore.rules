@@ -1265,9 +1265,30 @@ service cloud.firestore {
       allow read: if canDraft() || canApprove()
         || hasRole(['committee', 'admin'])
         || (isSignedIn() && resource.data.status == 'published');
+      // `selfCheckIn`, whether people can check themselves in, is the
+      // editor's to write (eventMutations.ts), as a boolean and nothing else:
+      // the routes read only a strict true as on.
+      function selfCheckInIsBool() {
+        return !('selfCheckIn' in request.resource.data)
+          || request.resource.data.selfCheckIn is bool;
+      }
+      // When the door was opened, and by whom, are written by
+      // /api/events/[id]/door alone, on the Admin SDK: the door list and self
+      // check-in work only once it is open, so no browser opens a door,
+      // closes one or says somebody else opened it. Every client, admins
+      // included.
+      function doorFieldsUnchanged() {
+        return request.resource.data.get('doorOpenedAt', null)
+               == resource.data.get('doorOpenedAt', null)
+          && request.resource.data.get('doorOpenedBy', null)
+               == resource.data.get('doorOpenedBy', null);
+      }
       allow create: if canDraft()
         && request.resource.data.authorUid == request.auth.uid
-        && request.resource.data.status == 'draft';
+        && request.resource.data.status == 'draft'
+        && selfCheckInIsBool()
+        && !('doorOpenedAt' in request.resource.data)
+        && !('doorOpenedBy' in request.resource.data);
       // Per-document scoping. `draftEvent` is a GLOBAL permission a plain
       // member can hold, so a drafter edits only an event they authored. A
       // collaborator is already per-event by construction (they are named on
@@ -1310,7 +1331,7 @@ service cloud.firestore {
           && request.resource.data.get('announcementResult', {})
                == resource.data.get('announcementResult', {});
       }
-      allow update: if isAdmin()
+      allow update: if selfCheckInIsBool() && doorFieldsUnchanged() && (isAdmin()
         || (
           (canApprove() || isCollaborator() || (canDraft() && isOwnEvent()))
           && pinnedFieldsUnchanged()
@@ -1340,7 +1361,7 @@ service cloud.firestore {
             // never move an event through it, not even your own.
             || canApprove()
           )
-        );
+        ));
       // Deletion goes through /api/events/[id]/delete (Admin SDK), which
       // cascades the event's RSVPs and images before removing the doc. There
       // is no client delete: a client could only ever remove the event

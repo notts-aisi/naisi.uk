@@ -5,21 +5,33 @@ import Notice from "@/components/ui/Notice";
 import PageHead from "@/components/ui/PageHead";
 import DoorCodeCard from "@/features/events/checkIn/DoorCodeCard";
 import EventTabs from "@/features/events/checkIn/EventTabs";
+import OpenDoorButton from "@/features/events/checkIn/OpenDoorButton";
 import WhoCame from "@/features/events/checkIn/WhoCame";
 import { clockWords, dayWords, isOver, timeRangeWords } from "@/features/events/manageWords";
 import codeActions from "@/features/qr/codeActions.module.css";
 import { QrCode } from "@/features/qr/QrCode";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { runsCheckIn } from "@/lib/events/checkInAccess";
 import { loadEventAtTheDoor } from "@/lib/events/checkInLoad";
-import { cameWords, doorCounts, doorRows, namesOffOf, plusWalkInsWords } from "@/lib/events/checkInView";
+import {
+  atTheDoorWords,
+  cameWords,
+  doorCounts,
+  doorRows,
+  namesOffOf,
+  plusWalkInsWords,
+  themselvesWords,
+} from "@/lib/events/checkInView";
 import {
   addLaterUntil,
   checkInPhase,
   doorListSignups,
   doorWindow,
   eventTakesCheckIns,
+  openingOf,
+  staffNames,
   walkInEmailGoesAt,
 } from "@/lib/events/checkIns";
 import { findDoorCode } from "@/lib/events/doorCode";
@@ -34,15 +46,26 @@ export const dynamic = "force-dynamic";
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /**
- * An event's Check-in tab (ev-manage): how many came and how, who came, the
- * door code and the door list.
+ * An event's Check-in tab (ev-manage): how many came and how, opening the
+ * door, who came, the door code and the door list.
  *
  * COUNTS FOR EVERYBODY IN THE EVENTS AREA, NAMES FOR THE PEOPLE WHO RUN
  * CHECK-IN. The four numbers are drawn here on the server from the sign-ups
  * and the check-ins and name nobody, so the whole committee sees them. Who
  * came, who did not, the door code and the door list are for `runsCheckIn`
  * (admins and SU-recognised committee), the people who already see who
- * signed up. Nothing with a name in it is sent to anybody else's browser.
+ * signed up. Nothing with a name in it is sent to anybody else's browser,
+ * but for the name of whoever opened the door.
+ *
+ * AT THE DOOR. The door list takes a tick, and people check themselves in,
+ * only once the door is open. The event's author, while their account still
+ * stands, and admins open it here (`/api/events/[id]/door`, the same bar);
+ * everybody else reads whether it is open. Who checks people in is
+ * unchanged, so an author the Students' Union does not recognise opens the
+ * door and still sees no name.
+ *
+ * The door code is offered only at an event that lets people check
+ * themselves in (`selfCheckIn`): anywhere else it would check nobody in.
  */
 export default async function CheckInTabPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -62,7 +85,11 @@ export default async function CheckInTabPage({ params }: { params: Promise<{ id:
   const title = event.title.trim() || "Untitled event";
   const takes = eventTakesCheckIns(event);
   const phase = takes ? checkInPhase(event, now, surveyClosesAt) : null;
-  const rows = doorRows(doorListSignups(signups), checkIns);
+  const opening = takes ? openingOf(event) : null;
+  // Who checked each person in, for the people who see who came; who opened
+  // the door, for everybody.
+  const names = await staffNames(db, staff ? [...checkIns.map((row) => row.byUid), opening?.by ?? null] : [opening?.by ?? null]);
+  const rows = doorRows(doorListSignups(signups), checkIns, staff ? names : undefined);
   // A check-in whose names have come off has no row and still counts.
   const namesOff = namesOffOf(checkIns);
   const counts = doorCounts(rows, namesOff);
@@ -71,7 +98,20 @@ export default async function CheckInTabPage({ params }: { params: Promise<{ id:
   const emailGoesAt = walkInEmailGoesAt(event, surveyClosesAt);
   const untilSurvey = until !== null && until.getTime() !== addLaterUntil(event)?.getTime();
   const doorClosed = phase === "later" || phase === "closed";
-  const doorCode = staff && takes ? await findDoorCode(db, event.id) : null;
+  // The door code checks nobody in at an event that does not let people check themselves in.
+  const doorCode = staff && takes && event.selfCheckIn ? await findDoorCode(db, event.id) : null;
+  const canOpen = viewer.role === "admin" || isNamedWithStanding(viewer, "events.authorUid", event.authorUid);
+  const door =
+    takes && window && phase && phase !== "undated"
+      ? atTheDoorWords({
+          phase,
+          window,
+          opening: opening
+            ? { at: opening.at, name: names.get(opening.by) ?? null, isViewer: opening.by === viewer.uid }
+            : null,
+          canOpen,
+        })
+      : null;
   const where = publicLocationText(event);
 
   return (
@@ -111,12 +151,6 @@ export default async function CheckInTabPage({ params }: { params: Promise<{ id:
           This event has no date yet, so it has no door list.
         </Notice>
       )}
-      {phase === "before" && window && (
-        <Notice tone="neutral" role="note">
-          Check-in opens at {clockWords(window.opensAt)} on {dayWords(window.opensAt)}, an hour before the
-          start.
-        </Notice>
-      )}
 
       {takes && phase !== "before" && phase !== "undated" && (
         <ul className={styles.stats} aria-label="Check-in in numbers">
@@ -126,9 +160,9 @@ export default async function CheckInTabPage({ params }: { params: Promise<{ id:
             <span className={styles.statSub}>{cameWords(counts)}</span>
           </li>
           <li className={styles.stat}>
-            <span className={styles.statNumber}>{counts.byQr}</span>
+            <span className={styles.statNumber}>{counts.themselves}</span>
             <span className={styles.statLabel}>checked themselves in</span>
-            <span className={styles.statSub}>With the QR code at the door</span>
+            <span className={styles.statSub}>{themselvesWords(counts, event.selfCheckIn)}</span>
           </li>
           <li className={styles.stat}>
             <span className={styles.statNumber}>{counts.byList}</span>
@@ -145,6 +179,24 @@ export default async function CheckInTabPage({ params }: { params: Promise<{ id:
             )}
           </li>
         </ul>
+      )}
+
+      {door && (
+        <section className={styles.card} aria-labelledby="at-the-door-heading">
+          <h2 id="at-the-door-heading" className={styles.cardHeading}>
+            At the door
+          </h2>
+          <div className={styles.doorRow}>
+            <div className={styles.doorWords}>
+              {door.lines.map((line) => (
+                <p key={line} className={styles.cardText}>
+                  {line}
+                </p>
+              ))}
+            </div>
+            {door.button && <OpenDoorButton eventId={event.id} enabled={door.button.enabled} />}
+          </div>
+        </section>
       )}
 
       {!staff && takes && (
@@ -173,32 +225,34 @@ export default async function CheckInTabPage({ params }: { params: Promise<{ id:
               />
             )}
           </div>
-          <aside className={styles.side} aria-label="At the door">
-            <DoorCodeCard
-              eventId={event.id}
-              code={
-                doorCode
-                  ? { slug: doorCode.slug, address: shortLinkAddress(doorCode.slug), active: doorCode.active }
-                  : null
-              }
-              qr={
-                doorCode ? (
-                  <QrCode
-                    className={styles.qr}
-                    text={shortLinkUrl(doorCode.slug)}
-                    label={`QR code for ${shortLinkAddress(doorCode.slug)}`}
-                  />
-                ) : null
-              }
-            />
+          <aside className={styles.side} aria-label="The door code and the door list">
+            {event.selfCheckIn && (
+              <DoorCodeCard
+                eventId={event.id}
+                code={
+                  doorCode
+                    ? { slug: doorCode.slug, address: shortLinkAddress(doorCode.slug), active: doorCode.active }
+                    : null
+                }
+                qr={
+                  doorCode ? (
+                    <QrCode
+                      className={styles.qr}
+                      text={shortLinkUrl(doorCode.slug)}
+                      label={`QR code for ${shortLinkAddress(doorCode.slug)}`}
+                    />
+                  ) : null
+                }
+              />
+            )}
             {window && (
               <section className={styles.card} aria-labelledby="door-list-heading">
                 <h2 id="door-list-heading" className={styles.cardHeading}>
                   Door list
                 </h2>
                 <p className={styles.cardText}>
-                  Opens an hour before and closes an hour after: {clockWords(window.opensAt)} to{" "}
-                  {clockWords(window.closesAt)}. After that, add people from this page.
+                  Check people in on it from {clockWords(window.opensAt)} to {clockWords(window.closesAt)}, once
+                  the door is open. After that, add them from this page.
                 </p>
                 <div className={styles.cardActions}>
                   <Link href={`/events/manage/${event.id}/door`} className={codeActions.action}>

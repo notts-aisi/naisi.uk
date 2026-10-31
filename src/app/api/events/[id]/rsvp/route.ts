@@ -354,6 +354,7 @@ export async function POST(
       foodProvenance: event.foodProvenance,
       foodProvenanceNote: event.foodProvenanceNote,
       signupForm: event.signupForm,
+      selfCheckIn: event.selfCheckIn === true,
     };
 
     if (outcome.kind === "existing") {
