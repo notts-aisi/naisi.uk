@@ -1,15 +1,19 @@
 import { NextResponse } from "next/server";
+import { canRunTerm } from "@/lib/applications/access";
 import { isId } from "@/lib/applications/normalise";
 import { askBestAnswers, loadBestAnswers } from "@/lib/courses/coursework/bestAnswers";
-import { COURSEWORK_DOOR_WORDS } from "@/lib/courses/coursework/claudeWords";
+import { BEST_WORDS, COURSEWORK_DOOR_WORDS } from "@/lib/courses/coursework/claudeWords";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 
 /**
  * CLAUDE'S BEST ANSWERS TO ONE WEEK (privacy v13), on the programme's
- * Coursework tab, for an admin and the programme's lead (the tab's own door,
- * `openCourseworkDoor`, decided from the form before the run is read).
+ * Coursework tab, FOR AN ADMIN ALONE (privacy v15: what Claude returns is seen
+ * by admins only). Decided on the session before the query or the body is
+ * read, the way Pangram's routes decide, so the programme's lead, a reviewer
+ * and everybody else stop here; the tab's own door (`openCourseworkDoor`, with
+ * `adminOnly`) then refuses them again before the run is read.
  *
  * GET `?week=w03` answers what Claude last found for that week, with names
  * put back, whether it is out of date, and how many answers would be sent and
@@ -31,6 +35,7 @@ const isWeekId = (value: unknown): value is string => typeof value === "string" 
 export async function GET(req: Request, ctx: Ctx) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if (!canRunTerm(user)) return NextResponse.json({ error: BEST_WORDS.onlyAdmins }, { status: 403 });
   const { roundId, programmeId } = await ctx.params;
   if (!isId(roundId) || !isId(programmeId)) return NextResponse.json({ error: COURSEWORK_DOOR_WORDS.notHere }, { status: 404 });
   const week = new URL(req.url).searchParams.get("week");
@@ -52,6 +57,7 @@ export async function POST(req: Request, ctx: Ctx) {
   if (blocked) return blocked;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if (!canRunTerm(user)) return NextResponse.json({ error: BEST_WORDS.onlyAdmins }, { status: 403 });
   let raw: unknown;
   try {
     raw = await req.json();

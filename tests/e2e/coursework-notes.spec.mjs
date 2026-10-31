@@ -15,8 +15,9 @@
  * asserted -> opens Ada's application, where only the note written after she
  * agreed shows, with its rule and the count of the earlier one -> names the
  * running run on the programme's Settings tab -> reads, under the Coursework
- * tab, Claude's best answers to week 3 (the panel the programme's lead reads)
- * and Pangram's count before any press -> opens Ada's coursework page, where
+ * tab, Claude's best answers to week 3 (an admin's alone since privacy v15,
+ * and the panel says so) and Pangram's count before any press -> opens Ada's
+ * coursework page, where
  * the column beside her weeks holds the notes written from this run with the
  * earlier one held back, Claude's draft from this run, and Pangram with
  * nothing of hers to send. Nothing on the tab or her page is pressed: neither
@@ -98,6 +99,7 @@ const WORDS = {
   ruleRun: "Notes written after they agreed to version 13 of the privacy policy, and earlier notes written from this programme.",
   hiddenOnRunOne: "1 earlier note isn’t shown here: it wasn’t written from this programme.",
   bestOneSendable: "1 answer can be sent.",
+  bestWhoSees: "Admins only",
   pangramNotSetUp: "Pangram isn’t set up on this site yet.",
   pangramNobodyThisWeek: "Nobody’s answers this week can be sent to Pangram.",
   pangramTooShortOne: "1 answer is under 50 words and isn’t sent.",
@@ -316,7 +318,7 @@ test(
       });
 
       await step(
-        "under the Coursework tab, Claude's best answers to week 3 as the lead reads them, and Pangram's count before any press, with nothing pressed",
+        "under the Coursework tab, Claude's best answers to week 3, an admin's alone, and Pangram's count before any press, with nothing pressed",
         async () => {
           const bestRead = responseTo(`/programmes/${state.programmeId}/coursework/best-answers`, "GET");
           const pangramRead = responseTo(`/programmes/${state.programmeId}/coursework/pangram`, "GET");
@@ -333,6 +335,8 @@ test(
             const text = await textOf(best);
             return bestSays.some((words) => text.includes(words));
           });
+          // Privacy v15: what Claude returns is seen by admins only, and the panel says who sees it.
+          await best.getByText(WORDS.bestWhoSees, { exact: true }).waitFor({ timeout: WAIT_MS });
 
           // Ada's one answer is under 50 words, so Pangram has nobody to check and no button.
           const pangram = page.locator('section[aria-label="Pangram"]');

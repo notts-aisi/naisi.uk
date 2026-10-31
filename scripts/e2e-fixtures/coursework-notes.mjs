@@ -21,8 +21,8 @@
  * who approves Ada, keeps and changes and deletes notes about her on her
  * profile, meets Claude's draft (the calm sentence where Claude is not set
  * up, one press against a deployed target that has a key), and reads the
- * notes beside her application. Then, as the programme's lead reads them,
- * the Coursework tab's panels: the admin names the running run on the
+ * notes beside her application. Then the Coursework tab's panels, an admin's
+ * alone since privacy v15: the admin names the running run on the
  * programme's Settings tab (the fixture never does), reads Claude's best
  * answers to week 3 under the tab and Pangram's count before any press, and
  * opens Ada's page, where the column beside her weeks holds the notes written
@@ -33,14 +33,14 @@
  * ## What it cannot drive, and where that is held instead
  *
  * Nobody leads the programme at this point of the term, and the harness
- * cannot make a lead who is not an admin. So the best answers panel is read
- * by the admin, who is shown it as the lead is, and "the lead is refused the
- * notes", "the lead is handed no column beside a person's weeks" and "the
+ * cannot make a lead who is not an admin. So "the lead is refused the
+ * notes", "the lead is handed no column beside a person's weeks", "the lead
+ * is drawn no panel under the tab and refused Claude's best answers" and "the
  * lead never sees Pangram" are held by the persona battery against a real
  * build (`tests/persona-route-gates.registry.mjs`, the `lead` persona on the
- * notes and Pangram routes), by `tests/course-hub-coursework.test.mjs` (both
- * pages drawn for the lead) and by `tests/coursework-claude.test.mjs`, not
- * here.
+ * notes, best answers and Pangram routes), by
+ * `tests/course-hub-coursework.test.mjs` (both pages drawn for the lead) and
+ * by `tests/coursework-claude.test.mjs`, not here.
  *
  * ## It sends nothing
  *
@@ -60,7 +60,7 @@ export const COURSEWORK_NOTES_STEPS = [
   "Claude's draft: the calm sentence where Claude is not set up, or one press answered with a draft or a reason",
   "beside the application only the note written after the agreement shows, with its rule and the count of earlier notes",
   "the admin names the running course run on the programme's Settings tab",
-  "under the Coursework tab, Claude's best answers to week 3 as the lead reads them, and Pangram's count before any press, with nothing pressed",
+  "under the Coursework tab, Claude's best answers to week 3, an admin's alone, and Pangram's count before any press, with nothing pressed",
   "beside Ada's weeks on her coursework page: the notes written from this run, Claude's draft from it, and Pangram with nothing of hers to send",
 ];
 
