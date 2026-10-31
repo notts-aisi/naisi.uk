@@ -26,7 +26,6 @@ import {
   DOOR_OPEN,
   DURING,
   EVENT_ID,
-  OPENED_AT,
   PEOPLE,
   RSVP,
   SELF_ON,
