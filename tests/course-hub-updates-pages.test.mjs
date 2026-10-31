@@ -267,14 +267,16 @@ describe("1. the Messages tab is the lead's and an admin's", () => {
     assert.match((await messages("zach")).text, /AGI Strategy doesn’t name a course run yet\. Name it/);
   });
 
-  test("the tab is a link for an admin and the lead, and drawn but not a link for a reviewer", () => {
+  test("the tab is a link for an admin and the lead, and not drawn for a reviewer", () => {
     const tabs = (groupsOpen) =>
       renderToStaticMarkup(
         createElement(ProgrammeTabs, { base: PAGE_PATH, applications: 5, groups: 3, canEdit: groupsOpen, groupsOpen }),
       );
     assert.match(tabs(true), new RegExp(`<a href="${PAGE_PATH}/messages" class="tab tabCurrent" aria-current="page">Messages</a>`));
     assert.doesNotMatch(tabs(false), /\/messages/);
-    assert.match(tabs(false), /<span class="tab tabPending" aria-disabled="true" title="Not built yet">Messages<\/span>/);
+    // A reviewer's row is Applications alone, as a link: no Messages tab at all.
+    assert.doesNotMatch(tabs(false), />Messages</);
+    assert.deepEqual([...tabs(false).matchAll(/<(a|span)\b[^>]*class="tab[ "]/g)].map((m) => m[1]), ["a"]);
   });
 });
 

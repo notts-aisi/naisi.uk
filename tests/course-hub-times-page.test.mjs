@@ -304,7 +304,7 @@ describe("the Groups tab is the lead's and an admin's, decided before anybody is
   });
 });
 
-describe("the tab is a link for an admin and the lead, and greyed for a reviewer", () => {
+describe("the tab is a link for an admin and the lead, and not drawn for a reviewer", () => {
   test("an admin's Groups tab links to the page, and is the current tab on it", async () => {
     const drawn = await draw("zach", { withLayout: true });
     assert.match(drawn.html, new RegExp(`<a href="${PAGE_PATH}/groups" class="tab tabCurrent" aria-current="page">Groups`));
@@ -317,12 +317,13 @@ describe("the tab is a link for an admin and the lead, and greyed for a reviewer
     assert.match(drawn.html, new RegExp(`<a href="${PAGE_PATH}/attendance" class="tab ?">Attendance</a>`));
   });
 
-  test("a reviewer's Groups and Attendance tabs are drawn and are not links", async () => {
+  test("a reviewer is drawn no Groups or Attendance tab, linked or not", async () => {
     const drawn = await draw("lloyd", { withLayout: true });
     assert.ok(!drawn.html.includes(`${PAGE_PATH}/groups"`), "the reviewer was handed a link to the tab");
     assert.ok(!drawn.html.includes(`${PAGE_PATH}/attendance"`), "the reviewer was handed a link to Attendance");
-    assert.match(drawn.html, /<span class="tab tabPending" aria-disabled="true" title="Not built yet">Groups/);
-    assert.match(drawn.html, /<span class="tab tabPending" aria-disabled="true" title="Not built yet">Attendance/);
+    // The tab row is Applications alone, and every tab in it is a link.
+    const nav = /<nav class="tabs" aria-label="Sections">([\s\S]*?)<\/nav>/.exec(drawn.html)?.[1] ?? "";
+    assert.deepEqual([...nav.matchAll(/<(a|span)\b[^>]*class="tab[ "][^>]*>([A-Za-z]+)/g)].map((m) => [m[1], m[2]]), [["a", "Applications"]]);
   });
 
   test("somebody with no role on the programme is told there is no programme here, in place of the page", async () => {

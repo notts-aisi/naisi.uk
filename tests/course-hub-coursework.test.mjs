@@ -237,13 +237,17 @@ describe("1. who opens what", () => {
     }
   });
 
-  test("the tab sits in the programme's row after Attendance, a link for the lead and an admin", async () => {
+  test("the tab sits in the programme's row after Attendance, a link for the lead and an admin, and not drawn for a reviewer", async () => {
     const ProgrammeTabs = (await w.loadTs(join("features", "applications", "editor", "ProgrammeTabs.tsx"))).default;
     const { renderToStaticMarkup } = await import("react-dom/server");
     const { createElement } = await import("react");
     const html = (open) => renderToStaticMarkup(createElement(ProgrammeTabs, { base: PROGRAMME_PATH, applications: 3, groups: 4, canEdit: open, groupsOpen: open }));
     assert.match(html(true), new RegExp(`>Attendance</a><a href="${PROGRAMME_PATH}/coursework" class="tab ">Coursework</a><a href="${PROGRAMME_PATH}/messages"`));
-    assert.match(html(false), /<span class="tab tabPending" aria-disabled="true" title="Not built yet">Coursework<\/span>/);
+    // A reviewer is drawn Applications alone, as a link: no Coursework, and no
+    // tab that is not a link.
+    assert.doesNotMatch(html(false), /Coursework/);
+    assert.deepEqual([...html(false).matchAll(/<(a|span)\b[^>]*class="tab[ "]/g)].map((m) => m[1]), ["a"]);
+    assert.match(html(false), new RegExp(`<a href="${PROGRAMME_PATH}/applications"[^>]*>Applications<`));
   });
 });
 

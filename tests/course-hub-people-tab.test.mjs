@@ -121,7 +121,7 @@ describe("1. who opens the People tab", () => {
     for (const name of ["Amara", "Kofi", "Nina"]) assert.ok(!drawn.text.includes(name));
   });
 
-  test("the tab is a link, with how many hold a place, for the lead and an admin; drawn and not a link for a reviewer", async () => {
+  test("the tab is a link, with how many hold a place, for the lead and an admin; not drawn for a reviewer", async () => {
     // Six: Sam left the run and Callum was taken off it, and each gave the form's place back.
     for (const who of ["claudia", "zach"]) {
       const { html, text } = await layout(who);
@@ -133,7 +133,9 @@ describe("1. who opens the People tab", () => {
       assert.match(text, /Applications \d+ People 6 Groups/, `${who}'s tabs, in the board's order`);
     }
     const reviewer = await layout("lloyd");
-    assert.match(reviewer.html, /<span class="tab tabPending" aria-disabled="true" title="Not built yet">People<\/span>/);
+    // A reviewer's tabs are Applications alone: no People tab, linked or not.
+    assert.match(reviewer.text, /Applications \d+/);
+    assert.doesNotMatch(reviewer.text, /\bPeople\b/, "a reviewer is shown the People tab");
     assert.ok(!reviewer.html.includes(`${PROGRAMME_PATH}/people`), "a reviewer is offered the People tab");
   });
 
