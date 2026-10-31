@@ -344,7 +344,7 @@ describe("the house's clock", () => {
     for (const weekday of [0, 1, 2, 3, 4, 5, 6]) {
       for (const minutes of [30, 60, 90, 120, 150]) {
         const said = words.slotRangeWords(weekday, "18:15", minutes);
-        assert.doesNotMatch(said, /[–—]|\b\d{2}:\d{2}\b/, said);
+        assert.doesNotMatch(said, /[\u2013\u2014]|\b\d{2}:\d{2}\b/, said);
       }
     }
   });

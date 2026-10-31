@@ -733,14 +733,14 @@ export async function resolveNoticeAudience(
   const gmailOnly = process.env.EMAIL_GMAIL_ONLY_MODE === "true";
 
   // The run's active places, narrowed to the group when there is one. Equality
-  // only, so no composite index is owed. One past the ceiling, so a run over it
-  // is detectable and refused rather than read in part.
+  // only, so no composite index is owed. Read whole and then judged, as the
+  // channel read is: over the ceiling the send is refused, never read in part.
   let places = db
     .collection("courseEnrolments")
     .where("runId", "==", runId)
     .where("status", "==", "active");
   if (onlyGroupId) places = places.where("groupId", "==", onlyGroupId);
-  const placeSnap = await places.limit(MAX_NOTICE_ENROLMENT_ROWS + 1).get();
+  const placeSnap = await places.get();
   if (placeSnap.docs.length > MAX_NOTICE_ENROLMENT_ROWS) {
     console.error(`[${lane.logTag}] enrolment read exceeds ceiling`, runId, placeSnap.docs.length);
     return {
@@ -857,11 +857,10 @@ export async function resolveNoticeAudience(
     });
   }
 
-  // In address order, compared as Firestore compares ids, which is the order
-  // the cohort list's rows are read in (their ids are made from the address).
-  // So who is sent first, and which of two people sharing an inbox it goes to,
-  // does not hang on how the places happen to be stored. Then one message per
-  // inbox, as the cohort audience dedupes.
+  // In address order, the order the cohort list's rows are read in (their ids
+  // are made from the address), so who is sent first, and which of two people
+  // sharing an inbox it goes to, does not hang on how the places happen to be
+  // stored. Then one message per inbox, as the cohort audience dedupes.
   const byCode = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
   candidates.sort((a, b) => byCode(a.address.toLowerCase(), b.address.toLowerCase()) || byCode(a.uid, b.uid));
   const seenAddress = new Set<string>();

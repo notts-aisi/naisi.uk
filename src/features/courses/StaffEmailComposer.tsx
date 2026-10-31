@@ -36,8 +36,8 @@ import styles from "./StaffEmailComposer.module.css";
  *     a confirm dialog whose number is a guess is worse than no confirm at all.
  *     The test send stays available, because it reaches nobody but the author.
  *  2. WHAT ACTUALLY WENT OUT, after the fact. The routes report `sent` and
- *     `skipped`; both are shown. "Skipped" covers the suppression list —
- *     addresses that have bounced or been marked as spam — plus, on the run's
+ *     `skipped`; both are shown. "Skipped" covers the suppression list
+ *     (addresses that have bounced or been marked as spam), plus, on the run's
  *     announcement lane, everyone who has turned course announcements off.
  *     Folding those into a cheerful "sent to everyone" would quietly hide the
  *     one thing a facilitator needs to know about a member who never hears
@@ -384,7 +384,7 @@ export default function StaffEmailComposer({ runId, audience }: Props) {
   const signature = signatureOf(subject, body);
   const written = subject.trim().length > 0 && body.trim().length > 0;
 
-  // Null is "we do not know", which is NOT zero — see the module header. The
+  // Null is "we do not know", which is NOT zero: see the module header. The
   // run lane counts two audiences, and the tick says which one this send is.
   const count =
     audience.kind === "group"
