@@ -898,6 +898,12 @@ const USERS = new Map([
       "JSX option exists for",
   ],
   [
+    "event-send-counts.test.mjs",
+    "the publish route's count, the broadcast preview and the announcement's audience executed " +
+      "together in one graph, with the event `.tsx` templates the sends would render compiled " +
+      "for real, so the counts are proved against the sends they describe rather than a copy",
+  ],
+  [
     "scheduler-markers.test.mjs",
     "same shape: `registry.ts` is loaded for the caps and windows and drags every job's graph in " +
       "with it, and the stub comments said so in as many words",

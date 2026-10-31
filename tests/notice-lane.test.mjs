@@ -1306,7 +1306,10 @@ const publishLoader = createLoader({
         "    globalThis.__announceResult ??\n" +
         "    { sent: 1, skipped: 0, suppressed: 0, failed: 0, pushed: 1, refusal: null }\n" +
         "  );\n" +
-        "};",
+        "};\n" +
+        // The count the route's GET answers with, closed here: this suite is
+        // about the press. tests/event-send-counts.test.mjs executes the count.
+        "export const announcementReach = async () => ({ emailed: 0, notified: 0 });",
     ],
   ]),
 });

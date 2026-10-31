@@ -2690,7 +2690,9 @@ export const ROUTES = {
       why:
         "SU-recognised committee and admins may address an event's attendees; for them the " +
         "event is missing, and every other session is forbidden before the read, draftEvent " +
-        "and approveEvent holders included.",
+        "and approveEvent holders included. A body of { preview: true } asks how many the send " +
+        "would email and meets the same gate before its body is read; it answers ok and people, " +
+        "a count, and writes nothing.",
     },
   },
   "/api/events/[id]/calendar.ics": {
@@ -2769,6 +2771,14 @@ export const ROUTES = {
     },
   },
   "/api/events/[id]/publish": {
+    GET: {
+      expect: adminOnly(404, { approveEvent: 404 }),
+      why:
+        "How many publishing would reach, for the Publish confirm: the press's own gate, written " +
+        "the same way, so event approvers (admin or approveEvent) are told the event is missing " +
+        "and everyone else is forbidden before the read. On an event it answers ok, emailed and " +
+        "notified, counts only, and writes nothing.",
+    },
     POST: {
       expect: adminOnly(404, { approveEvent: 404 }),
       why:

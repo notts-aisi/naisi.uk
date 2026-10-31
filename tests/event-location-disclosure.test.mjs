@@ -207,7 +207,13 @@ const { loadTs } = createLoader({
     ["./rsvpToken", TOKEN_STUB],
     // The publish route's two doors, closed: this suite asks it only whether
     // it refuses a hidden location with no label before it writes anything.
-    ["@/lib/email/eventAnnouncement", "export const sendEventAnnouncement = async () => ({ sent: 0, skipped: 0, suppressed: 0, failed: 0, pushed: 0 });"],
+    // The count its GET answers with is closed beside the send; it reads no
+    // location (tests/event-send-counts.test.mjs executes it).
+    [
+      "@/lib/email/eventAnnouncement",
+      "export const sendEventAnnouncement = async () => ({ sent: 0, skipped: 0, suppressed: 0, failed: 0, pushed: 0 });\n" +
+        "export const announcementReach = async () => ({ emailed: 0, notified: 0 });",
+    ],
     ["@/lib/scheduler/announcementQueue", "export const announcementQueueEnabled = async () => false;"],
   ]),
 });

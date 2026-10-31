@@ -967,7 +967,7 @@ const RECIPIENT_SOURCES = new Map([
   [
     "src/lib/email/eventAnnouncement.ts#audience.recipients",
     {
-      reads: 1,
+      reads: 2,
       origin: "derived",
       derivedFrom: [
         "src/lib/email/eventAnnouncement.ts#local:recipients",
@@ -977,7 +977,8 @@ const RECIPIENT_SOURCES = new Map([
         "the guest subscriptions. Nothing in a request reaches it.",
       why:
         "The announcement audience, resolved from the subscriptions and members queries this " +
-        "module runs for itself.",
+        "module runs for itself: once by the inline send, and once by `announcementReach`, " +
+        "which only counts it for the Publish confirm and sends nothing.",
     },
   ],
   [
@@ -1006,12 +1007,13 @@ const RECIPIENT_SOURCES = new Map([
   [
     "src/lib/push/rowAudience.ts#owners.uids",
     {
-      reads: 1,
+      reads: 2,
       origin: "roster",
       writtenBy: "src/lib/push/rowAudience.ts",
       why:
         "The audience of a notification ROW, built here by querying who has that row's push " +
-        "cell switched on. Nothing in a request reaches it.",
+        "cell switched on. Nothing in a request reaches it. Read by the send, and by " +
+        "`countRowPushAudience`, which asks the same cell of the same owners and notifies nobody.",
     },
   ],
   [
