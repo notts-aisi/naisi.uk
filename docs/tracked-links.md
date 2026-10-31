@@ -266,13 +266,23 @@ with the package's own decoder.
   prints.
 - Who may draw which code is `codeForViewer` (`src/lib/qr/codeAccess.ts`):
   admins any link; the people who run check-in an event's door code, and an
-  event survey's code while that survey takes answers.
+  event survey's code while that survey takes answers. A door code's sign says
+  who checks themselves in only at an event that lets people; anywhere else it
+  says check-in is at the door.
 
 ## Door codes
 
 An event's door code is a short link to its check-in page,
 `/events/<id>/check-in`, made on demand from the event's Check-in tab
-(`src/lib/events/doorCode.ts`). It is an ordinary record: the link whose
+(`src/lib/events/doorCode.ts`). It checks somebody in only at an event that
+lets people check themselves in (`selfCheckIn` on the event, off for a new
+one, turned on from the editor's Sign-up step), and only once the event's
+author or an admin has opened the door from the Check-in tab
+(`POST /api/events/<id>/door`, inside the door's hours, an hour either side of
+the event). At any other event the Check-in tab does not offer the code, and a
+scan lands on a page that says check-in is at the door. A press on a page the
+code opened is recorded as a scan of it (`how: "code"`): the page carries `q`
+to the press, through a sign-in on the way. It is an ordinary record: the link whose
 destination is that page, found by one equality on `destination`, filed under
 the campaign "Check-in", with the same fields as every other link so the
 console can still change it. Its slug comes from the event's name

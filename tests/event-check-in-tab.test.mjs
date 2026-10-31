@@ -242,8 +242,8 @@ describe("the Check-in tab", () => {
 
   // A member with no sign-up who checks themselves in with the code walks in
   // with their account: their survey goes to the account, so there is no
-  // "No email" under them; they came by the code, so "QR at the door" and a
-  // place among who checked themselves in; and the three numbers still add
+  // "No email" under them; they came by the code, so "Scanned the door code"
+  // and a place among who checked themselves in; and the three numbers still add
   // up to who came (walk 4b, L5). A walk-in with no account given at the
   // door keeps "No email" and "Walk-in" (above).
   test("a member who walks in with the code, signed in: Scanned the door code, no No email, counted among who checked themselves in", async (t) => {
