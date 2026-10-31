@@ -295,6 +295,20 @@ row, which once `courses` joined the list meant an unsubscribe click on a
 newsletter stamped a course-mail refusal the member never made. Adding the push
 column keeps that rule: two dotted leaves per row, never a map.
 
+**A programme's own link stops its optional mail, not its notices.** The
+footer of a cohort announcement, a weekly nudge or next week's email carries a
+token for that run's `cohort:<runId>` list, and confirming it takes the person
+off that list and writes no category at all. That stops the run's optional
+mail; a notice about running the programme still reaches them while they hold a
+place on it, because a notice is not read off the list (see "Who a notice to a
+course run reaches"). So for a cohort list the two pages say exactly that: "We
+won't send this programme's optional emails to this inbox. You'll still get
+notices about running it while you hold a place on it." The confirmation page
+drops the line about turning delivery back on from `/profile` or the homepage
+for a cohort list, because neither can put somebody back on one; the line
+under it, which says to email us, is the way back. Every other list keeps its
+words.
+
 ## The notice lane
 
 A notice reaches its audience on both channels whatever the grid says. Email goes
@@ -311,9 +325,9 @@ preference at all.
 | `event-cancel` | `POST /api/events/[id]/cancel` | admins and `approveEvent` holders, matching publish and update | the same two statuses, always both |
 | `course-group` | `POST /api/courses/groups/[groupId]/email` | admins, and a facilitator of THIS group while it is live | the group's active members |
 | `course-room` | `POST /api/courses/groups/[groupId]/notice` | the same gate | the same members |
-| `course-run` | `POST /api/courses/runs/[runId]/email` with `asNotice: true` | admins, and the run's `runFacilitatorUids` or `trackLeadUids` | the run's cohort channel, keeping the members whose `courses` row is a stored false |
-| `course-run` | `POST /api/courses/runs/[runId]/updates`, an update to everyone or to the facilitators | admins, the run's `trackLeadUids` and the lead of the programme that names the run | to everyone: the run's cohort channel as above; to the facilitators: the facilitators of the run's live groups who still meet their bar, at their own addresses |
-| `course-group` | `POST /api/courses/runs/[runId]/updates`, an update to one group | the same, and a facilitator of that group while it is live | that group's members on the run's cohort channel, keeping the stored falses |
+| `course-run` | `POST /api/courses/runs/[runId]/email` with `asNotice: true` | admins, and the run's `runFacilitatorUids` or `trackLeadUids` | everybody holding a place on the run whose group has gone out, whatever they unsubscribed from (see below) |
+| `course-run` | `POST /api/courses/runs/[runId]/updates`, an update to everyone or to the facilitators | admins, the run's `trackLeadUids` and the lead of the programme that names the run | to everyone: everybody holding a place as above; to the facilitators: the facilitators of the run's live groups who still meet their bar, at their own addresses |
+| `course-group` | `POST /api/courses/runs/[runId]/updates`, an update to one group | the same, and a facilitator of that group while it is live | everybody holding a place in that group whose group has gone out, whatever they unsubscribed from |
 | `course-survey` | `POST /api/surveys/[surveyId]/send` and `.../remind` (docs/surveys.md) | admins | everybody holding a place on the survey's programme, each at their account's address with their own link; the reminder to those of them who have not answered |
 | `course-follow-up` | the same two routes, for a follow-up survey at 6 or 12 months (docs/surveys.md) | admins | everybody whose row on the programme's before survey says yes to follow-ups now, each with their own link; the reminder to those of them who have not answered |
 | `event-survey` | the same two routes, for the survey after an event (docs/surveys.md) | admins | the people who came to the event (each with an email: an account at its own address, a guest or a walk-in at the address they gave the event) or everybody whose sign-up was confirmed, less anybody who already answered with the QR code, each with their own link; the reminder to those it reached who have not answered |
@@ -327,6 +341,41 @@ rather than adding a third, so the marker says "you are on this course" or
 "Send a test to me" is `course-test` to the presser alone, as theirs is.
 Who reads an update on the site is decided apart from who is emailed it, in
 `src/lib/courses/updates/readers.ts`.
+
+### Who a notice to a course run reaches
+
+Everybody holding a place on the run whose group has gone out, whatever they
+unsubscribed from. Unsubscribing from a run's emails (the link at the foot of
+an announcement, a weekly nudge or next week's email) takes the person off the
+run's cohort list, and that stops the run's OPTIONAL mail and nothing else: a
+notice is the people running the programme telling the people on it something
+they need in order to take part, and it is not read off that list at all
+(Zach, 31 October 2026). The unsubscribe page says so to whoever clicks (see
+"The marketing unsubscribe link's reach").
+
+`resolveNoticeAudience` in `src/lib/email/courseFacilitatorEmails.ts` is that
+audience, and the run composer's notice lane and an update to everyone or to
+one group both use it. It reads the run's ACTIVE `courseEnrolments` rather
+than its cohort list, and holds them to everything that is not a preference,
+exactly as the notice lane did when it went through the list:
+
+- **The same people.** A learner's place (the only role a cohort row is ever
+  written for: the enrol route, allocation publish and reinstate write one for
+  a learner alone), whose placement Publish has told (`placementIsTold`).
+  Somebody placed and not told yet hears about their group from Publish first;
+  somebody who left is not active and is nobody to write to.
+- **The same group narrowing**, for an update to one group, applied before the
+  cap.
+- **The same cap**: over 200 people in scope the send is refused whole, never
+  trimmed.
+- **The same address.** The address on their cohort row when they have one, on
+  the list or not, because that is where the run has always written to them;
+  with no row, their account's own address by the group email route's rule.
+- **Deduped by address, with suppression applied.**
+
+The optional mail keeps `resolveCohortAudience`, the cohort list intersected
+with the active places, so an unsubscribe still stops it: the announcement
+lane, the weekly nudge and next week's email.
 
 The event broadcast gate is wider than it was, on purpose: until this lane landed
 the committee member who organised an event could not mail its attendees unless
@@ -631,11 +680,12 @@ a fifth row cannot appear in the model and be missing from the page.
   every state, because the answer belongs to the account and the member may well
   be setting it for the phone in their pocket. Only the writing is disabled.
 - **The "Important notices" row is locked**: both cells drawn on, disabled,
-  writing nothing, with copy saying an organiser of an event you signed up for,
-  or the facilitator of your group, can send you a message about a change and it
-  reaches you whichever switches you set. A member who has switched everything
-  else off should learn that while they are making the choice, not the first time
-  somebody sends one.
+  writing nothing, with copy saying the people running an event you signed up
+  for, or a programme you hold a place on, can send you messages about running
+  it, and they reach you by email and notification whichever switches you set.
+  A member who has switched everything else off, or unsubscribed from a
+  programme's emails, should learn that while they are making the choice, not
+  the first time somebody sends one.
 - **Two write paths on one page.** The email cells are saved by the form's Save
   button, which writes the WHOLE `profile.notifications` map (then the
   un-awaited `POST /api/subscriptions/sync`); the push cells save themselves on

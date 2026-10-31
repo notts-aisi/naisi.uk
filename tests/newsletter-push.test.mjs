@@ -854,6 +854,59 @@ describe("the unsubscribe link refuses the row, not the email column", () => {
   });
 });
 
+describe("what the pages say a click stops", () => {
+  // A programme's cohort list is the one list whose click does NOT stop
+  // everything the list's owner sends: it stops the programme's optional mail,
+  // and its notices keep coming while the person holds a place, because a
+  // notice is read off the run's places and never off the list
+  // (`resolveNoticeAudience`). Every other list keeps its words.
+  const COHORT_STOPS =
+    "We won't send this programme's optional emails to that inbox. You'll still get notices about running it while you hold a place on it.";
+  const COHORT_DONE =
+    "We won't send this programme's optional emails to this inbox. You'll still get notices about running it while you hold a place on it.";
+
+  async function page(method, channel) {
+    globalThis.__dropped = [];
+    globalThis.__db = makeDb({ users: { "member-1": { email: "member@e2e.invalid", profile: {} } } });
+    globalThis.__token = { s: "unsubscribe", uid: "member-1", c: channel };
+    const res = await unsubRoute[method](
+      new Request("https://naisi.test/api/unsubscribe?t=tok", { method, headers: { accept: "text/html" } }),
+    );
+    assert.equal(res.status, 200);
+    return res.text();
+  }
+
+  test("a programme's list: the confirm page says what stops and what does not", async () => {
+    const html = await page("GET", "cohort:agi-strategy-autumn-2026__run00001");
+    assert.ok(html.includes(`from cohort:agi-strategy-autumn-2026__run00001. ${COHORT_STOPS}</p>`), html);
+    assert.doesNotMatch(html, /We won't send any more/);
+  });
+
+  test("a programme's list: the page after the click says the same, and offers no switch that cannot put them back", async () => {
+    const html = await page("POST", "cohort:agi-strategy-autumn-2026__run00001");
+    assert.ok(html.includes(`<p>${COHORT_DONE}</p>`), html);
+    assert.doesNotMatch(html, /We won't send any more|re-enable delivery/);
+    // How to change their mind about a programme's list: write to us.
+    assert.match(html, /Made a mistake, or want to stop other NAISI emails too\? <a href="mailto:ai-safety@uonsu\.com">Email us<\/a>\./);
+  });
+
+  test("every other list keeps its words", async () => {
+    for (const channel of ["newsletter", "events", "courses", "all"]) {
+      const confirm = await page("GET", channel);
+      assert.ok(confirm.includes(`from ${channel}. We won't send any more to that inbox.</p>`), `${channel}: ${confirm}`);
+      const done = await page("POST", channel);
+      assert.ok(
+        done.includes(
+          "<p>We won't send any more to this inbox. If you change your mind, you can re-enable delivery from your " +
+            '<a href="/profile">profile page</a> (members) or by re-subscribing on the homepage (guests).</p>',
+        ),
+        `${channel}: ${done}`,
+      );
+      assert.doesNotMatch(done, /optional emails|notices about running it/);
+    }
+  });
+});
+
 // ===========================================================================
 // 4. The test send is transactional, and stays that way
 // ===========================================================================

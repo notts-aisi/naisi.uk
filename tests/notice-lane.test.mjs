@@ -504,7 +504,7 @@ describe("the group composer sends notices, and rehearses transactionally", () =
 });
 
 // ===========================================================================
-// 4. The cohort audience, with and without the opt-out override
+// 4. Who a course notice reaches, and who the optional mail reaches
 // ===========================================================================
 
 const audienceLoader = createLoader({
@@ -515,115 +515,225 @@ const audienceLoader = createLoader({
     ["@/lib/firebase/session", "export const getCurrentUser = async () => null;"],
     ["./send", "export const sendEmail = async () => {};"],
     ["./notice", "export const sendNotice = async () => {};"],
-    [
-      "@/lib/firestore/subscriptions",
-      "export const findRecipientsForChannel = async () => globalThis.__channelRows ?? [];\n" +
-        "export const findUnsubscribedOnChannel = async () => globalThis.__unsubscribedRows ?? [];",
-    ],
+    // The subscription readers are the real ones, reading the rows below as the
+    // senders read them. The do-not-email list is `globalThis.__suppressed`.
     [
       "@/lib/firestore/suppression",
-      "export const filterSuppressed = async (db, addrs) => ({ allowed: addrs, suppressed: [] });",
+      "export const filterSuppressed = async (db, addrs) => ({\n" +
+        "  allowed: addrs.filter((a) => !(globalThis.__suppressed ?? []).includes(a.toLowerCase())),\n" +
+        "  suppressed: addrs.filter((a) => (globalThis.__suppressed ?? []).includes(a.toLowerCase())),\n" +
+        "});",
     ],
   ]),
 });
 
-const { resolveCohortAudience, countCohortUnreachable } = await audienceLoader.loadTs(
+const { MAX_COHORT_RECIPIENTS, resolveCohortAudience, resolveNoticeAudience } = await audienceLoader.loadTs(
   "lib/email/courseFacilitatorEmails.ts",
 );
 
 const LANE = { logTag: "test", overCapAdvice: "split it" };
 /** When Publish told the cohort below their group. */
 const TOLD = new Date("2026-10-28T09:00:00Z");
+const RUN_ID = "run-1";
+const CHANNEL = `cohort:${RUN_ID}`;
 
-describe("the courses row is honoured on the announcement lane and overridden on the notice lane", () => {
-  const world = () => {
-    globalThis.__channelRows = [
-      { email: "keen@e2e.invalid", audience: "user", audienceId: "keen" },
-      { email: "refuser@e2e.invalid", audience: "user", audienceId: "refuser" },
-    ];
-    globalThis.__db = makeDb({
-      courseEnrolments: {
-        "run-1__keen": { runId: "run-1", uid: "keen", status: "active", groupId: "g1" },
-        "run-1__refuser": { runId: "run-1", uid: "refuser", status: "active", groupId: "g1" },
-      },
-      users: {
-        keen: { displayName: "Keen", profile: {} },
-        refuser: {
-          displayName: "Refuser",
-          // A STORED false: the only thing an opt-out row reads as a refusal.
-          profile: { notifications: { categories: { courses: false } } },
-        },
-      },
-    });
-    // Both were told their group by Publish (`allocatedEmailAt`, a timestamp,
-    // which the store's JSON copy above would turn into a string): a placement
-    // nobody has told is no cohort send's audience on either lane, which
-    // tests/course-hub-group-published-mail.test.mjs holds.
-    for (const row of Object.values(globalThis.__db.data.courseEnrolments)) {
-      row.allocatedEmailAt = TOLD;
-    }
-    return globalThis.__db;
+/**
+ * One run with every case the two audiences answer, alike or differently.
+ * `told` people carry Publish's stamp; a `row` is their row on the run's
+ * cohort list, `listed` or unsubscribed, at the address given. Ordered so a
+ * person's unsubscribed row comes before their listed one, which is what
+ * tells "the listed row wins" from "the first row wins".
+ *
+ *  - keen: told, on the list.
+ *  - refuser: told, on the list, the courses row a stored false.
+ *  - quitter: told, and clicked unsubscribe in an announcement; their row
+ *    holds an address of its own, not the account's.
+ *  - moved: told once, then had a second row written at a new address (the
+ *    old one unsubscribed): the listed row's address is the one used.
+ *  - norow: told, and no row at all (Publish's subscribe failed).
+ *  - untold: on the list, moved to another group after Publish: not told.
+ *  - leaver: left the run, and off the list, as leaving takes them.
+ *  - bounced: told, on the list, the address on the do-not-email list.
+ *  - fac: a facilitator holding no place: their own row, active, no group.
+ *  - gone: told, on the list, the account deleted.
+ *  - twin: told, no row, the same account address as keen.
+ *  - other: told, on the list, in the other group.
+ *  - and a guest row on the channel, which is nobody's place.
+ */
+function theRun() {
+  const people = {
+    keen: { group: "g1", told: true, row: { email: "keen@e2e.invalid", listed: true } },
+    refuser: { group: "g1", told: true, row: { email: "refuser@e2e.invalid", listed: true }, courses: false },
+    quitter: { group: "g1", told: true, row: { email: "quitter.list@e2e.invalid", listed: false } },
+    moved: {
+      group: "g1",
+      told: true,
+      rows: [
+        { id: "a-old", email: "moved.old@e2e.invalid", listed: false },
+        { id: "z-new", email: "moved.new@e2e.invalid", listed: true },
+      ],
+    },
+    norow: { group: "g1", told: true },
+    untold: { group: "g1", told: false, row: { email: "untold@e2e.invalid", listed: true } },
+    leaver: { group: "g1", told: true, status: "withdrawn", row: { email: "leaver@e2e.invalid", listed: false } },
+    bounced: { group: "g1", told: true, row: { email: "bounced@e2e.invalid", listed: true } },
+    fac: { group: null, told: false, role: "facilitator" },
+    gone: { group: "g1", told: true, row: { email: "gone@e2e.invalid", listed: true }, noAccount: true },
+    twin: { group: "g1", told: true, accountEmail: "keen@e2e.invalid" },
+    other: { group: "g2", told: true, row: { email: "other@e2e.invalid", listed: true } },
   };
+  const store = { courseEnrolments: {}, subscriptions: {}, users: {} };
+  for (const [uid, person] of Object.entries(people)) {
+    store.courseEnrolments[`${RUN_ID}__${uid}`] = {
+      runId: RUN_ID,
+      uid,
+      groupId: person.group,
+      status: person.status ?? "active",
+      role: person.role ?? "learner",
+      selfEnrolled: false,
+    };
+    const rows = person.rows ?? (person.row ? [{ id: "row", ...person.row }] : []);
+    for (const row of rows) {
+      store.subscriptions[`sub_${row.id}_${uid}`] = {
+        email: row.email,
+        channel: CHANNEL,
+        audience: "user",
+        audienceId: uid,
+        confirmed: true,
+        subscribed: row.listed,
+      };
+    }
+    if (!person.noAccount) {
+      store.users[uid] = {
+        email: person.accountEmail ?? `${uid}@e2e.invalid`,
+        displayName: uid,
+        profile: person.courses === false ? { notifications: { categories: { courses: false } } } : {},
+      };
+    }
+  }
+  store.subscriptions.sub_guest = {
+    email: "stranger@e2e.invalid",
+    channel: CHANNEL,
+    audience: "guest",
+    audienceId: "stranger@e2e.invalid",
+    confirmed: true,
+    subscribed: true,
+  };
+  globalThis.__suppressed = ["bounced@e2e.invalid"];
+  globalThis.__db = makeDb(store);
+  // Publish's stamp, a timestamp, which the store's JSON copy would turn into
+  // a string: set on the copy, as the real read hands it back.
+  for (const [uid, person] of Object.entries(people)) {
+    if (person.told) globalThis.__db.data.courseEnrolments[`${RUN_ID}__${uid}`].allocatedEmailAt = TOLD;
+  }
+  return globalThis.__db;
+}
 
-  test("without the override, a stored refusal is dropped before anything renders", async () => {
-    world();
-    const audience = await resolveCohortAudience(globalThis.__db, "run-1", LANE);
-    assert.deepEqual(
-      audience.members.map((m) => m.uid).sort(),
-      ["keen"],
-      "the announcement lane is opt-outable and must stay so",
-    );
-    assert.equal(audience.skipped, 1);
+const uidsOf = (audience) => audience.members.map((m) => m.uid).sort();
+const addressOf = (audience, uid) => audience.members.find((m) => m.uid === uid)?.address;
+
+describe("the optional mail keeps the cohort list and the courses row", () => {
+  // The announcement lane and the weekly nudge read the whole run's audience,
+  // and next week's email one group's: `tests/course-notice-reach.test.mjs`
+  // holds each of those lanes to this call.
+  test("the whole run: only the people on the list, told, who have not switched course mail off", async () => {
+    const audience = await resolveCohortAudience(theRun(), RUN_ID, LANE);
+    assert.deepEqual(uidsOf(audience), ["keen", "moved", "other"]);
+    // The stored false, the bounced address, the guest row and the deleted
+    // account are skipped; the untold and the leaver are never candidates.
+    assert.equal(audience.skipped, 4);
   });
 
-  test("with it, the refuser is in the audience and nothing else changes", async () => {
-    world();
-    const audience = await resolveCohortAudience(globalThis.__db, "run-1", LANE, {
-      ignoreCategoryOptOut: true,
-    });
-    assert.deepEqual(audience.members.map((m) => m.uid).sort(), ["keen", "refuser"]);
-    assert.equal(audience.skipped, 0);
-    assert.equal(audience.enrolledCount, 2);
-  });
-
-  test("the override reaches no further than the preference: an ex-member stays out", async () => {
-    world();
-    globalThis.__db.data.courseEnrolments["run-1__refuser"].status = "withdrawn";
-    const audience = await resolveCohortAudience(globalThis.__db, "run-1", LANE, {
-      ignoreCategoryOptOut: true,
-    });
-    assert.deepEqual(
-      audience.members.map((m) => m.uid),
-      ["keen"],
-      "a notice may bypass what somebody chose, never who they are",
-    );
+  test("one group: the same, narrowed", async () => {
+    const audience = await resolveCohortAudience(theRun(), RUN_ID, LANE, { groupId: "g1" });
+    assert.deepEqual(uidsOf(audience), ["keen", "moved"]);
   });
 });
 
-describe("what a cohort send could not reach, and says so", () => {
-  test("the run's ACTIVE members who left the list are counted, and nobody else", async () => {
-    globalThis.__unsubscribedRows = [
-      // Clicked the unsubscribe link in an announcement, still on the run.
-      { email: "left@e2e.invalid", audience: "user", audienceId: "quit-the-list" },
-      // Unsubscribed BECAUSE they left the run: not a member this failed to
-      // reach, and counting them would be a different wrong number.
-      { email: "gone@e2e.invalid", audience: "user", audienceId: "left-the-run" },
-      // A guest row cannot hold an enrolment at all.
-      { email: "stranger@e2e.invalid", audience: "guest", audienceId: "stranger@e2e.invalid" },
-    ];
-    globalThis.__db = makeDb({
-      courseEnrolments: {
-        "run-1__quit-the-list": { runId: "run-1", uid: "quit-the-list", status: "active" },
-        "run-1__left-the-run": { runId: "run-1", uid: "left-the-run", status: "withdrawn" },
-      },
-    });
-    assert.equal(await countCohortUnreachable(globalThis.__db, "run-1"), 1);
+describe("a notice reaches everybody holding a place whose group has gone out, whatever they unsubscribed from", () => {
+  test("the whole run", async () => {
+    const audience = await resolveNoticeAudience(theRun(), RUN_ID, LANE);
+    assert.equal(audience.refusal, null);
+    assert.deepEqual(
+      uidsOf(audience),
+      ["keen", "moved", "norow", "other", "quitter", "refuser"],
+      "the notice audience is the run's told places: an unsubscribe and the courses row remove nobody",
+    );
+    // keen, refuser, quitter, moved, norow, bounced, gone, twin, other: the
+    // told places in scope, which is what the cap is counted on.
+    assert.equal(audience.enrolledCount, 9);
+    // The deleted account, the second message to keen's inbox (twin) and the
+    // bounced address. Nobody else is a candidate to skip.
+    assert.equal(audience.skipped, 3);
   });
 
-  test("nobody unsubscribed is nobody to report, and no second read", async () => {
-    globalThis.__unsubscribedRows = [];
-    globalThis.__db = makeDb({ courseEnrolments: {} });
-    assert.equal(await countCohortUnreachable(globalThis.__db, "run-1"), 0);
+  test("one group: the same narrowing as the optional mail", async () => {
+    const audience = await resolveNoticeAudience(theRun(), RUN_ID, LANE, { groupId: "g1" });
+    assert.deepEqual(uidsOf(audience), ["keen", "moved", "norow", "quitter", "refuser"]);
+    const other = await resolveNoticeAudience(theRun(), RUN_ID, LANE, { groupId: "g2" });
+    assert.deepEqual(uidsOf(other), ["other"]);
+  });
+
+  test("the address is the one their cohort row holds, on the list first, and else the account's own", async () => {
+    const audience = await resolveNoticeAudience(theRun(), RUN_ID, LANE);
+    assert.equal(addressOf(audience, "quitter"), "quitter.list@e2e.invalid", "an unsubscribed row still holds the address the run writes to");
+    assert.equal(addressOf(audience, "moved"), "moved.new@e2e.invalid", "a row on the list wins over one that is not");
+    assert.equal(addressOf(audience, "norow"), "norow@e2e.invalid", "with no row, the account's own address");
+    assert.equal(addressOf(audience, "keen"), "keen@e2e.invalid");
+  });
+
+  test("nobody who left, nobody not yet told, no facilitator's own row, no guest row and no stopped address", async () => {
+    const audience = await resolveNoticeAudience(theRun(), RUN_ID, LANE);
+    for (const uid of ["leaver", "untold", "fac", "bounced", "gone", "twin"]) {
+      assert.ok(!uidsOf(audience).includes(uid), `${uid} is in a notice's audience`);
+    }
+    assert.ok(
+      !audience.members.some((m) => m.address === "stranger@e2e.invalid"),
+      "a guest row on the channel holds no place",
+    );
+    assert.ok(!audience.members.some((m) => m.address === "bounced@e2e.invalid"), "suppression is a fact, not a choice");
+  });
+
+  test("one message per inbox", async () => {
+    const audience = await resolveNoticeAudience(theRun(), RUN_ID, LANE);
+    const addresses = audience.members.map((m) => m.address.toLowerCase());
+    assert.equal(new Set(addresses).size, addresses.length);
+  });
+
+  test("the cap refuses whole, counted on the people in scope", async () => {
+    const db = theRun();
+    for (let n = 0; n < MAX_COHORT_RECIPIENTS; n += 1) {
+      const uid = `p${n}`;
+      db.data.courseEnrolments[`${RUN_ID}__${uid}`] = {
+        runId: RUN_ID,
+        uid,
+        groupId: "g3",
+        status: "active",
+        role: "learner",
+        selfEnrolled: true,
+      };
+      db.data.users[uid] = { email: `${uid}@e2e.invalid`, displayName: uid, profile: {} };
+    }
+    const run = await resolveNoticeAudience(db, RUN_ID, LANE);
+    assert.deepEqual(run.members, [], "a notice over the cap is refused, never trimmed");
+    assert.match(
+      run.refusal ?? "",
+      new RegExp(`^This run has 209 people holding a place, over the ${MAX_COHORT_RECIPIENTS}-person limit for a single send\\. Nothing was sent: split it or raise it with an admin\\.$`),
+    );
+    // A group of the same run is a statement about that group.
+    const group = await resolveNoticeAudience(db, RUN_ID, LANE, { groupId: "g1" });
+    assert.equal(group.refusal, null);
+    assert.deepEqual(uidsOf(group), ["keen", "moved", "norow", "quitter", "refuser"]);
+  });
+
+  test("it reads no notification setting at all", () => {
+    // A notice ignores the grid by class. Executed above (the refuser is in);
+    // held here so a preference read cannot be added through a helper.
+    const source = src("lib", "email", "courseFacilitatorEmails.ts");
+    const body = /export async function resolveNoticeAudience[\s\S]*?\n}\n/.exec(source);
+    assert.ok(body, "resolveNoticeAudience moved: re-read this file");
+    assert.doesNotMatch(body[0], /hasOptedOutOfCourseAnnouncements|wantsEmailForProfile|notifications/);
+    assert.doesNotMatch(body[0], /findRecipientsForChannel/, "a notice is not read off the list");
   });
 });
 
@@ -1606,12 +1716,15 @@ describe("the run composer carries a grid lane and a notice lane, visibly", () =
     assert.match(ROUTE, /const asNotice =\s*\n\s*!testOnly &&/);
   });
 
-  test("the two audiences differ by exactly one option", () => {
+  test("the two lanes differ by exactly one call: the notice's audience, or the list's", () => {
     assert.match(
       ROUTE,
-      /resolveCohortAudience\(db, runId, LANE, \{ ignoreCategoryOptOut: true \}\)/,
+      /const audience = asNotice\s*\n\s*\? await resolveNoticeAudience\(db, runId, NOTICE_LANE\)\s*\n\s*: await resolveCohortAudience\(db, runId, LANE\);/,
     );
-    assert.match(ROUTE, /resolveCohortAudience\(db, runId, LANE\)/);
+    // No relaxed cohort audience is left for a notice to borrow: the option
+    // that once let one keep the people who switched course mail off is gone.
+    assert.doesNotMatch(ROUTE, /ignoreCategoryOptOut/);
+    assert.doesNotMatch(src("lib", "email", "courseFacilitatorEmails.ts"), /ignoreCategoryOptOut/);
   });
 
   test("the notice lane mints no unsubscribe token and pushes; the grid lane does neither", () => {
@@ -1624,25 +1737,39 @@ describe("the run composer carries a grid lane and a notice lane, visibly", () =
     assert.match(ROUTE, /if \(asNotice\) \{\s*\n\s*for \(const recipient of recipients\)/);
   });
 
-  test("the notice lane reports the cohort members it could not reach", () => {
-    // `ignoreCategoryOptOut` relaxes the `courses` ROW and nothing else: the
-    // audience is still the subscription channel, so somebody who unsubscribed
-    // from the cohort's emails is not reached and is not in `skipped` either.
-    // Invisible is the one thing that must not be.
-    assert.match(ROUTE, /countCohortUnreachable\(db, runId\)/);
-    assert.match(COMPOSER, /could not be reached at all/);
-    assert.match(COMPOSER, /who unsubscribed from this cohort's emails is not on the list/);
+  test("the notice lane reaches everybody holding a place, and the composer says so", () => {
+    // A notice is read off the run's places, not off its cohort list, so
+    // somebody who unsubscribed from the cohort's emails is reached: there is
+    // nobody left over to count as unreachable, and nothing says there is.
+    assert.doesNotMatch(ROUTE, /countCohortUnreachable|unreachable/);
+    assert.match(ROUTE, /return NextResponse\.json\(\{ ok: true, sent, skipped, pushed \}\);/);
+    assert.doesNotMatch(COMPOSER, /could not be reached at all|unreachable/);
     assert.doesNotMatch(
       COMPOSER,
-      /reaches everyone in the cohort whatever/,
-      "the tick promised a reach the lane does not have",
+      /cohort list|on the list/,
+      "the notice reaches everyone holding a place, and a sentence naming a list says it reaches fewer",
     );
+    // The tick, the line above the message, the note under it and the confirm
+    // all say who it is. Read with string joins and line breaks flattened, as
+    // the sentences are written across lines.
+    const flat = COMPOSER.replace(/"\s*\+\s*"/g, "").replace(/\s+/g, " ");
+    assert.equal(
+      [...flat.matchAll(/holding a place on (?:the run|\$\{label\}) whose group has gone out, whatever they unsubscribed from/g)].length,
+      4,
+    );
+    // The number on the button is the notice's own, counted by the page shell
+    // with the route's function, never the list's.
+    assert.match(COMPOSER, /\? audience\.noticeCount\s*\n\s*: audience\.subscriberCount;/);
+    assert.match(COMPOSER, /`Send to \$\{people\(count\)\} as an important notice`/);
+    const PAGE = src("app", "(app)", "learn", "[runId]", "email", "page.tsx");
+    assert.match(PAGE, /await resolveNoticeAudience\(db, runId, NOTICE_COUNT_LANE\)/);
   });
 
   test("the composer offers the tick, and says what it costs the recipient", () => {
     assert.match(COMPOSER, /label="Send as an important notice"/);
     assert.match(COMPOSER, /whatever their notification/);
-    assert.match(COMPOSER, /asNotice: audience\.kind === "run" && asNotice && !testOnly/);
+    assert.match(COMPOSER, /const sentAsNotice = audience\.kind === "run" && asNotice && !testOnly;/);
+    assert.match(COMPOSER, /asNotice: sentAsNotice,/);
     // The tick is off on arrival and is not remembered: a class this
     // consequential is chosen per message.
     assert.match(COMPOSER, /useState\(false\);\s*\n\s*const \[busy/);

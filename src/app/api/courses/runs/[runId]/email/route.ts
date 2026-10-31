@@ -9,7 +9,6 @@ import {
 } from "@/lib/email/noticeCaps";
 import {
   COURSE_MEMBER_PLACEHOLDER,
-  countCohortUnreachable,
   displayNameOf,
   dropSuppressed,
   gateRunStaff,
@@ -17,6 +16,7 @@ import {
   parseStaffMessage,
   reserveSendSlot,
   resolveCohortAudience,
+  resolveNoticeAudience,
   sendCourseRunEmail,
   staffMessageBlocks,
   staffPreheader,
@@ -48,7 +48,8 @@ import { sendNoticePush } from "@/lib/push/noticeNotifications";
  * `src/lib/email/courseFacilitatorEmails.ts` own the run-staff predicate and the
  * subscription ∩ active-enrolment audience, including the guest-row drop, the
  * `courses` category opt-out, suppression, and the recipient cap that REFUSES
- * rather than truncates. Both carry the full argument in their own headers.
+ * rather than truncates. Both carry the full argument in their own headers, and
+ * so does `resolveNoticeAudience` beside them, the notice lane's audience.
  *
  * They are shared with P11's weekly nudge because a nudge IS an announcement to
  * the whole run: the two lanes must agree on who may speak for a cohort and who
@@ -70,26 +71,24 @@ import { sendNoticePush } from "@/lib/push/noticeNotifications";
  *    whose row is a stored `false` before a message is rendered, the mail
  *    carries the unsubscribe footer and the RFC 8058 headers, and it does not
  *    push. An announcement is opt-outable and stays so.
- *  - WITH it, this is the NOTICE class. The audience is everyone on the cohort
- *    LIST whatever the `courses` row says, the send goes through `sendNotice`
- *    (so it carries the marker line and a `kind: "notice"` receipt with
- *    `surface: "course-run"`), there is no unsubscribe affordance because there
- *    is nothing to unsubscribe from, and every recipient with a device is
- *    pushed.
+ *  - WITH it, this is the NOTICE class. The audience is everybody holding a
+ *    place on the run whose group has gone out, whatever they unsubscribed
+ *    from and whatever the `courses` row says (`resolveNoticeAudience`). The
+ *    send goes through `sendNotice` (so it carries the marker line and a
+ *    `kind: "notice"` receipt with `surface: "course-run"`), there is no
+ *    unsubscribe affordance because there is nothing to unsubscribe from, and
+ *    every recipient with a device is pushed.
  *
- * What does NOT change: the gate (the same run staff), the enrolment
- * re-verification, the guest-row drop, the 200-recipient refusal and the
+ * What does NOT change: the gate (the same run staff), who holds a place (an
+ * active enrolment Publish has told), the 200-recipient refusal and the
  * suppression list. A notice may bypass what somebody chose; never who they
  * are, nor whether their address bounces.
  *
- * AND IT DOES NOT REACH SOMEBODY WHO LEFT THE COHORT LIST. `ignoreCategoryOptOut`
- * relaxes the `courses` row and nothing else: the audience is still the
- * subscription channel, so a member who clicked the unsubscribe link in an
- * earlier announcement is not in it. That is the audience rule
- * `resolveCohortAudience` argues for at length and it is not this flag's to
- * overturn, but it must not be invisible either, so the response carries
- * `unreachable`: how many ACTIVE members of the run are off the list. The
- * composer prints it, and the tick's own copy says the list is what it reaches.
+ * AND IT REACHES SOMEBODY WHO LEFT THE COHORT LIST. Clicking the unsubscribe
+ * link in an announcement takes a member off the run's list, which stops its
+ * optional mail and nothing else: the owner's decision, set out on
+ * `resolveNoticeAudience`. So a notice is read off the run's places rather than
+ * off the list, and nobody holding a place is left out of it unseen.
  *
  * A TEST SEND IS NEVER A NOTICE. `testOnly` reaches the sender's own address
  * and nobody else, so nobody's preference is bypassed and the marker's sentence
@@ -123,6 +122,16 @@ const UNSUB_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 365;
 const LANE = {
   logTag: "courses run email",
   overCapAdvice: "split the announcement",
+} as const;
+
+/**
+ * The notice lane's two strings, under the tag its own send failures already
+ * log with. A notice reaches everybody holding a place, so it cannot be split
+ * by who is on a list; one group's people are reached from that group's page.
+ */
+const NOTICE_LANE = {
+  logTag: "courses run notice",
+  overCapAdvice: "email each group from its own page",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -205,7 +214,7 @@ export async function POST(
   } else {
     // The one line the two lanes differ by. See "TWO LANES IN ONE ROUTE".
     const audience = asNotice
-      ? await resolveCohortAudience(db, runId, LANE, { ignoreCategoryOptOut: true })
+      ? await resolveNoticeAudience(db, runId, NOTICE_LANE)
       : await resolveCohortAudience(db, runId, LANE);
     if (audience.refusal) {
       return NextResponse.json({ error: audience.refusal }, { status: 400 });
@@ -357,24 +366,5 @@ export async function POST(
     }
   }
 
-  // WHO THIS COULD NOT REACH. Notice lane only: on the announcement lane an
-  // unsubscribe is the recipient's answer and needs no report. Best effort and
-  // strictly after the send, because a count for a report must never be the
-  // reason a notice did not go out.
-  let unreachable: number | undefined;
-  if (asNotice) {
-    try {
-      unreachable = await countCohortUnreachable(db, runId);
-    } catch (err) {
-      console.error("[courses run notice] unreachable count failed", runId, err);
-    }
-  }
-
-  return NextResponse.json({
-    ok: true,
-    sent,
-    skipped,
-    pushed,
-    ...(unreachable === undefined ? {} : { unreachable }),
-  });
+  return NextResponse.json({ ok: true, sent, skipped, pushed });
 }

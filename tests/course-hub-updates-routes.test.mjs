@@ -20,8 +20,9 @@
  *     their own group only; nobody else. The body is checked before anything
  *     is read, with a sentence for each mistake.
  *  3. THE EMAIL. One message to each person the update is to who can be
- *     emailed, and nobody else: the notice class, the reply-to on the
- *     society's inbox, what it did kept on the update. The number on the
+ *     emailed, whatever they unsubscribed from, and nobody else: the notice
+ *     class, the reply-to on the society's inbox, what it did kept on the
+ *     update. The number on the
  *     button is a promise, and every refusal (a changed number, an audience
  *     over the cap, nobody to email, the caps) comes before anything is
  *     written or sent.
@@ -342,13 +343,16 @@ describe("2b. the body is checked before anything is read, with a sentence for e
 // ---------------------------------------------------------------------------
 
 describe("3. the email reaches each person the update is to, and nobody else", () => {
-  test("to everyone: the people told, on the cohort list, with an address that is not stopped", async () => {
-    assert.equal(await w.emailsFor("everyone"), 3);
+  test("to everyone: the people told, whatever they unsubscribed from, with an address that is not stopped", async () => {
+    // Ines unsubscribed from the run's cohort list, which stops its optional
+    // mail and never a notice; dev is not told yet, nina left, omar's address
+    // is stopped.
+    assert.equal(await w.emailsFor("everyone"), 4);
     const response = await press("claudia");
     assert.equal(response.status, 200);
-    assert.deepEqual(response.body.email, { sent: 3, held: 0, suppressed: 0, failed: 0 });
+    assert.deepEqual(response.body.email, { sent: 4, held: 0, suppressed: 0, failed: 0 });
     // One message each, addressed to one person: never a list, never a copy.
-    assert.deepEqual(world.mail.map((m) => m.to).sort(), ["amara@example.com", "bea@example.com", "tariq@example.com"]);
+    assert.deepEqual(world.mail.map((m) => m.to).sort(), ["amara@example.com", "bea@example.com", "ines@example.com", "tariq@example.com"]);
     for (const message of world.mail) {
       assert.equal(typeof message.to, "string");
       assert.equal(message.subject, "Week 3 readings are up");
@@ -359,7 +363,7 @@ describe("3. the email reaches each person the update is to, and nobody else", (
       assert.equal(message.actorUid, "claudia");
       assert.equal(message.listUnsubscribe, undefined);
     }
-    assert.deepEqual(stored()[0].email, { planned: 3, sent: 3, held: 0, suppressed: 0, failed: 0, settled: true });
+    assert.deepEqual(stored()[0].email, { planned: 4, sent: 4, held: 0, suppressed: 0, failed: 0, settled: true });
   });
 
   test("to one group: only that group's people, whoever writes it", async () => {
@@ -367,9 +371,25 @@ describe("3. the email reaches each person the update is to, and nobody else", (
       world.mail.length = 0;
       const response = await press(who, { to: "group", groupId: B, title: "Room change for Group B this week" });
       assert.equal(response.status, 200);
-      assert.deepEqual(world.mail.map((m) => m.to), ["amara@example.com"], who);
-      assert.equal(world.mail[0].surface, "course-group");
-      assert.equal(world.mail[0].referenceId, B);
+      assert.deepEqual(world.mail.map((m) => m.to).sort(), ["amara@example.com", "ines@example.com"], who);
+      for (const message of world.mail) {
+        assert.equal(message.surface, "course-group");
+        assert.equal(message.referenceId, B);
+      }
+    }
+  });
+
+  test("somebody who unsubscribed from the run's cohort list is still emailed: it is a notice", async () => {
+    // Off the list, as the unsubscribe link at the foot of an announcement
+    // leaves her; the grid lane, asked the same question, leaves her out.
+    assert.equal(world.db.read("subscriptions/cohort__ines").subscribed, false);
+    const grid = await staffEmails.resolveCohortAudience(world.courseDb, RUN.agi, { logTag: "t", overCapAdvice: "t" });
+    assert.ok(!grid.members.some((member) => member.uid === "ines"));
+    for (const [to, groupId] of [["everyone", null], ["group", B]]) {
+      world.mail.length = 0;
+      const response = await press("claudia", { to, ...(groupId ? { groupId } : {}), title: `To ${to}` });
+      assert.equal(response.status, 200);
+      assert.ok(world.mail.some((m) => m.to === "ines@example.com"), `an update to ${to} did not reach her`);
     }
   });
 
@@ -394,7 +414,7 @@ describe("3. the email reaches each person the update is to, and nobody else", (
     // The switch really is off: the grid lane, asked the same question, leaves her out.
     const grid = await staffEmails.resolveCohortAudience(world.courseDb, RUN.agi, { logTag: "t", overCapAdvice: "t" });
     assert.ok(!grid.members.some((member) => member.uid === "bea"));
-    assert.equal(await w.emailsFor("everyone"), 3);
+    assert.equal(await w.emailsFor("everyone"), 4);
     await press("claudia");
     assert.ok(world.mail.some((m) => m.to === "bea@example.com"));
   });
@@ -406,12 +426,12 @@ describe("3. the email reaches each person the update is to, and nobody else", (
       title: "Week 3 readings are up",
       message: "Bring one question.",
       email: true,
-      emailCount: 4,
+      emailCount: 5,
     });
     assert.equal(response.status, 409);
     assert.deepEqual(response.body, {
-      error: "The number of people this emails has changed to 3. Check it, then press again.",
-      emails: 3,
+      error: "The number of people this emails has changed to 4. Check it, then press again.",
+      emails: 4,
     });
     assert.equal(w.everything(), before);
     assert.equal(world.mail.length, 0);
@@ -420,11 +440,13 @@ describe("3. the email reaches each person the update is to, and nobody else", (
     const count = await w.emailsFor("everyone");
     world.db.seed("suppressedEmails/bea@example.com", { email: "bea@example.com", reason: "bounce", source: "manual" });
     const stale = await ask.post("claudia", { to: "everyone", title: "T", message: "M", email: true, emailCount: count });
-    assert.deepEqual(short(stale), [409, "The number of people this emails has changed to 2. Check it, then press again."]);
+    assert.deepEqual(short(stale), [409, "The number of people this emails has changed to 3. Check it, then press again."]);
   });
 
   test("nobody to email: the press is refused with a sentence, and posting without the email still works", async () => {
-    world.db.poke("subscriptions/cohort__tariq", { subscribed: false });
+    // Group C's one person can be emailed nowhere: his address is stopped. (Off
+    // the cohort list he would still be emailed: an update is a notice.)
+    world.db.seed("suppressedEmails/tariq@example.com", { email: "tariq@example.com", reason: "bounce", source: "manual" });
     assert.equal(await w.emailsFor("group", C), 0);
     const refused = await ask.post("claudia", { to: "group", groupId: C, title: "T", message: "M", email: true, emailCount: 0 });
     assert.deepEqual(short(refused), [400, "Nobody it’s to can be emailed yet. Turn off Also email it to post it."]);
@@ -516,15 +538,15 @@ describe("3. the email reaches each person the update is to, and nobody else", (
       return "sent";
     };
     const response = await press("claudia");
-    assert.deepEqual(seen, [false, false, false]);
-    assert.deepEqual(response.body.email, { sent: 1, held: 1, suppressed: 0, failed: 1 });
-    assert.deepEqual(stored()[0].email, { planned: 3, sent: 1, held: 1, suppressed: 0, failed: 1, settled: true });
+    assert.deepEqual(seen, [false, false, false, false]);
+    assert.deepEqual(response.body.email, { sent: 2, held: 1, suppressed: 0, failed: 1 });
+    assert.deepEqual(stored()[0].email, { planned: 4, sent: 2, held: 1, suppressed: 0, failed: 1, settled: true });
   });
 
   test("an address stopped at the door is counted as such", async () => {
     world.mailFate = (args) => (args.to === "amara@example.com" ? "suppressed" : "sent");
     const response = await press("claudia");
-    assert.deepEqual(response.body.email, { sent: 2, held: 0, suppressed: 1, failed: 0 });
+    assert.deepEqual(response.body.email, { sent: 3, held: 0, suppressed: 1, failed: 0 });
   });
 
   test("posting without the email sends nothing and keeps no email", async () => {

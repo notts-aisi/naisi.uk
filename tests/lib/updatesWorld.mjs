@@ -16,11 +16,13 @@
  *  - Group C (Tom): `tariq` (told, on the list).
  *
  * So, as the boards would count them: everyone on AGI Strategy is 5 people
- * (amara, ines, omar, bea, tariq) and the email reaches 3 (amara, bea,
- * tariq); Group B is 3 people and 1 email (amara); the facilitators are 3 and
- * 3 (rahul, sofia, tom).
+ * (amara, ines, omar, bea, tariq) and the email reaches 4 (amara, ines, bea,
+ * tariq: an update is a notice, so ines is emailed though she unsubscribed
+ * from the cohort list, and only omar's stopped address is left out); Group B
+ * is 3 people and 2 emails (amara and ines); the facilitators are 3 and 3
+ * (rahul, sofia, tom).
  *
- * Real: the route, the libraries behind it, the cohort audience, the caps,
+ * Real: the route, the libraries behind it, the notice audience, the caps,
  * the notice door and the email templates. Stubbed (by the hand-over world):
  * `server-only`, `next/server`, the Admin SDK handle, the session, the
  * view-as guard and `sendEmail`, which records what it was handed and sends

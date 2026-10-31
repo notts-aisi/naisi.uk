@@ -31,10 +31,12 @@
  * decides. A reader that shows placements has to ask the question as many
  * times as its entry says, and about the caller's own role.
  *
- * TWO HELPERS carry the question for the files that call them, and are held
- * here too: `loadRegisterMembers` (the register, its notes) is handed the
+ * THREE HELPERS carry the question for the files that call them, and are
+ * held here too: `loadRegisterMembers` (the register, its notes) is handed the
  * caller's role by every caller, and `resolveCohortAudience` (the register
- * push's reminder, the week nudge, the run email) asks `placementIsTold`.
+ * push's reminder, the week nudge, the run email's announcement) and
+ * `resolveNoticeAudience` (the run email's notice, an update's email) each ask
+ * `placementIsTold`.
  *
  * WHAT THE READERS THEN DO is executed in
  * `tests/course-hub-group-published-{member,facilitator,mail,nudge}.test.mjs`.
@@ -138,7 +140,7 @@ const READERS = {
   "lib/courses/updates/audience.ts": {
     kind: "told",
     asks: 1,
-    why: "who an update is to and who its email reaches: an untold seat counts as nobody, and the email goes through the cohort audience, which leaves it out",
+    why: "who an update is to and who its email reaches: an untold seat counts as nobody, and the email goes through the notice audience, which leaves it out",
   },
   "lib/courses/sharedNotes/readers.ts": {
     kind: "told",
@@ -287,8 +289,10 @@ const READERS = {
   },
   "lib/email/courseFacilitatorEmails.ts": {
     kind: "told",
-    asks: 1,
-    why: "the cohort audience behind the register push's reminder, the week nudge and the run email leaves out untold seats; the unreachable count beside it is a number for the sender",
+    asks: 2,
+    why:
+      "the cohort audience behind the register push's reminder, the week nudge and the run email's announcement, and " +
+      "the notice audience behind the run email's notice and an update's email, each leave out untold seats",
   },
   "lib/courses/pushEmail.ts": {
     kind: "told",

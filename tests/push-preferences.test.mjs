@@ -1142,9 +1142,13 @@ describe("the notification grid draws the shape the senders read", () => {
     );
     assert.match(
       NOTICE_ROW.description,
-      /organiser|facilitator/,
+      /^The people running an event you signed up for, or a programme you hold a place on, can send you messages about running it/,
       "the row has to say WHO can reach a member this way",
     );
+    // And that a programme's notices reach them whatever they unsubscribed
+    // from: the row names a programme they hold a place on, not a group, and
+    // promises both channels whatever the switches say.
+    assert.match(NOTICE_ROW.description, /by email and notification whichever switches you set\.$/);
   });
 
   test("a push toggle cannot revert an unsaved edit elsewhere on the form", () => {

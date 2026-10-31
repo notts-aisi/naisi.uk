@@ -1245,7 +1245,8 @@ async function lookAround(label) {
   for (const who of ["claudia", "amara", "rahul"]) look.others[`${who} on the incubator`] = await updatesOf(who, INC_RUN);
   // The facts the screens are made from, at this moment: every update with
   // who it is to (newest first, as every list orders them), who facilitates
-  // each group, and who is on each run's cohort list.
+  // each group, who is on each run's cohort list, and who can be emailed at
+  // all (an account address that is not on the do-not-email list).
   look.stored = world.db
     .paths()
     .filter((path) => path.startsWith("courseUpdates/"))
@@ -1265,6 +1266,17 @@ async function lookAround(label) {
         .sort(),
     ]),
   );
+  // As the suppression list keys an address: trimmed, lower case, and the
+  // characters a document id cannot hold made underscores.
+  const stopped = (address) =>
+    world.db.read(`suppressedEmails/${address.trim().toLowerCase().replace(/[^a-z0-9@._+-]/g, "_")}`) !== undefined;
+  look.reachable = world.db
+    .paths()
+    .filter((path) => /^users\/[^/]+$/.test(path))
+    .map((path) => [path.slice("users/".length), world.db.read(path)])
+    .filter(([, account]) => typeof account?.email === "string" && account.email.trim() && !stopped(account.email))
+    .map(([uid]) => uid)
+    .sort();
   seen.looks[label] = look;
 }
 
@@ -2388,29 +2400,35 @@ describe("stage two of the course hub, one term from Publish to the end of week 
 
   // -------------------------------------------------------------------------
   // The weekly email's foot offers to stop the weekly email; the page it
-  // opens unsubscribes the address from the run's cohort list, which updates
-  // go through too. So the lead's room change afterwards is not emailed to
-  // him, though an update "reaches you whatever your notification settings
-  // say" (the walk of stage two, G7). The counts say so honestly.
+  // opens takes the address off the run's cohort list, which stops the run's
+  // optional mail and nothing else. An update is a notice, read off the run's
+  // places rather than off that list, so the lead's room change afterwards is
+  // still emailed to him: it "reaches you whatever your notification settings
+  // say", and whatever he unsubscribed from (the walk of stage two's G7, which
+  // the owner settled this way). The page says so before he confirms.
   describe("7. Joel stops the weekly email", () => {
-    test("the page it opens says it stops the cohort's updates, and confirming takes him off the run's list", () => {
+    test("the page it opens says it stops the programme's optional emails and not its notices, and confirming takes him off the run's list", () => {
       const stop = seen.registers.joelStops;
       assert.equal(
         stop.page,
         "Unsubscribe? You're about to unsubscribe j**el@example.com from the Agi Strategy Fellowship Autumn 2026 cohort updates. We won't send " +
-          "any more to that inbox. If this isn't your email or you didn't expect to be here, just close the page. Nothing happens until you " +
-          "click the button below. Confirm unsubscribe Cancel",
+          "this programme's optional emails to that inbox. You'll still get notices about running it while you hold a place on it. If this " +
+          "isn't your email or you didn't expect to be here, just close the page. Nothing happens until you click the button below. " +
+          "Confirm unsubscribe Cancel",
       );
       assert.deepEqual(stop.confirmed.body, { ok: true, category: `cohort:${RUN}` });
       assert.deepEqual(lookAt("Joel stopped the weekly email").onTheList[RUN], ["amara", "dev", "ella", "priya"]);
     });
 
-    test("then an update to his group emails the other two, as the Messages tab and the group page both count it, and he reads it on his page", () => {
+    test("then an update to his group still emails all three, him included, as the Messages tab and the group page both count it, and he reads it on his page", () => {
       const look = lookAt("Joel stopped the weekly email");
-      assert.deepEqual(look.lead.messages.to.find(([label]) => label.startsWith("Group A")), ["Group A (3)", 2]);
-      assert.equal(look.facilitators["amelia (Group A)"].page.write, "Write to Group A (3) Posts an update to the group and emails 2 people. Replies go to ai-safety@uonsu.com.");
+      assert.deepEqual(look.lead.messages.to.find(([label]) => label.startsWith("Group A")), ["Group A (3)", 3]);
+      assert.equal(look.facilitators["amelia (Group A)"].page.write, "Write to Group A (3) Posts an update to the group and emails 3 people. Replies go to ai-safety@uonsu.com.");
       const one = seen.oneGroup;
-      assert.deepEqual([one.counted, one.answer.body.email, one.mail.map((mail) => mail.to)], [2, { sent: 2, held: 0, suppressed: 0, failed: 0 }, [address("dev"), address("priya")]]);
+      assert.deepEqual(
+        [one.counted, one.answer.body.email, one.mail.map((mail) => mail.to).sort()],
+        [3, { sent: 3, held: 0, suppressed: 0, failed: 0 }, [address("dev"), address("joel"), address("priya")].sort()],
+      );
       assert.equal(
         readFrom(one.mail[0], "Group A is in A14 on Thursday Sent"),
         `Group A is in A14 on Thursday ${NOTICE_LINE("you are in this course group")} A13 is booked for an exam. Same time. ` +
@@ -2672,14 +2690,17 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         const look = lookAt(label);
         for (const { runId, tabs, viewer, programme, groups } of RUNS) {
           const everyone = Object.values(groups).flatMap((name) => shownIn(look, runId, name));
-          const onTheList = (names) => names.filter((name) => look.onTheList[runId].includes(uidOf[name])).length;
+          // An update's email is a notice: it reaches everybody shown in the
+          // group who can be emailed at all, whatever they unsubscribed from,
+          // so Joel's leaving the cohort list takes him off no update.
+          const emailed = (names) => names.filter((name) => look.reachable.includes(uidOf[name])).length;
           const facilitators = [...new Set(Object.keys(groups).flatMap((key) => look.staffing[key]))];
           // Never the writer's own email, and the facilitators are not offered
           // to the one facilitator there is (the walk of stage two's fixes, G2).
           const alone = facilitators.length === 1 && facilitators[0] === viewer;
           const expected = [
-            [`Everyone on ${programme} (${everyone.length})`, onTheList(everyone)],
-            ...Object.entries(groups).map(([, name]) => [`${name} (${shownIn(look, runId, name).length})`, onTheList(shownIn(look, runId, name))]),
+            [`Everyone on ${programme} (${everyone.length})`, emailed(everyone)],
+            ...Object.entries(groups).map(([, name]) => [`${name} (${shownIn(look, runId, name).length})`, emailed(shownIn(look, runId, name))]),
             ...(alone ? [] : [[`The facilitators (${facilitators.length})`, facilitators.filter((uid) => uid !== viewer).length]]),
           ];
           assert.deepEqual(look[tabs].messages.to, expected, `${label}: ${programme}`);
@@ -2697,7 +2718,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
           );
           for (const [key, name] of Object.entries(groups)) {
             const names = shownIn(look, runId, name);
-            const emails = onTheList(names);
+            const emails = emailed(names);
             for (const uid of look.staffing[key]) {
               const theirs = look.facilitators[`${uid} (${key})`];
               assert.ok(theirs, `${label}: ${uid} facilitates ${key} and was not looked at`);
@@ -2835,10 +2856,11 @@ describe("stage two of the course hub, one term from Publish to the end of week 
 
     test("a writer who is in the group they write to, and on its list, is left out of its email", () => {
       const a = seen.adminInTheGroup;
-      // Four read it, the writer among them; Joel stopped the list, and the writer is not emailed.
-      assert.deepEqual(a.offered, ["Group A (4)", 2]);
-      assert.deepEqual([a.posted.counted, a.posted.answer.body.email], [2, { sent: 2, held: 0, suppressed: 0, failed: 0 }]);
-      assert.deepEqual(a.posted.mail.map((mail) => mail.to).sort(), [address("dev"), address("priya")]);
+      // Four read it, the writer among them. The writer is not emailed; Joel,
+      // who stopped the list, is, because an update is a notice.
+      assert.deepEqual(a.offered, ["Group A (4)", 3]);
+      assert.deepEqual([a.posted.counted, a.posted.answer.body.email], [3, { sent: 3, held: 0, suppressed: 0, failed: 0 }]);
+      assert.deepEqual(a.posted.mail.map((mail) => mail.to).sort(), [address("dev"), address("joel"), address("priya")].sort());
     });
   });
 });
