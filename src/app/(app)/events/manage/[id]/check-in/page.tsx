@@ -140,7 +140,7 @@ export default async function CheckInTabPage({ params }: { params: Promise<{ id:
             <span className={styles.statLabel}>{doorClosed ? "didn’t come" : "still to come"}</span>
             {doorClosed && (
               <span className={styles.statSub}>
-                Check-in never stops anyone signing up again, and nobody else sees who didn’t come.
+                Check-in never stops anyone signing up again. Admins may see when someone has missed two events in a row that they had a place at.
               </span>
             )}
           </li>

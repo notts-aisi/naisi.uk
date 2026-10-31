@@ -26,7 +26,6 @@ import {
   SEE_IT,
   SEE_WHO,
   THIS_WEEKS_WORK,
-  TICKS_NEVER_COUNT,
   WRITTEN,
   eachPersonsBoxesWords,
   hidePersonsBoxesWords,
@@ -327,7 +326,6 @@ export default function ThisWeeksWork({
         <h3 id={`${headingId}-ticks`} className={styles.wkTicksTitle}>
           {READING_TICKS}
         </h3>
-        <p className={styles.wkTicksLine}>{TICKS_NEVER_COUNT}</p>
         {week.sources.length === 0 ? (
           <p className={styles.wkFootLine}>{NO_SOURCES}</p>
         ) : (

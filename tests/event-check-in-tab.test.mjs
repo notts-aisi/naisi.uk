@@ -102,7 +102,7 @@ describe("the Check-in tab", () => {
       );
       assert.match(
         text,
-        /4 came 2 of 3 who signed up, and 2 walk-ins 1 checked themselves in With the QR code at the door 1 at the door list Plus the 2 walk-ins 1 didn’t come Check-in never stops anyone signing up again, and nobody else sees who didn’t come\./,
+        /4 came 2 of 3 who signed up, and 2 walk-ins 1 checked themselves in With the QR code at the door 1 at the door list Plus the 2 walk-ins 1 didn’t come Check-in never stops anyone signing up again\. Admins may see when someone has missed two events in a row that they had a place at\./,
         who,
       );
       assert.match(text, /Only NAISI’s admins and the committee members the Students’ Union recognises see who came, as they see who signed up\.$/);
@@ -249,7 +249,7 @@ describe("a check-in whose names have come off still counts", () => {
   /** Mon 1 Nov 2027, after the names came off the night's check-ins. */
   const YEAR_ON = new Date("2027-11-02T10:00:00Z");
   const NIGHT =
-    /4 came 2 of 3 who signed up, and 2 walk-ins 1 checked themselves in With the QR code at the door 1 at the door list Plus the 2 walk-ins 1 didn’t come Check-in never stops anyone signing up again, and nobody else sees who didn’t come\./;
+    /4 came 2 of 3 who signed up, and 2 walk-ins 1 checked themselves in With the QR code at the door 1 at the door list Plus the 2 walk-ins 1 didn’t come Check-in never stops anyone signing up again\. Admins may see when someone has missed two events in a row that they had a place at\./;
 
   test("a year after the event every name comes off, and the four numbers are still the night's, for everybody who sees them", async (t) => {
     clock(t, DURING);

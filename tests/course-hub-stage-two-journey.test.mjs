@@ -2214,7 +2214,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.equal(
         readFrom(amara, "Hi "),
         "Hi Amara, Week 2 of AGI Strategy Fellowship is open: Week 2. Your group meets Tue 10 Nov, 6pm to 8pm, Room C20. " +
-          "Open this week on the site Read what you can. The week stays open, and nobody is keeping score. You're getting this because " +
+          "Open this week on the site Read what you can. The week stays open. You're getting this because " +
           `you're on this course with NAISI. If the weekly email isn't useful to you, you can stop it here. You stay on the course either way. ${FOOTER}`,
       );
       for (const mail of SESSIONS.flatMap((key) => r()[key].finishMail)) {
