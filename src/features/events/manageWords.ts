@@ -138,3 +138,51 @@ export function isOver(
   if (!event.startAt) return false;
   return event.startAt.getTime() < now.getTime() && !isSameSiteDay(event.startAt, now);
 }
+
+/** "1 person", "21 people". */
+function peopleWords(n: number): string {
+  return `${n} ${n === 1 ? "person" : "people"}`;
+}
+
+/** What `GET /api/events/[id]/publish` counts: null for a leg it could not count. */
+export type PublishReach = { emailed: number | null; notified: number | null };
+
+/**
+ * WHAT THE PUBLISH CONFIRM SAYS PUBLISHING REACHES: "21 people are emailed
+ * about it (5 also get a notification)".
+ *
+ * Null when there is no email count, and the confirm then says what it said
+ * before there was a number, because a count that could not be had must
+ * never stop Publish. The notification half is left out when nobody would get
+ * one, and when that count could not be had.
+ */
+export function announcementReachWords(reach: PublishReach | null): string | null {
+  if (!reach || reach.emailed === null) return null;
+  const { emailed, notified } = reach;
+  const mail =
+    emailed === 0
+      ? "nobody is emailed about it"
+      : `${peopleWords(emailed)} ${emailed === 1 ? "is" : "are"} emailed about it`;
+  if (notified === null || notified === 0) return mail;
+  const also = emailed === 0 ? "" : "also ";
+  return `${mail} (${notified} ${also}${notified === 1 ? "gets" : "get"} a notification)`;
+}
+
+/**
+ * Who the change notice reaches, from the event's own counters: "(21 coming,
+ * 3 on the waiting list)". The broadcast route emails the waiting list along
+ * with the people coming, and the tick that opens the composer says so.
+ */
+export function notifyReachWords(counts: { confirmed: number; waitlisted: number }): string {
+  return `(${counts.confirmed} coming, ${counts.waitlisted} on the waiting list)`;
+}
+
+/** The change notice's send button, with the broadcast route's own count: "Send to 24 people". */
+export function sendToWords(people: number): string {
+  return `Send to ${peopleWords(people)}`;
+}
+
+/** What the composer says once the change notice has gone: "Sent to 24 people." */
+export function sentToWords(people: number): string {
+  return `Sent to ${peopleWords(people)}.`;
+}

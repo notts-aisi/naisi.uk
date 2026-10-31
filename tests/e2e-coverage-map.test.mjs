@@ -1264,7 +1264,9 @@ const NOT_COVERED = {
   },
   "/api/events/[id]/broadcast": {
     reason:
-      "Events authoring: /api/events/[id]/broadcast is a deliberate committee action whose result is visible on the manage screen.",
+      "Events authoring: /api/events/[id]/broadcast is a deliberate committee action whose result is visible on the manage screen. " +
+      "Its preview, the count the change notice's Send button names, is executed as every kind of caller by tests/event-send-counts.test.mjs, " +
+      "which holds that it writes nothing and takes no slot.",
     coverWhen:
       "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
   },
@@ -1294,7 +1296,9 @@ const NOT_COVERED = {
   },
   "/api/events/[id]/publish": {
     reason:
-      "Events authoring: /api/events/[id]/publish is a deliberate committee action whose result is visible on the manage screen.",
+      "Events authoring: /api/events/[id]/publish is a deliberate committee action whose result is visible on the manage screen. " +
+      "Its GET, the count the Publish confirm names, is executed as every kind of caller by tests/event-send-counts.test.mjs, " +
+      "over the send's own audience functions, and writes nothing.",
     coverWhen:
       "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
   },

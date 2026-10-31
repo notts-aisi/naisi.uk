@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { Firestore } from "firebase-admin/firestore";
 import EventUpdateEmail from "@/emails/EventUpdateEmail";
 import { dispatchSends } from "@/lib/email/dispatch";
 import { sendNotice } from "@/lib/email/notice";
@@ -34,6 +35,11 @@ type BroadcastPayload = {
   changes?: unknown;
   /** Whether the rich-text description changed (can't be diffed inline). */
   descriptionChanged?: unknown;
+  /**
+   * `true` asks how many people the send would email, and sends nothing. See
+   * "A PREVIEW COUNTS AND DOES NOTHING ELSE" below.
+   */
+  preview?: unknown;
 };
 
 const SUBJECT_MAX = 150;
@@ -88,6 +94,15 @@ const BODY_MAX = 8000;
  * one does not and gets the public label, and the "Where" line of a change
  * notice is redacted for them the same way. Both come from
  * `@/lib/events/location`, the one module that decides this.
+ *
+ * ── A PREVIEW COUNTS AND DOES NOTHING ELSE ──────────────────────────────────
+ * Every button that emails says how many people it reaches, so the editor's
+ * composer asks first: a body of `{ preview: true }` is answered with
+ * `{ ok: true, people }`, the number of people the send would email, after the
+ * same gate and from the same audience (`attendingAudience` below, which the
+ * send derives its list from too), including the refusal a list over the cap
+ * would meet. It needs no subject and no message, writes nothing, takes no
+ * slot under the caps and sends nothing. Counts only, like every answer here.
  */
 
 /**
@@ -112,6 +127,94 @@ type Attendee = {
   /** Decides what the message may say about the location. */
   status: string;
 };
+
+/**
+ * WHO THE SEND WOULD REACH, derived in one place for the send and for its
+ * preview, so the number the button shows and the people the send emails are
+ * one list.
+ */
+type Audience =
+  | {
+      kind: "ok";
+      /** Attending rows with an address. */
+      attendees: Attendee[];
+      /** Attending rows with no address, which the send counts as failed. */
+      noAddress: number;
+      /** The attendees the email goes to: every one whose address is not suppressed. */
+      deliverable: Attendee[];
+      /** Attendees left out of the email for a suppressed address. */
+      suppressed: number;
+    }
+  /** Over the lane's cap, by attending rows. Refused whole. */
+  | { kind: "tooMany"; rows: number };
+
+async function attendingAudience(
+  db: Firestore,
+  eventId: string,
+  includeWaitlisted: boolean,
+): Promise<Audience> {
+  const statuses = includeWaitlisted ? [...ATTENDING_STATUSES] : ["confirmed"];
+  const snap = await db
+    .collection("eventRsvps")
+    .where("eventId", "==", eventId)
+    .where("status", "in", statuses)
+    .get();
+
+  // REFUSE, never truncate, and refuse BEFORE a rate-limit slot is claimed. A
+  // partial send is the worst outcome available here because it looks like a
+  // whole one: an arbitrary three hundred get the mail, the report says three
+  // hundred sent and none skipped, and the retry re-mails the same three
+  // hundred.
+  if (snap.docs.length > MAX_NOTICE_RECIPIENTS) {
+    return { kind: "tooMany", rows: snap.docs.length };
+  }
+
+  let noAddress = 0;
+  const attendees: Attendee[] = [];
+  for (const doc of snap.docs) {
+    const rsvp = doc.data() ?? {};
+    const address = typeof rsvp.email === "string" ? rsvp.email.trim() : "";
+    if (!address) {
+      noAddress += 1;
+      continue;
+    }
+    attendees.push({
+      rsvpId: doc.id,
+      address,
+      name: typeof rsvp.name === "string" ? rsvp.name : "",
+      uid: typeof rsvp.uid === "string" && rsvp.uid ? rsvp.uid : null,
+      status: typeof rsvp.status === "string" ? rsvp.status : "",
+    });
+  }
+
+  const { suppressed: suppressedList } = await filterSuppressed(
+    db,
+    attendees.map((a) => a.address),
+  );
+  const suppressedSet = new Set(suppressedList.map((a) => a.toLowerCase()));
+  const deliverable = attendees.filter((a) => !suppressedSet.has(a.address.toLowerCase()));
+  return {
+    kind: "ok",
+    attendees,
+    noAddress,
+    deliverable,
+    suppressed: attendees.length - deliverable.length,
+  };
+}
+
+/** The cap's refusal, the same words for the preview as for the send. */
+function tooManyAttending(rows: number): NextResponse {
+  return NextResponse.json(
+    {
+      error: noticeRecipientRefusal(
+        rows,
+        MAX_NOTICE_RECIPIENTS,
+        "split the audience or raise it with an admin",
+      ),
+    },
+    { status: 400 },
+  );
+}
 
 export async function POST(
   req: Request,
@@ -168,45 +271,31 @@ export async function POST(
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
+  const includeWaitlisted = payload.includeWaitlisted !== false;
+
+  // THE PREVIEW, before the subject and the message are asked for, because a
+  // count needs neither. Everything above it is the send's own gate; nothing
+  // below it runs. See the header.
+  if (payload.preview === true) {
+    const counted = await attendingAudience(db, eventId, includeWaitlisted);
+    if (counted.kind === "tooMany") return tooManyAttending(counted.rows);
+    return NextResponse.json({ ok: true, people: counted.deliverable.length });
+  }
+
   const subject =
     typeof payload.subject === "string" ? payload.subject.trim().slice(0, SUBJECT_MAX) : "";
   const body =
     typeof payload.body === "string" ? payload.body.trim().slice(0, BODY_MAX) : "";
-  const includeWaitlisted = payload.includeWaitlisted !== false;
   const changes = parseEventChanges(payload.changes);
   const descriptionChanged = payload.descriptionChanged === true;
 
   if (!subject) return NextResponse.json({ error: "Subject is required." }, { status: 400 });
   if (!body) return NextResponse.json({ error: "Message body is required." }, { status: 400 });
 
-  const statuses = includeWaitlisted ? [...ATTENDING_STATUSES] : ["confirmed"];
-  const snap = await db
-    .collection("eventRsvps")
-    .where("eventId", "==", eventId)
-    .where("status", "in", statuses)
-    .get();
-
-  if (snap.empty) {
-    return NextResponse.json({ ok: true, sent: 0, failed: 0, suppressed: 0, pushed: 0 });
-  }
-
-  // REFUSE, never truncate, and refuse BEFORE a rate-limit slot is claimed. A
-  // partial send is the worst outcome available here because it looks like a
-  // whole one: an arbitrary three hundred get the mail, the report says three
-  // hundred sent and none skipped, and the retry re-mails the same three
-  // hundred.
-  if (snap.docs.length > MAX_NOTICE_RECIPIENTS) {
-    return NextResponse.json(
-      {
-        error: noticeRecipientRefusal(
-          snap.docs.length,
-          MAX_NOTICE_RECIPIENTS,
-          "split the audience or raise it with an admin",
-        ),
-      },
-      { status: 400 },
-    );
-  }
+  const audience = await attendingAudience(db, eventId, includeWaitlisted);
+  if (audience.kind === "tooMany") return tooManyAttending(audience.rows);
+  const { attendees, deliverable, suppressed } = audience;
+  let failed = audience.noAddress;
 
   const whenLine = formatEventWhen(
     event.startAt?.toDate?.() ?? null,
@@ -234,32 +323,6 @@ export async function POST(
   // Public event page, linked from the "description has been updated" line.
   const eventUrl = `${baseUrl()}/events/${eventId}`;
   const eventPath = `/events/${encodeURIComponent(eventId)}`;
-
-  let failed = 0;
-  const attendees: Attendee[] = [];
-  for (const doc of snap.docs) {
-    const rsvp = doc.data() ?? {};
-    const address = typeof rsvp.email === "string" ? rsvp.email.trim() : "";
-    if (!address) {
-      failed += 1;
-      continue;
-    }
-    attendees.push({
-      rsvpId: doc.id,
-      address,
-      name: typeof rsvp.name === "string" ? rsvp.name : "",
-      uid: typeof rsvp.uid === "string" && rsvp.uid ? rsvp.uid : null,
-      status: typeof rsvp.status === "string" ? rsvp.status : "",
-    });
-  }
-
-  const { suppressed: suppressedList } = await filterSuppressed(
-    db,
-    attendees.map((a) => a.address),
-  );
-  const suppressedSet = new Set(suppressedList.map((a) => a.toLowerCase()));
-  const deliverable = attendees.filter((a) => !suppressedSet.has(a.address.toLowerCase()));
-  const suppressed = attendees.length - deliverable.length;
 
   // Push goes to every attendee with an account, INCLUDING one whose address is
   // suppressed: suppression is a fact about an inbox and says nothing about a

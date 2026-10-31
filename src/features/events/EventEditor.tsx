@@ -66,11 +66,16 @@ import { takeIncoming } from "./editorSync";
 import FormBuilder from "./FormBuilder";
 import {
   STATUS_WORDS,
+  announcementReachWords,
   dayWords,
+  notifyReachWords,
+  sendToWords,
+  sentToWords,
   stampWords,
   statusTone,
   timeRangeWords,
   whenWords,
+  type PublishReach,
 } from "./manageWords";
 import styles from "./EventEditor.module.css";
 
@@ -316,6 +321,74 @@ function queuedAnnouncementLine(event: EventDoc): string | null {
   return trailer ? `${line} ${trailer}${tail}` : `${line}${tail}`;
 }
 
+/**
+ * How long a count may take before the button that asked for it gives up on
+ * it. The count is reads only, so a slow one is a quiet database rather than a
+ * failure, and the press goes ahead without the number.
+ */
+const COUNT_TIMEOUT_MS = 8000;
+
+/** A count is a whole number of people, or nothing. */
+function countOf(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+/**
+ * HOW MANY PUBLISHING WOULD REACH, from `GET /api/events/[id]/publish`, which
+ * counts with the send's own audience functions behind the publish route's own
+ * gate. The subscriber list is closed to an approver who is not an admin, so
+ * the number has to come from there. Null when it cannot be had, for whatever
+ * reason: the confirm then says what it said before there was a number, and
+ * Publish goes ahead. Never throws.
+ */
+async function countPublishReach(eventId: string): Promise<PublishReach | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), COUNT_TIMEOUT_MS);
+  try {
+    const res = await fetch(`/api/events/${eventId}/publish`, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    const body = (await res.json().catch(() => null)) as
+      | { ok?: true; emailed?: unknown; notified?: unknown }
+      | null;
+    if (!res.ok || !body?.ok) return null;
+    return { emailed: countOf(body.emailed), notified: countOf(body.notified) };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * HOW MANY THE CHANGE NOTICE WOULD EMAIL, from the broadcast route's preview
+ * (`{ preview: true }`), which derives the audience the send would and sends
+ * nothing. Null when it cannot be had; the button then keeps its old words.
+ * Never throws.
+ */
+async function countNotifyAudience(eventId: string): Promise<number | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), COUNT_TIMEOUT_MS);
+  try {
+    const res = await fetch(`/api/events/${eventId}/broadcast`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ preview: true }),
+      signal: controller.signal,
+    });
+    const body = (await res.json().catch(() => null)) as
+      | { ok?: true; people?: unknown }
+      | null;
+    if (!res.ok || !body?.ok) return null;
+    return countOf(body.people);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Local YYYY-MM-DD, used to keep the end-date picker on or after the start day. */
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
@@ -405,9 +478,14 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     // itself: how many it reached, or why it reached nobody. Not an error.
     | { kind: "announced"; message: string }
   >({ kind: "idle" });
+  // Publish asks how many it reaches before it asks to go ahead. Apart from
+  // `publishStatus`, so a press that is counted and then not confirmed leaves
+  // whatever that said before.
+  const [countingReach, setCountingReach] = useState(false);
 
-  // After editing a published event, offer to email confirmed attendees.
-  // The opt-in checkbox by Save gates whether the composer opens at all.
+  // After editing a published event, offer to email the people coming and the
+  // waiting list. The opt-in checkbox by Save gates whether the composer opens
+  // at all.
   const [notifyOnSave, setNotifyOnSave] = useState(false);
   const [notifyDraft, setNotifyDraft] = useState<{
     subject: string;
@@ -421,6 +499,12 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     | { kind: "sent"; sent: number }
     | { kind: "error"; message: string }
   >({ kind: "idle" });
+  // How many the composer's Send would email, asked when it opens. Unknown
+  // when the count could not be had, and the button keeps its old words.
+  const [notifyCount, setNotifyCount] = useState<
+    { kind: "counting" } | { kind: "counted"; people: number } | { kind: "unknown" }
+  >({ kind: "unknown" });
+  const notifyCountAsk = useRef(0);
 
   // Cancel-with-notify modal. Cancelling sets the event to "cancelled" and,
   // when the tick is on, emails confirmed + waitlisted attendees.
@@ -680,6 +764,16 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
           descriptionChanged,
         });
         setNotifyState({ kind: "idle" });
+        // The button says how many it emails, so ask now, while the person
+        // reads the draft. Not awaited: the save is done either way. Only the
+        // latest ask may answer, should a second save open the composer again
+        // before the first count is back.
+        const ask = (notifyCountAsk.current += 1);
+        setNotifyCount({ kind: "counting" });
+        void countNotifyAudience(event.id).then((people) => {
+          if (notifyCountAsk.current !== ask) return;
+          setNotifyCount(people === null ? { kind: "unknown" } : { kind: "counted", people });
+        });
       }
       setNotifyOnSave(false);
     } else {
@@ -863,6 +957,21 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     // publish route stamps, and an event pulled back to approved and pushed
     // live again announces nothing.
     const willAnnounce = !event.announcedAt;
+    // HOW MANY, because every button that emails says how many people it
+    // reaches. Asked at the press rather than when the page opens: the count
+    // reads the whole events list, and nobody should pay for that by looking
+    // at an event. A count that cannot be had leaves the words that were here
+    // before there was a number, and never stops the publish.
+    let reached: string | null = null;
+    if (willAnnounce) {
+      setCountingReach(true);
+      try {
+        reached = announcementReachWords(await countPublishReach(event.id));
+      } finally {
+        setCountingReach(false);
+      }
+    }
+    const told = reached ?? "everyone subscribed to event announcements is emailed about it";
     // WHICH PATH THIS PUBLISH WILL TAKE is the server's decision, and the
     // switch behind it is closed to clients, so the page reads it and hands it
     // down. The confirm has to say it: an approver who presses Publish and
@@ -870,11 +979,9 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     // announcement had failed.
     const question = willAnnounce
       ? announcementsQueued
-        ? "Publish this event? It goes live on the events page, and everyone subscribed " +
-          "to event announcements is emailed about it. The announcement is queued and " +
-          "goes out with the next scheduler run rather than immediately."
-        : "Publish this event? It goes live on the events page, and everyone subscribed " +
-          "to event announcements is emailed about it."
+        ? `Publish this event? It goes live on the events page, and ${told}. ` +
+          "The announcement is queued and goes out with the next scheduler run rather than immediately."
+        : `Publish this event? It goes live on the events page, and ${told}.`
       : "Publish this event? It goes live on the events page. The announcement has " +
         "already gone out, so nobody is emailed again.";
     if (!window.confirm(question)) return;
@@ -1249,13 +1356,24 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
           )}
           {notifyState.kind === "sent" && (
             <p className={styles.done} role="status">
-              Sent to {notifyState.sent} attendee{notifyState.sent === 1 ? "" : "s"}.
+              {sentToWords(notifyState.sent)}
             </p>
           )}
           <div className={styles.actions}>
+            {/* How many it emails, from the broadcast route's own count. The
+                old words stay where the count could not be had. */}
             {notifyState.kind !== "sent" && (
-              <Button onClick={onSendNotify} disabled={notifyState.kind === "sending"}>
-                {notifyState.kind === "sending" ? "Sending…" : "Send to attendees"}
+              <Button
+                onClick={onSendNotify}
+                disabled={notifyState.kind === "sending" || notifyCount.kind === "counting"}
+              >
+                {notifyState.kind === "sending"
+                  ? "Sending…"
+                  : notifyCount.kind === "counting"
+                    ? "Counting…"
+                    : notifyCount.kind === "counted"
+                      ? sendToWords(notifyCount.people)
+                      : "Send to attendees"}
               </Button>
             )}
             <Button
@@ -1768,7 +1886,13 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                   disabled={busy}
                   description="If you changed the date, the time, the place or the description, you’re shown the email to check before it goes."
                 >
-                  Email confirmed attendees about this change
+                  {/* The broadcast route emails the waiting list too, and this
+                      says so, with the event's own counters. */}
+                  Email the people coming and the waiting list about this change{" "}
+                  {notifyReachWords({
+                    confirmed: event.rsvpCountConfirmed ?? 0,
+                    waitlisted: event.rsvpCountWaitlisted ?? 0,
+                  })}
                 </OptionRow>
               </div>
             )}
@@ -1814,8 +1938,15 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                   </Button>
                 )}
                 {step === "send" && showPublish && (
-                  <Button onClick={onPublish} disabled={publishStatus.kind === "publishing"}>
-                    {publishStatus.kind === "publishing" ? "Publishing…" : "Publish"}
+                  <Button
+                    onClick={onPublish}
+                    disabled={publishStatus.kind === "publishing" || countingReach}
+                  >
+                    {publishStatus.kind === "publishing"
+                      ? "Publishing…"
+                      : countingReach
+                        ? "Counting…"
+                        : "Publish"}
                   </Button>
                 )}
               </div>

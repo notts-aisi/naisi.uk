@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
-import { sendEventAnnouncement } from "@/lib/email/eventAnnouncement";
+import { announcementReach, sendEventAnnouncement } from "@/lib/email/eventAnnouncement";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { canApproveEvent } from "@/lib/firestore/users";
@@ -234,5 +234,78 @@ export async function POST(
     // is never allowed to look like a failed publish. See the header.
     console.error("[event publish] announcement failed", id, err);
     return NextResponse.json({ ok: true, announced: false, announcementFailed: true });
+  }
+}
+
+/**
+ * HOW MANY PUBLISHING WOULD REACH, asked before the press that sends.
+ *
+ * The Publish confirm says how many people the announcement emails and how
+ * many of them also get a notification. The subscriber list is closed to an
+ * approver who is not an admin, so the number comes from here, counted by the
+ * send's own audience functions (`announcementReach`) on the path this publish
+ * would take, read from the same switch as the press above.
+ *
+ * THE SAME GATE AS THE PRESS, written the same way: whoever may publish may
+ * ask, and nobody else learns even how long the list is. COUNTS ONLY, never an
+ * address or a uid. READS ONLY: it claims nothing, writes nothing and sends
+ * nothing, as every GET here must (`tests/get-handlers-readonly.test.mjs`).
+ *
+ * A count that cannot be had comes back as null, never as a guess: a list over
+ * the path's ceiling, which the send would refuse, or a leg that could not be
+ * read. The editor then says what it said before there was a number, and
+ * Publish still works. An event already announced reaches nobody, because the
+ * press would announce nothing again.
+ */
+export async function GET(
+  _req: Request,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  const actor = await getCurrentUser();
+  if (!actor) {
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
+  const allowed = canApproveEvent(actor);
+  if (!allowed) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { id } = await ctx.params;
+  const db = getAdminDb();
+  if (!db) {
+    return NextResponse.json({ error: "Server not configured" }, { status: 500 });
+  }
+
+  const snap = await db.collection("events").doc(id).get();
+  if (!snap.exists) {
+    return NextResponse.json({ error: "Event not found" }, { status: 404 });
+  }
+  const event = snap.data() ?? {};
+  if (event.announcedAt) {
+    return NextResponse.json({ ok: true, emailed: 0, notified: 0 });
+  }
+
+  // The press's own fallback: a switch that cannot be read means the inline
+  // path, so the count is that path's.
+  let queued = false;
+  try {
+    queued = await announcementQueueEnabled(db);
+  } catch (err) {
+    console.error("[event publish count] scheduler switch unreadable, counting inline", id, err);
+  }
+
+  try {
+    const reach = await announcementReach(
+      db,
+      { eventId: id, membersOnly: event.visibility === "members" },
+      { queued },
+    );
+    return NextResponse.json({ ok: true, emailed: reach.emailed, notified: reach.notified });
+  } catch (err) {
+    console.error("[event publish count] audience unreadable", id, err);
+    return NextResponse.json(
+      { error: "Couldn't count the events list just now." },
+      { status: 500 },
+    );
   }
 }

@@ -340,6 +340,12 @@ responsible for that event.
 
 The post-publish change notice `EventEditor` sends after an edit to a published
 event goes through the broadcast route, over the diff `update/route.ts` returns.
+It reaches the waiting list as well as the people coming, and says so: the tick
+that opens it names both, from the event's own counters, and its Send button
+names the number the route counts itself when asked with `{ preview: true }`,
+from the same audience the send uses. A preview passes the same gate, needs no
+subject or message, writes nothing, takes no slot under the caps and sends
+nothing.
 
 ### Counts, never addresses
 
@@ -582,7 +588,15 @@ saying "while that job is switched on"), in progress with the running totals,
 announced with the counts, reached nobody, or refused with the reason and, from
 the stored `released` flag, whether the claim came back. The Publish confirm says which path it will take,
 from a flag the manage page reads server-side (`config/scheduler` is closed to
-every client).
+every client), and how many it reaches: `GET /api/events/[id]/publish`, behind
+the press's own gate, counts the people the email would go to and the accounts
+a notification would go to (`announcementReach`, with the send's own audience
+functions and the path's own email ceilings), counts only. A leg the send would
+refuse, or could not read, has no number, and then the confirm says what it
+said before there was one. The devices are counted under the request path's
+500 on both paths, so on the queued path a device list between 500 and 5000
+reads as no number although the job would notify it: the count can leave a
+notification out, and never claims one.
 
 Publishing itself never fails because the announcement did, on either path.
 Raising the inline path's numbers means redoing the wall-clock arithmetic in

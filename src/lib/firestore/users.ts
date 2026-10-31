@@ -164,6 +164,39 @@ export type UserProfile = {
 };
 
 /**
+ * THE NAME A SIGNED-IN PERSON GOES BY, read off their own `users` document:
+ * the stored display name when it has text, else the profile's preferred name
+ * when it has text, else null, and the caller then uses the address.
+ *
+ * ONE RULE, ASKED ON BOTH SIDES. `getCurrentUser` gives every route its
+ * `displayName` through it, and `AuthProvider` gives every page its
+ * `accountName` through it, so a form that shows a signed-in person their own
+ * name shows exactly what a route then stores. The event sign-up is where the
+ * two had drifted: the form read the Firebase Auth display name, which is
+ * empty for anybody who made their account with an email address and a
+ * password, while the route read this document.
+ *
+ * "Has text" means something other than spaces. A stored empty string is not
+ * a name: an account written with `displayName: ""` falls through to the
+ * preferred name rather than being called nothing. What comes back is trimmed,
+ * and anything that is not a string reads as absent.
+ *
+ * Pure and client safe: no server import, so the provider and the session
+ * reader can both call it.
+ */
+export function accountNameOf(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const doc = data as { displayName?: unknown; profile?: unknown };
+  const textOf = (value: unknown): string | null =>
+    typeof value === "string" && value.trim() ? value.trim() : null;
+  const profile =
+    doc.profile && typeof doc.profile === "object"
+      ? (doc.profile as { preferredName?: unknown })
+      : {};
+  return textOf(doc.displayName) ?? textOf(profile.preferredName);
+}
+
+/**
  * Private admin-assigned tags indicating which side(s) of our course programme a
  * user is aligned with. Admin-only in Firestore rules; not shown on public pages.
  */
