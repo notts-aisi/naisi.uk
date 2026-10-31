@@ -17,6 +17,10 @@ import {
  * it is a short link like any other (docs/tracked-links.md): permanent, never
  * deleted, switched off rather than removed, repointable in the console.
  *
+ * It checks somebody in only at an event that lets people check themselves
+ * in (`selfCheckIn`), once the door is open; anywhere else the page it lands
+ * on says check-in is at the door, and the Check-in tab does not offer it.
+ *
  * WHICH LINK IS THE DOOR CODE is not a field: it is the `trackedLinks` record
  * whose destination is the event's check-in page, found by one equality on
  * `destination`. So the record has exactly the fields every other link has,
