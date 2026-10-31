@@ -70,7 +70,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { assertTarget, hasAdminCredentials, loadSecrets } from "../../scripts/e2e/lib/env.mjs";
-import { readUserDoc } from "../../scripts/e2e/lib/firestore.mjs";
+import { ACCEPTED_POLICY_VERSION, readUserDoc } from "../../scripts/e2e/lib/firestore.mjs";
 import {
   DEFAULT_VIEWPORT,
   approvePendingApplicant,
@@ -441,17 +441,36 @@ test(
           // not asked, the step opens the consent page itself. The page decides
           // on the stored version, not on NODE_ENV, so a legacy account is
           // offered the Accept button either way, and the press it makes is the
-          // same one, through the same helper, reaching the same route.
+          // same one, through the same helper, reaching the same route. Opened
+          // here, the page is read before the press: it says what version 15
+          // changed, in the words tests/privacy-policy.test.mjs holds to the
+          // policy, and nothing of the paragraphs it replaced.
           if (!askedOnSignIn) {
             await memberPage.goto(`${origin}/re-consent`, { waitUntil: "domcontentloaded" });
+            if (new URL(memberPage.url()).pathname === "/re-consent") {
+              await memberPage
+                .getByText("What changed in version 15.", { exact: true })
+                .waitFor({ timeout: WAIT_MS })
+                .catch((err) => {
+                  throw new Error(
+                    "the consent page no longer says what version 15 changed before " +
+                      `the Accept button. ${err.message}`,
+                  );
+                });
+              assert.equal(
+                await memberPage.getByText("Since version 14:", { exact: false }).count(),
+                0,
+                "the consent page still carries version 14's paragraph, which version 15 replaced",
+              );
+            }
             const accepted = await acceptReConsentIfAsked(memberPage, { timeout: WAIT_MS });
             assert.ok(
               accepted,
               "a legacy account opened /re-consent and was sent away without being asked: " +
                 `it landed on ${new URL(memberPage.url()).pathname}. The page bounces an ` +
-                "account whose stored version is already current, so either the seed " +
-                "stamped a version it should have left off or the gate accepted on the " +
-                "member's behalf.",
+                "account whose stored agreement needs nothing (needsPolicyAcceptance), so " +
+                "either the seed stamped a version it should have left off or the gate " +
+                "accepted on the member's behalf.",
             );
           }
           // Asked ONCE. The account is current now, by its own press, so the page
@@ -477,6 +496,14 @@ test(
             typeof doc?.policyVersion,
             "string",
             "the Accept press did not leave a policyVersion on the member's document",
+          );
+          // What accepting stamps is the current version, which the harness
+          // restates (tests/funnel-harness-guards.test.mjs pins the two
+          // together): the one value the gate never asks about again.
+          assert.equal(
+            doc.policyVersion,
+            ACCEPTED_POLICY_VERSION,
+            "the Accept press stamped a version other than the current one",
           );
         },
       );

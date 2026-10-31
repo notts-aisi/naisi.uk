@@ -2835,9 +2835,8 @@ certificate was sent in error, and tell its owner.
 
 Privacy policy version 13 took back version 12's promise that nothing
 written in a course is used outside its programme, from its own agreement on,
-and the current policy (`src/content/legal/privacy/v14.tsx`) keeps those
-words. Three features rest on that, each an
-admin's press (the best answers also the programme's lead's), never
+and the current policy (`src/content/legal/privacy/v15.tsx`) keeps those
+words. Three features rest on that, each an admin's press and never
 automatic, all built like the applications' second reader
 (`docs/applications.md`, "Claude and Pangram"): labels to Claude, names put
 back on the way to the screen, a hash of what was sent so a stored answer
@@ -2874,8 +2873,12 @@ shows as out of date.
   account wrote about somebody else stays, and no longer names its author.
 - **Best answers to a week** (`src/lib/courses/coursework/bestAnswers.ts`,
   `courseBestAnswers/{runId}__{weekId}`, the route
-  `.../programmes/[programmeId]/coursework/best-answers`). The Coursework
-  tab's door: an admin or the programme's lead. Sent: every counted answer
+  `.../programmes/[programmeId]/coursework/best-answers`). ADMINS ONLY since
+  privacy version 15, which says what Claude returns is seen by admins only:
+  the route refuses anybody else on the session before anything is read, and
+  the Coursework tab's door refuses them again (`adminOnly`), so the
+  programme's lead neither asks for them nor sees them, and the tab draws the
+  week's panels for an admin alone. Sent: every counted answer
   to the week's questions (reflection prompts, written answers, fill-in
   boxes; from every group's copy of the week, by prompt id) by somebody
   holding a place, never a facilitator's own work, each person "Fellow N" in
