@@ -20,6 +20,20 @@ type Props = {
   whoSees: string;
 };
 
+/**
+ * What a press sends: the sign-up and its token from a confirmation email's
+ * link, which decides on its own; else that the door code opened the page,
+ * so the check-in is recorded as a scan of it; else nothing.
+ */
+export function pressBody(input: {
+  rsvpId: string | null;
+  token: string | null;
+  doorCode: boolean;
+}): { rsvpId: string; token: string } | { doorCode: true } | Record<string, never> {
+  if (input.rsvpId && input.token) return { rsvpId: input.rsvpId, token: input.token };
+  return input.doorCode ? { doorCode: true } : {};
+}
+
 type State =
   | { kind: "idle" }
   | { kind: "busy" }
@@ -45,7 +59,7 @@ export function ImHere({ eventId, rsvpId, token, doorCode, firstName, question, 
       const res = await fetch(`/api/events/${encodeURIComponent(eventId)}/check-in`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(rsvpId && token ? { rsvpId, token } : doorCode ? { doorCode: true } : {}),
+        body: JSON.stringify(pressBody({ rsvpId, token, doorCode })),
       });
       const data = (await res.json().catch(() => ({}))) as { atWords?: string; error?: string };
       if (!res.ok || !data.atWords) throw new Error(data.error ?? "That didn’t go through. Try again.");

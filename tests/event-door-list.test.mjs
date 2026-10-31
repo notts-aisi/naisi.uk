@@ -1,18 +1,40 @@
 /**
  * THE DOOR LIST (ev-door-phone): the event's sign-ups with a Check in each, a
- * search and the count, for the people who run check-in, open from an hour
- * before the start to an hour after the end.
+ * search and the count, for the people who run check-in, inside the door's
+ * hours (an hour before the start to an hour after the end) and only once the
+ * door is open.
+ *
+ * OPENING THE DOOR (`POST /api/events/<id>/door`): the event's author while
+ * their account stands, and admins, inside the door's hours, once. Until
+ * then the list shows the names and no Check in, and the route refuses a tick
+ * and a walk-in at the door; adding somebody from the event's page works
+ * either way.
  *
  * Through the real page (`/events/manage/<id>/door`) and the real routes
- * (`POST /api/events/<id>/check-ins`, `DELETE .../check-ins/<checkInId>`), as
- * an admin, SU-recognised committee, the event's organiser and its
- * collaborator (committee the SU does not recognise: counts only, so no door
- * list), a member, a pending account, signed out and view-as. The clock is
- * set per test. The world is `tests/lib/checkInWorld.mjs`. Run with `npm test`.
+ * (`POST /api/events/<id>/door`, `POST /api/events/<id>/check-ins`,
+ * `DELETE .../check-ins/<checkInId>`), as an admin, SU-recognised committee,
+ * the event's organiser and its collaborator (committee the SU does not
+ * recognise: counts only, so no door list), an approver, a member, a pending
+ * account, signed out and view-as. The clock is set per test. The world is
+ * `tests/lib/checkInWorld.mjs`. Run with `npm test`.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { AFTER, BEFORE, DURING, EVENT_ID, RSVP, WEEK_LATER, makeCheckInWorld } from "./lib/checkInWorld.mjs";
+import {
+  AFTER,
+  BEFORE,
+  DOOR_OPEN,
+  DURING,
+  EVENT_ID,
+  OPENED_AT,
+  PEOPLE,
+  RSVP,
+  SELF_ON,
+  WEEK_LATER,
+  makeCheckInWorld,
+  person,
+  withEvent,
+} from "./lib/checkInWorld.mjs";
 
 const w = await makeCheckInWorld("__doorList");
 const { call, render, load } = w;
@@ -20,6 +42,7 @@ const page = await load("app/(app)/events/manage/[id]/door/page.tsx");
 const tick = await load("app/api/events/[id]/check-ins/route.ts");
 const undoRoute = await load("app/api/events/[id]/check-ins/[checkInId]/route.ts");
 const doorCode = await load("app/api/events/[id]/door-code/route.ts");
+const doorRoute = await load("app/api/events/[id]/door/route.ts");
 
 function clock(t, at) {
   t.mock.timers.enable({ apis: ["Date"], now: at });
@@ -31,6 +54,10 @@ const checkIns = () => w.world.db.paths().filter((path) => path.startsWith("even
 const short = (res) => [res.status, res.body?.error ?? null];
 
 const STAFF_ONLY = "Only admins and SU-recognised committee members run check-in.";
+const NOT_OPEN = "The door isn’t open yet. The event’s author or an admin opens it from the Check-in tab.";
+const SELF_OFF = "Self check-in is off for this event: everyone gives their name here.";
+/** The night, with the door open: Iris opened it at 1:05pm. */
+const opened = (...extras) => w.reset(withEvent(DOOR_OPEN, ...extras));
 
 // ---------------------------------------------------------------------------
 // The page
@@ -53,7 +80,7 @@ describe("the door list page", () => {
 
   test("on the night: the count, every sign-up to come with a Check in, and the not confirmed after them", async (t) => {
     clock(t, DURING);
-    w.reset();
+    opened();
     const { text, html } = await open("sue");
     assert.match(text, /VR games night Door list 0 of 3 here/);
     assert.match(text, /To come 3 Here 0/);
@@ -70,14 +97,42 @@ describe("the door list page", () => {
     // Nothing presses before the page's script has arrived.
     assert.match(html, /<button[^>]*disabled=""[^>]*aria-label="Check in Kofi Asante"|aria-label="Check in Kofi Asante"[^>]*disabled=""/);
     assert.ok(!text.includes("check themselves in at"), "no door code yet, so no line about it");
+    assert.ok(!text.includes(NOT_OPEN), "the door is open");
+    assert.match(text, /Add a walk-in$/);
   });
 
-  test("with a door code, the line under the list gives its address", async (t) => {
+  test("before the door is opened: every name, no Check in and no walk-in, and a line saying who opens it", async (t) => {
     clock(t, DURING);
     w.reset();
+    const { text, html } = await open("sue");
+    assert.match(text, new RegExp(`VR games night Door list 0 of 3 here ${SELF_OFF} ${NOT_OPEN} To come 3 Here 0`));
+    assert.match(text, /CN Chloe Nguyen Signed up GP Gwen Price Signed up KA Kofi Asante Signed up/);
+    assert.match(text, /Not confirmed WH Wren Hale On the waiting list PE Pat Ellis Not decided yet/);
+    assert.ok(!html.includes('aria-label="Check in'), "nothing to press");
+    assert.ok(!text.includes("Add a walk-in"), "no walk-in either");
+    // A door opened for the event before it was moved opens nothing tonight.
+    w.reset(withEvent({ doorOpenedAt: new Date("2026-10-25T13:05:00Z"), doorOpenedBy: "iris" }));
+    assert.match((await open("sue")).text, new RegExp(NOT_OPEN));
+  });
+
+  test("an event that does not let people check themselves in says so over the names, and offers no door code", async (t) => {
+    clock(t, DURING);
+    opened();
+    await call(doorCode.POST, { as: "sue", params: { id: EVENT_ID } });
+    const off = await open("sue");
+    assert.match(off.text, new RegExp(`Door list 0 of 3 here ${SELF_OFF} To come 3`));
+    assert.ok(!off.text.includes("naisi.uk/q/vr-in"), "a door code that checks nobody in is not offered");
+    opened(SELF_ON);
+    const on = await open("sue");
+    assert.ok(!on.text.includes(SELF_OFF));
+  });
+
+  test("letting people check themselves in, with a door code, the line under the list gives its address", async (t) => {
+    clock(t, DURING);
+    opened(SELF_ON);
     await call(doorCode.POST, { as: "sue", params: { id: EVENT_ID } });
     const { text } = await open("sue");
-    assert.match(text, /People with an account can check themselves in at naisi\.uk\/q\/vr-in ?\. Add a walk-in$/);
+    assert.match(text, /People with a place can check themselves in at naisi\.uk\/q\/vr-in ?, or from their email\. Add a walk-in$/);
   });
 
   test("before the door opens and after it closes, it says when, and offers no Check in", async (t) => {
@@ -98,7 +153,7 @@ describe("the door list page", () => {
 
   test("who came already is under Just checked in, with how and when", async (t) => {
     clock(t, DURING);
-    w.reset();
+    opened();
     await press("sue", { rsvpId: RSVP.kofi, from: "door" });
     const { text } = await open("zach");
     assert.match(text, /1 of 3 here/);
@@ -111,7 +166,7 @@ describe("the door list page", () => {
   // which keeps no tick, is said to be one of those who came.
   test("a name that comes off on the night: still here in the count, and the list says one of those to come came", async (t) => {
     clock(t, DURING);
-    w.reset();
+    opened();
     await press("sue", { rsvpId: RSVP.kofi, from: "door" });
     const { takeCheckInNamesOffForAccount } = await load("lib/events/checkIns.ts");
     assert.equal(await takeCheckInNamesOffForAccount(w.world.db, "kofi"), 1);
@@ -135,7 +190,7 @@ describe("the door list page", () => {
 
   test("a year on, when every name has come off: the night's count, and the list of who signed up says which can't be told", async (t) => {
     clock(t, DURING);
-    w.reset();
+    opened();
     await press("sue", { rsvpId: RSVP.kofi, from: "door" });
     await press("sue", { rsvpId: RSVP.chloe, from: "door" });
     await press("sue", { from: "door", walkIn: { name: "Mo Rahman" } });
@@ -176,12 +231,12 @@ describe("POST /api/events/<id>/check-ins", () => {
 
   test("a press checks one sign-up in, and answers with the row as the list draws it, nothing more", async (t) => {
     clock(t, DURING);
-    w.reset();
+    opened();
     const res = await press("sue", { rsvpId: RSVP.gwen, from: "door" });
     assert.equal(res.status, 201);
     assert.equal(res.body.created, true);
     assert.deepEqual(Object.keys(res.body.row).sort(), ["checkIn", "key", "name", "rsvpId", "standing"]);
-    assert.deepEqual(Object.keys(res.body.row.checkIn).sort(), ["at", "emailGoesAt", "how", "id", "noEmail"]);
+    assert.deepEqual(Object.keys(res.body.row.checkIn).sort(), ["at", "by", "emailGoesAt", "how", "id", "noEmail"]);
     assert.deepEqual(
       { ...res.body.row, checkIn: { ...res.body.row.checkIn, id: "-" } },
       {
@@ -189,7 +244,8 @@ describe("POST /api/events/<id>/check-ins", () => {
         rsvpId: RSVP.gwen,
         name: "Gwen Price",
         standing: "signed-up",
-        checkIn: { id: "-", how: "door", at: DURING.toISOString(), emailGoesAt: null, noEmail: false },
+        // Who checked them in, by the name they go by: the event's page says it.
+        checkIn: { id: "-", how: "door", at: DURING.toISOString(), by: "Sue", emailGoesAt: null, noEmail: false },
       },
     );
     assert.ok(!JSON.stringify(res.body).includes("gwen@example.com"), "no address in the answer");
@@ -199,17 +255,18 @@ describe("POST /api/events/<id>/check-ins", () => {
 
   test("pressed again, by anybody: the first check-in stands and nothing is added", async (t) => {
     clock(t, DURING);
-    w.reset();
+    opened();
     await press("sue", { rsvpId: RSVP.kofi, from: "door" });
     const again = await press("zach", { rsvpId: RSVP.kofi, from: "door" });
     assert.equal(again.status, 200);
     assert.equal(again.body.created, false);
+    assert.equal(again.body.row.checkIn.by, "Sue", "the first check-in's own, not the second press's");
     assert.equal(checkIns().length, 1);
   });
 
   test("the waiting list and the undecided can be let in; cancelled, refused and test sign-ups cannot", async (t) => {
     clock(t, DURING);
-    w.reset();
+    opened();
     assert.equal((await press("sue", { rsvpId: RSVP.wren, from: "door" })).status, 201);
     assert.equal((await press("sue", { rsvpId: RSVP.pat, from: "door" })).status, 201);
     assert.deepEqual(short(await press("sue", { rsvpId: RSVP.cora, from: "door" })), [
@@ -229,7 +286,7 @@ describe("POST /api/events/<id>/check-ins", () => {
 
   test("a body that says nothing usable is a 400 with a sentence, before anything is read", async (t) => {
     clock(t, DURING);
-    w.reset();
+    opened();
     const reads = w.world.db.stats.reads;
     assert.deepEqual(short(await press("sue", undefined)), [400, "Say who to check in."]);
     assert.deepEqual(short(await press("sue", { rsvpId: RSVP.kofi })), [400, "Say whether this is the door list or the event’s page."]);
@@ -240,14 +297,34 @@ describe("POST /api/events/<id>/check-ins", () => {
 
   test("a sign-up that is not this event's, or not there, is a 404", async (t) => {
     clock(t, DURING);
-    w.reset({ "eventRsvps/rsvp-elsewhere": { ...w.world.db.read(`eventRsvps/${RSVP.kofi}`), eventId: "another-event" } });
+    w.reset({
+      ...withEvent(DOOR_OPEN),
+      "eventRsvps/rsvp-elsewhere": { ...w.world.db.read(`eventRsvps/${RSVP.kofi}`), eventId: "another-event" },
+    });
     assert.equal((await press("sue", { rsvpId: "rsvp-elsewhere", from: "door" })).status, 404);
     assert.equal((await press("sue", { rsvpId: "no-such-rsvp", from: "door" })).status, 404);
     assert.equal(checkIns().length, 0);
   });
 
-  test("the door list only while the door is open; the event's page until a week after", async (t) => {
+  test("the door list only once the door is open, inside its hours; the event's page whether or not it was opened", async (t) => {
+    clock(t, DURING);
     w.reset();
+    const before = w.everything();
+    assert.deepEqual(short(await press("sue", { rsvpId: RSVP.kofi, from: "door" })), [409, NOT_OPEN]);
+    assert.deepEqual(short(await press("zach", { from: "door", walkIn: { name: "Dan Fitzgerald" } })), [409, NOT_OPEN]);
+    assert.equal(w.everything(), before, "nothing was written");
+    // From the event's page, as on any night: nobody had to open the door.
+    const fromPage = await press("sue", { rsvpId: RSVP.kofi, from: "page" });
+    assert.equal(fromPage.status, 201);
+    assert.equal(fromPage.body.row.checkIn.how, "page");
+    // Once Iris opens it, the door list takes its ticks.
+    assert.equal((await call(doorRoute.POST, { as: "iris", params: { id: EVENT_ID } })).status, 201);
+    assert.equal((await press("sue", { rsvpId: RSVP.chloe, from: "door" })).status, 201);
+    assert.equal(checkIns().length, 2);
+  });
+
+  test("the door list only while the door is open; the event's page until a week after", async (t) => {
+    opened();
     clock(t, BEFORE);
     assert.deepEqual(short(await press("sue", { rsvpId: RSVP.kofi, from: "door" })), [
       409,
@@ -295,7 +372,7 @@ describe("POST /api/events/<id>/check-ins", () => {
 describe("DELETE /api/events/<id>/check-ins/<checkInId>", () => {
   test("for the people who run check-in only, and not during view-as", async (t) => {
     clock(t, DURING);
-    w.reset();
+    opened();
     const made = await press("sue", { rsvpId: RSVP.kofi, from: "door" });
     const id = made.body.row.checkIn.id;
     assert.equal((await undo(null, id)).status, 401);
@@ -308,7 +385,7 @@ describe("DELETE /api/events/<id>/check-ins/<checkInId>", () => {
 
   test("undoes it, once; a week after the event nothing changes any more", async (t) => {
     clock(t, DURING);
-    w.reset();
+    opened();
     const made = await press("sue", { rsvpId: RSVP.kofi, from: "door" });
     const id = made.body.row.checkIn.id;
     const res = await undo("sue", id);
@@ -333,5 +410,105 @@ describe("DELETE /api/events/<id>/check-ins/<checkInId>", () => {
     });
     assert.equal((await undo("sue", "elsewhere")).status, 404);
     assert.ok(w.world.db.read("eventCheckIns/elsewhere"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Opening the door
+// ---------------------------------------------------------------------------
+
+describe("POST /api/events/<id>/door", () => {
+  const openDoor = (as, id = EVENT_ID) => call(doorRoute.POST, { as, params: { id } });
+  const stored = () => {
+    const event = w.world.db.read(`events/${EVENT_ID}`);
+    return { at: event.doorOpenedAt ?? null, by: event.doorOpenedBy ?? null };
+  };
+  const ONLY = "Only the event’s author or an admin opens the door.";
+  /** A member who approves events: not the event's author, so not somebody who opens its door. */
+  const approver = person("april", "member", "April Stone", { permissions: { approveEvent: true } });
+
+  test("refused to everybody but the event's author, while their account stands, and admins; nothing is written", async (t) => {
+    clock(t, DURING);
+    w.reset();
+    const before = w.everything();
+    assert.deepEqual(short(await openDoor(null)), [401, "Sign in first."]);
+    const refused = [
+      ["kofi", "a member"],
+      ["cal", "a collaborator on the event"],
+      ["sue", "SU-recognised committee, who run check-in"],
+      [approver, "an approver of events"],
+      ["ines", "a pending account"],
+      [{ ...PEOPLE.iris, role: "rejected" }, "the event's author, rejected"],
+      [{ ...PEOPLE.iris, role: "pending" }, "the event's author, pending"],
+    ];
+    for (const [who, why] of refused) assert.deepEqual(short(await openDoor(who)), [403, ONLY], why);
+    w.world.viewingAs = true;
+    assert.equal((await openDoor("iris")).status, 403, "view-as");
+    assert.equal((await openDoor("zach")).status, 403, "view-as, as an admin");
+    w.world.viewingAs = false;
+    assert.equal(w.everything(), before);
+  });
+
+  test("decided before the event is shown to exist: one 403 for an event that is not there", async (t) => {
+    clock(t, DURING);
+    w.reset();
+    for (const id of ["no-such-event", "../x"]) {
+      for (const who of ["iris", "sue", "kofi"]) assert.deepEqual(short(await openDoor(who, id)), [403, ONLY], `${who} ${id}`);
+      assert.deepEqual(short(await openDoor("zach", id)), [404, "There is no such event."], id);
+    }
+  });
+
+  test("the author opens it inside the door's hours; pressing again, by anybody who may, answers with the first opening", async (t) => {
+    clock(t, OPENED_AT);
+    w.reset();
+    const res = await openDoor("iris");
+    assert.equal(res.status, 201);
+    assert.deepEqual(res.body, { created: true, openedAt: OPENED_AT.toISOString() });
+    assert.deepEqual(stored(), { at: OPENED_AT, by: "iris" });
+    t.mock.timers.setTime(DURING.getTime());
+    for (const who of ["iris", "zach"]) {
+      const again = await openDoor(who);
+      assert.equal(again.status, 200, who);
+      assert.deepEqual(again.body, { created: false, openedAt: OPENED_AT.toISOString() }, who);
+    }
+    assert.deepEqual(stored(), { at: OPENED_AT, by: "iris" }, "the first opening stands");
+  });
+
+  test("an admin opens it as well", async (t) => {
+    clock(t, DURING);
+    w.reset();
+    assert.equal((await openDoor("zach")).status, 201);
+    assert.deepEqual(stored(), { at: DURING, by: "zach" });
+  });
+
+  test("only inside the door's hours, an hour either side of the event, and only for a published event", async (t) => {
+    w.reset();
+    clock(t, BEFORE);
+    assert.deepEqual(short(await openDoor("iris")), [409, "You can open the door from 1pm on Sun 1 Nov, an hour before the start."]);
+    t.mock.timers.setTime(new Date("2026-11-01T12:59:59Z").getTime());
+    assert.equal((await openDoor("iris")).status, 409, "a second before");
+    t.mock.timers.setTime(AFTER.getTime());
+    assert.deepEqual(short(await openDoor("zach")), [409, "The door closed at 6pm, an hour after the end."]);
+    t.mock.timers.setTime(new Date("2026-11-01T18:00:01Z").getTime());
+    assert.equal((await openDoor("zach")).status, 409, "a second after");
+    assert.deepEqual(stored(), { at: null, by: null }, "nothing was opened");
+    t.mock.timers.setTime(new Date("2026-11-01T13:00:00Z").getTime());
+    assert.equal((await openDoor("iris")).status, 201, "on the hour it opens");
+    for (const status of ["draft", "pending", "approved", "cancelled"]) {
+      w.reset(withEvent({ status }));
+      assert.deepEqual(short(await openDoor("zach")), [409, "Only a published event has a door to open."], status);
+      assert.deepEqual(stored(), { at: null, by: null }, status);
+    }
+    w.reset(withEvent({ startAt: null, endAt: null }));
+    assert.deepEqual(short(await openDoor("zach")), [409, "This event has no date yet, so it has no door to open."]);
+  });
+
+  test("a door opened before the event was moved is no opening of tonight's: it is opened again", async (t) => {
+    clock(t, DURING);
+    const earlier = new Date("2026-10-25T13:05:00Z");
+    w.reset(withEvent({ doorOpenedAt: earlier, doorOpenedBy: "zach" }));
+    const res = await openDoor("iris");
+    assert.equal(res.status, 201);
+    assert.deepEqual(stored(), { at: DURING, by: "iris" });
   });
 });

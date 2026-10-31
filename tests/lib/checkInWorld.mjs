@@ -8,8 +8,13 @@
  *
  * VR GAMES NIGHT, published, Sun 1 Nov 2026 from 2pm to 5pm London time (GMT
  * that day), 30 places, run by Iris (committee, NOT recognised by the SU) with
- * Cal as a collaborator. The door list opens an hour before the start and
- * closes an hour after the end: 1pm to 6pm.
+ * Cal as a collaborator. The door's hours are an hour before the start to an
+ * hour after the end: 1pm to 6pm.
+ *
+ * As every event starts: people cannot check themselves in (no `selfCheckIn`)
+ * and the door has not been opened. A suite turns either on with
+ * `withEvent(SELF_ON, DOOR_OPEN)`: the switch, and the door as the door route
+ * leaves it, opened by Iris at 1:05pm (`OPENED_AT`).
  *
  * Sign-ups: Kofi (a member, confirmed), Chloe (a member, confirmed), Gwen (a
  * guest with no account, confirmed), Wren (a member on the waiting list), Pat
@@ -57,6 +62,13 @@ export const BEFORE = new Date("2026-10-26T12:00:00Z");
 export const AFTER = new Date("2026-11-03T10:00:00Z");
 /** Mon 9 Nov: more than a week after the event. */
 export const WEEK_LATER = new Date("2026-11-09T10:00:00Z");
+/** 1:05pm on the night: Iris, the event's author, opened the door. */
+export const OPENED_AT = new Date("2026-11-01T13:05:00Z");
+
+/** The door, opened by Iris at 1:05pm, as the door route leaves it. */
+export const DOOR_OPEN = { doorOpenedAt: OPENED_AT, doorOpenedBy: "iris" };
+/** An event that lets people check themselves in. */
+export const SELF_ON = { selfCheckIn: true };
 
 export const ORIGIN = "https://naisi.uk";
 
@@ -147,6 +159,11 @@ export const RSVP = {
   dina: "rsvp-dina",
   test: "rsvp-test",
 };
+
+/** The seed's event with each of `extras` on it, as the one document `reset` replaces. */
+export function withEvent(...extras) {
+  return { [`events/${EVENT_ID}`]: eventDoc(Object.assign({}, ...extras)) };
+}
 
 /** Every document the suites start from. `over` adds or replaces whole documents. */
 export function checkInSeed(over = {}) {
