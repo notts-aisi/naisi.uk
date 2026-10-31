@@ -5,6 +5,7 @@ import Card from "@/components/ui/Card";
 import InitialsChip from "@/components/ui/InitialsChip";
 import MemberName from "@/components/ui/MemberName";
 import Skeleton from "@/components/ui/Skeleton";
+import { clockWords } from "@/lib/courses/sessionChange/words";
 import { NAMES_WHEN_GROUPS_GO_OUT } from "./groupNamesWords";
 import { weekHref } from "./links";
 import { useGroupRoster } from "./useGroupRoster";
@@ -129,13 +130,14 @@ function materialsWeek(
   return published.includes(number) ? number : null;
 }
 
-/** "Next: Tuesday 3 November, 18:00". Null once the term is over. */
+/** "Next: Tuesday 3 November, 6pm". Null once the term is over. */
 function nextLine(calendar: OverviewGroup["calendar"]): string | null {
   const next = calendar.nextSession;
   if (!next) return null;
   const when = formatDateKey(next.dateKey, WEEKDAY_DAY_MONTH);
   if (!when) return null;
-  return next.startTimeLocal ? `Next: ${when}, ${next.startTimeLocal}` : `Next: ${when}`;
+  const at = clockWords(next.startTimeLocal);
+  return at ? `Next: ${when}, ${at}` : `Next: ${when}`;
 }
 
 export default function FacilitatorGroupPanel({

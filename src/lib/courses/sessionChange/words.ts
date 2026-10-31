@@ -91,6 +91,21 @@ export function slotWords(weekday: number, hhmm: string): string {
   return day && clock ? `${day}s ${clock}` : "";
 }
 
+/**
+ * "Tuesdays 6pm to 7:30pm", a group's weekly slot with when it ends, in the
+ * house's clock and never with a dash. "Tuesdays 6pm" when it has no length,
+ * and "" while it has no day or time. The end is the start plus the length on
+ * the wall clock, past midnight if it runs there: a label, never an instant.
+ */
+export function slotRangeWords(weekday: number, hhmm: string, minutes: number): string {
+  const slot = slotWords(weekday, hhmm);
+  if (!slot || !Number.isInteger(minutes) || minutes <= 0) return slot;
+  const [hour, minute] = hhmm.split(":").map(Number);
+  const end = (hour * 60 + minute + minutes) % (24 * 60);
+  const endWords = clockWords(`${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`);
+  return endWords ? `${slot} to ${endWords}` : slot;
+}
+
 /** "Rahul", "Rahul and Sofia", "Rahul, Sofia and Tom". */
 export function namesWords(names: readonly string[]): string {
   if (names.length <= 1) return names[0] ?? "";

@@ -7,6 +7,7 @@ import { GroupWeekIndex } from "@/features/courses/GroupWeekEditor";
 import RoomNoticeComposer from "@/features/courses/RoomNoticeComposer";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
 import { memberCurrentWeek, resolveCalendar } from "@/lib/courses/groupResolve";
+import { slotRangeWords } from "@/lib/courses/sessionChange/words";
 import type { CurrentWeek } from "@/lib/courses/weekPlan";
 import { getAdminDb } from "@/lib/firebase/admin";
 import {
@@ -54,34 +55,16 @@ import { weekDocId } from "@/lib/firestore/courses";
 export const dynamic = "force-dynamic";
 
 // ---------------------------------------------------------------------------
-// Session label (duplicated on purpose — see the group page's note)
+// Session label
 // ---------------------------------------------------------------------------
 
-/** Index = `GroupSession.weekday` (`Date.getDay()`, 0 = Sunday). */
-const WEEKDAY_NAMES = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
-
-function endTimeLabel(start: string, minutes: number): string | null {
-  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(start);
-  if (!m || minutes <= 0) return null;
-  const total = (Number(m[1]) * 60 + Number(m[2]) + minutes) % 1440;
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
-
-/** "Tuesdays 18:00–19:30" — byte-for-byte the label every other course surface
- *  renders. The format is the contract; change all copies together. */
+/**
+ * "Tuesdays 6pm to 7:30pm", as the group page says it. The room notice says
+ * "We're still meeting" it, so it reaches the group's inboxes in the house's
+ * clock too.
+ */
 function sessionLabel(session: GroupSession): string {
-  const day = WEEKDAY_NAMES[session.weekday];
-  if (!day || !session.startTimeLocal) return "";
-  const end = endTimeLabel(session.startTimeLocal, session.durationMinutes);
-  return `${day}s ${session.startTimeLocal}${end ? `–${end}` : ""}`;
+  return slotRangeWords(session.weekday, session.startTimeLocal, session.durationMinutes);
 }
 
 // ---------------------------------------------------------------------------
