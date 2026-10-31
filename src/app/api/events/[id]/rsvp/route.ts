@@ -165,6 +165,12 @@ export async function POST(
   const bodyEmail =
     typeof payload.email === "string" ? normalizeEmail(payload.email) : "";
 
+  // A signed-in caller's name is the session's, and `getCurrentUser` reads it
+  // through `accountNameOf` (lib/firestore/users.ts): the stored display name,
+  // else the preferred name. The form says "Signing up as" with the same
+  // rule's answer from `useAuth().accountName`, so the name a person was shown
+  // is the name the organiser reads on the sign-ups list. With no name on the
+  // account, the address stands in for one.
   const name =
     viewer?.displayName?.trim() || viewer?.email?.trim() || bodyName;
   const email = viewer?.email ? normalizeEmail(viewer.email) : bodyEmail;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
@@ -71,12 +71,13 @@ export default function RsvpForm({
   previewMode,
 }: Props) {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, accountName, loading: authLoading } = useAuth();
   // The name and email boxes are UNCONTROLLED and read out of the DOM when the
   // form is submitted. The event page is server-rendered, so a guest can be
   // typing into this form before its JavaScript has landed, and controlled
   // boxes lost every one of those characters: React's first render wrote its
-  // own empty state over them.
+  // own empty state over them. They are a guest's boxes only: see
+  // `signedInAs` below.
   const formRef = useRef<HTMLFormElement>(null);
   const recaptcha = useRef<RecaptchaHandle | null>(null);
   const readField = useCallback((id: string) => {
@@ -104,33 +105,31 @@ export default function RsvpForm({
   // The same words and tone the events list and the hero use for this event.
   const places = placesState({ capacity, rsvpCountConfirmed, waitlistEnabled, noSignup: false });
 
-  // Signed-in users have their identity locked to the session. Anonymous users
-  // type their own name + email (public events only). If the session is missing
-  // displayName/email for some reason we fall through to editable inputs so the
-  // form isn't bricked.
-  const signedInIdentity =
-    user && user.email ? { name: user.displayName ?? "", email: user.email } : null;
-  const sessionName = signedInIdentity ? signedInIdentity.name : null;
-  const sessionEmail = signedInIdentity ? signedInIdentity.email : null;
-
-  // A session resolves after the first paint, so a locked identity is written
-  // into the boxes rather than rendered as their value: the boxes have to
-  // stay uncontrolled for the guest case above.
-  useEffect(() => {
-    const form = formRef.current;
-    if (!form || sessionEmail === null) return;
-    const nameBox = form.querySelector<HTMLInputElement>("#rsvp-name");
-    if (nameBox) nameBox.value = sessionName ?? "";
-    const emailBox = form.querySelector<HTMLInputElement>("#rsvp-email");
-    if (emailBox) emailBox.value = sessionEmail;
-  }, [sessionName, sessionEmail]);
+  // SIGNED IN, THE SESSION IS WHO SIGNS UP, and the route takes the name and
+  // the address off it whatever the form sends. So the form draws no boxes for
+  // them, which would only be two fields nobody can change, and says who the
+  // sign-up is for: the account's name by the same rule the route stores it
+  // by (`useAuth().accountName`, never the Firebase Auth name, which is empty
+  // for an account made with an email address and a password), or the address
+  // where the account holds no name. A guest types their own name and address
+  // (public events only). A session with no address falls through to the
+  // boxes, so the form is never bricked.
+  //
+  // The page is drawn on the server before anybody is known, so the boxes are
+  // in its first markup for everybody and go once a session resolves. They
+  // cannot wait for the session: a guest typing before the JavaScript lands
+  // is the case the boxes are uncontrolled for.
+  const signedInAs = user && user.email ? { name: accountName, email: user.email } : null;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // The session wins where there is one, exactly as the locked boxes show;
-    // otherwise whatever the guest typed, however early they typed it.
-    const name = sessionEmail !== null ? (sessionName ?? "") : readField("rsvp-name");
-    const email = sessionEmail !== null ? sessionEmail : readField("rsvp-email");
+    // The session wins where there is one, exactly as the note says; otherwise
+    // whatever the guest typed, however early they typed it. With a session
+    // the route takes both off it and ignores these; they are still what the
+    // optional mailing-list sign-up below goes out with, which greets a person
+    // by the name, so an account with none sends none rather than its address.
+    const name = signedInAs ? (signedInAs.name ?? "") : readField("rsvp-name");
+    const email = signedInAs ? signedInAs.email : readField("rsvp-email");
     if (signupsPaused) {
       // Belt and braces behind the disabled submit — never a silent block.
       setState({ kind: "error", message: siteNotice.bannerMessage });
@@ -267,10 +266,13 @@ export default function RsvpForm({
         </Notice>
       )}
 
-      {signedInIdentity && (
+      {/* The address appears once: beside the name, or as the name where the
+          account holds none. */}
+      {signedInAs && (
         <Notice tone="neutral" role="note">
-          Signing up as <strong>{signedInIdentity.name || signedInIdentity.email}</strong>{" "}
-          ({signedInIdentity.email}). Sign out to RSVP with a different account.
+          Signing up as <strong>{signedInAs.name ?? signedInAs.email}</strong>
+          {signedInAs.name !== null && ` (${signedInAs.email})`}. Sign out to RSVP with a
+          different account.
         </Notice>
       )}
 
@@ -284,29 +286,31 @@ export default function RsvpForm({
       {/* Addressed by the browser end-to-end suite, which fills this form as a
           signed-out guest and checks it fits a phone. */}
       <form ref={formRef} onSubmit={onSubmit} className={styles.form} data-testid="rsvp-form">
-        <Field id="rsvp-name" label="Name">
-          <Input
-            id="rsvp-name"
-            maxLength={NAME_MAX}
-            disabled={state.kind === "submitting"}
-            readOnly={!!signedInIdentity}
-            required
-            autoComplete="name"
-            placeholder="Your name"
-          />
-        </Field>
-        <Field id="rsvp-email" label="Email">
-          <Input
-            id="rsvp-email"
-            type="email"
-            maxLength={EMAIL_MAX}
-            disabled={state.kind === "submitting"}
-            readOnly={!!signedInIdentity}
-            required
-            autoComplete="email"
-            placeholder="you@example.com"
-          />
-        </Field>
+        {!signedInAs && (
+          <>
+            <Field id="rsvp-name" label="Name">
+              <Input
+                id="rsvp-name"
+                maxLength={NAME_MAX}
+                disabled={state.kind === "submitting"}
+                required
+                autoComplete="name"
+                placeholder="Your name"
+              />
+            </Field>
+            <Field id="rsvp-email" label="Email">
+              <Input
+                id="rsvp-email"
+                type="email"
+                maxLength={EMAIL_MAX}
+                disabled={state.kind === "submitting"}
+                required
+                autoComplete="email"
+                placeholder="you@example.com"
+              />
+            </Field>
+          </>
+        )}
 
         {questions.length > 0 && (
           <FormRenderer

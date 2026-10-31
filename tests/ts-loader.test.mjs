@@ -891,6 +891,13 @@ const USERS = new Map([
       "suite's subject, and the shared loader is the rule for a new suite either way",
   ],
   [
+    "event-signup-name.test.mjs",
+    "the RSVP route executed with the REAL session reader, so the name a row stores is the one " +
+      "rule's for each kind of account, and the sign-up form rendered to markup: a `.tsx` graph " +
+      "of shared components with every stylesheet stubbed, which is what the shared loader's " +
+      "JSX option exists for",
+  ],
+  [
     "scheduler-markers.test.mjs",
     "same shape: `registry.ts` is loaded for the caps and windows and drags every job's graph in " +
       "with it, and the stub comments said so in as many words",

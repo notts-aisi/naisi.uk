@@ -2,6 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { bypass } from "@/lib/devBypass";
 import type { CollaboratorStatus } from "@/lib/firestore/collaborators";
+import { accountNameOf } from "@/lib/firestore/users";
 import { getAdminAuth, getAdminDb } from "./admin";
 
 export const SESSION_COOKIE = "__session";
@@ -26,6 +27,12 @@ export type SessionUser = {
   uid: string;
   email: string | null;
   role: Role;
+  /**
+   * The name this person goes by, by `accountNameOf` in
+   * lib/firestore/users.ts: the stored display name, else the preferred name,
+   * else absent and the caller uses the address. The same rule the browser's
+   * `useAuth().accountName` applies, so a form and the route behind it agree.
+   */
   displayName?: string;
   /** The combined policy version this member last accepted (e.g.
    *  "terms.1+privacy.2"). Compared against CURRENT_POLICY_VERSION to drive the
@@ -157,7 +164,9 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
       uid: decoded.uid,
       email: decoded.email ?? null,
       role: (data.role as Role) ?? "pending",
-      displayName: data.displayName ?? data.profile?.preferredName,
+      // Through the shared rule, so a stored empty string falls through to
+      // the preferred name rather than reaching every caller as a blank.
+      displayName: accountNameOf(data) ?? undefined,
       policyVersion: typeof data.policyVersion === "string" ? data.policyVersion : null,
       suRecognised: Boolean(data.suRecognised),
       admissionsReviewer: Boolean(data.admissionsReviewer),
