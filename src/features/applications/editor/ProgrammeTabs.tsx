@@ -16,20 +16,18 @@ import styles from "./ProgrammeFrame.module.css";
  *  - Overview, the run's week, sessions and registers, which says so when the
  *    programme names no run yet.
  *  - Applications.
- *  - People (board st-people): everyone who holds a place or gave it back, by
- *    name, with their replies. Its count is how many hold a place now
- *    (`countPlaceHolders`, the test its own rows ask), given only once
- *    decisions have gone out.
+ *  - People: everyone who holds a place or gave it back, by name, with their
+ *    replies. Its count is how many hold a place now (`countPlaceHolders`,
+ *    the test its own rows ask), given only once decisions have gone out.
  *  - Groups, and an incubator's Teams after it (`teams`, with how many teams
  *    its run has). A fellowship has no Teams tab.
- *  - Weeks (board pr-weeks), where the run's weeks are written and marked
- *    ready. Its count is how many weeks the run's plan has.
+ *  - Weeks, where the run's weeks are written and marked ready. Its count is
+ *    how many weeks the run's plan has.
  *  - Attendance, then Coursework (Zach, Fri 30 Oct): what everybody holding a
  *    place has written, week by week, by name.
  *  - Messages, where updates are written to the people taking part.
- *  - Surveys (board sv-programme): the programme's surveys in totals and
- *    comments, never a name, with Ratings and the anonymous form's answers
- *    linked from it.
+ *  - Surveys: the programme's surveys in totals and comments, never a name,
+ *    with Ratings and the anonymous form's answers linked from it.
  *
  * For a reviewer, Applications alone. A reviewer reads and scores, and every
  * other tab shows the people holding a place by name, or is the lead's to
