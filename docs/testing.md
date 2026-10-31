@@ -172,6 +172,12 @@ The same shape, older:
   both directions: a renderer imports the helper and reads none of the fields
   raw, a relay may pass them along but may not branch on `locationHidden`,
   a template takes a finished line, and exactly one file branches.
+- `tests/event-check-ins.test.mjs`, its last block: every write of a
+  check-in says which way the person came in. It walks every call of
+  `recordCheckIn` under `src` and holds each one's `how` to a registered
+  expression with the reason it is that person's own way, both directions,
+  and the writer itself refuses the old catch-all `qr`, which once recorded
+  every self check-in as a scan of the door code whichever way it came.
 - `tests/event-rsvp-identity.test.mjs`: the public RSVP route executed as a
   guest, a member, a pending and a rejected account. A signed-out submission
   is answered identically whether or not the address already holds an RSVP,
