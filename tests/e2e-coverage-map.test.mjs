@@ -2194,6 +2194,12 @@ const NOT_COVERED = {
     coverWhen:
       "When one of these pages changes how it renders rather than what it says: member-journey drives the re-consent gate, and tests/privacy-policy.test.mjs pins the words.",
   },
+  "/(public)/privacy/services": {
+    reason:
+      "/(public)/privacy/services draws the outside services the privacy policy points to, from src/content/legal/services.ts, with no read; tests/privacy-policy.test.mjs pins the list both ways against the code that calls each service, and the page's source against the list.",
+    coverWhen:
+      "When the page changes how it renders rather than what it says, or gains a read: it is static words today, the same for everybody.",
+  },
   "/(public)/privacy/v/[version]": {
     reason:
       "/(public)/privacy/v/[version] renders the versioned policy files, whose content tests/privacy-policy.test.mjs already pins.",
