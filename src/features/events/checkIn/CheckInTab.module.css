@@ -235,6 +235,8 @@
   letter-spacing: 0.08em;
   text-align: left;
   text-transform: uppercase;
+  /* "Checked in by" on one line, as the column it heads. */
+  white-space: nowrap;
 }
 
 .table td {
