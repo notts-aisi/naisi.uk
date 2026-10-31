@@ -294,7 +294,10 @@ export default function PrivacyContentV15({
                 form, including drafts, which are saved on our servers so you
                 can come back to them on another device. A change counts only
                 when you press Send again; until then the people reading your
-                application see what you last sent. When you send again with
+                application see what you last sent. Once you hold a place on a
+                fellowship, a change to when you are free counts at once, until
+                we tell you your group, and we keep the version it replaces.
+                When you send again with
                 something different, we keep the version before, up to ten
                 earlier versions in all, deleted with your application. The
                 form also asks which programmes you want, in your order;
@@ -332,7 +335,8 @@ export default function PrivacyContentV15({
                 students: admins and committee members the Students&apos; Union
                 recognises. They see your name and everything you sent,
                 including your answers for the other programmes you ranked, the
-                earlier versions you sent and when you are free. Only admins
+                earlier versions you sent, when you are free, and whether your
+                request to join is still waiting. Only admins
                 see your email addresses and your answer about SU membership.
                 If you accept an invitation to a programme you did not rank,
                 its lead and reviewers can read your application from then on.
@@ -447,9 +451,9 @@ export default function PrivacyContentV15({
               <p>
                 <strong>Your calendar link.</strong> &quot;Add to calendar&quot;
                 gives you a private link to your sessions: their days, times
-                and rooms, with no names, no email addresses and never a meeting
-                link. Your calendar&apos;s provider (Apple, Google or Microsoft,
-                for example) fetches it from us now and then, under its own
+                and rooms, with nobody&apos;s name, no email addresses and never
+                a meeting link. Your calendar&apos;s provider (Apple, Google or
+                Microsoft, for example) fetches it from us now and then, under its own
                 privacy policy. Anyone holding the link sees the same, so keep
                 it to yourself; you can replace it at any time.
               </p>
@@ -473,7 +477,9 @@ export default function PrivacyContentV15({
               </p>
               <p>
                 <strong>What the people leading a programme see.</strong>{" "}
-                Everything a facilitator sees, for every group, and also: who
+                Everything a facilitator sees, for every group, except the notes
+                facilitators write about a named person and the private notes
+                people keep on the material, and also: who
                 can&apos;t make their group&apos;s time and why, the reasons
                 people give for leaving, the pitches and teams on an incubator,
                 who might facilitate, who finished, and the totals and comments
@@ -482,9 +488,10 @@ export default function PrivacyContentV15({
               <p>
                 <strong>Notes about a group.</strong> A group&apos;s
                 facilitators may keep notes for each other about how it is
-                going, and a note may mention you. Facilitators may also write a
-                note about a named person after a session. The group&apos;s
-                facilitators, the programme&apos;s lead and admins read both.
+                going, and a note may mention you; they, the programme&apos;s
+                lead and admins read them. Facilitators may also write a note
+                about a named person after a session, which the group&apos;s
+                facilitators and admins read.
               </p>
               <p>
                 <strong>Session reports.</strong> After a session, facilitators
@@ -572,17 +579,20 @@ export default function PrivacyContentV15({
                 read by you and admins alone, and each time an admin opens them
                 we record it first; if we can&apos;t record it, they stay
                 closed. Your private notes on the material are read by your
-                group&apos;s facilitators and admins, and we use them to improve
-                the course. A facilitator may read out a line of a reflection
+                group&apos;s facilitators and admins (if you facilitate the
+                group, by admins alone), and we use them to improve the course.
+                A facilitator may read out a line of a reflection
                 without saying whose it is.
               </p>
               <p>
-                <strong>Changing your work.</strong> The week&apos;s page says
+                <strong>Changing your work.</strong> Your reflections and the
+                boxes you fill in save as you type, and the people who read your
+                work can read them as you write. A written answer is yours until
+                you send it: until then they see only that you have started it,
+                never what it says, and if your week locks before you send it,
+                they may then read what you wrote. The week&apos;s page says
                 until when you can change your work, and the people running
-                your group can reopen it for you. Until you send it, the people
-                who read it see only that you have started, never what it says.
-                If your week locks before you send it, they may then read what
-                you wrote.
+                your group can reopen it for you.
               </p>
               <p>
                 <strong>Using your work later.</strong> What you write on a
@@ -1064,12 +1074,16 @@ export default function PrivacyContentV15({
                   <strong>Logs:</strong> a log of the emails we send (subject,
                   recipient and whether it was delivered) and a list of
                   addresses that bounced or reported us as spam, so we stop
-                  writing to them; a record of the spreadsheets staff download
-                  that hold the most about people (who asked, what it covered,
-                  how many people were in it and when), and of each time an
-                  admin opened an access-requirements answer, sealed predictions
-                  or survey answers; and a log of decisions on applications.
-                  These record what staff did, not what you wrote, and are kept
+                  writing to them; a record of five kinds of spreadsheet staff
+                  download (membership lists, a circulated worksheet&apos;s
+                  answers, a programme&apos;s attendance, a survey&apos;s answers
+                  with names, and the Kairos file): who asked, what it covered,
+                  how many people were in it and when. An event&apos;s list of
+                  sign-ups and the subscriber list are made in the browser and
+                  not recorded. We also record each time an admin opened an
+                  access-requirements answer, sealed predictions or survey
+                  answers, and keep a log of decisions on applications. These
+                  record what staff did, not what you wrote, and are kept
                   as long as we need them to look into problems and show we
                   acted properly. Our hosting provider&apos;s request logs (IP
                   address, browser and time) are used only to fix errors and
@@ -1085,7 +1099,8 @@ export default function PrivacyContentV15({
                 applications and drafts with their access requirements and the
                 scores, comments and decisions about them, your places on
                 programmes, your work and the feedback on it, the notes and
-                ratings about you and those you gave, a conduct flag, your
+                ratings about you, the ratings you gave, the notes you wrote for
+                a group&apos;s other facilitators, a conduct flag, your
                 survey links and your name on your survey answers, your
                 membership records, your choice about Kairos and a certificate
                 whose link is off. Registers keep the rest of the group, without
@@ -1098,7 +1113,9 @@ export default function PrivacyContentV15({
                 yours quoted without your name (email us and we will take it
                 down); a pitch you sent with a partner, and what you wrote on
                 your team&apos;s page, without your name; tasks you were on;
-                your event sign-ups, with any dietary or accessibility answers;
+                notes you wrote about somebody on a register, which records no
+                writer; your event sign-ups, with any dietary or accessibility
+                answers;
                 files you uploaded; the email log and suppression list; staff
                 logs; and a certificate whose link is on, because it exists for
                 the people you gave the link to (email us and we will withdraw
@@ -1266,8 +1283,10 @@ export default function PrivacyContentV15({
                 outside service, or keeping something longer), we tell you on
                 the site and by email before it takes effect, saying what
                 changed. Anything that relies on your consent asks you for that
-                one thing on its own. You were asked to accept this version; we
-                will not ask you to accept later ones. The application
+                one thing on its own. You were asked to accept this version. If
+                you decline it, you are signed out, and you can email us to have
+                your account removed. We will not ask you to accept later
+                versions. The application
                 form&apos;s last step says that sending your application is
                 agreeing to this policy, with the date it was last updated.
                 Earlier versions stay readable at{" "}

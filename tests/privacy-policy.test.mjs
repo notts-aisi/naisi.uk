@@ -698,7 +698,7 @@ const MUST_NAME = [
   ["feedback on an application is not promised, and can be asked for", /We do not send feedback on applications as standard; ask us and we will consider it\./],
   ["scores and comments are within the right to a copy of your data", /A copy of your data covers what other people wrote about you as well as what you wrote: reviewers&apos; scores and comments,/],
   ["attendance registers", /<strong>Registers\.<\/strong> Your group&apos;s facilitators take the register at each session: present, arrived late, left early, absent or excused\./],
-  ["participant notes", /Facilitators may also write a note about a named person after a session\./],
+  ["participant notes", /Facilitators may also write a note about a named person after a session, which the group&apos;s facilitators and admins read\./],
   // v15 names everything a week's pages record in one sentence, written
   // answers among it; the entries below for ticks, reflections, boxes and
   // packs are the same sentence's words for each.
@@ -749,7 +749,7 @@ const MUST_NAME = [
   // The downloads the log records (each Download writes the log first and
   // refuses without it); §2g walks the tree for every caller of the log. v15
   // says what the record holds and no longer counts or names the kinds.
-  ["the record of the downloads that hold the most about people", /a record of the spreadsheets staff download that hold the most about people \(who asked, what it covered, how many people were in it and when\)/],
+  ["the record of the five kinds of download, and the two that are not recorded", /a record of five kinds of spreadsheet staff download \(membership lists, a circulated worksheet&apos;s answers, a programme&apos;s attendance, a survey&apos;s answers with names, and the Kairos file\): who asked, what it covered, how many people were in it and when\. An event&apos;s list of sign-ups and the subscriber list are made in the browser and not recorded\./],
   ["who can see what", /<strong>Who sees it\.<\/strong> Admins see most of it\. The people leading a programme see what they need to run it\. Facilitators see their own groups, by name, never your email address\. Other people taking part see your name and what you share with them\./],
   // What the application form holds (docs/applications.md, "Where the data
   // is"). One entry per thing an applicant would not guess at.
@@ -817,18 +817,17 @@ const MUST_NAME = [
   // src/lib/courses/registerAccess.ts) and no private note on the material
   // (`privateNotesOf` in src/lib/courses/facilitatorWeek/readers.ts), and
   // v15 itself says the private notes are the facilitators' and admins'.
-  ["what a programme's lead sees once it is running", /<strong>What the people leading a programme see\.<\/strong>\{" "\} Everything a facilitator sees, for every group, and also: who can&apos;t make their group&apos;s time and why, the reasons people give for leaving, the pitches and teams on an incubator, who might facilitate, who finished, and the totals and comments of the programme&apos;s surveys, never with a name\./],
+  ["what a programme's lead sees once it is running", /<strong>What the people leading a programme see\.<\/strong>\{" "\} Everything a facilitator sees, for every group, except the notes facilitators write about a named person and the private notes people keep on the material, and also: who can&apos;t make their group&apos;s time and why, the reasons people give for leaving, the pitches and teams on an incubator, who might facilitate, who finished, and the totals and comments of the programme&apos;s surveys, never with a name\./],
   ["facilitators see names only", /<strong>What your facilitators see\.<\/strong> Who is in their group, by name only:/],
   ["what facilitators read of their own groups", /The register, your work and progress \(see <a href="#your-work">Your work<\/a>\), and before the first session whether you have said you are coming\./],
   // The notes a group's facilitators share (C30) and the notes a group shares
   // on its week pages (C29). §2g holds each to its code.
-  ["the notes a group's facilitators share, and that one can name a person", /<strong>Notes about a group\.<\/strong> A group&apos;s facilitators may keep notes for each other about how it is going, and a note may mention you\./],
-  // REPORTED: "read both" says the programme's lead reads the notes about a
-  // named person too. The register sends those (`participantNotes`) to the
-  // group's facilitators and admins and not to a lead (`readsNotes` in
-  // src/lib/courses/registerAccess.ts); the lead reads the notes about a
-  // group. This entry holds v15's words until the owner decides which moves.
-  ["who reads the notes a group's facilitators share", /The group&apos;s facilitators, the programme&apos;s lead and admins read both\./],
+  ["the notes a group's facilitators share, and that one can name a person", /<strong>Notes about a group\.<\/strong> A group&apos;s facilitators may keep notes for each other about how it is going, and a note may mention you;/],
+  // Who reads each kind: the notes about a group, its facilitators, the
+  // programme's lead and admins (`src/lib/courses/groupNotes/readers.ts`); a
+  // note about a named person after a session, the group's facilitators and
+  // admins (`readsNotes` in `src/lib/courses/registerAccess.ts`, held in §2g).
+  ["who reads the notes a group's facilitators share", /and a note may mention you; they, the programme&apos;s lead and admins read them\./],
   ["the notes shared with a group", /<strong>Notes shared with your group\.<\/strong> On a programme that places you in a group, each week&apos;s page has notes the group and its facilitators share\./],
   ["who sees a note shared with a group, and with what", /A note you add is shown with your name and the day to your group, its facilitators, the programme&apos;s lead and admins\./],
   ["a note shared with a group can be deleted by its writer", /While you are in the group you can delete your own notes;/],
@@ -842,13 +841,13 @@ const MUST_NAME = [
   // §2g holds what each person sees of their pair to its code.
   ["what a person's partner sees in a session in pairs", /When a session is in pairs, your partner sees your first name and whether you are bringing a laptop\./],
   ["the calendar link", /<strong>Your calendar link\.<\/strong> &quot;Add to calendar&quot; gives you a private link to your sessions:/],
-  ["what the calendar shows", /their days, times and rooms, with no names, no email addresses and never a meeting link\./],
+  ["what the calendar shows", /their days, times and rooms, with nobody&apos;s name, no email addresses and never a meeting link\./],
   ["the calendar's provider fetches it", /Your calendar&apos;s provider \(Apple, Google or Microsoft, for example\) fetches it from us now and then, under its own privacy policy\./],
   ["anybody holding the calendar link sees the same, and it can be replaced", /Anyone holding the link sees the same, so keep it to yourself; you can replace it at any time\./],
   ["facilitators email their group without seeing an address", /never an email address \(they write to the group through the site\)\./],
   ["what the people in a group and a team see on an incubator, and nothing else", /On an incubator, your group sees a pitch you send, with your name, and your team sees that you are in it and what you write on its page\. Nothing else\./],
   // Reflections, ticks and private notes. §2g holds each to its code.
-  ["the private note's readers", /Your private notes on the material are read by your group&apos;s facilitators and admins, and we use them to improve the course\./],
+  ["the private note's readers", /Your private notes on the material are read by your group&apos;s facilitators and admins \(if you facilitate the group, by admins alone\), and we use them to improve the course\./],
   ["a line of a reflection may be read out, without saying who wrote it", /A facilitator may read out a line of a reflection without saying whose it is\./],
   // The surveys (docs/surveys.md). §2g holds each to its code.
   ["a survey is confidential, and says so at the top", /<strong>Confidential\.<\/strong> Every survey is confidential: we keep your answers with your name, and each survey says so at the top\./],
@@ -892,7 +891,7 @@ const MUST_NAME = [
   ["who rates whom at a programme's end", /Nobody rates themselves, and a facilitator who takes part in a group is rated by the programme&apos;s lead or an admin\./],
   ["who reads a rating, and that the person rated never does", /These ratings are read by the programme&apos;s lead, admins and the person who gave each one, and never by the person rated\./],
   ["the sessions beside a rating come from the register", /Beside each rating we show how many sessions the person came to, from the register\./],
-  ["ratings are deleted two years after the programme and with an account", /<strong>Ratings at the end of a programme:<\/strong> two years after its last session\.[\s\S]*the notes and ratings about you and those you gave,/],
+  ["ratings are deleted two years after the programme and with an account", /<strong>Ratings at the end of a programme:<\/strong> two years after its last session\.[\s\S]*the notes and ratings about you, the ratings you gave,/],
   // Every event passage with a claim about something built since v6, in
   // v15's words. §2g and the check-in passage hold each claim to its code.
   ["who came to an event, how and when", /<strong>Coming to an event\.<\/strong> If you come, we may record that you came, how and when: a committee member checks you in on the door list, or, at an event that lets you, you check yourself in from the link in your confirmation email or with the code at the door\./],
@@ -914,7 +913,7 @@ const MUST_NAME = [
   // others who read it see only that you have started it, never what it
   // says. v15 keeps that, and says that if the week locks first they may
   // read it.
-  ["changing your work, and what is read before it is sent", /<strong>Changing your work\.<\/strong> The week&apos;s page says until when you can change your work, and the people running your group can reopen it for you\. Until you send it, the people who read it see only that you have started, never what it says\. If your week locks before you send it, they may then read what you wrote\./],
+  ["changing your work, and what is read before it is sent", /<strong>Changing your work\.<\/strong> Your reflections and the boxes you fill in save as you type, and the people who read your work can read them as you write\. A written answer is yours until you send it: until then they see only that you have started it, never what it says, and if your week locks before you send it, they may then read what you wrote\. The week&apos;s page says until when you can change your work, and the people running your group can reopen it for you\./],
   // CHANGED ON PURPOSE (v13): v12 promised that nothing written in a course
   // is used outside its programme. v13 took it back from its own agreement
   // on and said the cut-off in its place; v15 says the same cut-off (§2m
@@ -936,14 +935,17 @@ const MUST_NAME = [
   ["how long course records are kept", /<strong>Your course record<\/strong> \(your place, the registers, your work and the feedback on it, notes facilitators wrote and session reports\): while your account exists\./],
   ["how long the Kairos choice is kept", /<strong>Your choice about Kairos:<\/strong> while your account exists, so a later programme goes by it too\./],
   ["how long who came to an event is kept with names, and a walk-in's address", /<strong>Who came to an event:<\/strong> names for a year after the event, then only the count\. A walk-in&apos;s email address until that event&apos;s survey closes, or a week after the event if sooner\./],
-  ["what a deletion removes, every kind of course record named", /Deleting it removes your account and profile, your subscriptions, your applications and drafts with their access requirements and the scores, comments and decisions about them, your places on programmes, your work and the feedback on it, the notes and ratings about you and those you gave, a conduct flag, your survey links and your name on your survey answers, your membership records, your choice about Kairos and a certificate whose link is off\. Registers keep the rest of the group, without you\./],
+  ["what a deletion removes, every kind of course record named", /Deleting it removes your account and profile, your subscriptions, your applications and drafts with their access requirements and the scores, comments and decisions about them, your places on programmes, your work and the feedback on it, the notes and ratings about you, the ratings you gave, the notes you wrote for a group&apos;s other facilitators, a conduct flag, your survey links and your name on your survey answers, your membership records, your choice about Kairos and a certificate whose link is off\. Registers keep the rest of the group, without you\./],
   ["work goes with the account", /your places on programmes, your work and the feedback on it,/],
-  ["notes and ratings go with the account of whoever they are about or wrote them", /the notes and ratings about you and those you gave,/],
+  ["notes and ratings go with the account of whoever they are about or wrote them", /the notes and ratings about you, the ratings you gave, the notes you wrote for a group&apos;s other facilitators,/],
+  // A note on a register about a named person records no writer, so the
+  // writer's deletion cannot find it: it stays, and the policy says so.
+  ["a register's notes about somebody stay when their writer's account goes", /tasks you were on; notes you wrote about somebody on a register, which records no writer;/],
   ["survey answers and who came stay in the totals after a deletion", /survey answers and the count of who came, no longer linked to you;/],
   ["a quoted comment after a deletion", /a comment of yours quoted without your name \(email us and we will take it down\);/],
   ["a pitch with a partner and a team's page, after a deletion", /a pitch you sent with a partner, and what you wrote on your team&apos;s page, without your name;/],
   ["a certificate whose link is on, after a deletion", /and a certificate whose link is on, because it exists for the people you gave the link to \(email us and we will withdraw it\)\./],
-  ["the staff records a deletion leaves, the openings of sealed predictions and survey answers among them", /and of each time an admin opened an access-requirements answer, sealed predictions or survey answers; and a log of decisions on applications\. These record what staff did, not what you wrote, and are kept as long as we need them to look into problems and show we acted properly\.[\s\S]*the email log and suppression list; staff logs;/],
+  ["the staff records a deletion leaves, the openings of sealed predictions and survey answers among them", /We also record each time an admin opened an access-requirements answer, sealed predictions or survey answers, and keep a log of decisions on applications\. These record what staff did, not what you wrote, and are kept as long as we need them to look into problems and show we acted properly\.[\s\S]*the email log and suppression list; staff logs;/],
   ["saying no to Kairos on the profile, among the rights you serve yourself", /Most of this you can do yourself: edit your profile and notification choices, and say no to sharing with Kairos, on\{" "\} <a href="\/profile">your profile page<\/a>, and unsubscribe from optional email through the link in it\./],
   ["a copy of your data covers what others wrote about you, notes and ratings among it", /A copy of your data covers what other people wrote about you as well as what you wrote: reviewers&apos; scores and comments, each programme&apos;s decision and any reason noted, notes facilitators and admins wrote, session reports, ratings, and the reason for a conduct flag\. Where a record also names somebody else, we may need to leave their part out\./],
 ];
@@ -1036,7 +1038,7 @@ describe("the courses section", () => {
     assert.match(page, /Deleting it removes your account and profile,/);
     assert.match(page, /It leaves: the short record of each application described above;/);
     assert.match(page, /your applications and drafts with their access requirements and the scores, comments and decisions about them,/);
-    assert.match(page, /tasks you were on; your event sign-ups, with any dietary or accessibility answers; files you uploaded;/);
+    assert.match(page, /tasks you were on; notes you wrote about somebody on a register, which records no writer; your event sign-ups, with any dietary or accessibility answers; files you uploaded;/);
     // Narrowly worded: the policy does promise to answer a rights request
     // within 30 days, which is the statutory deadline and nothing to do with
     // deletion. What it may not do is promise that data GOES after a period
@@ -1297,14 +1299,15 @@ describe("the courses section", () => {
   });
 
   test("the export sentence is not upgraded to a promise the code cannot keep", () => {
-    // The wording is deliberately about some of the spreadsheets the site
-    // makes (those that hold the most about people), so it does not say that
-    // every export is logged.
-    assert.match(page, /a record of the spreadsheets staff download that hold the most about people/);
+    // The wording names the five kinds of download that are recorded, and
+    // the two made in the browser that are not, so it does not say that
+    // every export is logged. §2g holds the five to the code both ways.
+    assert.match(page, /a record of five kinds of spreadsheet staff download \(membership lists, a circulated worksheet&apos;s answers, a programme&apos;s attendance, a survey&apos;s answers with names, and the Kairos file\)/);
+    assert.match(page, /An event&apos;s list of sign-ups and the subscriber list are made in the browser and not recorded\./);
     assert.ok(
       !/every export is logged/i.test(CURRENT_FLAT),
-      "the policy must not claim every export is logged: it speaks only of " +
-        "the downloads that hold the most about people.",
+      "the policy must not claim every export is logged: it names the five " +
+        "kinds that are, and two that are not.",
     );
   });
 
@@ -1342,16 +1345,16 @@ describe("the courses section", () => {
       // to accept or decline it. v15 is the last version anybody is asked to
       // accept, and says a change to how it uses somebody's information is
       // told on the site and by email before it takes effect.
-      ["a change is told before it takes effect, and this is the last version anybody is asked to accept", /we tell you on the site and by email before it takes effect, saying what changed\. Anything that relies on your consent asks you for that one thing on its own\. You were asked to accept this version; we will not ask you to accept later ones\./],
+      ["a change is told before it takes effect, and this is the last version anybody is asked to accept", /we tell you on the site and by email before it takes effect, saying what changed\. Anything that relies on your consent asks you for that one thing on its own\. You were asked to accept this version\. If you decline it, you are signed out, and you can email us to have your account removed\. We will not ask you to accept later versions\./],
       ["the statutory response time", /We aim to answer within 30 days\./],
       ["no solely automated decisions", /No decision about you is made solely by automated means\./],
       ["children", /We do not knowingly collect data from anyone under 16\./],
       ["RSVP dietary and accessibility answers are given by explicit consent", /Dietary and accessibility questions are optional, and we use your answers only to run that event; for anything about health in them we rely on your explicit consent, given by answering\./],
       ["the Google profile photo is fetched from Google by the visitor", /The photo stays with Google: a browser showing it fetches it from Google, which tells Google that somebody loaded that page\./],
-      // §2g walks the tree for every caller of `logExport`. v15 says what the
-      // record holds and which downloads it covers in general words, and no
-      // longer counts or names the kinds.
-      ["the export log, and what each row of it holds", /a record of the spreadsheets staff download that hold the most about people \(who asked, what it covered, how many people were in it and when\)/],
+      // §2g walks the tree for every caller of `logExport`, both ways, against
+      // the five kinds v15 names here, and finds the two browser downloads it
+      // says are not recorded.
+      ["the export log, and what each row of it holds", /\(membership lists, a circulated worksheet&apos;s answers, a programme&apos;s attendance, a survey&apos;s answers with names, and the Kairos file\): who asked, what it covered, how many people were in it and when\./],
       ["Google's sign-in script and where it is loaded from", /Google&apos;s sign-in script is loaded from\{" "\} <code>accounts\.google\.com<\/code>/],
     ]) {
       assert.match(page, pattern, `the current version no longer says: ${name}`);
@@ -1786,17 +1789,11 @@ describe("the application form passage", () => {
   test("readers are shown when an account is still waiting", () => {
     // Not part of the application, and shown beside it: the list a reviewer
     // works from and the screen that reads one application both mark an
-    // applicant whose request to join has not been approved yet.
-    //
-    // REPORTED: v14 said so ("whether a programme you ranked higher has
-    // accepted you, and whether your request to join NAISI is still
-    // waiting"), and v15's list of what readers see stops at what was sent
-    // and when somebody is free. The code below still marks a waiting
-    // account, so the check holds the nearest sentence v15 has until the
-    // owner decides the words.
+    // applicant whose request to join has not been approved yet, and v15
+    // says so at the end of what readers see.
     assert.match(
       PAGE_FLAT,
-      /They see your name and everything you sent, including your answers for the other programmes you ranked, the earlier versions you sent and when you are free\./,
+      /They see your name and everything you sent, including your answers for the other programmes you ranked, the earlier versions you sent, when you are free, and whether your request to join is still waiting\./,
       "the current version no longer says what the people who read an application see.",
     );
     assert.match(
@@ -1806,16 +1803,14 @@ describe("the application form passage", () => {
     assert.match(
       read("src/lib/applications/review/board.ts"),
       /accountWaiting: pendingUids\.has\(application\.uid\),/,
-      "the list of applications no longer marks a waiting account. v14 told " +
-        "applicants reviewers are shown it, and the words v15 owes are " +
-        "reported: settle them with this mark.",
+      "the list of applications no longer marks a waiting account, which the " +
+        "policy tells applicants their readers see.",
     );
     assert.match(
       read("src/lib/applications/review/load.ts"),
       /accountWaiting: pendingUids\.has\(applicantUid\),/,
-      "the review screen no longer marks a waiting account. v14 told " +
-        "applicants reviewers are shown it, and the words v15 owes are " +
-        "reported: settle them with this mark.",
+      "the review screen no longer marks a waiting account, which the " +
+        "policy tells applicants their readers see.",
     );
   });
 
@@ -2006,7 +2001,7 @@ describe("the application form passage", () => {
     // opened").
     assert.match(
       PAGE_FLAT,
-      /and of each time an admin opened an access-requirements answer, sealed predictions or survey answers; and a log of decisions on applications\. These record what staff did, not what you wrote,/,
+      /We also record each time an admin opened an access-requirements answer, sealed predictions or survey answers, and keep a log of decisions on applications\. These record what staff did, not what you wrote,/,
     );
 
     // A draft's answer is nobody's to open: until an application is sent,
@@ -2115,7 +2110,7 @@ describe("the application form passage", () => {
     // written as v14 said.
     assert.match(
       PAGE_FLAT,
-      /and a log of decisions on applications\. These record what staff did, not what you wrote, and are kept as long as we need them to look into problems and show we acted properly\./,
+      /and keep a log of decisions on applications\. These record what staff did, not what you wrote, and are kept as long as we need them to look into problems and show we acted properly\./,
     );
     assert.match(PAGE_FLAT, /the email log and suppression list; staff logs;/);
     assert.ok(
@@ -2147,7 +2142,7 @@ describe("the application form passage", () => {
     // form, and destroying the term's applications drains the log by that
     // key (v14 said they "go only if that term's applications are
     // destroyed").
-    assert.match(PAGE_FLAT, /and of each time an admin opened an access-requirements answer,/);
+    assert.match(PAGE_FLAT, /We also record each time an admin opened an access-requirements answer,/);
     assert.match(
       read("src/lib/admissions/destroy.ts"),
       /db\.collection\(COURSE_AUDIT_COLLECTION\)\.where\("roundId", "==", roundId\)/,
@@ -3228,30 +3223,33 @@ describe("the course hub passage", () => {
     // register, about a named person or about a session as a whole, are the
     // group's facilitators' and admins' (C30). A programme's lead reads every
     // register of the run its programme names, its marks and none of its
-    // notes. The policy says a facilitator sees the register and the lead
-    // sees everything a facilitator sees, for every group: so the lead reads
-    // every register. Neither paragraph names a note.
-    //
-    // REPORTED: v15 says more than this code does. Its "Notes about a group."
-    // ends "The group's facilitators, the programme's lead and admins read
-    // both.", and the second of the two is a facilitator's note about a named
-    // person after a session, which is a register's note: the register's GET
-    // sends a lead none of those, nor the register's note on the session as
-    // a whole (below). The lead's "Everything a facilitator sees" says the
-    // same, as a facilitator reads them. So the policy side holds only the
-    // two paragraphs it can honestly hold, and the code side is as it was.
+    // notes. The policy says a facilitator sees the register, that the lead
+    // sees everything a facilitator sees, for every group, except the notes
+    // facilitators write about a named person (and people's private notes on
+    // the material), and that a note about a named person after a session is
+    // read by the group's facilitators and admins: `readsNotes`, held below.
+    // The register's note on a session as a whole is withheld from a lead the
+    // same way (below), and v15 names no such note.
     // The lead does read the notes its groups' facilitators keep for each
     // other and the notes each group shares on its week pages, each held to
     // its reader further down.
+    const EXCEPT = " except the notes facilitators write about a named person and the private notes people keep on the material,";
     const facilitators = hubPassageOf("<strong>What your facilitators see.</strong>");
     const lead = hubPassageOf("<strong>What the people leading a programme see.</strong>");
     assert.ok(facilitators.length > 100, "could not find what the page says a group's facilitators see");
     assert.ok(lead.length > 100, "could not find what the page says a programme's lead sees");
     assert.ok(facilitators.includes(" The register, your work and progress "), "the policy no longer says a group's facilitators see the register");
-    assert.ok(lead.includes('<strong>What the people leading a programme see.</strong>{" "} Everything a facilitator sees, for every group, and also:'), "the policy no longer says the lead sees everything a facilitator sees, for every group");
     assert.ok(
-      !/\bnotes?\b/i.test(lead),
-      "the policy now names notes among what a programme's lead sees. The notes on a register are the " +
+      lead.includes(`<strong>What the people leading a programme see.</strong>{" "} Everything a facilitator sees, for every group,${EXCEPT} and also:`),
+      "the policy no longer says the lead sees everything a facilitator sees, for every group, but the notes about a named person and the private notes",
+    );
+    assert.ok(
+      PAGE_FLAT.includes("Facilitators may also write a note about a named person after a session, which the group&apos;s facilitators and admins read."),
+      "the policy no longer says a note about a named person after a session is read by the group's facilitators and admins",
+    );
+    assert.ok(
+      !/\bnotes?\b/i.test(lead.replace(EXCEPT, "")),
+      "the policy now names notes among what a programme's lead sees, beyond the ones it keeps from the lead. The notes on a register are the " +
         "group's facilitators' and admins', and the register's GET sends a lead none of them.",
     );
     assert.ok(
@@ -4050,12 +4048,14 @@ describe("the course hub passage", () => {
     // no mark, that the page where lines are chosen shows them with no name
     // beside them, and that a facilitator's own are never read out; and it
     // takes back "A tick never counts against you." The checks on the code
-    // stay, each held to the sentence below that covers it.
-    //
-    // REPORTED: v15's "What the people leading a programme see." begins
-    // "Everything a facilitator sees, for every group", and a facilitator
-    // reads the private notes on the material, which the lead never does
-    // (`readsPrivateNotes` below, and the policy's own sentence pinned here).
+    // stay, each held to the sentence below that covers it. The private notes
+    // are kept from the lead in so many words ("except ... the private notes
+    // people keep on the material"), and a facilitator's own is read by admins
+    // alone: `readsPrivateNotes` and `readsFacilitatorsPrivateNotes` below.
+    assert.ok(
+      PAGE_FLAT.includes("Everything a facilitator sees, for every group, except the notes facilitators write about a named person and the private notes people keep on the material, and also:"),
+      "the policy no longer keeps the private notes on the material from what a programme's lead sees",
+    );
     const record = hubPassageOf("<strong>What we record.</strong>");
     assert.ok(
       record.includes(" the readings you tick, your reflections and written answers,") &&
@@ -4066,7 +4066,7 @@ describe("the course hub passage", () => {
     for (const sentence of [
       "<strong>Who reads it.</strong> You, your group&apos;s facilitators, the programme&apos;s lead and admins, and nobody else taking part; the week&apos;s page says so.",
       " If you facilitate a group, your own work is read by the lead and admins only.",
-      " Your private notes on the material are read by your group&apos;s facilitators and admins, and we use them to improve the course.",
+      " Your private notes on the material are read by your group&apos;s facilitators and admins (if you facilitate the group, by admins alone), and we use them to improve the course.",
       " A facilitator may read out a line of a reflection without saying whose it is.",
     ]) {
       assert.ok(whoReads.includes(sentence), `the policy's Who reads it no longer says: ${sentence}`);
@@ -4429,21 +4429,35 @@ describe("the course hub passage", () => {
     }
   });
 
-  // The recorded downloads. v14 counted them (five) and named each kind, and
-  // this test held the count and the names to the routes that write the
-  // record. v15 says a record is kept of "the spreadsheets staff download
-  // that hold the most about people", with what each row holds, and names no
-  // kind and no number, so the walk below holds the list of those downloads
-  // in both directions and the policy holds the sentence.
-  test("the downloads that hold the most about people are logged, each before its file is handed over, and the attendance, survey and Kairos files hold what the page says", () => {
+  // The recorded downloads. v15 names the five kinds a record is kept of, and
+  // the two lists made in the browser that are not. The walk below holds the
+  // five to the routes that write the record, both ways and kind by kind, and
+  // the two to the components that build them in the browser with no record.
+  test("the five kinds of download are logged, each before its file is handed over; an event's sign-ups and the subscriber list are made in the browser and not recorded; and the attendance, survey and Kairos files hold what the page says", () => {
     const logs = hubPassageOf("<strong>Logs:</strong>");
+    const KINDS =
+      "(membership lists, a circulated worksheet&apos;s answers, a programme&apos;s attendance, a survey&apos;s answers with names, and the Kairos file)";
     assert.ok(
-      logs.includes(
-        " a record of the spreadsheets staff download that hold the most about people (who asked, what it covered, how many people were in it and when),",
-      ),
-      "the policy no longer says the downloads that hold the most about people are recorded, with what each row holds",
+      logs.includes(` a record of five kinds of spreadsheet staff download ${KINDS}: who asked, what it covered, how many people were in it and when.`),
+      "the policy no longer names the five kinds of download that are recorded, with what each row holds",
+    );
+    assert.ok(
+      logs.includes(" An event&apos;s list of sign-ups and the subscriber list are made in the browser and not recorded."),
+      "the policy no longer says the event sign-ups and subscriber lists are made in the browser and not recorded",
     );
     assert.ok(logs.includes(" These record what staff did, not what you wrote,"), "the policy no longer says the staff logs record what staff did, not what was written");
+    // Kind by kind, both ways: every route that writes the record is one of
+    // the five the policy names, and every kind it names has its route.
+    const RECORDED = new Map([
+      ["src/app/api/admin/membership/export/route.ts", "membership lists"],
+      ["src/app/api/worksheets/circulations/[circulationId]/export/route.ts", "a circulated worksheet&apos;s answers"],
+      ["src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/attendance/export/route.ts", "a programme&apos;s attendance"],
+      ["src/app/api/surveys/[surveyId]/export/route.ts", "a survey&apos;s answers with names"],
+      ["src/app/api/kairos/export/route.ts", "the Kairos file"],
+    ]);
+    const named = KINDS.slice(1, -1).replace(", and ", ", ").split(", ");
+    assert.deepEqual([...named].sort(), [...RECORDED.values()].sort(), "the kinds the policy names and the routes that record a download disagree");
+    assert.equal(named.length, 5, "the policy says five kinds and names another number");
     assertExactlyTheseFiles(
       sourceFilesNaming(/\blogExport\(/).filter((file) => file !== "src/lib/firestore/dataExports.ts"),
       new Map([
@@ -4454,10 +4468,24 @@ describe("the course hub passage", () => {
         ["src/app/api/kairos/export/route.ts", "the Kairos file, for admins alone"],
       ]),
       "writing the record of a download",
-      "The policy says the spreadsheets staff download that hold the most about people are recorded. A " +
-        "download newly recorded belongs on this list; one listed and no longer recorded must hold little " +
-        "about people, or the sentence is wrong: say so in a new version.",
+      "The policy names the five kinds of download that are recorded. A download newly recorded is a sixth " +
+        "kind the policy has to name; one listed and no longer recorded makes the sentence wrong: say so in a " +
+        "new version.",
     );
+    // The two the policy says are not recorded: each is built and saved by
+    // the page itself, through the browser's own save, with no request to a
+    // route that could write the record.
+    for (const [file, what] of [
+      ["src/features/events/AttendeeDashboard.tsx", "an event's list of sign-ups"],
+      ["src/features/admin/SubscriptionsTable.tsx", "the subscriber list"],
+      ["src/features/admin/NewsletterTable.tsx", "the newsletter's subscriber list"],
+    ]) {
+      const code = withoutComments(read(file));
+      assert.match(code, /import \{[^}]*\bdownloadCSV\b[^}]*\} from "@\/lib\/csv";/, `${file} no longer builds ${what} in the browser`);
+      assert.match(code, /downloadCSV\(`/, `${file} no longer saves ${what} from the browser`);
+      assert.doesNotMatch(code, /logExport|dataExports|\/export["'`?]/, `${file} now records ${what}, and the policy says it is not recorded`);
+    }
+    assert.doesNotMatch(withoutComments(read("src/lib/csv.ts")), /fetch\(|logExport|firebase/, "the browser's CSV save now sends something somewhere");
     // Each refuses to hand over its file if that record cannot be written,
     // so no such download goes unrecorded: the record first, and a failure to
     // write it is a refusal.
@@ -4641,23 +4669,26 @@ describe("the course hub passage", () => {
 
   test("the notes a group's facilitators share are read by its facilitators, the programme's lead and admins, by nobody in the group, and go with their writer's account", () => {
     // "Notes about a group.": the notes a group's facilitators keep for each
-    // other, and who reads them. Its last sentence is true of these notes,
-    // and is reported for the other kind it names (the register's notes
-    // about a named person, which the test of a lead's registers holds).
-    // Nobody in the group reads them: other people taking part see what the
-    // policy lists, "Nothing else". A note goes with its writer's account:
-    // a deletion removes "the notes ... you gave". And a copy of somebody's
-    // data includes "notes facilitators and admins wrote". v14 said each of
-    // the last three in a sentence of its own.
+    // other, and who reads them ("they, the programme's lead and admins"; the
+    // register's notes about a named person, its second sentence, are held
+    // by the test of a lead's registers). Nobody in the group reads them:
+    // other people taking part see what the policy lists, "Nothing else". A
+    // note goes with its writer's account: a deletion removes "the notes you
+    // wrote for a group's other facilitators". And a copy of somebody's data
+    // includes "notes facilitators and admins wrote". v14 said each of the
+    // last three in a sentence of its own.
     const groupNotes = hubPassageOf("<strong>Notes about a group.</strong>");
     for (const sentence of [
-      "<strong>Notes about a group.</strong> A group&apos;s facilitators may keep notes for each other about how it is going, and a note may mention you.",
-      " The group&apos;s facilitators, the programme&apos;s lead and admins read both.",
+      "<strong>Notes about a group.</strong> A group&apos;s facilitators may keep notes for each other about how it is going, and a note may mention you; they, the programme&apos;s lead and admins read them.",
+      " Facilitators may also write a note about a named person after a session, which the group&apos;s facilitators and admins read.",
     ]) {
       assert.ok(groupNotes.includes(sentence), `the policy's Notes about a group no longer says: ${sentence}`);
     }
     assert.ok(hubPassageOf("<strong>What other people taking part see.</strong>").endsWith(" Nothing else. "), "the policy no longer says other people taking part see nothing beyond what it lists");
-    assert.ok(hubPassageOf("<strong>Deleting your account.</strong>").includes(" the notes and ratings about you and those you gave,"), "the policy no longer says a deletion removes the notes somebody wrote");
+    assert.ok(
+      hubPassageOf("<strong>Deleting your account.</strong>").includes(" the notes and ratings about you, the ratings you gave, the notes you wrote for a group&apos;s other facilitators,"),
+      "the policy no longer says a deletion removes the notes somebody wrote for a group's other facilitators",
+    );
     assertHubSays("notes facilitators and admins wrote, session reports, ratings, and the reason for a conduct flag.");
     // The one reader, and the two pages that call it, each after its own
     // gate: the group's page lets in the group's live facilitators and
@@ -4716,9 +4747,12 @@ describe("the course hub passage", () => {
   });
 
   test("the notes a group shares on its week pages reach the group, its facilitators, the programme's lead and admins and nobody else, are deleted by their writer alone, stay when somebody leaves, and go with the writer's account", () => {
-    // The paragraph, whole; that other people taking part see these and
-    // "Nothing else"; and that a deletion removes the notes somebody wrote
-    // ("those you gave"). v14 also said the week a note was written on is
+    // The paragraph, whole; and that other people taking part see these and
+    // "Nothing else". REPORTED: v15's list of what a deletion removes names
+    // the notes somebody wrote for a group's other facilitators and not the
+    // notes they shared with a group, which the code deletes with the account
+    // (`deleteCourseGroupSharedNotes`, held in the deletion test below); the
+    // policy at least never says a deletion leaves them. v14 also said the week a note was written on is
     // shown with it, that the page says who reads them under the notes, and
     // that nobody but its writer can delete a note; v15 leaves those out, and
     // the checks on the code below stay.
@@ -4727,7 +4761,10 @@ describe("the course hub passage", () => {
     );
     const othersSee = hubPassageOf("<strong>What other people taking part see.</strong>");
     assert.ok(othersSee.includes(" In a group, the notes you share with it, with your name and the day.") && othersSee.endsWith(" Nothing else. "), "the policy no longer says the people in a group see the notes shared with it, and nothing else");
-    assert.ok(hubPassageOf("<strong>Deleting your account.</strong>").includes(" the notes and ratings about you and those you gave,"), "the policy no longer says a deletion removes the notes somebody wrote");
+    assert.ok(
+      !/shared? with (?:a|your) group/i.test(hubPassageOf("It leaves:")),
+      "the policy now says a deletion leaves the notes somebody shared with a group, which the code deletes with the account",
+    );
     // Every file that addresses the notes, and why it may.
     assertExactlyTheseFiles(
       sourceFilesNaming(/\bCOURSE_GROUP_SHARED_NOTES_COLLECTION\b|["'`]courseGroupSharedNotes["'`]/),
@@ -5076,7 +5113,7 @@ describe("the course hub passage", () => {
     );
     const logs = hubPassageOf("<strong>Logs:</strong>");
     assert.ok(
-      logs.includes(" and of each time an admin opened an access-requirements answer, sealed predictions or survey answers;") &&
+      logs.includes(" We also record each time an admin opened an access-requirements answer, sealed predictions or survey answers,") &&
         logs.includes(" These record what staff did, not what you wrote,"),
       "the policy no longer says the record of an admin opening sealed predictions is a staff log of what staff did",
     );
@@ -5209,7 +5246,7 @@ describe("the course hub passage", () => {
     // they left, and that it is deleted with the account. v15 leaves those
     // out; the checks on the code below stay.
     assertHubSays(
-      "<strong>Your calendar link.</strong> &quot;Add to calendar&quot; gives you a private link to your sessions: their days, times and rooms, with no names, no email addresses and never a meeting link. Your calendar&apos;s provider (Apple, Google or Microsoft, for example) fetches it from us now and then, under its own privacy policy. Anyone holding the link sees the same, so keep it to yourself; you can replace it at any time.",
+      "<strong>Your calendar link.</strong> &quot;Add to calendar&quot; gives you a private link to your sessions: their days, times and rooms, with nobody&apos;s name, no email addresses and never a meeting link. Your calendar&apos;s provider (Apple, Google or Microsoft, for example) fetches it from us now and then, under its own privacy policy. Anyone holding the link sees the same, so keep it to yourself; you can replace it at any time.",
     );
     assert.ok(
       hubPassageOf("<strong>Leaving.</strong>").includes(" If you leave, we record that you left and when, and you leave your group at once."),
@@ -5315,7 +5352,7 @@ describe("the course hub passage", () => {
     );
     assert.ok(
       hubPassageOf("<strong>Changing your work.</strong>").includes(
-        "<strong>Changing your work.</strong> The week&apos;s page says until when you can change your work, and the people running your group can reopen it for you.",
+        " The week&apos;s page says until when you can change your work, and the people running your group can reopen it for you.",
       ),
       "the policy no longer says the week's page says until when work can change, and who can reopen it",
     );
@@ -5397,20 +5434,30 @@ describe("the course hub passage", () => {
   test("a deletion removes the calendar link, the notes shared with a group and the notes written for a group's other facilitators", () => {
     assert.ok(
       hubPassageOf("<strong>Deleting your account.</strong>").includes(
-        " your places on programmes, your work and the feedback on it, the notes and ratings about you and those you gave, a conduct flag, your survey links and your name on your survey answers,",
+        " your places on programmes, your work and the feedback on it, the notes and ratings about you, the ratings you gave, the notes you wrote for a group&apos;s other facilitators, a conduct flag, your survey links and your name on your survey answers,",
       ),
       "the policy no longer says a deletion removes somebody's work, the notes they gave and their survey links",
     );
     const leaves = hubPassageOf("It leaves:");
     assert.ok(leaves.length > 200, "could not find what the policy says a deletion leaves");
-    for (const [what, named] of [
-      ["the calendar link", /calendar/i],
-      ["pairs for a session", /\bpair/i],
-      ["what was handed out, packs and cases", /\bpack|\bcase\b|pathway/i],
-      ["a week's work", /reflection|written answer|\bbox(?:es)?\b|progress|prediction/i],
-      ["the notes somebody shared or wrote for other facilitators", /\bnotes?\b/i],
+    // The one kind of note a deletion leaves: what somebody wrote about
+    // another person on a register. The register keeps it under the person it
+    // is about (`participantNotes`, a map from their account to the words,
+    // with no writer), and the cascade takes out only the deleted person's
+    // own key, so a writer's deletion cannot find what they wrote.
+    const REGISTER_NOTES = " notes you wrote about somebody on a register, which records no writer;";
+    assert.ok(leaves.includes(REGISTER_NOTES), "the policy no longer says a deletion leaves the notes somebody wrote about another person on a register");
+    assert.match(read("src/lib/firestore/courseAttendance.ts"), /participantNotes: Record<string, string>;/, "a register's notes now record more than the words about each person");
+    const cascadeCode = withoutComments(read("src/lib/firestore/accountDeletion.ts"));
+    assert.match(cascadeCode, /new FieldPath\("participantNotes", uid\),/, "a deletion no longer takes the deleted person's own note out of every register");
+    for (const [what, named, text] of [
+      ["the calendar link", /calendar/i, leaves],
+      ["pairs for a session", /\bpair/i, leaves],
+      ["what was handed out, packs and cases", /\bpack|\bcase\b|pathway/i, leaves],
+      ["a week's work", /reflection|written answer|\bbox(?:es)?\b|progress|prediction/i, leaves],
+      ["the notes somebody shared or wrote for other facilitators", /\bnotes?\b/i, leaves.replace(REGISTER_NOTES, "")],
     ]) {
-      assert.ok(!named.test(leaves), `the policy now says a deletion leaves ${what}, which the code deletes`);
+      assert.ok(!named.test(text), `the policy now says a deletion leaves ${what}, which the code deletes`);
     }
     const cascade = withoutComments(read("src/lib/firestore/accountDeletion.ts"));
     for (const step of [
@@ -6408,7 +6455,7 @@ describe("the course hub passage", () => {
     const reachesRatings = /(?:\bfrom\s*|\bimport\s*\(\s*)"(?:@\/(?:lib|features)\/ratings|(?:\.{1,2}\/)+(?:[\w-]+\/)*ratings)[/"]/;
     assert.deepEqual(sourceFilesNaming(reachesRatings).filter((file) => file.startsWith("src/emails/")), [], "an email now reaches the ratings");
     // How long they are kept: "two years after its last session", and a
-    // deletion removes "the notes and ratings about you and those you gave".
+    // deletion removes "the notes and ratings about you, the ratings you gave".
     const job = withoutComments(read("src/lib/scheduler/jobs/surveyNamesOff.ts"));
     assert.match(job, /const off = twoYearsAfter\(sheet\.lastSessionOn\);\s*return off !== null && off <= today;/);
     assert.match(job, /const ratings = await deleteRunRatings\(db, sheet\.runId\);/);
@@ -6421,7 +6468,7 @@ describe("the course hub passage", () => {
     // What a deletion removes names them, held to the cascade's step below
     // (privacy pass 2).
     assert.ok(
-      hubPassageOf("<strong>Deleting your account.</strong>").includes(" the notes and ratings about you and those you gave,"),
+      hubPassageOf("<strong>Deleting your account.</strong>").includes(" the notes and ratings about you, the ratings you gave,"),
       "the policy no longer says a deletion removes the ratings somebody was given and gave",
     );
     // A copy of a person's data covers the ratings they were given: each one
@@ -7103,7 +7150,7 @@ describe("one person's answers, opened by an admin", () => {
   /** v15's words for who sees one person's answers, the record of each opening, and how long it is kept. */
   const BULLET = [
     "Only NAISI&apos;s admins can see who said what, and we record each time one of them does.",
-    "and of each time an admin opened an access-requirements answer, sealed predictions or survey answers;",
+    "We also record each time an admin opened an access-requirements answer, sealed predictions or survey answers,",
     "These record what staff did, not what you wrote, and are kept as long as we need them to look into problems and show we acted properly.",
     "the email log and suppression list; staff logs;",
   ];
@@ -7212,16 +7259,18 @@ describe("the last pass before version 7 goes live, held to v15", () => {
     /When a session is in pairs, the people in your pair see your first name and, where the week asks, whether you are bringing a laptop\. They see nothing else about you\./,
     /each decision made about an application, the record of each time an admin opened somebody&apos;s sealed predictions or survey answers, and the record of the five downloads the site logs\./,
   ];
-  /** The versions an application keeps, which v15 says, and which a changed week after decision day joins. */
-  const FREE = "When you send again with something different, we keep the version before, up to ten earlier versions in all, deleted with your application.";
-  /** v15 says change counts only on Send: not true of a changed week after decision day (reported). */
-  const FREE_REPORTED = "A change counts only when you press Send again; until then the people reading your application see what you last sent.";
+  /** A changed week after decision day: counts at once, until the group is told, keeping the version it replaces. */
+  const FREE = "Once you hold a place on a fellowship, a change to when you are free counts at once, until we tell you your group, and we keep the version it replaces.";
+  /** The rule it is the exception to, said just before it. */
+  const SEND_AGAIN = "A change counts only when you press Send again; until then the people reading your application see what you last sent. Once you hold a place on a fellowship,";
   /** The class of email the reminder to say when you are free is: it answers the person's own application. */
   const REMIND = "Some answer something you did, such as a sign-up&apos;s confirmation, an application&apos;s receipt or a decision.";
-  const DRAFT = "Until you send it, the people who read it see only that you have started, never what it says.";
+  const DRAFT = "A written answer is yours until you send it: until then they see only that you have started it, never what it says,";
+  /** Reflections and boxes have no Send: what is saved is what their readers read. */
+  const AS_TYPED = "<strong>Changing your work.</strong> Your reflections and the boxes you fill in save as you type, and the people who read your work can read them as you write.";
   const PAIRS = "When a session is in pairs, your partner sees your first name and whether you are bringing a laptop.";
   const OPENINGS = [
-    "a record of the spreadsheets staff download that hold the most about people (who asked, what it covered, how many people were in it and when), and of each time an admin opened an access-requirements answer, sealed predictions or survey answers; and a log of decisions on applications.",
+    "We also record each time an admin opened an access-requirements answer, sealed predictions or survey answers, and keep a log of decisions on applications.",
     "These record what staff did, not what you wrote, and are kept as long as we need them to look into problems and show we acted properly.",
     "the email log and suppression list; staff logs;",
   ];
@@ -7265,10 +7314,10 @@ describe("the last pass before version 7 goes live, held to v15", () => {
 
   test("when you are free changes from decision day, for a fellowship's place, until the group is emailed, at once and keeping the version it replaces", () => {
     says(FREE);
-    // REPORTED: v15 says a change counts only when you press Send again, and a
-    // changed week after decision day counts at once (`changeSentAvailability`
-    // below writes what was sent). The code is held as it is.
-    says(FREE_REPORTED);
+    // The exception to "A change counts only when you press Send again", said
+    // straight after it: `changeSentAvailability` below writes what was sent,
+    // for a fellowship's place, until Publish has told the person their group.
+    says(SEND_AGAIN);
     const whenFree = withoutComments(read("src/lib/applications/status/whenFree.ts"));
     // A place, read from the person's own application; a fellowship's; shut once Publish has told them their group.
     assert.match(whenFree, /const standing = standingOf\(application\);\s*if \(standing\.kind !== "place" \|\| !standing\.programmeId\) return \{ open: false, why: "no-place" \};/);
@@ -7295,7 +7344,7 @@ describe("the last pass before version 7 goes live, held to v15", () => {
       sourceFilesNaming(/\bchangeSentAvailability\(/).filter((file) => file !== "src/lib/applications/applicant/store.ts"),
       new Map([["src/lib/applications/status/whenFree.ts", "the rule for changing when you are free after decision day, asked by the person's own route"]]),
       "changing a sent application's week",
-      "Somebody holding a place on a fellowship changes when they are free from decision day until their group is emailed, which v14 said and v15 leaves out. A new writer checks the policy first.",
+      "The policy says somebody holding a place on a fellowship changes when they are free at once, until they are told their group. A new writer changes that sentence first.",
     );
   });
 
@@ -7335,7 +7384,19 @@ describe("the last pass before version 7 goes live, held to v15", () => {
   test("a written answer saves as it is typed, and until it is sent its other readers see only that it has been started", () => {
     says(DRAFT);
     // v15 takes back part of this: if the week locks before somebody sends it, its readers may read it. Not built yet.
-    says("If your week locks before you send it, they may then read what you wrote.");
+    says("never what it says, and if your week locks before you send it, they may then read what you wrote.");
+    // Reflections and the boxes to fill in have no Send at all: each card
+    // saves as it is typed, a reflection is stored as never sent, and the
+    // group's page reads every saved reflection with no sent mark asked for.
+    says(AS_TYPED);
+    for (const card of ["src/features/courses/weekBlocks/ReflectStop.tsx", "src/features/courses/weekBlocks/FillInCard.tsx"]) {
+      assert.match(read(card), /const saver = useDebouncedWrite\(/, `${card} no longer saves as it is typed`);
+    }
+    const reflection = withoutComments(read("src/app/api/courses/runs/[runId]/reflections/[promptId]/route.ts"));
+    assert.match(reflection, /submittedAt: null,/, "a reflection now has a Send, so the policy's 'save as you type' and 'read as you write' need a look");
+    const groupWeek = withoutComments(read("src/lib/courses/facilitatorWeek/readers.ts"));
+    assert.match(groupWeek, /if \(!isReflectionResponse\(data\) \|\| data\.runId !== runId\) continue;/);
+    assert.doesNotMatch(groupWeek, /submittedAt/, "the group's page now reads only reflections that were sent, which the policy says it reads as written");
     // Saved without a Send: the words are written whatever the press, and only a Send stamps the first-sent time.
     const route = withoutComments(read("src/app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts"));
     assert.match(route, /\} else \{\s*write\.text = text;/);
@@ -7463,7 +7524,22 @@ describe("the re-consent gate", () => {
     // changes told on the site and by email first. v14 said when somebody is
     // asked ("the next time you open the member area, or your collaborator
     // space"); v15 does not, and the walk below still holds where.
-    assert.ok(PAGE_FLAT.includes("You were asked to accept this version; we will not ask you to accept later ones."));
+    assert.ok(
+      PAGE_FLAT.includes(
+        "You were asked to accept this version. If you decline it, you are signed out, and you can email us to have your account removed. We will not ask you to accept later versions.",
+      ),
+    );
+    // Declining, as the accept page does it: a member presses "I don't
+    // accept" and is signed out, and the page says to email us to delete the
+    // account; the route refuses a member's own deletion and says to email us.
+    const actions = withoutComments(read("src/app/re-consent/ReConsentActions.tsx"));
+    assert.match(actions, /async function signOutOnly\(\) \{\s*setBusy\("decline"\);\s*try \{\s*await signOut\(\);/);
+    assert.match(actions, /\{isMember \? \(\s*<Button variant="secondary" onClick=\{signOutOnly\} disabled=\{busy !== null\}>/);
+    assert.match(actions, /If you don&apos;t accept, you&apos;ll be signed out\. To delete your\s+account, email\{" "\}/);
+    assert.match(
+      withoutComments(read("src/app/api/account/reconsent/route.ts")),
+      /if \(isMember\) \{\s*return NextResponse\.json\(\s*\{\s*error:\s*"Your account has a member profile, so it can't be self-deleted here\. You've been signed out; email ai-safety@uonsu\.com to have it removed\.",/,
+    );
     assert.ok(
       PAGE_FLAT.includes(
         "If a change affects how we use your information (a new use, a new outside service, or keeping something longer), we tell you on the site and by email before it takes effect, saying what changed.",
@@ -7502,7 +7578,7 @@ describe("the re-consent gate", () => {
       [
         "that it is arranged by use and the last version anybody is asked to accept",
         "This policy is now arranged by what we use your information for, and it is the last version you&apos;ll be asked to accept: from now on, if a change affects how we use your information, we&apos;ll tell you on the site and by email before it takes effect.",
-        "You were asked to accept this version; we will not ask you to accept later ones.",
+        "You were asked to accept this version. If you decline it, you are signed out, and you can email us to have your account removed. We will not ask you to accept later versions.",
       ],
       [
         "the team's ratings of written work, never shown",
@@ -7527,7 +7603,7 @@ describe("the re-consent gate", () => {
       [
         "work read once a week locks",
         "and if your week locks before you send your work, the people running your group may read what you wrote.",
-        "If your week locks before you send it, they may then read what you wrote.",
+        "never what it says, and if your week locks before you send it, they may then read what you wrote.",
       ],
       [
         "Claude on coursework, surveys and reports, and the weekly note",
@@ -7782,7 +7858,7 @@ describe("the access-requirements read log", () => {
       PAGE_FLAT.includes("It is stored apart from your application, it is never scored, and it is never shown to reviewers or to a programme&apos;s lead. Only admins can open it, one application at a time, and we record each time one does."),
       "the policy no longer says only admins open an access-requirements answer and each opening is recorded",
     );
-    assert.ok(PAGE_FLAT.includes("and of each time an admin opened an access-requirements answer, sealed predictions or survey answers;"));
+    assert.ok(PAGE_FLAT.includes("We also record each time an admin opened an access-requirements answer, sealed predictions or survey answers,"));
     const notice = read("src/features/admissions/ApplicationPrivacyNotice.tsx");
     assert.match(notice.replace(/\s+/g, " "), /We record each time one of them/i);
   });
