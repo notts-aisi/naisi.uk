@@ -39,9 +39,12 @@ import {
  * the whole body: a handler that spread it and added a sibling key would have
  * moved the "what may this viewer see" decision out of the one function that
  * makes it, and the next payload to copy the shape may be a reviewer's.
- * Reviewers never call this route: they receive
- * `conductFlagForQueue(flag, false)`, a boolean and nothing else, inside the
- * queue payload their own route builds.
+ * Reviewers never call this route, and no payload a reviewer or a member is
+ * served carries a flag at all: only admins see a flag and its reason, as the
+ * privacy policy and the control both say, and
+ * `tests/member-conduct-flag.test.mjs` lists every file that reads one.
+ * `conductFlagForQueue(flag, false)`, a boolean and nothing else, is the only
+ * shape such a payload could take if that were ever decided.
  *
  * ## What is retained, and what is not
  *

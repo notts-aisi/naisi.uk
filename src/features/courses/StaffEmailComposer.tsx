@@ -28,16 +28,20 @@ import styles from "./StaffEmailComposer.module.css";
  *     group the count is the roster route's active members; for a run it is the
  *     number of rows on the cohort channel, counted by the page's server shell,
  *     and stated as "up to N" because opt-outs and suppression are applied
- *     later, server-side, and can only make it smaller. When the count is
- *     unknown the real send is BLOCKED rather than sent with a hedge — a
- *     confirm dialog whose number is a guess is worse than no confirm at all.
+ *     later, server-side, and can only make it smaller. An important notice
+ *     reaches everybody holding a place whatever they unsubscribed from, so it
+ *     is not counted off the channel at all: the shell counts it with the send
+ *     route's own notice audience, and the number is stated as it is. When the
+ *     count is unknown the real send is BLOCKED rather than sent with a hedge:
+ *     a confirm dialog whose number is a guess is worse than no confirm at all.
  *     The test send stays available, because it reaches nobody but the author.
  *  2. WHAT ACTUALLY WENT OUT, after the fact. The routes report `sent` and
- *     `skipped`; both are shown. "Skipped" covers the suppression list —
- *     addresses that have bounced or been marked as spam — plus, on the run
- *     lane, everyone who has turned course announcements off. Folding those
- *     into a cheerful "sent to everyone" would quietly hide the one thing a
- *     facilitator needs to know about a member who never hears from them.
+ *     `skipped`; both are shown. "Skipped" covers the suppression list
+ *     (addresses that have bounced or been marked as spam), plus, on the run's
+ *     announcement lane, everyone who has turned course announcements off.
+ *     Folding those into a cheerful "sent to everyone" would quietly hide the
+ *     one thing a facilitator needs to know about a member who never hears
+ *     from them.
  *  3. THAT IT HAS NOT ALREADY GONE — see the next block, which is the whole
  *     reason this component holds state at all.
  *
@@ -116,6 +120,15 @@ export type StaffEmailAudience =
        * see claim 1 in the header.
        */
       subscriberCount: number | null;
+      /**
+       * Who an important notice reaches: everybody holding a place on the run
+       * whose group has gone out, whatever they unsubscribed from, less the
+       * addresses that bounced. Counted server-side by the page shell with the
+       * function the send route resolves a notice with, so it is not a bound
+       * but the number. Null when it could not be taken, which BLOCKS the
+       * notice exactly as an unknown `subscriberCount` blocks the announcement.
+       */
+      noticeCount: number | null;
     };
 
 type Props = {
@@ -158,12 +171,11 @@ type SendOutcome =
       sent: number;
       skipped: number;
       /**
-       * Notice lane only: ACTIVE members of the run who are off the cohort list
-       * because they unsubscribed, so the send could not reach them at all.
-       * They are not in `skipped` (they were never candidates), and without
-       * this number nothing on this screen would say they exist.
+       * Whether it went as an important notice. A notice reads nobody's
+       * course announcements switch, so the report must not name that switch
+       * among the reasons somebody was skipped.
        */
-      unreachable?: number;
+      notice: boolean;
     }
   /** The route answered with a sentence: nothing was sent. */
   | { state: "refused"; message: string }
@@ -261,29 +273,52 @@ function laneCopy(
   }
 
   const label = audience.runLabel || "this cohort";
+  const endpoint = `/api/courses/runs/${encodeURIComponent(runId)}/email`;
+
+  // THE NOTICE reaches everybody holding a place on the run whose group has
+  // gone out, whatever they unsubscribed from: unsubscribing from a cohort's
+  // emails stops its optional mail, never a notice. `count` here is the page
+  // shell's `noticeCount`, the number the send route will reach, not a bound.
+  if (asNotice) {
+    return {
+      endpoint,
+      noun: "the cohort",
+      blockedLine: `We couldn't count who holds a place on ${label}, so we can't tell you how many people this would reach. Sending is off until we can.`,
+      retryHint: "Reload the page to try the count again.",
+      emptyLine: `There is nobody on ${label} to send a notice to yet. A notice reaches everyone holding a place once their group has gone out.`,
+      audienceLine: `This emails ${count === null ? "everyone" : people(count)} holding a place on ${label} whose group has gone out, whatever they unsubscribed from.`,
+      audienceNote: (
+        <>
+          One message each, signed with your name: nobody sees who else it went
+          to. This is an IMPORTANT NOTICE, so it reaches everyone holding a place
+          on the run whose group has gone out, whatever they unsubscribed from
+          and whatever their notification settings say, by email and by
+          notification on any device they have set up, and it carries no
+          unsubscribe link because there is nothing here to switch off. Bounced
+          and spam-marked addresses are still skipped, and the report after the
+          send says how many. One send reaches at most {RUN_RECIPIENT_CAP} people;
+          past that it is refused rather than trimmed.{" "}
+          <Link className={styles.inlineLink} href={runHref}>
+            Back to the course
+          </Link>
+        </>
+      ),
+      sendLabel: count === null ? "Send as an important notice" : `Send to ${people(count)} as an important notice`,
+      confirmAria: `Send this notice to everyone holding a place on ${label}`,
+      confirmTitle: "Send as an important notice?",
+      confirmBody: `This reaches ${count === null ? "everyone" : people(count)} holding a place on ${label} whose group has gone out, whatever they unsubscribed from and whatever their notification settings say, by email and by notification, with the subject:`,
+    };
+  }
+
   const upTo = count === null ? "" : ` — up to ${people(count)}`;
   return {
-    endpoint: `/api/courses/runs/${encodeURIComponent(runId)}/email`,
+    endpoint,
     noun: "the cohort",
     blockedLine: `We couldn't count who is subscribed to ${label}'s cohort channel, so we can't tell you how many people this would reach. Sending is off until we can.`,
     retryHint: "Reload the page to try the count again.",
     emptyLine: `Nobody is subscribed to ${label}'s cohort channel yet, so there is nobody to email. Members are subscribed when they're placed in a group.`,
     audienceLine: `This goes to everyone subscribed to the cohort channel for ${label}${upTo}.`,
-    audienceNote: asNotice ? (
-      <>
-        One message each, signed with your name: nobody sees who else it went
-        to. This is an IMPORTANT NOTICE, so it reaches everyone on the cohort
-        list whatever their notification settings say, by email and by
-        notification on any device they have set up, and it carries no
-        unsubscribe link because there is nothing here to switch off. Bounced
-        and spam-marked addresses are still skipped, and the report after the
-        send says how many. One send reaches at most {RUN_RECIPIENT_CAP} people;
-        past that it is refused rather than trimmed.{" "}
-        <Link className={styles.inlineLink} href={runHref}>
-          Back to the course
-        </Link>
-      </>
-    ) : (
+    audienceNote: (
       <>
         One message each, signed with your name — nobody sees who else it went
         to. This is an ANNOUNCEMENT: every message carries an unsubscribe link
@@ -301,12 +336,10 @@ function laneCopy(
         </Link>
       </>
     ),
-    sendLabel: asNotice ? "Send as an important notice" : "Send to the cohort",
+    sendLabel: "Send to the cohort",
     confirmAria: `Send this announcement to the ${label} cohort`,
-    confirmTitle: asNotice ? "Send as an important notice?" : "Send to the cohort?",
-    confirmBody: asNotice
-      ? `This reaches everyone on the cohort list for ${label}${upTo} whatever their notification settings say, by email and by notification, with the subject:`
-      : `This emails everyone subscribed to the cohort channel for ${label}${upTo}, with the subject:`,
+    confirmTitle: "Send to the cohort?",
+    confirmBody: `This emails everyone subscribed to the cohort channel for ${label}${upTo}, with the subject:`,
   };
 }
 
@@ -351,8 +384,14 @@ export default function StaffEmailComposer({ runId, audience }: Props) {
   const signature = signatureOf(subject, body);
   const written = subject.trim().length > 0 && body.trim().length > 0;
 
-  // Null is "we do not know", which is NOT zero — see the module header.
-  const count = audience.kind === "group" ? roster.memberCount : audience.subscriberCount;
+  // Null is "we do not know", which is NOT zero: see the module header. The
+  // run lane counts two audiences, and the tick says which one this send is.
+  const count =
+    audience.kind === "group"
+      ? roster.memberCount
+      : asNotice
+        ? audience.noticeCount
+        : audience.subscriberCount;
   const countKnown = count !== null;
   const countLoading = audience.kind === "group" ? roster.loading : false;
   const countError = audience.kind === "group" ? (roster.error?.message ?? null) : null;
@@ -383,6 +422,11 @@ export default function StaffEmailComposer({ runId, audience }: Props) {
     record({ signature: attemptSignature, outcome: { state: "pending" } });
     if (!testOnly) setClearedForResend(null);
     setBusy(true);
+    // Only the run lane has a notice lane, and a test send is never one (it
+    // reaches the author's own address, so nobody's settings were bypassed).
+    // The route enforces both; this keeps the payload honest about what was
+    // asked for, and the report honest about what went.
+    const sentAsNotice = audience.kind === "run" && asNotice && !testOnly;
 
     void runAction(
       async () => {
@@ -395,11 +439,7 @@ export default function StaffEmailComposer({ runId, audience }: Props) {
               subject: subject.trim(),
               body: body.trim(),
               testOnly,
-              // Only the run lane has a notice lane, and a test send is never
-              // one (it reaches the author's own address, so nobody's settings
-              // were bypassed). The route enforces both; this keeps the payload
-              // honest about what was asked for.
-              asNotice: audience.kind === "run" && asNotice && !testOnly,
+              asNotice: sentAsNotice,
             }),
           });
         } catch (err) {
@@ -419,7 +459,6 @@ export default function StaffEmailComposer({ runId, audience }: Props) {
               ok?: true;
               sent?: number;
               skipped?: number;
-              unreachable?: number;
               error?: string;
             }
           | null;
@@ -431,8 +470,7 @@ export default function StaffEmailComposer({ runId, audience }: Props) {
               state: "done",
               sent: payload.sent ?? 0,
               skipped: payload.skipped ?? 0,
-              unreachable:
-                typeof payload.unreachable === "number" ? payload.unreachable : undefined,
+              notice: sentAsNotice,
             },
           });
           return;
@@ -552,12 +590,10 @@ export default function StaffEmailComposer({ runId, audience }: Props) {
               disabled={busy}
               label="Send as an important notice"
               description={
-                "It reaches everyone on the cohort list whatever their " +
-                "notification settings, by email and by notification. Somebody " +
-                "who unsubscribed from this cohort's emails is not on the list " +
-                "and is not reached; the report after the send says how many " +
-                "that is. Use it for something they need to know, not for a " +
-                "reminder."
+                "It reaches everyone holding a place on the run whose group has " +
+                "gone out, whatever they unsubscribed from and whatever their " +
+                "notification settings, by email and by notification. Use it for " +
+                "something they need to know, not for a reminder."
               }
             />
           </div>
@@ -641,14 +677,11 @@ export default function StaffEmailComposer({ runId, audience }: Props) {
                 Sent to {people(sendAttempt.outcome.sent)}.{" "}
                 {sendAttempt.outcome.skipped > 0
                   ? `${sendAttempt.outcome.skipped} skipped: a suppressed address (one that has bounced or been marked as spam before), an account with no usable address${
-                      audience.kind === "run"
+                      audience.kind === "run" && !sendAttempt.outcome.notice
                         ? ", someone who has turned course announcements off"
                         : ""
                     }, or a send that failed. Nothing reached those people — worth following up another way.`
                   : "Nobody was skipped."}{" "}
-                {sendAttempt.outcome.unreachable
-                  ? `${people(sendAttempt.outcome.unreachable)} on this run could not be reached at all: they have unsubscribed from this cohort's emails, so they are not on the list this send goes to. Reach them another way if it matters. `
-                  : ""}
                 Sending is not the same as arriving: this says what left, not what
                 landed.
               </p>

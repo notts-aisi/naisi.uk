@@ -697,10 +697,10 @@ const REGISTRY = {
     "The notification beside the room notice. A room change on a lock screen an hour before the session is the whole point of that lane.",
   ),
   "src/app/api/courses/runs/[runId]/email/route.ts#sendNotice": N(
-    "The run composer's second lane, taken when the sender ticks `send as an important notice`. Same gate, same enrolment re-verification, same cap; the audience keeps the members whose courses row is a stored false.",
+    "The run composer's second lane, taken when the sender ticks `send as an important notice`. Same gate and same cap; the audience is everybody holding a place on the run whose group has gone out (`resolveNoticeAudience`), whatever they unsubscribed from and whatever their courses row says.",
   ),
   "src/app/api/courses/runs/[runId]/updates/route.ts#sendNotice": N(
-    "An update's email (Q18): a programme's lead, an admin or a group's facilitator writing to everyone on the run, one group or its facilitators about the programme they are on, the update also kept on the programme page. It goes whatever the courses row says, with the marker, through the cohort list and the suppression list. Email only: no push leg.",
+    "An update's email (Q18): a programme's lead, an admin or a group's facilitator writing to everyone on the run, one group or its facilitators about the programme they are on, the update also kept on the programme page. It goes to everybody holding a place in its audience whose group has gone out (`resolveNoticeAudience`), whatever they unsubscribed from and whatever the courses row says, with the marker, through the suppression list. Email only: no push leg.",
   ),
   "src/app/api/courses/runs/[runId]/updates/route.ts#sendEmail": T(
     "\"Send a test to me\" on the update composer: the update's own email, marked [TEST], to the address on the presser's own account and nobody else. Nobody's preference is passed over and nothing is posted, so it is no notice.",

@@ -495,6 +495,19 @@ The same shape, older:
   is tracked, and that the root holds only the listed documents and dot
   folders. It walks every tracked file, and each of its lists is checked in
   both directions.
+- `tests/clock-times-printed.test.mjs`: a time of day is printed in the
+  house's clock ("6pm", "Mondays 6pm to 8pm"), never as the stored "18:00".
+  It reads every file under `src` with the compiler's parser and fails on
+  `startTimeLocal` or `endTimeLocal` put straight into a template literal,
+  JSX text, a concatenation or an attribute somebody reads, unless `ALLOWED`
+  lists the place with how often and why nobody reads it as a time (a sort
+  key, an id, a stored label compared byte for byte). Both directions, and
+  the formatter and the scanner are executed.
+- `tests/member-conduct-flag.test.mjs` holds who reads a conduct flag:
+  `FLAG_READERS` lists every file under `src` that names the collection,
+  either projection, the route or the control, each in the admin area, both
+  ways, because the control and the privacy policy both say only admins see a
+  flag and its reason.
 
 ### Settings that are not files
 

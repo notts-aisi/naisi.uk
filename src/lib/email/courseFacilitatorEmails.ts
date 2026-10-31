@@ -11,6 +11,7 @@ import {
   courseEnrolmentId,
   normalizeCourseEnrolment,
   placementIsTold,
+  type CourseEnrolmentRole,
 } from "@/lib/firestore/courseEnrolments";
 import {
   courseRunChannel,
@@ -20,7 +21,7 @@ import {
 import { newBlockId, type Block } from "@/lib/firestore/newsletterBlocks";
 import {
   findRecipientsForChannel,
-  findUnsubscribedOnChannel,
+  findRowsOnChannel,
 } from "@/lib/firestore/subscriptions";
 import { filterSuppressed } from "@/lib/firestore/suppression";
 import { sendNotice } from "./notice";
@@ -31,10 +32,10 @@ import { sendEmail } from "./send";
  * P9 email routes (`/api/courses/groups/[groupId]/email`,
  * `/api/courses/runs/[runId]/email`) and P11's weekly nudge
  * (`/api/courses/runs/[runId]/nudge`). Templates, payload validation, the
- * durable send throttle, the run-staff gate and the cohort audience derivation
- * live together because the routes must agree on all of them; route handlers
- * don't import from one another by house convention, so this module is where
- * they meet.
+ * durable send throttle, the run-staff gate, the cohort audience derivation and
+ * the notice audience beside it live together because the routes must agree on
+ * all of them; route handlers don't import from one another by house
+ * convention, so this module is where they meet.
  *
  * ── WHO MAY SEND AND WHO RECEIVES ARE DEFINED ONCE, HERE ────────────────────
  * `gateRunStaff` and `resolveCohortAudience` were previously written out twice,
@@ -340,7 +341,11 @@ export type CohortRecipient = {
 };
 
 export type CohortAudience = {
-  /** Deliverable: deduped, enrolment-verified, opt-out honoured, unsuppressed. */
+  /**
+   * Deliverable: deduped, enrolment-verified, unsuppressed, and on the cohort
+   * audience with the courses row's opt-out honoured. A notice's audience
+   * (`resolveNoticeAudience`) honours no opt-out.
+   */
   members: CohortRecipient[];
   /** Everyone dropped along the way. Counts only, never addresses. */
   skipped: number;
@@ -379,26 +384,13 @@ export type CohortAudienceLane = {
  * The subscription half of the audience is unchanged: the channel is still the
  * run's, because that is the row an unsubscribe link flips. Only the enrolment
  * half narrows.
+ *
+ * A notice narrows the same way, through `resolveNoticeAudience` below, which
+ * takes the same scope.
  */
 export type CohortAudienceScope = {
   /** Keep only members whose active enrolment names this group. */
   groupId?: string | null;
-  /**
-   * KEEP THE MEMBERS WHO HAVE TURNED COURSE ANNOUNCEMENTS OFF.
-   *
-   * The `courses` row is the opt-out layered on the cohort subscription, and by
-   * default this resolver honours it: a stored `false` skips a recipient before
-   * a message is rendered. The run composer's NOTICE lane sets this, and it is
-   * the only caller that may: a notice is a person responsible for a cohort
-   * addressing that cohort about something they signed up for, and the whole
-   * point of the class is that it reaches them whatever their grid says.
-   *
-   * It changes ONLY the preference filter. The enrolment re-verification, the
-   * guest-row drop, the recipient cap and the suppression list all still apply,
-   * because none of those is a preference: a notice may bypass what somebody
-   * chose, never who they are or whether their address bounces.
-   */
-  ignoreCategoryOptOut?: boolean;
 };
 
 /** Hard ceiling per request. Beyond this a send FAILS — see below. */
@@ -422,6 +414,12 @@ export const MAX_COHORT_CHANNEL_ROWS = 500;
  *  · The ENROLMENT is what makes the audience TRUE. A subscription row alone is
  *    not a membership claim, so each candidate is checked against an active
  *    enrolment here, whatever wrote the row.
+ *
+ * THIS IS THE OPTIONAL MAIL'S AUDIENCE: the announcement lane, the weekly
+ * nudge and next week's email, each of which a member can switch off with the
+ * unsubscribe link at its foot or the courses row on /profile. A NOTICE does
+ * not come through here. It reaches everybody holding a place whatever they
+ * unsubscribed from, and `resolveNoticeAudience` below is its audience.
  *
  * GUEST ROWS ARE DROPPED, not merely unverified. An enrolment is uid-keyed, so a
  * guest row can never hold one, and no legitimate producer writes one.
@@ -459,7 +457,6 @@ export async function resolveCohortAudience(
 ): Promise<CohortAudience> {
   const channel = courseRunChannel(runId);
   const onlyGroupId = scope.groupId ?? null;
-  const ignoreOptOut = scope.ignoreCategoryOptOut === true;
   let skipped = 0;
   /**
    * Enrolled on the run, active, and in ANOTHER group. Counted apart from
@@ -629,7 +626,7 @@ export async function resolveCohortAudience(
       skipped += 1;
       continue;
     }
-    if (!ignoreOptOut && hasOptedOutOfCourseAnnouncements(data)) {
+    if (hasOptedOutOfCourseAnnouncements(data)) {
       optedOut += 1;
       skipped += 1;
       continue;
@@ -666,58 +663,228 @@ export async function resolveCohortAudience(
   };
 }
 
+// ---------------------------------------------------------------------------
+// The notice audience: everybody holding a place, whatever they unsubscribed from
+// ---------------------------------------------------------------------------
+
 /**
- * HOW MANY OF THIS RUN'S ACTIVE MEMBERS A COHORT SEND CANNOT REACH.
- *
- * `resolveCohortAudience` is the subscription channel INTERSECTED with active
- * enrolments, and that first half is deliberate: the unsubscribe link in an
- * announcement flips the row, so an enrolment-derived audience would re-mail
- * everyone who clicked it. The consequence is that a member who unsubscribed is
- * not in the audience, is not in `skipped`, and leaves no trace in the report at
- * all: the sender reads "sent to 24" and cannot tell whether the cohort is 24
- * or 30.
- *
- * That is a gap the notice lane feels hardest, because its whole promise is
- * reach, so this counts the gap and the composer prints it. It does NOT close
- * it: widening the notice lane's audience past an unsubscribe is a consent
- * decision, not a defect fix, and it belongs to whoever owns the consent story
- * rather than to this function.
- *
- * TWO READS. The unsubscribed rows on the channel (equality-only, no index
- * owed), then one addressed `getAll` over their deterministic enrolment ids,
- * because the rows also include people who LEFT the run (the remove route
- * unsubscribes them), and reporting those as unreachable members would be a
- * different wrong number.
+ * The enrolment roles a notice reaches, which are the roles a cohort row is
+ * ever written for. The enrol route, allocation publish and reinstate are the
+ * only writers of a `cohort:<runId>` row, and each writes one for a learner's
+ * place alone: a facilitator's own enrolment has no group, so Publish never
+ * tells it anything, and reinstate refuses one. So the cohort list could only
+ * ever hold learners, and the notice audience keeps exactly that set. It
+ * matters because `placementIsTold` answers true for a facilitator's own row
+ * from the moment it is written: without this, a notice to everyone would
+ * reach every facilitator who holds no place on the run.
  */
-export async function countCohortUnreachable(
+const NOTICE_ROLES: readonly CourseEnrolmentRole[] = ["learner"];
+
+/**
+ * Sanity ceiling on the enrolment read, above the recipient cap on purpose, as
+ * `MAX_COHORT_CHANNEL_ROWS` is on the channel read: it bounds a read, it does
+ * not size a cohort. Exceeding it FAILS the request.
+ */
+export const MAX_NOTICE_ENROLMENT_ROWS = 500;
+
+/**
+ * WHO A NOTICE TO A RUN REACHES: everybody holding a place on it whose group
+ * has gone out, whatever they unsubscribed from.
+ *
+ * A CONSENT DECISION, AND IT IS MADE (Zach, Sat 31 Oct 2026): unsubscribing
+ * from a run's emails stops its OPTIONAL mail (the announcement lane, the
+ * weekly nudge, next week's email), and a notice is not optional mail. It is
+ * the people running the programme telling the people on it something they
+ * need in order to take part. So the audience is derived from the run's
+ * ACTIVE enrolments, never from the cohort list, and an unsubscribed row on
+ * that list removes nobody. The courses row on /profile is not read either,
+ * as no notice reads one. The unsubscribe page says so to whoever clicks.
+ *
+ * Everything that is not a preference still applies, exactly as it did when a
+ * notice went through the cohort list:
+ *
+ *  · THE SAME PEOPLE. An active enrolment on this run, in a role the cohort
+ *    list could ever hold (`NOTICE_ROLES`), whose placement Publish has told
+ *    (`placementIsTold`): somebody placed and not told yet hears about their
+ *    group from Publish first. Somebody who left is not active, and is nobody
+ *    to write to.
+ *  · THE SAME GROUP NARROWING, above the cap, as `CohortAudienceScope` says.
+ *  · THE SAME CAP. Over `MAX_COHORT_RECIPIENTS` the send is REFUSED whole,
+ *    never truncated, counted on the people in scope before anything else is
+ *    read.
+ *  · THE SAME ADDRESS. The address on their cohort row when they have one,
+ *    on the list or not, because that is where the run has always written to
+ *    them (a row on the list first, which is the one the old audience used).
+ *    With no row, their account's own address by the group email route's
+ *    rule (`ownAddressFor`, as `deliveryAddressFor` there).
+ *  · DEDUPED by address, SUPPRESSION applied. A bounce or a complaint is a
+ *    fact about an address, not a choice, and a notice bypasses choices only.
+ *
+ * Returns the cohort audience's shape, so a caller swaps one for the other.
+ * Counts only ever reach the logs, never an address.
+ */
+export async function resolveNoticeAudience(
   db: Firestore,
   runId: string,
-): Promise<number> {
-  const rows = await findUnsubscribedOnChannel(db, courseRunChannel(runId));
-  const uids = [
-    ...new Set(
-      rows
-        .filter((r) => r.audience === "user" && r.audienceId)
-        .map((r) => r.audienceId),
-    ),
-  ];
-  if (uids.length === 0) return 0;
-  // Bounded by the same ceiling the audience read carries: a count for a report
-  // is not worth an unbounded `getAll`. If it ever bites, the number printed is
-  // a floor, which is the safe direction for "people you did not reach".
-  const capped = uids.slice(0, MAX_COHORT_CHANNEL_ROWS);
-  const docs = await db.getAll(
-    ...capped.map((uid) =>
-      db.collection("courseEnrolments").doc(courseEnrolmentId(runId, uid)),
-    ),
-  );
-  let unreachable = 0;
-  for (const doc of docs) {
-    if (!doc.exists) continue;
-    const enrolment = normalizeCourseEnrolment(doc.id, doc.data() ?? {});
-    if (enrolment.status === "active" && enrolment.runId === runId) unreachable += 1;
+  lane: CohortAudienceLane,
+  scope: CohortAudienceScope = {},
+): Promise<CohortAudience> {
+  const onlyGroupId = scope.groupId ?? null;
+  const gmailOnly = process.env.EMAIL_GMAIL_ONLY_MODE === "true";
+
+  // The run's active places, narrowed to the group when there is one. Equality
+  // only, so no composite index is owed. Read whole and then judged, as the
+  // channel read is: over the ceiling the send is refused, never read in part.
+  let places = db
+    .collection("courseEnrolments")
+    .where("runId", "==", runId)
+    .where("status", "==", "active");
+  if (onlyGroupId) places = places.where("groupId", "==", onlyGroupId);
+  const placeSnap = await places.get();
+  if (placeSnap.docs.length > MAX_NOTICE_ENROLMENT_ROWS) {
+    console.error(`[${lane.logTag}] enrolment read exceeds ceiling`, runId, placeSnap.docs.length);
+    return {
+      members: [],
+      skipped: 0,
+      enrolledCount: 0,
+      refusal:
+        "This run has more places than a single send can handle. Nothing was sent. " +
+        "Raise it with an admin.",
+    };
   }
-  return unreachable;
+
+  /** Placed, and not told their group yet: Publish tells them first. */
+  let notYetTold = 0;
+  const inScope: Array<{ uid: string; groupId: string | null }> = [];
+  for (const doc of placeSnap.docs) {
+    const enrolment = normalizeCourseEnrolment(doc.id, doc.data() ?? {});
+    // Re-read off the document rather than trusted from the query, and held to
+    // the id it lives at: a row that disagrees with its own id is not one to
+    // mail on, as in the cohort audience.
+    if (
+      enrolment.runId !== runId ||
+      enrolment.status !== "active" ||
+      !enrolment.uid ||
+      doc.id !== courseEnrolmentId(runId, enrolment.uid)
+    ) {
+      continue;
+    }
+    if (!NOTICE_ROLES.includes(enrolment.role)) continue;
+    if (onlyGroupId && enrolment.groupId !== onlyGroupId) continue;
+    if (!placementIsTold(enrolment)) {
+      notYetTold += 1;
+      continue;
+    }
+    inScope.push({ uid: enrolment.uid, groupId: enrolment.groupId });
+  }
+  if (notYetTold > 0) {
+    // Counts only, never addresses.
+    console.log(`[${lane.logTag}] placed and not yet told their group, left out`, runId, notYetTold);
+  }
+
+  // REFUSE, don't truncate, counted on the people in scope before any address
+  // is read: a statement about the run (or the group), as the cohort cap is.
+  if (inScope.length > MAX_COHORT_RECIPIENTS) {
+    return {
+      members: [],
+      skipped: 0,
+      enrolledCount: inScope.length,
+      refusal:
+        `This run has ${inScope.length} people holding a place, over the ${MAX_COHORT_RECIPIENTS}-person ` +
+        `limit for a single send. Nothing was sent: ${lane.overCapAdvice} or raise it with an admin.`,
+    };
+  }
+  if (inScope.length === 0) {
+    return { members: [], skipped: 0, enrolledCount: 0, refusal: null };
+  }
+
+  // The address each person's cohort row holds, whatever its state. A row on
+  // the list wins over one that is not, and the first of either in the read's
+  // order wins, which is the row the cohort audience would have used.
+  const rows = await findRowsOnChannel(db, courseRunChannel(runId));
+  if (rows.length > MAX_COHORT_CHANNEL_ROWS) {
+    console.error(`[${lane.logTag}] channel row count exceeds ceiling`, runId, rows.length);
+    return {
+      members: [],
+      skipped: 0,
+      enrolledCount: inScope.length,
+      refusal:
+        "This cohort's list is larger than a single send can handle. Nothing was sent. " +
+        "Raise it with an admin.",
+    };
+  }
+  const wanted = new Set(inScope.map((place) => place.uid));
+  const listedAddress = new Map<string, string>();
+  const anyAddress = new Map<string, string>();
+  for (const row of rows) {
+    if (row.audience !== "user" || !wanted.has(row.audienceId)) continue;
+    const address = typeof row.email === "string" ? row.email.trim() : "";
+    if (!address) continue;
+    if (row.onTheList && !listedAddress.has(row.audienceId)) listedAddress.set(row.audienceId, address);
+    if (!anyAddress.has(row.audienceId)) anyAddress.set(row.audienceId, address);
+  }
+
+  // Names, and the account's own address for somebody with no row.
+  const userDocs = await db.getAll(...inScope.map((place) => db.collection("users").doc(place.uid)));
+  const dataByUid = new Map<string, Record<string, unknown>>();
+  for (const doc of userDocs) {
+    if (doc.exists) dataByUid.set(doc.id, doc.data() ?? {});
+  }
+
+  let skipped = 0;
+  const candidates: CohortRecipient[] = [];
+  for (const place of inScope) {
+    const data = dataByUid.get(place.uid);
+    if (!data) {
+      // A place whose account is gone. Skip rather than mail an address we can
+      // no longer attribute to a member.
+      skipped += 1;
+      continue;
+    }
+    const address =
+      listedAddress.get(place.uid) ?? anyAddress.get(place.uid) ?? ownAddressFor(data, null, gmailOnly);
+    if (!address) {
+      skipped += 1;
+      continue;
+    }
+    const ownName = memberNameOf(data);
+    candidates.push({
+      uid: place.uid,
+      address,
+      recipientName: ownName || COURSE_MEMBER_PLACEHOLDER,
+      ownName,
+      groupId: place.groupId,
+    });
+  }
+
+  // In address order, the order the cohort list's rows are read in (their ids
+  // are made from the address), so who is sent first, and which of two people
+  // sharing an inbox it goes to, does not hang on how the places happen to be
+  // stored. Then one message per inbox, as the cohort audience dedupes.
+  const byCode = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+  candidates.sort((a, b) => byCode(a.address.toLowerCase(), b.address.toLowerCase()) || byCode(a.uid, b.uid));
+  const seenAddress = new Set<string>();
+  const members: CohortRecipient[] = [];
+  for (const candidate of candidates) {
+    const addressKey = candidate.address.toLowerCase();
+    if (seenAddress.has(addressKey)) {
+      skipped += 1;
+      continue;
+    }
+    seenAddress.add(addressKey);
+    members.push(candidate);
+  }
+
+  if (members.length === 0) {
+    return { members, skipped, enrolledCount: inScope.length, refusal: null };
+  }
+  const { deliverable, dropped } = await dropSuppressed(db, members);
+  return {
+    members: deliverable,
+    skipped: skipped + dropped,
+    enrolledCount: inScope.length,
+    refusal: null,
+  };
 }
 
 // ---------------------------------------------------------------------------

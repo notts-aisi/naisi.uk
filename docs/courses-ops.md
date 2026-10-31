@@ -1741,11 +1741,13 @@ and one route, `/api/courses/runs/[runId]/updates`.
 ### The email
 
 - A notice (docs/notifications.md): it reaches each person whatever their
-  course email switch says, and says so at its top. To everyone and to a
-  group it goes to the run's cohort list, so somebody who unsubscribed from
-  that list reads the update on the site and is not emailed; to the
-  facilitators it goes to each one's own address. The suppression list
-  always applies.
+  course email switch says and whatever they unsubscribed from, and says so
+  at its top. To everyone and to a group it goes to everybody holding a place
+  there whose group has gone out (`resolveNoticeAudience`), at the address
+  their cohort row holds or else their account's own, so somebody who
+  unsubscribed from the run's cohort list is emailed it as well as reading it
+  on the site; to the facilitators it goes to each one's own address. The
+  suppression list always applies.
 - The number on the switch and the button is the number the press emails.
   If it has changed by the time of the press, the press is refused with the
   new number and nothing is posted.

@@ -1096,6 +1096,12 @@ const USERS = new Map([
       "through and a copy of its regular expression would prove nothing; nothing is stubbed",
   ],
   [
+    "clock-times-printed.test.mjs",
+    "it executes `clockWords` and `slotRangeWords` (src/lib/courses/sessionChange/words.ts), the house's " +
+      "clock every printed time of day goes through, as a table of stored times and what each prints, " +
+      "because the guard beside it only says where a time is printed and not what it says; nothing is stubbed",
+  ],
+  [
     "course-hub-times-counting.test.mjs",
     "executes the times picture's counting (src/lib/applications/handover/times.ts), the one " +
       "reading of a painted week the allocation board shares (paintedWeek.ts) and the page's " +

@@ -19,6 +19,7 @@ import { inLastWeek } from "@/lib/courses/programmeEnd";
 import { whatsNextFor, type WhatsNext } from "@/lib/courses/whatsNext";
 import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
 import { cardChangeFacts } from "@/lib/courses/sessionChange/model";
+import { slotRangeWords } from "@/lib/courses/sessionChange/words";
 import type { GroupCampus } from "@/lib/courses/campus";
 import { weekOneDoorFor, type PlaceBeforeGroups } from "@/lib/courses/weekOne/door";
 import { groupsGoOutDay, weekOneOpenWords } from "@/lib/courses/groupsGoOut";
@@ -302,7 +303,7 @@ export type OverviewGroup = {
    * resolved through it. See the module header.
    */
   calendar: OverviewGroupCalendar;
-  /** e.g. "Tuesdays 18:00–19:30"; empty when the slot isn't set up yet. */
+  /** e.g. "Tuesdays 6pm to 7:30pm"; empty when the slot isn't set up yet. */
   sessionLabel: string;
   /** 0 = Sunday .. 6 = Saturday (JS `Date.getDay()` convention). */
   weekday: number;
@@ -702,37 +703,13 @@ const MAX_OWN_ATTENDANCE_SESSIONS = 90;
  */
 const MAX_OWN_ANSWER_ROWS = 600;
 
-/** Index = `GroupSession.weekday` (`Date.getDay()`, 0 = Sunday). */
-const WEEKDAY_NAMES = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
-
-function endTimeLabel(start: string, minutes: number): string | null {
-  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(start);
-  if (!m || minutes <= 0) return null;
-  const total = (Number(m[1]) * 60 + Number(m[2]) + minutes) % 1440;
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
-
 /**
- * "Tuesdays 18:00–19:30" — byte-for-byte the label the apply page, the
- * admissions queue and the allocation board render, so a member reads the same
- * string everywhere their slot appears. Deliberately duplicated: route
- * handlers don't import from one another (the plan's integration checklist
- * owns the eventual shared extraction). The format is the contract; change all
- * copies together.
+ * "Tuesdays 6pm to 7:30pm", in the house's clock: what a member's card falls
+ * back to when it has no session of its own to name. The group page sends the
+ * same label for its own card, through the same `slotRangeWords`.
  */
 function sessionLabel(session: GroupSession): string {
-  const day = WEEKDAY_NAMES[session.weekday];
-  if (!day || !session.startTimeLocal) return "";
-  const end = endTimeLabel(session.startTimeLocal, session.durationMinutes);
-  return `${day}s ${session.startTimeLocal}${end ? `–${end}` : ""}`;
+  return slotRangeWords(session.weekday, session.startTimeLocal, session.durationMinutes);
 }
 
 /**

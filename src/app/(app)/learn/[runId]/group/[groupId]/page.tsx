@@ -47,7 +47,7 @@ import {
 } from "@/lib/courses/facilitatorPageWords";
 import { readGroupNotes } from "@/lib/courses/groupNotes/readers";
 import { sessionEyebrow, weekOfWords } from "@/lib/courses/memberPageWords";
-import { CHANGE_A_SESSION, slotWords } from "@/lib/courses/sessionChange/words";
+import { CHANGE_A_SESSION, slotRangeWords, slotWords } from "@/lib/courses/sessionChange/words";
 import { updateAudienceCounts } from "@/lib/courses/updates/audience";
 import { loadRunGroups, loadUpdatesFor, narrowToGroup, updateReadingOf } from "@/lib/courses/updates/readers";
 import { staffUpdateRows } from "@/lib/courses/updates/views";
@@ -156,39 +156,16 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
 export const dynamic = "force-dynamic";
 
 // ---------------------------------------------------------------------------
-// Session label (duplicated on purpose: see below)
+// Session label
 // ---------------------------------------------------------------------------
 
-/** Index = `GroupSession.weekday` (`Date.getDay()`, 0 = Sunday). */
-const WEEKDAY_NAMES = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
-
-function endTimeLabel(start: string, minutes: number): string | null {
-  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(start);
-  if (!m || minutes <= 0) return null;
-  const total = (Number(m[1]) * 60 + Number(m[2]) + minutes) % 1440;
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
-
 /**
- * "Tuesdays 18:00–19:30" — byte-for-byte the label the overview route, the
- * apply page, the admissions queue and the allocation board render, so a slot
- * reads the same everywhere it appears. Deliberately duplicated (the plan's
- * integration checklist owns the eventual shared extraction). The format is
- * the contract; change all copies together.
+ * "Tuesdays 6pm to 7:30pm", the label the overview route sends for the same
+ * group, so a facilitator's own card reads as their members' cards do. Both
+ * ask `slotRangeWords`, the house's clock.
  */
 function sessionLabel(session: GroupSession): string {
-  const day = WEEKDAY_NAMES[session.weekday];
-  if (!day || !session.startTimeLocal) return "";
-  const end = endTimeLabel(session.startTimeLocal, session.durationMinutes);
-  return `${day}s ${session.startTimeLocal}${end ? `–${end}` : ""}`;
+  return slotRangeWords(session.weekday, session.startTimeLocal, session.durationMinutes);
 }
 
 // ---------------------------------------------------------------------------

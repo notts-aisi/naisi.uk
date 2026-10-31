@@ -243,13 +243,25 @@ describe("1. for the lead and an admin", () => {
     assert.ok(!drawn.reads.includes("courseRuns"));
   });
 
-  test("Overview is a link in the tabs for the lead and admins, and drawn but not a link for a reviewer", () => {
+  test("Overview is a link in the tabs for the lead and admins, and not drawn for a reviewer", () => {
     const base = PAGE_PATH;
     const open = renderToStaticMarkup(createElement(ProgrammeTabs, { base, applications: 6, groups: 4, canEdit: true, groupsOpen: true }));
     assert.match(open, new RegExp(`<a href="${base}/overview"[^>]*aria-current="page">Overview</a>`));
     const shut = renderToStaticMarkup(createElement(ProgrammeTabs, { base, applications: 6, groups: 4, canEdit: false, groupsOpen: false }));
     assert.ok(!shut.includes(`${base}/overview`));
-    assert.match(shut, /<span[^>]*aria-disabled="true"[^>]*>Overview<\/span>/);
+    // Applications alone for a reviewer: no Overview, no Interest (never
+    // built), and no tab drawn that is not a link.
+    assert.doesNotMatch(shut, />Overview<|Interest|<span[^>]*aria-disabled/);
+    assert.deepEqual([...shut.matchAll(/<a href="[^"]*\/([a-z]+)"/g)].map((m) => m[1]), ["applications"]);
+    // With Settings for somebody who can open it, whose other tabs are shut.
+    const settingsOnly = renderToStaticMarkup(createElement(ProgrammeTabs, { base, applications: 6, groups: 4, canEdit: true, groupsOpen: false }));
+    assert.deepEqual([...settingsOnly.matchAll(/<a href="[^"]*\/([a-z]+)"/g)].map((m) => m[1]), ["applications", "setup"]);
+    // And the lead's whole row, in order, with no Interest tab.
+    assert.deepEqual(
+      [...open.matchAll(/<a href="[^"]*\/([a-z]+)"/g)].map((m) => m[1]),
+      ["overview", "applications", "people", "groups", "weeks", "attendance", "coursework", "messages", "surveys", "setup"],
+    );
+    assert.doesNotMatch(open, /Interest|<span[^>]*aria-disabled/);
   });
 });
 

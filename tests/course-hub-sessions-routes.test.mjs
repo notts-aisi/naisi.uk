@@ -172,12 +172,18 @@ describe("1. who may change a session of Group B", () => {
 // 2 and 3. Each kind, end to end
 // ---------------------------------------------------------------------------
 
-/** The one message the update's email sent, which must be to Amara alone. */
+/**
+ * The update's email to Group B, which must reach Amara and Ines and nobody
+ * else: the group's two emailable people (Ines unsubscribed from the cohort
+ * list, and an update is a notice, so it reaches her all the same; Omar's
+ * address is stopped). One message each, the same email; Amara's is returned.
+ */
 function onlyEmail() {
-  assert.equal(world.mail.length, 1, `expected one email, got ${world.mail.map((m) => m.to).join(", ")}`);
-  const [message] = world.mail;
-  assert.equal(message.to, "amara@example.com", "Group B's one emailable person, and nobody else");
-  return message;
+  const to = world.mail.map((m) => m.to).sort();
+  assert.deepEqual(to, ["amara@example.com", "ines@example.com"], `expected Group B's two, got ${to.join(", ")}`);
+  const [first, second] = world.mail;
+  assert.equal(first.subject, second.subject);
+  return world.mail.find((m) => m.to === "amara@example.com");
 }
 
 describe("2. cancel it, and keep pace", () => {
@@ -190,7 +196,7 @@ describe("2. cancel it, and keep pace", () => {
       groupId: B,
       title: "Tue 24 Nov’s session is cancelled",
       message: "Rahul and Sofia are both away. Week 4’s reading stays open.",
-      emailCount: 1,
+      emailCount: 2,
     });
 
     const after = world.db.read(`courseGroups/${B}`);
@@ -212,7 +218,7 @@ describe("2. cancel it, and keep pace", () => {
     assert.deepEqual(model.coveredWeeks(sessionsOf(), weekOf(5)), [4, 5]);
 
     // The update went through the updates lane: kept for Group B and emailed
-    // to the one person in it the cohort list reaches.
+    // to the two people in it who can be emailed, whatever they unsubscribed from.
     assert.equal(told.status, 200, JSON.stringify(told.body));
     const [update] = w.stored();
     assert.equal(update.to, "group");
@@ -296,7 +302,7 @@ describe("2. hold it online", () => {
       groupId: B,
       title: "Tue 8 Dec’s session is online",
       message: "Rahul and Sofia are both away. Same day and time. The link to join is on your programme page, not in your emails.",
-      emailCount: 1,
+      emailCount: 2,
     });
     const stored = world.db.read(`courseGroups/${B}`);
     assert.equal(stored.sessionModes.w06, "virtual");
@@ -390,7 +396,7 @@ describe("2. hold it as usual", () => {
       groupId: B,
       title: "Week 4’s session is back to usual",
       message: "Sofia can make it after all. It’s on Tue 24 Nov at 6pm in Hallward B12.",
-      emailCount: 1,
+      emailCount: 2,
     });
     const stored = world.db.read(`courseGroups/${B}`);
     assert.deepEqual(stored.sessionChanges, {});
@@ -458,7 +464,7 @@ describe("4. every refusal comes before the write", () => {
     const response = await ask.change("claudia", B, { ...CANCEL, reason: AWAY, tell: true, emailCount: 7 });
     assert.deepEqual(
       [response.status, response.body.error, response.body.emails],
-      [409, "The number of people this emails has changed to 1. Check it, then press again.", 1],
+      [409, "The number of people this emails has changed to 2. Check it, then press again.", 2],
     );
     assert.equal(everything(), before);
     assert.equal(world.mail.length, 0);
@@ -474,14 +480,14 @@ describe("4. every refusal comes before the write", () => {
   });
 
   test("the route itself never sends, even with Tell the group on", async () => {
-    const response = await ask.change("claudia", B, { ...CANCEL, reason: AWAY, tell: true, emailCount: 1 });
+    const response = await ask.change("claudia", B, { ...CANCEL, reason: AWAY, tell: true, emailCount: 2 });
     assert.equal(response.status, 200);
     assert.equal(world.mail.length, 0, "the email goes through the updates route, never this one");
     assert.equal(w.stored().length, 0, "the update is posted by the updates route, never this one");
   });
 
   test("answers field by field: the change and the update's words, nothing of the group", async () => {
-    const response = await ask.change("claudia", B, { ...CANCEL, reason: AWAY, tell: true, emailCount: 1 });
+    const response = await ask.change("claudia", B, { ...CANCEL, reason: AWAY, tell: true, emailCount: 2 });
     assert.deepEqual(Object.keys(response.body).sort(), ["change", "ok", "update"]);
     assert.deepEqual(Object.keys(response.body.change).sort(), ["dateKey", "kind", "newDateKey", "weekNumber"]);
     assert.deepEqual(Object.keys(response.body.update).sort(), ["emailCount", "groupId", "message", "title"]);
@@ -528,8 +534,10 @@ describe("the update reaches Group B's people and nobody else", () => {
     world.db.poke(`courseGroups/${B}`, { "session.meetingUrl": LINK });
     await press("claudia", B, CANCEL);
     const to = world.mail.map((message) => message.to).sort();
-    assert.deepEqual(to, ["amara@example.com"]);
-    for (const uid of ["bea", "tariq", "dev", "nina", "ines", "omar", "rahul", "sofia", "tom"]) {
+    // Ines is in Group B and unsubscribed from the cohort list: a notice still
+    // reaches her. Omar is in it too, and his address is stopped.
+    assert.deepEqual(to, ["amara@example.com", "ines@example.com"]);
+    for (const uid of ["bea", "tariq", "dev", "nina", "omar", "rahul", "sofia", "tom"]) {
       assert.ok(!to.includes(`${uid}@example.com`), `${uid} was emailed`);
     }
     // And the run's other runs and groups have nothing new.

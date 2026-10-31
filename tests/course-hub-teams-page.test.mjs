@@ -250,13 +250,16 @@ describe("the programme's head", () => {
     // CHANGED ON PURPOSE (board sv-programme): Surveys sits between Messages
     // and Settings. CHANGED ON PURPOSE (Zach, Fri 30 Oct): Coursework sits
     // between Attendance and Messages.
-    assert.match(lead.text, /Overview Interest Applications 0 People 0 Groups 2 Teams 2 Weeks 7 Attendance Coursework Messages Surveys Settings/);
+    // CHANGED ON PURPOSE (Zach, Sat 31 Oct): no Interest tab, which was never built.
+    assert.match(lead.text, /Overview Applications 0 People 0 Groups 2 Teams 2 Weeks 7 Attendance Coursework Messages Surveys Settings/);
   });
 
-  test("a reviewer sees the tab drawn and not a link", async () => {
+  test("a reviewer is drawn no Teams tab, linked or not", async () => {
     const reviewer = await draw("yusuf", INCUBATOR, Layout);
-    assert.match(reviewer.html, /<span class="tab tabPending" aria-disabled="true" title="Not built yet">Teams<span class="tabCount">0<\/span><\/span>/);
     assert.ok(!reviewer.html.includes(`/programmes/${INCUBATOR}/teams"`));
+    // The tab row is Applications alone, and every tab in it is a link.
+    const nav = /<nav class="tabs" aria-label="Sections">([\s\S]*?)<\/nav>/.exec(reviewer.html)?.[1] ?? "";
+    assert.deepEqual([...nav.matchAll(/<(a|span)\b[^>]*class="tab[ "][^>]*>([A-Za-z]+)/g)].map((m) => [m[1], m[2]]), [["a", "Applications"]]);
   });
 
   test("no Teams by without the setting, and no Teams tab for a fellowship", async () => {

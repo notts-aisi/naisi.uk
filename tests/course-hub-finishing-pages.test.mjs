@@ -281,7 +281,7 @@ describe("4. the line under the programme's name", () => {
   // en-finish v21 says "stayed to the end" where v19 said "took part": the
   // same count, which leaves out everybody who left.
   test("once the last session is over: Finished with its day, and how many stayed to the end", async () => {
-    assert.match(await head("claudia"), /AGI Strategy Fellowship Finished · Wed 9 Dec C Lead: Claudia · 10 stayed to the end (Overview|Interest)/);
+    assert.match(await head("claudia"), /AGI Strategy Fellowship Finished · Wed 9 Dec C Lead: Claudia · 10 stayed to the end Overview/);
     assert.match(await head("zach"), /Finished · Wed 9 Dec C Lead: Claudia · 11 stayed to the end/);
   });
 

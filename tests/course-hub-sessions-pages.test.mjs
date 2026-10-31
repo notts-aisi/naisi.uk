@@ -282,11 +282,13 @@ describe("1. the Sessions view is the lead's and an admin's", () => {
           "Week 4’s reading stays open. On Tue 1 Dec the group talks about weeks 4 and 5 together, and still finishes on Tue 8 Dec.",
         push: "Group B’s last session would move to Tue 15 Dec.",
         restore: null,
+        // Amara, and Ines, who unsubscribed from the cohort list: an update is
+        // a notice. Omar's address is stopped.
         tell: {
           people: 3,
-          emails: 1,
+          emails: 2,
           refused: false,
-          line: "Emails 1 of the 3 people in Group B and puts an update on their programme page.",
+          line: "Emails 2 of the 3 people in Group B and puts an update on their programme page.",
         },
         whoCan: "Rahul, Sofia, Claudia, Yusuf and admins can change a session.",
         dateKey: TUE_24,
@@ -369,9 +371,9 @@ describe("2. the dialog draws the board's words", () => {
       "Cancel it, and keep pace Week 4’s reading stays open. On Tue 1 Dec the group talks about weeks 4 and 5 together, and still finishes on Tue 8 Dec.",
       "Cancel it, and push the rest back a week Group B’s last session would move to Tue 15 Dec.",
       "Reason (the group sees this)",
-      "Tell the group Emails 1 of the 3 people in Group B and puts an update on their programme page.",
+      "Tell the group Emails 2 of the 3 people in Group B and puts an update on their programme page.",
       "Change Tue 24 Nov’s session",
-      "Emails 1 person",
+      "Emails 2 people",
       "Keep it",
       "Rahul, Sofia, Claudia, Yusuf and admins can change a session.",
     ]) {
@@ -638,7 +640,7 @@ describe("4. what the group's people read after each kind of change", () => {
       id: B,
       name: "Group B",
       calendar: { currentWeek: null, nextSession: null },
-      sessionLabel: "Tuesdays 18:00\u201320:00",
+      sessionLabel: "Tuesdays 6pm to 8pm",
       weekday: 2,
       startTimeLocal: "18:00",
       durationMinutes: 120,
@@ -678,13 +680,13 @@ describe("5. the room notice never carries the meeting link", () => {
   test("its online wording says where the link is, and a link handed to it anyway is not read", () => {
     const online = roomNotice.prefillFor({
       weekLabel: "Week 6",
-      slotLabel: "Mondays 18:00\u201320:00",
+      slotLabel: "Mondays 6pm to 8pm",
       mode: "virtual",
       location: "Hallward B12",
     });
     assert.equal(
       online,
-      "Week 6: we're meeting online this week rather than in person. The link to join is on your programme page, not in your emails. We're still meeting Mondays 18:00\u201320:00.",
+      "Week 6: we're meeting online this week rather than in person. The link to join is on your programme page, not in your emails. We're still meeting Mondays 6pm to 8pm.",
     );
     const handed = roomNotice.prefillFor({ weekLabel: "Week 6", slotLabel: "", mode: "virtual", location: "", meetingUrl: LINK });
     assert.ok(!handed.includes(LINK), handed);
@@ -700,7 +702,7 @@ describe("5. the room notice never carries the meeting link", () => {
         groupId: B,
         groupName: "Group B",
         groupHref: GROUP_PATH(B),
-        session: { weekLabel: "Week 6", slotLabel: "Tuesdays 18:00\u201320:00", mode: "virtual", location: "Hallward B12" },
+        session: { weekLabel: "Week 6", slotLabel: "Tuesdays 6pm to 8pm", mode: "virtual", location: "Hallward B12" },
       }),
     );
     const said = text(html);

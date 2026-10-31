@@ -7,54 +7,39 @@ import styles from "./ProgrammeFrame.module.css";
 /**
  * The tabs across one programme's pages.
  *
- * Seven are drawn, because that is the programme's whole shape. Only the ones
- * whose pages exist are links: Applications, Settings, and Groups and
- * Attendance for an admin and the programme's lead. The others are drawn the
- * same and are not links, so nobody is sent to a page that is not there, and
- * they say so to assistive technology.
+ * Only tabs whose pages the person can open are drawn, and every tab drawn is
+ * a link, so nobody is shown a tab that leads nowhere.
  *
- * Settings is left out for somebody who cannot open it: a reviewer reads and
- * scores, and the settings are the lead's.
+ * For an admin and the programme's lead (`groupsOpen`, which is
+ * `opensProgrammeGroups`), every tab the programme has:
  *
- * Groups and Attendance are links for an admin and the programme's lead
- * (`opensProgrammeGroups`), and are drawn like the tabs not built yet for a
- * reviewer: they show the people holding a place by name, in their groups,
- * when they are free and in the registers. Their pages refuse anybody else
- * on their own.
+ *  - Overview, the run's week, sessions and registers, which says so when the
+ *    programme names no run yet.
+ *  - Applications.
+ *  - People: everyone who holds a place or gave it back, by name, with their
+ *    replies. Its count is how many hold a place now (`countPlaceHolders`,
+ *    the test its own rows ask), given only once decisions have gone out.
+ *  - Groups, and an incubator's Teams after it (`teams`, with how many teams
+ *    its run has). A fellowship has no Teams tab.
+ *  - Weeks, where the run's weeks are written and marked ready. Its count is
+ *    how many weeks the run's plan has.
+ *  - Attendance, then Coursework (Zach, Fri 30 Oct): what everybody holding a
+ *    place has written, week by week, by name.
+ *  - Messages, where updates are written to the people taking part.
+ *  - Surveys: the programme's surveys in totals and comments, never a name,
+ *    with Ratings and the anonymous form's answers linked from it.
  *
- * People, after Applications (board st-people), is a link on the same terms:
- * everyone who holds a place or gave it back, by name, with their replies.
- * Its count is how many hold a place now (`countPlaceHolders`, the test its
- * own rows ask), given only to the two who open it, and only once decisions
- * have gone out. Overview, the run's week, sessions and registers, is a link
- * for the same two, and says so when the programme names no run yet.
+ * For a reviewer, Applications alone. A reviewer reads and scores, and every
+ * other tab shows the people holding a place by name, or is the lead's to
+ * run, so their pages refuse anybody else on their own as well.
  *
- * Messages, where updates are written to the people taking part, is a link
- * for the same two, by the same answer, and its page refuses anybody else.
- *
- * An incubator has a Teams tab after Groups (`teams`, with how many teams its
- * run has), a link on the same terms as Groups. A fellowship has none.
- *
- * Weeks (board pr-weeks), between Groups (and an incubator's Teams) and
- * Attendance, is a link on the same terms, where the run's weeks are written
- * and marked ready. Its count is how many weeks the run's plan has, given
- * only to the two who open it.
- *
- * Coursework (Zach, Fri 30 Oct), after Attendance, is a link on the same
- * terms: what everybody holding a place has written, week by week, by name.
- * It is drawn like the tabs not built yet for a reviewer, and its page
- * refuses anybody else on its own.
- *
- * Surveys (board sv-programme), between Messages and Settings, is a link on
- * the same terms: the programme's surveys in totals and comments, never a
- * name, with Ratings and the anonymous form's answers linked from it. It is
- * drawn like the tabs not built yet for a reviewer, and its page refuses
- * anybody else on its own.
+ * Settings is drawn last for somebody who can open it (`canEdit`), and left
+ * out for somebody who cannot: the settings are the lead's.
  */
 
 type Tab = {
-  /** The route segment under the programme, for the tabs that have a page. */
-  segment: "overview" | "applications" | "people" | "groups" | "teams" | "weeks" | "attendance" | "coursework" | "messages" | "surveys" | "setup" | null;
+  /** The route segment under the programme. */
+  segment: "overview" | "applications" | "people" | "groups" | "teams" | "weeks" | "attendance" | "coursework" | "messages" | "surveys" | "setup";
   label: string;
   count?: number | null;
 };
@@ -78,7 +63,7 @@ export default function ProgrammeTabs({
   groups: number | null;
   /** True for the programme's lead and for an admin. */
   canEdit: boolean;
-  /** True for an admin and the programme's lead: Overview, Groups, Teams, Attendance, Coursework, Messages and Surveys are links. */
+  /** True for an admin and the programme's lead: every tab is drawn. False for a reviewer: Applications alone. */
   groupsOpen: boolean;
   /** An incubator's Teams tab, with how many teams its run has; null for a fellowship. */
   teams?: { count: number | null } | null;
@@ -86,19 +71,21 @@ export default function ProgrammeTabs({
   weeks?: number | null;
 }) {
   const active = useSelectedLayoutSegment();
-  const tabs: Tab[] = [
-    { segment: groupsOpen ? "overview" : null, label: "Overview" },
-    { segment: null, label: "Interest" },
-    { segment: "applications", label: "Applications", count: applications },
-    { segment: groupsOpen ? "people" : null, label: "People", count: groupsOpen ? people : null },
-    { segment: groupsOpen ? "groups" : null, label: "Groups", count: groups },
-    ...(teams ? [{ segment: groupsOpen ? ("teams" as const) : null, label: "Teams", count: teams.count }] : []),
-    { segment: groupsOpen ? "weeks" : null, label: "Weeks", count: groupsOpen ? weeks : null },
-    { segment: groupsOpen ? "attendance" : null, label: "Attendance" },
-    { segment: groupsOpen ? "coursework" : null, label: "Coursework" },
-    { segment: groupsOpen ? "messages" : null, label: "Messages" },
-    { segment: groupsOpen ? "surveys" : null, label: "Surveys" },
-  ];
+  const applicationsTab: Tab = { segment: "applications", label: "Applications", count: applications };
+  const tabs: Tab[] = groupsOpen
+    ? [
+        { segment: "overview", label: "Overview" },
+        applicationsTab,
+        { segment: "people", label: "People", count: people },
+        { segment: "groups", label: "Groups", count: groups },
+        ...(teams ? [{ segment: "teams" as const, label: "Teams", count: teams.count }] : []),
+        { segment: "weeks", label: "Weeks", count: weeks },
+        { segment: "attendance", label: "Attendance" },
+        { segment: "coursework", label: "Coursework" },
+        { segment: "messages", label: "Messages" },
+        { segment: "surveys", label: "Surveys" },
+      ]
+    : [applicationsTab];
   if (canEdit) tabs.push({ segment: "setup", label: "Settings" });
 
   return (
@@ -106,19 +93,6 @@ export default function ProgrammeTabs({
       {tabs.map((tab) => {
         const count =
           typeof tab.count === "number" ? <span className={styles.tabCount}>{tab.count}</span> : null;
-        if (!tab.segment) {
-          return (
-            <span
-              key={tab.label}
-              className={`${styles.tab} ${styles.tabPending}`}
-              aria-disabled="true"
-              title="Not built yet"
-            >
-              {tab.label}
-              {count}
-            </span>
-          );
-        }
         const current = active === tab.segment;
         return (
           <Link

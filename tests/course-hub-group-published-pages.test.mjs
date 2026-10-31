@@ -153,7 +153,7 @@ const GROUP_CARD = {
       meetingUrl: null,
     },
   },
-  sessionLabel: "Mondays 18:00\u201319:30",
+  sessionLabel: "Mondays 6pm to 7:30pm",
   weekday: 1,
   startTimeLocal: "18:00",
   durationMinutes: 90,

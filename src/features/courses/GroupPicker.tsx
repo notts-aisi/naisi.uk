@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import ResponsiveSelect from "@/components/ui/ResponsiveSelect";
 import { useAuth } from "@/auth/AuthProvider";
+import { slotRangeWords } from "@/lib/courses/sessionChange/words";
 import type { GroupPickerOption } from "./fetchGroupPicker";
 import type { EnrolStatePayload, MyEnrolmentSummary } from
   "@/app/api/courses/runs/[runId]/enrol/route";
@@ -61,39 +62,14 @@ type Props = {
   nextPath: string;
 };
 
-const WEEKDAYS = [
-  "Sundays",
-  "Mondays",
-  "Tuesdays",
-  "Wednesdays",
-  "Thursdays",
-  "Fridays",
-  "Saturdays",
-];
-
 /**
- * "18:00" + 90 -> "19:30". Wall-clock arithmetic for a display label only.
- *
- * Deliberately local rather than imported: the server-side twin lives in
- * `fetchCourses.ts`, which is `server-only`, and nothing about a weekday name
- * plus two zero-padded times is timezone-sensitive. Real instants come from
- * `londonWallClockToInstant()` in `lib/courses/weekPlan.ts`; nothing here
- * reasons about DST because nothing here reasons about a date.
+ * "Tuesdays 6pm to 7:30pm": a slot in the house's clock (`slotRangeWords`).
+ * A wall-clock label only: nothing here reasons about a date, so nothing here
+ * reasons about DST. Real instants come from `londonWallClockToInstant()` in
+ * `lib/courses/weekPlan.ts`.
  */
-function endTimeLabel(start: string, minutes: number): string | null {
-  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(start);
-  if (!m || minutes <= 0) return null;
-  const total = (Number(m[1]) * 60 + Number(m[2]) + minutes) % 1440;
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
-
 function slotLabel(group: GroupPickerOption): string {
-  const day = WEEKDAYS[group.weekday] ?? "";
-  const end = endTimeLabel(group.startTimeLocal, group.durationMinutes);
-  const time = end
-    ? `${group.startTimeLocal} to ${end}`
-    : group.startTimeLocal;
-  return day ? `${day} ${time}` : time;
+  return slotRangeWords(group.weekday, group.startTimeLocal, group.durationMinutes);
 }
 
 function seatsLabel(group: GroupPickerOption): string {

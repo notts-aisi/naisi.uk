@@ -721,8 +721,8 @@ in a sentence.
 
 Each programme's tabs have **Surveys**, between Messages and Settings
 (`/admin/admissions/forms/<form>/programmes/<programme>/surveys`), a link for
-the programme's lead and admins and drawn like a tab not built yet for a
-reviewer. Board sv-programme, with Q41 (no floors) and Q49 A (as answers come
+the programme's lead and admins and not drawn for a reviewer, whose tabs are
+Applications alone. Board sv-programme, with Q41 (no floors) and Q49 A (as answers come
 in). The page asks `loadProgrammeRun` before it reads any survey; the admin
 area is closed during a view-as session, and the page writes nothing.
 

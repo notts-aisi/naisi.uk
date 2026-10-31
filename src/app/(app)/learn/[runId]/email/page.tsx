@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import type { CSSProperties } from "react";
 import StaffEmailComposer from "@/features/courses/StaffEmailComposer";
 import { getRunAccess, getSessionUser } from "@/features/courses/runAccess";
+import { resolveNoticeAudience } from "@/lib/email/courseFacilitatorEmails";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { courseRunChannel } from "@/lib/firestore/courses";
 import { findRecipientsForChannel } from "@/lib/firestore/subscriptions";
@@ -52,9 +53,21 @@ import { findRecipientsForChannel } from "@/lib/firestore/subscriptions";
  * cannot over-report by any other route, so "up to N" is the honest claim.
  * A failed count passes `null`, which BLOCKS the real send rather than
  * guessing — the same thing an unloadable roster does on the group lane.
+ *
+ * The composer's "important notice" tick is counted apart, because a notice
+ * is not sent to the channel: it reaches everybody holding a place whose group
+ * has gone out, whatever they unsubscribed from. That number is taken with
+ * `resolveNoticeAudience`, the function the send route resolves a notice with,
+ * and it crosses as a bare number too.
  */
 
 export const dynamic = "force-dynamic";
+
+/** The notice count's log tag, and the over-the-cap advice nobody here reads. */
+const NOTICE_COUNT_LANE = {
+  logTag: "courses run email page",
+  overCapAdvice: "email each group from its own page",
+} as const;
 
 // ---------------------------------------------------------------------------
 // Page chrome
@@ -126,6 +139,13 @@ export default async function RunEmailPage({
    * throwing, so nothing that could redirect may sit inside this try.
    */
   let subscriberCount: number | null = null;
+  /**
+   * Who an important notice reaches, worked out by the function the send route
+   * resolves a notice with, so the number on its button is the send's. Over the
+   * cap it is the number holding a place, which the composer's note and then
+   * the route's refusal both say is too many for one send.
+   */
+  let noticeCount: number | null = null;
   const db = getAdminDb();
   if (db) {
     try {
@@ -133,6 +153,18 @@ export default async function RunEmailPage({
       subscriberCount = rows.length;
     } catch (err) {
       console.error("[courses run email page] channel count failed", runId, err);
+    }
+    try {
+      const notice = await resolveNoticeAudience(db, runId, NOTICE_COUNT_LANE);
+      // A refusal that counted nobody (a run past the read's ceiling) is a
+      // number we cannot vouch for, so it blocks the notice as a failed count does.
+      noticeCount = !notice.refusal
+        ? notice.members.length
+        : notice.enrolledCount > 0
+          ? notice.enrolledCount
+          : null;
+    } catch (err) {
+      console.error("[courses run email page] notice count failed", runId, err);
     }
   }
 
@@ -159,7 +191,7 @@ export default async function RunEmailPage({
 
       <StaffEmailComposer
         runId={runId}
-        audience={{ kind: "run", runLabel, subscriberCount }}
+        audience={{ kind: "run", runLabel, subscriberCount, noticeCount }}
       />
     </div>
   );

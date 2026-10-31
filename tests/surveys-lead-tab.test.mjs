@@ -352,7 +352,7 @@ describe("1. who opens the tab", () => {
     }
   });
 
-  test("the tab bar: Surveys between Messages and Settings, a link for the lead and admins, and not a link for a reviewer", () => {
+  test("the tab bar: Surveys between Messages and Settings, a link for the lead and admins, and not drawn for a reviewer", () => {
     const drawn = (open) =>
       renderToStaticMarkup(createElement(ProgrammeTabs, { base: BASE, applications: 5, groups: 4, canEdit: open, groupsOpen: open }));
     globalThis.__surveysLeadTabBar.segment = "surveys";
@@ -360,7 +360,8 @@ describe("1. who opens the tab", () => {
     assert.match(textOf(drawn(true)), /Attendance Coursework Messages Surveys Settings$/);
     assert.match(drawn(true), new RegExp(`<a href="${BASE}/surveys" class="tab tabCurrent" aria-current="page">Surveys</a>`));
     globalThis.__surveysLeadTabBar.segment = null;
-    assert.match(drawn(false), /<span class="tab tabPending" aria-disabled="true" title="Not built yet">Surveys<\/span>/);
+    // A reviewer's row is Applications alone: no Surveys tab, linked or not.
+    assert.equal(textOf(drawn(false)), "Applications 5");
     assert.ok(!drawn(false).includes(`${BASE}/surveys`));
   });
 });

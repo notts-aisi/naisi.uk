@@ -523,11 +523,14 @@ describe("5. the words in week 1, before the first session and after the end", (
     // Before the day of the first session, Home is board st-fac-before-phone's
     // (tests/course-hub-facilitator-before.test.mjs): the ticket with "Open
     // your group", who's coming by first name (nobody here has an application
-    // to say so on), and Say hello. Take the register comes on the day.
+    // to say so on), and Say hello. Take the register comes on the day. An
+    // update to the group is a notice, so it reaches all three: they hold told
+    // places, and with no cohort row each is written to at their account's own
+    // address.
     const onHome = await home("rahul");
     assert.match(
       onHome.text,
-      /Your first session · week 1 Group B, 6pm Hallward B12 · with Sofia Open your group Who’s coming 0 of 3 said they’re coming\. Chloe, Farah and Kofi haven’t said\. .*Say hello Send your group a hello before Tuesday\. Write to Group B \(3\) Posts an update to the group\. Nobody in it can be emailed yet\./,
+      /Your first session · week 1 Group B, 6pm Hallward B12 · with Sofia Open your group Who’s coming 0 of 3 said they’re coming\. Chloe, Farah and Kofi haven’t said\. .*Say hello Send your group a hello before Tuesday\. Write to Group B \(3\) Posts an update to the group and emails 3 people\. Replies go to ai-safety@uonsu\.com\./,
     );
     assert.doesNotMatch(onHome.text, /Take the register|This week/);
   });

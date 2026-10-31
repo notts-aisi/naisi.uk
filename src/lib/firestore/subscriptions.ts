@@ -789,34 +789,40 @@ export async function findRecipientsForChannel(
   });
 }
 
+/** One row on a channel, whatever its state. */
+export type ChannelRow = ChannelRecipient & {
+  /**
+   * Whether the row is on the list now (`confirmed && subscribed`): the rows
+   * {@link findRecipientsForChannel} returns.
+   */
+  onTheList: boolean;
+};
+
 /**
- * The other half of {@link findRecipientsForChannel}: the rows on a channel
- * that are UNSUBSCRIBED, whether or not they were ever confirmed.
+ * EVERY row on a channel, whatever its state: on the list, unsubscribed, or
+ * waiting on a confirmation click, in the order the read returns them.
  *
- * A sender needs this to answer "who did this not reach", which the subscribed
- * read cannot: a member who clicked an unsubscribe link is absent from that
- * result and absent from every count derived from it, so a lane that reports
- * only `sent` and `skipped` shows a facilitator no trace of them at all.
+ * For a sender that needs the address somebody gave a channel rather than the
+ * channel's list: a notice to a course run reaches everybody holding a place
+ * on it, people who unsubscribed from its cohort list included, and the
+ * address that list holds for them is the one the run has always written to.
  *
- * Equality-only and unordered, so it needs no declared composite index (see
- * `tests/firestore-indexes.test.mjs`, EQUALITY_ONLY_MERGES).
+ * One equality, so the automatic single-field index serves it and no
+ * composite index is owed (`tests/firestore-indexes.test.mjs`).
  */
-export async function findUnsubscribedOnChannel(
+export async function findRowsOnChannel(
   db: Firestore,
   channel: string,
-): Promise<ChannelRecipient[]> {
+): Promise<ChannelRow[]> {
   if (!isValidChannel(channel)) return [];
-  const snap = await db
-    .collection(COLLECTION)
-    .where("channel", "==", channel)
-    .where("subscribed", "==", false)
-    .get();
+  const snap = await db.collection(COLLECTION).where("channel", "==", channel).get();
   return snap.docs.map((d) => {
     const data = d.data() as SubscriptionDoc;
     return {
       email: data.email,
       audience: data.audience,
       audienceId: data.audienceId,
+      onTheList: data.confirmed === true && data.subscribed === true,
     };
   });
 }

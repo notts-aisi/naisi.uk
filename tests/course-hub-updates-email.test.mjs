@@ -66,9 +66,10 @@ describe("1. the email's words", () => {
       title: "Room change for Group B this week",
       message: "We’re in B52 on Tuesday.\nSame time, 6pm.\n\nBring <b>one</b> question.",
     });
-    assert.equal(world.mail.length, 1);
-    const [message] = world.mail;
-    assert.equal(message.to, "amara@example.com");
+    // Amara, and Ines, who unsubscribed from the run's cohort list: an update
+    // is a notice, and reaches her whatever she unsubscribed from.
+    assert.deepEqual(world.mail.map((sent) => sent.to).sort(), ["amara@example.com", "ines@example.com"]);
+    const message = world.mail.find((sent) => sent.to === "amara@example.com");
     assert.equal(message.subject, "Room change for Group B this week");
     const { lines, html } = await read(message);
     assert.deepEqual(lines, [
@@ -118,7 +119,7 @@ describe("1. the email's words", () => {
     await press("claudia");
     const bodies = await Promise.all(world.mail.map(async (message) => (await read(message)).text));
     assert.equal(new Set(bodies).size, 1);
-    assert.deepEqual(world.mail.map((message) => message.to).sort(), ["amara@example.com", "bea@example.com", "tariq@example.com"]);
+    assert.deepEqual(world.mail.map((message) => message.to).sort(), ["amara@example.com", "bea@example.com", "ines@example.com", "tariq@example.com"]);
   });
 });
 

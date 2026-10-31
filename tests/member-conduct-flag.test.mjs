@@ -308,3 +308,90 @@ test("MODEL: neither handler answers with the reviewer projection", () => {
   // call site again, and the next route to copy the shape may be a reviewer's.
   assert.doesNotMatch(ROUTE_CODE, /\.\.\.conductFlagForQueue/);
 });
+
+// ===========================================================================
+// What the control says, and the tree that keeps it true
+// ===========================================================================
+
+const CONTROL = readFileSync(join(SRC, "features", "admin", "ConductFlagControl.tsx"), "utf8");
+
+test("WORDS: the confirm says only admins see a flag, and that its owner can ask for what is written", () => {
+  assert.ok(
+    CONTROL.includes(
+      "`Flag ${displayName}?\\n\\nOnly admins will see this flag and its reason. ${displayName} can ask us for a copy of what you write, so write what happened and when.`",
+    ),
+    "the confirm when flagging has drifted from its words",
+  );
+});
+
+test("WORDS: the line under the label says the same, in every state of the control", () => {
+  const flat = CONTROL.replace(/\s+/g, " ");
+  assert.ok(
+    flat.includes("Only admins see this flag and its reason. Reviewers and the person flagged don&apos;t see it on the site."),
+    "the line under the label has drifted from its words",
+  );
+  // The words before the privacy policy was settled said reviewers see a flag
+  // exists. No screen a reviewer opens reads one (below), and the policy says
+  // only admins see a flag and its reason.
+  assert.doesNotMatch(CONTROL, /Reviewers will see|yes or no chip|neither will the member/);
+});
+
+/**
+ * WHO READS A FLAG. The control tells an admin that reviewers and the person
+ * flagged never see a flag on the site, and that is true only while nothing a
+ * reviewer or a member is served reads one. So every file under `src` whose
+ * code names the collection, either projection, the route or the control is
+ * listed here with what it does, both ways: a review screen that starts
+ * reading a flag fails here until somebody decides, and the privacy policy
+ * with it.
+ */
+const FLAG_READERS = new Map([
+  [
+    "app/api/admin/members/[uid]/conduct-flag/route.ts",
+    "the one route that reads or writes a flag; both handlers are admin-only and answer with the admin projection",
+  ],
+  [
+    "features/admin/ConductFlagControl.tsx",
+    "the control on one person's page in the admin area, which calls that route and nothing else",
+  ],
+  [
+    "features/admin/MemberItem.tsx",
+    "draws the control on a person's page in the admin area, behind the admin-only page gate",
+  ],
+  [
+    "lib/firestore/accountDeletion.ts",
+    "deleting an account deletes its flag at the uid, and reads nothing of it back",
+  ],
+]);
+/** The collection's own module: it defines the projections and reads nothing. */
+const FLAG_HOME = "lib/firestore/memberConductFlags.ts";
+const NAMES_A_FLAG = /["'`]memberConductFlags["'`]|\bconductFlagForQueue\b|\bconductChip\b|\bConductFlagControl\b|\/conduct-flag\b/;
+
+test("TREE: every file that names a flag is listed, and every listed file still names one", async () => {
+  const { walkSource } = await import("./lib/functionScan.mjs");
+  const { stripSource } = await import("./lib/stripSource.mjs");
+  const found = [];
+  let files = 0;
+  for (const full of walkSource(SRC)) {
+    files += 1;
+    const code = stripSource(readFileSync(full, "utf8"), { keepStrings: true });
+    if (!NAMES_A_FLAG.test(code)) continue;
+    const path = full.slice(SRC.length + 1).split("\\").join("/");
+    if (path !== FLAG_HOME) found.push(path);
+  }
+  assert.ok(files > 1000, `read ${files} files: the walk reached too little of the tree`);
+  assert.deepEqual(
+    found.filter((path) => !FLAG_READERS.has(path)),
+    [],
+    "These read a conduct flag and are not listed. Only admins see a flag and its reason: a page or a route " +
+      "a reviewer or a member is served must not read one, and the control and the privacy policy both say so.",
+  );
+  assert.deepEqual([...FLAG_READERS.keys()].filter((path) => !found.includes(path)), [], "a listed file no longer names a flag");
+  for (const [path, why] of FLAG_READERS) {
+    assert.ok(why.length >= 40, `${path}: a reason is missing or too short to be one`);
+    assert.ok(
+      path.startsWith("app/api/admin/") || path.startsWith("features/admin/") || path === "lib/firestore/accountDeletion.ts",
+      `${path} is outside the admin area`,
+    );
+  }
+});

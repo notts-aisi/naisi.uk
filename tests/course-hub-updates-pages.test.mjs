@@ -196,8 +196,11 @@ describe("1. the Messages tab is the lead's and an admin's", () => {
       assert.deepEqual(
         composer.props.audiences.map((a) => [a.key, a.label, a.emails]),
         [
-          ["everyone", "Everyone on AGI Strategy (5)", 3],
-          [`group:${B}`, "Group B (3)", 1],
+          // The email reaches everybody told whose address is not stopped,
+          // Ines among them though she unsubscribed from the cohort list: an
+          // update is a notice.
+          ["everyone", "Everyone on AGI Strategy (5)", 4],
+          [`group:${B}`, "Group B (3)", 2],
           [`group:${C}`, "Group C (1)", 1],
           [`group:${A}`, "Group A (1)", 1],
           ["facilitators", "The facilitators (3)", 3],
@@ -209,8 +212,8 @@ describe("1. the Messages tab is the lead's and an admin's", () => {
         [
           ["The week 3 guide", "Claudia → Facilitators · Mon 16 Nov · Not emailed"],
           ["Group A meets in A13", "Sofia → Group A · Mon 16 Nov · Emailed to 1"],
-          ["Room change for Group B this week", "Rahul → Group B · Mon 16 Nov · Emailed to 1"],
-          ["Week 3 readings are up", "Claudia → Everyone · Thu 12 Nov · Emailed to 3"],
+          ["Room change for Group B this week", "Rahul → Group B · Mon 16 Nov · Emailed to 2"],
+          ["Week 3 readings are up", "Claudia → Everyone · Thu 12 Nov · Emailed to 4"],
         ],
       );
       assert.match(drawn.text, /New update To Everyone on AGI Strategy \(5\) Group B \(3\)/);
@@ -229,9 +232,9 @@ describe("1. the Messages tab is the lead's and an admin's", () => {
       );
       assert.match(
         drawn.text,
-        /Or a group, or the facilitators 1 person placed in groups hasn’t been told their group yet\. They’ll read this once Publish tells them, and won’t be emailed it\. Title Message 0 \/ 4,000 Also email it Emails 3 people/,
+        /Or a group, or the facilitators 1 person placed in groups hasn’t been told their group yet\. They’ll read this once Publish tells them, and won’t be emailed it\. Title Message 0 \/ 4,000 Also email it Emails 4 people/,
       );
-      assert.match(drawn.text, /Send a test to me Post and email 3 people/);
+      assert.match(drawn.text, /Send a test to me Post and email 4 people/);
       assert.equal(drawn.wrote, false);
     });
   }
@@ -264,14 +267,16 @@ describe("1. the Messages tab is the lead's and an admin's", () => {
     assert.match((await messages("zach")).text, /AGI Strategy doesn’t name a course run yet\. Name it/);
   });
 
-  test("the tab is a link for an admin and the lead, and drawn but not a link for a reviewer", () => {
+  test("the tab is a link for an admin and the lead, and not drawn for a reviewer", () => {
     const tabs = (groupsOpen) =>
       renderToStaticMarkup(
         createElement(ProgrammeTabs, { base: PAGE_PATH, applications: 5, groups: 3, canEdit: groupsOpen, groupsOpen }),
       );
     assert.match(tabs(true), new RegExp(`<a href="${PAGE_PATH}/messages" class="tab tabCurrent" aria-current="page">Messages</a>`));
     assert.doesNotMatch(tabs(false), /\/messages/);
-    assert.match(tabs(false), /<span class="tab tabPending" aria-disabled="true" title="Not built yet">Messages<\/span>/);
+    // A reviewer's row is Applications alone, as a link: no Messages tab at all.
+    assert.doesNotMatch(tabs(false), />Messages</);
+    assert.deepEqual([...tabs(false).matchAll(/<(a|span)\b[^>]*class="tab[ "]/g)].map((m) => m[1]), ["a"]);
   });
 });
 
@@ -286,7 +291,7 @@ describe("2. a facilitator's group page", () => {
   test("Write to Group B, counted as the press counts, and the line under it", async () => {
     const drawn = await groupPage("rahul");
     assert.match(drawn.html, new RegExp(`<a href="${GROUP_PATH(B)}/update" class="button">Write to Group B \\(3\\)</a>`));
-    assert.match(drawn.text, /Write to Group B \(3\) Change a session Posts an update to the group and emails 1 person\. Replies go to ai-safety@uonsu\.com\./);
+    assert.match(drawn.text, /Write to Group B \(3\) Change a session Posts an update to the group and emails 2 people\. Replies go to ai-safety@uonsu\.com\./);
     assert.equal(drawn.wrote, false);
   });
 
@@ -311,7 +316,9 @@ describe("2. a facilitator's group page", () => {
   });
 
   test("the line says so when nobody in the group can be emailed yet", async () => {
-    world.db.poke("subscriptions/cohort__tariq", { subscribed: false });
+    // Tariq, Group C's one person, has an address that is stopped. (Off the
+    // cohort list he would still be emailed: an update is a notice.)
+    world.db.seed("suppressedEmails/tariq@example.com", { email: "tariq@example.com", reason: "bounce", source: "manual" });
     const drawn = await groupPage("tom", C);
     assert.match(drawn.text, /Write to Group C \(1\) Change a session Posts an update to the group\. Nobody in it can be emailed yet\./);
   });
@@ -347,12 +354,12 @@ describe("3. the composer for one group", () => {
         to: "group",
         groupId: B,
         label: "Group B (3)",
-        emails: 1,
+        emails: 2,
         refused: false,
         notYetTold: "1 person placed in Group B hasn’t been told their group yet. They’ll read this once Publish tells them, and won’t be emailed it.",
       },
     ]);
-    assert.match(drawn.text, /Write to Group B Posts an update to the group and emails 1 person\. Replies go to ai-safety@uonsu\.com\. Back to the group/);
+    assert.match(drawn.text, /Write to Group B Posts an update to the group and emails 2 people\. Replies go to ai-safety@uonsu\.com\. Back to the group/);
     assert.match(
       drawn.text,
       /New update To Group B \(3\) 1 person placed in Group B hasn’t been told their group yet\. They’ll read this once Publish tells them, and won’t be emailed it\. Title Message/,
