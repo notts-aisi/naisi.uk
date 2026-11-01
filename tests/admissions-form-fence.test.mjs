@@ -259,6 +259,20 @@ const ROUND_SURFACES = {
       "the Kairos report for one programme of an application form. It reaches the round only through " +
       "loadKairosProgramme, which starts from the form's own loader and answers null for a round that is not a form",
   },
+  "/(app)/admin/(admin-only)/surveys/check-ins/[roundId]/[programmeId]/chart": {
+    kind: "form",
+    why:
+      "Make a chart across one programme's check-ins, an admin's. It reaches the round only through the form's " +
+      "own loader (loadForm), which answers null for a round that is not a form; check-ins are opened only for a " +
+      "form's programmes, so an older round has none and the page says there are no check-ins here",
+  },
+  "/api/surveys/check-ins/[roundId]/[programmeId]/chart": {
+    kind: "form",
+    why:
+      "Make a chart's numbers across one programme's check-ins, an admin's. It reaches the round only through " +
+      "the form's own loader (loadForm), which answers null for a round that is not a form; check-ins are opened " +
+      "only for a form's programmes, so an older round has none and the route answers 404",
+  },
   "/(app)/admin/admissions/[roundId]": {
     kind: "older",
     page: {

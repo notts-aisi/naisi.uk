@@ -444,7 +444,7 @@ describe("5. the Results page and the Answers tab's page name nobody and record 
     }
     assert.deepEqual([...new Set(touched)].sort(), ["surveyPeople", "surveys"], "the page read something besides the survey and its rows");
     assert.equal(w.everything(), before, "drawing the page wrote something");
-    assert.ok(page.text.endsWith(`Results Answers 3 Questions Send ${ANSWERS_WORDS.opening}`), page.text);
+    assert.ok(page.text.endsWith(`Results Make a chart Answers 3 Questions Send ${ANSWERS_WORDS.opening}`), page.text);
     assert.doesNotMatch(page.text, /Amara|\bBea\b|\bDev\b|To explain the risk/);
     assert.deepEqual(openings(), []);
     // The page's file reads the head alone; the layout above it sends everybody but an admin away.

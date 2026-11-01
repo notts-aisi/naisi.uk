@@ -34,6 +34,8 @@ export const HUB_WORDS = {
   noneYet: "None yet",
   /** The check-ins' row opens its list in place. */
   seeThem: "See them",
+  /** Under the check-ins' list: Make a chart across them. */
+  makeChart: "Make a chart",
   /** The reports' row leads to their own page. */
   readThem: "Read them",
   /** The Events tab's card. */
@@ -97,4 +99,5 @@ export const HUB_LABELS = {
   edit: (name: string) => `${LIST_WORDS.edit} ${name}`,
   remind: (name: string) => `Remind people who haven’t answered ${name}: opens its Send tab`,
   reports: (programme: string) => `${HUB_WORDS.readThem}: the facilitators’ reports on ${programme}`,
+  makeChart: (programme: string) => `${HUB_WORDS.makeChart} across the weekly check-ins of ${programme}`,
 } as const;

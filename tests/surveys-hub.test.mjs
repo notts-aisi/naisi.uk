@@ -270,6 +270,7 @@ describe("2. By programme: the term's programmes, a row for every stage, then th
           "Before the programme Sent Thu 29 Oct · 4 of 6 answered · Closed Wed 4 Nov Closed Results " +
           "Weekly check-ins Weeks 2 to 3 · 2 check-ins Every session See them " +
           "One for each session a group’s facilitator opened it at. Each opens on its results, who answered and its questions. " +
+          "Make a chart " +
           "Week 3 · Group B · Tue 17 Nov Closed Tue 17 Nov · 2 people " +
           "Week 2 · Group B · Tue 10 Nov Closed Tue 10 Nov · 3 people " +
           "Facilitators’ reports 8 questions, from each group’s facilitators Every session Read them " +
@@ -287,6 +288,13 @@ describe("2. By programme: the term's programmes, a row for every stage, then th
       assert.ok(html.includes(`<a href="/admin/surveys/${id}/results" class="action" aria-label="Results for ${name}">Results</a>`), id);
     }
     for (const id of ["ci-agi-w2", "ci-agi-w3"]) assert.ok(html.includes(`<a href="/admin/surveys/${id}/results" class="checkInLink">`), id);
+    // Make a chart across the programme's check-ins, an admin's (docs/surveys.md, "Make a chart").
+    assert.ok(
+      html.includes(
+        `<a href="/admin/surveys/check-ins/${ROUND}/${AGI}/chart" class="checkInLink" aria-label="Make a chart across the weekly check-ins of Fellowship: AGI Strategy">Make a chart</a>`,
+      ),
+      "the check-ins do not lead to Make a chart",
+    );
     assert.ok(
       html.includes(
         `<a href="/admin/admissions/forms/${ROUND}/programmes/${AGI}/surveys/reports" class="action" aria-label="Read them: the facilitators’ reports on Fellowship: AGI Strategy">Read them</a>`,

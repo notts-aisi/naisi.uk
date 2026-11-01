@@ -91,6 +91,8 @@ export type HubRow = {
   link: HubLink | null;
   /** The check-ins' row only: each check-in, newest first, opened in place. */
   checkIns: CheckInListRow[] | null;
+  /** The check-ins' row only, once there is a check-in: Make a chart across them. */
+  chart: HubLink | null;
 };
 
 export type ProgrammeCard = {
@@ -142,6 +144,7 @@ function surveyRow(counted: CountedSurvey, now: Date, name: string, due = ""): H
       remind: null,
       link: { href: SURVEY_HREF(survey.id, "questions"), label: LIST_WORDS.edit, aria: HUB_LABELS.edit(survey.name) },
       checkIns: null,
+      chart: null,
     };
   }
   const ends = closedOn(survey);
@@ -161,16 +164,21 @@ function surveyRow(counted: CountedSurvey, now: Date, name: string, due = ""): H
       : null,
     link: { href: SURVEY_HREF(survey.id, "results"), label: LIST_WORDS.results, aria: HUB_LABELS.results(survey.name) },
     checkIns: null,
+    chart: null,
   };
 }
 
 /** A stage of one of the term's programmes nobody has made a survey for yet: what it will be, and no way in. */
 function notMadeRow(key: string, stage: SurveyTemplate, line: string): HubRow {
-  return { key: `${key}:${stage}`, name: stageRowWords(stage), line, chip: null, remind: null, link: null, checkIns: null };
+  return { key: `${key}:${stage}`, name: stageRowWords(stage), line, chip: null, remind: null, link: null, checkIns: null, chart: null };
 }
 
-/** The Weekly check-ins row: the weeks they were at and how many, opening on each one. */
-function checkInsRow(key: string, checkIns: ProgrammeCheckIns | null): HubRow {
+/**
+ * The Weekly check-ins row: the weeks they were at and how many, opening on
+ * each one, and on Make a chart across them once there is one.
+ */
+function checkInsRow(key: string, programme: { roundId: string; programmeId: string; title: string }, checkIns: ProgrammeCheckIns | null): HubRow {
+  const chart = `/admin/surveys/check-ins/${encodeURIComponent(programme.roundId)}/${encodeURIComponent(programme.programmeId)}/chart`;
   return {
     key: `${key}:checkIns`,
     name: HUB_WORDS.checkIns,
@@ -179,6 +187,7 @@ function checkInsRow(key: string, checkIns: ProgrammeCheckIns | null): HubRow {
     remind: null,
     link: null,
     checkIns: checkIns ? checkIns.group.rows : null,
+    chart: checkIns ? { href: chart, label: HUB_WORDS.makeChart, aria: HUB_LABELS.makeChart(programme.title) } : null,
   };
 }
 
@@ -198,6 +207,7 @@ function reportsRow(roundId: string, programmeId: string, title: string): HubRow
     remind: null,
     link: { href: `${base}/surveys/reports`, label: HUB_WORDS.readThem, aria: HUB_LABELS.reports(title) },
     checkIns: null,
+    chart: null,
   };
 }
 
@@ -227,7 +237,7 @@ function rowsOf(
     return [notMadeRow(key, stage, rowLineWords([LIST_WORDS.notSent, stage === "after" ? due : ""]))];
   };
   const rows: HubRow[] = [...stageRows("before")];
-  if (term || gathered.checkIns) rows.push(checkInsRow(key, gathered.checkIns));
+  if (term || gathered.checkIns) rows.push(checkInsRow(key, programme, gathered.checkIns));
   if (programme.hasRun) rows.push(reportsRow(programme.roundId, programme.programmeId, programme.title));
   for (const stage of STAGES.slice(1)) rows.push(...stageRows(stage));
   // A survey of a kind no stage draws is still listed, by its own name, so none is ever out of reach.
@@ -328,6 +338,7 @@ export function eventRows(surveys: readonly CountedSurvey[], now: Date): HubRow[
           ? { href: SURVEY_HREF(survey.id, "questions"), label: LIST_WORDS.edit, aria: HUB_LABELS.edit(survey.name) }
           : { href: SURVEY_HREF(survey.id, "results"), label: LIST_WORDS.results, aria: HUB_LABELS.results(survey.name) },
         checkIns: null,
+        chart: null,
       };
     });
 }
