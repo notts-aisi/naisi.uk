@@ -646,7 +646,7 @@ test(
           const run = absentRun(person, now);
           if (run.length === 0) continue;
           items.push([
-            `${person.displayName} has missed ${run.length} sessions in a row without saying`,
+            `${person.first} has missed ${run.length} sessions in a row without saying`,
             `${group.name} · weeks ${namesInWords(run.map(String))}`,
           ]);
         }
@@ -1036,20 +1036,25 @@ test(
           "Take the register does not lead to the group's register",
         );
 
-        // Your group: the group's two people by their whole names, each with
-        // the marks of the two finished registers (this week's nobody has
-        // opened), and the board's line about names.
+        // Your group: the group's two people by the names they go by
+        // (`fullNameOfUser`, the fixture's `first`; a facilitator is shown
+        // nothing more), each with the marks of the two finished registers
+        // (this week's nobody has opened), and the board's line about names.
         ending = await readEnding();
         const roster = facilitatorPage.getByTestId("group-roster");
         await roster.waitFor({ timeout: WAIT_MS });
         assert.equal(flat(await roster.getByRole("heading", { level: 2 }).innerText()), "Your group");
         const rows = roster.getByRole("list", { name: "Members of this group" }).getByRole("listitem");
         assert.equal(await rows.count(), inGroup.length, "Your group does not list the group's two people");
-        // In the order of their whole names, as the lead's tabs list people.
-        const byWholeName = [...inGroup].sort((a, b) => a.displayName.localeCompare(b.displayName, "en-GB") || a.uid.localeCompare(b.uid));
-        for (const [index, person] of byWholeName.entries()) {
+        // In the order of the names shown, as the lead's tabs list people.
+        const byName = [...inGroup].sort((a, b) => a.first.localeCompare(b.first, "en-GB") || a.uid.localeCompare(b.uid));
+        for (const [index, person] of byName.entries()) {
           const row = rows.nth(index);
-          assert.ok(flat(await row.innerText()).startsWith(`${initialsOf(person.displayName)} ${person.displayName}`), `row ${index} is not ${person.displayName}`);
+          const rowSaid = flat(await row.innerText());
+          assert.ok(
+            rowSaid === `${initialsOf(person.first)} ${person.first}` || rowSaid.startsWith(`${initialsOf(person.first)} ${person.first} `),
+            `row ${index} is not ${person.first}: ${rowSaid}`,
+          );
           const marks = row.getByRole("img");
           assert.equal(await marks.count(), thisWeek - 1, `${person.first}'s row has a mark for a register that is not finished`);
           for (const weekNumber of weeks.filter((n) => n < thisWeek)) {
@@ -1736,7 +1741,7 @@ test(
             for (const expected of [
               `${day} · ${londonClockLabel(session.startsAt)}`,
               group.room,
-              group === facilitated ? fern.displayName : "No facilitator yet",
+              group === facilitated ? fern.first : "No facilitator yet",
               `Register ${word()}`,
               `${came} of ${members.length} came`,
             ]) {
@@ -1805,7 +1810,7 @@ test(
               `${weekdays[group.weekday]}s ${clockWords(group.startTimeLocal)} · ${group.room}`,
               `Week ${nextWeek}`,
               `${session.dateKey === todayKey ? "Today" : dayLabel(session.dateKey)}, ${clockWords(moved ? MOVE.startTimeLocal : group.startTimeLocal)}`,
-              ...(moved ? [fern.displayName, MOVE.room, "Moved"] : []),
+              ...(moved ? [fern.first, MOVE.room, "Moved"] : []),
             ];
             for (const words of expected) {
               assert.ok(said.includes(words), `${group.name}'s card on the Sessions view does not say ${JSON.stringify(words)}: ${said}`);

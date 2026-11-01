@@ -1113,9 +1113,12 @@ test(
         assert.ok(headLine.includes(groupA.room), `the head's line does not say the group's room: ${headLine}`);
         assert.ok(!headLine.includes(" with "), `the head's line names another facilitator: ${headLine}`);
 
-        // "Your group": the people in the group now, by their whole names.
-        // Ada stayed in Group A; Ben moved to Group B. No register is
-        // finished yet, so nobody has a mark.
+        // "Your group": the people in the group now, by the names they go by
+        // (`fullNameOfUser`, the fixture's `first`): a facilitator is shown
+        // nothing more. Each is looked for as the whole name on its own row of
+        // this run's group, so no other run's Ada can answer. Ada stayed in
+        // Group A; Ben moved to Group B. No register is finished yet, so
+        // nobody has a mark.
         const roster = facilitatorPage.getByTestId("group-roster");
         await roster.waitFor({ timeout: WAIT_MS });
         const members = roster.getByRole("list", { name: "Members of this group" });
@@ -1127,10 +1130,17 @@ test(
           "the roster is not the people in the group now",
         );
         for (const person of inGroup) {
-          await members.getByRole("listitem").filter({ hasText: person.displayName }).waitFor({ timeout: WAIT_MS });
+          await members
+            .getByRole("listitem")
+            .filter({ has: facilitatorPage.getByText(person.first, { exact: true }) })
+            .waitFor({ timeout: WAIT_MS });
         }
         assert.equal(await members.getByRole("img").count(), 0, "a mark is drawn before any register is finished");
-        assert.ok(!flat(await roster.innerText()).includes(ben.displayName), "the roster still names Ben, who moved");
+        const rosterSaid = flat(await roster.innerText());
+        assert.ok(
+          !rosterSaid.includes(ben.displayName) && !new RegExp(`\\b${escapeRegExp(ben.first)}\\b`).test(rosterSaid),
+          "the roster still names Ben, who moved",
+        );
 
         // The session, with the way to join that no email carries, and the
         // way to the register.

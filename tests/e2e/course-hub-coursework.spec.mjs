@@ -284,11 +284,10 @@ test(
         "the lead opens the Coursework tab: everybody in their group, the person in no group last, and each cell in counts",
         async () => {
           activePage = adminPage;
-          // The course screens name people by the name they go by (the
-          // fixture's `first`), never the account's display name, which for an
-          // account made with Google is Google's name for them: only the
-          // committee is shown a full name, and facilitators read these
-          // helpers too. The facilitators' picker above keeps its own.
+          // Each fellow is named by the name their row on the run carries (the
+          // account's display name when they applied, unique to this run); a
+          // facilitator by the name they go by (`fullNameOfUser`, the fixture's
+          // `first`), since only the committee is shown more than that.
           await adminPage.goto(`${formBase}/attendance`, { waitUntil: "domcontentloaded" });
           // The tab sits after Attendance in the programme's row.
           const tabLink = adminPage.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Coursework", exact: true });
@@ -299,27 +298,27 @@ test(
           // Sorted by group in the run's one order, then name; nobody's last. Fern is marked as facilitating.
           const expected = ordered.map((group) =>
             sectionOf(group.name, [
-              ...state.people.filter((person) => person.groupKey === group.key).map((person) => ({ name: person.first })),
+              ...state.people.filter((person) => person.groupKey === group.key).map((person) => ({ name: person.displayName })),
               ...(group === facilitated ? [{ name: fern.first, mark: "Facilitator" }] : []),
             ]),
           );
-          expected.push(sectionOf("Not in a group yet", [{ name: dan.first }]));
+          expected.push(sectionOf("Not in a group yet", [{ name: dan.displayName }]));
           assert.deepEqual(await sectionsOn(adminPage), expected, "the tab's sections and rows");
 
           // Ada's week 3: not done, since nobody has submitted a week here; part 1's reflection
           // written of two parts, one source of two, waiting for feedback.
-          const adaCell = adminPage.getByRole("link", { name: `Week 3, not done: ${ada.first}’s coursework`, exact: true });
+          const adaCell = adminPage.getByRole("link", { name: `Week 3, not done: ${ada.displayName}’s coursework`, exact: true });
           assert.equal(await wordsIn(adaCell), "Not done Reflections 1 of 2 Sources 1 of 2", "Ada's week 3 cell");
-          const adaAnswer = adminPage.getByRole("link", { name: `Week 3 written answer, Waiting for feedback: ${ada.first}`, exact: true });
+          const adaAnswer = adminPage.getByRole("link", { name: `Week 3 written answer, Waiting for feedback: ${ada.displayName}`, exact: true });
           assert.equal(
             await adaAnswer.getAttribute("href"),
             `${programmePathOnSite}/written?group=${enc(facilitated.id)}&week=3&person=${enc(ada.uid)}`,
             "the waiting answer does not open the feedback page",
           );
           // Cleo has written one prompt of part 1, so no part is written.
-          assert.match(await wordsIn(adminPage.getByRole("link", { name: `Week 3, not done: ${cleo.first}’s coursework`, exact: true })), /^Not done Reflections 0 of 2 /);
+          assert.match(await wordsIn(adminPage.getByRole("link", { name: `Week 3, not done: ${cleo.displayName}’s coursework`, exact: true })), /^Not done Reflections 0 of 2 /);
           // Dan, in no group, is counted on the run's own week 1, where his week 1 work was written.
-          assert.equal(await wordsIn(adminPage.getByRole("link", { name: `Week 1, not done: ${dan.first}’s coursework`, exact: true })), "Not done Reflections 1 of 2 Sources 1 of 2");
+          assert.equal(await wordsIn(adminPage.getByRole("link", { name: `Week 1, not done: ${dan.displayName}’s coursework`, exact: true })), "Not done Reflections 1 of 2 Sources 1 of 2");
           // Never a word anybody wrote, anywhere on the tab.
           const said = await mainOf(adminPage);
           for (const words of everyWord) assert.ok(!said.includes(words), `the tab shows ${JSON.stringify(words)}`);
@@ -331,16 +330,16 @@ test(
             "the waiting filter to leave one group",
             async () => new URL(adminPage.url()).searchParams.get("waiting") === "1" && (await sections.count()) === 1,
           );
-          assert.deepEqual(await sectionsOn(adminPage), [sectionOf(facilitated.name, [{ name: ada.first }])], "the waiting filter");
+          assert.deepEqual(await sectionsOn(adminPage), [sectionOf(facilitated.name, [{ name: ada.displayName }])], "the waiting filter");
           // Not done keeps the waiting filter: Ada has a week that has begun and is not done.
           await adminPage.getByRole("link", { name: "Not done", exact: true }).click();
           await waitFor("the not done filter to keep the waiting one", async () => {
             const query = new URL(adminPage.url()).searchParams;
             return query.get("waiting") === "1" && query.get("notdone") === "1" && (await sections.count()) === 1;
           });
-          assert.deepEqual(await sectionsOn(adminPage), [sectionOf(facilitated.name, [{ name: ada.first }])], "the waiting and not done filters");
+          assert.deepEqual(await sectionsOn(adminPage), [sectionOf(facilitated.name, [{ name: ada.displayName }])], "the waiting and not done filters");
           await adminPage.goto(`${courseworkUrl}?group=none`, { waitUntil: "domcontentloaded" });
-          assert.deepEqual(await sectionsOn(adminPage), [sectionOf("Not in a group yet", [{ name: dan.first }])], "the filter of people in no group");
+          assert.deepEqual(await sectionsOn(adminPage), [sectionOf("Not in a group yet", [{ name: dan.displayName }])], "the filter of people in no group");
           assert.ok(otherGroup, "the term has one group");
         },
       );
@@ -349,10 +348,10 @@ test(
         activePage = adminPage;
         await Promise.all([
           adminPage.waitForURL((url) => url.pathname.endsWith(`/coursework/${dan.uid}`), { timeout: WAIT_MS }),
-          adminPage.getByRole("link", { name: dan.first, exact: true }).click(),
+          adminPage.getByRole("link", { name: dan.displayName, exact: true }).click(),
         ]);
-        await adminPage.getByRole("heading", { name: dan.first, level: 1 }).waitFor({ timeout: WAIT_MS });
-        assert.match(await wordsIn(adminPage.locator("header").filter({ hasText: dan.first })), /· Not in a group yet/);
+        await adminPage.getByRole("heading", { name: dan.displayName, level: 1 }).waitFor({ timeout: WAIT_MS });
+        assert.match(await wordsIn(adminPage.locator("header").filter({ hasText: dan.displayName })), /· Not in a group yet/);
         const words = await wordsIn(adminPage.locator("#week-1"));
         assert.ok(words.includes(`${COURSEWORK_PROMPTS.rp1} ${danSaid}`), `Dan's week 1 does not show his reflection under its prompt: ${words}`);
         assert.match(words, WHEN, "Dan's reflection does not say when it was written");
@@ -367,8 +366,8 @@ test(
         async () => {
           activePage = adminPage;
           await adminPage.goto(`${courseworkUrl}/${enc(ada.uid)}`, { waitUntil: "domcontentloaded" });
-          await adminPage.getByRole("heading", { name: ada.first, level: 1 }).waitFor({ timeout: WAIT_MS });
-          assert.match(await wordsIn(adminPage.locator("header").filter({ hasText: ada.first })), new RegExp(`· ${escapeRegExp(facilitated.name)}`));
+          await adminPage.getByRole("heading", { name: ada.displayName, level: 1 }).waitFor({ timeout: WAIT_MS });
+          assert.match(await wordsIn(adminPage.locator("header").filter({ hasText: ada.displayName })), new RegExp(`· ${escapeRegExp(facilitated.name)}`));
           const weekThree = await wordsIn(adminPage.locator("#week-3"));
           assert.ok(weekThree.includes(`${COURSEWORK_PROMPTS.rp1} ${adaSaid}`), `Ada's reflection is not under its prompt: ${weekThree}`);
           assert.match(weekThree, WHEN);
