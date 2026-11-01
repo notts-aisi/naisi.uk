@@ -26,8 +26,10 @@ import styles from "./ProgrammeFrame.module.css";
  *  - Attendance, then Coursework (Zach, Fri 30 Oct): what everybody holding a
  *    place has written, week by week, by name.
  *  - Messages, where updates are written to the people taking part.
- *  - Surveys: the programme's surveys in totals and comments, never a name,
- *    with Ratings and the anonymous form's answers linked from it.
+ *  - Surveys: the programme's surveys and check-ins in totals and comments,
+ *    never a name, in views of its own (an Overview, Before, Check-ins,
+ *    Facilitators' reports, End and Follow-ups), with Ratings and the
+ *    anonymous form's answers linked from End.
  *
  * For a reviewer, Applications alone. A reviewer reads and scores, and every
  * other tab shows the people holding a place by name, or is the lead's to

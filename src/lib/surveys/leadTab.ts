@@ -15,7 +15,9 @@ import { AFTER_SURVEY_CARD_WORDS, haveAnsweredParts, leadSurveyLineWords, leadSu
 /**
  * A PROGRAMME LEAD'S SURVEYS TAB (board sv-programme; Q41, Q49 A): the
  * programme's own surveys and what they say, in totals and comments, never a
- * name, from the first answer, made on the server.
+ * name, from the first answer, made on the server. The tab's Before, End and
+ * Follow-ups views draw this by stage, and its Overview's cards are these
+ * rows (`leadSurveyRows`); its check-ins are `./checkIns/leadView.ts`'s.
  *
  * Rules a maintainer keeps:
  *
