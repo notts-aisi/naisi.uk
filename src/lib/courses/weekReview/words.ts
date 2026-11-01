@@ -161,7 +161,7 @@ export const FOLLOW_UP_WORDS = {
     [
       `${askedBy} asked you to have a word with ${name} about how ${programme} is going, at your next session or by message. It came up while week ${weekNumber} was being looked over.`,
       "",
-      `No more is said here on purpose. Ask ${askedBy} if you want to know more, and mark this done once you have had a word.`,
+      `No more is said here on purpose. Ask ${askedBy} if you want to know more, and move this to Done once you have had a word.`,
     ].join("\n"),
   subject: (title: string) => `You've been added to "${title}"`,
   push: "Open the task to see who to have a word with.",
