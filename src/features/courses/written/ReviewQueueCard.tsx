@@ -9,17 +9,18 @@ import {
   NOTHING_TO_GIVE_FEEDBACK_ON,
   REVIEW_QUEUE,
   WRITTEN_ANSWERS,
-  sentAtWords,
+  listLockedWords,
+  listSentWords,
   toGiveFeedbackOnWords,
 } from "@/lib/courses/writtenAnswerWords";
 
 /**
  * THE REVIEW QUEUE ON A GROUP'S PAGE (board wk-fac-group): its Written
- * answers half, "2 to give feedback on", each person with when they sent it
- * and Give feedback, oldest first. An answer that has been opened with no
- * feedback yet still waits. Who is listed is the one gate's
- * (`loadWrittenQueue`): a facilitator never sees a co-facilitator's own
- * answer, or their own.
+ * answers half, "2 to give feedback on", each person with when they
+ * submitted it (or when their week locked before they did, in the review
+ * page's own words) and Give feedback, oldest first. Who is listed is the
+ * one gate's (`loadWrittenQueue`): a facilitator never sees a
+ * co-facilitator's own answer, or their own.
  *
  * THE REFLECTIONS HALF is the facilitator's week's, a later piece:
  * `reflections` is where it goes, drawn under this half when it is handed
@@ -54,7 +55,9 @@ export default function ReviewQueueCard({
                 <InitialsChip name={row.name} uid={row.uid} size="md" />
                 <span className={facilitator.reviewText}>
                   <span className={facilitator.personName}>{row.name}</span>
-                  <span className={facilitator.queueMeta}>{sentAtWords(new Date(row.firstSentAt))}</span>
+                  <span className={facilitator.queueMeta}>
+                    {row.locked ? listLockedWords(new Date(row.firstSentAt)) : listSentWords(new Date(row.firstSentAt))}
+                  </span>
                 </span>
                 <Link
                   href={hrefFor(row)}

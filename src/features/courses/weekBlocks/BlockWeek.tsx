@@ -370,8 +370,9 @@ export default function BlockWeek({
   const answerDue = new Map((overviewWeek?.thisWeek?.answers ?? []).map((answer) => [answer.id, answer.due]));
   /**
    * This week's line for a task that covers a written answer: "Draft · 241
-   * words" with "Due tonight" on its last day, "Sent Mon 16 Nov", then
-   * "Feedback from Rahul". Nothing before anything is written.
+   * words" with "Due tonight" on its last day, "Submitted Mon 16 Nov", then
+   * "Feedback from Rahul"; "Not submitted" once the week locked before it
+   * was. Nothing before anything is written.
    */
   const answerTaskLine = (answerIds: readonly string[], dueKey: string | null): ReactNode => {
     if (!participant || answerIds.length === 0) return null;
@@ -388,6 +389,14 @@ export default function BlockWeek({
     }
     if (own.firstSentAt) return <p className={styles.taskWhen}>{sentOnWords(new Date(own.firstSentAt))}</p>;
     if (own.words === 0) return null;
+    // Locked at the session before it was submitted: never sent, and no draft any more.
+    if (work?.state === "locked") {
+      return (
+        <p className={answerStyles.taskState}>
+          <span>{NOT_SUBMITTED}</span>
+        </p>
+      );
+    }
     const dueToday = dueKey !== null && dueKey === todayKey;
     return (
       <p className={answerStyles.taskState}>

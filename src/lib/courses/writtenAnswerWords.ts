@@ -349,10 +349,10 @@ export function commentHeadWords(byName: string): string {
   return `${byName}’s comment`;
 }
 
-/** "266 words · sent Mon 16 Nov, 10:42pm". */
+/** "266 words · submitted Mon 16 Nov, 10:42pm", or the count alone for an answer never sent. */
 export function sentMetaWords(words: number, at: Date | null): string {
   const count = `${words} ${words === 1 ? "word" : "words"}`;
-  return at ? `${count} · sent ${dayAndClockWords(at)}` : count;
+  return at ? `${count} · submitted ${dayAndClockWords(at)}` : count;
 }
 
 export const SHOW_THE_WHOLE_ANSWER = "Show the whole answer";
@@ -375,9 +375,4 @@ export const NOTHING_TO_GIVE_FEEDBACK_ON = "Nothing to give feedback on";
 /** "2 to give feedback on". */
 export function toGiveFeedbackOnWords(n: number): string {
   return `${n} to give feedback on`;
-}
-
-/** "Sent Mon 16 Nov, 11:58pm". */
-export function sentAtWords(at: Date): string {
-  return `Sent ${dayAndClockWords(at)}`;
 }

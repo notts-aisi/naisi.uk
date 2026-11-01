@@ -36,6 +36,12 @@ import { weekDocId } from "@/lib/firestore/courses";
  * each row's level with its descriptor, the comment, and who gave it. There
  * are no marks, and the page says so. Never "Late".
  *
+ * An answer is sent by submitting its week. One whose week locked at the
+ * session before it was submitted was never sent, and its readers may still
+ * give feedback on it (`src/lib/courses/weekWork/`): once they have, the
+ * page draws that feedback and the answer as it was saved, as it does a sent
+ * one. Until then it says the answer has not been submitted.
+ *
  * THEIR OWN AND NOBODY ELSE'S: the row read is addressed by the caller's own
  * uid, so the page cannot show anybody else's answer whatever the address
  * says. It opens to somebody taking part (a live place in a group, active
@@ -139,7 +145,7 @@ export default async function FeedbackPage({ params }: { params: Promise<{ runId
         <h1 className={styles.title}>{feedbackTitleWords(answerName)}</h1>
       </div>
 
-      {!record?.firstSentAt ? (
+      {!record || (!record.firstSentAt && !record.feedback) ? (
         <p className={styles.quiet}>
           {NOT_SENT_FEEDBACK_PAGE}{" "}
           <Link href={weekHref} className={weekly.cardLink}>

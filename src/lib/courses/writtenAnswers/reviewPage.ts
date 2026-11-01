@@ -276,8 +276,10 @@ export async function loadWrittenReview(
     };
   };
   const all = people.map(personOf);
-  const bySent = (a: ReviewPerson, b: ReviewPerson) =>
-    (a.firstSentAt ?? "").localeCompare(b.firstSentAt ?? "") || a.name.localeCompare(b.name);
+  // Oldest first, as the review queue lists them: when it was first sent, or,
+  // never sent, when its week locked at the session.
+  const sentKey = (person: ReviewPerson) => person.firstSentAt ?? (person.week.state === "locked" ? person.week.at : null) ?? "";
+  const bySent = (a: ReviewPerson, b: ReviewPerson) => sentKey(a).localeCompare(sentKey(b)) || a.name.localeCompare(b.name);
   // Only an answer its readers may read is given feedback on or opened here.
   const toGive = all.filter((person) => person.readable && person.words > 0 && person.state !== "feedback").sort(bySent);
   const feedbackSent = all.filter((person) => person.readable && person.state === "feedback").sort(bySent);

@@ -609,6 +609,7 @@ export default function RunHome({
         slotStartKey={thisSchedule?.slotStartKey || null}
         countableIds={thisDoc?.countableIds ?? []}
         thisWeek={thisDoc?.thisWeek ?? null}
+        locked={thisDoc?.work?.state === "locked"}
         open={thisSchedule?.open ?? false}
         breakLabel={calendarWeek?.breakLabel ?? null}
         weekSource={weekSource}

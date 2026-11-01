@@ -41,6 +41,8 @@ export type WrittenQueueRow = {
   weekNumber: number;
   /** ISO 8601: when it was first sent, or when its week locked before it was. */
   firstSentAt: string;
+  /** Never sent: its week locked at the session before it was submitted, and `firstSentAt` is that lock. */
+  locked: boolean;
 };
 
 /** The weeks of a run, checked for one written as blocks. */
@@ -97,7 +99,7 @@ export async function loadWrittenQueues(
     }
   }
 
-  const waiting: Array<{ uid: string; weekNumber: number; sentAt: Date }> = [];
+  const waiting: Array<{ uid: string; weekNumber: number; sentAt: Date; locked: boolean }> = [];
   for (const doc of answerSnap.docs) {
     const data = (doc.data() ?? {}) as Record<string, unknown>;
     const uid = typeof data.uid === "string" ? data.uid : "";
@@ -110,9 +112,10 @@ export async function loadWrittenQueues(
     // Waiting only once its readers may read it.
     const standing = states.stateOf(uid, weekNumber);
     if (!workIsReadable(standing, record)) continue;
-    const sentAt = instantOf(data.firstSentAt) ?? (standing.kind === "locked" ? standing.at : null);
+    const firstSentAt = instantOf(data.firstSentAt);
+    const sentAt = firstSentAt ?? (standing.kind === "locked" ? standing.at : null);
     if (!sentAt) continue;
-    waiting.push({ uid, weekNumber, sentAt });
+    waiting.push({ uid, weekNumber, sentAt, locked: firstSentAt === null });
   }
   waiting.sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime() || a.uid.localeCompare(b.uid));
 
@@ -128,6 +131,7 @@ export async function loadWrittenQueues(
       name: names.get(row.uid) ?? "NAISI member",
       weekNumber: row.weekNumber,
       firstSentAt: row.sentAt.toISOString(),
+      locked: row.locked,
     });
   }
   return out;
