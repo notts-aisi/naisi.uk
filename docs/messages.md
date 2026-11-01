@@ -1,18 +1,21 @@
-# Messages: who a message is for
+# Messages: who a message is for, and the composer
 
 A message to chosen people (an event for some people, a note to everybody
 facilitating this term) starts with one question: who is this for? This file
 is the reference for the one picker every such send shares, "Who is this
-for?", and for the resolver behind it (built November 2026). The picker sends
-nothing. A send that takes its people from it resolves the same choice again,
-with the same code, when it sends, so the number the writer reads beside the
-button is the number sent.
+for?", for the resolver behind it, and for Messages, the composer that sends
+with it (both built November 2026). The picker sends nothing. A send that
+takes its people from it resolves the same choice again, with the same code,
+when it sends, so the number the writer reads beside the button is the number
+sent.
 
-The code is `src/lib/audience/`; the picker is
-`src/features/audience/WhoIsThisFor.tsx`. Nothing on the site sends with it
-yet. So it can be tried, the mailing list page (`/admin/subscriptions`, admins
-only) carries it at the foot, closed until opened, under "Who would a message
-reach?", with nothing to send.
+The picker's code is `src/lib/audience/` and
+`src/features/audience/WhoIsThisFor.tsx`. Messages is `/messages`
+(`src/app/(app)/messages/page.tsx`), `src/features/messages/`,
+`src/lib/messages/` and `src/app/api/messages/`; its own section is
+[Messages](#messages) below. The mailing list page (`/admin/subscriptions`,
+admins only) also carries the picker at its foot, closed until opened, under
+"Who would a message reach?", with nothing to send.
 
 ## Tags
 
@@ -160,3 +163,131 @@ guard so a route that writes cannot be added beside them unguarded.
 
 `tests/send-recipient-scope.test.mjs` fails a file that can send and takes
 people from the picker without going through `resolveAudience`.
+
+## Messages
+
+One composer for writing to people: who it is for (the picker), a subject and
+a message, "Send a test to me", and "Send to N people". It sends email only,
+never a phone notification.
+
+### Who writes
+
+Admins, a programme's lead (their programme) and a group's facilitator (their
+group): `messageWriterOf` in `src/lib/messages/writers.ts`, from the same read
+of the term the picker makes (`loadTermRoles` in `src/lib/audience/load.ts`),
+so the page, the routes and the picker agree about who runs what. A lead is
+held to the lead's bar and a facilitator to the facilitator's
+(`isNamedWithStanding`); a facilitator writes once their run's allocation has
+been published, because a group has no tag before then. Which tags each may
+use is the picker's scope table, asked again of every tag on every count and
+every send. Somebody who may use some tag and runs nothing (an SU-recognised
+committee member with the term's events) is not a writer here.
+
+The menu draws Messages (Run NAISI) for an admin, and for anybody else when
+`GET /api/messages` says so: who leads and who facilitates is in the records,
+not on the session, so the shell asks once when it opens
+(`src/features/messages/useWritesMessages.ts`). The route spares a member who
+is neither the term's reads: a lead is named on a form, which flags the
+account (`users.admissionsReviewer`, the flag behind the Programmes entry),
+and a facilitator is named on a group, which one query on their own uid finds.
+The flag and the query draw a link and decide nothing; the page and the routes
+ask the records again. Anybody else who opens `/messages` by its address reads
+one line saying who it is for.
+
+### How it is sent
+
+The picker's rule, for the whole send, never a mix: a **programme notice**
+when every tag is about running a programme and the writer runs everybody it
+reaches, otherwise **by their settings**, reading the one row the writer
+chose (or the tags suggest): the newsletter, event announcements or course
+announcements.
+
+- A notice goes through `sendNotice` on the `messages` surface: one message
+  per person, the marker above the body ("you hold a place on a programme or
+  help run one"), no unsubscribe link, whatever their settings. It goes to the
+  account's own address, or else a university address they verified: the
+  rule the group email and an update to the facilitators address a person
+  by (`ownAddressFor`), and not the cohort row's address that
+  `resolveNoticeAudience` prefers for a run's notice. A message in Messages is
+  addressed to a person rather than to one run's list: it can reach people on
+  several programmes, and facilitators and leads, who have no cohort row, and
+  a notice is never read off a list. So one rule for every person it
+  reaches, and it needs no read beyond the account the picker already holds.
+  Somebody whose cohort row holds another address gets a Messages notice at
+  their account's address, and the run composer's notice at the row's.
+- A message by their settings goes through `sendEmail` (`kind: "message"`),
+  one message per address the row routes the person to (an account through
+  `addressesForSend`, a guest to the address on their own subscription to
+  that row's list), with a line at its foot saying which row it read and the
+  link that unsubscribes them from that row, and the RFC 8058 headers. An
+  account's link names the account, a guest's their address.
+
+The email is the staff email's own blocks (`staffMessageBlocks`): the message
+as typed, escaped, then "Sent by" and the writer's name
+(`src/emails/MessageEmail.tsx`). Replies go to the society's inbox.
+
+### The send, whole or not at all
+
+`POST /api/messages` with `{ include, exclude, row, subject, message, count,
+post }`. Every refusal comes before anything is written or sent, in this
+order: view-as; the session; an account that is not approved; the body; the
+writers' gate; a tag the writer may not use (the picker's own refusal);
+nobody to email; a `count` that is no longer the number the send would email
+(409, with the new number, and the composer has the picker count again); over
+300 emails, counted in messages since a member's settings can send to two
+addresses, refused whole and never trimmed; a post the choice or the writer
+cannot make; no test of these words that reached the writer (409); and the
+caps. Only then is the record written, the update too when it is posted, then
+the emails, then what they did, on both.
+
+- **The count is a promise.** The send resolves the choice with
+  `resolveAudience` and the options the picker's count uses, so the number on
+  the button is the number sent. The writer is among the people when they are
+  in the tags, and the count says "including you".
+- **A test first, as Publish waits for one.** "Send a test to me"
+  (`POST /api/messages/test` with `{ subject, message }`) sends the message,
+  its subject marked "[TEST]", to the address on the writer's own account,
+  with no marker and no unsubscribe link (`kind: "message-test"`). One that
+  reached them records a fingerprint of the words in the estate's send
+  bookkeeping (`courseNudges/messagetest__<uid>`), and the send waits for a
+  test of exactly the words it is sending: changing either needs another.
+  One this copy of the site held, or one to a suppressed address, reached
+  nobody and is not recorded. Ten tests an hour.
+- **The caps** are the notice lane's, claimed in one transaction for every
+  send, notice or not: three an hour per writer and audience, ten a day per
+  audience whoever writes. The audience is the choice of tags, spelled in one
+  order and hashed, so the same tags are one audience.
+- **Suppression** applies twice: the picker leaves out somebody whose every
+  address is suppressed, and `sendEmail` drops a suppressed address on the
+  way out. On a copy of the site that may not write to an address (staging),
+  the message is held and counted as held.
+
+### "Also post it on the programme's page"
+
+A message to one programme's people can also be kept on the programme's page,
+as an update (`courseUpdates`), so the people it is to keep the programme's
+list of updates. It is offered when the choice is exactly one tag, with
+nobody left out, and that tag is one an update can be to on the run the
+programme names: the programme's everyone or its people holding a place (an
+update to everyone), its facilitators (to the facilitators), or one of its
+groups (to that group). The send asks the updates route's own gate again
+(`mayPostOn` in `src/lib/messages/posting.ts`) before anything is written,
+writes the update with its email unsettled, and settles it with what the
+emails did. It is on by default.
+
+A programme's Messages tab links to Messages set to that programme
+(`/messages?for=<the programme's everyone tag>`), drawn only when Messages
+would start with it for the person reading. The tab's own update composer
+stays beside it for now.
+
+### What a send keeps
+
+`messageSends/{id}` (`src/lib/firestore/messageSends.ts`), server only, every
+browser refused in `firestore.rules`: who wrote it, the tags with the words
+the writer saw, the class and the row, each person it reached by account id
+(a guest or a walk-in as no account) with how a message would reach them, why
+they were left out and what became of their email, the counts, how many were
+left out for each reason, the subject, the update it was posted as, and when.
+Never an address and never the message. Like the email log, it is kept when an
+account is deleted.
+
