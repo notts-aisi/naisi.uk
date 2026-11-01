@@ -19,9 +19,9 @@ import {
 
 /**
  * RUN NAISI › SURVEYS, BY WHAT EACH SURVEY IS FOR, as plain values the page
- * draws: a card per programme, and the surveys after events. Pure: the
- * records are read by `./load.ts`, after the page has decided the caller is
- * an admin, and handed in here with what their people rows say.
+ * draws: a card per programme, and the surveys after events. Nothing here
+ * reads: the records are read by `./load.ts`, after the page has decided the
+ * caller is an admin, and handed in with what their people rows say.
  *
  * Two promises the shape keeps:
  *
@@ -176,7 +176,7 @@ function checkInsRow(key: string, checkIns: ProgrammeCheckIns | null): HubRow {
     chip: EVERY_SESSION,
     remind: null,
     link: null,
-    checkIns: checkIns && checkIns.group.rows.length > 0 ? checkIns.group.rows : null,
+    checkIns: checkIns ? checkIns.group.rows : null,
   };
 }
 
