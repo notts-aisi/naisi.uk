@@ -1369,6 +1369,14 @@ const USERS = new Map([
       "reports' reader together. Claude's door and the push mirror are stubbed to record what they are handed",
   ],
   [
+    "week-notes.test.mjs",
+    "it drives a week's notes page and its draft, save and discard routes (privacy v15) on the facilitator week's " +
+      "world, the profile's draft beside them, and runs the account cascade over the drafts and the notes, because " +
+      "what leaves for Claude, what is kept and who may read it are decided across the routes, the notes' gatherer, " +
+      "the coursework, feedback and ratings readers and the notes' own store together. Claude's door is stubbed to " +
+      "record what it is handed",
+  ],
+  [
     "coursework-claude.test.mjs",
     "it drives the notes, draft, best-answers and Pangram routes (privacy v13) on the facilitator week's world, and " +
       "runs the account cascade over their records, because who may, what leaves for Claude or Pangram and what is " +

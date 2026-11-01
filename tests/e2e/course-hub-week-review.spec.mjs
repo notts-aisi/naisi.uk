@@ -19,11 +19,19 @@
  *    week 3 though his group has met, with where that came from;
  *  - the admin asks Fern to have a word with Ben, which makes one task on
  *    Fern's board with fixed words and no reason;
+ *  - the week's Notes, beside its review, say who submitted and show the
+ *    draft of a note about Ada the fixture seeded (the local server has no
+ *    key, so nothing is drafted here), built only from her submitted week,
+ *    with its boxes for next term unticked;
+ *  - the admin edits it and saves it to Ada's notes: one note, drafted by
+ *    Claude and in the admin's words, and the draft gone;
  *  - Fern, signed in, finds it on My Work.
  *
  * The lead's side (a calm "a week's review is for admins", nothing of the week
- * read) is never driven here: the harness signs in no lead who is not an
- * admin. `tests/week-review.test.mjs` and the persona battery hold it.
+ * read; the saved notes kept for leads and never a draft) is never driven
+ * here: the harness signs in no lead who is not an admin.
+ * `tests/week-review.test.mjs`, `tests/week-notes.test.mjs` and the persona
+ * battery hold it.
  *
  * ## How to run it
  *
@@ -33,7 +41,8 @@
  *
  * ## The words it holds the pages to
  *
- * Restated from src/lib/courses/weekReview/words.ts and
+ * Restated from src/lib/courses/weekReview/words.ts,
+ * src/lib/courses/weekNotes/words.ts and
  * src/lib/courses/coursework/claudeWords.ts, with their apostrophes. A change
  * to one of them changes this file in the same pull request.
  *
@@ -64,7 +73,7 @@ import {
   stateDir,
   statePath,
 } from "../../scripts/e2e-fixtures/core.mjs";
-import { RECAPTCHA_DEPENDENT_STEPS, SPEC } from "../../scripts/e2e-fixtures/course-hub-week-review.mjs";
+import { DRAFTED, RECAPTCHA_DEPENDENT_STEPS, SPEC } from "../../scripts/e2e-fixtures/course-hub-week-review.mjs";
 
 const RUN_STATE_DIR = stateDir();
 const STATE_PATH = statePath(SPEC.name, RUN_STATE_DIR);
@@ -91,6 +100,12 @@ const WORDS = {
   pangramNotSetUp: "Pangram isn’t set up on this site yet.",
   gradesLine:
     "Grades help you choose what to read first. They’re never shown to the person, a lead or a facilitator, never become feedback, and never go into anyone’s notes or profile.",
+  notesTitle: "Week 3 notes",
+  notesTab: "Notes about people",
+  builtOnlyFrom: "Built only from",
+  save: "Save to their notes",
+  savedBy: "Saved to their notes by ",
+  suggestTitle: "Suggest for next term",
 };
 
 let skipReasonFor = () => null;
@@ -331,6 +346,56 @@ test(
         assert.equal(task.visibility, "assignees-only");
         assert.equal(task.sourceRef?.aboutUid, ben.uid);
         assert.doesNotMatch(task.description, /not started|Claude|check-in|register|report/i, "the task gives a reason");
+      });
+
+      await step("the week's notes, beside its review: who submitted, and a waiting draft built only from a submitted week", async () => {
+        activePage = adminPage;
+        await adminPage.getByRole("navigation", { name: "This week" }).getByRole("link", { name: WORDS.notesTab }).click();
+        await adminPage.getByRole("heading", { level: 2, name: WORDS.notesTitle }).waitFor({ timeout: WAIT_MS });
+        const main = adminPage.locator("main");
+        const said = await wordsIn(main);
+        // Ada submitted week 3, and the seeded draft is hers; Ben, in the same group, did not submit.
+        assert.match(said, /\b\d+ people · 1 draft · [1-9]\d* submitted nothing this week, so there’s no note for them · 0 saved\b/, `the counts: ${said}`);
+        if (!deployed) assert.ok(said.includes(WORDS.claudeNotSetUp), "with no key, the notes do not say Claude is not set up");
+        const card = main.locator("article").filter({ hasText: ada.displayName }).first();
+        await card.waitFor({ timeout: WAIT_MS });
+        const onCard = await wordsIn(card);
+        assert.ok(onCard.includes(WORDS.builtOnlyFrom), `the draft does not say what it was built from: ${onCard}`);
+        assert.match(onCard, /Week 3 answer and 1 reflection, submitted \w{3} \d{1,2} \w{3}/, `the draft's sources: ${onCard}`);
+        // The seeded words, with the person's name put back where Claude wrote "the fellow".
+        const box = card.getByRole("textbox", { name: "Draft note" });
+        assert.match(await box.inputValue(), new RegExp(`^${escapeRegExp(ada.first)}\\b`), "the draft's box does not name the person");
+        // Every box for next term starts unticked: only a person ticks one.
+        const suggest = card.getByRole("group", { name: WORDS.suggestTitle });
+        assert.equal(await suggest.getByRole("checkbox", { checked: true }).count(), 0, "a suggestion is ticked before anybody ticked it");
+        assert.deepEqual(pressed, [], "opening the notes pressed something");
+      });
+
+      await step("the admin saves the draft to the person's notes, in the admin's words, and the card says who saved it", async () => {
+        activePage = adminPage;
+        const card = adminPage.locator("main article").filter({ hasText: ada.displayName }).first();
+        const box = card.getByRole("textbox", { name: "Draft note" });
+        await box.fill(`${ada.first} argues from the reading with care.`);
+        await card.getByRole("checkbox", { name: "Facilitating" }).check();
+        const [response] = await Promise.all([
+          responseTo(adminPage, `/weeks/w03/notes/${ada.uid}/save`, "POST"),
+          card.getByRole("button", { name: WORDS.save, exact: true }).click(),
+        ]);
+        const body = await okBody(response, "Saving the note");
+        assert.deepEqual(Object.keys(body), ["id"]);
+        await adminPage.locator("main article").filter({ hasText: WORDS.savedBy }).first().waitFor({ timeout: WAIT_MS });
+        const notes = await fixtureQuery("memberNotes").where("runId", "==", state.runId).get();
+        assert.equal(notes.size, 1, "saving made no note, or more than one");
+        const note = notes.docs[0].data();
+        assert.equal(note.uid, ada.uid);
+        assert.equal(note.text, `${ada.first} argues from the reading with care.`, "the note is not the admin's words");
+        assert.equal(note.draftedByClaude, true);
+        assert.equal(note.kind, "weekly");
+        assert.equal(note.weekId, "w03");
+        assert.deepEqual(note.suggest, ["facilitating"]);
+        assert.notEqual(note.text, DRAFTED);
+        const drafts = await fixtureQuery("courseNoteDrafts").where("runId", "==", state.runId).get();
+        assert.equal(drafts.size, 0, "the draft outlived its save");
       });
 
       await step("the facilitator finds the task on My Work", async () => {

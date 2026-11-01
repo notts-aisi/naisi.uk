@@ -758,8 +758,12 @@ describe("every scrub of words that leave the site knows the full name", () => {
         // CHANGED ON PURPOSE (the week review): the people running the
         // programme are scrubbed from a note draft too.
         "src/lib/memberNotes/draft.ts": "await loadAccountNames(db, [subjectUid, ...enrolled, ...people.facilitators, ...staff])",
+        // The end-of-week notes read the names by `runPeopleToScrub`, the
+        // coursework door's every-name read, for the page's counts and each
+        // draft alike.
+        "src/lib/courses/weekNotes/store.ts": "runPeopleToScrub(db, opened.door)",
       },
-      why: "the best answers' and a note draft's messages: `scrubNames` over the people each builder is handed",
+      why: "the best answers' and a note draft's messages, the profile's and the end-of-week notes': `scrubNames` over the people each builder is handed",
     }],
     ["src/lib/courses/weekReview/input.ts", {
       names: [],

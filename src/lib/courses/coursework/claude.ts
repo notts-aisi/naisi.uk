@@ -6,8 +6,8 @@ import { askClaudeForJson } from "@/lib/ai/claude";
  * `askClaudeForJson`, the site's one door to Anthropic. What they are sent is
  * built in `model.ts` (labels, never names) from counted answers only; this
  * file says what is asked and checks what comes back. Nothing here stores
- * anything: the callers decide (a note's draft is never stored; the best
- * answers are kept with the run).
+ * anything: the callers decide (the profile's note draft is never stored; an
+ * end-of-week note's draft and the best answers are kept with the run).
  *
  * Both are told the same three things the applications feature tells Claude:
  * never judge somebody's English, never judge whether AI wrote anything, and
@@ -24,10 +24,11 @@ export const FAIRNESS = [
 
 const NOTE_SYSTEM = [
   "You help the admins of NAISI, a student AI safety society at the University of Nottingham, keep short notes about the people on its courses.",
-  "You are given one fellow's coursework from one programme: their reflections, their written answers (with the feedback levels given on them) and boxes they filled in, each under the question it answers.",
-  "Write a short note for other admins about this fellow: how they engage with the course, the strengths their writing shows, anything worth following up, and whether they might one day facilitate a group or help run the society. For that last point the committee cares about values and engagement, not only polish.",
-  "Refer to the person only as \"the fellow\". Labels like \"another fellow\" or \"a facilitator\" stand for other people: never guess who anybody is.",
-  "Base everything on the writing shown. Only some of their writing may be shown, on purpose, so never treat a missing answer as one they skipped.",
+  "You are given one fellow's submitted coursework from one programme, week by week: their written answers, reflections and boxes they filled in, each under the question it answers. Under the work is what people on the team said about it: written feedback, each from \"their facilitator\", \"the programme's lead\" or \"an admin\", and ratings from 1 to 10 on the team's scale, each by a rater with a number (\"Rater 1\", the same rater everywhere), their role and a comment.",
+  "Write a short note for other admins about this fellow: how they engage with the course, the strengths their work shows, anything worth following up, and whether they might one day facilitate a group or help run the society. For that last point the committee cares about values and engagement, not only polish.",
+  "The team's feedback, ratings and comments are other people's views of the work, not facts about the fellow. Weigh them as views beside the work itself, and when a point comes from the team, say whose view it is.",
+  "Refer to the person only as \"the fellow\", and to a rater only by their number (\"Rater 1\"). Labels like \"another fellow\", \"a facilitator\" or \"someone running the programme\" stand for other people: never guess who anybody is.",
+  "Base everything on the work and the team's words shown. Only some of their work may be shown, on purpose, so never treat a missing answer as one they skipped.",
   FAIRNESS,
   "Keep it under 150 words, in two or three short paragraphs, with no headings and no lists.",
 ].join("\n\n");
@@ -39,8 +40,8 @@ const NOTE_SCHEMA = {
   properties: { note: { type: "string" } },
 };
 
-/** Claude's draft of a note, or the reason there is none. */
-export async function askForNoteDraft(message: string): Promise<{ ok: true; note: string } | { ok: false; reason: string }> {
+/** Claude's draft of a note and the model that wrote it, or the reason there is none. */
+export async function askForNoteDraft(message: string): Promise<{ ok: true; note: string; model: string } | { ok: false; reason: string }> {
   const answer = await askClaudeForJson({
     system: NOTE_SYSTEM,
     message,
@@ -52,7 +53,7 @@ export async function askForNoteDraft(message: string): Promise<{ ok: true; note
   if (!answer.ok) return answer;
   const note = (answer.value as { note?: unknown } | null)?.note;
   if (typeof note !== "string" || !note.trim()) return { ok: false, reason: "Claude’s answer couldn’t be read. Try again." };
-  return { ok: true, note: note.trim() };
+  return { ok: true, note: note.trim(), model: answer.model };
 }
 
 const BEST_SYSTEM = [

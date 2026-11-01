@@ -30,7 +30,10 @@
  *     view-as session refused. The programme's leads read and write the notes
  *     kept for them through the programme's own routes, held by
  *     `tests/notes-for-leads.test.mjs`.
- *  2. Claude's draft of a note: only counted rows, no name, nothing stored.
+ *  2. Claude's draft of a note: only counted rows of submitted weeks, from
+ *     the person's agreement to privacy v15, no name, nothing stored.
+ *     `tests/week-notes.test.mjs` holds the end-of-week drafts and the team's
+ *     words, through the same builder.
  *  3. Best answers: admins only since privacy v15 (the lead refused on the
  *     session, before anything is read); labels to Claude, names back on the
  *     way out; a facilitator's own work and uncounted rows never sent; picks
@@ -216,7 +219,11 @@ describe("notes about a person on the admins' routes: admins only, and never abo
     assert.equal(read.body.notes[0].mine, true);
     assert.equal(read.body.notes[0].beforeAgreement, false, "written after Amara agreed");
     assert.equal(read.body.notes[0].audience, "admins");
-    assert.equal(read.body.agreed, true);
+    // CHANGED ON PURPOSE (the end-of-week notes): Claude drafts a note only from
+    // what somebody submitted after agreeing to privacy v15, and `agreed` says
+    // whether Claude may draft. Amara agreed to v13 and not v15, so it may not
+    // yet; section 2 holds it true once she agrees to v15.
+    assert.equal(read.body.agreed, false);
     // Amara agreed to privacy v13 and not v15, so no note about her is kept for leads yet.
     assert.equal(read.body.forLeads, false);
     assert.equal(read.body.notes[0].leadsMayRead, false);
@@ -286,7 +293,22 @@ describe("notes about a person on the admins' routes: admins only, and never abo
 // 2. Claude's draft of a note
 // ---------------------------------------------------------------------------
 
-describe("Claude drafts a note from counted coursework, with no name, and nothing is kept", () => {
+describe("Claude drafts a note from the weeks somebody submitted, with no name, and nothing is kept", () => {
+  // The end-of-week notes' rule, which the profile's draft follows (privacy
+  // v15): only weeks submitted and not reopened since, only work written after
+  // the person agreed to version 15. Amara agrees to it on Thu 5 Nov.
+  const agreeToV15 = (uid) => w.world.db.poke(`users/${uid}`, { policyVersion: "terms.1+privacy.15", policyAgreedAt: new Date("2026-11-05T09:00:00Z") });
+  const submitWeek3 = (uid) =>
+    w.world.db.seed(`courseWeekWork/${RUN.agi}__${uid}__w03`, {
+      runId: RUN.agi,
+      uid,
+      weekId: "w03",
+      weekNumber: 3,
+      submittedAt: new Date("2026-11-11T20:00:00Z"),
+      firstSubmittedAt: new Date("2026-11-11T20:00:00Z"),
+      submitCount: 1,
+    });
+
   test("with no key the site says so and sends nothing", async () => {
     reset();
     globalThis.__cwClaudeKey = false;
@@ -296,25 +318,45 @@ describe("Claude drafts a note from counted coursework, with no name, and nothin
     assert.deepEqual(globalThis.__cwClaudeAsked, []);
   });
 
-  test("nobody who has not agreed is sent, and the refusal says why", async () => {
+  test("nobody who has not agreed to version 15 is sent, and the refusal says why", async () => {
     reset();
-    const answer = await ask("zach", routes.draft.POST, { uid: "dev" }, { body: { runId: RUN.agi } });
+    // Dev agreed only to v12, and Amara only to v13.
+    for (const uid of ["dev", "amara"]) {
+      submitWeek3(uid);
+      const answer = await ask("zach", routes.draft.POST, { uid }, { body: { runId: RUN.agi } });
+      assert.equal(answer.status, 409, uid);
+      assert.match(answer.body.error, /haven’t agreed to version 15/);
+    }
+    assert.deepEqual(globalThis.__cwClaudeAsked, []);
+    agreeToV15("amara");
+    const read = await ask("zach", routes.notes.GET, { uid: "amara" }, { query: "?place=profile" });
+    assert.equal(read.body.agreed, true, "Claude may draft once the person has agreed to version 15");
+  });
+
+  test("no submission, no note: a week not submitted is never sent", async () => {
+    reset();
+    agreeToV15("amara");
+    const answer = await ask("zach", routes.draft.POST, { uid: "amara" }, { body: { runId: RUN.agi } });
     assert.equal(answer.status, 409);
-    assert.match(answer.body.error, /haven’t agreed to version 13/);
+    assert.match(answer.body.error, /No submission, no note/);
     assert.deepEqual(globalThis.__cwClaudeAsked, []);
   });
 
   test("somebody whose writing all came before their agreement is not sent either", async () => {
     reset();
+    agreeToV15("amara");
+    submitWeek3("amara");
     w.world.db.poke(rowPath("amara", "k3-rp1"), { firstWrittenAt: BEFORE });
     const answer = await ask("zach", routes.draft.POST, { uid: "amara" }, { body: { runId: RUN.agi } });
     assert.equal(answer.status, 409);
-    assert.match(answer.body.error, /nothing they wrote on it came after/);
+    assert.match(answer.body.error, /nothing they submitted on it was written after they agreed to version 15/);
     assert.deepEqual(globalThis.__cwClaudeAsked, []);
   });
 
-  test("only counted rows go, with no name, address, account or private note, and the draft is returned, never stored", async () => {
+  test("only counted rows of a submitted week go, with no name, address, account or private note, and the draft is returned, never stored", async () => {
     reset();
+    agreeToV15("amara");
+    submitWeek3("amara");
     globalThis.__cwClaudeAnswer = { ok: true, value: { note: "The fellow writes about the lamps with care." }, model: "claude-opus-5-5", usage: { inputTokens: 1, outputTokens: 1 } };
     const before = w.everything();
     const answer = await ask("zach", routes.draft.POST, { uid: "amara" }, { body: { runId: RUN.agi } });
@@ -700,16 +742,32 @@ describe("what is built for Claude and Pangram, on its own", () => {
     assert.doesNotMatch(built.message, /Clarity|Strong/);
   });
 
-  test("a note: the person is the fellow, levels and never comments, only counted answers", () => {
+  test("a note: the person is the fellow, only counted answers of a submitted week, levels, and the team's comments by their writer's role", () => {
+    const from = new Date("2026-11-01T09:00:00Z");
+    const written = new Date("2026-11-10T09:00:00Z");
     const built = model.noteDraftInput({
       programme: "AGI Strategy",
-      weeks: [week],
-      answers: answers.filter((a) => a.uid === "u-grace"),
+      weeks: [{ week, submittedAt: written }],
+      answers: answers.filter((a) => a.uid === "u-grace").map((a) => ({ ...a, firstWrittenAt: written })),
+      // CHANGED ON PURPOSE (privacy v15, "the feedback, ratings and comments
+      // people on the team gave it"): a comment goes, scrubbed like the work,
+      // its writer by what they are and never who.
+      feedback: [{ id: "f1", weekId: "w02", itemId: "a1", byUid: "u-zoe", role: "facilitator", text: "Grace Hopper should ask Zoë Ångström.", at: written }],
+      ratings: [],
       people: [{ name: "Grace Hopper", label: "the fellow" }, { name: "Zoë Ångström", label: "a facilitator" }],
+      from,
+      writerFrom: new Map([["u-zoe", from]]),
     });
     assert.equal(built.sent, 2);
     assert.ok(built.message.includes("Clarity: Strong"));
-    assert.doesNotMatch(built.message, /Grace|Hopper|Zoë|Ångström/);
+    assert.ok(built.message.includes("Feedback from their facilitator: the fellow should ask a facilitator."));
+    assert.doesNotMatch(built.message, /Grace|Hopper|Zoë|Ångström|u-zoe|u-grace/);
+    // Answers that are not counted, or come from no submitted week, never go.
+    assert.equal(model.noteDraftInput({ programme: "P", weeks: [], answers: answers.map((a) => ({ ...a, firstWrittenAt: written })), feedback: [], ratings: [], people: [], from, writerFrom: new Map() }).sent, 0);
+    assert.equal(
+      model.noteDraftInput({ programme: "P", weeks: [{ week, submittedAt: written }], answers: answers.filter((a) => a.uid === "u-old").map((a) => ({ ...a, firstWrittenAt: written })), feedback: [], ratings: [], people: [], from, writerFrom: new Map() }).sent,
+      0,
+    );
     assert.equal(model.noteWithName("The fellow is sharp; the fellow should facilitate.", "Grace"), "Grace is sharp; Grace should facilitate.");
   });
 

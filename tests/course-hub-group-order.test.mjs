@@ -231,6 +231,16 @@ const FETCHES_IT_CANNOT_READ = new Map([
       "(`base`): one piece, never a run's groups.",
   ],
   [
+    "src/features/courses/weekNotes/DraftAll.tsx",
+    "Draft this week's notes, one request per person at the notes' draft route built from the ids it is handed " +
+      "(`route`): a draft each, never a run's groups.",
+  ],
+  [
+    "src/features/courses/weekNotes/NoteDraftCard.tsx",
+    "Save, Discard and Draft again on one person's end-of-week draft, at the notes routes built from the ids it is " +
+      "handed (`base`): one draft or note, never a run's groups.",
+  ],
+  [
     "src/features/courses/written/RatingForTheTeam.tsx",
     "Saving and clearing the reader's own rating for the team of one written answer, at the ratings route built " +
       "from the run id it is handed (`base`): one rating, never a run's groups.",

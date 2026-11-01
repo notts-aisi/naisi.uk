@@ -317,6 +317,22 @@ const MUST_GUARD = [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/explainers/[explainerId]/route.ts",
     "cancels an explainer: stamps it cancelled and closes its tasks on somebody's board, in the caller's name",
   ],
+  // The end-of-week notes (privacy v15): drafting sends a person's submitted
+  // week and the team's words on it to Claude and keeps the draft with the
+  // run; saving keeps an admin's note about a named member; discarding
+  // deletes a draft. Each in the caller's name.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/draft/route.ts",
+    "sends one person's submitted week and the team's words on it to Claude, and keeps the draft with the run, in the caller's name",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/[uid]/save/route.ts",
+    "keeps a note about a named member, drafted by Claude, as the caller's, and deletes the draft",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/[uid]/route.ts",
+    "deletes Claude's draft of a note about a named member, in the caller's name",
+  ],
   // The notes about a person on a programme, for its lead and admins
   // (privacy v15): a record about a named member, written as the caller,
   // which no client can read back to check what happened.

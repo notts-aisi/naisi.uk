@@ -355,6 +355,11 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "Claude’s review of each week, asked for by an admin: draft grades for the written answers, what people found hard, and who might need a hand. What Claude returns is kept with the run and deleted with it.",
   },
+  noteDrafts: {
+    label: "Claude’s drafts of notes about people",
+    fate: "destroyed",
+    note: "Claude’s draft of an end-of-week note about each person, waiting for an admin to save or discard it. What Claude returns is kept with the run and deleted with it. A note an admin saved from one is on the person’s record and stays.",
+  },
   pangramChecks: {
     label: "Pangram’s readings",
     fate: "destroyed",

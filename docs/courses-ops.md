@@ -3303,13 +3303,15 @@ shows as out of date.
   before its person's moment; beside an application only notes written after
   it; a programme's pages those, and earlier notes written from that
   programme. Each place says its rule in one line. "Draft a note with Claude"
-  (`draft.ts`) sends that person's counted coursework on one run, with the
-  week's questions, a written answer's feedback as LEVELS and never its
-  comment, and every name of everybody on the run swapped for a label ("the
-  fellow"); the draft is returned and never stored, and only Save note keeps
-  it, with `draftedByClaude`, an admin's alone. Deleted with the person's
-  account; a note an account wrote about somebody else stays, and no longer
-  names its author.
+  (`draft.ts`) sends what the end-of-week notes send (below), over every
+  week of one run: the weeks that person submitted and has not had reopened
+  since, their work in them written after they agreed to privacy v15, and the
+  team's feedback, ratings and comments on it, with every name of everybody
+  on the run swapped for a label ("the fellow", "Rater 1"); the draft is
+  returned and never stored, and only Save note keeps it, with
+  `draftedByClaude`, an admin's alone. Deleted with the person's account; a
+  note an account wrote about somebody else stays, and no longer names its
+  author.
 - **Who reads a note** (privacy v15). Each note keeps `audience`: "admins"
   or "leads" (admins and the programme's leads). A note with none, every note
   written before this, is admins only, and nothing back-fills it. An admin
@@ -3371,8 +3373,9 @@ shows as out of date.
   on its review page, read for an admin alone (`pangramReadings.ts`, which
   only reads what is kept and never reaches the code that sends).
 - **Who is scrubbed** (`runPeopleToScrub` in
-  `src/lib/courses/coursework/door.ts`, for the best answers and the week
-  review; the profile's note draft reads the same people). Every name of
+  `src/lib/courses/coursework/door.ts`, for the best answers, the week
+  review and the end-of-week notes; the profile's note draft reads the same
+  people). Every name of
   everybody holding a place and anybody else with a seat on the run ("a
   fellow" unless numbered), the run's facilitators ("a facilitator"), and the
   people running the programme, its lead, the run's helpers and every admin
@@ -3385,7 +3388,11 @@ shows as out of date.
   register or a tick, a private note, or anything written before its
   writer's moment. Survey answers go only to the week review, and only the
   week's check-ins, pooled by group with no person attached, for what people
-  found hard and for nothing else. Claude is told never to judge somebody's
+  found hard and for nothing else. The team's comments on somebody's work
+  (feedback, and a rating's comment) go only to a note's draft, scrubbed like
+  the work, each writer by what they are ("their facilitator", "the
+  programme's lead", "an admin", "Rater 1") and never who; the best answers,
+  Pangram and the week review carry none. Claude is told never to judge somebody's
   English or whether AI wrote anything, and that a thin answer is thin.
 
 `tests/coursework-use-cut-off.test.mjs` holds the moment and the rows at the
@@ -3558,6 +3565,73 @@ read for them. `src/lib/courses/explainers/` holds it;
 and Cancel as every caller, both kinds of ticket, Home, the overview, "Week N
 is open" (the line while the email has not gone, and no second email), the
 week's page, the scrub and the account cascade.
+
+### End-of-week notes
+
+Beside a week's review, a week has **Notes** (`.../weeks/[weekId]/notes`,
+"Review | Notes about people" at the head of both pages), offered from the
+week's first session on, to an admin and to the programme's lead. Privacy
+version 15 lets Claude draft, once a week, a short note on how each person is
+doing, "using only the work they submitted and the feedback, ratings and
+comments people on the team gave it". `src/lib/courses/weekNotes/` holds it.
+
+- **The door** (`door.ts`): the coursework door, the week a taught week of
+  the run's plan, and each live group's session of it. Drafting waits until
+  every group that meets the week has met (a cancelled or undated session
+  does not count either way). The draft, save and discard routes pass
+  `adminOnly`, so the lead is turned away there and on the session before.
+- **Who**: the people holding a place, never a facilitator's own work. **No
+  submission, no note**: a draft only for somebody whose week is submitted
+  and not reopened since (`courseWeekWork.submittedAt`), and the page says
+  how many submitted nothing.
+- **What is sent** (`noteDraftInput` in `src/lib/courses/coursework/input.ts`,
+  the one builder, the profile's draft too; read by `gather.ts`): that
+  week's work, counted under version 13 and first written after the person
+  agreed to version 15; each piece of feedback on an answer that went, or on
+  the week, as a comment by its writer's role; each rating for the team of an
+  answer that went, from 1 to 10 with its comment, its rater as "Rater 1".
+  A writer's words go only when written after THEIR version 15 moment.
+  Feedback from before pieces existed goes as its levels. NEVER a check-in
+  or survey, a session report, Claude's own grades or a register: the
+  gatherer imports none of their code, and `tests/week-notes.test.mjs` holds
+  it. Claude is told the team's words are other people's views, and the
+  facilitating question stays; "Offered to facilitate" is drawn beside a
+  draft as a fact from this term's application, never sent and never in
+  Claude's words.
+- **The press**: "Draft this week's notes" sends one request per person from
+  the browser, three at a time, each kept as it returns ("Drafted 12 of
+  41…"), for everybody who submitted something that may be sent with
+  neither a draft nor a note from this week; a second press drafts only who
+  is still without one. "Draft again" on a card replaces that unsaved draft,
+  and the card says when a rating or feedback came in after it, or that the
+  week changed. A draft naming a label it was never sent is refused, never
+  kept. Nobody is emailed.
+- **Kept** (`courseNoteDrafts/{runId}__{weekId}__{uid}`): Claude's words with
+  its labels, what was sent item for item (`builtFrom`, shown as "Built only
+  from"), each "Rater N"'s account, a hash of the message, the model, when
+  and whose press. Never on anybody's profile. Deleted with the run
+  (`noteDrafts`); an account's deletion deletes the drafts about it.
+- **Saved** (`keepWeeklyNoteIn` in `src/lib/memberNotes/store.ts`, in the
+  transaction that deletes the draft): the admin's own words from the box,
+  "Suggest for next term" with its boxes UNTICKED until a person ticks one,
+  and who reads it, admins and the programme's leads unless the admin keeps
+  it to admins. A `memberNotes` note with `draftedByClaude`, `kind: "weekly"`,
+  its week and `builtFrom`; one per person per week. Refused while the week
+  is not submitted. The saved card says "Drafted by Claude from week 3. Saved
+  by Zach."
+- **The lead** reads the saved notes kept for leads, by the notes' one rule
+  (`notesShownIn`, the lead's place), about somebody holding a place now:
+  never a draft, a count of drafts or who submitted, and never the
+  application's answer.
+- **Deleting an account** deletes the drafts about it, and takes its
+  feedback and ratings out of what every draft and saved note about
+  somebody else was built from (`sourceUids`, `clearNoteSourcesBy`): "the
+  ratings you gave" go with the account.
+
+`tests/week-notes.test.mjs` reads every message that would go, the press as
+every caller, the page as every reader, save and discard, and both
+deletions; `tests/claude-output-readers.test.mjs` walks the tree for every
+reader of a draft, both ways.
 
 ## Cutover: membership periods
 

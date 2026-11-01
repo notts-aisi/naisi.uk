@@ -4463,6 +4463,10 @@ describe("the course hub passage", () => {
           "src/lib/courses/coursework/door.ts",
           "Claude and Pangram on coursework (v13): the form's applications and decisions, read only through placeHoldersOn to answer WHO holds a place on the programme, by the name on record, behind the Coursework tab's door (an admin or the programme's lead). Nothing an application says is sent or shown, and a facilitator never reaches it",
         ],
+        [
+          "src/lib/courses/weekNotes/store.ts",
+          "End-of-week notes (v15): the form's sent applications, read for an ADMIN's Notes page alone, to say beside a person's draft whether they offered to facilitate on their application. Never sent to Claude, never in the programme's lead's view, and a facilitator never reaches it",
+        ],
       ]),
       "reading applications on the course side",
       "A facilitator is shown nothing from applications but whether each person in their group has said " +
@@ -8871,16 +8875,22 @@ describe("the re-consent gate", () => {
     // The weekly note is drafted from submitted work and the team's feedback.
     assert.ok(PAGE_FLAT.includes("Once a week Claude may also draft a short note on how each person is doing, using only the work they submitted and the feedback, ratings and comments people on the team gave it."));
     // "Only admins see what comes back" is the code's: Claude's best answers,
-    // Pangram on coursework, and the week review and its follow-up refuse
-    // anybody but an admin on the session.
+    // Pangram on coursework, the week review and its follow-up, and the
+    // end-of-week notes' draft, save and discard refuse anybody but an admin
+    // on the session.
     for (const route of [
       "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers/route.ts",
       "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/pangram/route.ts",
       "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review/route.ts",
       "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review/follow-up/route.ts",
+      "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/draft/route.ts",
+      "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/[uid]/save/route.ts",
+      "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/[uid]/route.ts",
     ]) {
       const code = codeOnly(read(route));
-      for (const handler of code.split(/export async function (?=GET|POST)/).slice(1)) {
+      const handlers = code.split(/export async function (?=GET|POST|PUT|PATCH|DELETE)/).slice(1);
+      assert.ok(handlers.length > 0, `${route} exports no handler this loop reads`);
+      for (const handler of handlers) {
         const refused = handler.indexOf("if (!canRunTerm(user)) return NextResponse.json(");
         assert.ok(refused !== -1, `${route} lets somebody other than an admin read what Claude or Pangram returned`);
         for (const later of ["ctx.params", "req.json()", "getAdminDb()"]) {
@@ -10277,6 +10287,141 @@ describe("v15 lets notes, ratings and work from after version 13 be used when so
     for (const file of [ROWS, LOAD]) {
       assert.doesNotMatch(strip(read(file)), /surveys|checkIn|sessionReports|courseWeekReviews|courseNoteDrafts|bestAnswers|pangram/i, `${file} reaches more than notes and ratings`);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2m⁵ End-of-week notes about people (v15)
+// ---------------------------------------------------------------------------
+
+/** The one builder of a note's draft, the end-of-week notes' and the profile's. Pure. */
+const noteInput = await loadTs("lib/courses/coursework/input.ts");
+
+describe("v15 lets Claude draft a short note on how each person is doing, from the work they submitted and the team's words on it, kept only when an admin saves it; the code agrees", () => {
+  const strip = (source) => source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+  const NOTES_API = "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes";
+
+  test("v15 says it", () => {
+    v15Says([
+      "Once a week Claude may also draft a short note on how each person is doing, using only the work they submitted and the feedback, ratings and comments people on the team gave it.",
+      "What comes back is seen by admins only,",
+      "kept with what it was about (the application, or the programme&apos;s run) and deleted with it.",
+      "Nothing of it is filed on your profile, except a note an admin has read, edited and saved, which says it was drafted by Claude.",
+      "a person reads and edits it before it is kept, and a kept note says it was drafted by Claude.",
+    ]);
+  });
+
+  test("\"using only the work they submitted and the feedback, ratings and comments people on the team gave it\": the one builder sends a submitted week and the team's words, and nothing else", () => {
+    const from = new Date("2026-11-05T09:00:00Z");
+    const at = (day) => new Date(`2026-11-${day}T09:00:00Z`);
+    const week = {
+      weekId: "w03",
+      weekNumber: 3,
+      title: "Lamps",
+      questions: [
+        { key: "written:wa", kind: "written", rowId: "wa", weekId: "w03", weekNumber: 3, weekTitle: "", text: "Who keeps the lamps?", boxes: [] },
+        { key: "reflection:rp", kind: "reflection", rowId: "rp", weekId: "w03", weekNumber: 3, weekTitle: "", text: "What surprised you?", boxes: [] },
+      ],
+    };
+    const answers = [
+      { rowId: "a", uid: "u", questionKey: "written:wa", weekId: "w03", kind: "written", text: "SUBMITTED ANSWER", counted: true, agreed: true, firstWrittenAt: at("10"), levels: [] },
+      { rowId: "b", uid: "u", questionKey: "reflection:rp", weekId: "w03", kind: "reflection", text: "BEFORE THE MOMENT", counted: true, agreed: true, firstWrittenAt: at("01"), levels: [] },
+    ];
+    const built = (weeks) =>
+      noteInput.noteDraftInput({
+        programme: "AGI Strategy",
+        weeks,
+        answers,
+        feedback: [{ id: "f", weekId: "w03", itemId: "wa", byUid: "w", role: "facilitator", text: "THE TEAM'S FEEDBACK", at: at("12") }],
+        ratings: [{ weekId: "w03", itemId: "wa", raterUid: "r", role: "lead", rating: 8, comment: "THE TEAM'S COMMENT", at: at("12") }],
+        people: [],
+        from,
+        writerFrom: new Map([["w", from], ["r", from]]),
+      });
+    const sent = built([{ week, submittedAt: at("11") }]);
+    for (const said of ["SUBMITTED ANSWER", "Feedback from their facilitator: THE TEAM'S FEEDBACK", "Rater 1 (the programme's lead) rated it 8 of 10: THE TEAM'S COMMENT"]) {
+      assert.ok(sent.message.includes(said), `the note's message does not carry ${said}`);
+    }
+    assert.ok(!sent.message.includes("BEFORE THE MOMENT"), "work from before the person's moment is sent");
+    // No submission, no note: a week not handed over sends nothing at all, not even the team's words.
+    const none = built([]);
+    assert.equal(none.sent, 0);
+    assert.ok(!none.message.includes("THE TEAM'S"), "the team's words go without the work they are about");
+    // "Built only from" is what was sent, item for item.
+    assert.deepEqual(sent.builtFrom.map((source) => source.kind), ["work", "feedback", "rating"]);
+    // What the builder is handed is read by one gatherer, which reads no survey, check-in, session report or review.
+    const gather = read("src/lib/courses/weekNotes/gather.ts");
+    for (const [, specifier] of gather.matchAll(/from\s+"([^"]+)"/g)) {
+      assert.doesNotMatch(specifier, /surveys|checkIns|sessionReports|weekReview|courseWeekReviews/, `what a note is built from imports ${specifier}`);
+    }
+    assert.match(strip(gather), /if \(submittedAt\) out\.push\(\{ week, submittedAt \}\);/, "a week is handed over without its submission");
+  });
+
+  test("the profile's \"Draft a note with Claude\" sends through the same builder and gatherer as the end-of-week notes", () => {
+    const profile = strip(read("src/lib/memberNotes/draft.ts"));
+    assert.match(profile, /const sources = await gatherPersonNote\(db, \{ runId, uid: subjectUid, weeks \}\);/);
+    assert.match(profile, /const input = noteDraftInput\(\{\s*programme: run\.programme,\s*weeks: sources\.weeks,/);
+    const weekly = strip(read("src/lib/courses/weekNotes/store.ts"));
+    assert.match(weekly, /return noteDraftInput\(\{\s*programme: opened\.door\.programmeName,\s*weeks: sources\.weeks,/);
+    assert.match(weekly, /gatherPersonNote\(db, \{ runId, uid: input\.uid, weeks: \[opened\.week\] \}\)/);
+    // tests/week-notes.test.mjs and tests/coursework-claude.test.mjs read every message that would go.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "week-notes.test.mjs")), "the end-of-week notes' suite is gone");
+  });
+
+  test("\"seen by admins only\" and \"kept with ... the programme's run\": a draft is an admin's, read on the run, and its guard walks the tree", () => {
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/COURSE_NOTE_DRAFTS_COLLECTION|["'`]courseNoteDrafts["'`]/),
+      new Map([
+        ["src/lib/firestore/courseNoteDrafts.ts", "the record: its shape, its normaliser, what a draft is written with and what a deletion takes out"],
+        ["src/lib/courses/weekNotes/store.ts", "the Notes page's loader, which hands drafts to an admin alone, and the admin-only presses"],
+        ["src/lib/firestore/accountDeletion.ts", "an account's deletion deletes the drafts about it and takes its ratings out of the rest"],
+        ["src/lib/firestore/courseDeletion.ts", "the run's destroy counts the drafts and deletes them with the run, as the policy says"],
+      ]),
+      "addressing Claude's end-of-week drafts",
+      "What Claude returns is an admin's and stays with the run: read it from the notes' own store, or change the policy first.",
+    );
+    // tests/claude-output-readers.test.mjs walks every reader of a draft, both ways.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "claude-output-readers.test.mjs")));
+    assert.match(read("firestore.rules"), /match \/courseNoteDrafts\/\{docId\} \{\s*allow read, write: if false;\s*\}/);
+    const store = strip(read("src/lib/courses/weekNotes/store.ts"));
+    assert.match(store, /openWeekNotes\(db, user, input\.roundId, input\.programmeId, input\.weekId, now, \{ adminOnly: WEEK_NOTES_WORDS\.onlyAdmins \}\)/);
+    const loader = store.slice(store.indexOf("export async function loadWeekNotes("));
+    assert.ok(loader.indexOf('return { ok: true, page: { viewer: "lead", opened, view } };') < loader.indexOf("readWeekDrafts("), "a lead's page reads drafts");
+  });
+
+  test("\"Nothing of it is filed on your profile, except a note an admin has read, edited and saved, which says it was drafted by Claude\"", () => {
+    const store = strip(read("src/lib/courses/weekNotes/store.ts"));
+    const saving = store.slice(store.indexOf("export async function saveWeekNote("), store.indexOf("export async function discardWeekNote("));
+    // The admin's own words from the box, never the draft's, kept drafted by Claude, in the transaction that deletes the draft.
+    assert.match(saving, /checkedNote\(\{ text: input\.text, audience: input\.audience, suggest: input\.suggest, draftedByClaude: true \}, "admin"\)/);
+    assert.match(saving, /keepWeeklyNoteIn\(\s*tx,/);
+    assert.match(saving, /tx\.delete\(ref\);/);
+    assert.doesNotMatch(saving, /draft\.text/, "the save keeps Claude's words rather than the admin's");
+    const notes = strip(read("src/lib/memberNotes/store.ts"));
+    const keep = notes.slice(notes.indexOf("export async function keepWeeklyNoteIn("), notes.indexOf("export async function weekNoteKeptIn("));
+    assert.match(keep, /draftedByClaude: fields\.draftedByClaude,/);
+    assert.match(keep, /kind: "weekly",/);
+    // The save is an admin's alone, refused on the session before anything is read (the loop above).
+    assert.match(strip(read(`${NOTES_API}/[uid]/save/route.ts`)), /if \(!canRunTerm\(user\)\) return NextResponse\.json\(/);
+  });
+
+  test("\"deleted with it\" and \"the ratings you gave\": the run's destroy takes its drafts, and an account takes its drafts and its ratings out of others'", () => {
+    v15Says("<strong>What AI tools returned:</strong> with what it was about, and deleted with it.");
+    const destroy = strip(read("src/lib/firestore/courseDeletion.ts"));
+    assert.match(destroy, /key: "noteDrafts",/);
+    assert.match(destroy, /drainQuery\(db, COURSE_NOTE_DRAFTS_COLLECTION, byRunId\(COURSE_NOTE_DRAFTS_COLLECTION\), budget\)/);
+    const cascade = strip(read("src/lib/firestore/accountDeletion.ts"));
+    assert.match(cascade, /summary\.courseNoteDraftsDeleted = await deleteNoteDraftsAbout\(db, uid\);/);
+    assert.match(cascade, /summary\.noteSourcesCleared = await clearNoteSourcesBy\(db, uid\);/);
+    assert.match(cascade, /\.where\("sourceUids", "array-contains", uid\)/);
+  });
+
+  test("Claude never suggests anybody for next term: a draft keeps no suggestion, and only an admin's save sets one", () => {
+    const record = strip(read("src/lib/firestore/courseNoteDrafts.ts"));
+    const fields = record.slice(record.indexOf("export function noteDraftFields("), record.indexOf("export function noteDraftWithout("));
+    assert.doesNotMatch(fields, /suggest/, "a draft keeps a suggestion");
+    const card = read("src/features/courses/weekNotes/NoteDraftCard.tsx");
+    assert.match(card, /const \[suggest, setSuggest\] = useState<NoteSuggestion\[\]>\(\[\]\);/, "the boxes do not start unticked");
   });
 });
 

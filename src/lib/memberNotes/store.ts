@@ -1,29 +1,32 @@
 import "server-only";
-import { FieldValue, type DocumentReference, type Firestore } from "firebase-admin/firestore";
+import { FieldValue, type DocumentReference, type Firestore, type Transaction } from "firebase-admin/firestore";
 import type { SessionUser } from "@/lib/firebase/session";
 import { courseworkCountsFrom } from "@/lib/legal/courseworkUse";
 import { reviewUseFrom, writtenAfterReviewUse } from "@/lib/legal/reviewUse";
 import {
   cleanNoteText,
   keptForLeads,
+  keptFromWeek,
   MEMBER_NOTE_LIMITS,
   MEMBER_NOTES_COLLECTION,
   NOTE_SUGGESTIONS,
   normalizeMemberNote,
   notesShownIn,
+  sourceUidsOf,
   writtenBeforeAgreement,
   type MemberNoteDoc,
   type MemberNoteView,
   type NoteAudience,
   type NotesPlace,
+  type NoteSource,
   type NoteSuggestion,
 } from "./model";
 import { NOTES_WORDS, programmeLabelOf } from "./words";
 
 /**
  * THE ONE READER AND WRITER OF `memberNotes`, on the Admin SDK, for the notes
- * routes and a term's Next term page. `model.ts` says what the notes are and
- * the rules they keep; this file keeps them:
+ * routes, a week's end-of-week notes and a term's Next term page. `model.ts`
+ * says what the notes are and the rules they keep; this file keeps them:
  *
  *  - `gateNotes`: the admins' routes (`/api/admin/members/[uid]/notes`), an
  *    admin, and never about themselves. Decided before anything is read. A
@@ -33,8 +36,12 @@ import { NOTES_WORDS, programmeLabelOf } from "./words";
  *    this file. A term's Next term page (`listNotesFromRuns`, an admin's
  *    alone) asks `canRunTerm` before it calls this file.
  *  - Every read of one person's notes is ONE EQUALITY on `uid` (the person a
- *    note is about), and the term's read is ONE `in` on `runId`, each sorted
- *    and filtered in memory, so nothing here needs a declared index.
+ *    note is about), a week's end-of-week notes (`listWeekNotes`) are ONE
+ *    EQUALITY on `runId`, and the term's read is ONE `in` on `runId`, each
+ *    sorted and filtered in memory, so nothing here needs a declared index.
+ *  - An end-of-week note is made here alone, inside the transaction that
+ *    deletes the draft it was saved from (`keepWeeklyNoteIn`); this file never
+ *    reads a draft, which stays with its run.
  *  - Every answer is built field by field (`viewOf`, and the lead's
  *    projection in `./programme.ts`): the author's name is looked up as it is
  *    read and never stored, and no document leaves whole.
@@ -161,7 +168,10 @@ export type NotesPayload = {
   notes: MemberNoteView[];
   /** How many notes about this person the place leaves out. */
   hidden: number;
-  /** Whether the person has agreed to the policy that lets their coursework be used: Claude drafts only then. */
+  /**
+   * Whether the person has agreed to the policy that lets Claude draft a note
+   * from their work, privacy v15 (`reviewUseFrom`): Claude drafts only then.
+   */
   agreed: boolean;
   /** The runs a note may be written from, and Claude may draft from. */
   runs: PersonRun[];
@@ -220,7 +230,7 @@ export async function loadNotes(
     payload: {
       notes: shown.map((note) => viewOf(note, viewer.uid, names, from, reviewFrom)),
       hidden,
-      agreed: from !== null,
+      agreed: reviewFrom !== null,
       runs,
       forLeads: reviewFrom !== null,
     },
@@ -338,6 +348,85 @@ export async function keepNote(
     updatedAt: FieldValue.serverTimestamp(),
   });
   return { ok: true, id: ref.id };
+}
+
+/** What an end-of-week note keeps beside a note's own fields: its week, and what Claude's draft was built from. */
+export type WeeklyNoteFields = { weekId: string; weekNumber: number; builtFrom: readonly NoteSource[] };
+
+/**
+ * Every end-of-week note kept from one week of a run, about anybody: one
+ * equality on `runId`, filtered in memory to the week, so nothing needs a
+ * declared index. For the week's Notes page alone, after its own door; which
+ * of them a reader is shown is decided there, by `notesShownIn`.
+ */
+export async function listWeekNotes(db: Firestore, runId: string, weekId: string): Promise<MemberNoteDoc[]> {
+  const snap = await db.collection(MEMBER_NOTES_COLLECTION).where("runId", "==", runId).get();
+  return snap.docs
+    .map((doc) => normalizeMemberNote(doc.id, (doc.data() ?? {}) as Record<string, unknown>))
+    .filter((note) => note.runId === runId && note.kind === "weekly" && note.weekId === weekId);
+}
+
+/**
+ * KEEP AN END-OF-WEEK NOTE AN ADMIN SAVED FROM CLAUDE'S DRAFT (privacy v15:
+ * "a note an admin has read, edited and saved, which says it was drafted by
+ * Claude"), inside the caller's transaction, which has read the draft and
+ * deletes it beside this write. Reads first, as a transaction must: the
+ * person's notes, for the record's limit and for a note already kept from
+ * this week, which refuses a second. Then the note: the admin's words, who
+ * reads it and what it suggests, `draftedByClaude`, its week, what the draft
+ * was built from and every account that names (`sourceUids`, for an
+ * account's deletion). A note is kept for leads only when the person has a
+ * privacy v15 moment (`reviewFrom`).
+ */
+export async function keepWeeklyNoteIn(
+  tx: Transaction,
+  db: Firestore,
+  viewer: SessionUser,
+  subjectUid: string,
+  fields: NoteFields,
+  source: { runId: string; programmeLabel: string },
+  weekly: WeeklyNoteFields,
+  reviewFrom: Date | null,
+): Promise<{ ok: true; id: string } | NotesRefusal> {
+  if (fields.audience === "leads" && reviewFrom === null) return refuse(409, NOTES_WORDS.notYetForLeads409);
+  const snap = await tx.get(db.collection(MEMBER_NOTES_COLLECTION).where("uid", "==", subjectUid));
+  const existing = snap.docs
+    .map((doc) => normalizeMemberNote(doc.id, (doc.data() ?? {}) as Record<string, unknown>))
+    .filter((note) => note.uid === subjectUid);
+  if (existing.length >= MEMBER_NOTE_LIMITS.perPerson) return refuse(409, NOTES_WORDS.full);
+  if (keptFromWeek(existing, source.runId, weekly.weekId)) return refuse(409, NOTES_WORDS.weekKeptAlready);
+  const ref = db.collection(MEMBER_NOTES_COLLECTION).doc();
+  tx.set(ref, {
+    uid: subjectUid,
+    text: fields.text,
+    authorUid: viewer.uid,
+    draftedByClaude: fields.draftedByClaude,
+    runId: source.runId,
+    programmeLabel: source.programmeLabel,
+    audience: fields.audience,
+    suggest: fields.suggest,
+    kind: "weekly",
+    weekId: weekly.weekId,
+    weekNumber: weekly.weekNumber,
+    builtFrom: [...weekly.builtFrom],
+    sourceUids: sourceUidsOf(weekly.builtFrom),
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  return { ok: true, id: ref.id };
+}
+
+/**
+ * Whether the end-of-week note from one week of a run is on the person's
+ * record, read inside the caller's transaction, so a draft is never kept
+ * beside a note an admin saved while Claude was writing it.
+ */
+export async function weekNoteKeptIn(tx: Transaction, db: Firestore, subjectUid: string, runId: string, weekId: string): Promise<boolean> {
+  const snap = await tx.get(db.collection(MEMBER_NOTES_COLLECTION).where("uid", "==", subjectUid));
+  const notes = snap.docs
+    .map((doc) => normalizeMemberNote(doc.id, (doc.data() ?? {}) as Record<string, unknown>))
+    .filter((note) => note.uid === subjectUid);
+  return keptFromWeek(notes, runId, weekId);
 }
 
 /** Add a note about `subjectUid`, for an admin who passed `gateNotes`, from one of their runs or from none. */

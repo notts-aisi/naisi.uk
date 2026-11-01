@@ -2161,6 +2161,21 @@ const NOT_COVERED = {
       "Course hub: cancelling an explainer. Every caller, a view-as session, an explainer of another run, the tasks closed, every ticket and the week's email line cleared and nobody emailed are executed by tests/course-explainers.test.mjs.",
     coverWhen: "When the course-hub-week-review spec next changes: after scheduling one it cancels it and finds the ticket clear.",
   },
+  // The end-of-week notes (privacy v15): the course-hub-week-review spec opens
+  // a week's Notes and saves a draft its fixture seeds; drafting sends to
+  // Claude, which the harness's own server cannot (it has no key), and the
+  // harness signs in no lead who is not an admin, so the lead's side is the
+  // persona battery's and tests/week-notes.test.mjs's.
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/draft": {
+    reason:
+      "Course hub: Claude drafts one person's end-of-week note; every caller, a view-as session, no key, not every group met, no submission, nothing that may go, a label slip, a second press and Draft again are executed by tests/week-notes.test.mjs with Claude stubbed, reading every message that would go.",
+    coverWhen: "When a browser spec runs against a server with a Claude key and presses Draft this week's notes once, as the coursework notes spec presses Claude's draft.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/[uid]": {
+    reason:
+      "Course hub: an admin discards Claude's end-of-week draft; the admin and every other caller are executed by tests/week-notes.test.mjs through the real route.",
+    coverWhen: "When the course-hub-week-review fixture seeds a draft and its spec discards it from the week's Notes page.",
+  },
   "/api/courses/groups/[groupId]/session-report": {
     reason:
       "Course hub: a facilitator's own report on a session of their group; who writes, every refusal, who a report may pick, when it is open and what it keeps are executed by tests/course-session-reports.test.mjs as each kind of caller, with the account deletion and the run's destroy.",

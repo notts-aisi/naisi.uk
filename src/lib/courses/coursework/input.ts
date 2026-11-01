@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { cameAfter } from "@/lib/legal/courseworkUse";
+import type { NoteSource, NoteSourceRole } from "@/lib/memberNotes/model";
 
 /**
  * WHAT LEAVES THE SITE WHEN AN ADMIN, OR A PROGRAMME'S LEAD, ASKS CLAUDE OR
@@ -16,9 +18,12 @@ import { createHash } from "node:crypto";
  *  - NO GROUP NAME (a group may be named after its facilitator), no
  *    facilitator's name, no availability, no private note, no survey answer,
  *    no tick: `gather.ts` reads none of them.
- *  - FEEDBACK AS LEVELS, NEVER COMMENTS. A written answer's feedback goes as
- *    the rubric's row and the level given; a comment is somebody else's free
- *    text and may name anybody.
+ *  - THE TEAM'S WORDS ONLY IN A NOTE'S DRAFT (privacy v15). The best answers
+ *    and Pangram carry no feedback at all. A note's draft carries the
+ *    feedback, ratings and comments people on the team gave the work, each
+ *    scrubbed like the work and each writer by what they are, never who
+ *    (`noteDraftInput`); feedback given before pieces existed goes as its
+ *    levels on the rubric, never its comment.
  *  - A HASH OF WHAT WAS SENT (`fingerprintOf`), kept with a stored result, so
  *    the screen marks it out of date once the answers change.
  *
@@ -151,54 +156,207 @@ export function scrubNames(text: string, people: readonly NameToLabel[]): string
 }
 
 // ---------------------------------------------------------------------------
-// A note about one person (B4)
+// A note about one person: the profile's press and the end-of-week notes
 // ---------------------------------------------------------------------------
+
+/** One piece of the team's feedback on somebody's week, as read: a comment, never a level. */
+export type NoteFeedback = {
+  /** The piece's own id, which orders two pieces saved at once. */
+  id: string;
+  weekId: string;
+  /** The written answer it is on, by its block's id, or null for a piece on the week as a whole. */
+  itemId: string | null;
+  byUid: string;
+  role: NoteSourceRole;
+  text: string;
+  /** When its words were last written: its change, else its saving. */
+  at: Date | null;
+};
+
+/** One rating for the team of somebody's written answer, as read. */
+export type NoteRating = {
+  weekId: string;
+  /** The written answer it rates, by its block's id. */
+  itemId: string;
+  raterUid: string;
+  role: "lead" | "admin";
+  rating: number;
+  comment: string;
+  /** When it was last given: its change, else its first giving. */
+  at: Date | null;
+};
+
+/** One of the person's weeks with its questions, and when they submitted it. Only a submitted week is ever handed over. */
+export type NoteWeek = { week: CourseworkWeek; submittedAt: Date };
 
 export type NoteDraftInput = {
   message: string;
-  /** How many answers went. */
+  /** How many pieces of their work went. */
   sent: number;
+  /** A hash of the message, kept with a draft to tell when it is out of date. */
+  fingerprint: string;
+  /** Everything that went, in the message's order: what a draft keeps and a saved note shows as "Built only from". */
+  builtFrom: NoteSource[];
+  /** "Rater 1" to the account it stands for, for putting names back. */
+  raters: Record<string, string>;
 };
 
+/** How a piece of feedback's writer is named to Claude: by what they are, never who. */
+const FEEDBACK_FROM: Record<NoteSourceRole, string> = {
+  facilitator: "their facilitator",
+  lead: "the programme's lead",
+  admin: "an admin",
+};
+
+const byAtThen = <T>(atOf: (item: T) => Date | null, keyOf: (item: T) => string) => (a: T, b: T) =>
+  (atOf(a)?.getTime() ?? 0) - (atOf(b)?.getTime() ?? 0) || keyOf(a).localeCompare(keyOf(b));
+
 /**
- * The message for Claude's draft of a note about ONE person, from their
- * counted coursework on one run. `people` is everybody on the run with the
- * label their name becomes: the person themselves "the fellow".
+ * THE MESSAGE FOR CLAUDE'S DRAFT OF A NOTE ABOUT ONE PERSON (privacy v15:
+ * "Once a week Claude may also draft a short note on how each person is
+ * doing, using only the work they submitted and the feedback, ratings and
+ * comments people on the team gave it"). The one builder for both drafts:
+ * the end-of-week notes hand it one week, and the profile's "Draft a note
+ * with Claude" every week of one run.
+ *
+ *  - ONLY SUBMITTED WEEKS. `weeks` holds the weeks the person submitted and
+ *    has not had reopened since; anything else is never handed over, so
+ *    there is no submission, no note.
+ *  - ONLY WORK FROM THEIR MOMENT: an answer counted under version 13 and
+ *    first written after the person agreed to version 15 (`from`); none, and
+ *    nothing of the week goes.
+ *  - THE TEAM'S WORDS ON IT: each piece of feedback on an answer that went,
+ *    or on a week whose work went, as a comment with its writer's role ("their
+ *    facilitator", "the programme's lead", "an admin"); each rating for the
+ *    team of an answer that went, from 1 to 10 with its comment, by a number
+ *    for its rater ("Rater 1", the same rater everywhere). A writer's words
+ *    go only when written after THEIR version 15 moment (`writerFrom`).
+ *    Feedback given before pieces existed goes as its levels, as before.
+ *  - NOTHING ELSE: no survey or check-in, no session report, no grade of
+ *    Claude's own, no register: nothing here reads them, and their gatherer
+ *    imports none of their code.
+ *  - NO NAME, ADDRESS OR ACCOUNT. Every free text is scrubbed (`scrubNames`)
+ *    with `people`: the person "the fellow", everybody else on the run by
+ *    what they are.
+ *
+ * `builtFrom` is everything that went, so a draft's "Built only from" is
+ * what was sent, item for item.
  */
 export function noteDraftInput(input: {
   programme: string;
-  weeks: readonly CourseworkWeek[];
+  weeks: readonly NoteWeek[];
   answers: readonly CourseworkAnswer[];
+  feedback: readonly NoteFeedback[];
+  ratings: readonly NoteRating[];
   people: readonly NameToLabel[];
+  /** The person's privacy v15 moment, or null: then nothing goes. */
+  from: Date | null;
+  /** Each feedback writer's and rater's own privacy v15 moment. */
+  writerFrom: ReadonlyMap<string, Date | null>;
 }): NoteDraftInput {
-  const counted = input.answers.filter((answer) => answer.counted);
+  const scrub = (text: string) => scrubNames(text, input.people);
+  const oneLine = (text: string) => scrub(text).replace(/\s+/g, " ").trim();
+  const theirs = (at: Date | null, uid: string) => cameAfter(at, input.from) && cameAfter(at, input.writerFrom.get(uid) ?? null);
+  const going = input.answers.filter((answer) => answer.counted && cameAfter(answer.firstWrittenAt ?? null, input.from));
+  const raterLabel = new Map<string, string>();
+  const labelOf = (uid: string) => {
+    if (!raterLabel.has(uid)) raterLabel.set(uid, `Rater ${raterLabel.size + 1}`);
+    return raterLabel.get(uid) as string;
+  };
+
   const lines: string[] = [];
-  lines.push(`# The programme: ${scrubNames(input.programme, input.people)}`);
+  lines.push(`# The programme: ${scrub(input.programme)}`);
   lines.push(
-    "Only the fellow's writing from after a certain date is shown. Anything earlier is left out on purpose, so a question with no answer here is not one they skipped.",
+    "Only the fellow's submitted work from after a certain date is shown, each piece under the question it answers, with what people on the team said about it. Anything earlier is left out on purpose, so a question with no answer here is not one they skipped.",
   );
   let sent = 0;
-  for (const week of input.weeks) {
+  const builtFrom: NoteSource[] = [];
+  for (const { week, submittedAt } of [...input.weeks].sort((a, b) => a.week.weekNumber - b.week.weekNumber)) {
     const mine = week.questions
-      .map((question) => ({ question, answer: counted.find((answer) => answer.questionKey === question.key && answer.weekId === week.weekId) }))
+      .map((question) => ({ question, answer: going.find((answer) => answer.questionKey === question.key && answer.weekId === week.weekId) }))
       .filter((pair): pair is { question: CourseworkQuestion; answer: CourseworkAnswer } => pair.answer !== undefined);
     if (mine.length === 0) continue;
-    lines.push("", `# Week ${week.weekNumber}: ${scrubNames(week.title, input.people)}`);
+    const work = { written: 0, reflections: 0, boxes: 0 };
+    const said: NoteSource[] = [];
+    let levels = false;
+    lines.push("", `# Week ${week.weekNumber}: ${scrub(week.title)}`);
     for (const { question, answer } of mine) {
-      lines.push("", `## ${KIND_WORDS[question.kind]}: ${scrubNames(question.text, input.people)}`, scrubNames(answer.text, input.people));
-      if (answer.levels.length > 0) {
-        lines.push(`Feedback given, as levels on the course's rubric: ${answer.levels.map((level) => `${level.row}: ${level.level}`).join("; ")}`);
-      }
+      lines.push("", `## ${KIND_WORDS[question.kind]}: ${scrub(question.text)}`, scrub(answer.text));
       sent += 1;
+      if (question.kind === "reflection") work.reflections += 1;
+      else if (question.kind === "fillIn") work.boxes += 1;
+      else work.written += 1;
+      if (question.kind !== "written") continue;
+      if (answer.levels.length > 0) {
+        levels = true;
+        lines.push(`Feedback given before, as levels on the course's rubric: ${answer.levels.map((level) => `${level.row}: ${level.level}`).join("; ")}`);
+      }
+      const pieces = input.feedback
+        .filter((piece) => piece.weekId === week.weekId && piece.itemId === question.rowId && piece.text.trim() && theirs(piece.at, piece.byUid))
+        .sort(byAtThen((piece) => piece.at, (piece) => piece.id));
+      for (const piece of pieces) {
+        lines.push(`Feedback from ${FEEDBACK_FROM[piece.role]}: ${oneLine(piece.text)}`);
+        said.push({ kind: "feedback", weekNumber: week.weekNumber, byUid: piece.byUid, role: piece.role, on: "writtenAnswer", at: piece.at });
+      }
+      const ratings = input.ratings
+        .filter((rating) => rating.weekId === week.weekId && rating.itemId === question.rowId && theirs(rating.at, rating.raterUid))
+        .sort(byAtThen((rating) => rating.at, (rating) => rating.raterUid));
+      for (const rating of ratings) {
+        const label = labelOf(rating.raterUid);
+        const comment = oneLine(rating.comment);
+        const role = rating.role === "lead" ? "the programme's lead" : "an admin";
+        lines.push(`${label} (${role}) rated it ${rating.rating} of 10${comment ? `: ${comment}` : "."}`);
+        said.push({ kind: "rating", weekNumber: week.weekNumber, raterUid: rating.raterUid, role: rating.role, label, rating: rating.rating, comment: rating.comment.trim(), at: rating.at });
+      }
     }
+    const onTheWeek = input.feedback
+      .filter((piece) => piece.weekId === week.weekId && piece.itemId === null && piece.text.trim() && theirs(piece.at, piece.byUid))
+      .sort(byAtThen((piece) => piece.at, (piece) => piece.id));
+    if (onTheWeek.length > 0) {
+      lines.push("", "## Feedback on the week as a whole");
+      for (const piece of onTheWeek) {
+        lines.push(`From ${FEEDBACK_FROM[piece.role]}: ${oneLine(piece.text)}`);
+        said.push({ kind: "feedback", weekNumber: week.weekNumber, byUid: piece.byUid, role: piece.role, on: "week", at: piece.at });
+      }
+    }
+    builtFrom.push({ kind: "work", weekNumber: week.weekNumber, submittedAt, ...work });
+    if (levels) builtFrom.push({ kind: "levels", weekNumber: week.weekNumber });
+    builtFrom.push(...said);
   }
-  return { message: lines.join("\n"), sent };
+  const message = lines.join("\n");
+  return {
+    message,
+    sent,
+    fingerprint: fingerprintOf(message),
+    builtFrom,
+    raters: Object.fromEntries([...raterLabel].map(([uid, label]) => [label, uid])),
+  };
 }
 
 /** Names back where Claude wrote "the fellow", for the admin's box. */
 export function noteWithName(text: string, firstName: string): string {
   if (!firstName.trim()) return text;
   return text.replace(/\bThe fellow\b/g, firstName).replace(/\bthe fellow\b/g, firstName);
+}
+
+/** Names back where Claude wrote "Rater 1", for the admin's box. A label nobody holds any more reads "a rater". */
+export function noteWithRaters(text: string, names: Readonly<Record<string, string>>): string {
+  return text.replace(/\bRater (\d+)\b/g, (whole) => (Object.prototype.hasOwnProperty.call(names, whole) && names[whole] ? names[whole] : "a rater"));
+}
+
+/**
+ * The labels in Claude's draft that it was never sent: a "Rater N" with no
+ * rater behind it, or a "Fellow N" or "Group N", which no note's message
+ * carries. A draft with any is refused rather than kept, so a label slip can
+ * never put the wrong name in a note.
+ */
+export function noteLabelSlips(text: string, raters: Readonly<Record<string, string>>): string[] {
+  const slips = new Set<string>();
+  for (const [whole] of text.matchAll(/\b(?:Rater|Fellow|Group) \d+\b/g)) {
+    if (whole.startsWith("Rater ") && Object.prototype.hasOwnProperty.call(raters, whole)) continue;
+    slips.add(whole);
+  }
+  return [...slips];
 }
 
 // ---------------------------------------------------------------------------

@@ -468,6 +468,9 @@ describe("4. never to the person or a facilitator, and never to Kairos", () => {
           "src/features/courses/written/RatingForTheTeam.tsx",
           "src/app/api/courses/runs/[runId]/work-ratings/route.ts",
           "src/lib/applications/nextTerm/load.ts",
+          // What a note about a person is drafted from (privacy v15), read
+          // only for an admin's draft and held below.
+          "src/lib/courses/weekNotes/gather.ts",
         ].includes(file),
         `${file} reaches ratings for the team`,
       );
@@ -476,6 +479,28 @@ describe("4. never to the person or a facilitator, and never to Kairos", () => {
     const access = codeOf("src/lib/courses/workRatings/access.ts");
     assert.match(access, /return facts\.isAdmin \|\| facts\.isLead;/);
     assert.match(access, /return readsWorkRatings\(facts\) && writtenReviewRole\(actor, facts, owner, liveGroups\)\.mayReview;/);
+  });
+
+  test("the readers for a note's draft are called by what a note is drafted from alone, and that only for an admin", () => {
+    // Privacy v15: "Once a week Claude may also draft a short note on how
+    // each person is doing, using only the work they submitted and the
+    // feedback, ratings and comments people on the team gave it."
+    const callers = filesMatching(/\b(?:readPersonRatings|readWeekRatings)\(/);
+    assert.deepEqual(callers, ["src/lib/courses/weekNotes/gather.ts", "src/lib/courses/workRatings/readers.ts"]);
+    // The gatherer is called by the end-of-week notes' store and the
+    // profile's draft, each of them an admin's alone.
+    assert.deepEqual(filesMatching(/\bgather(?:PersonNote|WeekNotes)\(/), [
+      "src/lib/courses/weekNotes/gather.ts",
+      "src/lib/courses/weekNotes/store.ts",
+      "src/lib/memberNotes/draft.ts",
+    ]);
+    assert.match(codeOf("src/lib/memberNotes/draft.ts"), /const refused = gateNotes\(user, subjectUid\);\s*if \(refused\) return refused;/);
+    const store = codeOf("src/lib/courses/weekNotes/store.ts");
+    const lead = store.indexOf('if (opened.door.viewer === "lead") {');
+    const leadReturn = store.indexOf('return { ok: true, page: { viewer: "lead", opened, view } };');
+    assert.ok(lead !== -1 && leadReturn > lead && !store.slice(lead, leadReturn).includes("gatherWeekNotes("), "the lead's page reads ratings to draft from");
+    assert.ok(store.indexOf("gatherWeekNotes(") > leadReturn);
+    assert.match(store.slice(store.indexOf("export async function draftWeekNote(")), /^[^]{0,400}await openFor\(db, user, input, now\)/);
   });
 
   test("the Kairos file and the Ratings tab never read them: Kairos gets the ratings at a programme's end alone", () => {

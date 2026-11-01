@@ -539,6 +539,12 @@ const ROUND_SURFACES = {
       "Schedule an explainer, under a week's review, an admin's alone: loadProgrammeRun first, which reads the " +
       "round through the form's own loader and answers 'none' for a round that is not a form, then the review's own door",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/notes": {
+    kind: "form",
+    why:
+      "A week's notes about people, an admin's drafts and the lead's saved notes: loadProgrammeRun first, which reads " +
+      "the round through the form's own loader and answers 'none' for a round that is not a form, then the week's door",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]": {
     kind: "form",
     why:
@@ -757,6 +763,27 @@ const ROUND_SURFACES = {
     why:
       "Cancelling an explainer, an admin's alone, through loadProgrammeRun, which reads the round through the form's " +
       "own loader and answers 'none' (a 404) for a round that is not a form, before the explainer is read",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/draft": {
+    kind: "form",
+    why:
+      "Claude drafts one person's end-of-week note, an admin's alone, through openWeekNotes and the coursework door, " +
+      "which starts from loadProgrammeRun and the form's own loader and answers 'none' (a 404) for a round that is " +
+      "not a form, before anybody's work is read",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/[uid]/save": {
+    kind: "form",
+    why:
+      "Save an end-of-week note, an admin's alone, through openWeekNotes and the coursework door, which starts from " +
+      "loadProgrammeRun and the form's own loader and answers 'none' (a 404) for a round that is not a form, before " +
+      "a draft is read or a note kept",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/[uid]": {
+    kind: "form",
+    why:
+      "Discard an end-of-week draft, an admin's alone, through openWeekNotes and the coursework door, which starts " +
+      "from loadProgrammeRun and the form's own loader and answers 'none' (a 404) for a round that is not a form, " +
+      "before a draft is read or deleted",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers": {
     kind: "form",

@@ -21,9 +21,17 @@
  *     nothing else, the screen is drawn by that page alone, and no browser
  *     file reaches a server part of it;
  *  4. the notes kept about a person never reach any of it, nor a weekly
- *     note's drafts (`courseNoteDrafts`, which the end-of-week notes will
- *     add to the list below when they are built), so a grade or a check-in
- *     can never find its way onto somebody's record.
+ *     note's drafts, so a grade or a check-in can never find its way onto
+ *     somebody's record.
+ *
+ * THE SECOND HALF holds the same for Claude's end-of-week drafts of a note
+ * about a person (`courseNoteDrafts`): every file that addresses them, every
+ * file outside their own library that reaches them, each with why, both
+ * ways; their loader called by the week's Notes page alone, which hands a
+ * draft to an admin and never to the programme's lead, and their presses by
+ * their admin-only routes alone; no browser file reaching their server code;
+ * and no draft ever reaching a note except through the notes' own store,
+ * when an admin saves it.
  *
  * The rating page's own block for an admin, Claude's grade beside the
  * team's rating once the admin has saved theirs, is not built: when it is,
@@ -66,8 +74,36 @@ const ADDRESSERS = {
   "lib/firestore/courseDeletion.ts": "destroying the run counts the reviews and drains them",
 };
 
-/** The weekly notes' drafts, once the end-of-week notes are built: none yet. */
-const NOTE_DRAFT_ADDRESSERS = {};
+/** Every file that addresses Claude's end-of-week drafts, and what it does with them. */
+const NOTE_DRAFT_ADDRESSERS = {
+  "lib/firestore/courseNoteDrafts.ts": "the record: its shape, its normaliser, what a draft is written with and what an account's deletion takes out of it",
+  "lib/courses/weekNotes/store.ts":
+    "the week's Notes page loader, which hands drafts to an admin alone, and the draft, save and discard presses, each behind the week's door with `adminOnly`; the one writer",
+  "lib/firestore/accountDeletion.ts": "deleting an account deletes the drafts about it and takes its ratings and feedback out of the rest",
+  "lib/firestore/courseDeletion.ts": "destroying the run counts the drafts and drains them",
+};
+
+/**
+ * Every file outside the drafts' own library (`lib/courses/weekNotes/` and
+ * `features/courses/weekNotes/`) that reaches their record, their store or
+ * their screens, and why it may.
+ */
+const NOTE_DRAFT_REACHERS = {
+  "lib/firestore/courseNoteDrafts.ts": "the record, which the library and the deletions read",
+  "lib/firestore/accountDeletion.ts": "deleting an account: the record's collection and what to take out of a draft",
+  "lib/firestore/courseDeletion.ts": "destroying the run: the record's collection",
+  "app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/draft/route.ts":
+    "Draft a person's note: refuses everybody but an admin on the session before anything is read, then the week's door with adminOnly",
+  "app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/[uid]/save/route.ts":
+    "Save to their notes: refuses everybody but an admin on the session before anything is read, then the week's door with adminOnly",
+  "app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/[uid]/route.ts":
+    "Discard a draft: refuses everybody but an admin on the session before anything is read, then the week's door with adminOnly",
+  "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/notes/page.tsx":
+    "the week's Notes page: the loader hands an admin the drafts and the programme's lead the saved notes kept for leads alone",
+};
+
+/** What reaches the drafts: their record by name or import, the store or view that read them, or their screens. */
+const REACHES_DRAFTS = /COURSE_NOTE_DRAFTS_COLLECTION|["'`]courseNoteDrafts["'`]|from\s+"@\/lib\/firestore\/courseNoteDrafts"|from\s+"\.\/courseNoteDrafts"|from\s+"@\/lib\/courses\/weekNotes\/(?:store|view)"|from\s+"@\/features\/courses\/weekNotes\/[^"]+"/;
 
 /**
  * Every file outside the review's own library that reaches its code or its
@@ -126,12 +162,13 @@ describe("Claude's week reviews: read by admins, on the run, never on a record",
     for (const [file, why] of Object.entries(ADDRESSERS)) assert.ok(why.length >= 30, `${file}: a reason too short to weigh`);
   });
 
-  test("nothing addresses a weekly note's drafts that is not listed (none is built yet)", () => {
+  test("the files that address a weekly note's drafts are the record, the notes' store and the two deletions", () => {
     const addressing = files
       .filter(([, code]) => /["'`]courseNoteDrafts["'`]|COURSE_NOTE_DRAFTS_COLLECTION/.test(withoutComments(code)))
       .map(([file]) => file)
       .sort();
     assert.deepEqual(addressing, Object.keys(NOTE_DRAFT_ADDRESSERS).sort());
+    for (const [file, why] of Object.entries(NOTE_DRAFT_ADDRESSERS)) assert.ok(why.length >= 30, `${file}: a reason too short to weigh`);
   });
 
   test("every file outside the review's library that reaches it is listed with why it may, and every entry still does", () => {
@@ -245,6 +282,110 @@ describe("Claude's week reviews: read by admins, on the run, never on a record",
         assert.equal(wheres.length, 1, `${file} asks ${wheres.join(" and ")}`);
       }
       assert.doesNotMatch(code, /COURSE_WEEK_REVIEWS_COLLECTION\)[^;]*\.orderBy\(/, `${file} orders reviews`);
+    }
+  });
+});
+
+describe("Claude's end-of-week drafts: an admin's, on the run, on a record only once an admin saves one", () => {
+  const LIBRARY = (file) => file.startsWith("lib/courses/weekNotes/") || file.startsWith("features/courses/weekNotes/");
+  const callers = (pattern) =>
+    files
+      .filter(([file]) => !LIBRARY(file))
+      .filter(([, code]) => pattern.test(withoutComments(code)))
+      .map(([file]) => file)
+      .sort();
+
+  test("every file outside the drafts' library that reaches them is listed with why it may, and every entry still does", () => {
+    const reaching = files
+      .filter(([file]) => !LIBRARY(file))
+      .filter(([, code]) => REACHES_DRAFTS.test(withoutComments(code)))
+      .map(([file]) => file)
+      .sort();
+    assert.deepEqual(
+      reaching,
+      Object.keys(NOTE_DRAFT_REACHERS).sort(),
+      "a file reaches Claude's end-of-week drafts and is not listed: what Claude returns is an admin's (privacy v15), so say why this one may, or reach it from an admin-only page",
+    );
+    for (const [file, why] of Object.entries(NOTE_DRAFT_REACHERS)) assert.ok(why.length >= 30, `${file}: a reason too short to weigh`);
+  });
+
+  test("the loader is called by the Notes page alone, and each press by its own route alone", () => {
+    const NOTES_API = "app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes";
+    assert.deepEqual(callers(/\bloadWeekNotes\s*\(/), ["app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/notes/page.tsx"]);
+    assert.deepEqual(callers(/\bdraftWeekNote\s*\(/), [`${NOTES_API}/draft/route.ts`]);
+    assert.deepEqual(callers(/\bsaveWeekNote\s*\(/), [`${NOTES_API}/[uid]/save/route.ts`]);
+    assert.deepEqual(callers(/\bdiscardWeekNote\s*\(/), [`${NOTES_API}/[uid]/route.ts`]);
+    assert.deepEqual(callers(/from\s+"@\/features\/courses\/weekNotes\/WeekNotesScreen"/), [
+      "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/notes/page.tsx",
+    ]);
+  });
+
+  test("the page reads drafts for an admin alone: the lead's branch returns before any draft is read", () => {
+    const store = withoutComments(readFileSync(join(SRC, "lib/courses/weekNotes/store.ts"), "utf8"));
+    const loader = store.slice(store.indexOf("export async function loadWeekNotes("), store.indexOf("function writerOf("));
+    const lead = loader.indexOf('if (opened.door.viewer === "lead") {');
+    const leadReturn = loader.indexOf('return { ok: true, page: { viewer: "lead", opened, view } };');
+    assert.ok(lead !== -1 && leadReturn > lead, "the loader no longer answers the lead in a branch of its own");
+    assert.ok(!loader.slice(lead, leadReturn).includes("readWeekDrafts("), "the lead's branch reads drafts");
+    assert.ok(loader.indexOf("readWeekDrafts(") > leadReturn, "drafts are read before the lead is answered");
+    // The presses pass the door's admin-only refusal.
+    for (const name of ["draftWeekNote", "saveWeekNote", "discardWeekNote"]) {
+      const body = store.slice(store.indexOf(`export async function ${name}(`));
+      assert.match(body.slice(0, 400), /await openFor\(db, user, input, now\)/, `${name} does not open the admin-only door first`);
+    }
+    assert.match(store, /openWeekNotes\(db, user, input\.roundId, input\.programmeId, input\.weekId, now, \{ adminOnly: WEEK_NOTES_WORDS\.onlyAdmins \}\)/);
+  });
+
+  test("every route refuses everybody but an admin first, after turning away a view-as session", () => {
+    const NOTES_API = join(SRC, "app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes");
+    for (const route of ["draft/route.ts", "[uid]/save/route.ts", "[uid]/route.ts"]) {
+      const code = withoutComments(readFileSync(join(NOTES_API, route), "utf8"));
+      const refused = code.indexOf("if (!canRunTerm(user)) return NextResponse.json(");
+      assert.ok(refused !== -1, `${route} lets somebody other than an admin through`);
+      for (const later of ["ctx.params", "getAdminDb()"]) assert.ok(code.indexOf(later) > refused, `${route} reads ${later} before it refuses somebody other than an admin`);
+      const body = code.indexOf("req.json()");
+      assert.ok(body === -1 || body > refused, `${route} reads its body before it refuses somebody other than an admin`);
+      assert.ok(code.indexOf("assertNotImpersonating()") < refused, `${route} does not turn away a view-as session first`);
+    }
+  });
+
+  test("no browser file reaches the drafts' server code or their record", () => {
+    const SERVER = /from\s+"@\/lib\/courses\/weekNotes\/(?:store|gather|door)"|from\s+"@\/lib\/firestore\/courseNoteDrafts"/;
+    for (const [file, code] of files) {
+      if (!/^\s*["']use client["'];?/.test(code)) continue;
+      assert.doesNotMatch(code, SERVER, `${file} is a browser file and reaches the drafts' server code`);
+    }
+    for (const file of ["store.ts", "gather.ts", "door.ts"]) {
+      assert.match(readFileSync(join(SRC, "lib", "courses", "weekNotes", file), "utf8"), /^import "server-only";/, `${file} is not server-only`);
+    }
+  });
+
+  test("a draft reaches a person's record only through the notes' own store, as an admin saves it", () => {
+    for (const [file, code] of files) {
+      if (!LIBRARY(file) && file !== "lib/firestore/courseNoteDrafts.ts") continue;
+      assert.doesNotMatch(withoutComments(code), /MEMBER_NOTES_COLLECTION|["'`]memberNotes["'`]/, `${file} addresses the notes kept about a person itself`);
+    }
+    const store = withoutComments(readFileSync(join(SRC, "lib/courses/weekNotes/store.ts"), "utf8"));
+    // The one place a draft becomes a note: the save, through `keepWeeklyNoteIn`, drafted by Claude, with the admin's words.
+    assert.equal((store.match(/\bkeepWeeklyNoteIn\(/g) ?? []).length, 1, "a draft becomes a note somewhere other than the save");
+    const saving = store.slice(store.indexOf("export async function saveWeekNote("));
+    assert.match(saving, /checkedNote\(\{ text: input\.text, audience: input\.audience, suggest: input\.suggest, draftedByClaude: true \}, "admin"\)/);
+    assert.match(saving, /tx\.delete\(ref\);/, "a saved draft is not deleted with its save");
+    // The notes' own code never reaches a draft (held above too), and the review never reaches the drafts.
+    for (const [file, code] of files) {
+      if (!file.startsWith("lib/courses/weekReview/") && !file.startsWith("features/courses/weekReview/")) continue;
+      assert.doesNotMatch(withoutComments(code), /courseNoteDrafts|COURSE_NOTE_DRAFTS_COLLECTION|weekNotes\/(?:store|view|gather)/, `${file} reaches the end-of-week drafts`);
+    }
+  });
+
+  test("every read of a draft is by its address, one equality or one array-contains on one field, so none needs a declared index", () => {
+    for (const file of Object.keys(NOTE_DRAFT_ADDRESSERS)) {
+      const code = withoutComments(readFileSync(join(SRC, file), "utf8"));
+      for (const [, clause] of code.matchAll(/\.collection\(COURSE_NOTE_DRAFTS_COLLECTION\)((?:\s*\.where\([^)]*\))+)/g)) {
+        const wheres = [...clause.matchAll(/\.where\(([^)]*)\)/g)].map((m) => m[1]);
+        assert.equal(wheres.length, 1, `${file} asks ${wheres.join(" and ")}`);
+      }
+      assert.doesNotMatch(code, /COURSE_NOTE_DRAFTS_COLLECTION\)[^;]*\.orderBy\(/, `${file} orders drafts`);
     }
   });
 });

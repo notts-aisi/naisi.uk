@@ -402,6 +402,11 @@ export const FIXTURE_COLLECTIONS = [
   // the week review's route a spec presses, against a target with a key, and
   // by nothing a fixture seeds.
   "courseWeekReviews",
+  // Claude's draft of an end-of-week note about one person (privacy v15),
+  // with `runId` on it. Seeded by the week review's fixture, as if Claude had
+  // drafted it, so its spec can save it from the week's Notes page; written
+  // by the draft route only against a target with a key.
+  "courseNoteDrafts",
   // The end of a programme: who finished (the run's rule, set on the
   // programme's Settings tab, and the lead's decisions on its Overview, each
   // with `runId` on it), and the certificates the Overview's send makes, one

@@ -171,12 +171,13 @@ describe("2. each week, as the board draws it", () => {
   });
 
   test("the owner: the lead by default, a helper once chosen, the lead again when the one chosen is no longer one", async () => {
-    // CHANGED ON PURPOSE (the week review): a week whose first session has
-    // started ends with its review, "Review: admins only" for the lead, so
-    // the owner is read before it.
-    const owners = (html) => rows(html).map((row) => row.replace(/ Review(?:: admins only)?$/, ""));
+    // CHANGED ON PURPOSE (the week review, then the end-of-week notes): a
+    // week whose first session has started ends with its review, "Review:
+    // admins only" for the lead, and its notes, so the owner is read before
+    // them.
+    const owners = (html) => rows(html).map((row) => row.replace(/ Review(?:: admins only)? Notes$/, ""));
     assert.deepEqual(
-      rows((await draw("claudia", Page, PARAMS)).html).map((row) => row.endsWith(" Review: admins only")),
+      rows((await draw("claudia", Page, PARAMS)).html).map((row) => row.endsWith(" Review: admins only Notes")),
       [true, true, true, false, false, false],
     );
     let said = owners((await draw("claudia", Page, PARAMS)).html);
@@ -194,9 +195,10 @@ describe("2. each week, as the board draws it", () => {
   test("with no lead standing and no helper, a week has no owner yet", async () => {
     world.db.poke(`admissionRounds/${ROUND}`, { [`programmes.${AGI}.leadUid`]: null });
     world.db.poke(`courseRuns/${RUN.agi}`, { trackLeadUids: [] });
-    // CHANGED ON PURPOSE (the week review): an admin is offered week 1's review after the owner.
+    // CHANGED ON PURPOSE (the week review, then the end-of-week notes): an
+    // admin is offered week 1's review and its notes after the owner.
     const said = rows((await draw("zach", Page, PARAMS)).html);
-    assert.ok(said[0].endsWith("No owner yet Review"), said[0]);
+    assert.ok(said[0].endsWith("No owner yet Review Notes"), said[0]);
   });
 });
 
