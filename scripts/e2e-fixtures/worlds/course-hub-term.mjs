@@ -1683,7 +1683,13 @@ async function adminUidFromSecrets() {
  * a seed that stops part way leaves a ledger naming everything it could have
  * made, and teardown removes each by the id it was given.
  */
-export async function seedTerm({ runId: termRunId, suppress = true, onState, point = TERM_POINTS[0] } = {}) {
+export async function seedTerm({
+  runId: termRunId,
+  suppress = true,
+  onState,
+  point = TERM_POINTS[0],
+  adminTests = false,
+} = {}) {
   if (!TERM_POINTS.includes(point)) {
     throw new Error(`No term point ${JSON.stringify(point)}. The points are ${TERM_POINTS.join(", ")}.`);
   }
@@ -1730,6 +1736,13 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
     createdAt: now.toISOString(),
     /** The runner's answer, recorded so a spec branches on the same fact. */
     suppress,
+    /**
+     * Whether the spec presses Send a test as the admin. The admin is the one
+     * account the harness is given, shared by every fixture on every machine
+     * of a run, so the record, counter and email of the admin's test are this
+     * fixture's to count and delete only when it says so (`testPressersOf`).
+     */
+    adminSendsTests: adminTests === true,
     formId: fixtureId("e2e-term-form", termRunId),
     formLabel: `E2E term form ${termRunId}`,
     programmeId: cast.programme.id,
@@ -2048,9 +2061,10 @@ async function messageSendIdsOf(state) {
 /**
  * The counters and the test record Messages leaves in `courseNudges`, by the
  * ids src/lib/messages/sending.ts builds (restated): for each of this term's
- * tags sent to alone, its daily counter and each presser's hourly one; and
- * each presser's record of their last test and its hourly counter. An
- * audience is the choice of tags, spelled in one order and hashed.
+ * tags sent to alone, its daily counter and each presser's hourly one; and,
+ * for each presser whose tests are this fixture's (`testPressersOf`), the
+ * record of their last test and its hourly counter. An audience is the choice
+ * of tags, spelled in one order and hashed.
  */
 function messageCounterIdsOf(state) {
   const audienceKey = (include) =>
@@ -2062,8 +2076,20 @@ function messageCounterIdsOf(state) {
     ids.push(`emailrate__messageday__${key}`);
     for (const uid of pressers) ids.push(`emailrate__message__${key}__${uid}`);
   }
-  for (const uid of pressers) ids.push(`messagetest__${uid}`, `emailrate__messagetest__${uid}`);
+  for (const uid of testPressersOf(state)) ids.push(`messagetest__${uid}`, `emailrate__messagetest__${uid}`);
   return ids;
+}
+
+/**
+ * Whose tests from Messages this fixture counts and deletes. A test's record,
+ * its counter and its email are keyed on the presser alone. The facilitator is
+ * minted for this term, so theirs are its own. The admin is shared by every
+ * fixture on every machine of a run: counted by a fixture whose spec never
+ * presses Send a test, the Messages spec's rows on another machine read as
+ * this one's residue, and deleting them pulls them from under it.
+ */
+function testPressersOf(state) {
+  return [state.adminSendsTests ? state.adminUid : null, state.facilitator?.uid].filter(Boolean);
 }
 
 /**
@@ -2109,10 +2135,10 @@ async function sendRowsOf(state, surveyIds = [], messageIds = []) {
     const aboutSurvey = await fixtureQuery("emailSends").where("referenceId", "==", id).get();
     for (const doc of aboutSurvey.docs) rows.set(doc.id, doc.ref);
   }
-  // A message from Messages: every email it sent names its record, and each
+  // A message from Messages: every email it sent names its record, and a
   // presser's tests name their record of the last one, which is all a test
-  // to the presser's own address could be found by.
-  const tests = [state.adminUid, state.facilitator?.uid].filter(Boolean).map((uid) => `messagetest__${uid}`);
+  // to the presser's own address could be found by (whose: `testPressersOf`).
+  const tests = testPressersOf(state).map((uid) => `messagetest__${uid}`);
   for (const id of [...messageIds, ...tests]) {
     const aboutMessage = await fixtureQuery("emailSends").where("referenceId", "==", id).get();
     for (const doc of aboutMessage.docs) rows.set(doc.id, doc.ref);
@@ -2575,7 +2601,7 @@ function termsOf(state) {
  * term's own state goes into it before that term's first write, so a seed
  * that stops part way leaves a ledger naming everything any term had made.
  */
-export async function seedTerms({ runId: termRunId, suppress = true, onState, points } = {}) {
+export async function seedTerms({ runId: termRunId, suppress = true, onState, points, adminTests = false } = {}) {
   if (!Array.isArray(points) || points.length === 0 || points.length > LATER_TERM_LETTERS.length + 1) {
     throw new Error(`Ask for between 1 and ${LATER_TERM_LETTERS.length + 1} points, in order.`);
   }
@@ -2587,6 +2613,7 @@ export async function seedTerms({ runId: termRunId, suppress = true, onState, po
       runId: ownRunId,
       suppress,
       point,
+      adminTests,
       onState: (published) => {
         state.terms[index] = published;
       },

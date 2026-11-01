@@ -127,7 +127,8 @@ export const SPEC = {
    */
   status: "unverified",
   seed: async ({ runId, suppress, onState }) => {
-    const state = await seedTerms({ runId, suppress, onState, points: ["week-three"] });
+    // The spec presses Send a test as the admin, so the test's rows are this fixture's.
+    const state = await seedTerms({ runId, suppress, onState, points: ["week-three"], adminTests: true });
     await makeTheTerm(state, { suppress });
     return state;
   },
