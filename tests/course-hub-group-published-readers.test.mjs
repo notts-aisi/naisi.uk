@@ -154,6 +154,13 @@ const READERS = {
     asks: 1,
     why: "week 1's door before groups go out (Q35 B): the caller's own seat only, never shown. A seat Publish has told them about is the run gate's, a seat that has left shuts the door, and an untold seat opens week 1 alone, by the place on the form, with nothing of its group",
   },
+  "lib/courses/cantMakeIt/seat.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "Can't make it on a session's ticket: the caller's own seat only, read by their uid and shown to nobody else; " +
+      "a seat Publish has not told them about takes no part, so its ticket offers nothing and its press is refused",
+  },
   "lib/courses/getReady/remind.ts": {
     kind: "told",
     asks: 1,
