@@ -32,6 +32,10 @@ import styles from "./WhoIsThisFor.module.css";
  * only what has been chosen. It sends nothing; a page that sends hands the
  * selection it reports to its own route, which resolves it again with the
  * same code, so the number here is the number sent.
+ *
+ * Two halves: `WhoIsThisFor` holds what is chosen and asks the server, and
+ * `PickerBody` draws one moment of it from what it is handed, which is what a
+ * test renders.
  */
 
 export type Sign = "include" | "exclude";

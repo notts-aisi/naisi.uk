@@ -45,8 +45,9 @@ export type SendMode = "notice" | "grid";
 
 /**
  * "whole": the send is one class for everybody (Messages). "per-person": each
- * person is a notice when the writer runs them and by their settings otherwise
- * (an event's invitation).
+ * person is a notice when the writer runs them (under the one programme the
+ * send names, when it names one) and by their settings otherwise (an event's
+ * invitation).
  */
 export type Policy = "whole" | "per-person";
 

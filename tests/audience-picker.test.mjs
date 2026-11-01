@@ -16,6 +16,10 @@
  *     chooses), and why each person left out is left out.
  *  5. THE ROUTES, as every kind of caller in the term: the gate first, the
  *     tags each may use, refusals whole, and no address in either answer.
+ *  6. THE PICKER ON THE PAGE: the preview closed and reading nothing, and a
+ *     moment of the picker drawn from the routes' own answers.
+ *  7. THE PRIVACY POLICY's sentence on choosing who a message reaches, held
+ *     to what the picker reads, and to its keeping no list of its own.
  *
  * The term is `tests/lib/termWorld.mjs`'s, on Thu 10 Dec 2026, with AGI
  * Strategy's allocation published (so its groups have tags) and Technical AI
