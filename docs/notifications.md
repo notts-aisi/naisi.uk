@@ -829,6 +829,11 @@ default address, because the template is how a message looks, not who sent it.
 5. **Leave `sender` out.** A new send comes from `SMTP_FROM_EMAIL` like every
    other message; only an issue of the newsletter passes `sender: "newsletter"`
    (see "Which address mail comes from").
+6. **A send to people somebody chose takes them from the picker.** Resolve the
+   writer's selection with `resolveAudience` ([messages.md](messages.md)), the
+   call that counted it, so the number on the button is the number sent;
+   `tests/send-recipient-scope.test.mjs` fails a sending file that imports the
+   picker and goes round it.
 
 ## Deliberately not built
 
