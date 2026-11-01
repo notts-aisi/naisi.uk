@@ -49,9 +49,9 @@
  *     `tests/email-pattern-shapes.test.mjs`, with no clock. This is the part
  *     a pattern cannot show: a loop that reads the text again and again.
  *  5. NEITHER EMAIL PRINTS SOMETHING A READER COULD FOLLOW FROM A ROOM. The
- *     weekly reminder asks the same function of the same room as the
- *     placement email, and the two are held to the same answer for every
- *     room this file tries.
+ *     week's email ("Week N is open") asks the same function of the same room
+ *     as the placement email, and the two are held to the same answer for
+ *     every room this file tries.
  *  6. THE ROUTE REFUSES BEFORE IT DOES ANYTHING. The real handler is run
  *     against a stored run: a refusal stamps nothing and emails nobody, the
  *     sentence says what to set, and what does go out names the room, or
@@ -158,6 +158,8 @@ const courseMail = await loadTs(join("lib", "email", "courseApplicationEmails.ts
 const enrolmentMail = await loadTs(join("lib", "email", "courseEnrolmentEmails.ts"));
 const admissionMail = await loadTs(join("lib", "email", "admissionEmails.ts"));
 const nudgeMail = await loadTs(join("lib", "email", "courseNudgeEmail.ts"));
+const weekEmailWords = await loadTs(join("lib", "courses", "weekEmails", "words.ts"));
+const WeekEmail = (await loadTs(join("emails", "WeekEmail.tsx"))).default;
 const publish = await loadTs(join("app", "api", "courses", "runs", "[runId]", "allocation", "publish", "route.ts"));
 const publishPlan = await loadTs(join("lib", "courses", "allocationPublish.ts"));
 const courseRows = await loadTs(join("lib", "firestore", "courseApplications.ts"));
@@ -1033,7 +1035,7 @@ describe("long hostile wording and rooms are answered in step with their length"
     for (const [name, [room, followable]] of Object.entries(answers)) {
       assert.equal(inTime(name, () => links.couldBeFollowed(room)), followable, name);
     }
-    // And the weekly reminder, which asks the same function of the same room.
+    // And the week's email, which asks the same function of the same room.
     const session = { weekday: 2, startTimeLocal: "18:00", durationMinutes: 90, notes: "", location: `${"a".repeat(N)}://x`, meetingUrl: null };
     assert.equal(inTime("the reminder", () => nudgeMail.courseNudgeSessionWhere(session, null)), "");
   });
@@ -1315,29 +1317,35 @@ describe("what an admin is told when publishing is refused", () => {
 describe("neither email prints something a reader could follow from a room", () => {
   const base = { weekday: 2, startTimeLocal: "18:00", durationMinutes: 90, notes: "" };
   const LINK = "https://meet.example/j/8675309?pwd=opensesame";
-  const nudgeSeed = seeds.courseTemplateDefaults["course-week-nudge"];
-  /** The weekly reminder on its seed copy, for a group whose session is stored this way. */
-  const reminder = (session, mode) => {
-    const rendered = nudgeMail.renderCourseNudge(
-      { subject: nudgeSeed.subject, blocks: nudgeSeed.blocks },
-      nudgeMail.buildCourseNudgeTokens({
-        recipientName: "Amara Okafor",
+  /** The session the week's email is about: Tuesday 27 October at 6pm, GMT. */
+  const STARTS = new Date("2026-10-27T18:00:00Z");
+  /** "Week 1 is open" for a group whose session is stored this way, as the inbox reads it. */
+  const reminder = async (session, mode) => {
+    const words = weekEmailWords.weekOpenEmailWords(
+      {
         courseTitle: "AI Safety Fundamentals",
         weekNumber: 1,
         weekTitle: "What is at stake",
-        sessionWhen: nudgeMail.courseNudgeSessionWhen(session, "2026-10-27"),
-        sessionWhere: nudgeMail.courseNudgeSessionWhere(session, mode),
-      }),
+        sessionAt: STARTS,
+        where: nudgeMail.courseNudgeSessionWhere(session, mode),
+        first: true,
+        cancelled: false,
+        change: "",
+        asks: [{ kind: "readings", count: 2 }],
+        weekUrl: "https://naisi.invalid/learn/run/weeks/1",
+        feedbackUrl: "",
+        locks: true,
+      },
+      "Amara",
     );
-    return { all: `${rendered.subject}\n${printed(rendered.blocks)}`, text: textOf(printed(rendered.blocks)) };
+    const text = (await render(WeekEmail({ words, notice: null }), { plainText: true })).replace(/\s+/g, " ");
+    return { all: `${words.subject}\n${text}`, text };
   };
-  /** When that session is, in the reminder's own words: the day, and the hours it runs between. */
-  const WHEN = nudgeMail.courseNudgeSessionWhen({ ...base, location: "", meetingUrl: null }, "2026-10-27");
+  /** When that session is, in the week's email's own words: the day, and the time it starts. */
+  const WHEN = weekEmailWords.sessionAtWords(STARTS, "");
 
-  // Since the walk of stage two's fixes (G6), in the placement email's words
-  // with the end added and no dash: a date, a comma and the hours.
-  test("the reminder's own words for when are what this file expects them to be", () => {
-    assert.equal(WHEN, "Tue 27 Oct, 6pm to 7:30pm");
+  test("the week's email's own words for when are what this file expects them to be", () => {
+    assert.equal(WHEN, "Tue 27 Oct at 6pm");
   });
 
   test("the weekly reminder says nothing of a room with a way into a call typed into it", () => {
@@ -1353,26 +1361,26 @@ describe("neither email prints something a reader could follow from a room", () 
     }
   });
 
-  test("and the reminder that goes out carries none of it, and closes its sentence up", () => {
+  test("and the week's email that goes out carries none of it, and closes its sentence up", async () => {
     for (const location of ROOMS_WITH_A_LINK) {
       for (const mode of [null, "virtual", "in-person"]) {
-        const mail = reminder({ ...base, location, meetingUrl: LINK }, mode);
-        for (const part of WAY_IN) assert.ok(!mail.all.toLowerCase().includes(part), `${location}, mode ${mode}: the reminder carries ${part}`);
+        const mail = await reminder({ ...base, location, meetingUrl: LINK }, mode);
+        for (const part of WAY_IN) assert.ok(!mail.all.toLowerCase().includes(part), `${location}, mode ${mode}: the email carries ${part}`);
         assert.deepEqual(tokensIn(mail.all), [], location);
         assert.ok(
-          mail.text.includes(mode === "virtual" ? `Your group meets ${WHEN}, Online.` : `Your group meets ${WHEN}.`),
+          mail.text.includes(mode === "virtual" ? `Your first session is ${WHEN}, online.` : `Your first session is ${WHEN}.`),
           mail.text,
         );
       }
     }
   });
 
-  test("an ordinary room is still in the reminder, as it was typed", () => {
+  test("an ordinary room is still in the week's email, as it was typed", async () => {
     for (const location of ["Hallward B12", "Portland Building C.11", "Room 3.14, second floor"]) {
       const session = { ...base, location, meetingUrl: null };
       assert.equal(nudgeMail.courseNudgeSessionWhere(session), location);
       assert.equal(nudgeMail.courseNudgeSessionWhere(session, "in-person"), location);
-      assert.ok(reminder(session, null).text.includes(`Your group meets ${WHEN}, ${location}.`));
+      assert.ok((await reminder(session, null)).text.includes(`Your first session is ${WHEN} in ${location}.`));
     }
   });
 
@@ -1410,7 +1418,7 @@ describe("neither email prints something a reader could follow from a room", () 
     assert.ok(placementCode.includes('import { couldBeFollowed } from "./followable";'));
     assert.ok(nudgeCode.includes('import { couldBeFollowed } from "@/lib/courses/followable";'));
     assert.ok(nudgeCode.includes('const room = couldBeFollowed(location) ? "" : location;'));
-    assert.ok(nudgeCode.includes('if (mode === "in-person") return room; if (location) return room;'), "the reminder prints the room as typed somewhere");
+    assert.ok(nudgeCode.includes('if (mode === "in-person") return room; if (location) return room;'), "the week's email prints the room as typed somewhere");
     const declared = [...walkSource(SRC)].filter((file) => /function couldBeFollowed\b/.test(readFileSync(file, "utf8")));
     assert.deepEqual(declared.map(inSrc), ["lib/courses/followable.ts"]);
   });
@@ -2290,7 +2298,6 @@ describe("the designer offers what the composer fills, and proofs through it", (
 const FILLERS = {
   personaliseString: "lib/firestore/newsletterBlocks.ts",
   personaliseBlocks: "lib/firestore/newsletterBlocks.ts",
-  renderCourseNudge: "lib/email/courseNudgeEmail.ts",
   composePlacementEmail: "lib/courses/placementEmail.ts",
   composeWholeEmail: "lib/courses/placementEmail.ts",
   composeFacilitatingEmail: "lib/courses/facilitatingEmail.ts",
@@ -2331,10 +2338,6 @@ const CALLERS = {
     how: "helper",
     why: "the incubator email's composer, which writes it whole with composeWholeEmail under its own token list",
   },
-  "lib/email/courseNudgeEmail.ts#sendCourseWeekNudgeEmail": {
-    how: "leaves-out",
-    why: "the weekly reminder, whose renderer drops a sentence whose values are all empty",
-  },
   "lib/email/courseApplicationEmails.ts#filledFromTemplate": {
     how: "as-typed",
     leaves: {
@@ -2370,12 +2373,7 @@ const CALLERS = {
     how: "own-copy",
     why: "a newsletter its author wrote and an approver read, whose one token is the reader's name",
   },
-  "app/api/courses/runs/[runId]/nudge/route.ts#GET": {
-    how: "proof",
-    why: "the weekly reminder, shown to whoever is about to send it, through the renderer the send uses",
-  },
   "app/api/admin/course-emails/preview/route.ts#renderCourseTemplatePreview": { how: "proof", why: "the course email designer's preview" },
-  "app/api/admin/course-emails/preview/route.ts#renderNudgePreview": { how: "proof", why: "the designer's preview of the weekly reminder" },
   "app/api/admin/course-emails/preview/route.ts#renderPlacementPreview": { how: "proof", why: "the designer's preview of the placement email" },
   "app/api/admin/course-emails/preview/route.ts#renderFacilitatingPreview": { how: "proof", why: "the designer's preview of the facilitators' email" },
   "app/api/admin/course-emails/preview/route.ts#renderIncubatorPreview": { how: "proof", why: "the designer's preview of the email an incubator's people are sent" },
@@ -2423,7 +2421,7 @@ describe("every function that fills tokens is known, and held to what it does wi
   test("every seed template of a course email is sent by a path that is run here", () => {
     // The facilitators' email is run by the publishing tests above, beside the
     // placement email, and the incubator's by Publish on a run an incubator names.
-    const run = new Set(["course-allocated", "course-allocated-incubator", "course-facilitating", "course-week-nudge"]);
+    const run = new Set(["course-allocated", "course-allocated-incubator", "course-facilitating"]);
     for (const entry of Object.values(CALLERS)) for (const id of Object.keys(entry.leaves ?? {})) run.add(id);
     assert.deepEqual([...seeds.COURSE_TEMPLATE_IDS].filter((id) => !run.has(id)), [], "a template has no sender run in this file");
   });
@@ -2438,10 +2436,30 @@ describe("every function that fills tokens is known, and held to what it does wi
   }
   const WHO = { to: "ada@example.com", name: "Ada Lovelace", uid: "ada" };
 
-  test("the weekly reminder leaves a sentence out, and no token, when it knows nothing but the week's number", () => {
-    const seed = seeds.courseTemplateDefaults["course-week-nudge"];
-    const rendered = nudgeMail.renderCourseNudge({ subject: seed.subject, blocks: seed.blocks }, nudgeMail.buildCourseNudgeTokens({ weekNumber: 1 }));
-    assert.deepEqual(tokensIn(`${rendered.subject}\n${printed(rendered.blocks)}`), []);
+  test("the week's email, which replaced the weekly reminder, fills no token: knowing nothing but the week's number it says the week, and nothing broken", async () => {
+    const words = weekEmailWords.weekOpenEmailWords(
+      {
+        courseTitle: "",
+        weekNumber: 1,
+        weekTitle: "",
+        sessionAt: null,
+        where: "",
+        first: true,
+        cancelled: false,
+        change: "",
+        asks: [],
+        weekUrl: "",
+        feedbackUrl: "",
+        locks: false,
+      },
+      "",
+    );
+    const html = await render(WeekEmail({ words, notice: null }));
+    assert.deepEqual(tokensIn(`${words.subject}\n${html}`), []);
+    assert.equal(words.subject, "Week 1 is open");
+    assert.deepEqual(words.paragraphs, ["Week 1 is open."]);
+    // It names no token-filling function: its words are fixed.
+    assert.doesNotMatch(codeOf("lib", "courses", "nextWeekEmail.ts"), /personalise|renderCourseNudge/);
   });
 
   for (const [templateId, kind] of [

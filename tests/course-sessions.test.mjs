@@ -674,19 +674,20 @@ test("the push resolves its copy BEFORE it claims the marker", () => {
   const send = route.indexOf("await sendNextWeekEmail({");
   assert.ok(config > 0 && send > 0);
   assert.ok(config < send, "the settings are read before anything can be claimed");
-  // ...and the shared send reads the template, the week and the audience
-  // before its claim, for both lanes.
+  // ...and the shared send reads the week and the audience before its claim,
+  // for both lanes. Its words are fixed (`weekOpenEmailWords`), so there is no
+  // template left to read.
   const text = source(NEXT_WEEK_EMAIL);
-  const template = text.indexOf("await resolveCourseNudgeTemplate(db)");
   const week = text.indexOf("await readNextWeekEmail(db");
-  const audience = text.indexOf("await resolveCohortAudience(");
+  const audience = text.indexOf("await resolveNoticeAudience(");
   const claim = text.indexOf("await markerRef.create({");
-  assert.ok(template > 0 && week > 0 && audience > 0 && claim > 0);
+  assert.ok(week > 0 && audience > 0 && claim > 0);
   assert.ok(
-    template < claim && week < claim && audience < claim,
-    "a read that throws AFTER the claim burns the group's one reminder on a " +
+    week < claim && audience < claim,
+    "a read that throws AFTER the claim burns the group's one email on a " +
       "send that never happened",
   );
+  assert.doesNotMatch(text, /resolveCourseNudgeTemplate|courseEmailTemplates/, "the week's email reads an admin template again");
 });
 
 test("the per-group resend is admin-only and records the force on the marker", () => {
@@ -713,19 +714,19 @@ test("the per-group resend is admin-only and records the force on the marker", (
   assert.match(text, /if \(!args\.force \|\| args\.by\.kind !== "push"\) \{/);
 });
 
-test("the reminder's date comes from the resolver, not a second computation", () => {
-  // Both lanes word "when" through one function, handed the session
+test("the week's email's date comes from the resolver, not a second computation", () => {
+  // Both lanes word "when" from one instant: the start of the session
   // `resolveSessions` already dated from the group's own calendar.
   assert.match(
-    source("lib/email/courseNudgeEmail.ts"),
-    /courseNudgeSessionWhen\(args\.session\.session,\s*args\.session\.dateKey\)/,
+    source(NEXT_WEEK_EMAIL),
+    /sessionAt: sessionInstants\(session\)\.startsAt,/,
     "`resolveSessions` already dated this session, from the group's own calendar",
   );
-  assert.match(source(NEXT_WEEK_EMAIL), /groupNudgeFacts\(\{[\s\S]{0,300}?\bsession,/);
-  for (const file of [PUSH_ROUTE, NEXT_WEEK_EMAIL, "lib/scheduler/jobs/nextWeekEmail.ts"]) {
+  assert.match(source("lib/scheduler/jobs/weekReminders.ts"), /const \{ startsAt \} = sessionInstants\(session\);/);
+  for (const file of [PUSH_ROUTE, NEXT_WEEK_EMAIL, "lib/scheduler/jobs/nextWeekEmail.ts", "lib/scheduler/jobs/weekReminders.ts"]) {
     assert.doesNotMatch(
       source(file),
-      /courseNudgeSessionDateKey\(/,
+      /courseNudgeSessionDateKey\(|currentWeekFor\(|londonWallClockToInstant\(/,
       `recomputing the date is a second answer to a question that has one (${file})`,
     );
   }
