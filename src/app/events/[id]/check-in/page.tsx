@@ -7,6 +7,8 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { normalizeEvent, type EventDoc } from "@/lib/firestore/events";
 import { eventTakesCheckIns } from "@/lib/events/checkIns";
+import { mayOpenFor } from "@/lib/events/opening";
+import { REACH_WORDS, isForChosenPeople } from "@/lib/events/reach";
 import {
   checkInReturnPath,
   doorCodeParam,
@@ -82,7 +84,24 @@ export default async function SelfCheckInPage({
     );
   }
 
-  const line = eventLine(event);
+  // AN EVENT FOR CHOSEN PEOPLE is for the people invited to it
+  // (src/lib/events/reach.ts). Signed in as somebody who may not open it, the
+  // page says so and names nothing of it; signed out, every state below is
+  // drawn without the event's name, day or place, and the way in is to sign
+  // in. The link in a confirmation email is its own credential, and only
+  // somebody invited has one.
+  const chosen = isForChosenPeople(event) && !link.token;
+  const signedIn = chosen ? await getCurrentUser() : null;
+  if (chosen && signedIn && !(await mayOpenFor(db, event.id, event, signedIn))) {
+    return (
+      <Frame>
+        <h1 className={styles.title}>{REACH_WORDS.onlyInvited}</h1>
+        <p className={styles.lead}>Give your name at the door.</p>
+      </Frame>
+    );
+  }
+
+  const line = chosen && !signedIn ? undefined : eventLine(event);
   if (event.status === "cancelled") {
     return (
       <Frame line={line}>

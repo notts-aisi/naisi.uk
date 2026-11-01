@@ -1324,7 +1324,16 @@ const NOT_COVERED = {
     reason:
       "Events authoring: /api/events/[id]/archive is a deliberate committee action whose result is visible on the manage screen.",
     coverWhen:
-      "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
+      "When the events authoring spec (scripts/e2e-fixtures/events-authoring.mjs, written when the editor was reshaped on 1 November 2026) is extended to it, in the pull request that next changes it.",
+  },
+  "/api/events/[id]/audience": {
+    reason:
+      "Events for chosen people: who an event is for, chosen in the editor's Who's it for step and counted as it is chosen. " +
+      "Executed as every kind of caller, with its counts held to the send, by tests/event-chosen-people.test.mjs, and asked " +
+      "about a real event of the persona world by the standing red team's second pass.",
+    coverWhen:
+      "When scripts/e2e-fixtures/events-authoring.mjs has run green against the harness and is marked verified: it chooses " +
+      "the invitee in this step.",
   },
   "/api/events/[id]/broadcast": {
     reason:
@@ -1332,31 +1341,40 @@ const NOT_COVERED = {
       "Its preview, the count the change notice's Send button names, is executed as every kind of caller by tests/event-send-counts.test.mjs, " +
       "which holds that it writes nothing and takes no slot.",
     coverWhen:
-      "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
+      "When the events authoring spec (scripts/e2e-fixtures/events-authoring.mjs, written when the editor was reshaped on 1 November 2026) is extended to it, in the pull request that next changes it.",
   },
   "/api/events/[id]/calendar.ics": {
     reason:
       "Events authoring: /api/events/[id]/calendar.ics is a deliberate committee action whose result is visible on the manage screen.",
     coverWhen:
-      "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
+      "When the events authoring spec (scripts/e2e-fixtures/events-authoring.mjs, written when the editor was reshaped on 1 November 2026) is extended to it, in the pull request that next changes it.",
   },
   "/api/events/[id]/cancel": {
     reason:
       "Events authoring: /api/events/[id]/cancel is a deliberate committee action whose result is visible on the manage screen.",
     coverWhen:
-      "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
+      "When the events authoring spec (scripts/e2e-fixtures/events-authoring.mjs, written when the editor was reshaped on 1 November 2026) is extended to it, in the pull request that next changes it.",
   },
   "/api/events/[id]/collaborators": {
     reason:
       "Events authoring: /api/events/[id]/collaborators is a deliberate committee action whose result is visible on the manage screen.",
     coverWhen:
-      "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
+      "When the events authoring spec (scripts/e2e-fixtures/events-authoring.mjs, written when the editor was reshaped on 1 November 2026) is extended to it, in the pull request that next changes it.",
   },
   "/api/events/[id]/delete": {
     reason:
       "Events authoring: /api/events/[id]/delete is a deliberate committee action whose result is visible on the manage screen.",
     coverWhen:
-      "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
+      "When the events authoring spec (scripts/e2e-fixtures/events-authoring.mjs, written when the editor was reshaped on 1 November 2026) is extended to it, in the pull request that next changes it.",
+  },
+  "/api/events/[id]/invitations": {
+    reason:
+      "Events for chosen people: Invite the N new since, on a published event's sign-ups, reaching the people new to its " +
+      "tags. Executed as every kind of caller by tests/event-chosen-people.test.mjs, which holds that nothing goes by " +
+      "itself and a second press invites nobody twice.",
+    coverWhen:
+      "When an event for chosen people that is part of a programme is published on the live site, because somebody " +
+      "joining its tags afterwards is the first real use of this press.",
   },
   "/api/events/[id]/publish": {
     reason:
@@ -1364,7 +1382,7 @@ const NOT_COVERED = {
       "Its GET, the count the Publish confirm names, is executed as every kind of caller by tests/event-send-counts.test.mjs, " +
       "over the send's own audience functions, and writes nothing.",
     coverWhen:
-      "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
+      "When scripts/e2e-fixtures/events-authoring.mjs has run green against the harness and is marked verified: it drives this, making and publishing an event for chosen people in the reshaped editor.",
   },
   "/api/events/[id]/rsvp/[rsvpId]/approve": {
     reason:
@@ -1417,13 +1435,13 @@ const NOT_COVERED = {
     reason:
       "Events authoring: /api/events/[id]/test-rsvps is a deliberate committee action whose result is visible on the manage screen.",
     coverWhen:
-      "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
+      "When the events authoring spec (scripts/e2e-fixtures/events-authoring.mjs, written when the editor was reshaped on 1 November 2026) is extended to it, in the pull request that next changes it.",
   },
   "/api/events/[id]/update": {
     reason:
       "Events authoring: /api/events/[id]/update is a deliberate committee action whose result is visible on the manage screen.",
     coverWhen:
-      "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
+      "When the events authoring spec (scripts/e2e-fixtures/events-authoring.mjs, written when the editor was reshaped on 1 November 2026) is extended to it, in the pull request that next changes it.",
   },
   "/api/kairos/export": {
     reason:
@@ -1981,13 +1999,13 @@ const NOT_COVERED = {
     reason:
       "Events authoring: /(app)/events/manage is committee-facing, and a failure surfaces on the editor that caused it.",
     coverWhen:
-      "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
+      "When scripts/e2e-fixtures/events-authoring.mjs has run green against the harness and is marked verified: it drives this, making and publishing an event for chosen people in the reshaped editor.",
   },
   "/(app)/events/manage/[id]": {
     reason:
       "Events authoring: /(app)/events/manage/[id] is committee-facing, and a failure surfaces on the editor that caused it.",
     coverWhen:
-      "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
+      "When scripts/e2e-fixtures/events-authoring.mjs has run green against the harness and is marked verified: it drives this, making and publishing an event for chosen people in the reshaped editor.",
   },
   "/(app)/events/manage/[id]/attendees": {
     reason:
@@ -1995,19 +2013,19 @@ const NOT_COVERED = {
       "tests/event-signup-requests.test.mjs renders it as each kind of caller: the head and its tab, the requests alone for an " +
       "organiser the SU does not recognise, and the whole list only for admins and SU-recognised committee.",
     coverWhen:
-      "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
+      "When the events authoring spec (scripts/e2e-fixtures/events-authoring.mjs, written when the editor was reshaped on 1 November 2026) is extended to it, in the pull request that next changes it.",
   },
   "/(app)/events/manage/[id]/preview": {
     reason:
       "Events authoring: /(app)/events/manage/[id]/preview is committee-facing, and a failure surfaces on the editor that caused it.",
     coverWhen:
-      "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
+      "When the events authoring spec (scripts/e2e-fixtures/events-authoring.mjs, written when the editor was reshaped on 1 November 2026) is extended to it, in the pull request that next changes it.",
   },
   "/(app)/events/manage/new": {
     reason:
       "Events authoring: /(app)/events/manage/new is committee-facing, and a failure surfaces on the editor that caused it.",
     coverWhen:
-      "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
+      "When scripts/e2e-fixtures/events-authoring.mjs has run green against the harness and is marked verified: it drives this, making and publishing an event for chosen people in the reshaped editor.",
   },
   "/(app)/learn/facilitate/[askId]": {
     reason:

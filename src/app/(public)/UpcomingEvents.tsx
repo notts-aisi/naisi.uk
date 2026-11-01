@@ -2,6 +2,7 @@ import Link from "next/link";
 import Chip from "@/components/ui/Chip";
 import DateTile from "@/components/ui/DateTile";
 import { listPublishedEvents } from "@/features/events/fetchEvents";
+import { eventReach } from "@/lib/events/reach";
 import { socialHref } from "@/content/socials";
 import { formatSiteDate } from "@/lib/datetime/siteTime";
 import { publicLocationText } from "@/lib/events/location";
@@ -71,7 +72,9 @@ export default async function UpcomingEvents() {
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
   const upcoming = events
-    .filter((e) => e.visibility === "public" && !e.archived && e.startAt && e.startAt.getTime() >= now)
+    // Open to anyone: this is the page a stranger lands on. The list itself
+    // already leaves out every event for chosen people.
+    .filter((e) => eventReach(e) === "listed" && !e.archived && e.startAt && e.startAt.getTime() >= now)
     .slice(0, 3);
 
   if (upcoming.length === 0) return null;

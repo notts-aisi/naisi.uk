@@ -4,7 +4,11 @@ import type { ReactNode } from "react";
 import BrandMark from "@/components/BrandMark";
 import AnswerScreen from "@/features/surveys/answer/AnswerScreen";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { getCurrentUser } from "@/lib/firebase/session";
+import type { Firestore } from "firebase-admin/firestore";
+import { mayOpenFor } from "@/lib/events/opening";
+import { isForChosenPeople } from "@/lib/events/reach";
+import { getCurrentUser, type SessionUser } from "@/lib/firebase/session";
+import { normalizeEvent } from "@/lib/firestore/events";
 import { CODE_PAGE_WORDS, codePageFor, type CodePage } from "@/lib/surveys/events/codePage";
 import styles from "./survey.module.css";
 
@@ -30,8 +34,26 @@ export const metadata: Metadata = {
 export default async function EventSurveyPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const db = getAdminDb();
+  const user = await getCurrentUser();
+  const readable = db && /^[A-Za-z0-9_-]{1,128}$/.test(id) ? db : null;
+  // AN EVENT FOR CHOSEN PEOPLE is for the people invited to it
+  // (src/lib/events/reach.ts): signed out, the way in is to sign in with
+  // nothing of it named; signed in as somebody who may not open it, there is
+  // no survey here for them.
+  const chosen = readable ? await chosenEventGate(readable, id, user) : "open";
+  if (chosen === "sign-in") {
+    return (
+      <Frame>
+        <h1 className={styles.title}>{CODE_PAGE_WORDS.bar}</h1>
+        <p className={styles.lead}>{CODE_PAGE_WORDS.signIn}</p>
+        <Link href={`/login?next=${encodeURIComponent(`/events/${id}/survey`)}`} prefetch={false} className={styles.primary}>
+          {CODE_PAGE_WORDS.signInButton}
+        </Link>
+      </Frame>
+    );
+  }
   const page: CodePage =
-    db && /^[A-Za-z0-9_-]{1,128}$/.test(id) ? await codePageFor(db, id, await getCurrentUser(), new Date()) : { kind: "none" };
+    readable && chosen === "open" ? await codePageFor(readable, id, user, new Date()) : { kind: "none" };
 
   if (page.kind === "none") {
     return (
@@ -73,6 +95,20 @@ export default async function EventSurveyPage({ params }: { params: Promise<{ id
       <AnswerScreen screen={page.screen} />
     </Frame>
   );
+}
+
+/**
+ * Whether this person may see anything here of an event for chosen people:
+ * `open` for every other event and for somebody who may open it, `sign-in`
+ * for nobody signed in, `closed` for anybody else.
+ */
+async function chosenEventGate(db: Firestore, id: string, user: SessionUser | null): Promise<"open" | "sign-in" | "closed"> {
+  const snap = await db.collection("events").doc(id).get();
+  if (!snap.exists) return "open";
+  const event = normalizeEvent(snap.id, snap.data() ?? {});
+  if (!isForChosenPeople(event)) return "open";
+  if (!user) return "sign-in";
+  return (await mayOpenFor(db, event.id, event, user)) ? "open" : "closed";
 }
 
 function Frame({ line, children }: { line?: string; children: ReactNode }) {

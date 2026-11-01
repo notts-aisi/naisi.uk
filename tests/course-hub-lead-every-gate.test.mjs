@@ -137,6 +137,8 @@ const ASKS_THE_LEAD_BAR = {
   "lib/firebase/eligibility.ts": "the registry of bars, where the lead's bar is defined",
   "lib/audience/load.ts":
     "who a message may be for: the programmes the caller leads on the term's form, for that programme's tags, and each programme's lead, held to the bar, for the Leading and everyone tags; it says nothing about any run",
+  "lib/events/eventProgramme.ts":
+    "which of the term's programmes the caller may make an event for chosen people part of: those they lead on the term's form, held to the bar, or any for an admin; it says nothing about any run",
 };
 
 /** The callers of `programmeNaming`, and what they find with it. Neither reads a lead. */

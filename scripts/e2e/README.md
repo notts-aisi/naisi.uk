@@ -711,8 +711,9 @@ The standing red team. Every route under `src/app/api` and every page under
 `src/app/(app)` is requested as every persona (`anonymous`, `pending`,
 `rejected`, `member`, non-SU `committee`, `suCommittee`, `admin`, a plain
 member holding each `permissions` key, three who hold a role on a programme,
-`lead`, `facilitator` and `participant`, and two who hold a role on an event,
-`eventAuthor` and `eventCollaborator`), and the answer is held to
+`lead`, `facilitator` and `participant`, two who hold a role on an event,
+`eventAuthor` and `eventCollaborator`, and `invitee`, on an event's list of
+the people invited to it), and the answer is held to
 `tests/persona-route-gates.registry.mjs`, the answer key a person wrote, cell
 by cell, with a reason per entry. Ids address nothing and bodies are empty, so
 what is asserted is each gate's answer to each persona and never a handler's
@@ -749,10 +750,13 @@ is none of the personas: THEIRS, written by the `eventAuthor` persona (a
 member holding draftEvent) and helped by the `eventCollaborator` persona
 (committee the SU does not recognise), and ANOTHER, written and helped by
 accounts that are none of the personas. Each set's ids carry the event (`id`)
-and the request (`rsvpId`). Every route and page whose code asks the sign-ups
-rule (`src/lib/events/signupAccess.ts`) has columns saying `world: "event"`,
-found from the code by the offline guard in both directions, and is asked
-about both events the same way.
+and the request (`rsvpId`). Each is for chosen people, its list naming its
+asker and, on THEIRS, the `invitee` persona. Every route and page whose code
+asks the sign-ups rule (`src/lib/events/signupAccess.ts`), or who runs an
+event's list (`src/lib/events/invitationAccess.ts`), has columns saying
+`world: "event"`, found from the code by the offline guard in both directions,
+and is asked about both events the same way. Being invited is no role on any
+of them, so no column names the invitee: it is held to the member's answers.
 
 **Where the elevated roles live.** The battery needs the personas the fence
 forbids, so `run.mjs` starts a Firestore emulator (a Java process, through the

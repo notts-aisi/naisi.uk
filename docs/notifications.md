@@ -181,7 +181,7 @@ is that helper inverted, for the loops that hold a raw document and are asking
 | Row | Email | Push |
 | --- | --- | --- |
 | `newsletter` | `POST /api/newsletter/[id]/send`, the only sender of an issue; and a message in Messages by their settings whose writer chose this row | the newsletter send, alongside its email loop |
-| `events` | the new-event announcement, on publish, inline or queued to the `event-announcements` job; and a message in Messages by their settings whose writer chose this row | the same announcement |
+| `events` | the new-event announcement, on publish, inline or queued to the `event-announcements` job, for a listed event whose Announce is not switched off; an event for chosen people's invitation, to the people chosen who are not reached as a notice; and a message in Messages by their settings whose writer chose this row | the same announcement; never the invitation |
 | `courses` | the cohort announcement composer, the admissions deadline reminder job, the admissions stage-release job, the daily invitation reminder job; and a message in Messages by their settings whose writer chose this row | an admissions decision, an allocation publish, the stage release |
 | `tasks` | the five `/api/tasks/[id]/*` senders, the four worksheet circulation messages, the worksheet due-soon reminder, the register reminder to a group's facilitators (`courses-register-reminders`) | a mirror beside each of those but the register reminder, which is email only |
 
@@ -349,6 +349,7 @@ preference at all.
 | `course-week` | "Week N is open", 6 days before each of a group's sessions at 9am: the `courses-next-week-email` job, or, while that job is off, `POST /api/courses/groups/[groupId]/attendance/push` (finishing the register before it) and an admin's Resend on a finished register | the job; the group's facilitator or an admin pressing the register; an admin resending | everybody holding a place in the group whose group has gone out, whatever they unsubscribed from; once per group per session, by the group's claim |
 | `course-week-reminder` | the reminders 3 days and 1 day before each of a group's sessions at 9am: the `courses-week-reminders` job | the job | each person holding a place in the group whose week (written as blocks, and published) is not done, listing what is left of it; one per person per reminder, by a scheduler marker; a week done, submitted or locked is never reminded about |
 | `messages` | `POST /api/messages`, a message written in Messages that goes as a programme notice ([messages.md](messages.md)) | admins, a programme's lead and a group's facilitator, each to the tags the picker gives them | the people the writer chose, when every tag is about running a programme and the writer runs everybody it reaches: holding a place on a programme they run, facilitating or leading it, or in a group they facilitate; each at their account's own address (or a university address they verified), the writer too when they are in the tags. Otherwise the message goes by their settings, not as a notice |
+| `event-invitation` | `POST /api/events/[id]/publish` and `POST /api/events/[id]/invitations` ("Invite the N new since"), for an event for chosen people that is part of a programme (see below) | publishing: admins and `approveEvent` holders; inviting more: those and the event's author and collaborators while they stand | the people holding a place on that programme among the people chosen, at their account's own address (else a university address it verified), whatever their events row says; never the event's author; email only |
 
 **The week's emails** (`course-week` and `course-week-reminder`) are the
 people running the programme telling the people on it what this week is and
@@ -362,6 +363,25 @@ in `src/lib/courses/weekEmails/words.ts` and drawn by `src/emails/WeekEmail.tsx`
 "Week N is open" was next week's email, a grid send that honoured the courses
 row and the run's list, until November 2026, and the weekly nudge beside it
 is gone.
+
+**An event for chosen people's invitation** (src/lib/events/invitations.ts)
+decides its class person by person, through the picker's one resolver with
+`policy: "per-person"`. When the event is part of a programme (only that
+programme's lead or an admin may say so), the people holding a place on it
+get the invitation as a notice on the `event-invitation` surface, because
+the privacy policy says "If an event is part of a programme you are on, its
+invitation is a programme email and reaches you whatever your settings".
+Everybody else chosen, the programme's facilitators and lead among them, who
+are not on it, gets it by their `events` row (grid, kind `event-invitation`,
+with the events channel's unsubscribe link); somebody who has not said yes
+is still invited, it is on their Home, and is not emailed. The choice is
+resolved in the world of whoever chose the people, so the notice goes only
+to the people that person runs under the programme: somebody who saved the
+people without leading it reaches everybody by their row, and the editor's
+count says so. The event's author is never emailed. No push leg on either
+class: the policy says email. The caps are the lane's (3 an hour per presser
+and event, 10 a day per event), claimed only by a press that sends a notice;
+a press is refused whole over 300 people or 200 messages, never trimmed.
 
 An update (Q18) is kept on the site as well as emailed, and its email is a
 notice for the reason the group email is one: the lead of a programme, an
@@ -459,6 +479,7 @@ to be rationed like any other send.
 | course update | 3, per (writer, audience) | 10, its own counter | 200 recipients, refused |
 | course check-in | **none** | 2, per group, its own counter | 40 people, refused |
 | Messages | 3, per (writer, audience) | 10, per audience, its own counter | 300 emails, refused |
+| event invitation | 3, per (presser, event) | 10, per event | 300 people and 200 messages, refused |
 
 **Messages claims both windows for every send**, a message by their settings
 as much as a notice: an audience is the choice of tags, spelled in one order
@@ -534,6 +555,14 @@ concurrently.
   row and refuse the notification.
 - An event with `visibility: "members"` drops GUEST rows (an address with no
   account) and counts them. The push audience is accounts by construction.
+- **Who an event is for decides whether it is announced at all**
+  (`announces` in `src/lib/events/reach.ts`). A listed event announces unless
+  its organiser switched Announce off; only a stored `announce: false` is off,
+  so every event made before the switch announces as it always did. An event
+  that does not announce claims nothing (`announcedAt` stays absent) and
+  sends nothing. An event for chosen people never announces, whatever is
+  stored: its people are invited instead, above. The job refuses a queued
+  event that has stopped announcing, terminally, and releases nothing.
 
 **The two paths, and the switch that chooses between them.** The send used to
 run only inside the publish request, against App Hosting's 60s timeout, which

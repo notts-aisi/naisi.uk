@@ -104,6 +104,7 @@ const KIND_LABELS: Record<string, string> = {
   notice: "Important notice",
   "event-announcement": "Event announcement",
   message: "Message by their settings",
+  "event-invitation": "Event invitation",
 };
 
 /**
@@ -125,6 +126,7 @@ const SURFACE_LABELS: Record<string, string> = {
   "course-week": "week is open",
   "course-week-reminder": "reminder before a session",
   messages: "a message from Messages",
+  "event-invitation": "invitation to a programme's event",
 };
 
 function kindBadge(kind: string, surface?: string) {

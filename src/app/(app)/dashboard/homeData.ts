@@ -2,8 +2,12 @@ import "server-only";
 import { listPublishedEvents } from "@/features/events/fetchEvents";
 import { degreeOf } from "@/features/profile/studyChange";
 import { addDaysToKey, londonDateKey, londonWallClockToInstant } from "@/lib/courses/weekPlan";
+import { formatSiteDate } from "@/lib/datetime/siteTime";
 import { publicLocationText } from "@/lib/events/location";
+import { eventReach, isForChosenPeople } from "@/lib/events/reach";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { EVENT_INVITATIONS_COLLECTION } from "@/lib/firestore/eventInvitations";
+import { normalizeEvent, normalizeRsvp } from "@/lib/firestore/events";
 import { FIELD_LIMITS, normalizeUser, STATUSES_WITH_GRADUATION } from "@/lib/firestore/users";
 import { dayRange, instantClock, tilePartsOf, type TileParts } from "./homeWords";
 
@@ -27,7 +31,8 @@ export type HomeEvent = {
   clock: string;
   /** Where it is, as anybody may be told. Empty when nothing may be said. */
   place: string;
-  membersOnly: boolean;
+  /** For people with a NAISI account: the card says "Account needed". */
+  accountNeeded: boolean;
   /** A drop-in: nobody signs up, and its capacity is ignored. */
   dropIn: boolean;
   /** Places an event with a limit still has. Null when it has no limit. */
@@ -64,9 +69,11 @@ const MAX_UPCOMING = 4;
 /**
  * The published events Home shows a signed-in member.
  *
- * Members-only events are included: everybody who reaches Home is an approved
- * member. Where an event is held is `publicLocationText`, the same answer the
- * public list gives, so a hidden room stays hidden here too.
+ * Events for people with a NAISI account are included: everybody who reaches
+ * Home is an approved member. Events for chosen people are not: the published
+ * list leaves them out, and an invited person finds theirs in "For you"
+ * (`forYouEvents`). Where an event is held is `publicLocationText`, the same
+ * answer the public list gives, so a hidden room stays hidden here too.
  *
  * A failed read is an empty list. Home is still a page without its events.
  */
@@ -108,7 +115,7 @@ export async function homeEvents(now: Date): Promise<HomeEvents> {
       startsAt: event.startAt.toISOString(),
       clock: instantClock(event.startAt),
       place: publicLocationText(event),
-      membersOnly: event.visibility === "members",
+      accountNeeded: eventReach(event) === "listed-account",
       dropIn: event.noSignup,
       placesLeft: limit === null ? null : Math.max(0, limit - confirmed),
       waitingList: event.waitlistEnabled,
@@ -124,6 +131,93 @@ export async function homeEvents(now: Date): Promise<HomeEvents> {
     upcoming: rows.filter((row) => !row.started).slice(0, MAX_UPCOMING),
     week: { ...week, events: rows.filter((row) => row.thisWeek) },
   };
+}
+
+/** An event for chosen people this person is invited to, as the "For you" card names it. */
+export type ForYouEvent = {
+  eventId: string;
+  title: string;
+  /** "Thu 26 Nov, 7pm". */
+  when: string;
+  /** Where it is, as anybody may be told: an invitation is not a place yet. */
+  place: string;
+  /** The programme it is part of, or null. */
+  programme: string | null;
+  /** A drop-in: there is no place to ask for. */
+  dropIn: boolean;
+  /** Where their own sign-up stands, or null when they have not asked. */
+  asked: "pending" | "confirmed" | "waitlisted" | null;
+};
+
+/** How many "For you" cards Home draws. */
+const MAX_FOR_YOU = 4;
+
+/** How many of a person's invitations Home reads the events of. */
+const MAX_INVITATIONS_READ = 100;
+
+/** The sign-ups that are a place asked for or held. */
+const LIVE_RSVP = new Set(["pending", "confirmed", "waitlisted"]);
+
+/**
+ * "FOR YOU": the published events for chosen people this person was invited
+ * to, still to come or under way, soonest first.
+ *
+ * Read by the session's own uid and nothing a request carries: their
+ * invitations (one equality on `uid`), the events they name, and their own
+ * sign-up to each (two equalities, as the sign-up route asks). What leaves is
+ * the title, the day and time, the PUBLIC place (`publicLocationText`: the
+ * exact room of a hidden location is a confirmed place's, and an invitation
+ * is not one yet), the programme's name, and where their own sign-up stands.
+ *
+ * A failed read is an empty list: Home is still a page without the card.
+ */
+export async function forYouEvents(uid: string, now: Date): Promise<ForYouEvent[]> {
+  const db = getAdminDb();
+  if (!db) return [];
+  try {
+    const invitations = await db.collection(EVENT_INVITATIONS_COLLECTION).where("uid", "==", uid).get();
+    // The bound is on the read, not a choice of events: somebody is invited
+    // to a handful a term, so a hundred covers years of them, past ones too.
+    const ids = [
+      ...new Set(
+        invitations.docs.flatMap((doc) => {
+          const data = doc.data() ?? {};
+          return data.uid === uid && typeof data.eventId === "string" && data.eventId ? [data.eventId] : [];
+        }),
+      ),
+    ].slice(0, MAX_INVITATIONS_READ);
+    if (ids.length === 0) return [];
+    const snaps = await db.getAll(...ids.map((id) => db.collection("events").doc(id)));
+    const events = snaps
+      .filter((snap) => snap.exists)
+      .map((snap) => normalizeEvent(snap.id, snap.data() ?? {}))
+      .filter((event) => {
+        if (event.status !== "published" || event.archived || !isForChosenPeople(event) || !event.startAt) return false;
+        // Still to come, or under way: gone from Home once it has ended.
+        return (event.endAt ?? event.startAt).getTime() > now.getTime();
+      })
+      .sort((a, b) => (a.startAt?.getTime() ?? 0) - (b.startAt?.getTime() ?? 0))
+      .slice(0, MAX_FOR_YOU);
+    return await Promise.all(
+      events.map(async (event): Promise<ForYouEvent> => {
+        const own = await db.collection("eventRsvps").where("eventId", "==", event.id).where("uid", "==", uid).get();
+        const live = own.docs.map((doc) => normalizeRsvp(doc.id, doc.data() ?? {})).find((row) => LIVE_RSVP.has(row.status));
+        const startAt = event.startAt as Date;
+        return {
+          eventId: event.id,
+          title: event.title.trim() || "Untitled event",
+          when: `${formatSiteDate(startAt, { weekday: "short", day: "numeric", month: "short" })}, ${instantClock(startAt)}`,
+          place: publicLocationText(event),
+          programme: event.programme?.name || null,
+          dropIn: event.noSignup,
+          asked: live ? (live.status as ForYouEvent["asked"]) : null,
+        };
+      }),
+    );
+  } catch (err) {
+    console.warn("[dashboard] could not read the events this member is invited to", err);
+    return [];
+  }
 }
 
 /** Home asks for a full name: the name the box starts with, or null for an empty box. */

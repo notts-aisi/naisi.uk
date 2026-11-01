@@ -4,6 +4,8 @@ import Chip from "@/components/ui/Chip";
 import PageHead from "@/components/ui/PageHead";
 import AttendeeDashboard from "@/features/events/AttendeeDashboard";
 import EventTabs from "@/features/events/checkIn/EventTabs";
+import InviteNewSince from "@/features/events/InviteNewSince";
+import { isForChosenPeople } from "@/lib/events/reach";
 import { getEventForPreview } from "@/features/events/fetchEvents";
 import { STATUS_WORDS, dayTimeWords, statusTone } from "@/features/events/manageWords";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -97,6 +99,8 @@ export default async function SignupsPage({
         waiting={waiting}
         showCheckIn={event.status === "published"}
       />
+
+      {isForChosenPeople(event) && event.status === "published" && <InviteNewSince eventId={event.id} />}
 
       <AttendeeDashboard event={event} people={people} everyone={access.everyone} />
     </div>

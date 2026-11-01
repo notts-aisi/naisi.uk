@@ -193,6 +193,7 @@ const { loadTs } = createLoader({
 });
 
 const words = await loadTs("features/events/manageWords.ts");
+const inviteWords = await loadTs("lib/events/inviteWords.ts");
 const announcement = await loadTs("lib/email/eventAnnouncement.ts");
 const { MAX_PUSH_ROWS } = await loadTs("lib/push/rowAudience.ts");
 const publishRoute = await loadTs("app/api/events/[id]/publish/route.ts");
@@ -514,6 +515,28 @@ describe("GET /api/events/[id]/publish: the count before the press", () => {
     const res = await countFor();
     assert.deepEqual(res.body, { ok: true, emailed: 0, notified: 0 });
     assert.equal(globalThis.__channelAsked, undefined);
+  });
+
+  test("an event whose announcement is switched off reaches nobody, and the count says so", async () => {
+    publishWorld({ announce: false });
+    globalThis.__user = PERSONAS.admin;
+    const res = await countFor();
+    assert.deepEqual(res.body, { ok: true, emailed: 0, notified: 0, announces: false });
+    assert.equal(globalThis.__channelAsked, undefined, "the list was read for an event that is not announced");
+  });
+
+  test("an event for chosen people is never announced: the count is its invitations', and the list is not read", async () => {
+    // Nobody is chosen yet, so nobody would be invited. The plan's numbers as
+    // every kind of caller are tests/event-chosen-people.test.mjs's subject.
+    publishWorld({ visibility: "chosen" });
+    globalThis.__user = PERSONAS.admin;
+    const res = await countFor();
+    assert.deepEqual(res.body, { ok: true, emailed: 0, notified: 0, invited: { home: 0, emails: 0, overCeiling: false } });
+    assert.equal(globalThis.__channelAsked, undefined, "the events list was read for an event for chosen people");
+    assert.equal(
+      inviteWords.confirmChosenWords({ home: 0, emails: 0 }),
+      "Publish this event? Publishing shows it on 0 people’s Home and emails nobody. It won’t be listed on the events page or announced.",
+    );
   });
 
   test("it counts the path the press would take: queued has no message ceiling", async () => {

@@ -20,6 +20,7 @@ import {
 } from "@/lib/firestore/events";
 import { formatEventWhen, type EventChange } from "@/lib/events/changeSummary";
 import { hiddenLocationLacksLabel } from "@/lib/events/location";
+import { liveVisibilityChange } from "@/lib/events/reach";
 
 /**
  * Server-side edit of an event. Firestore rules block client writes once an
@@ -120,7 +121,15 @@ export async function POST(
       { status: 400 },
     );
   }
-  const visibility = body.visibility === "members" ? "members" : "public";
+  // Who it is for, read by the one helper. A live event stays on its side of
+  // the line between listed and for chosen people: the two were told about in
+  // different ways when it was published (src/lib/events/reach.ts). A value
+  // that is none of the three is refused, never read as one of them.
+  const audience = liveVisibilityChange(old.visibility, body.visibility);
+  if (!audience.ok) {
+    return NextResponse.json({ error: audience.error }, { status: 400 });
+  }
+  const visibility = audience.visibility;
 
   const capacityRaw = body.capacity;
   const capacity =

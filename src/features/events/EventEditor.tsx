@@ -47,6 +47,8 @@ import {
   publicLocationText,
 } from "@/lib/events/location";
 import { signupsButtonWords } from "@/lib/events/requestWords";
+import { confirmChosenWords, peopleCount, type InvitationCount } from "@/lib/events/inviteWords";
+import { REACH_WORDS, announces, eventReach, isForChosenPeople } from "@/lib/events/reach";
 import { canApproveEvent, canDraftEvent } from "@/lib/firestore/users";
 import BlockEditor from "@/components/blocks/BlockEditor";
 import ImageUpload from "@/components/blocks/ImageUpload";
@@ -64,6 +66,8 @@ import StepRail, { type EditorStep } from "./EditorSteps";
 import EventTabs from "./checkIn/EventTabs";
 import EventPreview from "./EventPreview";
 import { takeIncoming } from "./editorSync";
+import { useEventAudience } from "./useEventAudience";
+import WhoItsFor from "./WhoItsFor";
 import FormBuilder from "./FormBuilder";
 import {
   STATUS_WORDS,
@@ -93,11 +97,11 @@ type Props = {
 };
 
 /**
- * The editor's four steps. They are a way of looking at one form: every field
+ * The editor's five steps. They are a way of looking at one form: every field
  * lives in the editor whichever step is showing, and nothing is saved by
  * moving between them.
  */
-type StepKey = "basics" | "details" | "signup" | "send";
+type StepKey = "basics" | "details" | "signup" | "who" | "send";
 
 /**
  * Every field of the form, as the form holds it. One entry per field that
@@ -113,6 +117,7 @@ type FormValues = {
   locationHidden: boolean;
   locationPublicText: string;
   visibility: EventVisibility;
+  announce: boolean;
   capacity: number | null;
   waitlistEnabled: boolean;
   noSignup: boolean;
@@ -143,6 +148,7 @@ function formValuesOf(next: EventDoc): FormValues {
     locationHidden: next.locationHidden,
     locationPublicText: next.locationPublicText ?? "",
     visibility: next.visibility,
+    announce: next.announce,
     capacity: next.capacity,
     waitlistEnabled: next.waitlistEnabled,
     noSignup: next.noSignup,
@@ -180,6 +186,10 @@ type PublishResponse = {
    * this editor reads it through the listener it already has.
    */
   announcementQueued?: boolean;
+  /** An event for chosen people: how many it shows for, and how many invitations went. */
+  invited?: { home?: number; emailed?: number; failed?: number };
+  /** Its invitations threw after it was published. The list is kept; nobody was told how many were emailed. */
+  invitationsFailed?: boolean;
   announcement?: {
     sent?: number;
     pushed?: number;
@@ -203,6 +213,21 @@ type PublishResponse = {
  * event was quiet.
  */
 function announcementLine(body: PublishResponse): string | null {
+  if (body.invitationsFailed) {
+    return (
+      "The event is published and on the Home of the people you chose, but its invitations " +
+      "may not all have gone. Ask an admin to check the send log."
+    );
+  }
+  if (body.invited) {
+    const home = body.invited.home ?? 0;
+    const emailed = body.invited.emailed ?? 0;
+    const failed = body.invited.failed ?? 0;
+    const sent =
+      emailed === 0 ? "nobody was emailed" : emailed === 1 ? "1 invitation was emailed" : `${emailed} invitations were emailed`;
+    const trailer = failed > 0 ? ` ${failed === 1 ? "1 couldn’t be sent" : `${failed} couldn’t be sent`}.` : "";
+    return `Published. It shows on ${peopleCount(home)}’s Home, and ${sent}.${trailer}`;
+  }
   if (body.announcementQueued) {
     // NOT an outcome, and worded so it does not read as one. Nobody has been
     // told yet; the announcement card below reports what the job then does.
@@ -344,7 +369,9 @@ function countOf(value: unknown): number | null {
  * reason: the confirm then says what it said before there was a number, and
  * Publish goes ahead. Never throws.
  */
-async function countPublishReach(eventId: string): Promise<PublishReach | null> {
+async function countPublishReach(
+  eventId: string,
+): Promise<(PublishReach & { invited: Pick<InvitationCount, "home" | "emails"> | null; announces: boolean }) | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), COUNT_TIMEOUT_MS);
   try {
@@ -353,10 +380,18 @@ async function countPublishReach(eventId: string): Promise<PublishReach | null> 
       signal: controller.signal,
     });
     const body = (await res.json().catch(() => null)) as
-      | { ok?: true; emailed?: unknown; notified?: unknown }
+      | { ok?: true; emailed?: unknown; notified?: unknown; announces?: unknown; invited?: unknown }
       | null;
     if (!res.ok || !body?.ok) return null;
-    return { emailed: countOf(body.emailed), notified: countOf(body.notified) };
+    const invited = body.invited && typeof body.invited === "object" ? (body.invited as Record<string, unknown>) : null;
+    const home = countOf(invited?.home);
+    const emails = countOf(invited?.emails);
+    return {
+      emailed: countOf(body.emailed),
+      notified: countOf(body.notified),
+      invited: home !== null && emails !== null ? { home, emails } : null,
+      announces: body.announces !== false,
+    };
   } catch {
     return null;
   } finally {
@@ -450,6 +485,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
   const [locationHidden, setLocationHidden] = useState(false);
   const [locationPublicText, setLocationPublicText] = useState("");
   const [visibility, setVisibility] = useState<EventVisibility>("public");
+  const [announce, setAnnounce] = useState(true);
   const [capacity, setCapacity] = useState<number | null>(null);
   const [waitlistEnabled, setWaitlistEnabled] = useState(true);
   const [noSignup, setNoSignup] = useState(false);
@@ -580,6 +616,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
         setLocationHidden(pick("locationHidden"));
         setLocationPublicText(pick("locationPublicText"));
         setVisibility(pick("visibility"));
+        setAnnounce(pick("announce"));
         setCapacity(pick("capacity"));
         setWaitlistEnabled(pick("waitlistEnabled"));
         setNoSignup(pick("noSignup"));
@@ -644,6 +681,11 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     return isAuthor || isCollaborator || canApprove;
   }, [event, status, canApprove, isAuthor, isCollaborator]);
 
+  // Who an event for chosen people is for: what is stored, and the choice on
+  // the screen, counted as it changes and kept by Save (`useEventAudience`).
+  const forChosenPeople = isForChosenPeople({ visibility });
+  const audience = useEventAudience(eventId, event !== null, forChosenPeople);
+
   // An event can't end before (or exactly when) it starts. This blocks Save and
   // Submit, but never the date fields themselves: an event that somehow holds
   // an invalid end must always be editable back to valid.
@@ -694,6 +736,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
       locationHidden,
       locationPublicText,
       visibility,
+      announce,
       capacity,
       waitlistEnabled,
       noSignup,
@@ -721,6 +764,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
       locationHidden,
       locationPublicText: locationHidden ? locationPublicText : null,
       visibility,
+      announce,
       capacity,
       waitlistEnabled: capacity === null ? false : waitlistEnabled,
       noSignup,
@@ -739,6 +783,12 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
       coverLogoBackdrop,
       coverLogoShadow,
     };
+    // WHO IT IS FOR, FIRST. The people chosen are kept by their own route,
+    // which refuses a tag this person may not use; refused, nothing else is
+    // saved, and the sentence says why.
+    if (forChosenPeople && audience.dirty) {
+      await audience.save();
+    }
     if (status === "published") {
       // Firestore rules block client writes to published events, so go through
       // the server route, which also reports what changed.
@@ -885,6 +935,13 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     }
     const limitProblem = signupFormLimitError();
     if (limitProblem) add("signup", limitProblem);
+    // The tags on the screen when this person can see them (their own choice,
+    // or a draft); otherwise whether anybody has chosen at all.
+    const nothingChosen =
+      audience.tags !== null ? audience.tags.include.length === 0 : !audience.stored?.chosenBy;
+    if (forChosenPeople && nothingChosen) {
+      add("who", "Choose who it’s for: nobody would be invited.");
+    }
     return found;
   }
 
@@ -962,6 +1019,48 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
 
   async function onPublish() {
     if (!event) return;
+    // WHAT IS ON THE SCREEN IS WHAT IS PUBLISHED. Unsaved changes are saved
+    // first, as Approve does, so a change to who it is for (or to Announce)
+    // can never be left behind by a publish that announces the event as it was
+    // stored. Refused, nothing is published, and the sentence says why. From
+    // here on the form and the stored event agree, so the form decides.
+    setBusy(true);
+    setError(null);
+    try {
+      await flush();
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Save failed");
+      return;
+    } finally {
+      setBusy(false);
+    }
+    const shown = { visibility, announce };
+    // AN EVENT FOR CHOSEN PEOPLE is not announced: the confirm says how many
+    // Homes it shows on and how many invitations it emails, counted by the
+    // press's own plan. A count that cannot be had says so, and the press
+    // still goes, refusing for itself whatever it would refuse.
+    if (isForChosenPeople(shown)) {
+      setCountingReach(true);
+      let counted: Awaited<ReturnType<typeof countPublishReach>> = null;
+      try {
+        counted = await countPublishReach(event.id);
+      } finally {
+        setCountingReach(false);
+      }
+      const question = counted?.invited
+        ? confirmChosenWords(counted.invited)
+        : "Publish this event? It shows on the Home of the people you chose and emails them their invitations. It won’t be listed on the events page or announced.";
+      if (!window.confirm(question)) return;
+      await pressPublish();
+      return;
+    }
+    // A LISTED EVENT WHOSE ANNOUNCEMENT IS SWITCHED OFF mails nobody.
+    if (!announces(shown)) {
+      if (!window.confirm("Publish this event? It goes live on the events page. It won’t be announced.")) return;
+      await pressPublish();
+      return;
+    }
     // PUBLISHING MAILS THE EVENTS LIST, so the confirm says so. It happens on
     // the FIRST publish only: `announcedAt` is the once-per-event claim the
     // publish route stamps, and an event pulled back to approved and pushed
@@ -995,6 +1094,12 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
       : "Publish this event? It goes live on the events page. The announcement has " +
         "already gone out, so nobody is emailed again.";
     if (!window.confirm(question)) return;
+    await pressPublish();
+  }
+
+  /** The press itself, once the confirm has been answered. */
+  async function pressPublish() {
+    if (!event) return;
     setPublishStatus({ kind: "publishing" });
     setError(null);
     try {
@@ -1152,7 +1257,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
   ].join(" · ");
   const previewFacts = [
     capacity !== null && !noSignup ? `${capacity} place${capacity === 1 ? "" : "s"}` : null,
-    visibility === "members" ? "Members only" : null,
+    REACH_WORDS.badge[eventReach({ visibility })],
   ].filter((fact): fact is string => fact !== null);
   const previewClosed =
     status === "cancelled"
@@ -1178,6 +1283,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     { key: "basics", label: "Basics", done: !missing("basics") },
     { key: "details", label: "Details", done: !missing("details") },
     { key: "signup", label: "Sign-up", done: !missing("signup") },
+    { key: "who", label: "Who’s it for", done: !missing("who") },
     { key: "send", label: lastLabel, done: status !== "draft" && status !== "rejected" },
   ];
   const at = steps.findIndex((s) => s.key === step);
@@ -1274,7 +1380,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
 
       {status === "published" && (
         <Notice title="Published.">
-          Live at{" "}
+          {forChosenPeople ? "For the people you chose, at " : "Live at "}
           <Link
             href={`/events/${event.id}`}
             target="_blank"
@@ -1283,7 +1389,8 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
           >
             /events/{event.id}
           </Link>
-          . Share the link.{editable ? " Changes you save here go live at once." : ""}
+          .{forChosenPeople ? " Only they can open it." : " Share the link."}
+          {editable ? " Changes you save here go live at once." : ""}
         </Notice>
       )}
 
@@ -1748,22 +1855,36 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                         : "Off: everyone gives their name at the door, and the confirmation email says so. On: they can also scan the door code, or use the link in a confirmation email sent while it’s on."
                     }
                   />
-                  <Switch
-                    checked={visibility === "members"}
-                    onChange={(value) => {
-                      setVisibility(value ? "members" : "public");
-                      markDirty();
-                    }}
-                    disabled={locked}
-                    label="Account needed"
-                    description={
-                      noSignup
-                        ? "The event is marked members only, and its announcement goes to people with a naisi.uk account."
-                        : "Only people with a naisi.uk account can request a place."
-                    }
-                  />
                 </div>
               </div>
+            </section>
+
+            <section hidden={step !== "who"} aria-labelledby="editor-step-who">
+              <h2 id="editor-step-who" tabIndex={-1} className={styles.sectionTitle}>
+                Who’s it for
+              </h2>
+              <p className={styles.sectionHint}>
+                Who can see it and sign up, and how they hear about it.
+              </p>
+              <WhoItsFor
+                status={status}
+                editable={editable}
+                busy={busy}
+                visibility={visibility}
+                onVisibility={(value) => {
+                  setVisibility(value);
+                  markDirty();
+                }}
+                announce={announce}
+                onAnnounce={(value) => {
+                  setAnnounce(value);
+                  markDirty();
+                }}
+                announced={Boolean(event.announcedAt)}
+                isAuthor={isAuthor}
+                audience={audience}
+                onAudienceChange={markDirty}
+              />
             </section>
 
             <section hidden={step !== "send"} aria-labelledby="editor-step-send">
@@ -1776,9 +1897,13 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                   : status === "pending"
                     ? "An approver checks it, then approves it or sends it back."
                     : status === "approved"
-                      ? "It’s approved. Publishing puts it on the events page."
+                      ? forChosenPeople
+                        ? "It’s approved. Publishing shows it on the Home of the people you chose and emails them their invitations."
+                        : "It’s approved. Publishing puts it on the events page."
                       : status === "published"
-                        ? "It’s on the events page."
+                        ? forChosenPeople
+                          ? "It’s on the Home of the people you chose."
+                          : "It’s on the events page."
                         : "It stays at its link, marked as cancelled."}
               </p>
 
@@ -1821,9 +1946,18 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                 <div>
                   <dt>Who it’s for</dt>
                   <dd>
-                    {visibility === "members"
-                      ? "People with a naisi.uk account"
-                      : "Anyone with the link"}
+                    {REACH_WORDS.choice[eventReach({ visibility })]}
+                    <span className={styles.summaryNote}>
+                      {forChosenPeople
+                        ? audience.count
+                          ? `On ${peopleCount(audience.count.home)}’s Home, not listed and not announced.`
+                          : "Not listed and not announced."
+                        : event.announcedAt
+                          ? "Listed, and already announced."
+                          : announces({ visibility, announce })
+                            ? "Listed, and announced when it’s published."
+                            : "Listed, and not announced."}
+                    </span>
                   </dd>
                 </div>
                 <div>
@@ -1965,7 +2099,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                 {step === "send" && showPublish && (
                   <Button
                     onClick={onPublish}
-                    disabled={publishStatus.kind === "publishing" || countingReach}
+                    disabled={busy || publishStatus.kind === "publishing" || countingReach}
                   >
                     {publishStatus.kind === "publishing"
                       ? "Publishing…"
@@ -2040,11 +2174,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
             facts={previewFacts}
             closed={previewClosed}
             questions={signupForm}
-            formNote={
-              visibility === "members"
-                ? "People sign in to their naisi.uk account first."
-                : undefined
-            }
+            formNote={REACH_WORDS.formNote[eventReach({ visibility })] ?? undefined}
           />
         </div>
       </div>

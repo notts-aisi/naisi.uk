@@ -423,6 +423,11 @@ export const FIXTURE_COLLECTIONS = [
   "dataExports",
   // Attendee rows the RSVP flow creates against a fixture event.
   "eventRsvps",
+  // An event for chosen people the authoring spec makes: who it is for, as the
+  // admin chose it, and the list of the people invited, each keyed on the
+  // event the admin's browser created (found by its title).
+  "eventAudiences",
+  "eventInvitations",
   // The magic-link tokens /api/register and /api/verify-email/send mint, and
   // the signup tracker row the register route mirrors each new account into.
   // COUNT-ONLY through this chokepoint: both are removed by the auth harness's

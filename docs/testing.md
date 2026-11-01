@@ -172,6 +172,17 @@ The same shape, older:
   both directions: a renderer imports the helper and reads none of the fields
   raw, a relay may pass them along but may not branch on `locationHidden`,
   a template takes a finished line, and exactly one file branches.
+- `tests/event-visibility-readers.test.mjs`: who an event is for is read in
+  one place, `src/lib/events/reach.ts`. The helper is executed (missing reads
+  as "members", any value that is none of the three as "chosen", so an event
+  nobody can tell the audience of is listed and announced nowhere), every
+  `.ts` and `.tsx` under `src` is read for a comparison of a `visibility`
+  outside it (a task's and a worksheet question's are registered with what
+  they are, and held to comparing none of an event's values), every file
+  that imports the helper is registered with what it asks, both directions,
+  and the rules' read branch is held to the same two decisions.
+  `tests/event-chosen-people.test.mjs` runs the routes and pages of an event
+  for chosen people as every kind of caller against a real term.
 - `tests/event-check-ins.test.mjs`, its last block: every write of a
   check-in says which way the person came in. It walks every call of
   `recordCheckIn` under `src` and holds each one's `how` to a registered
@@ -402,8 +413,9 @@ The same shape, older:
   page under `src/app/(app)`, as every persona (`anonymous`, `pending`,
   `rejected`, `member`, non-SU `committee`, `suCommittee`, `admin`, a
   plain member holding each `permissions` key, three who hold a role on a
-  programme, `lead`, `facilitator` and `participant`, and two who hold a role
-  on an event, `eventAuthor` and `eventCollaborator`), with ids that address nothing
+  programme, `lead`, `facilitator` and `participant`, two who hold a role
+  on an event, `eventAuthor` and `eventCollaborator`, and `invitee`, on an
+  event's list of the people invited to it), with ids that address nothing
   and empty bodies so the answer is the gate's or the first validation's, and
   each cell is held to the registry: a status per persona, a redirect target
   per persona for a page, the allowed top-level fields for a 2xx, and a reason
@@ -427,14 +439,18 @@ The same shape, older:
   cell on THEIRS is their `another` cell, because the two programmes are
   mirrors in every field a gate reads. The same world writes two events, and
   every route and page whose code asks the sign-ups rule
-  (`src/lib/events/signupAccess.ts`; found from the code, both ways, so a new
-  reader or decider of an event's requests is asked the day it lands) is asked
-  about both: THEIRS written by `eventAuthor` (a member holding draftEvent)
-  and helped by `eventCollaborator` (committee the SU does not recognise),
-  ANOTHER by accounts that are none of the personas, each with a request
-  waiting for a decision. Those columns say `world: "event"`, and their
-  `theirs` names the two event roles. A mutating route is sent an empty body,
-  so a gate that admits somebody stops at the first validation; a cell where
+  (`src/lib/events/signupAccess.ts`) or who runs an event's list
+  (`src/lib/events/invitationAccess.ts`; found from the code, both ways, so a
+  new reader or decider of an event's requests or its list is asked the day it
+  lands) is asked about both: THEIRS written by `eventAuthor` (a member
+  holding draftEvent) and helped by `eventCollaborator` (committee the SU does
+  not recognise), ANOTHER by accounts that are none of the personas, each with
+  a request waiting for a decision, and each for chosen people, its list
+  naming its asker and, on THEIRS, `invitee`. Those columns say
+  `world: "event"`, and their `theirs` names the two event roles; no column
+  names the invitee, since being invited is no role on any of them. A
+  mutating route is sent an empty body, so a gate that admits somebody stops
+  at the first validation; a cell where
   nothing would stop it (a route that takes no body, or reads an empty one as
   a choice) is marked `ACTS` with what it would do, and is not sent, so no
   write lands. A route that checks its body first answers 400 to everybody

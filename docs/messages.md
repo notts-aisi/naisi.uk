@@ -13,9 +13,11 @@ The picker's code is `src/lib/audience/` and
 `src/features/audience/WhoIsThisFor.tsx`. Messages is `/messages`
 (`src/app/(app)/messages/page.tsx`), `src/features/messages/`,
 `src/lib/messages/` and `src/app/api/messages/`; its own section is
-[Messages](#messages) below. The mailing list page (`/admin/subscriptions`,
-admins only) also carries the picker at its foot, closed until opened, under
-"Who would a message reach?", with nothing to send.
+[Messages](#messages) below. An event for chosen people's invitation takes its
+people from the picker too: [Events for chosen people](#events-for-chosen-people)
+below. The mailing list page (`/admin/subscriptions`, admins only) also
+carries the picker at its foot, closed until opened, under "Who would a
+message reach?", with nothing to send.
 
 ## Tags
 
@@ -108,8 +110,11 @@ A send that decides person by person (an event's invitation, a notice to the
 programme's people and everybody else by their events row) asks the same
 resolver with `policy: "per-person"`; each person it reaches carries the
 programmes the writer runs them under, and `noticeUnder` names the one
-programme whose people get the notice when the send is part of a programme,
-so everybody else the writer runs goes by their settings.
+programme whose people get the notice when the send is part of a programme:
+the people the writer runs under it who HOLD A PLACE on it (the world's
+`holds`), which is what the privacy policy means by "a programme you are on".
+Its facilitators and its lead are run by the writer and are not on it, so
+they go by their settings, as does everybody else.
 
 **The writer is included when they match**, and the count says "including
 you".
@@ -292,3 +297,33 @@ left out for each reason, the subject, the update it was posted as, and when.
 Never an address and never the message. Like the email log, it is kept when an
 account is deleted.
 
+## Events for chosen people
+
+The event editor's "Who’s it for" step offers three choices
+(`src/lib/events/reach.ts`): anyone, people with a NAISI account, or only
+people you choose. The third draws the picker, in a mode that counts and
+names people and leaves how they are reached to the step (`peopleOnly`):
+an invitation has its own rule, so the picker's own emailed and left-out
+lines would describe another send.
+
+- **The choice is kept as tags**, never a list (`eventAudiences/{eventId}`,
+  `PUT /api/events/[id]/audience`), in the name of whoever chose it, and is
+  resolved in THEIR world whenever it is read: by the editor's count, by
+  Publish and by "Invite the N new since". An approver's press invites
+  exactly the people the organiser counted, and a choice whose maker can no
+  longer use its tags invites nobody and refuses to publish.
+- **Who may choose:** whoever may edit the event in its state, with the tags
+  the table above gives them. "This event is part of <programme>" is offered
+  for a programme the person leads, and for any of the term's to an admin.
+  Once an event is part of one, anybody saving the people keeps it, and only
+  that programme's lead or an admin takes it off. A notice goes only to people
+  the chooser runs under that programme, so somebody who saves the people
+  without leading it invites everyone by their settings, and the step's count
+  says so.
+- **Who is invited:** every account the choice reaches. A guest or a walk-in
+  has no Home and could not open it, and somebody who left a group is listed
+  as having left: neither is invited, and the step counts both.
+- **How each is emailed:** a programme notice to the people holding a place
+  on its programme when it is part of one; everybody else by their event
+  announcements row; the author never. `src/lib/events/invitations.ts` is the
+  one plan, so the step's numbers, the Publish confirm and the send agree.

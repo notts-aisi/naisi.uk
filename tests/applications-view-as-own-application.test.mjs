@@ -387,9 +387,12 @@ const STUBS = new Map([
       "export async function profileSteps() { return null; }\n" +
       // Home's question about a full name reads the member's own account, so
       // who it was asked for is kept, for the view-as case below.
-      "export async function fullNameQuestion(uid) { globalThis.__viewAsOwn.touched.push('fullNameQuestion:' + uid); return null; }",
+      "export async function fullNameQuestion(uid) { globalThis.__viewAsOwn.touched.push('fullNameQuestion:' + uid); return null; }\n" +
+      // So is "For you", the events for chosen people the member was invited to.
+      "export async function forYouEvents(uid) { globalThis.__viewAsOwn.touched.push('forYouEvents:' + uid); return []; }",
   ],
   ["./FullNameCard", NOTHING("FullNameCard")],
+  ["./ForYou", NOTHING("ForYou")],
   [
     // Applications are open, which is when Home says "Nothing yet" to a member who has not applied.
     "@/features/term/fetchPublicTerm",
@@ -666,6 +669,8 @@ describe("the dashboard card names nothing in a view-as session", () => {
     // account the browser is signed in as, which in a view-as session is the
     // member's.
     assert.deepEqual(world.touched.filter((name) => name.startsWith("fullNameQuestion")), []);
+    // Nor the member's own invitations, which "For you" would draw.
+    assert.deepEqual(world.touched.filter((name) => name.startsWith("forYouEvents")), []);
   });
 
   test("Home's question about a full name is asked of the member's own account, and of nobody viewing as them", async () => {
@@ -673,6 +678,7 @@ describe("the dashboard card names nothing in a view-as session", () => {
     signedIn("amara");
     await home();
     assert.deepEqual(world.touched.filter((name) => name.startsWith("fullNameQuestion")), ["fullNameQuestion:amara"]);
+    assert.deepEqual(world.touched.filter((name) => name.startsWith("forYouEvents")), ["forYouEvents:amara"]);
   });
 
   test("nor does it say whether they have applied at all", async () => {

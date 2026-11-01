@@ -23,6 +23,7 @@ import {
   yearOf,
 } from "@/features/events/manageWords";
 import { publicLocationText } from "@/lib/events/location";
+import { REACH_WORDS, eventReach } from "@/lib/events/reach";
 import type { EventDoc } from "@/lib/firestore/events";
 import { canApproveEvent, canDraftEvent } from "@/lib/firestore/users";
 import styles from "./events.module.css";
@@ -388,9 +389,10 @@ function SignUps({
   const waiting = seesRequests && pending > 0 && (
     <div className={styles.signupsWaiting}>{pending} waiting</div>
   );
-  const account = e.visibility === "members" && (
-    <div className={styles.signupsNote}>Account needed</div>
-  );
+  // Who it is for, when that is not anyone: "Account needed", or
+  // "Invitation only" for an event for chosen people.
+  const reachNote = REACH_WORDS.badge[eventReach(e)];
+  const account = reachNote && <div className={styles.signupsNote}>{reachNote}</div>;
   if (e.capacity !== null) {
     return (
       <div className={styles.signups}>

@@ -13,12 +13,13 @@ import { InstallCard } from "@/features/pwa/InstallCard";
 import { fetchPublicTerm } from "@/features/term/fetchPublicTerm";
 import { termCivilDay } from "@/features/term/termWords";
 import ComingUp from "./ComingUp";
+import ForYou from "./ForYou";
 import FullNameCard from "./FullNameCard";
 import { FinishProfile, NoApplicationsYet } from "./HomeAside";
 import HomeAdmin from "./HomeAdmin";
 import HomeMember from "./HomeMember";
 import TermCard from "./TermCard";
-import { fullNameQuestion, homeEvents, profileSteps } from "./homeData";
+import { forYouEvents, fullNameQuestion, homeEvents, profileSteps, type ForYouEvent } from "./homeData";
 import { firstName } from "./homeWords";
 import styles from "./home.module.css";
 
@@ -110,6 +111,8 @@ async function onItsWayCards(user: SessionUser, now: Date): Promise<BeforeGroups
 
 const NO_SURVEYS: SurveyCard[] = [];
 
+const NO_FOR_YOU: ForYouEvent[] = [];
+
 /**
  * "A SURVEY FOR YOU" (Q50 B) for each survey waiting for the member: open,
  * sent to them and still theirs, and not answered, as `surveysWaitingFor`
@@ -141,7 +144,7 @@ export default async function DashboardPage() {
   const viewingAs = markerIsLive(await getImpersonator(), user?.uid ?? null);
   const applications = user ? await applicationsOf(user.uid, viewingAs) : [];
   const now = new Date();
-  const [term, events, steps, held, cards, surveys, askFullName] = await Promise.all([
+  const [term, events, steps, held, cards, surveys, askFullName, forYou] = await Promise.all([
     fetchPublicTerm(now),
     homeEvents(now),
     user ? profileSteps(user.uid) : null,
@@ -155,6 +158,9 @@ export default async function DashboardPage() {
     // "What's your full name?", once. Not in a view-as session: the card
     // writes to the account it is signed in as, which there is the member's.
     user && !viewingAs ? fullNameQuestion(user.uid) : null,
+    // "For you": the events for chosen people they were invited to. Their own
+    // list, so not read in a view-as session, as their surveys are not.
+    user && !viewingAs ? forYouEvents(user.uid, now) : NO_FOR_YOU,
   ]);
   const given = firstName(user?.displayName);
 
@@ -169,12 +175,14 @@ export default async function DashboardPage() {
       <NoApplicationsYet closesAt={term.closesAt} />
     ) : null;
 
-  // Under the greeting on every form, the admins' too: the question about a
-  // full name while it is unanswered, then the quiet install invitation
-  // (phones only, dismissible once, hidden when already installed; see
+  // Under the greeting on every form, the admins' too: an event for chosen
+  // people they were invited to ("For you"), the question about a full name
+  // while it is unanswered, then the quiet install invitation (phones only,
+  // dismissible once, hidden when already installed; see
   // src/features/pwa/InstallCard.tsx).
   const invite = (
     <>
+      <ForYou events={forYou} />
       {user && askFullName && <FullNameCard uid={user.uid} suggestion={askFullName.suggestion} />}
       <InstallCard />
     </>

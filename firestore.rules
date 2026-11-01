@@ -1295,15 +1295,52 @@ service cloud.firestore {
           && isApprovedAccount();
       }
 
-      allow read: if canDraft() || canApprove()
+      // Any signed-in browser may read a PUBLISHED event that is listed: for
+      // anyone (`public`) or for people with an account (`members`, and an
+      // event with no `visibility` reads as that, as it always did). An event
+      // for chosen people (`chosen`), or one whose value is none of these, is
+      // left to the branches above: the people who run events. The people
+      // invited to one read it on the server, never from a browser
+      // (src/lib/events/reach.ts makes the same two decisions).
+      allow get: if canDraft() || canApprove()
         || hasRole(['committee', 'admin'])
-        || (isSignedIn() && resource.data.status == 'published');
+        || (isSignedIn() && resource.data.status == 'published'
+            && resource.data.get('visibility', 'members') in ['public', 'members']);
+      // A LIST is checked against the query, not the documents it returns,
+      // and `get` reads a field the query does not constrain as its default:
+      // the line above would pass a query for published events alone and hand
+      // back the events for chosen people with the rest. So a browser that
+      // does not run events lists published events only with `visibility`
+      // constrained to the two listed values. An event with no value is left
+      // out of such a list, and is still read one at a time above.
+      allow list: if canDraft() || canApprove()
+        || hasRole(['committee', 'admin'])
+        || (isSignedIn() && resource.data.status == 'published'
+            && resource.data.visibility in ['public', 'members']);
       // `selfCheckIn`, whether people can check themselves in, is the
       // editor's to write (eventMutations.ts), as a boolean and nothing else:
       // the routes read only a strict true as on.
       function selfCheckInIsBool() {
         return !('selfCheckIn' in request.resource.data)
           || request.resource.data.selfCheckIn is bool;
+      }
+      // Who it is for, as the editor writes it: one of the three values the
+      // site reads (src/lib/events/reach.ts), never another string a reader
+      // would have to guess at. Whether publishing announces it is a boolean.
+      function audienceFieldsValid() {
+        return (!('visibility' in request.resource.data)
+                || request.resource.data.visibility in ['public', 'members', 'chosen'])
+          && (!('announce' in request.resource.data)
+              || request.resource.data.announce is bool);
+      }
+      // The programme an event for chosen people is part of makes its
+      // invitation a programme notice, which only that programme's lead or an
+      // admin may choose. So it is written by /api/events/[id]/audience alone,
+      // on the Admin SDK, after that check: no browser sets it, changes it or
+      // takes it off, admins included.
+      function programmeUnchanged() {
+        return request.resource.data.get('programme', null)
+               == resource.data.get('programme', null);
       }
       // When the door was opened, and by whom, are written by
       // /api/events/[id]/door alone, on the Admin SDK: the door list and self
@@ -1320,6 +1357,8 @@ service cloud.firestore {
         && request.resource.data.authorUid == request.auth.uid
         && request.resource.data.status == 'draft'
         && selfCheckInIsBool()
+        && audienceFieldsValid()
+        && !('programme' in request.resource.data)
         && !('doorOpenedAt' in request.resource.data)
         && !('doorOpenedBy' in request.resource.data);
       // Per-document scoping. `draftEvent` is a GLOBAL permission a plain
@@ -1364,7 +1403,8 @@ service cloud.firestore {
           && request.resource.data.get('announcementResult', {})
                == resource.data.get('announcementResult', {});
       }
-      allow update: if selfCheckInIsBool() && doorFieldsUnchanged() && (isAdmin()
+      allow update: if selfCheckInIsBool() && doorFieldsUnchanged()
+        && audienceFieldsValid() && programmeUnchanged() && (isAdmin()
         || (
           (canApprove() || isCollaborator() || (canDraft() && isOwnEvent()))
           && pinnedFieldsUnchanged()
@@ -3441,6 +3481,23 @@ service cloud.firestore {
     // refused, admins and the person themselves included: a readable record
     // names who came to which event.
     match /eventCheckIns/{checkInId} {
+      allow read, write: if false;
+    }
+
+    // === eventAudiences, eventInvitations ===
+    // Events for chosen people (src/lib/firestore/eventAudiences.ts,
+    // src/lib/firestore/eventInvitations.ts): who an event is for, as its
+    // organiser chose it, and the list of the people invited to it with how
+    // each invitation went. Written only by the audience, publish and
+    // invitations routes on the Admin SDK, and read only on the server: Home
+    // reads a person's own invitations by their uid, and the event's pages ask
+    // whether the person looking is on the list. So every browser is refused,
+    // admins and the people invited included: a readable list names who was
+    // chosen for what.
+    match /eventAudiences/{eventId} {
+      allow read, write: if false;
+    }
+    match /eventInvitations/{invitationId} {
       allow read, write: if false;
     }
 

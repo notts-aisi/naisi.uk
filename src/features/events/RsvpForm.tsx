@@ -24,6 +24,7 @@ import {
   type FormQuestion,
   type RsvpAnswer,
 } from "@/lib/firestore/events";
+import { REACH_WORDS, eventReach, needsAccount } from "@/lib/events/reach";
 import { placesState, placesTone, placesWords } from "./eventWhen";
 import FormRenderer from "./FormRenderer";
 import links from "./eventLinks.module.css";
@@ -100,7 +101,10 @@ export default function RsvpForm({
   const signupsPaused = isSurfacePaused(siteNotice, "eventSignups");
 
   const questions: FormQuestion[] = signupForm;
-  const needsLogin = visibility === "members" && !user && !authLoading;
+  // Who the event is for decides whether a guest may sign up at all
+  // (`src/lib/events/reach.ts`): only an event for anyone takes a guest.
+  const reach = eventReach({ visibility });
+  const needsLogin = needsAccount({ visibility }) && !user && !authLoading;
   const full = capacity !== null && rsvpCountConfirmed >= capacity;
   // The same words and tone the events list and the hero use for this event.
   const places = placesState({ capacity, rsvpCountConfirmed, waitlistEnabled, noSignup: false });
@@ -211,14 +215,13 @@ export default function RsvpForm({
   if (needsLogin) {
     return (
       <section className={styles.panel}>
-        <h2 className={styles.h2}>Members-only event</h2>
-        <p className={styles.lede}>
-          This event is for signed-in NAISI members. Sign in to RSVP.
-        </p>
+        <h2 className={styles.h2}>{REACH_WORDS.badge["listed-account"]}</h2>
+        <p className={styles.lede}>{REACH_WORDS.signInLede[reach]}</p>
         {/* An anchor, never a Button inside one: that nesting is invalid and
-            its tap behaviour is unreliable in iOS Safari. */}
+            its tap behaviour is unreliable in iOS Safari. The sign-in page
+            comes back to the address in `next`. */}
         <a
-          href={`/login?redirect=/events/${eventId}`}
+          href={`/login?next=${encodeURIComponent(`/events/${eventId}`)}`}
           className={`${links.link} ${links.primary} ${links.large} ${styles.wide}`}
         >
           Sign in
@@ -247,11 +250,7 @@ export default function RsvpForm({
           <Badge tone={placesTone(places)}>{placesWords(places)}</Badge>
         )}
       </div>
-      <p className={styles.lede}>
-        {visibility === "members"
-          ? "This one is for people with a NAISI account."
-          : "Anyone can come."}
-      </p>
+      <p className={styles.lede}>{REACH_WORDS.formLede[reach]}</p>
       {previewMode && (
         <Notice tone="warning" role="note">
           Test mode: submissions here are saved like real ones. Use them to

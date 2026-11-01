@@ -33,6 +33,12 @@
  * account that is none of them. Each set's ids carry its event (`id`) and the
  * request (`rsvpId`), which only an event's keys have.
  *
+ * Each event is FOR CHOSEN PEOPLE: its choice is kept by its programme's lead
+ * (somebody who may name people), and its list of the people invited names
+ * its asker and, on THEIRS, the `invitee` persona (ANOTHER's, the other
+ * programme's participant). So the routes about an event's list are asked of
+ * a real list, and being on it is the invitee's whole role.
+ *
  * THE SAME TERMS AS `./personas.mjs`. This module writes roles above `pending`
  * (the other programme's lead is SU-recognised committee) and authority over
  * records (a programme's `leadUid`, a group's `facilitatorUids`), which is
@@ -533,7 +539,8 @@ function otherAccountDoc({ uid, name, shape, now }) {
 /**
  * An event, created as the editor creates one (`createEvent` in
  * src/features/events/eventMutations.ts) and published as the publish route
- * leaves it, a week ahead, with one request waiting on its counter.
+ * leaves it, a week ahead, with one request waiting on its counter. For chosen
+ * people (src/lib/events/reach.ts): listed nowhere and announced to nobody.
  */
 function eventDoc({ title, authorUid, authorDisplayName, collaboratorUids, startAt, now }) {
   return {
@@ -544,7 +551,7 @@ function eventDoc({ title, authorUid, authorDisplayName, collaboratorUids, start
     location: "Room E3",
     locationHidden: false,
     locationPublicText: "",
-    visibility: "public",
+    visibility: "chosen",
     capacity: 30,
     waitlistEnabled: true,
     noSignup: false,
@@ -563,6 +570,29 @@ function eventDoc({ title, authorUid, authorDisplayName, collaboratorUids, start
     publishedAt: now,
     createdAt: now,
     updatedAt: now,
+  };
+}
+
+/** Who an event is for, kept as its chooser chose it (src/lib/firestore/eventAudiences.ts): people by name. */
+function eventAudienceDoc({ eventId, chooserUid, invitedUids, now }) {
+  return { eventId, include: invitedUids.map((uid) => `person:${uid}`), exclude: [], setBy: chooserUid, setAt: now };
+}
+
+/**
+ * One person on an event's list (src/lib/firestore/eventInvitations.ts), as
+ * publishing writes it for somebody whose settings say no to event
+ * announcements: invited, on their Home, and not emailed.
+ */
+function eventInvitationDoc({ eventId, uid, invitedBy, now }) {
+  return {
+    eventId,
+    uid,
+    invitedAt: now,
+    invitedBy,
+    via: "publish",
+    how: "grid",
+    outcome: "not-emailed",
+    why: "settings",
   };
 }
 
@@ -591,11 +621,11 @@ function requestDoc({ eventId, uid, name, email, at }) {
 /**
  * Writes both programmes and both events for one battery run and returns each
  * set's ids and a `dispose()` that deletes every document written. `people`
- * are the five personas holding roles on THEIRS, as `withPersona` returns them.
+ * are the six personas holding roles on THEIRS, as `withPersona` returns them.
  */
 export async function seedPersonaWorld(runId, people) {
   assertEmulator();
-  for (const name of ["lead", "facilitator", "participant", "eventAuthor", "eventCollaborator"]) {
+  for (const name of ["lead", "facilitator", "participant", "eventAuthor", "eventCollaborator", "invitee"]) {
     if (!people?.[name]?.uid) throw new Error(`seedPersonaWorld needs the ${name} persona's account first.`);
   }
   const db = emulatorDb();
@@ -624,10 +654,12 @@ export async function seedPersonaWorld(runId, people) {
       lead: people.lead.uid,
       facilitator: people.facilitator.uid,
       participant: people.participant.uid,
+      invited: people.invitee.uid,
       emails: { facilitator: people.facilitator.email, participant: people.participant.email },
     },
     another: {
       ...others,
+      invited: others.participant,
       emails: { facilitator: `${others.facilitator}@e2e.invalid`, participant: `${others.participant}@e2e.invalid` },
     },
   };
@@ -772,6 +804,19 @@ export async function seedPersonaWorld(runId, people) {
       db.collection("eventRsvps").doc(eventIds.rsvpId),
       requestDoc({ eventId: eventIds.id, uid: asker, name: `E2E ${set} asker`, email: `${asker}@e2e.invalid`, at: surveySentAt }),
     );
+    // Who it is for, chosen by the set's lead, and its list: the asker and,
+    // on THEIRS, the invitee persona (ANOTHER's, the other participant).
+    const invited = [who.invited, asker];
+    await put(
+      db.collection("eventAudiences").doc(eventIds.id),
+      eventAudienceDoc({ eventId: eventIds.id, chooserUid: who.lead, invitedUids: invited, now }),
+    );
+    for (const uid of invited) {
+      await put(
+        db.collection("eventInvitations").doc(`${eventIds.id}__${uid}`),
+        eventInvitationDoc({ eventId: eventIds.id, uid, invitedBy: who.lead, now }),
+      );
+    }
   }
 
   return {

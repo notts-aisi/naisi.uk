@@ -55,6 +55,8 @@ const NOTICE_REASON: Record<EmailSendSurface, string> = {
   // Messages goes as a notice only to people its writer runs a programme for:
   // somebody holding a place on it, in one of its groups, or helping to run it.
   messages: "you hold a place on a programme or help run one",
+  // Only the people holding a place on the programme get it as a notice.
+  "event-invitation": "you are on the programme this event is part of",
 };
 
 type Props = {
