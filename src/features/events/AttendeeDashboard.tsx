@@ -21,9 +21,11 @@ import {
   type RsvpStatus,
 } from "@/lib/firestore/events";
 import { own } from "@/lib/applications/keys";
+import { answerText as renderAnswer } from "@/lib/events/requestWords";
 import { guestStaffName, staffNameWords, type StaffName } from "@/lib/names/staffName";
 import { useEventRsvps } from "./useEventRsvps";
 import OrderHelper from "./OrderHelper";
+import SignupRequests, { idsOf } from "./SignupRequests";
 import TestRsvpPanel from "./TestRsvpPanel";
 import Pie, { pickColor, type PieSlice } from "./Pie";
 import { SIGNUP_WORDS, dayWords, signupTone, stampWords } from "./manageWords";
@@ -36,9 +38,16 @@ type Props = {
    * may see them: an admin or SU-recognised committee member, so the full
    * name with the name they go by after it (`staffNamesFor`). Read once, by
    * the page; a sign-up that arrives after it keeps the name it was made with
-   * until the page is opened again.
+   * until the page is opened again. Empty for anybody else.
    */
   people: Record<string, StaffName>;
+  /**
+   * Whether the viewer sees everybody who signed up (`signupAccessFor`):
+   * admins and SU-recognised committee. Everybody else the page admits, an
+   * event's organisers, sees the requests waiting for a decision alone, and
+   * this never opens the live list for them.
+   */
+  everyone: boolean;
 };
 
 /**
@@ -52,30 +61,31 @@ function signupName(r: RsvpDoc, people: Record<string, StaffName>): StaffName {
   return { name: r.name.trim() || "No name given", goBy: null, apart: null, note: null };
 }
 
-/** Stringify a raw answer for CSV / table display. */
-function renderAnswer(a: RsvpAnswer | undefined): string {
-  if (a === undefined || a === null) return "";
-  if (typeof a === "string") return a;
-  if (typeof a === "boolean") return a ? "Yes" : "No";
-  if (Array.isArray(a)) return a.join(", ");
-  if (typeof a === "object") {
-    const obj = a as { checked?: string[]; other?: string };
-    const parts: string[] = [];
-    if (Array.isArray(obj.checked) && obj.checked.length > 0) parts.push(...obj.checked);
-    if (obj.other) parts.push(`Other: ${obj.other}`);
-    return parts.join(", ");
+/**
+ * An event's sign-ups. The requests waiting for a decision come from their
+ * route, for everybody the page admits; everything else is for the people
+ * who see everybody who signed up, and only they open the live list.
+ */
+export default function AttendeeDashboard({ event, people, everyone }: Props) {
+  if (!everyone) {
+    return (
+      <div className={styles.wrap}>
+        <SignupRequests eventId={event.id} />
+        <p className={styles.quiet}>
+          Admins and the committee members the Students’ Union recognises see everybody who signed up.
+        </p>
+      </div>
+    );
   }
-  return "";
+  return <EveryoneWhoSignedUp event={event} people={people} />;
 }
 
-export default function AttendeeDashboard({ event, people }: Props) {
+function EveryoneWhoSignedUp({ event, people }: Omit<Props, "everyone">) {
   const { role } = useAuth();
   const nameOf = (r: RsvpDoc) => signupName(r, people);
   const { rsvps, loading, error, refresh } = useEventRsvps(event.id);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionErr, setActionErr] = useState<string | null>(null);
-  const [denyFor, setDenyFor] = useState<string | null>(null);
-  const [denyNote, setDenyNote] = useState("");
   const [filter, setFilter] = useState<"active" | RsvpStatus | "all">("active");
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
 
@@ -114,19 +124,11 @@ export default function AttendeeDashboard({ event, people }: Props) {
     return rsvps.filter((r) => r.status === filter);
   }, [rsvps, filter, active]);
 
-  async function act(
-    rsvpId: string,
-    path: "approve" | "deny" | "cancel" | "approve-change" | "deny-change",
-    note?: string,
-  ) {
+  async function act(rsvpId: string, path: "cancel" | "approve-change" | "deny-change") {
     setBusyId(rsvpId);
     setActionErr(null);
     try {
-      const res = await fetch(`/api/events/${event.id}/rsvp/${rsvpId}/${path}`, {
-        method: "POST",
-        headers: note !== undefined ? { "content-type": "application/json" } : {},
-        body: note !== undefined ? JSON.stringify({ note }) : undefined,
-      });
+      const res = await fetch(`/api/events/${event.id}/rsvp/${rsvpId}/${path}`, { method: "POST" });
       const body = (await res.json().catch(() => null)) as
         | { ok?: true; error?: string }
         | null;
@@ -143,17 +145,6 @@ export default function AttendeeDashboard({ event, people }: Props) {
     } finally {
       setBusyId(null);
     }
-  }
-
-  async function onApprove(r: RsvpDoc) {
-    await act(r.id, "approve");
-  }
-
-  async function onDenyConfirm() {
-    if (!denyFor) return;
-    await act(denyFor, "deny", denyNote);
-    setDenyFor(null);
-    setDenyNote("");
   }
 
   async function onCancel(r: RsvpDoc) {
@@ -278,19 +269,36 @@ export default function AttendeeDashboard({ event, people }: Props) {
     downloadCSV(`${safeTitle}-rsvps-${stamp}.csv`, toCSV(header, rows));
   }
 
+  // The requests come from their route, with who is asking; the live list
+  // hands over the ids it sees waiting, so a new request is fetched with its
+  // card, and a decision made here reads the list again.
+  const requests = (
+    <SignupRequests
+      eventId={event.id}
+      refreshKey={loading ? undefined : idsOf(pending)}
+      onDecided={() => refresh().catch(() => {})}
+    />
+  );
+
   if (loading) {
     return (
-      <p className={styles.quiet} aria-busy="true">
-        Loading sign-ups…
-      </p>
+      <div className={styles.wrap}>
+        {requests}
+        <p className={styles.quiet} aria-busy="true">
+          Loading sign-ups…
+        </p>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Notice tone="warning" role="alert" title="The sign-ups didn’t load.">
-        {error.message}
-      </Notice>
+      <div className={styles.wrap}>
+        {requests}
+        <Notice tone="warning" role="alert" title="The sign-ups didn’t load.">
+          {error.message}
+        </Notice>
+      </div>
     );
   }
 
@@ -301,6 +309,68 @@ export default function AttendeeDashboard({ event, people }: Props) {
 
   return (
     <div className={styles.wrap}>
+      {/* Waiting for a decision ------------------------------------------ */}
+      {requests}
+
+      {/* Pending change-requests ----------------------------------------- */}
+      {pendingChanges.length > 0 && (
+        <section className={styles.section}>
+          <div>
+            <h2 className={styles.sectionTitle}>
+              Asking to change an answer ({pendingChanges.length})
+            </h2>
+            <p className={styles.sectionHint}>
+              Usually a dietary change. Approving swaps in the new answers;
+              turning it down keeps the ones they gave first.
+            </p>
+          </div>
+          <div className={styles.queue}>
+            {pendingChanges.map((r) => (
+              <Card key={r.id} padding="md">
+                <div className={styles.rsvpRow}>
+                  <div className={styles.rsvpMain}>
+                    <div>
+                      <strong className={styles.who}>
+                        <StaffNameText name={nameOf(r)} />
+                      </strong>
+                      <span className={styles.email}>{r.email}</span>
+                    </div>
+                    <ChangeDiff
+                      questions={event.signupForm}
+                      current={r.answers}
+                      proposed={r.pendingAnswers ?? {}}
+                    />
+                    {r.pendingAnswersRequestedAt && (
+                      <div className={styles.muted}>
+                        Asked {stampWords(r.pendingAnswersRequestedAt)}
+                      </div>
+                    )}
+                  </div>
+                  <div className={styles.buttons}>
+                    <Button onClick={() => onApproveChange(r)} disabled={busyId === r.id}>
+                      Approve change
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => onDenyChange(r)}
+                      disabled={busyId === r.id}
+                    >
+                      Turn down
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {actionErr && (
+        <Notice tone="warning" role="alert">
+          {actionErr}
+        </Notice>
+      )}
+
       {/* Summary strip --------------------------------------------------- */}
       <Card as="section" padding="lg" aria-label="Sign-ups by state">
         <dl className={styles.counts}>
@@ -406,145 +476,6 @@ export default function AttendeeDashboard({ event, people }: Props) {
           </Card>
         )}
       </section>
-
-      {/* Pending change-requests ----------------------------------------- */}
-      {pendingChanges.length > 0 && (
-        <section className={styles.section}>
-          <div>
-            <h2 className={styles.sectionTitle}>
-              Asking to change an answer ({pendingChanges.length})
-            </h2>
-            <p className={styles.sectionHint}>
-              Usually a dietary change. Approving swaps in the new answers;
-              turning it down keeps the ones they gave first.
-            </p>
-          </div>
-          <div className={styles.queue}>
-            {pendingChanges.map((r) => (
-              <Card key={r.id} padding="md">
-                <div className={styles.rsvpRow}>
-                  <div className={styles.rsvpMain}>
-                    <div>
-                      <strong className={styles.who}>
-                        <StaffNameText name={nameOf(r)} />
-                      </strong>
-                      <span className={styles.email}>{r.email}</span>
-                    </div>
-                    <ChangeDiff
-                      questions={event.signupForm}
-                      current={r.answers}
-                      proposed={r.pendingAnswers ?? {}}
-                    />
-                    {r.pendingAnswersRequestedAt && (
-                      <div className={styles.muted}>
-                        Asked {stampWords(r.pendingAnswersRequestedAt)}
-                      </div>
-                    )}
-                  </div>
-                  <div className={styles.buttons}>
-                    <Button onClick={() => onApproveChange(r)} disabled={busyId === r.id}>
-                      Approve change
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={() => onDenyChange(r)}
-                      disabled={busyId === r.id}
-                    >
-                      Turn down
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Pending queue --------------------------------------------------- */}
-      {pending.length > 0 && (
-        <section className={styles.section}>
-          <div>
-            <h2 className={styles.sectionTitle}>Waiting for a decision ({pending.length})</h2>
-            <p className={styles.sectionHint}>
-              Approve or turn down each one. An approved request gets a place
-              if there is one left; if the event is full and has a waiting
-              list, it goes on the list.
-            </p>
-          </div>
-          <div className={styles.queue}>
-            {pending.map((r) => (
-              <Card key={r.id} padding="md">
-                <div className={styles.rsvpRow}>
-                  <div className={styles.rsvpMain}>
-                    <div>
-                      <strong className={styles.who}>
-                        <StaffNameText name={nameOf(r)} />
-                      </strong>
-                      <span className={styles.email}>{r.email}</span>
-                    </div>
-                    <AnswerSummary rsvp={r} questions={event.signupForm} />
-                    {r.createdAt && (
-                      <div className={styles.muted}>Sent {stampWords(r.createdAt)}</div>
-                    )}
-                  </div>
-                  <div className={styles.buttons}>
-                    <Button onClick={() => onApprove(r)} disabled={busyId === r.id}>
-                      Approve
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        setDenyFor(r.id);
-                        setDenyNote("");
-                      }}
-                      disabled={busyId === r.id}
-                    >
-                      Turn down…
-                    </Button>
-                  </div>
-                </div>
-                {denyFor === r.id && (
-                  <div className={styles.denyBox}>
-                    <Field
-                      id={`deny-${r.id}`}
-                      label="Note to them (optional)"
-                      hint="They read this: it goes in the email that tells them, as a note from the organiser. It is kept with the sign-up too."
-                    >
-                      <Input
-                        id={`deny-${r.id}`}
-                        value={denyNote}
-                        onChange={(e) => setDenyNote(e.target.value)}
-                        placeholder="e.g. This one is for this term’s fellows. The next social is open to everyone."
-                        maxLength={500}
-                      />
-                    </Field>
-                    <div className={styles.buttons}>
-                      <Button variant="danger" onClick={onDenyConfirm} disabled={busyId === r.id}>
-                        Turn down {nameOf(r).name}
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        onClick={() => {
-                          setDenyFor(null);
-                          setDenyNote("");
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {actionErr && (
-        <Notice tone="warning" role="alert">
-          {actionErr}
-        </Notice>
-      )}
 
       {/* Test data (admin) ---------------------------------------------- */}
       {role === "admin" && (

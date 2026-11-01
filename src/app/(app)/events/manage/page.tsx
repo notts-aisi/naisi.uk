@@ -333,7 +333,7 @@ function EventRow({
         </span>
       </td>
       <td className={styles.cellSignups}>
-        <SignUps event={e} canSeeAttendees={canSeeAttendees} />
+        <SignUps event={e} canSeeAttendees={canSeeAttendees} seesRequests={canSeeAttendees || relation !== "other"} />
       </td>
       <td className={styles.cellRunning}>
         <div className={styles.person}>
@@ -366,20 +366,28 @@ function EventRow({
  * A count is shown only where this person is already shown it: "22 of 60" is
  * what the public event page prints for an event with a number of places, and
  * a count with no number of places is on the attendee list alone, so it is
- * here for the people that list is for.
+ * here for the people that list is for. "4 waiting", the requests waiting for
+ * a decision, is for the people the event's Sign-ups tab says it to: admins,
+ * SU-recognised committee, and the event's own author and collaborators.
  */
 function SignUps({
   event: e,
   canSeeAttendees,
+  seesRequests,
 }: {
   event: EventDoc;
   canSeeAttendees: boolean;
+  seesRequests: boolean;
 }) {
   if (e.noSignup) return <span className={styles.quietCell}>No sign-up needed</span>;
   if (e.status === "cancelled") return <span className={styles.quietCell}>Closed</span>;
   if (e.status !== "published") return <span className={styles.quietCell}>Not open yet</span>;
 
   const confirmed = e.rsvpCountConfirmed ?? 0;
+  const pending = e.rsvpCountPending ?? 0;
+  const waiting = seesRequests && pending > 0 && (
+    <div className={styles.signupsWaiting}>{pending} waiting</div>
+  );
   const account = e.visibility === "members" && (
     <div className={styles.signupsNote}>Account needed</div>
   );
@@ -395,6 +403,7 @@ function SignUps({
           size="sm"
           ariaLabel={`${confirmed} of ${e.capacity} places taken`}
         />
+        {waiting}
         {account}
       </div>
     );
@@ -402,6 +411,7 @@ function SignUps({
   return (
     <div className={styles.signups}>
       <div>{canSeeAttendees ? `${confirmed} signed up` : "No limit on places"}</div>
+      {waiting}
       {account}
     </div>
   );

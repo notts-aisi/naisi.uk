@@ -1369,7 +1369,8 @@ describe("D. VR games night: Check-in, the organiser's tab and the night's surve
   test("Sign-ups says 3, the survey's Everyone who signed up says 3, and Check-in says of 3, with Wren from the waiting list apart (L9)", () => {
     // `cameWords` in src/lib/events/checkInView.ts: of the confirmed sign-ups,
     // and anybody let in at the door said apart.
-    assert.ok(seen.checkInSue.text.includes("Details Sign-ups 3 Check-in"));
+    // The tab's 3 is still the places taken; after it, how many requests wait for a decision (Pat's).
+    assert.ok(seen.checkInSue.text.includes("Details Sign-ups 3 1 waiting Check-in"));
     assert.ok(seen.nightSendPage.text.includes("Everyone who signed up: 3"));
     assert.ok(seen.checkInSue.text.includes("6 came 2 of 3 who signed up, 1 from the waiting list, and 3 walk-ins"));
     assert.ok(seen.checkInIris.text.includes("6 came 2 of 3 who signed up, 1 from the waiting list, and 3 walk-ins"));

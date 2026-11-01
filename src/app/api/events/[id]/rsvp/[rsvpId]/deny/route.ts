@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
-import { canApproveEvent, canDraftEvent } from "@/lib/firestore/users";
+import { decidesSignups } from "@/lib/events/signupAccess";
 import { sendRsvpEmail } from "@/lib/events/sendRsvpEmail";
 
 /**
@@ -13,7 +12,8 @@ import { sendRsvpEmail } from "@/lib/events/sendRsvpEmail";
  *
  * Transition: pending → denied. No capacity changes.
  *
- * Gated to: event author (draftEvent), approvers, admins.
+ * Gated to: admins, approvers, the event's author while they hold draftEvent,
+ * and its collaborators (`decidesSignups`).
  */
 export async function POST(
   req: Request,
@@ -51,11 +51,9 @@ export async function POST(
         throw new DenyError("This RSVP doesn't belong to that event.", 400);
       }
 
-      const isApprover =
-        canApproveEvent(viewer) ||
-        (canDraftEvent(viewer) &&
-          isNamedWithStanding(viewer, "events.authorUid", event.authorUid));
-      if (!isApprover) throw new DenyError("You can't deny this RSVP.", 403);
+      // The one rule for who decides (src/lib/events/signupAccess.ts), asked
+      // of the event as this transaction read it.
+      if (!decidesSignups(viewer, event)) throw new DenyError("You can't deny this RSVP.", 403);
 
       if (rsvp.status !== "pending") {
         throw new DenyError(`Only pending RSVPs can be denied (was "${rsvp.status}").`, 400);

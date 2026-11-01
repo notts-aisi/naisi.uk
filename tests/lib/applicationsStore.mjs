@@ -104,6 +104,8 @@ export function makeDb(seed = {}, options = {}) {
     exists: docs.has(path),
     ref: docRef(path),
     data: () => (docs.has(path) ? structuredClone(docs.get(path)) : undefined),
+    // One field by its dotted path, as a snapshot's own `get` reads it.
+    get: (field) => (docs.has(path) ? structuredClone(fieldAt(docs.get(path), field)) : undefined),
   });
   const read = (path) => {
     stats.reads += 1;
@@ -119,6 +121,7 @@ export function makeDb(seed = {}, options = {}) {
     if (op === "==") return found === value;
     if (op === "in") return value.includes(found);
     if (op === "array-contains") return Array.isArray(found) && found.includes(value);
+    if (op === "array-contains-any") return Array.isArray(found) && found.some((item) => value.includes(item));
     if (op === "<" || op === "<=" || op === ">" || op === ">=") {
       // As Firestore does: a range matches values of the same type only, so a
       // missing field or a null is never in it.
@@ -132,17 +135,20 @@ export function makeDb(seed = {}, options = {}) {
     }
     throw new Error(`the test database does not know the operator ${op}`);
   };
-  const query = (collectionPath, filters) => ({
+  const query = (collectionPath, filters, cap = Number.POSITIVE_INFINITY) => ({
     path: collectionPath,
     isQuery: true,
-    where: (field, op, value) => query(collectionPath, [...filters, [field, op, value]]),
+    where: (field, op, value) => query(collectionPath, [...filters, [field, op, value]], cap),
     // A projection changes what is sent, not which documents match.
-    select: () => query(collectionPath, filters),
+    select: () => query(collectionPath, filters, cap),
+    // As many as Firestore would send, in the order the store keeps them.
+    limit: (n) => query(collectionPath, filters, Math.min(cap, n)),
     get: async () => {
       stats.reads += 1;
       return {
         docs: childrenOf(collectionPath)
           .filter((path) => filters.every((filter) => matches(docs.get(path), filter)))
+          .slice(0, cap)
           .map(snap),
       };
     },

@@ -73,7 +73,7 @@ const EMULATOR_MODULES = [PERSONA_MODULE, WORLD_MODULE];
  * executing it).
  */
 const EMULATOR_WORLD_COLLECTIONS = {
-  users: "the other programme's lead, facilitator and participant, who are none of the personas",
+  users: "the other programme's lead, facilitator and participant, the other event's author and collaborator, and each event's asker, none of them a persona",
   courses: "each programme's course, published",
   courseRuns: "each programme's run, three weeks in and running",
   weeks: "each run's published weeks, the subcollection under courseRuns",
@@ -86,6 +86,8 @@ const EMULATOR_WORLD_COLLECTIONS = {
   surveys: "each programme's before survey",
   surveyPeople: "who each survey was sent to",
   courseFacilitating: "each programme's open ask to its participant to facilitate the run's second group",
+  events: "each set's event, published, written by its author and helped by its collaborator",
+  eventRsvps: "each event's one request for a place, waiting for a decision",
 };
 
 /**

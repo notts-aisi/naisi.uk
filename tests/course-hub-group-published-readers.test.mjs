@@ -141,6 +141,14 @@ const READERS = {
       "what tells two people with one full name apart on a staff screen: their programme and group, the group named only " +
       "where the placement may be shown to the screen's viewer, so an untold seat is named by its programme alone",
   },
+  "lib/events/requestCard.ts": {
+    kind: "shown",
+    asks: 1,
+    why:
+      "the card under a request for a place at an event, for the people organising it: a place names its group only " +
+      "where the placement may be shown to the person looking, so anybody but an admin reads a seat nobody has told as " +
+      "not in a group yet",
+  },
   "lib/courses/weekOne/door.ts": {
     kind: "told",
     asks: 1,

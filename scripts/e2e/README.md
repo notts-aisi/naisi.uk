@@ -709,8 +709,9 @@ keys off the origin rather than off the flag.
 The standing red team. Every route under `src/app/api` and every page under
 `src/app/(app)` is requested as every persona (`anonymous`, `pending`,
 `rejected`, `member`, non-SU `committee`, `suCommittee`, `admin`, a plain
-member holding each `permissions` key, and three who hold a role on a record:
-`lead`, `facilitator` and `participant`), and the answer is held to
+member holding each `permissions` key, three who hold a role on a programme,
+`lead`, `facilitator` and `participant`, and two who hold a role on an event,
+`eventAuthor` and `eventCollaborator`), and the answer is held to
 `tests/persona-route-gates.registry.mjs`, the answer key a person wrote, cell
 by cell, with a reason per entry. Ids address nothing and bodies are empty, so
 what is asserted is each gate's answer to each persona and never a handler's
@@ -740,6 +741,17 @@ words, because the refusal and the page are both a 200; that reading is
 holds it to its rules. `dispose()` deletes every document the world wrote,
 before the personas are removed, reads every path again and returns what is
 left, and the battery fails unless that is nothing.
+
+**The same pass on two events.** The world also writes two published events,
+each with a request for a place waiting for a decision from an account that
+is none of the personas: THEIRS, written by the `eventAuthor` persona (a
+member holding draftEvent) and helped by the `eventCollaborator` persona
+(committee the SU does not recognise), and ANOTHER, written and helped by
+accounts that are none of the personas. Each set's ids carry the event (`id`)
+and the request (`rsvpId`). Every route and page whose code asks the sign-ups
+rule (`src/lib/events/signupAccess.ts`) has columns saying `world: "event"`,
+found from the code by the offline guard in both directions, and is asked
+about both events the same way.
 
 **Where the elevated roles live.** The battery needs the personas the fence
 forbids, so `run.mjs` starts a Firestore emulator (a Java process, through the

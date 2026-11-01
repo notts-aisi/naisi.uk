@@ -6995,8 +6995,28 @@ describe("the check-in passage", () => {
     assert.equal(runsCheckIn({ role: "pending", suRecognised: true }), false);
     assert.equal(runsCheckIn(null), false);
     // The same bar as who signed up.
+    // CHANGED ON PURPOSE (sign-up requests that say who's asking): v15 says the
+    // people organising an event may see who has asked for a place, so the
+    // Sign-ups page opens for an event's author and collaborators as well.
+    // Who SIGNED UP, the whole list with every address and answer, keeps
+    // exactly this bar: the sign-ups rule's `everyone` is `runsCheckIn`, and
+    // the page looks up the list's names and mounts the live list only behind
+    // it. The organisers are sent the requests alone, by a route (the test
+    // "who has asked for a place" below).
+    const signupRule = withoutComments(read("src/lib/events/signupAccess.ts"));
+    assert.match(signupRule, /const everyone = runsCheckIn\(viewer\);/);
+    assert.match(signupRule, /const requests = everyone \|\| organises\(viewer, event\);/);
     const attendees = withoutComments(read("src/app/(app)/events/manage/[id]/attendees/page.tsx"));
-    assert.match(attendees, /viewer\.role === "admin" \|\|\s*\(viewer\.role === "committee" && viewer\.suRecognised\)/);
+    assert.match(attendees, /const access = signupAccessFor\(viewer, event\);\s+if \(!access\.requests\) redirect\(/);
+    assert.match(attendees, /if \(access\.everyone && db\) \{\s+const signups = await db\.collection\("eventRsvps"\)/);
+    assert.match(attendees, /<AttendeeDashboard event=\{event\} people=\{people\} everyone=\{access\.everyone\} \/>/);
+    const dashboard = withoutComments(read("src/features/events/AttendeeDashboard.tsx"));
+    assert.match(dashboard, /if \(!everyone\) \{\s+return \(/);
+    assert.equal([...dashboard.matchAll(/\buseEventRsvps\(/g)].length, 1, "the live list of who signed up is read in more than one place");
+    assert.ok(
+      dashboard.indexOf("useEventRsvps(") > dashboard.indexOf("function EveryoneWhoSignedUp("),
+      "the live list of who signed up is read outside the part only the whole list's viewers are drawn",
+    );
     // Every file that lists who came by name asks the bar, and the one page
     // that also shows numbers to everybody draws names only behind it.
     const readers = sourceFilesNaming(NAMED_CHECK_IN_READERS).filter(
@@ -7021,6 +7041,68 @@ describe("the check-in passage", () => {
     const tab = withoutComments(read("src/app/(app)/events/manage/[id]/check-in/page.tsx"));
     assert.match(tab, /const staff = runsCheckIn\(viewer\);/);
     assert.match(tab, /\{staff && takes && \(\s*<div className=\{styles\.columns\}>/);
+  });
+
+  test("who has asked for a place: the organisers are sent the requests with a few words about each, and nothing more", async () => {
+    // v15, "Who sees sign-ups", the sentence this holds.
+    assert.ok(
+      PAGE_FLAT.includes(
+        "The people organising an event may see who has asked for a place, with a few words about each: whether you are on a programme and in which group, whether you facilitate a group, and whether you hold SU membership.",
+      ),
+    );
+    // "Dietary and accessibility questions are optional, and we use your answers only to run that event."
+    assert.ok(PAGE_FLAT.includes("Dietary and accessibility questions are optional, and we use your answers only to run that event;"));
+    // The route refuses everybody the rule does not admit before a request is read, and answers with one projection.
+    const route = withoutComments(read("src/app/api/events/[id]/signups/route.ts"));
+    const refused = route.indexOf("if (!access.requests) {");
+    assert.ok(refused !== -1 && refused < route.indexOf("await waitingRequests("), "the route reads the requests before it asks who may see them");
+    assert.match(
+      route,
+      /requests: projectSignupRequests\(waiting, event\.signupForm, facts, \{\s+everyone: access\.everyone,\s+isAdmin: viewer\.role === "admin",\s+\}\),/,
+    );
+    // What the projection keeps from anybody but the whole list's viewers:
+    // the address, the dietary and accessibility answers, and the name a
+    // sign-up stored (which can be an address); and the person's page from
+    // anybody but an admin.
+    const card = withoutComments(read("src/lib/events/requestCard.ts"));
+    assert.match(card, /const stored = viewer\.everyone \? request\.name\.trim\(\) : "";/);
+    assert.match(card, /email: viewer\.everyone && request\.email \? request\.email : null,/);
+    assert.match(card, /answers: answerLines\(questions, request\.answers, \{ withFoodHealthAndAccess: viewer\.everyone \}\),/);
+    assert.match(card, /page: viewer\.isAdmin && account \? `\/admin\/members\/\$\{encodeURIComponent\(account\)\}` : null,/);
+    // The few words: a place and its group, facilitating, membership, or a
+    // guest. The offer to facilitate is read for an admin alone, where the
+    // membership came from is said to an admin alone, and a group is named
+    // only where its placement may be shown to the person looking.
+    assert.match(card, /isAdmin \? offeredToFacilitate\(db, uids\) : Promise\.resolve\(new Set<string>\(\)\),/);
+    assert.match(card, /if \(!isAdmin\) return \{ kind: "member", words: REQUEST_WORDS\.member \};/);
+    assert.match(card, /seat\.groupId && placementIsShownTo\(seat, \{ isAdmin \}\)/);
+    const requestWords = await loadTs("lib/events/requestWords.ts");
+    assert.deepEqual(
+      Object.values(requestWords.REQUEST_WORDS),
+      [
+        "Guest, no account",
+        "SU member",
+        "Not an SU member",
+        "SU member: bought",
+        "SU member: marked by an admin",
+        "SU member: on the SU’s list",
+        "Offered to facilitate",
+        "not in a group yet",
+      ],
+      "the card says something new about a person: decide who may read it, and whether v15 says so",
+    );
+    // The dietary checklist and a question about access are never answered to an organiser the SU does not recognise.
+    const questions = [
+      { id: "diet", type: "dietaryAllergies", label: "Dietary needs", required: false },
+      { id: "access", type: "yesNo", label: "Do you have any access needs?", required: false },
+      { id: "why", type: "longText", label: "Why would you like to come?", required: false },
+    ];
+    const answers = { diet: { checked: ["Peanuts"], other: "" }, access: true, why: "To meet people" };
+    assert.deepEqual(requestWords.answerLines(questions, answers, { withFoodHealthAndAccess: false }), [
+      { question: "Why would you like to come?", answer: "To meet people" },
+    ]);
+    // tests/event-signup-requests.test.mjs runs the route as every kind of caller and holds each one's projection.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "event-signup-requests.test.mjs")));
   });
 
   // TAKEN BACK BY v15: v14 said not coming is recorded nowhere and never held

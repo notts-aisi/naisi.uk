@@ -117,6 +117,17 @@ const PROJECTIONS = {
     serves: "the member, about their own membership",
     why: "the current period and the member's own history, nothing about anybody else",
   },
+  projectSignupRequests: {
+    from: "@/lib/events/requestCard",
+    serves:
+      "the people who see an event's requests for a place (signupAccessFor): admins, SU-recognised committee, and the " +
+      "event's author and collaborators while their accounts stand",
+    why:
+      "the requests waiting for a decision, each with the name by the rule for the viewer, when they asked, the card " +
+      "aboutAccounts wrote for the viewer's role (the offer to facilitate and the membership's source for admins alone) " +
+      "and the answers. Withholds the address, the answers to dietary and accessibility questions and the name a sign-up " +
+      "kept from anybody but admins and SU-recognised committee, and the person's page from anybody but admins",
+  },
   toRegistrationView: {
     from: "@/lib/firestore/registrations",
     serves: "admins",

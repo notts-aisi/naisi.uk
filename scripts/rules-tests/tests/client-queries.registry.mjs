@@ -1478,7 +1478,7 @@ export const REGISTRY = [
     path: "eventRsvps",
     clauses: ["where(eventId,==)"],
     reason:
-      "The attendee list for one event, issued twice in this file with the identical shape: once as a live listener and once as a server-forced refetch after a decision, which is why they share one entry. Attendee PII is SU-recognised committee and admins only, and the attendees page repeats that check server-side before it renders, so a non-SU committee member is redirected rather than shown an empty table.",
+      "The attendee list for one event, issued twice in this file with the identical shape: once as a live listener and once as a server-forced refetch after a decision, which is why they share one entry. Attendee PII is SU-recognised committee and admins only, and the Sign-ups page mounts this list only for them (the sign-ups rule's `everyone`, src/lib/events/signupAccess.ts); an event's other organisers are sent the requests waiting for a decision by GET /api/events/[id]/signups instead, and never open this listener.",
     outcomes: {
       "signed-out": "refused",
       pending: "refused",

@@ -214,6 +214,13 @@
   color: var(--color-text-muted);
 }
 
+/* Requests waiting for a decision: something to do, in the warning colour, with the word beside it. */
+.signupsWaiting {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  color: var(--color-warning);
+}
+
 .quietCell {
   color: var(--color-text-muted);
 }

@@ -14,7 +14,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { normalizeEvent } from "@/lib/firestore/events";
 import { publicLocationText } from "@/lib/events/location";
-import { runsCheckIn } from "@/lib/events/checkInAccess";
+import { signupAccessFor } from "@/lib/events/signupAccess";
 import { shortLinkAddress, shortLinkUrl } from "@/lib/qr/shortLinkCode";
 import { resultsView } from "@/lib/surveys/adminView";
 import { eventResultsHead, resultsWhoFor } from "@/lib/surveys/events/adminView";
@@ -95,8 +95,9 @@ export default async function SurveyAfterTabPage({ params }: { params: Promise<{
       <EventTabs
         eventId={event.id}
         current="survey"
-        showSignups={runsCheckIn(viewer)}
+        showSignups={signupAccessFor(viewer, event).requests}
         signups={event.rsvpCountConfirmed ?? undefined}
+        waiting={event.rsvpCountPending ?? undefined}
         showCheckIn={event.status === "published"}
       />
 

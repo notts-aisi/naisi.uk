@@ -1,0 +1,182 @@
+/*
+  The requests waiting for a decision on an event's Sign-ups page: a card
+  each, two to a row where there is room, one on a phone. A card's buttons
+  sit beside the name, and go under it when the card is too narrow for both.
+*/
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.hint {
+  margin: var(--space-1) 0 0;
+  max-width: 44rem;
+  font-size: var(--text-ui);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+}
+
+.quiet {
+  margin: 0;
+  font-size: var(--text-ui);
+  color: var(--color-text-muted);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 24rem), 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  min-width: 0;
+}
+
+.card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+}
+
+.who {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.name {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.test {
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+
+.email {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.asked {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+}
+
+.about {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A line of the card is a few words; a long programme or group name wraps inside its chip. */
+.about > li {
+  display: flex;
+  max-width: 100%;
+}
+
+.about > li > * {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.answers {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.question {
+  color: var(--color-text-muted);
+}
+
+/* A link that stands on its own: as tall as a button, so it is easy to press. */
+.page {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  min-height: 2.75rem;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-accent-text);
+  text-decoration: none;
+}
+
+.page:hover {
+  color: var(--color-accent-text-hover);
+  text-decoration: underline;
+}
+
+.denyBox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+/* === Mobile === */
+@media (max-width: 36rem) { /* --bp-sm */
+  /* The two buttons share the card's width, so each is easy to reach with a thumb. */
+  .top > .buttons {
+    flex-basis: 100%;
+  }
+
+  .top > .buttons > * {
+    flex: 1 1 0;
+  }
+}

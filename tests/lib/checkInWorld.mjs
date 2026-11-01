@@ -277,7 +277,12 @@ export class NextResponse {
 }
 `;
 
-export async function makeCheckInWorld(key = "__checkIn") {
+/**
+ * `stubs` are more modules to stand in for, as `[specifier, source]` pairs,
+ * for a suite that loads something this world does not stub: the mail a
+ * decision sends, say, or the browser's own session hook.
+ */
+export async function makeCheckInWorld(key = "__checkIn", { stubs = [] } = {}) {
   const handle = `globalThis[${JSON.stringify(key)}]`;
   const world = {
     db: makeDb(checkInSeed(), { now: () => new Date() }),
@@ -332,6 +337,7 @@ export async function makeCheckInWorld(key = "__checkIn") {
       // The browser's own sign-out and navigation: never reached in a render.
       ["@/auth/signInWithGoogle", "export async function signOut() {}"],
       ["@/lib/navigation/hardNavigate", "export function hardNavigate() {}"],
+      ...stubs,
       ...stylesheets().map((specifier) => [specifier, CLASS_NAMES]),
     ]),
   });

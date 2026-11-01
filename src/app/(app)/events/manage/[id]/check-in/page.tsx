@@ -14,6 +14,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { runsCheckIn } from "@/lib/events/checkInAccess";
+import { signupAccessFor } from "@/lib/events/signupAccess";
 import { loadEventAtTheDoor } from "@/lib/events/checkInLoad";
 import {
   atTheDoorWords,
@@ -145,8 +146,9 @@ export default async function CheckInTabPage({ params }: { params: Promise<{ id:
       <EventTabs
         eventId={event.id}
         current="check-in"
-        showSignups={staff}
+        showSignups={signupAccessFor(viewer, event).requests}
         signups={event.rsvpCountConfirmed ?? undefined}
+        waiting={event.rsvpCountPending ?? undefined}
         showCheckIn
       />
 
