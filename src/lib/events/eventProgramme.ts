@@ -51,12 +51,38 @@ export function parseProgrammeChoice(raw: unknown): { roundId: string; programme
   return isId(roundId) && isId(programmeId) ? { roundId, programmeId } : undefined;
 }
 
-/** The programme as the event stores it, or null when it is not one this person may tie. */
+type ProgrammeRef = { roundId: string; programmeId: string };
+
+const sameProgramme = (a: ProgrammeRef, b: ProgrammeRef) => a.roundId === b.roundId && a.programmeId === b.programmeId;
+
+/**
+ * Whether this person may take the programme an event is part of OFF it (or
+ * swap it for another): its lead or an admin, as for putting it on. An admin
+ * may take off one that is no longer the term's, which nobody may tie.
+ */
+export function mayUntie(stored: EventProgramme | null, offered: readonly TieableProgramme[], viewer: SessionUser): boolean {
+  if (stored === null) return true;
+  return viewer.role === "admin" || offered.some((each) => sameProgramme(each, stored));
+}
+
+/**
+ * The programme the event will store, given the one it stores now, or
+ * "refused":
+ *  - THE SAME ONE: kept as it is, whoever saves. Keeping it is not choosing
+ *    it, so somebody who may change the people but not the programme can
+ *    save the people without taking the programme off.
+ *  - NONE, OR ANOTHER: only for somebody who may take the stored one off
+ *    (`mayUntie`) and, for another, may put that one on.
+ */
 export function tieTo(
-  choice: { roundId: string; programmeId: string } | null,
+  choice: ProgrammeRef | null,
   offered: readonly TieableProgramme[],
+  stored: EventProgramme | null,
+  viewer: SessionUser,
 ): EventProgramme | null | "refused" {
+  if (choice !== null && stored !== null && sameProgramme(choice, stored)) return stored;
+  if (!mayUntie(stored, offered, viewer)) return "refused";
   if (choice === null) return null;
-  const found = offered.find((each) => each.roundId === choice.roundId && each.programmeId === choice.programmeId);
+  const found = offered.find((each) => sameProgramme(each, choice));
   return found ? { roundId: found.roundId, programmeId: found.programmeId, name: found.shortName } : "refused";
 }

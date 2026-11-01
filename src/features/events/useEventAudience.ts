@@ -27,6 +27,8 @@ export type StoredAudience = {
   programme: EventProgramme | null;
   mayChoose: boolean;
   programmes: TieableProgramme[];
+  /** The programme it is part of is shown, not offered: this person may not take it off. */
+  programmeFixed: boolean;
   count: InvitationCount | null;
   problem: string | null;
 };
@@ -80,6 +82,7 @@ export function useEventAudience(eventId: string, enabled: boolean, wantCount: b
           programme: body.programme,
           mayChoose: body.mayChoose,
           programmes: body.programmes ?? [],
+          programmeFixed: body.programmeFixed !== false,
           count: body.count,
           problem: body.problem,
         });
@@ -106,7 +109,11 @@ export function useEventAudience(eventId: string, enabled: boolean, wantCount: b
     enabled && wantCount && stored !== null && stored.mayChoose && (dirty || stored.count === null) && (tags?.include.length ?? 0) > 0;
 
   const body = useMemo(() => {
-    const programme = stored?.programmes.find((each) => programmeChoiceKey(each) === programmeKey) ?? null;
+    // The one on the screen: one this person may tie, or the one stored, which
+    // anybody saving keeps (the route refuses only a change).
+    const programme =
+      stored?.programmes.find((each) => programmeChoiceKey(each) === programmeKey) ??
+      (stored?.programme && programmeChoiceKey(stored.programme) === programmeKey ? stored.programme : null);
     return JSON.stringify({
       include: tags?.include ?? [],
       exclude: tags?.exclude ?? [],
@@ -169,15 +176,20 @@ export function useEventAudience(eventId: string, enabled: boolean, wantCount: b
     const kept = JSON.parse(sent) as ChoiceTags & { programme: { roundId: string; programmeId: string } | null };
     setStored((was) => {
       if (!was) return was;
-      const programme = was.programmes.find(
-        (each) => kept.programme && programmeChoiceKey(each) === programmeChoiceKey(kept.programme),
-      );
+      const same = (p: { roundId: string; programmeId: string }) =>
+        kept.programme !== null && programmeChoiceKey(p) === programmeChoiceKey(kept.programme);
+      const offered = was.programmes.find(same);
+      const programme = offered
+        ? { roundId: offered.roundId, programmeId: offered.programmeId, name: offered.shortName }
+        : was.programme && same(was.programme)
+          ? was.programme
+          : null;
       return {
         ...was,
         choice: { include: kept.include, exclude: kept.exclude },
         chosenBy: was.chosenByYou ? was.chosenBy : null,
         chosenByYou: true,
-        programme: programme ? { roundId: programme.roundId, programmeId: programme.programmeId, name: programme.shortName } : null,
+        programme,
         count: answer.count ?? was.count,
         problem: null,
       };

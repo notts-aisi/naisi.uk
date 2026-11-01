@@ -2936,7 +2936,7 @@ export const ROUTES = {
   "/api/events/[id]/audience": {
     GET: {
       expect: RUNS_EVENTS_404,
-      fields: ["choice", "chosenBy", "chosenByYou", "count", "mayChoose", "ok", "problem", "programme", "programmes"],
+      fields: ["choice", "chosenBy", "chosenByYou", "count", "mayChoose", "ok", "problem", "programme", "programmeFixed", "programmes"],
       why:
         "Who an event for chosen people is for, and what publishing it would do, counts only: the people " +
         "who run events (admins, the committee, and whoever may draft or approve one) are told the event is " +

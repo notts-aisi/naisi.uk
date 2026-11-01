@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { parseSelection, type Selection } from "@/lib/audience/tags";
 import { AUDIENCE_REFUSAL } from "@/lib/audience/words";
-import { parseProgrammeChoice, programmesToTie, tieTo } from "@/lib/events/eventProgramme";
+import { mayUntie, parseProgrammeChoice, programmesToTie, tieTo } from "@/lib/events/eventProgramme";
 import { mayChooseFor, maySeeChoice } from "@/lib/events/invitationAccess";
 import { invitedAlreadyTo, planForStoredChoice, planInvitations, readEventAudience } from "@/lib/events/invitations";
 import { isForChosenPeople } from "@/lib/events/reach";
@@ -29,7 +29,9 @@ type Ctx = RouteContext<"/api/events/[id]/audience">;
  *  - PUT the same body: keep it, in the caller's name. The tags must be ones
  *    the caller may use ("Who is this for?", `src/lib/audience/scope.ts`), and
  *    a programme one they lead, or any for an admin
- *    (`src/lib/events/eventProgramme.ts`).
+ *    (`src/lib/events/eventProgramme.ts`). The programme the event is part of
+ *    already is kept by anybody who saves; only its lead or an admin may take
+ *    it off or swap it.
  *
  * Every number is from `planInvitations` (src/lib/events/invitations.ts), the
  * function publishing walks, so the number in the editor is the number
@@ -55,7 +57,7 @@ async function readChoice(
   return { selection: parsed.selection, programme };
 }
 
-const NOT_YOUR_PROGRAMME = "Only that programme’s lead or an admin can make an event part of it.";
+const NOT_YOUR_PROGRAMME = "Only that programme’s lead or an admin can make an event part of it, or take it off.";
 const MAY_NOT_CHOOSE = "You can’t change who this event is for.";
 
 export async function GET(_req: Request, ctx: Ctx) {
@@ -99,6 +101,9 @@ export async function GET(_req: Request, ctx: Ctx) {
     programme: event.programme,
     mayChoose,
     programmes,
+    // The programme it is part of is shown, not offered, to somebody who may
+    // change the people but not take that programme off.
+    programmeFixed: !mayChoose || !mayUntie(event.programme, programmes, viewer),
     count: plan?.ok ? plan.plan.count : null,
     problem: plan && !plan.ok ? plan.error : null,
   });
@@ -122,8 +127,8 @@ async function planFor(req: Request, ctx: Ctx) {
   if (!mayChooseFor(event, viewer)) return { refusal: NextResponse.json({ error: MAY_NOT_CHOOSE }, { status: 403 }) } as const;
 
   const now = new Date();
-  const offered = choice.programme ? await programmesToTie(db, viewer, now) : [];
-  const programme = tieTo(choice.programme, offered);
+  const offered = choice.programme || event.programme ? await programmesToTie(db, viewer, now) : [];
+  const programme = tieTo(choice.programme, offered, event.programme, viewer);
   if (programme === "refused") return { refusal: NextResponse.json({ error: NOT_YOUR_PROGRAMME }, { status: 403 }) } as const;
 
   // The tags are resolved in the caller's world, as they will be when the

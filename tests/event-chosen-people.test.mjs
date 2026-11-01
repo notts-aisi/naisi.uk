@@ -234,6 +234,32 @@ describe("choosing who it is for", () => {
     assert.equal((await call(as("zach"), audienceRoute.PUT, DINNER, { body: CHOICE })).status, 200);
   });
 
+  test("the programme it is part of is kept by whoever saves the people; only its lead or an admin takes it off", async (t) => {
+    today(t);
+    w.reset(seed());
+    await chosenAndApproved();
+    const programme = () => w.world.db.read(`events/${DINNER}`).programme;
+    const agi = { roundId: ROUND, programmeId: AGI, name: "AGI Strategy" };
+    const gwenOnly = (partOf) => ({ include: [T.person("gwen")], exclude: [], programme: partOf });
+    // An approver who leads no programme changes the people, sending the programme back as it is: kept.
+    const kept = await call(approver(), audienceRoute.PUT, DINNER, { body: gwenOnly({ roundId: ROUND, programmeId: AGI }) });
+    assert.equal(kept.status, 200, JSON.stringify(kept.body));
+    assert.deepEqual(programme(), agi);
+    // Saved in the approver's name, who runs nobody on it: the invitation goes by settings.
+    assert.equal(kept.body.count.notices, 0);
+    // The editor shows it to them, and offers no way to take it off.
+    assert.equal((await call(approver(), audienceRoute.GET, DINNER)).body.programmeFixed, true);
+    // Taking it off is refused, and changes nothing.
+    const off = await call(approver(), audienceRoute.PUT, DINNER, { body: gwenOnly(null) });
+    assert.equal(off.status, 403);
+    assert.match(off.body.error, /lead or an admin/);
+    assert.deepEqual(programme(), agi);
+    // An admin may take it off.
+    assert.equal((await call(as("zach"), audienceRoute.GET, DINNER)).body.programmeFixed, false);
+    assert.equal((await call(as("zach"), audienceRoute.PUT, DINNER, { body: gwenOnly(null) })).status, 200);
+    assert.equal(programme(), undefined);
+  });
+
   test("the preview counts a choice on the screen and writes nothing", async (t) => {
     today(t);
     w.reset(seed());

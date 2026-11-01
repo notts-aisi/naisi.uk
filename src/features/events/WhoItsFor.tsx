@@ -165,12 +165,15 @@ function ChosenPeople({
   // A choice somebody else made, which this person may not read back as tags:
   // they see whose it is and what it does, and may start again.
   const othersChoice = stored.choice === null && stored.chosenBy !== null && !stored.chosenByYou && tags === null;
-  const offered = stored.programmes;
-  const chosenProgramme =
-    offered.find((each) => programmeChoiceKey(each) === programmeKey) ??
-    (stored.programme && programmeChoiceKey(stored.programme) === programmeKey
-      ? { ...stored.programme, shortName: stored.programme.name }
-      : null);
+  // The programmes this person may make it part of, and the one it is part of
+  // already when that is not among them (an admin's, from an earlier term):
+  // it stays a choice until it is taken off.
+  const storedProgramme = stored.programme;
+  const offered =
+    storedProgramme && !stored.programmes.some((each) => programmeChoiceKey(each) === programmeChoiceKey(storedProgramme))
+      ? [{ ...storedProgramme, shortName: storedProgramme.name }, ...stored.programmes]
+      : stored.programmes;
+  const chosenProgramme = offered.find((each) => programmeChoiceKey(each) === programmeKey) ?? null;
 
   return (
     <>
@@ -225,7 +228,12 @@ function ChosenPeople({
           </li>
         </ul>
 
-        {offered.length === 1 ? (
+        {stored.programmeFixed && stored.programme ? (
+          <p className={styles.line}>
+            {partOfWords(stored.programme.name, null).label}.{" "}
+            <span className={styles.quiet}>Only its lead or an admin can change that.</span>
+          </p>
+        ) : stored.programmeFixed ? null : offered.length === 1 ? (
           <OptionRow
             checked={programmeKey === programmeChoiceKey(offered[0])}
             onChange={(e) => {
@@ -262,8 +270,6 @@ function ChosenPeople({
               {partOfWords(chosenProgramme?.name ?? "a programme", null).hint}
             </p>
           </div>
-        ) : chosenProgramme ? (
-          <p className={styles.line}>{partOfWords(chosenProgramme.shortName, null).label}.</p>
         ) : null}
 
         <div className={styles.fact}>
