@@ -39,17 +39,17 @@
  *
  * ## The loader dance
  *
- * Lifted from the weekly nudge's suite (gone with the nudge), which solved importing TypeScript
- * from `.mjs` on this repo's Node (v20, no native type stripping) INCLUDING
- * `@/…` alias resolution and stubbing `server-only`. Same rules apply: nothing
- * in `STUBS` is reachable from an assertion here, and no test in this file may
- * ever put mail on the wire.
+ * Lifted from the weekly nudge's suite (gone with the nudge), which solved
+ * importing TypeScript from `.mjs` on this repo's Node (v20, no native type
+ * stripping) INCLUDING `@/…` alias resolution and stubbing `server-only`. Same
+ * rules apply: nothing in `STUBS` is reachable from an assertion here, and no
+ * test in this file may ever put mail on the wire.
  *
  * Route handlers cannot be imported at all (`next/server`, `firebase-admin`),
  * so route-level properties are asserted at the SOURCE, exactly as
- * `course-week-emails.test.mjs` does for the claim's ordering. That is not a weaker test — it is the
- * only thing standing between a pure model in here and a route that no longer
- * matches it.
+ * `course-week-emails.test.mjs` does for the claim's ordering. That is not a
+ * weaker test: it is the only thing standing between a pure model in here and
+ * a route that no longer matches it.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

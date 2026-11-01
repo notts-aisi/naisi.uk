@@ -763,7 +763,10 @@ describe("one answer, in the tree", () => {
     }
     const prepare = scanned.functions.get("prepareNextWeekEmail");
     assert.ok(prepare && !prepare.exported, "the decision is exported: a third caller could word it its own way");
-    assert.doesNotMatch(prepare.body, /\.create\(|\.set\(|\.update\(|sendCourseWeekNudgeEmail/, "the decision writes or sends");
+    assert.doesNotMatch(prepare.body, /\.create\(|\.set\(|\.update\(|\bsendNotice\(|\bsendEmail\(/, "the decision writes or sends");
+    // The pattern is live: the send itself goes through the notice door, so a
+    // regex that could not see a send would fail here first.
+    assert.match(scanned.functions.get("sendNextWeekEmail")?.body ?? "", /\bsendNotice\(/);
   });
 
   test("the push and the register's GET ask it with the group's whole schedule", () => {

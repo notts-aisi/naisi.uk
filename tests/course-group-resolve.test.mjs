@@ -21,7 +21,7 @@
  *
  * ## The loader dance
  *
- * Lifted from `course-schedule-changes.test.mjs` / `course-nudge.test.mjs`.
+ * Lifted from `course-schedule-changes.test.mjs`.
  * Same rules: nothing in `STUBS` is reachable from an assertion here.
  */
 import { test } from "node:test";
@@ -35,7 +35,7 @@ const SRC = join(REPO_ROOT, "src");
 
 const SPECIFIER = /(\bfrom\s*|\bimport\s*\(?\s*)(["'])([^"']+)\2/g;
 
-/** See `course-nudge.test.mjs` — nothing here is reachable from an assertion. */
+/** See `course-schedule-changes.test.mjs`: nothing here is reachable from an assertion. */
 const STUBS = new Map([["server-only", "export {};"]]);
 
 function resolveLocalTs(specifier, fromFile) {

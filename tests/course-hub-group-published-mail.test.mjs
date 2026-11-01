@@ -12,11 +12,16 @@
  * Publish has not told (`placementIsTold` in
  * `src/lib/firestore/courseEnrolments.ts`):
  *
- *  - THE COHORT LANES, through `resolveCohortAudience`: the reminder a
- *    register push sends to its group, the week nudge, and the run email. Their
- *    audience is the run's mailing list, which Publish puts people on. Somebody
- *    moved to another group after Publish is still on the list, and is left
- *    out, not counted as skipped, until Publish tells them their new group;
+ *  - THE COHORT LANE, through `resolveCohortAudience`: the run email's
+ *    announcement. Its audience is the run's mailing list, which Publish puts
+ *    people on. Somebody moved to another group after Publish is still on the
+ *    list, and is left out, not counted as skipped, until Publish tells them
+ *    their new group. It is asked here about one group as well as the whole
+ *    run;
+ *  - THE NOTICES ("Week N is open", the reminders before a session, the run
+ *    email's notice, an update's email) ask `resolveNoticeAudience`, which
+ *    puts the same question to each place. That is held in
+ *    `course-notice-reach.test.mjs`;
  *  - A GROUP EMAIL OR ROOM NOTICE reaches exactly the sender's roster: a
  *    facilitator's, the people Publish has told; an admin's, everybody placed.
  *    That is held in `course-hub-group-published-facilitator.test.mjs`.
@@ -44,7 +49,7 @@ async function reach(groupId, runId = RUN.agi) {
   return { uids: found.members.map((m) => m.uid).sort(), skipped: found.skipped };
 }
 
-/** The whole run's audience, as the run email and the week nudge read it. */
+/** The whole run's audience, as the run email's announcement reads it. */
 async function reachRun() {
   const found = await audience.resolveCohortAudience(world.courseDb, RUN.agi, LANE);
   return found.members.map((m) => m.uid).sort();

@@ -37,7 +37,7 @@
  *
  * ## The loader dance
  *
- * Lifted from `course-nudge.test.mjs` / `course-deletion.test.mjs`, which
+ * Lifted from `course-deletion.test.mjs`, which
  * already solved importing TypeScript from `.mjs` on this repo's Node (v20, no
  * native type stripping) including `@/…` aliases. Nothing under test here
  * imports `server-only`, `firebase-admin` or a mail transport — the two data
@@ -55,7 +55,7 @@ const SRC = join(REPO_ROOT, "src");
 
 const SPECIFIER = /(\bfrom\s*|\bimport\s*\(?\s*)(["'])([^"']+)\2/g;
 
-/** See `course-nudge.test.mjs` — nothing here is reachable from an assertion. */
+/** See `course-schedule-changes.test.mjs`: nothing here is reachable from an assertion. */
 const STUBS = new Map([["server-only", "export {};"]]);
 
 function resolveLocalTs(specifier, fromFile) {

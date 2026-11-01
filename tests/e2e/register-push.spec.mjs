@@ -8,10 +8,11 @@
  *
  * ## TWO ENDINGS, AND THE TARGET DECIDES WHICH (wk-register, option B)
  *
- * The register's button is "Push attendance" while next week's email is NOT on
+ * The register's button is "Push attendance" while "Week N is open" is NOT on
  * its schedule (the `courses-next-week-email` job switched off, how it ships),
- * and pushing then emails the group about its next session. With that job
- * switched on the button is "Finish the register" and finishing emails NOBODY.
+ * and pushing then emails the group that its next week is open, as a notice.
+ * With that job switched on the button is "Finish the register" and
+ * finishing emails NOBODY.
  * The switch lives in Site status on the target, so this spec asks the
  * register's own GET which ending is live (`ending.scheduled`) and asserts
  * that one: the words under the button, the confirm, the answer, the mail and
@@ -328,7 +329,7 @@ test(
         return body?.ending ?? null;
       }, state.groupId);
     }
-    /** True when next week's email is on its schedule on this target. */
+    /** True when "Week N is open" is on its schedule on this target. */
     let scheduled = false;
 
     /** A second tab, same identity, for the stale-tab leg. Closed at the end. */
@@ -409,7 +410,7 @@ test(
         assert.ok(ending, "the register's GET carries no ending");
         scheduled = ending.scheduled === true;
         console.log(
-          `[register-spec] next week's email is ${scheduled ? "on its schedule: Finish the register, nobody emailed" : "sent by the push: Push attendance"}.`,
+          `[register-spec] the week's email is ${scheduled ? "on its schedule: Finish the register, nobody emailed" : "sent by the push: Push attendance"}.`,
         );
         const foot = page.getByTestId("register-ending");
         await foot.waitFor({ timeout: WAIT_MS });
@@ -429,8 +430,8 @@ test(
             footText,
             /Locks the register and shows everyone their mark\. It’s the group’s last session, so nobody’s emailed\./,
           );
-          assert.doesNotMatch(footText, /about next week/);
-          assert.doesNotMatch(footText, /If nobody pushes, nobody gets next week’s email\./);
+          assert.doesNotMatch(footText, /is open\./, "the foot promises a week's email after the last session");
+          assert.doesNotMatch(footText, /If nobody pushes, nobody gets/);
         }
       });
 
@@ -775,10 +776,9 @@ test(
         const confirmResend = page.getByTestId("attendance-resend-confirm");
         await confirmResend.waitFor({ timeout: WAIT_MS });
         // The promise the dialog makes about blast radius: this group and
-        // nobody else. It is the whole reason the per-group force exists
-        // beside the run-wide catch-up.
+        // nobody else. It is the whole reason the resend is per group.
         const dialogCopy = (
-          await page.getByRole("dialog", { name: "Re-send this group's reminder" }).innerText()
+          await page.getByRole("dialog", { name: "Re-send this group's email" }).innerText()
         ).replace(/\s+/g, " ");
         assert.match(
           dialogCopy,
@@ -846,7 +846,15 @@ test(
               `expected the push and the resend to log one row each for a member, got ${sends.size}`,
             );
             for (const doc of sends.docs) {
-              assert.equal(doc.data().kind, "course-nudge", "a send logged the wrong kind");
+              // "Week N is open", a notice: its kind and surface on the
+              // receipt, and its own words in the subject.
+              assert.equal(doc.data().kind, "notice", "a send logged the wrong kind");
+              assert.equal(doc.data().surface, "course-week", "a send logged the wrong surface");
+              assert.match(
+                doc.data().subject,
+                new RegExp(`^Week ${NEXT_WEEK} is open`),
+                `the push sent something other than week ${NEXT_WEEK}'s email: ${doc.data().subject}`,
+              );
               assert.equal(
                 doc.data().referenceId,
                 state.runId,

@@ -39,7 +39,7 @@
  *
  * ## The loader dance
  *
- * Lifted from `course-nudge.test.mjs` / `course-schedule-changes.test.mjs`,
+ * Lifted from `course-schedule-changes.test.mjs`,
  * which already solved importing TypeScript from `.mjs` on this repo's Node
  * (v20, no native type stripping) including `@/…` aliases and stubbing
  * `server-only`.
@@ -55,7 +55,7 @@ const SRC = join(REPO_ROOT, "src");
 
 const SPECIFIER = /(\bfrom\s*|\bimport\s*\(?\s*)(["'])([^"']+)\2/g;
 
-/** See `course-nudge.test.mjs` — nothing here is reachable from an assertion. */
+/** See `course-schedule-changes.test.mjs`: nothing here is reachable from an assertion. */
 const STUBS = new Map([
   ["server-only", "export {};"],
   [
