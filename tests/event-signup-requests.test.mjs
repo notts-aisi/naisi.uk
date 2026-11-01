@@ -549,7 +549,7 @@ describe("the Sign-ups page", () => {
     for (const who of [ADA, CAL]) {
       const { text } = await open(who);
       assert.match(text, /Loading the requests…/, who.uid);
-      assert.match(text, /Admins and the committee members the Students’ Union recognises see everybody who has a place\./, who.uid);
+      assert.match(text, /Admins and the committee members the Students’ Union recognises see everybody who signed up\./, who.uid);
       for (const theirs of ["Loading sign-ups", "Everyone who signed up", "Send an update", "Kofi", "@example.com"]) {
         assert.ok(!text.includes(theirs), `${who.uid} was drawn "${theirs}"`);
       }

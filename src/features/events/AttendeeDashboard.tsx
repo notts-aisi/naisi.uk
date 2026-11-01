@@ -72,7 +72,7 @@ export default function AttendeeDashboard({ event, people, everyone }: Props) {
       <div className={styles.wrap}>
         <SignupRequests eventId={event.id} />
         <p className={styles.quiet}>
-          Admins and the committee members the Students’ Union recognises see everybody who has a place.
+          Admins and the committee members the Students’ Union recognises see everybody who signed up.
         </p>
       </div>
     );

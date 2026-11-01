@@ -86,6 +86,9 @@ import {
   queryFor,
   statesIn,
 } from "../scripts/e2e/lib/personaCells.mjs";
+// Safe to import: every function in it refuses unless an emulator is named,
+// and this file calls none of them.
+import { PERSONAS as SEEDED_PERSONAS } from "../scripts/e2e/lib/personas.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const APP_DIR = join(REPO_ROOT, "src", "app");
@@ -129,6 +132,8 @@ describe("the registry and the tree agree in both directions", () => {
     // event), each resolving through a base that is a persona of its own.
     assert.deepEqual(Object.keys(ROLE_PERSONAS), ["lead", "facilitator", "participant", "eventAuthor", "eventCollaborator"]);
     assert.deepEqual([...PROGRAMME_ROLES, ...EVENT_ROLES], Object.keys(ROLE_PERSONAS));
+    // The battery seeds exactly the personas this answer key names, in its order.
+    assert.deepEqual(Object.keys(SEEDED_PERSONAS), PERSONA_NAMES);
     for (const [name, base] of Object.entries(ROLE_PERSONAS)) {
       assert.ok(PERSONA_NAMES.includes(name), `${name} is not a persona`);
       assert.ok(PERSONA_NAMES.includes(base) && !(base in ROLE_PERSONAS), `${name}'s base ${base} must be a persona with no role of its own`);
