@@ -1,0 +1,38 @@
+/* The question about a full name on Home. The card itself is Home's own
+   (home.module.css); this file lays out the box and its two buttons. */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.problem {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-danger-text, var(--color-danger));
+}
+
+.saved {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--color-text-body);
+}
+
+/* === Mobile === */
+@media (max-width: 36rem) { /* --bp-sm */
+  /* Two buttons a thumb can tell apart: each the width of the card. */
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

@@ -13,11 +13,12 @@ import { InstallCard } from "@/features/pwa/InstallCard";
 import { fetchPublicTerm } from "@/features/term/fetchPublicTerm";
 import { termCivilDay } from "@/features/term/termWords";
 import ComingUp from "./ComingUp";
+import FullNameCard from "./FullNameCard";
 import { FinishProfile, NoApplicationsYet } from "./HomeAside";
 import HomeAdmin from "./HomeAdmin";
 import HomeMember from "./HomeMember";
 import TermCard from "./TermCard";
-import { homeEvents, profileSteps } from "./homeData";
+import { fullNameQuestion, homeEvents, profileSteps } from "./homeData";
 import { firstName } from "./homeWords";
 import styles from "./home.module.css";
 
@@ -140,7 +141,7 @@ export default async function DashboardPage() {
   const viewingAs = markerIsLive(await getImpersonator(), user?.uid ?? null);
   const applications = user ? await applicationsOf(user.uid, viewingAs) : [];
   const now = new Date();
-  const [term, events, steps, held, cards, surveys] = await Promise.all([
+  const [term, events, steps, held, cards, surveys, askFullName] = await Promise.all([
     fetchPublicTerm(now),
     homeEvents(now),
     user ? profileSteps(user.uid) : null,
@@ -151,6 +152,9 @@ export default async function DashboardPage() {
     user && !viewingAs ? onItsWayCards(user, now) : NO_CARDS,
     // "A survey for you" (Q50 B). Nothing of the member's is read in a view-as session.
     user && !viewingAs ? surveyCards(user, now) : NO_SURVEYS,
+    // "What's your full name?", once. Not in a view-as session: the card
+    // writes to the account it is signed in as, which there is the member's.
+    user && !viewingAs ? fullNameQuestion(user.uid) : null,
   ]);
   const given = firstName(user?.displayName);
 
@@ -165,10 +169,16 @@ export default async function DashboardPage() {
       <NoApplicationsYet closesAt={term.closesAt} />
     ) : null;
 
-  // Quiet install invitation: phones only, dismissible once, hidden when
-  // already installed. Each form draws it under its greeting. See
-  // src/features/pwa/InstallCard.tsx.
-  const invite = <InstallCard />;
+  // Under the greeting on every form, the admins' too: the question about a
+  // full name while it is unanswered, then the quiet install invitation
+  // (phones only, dismissible once, hidden when already installed; see
+  // src/features/pwa/InstallCard.tsx).
+  const invite = (
+    <>
+      {user && askFullName && <FullNameCard uid={user.uid} suggestion={askFullName.suggestion} />}
+      <InstallCard />
+    </>
+  );
 
   return (
     <div className={styles.page}>

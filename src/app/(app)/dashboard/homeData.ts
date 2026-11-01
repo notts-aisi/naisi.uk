@@ -4,7 +4,7 @@ import { degreeOf } from "@/features/profile/studyChange";
 import { addDaysToKey, londonDateKey, londonWallClockToInstant } from "@/lib/courses/weekPlan";
 import { publicLocationText } from "@/lib/events/location";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { normalizeUser, STATUSES_WITH_GRADUATION } from "@/lib/firestore/users";
+import { FIELD_LIMITS, normalizeUser, STATUSES_WITH_GRADUATION } from "@/lib/firestore/users";
 import { dayRange, instantClock, tilePartsOf, type TileParts } from "./homeWords";
 
 /**
@@ -12,7 +12,7 @@ import { dayRange, instantClock, tilePartsOf, type TileParts } from "./homeWords
  *
  * Nothing here returns a stored document. An event leaves as a title, a date,
  * a time and the PUBLIC text of where it is; a profile leaves as four yes or
- * no answers. The page hands these to its cards, and some of those run in the
+ * no answers, and whether to ask for a full name. The page hands these to its cards, and some of those run in the
  * browser, where every prop is in the page's HTML.
  */
 
@@ -124,6 +124,36 @@ export async function homeEvents(now: Date): Promise<HomeEvents> {
     upcoming: rows.filter((row) => !row.started).slice(0, MAX_UPCOMING),
     week: { ...week, events: rows.filter((row) => row.thisWeek) },
   };
+}
+
+/** Home asks for a full name: the name the box starts with, or null for an empty box. */
+export type FullNameQuestion = { suggestion: string | null };
+
+/**
+ * Whether Home asks this person "What's your full name?", or null when it
+ * does not: they have given one, or Home asked once already and they
+ * answered or skipped it (`profile.fullNameAskedAt`), or the account could
+ * not be read.
+ *
+ * Read by the session's own uid. What leaves is the person's own display name,
+ * which for an account made with Google is Google's name for them, to start
+ * the box with: offered to them, never saved for them.
+ */
+export async function fullNameQuestion(uid: string): Promise<FullNameQuestion | null> {
+  const db = getAdminDb();
+  if (!db) return null;
+  try {
+    const snap = await db.collection("users").doc(uid).get();
+    if (!snap.exists) return null;
+    const data = snap.data() ?? {};
+    const profile = normalizeUser(snap.id, data).profile;
+    if (profile?.fullName?.trim() || profile?.fullNameAskedAt) return null;
+    const display = typeof data.displayName === "string" ? data.displayName.trim() : "";
+    return { suggestion: display ? display.slice(0, FIELD_LIMITS.fullName) : null };
+  } catch (err) {
+    console.warn("[dashboard] could not read whether to ask for a full name", err);
+    return null;
+  }
 }
 
 /** The four things "Finish your profile" ticks off. */
