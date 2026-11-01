@@ -331,6 +331,7 @@ preference at all.
 | `course-survey` | `POST /api/surveys/[surveyId]/send` and `.../remind` (docs/surveys.md) | admins | everybody holding a place on the survey's programme, each at their account's address with their own link; the reminder to those of them who have not answered |
 | `course-follow-up` | the same two routes, for a follow-up survey at 6 or 12 months (docs/surveys.md) | admins | everybody whose row on the programme's before survey says yes to follow-ups now, each with their own link; the reminder to those of them who have not answered |
 | `event-survey` | the same two routes, for the survey after an event (docs/surveys.md) | admins | the people who came to the event (each with an email: an account at its own address, a guest or a walk-in at the address they gave the event) or everybody whose sign-up was confirmed, less anybody who already answered with the QR code, each with their own link; the reminder to those it reached who have not answered |
+| `course-check-in` | `POST /api/courses/groups/[groupId]/check-in`, opening the check-in at the end of a session (docs/surveys.md) | admins, and a facilitator of THIS group while it is live | the people the session's register marks present, late or left early, never the group's facilitators, each at their account's address with their own link; once, when it opens: somebody marked there later is reached with no email, and nobody is reminded |
 
 An update (Q18) is kept on the site as well as emailed, and its email is a
 notice for the reason the group email is one: the lead of a programme, an
@@ -424,6 +425,11 @@ to be rationed like any other send.
 | course room notice | **none** | 10 | 100 members, refused |
 | course run notice | 3 | 10 | 200 recipients, refused |
 | course update | 3, per (writer, audience) | 10, its own counter | 200 recipients, refused |
+| course check-in | **none** | 2, per group, its own counter | 40 people, refused |
+
+**The check-in omits the hourly window** because it is claimed once per
+session by the check-in itself (two presses make one), and its daily counter
+bounds a group's evening of two sessions.
 
 **Two lanes omit the hourly window, for the same reason.** The room notice has to
 survive the evening where the room changes twice and the mode flips once, which
@@ -456,9 +462,10 @@ There is no unsubscribe footer and no `List-Unsubscribe` header, and
 something that cannot be switched off is the one dishonest thing this lane could
 ship.
 
-The `emailSends` receipt carries `kind: "notice"` plus `surface`, one of the eight
-strings above, so the deliverability tab can answer "how much un-switch-off-able
-mail went out, and from where" without reading subject lines. Both are set by
+The `emailSends` receipt carries `kind: "notice"` plus `surface`, one of the
+strings above (and `survey-blanks`, docs/surveys.md), so the deliverability tab
+can answer "how much un-switch-off-able mail went out, and from where" without
+reading subject lines. Both are set by
 `sendNotice` alone. The older `course-notice` kind stays defined for the room
 notice's historical rows rather than being renamed: a year of them answers "how
 much un-opt-out-able mail did this group send", and rewriting them would break
