@@ -20,6 +20,17 @@ import {
   isFillInResponse,
 } from "@/lib/firestore/courseExercises";
 import { firstWrittenFor } from "@/lib/legal/courseworkUseStamp";
+import { instantOf } from "@/lib/courses/writtenAnswers/model";
+import {
+  WeekShutError,
+  assertWeekTakesWork,
+  logSave,
+  logWork,
+  ownLockSource,
+  readRunForLock,
+  weekStateIn,
+} from "@/lib/courses/weekWork/own";
+import { WEEK_SHUT } from "@/lib/courses/weekWork/words";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
 
 /**
@@ -61,6 +72,10 @@ import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exerci
  *
  * AN EMPTIED BOX deletes the row: nothing written is nothing stored, and the
  * count ("every box has something in it") reads the same either way.
+ *
+ * A WEEK SUBMITTED OR LOCKED takes no writing (`src/lib/courses/weekWork/`),
+ * asked inside the transaction that writes, as the reflection route asks it.
+ * The first save of a writing spell, and an emptied box, go in the work log.
  *
  * What a person writes is plain text, stored as typed (ends trimmed) and
  * drawn as text nodes only.
@@ -129,9 +144,10 @@ export async function PUT(
   // ---- Who may write: their own box, on a run they take part in -------------
   // The enrolment is addressed (one read, nobody else's), the run's groups
   // are one equality on the run, as the overview route reads them.
-  const [enrolSnap, groupSnap] = await Promise.all([
+  const [enrolSnap, groupSnap, run] = await Promise.all([
     db.collection("courseEnrolments").doc(courseEnrolmentId(runId, actor.uid)).get(),
     db.collection("courseGroups").where("runId", "==", runId).limit(MAX_GROUPS).get(),
+    readRunForLock(db, runId),
   ]);
   const enrolment = enrolSnap.exists ? normalizeCourseEnrolment(enrolSnap.id, enrolSnap.data() ?? {}) : null;
   const takesPart =
@@ -166,18 +182,31 @@ export async function PUT(
 
   const id = exerciseResponseId(runId, actor.uid, weekId, boxId);
   const ref = db.collection("courseExerciseResponses").doc(id);
+  // Whose sessions lock this week for them: their own placement's group, or the groups they facilitate.
+  const source = ownLockSource(run, liveGroups, actor.uid, takesPart ? enrolment : null);
+  const now = new Date();
+  const logged = { runId, uid: actor.uid, weekId, weekNumber, itemKind: "fillIn" as const, itemId: boxId };
 
   try {
     await db.runTransaction(async (tx) => {
-      const snap = await tx.get(ref);
+      const [snap, week] = await Promise.all([
+        tx.get(ref),
+        weekStateIn(tx, db, { runId, uid: actor.uid, weekId, weekNumber, source, now }),
+      ]);
+      // A week submitted or locked takes nothing more until it is reopened.
+      assertWeekTakesWork(week.state);
       // A row of any other kind is never written over, whatever its id says.
       if (snap.exists && !isFillInResponse(snap.data() ?? {})) {
         throw new FillInError("That box holds something else, not what you fill in here.", 409);
       }
       if (!text) {
-        if (snap.exists) tx.delete(ref);
+        if (snap.exists) {
+          tx.delete(ref);
+          logWork(tx, db, { ...logged, kind: "cleared" });
+        }
         return;
       }
+      logSave(tx, db, { ...logged, lastSavedAt: snap.exists ? instantOf((snap.data() ?? {}).updatedAt) : null, now });
       tx.set(ref, {
         runId,
         uid: actor.uid,
@@ -201,6 +230,7 @@ export async function PUT(
     });
   } catch (err) {
     if (err instanceof FillInError) return NextResponse.json({ error: err.message }, { status: err.status });
+    if (err instanceof WeekShutError) return NextResponse.json({ error: WEEK_SHUT }, { status: 409 });
     console.error("[courses fill-in box] write failed", runId, weekId, boxId, err);
     return NextResponse.json({ error: "Couldn’t save that just now. It tries again as you type." }, { status: 500 });
   }
