@@ -365,6 +365,13 @@ const READERS = new Map([
     who: "committee",
     why: "the list of people who would facilitate, for the programme's lead and admins, read behind the programme's own gate",
   }],
+  ["src/lib/applications/nextTerm/load.ts", {
+    who: "committee",
+    proof: ['if (!canRunTerm(viewer)) return { status: "admins-only" };', "nameForViewer(viewer, accountNamesOf(data),"],
+    why:
+      "a term's Next term page, an admin's alone (`canRunTerm`, asked before anything is read): the people a note " +
+      "suggests and whoever rated their work, each named by the rule for the admin looking",
+  }],
 
   // --- Course and survey screens, by the rule for their own reader --------
   // Each names everybody through `nameForViewer` and nothing else (the walk's

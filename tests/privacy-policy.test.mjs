@@ -9906,15 +9906,24 @@ describe("v15 lets the people running a programme rate written work for each oth
       "The policy says the people running a programme rate written work for each other and the person " +
         "rated never sees it. If this file shows a rating to anybody else, the sentence is wrong and a new version has to say so.",
     );
+    // Every function the one reader exports is a way to read ratings, so the
+    // walk is over all of them, read off the file rather than listed here.
+    const READERS_FILE = "src/lib/courses/workRatings/readers.ts";
+    const readerExports = [...strip(read(READERS_FILE)).matchAll(/\bexport\s+(?:async\s+)?function\s+(\w+)\s*\(/g)].map((m) => m[1]).sort();
+    assert.deepEqual(readerExports, ["loadTeamRatings", "readAnswerRatings", "readRatingsAbout"], "the reader of ratings hands out a new way to read them");
     assertExactlyTheseFiles(
-      sourceFilesNaming(/\b(?:loadTeamRatings|readAnswerRatings)\(/),
+      sourceFilesNaming(new RegExp(`\\b(?:${readerExports.join("|")})\\(`)),
       new Map([
-        ["src/lib/courses/workRatings/readers.ts", "the reader itself, which reads one person's answer and the names of whoever rated it"],
+        [READERS_FILE, "the reader itself, which reads one person's answer and the names of whoever rated it, or the ratings about the people a note suggests"],
         [REVIEW_PAGE, "the review page, for an admin or the programme's lead alone (`mayRateWorkOf`)"],
+        ["src/lib/applications/nextTerm/load.ts", "a term's Next term page, for an admin alone (`canRunTerm`, asked before anything is read), never about the admin looking"],
       ]),
       "reading ratings for the team",
       "A new caller shows ratings somewhere new: decide it is an admin's or the lead's alone first.",
     );
+    // The Next term page never shows the person their own: the admin looking is never a row.
+    assert.match(strip(read("src/lib/applications/nextTerm/load.ts")), /if \(!canRunTerm\(viewer\)\) return \{ status: "admins-only" \};/);
+    assert.match(strip(read("src/lib/applications/nextTerm/rows.ts")), /if \(note\.uid === input\.viewerUid \|\| note\.suggest\.length === 0\) continue;/);
     const page = strip(read(REVIEW_PAGE));
     assert.match(page, /mayRateWorkOf\(actor, facts, owner, liveGroups\)\s*\?\s*loadTeamRatings\(db, \{/, "the review page reads ratings for somebody who may not read them");
     // The page never opens its reader's own answer: everybody on it passes the one gate, which refuses yourself.
@@ -10045,6 +10054,76 @@ describe("v15 lets admins ask Claude to review a week's coursework, check-ins an
     const gather = strip(read("src/lib/courses/weekReview/gather.ts"));
     assert.match(gather, /reviewUseFrom\(data\)/);
     assert.match(gather, /!fellows\.has\(uid\) \? "never" : allAfter\(sends, momentOf\.get\(uid\) \?\? null\) \? "use" : "not-yet"/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2m⁗ Next term: who to ask (v15, "Using your work later")
+// ---------------------------------------------------------------------------
+
+describe("v15 lets notes, ratings and work from after version 13 be used when somebody is considered for something else; Next term uses nothing earlier", () => {
+  const strip = (source) => source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+  const ROWS = "src/lib/applications/nextTerm/rows.ts";
+  const LOAD = "src/lib/applications/nextTerm/load.ts";
+  /** v15's two sentences: where your work is, and the lawful basis. */
+  const LATER =
+    "<strong>Using your work later.</strong> What you write on a programme after you first agreed to version 13 of this policy, or after you joined if that was later, may also be used when we consider you for something else with us, such as another programme, facilitating a group or the committee. Anything you wrote before that is used only within its programme.";
+  const LAWFUL = "the team&apos;s ratings and notes about you, and using them and your work (written after version 13) when we consider you for something else later;";
+  const AGREED = new Date("2026-10-01T09:00:00Z");
+  const BEFORE = new Date("2026-09-20T09:00:00Z");
+  const AFTER = new Date("2026-11-04T09:00:00Z");
+
+  test("v15 says it", () => {
+    v15Says([LATER, LAWFUL]);
+  });
+
+  test("\"Anything you wrote before that is used only within its programme\": a note written, or an answer rated, before the person's moment lists nobody and is quoted nowhere", async () => {
+    const rows = await loadTs("lib/applications/nextTerm/rows.ts");
+    const model = await loadTs("lib/memberNotes/model.ts");
+    const note = (id, uid, createdAt, suggest) =>
+      model.normalizeMemberNote(id, { uid, text: `NOTE ${id}`, authorUid: "admin", runId: "run", suggest, createdAt, updatedAt: createdAt });
+    const rating = (id, uid, week, value, comment) =>
+      workRatingsRecord.normalizeCourseWorkRating(id, {
+        runId: "run", uid, weekId: `w0${week}`, weekNumber: week, itemId: `answer-${week}`, rating: value, comment,
+        raterUid: "lead", raterRole: "lead", createdAt: AFTER, updatedAt: AFTER,
+      });
+    const ratings = [rating("early", "amy", 1, 10, "EARLY WORK"), rating("late", "amy", 2, 6, "LATER WORK"), rating("never", "ben", 1, 9, "NO MOMENT")];
+    const firstWritten = { early: BEFORE, late: AFTER, never: AFTER };
+    const view = rows.buildNextTerm({
+      roundId: "term",
+      term: "Autumn 2026",
+      viewerUid: "admin",
+      programmes: [{ runId: "run", name: "AGI Strategy" }],
+      notes: [note("before", "amy", BEFORE, ["facilitating"]), note("after", "amy", AFTER, ["committee"]), note("ben", "ben", AFTER, ["committee"])],
+      people: new Map([["amy", { from: AGREED, name: "Amy" }], ["ben", { from: null, name: "Ben" }]]),
+      ratings,
+      ratedRows: new Map(ratings.map((each) => [rows.ratedRowId(each), { runId: "run", uid: each.uid, firstWrittenAt: firstWritten[each.id] }])),
+      raterNames: new Map([["lead", "Claudia"]]),
+      seats: [],
+      facilitating: new Map(),
+    });
+    const tab = (key) => view.tabs.find((each) => each.key === key).rows;
+    assert.deepEqual(tab("facilitating"), [], "a note written before the moment suggests somebody");
+    assert.deepEqual(tab("committee").map((row) => row.uid), ["amy"], "somebody with no moment is listed, or a later note is not");
+    assert.deepEqual(tab("committee")[0].ratings, [6], "a rating of work written before the moment is counted");
+    assert.deepEqual(tab("committee")[0].words, { text: "LATER WORK", by: "Claudia" }, "a comment on earlier work is quoted");
+    const said = JSON.stringify(view);
+    for (const never of ["EARLY WORK", "NO MOMENT", "NOTE before", "NOTE after", "NOTE ben"]) assert.ok(!said.includes(never), `the page carries ${never}`);
+  });
+
+  test("the moment is the one the code keeps: notes through the place beside an application, a rating by when its answer was first written, an admin's alone", () => {
+    const rows = strip(read(ROWS));
+    assert.match(rows, /const \{ shown \} = notesShownIn\(\{ kind: "application" \}, notes, person\.from\);/, "Next term counts notes by a rule of its own");
+    assert.match(rows, /return row !== undefined && !isOwnBoxResponse\(row\) && rowCountsFrom\(row, from\);/, "Next term counts a rating without asking when its answer was first written");
+    const load = strip(read(LOAD));
+    assert.match(load, /people\.set\(uid, \{ from: courseworkCountsFrom\(data\),/, "Next term reads a moment of its own");
+    const body = load.slice(load.indexOf("export async function loadNextTerm("));
+    const gate = body.indexOf('if (!canRunTerm(viewer)) return { status: "admins-only" };');
+    assert.ok(gate !== -1 && gate < body.indexOf("listNotesFromRuns("), "Next term reads notes before it asks whether the caller runs the term");
+    // Nothing from a check-in, a session report, or anything Claude returned.
+    for (const file of [ROWS, LOAD]) {
+      assert.doesNotMatch(strip(read(file)), /surveys|checkIn|sessionReports|courseWeekReviews|courseNoteDrafts|bestAnswers|pangram/i, `${file} reaches more than notes and ratings`);
+    }
   });
 });
 

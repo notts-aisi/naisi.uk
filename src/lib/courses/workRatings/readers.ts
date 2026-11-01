@@ -10,13 +10,23 @@ import { cardNamesOf } from "../feedback/readers";
 import { teamRatingsOf, type TeamRatingsView } from "./model";
 
 /**
- * THE ONE READER OF RATINGS FOR THE TEAM, on the server, for the review page
- * alone, after its own gate and `readsWorkRatings` (`./access.ts`): the
- * ratings on one person's written answer, and the names they are listed by.
+ * THE ONE READER OF RATINGS FOR THE TEAM, on the server, for two pages, each
+ * after its own gate:
  *
- * One query, equalities only (`uid` and `runId`), filtered again in memory to
- * the week and the answer, so nothing needs a declared index.
+ *  - the review page, after `readsWorkRatings` (`./access.ts`): the ratings
+ *    on one person's written answer, and the names they are listed by. One
+ *    query, equalities only (`uid` and `runId`), filtered again in memory to
+ *    the week and the answer;
+ *  - a term's Next term page, an admin's alone, after `canRunTerm`
+ *    (`src/lib/applications/nextTerm/load.ts`): every rating about the people
+ *    a note suggests, which that page narrows to the term's runs and to work
+ *    written after each person agreed to version 13. One `in` on `uid`.
+ *
+ * Nothing here needs a declared index.
  */
+
+/** Firestore's cap on the values one `in` filter takes. */
+const IN_FILTER_LIMIT = 30;
 
 /** Every rating on one person's written answer of one week of a run, everybody's. */
 export async function readAnswerRatings(
@@ -27,6 +37,25 @@ export async function readAnswerRatings(
   return snap.docs
     .map((doc) => normalizeCourseWorkRating(doc.id, (doc.data() ?? {}) as Record<string, unknown>))
     .filter((rating) => rating.runId === input.runId && rating.uid === input.uid && rating.weekId === input.weekId);
+}
+
+/**
+ * Every rating about these people, on any run and by anybody, as stored: one
+ * `in` on `uid` for each 30 people. Asks nobody who is reading, so its one
+ * caller, an admin's Next term page, decides that first.
+ */
+export async function readRatingsAbout(db: Firestore, uids: readonly string[]): Promise<CourseWorkRatingDoc[]> {
+  const wanted = [...new Set(uids.filter(Boolean))];
+  const out: CourseWorkRatingDoc[] = [];
+  for (let at = 0; at < wanted.length; at += IN_FILTER_LIMIT) {
+    const chunk = wanted.slice(at, at + IN_FILTER_LIMIT);
+    const snap = await db.collection(COURSE_WORK_RATINGS_COLLECTION).where("uid", "in", chunk).get();
+    for (const doc of snap.docs) {
+      const rating = normalizeCourseWorkRating(doc.id, (doc.data() ?? {}) as Record<string, unknown>);
+      if (chunk.includes(rating.uid)) out.push(rating);
+    }
+  }
+  return out;
 }
 
 /**

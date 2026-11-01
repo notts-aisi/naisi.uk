@@ -25,7 +25,9 @@
  * WHO READS IT: the ratings route and the review page, on the Admin SDK,
  * after their own gates (`src/lib/courses/workRatings/`): admins and the lead
  * of the programme that names the run, never a facilitator as such and never
- * the person rated. `firestore.rules` refuses every browser, admins included.
+ * the person rated. A term's Next term page reads the ratings about the
+ * people a note suggests, for an admin alone (`src/lib/applications/nextTerm/`).
+ * `firestore.rules` refuses every browser, admins included.
  *
  * WHAT TAKES IT AWAY: deleting the account of the person rated or of its
  * rater (by `uid` and by `raterUid`). Destroying the run keeps it, with the

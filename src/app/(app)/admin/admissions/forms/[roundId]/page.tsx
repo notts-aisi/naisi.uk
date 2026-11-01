@@ -43,7 +43,8 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * This is also where the other screens are reached from. "Needs you" has a
  * row for each programme with applications waiting for the person looking,
  * and for an admin the pooled applicants who need an outcome and the line
- * about decision day; "Also this term" leads to the pooled applicants. Every
+ * about decision day; "Also this term" leads to the pooled applicants and,
+ * for an admin once decision day has gone out, to who to ask next term. Every
  * number is the one the screen behind its link works out (`loadTermNumbers`),
  * so a button that says 23 opens a list of 23.
  *
@@ -217,7 +218,7 @@ export default async function TermPage({ params }: { params: Promise<{ roundId: 
         </div>
       )}
 
-      {termHome.pooled && <AlsoThisTerm pooled={termHome.pooled} />}
+      <AlsoThisTerm pooled={termHome.pooled} nextTerm={termHome.nextTerm} />
     </ApplicationsRoot>
   );
 }

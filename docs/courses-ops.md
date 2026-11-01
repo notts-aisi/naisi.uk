@@ -2300,7 +2300,10 @@ Ratings tab or the Kairos file.
   reads as the lead. They rate anybody whose answer the one gate lets them
   read (`writtenReviewRole`), a facilitator's own among them, never their own.
   The same people read them, on the same page; for anybody else the page is
-  handed no rating at all.
+  handed no rating at all. A term's Next term page shows an admin the ratings
+  about the people a note suggests, only those of answers written after the
+  person agreed to version 13, and one comment beside the highest
+  (`docs/applications.md`, "Next term: who to ask").
 - **What is rated**: the week's written answer, once its readers may read it
   (`workIsReadable`, asked inside the save's transaction), and only with words
   in it. Reflections are not rated. A rating stays when the week is reopened.
@@ -3331,7 +3334,11 @@ shows as out of date.
   Terms move past version 1, saying to keep the moment once first.
 - **Suggest for next term**. Any note may keep `suggest`: facilitating, an
   incubator, the committee. The boxes start unticked on every note, Claude's
-  drafts included, and only a person ticks them.
+  drafts included, and only a person ticks them. A term's Next term page
+  (`/admin/admissions/forms/[roundId]/next-term`, an admin's alone) lists the
+  people the notes from that term's runs suggest, counting only notes
+  written, and answers rated, after the person agreed to version 13
+  (`docs/applications.md`, "Next term: who to ask").
 - **Best answers to a week** (`src/lib/courses/coursework/bestAnswers.ts`,
   `courseBestAnswers/{runId}__{weekId}`, the route
   `.../programmes/[programmeId]/coursework/best-answers`). ADMINS ONLY since

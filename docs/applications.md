@@ -1894,6 +1894,50 @@ The operations runbook says so, under destroying an admission round.
 person, through every status the run's own applications page can give a
 row, and draws the card somebody in a group then reads.
 
+## Next term: who to ask
+
+An admin's page under a term, `/admin/admissions/forms/[roundId]/next-term`,
+reached from the term page's "Also this term" once decision day has gone
+out. It lists the people a saved note suggests for next term, one tab for
+each of a note's "Suggest for next term" boxes: Facilitating, An incubator,
+The committee, each with how many it lists. A row says their programme and
+group this term, the weeks the suggestion was made in (a note's week, or "a
+note"), their ratings for the team this term, what they said about
+facilitating on this term's application ("Offered", "No", or "No answer" for
+somebody who sent none), and one comment in the team's words with whose it
+is. On Facilitating a box keeps the list to the people who offered. It sends
+nothing and writes nothing, and it has no "not suggested" list: somebody
+nobody suggested is not on the page.
+
+**What counts** (`src/lib/applications/nextTerm/rows.ts`) is only what may be
+used when somebody is considered for something else, which the privacy
+policy allows for what came after they first agreed to version 13
+(`courseworkCountsFrom`):
+
+- a note written from one of the term's runs, with a suggestion, after its
+  person's moment, asked through the place beside an application in
+  `notesShownIn`. Any note counts, by an admin or a programme's lead, and one
+  Claude drafted for what the admin who saved it ticked; a note's own words
+  are never shown here, so nothing Claude drafted is ever given as the
+  team's;
+- a rating for the team on one of the term's runs, of a written answer first
+  written after the moment (`rowCountsFrom` on the rated row). "In the
+  team's words" is the comment beside their highest counted rating, the
+  newest on a tie, with the rater named by the name rule for the admin
+  looking;
+- nothing else: no check-in, no session report, nothing Claude returned.
+
+**Who** (`nextTerm/load.ts`): an admin. The page asks the tree's gate, then
+not found for somebody with no role on the form, then shows a lead or a
+reviewer that the page is an admin's, as pooled applicants does, and the
+loader asks `canRunTerm` again before it reads anything. Nobody is ever a row
+on their own page. Every read is by id, or one `in` on one field (the notes
+by `runId`, the ratings by `uid`), so nothing needs a declared index, and
+somebody whose notes all came before their moment is read no further.
+
+`tests/applications-next-term.test.mjs` builds the page from a stored term
+holding every way to be left out, as an admin, a lead and a member.
+
 ## What deletes what
 
 | When | What goes | What stays |
@@ -2241,6 +2285,8 @@ All in `src/lib/applications/`.
 | `freedPlaces/rules.ts`, `freedPlaces/words.ts`, `freedPlaces/views.ts` | Offering a place given back: who may, the window, who can be offered one, seats, what a request may carry; the email and the page's words; what the page is sent | anywhere |
 | `freedPlaces/tested.ts` | The fingerprint a freed-place test is recorded with and a send compares | server |
 | `freedPlaces/groups.ts`, `freedPlaces/load.ts`, `freedPlaces/offer.ts` | The run's calendar and groups; the page's read; the one writer of an offer, its emails and its test | server, staff |
+| `nextTerm/rows.ts`, `nextTerm/words.ts` | Next term: who to ask: what counts, the rows and the page's words | anywhere |
+| `nextTerm/load.ts` | Next term's read, for an admin | server, staff |
 
 ## Rules for anything built on this
 

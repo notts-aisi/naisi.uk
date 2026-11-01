@@ -1080,7 +1080,10 @@ const BUILT = new Map([
   ],
   [
     "src/features/applications/lifecycle/TermHome.tsx",
-    { built: ["pooled.link.href", "row.link.href"], from: "pages of this term, as `lifecycle/termHome.ts` built them" },
+    {
+      built: ["link.href", "row.link.href"],
+      from: "pages of this term, as `lifecycle/termHome.ts` built them: Needs you's rows, and each card under Also this term (the pooled applicants, and who to ask next term)",
+    },
   ],
   [
     "src/features/applications/lifecycle/TermState.tsx",
@@ -1153,7 +1156,7 @@ const BUILT = new Map([
   [
     "src/lib/applications/lifecycle/termHome.ts",
     {
-      built: ["`${home}/pool`", "`${home}/pool`", "`${home}/send`", "href", "href", "href"],
+      built: ["`${home}/next-term`", "`${home}/pool`", "`${home}/pool`", "`${home}/send`", "href", "href", "href"],
       from: "pages of this term: the term's own path and a programme's id",
     },
   ],
