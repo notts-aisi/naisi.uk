@@ -315,6 +315,11 @@ lines would describe another send.
 - **Who may choose:** whoever may edit the event in its state, with the tags
   the table above gives them. "This event is part of <programme>" is offered
   for a programme the person leads, and for any of the term's to an admin.
+  Once an event is part of one, anybody saving the people keeps it, and only
+  that programme's lead or an admin takes it off. A notice goes only to people
+  the chooser runs under that programme, so somebody who saves the people
+  without leading it invites everyone by their settings, and the step's count
+  says so.
 - **Who is invited:** every account the choice reaches. A guest or a walk-in
   has no Home and could not open it, and somebody who left a group is listed
   as having left: neither is invited, and the step counts both.
