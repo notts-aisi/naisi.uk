@@ -16,7 +16,7 @@ import { isOpen } from "../repo";
 import { mintSurveyToken } from "../token";
 import { checkInSurveyId } from "./ids";
 import { HERE_STATUSES, MAX_CHECK_IN_PEOPLE, hereOf } from "./model";
-import { readRegisterMarks } from "./session";
+import { readRegisterMarks } from "./sessionRead";
 
 /**
  * SOMEBODY MARKED THERE AFTER THE CHECK-IN OPENED gets their own row on it,

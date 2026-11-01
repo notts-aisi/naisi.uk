@@ -6057,12 +6057,12 @@ describe("the course hub passage", () => {
         "src/app/api/courses/groups/[groupId]/check-in/route.ts",
         [
           "a reading of answers here: a closed check-in's totals for the group's own facilitators, from three answers, never a comment or a name; and its opening, a row and an email for each person marked there; deciding nothing",
-          ["@/lib/surveys/checkIns/facilitatorView", "@/lib/surveys/checkIns/open", "@/lib/surveys/checkIns/session", "@/lib/surveys/checkIns/words"],
+          ["@/lib/surveys/checkIns/facilitatorView", "@/lib/surveys/checkIns/open", "@/lib/surveys/checkIns/sessionRead", "@/lib/surveys/checkIns/words"],
         ],
       ],
       [
         "src/app/api/courses/groups/[groupId]/check-in/close/route.ts",
-        ["closes a session's check-in, reading no answer and deciding nothing", ["@/lib/surveys/checkIns/close", "@/lib/surveys/checkIns/session", "@/lib/surveys/checkIns/words"]],
+        ["closes a session's check-in, reading no answer and deciding nothing", ["@/lib/surveys/checkIns/close", "@/lib/surveys/checkIns/sessionRead", "@/lib/surveys/checkIns/words"]],
       ],
       [
         "src/features/courses/register/CheckInCard.tsx",

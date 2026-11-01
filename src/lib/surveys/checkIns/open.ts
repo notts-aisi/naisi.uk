@@ -24,7 +24,7 @@ import { mintSurveyToken } from "../token";
 import { SURVEY_FROM_NAME, SURVEY_REPLY_TO } from "../words";
 import { checkInSurveyId } from "./ids";
 import { CHECK_INS_PER_DAY, MAX_CHECK_IN_PEOPLE, hereOf, windowState } from "./model";
-import { readCheckInSession, readCheckInWeek, readRegisterMarks } from "./session";
+import { readCheckInSession, readCheckInWeek, readRegisterMarks } from "./sessionRead";
 import { CHECK_IN_MINUTES, checkInItems } from "./template";
 import {
   CHECK_IN_REFUSAL,

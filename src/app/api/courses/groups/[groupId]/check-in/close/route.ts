@@ -4,7 +4,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { closeCheckIn } from "@/lib/surveys/checkIns/close";
-import { isSessionKey } from "@/lib/surveys/checkIns/session";
+import { isSessionKey } from "@/lib/surveys/checkIns/sessionRead";
 import { CHECK_IN_REFUSAL } from "@/lib/surveys/checkIns/words";
 
 type Ctx = { params: Promise<{ groupId: string }> };

@@ -7,7 +7,7 @@ import { pageCodeShape } from "@/lib/qr/pageCode";
 import { answersOf, isOpen, peopleOf, sentCountOf } from "../repo";
 import { checkInSurveyId } from "./ids";
 import { facilitatorCount, windowState, type FacilitatorCount } from "./model";
-import { readCheckInSession, readRegisterMarks } from "./session";
+import { readCheckInSession, readRegisterMarks } from "./sessionRead";
 import {
   closeConfirmWords,
   closesByItselfWords,
