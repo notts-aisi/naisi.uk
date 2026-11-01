@@ -604,6 +604,33 @@ describe("6. the words, and ten choices a thumb can press", () => {
     assert.deepEqual(view.said, []);
   });
 
+  test("the list is built from what is stored: this answer's ratings alone, oldest first, a change said only when there was one", () => {
+    const at = (iso) => new Date(iso);
+    const stored = (id, over) => record.normalizeCourseWorkRating(id, { itemId: ONE_BOX.id, rating: 7, comment: "c", raterRole: "admin", ...over });
+    const view = w.lib.workRatingsModel.teamRatingsOf(
+      [
+        stored("b", { raterUid: "zach", createdAt: at("2026-11-16T10:00:00Z"), updatedAt: at("2026-11-17T09:00:00Z") }),
+        stored("a", { raterUid: "claudia", raterRole: "lead", createdAt: at("2026-11-15T10:00:00Z"), updatedAt: at("2026-11-15T10:00:00Z") }),
+        // A rating of the week's answer before it was replaced, and one by nobody on record: neither is listed.
+        stored("c", { raterUid: "tess", itemId: "wa-old", createdAt: at("2026-11-14T10:00:00Z") }),
+        stored("d", { raterUid: "", createdAt: at("2026-11-14T10:00:00Z") }),
+      ],
+      ONE_BOX.id,
+      (uid) => ({ zach: "Zach", claudia: "Claudia" })[uid] ?? "",
+      { uid: "zach", role: "admin" },
+    );
+    assert.deepEqual(
+      view.said.map((row) => [row.raterUid, row.name, row.role, row.changedAt, row.mine]),
+      [
+        ["claudia", "Claudia", "lead", null, false],
+        ["zach", "Zach", "admin", "2026-11-17T09:00:00.000Z", true],
+      ],
+    );
+    assert.equal(view.mine?.raterUid, "zach");
+    assert.deepEqual(view.viewer, { uid: "zach", name: "Zach", role: "admin" });
+    assert.equal(words.saidDayWords(view.said[1].at, view.said[1].changedAt), "Tue 17 Nov", "the list says the day of the latest save");
+  });
+
   test("each of the ten choices is a radio button on a 44px square, five to a row, inside a labelled group", () => {
     const css = read("src/features/courses/written/workRatings.module.css");
     const block = (name) => new RegExp(`^\\.${name} \\{([^}]*)\\}`, "m").exec(css)?.[1] ?? "";
