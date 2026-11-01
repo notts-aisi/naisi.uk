@@ -1061,6 +1061,7 @@ describe("4b. the Overview: cards, the weeks of check-ins, what was unclear with
       "Week 2: not shown yet",
       "Week 3: 4.0",
       "Week 4: not shown yet",
+      // CHANGED ON PURPOSE: a week shows at the first tick after it is whole, when the scheduler fixes its check-ins, so "shortly after", not "once".
       "7 and 4 answers. A dot is a week not shown yet: a week shows shortly after every group’s check-in has closed, and from 3 answers.",
       "Did most or all of the reading Share of check-ins",
       "Week 1: 57%",
@@ -1384,6 +1385,7 @@ describe("4d. the words of the views, one by one: counted right, no dash, no pro
     assert.equal(ci.groupCheckInWords("Group C", new Date("2026-11-18T15:00:00Z")), "Group C · Wed 18 Nov, 3pm");
     assert.equal(ci.groupCheckInWords("Group C", null), "Group C");
     assert.equal(ci.checkInLinkLabel("Who answered", "Group C", 3), "Who answered: Group C, week 3");
+    // CHANGED ON PURPOSE: "shortly after", not "once", for the reason the Overview's dot gives above.
     assert.equal(
       ci.checkInsTabLine(3, 5),
       "Every group’s check-ins together, week by week, without names. A week shows shortly after every group’s check-in that week has closed: totals from 3 answers, comments from 5.",
