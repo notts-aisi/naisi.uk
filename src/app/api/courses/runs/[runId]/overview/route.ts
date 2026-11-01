@@ -32,6 +32,9 @@ import { taskNeeds, taskSubject, thisWeekOf, type TaskNeeds } from "@/lib/course
 import { taskLabelWords } from "@/lib/courses/memberPageWords";
 import { findCase, talksOf } from "@/lib/courses/packsAndCases/model";
 import { NO_PICKS, readOwnPacksAndCases, type OwnPicks } from "@/lib/courses/packsAndCases/readers";
+import { NO_GROUP } from "@/lib/courses/weekWork/lock";
+import type { WeekWorkWire } from "@/lib/courses/weekWork/model";
+import { lockSourceFor, ownWeekWires } from "@/lib/courses/weekWork/readers";
 import { isFillInResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { isWordCountedAnswer, readWrittenAnswer, type WrittenAnswerRecord } from "@/lib/courses/writtenAnswers/model";
@@ -545,6 +548,13 @@ export type OverviewPayload = {
      * anybody not taking part.
      */
     picks: OverviewPicks | null;
+    /**
+     * A week written as blocks, for somebody taking part: where their own
+     * week stands (open, submitted, locked or reopened), when it locks or
+     * locked, and who reopened it (`src/lib/courses/weekWork/`). Null on any
+     * other week and for anybody not taking part.
+     */
+    work: WeekWorkWire | null;
   }>;
   /**
    * Who a person taking part asks to switch a pack or swap a case (Q32 A:
@@ -946,6 +956,11 @@ async function beforeGroupsPayload(
   const course = thisWeekCourseOf(courseSnap?.exists ? normalizeCourse(courseSnap.id, courseSnap.data() ?? {}) : null);
   const week = weekSnap.exists ? normalizeCourseWeek(weekSnap.id, weekSnap.data() ?? {}) : null;
   const work = await ownWorkOf(db, ownAnswerSnap.docs, actor.uid);
+  // Where their week 1 stands: with no group there is no session to lock at, so only Submit locks it.
+  const weekWork =
+    week && Array.isArray(week.blocks)
+      ? ((await ownWeekWires(db, { runId: run.id, uid: actor.uid, weeks: [{ id: week.id, weekNumber: 1 }], source: NO_GROUP, now: new Date() })).get(week.id) ?? null)
+      : null;
   const taught = run.weekPlan.filter((entry) => entry.kind === "week").length;
   return {
     run: {
@@ -983,6 +998,7 @@ async function beforeGroupsPayload(
             // A pack is given out at a session and picked until one starts,
             // and nobody through week 1's door has a group or a session yet.
             picks: null,
+            work: weekWork,
           },
         ]
       : [],
@@ -1310,6 +1326,7 @@ export async function GET(
           : [...w.materials.filter((m) => !m.optional).map((m) => m.id), ...w.checklist.map((c) => c.id)],
         thisWeek: null as OverviewThisWeek | null,
         picks: null as OverviewPicks | null,
+        work: null as WeekWorkWire | null,
       };
     })
     .sort((a, b) => a.weekNumber - b.weekNumber || a.id.localeCompare(b.id));
@@ -1457,8 +1474,21 @@ export async function GET(
    * somebody who facilitates a group of the run, the programme's lead and
    * admins.
    */
+  // WHERE EACH OF THE CALLER'S OWN WEEKS WRITTEN AS BLOCKS STANDS, for
+  // somebody taking part: their own records alone, by address, and their own
+  // lock (their told placement's group, or the groups they facilitate).
+  const ownWork = readsOwnPicks
+    ? await ownWeekWires(db, {
+        runId,
+        uid: actor.uid,
+        weeks: weeks.filter((entry) => blocksByWeekId.has(entry.id)).map((entry) => ({ id: entry.id, weekNumber: entry.weekNumber })),
+        source: lockSourceFor(run, groups, actor.uid, liveEnrolment?.role === "learner" ? liveEnrolment : null),
+        now,
+      })
+    : new Map<string, WeekWorkWire>();
   for (const entry of weeks) {
     const blocks = blocksByWeekId.get(entry.id);
+    entry.work = ownWork.get(entry.id) ?? null;
     if (blocks && readsOwnPicks) {
       // A pick stays open until the caller's group's session for the week
       // starts (the week's own, or the next one when it is cancelled).

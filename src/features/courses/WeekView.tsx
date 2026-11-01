@@ -187,7 +187,7 @@ export default function WeekView({ runId, weekNumber, uid, viewerRole, sharedNot
     overview.data?.currentWeek?.anchorWeekNumber ?? null,
   );
   const canWrite = overview.data?.enrolment?.status === "active" || beforeGroups !== null;
-  const ticks = useMaterialTicks(runId, uid, weekNumber, canWrite, beforeGroups ? "week-one-door" : "browser");
+  const ticks = useMaterialTicks(runId, uid, weekNumber, canWrite);
   const { toast, run: runToast, dismiss } = useActionToast();
 
   // Travel direction for the entrance, handed over by the previous page's nav.

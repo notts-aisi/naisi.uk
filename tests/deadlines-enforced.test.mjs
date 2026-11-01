@@ -121,6 +121,49 @@ function scanDeadlineNames(assert) {
  */
 const DEADLINE_NAMES = new Map([
   [
+    "locksAt",
+    {
+      files: ["src/lib/courses/weekWork/model.ts"],
+      promises: [
+        {
+          of: "the week you submit: when a person's week locks, or locks again after a reopen",
+          binds: "somebody taking part in a programme's week",
+          why:
+            "Not stored: worked out from the group's own calendar (`weekLockOf`, `nextSessionAfter`) every " +
+            "time it is asked, so the line the week page prints and the moment every write to the week is " +
+            "refused past are one reading of the same sessions.",
+          told: ["src/features/courses/weekBlocks/BlockWeek.tsx", "src/lib/courses/weekWork/words.ts"],
+          enforced: [
+            "src/app/api/courses/runs/[runId]/ticks/[itemId]/route.ts",
+            "src/app/api/courses/runs/[runId]/reflections/[promptId]/route.ts",
+            "src/app/api/courses/runs/[runId]/fill-in-boxes/[boxId]/route.ts",
+            "src/app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts",
+            "src/app/api/courses/runs/[runId]/packs-and-cases/[blockId]/route.ts",
+          ],
+          predicate: "assertWeekTakesWork(",
+        },
+      ],
+    },
+  ],
+  [
+    "lockedAt",
+    {
+      files: ["src/lib/courses/weekWork/model.ts"],
+      promises: [
+        {
+          of: "the week you submit: when a person's week locked, on the wire to their page",
+          binds: null,
+          why:
+            "A record of a lock that has happened, carried to the person's own page to say when it locked; " +
+            "the lock itself is `locksAt`'s promise, refused past by every write to the week.",
+          told: ["src/features/courses/weekBlocks/BlockWeek.tsx"],
+          notEnforced:
+            "It names a moment already past: what refuses a write after it is the week's own state, asked by every write route through `assertWeekTakesWork`.",
+        },
+      ],
+    },
+  ],
+  [
     "closesAt",
     {
       files: [

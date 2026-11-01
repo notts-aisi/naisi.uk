@@ -29,6 +29,8 @@ import { normalizeCourseEnrolment } from "./courseEnrolments";
 import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
+import { COURSE_WEEK_WORK_COLLECTION } from "./courseWeekWork";
+import { COURSE_WORK_LOG_COLLECTION } from "./courseWorkLog";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
 import {
@@ -184,6 +186,14 @@ export type AccountDeletionSummary = {
    * this account alone.
    */
   coursePacksAndCasesDeleted: number;
+  /**
+   * Where each of this account's weeks stands (`courseWeekWork`: when it
+   * submitted a week, when somebody reopened it) and the log of what it did
+   * to its weeks and when (`courseWorkLog`). Deleted: each record is about
+   * this account alone.
+   */
+  courseWeekWorkDeleted: number;
+  courseWorkLogDeleted: number;
   /**
    * This account's place in each session's pairs (`coursePairs`): which pair
    * it was in and whether it was bringing a laptop. Deleted: each record is
@@ -823,6 +833,19 @@ export async function deleteCoursePlacementNotes(db: Firestore, uid: string): Pr
  */
 export async function deleteCoursePacksAndCases(db: Firestore, uid: string): Promise<number> {
   return deleteOwnedCourseRows(db, COURSE_PACKS_AND_CASES_COLLECTION, uid);
+}
+
+/**
+ * Delete where each of this account's weeks stands (`courseWeekWork`) and its
+ * log of what it did to them (`courseWorkLog`), on every run, a page at a
+ * time. Found by the one equality on `uid`; nobody else's record is touched:
+ * a reopen's row names who reopened it, and is about the person whose week it is.
+ */
+export async function deleteCourseWeekWork(db: Firestore, uid: string): Promise<{ weeks: number; log: number }> {
+  return {
+    weeks: await deleteOwnedCourseRows(db, COURSE_WEEK_WORK_COLLECTION, uid),
+    log: await deleteOwnedCourseRows(db, COURSE_WORK_LOG_COLLECTION, uid),
+  };
 }
 
 /**
@@ -1486,6 +1509,8 @@ export async function deleteAccountCascade(
     courseGroupSharedNotesDeleted: 0,
     coursePlacementNotesDeleted: 0,
     coursePacksAndCasesDeleted: 0,
+    courseWeekWorkDeleted: 0,
+    courseWorkLogDeleted: 0,
     coursePairsDeleted: 0,
     courseCertificatesDeleted: 0,
     courseCertificatesKept: 0,
@@ -1934,6 +1959,19 @@ export async function deleteAccountCascade(
     summary.coursePacksAndCasesDeleted = await deleteCoursePacksAndCases(db, uid);
   } catch (err) {
     console.error("[deleteAccount] coursePacksAndCases delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c. THE WEEK YOU SUBMIT. Where each of this account's weeks stands and
+  //      the log of what it did to them are about this account alone,
+  //      addressed by its uid, and go with it (see courseWeekWork.ts and
+  //      courseWorkLog.ts).
+  try {
+    const removed = await deleteCourseWeekWork(db, uid);
+    summary.courseWeekWorkDeleted = removed.weeks;
+    summary.courseWorkLogDeleted = removed.log;
+  } catch (err) {
+    console.error("[deleteAccount] courseWeekWork delete failed:", uid, err);
     partialFailure = true;
   }
 

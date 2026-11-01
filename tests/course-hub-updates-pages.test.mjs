@@ -64,6 +64,9 @@ const STYLESHEETS = [
   "@/features/courses/weekly/weekly.module.css",
   "./facilitator.module.css",
   "@/features/courses/facilitator/facilitator.module.css",
+  // This week's work's Reopen (the week you submit): its button's sheet and the confirm's.
+  "./written.module.css",
+  "./Modal.module.css",
 ];
 /** A card of the group page that is not about updates: it draws its name. */
 const CARD = (name) => `export default function ${name}() { return globalThis.__updatesPagesUi.h("div", null, "[${name}]"); }`;

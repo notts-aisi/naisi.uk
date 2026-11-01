@@ -14,10 +14,12 @@ import {
 import { SOURCE_KIND_LABEL, type SourceBlock } from "@/lib/courses/weekBlocks/model";
 import { safeSourceUrl } from "@/lib/courses/weekBlocks/prose";
 import { PROGRESS_LIMITS, type CourseProgressDoc, type ProgressItemKind } from "@/lib/firestore/courseProgress";
+import { tickedOnWords } from "@/lib/courses/weekWork/words";
 import { saveProgressReflection } from "../progressMutations";
 import weekly from "../weekly/weekly.module.css";
 import { Runs } from "./Prose";
 import styles from "./blockWeek.module.css";
+import weekWork from "./weekWork.module.css";
 
 /**
  * SOURCES ON A PART'S PATH (boards st-week1-phone, wk-week-phone): each one a
@@ -28,7 +30,11 @@ import styles from "./blockWeek.module.css";
  *
  * A TICK is the person's own `courseProgress` row for the source's id,
  * written by the caller through `useMaterialTicks`, the one way every page
- * ticks (so a source ticked on Home is ticked here).
+ * ticks (so a source ticked on Home is ticked here). A ticked source says
+ * when it was ticked ("Ticked Sun 15 Nov"), from the row's own time. Once the
+ * week is submitted or locked the ticks are read only, and the reading's box
+ * stays open (`canNote`): a rating and a private note are about the material,
+ * not the week's work.
  *
  * THE READING'S BOX (Q38): once a source is ticked, "Rate it or leave a note"
  * opens the star rating and the private note, the two things each reading
@@ -48,8 +54,10 @@ type Props = {
   weekNumber: number;
   /** Somebody taking part: their ticks are drawn. */
   showTicks: boolean;
-  /** Their enrolment is active: ticks and the reading's box take writing. */
+  /** Their enrolment is active and the week takes work: the ticks take writing. */
   canWrite: boolean;
+  /** The reading's box takes writing: their enrolment is active, whether or not the week is locked. Defaults to `canWrite`. */
+  canNote?: boolean;
   isDone: (itemId: string) => boolean;
   /** The person's own rows, for each reading's rating and note. */
   rows: ReadonlyMap<string, CourseProgressDoc>;
@@ -118,6 +126,7 @@ export default function SourceCard({
   ticksLine,
   privateNoteHint,
   canRate = true,
+  canNote = canWrite,
 }: Props) {
   return (
     <div className={styles.sources}>
@@ -145,6 +154,9 @@ export default function SourceCard({
               )}
               <div className={styles.sourceBody}>
                 <SourceTitle lead={source.lead} title={source.title} href={href} />
+                {showTicks && done && rows.get(source.id)?.completedAt && (
+                  <span className={weekWork.ticked}>{tickedOnWords(rows.get(source.id)?.completedAt as Date)}</span>
+                )}
                 <p className={styles.sourceMeta}>
                   <span className={styles.kindPill}>{SOURCE_KIND_LABEL[source.kind]}</span>
                   {source.time && <span className={styles.mono}>{source.time}</span>}
@@ -157,7 +169,7 @@ export default function SourceCard({
                 )}
                 {/* What a notebook needs to run, as the guide writes it ("Runs on a free notebook service"). */}
                 {source.compute.trim() && <p className={styles.sourceNote}>{source.compute.trim()}</p>}
-                {showTicks && canWrite && canRate && done && (
+                {showTicks && canNote && canRate && done && (
                   <ReadingBox
                     runId={runId}
                     uid={uid}

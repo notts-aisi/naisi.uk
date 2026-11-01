@@ -165,7 +165,11 @@ async function seedEnrolment(runId, uid, overrides = {}) {
   });
 }
 
-/** The full progress payload buildProgressWrite() would emit. */
+/**
+ * The full progress payload buildProgressWrite() would emit for a rating and
+ * comments saved from the browser. Unticked: a tick is the tick route's
+ * (Admin SDK), and a browser create may not set `completed` or `completedAt`.
+ */
 function progressDoc(overrides = {}) {
   return {
     runId: "run1",
@@ -173,8 +177,7 @@ function progressDoc(overrides = {}) {
     weekNumber: 3,
     itemKind: "material",
     itemId: "m1",
-    completed: true,
-    completedAt: new Date(),
+    completed: false,
     rating: 5,
     publicComment: "Great intro paper.",
     hasPublicComment: true,
@@ -208,7 +211,7 @@ describe("courseProgress — enrolled member happy path", () => {
     );
   });
 
-  it("lets a member check off a checklist item (the second itemKind)", async () => {
+  it("lets a member keep a row on a checklist item (the second itemKind), unticked", async () => {
     await seedCast();
     await seedEnrolment("run1", "learner");
     const db = await asUser("learner");
@@ -219,11 +222,64 @@ describe("courseProgress — enrolled member happy path", () => {
         weekNumber: 1,
         itemKind: "checklist",
         itemId: "c1",
-        completed: true,
-        completedAt: new Date(),
+        completed: false,
         hasPublicComment: false,
       }),
     );
+  });
+});
+
+// A tick is the tick route's (/api/courses/runs/[runId]/ticks/[itemId], Admin
+// SDK): a week locks when it is submitted or its group's session starts, which
+// these rules cannot know, so the browser may neither set nor change
+// `completed` or `completedAt`. A rating or a comment carries both through
+// exactly as stored.
+describe("courseProgress — a tick is the tick route's, never the browser's", () => {
+  it("refuses a browser create that ticks, with or without a completion time", async () => {
+    await seedCast();
+    await seedEnrolment("run1", "learner");
+    const db = await asUser("learner");
+    const ref = db.collection("courseProgress").doc("run1__learner__m1");
+    await assertFails(ref.set(progressDoc({ completed: true, completedAt: new Date() })));
+    await assertFails(ref.set(progressDoc({ completed: true })));
+    await assertFails(ref.set(progressDoc({ completedAt: new Date() })));
+  });
+
+  it("refuses a browser update that ticks, unticks or moves the completion time", async () => {
+    await seedCast();
+    await seedEnrolment("run1", "learner");
+    const stamped = new Date("2026-11-15T10:00:00Z");
+    await seed(async (admin) => {
+      await admin.collection("courseProgress").doc("run1__learner__m1").set(progressDoc({ completed: true, completedAt: stamped }));
+      await admin.collection("courseProgress").doc("run1__learner__m2").set(progressDoc({ itemId: "m2" }));
+    });
+    const db = await asUser("learner");
+    // Unticking the ticked one, or moving its time.
+    await assertFails(db.collection("courseProgress").doc("run1__learner__m1").set(progressDoc()));
+    await assertFails(db.collection("courseProgress").doc("run1__learner__m1").set(progressDoc({ completed: true, completedAt: new Date() })));
+    await assertFails(db.collection("courseProgress").doc("run1__learner__m1").set(progressDoc({ completed: true })));
+    // Ticking the unticked one.
+    await assertFails(db.collection("courseProgress").doc("run1__learner__m2").set(progressDoc({ itemId: "m2", completed: true, completedAt: new Date() })));
+  });
+
+  it("accepts a rating or a comment that carries the tick and its time through unchanged", async () => {
+    await seedCast();
+    await seedEnrolment("run1", "learner");
+    const stamped = new Date("2026-11-15T10:00:00Z");
+    await seed(async (admin) => {
+      await admin.collection("courseProgress").doc("run1__learner__m1").set(progressDoc({ completed: true, completedAt: stamped }));
+    });
+    const db = await asUser("learner");
+    await assertSucceeds(
+      db.collection("courseProgress").doc("run1__learner__m1").set(
+        progressDoc({ completed: true, completedAt: stamped, rating: 3, publicComment: "Better on a second read." }),
+      ),
+    );
+    // An unticked row's rating, the same way.
+    await seed(async (admin) => {
+      await admin.collection("courseProgress").doc("run1__learner__m2").set(progressDoc({ itemId: "m2" }));
+    });
+    await assertSucceeds(db.collection("courseProgress").doc("run1__learner__m2").set(progressDoc({ itemId: "m2", rating: 2 })));
   });
 
   it("lets a member delete their own row", async () => {
@@ -881,6 +937,9 @@ describe("server-owned course collections", () => {
       ["courseExerciseResponses", "run1__learner__w01__x1", { runId: "run1", uid: "learner", text: "hi" }],
       ["courseAttendance", "run1__g1__w01", { records: { learner: "present" } }],
       ["courseNudges", "run1__w01", { sentAt: new Date() }],
+      // The week you submit: where a week stands, and the log of what was done to it.
+      ["courseWeekWork", "run1__learner__w01", { runId: "run1", uid: "learner", weekId: "w01", submittedAt: new Date() }],
+      ["courseWorkLog", "log1", { runId: "run1", uid: "learner", kind: "tick", at: new Date() }],
     ];
     for (const [collection, id, data] of attempts) {
       await assertFails(member.collection(collection).doc(id).set(data));
@@ -921,6 +980,22 @@ describe("server-owned course collections", () => {
     await assertFails(other.collection("courseExerciseResponses").doc("run1__learner__w01__x1").get());
     const admin = await asUser("admin1");
     await assertSucceeds(admin.collection("courseApplications").doc("run1__learner").get());
+    // No admin branch on the answers store (privacy v15): an admin's own browser never reads a draft.
+    await assertFails(admin.collection("courseExerciseResponses").doc("run1__learner__w01__x1").get());
+  });
+
+  it("where a week stands and the log of what was done to it are read by no browser, its own person and admins included", async () => {
+    await seedCast();
+    await seed(async (db) => {
+      await db.collection("courseWeekWork").doc("run1__learner__w01").set({ runId: "run1", uid: "learner", weekId: "w01", submittedAt: new Date() });
+      await db.collection("courseWorkLog").doc("log1").set({ runId: "run1", uid: "learner", kind: "submit", at: new Date() });
+    });
+    for (const who of ["learner", "facil", "admin1"]) {
+      const db = await asUser(who);
+      await assertFails(db.collection("courseWeekWork").doc("run1__learner__w01").get());
+      await assertFails(db.collection("courseWorkLog").doc("log1").get());
+      await assertFails(db.collection("courseWorkLog").where("uid", "==", "learner").get());
+    }
   });
 
   it("a row the application form put on a run is read by its own person and by an admin, and by nobody the run names", async () => {

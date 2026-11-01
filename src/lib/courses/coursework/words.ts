@@ -27,6 +27,15 @@ export function weekColumnWords(weekNumber: number): string {
   return `Week ${weekNumber}`;
 }
 
+/**
+ * The first line of a cell, by the one meaning of done every page uses: the
+ * week is submitted, where it asks for anything written, and every tick it
+ * counts is ticked. Staff words: the person's own pages say "Submitted" and
+ * "N of M done".
+ */
+export const DONE = "Done";
+export const NOT_DONE = "Not done";
+
 /** "Reflections 2 of 3": parts whose reflection is written, of the week's parts. */
 export function reflectionsCellWords(written: number, of: number): string {
   return `Reflections ${written} of ${of}`;
@@ -55,9 +64,9 @@ export function answerLinkLabelWords(name: string, weekNumber: number, state: Ce
   return `Week ${weekNumber} written answer, ${ANSWER_STATE_WORDS[state]}: ${name}`;
 }
 
-/** The rest of a cell, for a screen reader: "Week 3: Chloe Nguyen’s coursework". */
-export function cellLinkLabelWords(name: string, weekNumber: number): string {
-  return `Week ${weekNumber}: ${name}’s coursework`;
+/** The rest of a cell, for a screen reader: "Week 3, not done: Chloe Nguyen’s coursework". */
+export function cellLinkLabelWords(name: string, weekNumber: number, done: boolean): string {
+  return `Week ${weekNumber}, ${done ? "done" : "not done"}: ${name}’s coursework`;
 }
 
 /** A week the person reads that is not written as blocks: nothing to count. */

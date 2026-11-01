@@ -7,15 +7,19 @@ import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
 import { fullNameOfUser } from "../programmeLead";
 import { liveGroupsOf, reviewableIn, reviewerFactsOf, type OwnerFacts } from "./access";
-import { instantOf, isWordCountedAnswer, readWrittenAnswer, waitsForFeedback } from "./model";
+import { instantOf, isWordCountedAnswer, readWrittenAnswer } from "./model";
+import { workIsReadable } from "../weekWork/model";
+import { loadRunWeekStates } from "../weekWork/readers";
 
 /**
  * THE REVIEW QUEUE'S WRITTEN ANSWERS HALF (board wk-fac-group: "Written
  * answers · 2 to give feedback on", each person with when they sent it and
  * Give feedback; Home's line beside it): every written answer of the group's
  * people waiting for feedback, whatever its week, that the reader may give
- * feedback on by the one gate (`reviewableIn`). An answer that has been
- * opened and has no feedback yet still waits.
+ * feedback on by the one gate (`reviewableIn`), and whose readers may read
+ * it (`workIsReadable`, privacy v15): its week submitted, or locked before it
+ * was, or the answer sent before weeks were submitted. An answer in a week
+ * still open, or reopened, waits for nobody yet.
  *
  * NULL FOR A RUN WITH NO WEEK WRITTEN AS BLOCKS: a run of the summer's
  * weeks keeps its own "To review" card for its exercises, and no written
@@ -35,8 +39,10 @@ export type WrittenQueueRow = {
   /** The whole name, as the board lists people. */
   name: string;
   weekNumber: number;
-  /** ISO 8601: when it was first sent. */
+  /** ISO 8601: when it was first sent, or when its week locked before it was. */
   firstSentAt: string;
+  /** Never sent: its week locked at the session before it was submitted, and `firstSentAt` is that lock. */
+  locked: boolean;
 };
 
 /** The weeks of a run, checked for one written as blocks. */
@@ -71,8 +77,10 @@ export async function loadWrittenQueues(
     db.collection("courseExerciseResponses").where("runId", "==", run.id).get(),
   ]);
   const live = new Set(liveGroups.map((candidate) => candidate.id));
-  const fellows: OwnerFacts[] = enrolSnap.docs
-    .map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {}))
+  const enrolments = enrolSnap.docs.map((doc) => normalizeCourseEnrolment(doc.id, doc.data() ?? {}));
+  // Where each person's week stands, for whether their answer may be read.
+  const states = await loadRunWeekStates(db, { run, liveGroups, enrolments, now: new Date() });
+  const fellows: OwnerFacts[] = enrolments
     .filter(
       (enrolment) =>
         enrolment.role === "learner" &&
@@ -91,7 +99,7 @@ export async function loadWrittenQueues(
     }
   }
 
-  const waiting: Array<{ uid: string; weekNumber: number; sentAt: Date }> = [];
+  const waiting: Array<{ uid: string; weekNumber: number; sentAt: Date; locked: boolean }> = [];
   for (const doc of answerSnap.docs) {
     const data = (doc.data() ?? {}) as Record<string, unknown>;
     const uid = typeof data.uid === "string" ? data.uid : "";
@@ -99,11 +107,15 @@ export async function loadWrittenQueues(
     // A reflection is never sent; summer's answers keep their own card.
     if (isReflectionResponse(data) || !isWordCountedAnswer(data)) continue;
     const record = readWrittenAnswer(data);
-    const sentAt = instantOf(data.firstSentAt);
-    if (!waitsForFeedback(record) || !sentAt) continue;
     const weekNumber = weekNumberOf(data);
-    if (weekNumber < 1) continue;
-    waiting.push({ uid, weekNumber, sentAt });
+    if (weekNumber < 1 || record.feedback || record.words === 0) continue;
+    // Waiting only once its readers may read it.
+    const standing = states.stateOf(uid, weekNumber);
+    if (!workIsReadable(standing, record)) continue;
+    const firstSentAt = instantOf(data.firstSentAt);
+    const sentAt = firstSentAt ?? (standing.kind === "locked" ? standing.at : null);
+    if (!sentAt) continue;
+    waiting.push({ uid, weekNumber, sentAt, locked: firstSentAt === null });
   }
   waiting.sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime() || a.uid.localeCompare(b.uid));
 
@@ -119,6 +131,7 @@ export async function loadWrittenQueues(
       name: names.get(row.uid) ?? "NAISI member",
       weekNumber: row.weekNumber,
       firstSentAt: row.sentAt.toISOString(),
+      locked: row.locked,
     });
   }
   return out;

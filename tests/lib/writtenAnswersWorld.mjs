@@ -315,6 +315,10 @@ export async function makeWrittenAnswersWorld(key = "__writtenAnswers") {
     verdict: await courseRoute("exercise-responses", "[responseId]", "review"),
     queue: await courseRoute("groups", "[groupId]", "exercises"),
     submit: await courseRoute("runs", "[runId]", "exercises", "[exerciseId]", "submit"),
+    // The week you submit: Submit, Reopen and the one tick route.
+    submitWeek: await courseRoute("runs", "[runId]", "weeks", "[weekId]", "submit"),
+    reopenWeek: await courseRoute("runs", "[runId]", "weeks", "[weekId]", "reopen"),
+    tick: await courseRoute("runs", "[runId]", "ticks", "[itemId]"),
   };
   const pages = {
     week: (await loadTs(join("app", "(app)", "learn", "[runId]", "weeks", "[n]", "page.tsx"))).default,
@@ -371,9 +375,39 @@ export async function makeWrittenAnswersWorld(key = "__writtenAnswers") {
   const weekIdOf = (n) => `w0${n}`;
   const rowPath = (uid, n, answerId = n === 2 ? ONE_BOX.id : BOXES.id) => answerPath(uid, n, answerId);
 
-  /** `who` saves (or sends) their own answer to week `n`'s written answer. */
-  const write = (who, n, content, { send = false, viewAs = false, answerId = n === 2 ? ONE_BOX.id : BOXES.id } = {}) =>
-    call(who, routes.write.PUT, { runId: RUN.agi, answerId }, { course: true, viewAs, body: { weekId: weekIdOf(n), ...content, send } });
+  /**
+   * `who` saves their own answer to week `n`'s written answer; with `send`,
+   * then submits the week, which is how an answer is sent (the week you
+   * submit), answering with the submit's own answer when the save went.
+   */
+  const write = async (who, n, content, { send = false, viewAs = false, answerId = n === 2 ? ONE_BOX.id : BOXES.id } = {}) => {
+    const saved = await call(who, routes.write.PUT, { runId: RUN.agi, answerId }, { course: true, viewAs, body: { weekId: weekIdOf(n), ...content } });
+    if (!send || saved.status !== 200) return saved;
+    return call(who, routes.submitWeek.POST, { runId: RUN.agi, weekId: weekIdOf(n) }, { course: true, viewAs, body: { submit: true } });
+  };
+
+  /** `who` submits their own week `n`, which sends its written answer. */
+  const submitWeek = (who, n, { viewAs = false, body = { submit: true } } = {}) =>
+    call(who, routes.submitWeek.POST, { runId: RUN.agi, weekId: weekIdOf(n) }, { course: true, viewAs, body });
+
+  /** `who` reopens `uid`'s week `n`. */
+  const reopenWeek = (who, uid, n, { viewAs = false } = {}) =>
+    call(who, routes.reopenWeek.POST, { runId: RUN.agi, weekId: weekIdOf(n) }, { course: true, viewAs, body: { uid } });
+
+  /** `who` ticks (or unticks) one of week `n`'s items. */
+  const tick = (who, n, itemId, completed = true, { viewAs = false } = {}) =>
+    call(who, routes.tick.PUT, { runId: RUN.agi, itemId }, { course: true, viewAs, body: { weekId: weekIdOf(n), completed } });
+
+  /** Every row of the work log for `uid`, oldest first as written. */
+  const logOf = (uid) =>
+    world.db
+      .paths()
+      .filter((path) => path.startsWith("courseWorkLog/"))
+      .map((path) => world.db.read(path))
+      .filter((row) => row.uid === uid);
+
+  /** `uid`'s stored week `n`, or undefined. */
+  const weekWorkOf = (uid, n) => world.db.read(`courseWeekWork/${RUN.agi}__${uid}__${weekIdOf(n)}`);
 
   /** `who` acts as a reviewer on `uid`'s answer to week `n`. */
   const review = (who, uid, n, body, { viewAs = false, answerId = n === 2 ? ONE_BOX.id : BOXES.id } = {}) =>
@@ -499,6 +533,11 @@ export async function makeWrittenAnswersWorld(key = "__writtenAnswers") {
     sessionFor,
     rowPath,
     write,
+    submitWeek,
+    reopenWeek,
+    tick,
+    logOf,
+    weekWorkOf,
     review,
     levels,
     ownRowsOf,

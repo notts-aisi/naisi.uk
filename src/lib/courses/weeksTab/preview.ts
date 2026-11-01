@@ -97,6 +97,8 @@ export async function loadWeekPreview(
         thisWeek: null,
         // A preview is nobody's: no pack picked or given, no talk marked ready.
         picks: null,
+        // Nor a week of theirs submitted or locked.
+        work: null,
       },
     ],
     weekSchedule: [],

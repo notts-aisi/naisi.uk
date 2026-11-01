@@ -1087,22 +1087,24 @@ test("GUARD: the run home links the progress page and shows own attendance", () 
   assert.match(RUN_HOME, /\/progress`\}/);
   assert.match(RUN_HOME, /showProgress=\{learner !== null\}/);
   assert.match(WEEK_LIST, /\{showProgress && \(/);
-  // The member's own record is "Your marks" (C26: one mark a session, no
-  // count), handed the overview's own projection of their registers.
+  // The member's own record is "Your sessions" (C26: one a session, no
+  // count; never "marks" in a word a member reads), handed the overview's own
+  // projection of their registers.
   assert.match(RUN_HOME, /<YourMarks[\s\S]{0,200}ownAttendance=\{data\.ownAttendance\}/);
   // Learners only: a facilitator has no attendance of their own.
   assert.match(RUN_HOME, /\{access\.isEnrolled && !beforeStart && \(/);
-  // An unmarked cell reads as unmarked, never as an absence, on the mark that
-  // reports what was written down: the words module's "Not marked".
+  // An unmarked cell reads as not filled in, never as an absence, on the
+  // card that reports what was written down: the words module's "Not filled in".
   assert.match(RUN_HOME, /: \(session\.status \?\? "not-marked"\)/);
-  assert.match(src("lib", "courses", "memberPageWords.ts"), /"not-marked": "Not marked"/);
+  assert.match(src("lib", "courses", "memberPageWords.ts"), /"not-marked": "Not filled in"/);
   // And the copy says who fills the marks in, and when (the board's line).
   assert.match(RUN_HOME, /\{MARKS_LINE\}/);
   assert.match(src("lib", "courses", "memberPageWords.ts"), /MARKS_LINE = "Your facilitators fill these in after each session\."/);
   // A learner with no group yet gets their own sentence: the standing copy
   // names a facilitator they have not got one of.
   assert.match(RUN_HOME, /ownAttendance === null \? \(/);
-  assert.match(RUN_HOME, /placed in a group soon/);
+  assert.match(RUN_HOME, /\{MARKS_BEFORE_GROUP\}/);
+  assert.match(src("lib", "courses", "memberPageWords.ts"), /placed in a group soon/);
 });
 
 test("GUARD: one spelling of a week URL, shared by both surfaces", () => {

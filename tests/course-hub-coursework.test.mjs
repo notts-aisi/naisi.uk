@@ -15,11 +15,15 @@
  *     people in no group last.
  *  3. A PLACEMENT PUBLISH HAS NOT TOLD is shown to admins alone: to the lead
  *     that person is not in a group yet.
- *  4. A CELL is counts and states, never a word: reflection parts written,
+ *  4. A CELL leads with whether the week is done, by the one meaning of done
+ *     every page uses (submitted where it asks for anything written, and
+ *     every tick it counts ticked, the pathway's own reading among them),
+ *     then counts and states, never a word: reflection parts written,
  *     sources ticked, the written answer (waiting stands out and opens the
  *     feedback page), boxes filled. Somebody in no group is counted on the
  *     run's own week 1, where their week 1 work was written.
- *  5. THE FILTERS are plain links.
+ *  5. THE FILTERS are plain links, "Not done" among them: the people with a
+ *     week that has begun for them and is not done.
  *  6. A PERSON'S PAGE: newest week first, each reflection under its prompt
  *     with when it was written, the written answer and its feedback, the
  *     boxes and the ticks. A PRIVATE NOTE is an admin's alone, never the
@@ -305,6 +309,9 @@ describe("4. a cell", () => {
       assert.deepEqual(cellOf(view, "Chloe Nguyen", 3), {
         weekNumber: 3,
         counted: true,
+        // Nobody has submitted week 3 yet, and it has begun: the run is in week 3.
+        done: false,
+        reached: true,
         reflections: { written: 1, of: 3 },
         ticks: { ticked: 1, of: 2 },
         answer: { state: "waiting", href: written("chloe") },
@@ -393,14 +400,19 @@ describe("6. a person's page", () => {
 describe("7. the model", () => {
   test("an answer's state as a cell says it, the filter as the address reads it, and a cell of a week with nothing to count", () => {
     assert.deepEqual(["not-started", "draft", "sent", "opened", "feedback"].map(model.cellAnswerState), ["not-started", "started", "waiting", "waiting", "feedback"]);
-    assert.deepEqual(model.readFilter({ group: "g1", waiting: "1" }, ["g1"]), { group: "g1", waiting: true });
-    assert.deepEqual(model.readFilter({ group: "nope" }, ["g1"]), { group: "all", waiting: false });
-    assert.deepEqual(model.readFilter({ group: "none" }, []), { group: "none", waiting: false });
-    assert.equal(model.filterHref("/c", { group: "all", waiting: false }), "/c");
-    assert.equal(model.filterHref("/c", { group: "none", waiting: true }), "/c?group=none&waiting=1");
+    assert.deepEqual(model.readFilter({ group: "g1", waiting: "1" }, ["g1"]), { group: "g1", waiting: true, notDone: false });
+    assert.deepEqual(model.readFilter({ group: "nope" }, ["g1"]), { group: "all", waiting: false, notDone: false });
+    assert.deepEqual(model.readFilter({ group: "none" }, []), { group: "none", waiting: false, notDone: false });
+    assert.deepEqual(model.readFilter({ notdone: "1" }, []), { group: "all", waiting: false, notDone: true });
+    assert.deepEqual(model.readFilter({ notdone: ["1"] }, []), { group: "all", waiting: false, notDone: false });
+    assert.equal(model.filterHref("/c", { group: "all", waiting: false, notDone: false }), "/c");
+    assert.equal(model.filterHref("/c", { group: "none", waiting: true, notDone: false }), "/c?group=none&waiting=1");
+    assert.equal(model.filterHref("/c", { group: "g1", waiting: true, notDone: true }, 3), "/c?group=g1&waiting=1&notdone=1&week=3");
     assert.deepEqual(model.cellOf(null, 2, model.NO_WORK, { person: "/p", written: null }), {
       weekNumber: 2,
       counted: false,
+      done: null,
+      reached: false,
       reflections: null,
       ticks: null,
       answer: null,
@@ -416,7 +428,7 @@ describe("7. the model", () => {
       { uid: "n", name: "Nia", facilitating: false, groupId: null, readsGroupId: null, notToldYet: false },
       { uid: "f", name: "Fay", facilitating: true, groupId: "g1", readsGroupId: "g1", notToldYet: false },
     ];
-    const week = { weekNumber: 1, title: "", parts: [], sources: [], answer: { id: "wa", prompt: "", boxes: [] }, boxes: [] };
+    const week = { weekNumber: 1, title: "", parts: [], sources: [], answer: { id: "wa", prompt: "", boxes: [] }, boxes: [], tasks: [], writes: true };
     const sections = (filter) =>
       model.courseworkSections({
         columns: [{ weekNumber: 1 }],
@@ -426,12 +438,19 @@ describe("7. the model", () => {
         weekOf: () => week,
         personHref: (uid) => `/p/${uid}`,
         writtenHref: () => null,
+        // Fay and Zed submitted week 1; it has begun for everybody but Nia.
+        submittedOf: (uid) => uid === "f" || uid === "z",
+        reachedOf: (person) => (person.uid === "n" ? 0 : 1),
         filter,
         notInAGroupTitle: "Nobody's",
       }).map((section) => [section.title, section.rows.map((row) => row.name)]);
-    assert.deepEqual(sections({ group: "all", waiting: false }), [["One", ["Fay"]], ["Two", ["Ana", "Zed"]], ["Nobody's", ["Nia"]]]);
-    assert.deepEqual(sections({ group: "all", waiting: true }), [["Two", ["Ana"]]]);
-    assert.deepEqual(sections({ group: "none", waiting: false }), [["Nobody's", ["Nia"]]]);
+    assert.deepEqual(sections({ group: "all", waiting: false, notDone: false }), [["One", ["Fay"]], ["Two", ["Ana", "Zed"]], ["Nobody's", ["Nia"]]]);
+    assert.deepEqual(sections({ group: "all", waiting: true, notDone: false }), [["Two", ["Ana"]]]);
+    assert.deepEqual(sections({ group: "none", waiting: false, notDone: false }), [["Nobody's", ["Nia"]]]);
+    // Not done: Ana has not submitted a week that has begun; Nia's has not begun, so is nobody's to chase yet.
+    assert.deepEqual(sections({ group: "all", waiting: false, notDone: true }), [["Two", ["Ana"]]]);
+    assert.deepEqual(sections({ group: "g1", waiting: false, notDone: true }), []);
+    assert.deepEqual(sections({ group: "all", waiting: true, notDone: true }), [["Two", ["Ana"]]], "the filters combine");
   });
 
   test("the words", () => {
@@ -560,7 +579,7 @@ describe("8. the tree", () => {
     assert.match(load, /const outcome = await loadProgrammeRun\(db, actor, roundId, programmeId\);/);
     // Never a survey, never a note on the tab, and no word leaves for the tab.
     assert.doesNotMatch(load, /survey/i);
-    assert.match(load, /readRunCoursework\(db, run\.id, null\)/);
+    assert.match(load, /readRunCoursework\(db, \{ run, liveGroups: groups, now: new Date\(\) \}, null\)/);
     assert.equal((load.match(/readPersonPrivateNotes\(/g) ?? []).length, 1, "private notes are read anywhere but a person's page");
   });
 
@@ -582,5 +601,164 @@ describe("8. the tree", () => {
       assert.doesNotMatch(source, /\bcollate\b|\bwaitlist\b|\brejected\b|dropped out/i, file);
     }
     assert.match(readFileSync(join(SRC, "features/courses/coursework/coursework.module.css"), "utf8"), /@media \(max-width: 48rem\) \{[^]*\}\s*$/);
+  });
+});
+
+describe("10. done, by the one meaning every page uses, and the Not done filter", () => {
+  /** Week 4, written as blocks: a reading and a pathway to pick and read, its one task covering both, and a reflection. */
+  function weekFour() {
+    const read = (title, href) => [run("Example Press, "), run(`“${title}”`, { href })];
+    return {
+      weekNumber: 4,
+      title: "The keepers' choice",
+      summary: "",
+      guideBlocks: [],
+      materials: [],
+      exercises: [],
+      checklist: [],
+      questions: [],
+      estimatedMinutes: null,
+      published: false,
+      blocks: [
+        {
+          id: "k4-tw",
+          type: "thisWeek",
+          rows: [{ type: "task", what: "Part 1 below", time: "About 40 minutes", when: "before", whenText: "", covers: ["k4-p1"] }],
+          total: "About 40 minutes",
+          note: [],
+        },
+        {
+          id: "k4-p1",
+          type: "part",
+          title: "Choose a keeper",
+          time: "About 40 minutes",
+          framing: [],
+          blocks: [
+            { id: "k4-s1", type: "source", kind: "read", lead: "", title: "The keepers' guild", url: "https://example.com/guild", by: "Ada Example", date: "2024", time: "20 minutes", compute: "", note: [] },
+            {
+              id: "k4-c1",
+              type: "chooseOne",
+              form: "table",
+              title: "Pathway",
+              givenBy: "fellow",
+              kind: "read",
+              time: "",
+              noteHeading: "",
+              questions: [],
+              packs: [
+                { id: "k4-pk1", name: "Coast", time: "20 minutes", note: [], read: read("Coast lights", "https://example.com/coast") },
+                { id: "k4-pk2", name: "Harbour", time: "20 minutes", note: [], read: read("Harbour lights", "https://example.com/harbour") },
+              ],
+            },
+            { id: "k4-rs", type: "reflection", prompts: [{ id: "k4-rp1", text: "Which keeper would you be?" }] },
+          ],
+        },
+      ],
+    };
+  }
+
+  /** A week as Submit stores it. */
+  const submitted = (uid, weekNumber, at) => ({
+    runId: RUN.agi,
+    uid,
+    weekId: `w0${weekNumber}`,
+    weekNumber,
+    submittedAt: at,
+    firstSubmittedAt: at,
+    submitCount: 1,
+    updatedAt: at,
+  });
+  /** A pack picked, as the pick's route stores it. */
+  const picked = (uid, packId) => ({ runId: RUN.agi, uid, weekId: "w04", weekNumber: 4, blockId: "k4-c1", kind: "pack", packId, caseId: null, ready: false, readyAt: null, givenAt: new Date("2026-11-19T10:00:00Z"), updatedAt: new Date("2026-11-19T10:00:00Z") });
+
+  /** The world: Chloe submitted weeks 1 and 3; week 4 has a pathway, and the run is in week 3. */
+  function doneSeed() {
+    const seed = courseworkSeed();
+    seed[`courseRuns/${RUN.agi}/weeks/w04`] = weekFour();
+    seed[`courseWeekWork/${RUN.agi}__chloe__w01`] = submitted("chloe", 1, new Date("2026-11-02T20:00:00Z"));
+    seed[`courseWeekWork/${RUN.agi}__chloe__w03`] = submitted("chloe", 3, new Date("2026-11-16T21:31:00Z"));
+    return seed;
+  }
+  const rows = (view) => view.sections.flatMap((section) => section.rows);
+  const names = async (query) => rowsOf(tableOf(await tab("zach", query))).map(([, name]) => name);
+
+  test("a cell leads with Done or Not done: submitted where the week asks for anything written, every tick it counts ticked, the pathway's own reading among them", () => {
+    const four = model.courseworkWeekOf({ ...weekFour(), id: "w04" });
+    assert.deepEqual(model.chooseOneIdsOf(four), ["k4-c1"]);
+    assert.equal(four.writes, true);
+    const cell = (work, submittedNow) =>
+      model.cellOf(four, 4, { ...model.NO_WORK, ...work }, { person: "/p", written: null }, { submitted: submittedNow, reached: true }).done;
+    const all = { ticked: new Set(["k4-s1", "k4-pk1"]), packs: new Map([["k4-c1", "k4-pk1"]]) };
+    assert.equal(cell(all, false), false, "not submitted");
+    assert.equal(cell(all, true), true);
+    assert.equal(cell({ ...all, ticked: new Set(["k4-s1"]) }, true), false, "the pathway's reading is not ticked");
+    assert.equal(cell({ ...all, ticked: new Set(["k4-s1", "k4-pk2"]) }, true), false, "another pack's reading ticked is not theirs");
+    assert.equal(cell({ ...all, packs: new Map() }, true), false, "no pack yet");
+    assert.equal(cell({ ...all, ticked: new Set(["k4-pk1"]) }, true), false, "the week's reading is not ticked");
+    // Submit anyway: the reflection left empty does not stop a week being done.
+    assert.equal(cell({ ...all, reflections: new Set() }, true), true);
+    // A week with only things to tick is done once they are ticked, and a week with nothing to count is never not done.
+    const ticksOnly = { ...four, writes: false };
+    assert.equal(model.cellOf(ticksOnly, 4, { ...model.NO_WORK, ...all }, { person: "/p", written: null }, { submitted: false, reached: true }).done, true);
+    const nothing = { ...four, writes: false, tasks: [] };
+    assert.equal(model.cellOf(nothing, 4, model.NO_WORK, { person: "/p", written: null }, { submitted: false, reached: true }).done, true);
+  });
+
+  test("the tab: each cell's first line, a week still to come said quietly, and Not done keeps the people behind on a week that has begun", async () => {
+    w.reset(doneSeed());
+    const drawn = await tab("zach");
+    const view = tableOf(drawn);
+    assert.deepEqual(view.columns.map((column) => column.weekNumber), [1, 3, 4]);
+    const chloe = rows(view).find((row) => row.name === "Chloe Nguyen");
+    assert.deepEqual(chloe.cells.map((cell) => [cell.weekNumber, cell.done, cell.reached]), [[1, true, true], [3, true, true], [4, false, false]]);
+    assert.equal(chloe.notDone, false, "week 4 has not begun");
+    assert.deepEqual(cellOf(view, "Farah Hussain", 3).done, false);
+    // Drawn: the first line of each cell, in its own words and tone, and said to a screen reader.
+    assert.match(drawn.html, /aria-label="Week 3, done: Chloe Nguyen’s coursework"><span class="weekDone">Done<\/span>/);
+    assert.match(drawn.html, /aria-label="Week 4, not done: Chloe Nguyen’s coursework"><span class="weekToCome">Not done<\/span>/);
+    assert.match(drawn.html, /aria-label="Week 3, not done: Farah Hussain’s coursework"><span class="weekNotDone">Not done<\/span>/);
+    // Not done: everybody behind on week 1 or week 3, facilitators' own weeks and Tariq's included; never Chloe.
+    const behind = await names({ notdone: "1" });
+    assert.deepEqual(behind, (await names({})).filter((name) => name !== "Chloe Nguyen"));
+    assert.deepEqual(await names({ group: B, notdone: "1" }), ["Farah Hussain", "Kofi Asante", "Rahul Mehta", "Sofia Rossi"]);
+    assert.deepEqual(await names({ group: B, waiting: "1", notdone: "1" }), [], "Chloe waits for feedback and is done");
+    // The filter is a plain link that keeps the others, says when it is on, and when on, turns it off.
+    assert.match(drawn.html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?notdone=1" class="filter filterNotDone">Not done</a>`));
+    const on = await tab("claudia", { group: B, notdone: "1" });
+    assert.match(on.html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?group=${B}" class="filter filterNotDone filterOn" aria-current="page">Not done</a>`));
+    assert.match(on.html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?group=${B}&amp;waiting=1&amp;notdone=1" class="filter filterWaiting">Waiting for feedback</a>`));
+    assert.match(on.html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?notdone=1" class="filter">Everybody</a>`));
+    // Who is behind is never a word anybody wrote.
+    for (const text of ALL_WORDS) assert.ok(!JSON.stringify(view).includes(text) && !drawn.html.includes(text), `the tab holds "${text}"`);
+  });
+
+  test("once week 4 begins Chloe is behind on it, until she picks her pathway, ticks both readings and submits", async () => {
+    w.reset(doneSeed());
+    w.at("2026-11-20T10:00:00Z");
+    let chloe = rows(tableOf(await tab("claudia"))).find((row) => row.name === "Chloe Nguyen");
+    assert.deepEqual(chloe.cells.map((cell) => [cell.weekNumber, cell.done, cell.reached]), [[1, true, true], [3, true, true], [4, false, true]]);
+    assert.ok((await names({ notdone: "1" })).includes("Chloe Nguyen"));
+    // Submitted with the week's reading ticked, but no pathway yet: still not done.
+    w.world.db.seed(`courseProgress/${RUN.agi}__chloe__k4-s1`, tick("chloe", "k4-s1", { weekNumber: 4 }));
+    w.world.db.seed(`courseWeekWork/${RUN.agi}__chloe__w04`, submitted("chloe", 4, new Date("2026-11-20T09:00:00Z")));
+    chloe = rows(tableOf(await tab("claudia"))).find((row) => row.name === "Chloe Nguyen");
+    assert.equal(chloe.cells.find((cell) => cell.weekNumber === 4).done, false);
+    // Her pathway picked and its reading ticked: done, and off the filter.
+    w.world.db.seed(`coursePacksAndCases/${RUN.agi}__chloe__k4-c1`, picked("chloe", "k4-pk1"));
+    w.world.db.seed(`courseProgress/${RUN.agi}__chloe__k4-pk1`, tick("chloe", "k4-pk1", { weekNumber: 4 }));
+    chloe = rows(tableOf(await tab("claudia"))).find((row) => row.name === "Chloe Nguyen");
+    assert.deepEqual([chloe.cells.find((cell) => cell.weekNumber === 4).done, chloe.notDone], [true, false]);
+    assert.ok(!(await names({ notdone: "1" })).includes("Chloe Nguyen"));
+    // A reopened week is not submitted: Chloe is behind again until she submits it again.
+    w.world.db.poke(`courseWeekWork/${RUN.agi}__chloe__w04`, { submittedAt: null, reopenedAt: new Date("2026-11-20T11:00:00Z"), reopenedByUid: "rahul" });
+    assert.ok((await names({ notdone: "1" })).includes("Chloe Nguyen"));
+  });
+
+  test("the words: Done and Not done, sentence case, and never a mark, a grade or a score", () => {
+    assert.deepEqual([words.DONE, words.NOT_DONE], ["Done", "Not done"]);
+    assert.equal(words.cellLinkLabelWords("Chloe Nguyen", 3, false), "Week 3, not done: Chloe Nguyen’s coursework");
+    for (const value of Object.values(words).filter((entry) => typeof entry === "string")) {
+      assert.doesNotMatch(value, /\b(?:marks?|marked|grades?|scores?)\b/i, value);
+    }
   });
 });

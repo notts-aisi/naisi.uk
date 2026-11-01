@@ -25,26 +25,28 @@ import {
 import { ANSWER_NOT_HERE, commentTooLongWords } from "@/lib/courses/writtenAnswerWords";
 import { sendWrittenFeedbackEmail } from "@/lib/email/writtenFeedbackEmail";
 import { exerciseResponseId, isReflectionResponse } from "@/lib/firestore/courseExercises";
-import { normalizeCourse } from "@/lib/firestore/courses";
+import { normalizeCourse, normalizeCourseRun } from "@/lib/firestore/courses";
+import { courseEnrolmentId, normalizeCourseEnrolment } from "@/lib/firestore/courseEnrolments";
+import { workIsReadable } from "@/lib/courses/weekWork/model";
+import { ownLockSource, weekStateIn } from "@/lib/courses/weekWork/own";
 
 /**
- * A REVIEWER ACTING ON ONE PERSON'S WRITTEN ANSWER (boards wk-review,
- * wk-review-phone; Q33, Q34 B):
+ * A REVIEWER GIVING FEEDBACK ON ONE PERSON'S WRITTEN ANSWER (boards
+ * wk-review, wk-review-phone; Q34 B):
  * `POST /api/courses/runs/[runId]/written-answers/[answerId]/review` with
- * `{ weekId, uid, action }`:
- *  - `"open"`: the review page opening the answer. When the caller is one
- *    of the people whose opening locks it (`writtenReviewRole`), it is
- *    stamped opened, once, and its writer cannot change it from then on.
- *    The page asks this by POST because a GET never writes.
- *  - `"reopen"`: "Reopen for edits". Clears the lock and stores who reopened
- *    it and when, which its writer is told on the week page. Not once
- *    feedback has been sent: the feedback is on the answer as it was.
- *  - `"feedback"` with `levels` (one `{ row, level }` for each row of the
- *    course's rubric) and `comment`: the feedback, sent once. Stored with
- *    each level's descriptor as given and who sent it, the answer stamped
- *    opened if it was not, then one short email to the person that
- *    feedback is waiting (transactional; the feedback stays on the site).
- *    A course with no rubric takes the comment alone. Never a mark.
+ * `{ weekId, uid, action: "feedback", levels, comment }`: `levels` is one
+ * `{ row, level }` for each row of the course's rubric. The feedback is sent
+ * once, stored with each level's descriptor as given and who sent it, then
+ * one short email goes to the person that feedback is waiting (transactional;
+ * the feedback stays on the site). A course with no rubric takes the comment
+ * alone. Never a mark.
+ *
+ * ONLY ON WORK THEY MAY READ (privacy v15): the week submitted or locked, or
+ * an answer sent before weeks were submitted (`workIsReadable`). Opening an
+ * answer locks nothing any more, and nor does feedback: the week locks when
+ * it is submitted or its session starts. Reopening is the week's own route
+ * (`/api/courses/runs/[runId]/weeks/[weekId]/reopen`), asked by the same
+ * gate.
  *
  * WHO: the one gate, `writtenReviewRole`, asked before any answer is read.
  * A fellow's answer is their group's facilitators', the programme's lead's
@@ -59,8 +61,7 @@ import { normalizeCourse } from "@/lib/firestore/courses";
 
 const WEEK_ID = /^w(\d{2})$/;
 const MAX_WEEK_NUMBER = 60;
-const ACTIONS = ["open", "reopen", "feedback"] as const;
-type Action = (typeof ACTIONS)[number];
+const ACTIONS = ["feedback"] as const;
 
 /** Thrown out of the transaction to refuse with a status. */
 class ReviewError extends Error {
@@ -118,27 +119,22 @@ export async function POST(
   }
   const uid = typeof body.uid === "string" ? body.uid : "";
   if (!isAddressableId(uid)) return NextResponse.json({ error: "Say whose answer it is." }, { status: 400 });
-  const action = ACTIONS.find((candidate) => candidate === body.action) as Action | undefined;
-  if (!action) {
+  if (!ACTIONS.some((candidate) => candidate === body.action)) {
     return NextResponse.json({ error: `Say what to do: ${ACTIONS.join(", ")}.` }, { status: 400 });
   }
-  let chosen: Array<{ row: unknown; level: unknown }> = [];
-  let comment = "";
-  if (action === "feedback") {
-    if (body.levels !== undefined && !Array.isArray(body.levels)) {
-      return NextResponse.json({ error: "Send the levels as a list of each row and its level." }, { status: 400 });
-    }
-    chosen = ((body.levels as unknown[] | undefined) ?? []).slice(0, 20).map((entry) => {
-      const value = (entry ?? {}) as { row?: unknown; level?: unknown };
-      return { row: value.row, level: value.level };
-    });
-    if (body.comment !== undefined && typeof body.comment !== "string") {
-      return NextResponse.json({ error: "Send the comment as text." }, { status: 400 });
-    }
-    comment = typeof body.comment === "string" ? body.comment.trim() : "";
-    if (comment.length > WRITTEN_ANSWER_LIMITS.commentChars || countWords(comment) > WRITTEN_ANSWER_LIMITS.commentWords) {
-      return NextResponse.json({ error: commentTooLongWords(WRITTEN_ANSWER_LIMITS.commentWords) }, { status: 400 });
-    }
+  if (body.levels !== undefined && !Array.isArray(body.levels)) {
+    return NextResponse.json({ error: "Send the levels as a list of each row and its level." }, { status: 400 });
+  }
+  const chosen: Array<{ row: unknown; level: unknown }> = ((body.levels as unknown[] | undefined) ?? []).slice(0, 20).map((entry) => {
+    const value = (entry ?? {}) as { row?: unknown; level?: unknown };
+    return { row: value.row, level: value.level };
+  });
+  if (body.comment !== undefined && typeof body.comment !== "string") {
+    return NextResponse.json({ error: "Send the comment as text." }, { status: 400 });
+  }
+  const comment = typeof body.comment === "string" ? body.comment.trim() : "";
+  if (comment.length > WRITTEN_ANSWER_LIMITS.commentChars || countWords(comment) > WRITTEN_ANSWER_LIMITS.commentWords) {
+    return NextResponse.json({ error: commentTooLongWords(WRITTEN_ANSWER_LIMITS.commentWords) }, { status: 400 });
   }
 
   // ---- The gate, before any answer is read ---------------------------------
@@ -159,78 +155,50 @@ export async function POST(
 
   // ---- The rubric, for feedback: the course's, as it stands -----------------
   let levels: GivenLevel[] = [];
-  if (action === "feedback") {
-    const courseId = typeof runData.courseId === "string" ? runData.courseId : "";
-    const courseSnap = courseId && isAddressableId(courseId) ? await db.collection("courses").doc(courseId).get() : null;
-    const rubric = courseSnap?.exists ? rubricOf(normalizeCourse(courseSnap.id, courseSnap.data() ?? {})) : null;
-    if (rubric) {
-      const given = givenLevelsOf(rubric, chosen);
-      if (!given.ok) return NextResponse.json({ error: given.error }, { status: 409 });
-      levels = given.levels;
-    } else {
-      if (chosen.length > 0) {
-        return NextResponse.json({ error: "The rubric changed while you were giving feedback. Reload the page." }, { status: 409 });
-      }
-      if (!comment) {
-        return NextResponse.json({ error: "Write a short comment: this course has no rubric, so the comment is the feedback." }, { status: 400 });
-      }
+  const courseId = typeof runData.courseId === "string" ? runData.courseId : "";
+  const courseSnap = courseId && isAddressableId(courseId) ? await db.collection("courses").doc(courseId).get() : null;
+  const rubric = courseSnap?.exists ? rubricOf(normalizeCourse(courseSnap.id, courseSnap.data() ?? {})) : null;
+  if (rubric) {
+    const given = givenLevelsOf(rubric, chosen);
+    if (!given.ok) return NextResponse.json({ error: given.error }, { status: 409 });
+    levels = given.levels;
+  } else {
+    if (chosen.length > 0) {
+      return NextResponse.json({ error: "The rubric changed while you were giving feedback. Reload the page." }, { status: 409 });
+    }
+    if (!comment) {
+      return NextResponse.json({ error: "Write a short comment: this course has no rubric, so the comment is the feedback." }, { status: 400 });
     }
   }
 
   const ref = db.collection("courseExerciseResponses").doc(exerciseResponseId(runId, uid, weekId, answerId));
+  // Whose sessions lock the person's week, for whether their answer may be read.
+  const ownerSeat = await db.collection("courseEnrolments").doc(courseEnrolmentId(runId, uid)).get();
+  const source = ownLockSource(
+    normalizeCourseRun(runSnap.id, runData),
+    liveGroups,
+    uid,
+    owner.placedGroupId && ownerSeat.exists ? normalizeCourseEnrolment(ownerSeat.id, ownerSeat.data() ?? {}) : null,
+  );
   let after: Record<string, unknown>;
   try {
     after = await db.runTransaction(async (tx) => {
-      const snap = await tx.get(ref);
+      const now = new Date();
+      const [snap, standing] = await Promise.all([tx.get(ref), weekStateIn(tx, db, { runId, uid, weekId, weekNumber, source, now })]);
       const data = snap.exists ? ((snap.data() ?? {}) as Record<string, unknown>) : null;
       if (!data || isReflectionResponse(data) || !isWordCountedAnswer(data)) {
-        throw new ReviewError("That answer hasn’t been sent yet.", 409);
+        throw new ReviewError("That answer hasn’t been submitted yet.", 409);
       }
       const record = readWrittenAnswer(data);
-      if (!record.firstSentAt) throw new ReviewError("That answer hasn’t been sent yet.", 409);
-      const now = new Date();
-      const write: Record<string, unknown> = {};
-      const next: Record<string, unknown> = { ...data };
-
-      if (action === "open") {
-        if (role.locksOnOpen && !record.openedAt && !record.feedback) {
-          write.openedAt = FieldValue.serverTimestamp();
-          write.openedByUid = actor.uid;
-          next.openedAt = now;
-          next.openedByUid = actor.uid;
-        }
-      } else if (action === "reopen") {
-        if (record.feedback) {
-          throw new ReviewError("Feedback has been sent on this answer, so it stays as it was sent.", 409);
-        }
-        if (record.openedAt) {
-          write.openedAt = FieldValue.delete();
-          write.openedByUid = FieldValue.delete();
-          write.reopenedAt = FieldValue.serverTimestamp();
-          write.reopenedByUid = actor.uid;
-          delete next.openedAt;
-          delete next.openedByUid;
-          next.reopenedAt = now;
-          next.reopenedByUid = actor.uid;
-        }
-      } else {
-        if (record.feedback) throw new ReviewError("Feedback on this answer has already been sent.", 409);
-        const feedback = { levels, comment, byUid: actor.uid, sentAt: FieldValue.serverTimestamp() };
-        write.feedback = feedback;
-        next.feedback = { ...feedback, sentAt: now };
-        // Feedback is on the answer as it stands: it is opened, whoever sends it.
-        if (!record.openedAt) {
-          write.openedAt = FieldValue.serverTimestamp();
-          write.openedByUid = actor.uid;
-          next.openedAt = now;
-          next.openedByUid = actor.uid;
-        }
+      // Feedback is on work its readers may read: submitted, locked, or sent before weeks were submitted.
+      if (record.words === 0 || !workIsReadable(standing.state, record)) {
+        throw new ReviewError("That answer hasn’t been submitted yet.", 409);
       }
-      if (Object.keys(write).length > 0) {
-        write.updatedAt = FieldValue.serverTimestamp();
-        tx.update(ref, write);
-      }
-      return next;
+      if (record.feedback) throw new ReviewError("Feedback on this answer has already been sent.", 409);
+      const feedback = { levels, comment, byUid: actor.uid, sentAt: FieldValue.serverTimestamp() };
+      // The row's `updatedAt` stays its writer's last save.
+      tx.update(ref, { feedback });
+      return { ...data, feedback: { ...feedback, sentAt: now } };
     });
   } catch (err) {
     if (err instanceof ReviewError) return NextResponse.json({ error: err.message }, { status: err.status });
@@ -255,31 +223,29 @@ export async function POST(
     },
   };
 
-  if (action === "feedback") {
-    // The email that feedback is waiting, to the address on the person's own
-    // account, once the feedback is saved. A message that does not go undoes
-    // nothing: the page says it did not go.
-    const [ownerSnap, actorSnap] = await Promise.all([
-      db.collection("users").doc(uid).get(),
-      db.collection("users").doc(actor.uid).get(),
-    ]);
-    const to = ownerSnap.exists ? (ownerSnap.data() ?? {}).email : null;
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").trim().replace(/\/+$/, "");
-    const part = partsOf(isBlockWeek(week) ? week.blocks : []).find((candidate) => candidate.id === answer.partId) ?? null;
-    result.emailed =
-      typeof to === "string" && to && appUrl
-        ? await sendWrittenFeedbackEmail({
-            to,
-            uid,
-            runId,
-            appUrl,
-            facts: {
-              weekNumber,
-              byFirstName: actorSnap.exists ? firstNameOfUser(actorSnap.data() ?? {}) : "",
-              answerName: answerNameOf(part?.title ?? ""),
-            },
-          })
-        : false;
-  }
+  // The email that feedback is waiting, to the address on the person's own
+  // account, once the feedback is saved. A message that does not go undoes
+  // nothing: the page says it did not go.
+  const [ownerSnap, actorSnap] = await Promise.all([
+    db.collection("users").doc(uid).get(),
+    db.collection("users").doc(actor.uid).get(),
+  ]);
+  const to = ownerSnap.exists ? (ownerSnap.data() ?? {}).email : null;
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").trim().replace(/\/+$/, "");
+  const part = partsOf(isBlockWeek(week) ? week.blocks : []).find((candidate) => candidate.id === answer.partId) ?? null;
+  result.emailed =
+    typeof to === "string" && to && appUrl
+      ? await sendWrittenFeedbackEmail({
+          to,
+          uid,
+          runId,
+          appUrl,
+          facts: {
+            weekNumber,
+            byFirstName: actorSnap.exists ? firstNameOfUser(actorSnap.data() ?? {}) : "",
+            answerName: answerNameOf(part?.title ?? ""),
+          },
+        })
+      : false;
   return NextResponse.json(result);
 }

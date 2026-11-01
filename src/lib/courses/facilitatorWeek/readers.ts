@@ -9,6 +9,8 @@ import { isBlockWeek, type FillInBlock, type WeekBlock } from "@/lib/courses/wee
 import { weekFillInBoxes } from "@/lib/courses/weekBlocks/reader";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
 import { answerState, instantOf, isWordCountedAnswer, readWrittenAnswer, type AnswerState } from "@/lib/courses/writtenAnswers/model";
+import { workIsReadable } from "@/lib/courses/weekWork/model";
+import { loadRunWeekStates, type RunWeekStates } from "@/lib/courses/weekWork/readers";
 import { workKey, type PersonAnswerWrite, type PersonWork, type PersonWrites } from "@/lib/courses/coursework/model";
 import { isFillInResponse, isOwnBoxResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import type { SessionUser } from "@/lib/firebase/session";
@@ -559,20 +561,30 @@ export async function loadNamedReflections(
  *    and written answers, told apart by kind. For everybody, counts and
  *    states only; the words (and when each was written) only for `wordsOf`,
  *    the one person whose page is being drawn.
+ *  - A WRITTEN ANSWER (privacy v15) only as its readers may read it
+ *    (`workIsReadable`, from where its week stands, `loadRunWeekStates`):
+ *    its words, and its count, only once the week is submitted or locked, or
+ *    the answer was sent before weeks were submitted. Until then it is
+ *    started or not, and waits for nobody's feedback. Reflections and boxes
+ *    are read as they are typed, as v15 says.
  *  - From the progress store, who ticked which item, through a projection
  *    with no rating, no comment and no private note.
+ *  - Where each person's every week stands (`states`), which the tab's one
+ *    meaning of done asks too.
  *
  * Survey answers live elsewhere and are never read here.
  */
 export async function readRunCoursework(
   db: Firestore,
-  runId: string,
+  on: { run: CourseRunDoc; liveGroups: readonly CourseGroupDoc[]; now: Date },
   wordsOf: string | null,
-): Promise<{ work: Map<string, PersonWork>; writes: PersonWrites }> {
-  const [responses, progress] = await Promise.all([
+): Promise<{ work: Map<string, PersonWork>; writes: PersonWrites; states: RunWeekStates }> {
+  const runId = on.run.id;
+  const [responses, progress, states] = await Promise.all([
     db.collection("courseExerciseResponses").where("runId", "==", runId).get(),
     // The projection is the boundary: who, which item and whether it is ticked.
     db.collection("courseProgress").where("runId", "==", runId).select("uid", "itemId", "completed").get(),
+    loadRunWeekStates(db, { run: on.run, liveGroups: on.liveGroups, now: on.now }),
   ]);
   const work = new Map<string, { reflections: Set<string>; boxes: Set<string>; answers: Map<string, AnswerState>; ticked: Set<string> }>();
   const of = (uid: string) => {
@@ -608,16 +620,28 @@ export async function readRunCoursework(
     } else if (!isOwnBoxResponse(data) && isWordCountedAnswer(data)) {
       // A block week's written answer; the summer's exercise answers have no words count.
       const record = readWrittenAnswer(data);
-      const state = answerState(record);
+      // Its words, and whether it waits for feedback, only once its readers may read it.
+      const readable = workIsReadable(states.stateOf(uid, weekNumber), record);
+      const state: AnswerState = !readable
+        ? record.words > 0
+          ? "draft"
+          : "not-started"
+        : record.feedback
+          ? "feedback"
+          : record.words > 0
+            ? answerState(record) === "draft"
+              ? "sent"
+              : answerState(record)
+            : "not-started";
       of(uid).answers.set(key, state);
       if (uid === wordsOf) {
         answers.set(key, {
           state,
-          words: record.words,
-          text: record.text,
-          boxes: record.boxes,
+          words: readable ? record.words : 0,
+          text: readable ? record.text : "",
+          boxes: readable ? record.boxes : null,
           sentAt: record.firstSentAt,
-          feedback: record.feedback,
+          feedback: readable ? record.feedback : null,
         });
       }
     }
@@ -630,7 +654,7 @@ export async function readRunCoursework(
     of(uid).ticked.add(itemId);
     if (uid === wordsOf) ticked.add(itemId);
   }
-  return { work, writes: { reflections, boxes, answers, ticked } };
+  return { work, writes: { reflections, boxes, answers, ticked }, states };
 }
 
 /**

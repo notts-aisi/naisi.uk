@@ -23,24 +23,37 @@ import {
 import { exerciseResponseId, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import {
-  ANSWER_EMPTY_TO_SEND,
   ANSWER_LOCKED,
   ANSWER_NOT_HERE,
   ANSWER_NOT_SAVED,
+  ANSWER_SEND_RELOAD,
   ANSWER_SENT_CANNOT_EMPTY,
   ANSWER_TOO_LONG_TO_STORE,
   overLimitWords,
 } from "@/lib/courses/writtenAnswerWords";
 import { firstWrittenFor } from "@/lib/legal/courseworkUseStamp";
+import { instantOf } from "@/lib/courses/writtenAnswers/model";
+import {
+  WeekShutError,
+  assertWeekTakesWork,
+  logSave,
+  logWork,
+  ownLockSource,
+  readRunForLock,
+  weekStateIn,
+} from "@/lib/courses/weekWork/own";
+import { WEEK_SHUT } from "@/lib/courses/weekWork/words";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
 
 /**
- * A PERSON WRITING AND SENDING THEIR OWN WRITTEN ANSWER (boards wk-week,
- * wk-week-phone; Q33): `PUT /api/courses/runs/[runId]/written-answers/[answerId]`
- * with `{ weekId, text }` (an answer of one box) or `{ weekId, boxes }` (an
- * answer in labelled boxes, box id to words), and `send: true` to send it.
- * The box saves as they type; this route is the only writer of what they
- * wrote.
+ * A PERSON WRITING THEIR OWN WRITTEN ANSWER (boards wk-week, wk-week-phone;
+ * Q33): `PUT /api/courses/runs/[runId]/written-answers/[answerId]` with
+ * `{ weekId, text }` (an answer of one box) or `{ weekId, boxes }` (an answer
+ * in labelled boxes, box id to words). The box saves as they type; this route
+ * is the only writer of what they wrote. It is sent by submitting the week
+ * (`../../weeks/[weekId]/submit`), never here: a body still asking to send
+ * comes from a page opened before weeks were submitted, and is told to
+ * reload.
  *
  * WHO MAY WRITE, always their OWN answer (the row's id is built from the
  * caller's own uid; nothing here can address anybody else's): somebody taking
@@ -55,15 +68,19 @@ import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exerci
  * route's choice), found by the one reader of a week's content. A week
  * written before blocks has none here: its exercises keep their own route.
  *
- * SENDING. The first send stores the time once (`firstSentAt`, and
- * `submittedAt` with it) and it never moves. It needs something written,
- * and the answer within its word range's top, which is a limit (the guides:
- * "Word limits are limits, not targets"); the bottom is not enforced. After
- * the first send the answer stays sent and still saves as they type, each
- * change stamping `editedAt`, held to the same limit, UNTIL ONE OF ITS
- * REVIEWERS OPENS IT on the review page: from then on every write is refused
- * (409), checked inside the transaction that writes. "Reopen for edits"
- * hands it back.
+ * THE LOCK is the week's (`src/lib/courses/weekWork/`): once the week is
+ * submitted, or its session has started, every write is refused (409) until
+ * somebody running the group reopens it, asked inside the transaction that
+ * writes. An answer one of its reviewers opened before weeks were submitted
+ * (`openedAt`) stays locked by that until the week is reopened, which clears
+ * it. An answer sent before weeks were submitted (`firstSentAt`) still saves
+ * as they type, each change stamping `editedAt`, held to its word range's
+ * top, which is a limit (the guides: "Word limits are limits, not targets"),
+ * and can no longer be emptied. While it is a draft its length is checked
+ * only when the week is submitted.
+ *
+ * THE LOG: the first save of a writing spell, and an emptied answer, go in
+ * the work log (`courseWorkLog`).
  *
  * Counted in words, stored with `words`. Plain text, drawn as text nodes.
  */
@@ -115,10 +132,10 @@ export async function PUT(
   if (weekNumber < 1 || weekNumber > MAX_WEEK_NUMBER) {
     return NextResponse.json({ error: 'Say which week the answer is on, like "w03".' }, { status: 400 });
   }
-  if (body.send !== undefined && typeof body.send !== "boolean") {
-    return NextResponse.json({ error: "Say whether to send it as true or false." }, { status: 400 });
+  // Sending is submitting the week now: a page that still asks to send is one opened before that.
+  if (body.send !== undefined && body.send !== false) {
+    return NextResponse.json({ error: ANSWER_SEND_RELOAD }, { status: 400 });
   }
-  const send = body.send === true;
   const sentText = body.text !== undefined;
   const sentBoxes = body.boxes !== undefined;
   if (sentText === sentBoxes) {
@@ -149,9 +166,10 @@ export async function PUT(
   }
 
   // ---- Who may write: their own answer, on a run they take part in ----------
-  const [enrolSnap, groupSnap] = await Promise.all([
+  const [enrolSnap, groupSnap, run] = await Promise.all([
     db.collection("courseEnrolments").doc(courseEnrolmentId(runId, actor.uid)).get(),
     db.collection("courseGroups").where("runId", "==", runId).limit(MAX_GROUPS).get(),
+    readRunForLock(db, runId),
   ]);
   const enrolment = enrolSnap.exists ? normalizeCourseEnrolment(enrolSnap.id, enrolSnap.data() ?? {}) : null;
   const takesPart =
@@ -195,11 +213,20 @@ export async function PUT(
 
   const id = exerciseResponseId(runId, actor.uid, weekId, answerId);
   const ref = db.collection("courseExerciseResponses").doc(id);
+  // Whose sessions lock this week for them: their own placement's group, or the groups they facilitate.
+  const source = ownLockSource(run, liveGroups, actor.uid, takesPart ? enrolment : null);
+  const clock = new Date();
+  const logged = { runId, uid: actor.uid, weekId, weekNumber, itemKind: "writtenAnswer" as const, itemId: answerId };
 
   let stored: Record<string, unknown> | null;
   try {
     stored = await db.runTransaction(async (tx) => {
-      const snap = await tx.get(ref);
+      const [snap, week] = await Promise.all([
+        tx.get(ref),
+        weekStateIn(tx, db, { runId, uid: actor.uid, weekId, weekNumber, source, now: clock }),
+      ]);
+      // THE LOCK: a week submitted or locked takes nothing more until it is reopened.
+      assertWeekTakesWork(week.state);
       const prior = snap.exists ? ((snap.data() ?? {}) as Record<string, unknown>) : null;
       // A reflection's row, or an answer counted some other way, is never written
       // over: every row this route writes carries its count of words.
@@ -207,22 +234,24 @@ export async function PUT(
         throw new AnswerError("That box holds something else. Reload the page.", 409);
       }
       const record = prior ? readWrittenAnswer(prior) : null;
-      // THE LOCK: opened by one of its reviewers, or given feedback.
-      if (record && (record.openedAt || record.feedback)) throw new AnswerError(ANSWER_LOCKED, 409);
+      // Opened by one of its reviewers before weeks were submitted: locked until the week is reopened.
+      if (record?.openedAt) throw new AnswerError(ANSWER_LOCKED, 409);
       const alreadySent = record?.firstSentAt != null;
-      const sending = send && !alreadySent;
 
       if (words === 0) {
         if (alreadySent) throw new AnswerError(ANSWER_SENT_CANNOT_EMPTY, 400);
-        if (send) throw new AnswerError(ANSWER_EMPTY_TO_SEND, 400);
         // Nothing written is nothing stored.
-        if (prior) tx.delete(ref);
+        if (prior) {
+          tx.delete(ref);
+          logWork(tx, db, { ...logged, kind: "cleared" });
+        }
         return null;
       }
-      // The top of the range is a limit for what is sent, and for every change to it after.
-      if ((sending || alreadySent) && limit !== null && words > limit) {
-        throw new AnswerError(overLimitWords(words, limit, alreadySent), 400);
+      // The top of the range is a limit for what was sent, and for every change to it after.
+      if (alreadySent && limit !== null && words > limit) {
+        throw new AnswerError(overLimitWords(words, limit, true), 400);
       }
+      logSave(tx, db, { ...logged, lastSavedAt: prior ? instantOf(prior.updatedAt) : null, now: clock });
 
       const now = new Date();
       const write: Record<string, unknown> = {
@@ -246,11 +275,7 @@ export async function PUT(
         write.text = text;
         if (prior && "boxes" in prior) write.boxes = FieldValue.delete();
       }
-      if (sending) {
-        // Stored once and never moved: the time it was first sent.
-        write.firstSentAt = FieldValue.serverTimestamp();
-        write.submittedAt = FieldValue.serverTimestamp();
-      } else if (alreadySent) {
+      if (alreadySent) {
         const changed = boxes
           ? JSON.stringify(record?.boxes ?? {}) !== JSON.stringify(boxes)
           : (record?.text ?? "") !== text;
@@ -268,16 +293,13 @@ export async function PUT(
       const after: Record<string, unknown> = { ...(prior ?? {}), ...write, updatedAt: now };
       if (boxes) delete after.text;
       else delete after.boxes;
-      if (sending) {
-        after.firstSentAt = now;
-        after.submittedAt = now;
-      }
       if (write.editedAt) after.editedAt = now;
-      if (!sending && !alreadySent && !prior) after.submittedAt = null;
+      if (!alreadySent && !prior) after.submittedAt = null;
       return after;
     });
   } catch (err) {
     if (err instanceof AnswerError) return NextResponse.json({ error: err.message }, { status: err.status });
+    if (err instanceof WeekShutError) return NextResponse.json({ error: WEEK_SHUT }, { status: 409 });
     console.error("[courses written answer] write failed", runId, weekId, answerId, err);
     return NextResponse.json({ error: ANSWER_NOT_SAVED }, { status: 500 });
   }

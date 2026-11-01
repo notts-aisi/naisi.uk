@@ -54,6 +54,22 @@ const COMPARATOR_HOME = "src/lib/firestore/courseGroups.ts";
  */
 const READS_WITHOUT_A_LIST = new Map([
   [
+    "src/app/api/courses/runs/[runId]/ticks/[itemId]/route.ts",
+    {
+      why:
+        "The tick route reads the run's groups only to know whether the caller facilitates one and which group's copy of " +
+        "the week they read, and whose sessions lock it: a yes or no and maps by id, never a list of groups on any page.",
+    },
+  ],
+  [
+    "src/lib/courses/weekWork/own.ts",
+    {
+      why:
+        "Who takes part in their own week, for Submit: the run's groups read only to know whether the caller facilitates one " +
+        "and whose sessions lock their week, a yes or no and maps by id, never a list of groups on any page.",
+    },
+  ],
+  [
     "src/lib/surveys/personFacts.ts",
     {
       why:

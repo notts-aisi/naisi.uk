@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  doc,
-  getDoc,
-  serverTimestamp,
-  setDoc,
-  type DocumentReference,
-} from "firebase/firestore";
+import { doc, getDoc, setDoc, type DocumentReference } from "firebase/firestore";
 import { getClientDb } from "@/lib/firebase/client";
 import { routeRefusalOf } from "./routeRefusal";
 import {
@@ -15,19 +9,24 @@ import {
   type CourseProgressDoc,
   type ProgressItemKind,
 } from "@/lib/firestore/courseProgress";
+import { weekDocId } from "@/lib/firestore/courses";
 
 /**
- * The member write path for `courseProgress` — check-off, rating, comments.
+ * The member's writes on `courseProgress`: ticks, ratings, comments and
+ * private notes.
  *
- * This is THE one client-direct write in the courses feature (see the
- * `courseProgress.ts` header and the matching firestore.rules block): the
- * deterministic doc id `runId + '__' + uid + '__' + itemId` makes own-row-only
- * writes structural, so the rules express the whole invariant and no route has
- * to stand in front of the check-off hot path. Everything else
- * member-state-shaped (applications, enrolments, exercise responses,
- * attendance) is routes-only.
+ * A TICK goes through a route (`PUT /api/courses/runs/[runId]/ticks/[itemId]`,
+ * `tickThroughRoute`), the only writer of `completed` and `completedAt`: a
+ * week written as blocks locks when it is submitted or its group's session
+ * starts, which no rule in `firestore.rules` can know, and an untick is
+ * recorded there with its time. The rules refuse a browser write that sets or
+ * changes either field.
  *
- * Two properties both mutations below share, and neither is optional:
+ * A RATING, A COMMENT OR A PRIVATE NOTE is still THE one client-direct write
+ * in the courses feature (see the `courseProgress.ts` header and the matching
+ * firestore.rules block): the deterministic doc id `runId + '__' + uid + '__'
+ * + itemId` makes own-row-only writes structural. Three properties it keeps,
+ * none optional:
  *
  *  - **`buildProgressWrite` builds the payload, always.** It is the one place
  *    `hasPublicComment` is derived from the trimmed comment, and the rules pin
@@ -38,9 +37,12 @@ import {
  *    partial merge would be checked against a document the client never
  *    assembled. Full-document writes are what make the shape check meaningful
  *    — and are why every field the caller wants to keep must be passed in.
+ *  - **The completion and the moderation stamp are carried VERBATIM, read
+ *    back off the live document** (`storedCarry`): the rules pin all four
+ *    fields to what is stored, so a write that rounds or drops one is refused.
  */
 
-/** The row a mutation addresses, plus what is already stored there. */
+/** The row a save addresses, plus what is already stored there. */
 type ProgressTarget = {
   runId: string;
   uid: string;
@@ -49,15 +51,10 @@ type ProgressTarget = {
   itemId: string;
   /**
    * The row as last read (`null` before the member has ever touched the item).
-   * Load-bearing: these are full-document writes, so anything absent from
-   * `current` and not passed explicitly is GONE after the write.
+   * The panel reads its rating and comments from it; the completion and the
+   * moderation stamp are read again off the live document.
    */
   current: CourseProgressDoc | null;
-};
-
-export type ToggleProgressArgs = ProgressTarget & {
-  /** The state being moved to, not the state it is in. */
-  next: boolean;
 };
 
 export type SaveReflectionArgs = ProgressTarget & {
@@ -73,139 +70,78 @@ export type SaveReflectionArgs = ProgressTarget & {
   privateNote?: string;
 };
 
-/** What `buildProgressWrite` needs beyond the address. */
-type ProgressFields = {
-  completed: boolean;
-  completedAt?: unknown;
-  rating?: number;
-  publicComment?: string;
-  privateNote?: string;
-};
-
-type ModerationCarry = { moderatedByUid?: string; moderatedAt?: unknown };
+type StoredCarry = { completed: boolean; completedAt?: unknown; moderatedByUid?: string; moderatedAt?: unknown };
 
 /**
- * The moderation stamp, carried through VERBATIM — the rules pin both fields
- * to their prior values, so dropping or rounding either fails the write.
+ * What a rating or a comment carries through VERBATIM from the live
+ * document: whether the item is ticked and when, and the moderation stamp.
+ * The rules pin all four to their stored values, so dropping or rounding any
+ * of them fails the write.
  *
  * Read back off the live document rather than taken from the normalised row:
  * `normalizeCourseProgress` hands back a JS `Date`, which is millisecond
  * precision, while a server timestamp carries microseconds. Re-writing the
- * normalised value would round it and be DENIED. The extra read only fires on
- * a row that has actually been moderated, which is rare by construction.
+ * normalised value would round it and be DENIED. And the listener's row may
+ * not have caught up with a tick the route has just made, so whether the
+ * item is ticked is read here too, never assumed.
  */
-async function moderationCarry(
-  ref: DocumentReference,
-  current: CourseProgressDoc | null,
-): Promise<ModerationCarry> {
-  if (!current?.moderatedByUid) return {};
+async function storedCarry(ref: DocumentReference): Promise<StoredCarry> {
   const data = (await getDoc(ref)).data();
+  const carry: StoredCarry = { completed: data?.completed === true };
+  if (carry.completed && data?.completedAt !== undefined) carry.completedAt = data.completedAt;
   const moderatedByUid = data?.moderatedByUid;
-  if (typeof moderatedByUid !== "string" || !moderatedByUid) return {};
-  return data?.moderatedAt === undefined
-    ? { moderatedByUid }
-    : { moderatedByUid, moderatedAt: data.moderatedAt };
+  if (typeof moderatedByUid === "string" && moderatedByUid) {
+    carry.moderatedByUid = moderatedByUid;
+    if (data?.moderatedAt !== undefined) carry.moderatedAt = data.moderatedAt;
+  }
+  return carry;
 }
 
-async function commitProgress(
-  target: ProgressTarget,
-  fields: ProgressFields,
-): Promise<void> {
-  const ref = doc(
-    getClientDb(),
-    "courseProgress",
-    courseProgressId(target.runId, target.uid, target.itemId),
-  );
-  const moderation = await moderationCarry(ref, target.current);
+/**
+ * Save the reflection panel: star rating, cohort-visible comment, private
+ * note. Whether the item is ticked, and when, is carried through exactly as
+ * stored: editing a comment three weeks later never rewrites when the
+ * material was finished, and never ticks or unticks it.
+ *
+ * Rejects on a denied or failed write; the panel says so.
+ */
+export async function saveProgressReflection(args: SaveReflectionArgs): Promise<void> {
+  const ref = doc(getClientDb(), "courseProgress", courseProgressId(args.runId, args.uid, args.itemId));
+  const carry = await storedCarry(ref);
   await setDoc(
     ref,
     buildProgressWrite({
-      runId: target.runId,
-      uid: target.uid,
-      weekNumber: target.weekNumber,
-      itemKind: target.itemKind,
-      itemId: target.itemId,
-      ...fields,
-      ...moderation,
+      runId: args.runId,
+      uid: args.uid,
+      weekNumber: args.weekNumber,
+      itemKind: args.itemKind,
+      itemId: args.itemId,
+      completed: carry.completed,
+      completedAt: carry.completedAt,
+      rating: args.rating,
+      publicComment: args.publicComment,
+      privateNote: args.privateNote,
+      moderatedByUid: carry.moderatedByUid,
+      moderatedAt: carry.moderatedAt,
     }),
   );
 }
 
 /**
- * Check an item off, or un-check it. The rating and both comment fields are
- * carried across from `current` — a check-off must never cost someone the
- * reflection they wrote last week.
- *
- * `completedAt` is the client SDK's `serverTimestamp()` sentinel and only ever
- * accompanies a completed row; `buildProgressWrite` drops it on the way back
- * down, so un-checking removes the instant rather than leaving a stale one.
- * Un-checking then re-checking therefore re-stamps, which is correct: it is a
- * new completion.
- *
- * Rejects on a denied or failed write — the row is the caller's to revert
- * (`MaterialRow` flips optimistically and reverts on the rejection).
- */
-export async function toggleProgressItem(args: ToggleProgressArgs): Promise<void> {
-  await commitProgress(args, {
-    completed: args.next,
-    completedAt: args.next ? serverTimestamp() : undefined,
-    rating: args.current?.rating,
-    publicComment: args.current?.publicComment,
-    privateNote: args.current?.privateNote,
-  });
-}
-
-/**
- * Save the reflection panel: star rating, cohort-visible comment, private note.
- *
- * Completion is preserved exactly as stored — `completedAt` is passed back as
- * the Date it already is rather than re-stamped, so editing a comment three
- * weeks later doesn't rewrite when the material was finished. (The rules only
- * require `completedAt is timestamp`; they don't pin it, so the round-trip
- * through `Date` is safe here in a way the moderation stamp is not.)
- *
- * THE PENDING-SENTINEL WINDOW is the exception. The check-off writes
- * `completedAt` as a `serverTimestamp()` sentinel, and until the server's value
- * comes back down the listener's row reads `completed: true` with NO
- * `completedAt` (the local snapshot has no value to normalise yet). That window
- * is exactly when the panel is open — the choreography opens it on check-off —
- * so passing the gap straight through would make `buildProgressWrite` omit the
- * field and this full-document write would DROP the completion instant. A fresh
- * sentinel re-stamps it instead: the same instant to within the round trip, and
- * the only alternative is losing it.
- */
-export async function saveProgressReflection(
-  args: SaveReflectionArgs,
-): Promise<void> {
-  const completed = args.current?.completed === true;
-  await commitProgress(args, {
-    completed,
-    completedAt: completed
-      ? (args.current?.completedAt ?? serverTimestamp())
-      : undefined,
-    rating: args.rating,
-    publicComment: args.publicComment,
-    privateNote: args.privateNote,
-  });
-}
-
-/**
- * Tick an item of week 1 off, or untick it, BEFORE GROUPS GO OUT (Q35 B):
- * somebody holding a place whom Publish has not told yet has no seat the
- * rules above can see, so their tick goes through week 1's door
- * (`PUT /api/courses/runs/[runId]/week-one/ticks/[itemId]`), which asks the
- * one answer and writes the same row this module would. The row comes back
- * through the same live listener. Rejects with a `RouteRefusal` carrying the
+ * Tick an item of a week off, or untick it, through the tick route, which
+ * writes only the caller's own row, refuses a week that is submitted or
+ * locked, and records the tick or the untick with its time. The row comes
+ * back through the live listener. Rejects with a `RouteRefusal` carrying the
  * route's own sentence when it refuses, and with what `fetch` threw when no
  * answer came back, so the page can tell the two apart.
  */
-export async function tickWeekOneBeforeGroups(args: { runId: string; itemId: string; next: boolean }): Promise<void> {
+export async function tickThroughRoute(args: { runId: string; weekNumber: number; itemId: string; next: boolean }): Promise<void> {
   const res = await fetch(
-    `/api/courses/runs/${encodeURIComponent(args.runId)}/week-one/ticks/${encodeURIComponent(args.itemId)}`,
+    `/api/courses/runs/${encodeURIComponent(args.runId)}/ticks/${encodeURIComponent(args.itemId)}`,
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ completed: args.next }),
+      body: JSON.stringify({ weekId: weekDocId(args.weekNumber), completed: args.next }),
     },
   );
   if (!res.ok) throw (await routeRefusalOf(res)) ?? new Error("That tick didn’t save.");

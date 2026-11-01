@@ -1188,6 +1188,57 @@
   color: var(--color-text-muted);
 }
 
+/* The week's column: where each person's week stands, the count beside it,
+   and Reopen. A status colour always comes with its word. Capped, so a
+   submitted week's pill, its count and Reopen wrap inside the cell rather
+   than widen the column until the names break mid-word. */
+.wkWeekCell {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  min-width: 0;
+  max-width: 15rem;
+}
+
+.wkWeekDone,
+.wkWeekPartly,
+.wkWeekNone {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.wkWeekDone {
+  background: var(--color-success-soft);
+  color: var(--color-ok);
+}
+
+.wkWeekPartly {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.wkWeekNone {
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+}
+
+.wkWeekDetail {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.wkLockNote {
+  white-space: nowrap;
+}
+
 .wkPerson {
   display: flex;
   align-items: center;
@@ -1195,10 +1246,12 @@
   min-width: 0;
 }
 
+/* `break-word`, not `anywhere`: a name breaks between its words when the
+   table is tight, and inside a word only when one word cannot fit at all. */
 .wkPersonName {
   min-width: 0;
   font-weight: 600;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* "Facilitator", beside a facilitator's own row: their coursework, as theirs. */

@@ -136,6 +136,12 @@ export async function makeMemberPagesWorld(key = "__memberPages", { recordTickRo
     toasts: [],
     tickRows: [],
   };
+  // A tick goes through the tick route: the request is recorded where it
+  // would have gone, as the browser SDK's writes are, and answered as saved.
+  globalThis.fetch = async (url, init = {}) => {
+    ui.writes.push({ path: String(url), method: init.method ?? "GET", data: init.body ? JSON.parse(init.body) : null });
+    return { ok: true, status: 200, json: async () => ({ ok: true }) };
+  };
   const handle = `globalThis[${JSON.stringify(key)}].ui`;
   const quiet = (name) => `export default function ${name}() { return ${handle}.h('span', { 'data-stub': '${name}' }, '[${name}]'); }`;
   const useWeekStub =

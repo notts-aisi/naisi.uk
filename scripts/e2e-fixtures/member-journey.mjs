@@ -643,6 +643,10 @@ async function countRows(state) {
   counts.courseProgress = (
     await fixtureQuery("courseProgress").where("runId", "==", runIdValue).get()
   ).size;
+  // A tick goes through the tick route, which logs it.
+  counts.courseWorkLog = (
+    await fixtureQuery("courseWorkLog").where("runId", "==", runIdValue).get()
+  ).size;
   counts.courseAudit = (
     await fixtureQuery("courseAudit").where("runId", "==", runIdValue).get()
   ).size;
@@ -777,6 +781,7 @@ async function teardown(state) {
   }
   await deleteQuery(fixtureQuery("courseEnrolments").where("runId", "==", runIdValue));
   await deleteQuery(fixtureQuery("courseProgress").where("runId", "==", runIdValue));
+  await deleteQuery(fixtureQuery("courseWorkLog").where("runId", "==", runIdValue));
   await deleteQuery(fixtureQuery("courseAudit").where("runId", "==", runIdValue));
   await deleteQuery(fixtureQuery("tasks").where("sourceRef.cohortId", "==", runIdValue));
   await deleteQuery(fixtureQuery("courseGroups").where("runId", "==", runIdValue));

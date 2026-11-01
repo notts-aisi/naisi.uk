@@ -12,9 +12,10 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * One programme's Coursework tab (Zach, Fri 30 Oct): a row per person holding
  * a place on it, in a group or not yet, and per facilitator of its run's
  * groups, marked as facilitating; a column per week of the run written as
- * blocks; a cell in counts, never anybody's words. A name opens the person's
- * page (`../../coursework/[uid]`, a screen of its own), and the written
- * answer in a cell opens the existing feedback page.
+ * blocks; a cell that leads with whether the week is done, by the one
+ * meaning of done every page uses, then counts, never anybody's words. A
+ * name opens the person's page (`../../coursework/[uid]`, a screen of its
+ * own), and the written answer in a cell opens the existing feedback page.
  *
  * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`loadCourseworkTab`, through
  * `loadProgrammeRun`), decided from the form before the run is read. A
@@ -23,7 +24,7 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * Publish has not told is shown to admins alone: to the lead that person
  * sits under "Not in a group yet". Private notes and survey answers are
  * never read for the tab. Server-rendered on the Admin SDK; the filters are
- * plain links (`?group=`, `?waiting=1`). Nothing here writes.
+ * plain links (`?group=`, `?waiting=1`, `?notdone=1`). Nothing here writes.
  *
  * UNDER THE TABLE, FOR AN ADMIN ALONE, one week at a time (`?week=3`, else
  * the latest week anybody shown has written in): Claude's best answers to it
@@ -40,11 +41,11 @@ export default async function ProgrammeCourseworkPage({
   searchParams,
 }: {
   params: Promise<{ roundId: string; programmeId: string }>;
-  searchParams?: Promise<{ group?: string | string[]; waiting?: string | string[]; week?: string | string[] }>;
+  searchParams?: Promise<{ group?: string | string[]; waiting?: string | string[]; notdone?: string | string[]; week?: string | string[] }>;
 }) {
   const [{ roundId, programmeId }, query, user] = await Promise.all([
     params,
-    searchParams ?? Promise.resolve({} as { group?: string | string[]; waiting?: string | string[]; week?: string | string[] }),
+    searchParams ?? Promise.resolve({} as { group?: string | string[]; waiting?: string | string[]; notdone?: string | string[]; week?: string | string[] }),
     requireAdmissionsPage(),
   ]);
   const db = getAdminDb();

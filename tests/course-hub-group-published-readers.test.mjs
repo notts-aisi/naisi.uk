@@ -205,6 +205,35 @@ const READERS = {
     asks: 1,
     why: "a member picks a pack or marks their talk ready on the run: an untold seat does not open the run (a group's facilitator acts as its facilitator, which is no seat)",
   },
+  "app/api/courses/runs/[runId]/ticks/[itemId]/route.ts": {
+    kind: "told",
+    asks: 1,
+    why: "a person ticks their own week through the tick route: an untold seat does not open the run, as the browser's tick never did",
+  },
+  "lib/courses/weekWork/own.ts": {
+    kind: "shown",
+    asks: 1,
+    why: "who takes part in their own week, for Submit: an untold seat does not open the run (a group's facilitator takes part as its facilitator, which is no seat)",
+  },
+  "lib/courses/weekWork/readers.ts": {
+    kind: "told",
+    asks: 1,
+    why: "whose sessions lock a person's week: their placement's group only once Publish has told them it, the lock being the person's own, whoever asks",
+  },
+  "app/api/courses/runs/[runId]/weeks/[weekId]/reopen/route.ts": {
+    kind: "staff",
+    proof: ['if (!run || !owner || !role?.mayReview) return NextResponse.json({ error: "Forbidden" }, { status: 403 });'],
+    why:
+      "reopening somebody's week reads their seat by its address, after the one gate on whose work a reader may act on, only to " +
+      "know whose sessions lock their week (the readers' own question, asked of the told placement), and sends back no seat",
+  },
+  "app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts": {
+    kind: "staff",
+    proof: ['if (!runData || !owner || !role?.mayReview) return NextResponse.json({ error: "Forbidden" }, { status: 403 });'],
+    why:
+      "feedback reads the writer's seat by its address, after the one gate, only to know whose sessions lock their week and so " +
+      "whether their answer may be read, and sends back no seat",
+  },
   "app/api/courses/runs/[runId]/reflections/[promptId]/route.ts": {
     kind: "shown",
     asks: 1,

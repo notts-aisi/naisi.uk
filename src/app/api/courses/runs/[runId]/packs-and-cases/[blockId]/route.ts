@@ -22,6 +22,8 @@ import {
   packCaseRecordId,
 } from "@/lib/firestore/coursePacksAndCases";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
+import { WeekShutError, assertWeekTakesWork, logWork, ownLockSource, weekStateIn } from "@/lib/courses/weekWork/own";
+import { WEEK_SHUT } from "@/lib/courses/weekWork/words";
 
 /**
  * A PERSON'S OWN PACK AND TALK (plan item 8; Q32 A; boards wk-week,
@@ -48,6 +50,10 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * READY is the person's own mark and nobody else's: coursework gets no mark.
  * On a talk with cases it waits for a case to be given; a talk with none (a
  * pitch) can be marked any time. It can be taken back.
+ *
+ * A WEEK SUBMITTED OR LOCKED takes neither (`src/lib/courses/weekWork/`),
+ * asked inside the transaction that writes. A pick goes in the work log as a
+ * save, a ready mark as a tick or an untick.
  *
  * Which week: the person's group's own copy when it has one, the run's
  * otherwise (`resolveWeekDoc`), as the week page and the reflections route
@@ -162,6 +168,10 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string; 
 
   const ref = db.collection(COURSE_PACKS_AND_CASES_COLLECTION).doc(packCaseRecordId(runId, actor.uid, blockId));
   const base = { runId, uid: actor.uid, weekId, weekNumber, blockId };
+  // Whose sessions lock this week for them: their own placement's group, or the groups they facilitate.
+  const source = ownLockSource(run, liveGroups, actor.uid, takesPart ? enrolment : null);
+  const now = new Date();
+  const logged = { runId, uid: actor.uid, weekId, weekNumber, itemId: blockId };
 
   if (hasPack) {
     const chooseOne = block?.type === "chooseOne" ? (block as ChooseOneBlock) : null;
@@ -182,10 +192,22 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string; 
     if (startsAt && Date.now() >= startsAt.at.getTime()) {
       return NextResponse.json({ error: "Your session has started, so your choice stays as it is." }, { status: 409 });
     }
-    await ref.set(
-      { ...base, kind: "pack", packId, givenAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() },
-      { merge: true },
-    );
+    try {
+      await db.runTransaction(async (tx) => {
+        const week = await weekStateIn(tx, db, { runId, uid: actor.uid, weekId, weekNumber, source, now });
+        assertWeekTakesWork(week.state);
+        tx.set(
+          ref,
+          { ...base, kind: "pack", packId, givenAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() },
+          { merge: true },
+        );
+        logWork(tx, db, { ...logged, kind: "save", itemKind: "pack" });
+      });
+    } catch (err) {
+      if (err instanceof WeekShutError) return NextResponse.json({ error: WEEK_SHUT }, { status: 409 });
+      console.error("[courses packs and cases] pick failed", runId, weekId, blockId, err);
+      return NextResponse.json({ error: "Couldn’t save that just now. Try again." }, { status: 500 });
+    }
     const answer: PackCaseWire = { blockId, weekId, packId, caseId: null, ready: false };
     return NextResponse.json({ ok: true, record: answer });
   }
@@ -197,7 +219,11 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string; 
   const hasCases = talk.groups.some((group) => group.cases.length > 0);
   try {
     const answer = await db.runTransaction(async (tx) => {
-      const snap = await tx.get(ref);
+      const [snap, week] = await Promise.all([
+        tx.get(ref),
+        weekStateIn(tx, db, { runId, uid: actor.uid, weekId, weekNumber, source, now }),
+      ]);
+      assertWeekTakesWork(week.state);
       const stored = snap.exists ? normalizeCoursePackCase(snap.id, snap.data() ?? {}) : null;
       const caseId = stored && findCase(talk, stored.caseId) ? stored.caseId : null;
       // On a talk with cases, "ready" is for the case you were given.
@@ -213,12 +239,14 @@ export async function PUT(req: Request, ctx: { params: Promise<{ runId: string; 
         },
         { merge: true },
       );
+      if ((stored?.ready ?? false) !== ready) logWork(tx, db, { ...logged, kind: ready ? "tick" : "untick", itemKind: "talk" });
       const wire: PackCaseWire = { blockId, weekId, packId: null, caseId, ready };
       return wire;
     });
     return NextResponse.json({ ok: true, record: answer });
   } catch (err) {
     if (err instanceof PickError) return NextResponse.json({ error: err.message }, { status: err.status });
+    if (err instanceof WeekShutError) return NextResponse.json({ error: WEEK_SHUT }, { status: 409 });
     console.error("[courses packs and cases] ready failed", runId, weekId, blockId, err);
     return NextResponse.json({ error: "Couldn’t save that just now. Try again." }, { status: 500 });
   }

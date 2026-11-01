@@ -359,3 +359,8 @@ export function listWords(items: readonly string[]): string {
   if (items.length <= 1) return items[0] ?? "";
   return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
+
+/** The head of This week's work's column for where each person's week stands: "Week 3". */
+export function weekColumnWords(weekNumber: number): string {
+  return `Week ${weekNumber}`;
+}

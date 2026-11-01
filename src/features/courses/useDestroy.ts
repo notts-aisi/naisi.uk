@@ -345,6 +345,16 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "What each person had in the weeks' packs and talks: the pack they picked or were given, the case they were given, and whether they marked themselves ready. Each one names a week this destroy deletes, so they go with the run.",
   },
+  weekWork: {
+    label: "Weeks submitted and reopened",
+    fate: "destroyed",
+    note: "When each person submitted each week, and when somebody running their group reopened it. Each one names a week this destroy deletes, so they go with the run.",
+  },
+  workLog: {
+    label: "What people did to their weeks, and when",
+    fate: "destroyed",
+    note: "Each tick and untick, the first save of each spell of writing, each emptied box, each submit and each reopen, with its time. Each one names a week this destroy deletes, so they go with the run.",
+  },
   pairs: {
     label: "Pairs and laptops",
     fate: "destroyed",

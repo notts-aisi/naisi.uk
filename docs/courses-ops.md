@@ -1994,6 +1994,13 @@ admins, and promises no names only on the read-out page.
   fails if either page ever draws the other's layout.
 - Reflections get no "read" mark and no reply. Written answers keep their
   own feedback flow.
+- Reflections and fill-in boxes are read as they are typed (privacy v15). A
+  WRITTEN ANSWER is not: its words, and its count of words, reach the review
+  page, the review queue, the Coursework tab, a person's page and Claude only
+  once `workIsReadable` says so, its week submitted or locked, or the answer
+  sent before weeks were submitted (see "The week you submit" below).
+  `tests/course-written-answer-readers.test.mjs` walks the tree for every
+  reader of an answer's words.
 
 ### The Coursework tab, `.../programmes/[programmeId]/coursework`
 
@@ -2001,14 +2008,21 @@ For the programme's lead and admins (the Groups and Attendance tabs' gate,
 `loadProgrammeRun`); a reviewer is told it is theirs. A row per person holding
 a place (the People tab's set, in a group or not yet), anybody else placed in
 one of the run's live groups, and each facilitator, marked as facilitating. A
-column per week of the run's plan written as blocks. Each cell counts what the
-person did in the week they read (their group's copy once Publish has told
-them their group, the run's own week before that, so week 1 work written
-before groups go out is counted): reflection parts written, sources ticked,
-where the written answer stands (waiting for feedback stands out and opens the
-existing feedback page), boxes filled in. Never anybody's words in a cell.
-Filters are plain links: a group, "Not in a group yet", "Waiting for
-feedback".
+column per week of the run's plan written as blocks. Each cell leads with
+"Done" or "Not done", by the one meaning of done every page uses
+(`weekDone`: the week is submitted, where it asks for anything written, and
+every tick its tasks count is ticked, the person's own pathway reading
+among them). Then it counts what the person did in the week they read
+(their group's copy once Publish has told them their group, the run's own
+week before that, so week 1 work written before groups go out is counted):
+reflection parts written, sources ticked, where the written answer stands
+(waiting for feedback stands out and opens the existing feedback page),
+boxes filled in. Never anybody's words in a cell. Filters are plain links: a
+group, "Not in a group yet", "Waiting for feedback", and "Not done": the
+people with a week that has begun for them (on the calendar of the group
+whose weeks they read) and is not done. A week still to come reads "Not
+done" quietly and puts nobody under the filter. Weeks that locked before
+weeks were submitted were never submitted, so they read "Not done" too.
 
 A placement Publish has not told is shown to admins alone (marked "Not told
 yet"); the lead sees that person under "Not in a group yet".
@@ -2032,8 +2046,60 @@ team keeps").
 Everything is read on the server after the gate. One equality on the run per
 store (`readRunCoursework` in `src/lib/courses/facilitatorWeek/readers.ts`):
 the answers store whole, the progress store through a projection with no
-rating, comment or private note. No query needs a composite index. Nothing on
-either page writes.
+rating, comment or private note, and where each week stands
+(`loadRunWeekStates`, one equality on the run). For the tab, each person's
+pack in the pathways their weeks count, by id (`readPackCaseRecords`), for
+whether a week is done; never the ready box for a talk. No query needs a
+composite index. Nothing on either page writes.
+
+## The week you submit
+
+A week written as blocks saves as its person goes and has one Submit
+(`src/lib/courses/weekWork/`). Weeks written before blocks, and an
+incubator's team page, keep their own pages and never lock.
+
+- **Submit** (`POST /api/courses/runs/[runId]/weeks/[weekId]/submit`, their
+  own week only, `{ submit: true }`): the page first writes every box's
+  waiting save, then shows the check, which names what is not done ("One
+  reading isn't ticked: ...") and still submits ("Submit anyway"), except a
+  written answer over the top of its word range. Submit stamps
+  `courseWeekWork` (when, the first time once, how many times) and stamps
+  each written answer of the week that has words with `firstSentAt`. A week
+  with only things to tick has no Submit.
+- **The lock.** A week takes no more ticks, words, packs or ready marks once
+  it is submitted, or once the group's session that week starts, submitted or
+  not (`dueMoment(sessions, n, "before")`: a cancelled session moves it to the
+  group's next session that meets). A facilitator of two groups locks at the
+  earlier session. With no time to lock at (the group's time is not set,
+  nobody has been told a group yet, or somebody was told their group after the
+  session) only Submit locks it. Every write route asks inside its own
+  transaction (`assertWeekTakesWork`). A rating or a private note on a reading
+  stays open: it is about the material.
+- **Reopen** (`POST .../weeks/[weekId]/reopen` with `{ uid }`): the people
+  the one gate lets act on the person's work (`writtenReviewRole`: the group's
+  facilitators, the lead and admins; a facilitator's own week, the lead and
+  admins), never the person. It lasts until they submit again or the group's
+  next session that meets starts. It clears an answer's old `openedAt` lock.
+  Nobody is emailed; the week page says who reopened it and until when. The
+  control is "Reopen week 3 for Sofia", with a confirm, on This week's work and
+  on the review page.
+- **Ticks** go through `PUT /api/courses/runs/[runId]/ticks/[itemId]` with
+  `{ weekId, completed }`, for everybody, a holder's week 1 before groups go
+  out included. `firestore.rules` refuses a browser write that sets or changes
+  `completed` or `completedAt`; a rating or a comment carries both through.
+- **The log** (`courseWorkLog`, server only): a row per tick and untick, the
+  first save of each writing spell (30 minutes without a save starts a new
+  one), each emptied box, each submit and each reopen, with the server's time.
+  Nothing reads it yet. Page opens are never logged.
+- **One meaning of done** (`weekDone`): submitted, when the week asks for
+  anything written, and every tick This week's tasks count ticked. "N of M
+  done" stays the one count. This week's work's own column says where each
+  person's week stands ("Submitted Tue 10 Nov, 9:31pm", "Not submitted",
+  "2 of 3 done", "Started", "Not started", "Before they joined"), and its head
+  says when the group's week locks ("Locks Wed 3pm").
+- **Deleting**: both new collections go with an account (by `uid`) and with a
+  run's destroy (by `runId`), and the destroy dialog counts them.
+
 
 ## Changing a session
 

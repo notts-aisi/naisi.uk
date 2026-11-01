@@ -46,6 +46,7 @@ import {
   weekMetaWords,
 } from "@/lib/courses/facilitatorWeek/words";
 import Disclosure from "./Disclosure";
+import ReopenWeekButton from "@/features/courses/written/ReopenWeekButton";
 import styles from "@/features/courses/facilitator/facilitator.module.css";
 
 /**
@@ -67,17 +68,34 @@ import styles from "@/features/courses/facilitator/facilitator.module.css";
  * the table.
  */
 
-/** A column a later piece adds: its head, and what it says for one person. */
-export type WorkColumn = { key: string; label: string; cell: (uid: string) => ReactNode };
+/** A column a later piece adds: its head, what it says for one person, and a note for the table's head. */
+export type WorkColumn = { key: string; label: string; cell: (uid: string) => ReactNode; note?: string | null };
 
-/** The columns `loadWorkColumns` worked out, as the table draws them: a cell with an address is a link to it. */
+/**
+ * The columns `loadWorkColumns` worked out, as the table draws them: a cell
+ * with an address is a link to it; the week's column draws the count beside
+ * its words and, for a week submitted or locked, "Reopen week 3 for Sofia"
+ * to a reader who may.
+ */
 export function workColumnsOf(columns: readonly WorkColumnData[]): WorkColumn[] {
   return columns.map((column) => ({
     key: column.key,
     label: column.label,
+    note: column.note ?? null,
     cell: (uid: string) => {
       const cell = own(column.cells, uid);
       if (!cell) return null;
+      if (column.key === "week") {
+        return (
+          <span className={styles.wkWeekCell}>
+            <span className={cell.tone === "done" ? styles.wkWeekDone : cell.tone === "partly" ? styles.wkWeekPartly : styles.wkWeekNone}>
+              {cell.text}
+            </span>
+            {cell.detail && <span className={styles.wkWeekDetail}>{cell.detail}</span>}
+            {cell.reopen && <ReopenWeekButton {...cell.reopen} quiet />}
+          </span>
+        );
+      }
       return cell.href ? (
         <Link href={cell.href} className={styles.wkCellLink}>
           <span>{cell.text}</span>
@@ -240,7 +258,10 @@ export default function ThisWeeksWork({
         <h2 id={headingId} className={weekly.cardTitle}>
           {THIS_WEEKS_WORK}
         </h2>
-        <span className={weekly.cardMeta}>{weekMetaWords(week.weekNumber, week.range)}</span>
+        <span className={weekly.cardMeta}>
+          {weekMetaWords(week.weekNumber, week.range)}
+          {columns.find((column) => column.note)?.note && <span className={styles.wkLockNote}> · {columns.find((column) => column.note)?.note}</span>}
+        </span>
       </div>
 
       {week.rows.length === 0 ? (
