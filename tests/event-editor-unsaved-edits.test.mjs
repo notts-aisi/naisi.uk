@@ -42,6 +42,11 @@
  *  3. It holds the listener to reading nothing but the event's id from the
  *     render that attached it, which is the class of mistake, not the one
  *     instance: the lint rule for it is on for this effect again.
+ *  4. It holds every press that sends the event onwards (for approval,
+ *     approved, published) to saving what is on the screen first. Publish
+ *     once did not, so a change to who an event is for, left unsaved, could
+ *     be published and announced as the event was stored. The handlers are
+ *     enumerated, so a new press fails here until it is classified.
  *
  * ## What it cannot see
  *
@@ -289,5 +294,88 @@ describe("the listener reads nothing from the render that attached it", () => {
       /eslint-disable[^\n]*exhaustive-deps/,
       "the rule that reports a stale value in this effect has been switched off again",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A press that sends the event onwards saves what is on the screen first
+// ---------------------------------------------------------------------------
+
+/**
+ * The component's own handlers, by name, with their bodies: every
+ * `  async function name() {` inside the component (two spaces in, no
+ * parameters), matched to its closing brace. The module's helpers above the
+ * component (the counts) are not presses.
+ */
+function editorFunctions() {
+  const out = new Map();
+  const head = /^ {2}async function (\w+)\(\) \{/gm;
+  for (let match = head.exec(editor); match; match = head.exec(editor)) {
+    let depth = 1;
+    let at = match.index + match[0].length;
+    while (depth > 0 && at < editor.length) {
+      if (editor[at] === "{") depth += 1;
+      else if (editor[at] === "}") depth -= 1;
+      at += 1;
+    }
+    out.set(match[1], editor.slice(match.index + match[0].length, at - 1));
+  }
+  return out;
+}
+
+/**
+ * A call that moves the stored event on to people who were not looking at
+ * the screen: sending it for approval, approving it, or publishing it.
+ */
+const ONWARDS = /\b(?:submitEventForReview|approveEvent)\(|\/publish`, \{ method: "POST"/;
+
+/**
+ * Every function that moves the event onwards, and where it saves first. A
+ * function that does it itself saves before it (`flush`); `pressPublish` is
+ * the press after Publish's confirm, and is called only by `onPublish`, which
+ * saves before it asks. A new one fails until it is written here.
+ */
+const PRESSES = {
+  onSubmitForReview: "saves before it sends it for approval",
+  onApprove: "saves before it approves",
+  onPublish: "saves before it counts, confirms and publishes",
+  pressPublish: "called only by onPublish, after its save",
+};
+
+describe("a press that sends the event onwards saves what is on the screen first", () => {
+  const functions = editorFunctions();
+
+  test("the editor's functions were read", () => {
+    assert.ok(functions.size >= 10, `found only ${functions.size} async functions in ${EDITOR}`);
+    for (const name of Object.keys(PRESSES)) assert.ok(functions.has(name), `${name} is no longer in ${EDITOR}`);
+  });
+
+  test("every function that moves the event onwards is one this guard knows, in both directions", () => {
+    const moving = [...functions].filter(([, body]) => ONWARDS.test(body)).map(([name]) => name).sort();
+    const known = Object.keys(PRESSES).filter((name) => name !== "onPublish").sort();
+    assert.deepEqual(moving, known, "a press moves the event onwards that this guard has not classified");
+  });
+
+  test("each saves first, before anything it sends", () => {
+    for (const name of ["onSubmitForReview", "onApprove", "onPublish"]) {
+      const body = functions.get(name);
+      const saves = body.indexOf("await flush()");
+      assert.ok(saves > -1, `${name} does not save what is on the screen first`);
+      const first = body.search(/\b(?:submitEventForReview|approveEvent|countPublishReach|pressPublish|fetch)\(/);
+      assert.ok(first === -1 || saves < first, `${name} sends something before it saves`);
+    }
+  });
+
+  test("Publish decides from the form once it has saved, never from the event as it was stored", () => {
+    const body = functions.get("onPublish");
+    assert.doesNotMatch(body, /\b(?:isForChosenPeople|announces)\(event\)/);
+    assert.match(body, /\bisForChosenPeople\(shown\)/);
+    assert.match(body, /\bannounces\(shown\)/);
+  });
+
+  test("the press after the confirm is called from Publish alone", () => {
+    const callers = [...functions].filter(([name, body]) => name !== "pressPublish" && /\bpressPublish\(/.test(body)).map(([name]) => name);
+    assert.deepEqual(callers, ["onPublish"]);
+    assert.equal((editor.match(/\bpressPublish\(/g) ?? []).length, 1 + (functions.get("onPublish").match(/\bpressPublish\(/g) ?? []).length);
   });
 });
