@@ -54,6 +54,15 @@ const COMPARATOR_HOME = "src/lib/firestore/courseGroups.ts";
  */
 const READS_WITHOUT_A_LIST = new Map([
   [
+    "src/lib/courses/feedback/send.ts",
+    {
+      why:
+        "The feedback batch reads the run's groups only to know who still takes part (a told place in a live group, or a " +
+        "live group facilitated) and the name of each person's group for their row, a map by id; its rows are ordered by " +
+        "person, never as a list of groups.",
+    },
+  ],
+  [
     "src/app/api/courses/runs/[runId]/ticks/[itemId]/route.ts",
     {
       why:
@@ -220,6 +229,16 @@ const READS_WITHOUT_A_LIST = new Map([
 
 /** Modules the walk reaches that fetch an address it cannot read, each with what they fetch and why it lists no run's groups. */
 const FETCHES_IT_CANNOT_READ = new Map([
+  [
+    "src/features/courses/feedback/FeedbackToSend.tsx",
+    "Feedback to send's two presses (its test and its send), at the address built from the run id it is handed " +
+      "(`base`): feedback and its emails, never a run's groups.",
+  ],
+  [
+    "src/features/courses/feedback/FeedbackWriter.tsx",
+    "Saving, changing and deleting one piece of feedback, at the feedback route built from the run id it is handed " +
+      "(`base`): one piece, never a run's groups.",
+  ],
   [
     "src/features/admin/memberNotes/PersonNotes.tsx",
     "The notes kept about one person, at the notes route under the member address, or under the programme's " +
