@@ -53,6 +53,7 @@ import { REACH_WORDS, announces, eventReach, isForChosenPeople } from "@/lib/eve
 import { canApproveEvent, canDraftEvent } from "@/lib/firestore/users";
 import SurveyAfterSettings from "@/features/surveys/events/SurveyAfterSettings";
 import { STEP_WORDS, asksMissed, questionProblems, setUpSummaryWords, setUpWords, settingsOf, timesOf, whoAt } from "@/lib/surveys/events/after";
+import type { SurveyItem } from "@/lib/surveys/items";
 import BlockEditor from "@/components/blocks/BlockEditor";
 import ImageUpload from "@/components/blocks/ImageUpload";
 import {
@@ -103,6 +104,12 @@ type Props = {
    * for the same reason; while it is off, the Survey after step says so.
    */
   surveysGoByThemselves?: boolean;
+  /**
+   * The standard questions the Survey after step starts from: the question
+   * set an admin keeps on Run NAISI › Surveys, else the code's. Read on the
+   * server by the page above, because the set is closed to every client.
+   */
+  standardQuestions: SurveyItem[];
 };
 
 /**
@@ -482,7 +489,7 @@ function buildNotifyDraft(
   return { subject, body };
 }
 
-export default function EventEditor({ eventId, announcementsQueued = false, surveysGoByThemselves = false }: Props) {
+export default function EventEditor({ eventId, announcementsQueued = false, surveysGoByThemselves = false, standardQuestions }: Props) {
   const router = useRouter();
   const { user, role, permissions, suRecognised } = useAuth();
 
@@ -964,7 +971,7 @@ export default function EventEditor({ eventId, announcementsQueued = false, surv
     // The survey after it: its questions, when it is on, must be ones it can
     // be set up with. Once published it is changed on the Survey after tab.
     if (surveyAfter?.on && status !== "published" && status !== "cancelled") {
-      const problem = questionProblems(settingsOf(surveyAfter).items)[0];
+      const problem = questionProblems(settingsOf(surveyAfter, standardQuestions).items, standardQuestions)[0];
       if (problem) add("survey", `The survey after it: ${problem}`);
     }
     return found;
@@ -1938,6 +1945,7 @@ export default function EventEditor({ eventId, announcementsQueued = false, surv
                   jobOn={surveysGoByThemselves}
                   where="editor"
                   summary={<p className={styles.surveyNote}>{surveySetUpLine}</p>}
+                  standard={standardQuestions}
                 />
               )}
             </section>

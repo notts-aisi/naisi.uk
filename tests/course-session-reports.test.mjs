@@ -66,6 +66,7 @@ const w = await makeFacilitatorPagesWorld("__sessionReports", [
 const { world, at, draw, call, courseRoute, loadTs, everything, routes } = w;
 
 const reportRoute = await courseRoute("groups", "[groupId]", "session-report");
+const questionSetRoute = await loadTs(join("app", "api", "surveys", "question-sets", "[kind]", "route.ts"));
 const model = await loadTs(join("lib", "courses", "sessionReports", "model.ts"));
 const record = await loadTs(join("lib", "firestore", "courseSessionReports.ts"));
 const words = await loadTs(join("lib", "courses", "sessionReports", "words.ts"));
@@ -1120,5 +1121,49 @@ describe("6. every file that addresses reports, every caller of their readers, a
     for (const code of Object.keys(ADDRESSERS).map((file) => readFileSync(join(SRC, file), "utf8"))) {
       assert.doesNotMatch(code.slice(code.indexOf("COURSE_SESSION_REPORTS_COLLECTION")), /COURSE_SESSION_REPORTS_COLLECTION\)[^;]*\.orderBy\(/);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. Its question set
+// ---------------------------------------------------------------------------
+
+describe("7. the session report's question set: the form asks in its words; a report already sent keeps its answers", () => {
+  /** An admin rewords the report's questions on Run NAISI › Surveys › Question sets. */
+  const reword = (words) => call("zach", questionSetRoute.PUT, { kind: "session-report" }, { body: { words } });
+
+  test("reworded, the form asks in the set's words from then on; the report sent before keeps every answer, and the lead reads it as before", async () => {
+    weekTwoWithParts();
+    assert.equal((await send("rahul")).status, 200);
+    const kept = structuredClone(world.db.read(reportPath("rahul")));
+    const leadBefore = (await leadPageAs("claudia")).text;
+
+    const changes = { "how:title": "How did it go?", "how:low": "Not well", "engaged:title": "Who stood out?", "unclear:option:something-else": "Another thing" };
+    assert.deepEqual(await reword(changes), { status: 200, body: { ok: true } });
+    assert.deepEqual(world.db.read(reportPath("rahul")), kept, "a change to the set reached a report already sent");
+    assert.equal((await leadPageAs("claudia")).text, leadBefore, "the lead reads the report differently");
+
+    const drawn = await reportPageAs("rahul", "w02");
+    const form = find(drawn.element, "SessionReportForm")[0].props;
+    assert.deepEqual(form.questions, {
+      ...words.REPORT_QUESTION_WORDS,
+      how: "How did it go?",
+      howLow: "Not well",
+      engaged: "Who stood out?",
+      somethingElse: "Another thing",
+    });
+    assert.equal(form.answers.how, 4, "the writer's own answers are no longer theirs");
+    for (const said of ["How did it go? 1 2 3 4 5 Not well Really well", "Who stood out? Chloe Nguyen", "Another thing", "What went well?", "Anything for Claudia or the admins?"]) {
+      assert.ok(drawn.text.includes(said), `the form does not say: ${said}\n${drawn.text}`);
+    }
+    assert.ok(!drawn.text.includes("Who engaged well?"), "the form still asks in the code's words");
+  });
+
+  test("the last question names the lead and stays as it is; a word with no place in the set is refused whole", async () => {
+    const before = everything();
+    for (const words of [{ "forLead:title": "Anything else?" }, { "how:option:o_x": "Something" }, { "engaged:type": "longText" }]) {
+      assert.equal((await reword(words)).status, 400, JSON.stringify(words));
+    }
+    assert.equal(everything(), before, "a refused change was kept");
   });
 });

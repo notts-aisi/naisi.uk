@@ -18,6 +18,7 @@ import {
   forLeadLabel,
   sentLine,
   standOutLabel,
+  type ReportQuestionWords,
 } from "@/lib/courses/sessionReports/words";
 import styles from "./sessionReport.module.css";
 
@@ -40,7 +41,9 @@ import styles from "./sessionReport.module.css";
  * whole report, and the route keeps the writer's one report per session.
  *
  * Handed only what it draws: the group's id, the session's key, the people's
- * names and uids, the week's parts and this writer's own answers.
+ * names and uids, the week's parts, this writer's own answers, and the words
+ * the questions are asked in (the session report's question set, else the
+ * code's: `questions`).
  */
 
 type Person = { uid: string; name: string; firstName: string };
@@ -55,6 +58,7 @@ type Props = {
   answers: SessionReportAnswers | null;
   sent: string;
   changeUntil: string;
+  questions: ReportQuestionWords;
 };
 
 function Tick() {
@@ -86,6 +90,7 @@ export default function SessionReportForm({
   answers,
   sent: sentAtFirst,
   changeUntil,
+  questions,
 }: Props) {
   const hydrated = useHydrated();
   const formRef = useRef<HTMLFormElement>(null);
@@ -179,7 +184,7 @@ export default function SessionReportForm({
         className={styles.question}
         aria-describedby={howBlank ? "report-how-ends report-how-blank" : "report-how-ends"}
       >
-        <legend className={styles.legend}>{REPORT_WORDS.how}</legend>
+        <legend className={styles.legend}>{questions.how}</legend>
         <div className={styles.points}>
           {Array.from({ length: HOW_TOP }, (_, at) => at + 1).map((point) => (
             <label key={point} className={styles.point}>
@@ -196,8 +201,8 @@ export default function SessionReportForm({
           ))}
         </div>
         <p id="report-how-ends" className={styles.ends}>
-          <span>{REPORT_WORDS.howLow}</span>
-          <span>{REPORT_WORDS.howHigh}</span>
+          <span>{questions.howLow}</span>
+          <span>{questions.howHigh}</span>
         </p>
         {howBlank && (
           <p id="report-how-blank" className={styles.blank} role="alert">
@@ -208,7 +213,7 @@ export default function SessionReportForm({
 
       <div className={styles.question}>
         <label htmlFor="report-went-well" className={styles.label}>
-          {REPORT_WORDS.wentWell}
+          {questions.wentWell}
         </label>
         <Textarea
           id="report-went-well"
@@ -222,7 +227,7 @@ export default function SessionReportForm({
 
       <div className={styles.question}>
         <label htmlFor="report-didnt" className={styles.label}>
-          {REPORT_WORDS.didnt}
+          {questions.didnt}
         </label>
         <Textarea
           id="report-didnt"
@@ -236,7 +241,7 @@ export default function SessionReportForm({
 
       {parts.length > 0 && (
         <fieldset className={styles.question}>
-          <legend className={styles.legend}>{REPORT_WORDS.unclear}</legend>
+          <legend className={styles.legend}>{questions.unclear}</legend>
           <div className={styles.rows}>
             {parts.map((part) => (
               <OptionRow key={part.id} plain name="unclear" value={part.id} defaultChecked={unclearSaved.has(part.id)}>
@@ -244,14 +249,14 @@ export default function SessionReportForm({
               </OptionRow>
             ))}
             <OptionRow plain name="unclear" value={SOMETHING_ELSE} defaultChecked={unclearSaved.has(SOMETHING_ELSE)}>
-              {REPORT_WORDS.somethingElse}
+              {questions.somethingElse}
             </OptionRow>
           </div>
         </fieldset>
       )}
 
       <fieldset className={styles.question}>
-        <legend className={styles.legend}>{REPORT_WORDS.engaged}</legend>
+        <legend className={styles.legend}>{questions.engaged}</legend>
         {came.length === 0 ? (
           <p className={styles.empty}>{REPORT_WORDS.nobodyHere}</p>
         ) : (
@@ -290,7 +295,7 @@ export default function SessionReportForm({
       ))}
 
       <fieldset className={styles.question}>
-        <legend className={styles.legend}>{REPORT_WORDS.notRead}</legend>
+        <legend className={styles.legend}>{questions.notRead}</legend>
         {came.length === 0 ? (
           <p className={styles.empty}>{REPORT_WORDS.nobodyHere}</p>
         ) : (
@@ -315,7 +320,7 @@ export default function SessionReportForm({
       </fieldset>
 
       <fieldset className={styles.question}>
-        <legend className={styles.legend}>{REPORT_WORDS.needsHand}</legend>
+        <legend className={styles.legend}>{questions.needsHand}</legend>
         {inGroup.length === 0 ? (
           <p className={styles.empty}>{REPORT_WORDS.nobodyInGroup}</p>
         ) : (

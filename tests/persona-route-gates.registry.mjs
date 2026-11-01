@@ -3686,6 +3686,15 @@ export const ROUTES = {
         "in it, signed in or not.",
     },
   },
+  "/api/surveys/question-sets/[kind]": {
+    PUT: {
+      expect: adminOnly(404),
+      why:
+        "Changing the questions one kind of survey starts with is an admin's alone: view-as is refused first, then " +
+        "the session and the admin bar, before the body is read or the database touched; the admin is told the " +
+        "made-up kind names no question set.",
+    },
+  },
   "/api/surveys/term/totals": {
     GET: {
       expect: adminOnly(200),
@@ -4159,6 +4168,13 @@ export const PAGES = {
       "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard, the " +
       "course and membership permission holders included, because the admin front door " +
       "admits them and this inner gate is what keeps them out of the rest.",
+  },
+  "/(app)/admin/(admin-only)/surveys/question-sets/[kind]": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard, and the page asks " +
+      "canRunSurveys again itself before anything is read. The kind changes nothing about the gate: one that " +
+      "names no question set is answered on the page in a sentence, never notFound.",
   },
   "/(app)/admin/(admin-only)/surveys/term": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),

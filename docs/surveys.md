@@ -22,7 +22,10 @@ and the survey's log), `chart.ts`, `chartLoad.ts` and `chartWords.ts` with
 `src/features/surveys/chart/` (Make a chart, an admin's, of a survey's question
 or across a programme's check-ins),
 `src/lib/surveys/blanks.ts`, `blanksStore.ts` and `blanksView.ts` (the
-questions somebody left blank, sent to them by an admin's press).
+questions somebody left blank, sent to them by an admin's press), and
+`src/lib/surveys/questionSets.ts` and `questionSetsStore.ts` with
+`src/features/surveys/questionSets/` (the question sets: the questions each
+kind of survey starts with, changed by an admin).
 
 ## The rules, in one place
 
@@ -121,6 +124,12 @@ programme showed its lead, by their survey ids, fixed the first time the week
 was whole ("Check-ins at the end of a session", below). It names nobody, its
 one writer is the scheduler's job, and its rules block is deny-all as well.
 
+And `surveyQuestionSets/{kind}` holds the questions one kind of survey starts
+with, while an admin's set differs from the code's ("Question sets", below):
+a words-only set's changed words, or the survey after an event's questions,
+and who changed it last and when. Its one writer is the question sets route,
+an admin's, and its rules block is deny-all, admins included.
+
 **The person is a map**, `respondent: { kind: "account", uid }`, found by one
 equality on `respondent.uid`. Another kind (an event guest's sign-up,
 `{ kind: "guest", signupId }`) can sit beside it later without a rewrite, and
@@ -188,12 +197,84 @@ you or your plans?", "What would have helped you stay?"). An admin can turn
 any switch either way until the first send. `tests/surveys-required.test.mjs`
 walks every template both ways: every question not on the list is required,
 every listed one is a text question some template asks, and no consent box
-is ever required.
+is ever required; and it walks every question set as an admin keeps it: a
+words-only set's words never move a switch, and the survey after an event's
+set writes every switch out, the listed one optional until an admin turns it
+on.
 
 **The ids are the pairing.** A question asked at more than one stage has the
 same id, type and option ids at every stage and in every programme (C1 is
 `q_c1` before, at the end and in each follow-up), so answers pair by person
 and compare across programmes. Change a question's words freely, never its id.
+An admin changes them per survey on its Questions tab, or for every survey of
+a stage made from then on in its question set (below), which holds words
+alone.
+
+## Question sets
+
+Run NAISI › Surveys › Question sets (`/admin/surveys?tab=question-sets`):
+"The questions each kind starts with. Change them here, or per survey." One
+row a kind, in this order, each with its size and Edit, which leads to the
+kind's own page (`/admin/surveys/question-sets/<kind>`), and the day it was
+last changed once it has been:
+
+| Set | Kind | What changes |
+| --- | --- | --- |
+| After an event | `event` | its questions, whole: added, removed, reworded and retyped |
+| Weekly check-in | `check-in` | words only |
+| Facilitator’s session report | `session-report` | words only |
+| Before a programme | `before` | words only |
+| End of a programme | `after` | words only |
+| Leaving | `leaving` | words only |
+
+The follow-ups at 6 and 12 months have no set: they ask in the code's words,
+and an admin rewords one per survey.
+
+- **Admins only.** The page and its tab sit in the `(admin-only)` tree and ask
+  `canRunSurveys` before anything is read; `PUT
+  /api/surveys/question-sets/[kind]` refuses a view-as session first, then
+  the session and the admin bar, before the body is read or the database
+  touched.
+- **Words only, but after an event** (`src/lib/surveys/questionSets.ts`). A
+  programme's stages pair answers by question id, and check-ins and session
+  reports are read by id for the facilitators' totals, the lead's weeks and
+  the Surveys tab, so those five sets change their words and nothing else:
+  every question keeps its id, kind, answers, scores, Required switch and
+  place. A save is `{ words }`, each word under its place in the set
+  (`q_c1:title`, `q_c1:option:o_stage0`, `how:low`); the route refuses a save
+  that names any place the code's set does not hold, so nothing can add,
+  take out or retype a question or an answer (`checkWordsChange`), and the
+  set keeps only the words that differ from the code's. The reader takes only
+  words that have a place in the code's set and would pass a save
+  (`withSetWords`, `sessionReportWordsWith`), so nothing stored can do more.
+  A few words stay the code's, each with why on the page: an incubator's
+  first skills line, worded for its research when its survey is made; the
+  week's parts in a check-in, as each group's copy names them; and the
+  session report's last question, which names the programme's lead.
+- **The survey after an event's set is edited whole** (`checkWholeChange`), as
+  the event editor's step edits one event's: Edit, Up, Down, Remove, Add a
+  question of the step's five kinds (choose one, pick any, 1 to 5, short or
+  long answer), each question's Required switch, and its kind. A question
+  whose kind changes is a new question with a new id, so its answers never sit
+  beside another kind's under one id (This term in numbers reads "How was it?"
+  by its id); changed back to its own kind it takes its own id again. A
+  question the code asks never changes its kind there, and the route holds
+  that. The set is the standard the step starts from (`items: null`, read when
+  publishing sets the survey up) and the one After a social makes a survey
+  from (`eventStandardItems`).
+- **A change reaches surveys made after it, never one already made.** Every
+  survey copies its questions when it is made, through one reader per kind in
+  `src/lib/surveys/questionSetsStore.ts`: a programme's survey
+  (`programmeTemplateItems`), a check-in as it opens (`checkInSetItems`), and
+  a survey after an event as publishing sets it up or an admin makes one
+  (`eventStandardItems`). Nothing reads a set again for a survey that exists:
+  opening one, refreshing its words from its event, and the job all keep its
+  own questions. A session report keeps its answers by question, never by
+  its words, so its form asks in the set's words as it is drawn
+  (`sessionReportWords`), and a report already sent keeps every answer.
+- **Back to the original** puts the code's words, or questions, in the form;
+  saved, a set that is the code's again is deleted, so the code's own are read
+  again, later changes to them included.
 
 ## Stages and pairs
 
@@ -791,7 +872,8 @@ week has, fixed the first time it is whole, in `weeks.ts`),
   by "Close it now" on the register (`POST .../check-in/close`, asked once,
   never undone), or an admin's Close on its Opening tab.
 - **Its questions**, from the group's own copy of the week the session is
-  about (`checkInItems`): how useful the session was (1 to 5, "Not at all" to
+  about (`checkInItems`), in the words of the check-in's question set as it
+  opens (`checkInSetItems`; "Question sets", above): how useful the session was (1 to 5, "Not at all" to
   "Very"), the most useful thing, what could have gone better (optional, on
   `NOT_FOR_EVERYBODY`), what was unclear (the week's parts by their own ids, so
   answers count by part across groups, "Something else", and "Nothing was
@@ -883,8 +965,8 @@ week has, fixed the first time it is whole, in `weeks.ts`),
 ## The admins' pages
 
 Run NAISI › Surveys (`/admin/surveys`) lists every survey by what it is for,
-on two tabs of one page, and New survey. The page asks `canRunSurveys` before
-either tab reads anything; the code is `src/lib/surveys/hub/` and
+on three tabs of one page, and New survey. The page asks `canRunSurveys`
+before any tab reads anything; the code is `src/lib/surveys/hub/` and
 `src/features/surveys/admin/SurveyList.tsx`.
 
 - **By programme** (the page itself): a card for each of the term's programmes
@@ -908,6 +990,9 @@ either tab reads anything; the code is `src/lib/surveys/hub/` and
 - **Events** (`?tab=events`): each survey after an event, the newest event
   first, its answers a count (never "of" anybody), and nobody reminded from
   here.
+- **Question sets** (`?tab=question-sets`): the questions each kind of survey
+  starts with ("Question sets", above), reading the stored sets alone and no
+  survey.
 
 Every survey is the way in of exactly one row on exactly one tab, whatever
 its programme's term and whether or not its form is still there. A survey's
@@ -1479,7 +1564,9 @@ with `isEventSurvey` and hand it over.
     `src/lib/events/surveyAfter.ts`, written by `createEvent`); its questions,
     the standard set to reword, move, remove and add to (choose one, pick any,
     1 to 5, short or long answer), never retyping a standard one, and "Back to
-    the standard questions"; who gets it, everyone who came or everyone with a
+    the standard questions". The standard set is the question set an admin
+    keeps for the survey after an event, else the code's ("Question sets",
+    above), read by the page on the server and handed to the step; who gets it, everyone who came or everyone with a
     place, and the one question instead for people with a place who weren't
     checked in; when it goes, by itself 12 hours after the event ends, after
     another number of whole hours from 1 to 96, or only when somebody sends
@@ -1525,9 +1612,10 @@ with `isEventSurvey` and hand it over.
     questions until it opens, who and when until it goes, its reminder until
     that has gone, the code at any time; switched off before it opens, the
     draft goes.
-- **Made by an admin** from "After a social" (`events/template.ts`, the same
-  standard set: five questions, about a minute, fixed ids `q_ev_*`, every one
-  required but "Anything we should change?", which starts optional; "What
+- **Made by an admin** from "After a social" (the same standard set: the
+  question set an admin keeps, else `events/template.ts`'s five questions,
+  about a minute, fixed ids `q_ev_*`, every one required but "Anything we
+  should change?", which starts optional; "What
   should we run next?" is a short answer, `q_ev_next_text`, since November
   2026, and the pick-any `q_ev_next` stays on every survey made before it) for
   a published event that is coming up or no more than a week over, with who it
@@ -1715,11 +1803,16 @@ survey has who came to send to. What it can rely on:
 
 `tests/surveys-items.test.mjs` (the template word for word, the model, the box,
 both emails, totals), `tests/surveys-required.test.mjs` (required unless
-marked optional: the rule, every template walked both ways, what answered
-means for each type), `tests/surveys-routes.test.mjs` (every route and page as
-every kind of caller), `tests/surveys-hub.test.mjs` (Run NAISI › Surveys' two
+marked optional: the rule, every template and every question set walked both
+ways, what answered means for each type), `tests/surveys-routes.test.mjs` (every route and page as
+every kind of caller), `tests/surveys-hub.test.mjs` (Run NAISI › Surveys' three
 tabs and Reports as every kind of caller, and every survey the way in of one
-row on one tab), `tests/surveys-blanks.test.mjs` (the questions left
+row on one tab), `tests/survey-question-sets.test.mjs` (the question sets:
+words only over every shape a template takes, the survey after an event's set
+whole, the route and pages as every kind of caller, programme surveys made
+before and after a change, and a walk of every place a survey is made from a
+template; the check-in, event and session report suites prove a change never
+reaches one of theirs already made), `tests/surveys-blanks.test.mjs` (the questions left
 blank: the press, the link, the later send and every reader, as every kind of
 caller), `tests/surveys-blanks-merge.test.mjs` (the one merge, and no reader
 round it), `tests/surveys-deletion.test.mjs` (both cascades),

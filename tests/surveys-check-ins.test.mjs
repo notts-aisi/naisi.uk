@@ -71,6 +71,7 @@ const questionsRoute = await surveyRoute("[surveyId]", "questions");
 const blanksRoute = await surveyRoute("[surveyId]", "people", "[who]", "blanks");
 const adminClose = await surveyRoute("[surveyId]", "close");
 const exportRoute = await surveyRoute("[surveyId]", "export");
+const questionSetRoute = await surveyRoute("question-sets", "[kind]");
 
 const model = await lib("surveys", "checkIns", "model.ts");
 const template = await lib("surveys", "checkIns", "template.ts");
@@ -838,5 +839,61 @@ describe("9. names come off a check-in on its day, by the surveys' own job", () 
     assert.equal(answersOf()[0].respondent, null);
     assert.equal(rowOf("amara"), undefined, "who it was sent to is deleted");
     assert.ok(read(`surveys/${ID}`).namesOffAt instanceof Date);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. Its question set
+// ---------------------------------------------------------------------------
+
+describe("10. the check-in's question set: words only, read as a check-in opens, never by one already open", () => {
+  /** An admin changes the check-in's words on Run NAISI › Surveys › Question sets. */
+  const changeWords = (words) => call("zach", questionSetRoute.PUT, { kind: "check-in" }, { body: { words } });
+  const WORDS = {
+    "q_ci_useful:title": "How useful was this week’s session?",
+    "q_ci_unclear:option:o_ci_nothing": "Nothing at all",
+    "q_ci_reading:option:o_ci_read_all": "All of it",
+  };
+  /** A check-in's questions with every word left out. */
+  const shape = (list) => list.map((item) => [item.id, item.type, (item.options ?? []).map((option) => option.id), item.rating?.max ?? null, items.isQuestionRequired(item)]);
+
+  test("one already open keeps the words it opened with; one opened after the change asks in the set's, with the week's parts as they are", async () => {
+    await mark({ amara: "present", chloe: "late", farah: "left-early" });
+    assert.equal((await open("rahul")).status, 200);
+    const opened = structuredClone(read(`surveys/${ID}`).items);
+    assert.equal((await changeWords(WORDS)).status, 200);
+    assert.deepEqual(read(`surveys/${ID}`).items, opened, "a change to the set reached a check-in already open");
+
+    // The same session in a world where the set had changed before it opened.
+    reset();
+    assert.equal((await changeWords(WORDS)).status, 200);
+    await mark({ amara: "present", chloe: "late", farah: "left-early" });
+    assert.equal((await open("rahul")).status, 200);
+    const read2 = read(`surveys/${ID}`).items;
+    assert.deepEqual(shape(read2), shape(opened), "the set changed something besides words");
+    const byId = new Map(read2.map((item) => [item.id, item]));
+    assert.equal(byId.get("q_ci_useful").title, "How useful was this week’s session?");
+    assert.equal(byId.get("q_ci_unclear").options.at(-1).label, "Nothing at all");
+    assert.equal(byId.get("q_ci_reading").options.at(-1).label, "All of it");
+    // The week's parts are the group's copy's, whatever the set says.
+    assert.deepEqual(
+      byId.get("q_ci_unclear").options.slice(0, -2).map((option) => option.label),
+      opened.find((item) => item.id === "q_ci_unclear").options.slice(0, -2).map((option) => option.label),
+    );
+  });
+
+  test("the set never takes a part, a question or an answer: refused whole by the route, and the check-in as the code asks it", async () => {
+    const before = JSON.stringify(world.db.paths().map((path) => [path, read(path)]));
+    for (const words of [{ "q_ci_unclear:option:pt-power": "A part" }, { "q_ci_new:title": "One more question" }, { "q_ci_useful:type": "shortText" }]) {
+      const answer = await changeWords(words);
+      assert.equal(answer.status, 400, JSON.stringify(words));
+    }
+    assert.equal(JSON.stringify(world.db.paths().map((path) => [path, read(path)])), before, "a refused change was kept");
+    await mark({ amara: "present", chloe: "late", farah: "left-early" });
+    assert.equal((await open("rahul")).status, 200);
+    assert.deepEqual(
+      read(`surveys/${ID}`).items.map((item) => item.title),
+      template.checkInItems({ parts: [], hasReading: true }).map((item) => item.title),
+    );
   });
 });

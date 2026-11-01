@@ -9,13 +9,13 @@ import { SURVEYS_COLLECTION, SURVEY_LIMITS, isEventSurvey, isProgrammeAudience, 
 import { alignWalkInEmails, eventNamesOffDay } from "./events/records";
 import { sameQuestions, sanitizeSurveyItems, surveyQuestionsOf, validateSurveyItems, type SurveyItem } from "./items";
 import { namesOffDayFor } from "./namesOff";
+import { programmeTemplateItems } from "./questionSetsStore";
 import { mintSurveyToken } from "./token";
 import {
   INCUBATOR_STRANDS,
   SURVEY_STAGES,
   SURVEY_TEMPLATES,
   stageAsksStrand,
-  templateItems,
   templateMinutes,
   type IncubatorStrand,
   type SurveyTemplate,
@@ -29,7 +29,10 @@ import { REFUSAL, STAGE_WORDS, introFor, surveyNameFor } from "./words";
  * its end, 6 months on, 12 months on) and the day it closes; for an
  * incubator, which research it does, for the first line of its skills
  * question. Everything else is the stage's template (`templateItems`): the
- * questionnaire's questions, in pages, "about 5 minutes" before.
+ * questionnaire's questions, in pages, "about 5 minutes" before, in the words
+ * of the stage's question set where an admin changed them
+ * (`programmeTemplateItems`). The survey keeps the questions it was made
+ * with: a later change to the set never reaches it.
  *
  * EACH STAGE PAIRS WITH THE ONE BEFORE IT, for the same programme: the after
  * survey with the before, a follow-up with the after (or the before), the
@@ -227,7 +230,7 @@ export async function createSurvey(
   if (!namesOffOn) return { ok: false, status: 409, error: REFUSAL.noNamesOff };
 
   const name = programmeNameOf(form, input.programmeId);
-  const items = templateItems(input.stage, programme.kind, strand);
+  const items = await programmeTemplateItems(db, input.stage, programme.kind, strand);
   const minutes = templateMinutes(input.stage);
   const leaving = input.stage === "leaving";
   const audience: SurveyAudience = leaving

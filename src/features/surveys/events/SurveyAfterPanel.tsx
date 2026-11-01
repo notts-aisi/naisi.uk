@@ -25,6 +25,8 @@ type Props = {
     send: { emails: number } | null;
     sendNote: string | null;
     test: boolean;
+    /** The standard questions as they stand: the question set an admin keeps, else the code's. */
+    standard: SurveyItem[];
   };
   jobOn: boolean;
 };
@@ -94,8 +96,8 @@ export default function SurveyAfterPanel({ eventId, event, panel, jobOn }: Props
 
   async function save() {
     // The questions whole: the standard set, when the form was put back to it.
-    const items = settingsOf(value).items;
-    const problem = value.on ? questionProblems(items)[0] : undefined;
+    const items = settingsOf(value, panel.standard).items;
+    const problem = value.on ? questionProblems(items, panel.standard)[0] : undefined;
     if (problem) {
       setError(problem);
       return;
@@ -204,6 +206,7 @@ export default function SurveyAfterPanel({ eventId, event, panel, jobOn }: Props
         jobOn={jobOn}
         where="tab"
         locks={panel.locks}
+        standard={panel.standard}
       />
 
       {error && (

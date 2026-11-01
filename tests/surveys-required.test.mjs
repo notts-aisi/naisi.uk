@@ -31,6 +31,7 @@ const items = await loadTs(join("lib", "surveys", "items.ts"));
 const templates = await loadTs(join("lib", "surveys", "templates.ts"));
 const { eventTemplateItems } = await loadTs(join("lib", "surveys", "events", "template.ts"));
 const { checkInItems } = await loadTs(join("lib", "surveys", "checkIns", "template.ts"));
+const sets = await loadTs(join("lib", "surveys", "questionSets.ts"));
 
 /**
  * Every template a survey is made from, both kinds of programme, the event's,
@@ -174,6 +175,50 @@ describe("2. every template: required but the list, and the list only ever text 
     ]);
     // Text questions everybody can answer stay required.
     for (const id of ["q_p6", "q_a5", "q_leave_stay", "q_ci_most"]) assert.equal(items.NOT_FOR_EVERYBODY_IDS.includes(id), false, id);
+  });
+
+  test("every question set as an admin keeps it walks the same: words never move a switch, and the event's set writes every switch out", () => {
+    // A words-only set with every word it may change changed, over every
+    // template it is read over: every question as required as the code's.
+    // A programme's stage reads its own set (a follow-up has none, and asks in the code's words); a check-in reads the check-in's.
+    const kindOf = (name) => {
+      if (name.startsWith("a check-in")) return "check-in";
+      const stage = name.split(",")[0];
+      return templates.SURVEY_TEMPLATES.includes(stage) ? sets.setOfTemplate(stage) : null;
+    };
+    let walked = 0;
+    for (const [name, list] of EVERY_TEMPLATE) {
+      const kind = kindOf(name);
+      if (!kind) continue;
+      const words = {};
+      for (const entry of sets.setEntries(kind, {})) for (const slot of entry.slots) words[slot.key] = `New ${slot.key}`.slice(0, slot.max);
+      const read = sets.withSetWords(kind, list, words);
+      assert.deepEqual(items.validateSurveyItems(read), [], name);
+      assert.deepEqual(
+        items.surveyQuestionsOf(read).map((each) => [each.id, items.isQuestionRequired(each), each.optional]),
+        items.surveyQuestionsOf(list).map((each) => [each.id, items.isQuestionRequired(each), each.optional]),
+        `${name}: its set's words moved a Required switch`,
+      );
+      for (const consent of items.consentItemsOf(read)) assert.equal(items.isQuestionRequired(consent), false, `${name}: ${consent.id}`);
+      walked += 1;
+    }
+    // Before, the end and leaving, each for both kinds of programme, and both check-ins.
+    assert.equal(walked, 8, "a template's set was not walked");
+    // The survey after an event's set as kept: every switch written out, the
+    // listed one optional and the rest required, as the template has them; a
+    // question added is required until an admin turns it off; an admin may
+    // turn the listed one on.
+    const kept = sets.checkWholeChange({ items: eventTemplateItems() });
+    assert.equal(kept.ok, true);
+    for (const each of items.surveyQuestionsOf(kept.items)) {
+      assert.equal(typeof each.optional, "boolean", `${each.id} keeps no switch`);
+      assert.equal(items.isQuestionRequired(each), !items.NOT_FOR_EVERYBODY_IDS.includes(each.id), each.id);
+    }
+    const added = sets.checkWholeChange({ items: [...eventTemplateItems(), question({ id: "q_mine", type: "longText", title: "Anything else?" })] });
+    assert.equal(items.isQuestionRequired(added.items.at(-1)), true, "a question added to the set is optional");
+    const on = sets.checkWholeChange({ items: eventTemplateItems().map((each) => (each.id === "q_ev_change" ? { ...each, optional: false } : each)) });
+    assert.equal(items.isQuestionRequired(on.items.find((each) => each.id === "q_ev_change")), true, "an admin's switch was not kept");
+    for (const [list, name] of [[added.items, "added"], [on.items, "on"]]) assert.deepEqual(items.validateSurveyItems(list), [], name);
   });
 
   test("requiredQuestionsOf: the required questions in the survey's order", () => {

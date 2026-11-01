@@ -6,17 +6,20 @@ import { CHECK_IN_ADMIN_WORDS } from "@/lib/surveys/checkIns/words";
 import type { HubLink, HubRow, HubView, ProgrammeCard } from "@/lib/surveys/hub/model";
 import { hubTabHref } from "@/lib/surveys/hub/tabs";
 import { HUB_WORDS } from "@/lib/surveys/hub/words";
+import { QUESTION_SET_WORDS, type QuestionSetRow } from "@/lib/surveys/questionSets";
 import { LIST_WORDS, peopleWords } from "@/lib/surveys/words";
 import styles from "./surveyHub.module.css";
 
 /**
- * Run NAISI › Surveys, for admins: every survey by what it is for. Two tabs,
- * By programme and Events, each a link to the page's own address, and under
- * them what "confidential" means. By programme draws a card per programme, a
- * row for each stage it has (and for the term's programmes, each stage it
- * will have); Events draws each survey after an event. Every row says what
- * it is, how far it has got and the way in, and every way in is a target of
- * at least 44px. Drawn on the server from the view; nothing here reads.
+ * Run NAISI › Surveys, for admins: every survey by what it is for. Three
+ * tabs, By programme, Events and Question sets, each a link to the page's
+ * own address, and under them what "confidential" means. By programme draws
+ * a card per programme, a row for each stage it has (and for the term's
+ * programmes, each stage it will have); Events draws each survey after an
+ * event; Question sets draws the questions each kind starts with, each with
+ * Edit. Every row says what it is, how far it has got and the way in, and
+ * every way in is a target of at least 44px. Drawn on the server from the
+ * view; nothing here reads.
  */
 
 function RowChip({ row }: { row: HubRow }) {
@@ -132,6 +135,34 @@ function Card({ card, index }: { card: ProgrammeCard; index: number }) {
   );
 }
 
+/** The questions each kind starts with: a row a kind, its name and size, and Edit. */
+function QuestionSets({ sets }: { sets: readonly QuestionSetRow[] }) {
+  return (
+    <section className={styles.card} aria-labelledby="question-sets">
+      <header className={styles.cardHead}>
+        <h2 id="question-sets" className={styles.cardTitle}>
+          {QUESTION_SET_WORDS.title}
+        </h2>
+        <p className={styles.cardLine}>{QUESTION_SET_WORDS.line}</p>
+      </header>
+      <ul className={styles.rows}>
+        {sets.map((set) => (
+          <li key={set.kind} className={styles.item}>
+            <div className={styles.setRow}>
+              <span className={styles.setText}>
+                <span className={styles.setName}>{set.name}</span> · <span className={styles.setLine}>{set.line}</span>
+              </span>
+              <Link href={set.href} className={styles.action} aria-label={set.aria}>
+                {QUESTION_SET_WORDS.edit}
+              </Link>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default function SurveyList({ view }: { view: HubView }) {
   return (
     <div className={styles.hub}>
@@ -142,6 +173,7 @@ export default function SurveyList({ view }: { view: HubView }) {
         tabs={[
           { key: "programmes", label: HUB_WORDS.byProgramme, href: hubTabHref("programmes") },
           { key: "events", label: HUB_WORDS.events, href: hubTabHref("events") },
+          { key: "question-sets", label: QUESTION_SET_WORDS.title, href: hubTabHref("question-sets") },
         ]}
       />
       <p className={styles.confidential}>
@@ -150,7 +182,9 @@ export default function SurveyList({ view }: { view: HubView }) {
         </Chip>
         <span>{LIST_WORDS.howConfidential}</span>
       </p>
-      {view.tab === "programmes" ? (
+      {view.tab === "question-sets" ? (
+        <QuestionSets sets={view.sets} />
+      ) : view.tab === "programmes" ? (
         view.cards.length === 0 ? (
           <p className={styles.empty}>{LIST_WORDS.empty}</p>
         ) : (

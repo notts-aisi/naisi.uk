@@ -33,10 +33,11 @@ import styles from "./surveyAfter.module.css";
  * (saved by the tab, where some of it is fixed once it opens or goes).
  *
  * Controlled: it holds what is being edited and nothing else, and hands every
- * change up whole. The questions start as the standard set (`items: null`);
- * the first change to any of them copies the set into the setting. A standard
- * question is reworded, moved or removed, never retyped; one added here is
- * any of five kinds.
+ * change up whole. The questions start as the standard set (`items: null`),
+ * which the page hands in (`standard`: the question set an admin keeps on
+ * Run NAISI › Surveys, else the code's); the first change to any of them
+ * copies the set into the setting. A standard question is reworded, moved or
+ * removed, never retyped; one added here is any of five kinds.
  *
  * Every control is at least 44px (docs/touch-targets.md), the text-like
  * buttons too.
@@ -58,10 +59,12 @@ type Props = {
   locks?: { questions?: string | null; send?: string | null; reminder?: string | null; off?: string | null };
   /** The last line, under the two cards: what publishing sets up. */
   summary?: ReactNode;
+  /** The standard questions as they stand, read on the server. */
+  standard: SurveyItem[];
 };
 
-/** A fresh question of one of the five kinds the step adds. */
-function newQuestion(type: AddableType): SurveyQuestion {
+/** A fresh question of one of the five kinds the step adds; the question set's page adds them too. */
+export function newQuestion(type: AddableType): SurveyQuestion {
   const base = { kind: "question" as const, id: newSurveyId("q"), title: "", body: [], required: false, optional: false };
   switch (type) {
     case "singleChoice":
@@ -84,25 +87,25 @@ function newQuestion(type: AddableType): SurveyQuestion {
 }
 
 /** "Long answer · optional", "Choose one · added for this event". */
-function kindLine(question: SurveyQuestion): string {
+function kindLine(question: SurveyQuestion, standard: readonly SurveyItem[]): string {
   return [
     questionTypeWords(question),
     isQuestionRequired(question) ? null : STEP_WORDS.optional,
-    isStandardQuestion(question.id) ? null : STEP_WORDS.added,
+    isStandardQuestion(question.id, standard) ? null : STEP_WORDS.added,
   ]
     .filter(Boolean)
     .join(" · ");
 }
 
-export default function SurveyAfterSettings({ value, onChange, disabled, event, jobOn, where, locks = {}, summary }: Props) {
+export default function SurveyAfterSettings({ value, onChange, disabled, event, jobOn, where, locks = {}, summary, standard }: Props) {
   const id = useId();
   const [editing, setEditing] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const setting = value ?? { ...newSurveyAfter(), on: false };
-  const settings = settingsOf(setting);
+  const settings = settingsOf(setting, standard);
   const questions = surveyQuestionsOf(settings.items);
-  const problems = problemsByQuestion(settings.items);
-  const general = questionProblems(settings.items).filter((problem) => !/^Question \d+/.test(problem));
+  const problems = problemsByQuestion(settings.items, standard);
+  const general = questionProblems(settings.items, standard).filter((problem) => !/^Question \d+/.test(problem));
   const change = (patch: Partial<StoredSurveyAfter>) => onChange({ ...setting, ...patch });
   const setItems = (items: SurveyItem[]) => change({ items });
   const questionsFixed = disabled || Boolean(locks.questions);
@@ -179,13 +182,13 @@ export default function SurveyAfterSettings({ value, onChange, disabled, event, 
                       <div className={styles.questionWords}>
                         <span className={styles.questionTitle}>
                           {question.title.trim() || <span className={styles.empty}>No words yet</span>}
-                          {!isStandardQuestion(question.id) && (
+                          {!isStandardQuestion(question.id, standard) && (
                             <Chip tone="accent" className={styles.newChip}>
                               {STEP_WORDS.newChip}
                             </Chip>
                           )}
                         </span>
-                        <span className={styles.kind}>{kindLine(question)}</span>
+                        <span className={styles.kind}>{kindLine(question, standard)}</span>
                       </div>
                       {!questionsFixed && (
                         <div className={styles.actions}>
@@ -390,8 +393,12 @@ export default function SurveyAfterSettings({ value, onChange, disabled, event, 
   );
 }
 
-/** One question's words, opened by Edit: its wording, its answers or the words at each end, and whether it needs an answer. */
-function QuestionEditor({ question, number, onChange }: { question: SurveyQuestion; number: number; onChange: (next: SurveyQuestion) => void }) {
+/**
+ * One question's words, opened by Edit: its wording, its answers or the words
+ * at each end, and whether it needs an answer. The question set's page for
+ * the survey after an event draws it too.
+ */
+export function QuestionEditor({ question, number, onChange }: { question: SurveyQuestion; number: number; onChange: (next: SurveyQuestion) => void }) {
   const id = useId();
   const change = (patch: Partial<SurveyQuestion>) => onChange({ ...question, ...patch } as SurveyQuestion);
   const choice = question.type === "singleChoice" || question.type === "multipleChoice" ? (question as SurveyChoiceQuestion) : null;

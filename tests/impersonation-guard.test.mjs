@@ -602,6 +602,7 @@ const MUST_GUARD = [
   ["src/app/api/surveys/blanks/route.ts", "keeps a person's answers to the questions they left blank, once, through their link of blanks"],
   ["src/app/api/surveys/public-numbers/route.ts", "publishes a programme's numbers and ticked quotes on its public page, in the admin's name"],
   ["src/app/api/surveys/public-numbers/take-down/route.ts", "takes a programme's public numbers off its public page"],
+  ["src/app/api/surveys/question-sets/[kind]/route.ts", "changes the questions every survey of one kind made from then on starts with, in the admin's name"],
 
   // ── The admission ROUND lane of the deletion work ────────────────────────
   // Destroying a round is the single most consequential write in the

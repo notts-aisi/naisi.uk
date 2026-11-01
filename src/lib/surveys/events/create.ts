@@ -6,8 +6,9 @@ import { normalizeEvent, type EventDoc } from "@/lib/firestore/events";
 import { SURVEYS_COLLECTION, isEventSurvey, type EventAudience, type SurveyDoc } from "@/lib/firestore/surveys";
 import { closesAtFor, type Refused } from "../create";
 import { surveyQuestionsOf } from "../items";
+import { eventStandardItems } from "../questionSetsStore";
 import { REFUSAL } from "../words";
-import { EVENT_TEMPLATE_MINUTES, eventTemplateItems } from "./template";
+import { minutesFor } from "./after";
 import { ensureSurveyCode } from "./code";
 import { alignWalkInEmails, eventNamesOffOn, eventSurveyOf, readEventFor } from "./records";
 import { EVENT_REFUSAL, eventIntro, eventSurveyName, eventSurveyTitle } from "./words";
@@ -16,7 +17,10 @@ import { EVENT_REFUSAL, eventIntro, eventSurveyName, eventSurveyTitle } from "./
  * MAKING THE SURVEY AFTER AN EVENT (sv-new, "After a social"). An admin picks
  * a published event, who its email goes to (the people who came, or everybody
  * who signed up) and the day it closes; everything else is the template's,
- * with the event's name and day in its words. One survey per event.
+ * with the event's name and day in its words. The template is the question
+ * set an admin keeps for the survey after an event, else the code's
+ * (`eventStandardItems`), as it stands when the survey is made. One survey
+ * per event.
  *
  * It is changed on its Questions tab until it opens (`firstSentAt`): an admin
  * opening it for the QR code at the event, or its first email, whichever
@@ -115,8 +119,9 @@ export async function createEventSurvey(
   if (input.closesOn < londonDateKey(event.startAt)) return { ok: false, status: 400, error: EVENT_REFUSAL.closesBefore };
 
   const title = event.title.trim() || "Untitled event";
-  const items = eventTemplateItems();
-  const minutes = EVENT_TEMPLATE_MINUTES;
+  const items = await eventStandardItems(db);
+  // A minute for every five questions, as the event editor's step counts them: about a minute for the code's five.
+  const minutes = minutesFor(surveyQuestionsOf(items).length);
   const ref = db.collection(SURVEYS_COLLECTION).doc();
   await ref.set({
     kind: "event",

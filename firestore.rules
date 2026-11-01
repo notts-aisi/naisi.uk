@@ -3510,6 +3510,21 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === surveyQuestionSets ===
+    // The questions each kind of survey starts with, as an admin changed them
+    // on Run NAISI › Surveys › Question sets
+    // (src/lib/firestore/surveyQuestionSets.ts): a words-only set's changed
+    // words, or the survey after an event's questions. Written only by the
+    // question sets route on the Admin SDK, an admin's, and read only on the
+    // server, where every survey made from a template reads its set. So every
+    // browser is refused, admins included: a client able to write one could
+    // change what every survey made afterwards asks, past the route's rule
+    // that only the words of a programme's, a check-in's or a report's
+    // questions change.
+    match /surveyQuestionSets/{kind} {
+      allow read, write: if false;
+    }
+
     // === checkInWeeks ===
     // Which check-ins each week of a programme's run showed its lead, fixed the
     // first time the week was whole (src/lib/firestore/checkInWeeks.ts): survey

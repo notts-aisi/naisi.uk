@@ -20,12 +20,13 @@ import {
 import { siteAddress, surveyLink } from "../emails";
 import { surveyQuestionsOf } from "../items";
 import { namesOffDayFor } from "../namesOff";
+import { checkInSetItems } from "../questionSetsStore";
 import { mintSurveyToken } from "../token";
 import { SURVEY_FROM_NAME, SURVEY_REPLY_TO } from "../words";
 import { checkInSurveyId } from "./ids";
 import { CHECK_INS_PER_DAY, MAX_CHECK_IN_PEOPLE, hereOf, windowState } from "./model";
 import { readCheckInSession, readCheckInWeek, readRegisterMarks } from "./sessionRead";
-import { CHECK_IN_MINUTES, checkInItems } from "./template";
+import { CHECK_IN_MINUTES } from "./template";
 import {
   CHECK_IN_REFUSAL,
   checkInEmailWords,
@@ -142,7 +143,8 @@ export async function openCheckIn(
     addressesOf(db, here),
     db.collection("users").doc(input.opener.uid).get(),
   ]);
-  const items = checkInItems(week);
+  // The check-in set's words as it opens: a later change to the set never reaches it.
+  const items = await checkInSetItems(db, week);
   const signer = openerSnap.exists ? firstNameOfUser((openerSnap.data() ?? {}) as Record<string, unknown>) : "";
   const groupName = group.name.trim() || "Your group";
 

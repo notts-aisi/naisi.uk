@@ -14,10 +14,13 @@ import { STANDARD_QUESTION_IDS, eventTemplateItems } from "./template";
  * terms: what the editor's Survey after step chose, read from the event
  * (`src/lib/events/surveyAfter.ts`), and when each part of it happens.
  *
- *  - ITS QUESTIONS start as the standard set (`./template.ts`). The step
- *    rewords, moves and removes any of them and adds others; a standard
- *    question is never retyped, so its answers compare across
- *    events, and "How was it?" removed reads "not asked" where it is counted.
+ *  - ITS QUESTIONS start as the standard set: the question set an admin
+ *    keeps on Run NAISI › Surveys › Question sets, else the code's
+ *    (`./template.ts`), handed in by the caller (`eventStandardItems` on the
+ *    server reads it; a page hands it to the browser). The step rewords,
+ *    moves and removes any of them and adds others; a standard question is
+ *    never retyped, so its answers compare across events, and "How was it?"
+ *    removed reads "not asked" where it is counted.
  *  - WHO GETS IT: everyone who came (from check-in), or everyone with a place.
  *    An event nobody signs up for has only the first. With "everyone who
  *    came", the people who had a place and weren't checked in may be asked one
@@ -46,10 +49,15 @@ export type SurveyAfterSettings = Omit<StoredSurveyAfter, "items"> & {
   standard: boolean;
 };
 
-/** An event's setting, its questions read: the standard set when the step chose none. */
-export function settingsOf(stored: StoredSurveyAfter): SurveyAfterSettings {
+/**
+ * An event's setting, its questions read: the standard set as it stands
+ * (`standard`, which every caller hands in) when the step chose none.
+ */
+export function settingsOf(stored: StoredSurveyAfter, standard: readonly SurveyItem[]): SurveyAfterSettings {
   const { items, ...rest } = stored;
-  return items === null ? { ...rest, items: eventTemplateItems(), standard: true } : { ...rest, items: sanitizeSurveyItems(items), standard: false };
+  return items === null
+    ? { ...rest, items: structuredClone([...standard]) as SurveyItem[], standard: true }
+    : { ...rest, items: sanitizeSurveyItems(items), standard: false };
 }
 
 /** The questions the step's items hold, in order: never a section or page break, which the step does not make. */
@@ -57,20 +65,33 @@ function stepQuestions(items: readonly SurveyItem[]): SurveyQuestion[] {
   return surveyQuestionsOf(items);
 }
 
-/** Whether a question is one of the standard set (and so keeps its type). */
-export function isStandardQuestion(id: string): boolean {
-  return STANDARD_QUESTION_IDS.includes(id);
+/** Whether a question is one of the standard set, the code's or the one handed in (and so keeps its type). */
+export function isStandardQuestion(id: string, standard: readonly SurveyItem[]): boolean {
+  return STANDARD_QUESTION_IDS.includes(id) || standard.some((item) => item.kind === "question" && item.id === id);
+}
+
+/**
+ * The kind each standard question keeps: the code's for its own, then the
+ * standard set's for the rest. The question set gives a question whose kind
+ * it changes a new id, so the two never disagree on an id.
+ */
+function standardTypes(standard: readonly SurveyItem[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const item of [...eventTemplateItems(), ...standard]) {
+    if (item.kind === "question" && !out.has(item.id)) out.set(item.id, item.type);
+  }
+  return out;
 }
 
 /**
  * Everything wrong with the step's questions, each naming its question by
  * number, in the form's order. Empty when the survey can be set up with them.
  */
-export function questionProblems(items: readonly SurveyItem[]): string[] {
+export function questionProblems(items: readonly SurveyItem[], standardSet: readonly SurveyItem[]): string[] {
   const questions = stepQuestions(items);
   const numberOf = new Map(questions.map((question, at) => [question.id, at + 1]));
   const out: string[] = [];
-  const standard = new Map(eventTemplateItems().flatMap((item) => (item.kind === "question" ? [[item.id, item.type] as const] : [])));
+  const standard = standardTypes(standardSet);
   for (const question of questions) {
     const type = standard.get(question.id);
     if (type !== undefined && type !== question.type) out.push(`Question ${numberOf.get(question.id)} can’t change its kind.`);
@@ -83,9 +104,9 @@ export function questionProblems(items: readonly SurveyItem[]): string[] {
 }
 
 /** What is wrong with each question, by its id: the words to put right beside it in the step. */
-export function problemsByQuestion(items: readonly SurveyItem[]): Map<string, string[]> {
+export function problemsByQuestion(items: readonly SurveyItem[], standardSet: readonly SurveyItem[]): Map<string, string[]> {
   const out = new Map<string, string[]>();
-  const standard = new Map(eventTemplateItems().flatMap((item) => (item.kind === "question" ? [[item.id, item.type] as const] : [])));
+  const standard = standardTypes(standardSet);
   const add = (id: string, message: string) => out.set(id, [...new Set([...(out.get(id) ?? []), message])]);
   for (const question of stepQuestions(items)) {
     const type = standard.get(question.id);
