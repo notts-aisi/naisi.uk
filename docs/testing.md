@@ -514,6 +514,15 @@ The same shape, older:
   either projection, the route or the control, each in the admin area, both
   ways, because the control and the privacy policy both say only admins see a
   flag and its reason.
+- `tests/full-name-readers.test.mjs` holds who reads a full name: every file
+  under `src` that names the `fullName` field, a staff name or a function
+  that returns one is listed with who reads it (the rule itself, a shape, the
+  person's own, the committee, or another thing that is also called
+  `fullName`), both ways. A committee entry names its gate as text the file
+  must contain, or the files that import it, each itself behind the gate; an
+  `other` entry may not read an account's full name. The rule it stands
+  beside is run as every kind of viewer in `tests/names-rule.test.mjs`,
+  because the privacy policy says only the committee sees a full name.
 
 ### Settings that are not files
 
