@@ -166,6 +166,7 @@ function cleanAboutYou(about: AboutYou, account: AboutYou): AboutYou {
   const graduates = (STATUSES_WITH_GRADUATION as readonly string[]).includes(status);
   return withAccountEmail(
     {
+      fullName: about.fullName.trim(),
       preferredName: about.preferredName.trim(),
       universityEmail: "",
       universityEmailVerified: false,

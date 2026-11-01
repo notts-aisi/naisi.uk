@@ -152,6 +152,7 @@ export function projectQuestionSetForApplicant(set: QuestionSetDoc): ApplicantQu
 
 function aboutYouOf(about: AboutYou): AboutYou {
   return {
+    fullName: about.fullName,
     preferredName: about.preferredName,
     universityEmail: about.universityEmail,
     universityEmailVerified: about.universityEmailVerified,

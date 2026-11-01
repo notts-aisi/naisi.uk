@@ -43,13 +43,21 @@ const GRADUATION_SHAPE = /^\d{4}-\d{2}$/;
  * The About you answers a person's account already holds, read off the raw
  * `users/{uid}` document. Anything missing or malformed reads as blank, so a
  * profile written by an older version of the site still opens the form.
+ *
+ * The full name is the one the profile holds, else the account's display
+ * name: an account made with Google before the site asked for a full name
+ * opens the step with Google's name in the box, to keep or change. That
+ * fills a box on the person's own form and is written nowhere until they
+ * save their application.
  */
 export function aboutYouFromAccount(userData: unknown): AboutYou {
-  const profile = record(record(userData).profile);
+  const account = record(userData);
+  const profile = record(account.profile);
   const status = typeof profile.status === "string" && hasOwn(STATUS_LABELS, profile.status) ? profile.status : "";
   const graduation = text(profile.expectedGraduation, 7);
   const universityEmail = text(profile.universityEmail, FIELD_LIMITS.universityEmail);
   return {
+    fullName: text(profile.fullName, FIELD_LIMITS.fullName) || text(account.displayName, FIELD_LIMITS.fullName),
     preferredName: text(profile.preferredName, FIELD_LIMITS.preferredName),
     universityEmail,
     // Only an address the account has proved is its own counts as verified.
@@ -66,6 +74,7 @@ export function aboutYouFromAccount(userData: unknown): AboutYou {
 /** `about`, with the university email and its verified flag replaced by the account's. */
 export function withAccountEmail(about: AboutYou, account: AboutYou): AboutYou {
   return {
+    fullName: about.fullName,
     preferredName: about.preferredName,
     universityEmail: account.universityEmail,
     universityEmailVerified: account.universityEmailVerified,

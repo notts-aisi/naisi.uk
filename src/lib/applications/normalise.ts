@@ -384,6 +384,7 @@ export function normaliseQuestionSet(id: string, data: unknown): QuestionSetDoc 
 // ---------------------------------------------------------------------------
 
 export const EMPTY_ABOUT_YOU: AboutYou = {
+  fullName: "",
   preferredName: "",
   universityEmail: "",
   universityEmailVerified: false,
@@ -399,6 +400,8 @@ function asAboutYou(v: unknown): AboutYou {
   const raw = asRecord(v);
   const graduation = str(raw.expectedGraduation, 7);
   return {
+    // Absent on an application stored before the step asked it: read as blank.
+    fullName: str(raw.fullName, FIELD_LIMITS.fullName),
     preferredName: str(raw.preferredName, FIELD_LIMITS.preferredName),
     universityEmail: str(raw.universityEmail, FIELD_LIMITS.universityEmail),
     universityEmailVerified: bool(raw.universityEmailVerified),

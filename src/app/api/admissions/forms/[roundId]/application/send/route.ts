@@ -112,7 +112,8 @@ export async function POST(req: Request, ctx: Ctx) {
       {
         uid: user.uid,
         email: user.email ?? null,
-        displayName: user.displayName?.trim() || account.about.preferredName,
+        // Built as the save route builds it (see there).
+        displayName: account.displayName || user.displayName?.trim() || account.about.preferredName,
       },
       account.about,
     );

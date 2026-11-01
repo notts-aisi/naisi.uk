@@ -39,6 +39,7 @@ import { own } from "./keys";
 
 /** The About you answers a join request carries. The address's verified flag is never one of them. */
 const JOIN_FIELDS = [
+  "fullName",
   "preferredName",
   "universityEmail",
   "status",
@@ -103,6 +104,7 @@ export function joinIssues(about: AboutYou, agreed: boolean): string[] {
 
 /** The profile `completeRegistration` is handed. Its fields, and no others. */
 export type JoinRequest = {
+  fullName: string;
   preferredName: string;
   universityEmail: string;
   status: AffiliationStatus;
@@ -137,6 +139,7 @@ export function joinRequestFrom(about: AboutYou): JoinRequest {
   const statusOther = about.statusOther.trim();
   const interests = about.interests.trim();
   return {
+    fullName: about.fullName.trim(),
     preferredName: about.preferredName.trim(),
     universityEmail: about.universityEmail.trim(),
     status,
