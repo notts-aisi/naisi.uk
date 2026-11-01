@@ -721,7 +721,8 @@ describe("10. done, by the one meaning every page uses, and the Not done filter"
     // Not done: everybody behind on week 1 or week 3, facilitators' own weeks and Tariq's included; never Chloe.
     const behind = await names({ notdone: "1" });
     assert.deepEqual(behind, (await names({})).filter((name) => name !== "Chloe Nguyen"));
-    assert.deepEqual(await names({ group: B, notdone: "1" }), ["Farah Hussain", "Kofi Asante", "Rahul Mehta", "Sofia Rossi"]);
+    // Facilitators by the names they go by (`fullNameOfUser`), as everywhere on the tab.
+    assert.deepEqual(await names({ group: B, notdone: "1" }), ["Farah Hussain", "Kofi Asante", "Rahul", "Sofia"]);
     assert.deepEqual(await names({ group: B, waiting: "1", notdone: "1" }), [], "Chloe waits for feedback and is done");
     // The filter is a plain link that keeps the others, says when it is on, and when on, turns it off.
     assert.match(drawn.html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?notdone=1" class="filter filterNotDone">Not done</a>`));
