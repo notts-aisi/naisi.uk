@@ -482,9 +482,9 @@ export const REGISTRY = [
     path: "courseProgress/{progressId}",
     clauses: [],
     docShape:
-      "The member's own progress row at the deterministic id runId__uid__itemId, re-read before a write so a moderation stamp is carried through at full timestamp precision.",
+      "The member's own progress row at the deterministic id runId__uid__itemId, re-read before a rating or a comment is saved so the tick, its time and a moderation stamp are carried through at full timestamp precision (the rules pin all four).",
     reason:
-      "A read that precedes the one client-direct member write in the courses feature, issued from the member's own week page. Own-row only, which the deterministic id makes structural.",
+      "A read that precedes the one client-direct member write in the courses feature (a rating, a comment or a private note; a tick is the tick route's), issued from the member's own week page. Own-row only, which the deterministic id makes structural.",
     outcomes: {
       "signed-out": "refused",
       pending: "allowed",
