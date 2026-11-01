@@ -189,15 +189,22 @@ export function firstNameOfUser(data: Record<string, unknown>): string {
 }
 
 /**
- * The account's whole name ("Aisha Bello"), then the name they go by, then a
- * placeholder. Never an address. What the lead's tabs name people by (the
- * Overview, the Attendance grid and its CSV), as the Facilitators view does:
- * two people who go by one first name have to be told apart there. The pages
- * members see keep the name each person goes by.
+ * The name they go by, then the account's display name, then a placeholder.
+ * Never an address. What the lead's tabs name people by (the Overview, the
+ * Attendance grid and its CSV), and what facilitators read on the review
+ * queue, group notes, get-ready and the ratings at the end.
+ *
+ * THE NAME THEY GO BY COMES FIRST, whoever reads it. The display name of an
+ * account made with Google is Google's name for them, often their whole name,
+ * and facilitators who are not on the committee read what this returns: the
+ * privacy policy says only the committee sees a full name. A screen that
+ * shows the committee a full name asks `nameForViewer`
+ * (src/lib/names/staffName.ts), with the viewer, instead of this. A
+ * certificate prints its own name (`certificateNameOf`).
  */
 export function fullNameOfUser(data: Record<string, unknown>): string {
   const profile = (data.profile as Record<string, unknown> | undefined) ?? {};
   const display = typeof data.displayName === "string" ? data.displayName.trim() : "";
   const preferred = typeof profile.preferredName === "string" ? profile.preferredName.trim() : "";
-  return display || preferred || "NAISI member";
+  return preferred || display || "NAISI member";
 }

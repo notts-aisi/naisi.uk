@@ -53,6 +53,11 @@ export type NewsletterPrefs = {
  */
 export const FIELD_LIMITS = {
   preferredName: 80,
+  /**
+   * `profile.fullName`. The users rule in firestore.rules holds an account's
+   * own write to text of at most this many characters.
+   */
+  fullName: 120,
   universityEmail: 120,
   statusOther: 120,
   subject: 120,
@@ -122,6 +127,19 @@ export function validateUniversityEmail(email: string): string | null {
 
 export type UserProfile = {
   preferredName: string;
+  /**
+   * The person's full name, as they gave it ("Priya Shah"): asked when they
+   * join, once on Home of an account made before it was asked, and always on
+   * Profile. Only the committee is shown it; everybody else is shown the name
+   * they go by (`nameForViewer` in src/lib/names/staffName.ts). Every file
+   * that names the field is listed in tests/full-name-readers.test.mjs.
+   */
+  fullName?: string;
+  /**
+   * When Home last asked for the full name and the person answered it or put
+   * the question away. Home asks while neither this nor `fullName` is set.
+   */
+  fullNameAskedAt?: Date;
   universityEmail?: string;
   status?: AffiliationStatus;
   statusOther?: string; // free-text description when status === "other"
@@ -165,8 +183,14 @@ export type UserProfile = {
 
 /**
  * THE NAME A SIGNED-IN PERSON GOES BY, read off their own `users` document:
- * the stored display name when it has text, else the profile's preferred name
+ * the profile's preferred name when it has text, else the stored display name
  * when it has text, else null, and the caller then uses the address.
+ *
+ * THE NAME THEY GO BY COMES FIRST. The display name of an account made with
+ * Google is Google's name for them, often their whole name, and the privacy
+ * policy says everybody but the committee sees the name somebody goes by. So
+ * this reads the two in the order `goByNameOf` in src/lib/names/staffName.ts
+ * does, which every screen's rule (`nameForViewer`) starts from.
  *
  * ONE RULE, ASKED ON BOTH SIDES. `getCurrentUser` gives every route its
  * `displayName` through it, and `AuthProvider` gives every page its
@@ -177,8 +201,8 @@ export type UserProfile = {
  * password, while the route read this document.
  *
  * "Has text" means something other than spaces. A stored empty string is not
- * a name: an account written with `displayName: ""` falls through to the
- * preferred name rather than being called nothing. What comes back is trimmed,
+ * a name: an account written with `preferredName: ""` falls through to the
+ * display name rather than being called nothing. What comes back is trimmed,
  * and anything that is not a string reads as absent.
  *
  * Pure and client safe: no server import, so the provider and the session
@@ -193,7 +217,7 @@ export function accountNameOf(data: unknown): string | null {
     doc.profile && typeof doc.profile === "object"
       ? (doc.profile as { preferredName?: unknown })
       : {};
-  return textOf(doc.displayName) ?? textOf(profile.preferredName);
+  return textOf(profile.preferredName) ?? textOf(doc.displayName);
 }
 
 /**
