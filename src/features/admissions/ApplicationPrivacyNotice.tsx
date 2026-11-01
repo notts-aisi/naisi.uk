@@ -3,7 +3,7 @@
  *
  * A policy page nobody reads is not a notice. This is the short version, in
  * front of the person while they are typing the answers it describes, and it
- * links to the full "Courses and programmes" section for the rest. Keep it to
+ * links to the policy's "Applying to a programme" section for the rest. Keep it to
  * the four things an applicant would not guess: their drafts are saved on our
  * servers, other students read the answers, the access-requirements box is
  * handled differently from everything else, and reviewer notes are theirs to
@@ -18,10 +18,10 @@
  * first, since a stage is a page in its own right and an applicant can land
  * on any of them from a saved draft.
  *
- * The wording is the owner's: it must stay consistent with the "Courses and
- * programmes" section of the CURRENT privacy policy
- * (src/content/legal/privacy/v14.tsx). If one changes, change both, and move
- * this pointer the day a newer version supersedes v14. A published version is
+ * The wording is the owner's: it must stay consistent with the "Applying to a
+ * programme" section of the CURRENT privacy policy
+ * (src/content/legal/privacy/v15.tsx). If one changes, change both, and move
+ * this pointer the day a newer version supersedes v15. A published version is
  * frozen text, so a pointer left aimed at an old one sends the next engineer
  * to edit a policy members have already accepted, which changes what an
  * archive URL shows without moving CURRENT_POLICY_VERSION and so without
@@ -30,7 +30,7 @@
  */
 
 /** Where the full section lives. One place to fix if the anchor ever moves. */
-export const COURSES_PRIVACY_HREF = "/privacy#courses";
+export const COURSES_PRIVACY_HREF = "/privacy#applying";
 
 export default function ApplicationPrivacyNotice({
   className,
@@ -101,7 +101,7 @@ export default function ApplicationPrivacyNotice({
         The full detail, including how long we keep applications and who can
         see what once you are on a programme, is in{" "}
         <a href={COURSES_PRIVACY_HREF} target="_blank" rel="noreferrer noopener">
-          Courses and programmes
+          Applying to a programme
         </a>{" "}
         in our <a href="/privacy">privacy policy</a>.
       </p>

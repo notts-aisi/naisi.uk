@@ -23,8 +23,9 @@
  *    beside an answer.
  *
  * A lead who is not an admin is never signed in by the harness, so that the
- * lead never sees a private note or an untold placement is held by
- * `tests/course-hub-coursework.test.mjs` instead.
+ * lead never sees a private note, an untold placement or the panels under
+ * the tab (Claude's best answers and Pangram, an admin's alone since privacy
+ * v15) is held by `tests/course-hub-coursework.test.mjs` instead.
  *
  * Every name and word is the fixture's own (`COURSEWORK` and friends in
  * `scripts/e2e-fixtures/worlds/course-hub-term.mjs`). Nothing here reads

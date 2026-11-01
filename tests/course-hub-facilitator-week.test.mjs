@@ -283,8 +283,11 @@ describe("2. who ticked each source, by name, behind a button", () => {
       const region = new RegExp(`<div id="${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}" class="wkOpened" hidden="">(.*?)</div>`);
       assert.match(html, region, "the names are not in a region the button controls and hides");
     }
-    // The count is never a percentage, and the rule every answer to Q31 keeps is said.
-    assert.match(text, /Reading ticks Ticks never count against anyone\./);
+    // The count is never a percentage. Nothing says ticks never count: privacy
+    // v15 took that back (ticks drive reminders and show how somebody is taking
+    // part), so the heading goes straight to the sources.
+    assert.match(text, /Reading ticks Part \d · Read A keeper's diary/);
+    assert.doesNotMatch(text, /never count against/i);
     assert.match(text, /A keeper's diary 2 of 3 ticked it/);
     assert.doesNotMatch(text, /%/);
     const css = readFileSync(join(SRC, "features", "courses", "facilitator", "facilitator.module.css"), "utf8");

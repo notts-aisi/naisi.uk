@@ -616,7 +616,7 @@ describe("3. week 1 (Thu 29 Oct to Wed 4 Nov; Group B meets on Tue 3 Nov)", () =
     // The policy: a facilitator's own ticks are the lead's and admins', never another facilitator's.
     assert.equal(
       ticks,
-      "Reading ticks Ticks never count against anyone. Part 2 · Read A keeper's diary 1 of 1 ticked it See who AO Amara Okafor Part 2 · Watch Lamps at night 1 of 1 ticked it See who AO Amara Okafor ",
+      "Reading ticks Part 2 · Read A keeper's diary 1 of 1 ticked it See who AO Amara Okafor Part 2 · Watch Lamps at night 1 of 1 ticked it See who AO Amara Okafor ",
     );
     assert.equal(ticksOf("bea").length, 2);
   });

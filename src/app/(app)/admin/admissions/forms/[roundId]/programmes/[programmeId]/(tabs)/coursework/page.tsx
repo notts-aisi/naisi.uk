@@ -25,10 +25,11 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * never read for the tab. Server-rendered on the Admin SDK; the filters are
  * plain links (`?group=`, `?waiting=1`). Nothing here writes.
  *
- * UNDER THE TABLE, one week at a time (`?week=3`, else the latest week
- * anybody shown has written in): Claude's best answers to it for an admin
- * and the lead, and Pangram on it for an admin alone
- * (`CourseworkWeekPanels`). Each panel asks its own route, behind the same
+ * UNDER THE TABLE, FOR AN ADMIN ALONE, one week at a time (`?week=3`, else
+ * the latest week anybody shown has written in): Claude's best answers to it
+ * and Pangram on it (`CourseworkWeekPanels`). The programme's lead is drawn
+ * neither (privacy v15: what Claude returns is seen by admins only), and both
+ * routes refuse the lead too. Each panel asks its own route, behind the same
  * door; Claude and Pangram are sent something only on a press.
  */
 
@@ -55,19 +56,21 @@ export default async function ProgrammeCourseworkPage({
   const base = `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/coursework`;
   // The panels sit under a table: none while nobody holds a place or no week has coursework.
   const week = view.counts.holding + view.counts.facilitating > 0 ? chosenWeek(query, view.columns, view.sections) : null;
+  // An admin's alone: the programme's lead reads the table and is drawn no panel.
+  const panels = week && view.viewer === "admin" ? week : null;
   return (
     <>
       <CourseworkTable view={view} base={base} week={week?.asked ? week.weekNumber : null} />
-      {week && (
+      {panels && (
         <CourseworkWeekPanels
           roundId={view.roundId}
           programmeId={view.programmeId}
           base={base}
           filter={view.filter}
           columns={view.columns}
-          week={week}
+          week={panels}
           viewer={view.viewer}
-          names={view.viewer === "admin" ? view.names : {}}
+          names={view.names}
         />
       )}
     </>

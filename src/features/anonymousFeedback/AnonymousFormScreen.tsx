@@ -54,7 +54,7 @@ export default function AnonymousFormScreen({ screen }: { screen: FormScreen }) 
           ))}
         </ul>
         <p className={styles.note}>{screen.box.note}</p>
-        <Link href="/privacy#data-we-collect" prefetch={false} className={styles.policyLink}>
+        <Link href="/privacy#surveys" prefetch={false} className={styles.policyLink}>
           {FORM_WORDS.policyLink}
         </Link>
       </section>

@@ -6,8 +6,10 @@
  * `src/content/legal/<policy>/v<N>.tsx`, register it in
  * `src/content/legal/registry.tsx`, and PREPEND a new entry here (newest first).
  * `CURRENT_POLICY_VERSION` changes with it. We store the version a user accepted
- * and when (`policyVersion` + `policyAgreedAt`), so a future PR can detect anyone
- * who agreed to an older version and require them to re-consent on sign-in.
+ * and when (`policyVersion` + `policyAgreedAt`), and `needsPolicyAcceptance` in
+ * `./acceptance.ts` decides from the stored version whether the member area
+ * and a collaborator's space send somebody to accept (since privacy v15, only
+ * an agreement older than v15 or than the current terms).
  *
  * The /<policy> page renders the current version; /<policy>/versions lists the
  * history; /<policy>/v/[version] renders a specific archived version.
@@ -126,12 +128,28 @@ export const POLICIES: Record<
     // taken-back promise is a material change, so it moved the version and
     // every member is asked again at their next visit.
     //
+    // v15 is the whole policy arranged by kind of use, with a summary at the
+    // top, and THE LAST VERSION ANYBODY IS ASKED TO ACCEPT. It takes back
+    // several of v14's promises (facilitators never see anything of a survey,
+    // notes are admins' alone, not coming is recorded nowhere, a tick never
+    // counts, an unsent answer is never read, a conduct flag never shows where
+    // applications are scored, sign-ups are seen by admins and SU-recognised
+    // committee only), so everybody is asked once more. From v15 on, the gate
+    // asks only an account whose stored agreement is older than privacy v15
+    // or the current terms (`needsPolicyAcceptance` in `./acceptance.ts`): a
+    // later privacy version is a notice on the site and by email before it
+    // takes effect, as v15's "Changes to this policy" says, and moves the date
+    // and the version here as every version has. The outside services moved
+    // to /privacy/services (`src/content/legal/services.ts`), so adding one
+    // is a change to that page and a notice, not a new version.
+    //
     // Keep this comment ABOVE `versions:`, never between the `[` and the first
     // `{`: tests/funnel-harness-guards.test.mjs reads the current version out
     // of this file with a regex that allows only whitespace across that gap,
     // so a comment sitting there leaves the guard unable to read the very
     // number it exists to pin. Anywhere else in the file is fine.
     versions: [
+      { version: 15, lastUpdated: "31 October 2026" },
       { version: 14, lastUpdated: "30 October 2026" },
       { version: 13, lastUpdated: "30 October 2026" },
       { version: 12, lastUpdated: "29 October 2026" },

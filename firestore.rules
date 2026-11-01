@@ -144,9 +144,12 @@ service cloud.firestore {
         // `policyAgreedAt` is therefore pinned to the server's own clock
         // (`request.time` is what a client `serverTimestamp()` resolves to).
         //
-        // No version literal is compared here. The re-consent gate compares
-        // `policyVersion` for INEQUALITY against CURRENT_POLICY_VERSION, so
-        // any value other than the current one triggers the gate.
+        // No version literal is compared here. The re-consent gate
+        // (`needsPolicyAcceptance` in src/lib/legal/acceptance.ts) asks about
+        // every stored value except an agreement, with the current terms, to
+        // a privacy version from 15 up to the one the site serves: a value
+        // naming a version the site never served is asked about too, so a
+        // forged one only sends its writer to accept, which restamps it.
         && (
           !('policyAgreedAt' in request.resource.data)
           || request.resource.data.policyAgreedAt == request.time

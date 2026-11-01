@@ -713,10 +713,13 @@ test("the body does not carry the run label as a parenthetical", () => {
 });
 
 test("the unpushy last line survives verbatim", () => {
-  assert.match(
-    bodyOf(renderSeed()),
-    /Read what you can\. The week stays open, and nobody is keeping score\./,
-  );
+  assert.match(bodyOf(renderSeed()), /Read what you can\. The week stays open\./);
+});
+
+test("the last line no longer says nobody is keeping score, which privacy v15 took back", () => {
+  // Version 15 says ticks and what is left of a week drive reminders and show
+  // how somebody is taking part, so the seed copy promises nothing about score.
+  assert.doesNotMatch(bodyOf(renderSeed()), /keeping score/i);
 });
 
 // ===========================================================================

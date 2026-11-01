@@ -418,9 +418,11 @@ shell. The runner checks for them BEFORE it seeds anything and names the file
 and the missing variables if they are not there.
 
 **A policy version shipping needs no console edit.** On a production build the
-member area sends any signed-in account whose stored `policyVersion` is behind
-`CURRENT_POLICY_VERSION` to `/re-consent` before it renders a page, and that
-includes the supplied admin account the first time it signs in after a bump.
+member area sends any signed-in account whose stored `policyVersion` needs the
+accept page (`needsPolicyAcceptance` in `src/lib/legal/acceptance.ts`: none,
+or an agreement older than privacy v15 or the current terms) to `/re-consent`
+before it renders a page, and that includes the supplied admin account the
+first time it signs in after version 15 or a new terms version ships.
 `signInWithPassword` handles it the way a person does: when the handoff lands
 on the consent page it presses the real Accept button (`acceptReConsentIfAsked`
 in `scripts/e2e/lib/browser.mjs`) and waits for the page's own navigation home,

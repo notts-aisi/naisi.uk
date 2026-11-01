@@ -144,15 +144,18 @@ export async function readEmailVerification(tokenId) {
  * A RESTATEMENT of `CURRENT_POLICY_VERSION` in src/lib/legal/policies.ts,
  * which is TypeScript and cannot be imported from plain Node. It has to be
  * here: `(app)/layout.tsx` redirects any signed-in account whose stored
- * version is not the current one to `/re-consent`, on every deployed build, so
- * a seeded account without it reaches a consent page instead of the member
- * area and every browser spec that signs one in stops at the first step.
+ * agreement needs the accept page (`needsPolicyAcceptance`: none, one older
+ * than privacy v15 or the current terms, or one the site never served) to
+ * `/re-consent`, on every deployed build, so a seeded account without it
+ * reaches a consent page instead of the member area and every browser spec
+ * that signs one in stops at the first step. The seed is what accepting would
+ * stamp, the current version, so it stays right whatever the gate asks.
  *
  * `tests/funnel-harness-guards.test.mjs` pins the literal by reading the
  * policy file and computing the same string, so a policy bump fails offline
  * with the line to update rather than at 2am in a browser.
  */
-export const ACCEPTED_POLICY_VERSION = "terms.1+privacy.14";
+export const ACCEPTED_POLICY_VERSION = "terms.1+privacy.15";
 
 /**
  * Creates the minimal `users` document the register flow would create, for a

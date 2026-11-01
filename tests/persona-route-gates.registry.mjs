@@ -972,15 +972,16 @@ export const ROUTES = {
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers": {
     GET: {
-      expect: signedIn(400),
+      expect: adminOnly(400),
       why:
-        "Claude's best answers to a week (privacy v13): the week is checked in the query before anything is " +
-        "read, so an empty one is the same 400 for everybody signed in. Who may (an admin or the programme's " +
-        "lead) is decided from the form after it.",
+        "Claude's best answers to a week (privacy v13): an admin's alone since privacy v15, decided on the " +
+        "session before anything is read; the admin then meets the query check, which week.",
     },
     POST: {
-      expect: signedIn(400),
-      why: "Asking Claude for a week's best answers: the body (which week) is checked before anything is read or sent.",
+      expect: adminOnly(400),
+      why:
+        "Asking Claude for a week's best answers: an admin's alone since privacy v15, decided on the session " +
+        "before the body is read; the admin then meets the body check, which week, before anything is sent.",
     },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/pangram": {
@@ -4745,19 +4746,16 @@ export const REAL_ROUTES = {
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers": {
     GET: {
-      realDrive: { query: "?week={weekId}", why: "A week is required in the query, which an empty one fails for everybody: the set's week 1 reaches the gate." },
-      another: {
-        anonymous: c(401, NO_SESSION),
-        "*": c(404, "No role on this programme: answered as a programme that is not there, before its run is read."),
-        admin: c(404, "An admin is let through on any programme, and told week 1 has no coursework: the world's weeks are written before blocks."),
-      },
-      theirs: {
-        lead: c(404, "The programme's own lead is let through, and told week 1 has no coursework: the world's weeks are written before blocks."),
-        facilitator: c(404, "Facilitating a group is no role on the form: answered as a programme that is not there."),
-        participant: c(404, "Holding a place is no role on the form: answered as a programme that is not there."),
-      },
+      realDrive: { query: "?week={weekId}", why: "A week is required in the query: the set's week 1 reaches the admin's door." },
+      ...adminAlone(
+        "Claude's best answers to a week",
+        c(404, "An admin is let through on any programme, and told week 1 has no coursework: the world's weeks are written before blocks."),
+      ),
     },
-    POST: bodyFirst("Who may is the Coursework tab's door: an admin or the programme's lead, decided from the form."),
+    POST: adminAlone(
+      "Asking Claude for a week's best answers",
+      c(400, "An admin meets the body check: an empty body does not say which week, so nothing is read or sent."),
+    ),
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/pangram": {
     GET: {

@@ -27,11 +27,12 @@
  *  7. THE MODEL, run on its own.
  *  8. THE TREE: each page gates before it reads.
  *  9. CLAUDE, PANGRAM AND THE NOTES ADMINS KEEP (privacy v13). Under the
- *     tab's table, one week chosen by links that keep the filters: Claude's
- *     best answers for the lead and an admin, Pangram for an admin alone.
- *     Beside a person's weeks, for an admin alone: notes about them written
- *     from this run, Claude's draft of one, and Pangram. The lead is handed
- *     none of the three, and no word of Pangram reaches the lead's pages.
+ *     tab's table, for an admin alone (privacy v15), one week chosen by links
+ *     that keep the filters: Claude's best answers and Pangram. Beside a
+ *     person's weeks, for an admin alone: notes about them written from this
+ *     run, Claude's draft of one, and Pangram. The lead is handed none of
+ *     them, and no word of Claude's answers or of Pangram reaches the lead's
+ *     pages.
  *
  * Real: the two pages, the loader and the model, rendered to HTML. Faked:
  * see `tests/lib/facilitatorWeekWorld.mjs`.
@@ -440,23 +441,23 @@ describe("9. Claude, Pangram and the notes admins keep", () => {
   /** What the panels under the table draw, one level down: the client panels and their props. */
   const insideOf = (panels) => panels.type(panels.props);
 
-  test("the tab: under the table, the latest week written in, or the one the address asks for; best answers for the lead and an admin, Pangram for an admin alone", async () => {
-    const asLead = await tab("claudia");
-    const leadPanels = panelsOf(asLead);
-    assert.deepEqual([leadPanels.props.week, leadPanels.props.viewer, leadPanels.props.names], [{ weekNumber: 3, asked: false }, "lead", {}]);
-    const leadInside = insideOf(leadPanels);
-    assert.deepEqual(
-      find(leadInside, "BestAnswersPanel").map((panel) => [panel.props.weekId, panel.props.personBase]),
-      [["w03", COURSEWORK_PATH]],
-    );
-    assert.equal(find(leadInside, "PangramWeek").length, 0, "the lead is handed Pangram on a week");
-    assert.match(asLead.text, /Week 3 · The lamp makers/);
-    assert.match(asLead.text, /Best answers/);
-    assert.doesNotMatch(asLead.html, /Pangram/, "the lead's tab names Pangram");
+  test("the tab: under the table, the latest week written in, or the one the address asks for; best answers and Pangram for an admin alone, and the lead is drawn neither", async () => {
+    // Privacy v15: what Claude returns is seen by admins only, so the lead
+    // reads the table and is handed no panel under it, on any week.
+    for (const query of [{}, { week: "1" }, { group: B, week: "3" }]) {
+      const asLead = await tab("claudia", query);
+      assert.equal(find(asLead.element, "CourseworkTable").length, 1, "the lead lost the table");
+      assert.equal(panelsOf(asLead), null, `the lead is handed the panels under the table (${JSON.stringify(query)})`);
+      assert.equal(find(asLead.element, "BestAnswersPanel").length, 0, "the lead is handed Claude's best answers");
+      assert.doesNotMatch(asLead.text, /Best answers/, "the lead's tab shows Claude's best answers");
+      assert.doesNotMatch(asLead.html, /Pangram/, "the lead's tab names Pangram");
+    }
 
     const asAdmin = await tab("zach", { group: B, week: "1" });
     const adminPanels = panelsOf(asAdmin);
     assert.deepEqual(adminPanels.props.week, { weekNumber: 1, asked: true });
+    // The panels draw nothing for anybody but an admin, whoever hands them one.
+    assert.equal(adminPanels.type({ ...adminPanels.props, viewer: "lead" }), null, "the panels draw for a lead");
     const adminInside = insideOf(adminPanels);
     assert.deepEqual(find(adminInside, "BestAnswersPanel").map((panel) => panel.props.weekId), ["w01"]);
     const pangram = find(adminInside, "PangramWeek");

@@ -554,7 +554,7 @@ export const courseTemplateDefaults: Record<
           "<p>{weekPrep}</p>" +
           '<p><a href="{weekUrl}" style="color:#2563eb">Open this week on the site</a></p>' +
           '<p><a href="{feedbackUrl}" style="color:#2563eb">Tell us how the last session went</a></p>' +
-          "<p>Read what you can. The week stays open, and nobody is keeping score.</p>",
+          "<p>Read what you can. The week stays open.</p>",
       ),
     ],
   },

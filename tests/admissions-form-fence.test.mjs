@@ -685,9 +685,9 @@ const ROUND_SURFACES = {
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers": {
     kind: "form",
     why:
-      "Claude's best answers to a week of the programme's run, through openCourseworkDoor, which starts from " +
-      "loadProgrammeRun and the form's own loader and answers 'none' (a 404) for a round that is not a form, " +
-      "before anybody's coursework is read",
+      "Claude's best answers to a week of the programme's run, an admin's alone, through openCourseworkDoor, " +
+      "which starts from loadProgrammeRun and the form's own loader and answers 'none' (a 404) for a round " +
+      "that is not a form, before anybody's coursework is read",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/pangram": {
     kind: "form",

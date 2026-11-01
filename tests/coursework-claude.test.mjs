@@ -28,7 +28,8 @@
  *  1. Notes: admins only, never about yourself, the lead refused; add, edit,
  *     delete; which notes each place shows; a view-as session refused.
  *  2. Claude's draft of a note: only counted rows, no name, nothing stored.
- *  3. Best answers: the lead and admins; labels to Claude, names back on the
+ *  3. Best answers: admins only since privacy v15 (the lead refused on the
+ *     session, before anything is read); labels to Claude, names back on the
  *     way out; a facilitator's own work and uncounted rows never sent; picks
  *     dropped for somebody who no longer holds a place; out of date.
  *  4. Pangram: admins only (the lead never sees a reading), only counted
@@ -338,16 +339,29 @@ const BEST = {
   usage: { inputTokens: 1, outputTokens: 1 },
 };
 
-describe("best answers: the lead and admins, labels to Claude and names back", () => {
-  test("the lead and an admin read it; a reviewer, a facilitator and a fellow do not", async () => {
+describe("best answers: admins only, labels to Claude and names back", () => {
+  test("an admin reads it; the lead, a reviewer, a facilitator and a fellow are refused on the session, before anything is read", async () => {
     reset();
-    const lead = await ask("claudia", routes.best.GET, params, { query: "?week=w03" });
-    assert.equal(lead.status, 200);
-    assert.deepEqual(Object.keys(lead.body).sort(), ["claude", "notIncluded", "outOfDate", "result", "sendable", "week"]);
-    assert.ok(!JSON.stringify(lead.body).toLowerCase().includes("pangram"), "the lead's view carries something of Pangram's");
-    assert.equal((await ask("zach", routes.best.GET, params, { query: "?week=w03" })).status, 200);
-    assert.equal((await ask("lloyd", routes.best.GET, params, { query: "?week=w03" })).status, 403);
-    for (const who of ["rahul", "amara"]) assert.equal((await ask(who, routes.best.GET, params, { query: "?week=w03" })).status, 404);
+    globalThis.__cwClaudeAnswer = BEST;
+    const admin = await ask("zach", routes.best.GET, params, { query: "?week=w03" });
+    assert.equal(admin.status, 200);
+    assert.deepEqual(Object.keys(admin.body).sort(), ["claude", "notIncluded", "outOfDate", "result", "sendable", "week"]);
+    assert.ok(!JSON.stringify(admin.body).toLowerCase().includes("pangram"), "the best answers carry something of Pangram's");
+    for (const who of ["claudia", "lloyd", "rahul", "amara", "yusuf"]) {
+      // Refused on the session: the same 403 with a week, with no week and with no body,
+      // so nothing about the programme, the run or the week is read for them.
+      for (const query of ["?week=w03", "", "?week=w99"]) {
+        const read = await ask(who, routes.best.GET, params, { query });
+        assert.equal(read.status, 403, `${who} read the best answers (${query || "no week"})`);
+        assert.match(read.body.error, /Only an admin can ask Claude for the best answers/);
+      }
+      for (const body of [{ weekId: "w03" }, {}]) {
+        const asked = await ask(who, routes.best.POST, params, { body });
+        assert.equal(asked.status, 403, `${who} asked Claude for the best answers`);
+      }
+    }
+    assert.deepEqual(globalThis.__cwClaudeAsked, [], "Claude was asked on a refused press");
+    assert.equal(w.world.db.read(`courseBestAnswers/${RUN.agi}__w03`), undefined, "a refused press kept something");
   });
 
   test("counts what can be sent and what is not included yet, and sends nothing on a read", async () => {
@@ -361,10 +375,10 @@ describe("best answers: the lead and admins, labels to Claude and names back", (
     assert.deepEqual(globalThis.__cwClaudeAsked, []);
   });
 
-  test("the lead's press sends labels, never names, and keeps accounts, never names", async () => {
+  test("an admin's press sends labels, never names, and keeps accounts, never names", async () => {
     reset();
     globalThis.__cwClaudeAnswer = BEST;
-    const answer = await ask("claudia", routes.best.POST, params, { body: { weekId: "w03" } });
+    const answer = await ask("zach", routes.best.POST, params, { body: { weekId: "w03" } });
     assert.equal(answer.status, 200);
     const [asked] = globalThis.__cwClaudeAsked;
     assertClean(asked.message, "the best answers message");

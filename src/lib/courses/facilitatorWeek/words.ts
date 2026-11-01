@@ -146,9 +146,6 @@ export const READ_THEM = "Read them";
 
 export const READING_TICKS = "Reading ticks";
 
-/** The rule every answer to Q31 keeps, in the board's words. */
-export const TICKS_NEVER_COUNT = "Ticks never count against anyone.";
-
 /** Over a source's title: "Part 2 · Read", or "Read" for a source outside the parts. */
 export function sourcePlaceWords(partNumber: number | null, kindLabel: string): string {
   return partNumber === null ? kindLabel : `Part ${partNumber} · ${kindLabel}`;
