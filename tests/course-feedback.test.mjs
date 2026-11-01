@@ -486,8 +486,9 @@ describe("4. feedback given before pieces existed: a signed card, already emaile
       { on: chloeCards[0].on, byRole: chloeCards[0].byRole, byName: chloeCards[0].byName, text: chloeCards[0].text, lines: chloeCards[0].lines },
       { on: "writtenAnswer", byRole: "facilitator", byName: "Rahul", text: "", lines: ["A clear view: Solid", "Reasons: Solid", "The best objection: Solid", "So what: Solid"] },
     );
-    // Rahul's chip carries his initials; the team's, the society's own.
-    assert.match(chloe.text, /Feedback RM Feedback from Rahul Your facilitator · Wed 11 Nov A clear view: Solid Reasons: Solid/);
+    // Rahul's chip takes its initial from the name he goes by, never from his full name; the team's is the society's own.
+    assert.match(chloe.text, /Feedback R Feedback from Rahul Your facilitator · Wed 11 Nov A clear view: Solid Reasons: Solid/);
+    assert.doesNotMatch(chloe.text, /Mehta|\bRM\b/);
     const farah = await w.weekPage("farah", 2);
     const [card] = farah.overview.weeks.find((week) => week.weekNumber === 2).feedback;
     assert.deepEqual([card.byRole, card.text], ["admin", "An old comment."]);
@@ -512,8 +513,11 @@ describe("5. the pages", () => {
     const page = await w.weekPage("chloe", 2);
     assert.match(
       page.text,
-      /Feedback RM Feedback from Rahul Your facilitator · Tue 17 Nov Good use of the diary\. N From the NAISI team Claudia, who leads AGI Strategy · Tue 17 Nov Bring your question to the social\./,
+      /Feedback R Feedback from Rahul Your facilitator · Tue 17 Nov Good use of the diary\. N From the NAISI team Claudia, who leads AGI Strategy · Tue 17 Nov Bring your question to the social\./,
     );
+    // Each signed with the name its writer goes by (privacy v15: only the committee sees a full name): no
+    // surname, and no initial taken from one.
+    assert.doesNotMatch(page.text, /Mehta|Reyes|\bRM\b|\bCR\b/);
     assert.match(page.html, /<section id="feedback"/);
     assert.doesNotMatch(page.text, /Emailed|Not emailed|No marks|There are no marks/);
     // This week's row and the answer's own card lead to it, on the same page.
@@ -538,7 +542,9 @@ describe("5. the pages", () => {
     assert.match(page.text, new RegExp(`Your feedback ${escape(words.FEEDBACK_HINT)} Comment`));
     assert.match(page.text, /Shows on Chloe’s week 2 page as soon as you save\./);
     assert.match(page.text, /Save feedback/);
-    assert.match(page.text, /SR Feedback from Sofia Chloe’s facilitator · Tue 17 Nov Sofia’s thoughts\. Not emailed yet/);
+    assert.match(page.text, /S Feedback from Sofia Chloe’s facilitator · Tue 17 Nov Sofia’s thoughts\. Not emailed yet/);
+    // The people running the group read each piece signed as Chloe does, by the name its writer goes by.
+    assert.doesNotMatch(page.text, /Rossi|\bSR\b/);
     assert.doesNotMatch(page.text, /The rubric|A short comment|Send feedback to|The email Chloe gets|No marks/);
     // The list puts Chloe under With feedback, by whoever left it.
     assert.match(page.text, /With feedback 1 CN Chloe Nguyen By Sofia/);

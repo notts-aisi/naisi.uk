@@ -361,7 +361,9 @@ describe("6. a person's page", () => {
     assert.match(drawn.text, /Written answer Who should keep the lamps lit, and why\? Feedback given 4 words Sent Mon 16 Nov, 9am farah wrote a plan\. Write feedback on the answer/);
     // The week's Feedback: feedback given before pieces existed is a signed card, already emailed, its comment
     // shown; with no comment it reads as its levels, one plain line each.
-    assert.match(drawn.text, /Feedback RM Feedback from Rahul Farah’s facilitator · Mon 16 Nov Clear and short\. Emailed to Farah on Mon 16 Nov/);
+    assert.match(drawn.text, /Feedback R Feedback from Rahul Farah’s facilitator · Mon 16 Nov Clear and short\. Emailed to Farah on Mon 16 Nov/);
+    // Signed with the name Rahul goes by, as Farah reads it: his chip's initial is that name's, not his full name's.
+    assert.doesNotMatch(drawn.text, /\bRM\b|Mehta/);
     // The lead may write a piece on the week as a whole, once its readers may read it.
     assert.match(drawn.text, /Feedback on the week For the week as a whole, not one answer\. It’s signed with your name and shows on their week page as soon as you save it\. Comment/);
     w.world.db.poke(`courseExerciseResponses/${RUN.agi}__farah__w03__k3-wa`, { "feedback.comment": "" });
