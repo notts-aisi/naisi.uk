@@ -7,15 +7,16 @@
  *     so a request can read a switch without importing the job. Restated facts
  *     drift unless something holds them together: this suite does, against
  *     the registrations the tick actually runs.
- *  2. The send instant is a London wall clock on a civil date, so the clocks
- *     going back on Sunday 25 October 2026 must not move it by an hour.
+ *  2. The send instant ("Week N is open", 6 days before each session at 9am)
+ *     is a London wall clock on a civil date, so the clocks going back on
+ *     Sunday 25 October 2026 must not move it by an hour.
  *  3. The register's words are the board's, every value from the payload,
  *     with a sentence dropped (never printed blank) when a job is off.
  *  4. The settings route refuses what would make the two chases read wrong.
  *  5. A group's email about its next session has one door. The push and the
- *     schedule never both send because both go through one module that claims
+ *     schedule never both send because both go through one send that claims
  *     the group's marker before the first message; a file anywhere else in
- *     `src` that calls the sender or mints the marker would be a lane the
+ *     `src` that calls the send or mints the marker would be a lane the
  *     switch knows nothing about. The last section walks the tree for that.
  */
 import { describe, test } from "node:test";
@@ -41,6 +42,7 @@ const { normalizeCourseGroup } = await lib("firestore", "courseGroups.ts");
 const { buildHeldEmailTask, heldEmailTaskId } = await lib("courses", "heldEmailTask.ts");
 const { normalizeTask } = await lib("firestore", "tasks.ts");
 const { DEFAULT_COURSES_CONFIG } = await lib("firestore", "config.ts");
+const weekEmails = await lib("courses", "weekEmails", "model.ts");
 const { chaseSentence, nextEmailSentence, registerEndingWords } = await loadTs(
   "features/courses/registerEndingWords.ts",
 );
@@ -70,8 +72,12 @@ describe("the three jobs a register's ending depends on", () => {
     assert.equal(jobDefaultEnabled(unmarkedRegistersJob), true);
   });
 
-  test("the lead time is written once, as the setting's default", () => {
-    assert.equal(DEFAULT_COURSES_CONFIG.nextWeekEmailDaysBefore, 2);
+  test("the lead times are written once: the week's emails in their model, the chases as the settings' defaults", () => {
+    assert.equal(weekEmails.WEEK_OPEN_DAYS_BEFORE, 6);
+    assert.deepEqual([...weekEmails.WEEK_REMINDER_DAYS], [3, 1]);
+    assert.equal(weekEmails.WEEK_EMAIL_CLOCK, "09:00");
+    // The days-before setting is retired: nothing reads it, and it has no default.
+    assert.equal(DEFAULT_COURSES_CONFIG.nextWeekEmailDaysBefore, undefined);
     assert.equal(DEFAULT_COURSES_CONFIG.unmarkedRegisterGraceHours, 36);
     assert.equal(DEFAULT_COURSES_CONFIG.registerTaskHours, 60);
   });
@@ -81,7 +87,7 @@ describe("the three jobs a register's ending depends on", () => {
 // 2. When next week's email goes
 // ===========================================================================
 
-describe("when next week's email goes", () => {
+describe("when Week N is open goes", () => {
   const plan = [1, 2, 3, 4, 5, 6].map((n) => ({ kind: "week", weekNumber: n, weekId: `w0${n}` }));
   const run = { id: "run1", startDate: "2026-10-15", weekPlan: plan };
   const group = (weekday) =>
@@ -91,34 +97,44 @@ describe("when next week's email goes", () => {
       session: { weekday, startTimeLocal: "18:00", durationMinutes: 120, location: "Room", meetingUrl: null, notes: "" },
     });
 
-  test("two days before, at the session's own wall clock, on either side of the clocks going back", () => {
-    // Monday 26 October 6pm GMT: Saturday 24 October 6pm is BST, 17:00 UTC.
+  test("six days before, at 9am in London, on either side of the clocks going back", () => {
+    // Monday 26 October 6pm: six days before is Tuesday 20 October, BST: 8am UTC.
     const monday = resolveSessions(run, group(1))[1];
     assert.equal(monday.dateKey, "2026-10-26");
-    assert.equal(nextWeekEmailSendAt(monday, 2).toISOString(), "2026-10-24T17:00:00.000Z");
-    // Tuesday 27 October 6pm GMT: Sunday 25 October 6pm GMT, 18:00 UTC.
-    const tuesday = resolveSessions(run, group(2))[1];
-    assert.equal(nextWeekEmailSendAt(tuesday, 2).toISOString(), "2026-10-25T18:00:00.000Z");
-    // A one-day lead across the change itself: Sunday 25 October, from Monday 26.
-    assert.equal(nextWeekEmailSendAt(monday, 1).toISOString(), "2026-10-25T18:00:00.000Z");
+    assert.equal(nextWeekEmailSendAt(monday).toISOString(), "2026-10-20T08:00:00.000Z");
+    // Saturday 31 October: six days before is Sunday 25 October, the day the
+    // clocks go back, and 9am that day is GMT: 9am UTC. Counting 144 hours
+    // back from the session would have said 8am.
+    const saturday = resolveSessions(run, group(6))[2];
+    assert.equal(saturday.dateKey, "2026-10-31");
+    assert.equal(nextWeekEmailSendAt(saturday).toISOString(), "2026-10-25T09:00:00.000Z");
+    // The session's own time of day no longer moves it: 9am whatever the hour.
+    const lunch = { ...monday, session: { ...monday.session, startTimeLocal: "12:30" } };
+    assert.equal(nextWeekEmailSendAt(lunch).toISOString(), "2026-10-20T08:00:00.000Z");
   });
 
   test("due from the send instant, inclusive, until the session starts, exclusive", () => {
     const sessions = resolveSessions(run, group(2));
-    const sendAt = new Date("2026-10-25T18:00:00Z");
+    const sendAt = new Date("2026-10-21T08:00:00Z");
     const startsAt = new Date("2026-10-27T18:00:00Z");
-    assert.equal(nextWeekEmailTiming(sessions, 1, 2, new Date(sendAt.getTime() - 1)).state, "waiting");
-    assert.equal(nextWeekEmailTiming(sessions, 1, 2, sendAt).state, "due");
-    assert.equal(nextWeekEmailTiming(sessions, 1, 2, new Date(startsAt.getTime() - 1)).state, "due");
-    assert.equal(nextWeekEmailTiming(sessions, 1, 2, startsAt).state, "past");
+    assert.equal(nextWeekEmailTiming(sessions, 1, new Date(sendAt.getTime() - 1)).state, "waiting");
+    assert.equal(nextWeekEmailTiming(sessions, 1, sendAt).state, "due");
+    assert.equal(nextWeekEmailTiming(sessions, 1, new Date(startsAt.getTime() - 1)).state, "due");
+    assert.equal(nextWeekEmailTiming(sessions, 1, startsAt).state, "past");
   });
 
-  test("never for a group's first session, nor for one that cannot be dated", () => {
+  test("the group's first session too, and never one that cannot be dated", () => {
+    // Week 1 meets on Tuesday 20 October: six days before is Wednesday 14 October at 9am BST.
     const sessions = resolveSessions(run, group(2));
-    assert.equal(nextWeekEmailTiming(sessions, 0, 2, new Date("2026-10-19T12:00:00Z")).state, "first-session");
+    assert.deepEqual(nextWeekEmailTiming(sessions, 0, new Date("2026-10-14T08:00:00Z")), {
+      state: "due",
+      sendAt: new Date("2026-10-14T08:00:00Z"),
+      startsAt: new Date("2026-10-20T17:00:00Z"),
+    });
     const undated = resolveSessions({ ...run, startDate: "" }, group(2));
-    assert.equal(nextWeekEmailTiming(undated, 1, 2, new Date("2026-10-25T18:00:00Z")).state, "undated");
-    assert.equal(nextWeekEmailSendAt({ dateKey: "", session: { startTimeLocal: "18:00" } }, 2), null);
+    assert.equal(nextWeekEmailTiming(undated, 1, new Date("2026-10-25T18:00:00Z")).state, "undated");
+    assert.equal(nextWeekEmailSendAt({ dateKey: "", session: { startTimeLocal: "18:00" } }), null);
+    assert.equal(nextWeekEmailSendAt({ dateKey: "2026-10-27", session: { startTimeLocal: "" } }), null);
   });
 
   test("the house clock and date, read in London", () => {
@@ -143,7 +159,7 @@ describe("the words under the register's button", () => {
     groupName: "Group B",
     focus: { sessionKey: "w03", weekNumber: 3, occurrence: 1, line: "Tue 17 Nov · 6pm · Room C20", finished: false },
     hasNext: true,
-    nextEmail: { state: "goes", at: "Sun 22 Nov at 6pm" },
+    nextEmail: { state: "goes", at: "Wed 18 Nov at 9am", weekNumber: 4 },
     reminder: { hours: 36, names: ["Rahul", "Sofia"] },
     task: { hours: 60, leadName: "Claudia" },
     ...over,
@@ -154,7 +170,7 @@ describe("the words under the register's button", () => {
     assert.equal(words.button, "Finish the register");
     assert.equal(words.effect, "Locks it and shows everyone their mark. Nobody’s emailed.");
     assert.deepEqual(words.notes, [
-      "Next week’s email goes to Group B on Sun 22 Nov at 6pm, whatever happens here.",
+      "Week 4’s email goes to Group B on Wed 18 Nov at 9am, whatever happens here.",
       "Not finished 36 hours after the session? Rahul and Sofia get a reminder. At 60 hours, Claudia and admins get a task.",
     ]);
   });
@@ -165,11 +181,23 @@ describe("the words under the register's button", () => {
     );
     assert.equal(words.button, "Push attendance");
     assert.equal(words.columnButton, "Push");
-    assert.equal(words.effect, "Locks the register, shows everyone their mark and emails Group B about next week.");
+    assert.equal(words.effect, "Locks the register, shows everyone their mark and emails Group B that the next week is open.");
     assert.deepEqual(words.notes, [
-      "If nobody pushes, nobody gets next week’s email.",
+      "If nobody pushes, nobody gets the next week’s email.",
       "After 36 hours admins get a task.",
     ]);
+    // With the route's answer for the register, the week is named.
+    const named = registerEndingWords(
+      sample({
+        scheduled: false,
+        nextEmail: null,
+        reminder: null,
+        task: null,
+        pushEmails: { w03: { kind: "sends", weekNumber: 4, day: "Tue 24 Nov", cancelled: false, emails: 3, people: 3 } },
+      }),
+    );
+    assert.equal(named.effect, "Locks the register, shows everyone their mark and emails Group B that week 4 is open.");
+    assert.deepEqual(named.notes, ["If nobody pushes, nobody gets week 4’s email."]);
   });
 
   test("a job switched off drops its sentence, and a run with no lead names the admins", () => {
@@ -212,20 +240,20 @@ describe("the words under the register's button", () => {
     );
   });
 
-  test("every state of next week's email says what is true", () => {
+  test("every state of the week's email says what is true, and which week", () => {
     assert.equal(
-      nextEmailSentence("Group B", { state: "went", at: "Sun 22 Nov at 6pm" }),
-      "Next week’s email went to Group B on Sun 22 Nov at 6pm.",
+      nextEmailSentence("Group B", { state: "went", at: "Wed 18 Nov at 9am", weekNumber: 4 }),
+      "Week 4’s email went to Group B on Wed 18 Nov at 9am.",
     );
     assert.equal(
-      nextEmailSentence("Group B", { state: "held", missing: ["the group’s room", "week 4’s reading"] }),
-      "Next week’s email to Group B is held: it’s missing the group’s room and week 4’s reading.",
+      nextEmailSentence("Group B", { state: "held", missing: ["the group’s room", "what week 4 asks for"], weekNumber: 4 }),
+      "Week 4’s email to Group B is held: it’s missing the group’s room and what week 4 asks for.",
     );
     assert.equal(
       nextEmailSentence("Group B", { state: "waiting-for-week", weekNumber: 4 }),
-      "Next week’s email to Group B is waiting for week 4 to be published.",
+      "Week 4’s email to Group B is waiting for week 4 to be published.",
     );
-    assert.equal(nextEmailSentence("Group B", { state: "shortly" }), "Next week’s email to Group B goes out shortly.");
+    assert.equal(nextEmailSentence("Group B", { state: "shortly", weekNumber: 4 }), "Week 4’s email to Group B goes out shortly.");
     assert.equal(nextEmailSentence("Group B", { state: "missed", weekNumber: 4 }), "Week 4 has started without its email.");
   });
 
@@ -236,7 +264,7 @@ describe("the words under the register's button", () => {
     assert.equal(finished.notes[0], "This register is finished. Everyone can see their mark.");
     const last = registerEndingWords(sample({ scheduled: false, hasNext: false, nextEmail: null }));
     assert.equal(last.effect, "Locks the register and shows everyone their mark. It’s the group’s last session, so nobody’s emailed.");
-    assert.ok(!last.notes.includes("If nobody pushes, nobody gets next week’s email."));
+    assert.ok(!last.notes.some((note) => note.startsWith("If nobody pushes")), "a last session promises no email");
   });
 
   test("no word under the button carries a dash", () => {
@@ -275,8 +303,8 @@ describe("the held email's card", () => {
     assert.equal(task.visibility, "committee");
     assert.equal(task.initialNotifyAt.toISOString(), "2026-11-22T18:00:00.000Z");
     assert.deepEqual(task.pendingNotifyUids, []);
-    assert.equal(task.title, "Next week’s email held: Group B, week 4");
-    assert.match(task.description, /about week 4 on Tuesday 24 November/);
+    assert.equal(task.title, "Week 4’s email held: Group B");
+    assert.match(task.description, /has not been sent “Week 4 is open”, about week 4 on Tuesday 24 November/);
     assert.match(task.description, /missing the group’s room/);
   });
 
@@ -297,31 +325,36 @@ describe("the held email's card", () => {
 describe("the course settings", () => {
   const save = (who, body) => call(who, configRoute.POST, {}, { body });
 
-  test("an admin reads the three, with their defaults; nobody else does", async () => {
+  test("an admin reads the two forms and the two chases, with their defaults; nobody else does", async () => {
     reset(seedWorld());
     const read = await call("zach", configRoute.GET, {});
     assert.equal(read.status, 200);
-    assert.equal(read.body.nextWeekEmailDaysBefore, 2);
     assert.equal(read.body.unmarkedRegisterGraceHours, 36);
     assert.equal(read.body.registerTaskHours, 60);
-    assert.equal(read.body.defaults.nextWeekEmailDaysBefore, 2);
+    assert.equal(read.body.defaults.registerTaskHours, 60);
+    // When the week's emails go is not a setting any more.
+    assert.equal(read.body.nextWeekEmailDaysBefore, undefined);
+    assert.equal(read.body.defaults.nextWeekEmailDaysBefore, undefined);
     for (const who of ["claudia", "rahul", "amara"]) {
       assert.equal((await call(who, configRoute.GET, {})).status, 403, who);
-      assert.equal((await save(who, { nextWeekEmailDaysBefore: 3 })).status, 403, who);
+      assert.equal((await save(who, { registerTaskHours: 70 })).status, 403, who);
     }
   });
 
-  test("days are a whole number from 1 to 6, hours up to a fortnight", async () => {
+  test("hours up to a fortnight; the retired days-before setting is no setting, and is stored by nobody", async () => {
     reset(seedWorld());
-    for (const days of [0, 7, 1.5, "2", null]) {
-      assert.equal((await save("zach", { nextWeekEmailDaysBefore: days })).status, 400, String(days));
-    }
     assert.equal((await save("zach", { registerTaskHours: 337 })).status, 400);
     assert.equal((await save("zach", { unmarkedRegisterGraceHours: 0 })).status, 400);
-    const saved = await save("zach", { nextWeekEmailDaysBefore: 3 });
+    for (const days of [3, 7, "2"]) {
+      const refused = await save("zach", { nextWeekEmailDaysBefore: days });
+      assert.equal(refused.status, 400, String(days));
+      assert.match(refused.body.error, /Nothing to change/);
+    }
+    assert.equal(made.world.db.read("config/courses"), undefined, "nothing was written");
+    const saved = await save("zach", { registerTaskHours: 70, nextWeekEmailDaysBefore: 3 });
     assert.equal(saved.status, 200);
-    assert.equal(saved.body.nextWeekEmailDaysBefore, 3);
-    assert.equal(made.world.db.read("config/courses").nextWeekEmailDaysBefore, 3);
+    assert.equal(made.world.db.read("config/courses").registerTaskHours, 70);
+    assert.equal(made.world.db.read("config/courses").nextWeekEmailDaysBefore, undefined);
   });
 
   test("the task has to come after the reminder, checked against what is stored", async () => {
@@ -339,7 +372,7 @@ describe("the course settings", () => {
   test("a view-as session saves nothing", async () => {
     reset(seedWorld());
     const blocked = await call("zach", configRoute.POST, {}, {
-      body: { nextWeekEmailDaysBefore: 3 },
+      body: { registerTaskHours: 70 },
       viewAs: true,
     });
     assert.equal(blocked.status, 403);
@@ -359,18 +392,15 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
  * not listed fails, and so does a listed file that no longer names it.
  */
 const ONE_DOOR = {
-  sendCourseWeekNudgeEmail: {
-    "src/lib/email/courseNudgeEmail.ts": "declares it",
-    "src/lib/courses/nextWeekEmail.ts":
-      "the push and the schedule both send through here, after one shared claim",
-    "src/app/api/courses/runs/[runId]/nudge/route.ts":
-      "the run's own nudge, which claims the same marker for each group before it sends",
+  sendNextWeekEmail: {
+    "src/lib/courses/nextWeekEmail.ts": "declares it: the one send, after the one shared claim",
+    "src/app/api/courses/groups/[groupId]/attendance/push/route.ts":
+      "the push lane while the schedule is off, and an admin's resend",
+    "src/lib/scheduler/jobs/nextWeekEmail.ts": "the schedule lane, 6 days before each session at 9am",
   },
   groupNudgeMarkerId: {
     "src/lib/email/courseNudgeEmail.ts": "declares it",
     "src/lib/courses/nextWeekEmail.ts": "the one claim the push and the schedule share",
-    "src/app/api/courses/runs/[runId]/nudge/route.ts":
-      "reads and claims the same marker, so the run's nudge and the two lanes send once between them",
   },
 };
 
