@@ -122,6 +122,11 @@ export function noReportLine(weekNumber: number, occurrence: number): string {
   return `${sessionName(weekNumber, occurrence)} didn’t happen, so it has no report.`;
 }
 
+/** A session with no day or time yet: its report cannot open. */
+export function undatedLine(weekNumber: number, occurrence: number): string {
+  return `${sessionName(weekNumber, occurrence)} has no day and time yet, so its report can’t open.`;
+}
+
 // ---------------------------------------------------------------------------
 // The route's refusals: sentences a person can act on
 // ---------------------------------------------------------------------------

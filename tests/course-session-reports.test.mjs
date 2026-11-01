@@ -333,7 +333,7 @@ describe("1. the rules, pure", () => {
     assert.equal(words.tabLineWords(0), "None yet: each group’s facilitators can send one after each session. Only you and admins read them.");
     assert.equal(words.tabLineWords(1), "1 report from the groups’ facilitators, with names. Only you and admins read them.");
     const source = readFileSync(join(SRC, "lib", "courses", "sessionReports", "words.ts"), "utf8");
-    assert.doesNotMatch(source, /[–—]/, "the words carry a dash");
+    assert.doesNotMatch(source, /[\u2013\u2014]/, "the words carry a dash");
     assert.doesNotMatch(source, /\b(?:he|she|his|her|him|hers)\b/i, "the words guess a pronoun");
     assert.doesNotMatch(source.replace(/^\s*(?:\/\/|\*).*$/gm, ""), /\b(?:mark(?:s|ed)?|grades?|scores?)\b/i, "the words mark, grade or score somebody");
   });
@@ -557,6 +557,11 @@ describe("3. what a report keeps, and who it picks", () => {
     world.db.poke(registerPath(B, 2), { held: false });
     const notHeld = await send("rahul");
     assert.deepEqual([notHeld.status, notHeld.body.error], [409, "Week 2 didn’t happen, so it has no report."]);
+    // A group with no time set: its sessions have no day to open at.
+    world.db.poke(registerPath(B, 2), { held: true });
+    world.db.poke(`courseGroups/${B}`, { session: { ...world.db.read(`courseGroups/${B}`).session, startTimeLocal: "" } });
+    const undated = await send("rahul");
+    assert.deepEqual([undated.status, undated.body.error], [409, "Week 2 has no day and time yet, so its report can’t open."]);
     assert.deepEqual(reportPaths(), []);
   });
 });

@@ -14,6 +14,7 @@ import {
   reportIntro,
   reportTitle,
   sentLine,
+  undatedLine,
 } from "./words";
 
 /**
@@ -74,7 +75,11 @@ export async function loadReportPage(
   const title = reportTitle(chosen.weekNumber, chosen.occurrence);
 
   const session = await loadReportSession(db, run, group, chosen.sessionKey, now, sessions);
-  if (!session) return { kind: "no-report", groupName, title, line: noReportLine(chosen.weekNumber, chosen.occurrence) };
+  if (!session) {
+    // Called off through "Change a session", or with no day and time to open at.
+    const line = chosen.cancelled ? noReportLine(chosen.weekNumber, chosen.occurrence) : undatedLine(chosen.weekNumber, chosen.occurrence);
+    return { kind: "no-report", groupName, title, line };
+  }
   const { window } = session;
   if (session.state === "not-yet") {
     return { kind: "not-yet", groupName, title, line: opensLine(chosen.weekNumber, chosen.occurrence, window.opensAt) };

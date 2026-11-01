@@ -7,6 +7,7 @@ import {
   closedRefusal,
   noReportLine,
   notOpenRefusal,
+  undatedLine,
 } from "@/lib/courses/sessionReports/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
@@ -85,7 +86,9 @@ export async function PUT(req: Request, ctx: { params: Promise<{ groupId: string
   if (!asked) return NextResponse.json({ error: REPORT_REFUSAL.session }, { status: 400 });
   const session = await loadReportSession(db, run, group, parsed.sessionKey, now, sessions);
   if (!session) {
-    return NextResponse.json({ error: noReportLine(asked.weekNumber, asked.occurrence) }, { status: 409 });
+    // Called off through "Change a session", or with no day and time to open at.
+    const why = asked.cancelled ? noReportLine(asked.weekNumber, asked.occurrence) : undatedLine(asked.weekNumber, asked.occurrence);
+    return NextResponse.json({ error: why }, { status: 409 });
   }
   const { weekNumber, occurrence } = session.window.session;
   if (session.state === "not-yet") {
