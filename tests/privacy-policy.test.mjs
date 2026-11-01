@@ -3130,6 +3130,9 @@ const SURVEY_STORE = /\bSURVEY_(?:ANSWERS|PEOPLE)_COLLECTION\b|["'`](?:surveyAns
 const comingReplies = await loadTs("lib/applications/status/coming.ts");
 /** What the written answer's pages say: who reads it, beside the box. Pure. */
 const writtenWords = await loadTs("lib/courses/writtenAnswerWords.ts");
+/** The week you submit: its words and its one answer to whether a written answer may be read. */
+const weekWorkWords = await loadTs("lib/courses/weekWork/words.ts");
+const weekWorkModel = await loadTs("lib/courses/weekWork/model.ts");
 /** The anonymous form's records: what an answer holds, and the readers' order. Pure. */
 const anonymousRecords = await loadTs("lib/anonymousFeedback/model.ts");
 
@@ -4110,7 +4113,7 @@ describe("the course hub passage", () => {
       new Map([
         ["src/lib/firestore/courseProgress.ts", "the record: its shape, its limit and its normaliser"],
         ["src/features/courses/progressMutations.ts", "the writer: a person's own note, on their own row"],
-        ["src/app/api/courses/runs/[runId]/week-one/ticks/[itemId]/route.ts", "a person's own note, kept as it was when they tick week 1 before groups go out, on their own row"],
+        ["src/app/api/courses/runs/[runId]/ticks/[itemId]/route.ts", "a person's own note, kept as it was when they tick or untick, on their own row"],
         ["src/features/courses/WeekView.tsx", "a person's own note, in their own box on a week written before blocks"],
         ["src/features/courses/weekBlocks/SourceCard.tsx", "a person's own note, in their own box under a source"],
         ["src/lib/courses/leftView.ts", "a person's own notes, on their own notes page"],
@@ -5476,12 +5479,25 @@ describe("the course hub passage", () => {
     assertHubSays(
       "<strong>Feedback.</strong> Feedback on your work is written by a person on the team running your programme, and shows their name. It appears on the week&apos;s page, and we may email you to say feedback is waiting.",
     );
-    // "The week's page says until when you can change your work": beside a
-    // written answer, the line that names who opening it locks it for, run,
-    // and drawn by the answer's card.
-    assert.equal(writtenWords.changeUntilWords({ kind: "facilitators", names: ["Rahul", "Sofia"] }), "You can change it until Rahul or Sofia opens it.");
-    assert.equal(writtenWords.changeUntilWords({ kind: "lead", leadName: "Claudia" }), "You can change it until Claudia or an admin opens it.");
-    assert.match(read("src/features/courses/weekBlocks/WrittenAnswerCard.tsx"), /\{changeUntilWords\(readers, Boolean\(reopened\)\)\}/);
+    // "The week's page says until when you can change your work": under the
+    // week's title, for somebody taking part, the line that says when the
+    // week locks, or that it has, run in every state, and drawn by the week
+    // page from where the week stands (the week you submit).
+    const until = (state) => weekWorkWords.lockLineWords(state, { room: "Portland A21", reopenedBy: "Rahul" });
+    const wed = new Date("2026-11-18T15:00:00Z");
+    assert.equal(until({ kind: "open", locksAt: wed, by: "session" }), "Your session: Wed 18 Nov, 3pm, Portland A21. This week locks when it starts.");
+    assert.equal(until({ kind: "open", locksAt: null, by: "undated" }), "This week locks when your group’s session starts. Your group’s time isn’t set yet.");
+    assert.equal(until({ kind: "open", locksAt: null, by: "no-group" }), "This week locks when you submit it.");
+    assert.equal(until({ kind: "locked", at: wed }), "Locked when your session started on Wed 18 Nov, 3pm.");
+    assert.match(until({ kind: "reopened", at: wed, byUid: "rahul", locksAt: wed }), /^Rahul reopened this week for you\. It locks again when you submit it, or at your next session, Wed 18 Nov, 3pm\.$/);
+    const weekPage = withoutComments(read("src/features/courses/weekBlocks/BlockWeek.tsx"));
+    assert.match(weekPage, /\{work && \(\s*<p className=\{weekWorkStyles\.lockLine\}>\s*\{lockLineWords\(weekWorkStateOf\(work\)/, "the week page no longer says until when the work can change");
+    // ...and the people running the group can reopen it: the reopen route asks
+    // the one gate on whose work a reader may act on, and records who reopened it.
+    const reopen = withoutComments(read("src/app/api/courses/runs/[runId]/weeks/[weekId]/reopen/route.ts"));
+    assert.ok(reopen.includes("const role = owner ? writtenReviewRole(actor, facts, owner, liveGroups) : null;"), "Reopen no longer asks the one gate");
+    assert.ok(reopen.includes('if (!run || !owner || !role?.mayReview) return NextResponse.json({ error: "Forbidden" }, { status: 403 });'));
+    assert.ok(reopen.includes("reopenedByUid: actor.uid,"), "Reopen no longer records who reopened the week");
 
     // Who reads it: the one gate, its three lines that decide.
     const gate = withoutComments(read("src/lib/courses/writtenAnswers/access.ts"));
@@ -5493,31 +5509,52 @@ describe("the course hub passage", () => {
     assert.ok(gate.includes("const own = readsFacilitatorsOwnWork(actor, facts, owner.uid);") && gate.includes("return { mayReview: own, locksOnOpen: own, ownerFacilitates };"), "the gate no longer keeps a facilitator's own answer for the lead and admins");
     assert.ok(gate.includes("return Boolean(actor.uid) && actor.uid !== ownerUid && (facts.isAdmin || facts.isLead);"), "the rule for a facilitator's own work no longer admits the lead and admins alone, and never its owner");
     assert.ok(gate.includes("return { mayReview: staff || facilitatesTheirGroup, locksOnOpen: facilitatesTheirGroup, ownerFacilitates };"), "the gate no longer admits a fellow's group's facilitators, the lead and admins, and nobody else");
-    // The page beside the box says so: the words are run.
-    const words = writtenWords;
+    // The page beside the box says so, and from when: the words are run, and drawn by the answer's card.
     assert.equal(
-      words.alsoReadByWords({ kind: "facilitators", names: ["Rahul", "Sofia"] }, "Claudia"),
-      "Claudia and admins can read it too. Other fellows can’t.",
+      weekWorkWords.answerReadersWords({ kind: "facilitators", names: ["Rahul", "Sofia"] }, "Claudia"),
+      "Once you submit, or your week locks, Rahul, Sofia, Claudia and admins can read your written answer.",
     );
-    assert.equal(words.seenWhereWords({ kind: "facilitators", names: ["Rahul", "Sofia"] }), "Rahul and Sofia see it on their group page. No email.");
+    assert.equal(weekWorkWords.othersReadWords({ kind: "facilitators", names: ["Rahul"] }), "Other fellows can’t.");
+    assert.match(read("src/features/courses/weekBlocks/WrittenAnswerCard.tsx"), /\{answerReadersWords\(readers, leadName\)\}/);
 
-    // "And when": the first-sent time is stored once; a later change has its
-    // own stamp.
+    // "And when": an answer is sent by submitting its week, which stamps the
+    // first-sent time once, and only there; a later change has its own stamp.
     const writer = withoutComments(read("src/app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts"));
-    assert.ok(writer.includes("const sending = send && !alreadySent;"), "the first send is no longer the only one that stamps the first-sent time");
-    assert.ok(writer.includes("write.firstSentAt = FieldValue.serverTimestamp();"));
-    assert.equal((writer.match(/write\.firstSentAt = /g) ?? []).length, 1, "the first-sent time is written in more than one place");
+    const submit = withoutComments(read("src/app/api/courses/runs/[runId]/weeks/[weekId]/submit/route.ts"));
+    assert.ok(submit.includes("if (written.words > 0 && !written.firstSentAt) toSend.push(index);"), "Submit no longer sends only an answer never sent");
+    assert.ok(submit.includes("tx.update(answerRefs[index], { firstSentAt: at, submittedAt: at });"));
+    assert.doesNotMatch(writer, /firstSentAt\s*=|firstSentAt:/, "the writer's route stamps the first-sent time");
     assert.ok(writer.includes("if (changed) write.editedAt = FieldValue.serverTimestamp();"), "a change after sending no longer stores its own time");
-    // Locked once opened, or once feedback is sent.
-    assert.ok(writer.includes("if (record && (record.openedAt || record.feedback)) throw new AnswerError(ANSWER_LOCKED, 409);"), "the writer's route no longer refuses an opened answer");
+    // Locked once the week is submitted or locks, asked inside the write's
+    // transaction; an answer opened before weeks were submitted stays locked
+    // until the week is reopened.
+    assert.ok(writer.includes("assertWeekTakesWork(week.state);"), "the writer's route no longer refuses a locked week");
+    assert.ok(writer.includes("if (record?.openedAt) throw new AnswerError(ANSWER_LOCKED, 409);"), "the writer's route no longer refuses an answer opened before weeks were submitted");
 
-    // Opened by a POST, never a GET; reopened by any of its readers ("the
-    // people running your group can reopen it for you").
+    // "Until then they see only that you have started it, never what it says,
+    // and if your week locks before you send it, they may then read what you
+    // wrote": the one answer, run, and asked by every reader of an answer's
+    // words (tests/course-written-answer-readers.test.mjs walks the tree).
+    const draft = { firstSentAt: null };
+    assert.equal(weekWorkModel.workIsReadable({ kind: "open", locksAt: wed, by: "session" }, draft), false);
+    assert.equal(weekWorkModel.workIsReadable({ kind: "reopened", at: wed, byUid: "rahul", locksAt: null }, { firstSentAt: wed }), false);
+    assert.equal(weekWorkModel.workIsReadable({ kind: "submitted", at: wed }, draft), true);
+    assert.equal(weekWorkModel.workIsReadable({ kind: "locked", at: wed }, draft), true);
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-written-answer-readers.test.mjs")), "the guard on every reader of a written answer's words is gone");
+    for (const reader of [
+      "src/lib/courses/writtenAnswers/reviewPage.ts",
+      "src/lib/courses/writtenAnswers/queue.ts",
+      "src/lib/courses/facilitatorWeek/readers.ts",
+      "src/lib/courses/coursework/gather.ts",
+    ]) {
+      assert.match(withoutComments(read(reader)), /\bworkIsReadable\(/, `${reader} reads a written answer's words without asking whether it may`);
+    }
+
+    // Feedback by a POST, never a GET, and only on an answer its readers may read.
     const review = withoutComments(read("src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts"));
     assert.match(review, /export async function POST\(/);
     assert.doesNotMatch(review, /export (?:async )?function GET\b|export const GET\b/, "the review route answers a GET, which must never write");
-    assert.ok(review.includes("if (role.locksOnOpen && !record.openedAt && !record.feedback) {"), "opening no longer locks the answer only for those whose opening the gate says locks it");
-    assert.ok(review.includes("write.reopenedByUid = actor.uid;"), "Reopen for edits no longer records who reopened it");
+    assert.ok(review.includes("if (record.words === 0 || !workIsReadable(standing.state, record)) {"), "feedback is given on an answer its readers may not read");
 
     // "Late" travels to its readers only (v14's words; v15 leaves them out,
     // and the code keeps it): the writer's wire has no such field.
@@ -7770,7 +7807,8 @@ describe("the last pass before version 7 goes live, held to v15", () => {
 
   test("a written answer saves as it is typed, and until it is sent its other readers see only that it has been started", () => {
     says(DRAFT);
-    // v15 takes back part of this: if the week locks before somebody sends it, its readers may read it. Not built yet.
+    // v15 takes back part of this: if the week locks before somebody sends it, its readers may read it.
+    // Built by the week you submit: `workIsReadable` (src/lib/courses/weekWork/model.ts), held above.
     says("never what it says, and if your week locks before you send it, they may then read what you wrote.");
     // Reflections and the boxes to fill in have no Send at all: each card
     // saves as it is typed, a reflection is stored as never sent, and the
@@ -7784,22 +7822,28 @@ describe("the last pass before version 7 goes live, held to v15", () => {
     const groupWeek = withoutComments(read("src/lib/courses/facilitatorWeek/readers.ts"));
     assert.match(groupWeek, /if \(!isReflectionResponse\(data\) \|\| data\.runId !== runId\) continue;/);
     assert.doesNotMatch(groupWeek, /submittedAt/, "the group's page now reads only reflections that were sent, which the policy says it reads as written");
-    // Saved without a Send: the words are written whatever the press, and only a Send stamps the first-sent time.
+    // Saved as it is typed: the words are written whatever the press, and only submitting the week stamps the first-sent time.
     const route = withoutComments(read("src/app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts"));
     assert.match(route, /\} else \{\s*write\.text = text;/);
-    assert.match(route, /if \(sending\) \{\s*write\.firstSentAt = FieldValue\.serverTimestamp\(\);/);
-    // "Draft" is all a reader is told of an answer not sent, run.
-    const record = (over) => ({ text: "", boxes: null, words: 0, firstSentAt: null, editedAt: null, openedAt: null, openedByUid: "", reopenedAt: null, reopenedByUid: "", feedback: null, ...over });
+    assert.match(withoutComments(read("src/app/api/courses/runs/[runId]/weeks/[weekId]/submit/route.ts")), /tx\.update\(answerRefs\[index\], \{ firstSentAt: at, submittedAt: at \}\);/);
+    // A draft is a draft to its writer, run.
+    const record = (over) => ({ text: "", boxes: null, words: 0, firstSentAt: null, editedAt: null, openedAt: null, openedByUid: "", savedAt: null, reopenedAt: null, reopenedByUid: "", feedback: null, ...over });
     assert.equal(writtenModel.answerState(record({ text: "Half a thought", words: 3 })), "draft");
     assert.equal(writtenModel.answerState(null), "not-started");
     assert.equal(writtenModel.answerState(record({ text: "Sent", words: 1, firstSentAt: new Date("2026-11-03T10:00:00Z") })), "sent");
-    // The review page opens only an answer that was sent, and the review route refuses one that was not.
+    // The review page opens only an answer its readers may read, and the review route refuses feedback on any other.
     const page = withoutComments(read("src/lib/courses/writtenAnswers/reviewPage.ts"));
     assert.match(page, /const readable = \[\.\.\.toGive, \.\.\.feedbackSent\];/);
     assert.match(page, /\(askedPerson \? readable\.find\(\(person\) => person\.uid === askedPerson\) : undefined\) \?\? toGive\[0\] \?\? feedbackSent\[0\] \?\? null;/);
-    assert.match(withoutComments(read("src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts")), /if \(!record\.firstSentAt\) throw new ReviewError\("That answer hasn’t been sent yet\.", 409\);/);
-    // This week's work says the same word, and links nothing for a draft.
-    assert.match(withoutComments(read("src/lib/courses/facilitatorWeek/workColumns.ts")), /case "draft":\s*return \{ text: DRAFT, href: null \};/);
+    assert.match(
+      withoutComments(read("src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts")),
+      /if \(record\.words === 0 \|\| !workIsReadable\(standing\.state, record\)\) \{\s*throw new ReviewError\("That answer hasn’t been submitted yet\.", 409\);/,
+    );
+    // This week's work says only that it is started ("Started", never its length), and links nothing to it.
+    assert.match(
+      withoutComments(read("src/lib/courses/facilitatorWeek/workColumns.ts")),
+      /return \{ text: person\.state === "not-started" \? NOT_STARTED : STARTED, href: null \};/,
+    );
   });
 
   test("the people in your pair see your first name and, where the week asks, whether you are bringing a laptop", () => {
