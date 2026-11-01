@@ -29,7 +29,8 @@
  * `at` to send before or after a due moment.
  *
  * Real: the overview, my-exercises, the written answer's route, the
- * feedback route and the batch's two, the rubric's route, the summary
+ * feedback route and the batch's two, the ratings for the team's route, the
+ * rubric's route, the summary
  * route, the summer's review route and queue, the week page's shell and the
  * week page, the programme home, the review page for the group and for the
  * lead, the old feedback page, the group page, the Attendance and Overview
@@ -314,6 +315,8 @@ export async function makeWrittenAnswersWorld(key = "__writtenAnswers") {
     feedback: await courseRoute("runs", "[runId]", "feedback"),
     send: await courseRoute("runs", "[runId]", "feedback", "send"),
     sendTest: await courseRoute("runs", "[runId]", "feedback", "send", "test"),
+    // Ratings for the team: an admin's or the lead's rating of a written answer.
+    workRatings: await courseRoute("runs", "[runId]", "work-ratings"),
     rubric: await courseRoute("[courseId]", "rubric"),
     summary: await courseRoute("groups", "[groupId]", "summary"),
     verdict: await courseRoute("exercise-responses", "[responseId]", "review"),
@@ -350,6 +353,9 @@ export async function makeWrittenAnswersWorld(key = "__writtenAnswers") {
     feedbackWords: await loadTs(join("lib", "courses", "feedback", "words.ts")),
     feedbackModel: await loadTs(join("lib", "courses", "feedback", "model.ts")),
     feedbackSend: await loadTs(join("lib", "courses", "feedback", "send.ts")),
+    workRatingsWords: await loadTs(join("lib", "courses", "workRatings", "words.ts")),
+    workRatingsModel: await loadTs(join("lib", "courses", "workRatings", "model.ts")),
+    workRatingsRecord: await loadTs(join("lib", "firestore", "courseWorkRatings.ts")),
     whoFinished: await loadTs(join("lib", "courses", "finishing", "whoFinished.ts")),
     worksheets: await loadTs(join("lib", "firestore", "worksheets.ts")),
   };
@@ -445,6 +451,28 @@ export async function makeWrittenAnswersWorld(key = "__writtenAnswers") {
   /** `who` sends themselves a test of the feedback emails. */
   const sendTest = (who, { viewAs = false } = {}) =>
     call(who, routes.sendTest.POST, { runId: RUN.agi }, { course: true, viewAs });
+
+  /**
+   * `who` rates `uid`'s week `n` written answer for the team: `rating` from 1
+   * to 10 and `comment`, or, with `extra`, whatever else a body carries.
+   */
+  const rate = (who, uid, n, rating, comment, { viewAs = false, itemId = n === 2 ? ONE_BOX.id : BOXES.id, extra = {} } = {}) =>
+    call(who, routes.workRatings.PUT, { runId: RUN.agi }, {
+      course: true,
+      viewAs,
+      body: { uid, weekId: weekIdOf(n), itemId, rating, comment, ...extra },
+    });
+
+  /** `who` clears their own rating of `uid`'s week `n` written answer. */
+  const clearRating = (who, uid, n, { viewAs = false } = {}) =>
+    call(who, routes.workRatings.DELETE, { runId: RUN.agi }, { course: true, viewAs, body: { uid, weekId: weekIdOf(n) } });
+
+  /** Every stored rating for the team, each with its id. */
+  const workRatings = () =>
+    world.db
+      .paths()
+      .filter((path) => path.startsWith("courseWorkRatings/"))
+      .map((path) => ({ id: path.slice("courseWorkRatings/".length), ...world.db.read(path) }));
 
   /** `who` presses Send with `body` (the ticked ids and the button's two numbers). */
   const send = (who, body, { viewAs = false } = {}) =>
@@ -583,6 +611,9 @@ export async function makeWrittenAnswersWorld(key = "__writtenAnswers") {
     pieces,
     sendTest,
     send,
+    rate,
+    clearRating,
+    workRatings,
     levels,
     ownRowsOf,
     draw,

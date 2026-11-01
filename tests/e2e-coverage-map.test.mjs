@@ -1303,6 +1303,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the work-loop spec (course-hub-work-loop) is written: an admin sends the test before the batch and Mailpit holds it.",
   },
+  "/api/courses/runs/[runId]/work-ratings": {
+    reason:
+      "Course hub: an admin's or the programme's lead's rating for the team of somebody's written answer, from 1 to 10 with a comment, saved, changed and cleared, emailing nobody; every caller, the reading gate, one rating per rater and both deletions are executed by tests/course-work-ratings.test.mjs.",
+    coverWhen:
+      "When the work-loop spec (course-hub-work-loop) is written: the lead rates a submitted answer on its review page, an admin reads it under What the team said, and the member's week page shows none of it.",
+  },
   "/api/courses/templates/[templateId]": {
     reason:
       "Courses: /api/courses/templates/[templateId] is staff-facing, taken deliberately, and answered on the screen that called it.",
@@ -1849,7 +1855,7 @@ const NOT_COVERED = {
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written": {
     reason:
-      "Course hub: the programme's lead's way to the review page, where a facilitator's own answer gets feedback; drawn as the lead, another programme's lead and somebody signed out in tests/course-hub-written-answers.test.mjs.",
+      "Course hub: the programme's lead's way to the review page, where a facilitator's own answer gets feedback, and where the lead rates an answer for the team; drawn as the lead, another programme's lead and somebody signed out in tests/course-hub-written-answers.test.mjs, and with the ratings in tests/course-work-ratings.test.mjs.",
     coverWhen:
       "When a browser spec signs in as the programme's lead and gives feedback on a facilitator's own answer.",
   },
@@ -2150,7 +2156,7 @@ const NOT_COVERED = {
   },
   "/(app)/learn/[runId]/group/[groupId]/written": {
     reason:
-      "Course hub: a group's written answers one at a time (wk-review, wk-review-phone), for its facilitators and admins, with Your feedback beside each; drawn as each kind of caller in tests/course-hub-written-answers.test.mjs and tests/course-feedback.test.mjs.",
+      "Course hub: a group's written answers one at a time (wk-review, wk-review-phone), for its facilitators and admins, with Your feedback beside each and, for an admin or the programme's lead alone, the ratings for the team; drawn as each kind of caller in tests/course-hub-written-answers.test.mjs, tests/course-feedback.test.mjs and tests/course-work-ratings.test.mjs.",
     coverWhen:
       "When the work-loop spec (course-hub-work-loop) is written: a facilitator opens a submitted answer, saves feedback, " +
         "and the member reads it on their week page.",

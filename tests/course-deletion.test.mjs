@@ -345,6 +345,11 @@ const RUN_COUNT_KEYS = [
   // weekWork was.
   "feedback",
   "feedbackSends",
+  // `courseWorkRatings`, ratings for the team of people's written answers.
+  // COUNTED AND KEPT, never drained: a rating is about a person, as the notes
+  // kept about a person are, and keeps the programme's name and the week once
+  // the run has gone. On the manifest so the dialog says they are kept.
+  "workRatingsKept",
   // `coursePairs`, who was paired with whom for a session in pairs and who
   // was bringing a laptop. Keyed by `runId`, added to the manifest in the same
   // change that gave the cascade a stage for it, as packsAndCases was.
@@ -393,6 +398,8 @@ const SURVIVING_COUNT_KEYS = [
   "admissionSeatOffers",
   // A certificate whose link is on stays, without its run (privacy policy v7, Retention).
   "certificatesKept",
+  // Ratings for the team stay with the person rated (privacy v15, How long we keep it).
+  "workRatingsKept",
 ];
 
 test("MODEL — the manifest count vocabulary is the same on both sides of the wire", () => {
@@ -435,7 +442,7 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   const counts = Object.fromEntries(
     [...RUN_COUNT_KEYS, ...COURSE_COUNT_KEYS].map((k) => [k, 10]),
   );
-  // Forty-four counters at ten rows each: thirty-nine that die,
+  // Forty-five counters at ten rows each: thirty-nine that die,
   // `materialNotes`, `auditRows`, `schedulerMarkers`, the V3 `coursePages`,
   // the V3 W2 `registerTasks`, the course hub's `pitches`, `updates`,
   // `groupNotes`, `groupSharedNotes`, `sessionReports`, `placementNotes`, v13's `bestAnswers`
@@ -443,10 +450,11 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   // and `workLog`, feedback's `feedback` and `feedbackSends`, `pairs`, `teams`,
   // `teamEntries`, `finishing`, `facilitating`, `ratings`, `certificates`,
   // `anonymousFeedback`, `predictions` and `recordOpenings`, and the course's
-  // `facilitatorGuide` among them, plus the five survivors
+  // `facilitatorGuide` among them, plus the six survivors
   // (`admissionSeatOffers` is released, `dataExportRows` is retained,
-  // `certificatesKept` stays without its run).
-  assert.equal(sumCounts(counts), 440);
+  // `certificatesKept` stays without its run, `workRatingsKept` stays with
+  // the person rated).
+  assert.equal(sumCounts(counts), 450);
   // The progress denominator counts only what actually dies, so a large
   // retained counter cannot inflate it into a bar that never fills. Adding a
   // survivor must not move this number; adding a DESTROYED counter must.
@@ -875,6 +883,17 @@ test("GUARD — the cascade does NOT delete the collections the manifest calls s
     /collection\(DATA_EXPORTS_COLLECTION\)[\s\S]{0,400}?\.delete\(/,
     'the cascade deletes from "dataExports", but the manifest reports those rows as surviving',
   );
+  // Ratings for the team, reached through their constant as well: counted,
+  // and never drained or deleted by any stage. A rating is about a person and
+  // stays with them, with the programme's name and the week.
+  assert.doesNotMatch(
+    ENGINE,
+    /collection\(COURSE_WORK_RATINGS_COLLECTION\)[\s\S]{0,400}?\.delete\(/,
+    'the cascade deletes from "courseWorkRatings", but the manifest reports those rows as kept',
+  );
+  assert.doesNotMatch(ENGINE, /(?:drainQuery\(db, |byRunId\()COURSE_WORK_RATINGS_COLLECTION/, "a destroy stage drains ratings for the team");
+  assert.match(ENGINE, /countAgg\(db\.collection\(COURSE_WORK_RATINGS_COLLECTION\)\.where\("runId", "==", runId\)\)/);
+  assert.equal(countMeta("workRatingsKept").fate, "retained");
   assert.equal(countMeta("emailSendRows").fate, "retained");
   assert.equal(countMeta("dataExportRows").fate, "retained");
   assert.equal(countMeta("templates").fate, "orphaned");
