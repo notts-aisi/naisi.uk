@@ -1,10 +1,10 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { fullNameOfUser } from "@/lib/courses/programmeLead";
 import { namesOffOf, type NamesOff } from "@/lib/events/checkInView";
 import { loadEventCheckIns } from "@/lib/events/checkIns";
 import { normalizeEvent, normalizeRsvp, type EventDoc, type RsvpDoc } from "@/lib/firestore/events";
 import type { EventAudience, EventRespondent } from "@/lib/firestore/surveys";
+import { accountNamesOf, nameForViewer, type NameViewer } from "@/lib/names/staffName";
 
 /**
  * WHO A SURVEY AFTER AN EVENT CAN REACH, read fresh each time a button is
@@ -80,7 +80,14 @@ export async function mayAnswerSignedIn(db: Firestore, eventId: string, uid: str
   return member !== undefined && (member.signedUp || member.came);
 }
 
-export async function readEventAudience(db: Firestore, eventId: string): Promise<EventAudienceRead | null> {
+/**
+ * Everybody an event's survey can be for, read from the event's records. An
+ * account is named as `viewer` is shown people (the names rule,
+ * `nameForViewer`): an admin's survey screens pass the admin, and anything
+ * that reaches the people themselves passes nobody and is given the name
+ * they go by.
+ */
+export async function readEventAudience(db: Firestore, eventId: string, viewer: NameViewer = null): Promise<EventAudienceRead | null> {
   if (!safeId(eventId)) return null;
   const snap = await db.collection("events").doc(eventId).get();
   if (!snap.exists) return null;
@@ -133,8 +140,9 @@ export async function readEventAudience(db: Firestore, eventId: string): Promise
     }
   }
 
-  // Accounts: their whole name and their account's address. An account that
-  // is no longer there is nobody this survey can reach.
+  // Accounts: their name, by the names rule for the viewer, and their
+  // account's address. An account that is no longer there is nobody this
+  // survey can reach.
   const uids = [...drafts.values()].flatMap((draft) => (draft.respondent.kind === "account" ? [draft.respondent.uid] : [])).filter(safeId);
   const accounts = new Map<string, { name: string; address: string | null }>();
   for (let i = 0; i < uids.length; i += 100) {
@@ -143,7 +151,7 @@ export async function readEventAudience(db: Firestore, eventId: string): Promise
       if (!doc.exists) continue;
       const data = (doc.data() ?? {}) as Record<string, unknown>;
       const address = typeof data.email === "string" ? data.email.trim() : "";
-      accounts.set(doc.id, { name: fullNameOfUser(data), address: address || null });
+      accounts.set(doc.id, { name: nameForViewer(viewer, accountNamesOf(data), "NAISI member"), address: address || null });
     }
   }
 

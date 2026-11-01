@@ -63,7 +63,8 @@ async function followUpHolders(db: Firestore, audience: Extract<SurveyAudience, 
     ? (await peopleOf(db, atEnd.id)).filter((person) => person.consents.followUps === true && !spoke.has(person.respondent.uid))
     : [];
   const uids = [...new Set([...said, ...late].map((person) => person.respondent.uid))];
-  const names = await namesOf(db, uids);
+  // Part of the audience read, which sending reads too: the name people go by.
+  const names = await namesOf(db, uids, null);
   return uids
     .filter((uid) => names.has(uid))
     .map((uid) => ({ uid, name: names.get(uid) ?? "" }))

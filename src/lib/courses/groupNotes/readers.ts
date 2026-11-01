@@ -8,6 +8,7 @@ import {
   normalizeCourseGroupNote,
   type CourseGroupNoteDoc,
 } from "@/lib/firestore/courseGroupNotes";
+import { accountNamesOf, nameForViewer, type NameViewer } from "@/lib/names/staffName";
 
 /**
  * THE NOTES A GROUP'S FACILITATORS SHARE, read on the server (C30).
@@ -19,7 +20,9 @@ import {
  * called before that decision, and no route hands these rows to a browser.
  *
  * Each note comes back with its writer's names, worked out from their account
- * when it is read, and its day in London. Newest first. One equality on one
+ * when it is read (the name over the note is the first name they go by, for
+ * every reader; the one beside their initials is by the names rule for the
+ * reader, `nameForViewer`), and its day in London. Newest first. One equality on one
  * field per read, sorted in memory, so no read needs a declared index. A
  * read is bounded by what a run's facilitators write in a term: a few notes a
  * group a week.
@@ -30,7 +33,7 @@ export type GroupNoteView = {
   id: string;
   groupId: string;
   writerUid: string;
-  /** The writer's whole name, for their initials. */
+  /** The writer's name as the reader is shown it, for their initials. */
   writerName: string;
   /** The name over the note: "Sofia". */
   writerFirstName: string;
@@ -48,7 +51,7 @@ function newestFirst(a: CourseGroupNoteDoc, b: CourseGroupNoteDoc): number {
   return at(b) - at(a) || b.id.localeCompare(a.id);
 }
 
-async function withWriters(db: Firestore, notes: CourseGroupNoteDoc[]): Promise<GroupNoteView[]> {
+async function withWriters(db: Firestore, notes: CourseGroupNoteDoc[], viewer: NameViewer): Promise<GroupNoteView[]> {
   const uids = [...new Set(notes.map((note) => note.authorUid))].filter((uid) => uid && !uid.includes("/"));
   const accounts = new Map<string, Record<string, unknown>>();
   if (uids.length > 0) {
@@ -57,8 +60,8 @@ async function withWriters(db: Firestore, notes: CourseGroupNoteDoc[]): Promise<
   }
   return notes.map((note) => {
     const account = accounts.get(note.authorUid) ?? {};
-    const writerName = fullNameOfUser(account);
-    const writerFirstName = firstNameOfUser(account) || writerName;
+    const writerName = nameForViewer(viewer, accountNamesOf(account), "NAISI member");
+    const writerFirstName = firstNameOfUser(account) || fullNameOfUser(account);
     const dateKey = note.createdAt ? londonDateKey(note.createdAt) : "";
     return {
       id: note.id,
@@ -73,24 +76,28 @@ async function withWriters(db: Firestore, notes: CourseGroupNoteDoc[]): Promise<
   });
 }
 
-/** One group's notes, newest first, for a reader the caller has already let read them. */
-export async function readGroupNotes(db: Firestore, group: { id: string; runId: string }): Promise<GroupNoteView[]> {
+/** One group's notes, newest first, for a reader (`viewer`) the caller has already let read them. */
+export async function readGroupNotes(
+  db: Firestore,
+  group: { id: string; runId: string },
+  viewer: NameViewer,
+): Promise<GroupNoteView[]> {
   const snap = await db.collection(COURSE_GROUP_NOTES_COLLECTION).where("groupId", "==", group.id).get();
   const notes = snap.docs
     .map((doc) => normalizeCourseGroupNote(doc.id, doc.data() ?? {}))
     .filter((note): note is CourseGroupNoteDoc => note !== null && note.runId === group.runId && note.groupId === group.id)
     .sort(newestFirst);
-  return withWriters(db, notes);
+  return withWriters(db, notes, viewer);
 }
 
-/** Every group's notes on one run, by group id, newest first, for a reader the caller has already let read them. */
-export async function readRunGroupNotes(db: Firestore, runId: string): Promise<Map<string, GroupNoteView[]>> {
+/** Every group's notes on one run, by group id, newest first, for a reader (`viewer`) the caller has already let read them. */
+export async function readRunGroupNotes(db: Firestore, runId: string, viewer: NameViewer): Promise<Map<string, GroupNoteView[]>> {
   const snap = await db.collection(COURSE_GROUP_NOTES_COLLECTION).where("runId", "==", runId).get();
   const notes = snap.docs
     .map((doc) => normalizeCourseGroupNote(doc.id, doc.data() ?? {}))
     .filter((note): note is CourseGroupNoteDoc => note !== null && note.runId === runId)
     .sort(newestFirst);
-  const views = await withWriters(db, notes);
+  const views = await withWriters(db, notes, viewer);
   const byGroup = new Map<string, GroupNoteView[]>();
   for (const view of views) {
     const list = byGroup.get(view.groupId) ?? [];

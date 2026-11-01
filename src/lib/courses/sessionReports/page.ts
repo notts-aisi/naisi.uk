@@ -93,7 +93,7 @@ export async function loadReportPage(
       groupName,
       title,
       line: closedLine(chosen.weekNumber, chosen.occurrence, window.closesAt, window.nextWeekNumber),
-      sent: own ? await ownReportView(db, run, group, own) : null,
+      sent: own ? await ownReportView(db, run, group, own, user) : null,
     };
   }
 

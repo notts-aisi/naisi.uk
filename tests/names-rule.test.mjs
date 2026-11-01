@@ -25,11 +25,17 @@
  *  6. A SCRUB knows every name an account holds, the full name among them,
  *     so a full name typed into words that leave the site is taken out.
  *
+ *  7. A STAFF NAME'S INITIALS come from the full name, never from the name
+ *     in brackets after it, so a course screen that hands its chip a staff
+ *     name draws "PS" for "Priya Shah (Pri)".
+ *
  * `tests/full-name-readers.test.mjs` is the other half: every file that reads,
  * writes or draws a full name, with the gate in front of it.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { FIELD_VALUE_STUB, makeDb } from "./lib/applicationsStore.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
 
@@ -335,5 +341,29 @@ describe("a scrub knows every name an account holds", () => {
       odd: [],
     });
     assert.equal((await namesToScrubOf(db, [])).size, 0);
+  });
+});
+
+// ===========================================================================
+// 7. A staff name's initials
+// ===========================================================================
+
+describe("a staff name's initials are the full name's", () => {
+  test("the chip beside a staff name takes its initials from the full name, never the bracket or what tells two apart", async () => {
+    const chips = createLoader({ stubs: new Map([["./InitialsChip.module.css", "export default new Proxy({}, { get: (_, name) => String(name) });"]]) });
+    const { default: InitialsChip } = await chips.loadTs("components/ui/InitialsChip.tsx");
+    const initials = (name) => {
+      const html = renderToStaticMarkup(createElement(InitialsChip, { name, uid: "priya" }));
+      return /aria-hidden="true">([^<]*)<\/span>/.exec(html)?.[1];
+    };
+    assert.equal(initials("Priya Shah (Pri)"), "PS");
+    assert.equal(initials("Priya Shah (Pri) · AGI Strategy, Group 2 · priya@example.com"), "PS");
+    assert.equal(initials(names.staffNameWords(names.staffNameOf(names.accountNamesOf(PRIYA), "NAISI member"))), "PS");
+    // A name with no bracket is read as it always was.
+    assert.equal(initials("Priya Shah"), "PS");
+    assert.equal(initials("Pri"), "P");
+    assert.equal(initials("Amara Okafor-Bello"), "AO");
+    // And its tooltip is the whole line the screen draws.
+    assert.match(renderToStaticMarkup(createElement(InitialsChip, { name: "Priya Shah (Pri)", uid: "priya" })), /title="Priya Shah \(Pri\)"/);
   });
 });

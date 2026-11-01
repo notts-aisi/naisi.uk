@@ -169,7 +169,7 @@ const READERS = {
     kind: "told",
     from: ["lib/courses/programmeAttendance.ts"],
     via: ["facts"],
-    proof: ["listGroups(records, viewer, now, weeksOf(records))"],
+    proof: ["listGroups(records, { isAdmin: viewer.isAdmin, role: viewer.actor.role }, now, weeksOf(records))"],
     why:
       "a facilitator's group page and Home: each session's facts as the lead's tabs read them, so a cancelled " +
       "session is said as cancelled and its register is asked for nothing",

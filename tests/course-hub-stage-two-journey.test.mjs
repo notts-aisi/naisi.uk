@@ -452,11 +452,21 @@ const CAST = [
   ["tariq", "Tariq Mensah", "member", false],
 ];
 /**
- * The name each person goes by, which every course screen names them by: the
- * lead's tabs too, since the full names change (they named people in full
- * before it).
+ * The name each person goes by, which a facilitator who is not on the
+ * committee is shown on every course screen (the names rule).
  */
 const FIRST = Object.fromEntries(CAST.map(([uid, name]) => [uid, name.split(" ")[0]]));
+/**
+ * Each person's full name, which the names rule shows the committee and
+ * admins on course screens (the lead, an admin, and Tess, who leads the
+ * incubator and runs its group): here the account's own name, which begins
+ * with the name they go by, so nothing follows it in brackets.
+ */
+const FULL = Object.fromEntries(CAST.map(([uid, name]) => [uid, name]));
+/** The name a person goes by, from the full name the committee is shown. */
+const FIRST_OF = Object.fromEntries(CAST.map(([uid, name]) => [name, FIRST[uid]]));
+/** Who course screens show full names: the committee role and admins. */
+const SEES_FULL = new Set(CAST.filter(([, , role]) => role === "committee" || role === "admin").map(([uid]) => uid));
 const address = (uid) => `${uid}@example.com`;
 
 function userDoc([uid, name, role, suRecognised]) {
@@ -1925,6 +1935,21 @@ function shownIn(look, runId, groupName) {
     .sort();
 }
 const uidOf = Object.fromEntries(CAST.map(([uid]) => [FIRST[uid], uid]));
+/** A person, by the name they go by, as `viewer` is shown them on a course screen (the names rule). */
+const shownTo = (viewer) => (first) => (SEES_FULL.has(viewer) ? FULL[uidOf[first]] : first);
+/** A register with every name put back to the name the person goes by, to hold two readers' registers to one another. */
+function byFirstNames(register) {
+  if (!register || register.refused) return register;
+  const first = (name) => FIRST_OF[name] ?? name;
+  return {
+    members: register.members.map(first),
+    notYetTold: register.notYetTold,
+    marks: Object.fromEntries(
+      Object.entries(register.marks).map(([week, marks]) => [week, Object.fromEntries(Object.entries(marks).map(([name, status]) => [first(name), status]))]),
+    ),
+    leavers: register.leavers.map((leaver) => ({ ...leaver, name: first(leaver.name) })),
+  };
+}
 const people = (n) => (n === 1 ? "1 person" : `${n} people`);
 /** The line said of the people placed somewhere and not yet told, word for word, or null for nobody. */
 const waitingWords = (n, where, update = "this") =>
@@ -2038,17 +2063,15 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         assert.deepEqual(look.members[uid], { programmes: [], updates: { refused: 403 }, marks: { refused: 403 } }, uid);
       }
       // The told rule: an admin is shown everybody placed, the lead the people Publish has told.
-      // In People in groups' order since the walk of stage two's fixes (G10).
-      // By the names they go by since the full names change: the course
-      // screens' helper (`fullNameOfUser`) puts that name first, whoever
-      // reads it, until those screens take the staff rule.
+      // In People in groups' order since the walk of stage two's fixes (G10),
+      // and by the names rule for the reader: an admin is shown each full name.
       assert.deepEqual(
         look.lead.attendance.groups.map((group) => [group.name, group.notYetTold, group.people.length]),
         [["Group B", true, 0], ["Group A", true, 0]],
       );
       assert.deepEqual(
         look.admin.attendance.groups.map((group) => [group.name, group.notYetTold, group.people.map((person) => person.name)]),
-        [["Group B", false, ["Amara", "Ella", "Kofi"]], ["Group A", false, ["Dev", "Joel", "Priya"]]],
+        [["Group B", false, ["Amara Okafor", "Ella Robinson", "Kofi Mensah"]], ["Group A", false, ["Dev Patel", "Joel Adeyemi", "Priya Nair"]]],
       );
       assert.deepEqual([look.lead.overview.people.takingPart, look.admin.overview.people.takingPart], [0, 6]);
       assert.deepEqual(look.lead.overview.week, ["Before the start", "Week 1 of 6", "Thu 29 Oct to Wed 4 Nov"]);
@@ -2183,7 +2206,8 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         // Group B's third register was finished the morning after: section 9.
         if (key === "b3") continue;
         for (const [uid, after] of Object.entries(session.afterFinish)) {
-          assert.deepEqual(after.filter(([n]) => n === week), [[week, session.leadReadsDraft.marks[`week ${week}`][FIRST[uid]]]], `${key}: ${uid}`);
+          // The lead reads the register by each full name (the names rule: on the committee).
+          assert.deepEqual(after.filter(([n]) => n === week), [[week, session.leadReadsDraft.marks[`week ${week}`][FULL[uid]]]], `${key}: ${uid}`);
         }
       }
     });
@@ -2320,9 +2344,9 @@ describe("stage two of the course hub, one term from Publish to the end of week 
     test("the lead's Attendance and his facilitators' register both keep Kofi, with his finished mark and the day he was removed", () => {
       const look = lookAt("Kofi removed");
       const b = look.lead.attendance.groups.find((group) => group.name === "Group B");
-      // The lead's tabs name him by the name he goes by, as the sentence about
-      // him does (until the full names change they named him in full: G10).
-      assert.deepEqual(b.people.find((person) => person.name === "Kofi"), { name: "Kofi", left: "Left Wed 4 Nov", marks: [[1, "excused", "finished"]], came: "0 of 1", inARow: 0 });
+      // The lead's tabs name him in full, by the names rule (the lead is on the
+      // committee), and the sentence about him by the name he goes by (G10).
+      assert.deepEqual(b.people.find((person) => person.name === "Kofi Mensah"), { name: "Kofi Mensah", left: "Left Wed 4 Nov", marks: [[1, "excused", "finished"]], came: "0 of 1", inARow: 0 });
       // The register names the people in the group by the name they go by,
       // and somebody who left the same way: facilitators are not the
       // committee, so they are never shown a whole name (the walk of stage
@@ -2333,7 +2357,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         marks: { "week 1, finished": { Amara: "present", Ella: "present" } },
         leavers: [{ name: "Kofi", left: "Left Wed 4 Nov", marks: { w01: "excused" } }],
       });
-      assert.deepEqual(look.lead.overview.attention, [["left", "Kofi left on Wed 4 Nov", "Kofi’s off Group B’s register from week 2."]]);
+      assert.deepEqual(look.lead.overview.attention, [["left", "Kofi Mensah left on Wed 4 Nov", "Kofi’s off Group B’s register from week 2."]]);
       assert.equal(look.lead.overview.people.line, "1 left. Freed places can be offered until Wed 4 Nov, the end of week 1.");
     });
 
@@ -2546,8 +2570,8 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         when: "Tue 17 Nov · 6pm",
         dateKey: "2026-11-17",
         where: "Room C20",
-        // By their whole names, as wk-overview draws them (the walk of stage two's fixes, G10).
-        facilitators: ["Rahul", "Sofia"],
+        // By the names rule for the lead, who is on the committee: their full names (G10).
+        facilitators: ["Rahul Mehta", "Sofia Rossi"],
         pill: "Register not pushed",
         line: "Saved, not pushed. 2 of 2 so far.",
         remind: ["Remind Rahul and Sofia", 2, "Emails 2 people", "Remind Rahul and Sofia to push Group B’s register for Tue 17 Nov? This emails 2 people.", "w03"],
@@ -2557,7 +2581,7 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         ["week", "Week 4 isn’t ready, and Groups A and B have reached it", "Groups A and B meet again from Thu 19 Nov. Week 4 isn’t published, so people in these groups can’t open it yet."],
         ["register", "Group B’s register for Tue 17 Nov isn’t pushed", "If it’s still not pushed on Fri 20 Nov at 8am, you and admins get a task."],
         // The day he was removed, which Remove now records.
-        ["left", "Kofi left on Wed 4 Nov", "Kofi’s off Group B’s register from week 2."],
+        ["left", "Kofi Mensah left on Wed 4 Nov", "Kofi’s off Group B’s register from week 2."],
       ]);
     });
 
@@ -2623,24 +2647,24 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       assert.equal(
         seen.csv,
         `${BOM}Group,Name,Week 1,Week 2,Week 3,Week 4,Week 5,Week 6,Came,Of,Left\n` +
-          "Group B,Amara,Present,Late,Present,,,,3,3,\n" +
-          "Group B,Ella,Present,Present,Left early,,,,3,3,\n" +
+          "Group B,Amara Okafor,Present,Late,Present,,,,3,3,\n" +
+          "Group B,Ella Robinson,Present,Present,Left early,,,,3,3,\n" +
           // The day he was removed, which Remove now records (it said "Yes" with none).
-          "Group B,Kofi,Excused,,,,,,0,1,2026-11-04\n" +
-          "Group A,Dev,Present,Present,Present,,,,3,3,\n" +
-          "Group A,Joel,Late,Present,Absent,,,,2,3,\n" +
-          "Group A,Priya,Absent,Late,Present,,,,2,3,",
+          "Group B,Kofi Mensah,Excused,,,,,,0,1,2026-11-04\n" +
+          "Group A,Dev Patel,Present,Present,Present,,,,3,3,\n" +
+          "Group A,Joel Adeyemi,Late,Present,Absent,,,,2,3,\n" +
+          "Group A,Priya Nair,Absent,Late,Present,,,,2,3,",
       );
       const grid = lookAt("the end of week 3").lead.attendance;
       assert.deepEqual(
         grid.groups.flatMap((group) => group.people.map((person) => [group.name, person.name, person.came])),
         [
-          ["Group B", "Amara", "3 of 3"],
-          ["Group B", "Ella", "3 of 3"],
-          ["Group B", "Kofi", "0 of 1"],
-          ["Group A", "Dev", "3 of 3"],
-          ["Group A", "Joel", "2 of 3"],
-          ["Group A", "Priya", "2 of 3"],
+          ["Group B", "Amara Okafor", "3 of 3"],
+          ["Group B", "Ella Robinson", "3 of 3"],
+          ["Group B", "Kofi Mensah", "0 of 1"],
+          ["Group A", "Dev Patel", "3 of 3"],
+          ["Group A", "Joel Adeyemi", "2 of 3"],
+          ["Group A", "Priya Nair", "2 of 3"],
         ],
       );
     });
@@ -2745,7 +2769,9 @@ describe("stage two of the course hub, one term from Publish to the end of week 
                 `${label}: ${uid}`,
               );
               assert.deepEqual(theirs.roster, { members: names, notYetTold: label === BEFORE_PUBLISH }, `${label}: ${uid}'s roster`);
-              assert.deepEqual(theirs.register.members, names, `${label}: ${uid}'s register`);
+              // The register names its rows by the names rule for its reader:
+              // Tess, on the committee, is shown each full name.
+              assert.deepEqual(theirs.register.members, names.map(shownTo(uid)).sort(), `${label}: ${uid}'s register`);
             }
           }
         }
@@ -2758,19 +2784,23 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         for (const { runId, tabs, groups } of RUNS) {
           for (const [key, name] of Object.entries(groups)) {
             const lead = look[tabs].registers.find((heading) => heading.name === name).register;
-            for (const uid of look.staffing[key]) assert.deepEqual(look.facilitators[`${uid} (${key})`].register, lead, `${label}: ${uid}`);
+            // The same register, each name by the names rule for its reader:
+            // the lead's by full names, a facilitator's by the names people go by.
+            for (const uid of look.staffing[key]) {
+              assert.deepEqual(byFirstNames(look.facilitators[`${uid} (${key})`].register), byFirstNames(lead), `${label}: ${uid}`);
+            }
             const grid = look[tabs].attendance.groups.find((group) => group.name === name);
             const marks = marksByPerson(lead);
             const staying = grid.people.filter((person) => person.left === null);
-            // The grid and the register both name each person by the name
-            // they go by (since the full names change; the walk of stage
-            // two's fixes, G10, had the grid name them in full): the same
-            // people, with the same marks.
-            assert.deepEqual(staying.map((person) => person.name), shownIn(look, runId, name), `${label}: ${name}'s rows`);
+            // The grid and the lead's register both name each person in full,
+            // by the names rule for the lead (the walk of stage two's fixes,
+            // G10, had the grid name them in full): the same people, with the
+            // same marks.
+            assert.deepEqual(staying.map((person) => person.name), shownIn(look, runId, name).map((first) => FULL[uidOf[first]]), `${label}: ${name}'s rows`);
             for (const person of staying) assert.deepEqual(person.marks, marks[person.name] ?? [], `${label}: ${person.name}`);
             assert.deepEqual(
               grid.people.filter((person) => person.left !== null).map((person) => person.name),
-              runId === RUN && name === "Group B" && AFTER_PUBLISH.indexOf(label) >= AFTER_PUBLISH.indexOf("Kofi removed") ? ["Kofi"] : [],
+              runId === RUN && name === "Group B" && AFTER_PUBLISH.indexOf(label) >= AFTER_PUBLISH.indexOf("Kofi removed") ? ["Kofi Mensah"] : [],
               `${label}: ${name}'s leavers`,
             );
           }
@@ -2786,14 +2816,15 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         const look = lookAt(label);
         for (const { runId, groups } of RUNS) {
           for (const [key, name] of Object.entries(groups)) {
-            const register = look.facilitators[`${look.staffing[key][0]} (${key})`].register;
+            const reader = look.staffing[key][0];
+            const register = look.facilitators[`${reader} (${key})`].register;
             const finished = marksByPerson(register);
             for (const first of shownIn(look, runId, name)) {
               const uid = uidOf[first];
               assert.deepEqual(look.members[uid].updates.titles, meant(look, runId, ["everyone", key]), `${label}: ${uid}`);
               assert.deepEqual(
                 look.members[uid].marks,
-                (finished[first] ?? []).filter(([, , state]) => state === "finished").map(([week, status]) => [week, status]),
+                (finished[shownTo(reader)(first)] ?? []).filter(([, , state]) => state === "finished").map(([week, status]) => [week, status]),
                 `${label}: ${uid}'s marks`,
               );
             }

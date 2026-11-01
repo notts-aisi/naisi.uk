@@ -12,7 +12,6 @@ import {
   type RegisterMember,
 } from "@/lib/courses/registerAccess";
 import { didNotHappenLine, leaversOfGroup, readRunRecords } from "@/lib/courses/programmeAttendance";
-import { fullNameOfUser } from "@/lib/courses/programmeLead";
 import { readRegisterEnding, type RegisterEnding } from "@/lib/courses/registerEnding";
 import {
   resolveSessions,
@@ -37,6 +36,7 @@ import {
   type CourseRunDoc,
 } from "@/lib/firestore/courses";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { reachLateMarks } from "@/lib/surveys/checkIns/lateMark";
 
 /**
@@ -133,8 +133,11 @@ export type AttendancePayload = {
    */
   sessions: AttendanceSession[];
   /**
-   * The grid's ROWS: active members of the group, name-sorted. Names only.
-   * For anybody but an admin, only people Publish has told their group.
+   * The grid's ROWS: active members of the group, name-sorted. Names only,
+   * by the names rule for the caller (`nameForViewer`: the committee and
+   * admins see "Priya Shah (Pri)", a facilitator who is not on it the name
+   * people go by). For anybody but an admin, only people Publish has told
+   * their group.
    */
   members: RegisterMember[];
   /**
@@ -146,8 +149,8 @@ export type AttendancePayload = {
    * SOMEBODY WHO LEFT THE GROUP, read only, as wk-fac-group draws "Sam
    * Whitfield, Left Fri 13 Nov": the people the lead's Attendance tab lists
    * in this group as having left (`leaversOfGroup`, the grid's own rule, so
-   * the two agree), by their whole names as the lead's tabs name them,
-   * name-sorted, each with the marks this group's registers hold for them. They are NOT rows of the register: nobody can mark them
+   * the two agree), named as the rows are, name-sorted, each with the marks
+   * this group's registers hold for them. They are NOT rows of the register: nobody can mark them
    * (a write's marks are checked against `members`), they count in no tally,
    * and nothing chases a session after they left, which is blank.
    */
@@ -181,9 +184,8 @@ export type AttendancePayload = {
 export type AttendanceLeaver = {
   uid: string;
   /**
-   * Their whole name, as the lead's tabs and wk-fac-group name somebody who
-   * left: never an address. The register's own rows keep the name each
-   * person goes by.
+   * Their name by the names rule for the caller, as the register's own rows
+   * and the lead's tabs name people: never an address.
    */
   displayName: string;
   /** "Left Fri 13 Nov", or "Left" when the day is not on record. */
@@ -435,7 +437,7 @@ async function prepareWrite(
 
   const [runSnap, { members }] = await Promise.all([
     db.collection("courseRuns").doc(gated.runId).get(),
-    loadRegisterMembers(db, gated.runId, groupId, { isAdmin: gated.isAdmin }),
+    loadRegisterMembers(db, gated.runId, groupId, { isAdmin: gated.isAdmin, role: actor.role }),
   ]);
   if (!runSnap.exists) return fail("Run not found", 404);
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
@@ -533,7 +535,7 @@ export async function GET(
   // register last marked them), and the register asks the same function.
   const [runSnap, { members, notYetTold }, runRecords] = await Promise.all([
     db.collection("courseRuns").doc(runId).get(),
-    loadRegisterMembers(db, runId, groupId, { isAdmin: gated.isAdmin }),
+    loadRegisterMembers(db, runId, groupId, { isAdmin: gated.isAdmin, role: actor.role }),
     readRunRecords(db, runId),
   ]);
   if (!runSnap.exists) {
@@ -654,7 +656,7 @@ export async function GET(
   const leavers: AttendanceLeaver[] = leaving
     .map((leaver) => ({
       uid: leaver.uid,
-      displayName: fullNameOfUser(runRecords?.accounts.get(leaver.uid) ?? {}),
+      displayName: nameForViewer(actor, accountNamesOf(runRecords?.accounts.get(leaver.uid) ?? {}), "NAISI member"),
       left: leaver.left,
       records: leaverMarks.get(leaver.uid) ?? {},
     }))

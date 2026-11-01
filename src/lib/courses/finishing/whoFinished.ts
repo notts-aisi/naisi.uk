@@ -34,7 +34,8 @@ import {
  *
  * Everybody taking part, as the Attendance tab lists them for this viewer
  * (`listGroups`: a lead sees the people Publish has told, an admin everybody
- * placed), fewest sessions first, each with their group, how many sessions
+ * placed, each by the name the names rule shows this viewer), fewest
+ * sessions first, each with their group, how many sessions
  * they came to of the ones their group held, how many of the exercises set to
  * their group they answered, the weeks they were excused or missed, and
  * whether their record says they finished. Somebody who left is listed apart,
@@ -46,6 +47,14 @@ import {
 
 /** Rows drawn before "+N more". */
 export const SHOWN_FIRST = 10;
+
+/**
+ * Who the section is drawn for: whether they are an admin (who is a row),
+ * who they are ("Changed by you"), and their role, which decides the name
+ * each person is shown by (`nameForViewer`). Left out, every name is the
+ * name people go by.
+ */
+export type WhoFinishedViewer = { isAdmin: boolean; uid: string; role?: string | null };
 
 export type WhoFinishedRow = {
   uid: string;
@@ -221,7 +230,7 @@ export function buildWhoFinished(
   records: RunRecords,
   finishing: Finishing,
   exercises: Map<string, ExerciseTally>,
-  viewer: { isAdmin: boolean; uid: string },
+  viewer: WhoFinishedViewer,
   now: Date,
   deciders: Map<string, Record<string, unknown>> = new Map(),
 ): WhoFinishedModel {
@@ -230,7 +239,7 @@ export function buildWhoFinished(
     return { state: "not-yet", line: notYetLine(end.lastDay), needsRule: finishing.rule === null };
   }
 
-  const listed = listGroups(records, { isAdmin: viewer.isAdmin }, now, weeksOf(records));
+  const listed = listGroups(records, { isAdmin: viewer.isAdmin, role: viewer.role }, now, weeksOf(records));
   const rows: (WhoFinishedRow & { count: number })[] = [];
   const left: WhoFinishedLeft[] = [];
   for (const entry of listed) {
@@ -284,7 +293,7 @@ export function buildWhoFinished(
 export async function loadWhoFinished(
   db: Firestore,
   records: RunRecords,
-  viewer: { isAdmin: boolean; uid: string },
+  viewer: WhoFinishedViewer,
   now: Date,
 ): Promise<WhoFinishedModel> {
   const finishing = await readFinishing(db, records.run.id);

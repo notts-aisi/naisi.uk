@@ -133,7 +133,8 @@ describe("the press: an admin's alone, one person, a new link, one notice", () =
     const first = structuredClone(answerOf(id, "amara"));
     const sent = await press(id, "zach");
     assert.equal(sent.status, 200, JSON.stringify(sent.body));
-    assert.deepEqual(sent.body, { ok: true, delivery: "sent", pressed: "Sent Thu 29 Oct, 9am by Zach" });
+    // The admin pressing is named to themselves by the names rule: in full.
+    assert.deepEqual(sent.body, { ok: true, delivery: "sent", pressed: "Sent Thu 29 Oct, 9am by Zach Levin" });
     const row = rowOf(id, "amara");
     assert.match(row.blanks.token, /^[A-Za-z0-9_-]{43}$/);
     assert.notEqual(row.blanks.token, row.token, "the first link was reused: it would reopen the whole survey");
@@ -190,7 +191,7 @@ describe("the press: an admin's alone, one person, a new link, one notice", () =
     const held = await press(id, "zach");
     assert.equal(held.status, 200);
     assert.equal(held.body.delivery, "suppressed");
-    assert.equal(held.body.pressed, "Not sent Thu 29 Oct, 9am by Zach: the address is on the do-not-email list.");
+    assert.equal(held.body.pressed, "Not sent Thu 29 Oct, 9am by Zach Levin: the address is on the do-not-email list.");
     assert.equal(rowOf(id, "amara").blanks.delivery, "suppressed");
     w.world.mailFate = null;
     // A second press: a new secret, and the first link of blanks opens nothing.
@@ -308,7 +309,7 @@ describe("the link shows only what was left blank, and keeps what comes back bes
     w.world.db.seed(`surveys/${id}`, { ...stored, items: stored.items.map((item) => (item.id === "q_p6" ? { ...item, optional: true } : item)) });
     answered(id, "amara", AMARA);
     const tab = async () => (await w.page(w.pages.answered, { params: Promise.resolve({ surveyId: id }) }, "zach")).text;
-    assert.match(await tab(), /Amara .* Left 2 blank Send the questions they left blank/);
+    assert.match(await tab(), /Amara Okafor .* Left 2 blank Send the questions they left blank/);
     const stale = await press(id, "zach", { questions: 3 });
     assert.equal(stale.status, 409, "a press counting the optional question was taken");
     assert.equal(stale.body.questions, 2);
@@ -341,7 +342,7 @@ describe("the link shows only what was left blank, and keeps what comes back bes
     w.world.db.seed(`surveys/${id}`, { ...stored, items: legacy });
     answered(id, "amara", AMARA);
     const tab = (await w.page(w.pages.answered, { params: Promise.resolve({ surveyId: id }) }, "zach")).text;
-    assert.match(tab, /Amara .* Left 3 blank Send the questions they left blank/);
+    assert.match(tab, /Amara Okafor .* Left 3 blank Send the questions they left blank/);
     assert.equal((await press(id, "zach", { questions: 3 })).status, 200);
     assert.ok((await linkPage(rowOf(id, "amara").blanks.token)).includes("What do you most want to get out of this programme"));
   });
@@ -373,10 +374,10 @@ describe("every reader reads the first answers with what came later", () => {
     answered(id, "bea", WHOLE);
     const tab = async () => (await w.page(w.pages.answered, { params: Promise.resolve({ surveyId: id }) }, "zach")).text;
     const before = await tab();
-    assert.match(before, /Amara .* Left 3 blank Send the questions they left blank/);
+    assert.match(before, /Amara Okafor .* Left 3 blank Send the questions they left blank/);
     assert.equal((before.match(/Left \d+ blank/g) ?? []).length, 1, "somebody with nothing blank is marked");
     await press(id, "zach");
-    assert.match(await tab(), /Left 3 blank Sent Thu 29 Oct, 9am by Zach Send the questions they left blank/);
+    assert.match(await tab(), /Left 3 blank Sent Thu 29 Oct, 9am by Zach Levin Send the questions they left blank/);
     await sendByLink(rowOf(id, "amara").blanks.token, FILL);
     const after = await tab();
     assert.ok(!/Left \d+ blank/.test(after), "a filled survey is still marked as left blank");

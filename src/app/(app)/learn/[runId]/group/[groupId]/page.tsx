@@ -332,7 +332,7 @@ export default async function GroupHomePage({
     updateReadingOf(db, access.user, access.run, runGroups),
     loadFacilitatorGroup(db, access.run, group, { isAdmin: access.isAdmin, actor: access.user }, now),
     runProgrammeOf(db, runId),
-    readGroupNotes(db, group),
+    readGroupNotes(db, group, access.user),
     // The review queue's written answers half: null on a run of the summer's weeks.
     loadWrittenQueue(db, access.user, access.run, group),
   ]);
@@ -383,7 +383,9 @@ export default async function GroupHomePage({
   const boxes = groupWeek ? await loadGroupWeekBoxes(db, { run: access.run, actor: access.user, week: groupWeek }) : [];
 
   // The head: the group, its week, its programme, its usual day, time and
-  // room, and the group's other facilitators by their whole names.
+  // room, and the group's other facilitators by the names rule for this
+  // reader (`loadFacilitatorGroup`: the committee and admins see the full
+  // name, a facilitator who is not on it the name people go by).
   const groupName = group.name || "Group";
   const others = model.facilitators.filter((person) => person.uid !== access.user.uid);
   const headParts = groupHeadParts({

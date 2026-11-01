@@ -19,7 +19,6 @@ import { gaveTheirPlaceBack } from "@/lib/courses/placeGivenBack";
 import { noteStandingFor } from "@/lib/courses/placementNotes/model";
 import { readPlacementNotes } from "@/lib/courses/placementNotes/store";
 import { placementWhere } from "@/lib/courses/placementEmail";
-import { fullNameOfUser } from "@/lib/courses/programmeLead";
 import type { RunRecords } from "@/lib/courses/programmeAttendance";
 import { runStaffingOf } from "@/lib/courses/runStaffing";
 import { isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
@@ -34,6 +33,7 @@ import { COURSE_AUDIT_COLLECTION, normalizeCourseAudit } from "@/lib/firestore/c
 import { normalizeCourseApplication, rowIsServedTo } from "@/lib/firestore/courseApplications";
 import { enrolmentIsPutBack } from "@/lib/firestore/courseEnrolments";
 import { weekDocId } from "@/lib/firestore/courses";
+import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import type { GetReadyFacts, ReadyFacilitating, ReadyGroup } from "./model";
 import { readFreeReminders } from "./remind";
 
@@ -122,7 +122,7 @@ export async function readGetReady(
     db.collection("courseApplications").where("runId", "==", run.id).get(),
     db.collection(COURSE_AUDIT_COLLECTION).where("runId", "==", run.id).get(),
     db.collection("courseRuns").doc(run.id).get(),
-    loadWeeksTab(db, run.id, programme.shortName),
+    loadWeeksTab(db, run.id, programme.shortName, actor),
     resolveWeekDoc(db, run.id, null, weekDocId(1)),
   ]);
   const accepted = listSnap.docs
@@ -220,8 +220,9 @@ export async function readGetReady(
   }));
   const facilitatorsModel = facilitatorsOutcome.ok ? facilitatorsOutcome.model : null;
   // The Facilitators view's own model; if it could not be read, each group's
-  // facilitators as the run holds them, with nothing said of any answer, so the
-  // checklist never says a group has nobody when it has somebody.
+  // facilitators as the run holds them, by the names rule for the caller, with
+  // nothing said of any answer, so the checklist never says a group has nobody
+  // when it has somebody.
   const facilitating: ReadyFacilitating[] = facilitatorsModel
     ? facilitatorsModel.groups.map((group) => ({
         groupId: group.id,
@@ -238,7 +239,7 @@ export async function readGetReady(
         groupId: group.id,
         facilitators: group.facilitatorUids.map((uid) => ({
           uid,
-          name: fullNameOfUser(records.accounts.get(uid) ?? {}),
+          name: nameForViewer(actor, accountNamesOf(records.accounts.get(uid) ?? {}), "NAISI member"),
           saidYes: false,
         })),
         waiting: [],

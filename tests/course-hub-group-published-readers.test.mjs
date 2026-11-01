@@ -616,7 +616,13 @@ describe("every reader of placements says what it does about a placement Publish
     for (const [file, code] of callers) {
       const calls = [...code.matchAll(/\bloadRegisterMembers\s*\(([^)]*)\)/g)];
       for (const [, args] of calls) {
-        assert.match(args, /,\s*\{\s*isAdmin\s*:\s*gated\.isAdmin\s*\}\s*$/, `${file} calls it without the caller's role`);
+        // Whether the caller is an admin, from the gate; and, where the rows
+        // are named for the caller, the session's own role (the names rule).
+        assert.match(
+          args,
+          /,\s*\{\s*isAdmin\s*:\s*gated\.isAdmin\s*(?:,\s*role\s*:\s*(?:actor|gated)\.role\s*)?\}\s*$/,
+          `${file} calls it without the caller's role`,
+        );
       }
     }
   });

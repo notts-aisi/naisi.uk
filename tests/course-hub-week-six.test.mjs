@@ -493,7 +493,8 @@ describe("4. every reader of answers leaves a fill-in box out", () => {
     // Nor on the group page's To review card.
     const run = w.lib.courses.normalizeCourseRun(RUN.agi, w.world.db.read(`courseRuns/${RUN.agi}`));
     const group = w.lib.groups.normalizeCourseGroup(B, w.world.db.read(`courseGroups/${B}`));
-    const model = await w.lib.facilitatorGroup.loadFacilitatorGroup(w.world.courseDb, run, group, { isAdmin: false }, new Date());
+    // As Rahul, a facilitator of the group, reads it: the loader names people for the session it is handed.
+    const model = await w.lib.facilitatorGroup.loadFacilitatorGroup(w.world.courseDb, run, group, { isAdmin: false, actor: w.sessionOf("rahul") }, new Date());
     assert.ok(!model.toReview.some((row) => row.uid === "chloe"), JSON.stringify(model.toReview));
   });
 });

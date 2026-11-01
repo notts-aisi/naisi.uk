@@ -34,8 +34,10 @@ import { slugify } from "@/lib/firestore/slugId";
  * ## Names and marks, nothing else
  *
  * Group, name, each week's mark in words, "Came" and "Of", and when somebody
- * left. Never an address (names come through `displayNameOf`) and never a
- * note. The file starts with a byte-order mark so a spreadsheet reads the
+ * left. Each name is the one the grid shows the person downloading (the
+ * names rule, `nameForViewer`: the committee and admins see the full name, a
+ * lead who is not on the committee the name people go by). Never an address
+ * and never a note. The file starts with a byte-order mark so a spreadsheet reads the
  * names as UTF-8.
  */
 
@@ -84,7 +86,7 @@ export async function POST(_req: Request, ctx: Ctx) {
         { status: 409 },
       );
     }
-    const table = attendanceCsvTable(buildRunAttendance(records, { isAdmin: view.viewer === "admin" }, now));
+    const table = attendanceCsvTable(buildRunAttendance(records, { isAdmin: view.viewer === "admin", role: actor.role }, now));
     csv = BOM + toCSV(table.header, table.rows);
     rowCount = table.rows.length;
     // The programme and the day it was taken: two downloads a week apart are

@@ -14,6 +14,7 @@ import {
   reserveNoticeSlots,
 } from "@/lib/email/noticeCaps";
 import { SURVEYS_COLLECTION, type EventAudience, type EventSurveyDoc, type EventSurveyPersonDoc, type SurveyDelivery, type SurveyPressKind } from "@/lib/firestore/surveys";
+import type { NameViewer } from "@/lib/names/staffName";
 import { emailWordsFor, siteAddress, surveyLink } from "../emails";
 import { signerOf } from "../sending";
 import { REFUSAL, SURVEY_FROM_NAME, SURVEY_REPLY_TO, countChangedWords, type SurveyEmailWords } from "../words";
@@ -80,8 +81,8 @@ export type EventSendPlan = {
 
 const KINDS: readonly EventAudience["kind"][] = ["event-came", "event-signups"];
 
-export async function readEventSendPlan(db: Firestore, survey: EventSurveyDoc): Promise<EventSendPlan> {
-  const [read, rows] = await Promise.all([readEventAudience(db, survey.audience.eventId), eventPeopleOf(db, survey.id)]);
+export async function readEventSendPlan(db: Firestore, survey: EventSurveyDoc, viewer: NameViewer = null): Promise<EventSendPlan> {
+  const [read, rows] = await Promise.all([readEventAudience(db, survey.audience.eventId, viewer), eventPeopleOf(db, survey.id)]);
   const reached = new Set(rows.filter((row) => row.sentAt !== null || row.answered).map((row) => respondentKey(row.respondent)));
   const audiences = Object.fromEntries(
     KINDS.map((kind) => {

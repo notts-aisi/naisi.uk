@@ -341,6 +341,95 @@ const READERS = new Map([
     why: "the list of people who would facilitate, for the programme's lead and admins, read behind the programme's own gate",
   }],
 
+  // --- Course and survey screens, by the rule for their own reader --------
+  // Each names everybody through `nameForViewer` and nothing else (the walk's
+  // last test in this block holds that), with the viewer its page or route
+  // is drawn for: the committee and admins see "Priya Shah (Pri)", a lead or
+  // facilitator who is not on the committee the name people go by.
+  ["src/lib/courses/registerAccess.ts", {
+    who: "rule",
+    proof: ['nameByUid.set(doc.id, nameForViewer(viewer, accountNamesOf(data), "NAISI member"));'],
+    why: "a register's rows, named for the viewer each caller hands it: the register's route hands it the session; what reaches the people themselves hands it no role, and reads the name they go by",
+  }],
+  ["src/app/api/courses/groups/[groupId]/attendance/route.ts", {
+    who: "rule",
+    proof: [
+      "loadRegisterMembers(db, runId, groupId, { isAdmin: gated.isAdmin, role: actor.role })",
+      'displayName: nameForViewer(actor, accountNamesOf(runRecords?.accounts.get(leaver.uid) ?? {}), "NAISI member"),',
+    ],
+    why: "the register: its rows and the people who left the group, each named for the session reading it, behind the register's own gate",
+  }],
+  ["src/lib/courses/programmeAttendance.ts", {
+    who: "rule",
+    proof: ['return nameForViewer(viewer, accountNamesOf(data ?? {}), "NAISI member");'],
+    why: "the lead's Attendance grid and its CSV, the Overview, who finished, the group page and the ratings: every row and facilitator named for the viewer each page hands it, and by the name people go by where it is handed none",
+  }],
+  ["src/lib/courses/programmeOverview.ts", {
+    who: "rule",
+    proof: ['name: nameForViewer(viewer, accountNamesOf(records.accounts.get(enrolment.uid) ?? {}), "NAISI member"),'],
+    why: "the Overview's people who left with no register to list them, named for the lead or admin reading it, as the grid names the rest",
+  }],
+  ["src/lib/courses/coursework/load.ts", {
+    who: "rule",
+    proof: ['.map((doc) => [doc.id, nameForViewer(viewer, accountNamesOf(doc.data() ?? {}), "NAISI member")] as const),'],
+    why: "the Coursework tab and one person's coursework page, for the programme's lead and admins: every row named off its account for the session reading it",
+  }],
+  ["src/lib/courses/feedback/send.ts", {
+    who: "rule",
+    proof: ['name: nameForViewer(user, accountNamesOf(account), "NAISI member"),'],
+    why: "the Overview's list of feedback to email, each person named for the admin or lead pressing; the email itself greets them by the first name they go by, and a piece stays signed with the name its writer goes by",
+  }],
+  ["src/lib/courses/getReady/read.ts", {
+    who: "rule",
+    proof: ['name: nameForViewer(actor, accountNamesOf(records.accounts.get(uid) ?? {}), "NAISI member"),'],
+    why: "get-ready's facilitators when the Facilitators view could not be read, named for the lead or admin reading the card",
+  }],
+  ["src/lib/courses/groupNotes/readers.ts", {
+    who: "rule",
+    proof: ['const writerName = nameForViewer(viewer, accountNamesOf(account), "NAISI member");'],
+    why: "the name beside a shared note's initials, for the group page's facilitators and admins and the Attendance tab's lead and admins; the name over the note is the first name its writer goes by",
+  }],
+  ["src/lib/courses/sessionReports/readers.ts", {
+    who: "rule",
+    proof: ['const nameOf = (uid: string) => nameForViewer(viewer, accountNamesOf(accounts.get(uid) ?? {}), "NAISI member");'],
+    why: "session reports, for the programme's lead and admins and for each writer's own: the writer and the people a report picks, named for the reader",
+  }],
+  ["src/lib/courses/weeksTab/load.ts", {
+    who: "rule",
+    proof: ['const nameOf = (data: Record<string, unknown>) => nameForViewer(viewer, accountNamesOf(data), "NAISI member");'],
+    why: "the Weeks tab's owners, the programme's lead and the run's helpers, named for the lead or admin reading it",
+  }],
+  ["src/lib/courses/writtenAnswers/queue.ts", {
+    who: "rule",
+    proof: ['if (snap.exists) names.set(snap.id, nameForViewer(actor, accountNamesOf(snap.data() ?? {}), "NAISI member"));'],
+    why: "Feedback to write, on the group page, Home and the Attendance tab: each person named for the session the queue is read for",
+  }],
+  ["src/lib/courses/writtenAnswers/reviewPage.ts", {
+    who: "rule",
+    proof: ['shownName.set(snap.id, nameForViewer(actor, accountNamesOf(data), "NAISI member"));'],
+    why: "the review page's people, named for the facilitator, lead or admin reading it; feedback on it stays signed with the name its writer goes by",
+  }],
+  ["src/lib/ratings/view.ts", {
+    who: "rule",
+    proof: ['const nameOf = (data: Record<string, unknown>) => nameForViewer(viewer, accountNamesOf(data), "NAISI member");'],
+    why: "the ratings at the end: the fellows (through the grid) and the raters, named for the facilitator, lead or admin reading them",
+  }],
+  ["src/lib/surveys/names.ts", {
+    who: "rule",
+    proof: ['if (doc.exists) out.set(doc.id, nameForViewer(viewer, accountNamesOf(doc.data() ?? {}), "NAISI member"));'],
+    why: "the admins' survey screens and the download with names, each name for the admin reading it; the audience read that sending shares hands it no viewer, and reads the name people go by",
+  }],
+  ["src/lib/surveys/onePerson.ts", {
+    who: "rule",
+    proof: ['return { name: nameForViewer(viewer, accountNamesOf(data), "NAISI member"), firstName: firstNameOfUser(data) };'],
+    why: "one person's survey answers, opened by an admin: their name for that admin, recorded before it is read",
+  }],
+  ["src/lib/surveys/events/audience.ts", {
+    who: "rule",
+    proof: ['accounts.set(doc.id, { name: nameForViewer(viewer, accountNamesOf(data), "NAISI member"), address: address || null });'],
+    why: "who a survey after an event is for: named for the admin's screens that hand it a viewer, and by the name people go by for sending and everything else, which hands it none",
+  }],
+
   // --- Scrubs: read to be taken out, never shown ---------------------------
   ["src/lib/applications/assessment/run.ts", {
     who: "scrub",
@@ -405,10 +494,6 @@ const READERS = new Map([
   ["src/app/api/courses/runs/[runId]/allocation/publish/preview/route.ts", {
     who: "other",
     why: "a local function called fullName, which returns what `fullNameOfUser` does: the name people go by",
-  }],
-  ["src/lib/courses/writtenAnswers/reviewPage.ts", {
-    who: "other",
-    why: "a local map called fullName, holding what `fullNameOfUser` returns: the name people go by",
   }],
   ["src/lib/firestore/applicationEmails.ts", {
     who: "other",
@@ -541,19 +626,37 @@ describe("every file that names a full name says who reads it", () => {
     assert.match(codeOf("src/app/(app)/admin/(admin-only)/layout.tsx"), /await requireAdminPage\(\);/);
   });
 
-  test("the course-side code that facilitators read never names a full name", () => {
-    // Course screens move to the staff rule in a later change. Until then
-    // nothing under the courses tree reads the field or a staff name, but for
-    // the lead's list of people who would facilitate, which is a review of
-    // applications by the lead and admins, and the coursework scrub, which
-    // reads every name an account holds only to take it out of what is sent.
-    const courseSide = found.filter((file) => /^src\/(?:lib\/courses|features\/courses|app\/\(app\)\/learn|app\/api\/courses)\//.test(file));
-    assert.deepEqual(courseSide, [
+  test("the course and survey code that facilitators and leads read names a full name only through the rule", () => {
+    // Course and survey screens show a full name only through `nameForViewer`,
+    // for the reader in front of them: the committee and admins see "Priya
+    // Shah (Pri)", a facilitator or lead who is not on the committee the name
+    // people go by. The rest of this side that names one: the lead's list of
+    // people who would facilitate, a review of applications by the lead and
+    // admins; the coursework scrub, which reads every name an account holds
+    // only to take it out of what is sent; and Publish's preview, whose
+    // `fullName` is a local name for the name people go by.
+    const courseSide = found.filter((file) =>
+      /^src\/(?:lib\/courses|features\/courses|app\/\(app\)\/learn|app\/api\/courses|lib\/surveys|app\/api\/surveys|lib\/ratings)\//.test(file),
+    );
+    const notTheRule = [
       "src/app/api/courses/runs/[runId]/allocation/publish/preview/route.ts",
       "src/lib/courses/coursework/gather.ts",
       "src/lib/courses/facilitatorAsks/people.ts",
-      "src/lib/courses/writtenAnswers/reviewPage.ts",
-    ]);
+    ];
+    assert.deepEqual(
+      courseSide.filter((file) => !notTheRule.includes(file)),
+      courseSide.filter((file) => READERS.get(file)?.who === "rule"),
+      "a course or survey file names a full name some other way than the rule: decide who reads it, and list it",
+    );
+    assert.deepEqual(courseSide.filter((file) => notTheRule.includes(file)), notTheRule, "an exception no longer names a full name: take it off the list");
+    for (const file of courseSide.filter((each) => !notTheRule.includes(each))) {
+      const code = codeOf(file);
+      // The one rule, and only the rule: no staff name built by hand, and no full name read off a document.
+      assert.match(code, /\bnameForViewer\(/, `${file} names a full name without the rule`);
+      const others = PRODUCERS.filter((name) => name !== "nameForViewer" && name !== "accountNamesOf");
+      assert.ok(!new RegExp(`\\b(?:${others.join("|")})\\s*\\(`).test(code), `${file} builds a staff name some other way than the rule`);
+      assert.ok(!/profile\??\.fullName/.test(code), `${file} reads a full name off a document`);
+    }
   });
 });
 

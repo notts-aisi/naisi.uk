@@ -57,7 +57,7 @@ export async function POST(req: Request, ctx: Ctx) {
   const now = new Date();
   if (!isOpen(survey, now)) return NextResponse.json({ error: BLANKS_REFUSAL.closed }, { status: 409 });
 
-  const outcome = await pressBlanks(db, { survey, subject, presserUid: actor.uid, questions, now });
+  const outcome = await pressBlanks(db, { survey, subject, presserUid: actor.uid, viewer: actor, questions, now });
   if (!outcome.ok) {
     const headers = outcome.retryAfterSeconds ? { "Retry-After": String(outcome.retryAfterSeconds) } : undefined;
     return NextResponse.json(

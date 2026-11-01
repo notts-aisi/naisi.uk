@@ -1,6 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import type { CheckInSurveyDoc } from "@/lib/firestore/surveys";
+import type { NameViewer } from "@/lib/names/staffName";
 import { namesOf } from "../names";
 import { closedOn, isOpen, sentCountOf } from "../repo";
 import { closesWords, dayAndClockWords, namesOffWords, programmeLine } from "../words";
@@ -90,9 +91,10 @@ export type OpeningView = {
   programme: string;
 };
 
-export async function openingView(db: Firestore, survey: CheckInSurveyDoc, now: Date): Promise<OpeningView> {
+/** The Opening tab, for an admin (`viewer`), who is shown the opener by the names rule. */
+export async function openingView(db: Firestore, survey: CheckInSurveyDoc, now: Date, viewer: NameViewer): Promise<OpeningView> {
   const first = survey.presses.find((press) => press.kind === "first") ?? null;
-  const names = await namesOf(db, first?.byUid ? [first.byUid] : []);
+  const names = await namesOf(db, first?.byUid ? [first.byUid] : [], viewer);
   const open = isOpen(survey, now);
   const ends = closedOn(survey);
   return {

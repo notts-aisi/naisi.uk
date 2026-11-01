@@ -4662,9 +4662,10 @@ describe("the course hub passage", () => {
     assert.deepEqual(table.rows[0].slice(0, 4), ["Amara Okafor", "2026-11-02 18:05", "Personal link", "No"]);
     assert.equal(table.rows[0][4], "Master’s", "the survey file no longer writes a choice as its words");
     assert.ok(!table.header.some((column) => /e-?mail|address/i.test(column)), "the survey file has a column for an email address");
-    // Its names come from the account's name and never its address.
+    // Its names come from the account's names, by the names rule for the
+    // admin downloading, and never its address.
     const names = withoutComments(read("src/lib/surveys/names.ts"));
-    assert.match(names, /out\.set\(doc\.id, fullNameOfUser\(/);
+    assert.match(names, /out\.set\(doc\.id, nameForViewer\(viewer, accountNamesOf\(/);
     assert.ok(!/email/i.test(names), "the survey file's names are now read with an email address");
     // tests/surveys-routes.test.mjs downloads it as every caller, reads the
     // record written first, and is refused when the record cannot be written.
@@ -4818,7 +4819,7 @@ describe("the course hub passage", () => {
       "the group's page no longer asks whether the caller is a live facilitator of the group",
     );
     const sentAway = page.indexOf("if (group.runId !== runId || !(access.isAdmin || facilitatesThisGroup)) {");
-    const readOnPage = page.indexOf("readGroupNotes(db, group)");
+    const readOnPage = page.indexOf("readGroupNotes(db, group, access.user)");
     assert.ok(
       sentAway !== -1 && readOnPage !== -1 && sentAway < readOnPage,
       "the group's page reads its facilitators' notes before it sends away everybody but the group's live facilitators and admins",
@@ -4826,7 +4827,7 @@ describe("the course hub passage", () => {
     const tab = read(attendanceTab);
     assert.match(tab, /const outcome = db \? await loadProgrammeRun\(db, user, roundId, programmeId\) : null;/);
     const notYours = tab.indexOf('if (outcome.status === "not-yours")');
-    const readOnTab = tab.indexOf("readRunGroupNotes(db, view.run.id)");
+    const readOnTab = tab.indexOf("readRunGroupNotes(db, view.run.id, user)");
     assert.ok(
       notYours !== -1 && readOnTab !== -1 && notYours < readOnTab,
       "the Attendance tab reads the facilitators' notes before it asks whether the caller leads the programme",
@@ -4911,7 +4912,7 @@ describe("the course hub passage", () => {
     const lead = withoutComments(read(leadPage));
     assert.match(lead, /const outcome = db \? await loadProgrammeRun\(db, user, roundId, programmeId\) : null;/);
     const refused = lead.indexOf('if (outcome.status === "not-yours") {');
-    assert.ok(refused !== -1 && refused < lead.indexOf("readRunSessionReports(db, view.run.id)"), "the lead's page reads reports before it refuses a reviewer");
+    assert.ok(refused !== -1 && refused < lead.indexOf("readRunSessionReports(db, view.run.id, user)"), "the lead's page reads reports before it refuses a reviewer");
     // The Overview's counts: only its page makes them, after the same gate, of the run the programme names.
     const tab = withoutComments(read(surveysTab));
     assert.ok(tab.indexOf('if (outcome.status === "not-yours") {') < tab.indexOf("leadSurveysOverview("), "the Overview counts reports before it refuses a reviewer");
@@ -8004,7 +8005,7 @@ describe("one person's answers, opened by an admin", () => {
     // Nothing of the person is read but inside the read the opening hands back, and nothing is shown when it is refused.
     const person = withoutComments(read("src/lib/surveys/onePerson.ts"));
     const recorded = person.indexOf("const opened = await openSurveyAnswersRecorded(");
-    assert.ok(recorded > -1 && person.indexOf("() => readPerson(db, survey, shown, subject),") > recorded);
+    assert.ok(recorded > -1 && person.indexOf("() => readPerson(db, survey, shown, subject, actor),") > recorded);
     assert.match(person, /if \(!opened\.ok\) return \{ kind: "not-recorded" \};/);
     assert.match(
       withoutComments(read("src/app/api/surveys/[surveyId]/people/[who]/route.ts")),

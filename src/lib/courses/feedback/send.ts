@@ -19,6 +19,7 @@ import {
 } from "@/lib/firestore/courseFeedback";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
+import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { londonDayLabel } from "../londonLabels";
 import { firstNameOfUser, fullNameOfUser } from "../programmeLead";
 import { emailAboutOf, type EmailPiece } from "./model";
@@ -188,7 +189,9 @@ async function readBatch(db: Firestore, user: SessionUser, runId: string, now: D
     const account = accounts.get(uid) ?? {};
     people.set(uid, {
       uid,
-      name: fullNameOfUser(account),
+      // The list's name is for the person pressing, by the names rule; the
+      // email greets them by the first name they go by.
+      name: nameForViewer(user, accountNamesOf(account), "NAISI member"),
       firstName: firstNameOfUser(account),
       address: typeof account.email === "string" ? account.email.trim() : "",
       groupName: groupOf.get(uid) ?? NOT_IN_A_GROUP,

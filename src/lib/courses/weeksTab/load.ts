@@ -1,6 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { fullNameOfUser, readRunLead, standingUserOf } from "@/lib/courses/programmeLead";
+import { readRunLead, standingUserOf } from "@/lib/courses/programmeLead";
 import { sessionOfWeek } from "@/lib/courses/sessionChange/model";
 import { dayRangeWords } from "@/lib/courses/sessionChange/words";
 import { resolveSessions } from "@/lib/courses/sessions";
@@ -20,6 +20,7 @@ import {
   type CourseRunDoc,
   type CourseWeekDoc,
 } from "@/lib/firestore/courses";
+import { accountNamesOf, nameForViewer, type NameViewer } from "@/lib/names/staffName";
 import { READY_BY_DAYS, meetsLine } from "./words";
 
 /**
@@ -41,7 +42,9 @@ import { READY_BY_DAYS, meetsLine } from "./words";
  *
  * WHO READS IT: the Weeks tab's pages, after `loadProgrammeRun` has admitted
  * an admin or the programme's lead. Nothing about anybody but names reaches
- * the page.
+ * the page, each by the names rule for the reader (`nameForViewer`: the
+ * committee and admins see "Priya Shah (Pri)", a lead who is not on it the
+ * name people go by).
  *
  * Reads: the run, its weeks (one list), its groups (one equality on the run,
  * as the times picture reads them), the programme's lead (`readRunLead`) and
@@ -50,7 +53,7 @@ import { READY_BY_DAYS, meetsLine } from "./words";
 
 export type WeekOwner = {
   uid: string;
-  /** Their whole name, as the lead's tabs name people. */
+  /** Their name as the reader is shown it, as the lead's tabs name people. */
   name: string;
   /** The programme's lead, who every week starts as owned by; a helper otherwise. */
   lead: boolean;
@@ -109,13 +112,18 @@ export async function liveGroupsOfRun(db: Firestore, runId: string): Promise<Cou
 /** The roles of an approved account: a helper whose account is gone or waiting is no owner. */
 const APPROVED = new Set(["member", "committee", "admin"]);
 
-/** The programme's lead, then each of the run's helpers who still has an approved account, by name. */
-export async function weekOwnersOf(db: Firestore, run: CourseRunDoc): Promise<WeekOwner[]> {
+/**
+ * The programme's lead, then each of the run's helpers who still has an
+ * approved account, by name, each named as `viewer` is shown them (none: the
+ * name they go by).
+ */
+export async function weekOwnersOf(db: Firestore, run: CourseRunDoc, viewer: NameViewer = null): Promise<WeekOwner[]> {
+  const nameOf = (data: Record<string, unknown>) => nameForViewer(viewer, accountNamesOf(data), "NAISI member");
   const lead = await readRunLead(db, run.id);
   const owners: WeekOwner[] = [];
   if (lead) {
     const snap = await db.collection("users").doc(lead.uid).get();
-    owners.push({ uid: lead.uid, name: snap.exists ? fullNameOfUser(snap.data() ?? {}) : "NAISI member", lead: true });
+    owners.push({ uid: lead.uid, name: snap.exists ? nameOf(snap.data() ?? {}) : "NAISI member", lead: true });
   }
   const helperUids = [...new Set(run.trackLeadUids)].filter((uid) => uid && uid !== lead?.uid);
   const accounts = helperUids.length ? await db.getAll(...helperUids.map((uid) => db.collection("users").doc(uid))) : [];
@@ -124,7 +132,7 @@ export async function weekOwnersOf(db: Firestore, run: CourseRunDoc): Promise<We
     if (!snap.exists) continue;
     const data = (snap.data() ?? {}) as Record<string, unknown>;
     if (!APPROVED.has(standingUserOf(snap.id, data).role)) continue;
-    helpers.push({ uid: snap.id, name: fullNameOfUser(data), lead: false });
+    helpers.push({ uid: snap.id, name: nameOf(data), lead: false });
   }
   helpers.sort((a, b) => a.name.localeCompare(b.name, "en-GB") || a.uid.localeCompare(b.uid));
   return [...owners, ...helpers];
@@ -189,15 +197,15 @@ export async function readTabRun(db: Firestore, runId: string): Promise<CourseRu
 /**
  * The whole tab for the run a programme names, or null when the run is not
  * on the site. `programmeName` is the programme's short name as the tab's
- * frame read it.
+ * frame read it; `viewer` is who reads it, for the names.
  */
-export async function loadWeeksTab(db: Firestore, runId: string, programmeName: string): Promise<WeeksTab | null> {
+export async function loadWeeksTab(db: Firestore, runId: string, programmeName: string, viewer: NameViewer): Promise<WeeksTab | null> {
   const run = await readTabRun(db, runId);
   if (!run) return null;
   const [weekSnap, groups, owners] = await Promise.all([
     db.collection("courseRuns").doc(run.id).collection("weeks").get(),
     liveGroupsOfRun(db, run.id),
-    weekOwnersOf(db, run),
+    weekOwnersOf(db, run, viewer),
   ]);
   const docs = new Map(weekSnap.docs.map((doc) => [doc.id, normalizeCourseWeek(doc.id, doc.data() ?? {})] as const));
   const slots = runSlots(run);

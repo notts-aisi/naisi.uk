@@ -269,11 +269,13 @@ describe("2. who is a row, and 3. a placement nobody has told", () => {
       ["Group B", "Chloe Nguyen", ""],
       ["Group B", "Farah Hussain", ""],
       ["Group B", "Kofi Asante", ""],
-      // Facilitators by the names they go by (`fullNameOfUser`).
-      ["Group B", "Rahul", "facilitating"],
-      ["Group B", "Sofia", "facilitating"],
+      // Everybody by the names rule for an admin (`nameForViewer`): each
+      // account's full name, here the account's own name, which begins with
+      // the name each goes by, so nothing follows it in brackets.
+      ["Group B", "Rahul Mehta", "facilitating"],
+      ["Group B", "Sofia Rossi", "facilitating"],
       ["Group C", "Hamza Qureshi", ""],
-      ["Group C", "Tom", "facilitating"],
+      ["Group C", "Tom Fletcher", "facilitating"],
       ["Group C", "Una Byrne", "not told"],
       ["Group A", "Amara Okafor", ""],
       ["Group A", "Bea Lindqvist", ""],
@@ -289,7 +291,8 @@ describe("2. who is a row, and 3. a placement nobody has told", () => {
     const view = tableOf(drawn);
     const rows = rowsOf(view);
     assert.deepEqual(rows.filter(([, name]) => name === "Una Byrne"), [["Not in a group yet", "Una Byrne", ""]]);
-    assert.deepEqual(rows.filter(([section]) => section === "Group C").map(([, name]) => name), ["Hamza Qureshi", "Tom"]);
+    // The lead is on the committee, so is shown each full name as an admin is.
+    assert.deepEqual(rows.filter(([section]) => section === "Group C").map(([, name]) => name), ["Hamza Qureshi", "Tom Fletcher"]);
     assert.doesNotMatch(drawn.text, /Not told yet/);
     assert.match(drawn.text, /Only you and admins can open Coursework\./);
     // Una's page says the same to the lead, and her group to an admin.
@@ -322,7 +325,7 @@ describe("4. a cell", () => {
       assert.deepEqual([cellOf(view, "Farah Hussain", 3).reflections, cellOf(view, "Farah Hussain", 3).answer.state], [{ written: 2, of: 3 }, "feedback"]);
       assert.equal(cellOf(view, "Kofi Asante", 3).answer.state, "started");
       // A facilitator's own work, counted on the group they facilitate, its answer on the lead's feedback page.
-      assert.deepEqual([cellOf(view, "Rahul", 3).reflections, cellOf(view, "Rahul", 3).answer.href], [{ written: 1, of: 3 }, written("rahul")]);
+      assert.deepEqual([cellOf(view, "Rahul Mehta", 3).reflections, cellOf(view, "Rahul Mehta", 3).answer.href], [{ written: 1, of: 3 }, written("rahul")]);
       // Tariq is in no group: his week 1 work, on the run's own week 1, is counted, and his answer opens no feedback page.
       assert.deepEqual(cellOf(view, "Tariq Mensah", 1).reflections, { written: 1, of: 3 });
       assert.deepEqual(cellOf(view, "Tariq Mensah", 1).ticks, { ticked: 1, of: 2 });
@@ -397,7 +400,7 @@ describe("6. a person's page", () => {
   test("a facilitator's own page is marked, and the column for notes about a person is drawn only when handed something", async () => {
     const drawn = await person("claudia", "rahul");
     assert.deepEqual([personOf(drawn).person.facilitating, personOf(drawn).person.groupName], [true, "Group B"]);
-    assert.match(drawn.text, /Rahul AGI Strategy · Group B Facilitator/);
+    assert.match(drawn.text, /Rahul Mehta AGI Strategy · Group B Facilitator/);
     // The lead is handed the column with the notes kept for leads (section 9), so it is drawn;
     // handed nothing, the same page draws no column at all.
     const page = find(drawn.element, "PersonCoursework")[0];
@@ -730,8 +733,8 @@ describe("10. done, by the one meaning every page uses, and the Not done filter"
     // Not done: everybody behind on week 1 or week 3, facilitators' own weeks and Tariq's included; never Chloe.
     const behind = await names({ notdone: "1" });
     assert.deepEqual(behind, (await names({})).filter((name) => name !== "Chloe Nguyen"));
-    // Facilitators by the names they go by (`fullNameOfUser`), as everywhere on the tab.
-    assert.deepEqual(await names({ group: B, notdone: "1" }), ["Farah Hussain", "Kofi Asante", "Rahul", "Sofia"]);
+    // Facilitators by the names rule for the lead, who is on the committee, as everywhere on the tab.
+    assert.deepEqual(await names({ group: B, notdone: "1" }), ["Farah Hussain", "Kofi Asante", "Rahul Mehta", "Sofia Rossi"]);
     assert.deepEqual(await names({ group: B, waiting: "1", notdone: "1" }), [], "Chloe waits for feedback and is done");
     // The filter is a plain link that keeps the others, says when it is on, and when on, turns it off.
     assert.match(drawn.html, new RegExp(`<a href="${PROGRAMME_PATH}/coursework\\?notdone=1" class="filter filterNotDone">Not done</a>`));
