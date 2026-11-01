@@ -150,10 +150,10 @@ guard so a route that writes cannot be added beside them unguarded.
 
 1. Load the writer's world once: `loadAudienceWorld(db, writer, now)`.
 2. Resolve the selection the writer chose: `resolveAudience(db, world,
-   selection, { policy, row, mode, noticeUnder })`. It refuses a tag the writer may not
-   use, reads the guests' own subscriptions when a message by settings would
-   ask them and the suppression list for every address it would try, and
-   answers each person's class, addresses and left-out reason.
+   selection, { policy, row, mode, noticeUnder })`. It refuses a tag the
+   writer may not use, reads the guests' own subscriptions when a message by
+   settings would ask them and the suppression list for every address it
+   would try, and answers each person's class, addresses and left-out reason.
 3. Send to the people with no left-out reason, one message per address,
    through the lane their class names. Count what the button says from the
    same resolution.
