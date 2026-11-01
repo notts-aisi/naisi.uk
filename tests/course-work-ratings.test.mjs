@@ -161,7 +161,7 @@ describe("1. rating an answer: admins and the programme's lead, on readable work
     assert.equal((await w.write("rahul", 2, { text: sentence(25) }, { send: true })).status, 200);
     w.at(NOW);
     for (const who of ["sofia", "rahul"]) {
-      assert.deepEqual((await w.rate(who, "rahul", 2, 5, "Mine.")).status, 403, who);
+      assert.equal((await w.rate(who, "rahul", 2, 5, "Mine.")).status, 403, who);
     }
     assert.equal((await w.rate("claudia", "rahul", 2, 9, "The lead's.")).status, 200);
     assert.equal((await w.rate("zach", "rahul", 2, 8, "An admin's.")).status, 200);
@@ -238,7 +238,7 @@ describe("1. rating an answer: admins and the programme's lead, on readable work
     assert.deepEqual(ratingsOf("chloe").map((rating) => rating.raterUid).sort(), ["claudia", "zach"]);
   });
 
-  test("the lead of a run stands only while the programme names the run and they meet the bar", async () => {
+  test("the lead rates only while they still meet the bar a lead is appointed behind", async () => {
     await weekTwoWritten();
     // Claudia stops meeting the bar a lead is appointed behind.
     w.world.db.poke("users/claudia", { role: "member", suRecognised: false });
