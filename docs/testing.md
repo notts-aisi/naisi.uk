@@ -448,8 +448,9 @@ The same shape, older:
   a request waiting for a decision, and each for chosen people, its list
   naming its asker and, on THEIRS, `invitee`. Those columns say
   `world: "event"`, and their `theirs` names the two event roles; no column
-  names the invitee, since being invited is no role on any of them. A mutating route is sent an empty body,
-  so a gate that admits somebody stops at the first validation; a cell where
+  names the invitee, since being invited is no role on any of them. A
+  mutating route is sent an empty body, so a gate that admits somebody stops
+  at the first validation; a cell where
   nothing would stop it (a route that takes no body, or reads an empty one as
   a choice) is marked `ACTS` with what it would do, and is not sent, so no
   write lands. A route that checks its body first answers 400 to everybody
