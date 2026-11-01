@@ -27,7 +27,7 @@ export const dynamic = "force-dynamic";
  * asks again. Read on the server, from collections no browser can read, and
  * drawn from counts and words.
  */
-export default async function SurveysPage({ searchParams }: { searchParams?: Promise<{ tab?: string | string[] }> }) {
+export default async function SurveysPage({ searchParams }: { searchParams: Promise<{ tab?: string | string[] }> }) {
   const viewer = await getCurrentUser();
   if (!viewer || !canRunSurveys(viewer)) redirect("/dashboard");
   const tab = hubTabOf((await searchParams)?.tab);

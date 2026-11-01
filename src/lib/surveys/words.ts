@@ -518,11 +518,7 @@ export const LIST_WORDS = {
    */
   lede: "Only admins make and send surveys. Leads see results for their own programme, in its Surveys tab.",
   newSurvey: "New survey",
-  kairos: "Kairos",
-  /** sv-public, reached from the list: what goes on a programme's public page. */
-  publicNumbers: "Public numbers",
   open: "Open",
-  drafts: "Drafts",
   closed: "Closed",
   confidential: "Confidential",
   empty: "No surveys yet. Make one from New survey.",
@@ -530,7 +526,7 @@ export const LIST_WORDS = {
   remind: "Remind",
   results: "Results",
   edit: "Edit",
-  howTitle: "How surveys work",
+  /** Under the tabs, beside the Confidential chip: what confidential means. */
   howConfidential: "We know who answered. Only admins see who said what.",
   /** sv-list, a leaving survey's row: it has no closing day. */
   neverCloses: "No closing date",
