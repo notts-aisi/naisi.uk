@@ -120,6 +120,7 @@ const MUST_GUARD = [
   ["src/app/api/courses/groups/[groupId]/pace/route.ts", "changes a group's pacing, moving every learner's dates"],
   ["src/app/api/courses/groups/[groupId]/session/route.ts", "changes a group's meeting details"],
   ["src/app/api/courses/groups/[groupId]/session/change/route.ts", "changes or cancels one week's session of a group, in the presser's name"],
+  ["src/app/api/courses/groups/[groupId]/session-report/route.ts", "writes a facilitator's report on a session, naming the group's people, in the writer's name"],
   ["src/app/api/courses/groups/[groupId]/weeks/[weekId]/blocks/route.ts", "makes or replaces a group's own copy of a week from pasted Markdown, and can take out items its people have answered"],
   ["src/app/api/courses/groups/[groupId]/weeks/[weekId]/fork/route.ts", "forks a week's content for a group"],
   ["src/app/api/courses/groups/[groupId]/weeks/[weekId]/route.ts", "edits a group's week content"],

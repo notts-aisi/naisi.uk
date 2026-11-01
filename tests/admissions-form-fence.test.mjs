@@ -457,6 +457,12 @@ const ROUND_SURFACES = {
       "one of a programme's surveys' results, for its lead and admins. It reaches the round only " +
       "through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/reports": {
+    kind: "form",
+    why:
+      "a programme's session reports, for its lead and admins. It reaches the round only through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams": {
     kind: "form",
     why:

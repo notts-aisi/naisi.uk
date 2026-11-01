@@ -1837,6 +1837,99 @@ day, and only about the people Publish has told. Never a reason; somebody who
 gave their place back is not in it. From the first session's day, Home is the
 weekly Home above.
 
+## A facilitator's session report
+
+Board S-fac-report and privacy policy v15's "Session reports": two minutes on
+a phone straight after the register. How the session went (1 to 5, the one
+answer it needs), what went well, what didn't, what seemed unclear (the
+week's parts and "Something else"), who engaged well and what made each of
+them stand out, who seemed not to have done the readings, who might need a
+hand and a word about each, and anything for the programme's lead or admins.
+It is a course record of its own, not a survey and not a note: the register's
+notes about a named person stay exactly as they are beside it.
+
+### Who writes, and when
+
+- **Each of the group's live facilitators writes their own**, at
+  `/learn/[runId]/group/[groupId]/report?session=w03`. Two co-facilitators
+  write two reports, and neither reads the other's. The programme's lead and
+  admins write none; the page sends anybody but a live facilitator of the
+  group (an admin included) to the run's home.
+- **The way in** is the register: once the session its foot is about is
+  finished, the foot says "Next: two minutes on how it went." to the group's
+  facilitators. With no `?session=` the page takes the latest of the group's
+  sessions that has started.
+- **It is open** from the session's start until the group's next session
+  starts (the next one held and dated), and can be changed and sent again
+  until then; after the group's last session, for a week from its start. A
+  session called off through "Change a session", one with no date, and one
+  the register says did not happen have no report. Sending again replaces the
+  answers and keeps when it was first sent.
+- **People are picked, never typed**, from the session's register as the
+  group's facilitators see it (the people Publish has told): who engaged well
+  and who seemed not to have done the readings from those it has down as
+  present, late or left early; who might need a hand from everybody on it.
+  Never the group's facilitators, even one who holds a place. The route
+  refuses anybody else in a sentence rather than dropping them.
+- Nobody is emailed or told.
+
+### Who reads
+
+- **The programme's lead and admins**, on the programme's Surveys tab under
+  "Session reports" (`.../programmes/[programmeId]/surveys/reports`, the tab's
+  own gate, `loadProgrammeRun`): every report of the run, week by week, newest
+  first, each whole with its group, its writer, its session's day, when it
+  was sent, and the people it picks by their whole names. The tab itself
+  shows how many there are and names nobody.
+- **The writer**, their own report, on their page: in the form while it is
+  open, read only once it has closed.
+- Nobody in the group and no other facilitator reads a report on the site. A
+  person can ask for what is written about them (see below).
+
+### Records
+
+`courseSessionReports/{runId}__{groupId}__{sessionKey}__{writerUid}`, one per
+writer per session (`src/lib/firestore/courseSessionReports.ts`): the run,
+group, session, week and writer; `answers`, keyed by the questions' fixed ids
+(`how`, `wentWell`, `didnt`, `unclear`, `engaged`, `notRead`, `needsHand`,
+`forLead`), everybody picked as `{ uid, note }` or a uid; `aboutUids`, every
+uid the answers pick; `parts`, the week's parts as they read when it was
+sent (the group's own copy of the week first); `sentAt` and `updatedAt`.
+Written only by `PUT /api/courses/groups/[groupId]/session-report` (view-as
+refused first, the body checked before anything is read), read only on the
+server through `src/lib/courses/sessionReports/`, and refused to every
+browser by the rules. Every read is one equality or one `array-contains` on
+one field, so nothing needs a declared index.
+
+**It is never filed in the notes kept about a person.** Nothing under
+`src/lib/memberNotes/` or the member notes routes reads a report, and
+`tests/course-session-reports.test.mjs` lists every file that addresses the
+collection and every caller of its readers, both ways.
+
+### A copy of somebody's data, and deleting an account
+
+- **A copy** of somebody's data includes every entry about them: find the
+  reports with `aboutUids array-contains <uid>`, and their line in `engaged`,
+  `notRead` and `needsHand`. Names typed into the free-text answers can't be
+  found that way; read those by hand, and leave out what is about somebody
+  else where the policy says we may.
+- **Deleting an account** (`clearSessionReports` in
+  `src/lib/firestore/accountDeletion.ts`) takes the person out of every report
+  that picks them (their line, why they stood out, the word about them), and
+  keeps the reports the account wrote for the lead and admins with no writer
+  at all: each moves to an automatic id, since its own id names its writer,
+  with `writerUid` cleared, as a register keeps the notes on it. The page
+  then says "A former facilitator". Names typed into a report's own words
+  stay, as they do in a group's notes.
+- **Destroying the run** deletes every report on it; the destroy dialog
+  counts them as "Session reports".
+
+### Deploy
+
+`firestore.rules` gains `match /courseSessionReports/{reportId}` refusing
+every browser. Deploy the rules after merging. No index, no storage rule, no
+job and no setting.
+
 ## Reading coursework: reflections with names, and the Coursework tab
 
 Owner decision, 30 October 2026. Staff read what people write WITH their
