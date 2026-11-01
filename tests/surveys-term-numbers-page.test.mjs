@@ -1,5 +1,5 @@
 /**
- * THIS TERM IN NUMBERS, THE PAGE (board sv-term): Run NAISI › Surveys › This
+ * THIS TERM IN NUMBERS, THE PAGE (board sv-term): Run NAISI › Reports › This
  * term in numbers, through the real page over `tests/lib/termWorld.mjs`, as
  * every kind of caller: an admin, SU-recognised committee, the events'
  * organiser, a programme's lead, a member, a view-as session and somebody
@@ -54,8 +54,8 @@ describe("the page, for an admin", () => {
     assert.equal(page.to, null);
     assert.equal(w.everything(), before, "the page wrote something");
     const { text, html } = page;
-    assert.ok(text.startsWith("Surveys This term in numbers Autumn 2026 · 7 events and 2 programmes Download totals (CSV)"), text.slice(0, 160));
-    assert.ok(html.includes('<a href="/admin/surveys">Surveys</a>'), "the way back to the list");
+    assert.ok(text.startsWith("Reports This term in numbers Autumn 2026 · 7 events and 2 programmes Download totals (CSV)"), text.slice(0, 160));
+    assert.ok(html.includes('<a href="/admin/reports">Reports</a>'), "the way back to Reports, which holds it");
     assert.match(html, /<a href="\/api\/surveys\/term\/totals" download="" class="download">/, "the download is an ordinary link to the file, which works before any script arrives");
     // The VR night's record whose names came off is counted, as its Check-in tab counts it.
     assert.ok(
@@ -106,7 +106,7 @@ describe("the page, for an admin", () => {
     seed[`admissionRounds/${ROUND}`] = { ...seed[`admissionRounds/${ROUND}`], opensAt: new Date("2027-01-04T09:00:00Z"), decisionsSentAt: null };
     w.reset(seed);
     const { text, html } = await w.view("zach");
-    assert.equal(text, "Surveys This term in numbers There’s no term to count yet. A term starts when its application form opens.");
+    assert.equal(text, "Reports This term in numbers There’s no term to count yet. A term starts when its application form opens.");
     assert.ok(!html.includes("/api/surveys/term/totals"));
   });
 
@@ -190,10 +190,15 @@ describe("the page, for everybody else", () => {
 });
 
 describe("the way in", () => {
-  test("Run NAISI › Surveys leads here, as sv-list draws it", async (t) => {
+  // CHANGED ON PURPOSE: the term's numbers moved from a button on the Surveys
+  // page's head to Run NAISI › Reports, which holds them.
+  test("Run NAISI › Reports leads here, and the Surveys page no longer does", async (t) => {
     clock(t);
     w.reset();
+    const reports = (await w.loadTs(join("app", "(app)", "admin", "(admin-only)", "reports", "page.tsx"))).default;
+    const page = await w.page(reports, {}, "zach");
+    assert.match(page.html, /<a href="\/admin\/surveys\/term" class="link">This term in numbers<\/a>/);
     const list = await w.page(w.pages.list, {}, "zach");
-    assert.match(list.html, /<a href="\/admin\/surveys\/term" class="linkButtonGhost">This term in numbers<\/a>/);
+    assert.ok(!list.html.includes('href="/admin/surveys/term"'), "the Surveys page still leads here");
   });
 });

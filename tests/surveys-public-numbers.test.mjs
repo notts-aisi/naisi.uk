@@ -586,6 +586,7 @@ describe("Take it down: any time, by an admin, and the record is gone", () => {
 
 const adminPage = (await w.loadTs(join("app", "(app)", "admin", "(admin-only)", "surveys", "public-numbers", "page.tsx"))).default;
 const listPage = (await w.loadTs(join("app", "(app)", "admin", "(admin-only)", "surveys", "page.tsx"))).default;
+const reportsPage = (await w.loadTs(join("app", "(app)", "admin", "(admin-only)", "reports", "page.tsx"))).default;
 const pageAs = (who, programme) => w.page(adminPage, { searchParams: Promise.resolve(programme ? { programme } : {}) }, who);
 
 /** A box on the page, by its field and value, or null. */
@@ -661,10 +662,16 @@ describe("the Public numbers page: the offer, its bases, the quotes, Publish and
     }
   });
 
-  test("the list of surveys links here", async (t) => {
+  // CHANGED ON PURPOSE: Public numbers moved from a button on the Surveys
+  // page's head to Run NAISI › Reports, which holds it, and leads back there.
+  test("Reports links here, the list of surveys no longer does, and the way back is to Reports", async (t) => {
     clock(t);
     w.reset(seed());
+    const reports = await w.page(reportsPage, {}, "zach");
+    assert.match(reports.html, /href="\/admin\/surveys\/public-numbers"[^>]*>Public numbers<\/a>/);
     const list = await w.page(listPage, {}, "zach");
-    assert.match(list.html, /href="\/admin\/surveys\/public-numbers"[^>]*>Public numbers<\/a>/);
+    assert.ok(!list.html.includes('href="/admin/surveys/public-numbers"'), "the list of surveys still leads here");
+    const page = await pageAs("zach", `${ROUND}.${AGI}`);
+    assert.ok(page.html.includes('<a href="/admin/reports">Reports</a>'), "the way back is not to Reports");
   });
 });

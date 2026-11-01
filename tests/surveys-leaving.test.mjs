@@ -355,7 +355,7 @@ describe("4. the admins' pages", () => {
     // Amara has left and not answered: a sent survey's row would offer Remind here.
     assert.equal((await w.leave("amara")).status, 200);
     const listed = await page(pages.list, {}, "zach");
-    assert.ok(listed.text.includes("AGI Strategy: leaving Confidential Fellowship: AGI Strategy 0 of 1 No closing date"), listed.text);
+    assert.ok(listed.text.includes("Leaving a programme When someone leaves · 0 of 1 answered · No closing date Open Results"), listed.text);
     assert.ok(!listed.html.includes(`/admin/surveys/${id}/send"`), "the list offers a reminder for a leaving survey");
     assert.ok(!listed.text.includes("haven’t answered"), listed.text);
   });
