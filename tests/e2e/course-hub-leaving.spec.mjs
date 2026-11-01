@@ -179,7 +179,7 @@ const KEPT_NOTHING = Object.freeze([
   "What stays here",
   "Your notes and reflections",
   "The reading list",
-  "Your marks",
+  "Your sessions",
   "Still around",
   "Events are open to everyone.",
 ]);
@@ -614,7 +614,7 @@ test(
         "the page that says they left says more, or less, than that they left and when",
       );
       for (const words of KEPT_NOTHING) assert.ok(!said.includes(words), `the page that says they left shows ${JSON.stringify(words)}: ${said}`);
-      assert.equal(await pg.getByRole("region", { name: "Your marks" }).count(), 0, "the page that says they left lists marks");
+      assert.equal(await pg.getByRole("region", { name: "Your sessions" }).count(), 0, "the page that says they left lists their sessions");
       for (const suffix of ["/notes", "/reading"]) {
         assert.equal(await pg.locator(`main a[href$="${suffix}"]`).count(), 0, `the page that says they left links to ${suffix}`);
       }

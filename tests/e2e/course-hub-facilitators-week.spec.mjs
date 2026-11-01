@@ -131,13 +131,13 @@ const REPLY_TO = "ai-safety@uonsu.com";
  * `NOT_YET_MARK`, `MARK_STATE_WORDS`, `MARKS_LINE` and `MARKS_LEGEND_LABEL` in
  * src/lib/courses/memberPageWords.ts and `MARK_ORDER` in
  * src/features/courses/RunHome.tsx, restated. The five marks' words are the
- * register's own (`declaredStatuses`). Not marked, Cancelled and Didn't happen
+ * register's own (`declaredStatuses`). Not filled in, Cancelled and Didn't happen
  * are in the order for completeness: nothing this journey drives draws them.
  */
 const MARK_LETTER = Object.freeze({ present: "P", late: "L", "left-early": "LE", excused: "E", absent: "A" });
 const NOT_YET = Object.freeze({ word: "Not yet", glyph: "·" });
 const MARKS_LINE = "Your facilitators fill these in after each session.";
-const MARKS_LEGEND_LABEL = "What the marks mean";
+const MARKS_LEGEND_LABEL = "What each one means";
 const MARK_ORDER = Object.freeze([
   "present",
   "late",
@@ -570,7 +570,7 @@ test(
     }
 
     /**
-     * What a person's "Your marks" card draws (board wk-programme): a mark for
+     * What a person's "Your sessions" card draws (board wk-programme): a mark for
      * every session of their group's from week 1, the week they joined; the
      * week's own mark once its register is finished (`ownRecordOf`), and "Not
      * yet" until then and for every session still to come. Each mark is said
@@ -755,14 +755,14 @@ test(
     }
 
     /**
-     * The "Your marks" card as drawn (board wk-programme): each mark's name,
+     * The "Your sessions" card as drawn (board wk-programme): each mark's name,
      * its letter and its item's words (the letter, then the date under it),
      * the legend's items, and everything the card says. The marks are the
      * list whose items are images; the legend is the list named for what they
      * mean, and its letters are hidden from a screen reader.
      */
     async function readMarks(pg) {
-      const card = pg.getByRole("region", { name: "Your marks", exact: true });
+      const card = pg.getByRole("region", { name: "Your sessions", exact: true });
       await card.waitFor({ timeout: WAIT_MS });
       const items = card.getByRole("list").filter({ has: pg.getByRole("img") }).getByRole("listitem");
       const marks = [];
@@ -786,7 +786,7 @@ test(
       assert.equal(body.ownAttendance.rollup.sessionsHeld, expected.held, `${person.first}'s sessions held`);
       assert.equal(body.ownAttendance.rollup.attendedInFull, expected.inFull, `${person.first}'s sessions in full`);
 
-      // Drawn as board wk-programme draws "Your marks", with no target (C26).
+      // Drawn as board wk-programme draws the card (now "Your sessions": never "marks" in a member's words), with no target (C26).
       // The page this replaced drew a "Your progress" card whose line counted
       // the sessions attended in full ("You have been at 1 of 2 sessions in
       // full so far.") over a row for each finished register; that line is
@@ -822,7 +822,7 @@ test(
       // them. (Text content joins the card's elements with no space between.)
       assert.equal(
         drawn.said,
-        ["Your marks", ...marks.map((mark) => `${mark.glyph}${mark.date}`), ...legend, MARKS_LINE].join(""),
+        ["Your sessions", ...marks.map((mark) => `${mark.glyph}${mark.date}`), ...legend, MARKS_LINE].join(""),
         `${person.first}'s marks card says something besides its heading, marks, legend and line`,
       );
       for (const other of state.people.filter((each) => each !== person)) {
