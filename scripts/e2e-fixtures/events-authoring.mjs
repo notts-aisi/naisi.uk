@@ -187,7 +187,6 @@ export const SPEC = {
     routes: [
       "/api/auth/session",
       "/api/audience",
-      "/api/audience/who",
       "/api/events/[id]/audience",
       "/api/events/[id]/publish",
       "/api/events/[id]/rsvp",
