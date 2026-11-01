@@ -1,5 +1,7 @@
 import type { EventVisibility } from "@/lib/firestore/events";
-import { canApproveEvent, canDraftEvent } from "@/lib/firestore/users";
+// Relative: `lib/firestore/events.ts` imports this module, and a suite that
+// loads it without the app's path aliases has to reach this import too.
+import { canApproveEvent, canDraftEvent } from "../firestore/users";
 
 /**
  * WHO AN EVENT IS FOR, decided in one place.

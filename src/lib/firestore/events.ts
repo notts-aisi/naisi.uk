@@ -1,4 +1,6 @@
-import { visibilityOf } from "@/lib/events/reach";
+// Relative, as this module's other imports are: a suite that loads it
+// without the app's path aliases (tests/course-task-mirror.test.mjs) reaches it.
+import { visibilityOf } from "../events/reach";
 import { sanitizeBlocks, type Block } from "./newsletterBlocks";
 
 /**
