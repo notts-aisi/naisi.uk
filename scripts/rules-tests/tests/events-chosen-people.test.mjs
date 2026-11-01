@@ -19,6 +19,7 @@
  * browser, admins and the people invited included.
  */
 import { after, afterEach, before, describe, it } from "node:test";
+import assert from "node:assert/strict";
 import "firebase/compat/firestore";
 import {
   asAnon,
@@ -123,9 +124,23 @@ describe("events: who may read an event for chosen people from a browser", () =>
 
   it("a query a member could make for published events does not reach one for chosen people", async () => {
     await seedCast();
-    // Unfiltered by who it is for, the query is refused whole for a member: it would include chosen1.
+    // A list is checked against the query. Unfiltered by who it is for, it is
+    // refused whole for a member: it would hand back chosen1 with the rest.
+    // (A rule reading the field through a default once let exactly this
+    // query through.)
     await assertFails((await asUser("stranger")).collection("events").where("status", "==", "published").get());
     await assertFails((await asUser("invitee")).collection("events").where("status", "==", "published").get());
+    await assertFails(
+      (await asUser("stranger")).collection("events").where("status", "==", "published").where("visibility", "in", ["public", "chosen"]).get(),
+    );
+    // Constrained to the listed values, it is answered, and holds no event for chosen people.
+    const listed = await assertSucceeds(
+      (await asUser("stranger")).collection("events").where("status", "==", "published").where("visibility", "in", ["public", "members"]).get(),
+    );
+    assert.deepEqual(listed.docs.map((doc) => doc.id).sort(), ["members1", "public1"]);
+    await assertSucceeds(
+      (await asUser("stranger")).collection("events").where("status", "==", "published").where("visibility", "==", "public").get(),
+    );
     // The people who run events read every event, as the manage list does.
     await assertSucceeds((await asUser("committee1")).collection("events").where("status", "==", "published").get());
   });

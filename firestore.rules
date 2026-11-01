@@ -1302,10 +1302,21 @@ service cloud.firestore {
       // left to the branches above: the people who run events. The people
       // invited to one read it on the server, never from a browser
       // (src/lib/events/reach.ts makes the same two decisions).
-      allow read: if canDraft() || canApprove()
+      allow get: if canDraft() || canApprove()
         || hasRole(['committee', 'admin'])
         || (isSignedIn() && resource.data.status == 'published'
             && resource.data.get('visibility', 'members') in ['public', 'members']);
+      // A LIST is checked against the query, not the documents it returns,
+      // and `get` reads a field the query does not constrain as its default:
+      // the line above would pass a query for published events alone and hand
+      // back the events for chosen people with the rest. So a browser that
+      // does not run events lists published events only with `visibility`
+      // constrained to the two listed values. An event with no value is left
+      // out of such a list, and is still read one at a time above.
+      allow list: if canDraft() || canApprove()
+        || hasRole(['committee', 'admin'])
+        || (isSignedIn() && resource.data.status == 'published'
+            && resource.data.visibility in ['public', 'members']);
       // `selfCheckIn`, whether people can check themselves in, is the
       // editor's to write (eventMutations.ts), as a boolean and nothing else:
       // the routes read only a strict true as on.

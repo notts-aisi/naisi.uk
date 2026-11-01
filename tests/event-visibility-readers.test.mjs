@@ -335,12 +335,30 @@ describe("every reader asks the helper, and is known", () => {
 describe("the rules make the same two decisions for a browser", () => {
   const rules = readFileSync(join(REPO_ROOT, "firestore.rules"), "utf8");
   const events = rules.slice(rules.indexOf("match /events/{eventId} {"), rules.indexOf("match /eventRsvps/{rsvpId}"));
+  // The events block alone: up to the next match at its own depth.
+  const eventsBlock = events.slice(0, events.indexOf("\n    match /", 1));
 
   test("a signed-in browser reads a published event only when it is listed, missing reading as members", () => {
     assert.match(
       events,
-      /\(isSignedIn\(\) && resource\.data\.status == 'published'\s*&& resource\.data\.get\('visibility', 'members'\) in \['public', 'members'\]\)/,
+      /allow get: if[^;]*\(isSignedIn\(\) && resource\.data\.status == 'published'\s*&& resource\.data\.get\('visibility', 'members'\) in \['public', 'members'\]\);/,
     );
+  });
+
+  test("a browser lists published events only with who they are for constrained, never through a default", () => {
+    // A list is checked against the query: `get` with a default would let a
+    // query for published events alone through, events for chosen people
+    // and all. The list branch reads the field itself, so the query has to
+    // constrain it. No `allow read` covers both, which would bring the
+    // default back.
+    assert.ok(eventsBlock.includes("allow list:") && eventsBlock.length > 500, "the events block was not found");
+    assert.match(
+      eventsBlock,
+      /allow list: if[^;]*\(isSignedIn\(\) && resource\.data\.status == 'published'\s*&& resource\.data\.visibility in \['public', 'members'\]\);/,
+    );
+    assert.doesNotMatch(eventsBlock, /allow read:/);
+    const list = eventsBlock.slice(eventsBlock.indexOf("allow list:"), eventsBlock.indexOf(";", eventsBlock.indexOf("allow list:")));
+    assert.doesNotMatch(list, /get\('visibility'/);
   });
 
   test("a browser writes one of the three values and no programme", () => {
