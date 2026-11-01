@@ -1066,7 +1066,7 @@ describe("C. The before survey: Send, Results, Who answered, the download and on
       "Bea Lindqvist Thu 29 Oct, 9am Thu 29 Oct, 7pm Personal link After their first session",
       "Dev Patel Thu 29 Oct, 9am Fri 30 Oct, 9am Personal link",
     ]);
-    assert.ok(seen.listMid.text.includes("AGI Strategy: before Confidential Fellowship: AGI Strategy 3 of 8 Closes Wed 4 Nov Remind 5 haven’t answered"));
+    assert.ok(seen.listMid.text.includes("Before the programme Sent Thu 29 Oct · 3 of 8 answered · Closes Wed 4 Nov Open Remind 5 haven’t answered Results"));
   });
 
   test("the download with names is recorded first, with its row count, and refused to the lead", () => {
@@ -1187,7 +1187,7 @@ describe("C. The before survey: Send, Results, Who answered, the download and on
     assert.deepEqual(seen.lateAnswer, { status: 409, body: { error: "This survey has closed, so it takes no more answers." } });
     assert.ok(seen.resultsClosed.text.includes("AGI Strategy: before Closed Confidential Fellowship: AGI Strategy Closed Tue 3 Nov"));
     assert.ok(seen.resultsClosed.text.includes("3 answers from the 8 people it was sent to (38%)."));
-    assert.ok(seen.listClosed.text.includes("Closed 1 AGI Strategy: before Confidential Fellowship: AGI Strategy 3 of 8 Closed Tue 3 Nov Results"));
+    assert.ok(seen.listClosed.text.includes("Before the programme Sent Thu 29 Oct · 3 of 8 answered · Closed Tue 3 Nov Closed Results"));
   });
 });
 
@@ -1198,9 +1198,9 @@ describe("C. After somebody leaves: the survey list's Remind count is the Send t
     // press read too): sent it, not answered, and still holding a place. The
     // Send tab says the one it no longer reaches beside who answered, so its
     // two lines add up: 8 less 3 less 1 is 4.
-    assert.ok(seen.listBeforeRemind.text.includes("3 of 8 Closes Wed 4 Nov Remind 4 haven’t answered"));
+    assert.ok(seen.listBeforeRemind.text.includes("3 of 8 answered · Closes Wed 4 Nov Open Remind 4 haven’t answered"));
     // Before Sam left the list's count was 5, every one of them reached.
-    assert.ok(seen.listMid.text.includes("3 of 8 Closes Wed 4 Nov Remind 5 haven’t answered"));
+    assert.ok(seen.listMid.text.includes("3 of 8 answered · Closes Wed 4 Nov Open Remind 5 haven’t answered"));
     inOrder(seen.sendBeforeRemind.text, [
       "3 of 8 have answered, and 1 who hasn’t no longer holds a place. It closes on Wed 4 Nov.",
       "Remind 4 haven’t answered. Nothing goes until you press the button.",
@@ -1214,7 +1214,7 @@ describe("C. After somebody leaves: the survey list's Remind count is the Send t
     assert.deepEqual(seen.remindMailSurvey.map((message) => message.to), ["callum", "kofi", "tariq", "zach"].map((uid) => `${uid}@example.com`));
     assert.ok(seen.remindMailSurvey.every((message) => message.subject === "A reminder: 14 questions for AGI Strategy, by Wed 4 Nov"));
     // After the press, the same 4 on the list: a reminder answers nobody.
-    assert.ok(seen.listAfterRemind.text.includes("3 of 8 Closes Wed 4 Nov Remind 4 haven’t answered"));
+    assert.ok(seen.listAfterRemind.text.includes("3 of 8 answered · Closes Wed 4 Nov Open Remind 4 haven’t answered"));
   });
 });
 
