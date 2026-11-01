@@ -32,8 +32,8 @@ import styles from "./weeks.module.css";
  *
  * REVIEW, for a week whose first session has started: the week's review
  * page, an admin's alone (privacy v15: what Claude returns is seen by admins
- * only). The programme's lead is shown "Admins only" there instead, and no
- * way in.
+ * only). The programme's lead is shown "Review: admins only" there instead,
+ * and no way in.
  *
  * A server component: every word comes from the tab's loader, nothing about
  * anybody but the owner's name.
