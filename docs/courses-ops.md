@@ -1839,8 +1839,8 @@ weekly Home above.
 
 ## A facilitator's session report
 
-Board S-fac-report and privacy policy v15's "Session reports": two minutes on
-a phone straight after the register. How the session went (1 to 5, the one
+Privacy policy v15's "Session reports": two minutes on a phone straight after
+the register. How the session went (1 to 5, the one
 answer it needs), what went well, what didn't, what seemed unclear (the
 week's parts and "Something else"), who engaged well and what made each of
 them stand out, who seemed not to have done the readings, who might need a

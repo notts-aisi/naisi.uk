@@ -22,11 +22,11 @@ import {
 import styles from "./sessionReport.module.css";
 
 /**
- * A FACILITATOR'S SESSION REPORT, the form (board S-fac-report's questions,
- * in its order): how the session went, what went well, what didn't, what
- * seemed unclear, who engaged well and why, who seemed not to have done the
- * readings, who might need a hand and a word about each, and anything for the
- * lead or admins. Two minutes on a phone, straight after the register.
+ * A FACILITATOR'S SESSION REPORT, the form, its questions in order: how the
+ * session went, what went well, what didn't, what seemed unclear, who engaged
+ * well and why, who seemed not to have done the readings, who might need a
+ * hand and a word about each, and anything for the lead or admins. Two
+ * minutes on a phone, straight after the register.
  *
  * PEOPLE ARE PICKED, NEVER TYPED: each person is a pill holding a real
  * checkbox, from the lists the server worked out off the session's register,

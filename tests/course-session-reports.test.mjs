@@ -1,6 +1,6 @@
 /**
- * A facilitator's session report (board S-fac-report; privacy policy v15,
- * "Session reports"): two minutes straight after the register, on a phone.
+ * A facilitator's session report (privacy policy v15, "Session reports"): two
+ * minutes straight after the register, on a phone.
  * Who writes one, what it keeps, who it may pick, when it is open, who reads
  * it, and what takes it away.
  *
@@ -314,7 +314,7 @@ describe("1. the rules, pure", () => {
     assert.equal(without.wentWell, answers.wentWell);
   });
 
-  test("the words: the board's, no dash of either kind, no pronoun guessed, and nothing a member would read as marking them", () => {
+  test("the words: no dash of either kind, no pronoun guessed, and nothing a member would read as marking them", () => {
     assert.equal(words.reportTitle(3), "How did week 3 go?");
     assert.equal(words.reportTitle(3, 2), "How did week 3, session 2 go?");
     assert.equal(
@@ -613,7 +613,7 @@ describe("4. the pages", () => {
     });
   });
 
-  test("the form, as the board draws it: the latest session's, its people from the register, and the lead named", async () => {
+  test("the form: the latest session's, its people from the register, and the lead named", async () => {
     weekTwoWithParts();
     const drawn = await reportPageAs("rahul");
     const form = find(drawn.element, "SessionReportForm")[0]?.props;

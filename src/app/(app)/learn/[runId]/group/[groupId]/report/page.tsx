@@ -11,8 +11,8 @@ import { REPORT_WORDS } from "@/lib/courses/sessionReports/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 
 /**
- * A FACILITATOR'S SESSION REPORT (board S-fac-report): two minutes straight
- * after the register, on a phone. "Next: two minutes on how it went." under
+ * A FACILITATOR'S SESSION REPORT: two minutes straight after the register,
+ * on a phone. "Next: two minutes on how it went." under
  * a finished register leads here, naming its session (`?session=w03`).
  *
  * THE GATE is the report route's own (`gateReportWriter`), restated because a
