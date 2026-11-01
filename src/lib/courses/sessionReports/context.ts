@@ -38,8 +38,8 @@ import { REPORT_REFUSAL } from "./words";
  * that reports are its facilitators' to write.
  *
  * ── WHAT IT PICKS FROM ──────────────────────────────────────────────────────
- * The session's register: its rows as the group's facilitators see them (the
- * people Publish has told, `loadRegisterMembers`), never the group's own
+ * The session's register: its rows as the writer sees them on the register
+ * (`loadRegisterMembers`: the people Publish has told), never the group's own
  * facilitators, and who of them the register has down as here. The week's
  * parts come from the group's own copy of the week when it has one, the run's
  * otherwise: what the group read.
@@ -129,7 +129,8 @@ export async function loadReportSession(
   const { session } = window;
   const [registerSnap, roster, week] = await Promise.all([
     db.collection("courseAttendance").doc(attendanceDocId(run.id, group.id, session.weekNumber, session.occurrence)).get(),
-    // The register's rows as this writer sees them: the people Publish has told.
+    // The register's rows as this writer sees them: the people Publish has
+    // told, or everybody placed for a facilitator who is also an admin.
     loadRegisterMembers(db, run.id, group.id, { isAdmin: gated.isAdmin }),
     resolveWeekDoc(db, run.id, group.id, session.weekId),
   ]);
