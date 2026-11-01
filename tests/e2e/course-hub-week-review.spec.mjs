@@ -88,7 +88,6 @@ const WORDS = {
   handsTitle: "Might need a hand",
   notStarted: "Week 3 not started when their group met.",
   fromWeek: "Their week",
-  askedNow: "Asked. The task is on their board.",
   pangramNotSetUp: "Pangram isn’t set up on this site yet.",
   gradesLine:
     "Grades help you choose what to read first. They’re never shown to the person, a lead or a facilitator, never become feedback, and never go into anyone’s notes or profile.",
@@ -322,7 +321,8 @@ test(
         const [response] = await Promise.all([responseTo(adminPage, "/weeks/w03/review/follow-up", "POST"), ask.click()]);
         const body = await okBody(response, "Asking for a word");
         assert.deepEqual(Object.keys(body).sort(), ["emailed", "taskId"]);
-        await hands.getByText(WORDS.askedNow, { exact: true }).waitFor({ timeout: WAIT_MS });
+        // The press says it is done, and the page drawn again says when it was asked.
+        await hands.getByText(/^Asked\b/).first().waitFor({ timeout: WAIT_MS });
         const tasks = await fixtureQuery("tasks").where("source", "==", "review-follow-up").where("sourceRef.cohortId", "==", state.runId).get();
         assert.equal(tasks.size, 1, "asking made no task, or more than one");
         const task = tasks.docs[0].data();
