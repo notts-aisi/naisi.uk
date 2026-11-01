@@ -66,7 +66,8 @@ const made = await makeGroupWorld("__weekOneBeforeGroups");
 const { world, loadTs, reset, call, steps, ask, enrolmentPath } = made;
 
 const route = (...parts) => loadTs(join("app", "api", "courses", "runs", "[runId]", ...parts, "route.ts"));
-const ticksRoute = await route("week-one", "ticks", "[itemId]");
+// Every tick goes through the one tick route, which asks week 1's door for a holder.
+const ticksRoute = await route("ticks", "[itemId]");
 const reflectionRoute = await route("reflections", "[promptId]");
 const myExercisesRoute = await route("my-exercises");
 const overviewRoute = await route("overview");
@@ -119,7 +120,7 @@ const why = async (who) => {
 const snapshot = () => JSON.stringify(world.db.paths().sort().map((path) => [path, world.db.read(path)]));
 
 const tick = (who, itemId, completed, options = {}) =>
-  call(who, ticksRoute.PUT, { runId: RUN.agi, itemId }, { body: { completed }, ...options });
+  call(who, ticksRoute.PUT, { runId: RUN.agi, itemId }, { body: { weekId: "w01", completed }, ...options });
 const reflect = (who, promptId, weekId, text, options = {}) =>
   call(who, reflectionRoute.PUT, { runId: RUN.agi, promptId }, { body: { weekId, text }, ...options });
 const ownRows = (who, week) => call(who, myExercisesRoute.GET, { runId: RUN.agi }, { query: `?week=${week}` });
@@ -393,16 +394,21 @@ describe("4. ticks, reflections and their own rows, for a holder", () => {
     assert.equal(snapshot(), before);
     reset(seed());
     before = snapshot();
-    for (const who of ["nina", "omar", "ines", "nobody", "claudia", "tess", "zach"]) {
+    for (const who of ["nina", "omar", "ines", "nobody", "zach"]) {
       assert.equal((await tick(who, "k1-s1", true)).status, 403, who);
     }
+    assert.equal(snapshot(), before);
+    // The lead facilitates the Monday group and Tess the Thursday one: each takes part as themselves, as the reflection boxes admit them.
+    assert.equal((await tick("claudia", "k1-s1", true)).status, 200);
+    assert.equal((await tick("tess", "k1-s1", true)).status, 200);
+    before = snapshot();
     assert.equal((await tick(null, "k1-s1", true)).status, 401);
     assert.deepEqual((await tick("amara", "k1-s1", true, { viewAs: true })).body, { error: "view-as" });
     assert.equal((await tick("amara", "k1-s1", "yes")).status, 400);
     assert.equal(snapshot(), before);
-    // Told, they tick in the browser: this door is not theirs.
+    // Told, she ticks through the same route by her seat now, and is answered as anybody placed is.
     await steps.published();
-    assert.equal((await tick("amara", "k1-s1", true)).status, 403);
+    assert.equal((await tick("amara", "k1-s1", true)).status, 200);
   });
 
   test("reflections: week 1's boxes, never week 2's; read back for week 1 only", async () => {
@@ -645,7 +651,7 @@ function answeredAs(who) {
   return async (url, init = {}) => {
     const path = new URL(String(url), "https://naisi.invalid").pathname;
     const body = init.body ? JSON.parse(init.body) : undefined;
-    const tickAt = /^\/api\/courses\/runs\/([^/]+)\/week-one\/ticks\/([^/]+)$/.exec(path);
+    const tickAt = /^\/api\/courses\/runs\/([^/]+)\/ticks\/([^/]+)$/.exec(path);
     const boxAt = /^\/api\/courses\/runs\/([^/]+)\/reflections\/([^/]+)$/.exec(path);
     let answer = null;
     if (tickAt) answer = await call(who, ticksRoute.PUT, { runId: decodeURIComponent(tickAt[1]), itemId: decodeURIComponent(tickAt[2]) }, { body });
@@ -672,10 +678,10 @@ async function withFetch(impl, run) {
 }
 
 /** The ticks the week page holds for `who`, through the hook, as their week 1 page draws it. */
-function weekPageTicks(who, writer) {
+function weekPageTicks(who) {
   let ticks = null;
   function WeekOneTicks() {
-    ticks = useMaterialTicks(RUN.agi, who, 1, true, writer);
+    ticks = useMaterialTicks(RUN.agi, who, 1, true);
     return null;
   }
   renderToStaticMarkup(createElement(WeekOneTicks));
@@ -690,7 +696,7 @@ const boxWrite = (text) => putReflection({ runId: RUN.agi, promptId: "k1-rp1", w
 
 describe("8. a refusal reaches the page in the route's own words", () => {
   test("a tick after giving the place back, with week 1 still open in a tab: put back, in the route's words", async () => {
-    const ticks = weekPageTicks("bea", "week-one-door");
+    const ticks = weekPageTicks("bea");
     // Holding the place, Bea's tick goes through week 1's door and saves.
     assert.deepEqual(await withFetch(answeredAs("bea"), () => ticks.tick("material", "k1-s1", true)), { saved: true });
     assert.equal(world.db.read(`courseProgress/${RUN.agi}__bea__k1-s1`).completed, true);
@@ -705,7 +711,7 @@ describe("8. a refusal reaches the page in the route's own words", () => {
   });
 
   test("every other refusal of week 1's door reaches the page as the route's own sentence", async () => {
-    const ticks = weekPageTicks("amara", "week-one-door");
+    const ticks = weekPageTicks("amara");
     // Week 2's source, through week 1's door.
     assert.deepEqual(await withFetch(answeredAs("amara"), () => ticks.tick("material", "k2-s1", true)), {
       saved: false,
@@ -732,7 +738,7 @@ describe("8. a refusal reaches the page in the route's own words", () => {
   });
 
   test("only a request that got no answer, or an answer with nothing to say, names the connection", async () => {
-    const ticks = weekPageTicks("amara", "week-one-door");
+    const ticks = weekPageTicks("amara");
     for (const impl of [lost, blank]) {
       assert.deepEqual(await withFetch(impl, () => ticks.tick("material", "k1-s1", true)), { saved: false, words: tickWords.TICK_NOT_SAVED });
       await assert.rejects(withFetch(impl, () => boxWrite("About thirty.")), (err) => {
@@ -744,15 +750,18 @@ describe("8. a refusal reaches the page in the route's own words", () => {
     assert.equal(REFLECTION_NOT_SAVED, "Your last change isn’t saved yet. Check your connection: it saves again as you type.");
   });
 
-  test("a tick the browser writes itself, refused by the rules, says to reload the page, never to check the connection", async () => {
-    const ticks = weekPageTicks("amara", "browser");
-    globalThis.__weekOnePage.code = "permission-denied";
-    assert.deepEqual(await ticks.tick("material", "k1-s1", true), { saved: false, words: "That tick didn’t save, so it has been undone. Reload the page." });
-    assert.equal(tickWords.TICK_REFUSED_RELOAD, "That tick didn’t save, so it has been undone. Reload the page.");
-    // The browser's own database out of reach is the connection.
-    globalThis.__weekOnePage.code = "unavailable";
-    assert.deepEqual(await ticks.tick("material", "k1-s1", true), { saved: false, words: tickWords.TICK_NOT_SAVED });
-    globalThis.__weekOnePage.code = "permission-denied";
+  test("every tick goes through the tick route: nothing is written from the browser, whoever ticks", async () => {
+    // Placed and told, Amara's tick is the same request as a holder's, answered by her seat.
+    await steps.published();
+    const ticks = weekPageTicks("amara");
+    assert.deepEqual(await withFetch(answeredAs("amara"), () => ticks.tick("material", "k1-s2", true)), { saved: true });
+    assert.equal(world.db.read(`courseProgress/${RUN.agi}__amara__k1-s2`).completed, true);
+    const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
+    const hook = readFileSync(join(SRC, "features", "courses", "weekly", "useMaterialTicks.ts"), "utf8");
+    assert.match(hook, /await tickThroughRoute\(\{ runId, weekNumber, itemId, next \}\);/);
+    assert.doesNotMatch(hook, /setDoc|toggleProgressItem/, "a tick is written from the browser");
+    // A refusal from the rules, which only a page opened before ticks moved can meet, still says to reload.
+    assert.equal(tickWords.tickNotSavedWords({ code: "permission-denied" }), tickWords.TICK_REFUSED_RELOAD);
   });
 
   test("the week page says what the hook hands back, and the boxes write through the shared writes", () => {

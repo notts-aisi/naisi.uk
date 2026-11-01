@@ -91,7 +91,7 @@ describe("1. the programme home", () => {
     );
     // "Add to calendar" exists now, once and on the ticket; "Can’t make it" still does not.
     assert.equal(text.match(/Add to calendar/g)?.length, 1);
-    assert.doesNotMatch(text, /Week \d of 6|Your marks|Can’t make it/);
+    assert.doesNotMatch(text, /Week \d of 6|Your sessions|Can’t make it/);
   });
 
   test("in week 3, the day of the session (wk-programme)", async () => {
@@ -112,7 +112,7 @@ describe("1. the programme home", () => {
         // Week 4 is published, so it is open before tonight's session: a link with what is done of it.
         "Week 4 Week 4 readings Tue 24 Nov 0 of 3 " +
         "Week 5 Week 5 readings Tue 1 Dec Week 6 Week 6 readings Tue 8 Dec See your progress week by week → " +
-        "Your marks P 3 Nov P 10 Nov · 17 Nov · 24 Nov · 1 Dec · 8 Dec P Present · Not yet " +
+        "Your sessions P 3 Nov P 10 Nov · 17 Nov · 24 Nov · 1 Dec · 8 Dec P Present · Not yet " +
         "Your facilitators fill these in after each session. [RunUpdates] " +
         "Your group Group B CN Chloe (you) FH Farah KA Kofi R S Facilitators: Rahul and Sofia",
     );
@@ -177,7 +177,7 @@ describe("1. the programme home", () => {
     // record does not say Chloe finished, so nothing says so), what Chloe
     // keeps, and then the weeks, each still open.
     assert.match(text, /^My programmes AGI Strategy AGI Strategy has ended\. Thanks for being part of it\. Autumn 2026 · Group B\. What you keep The reading list for all 6 weeks The 6 weeks /);
-    assert.doesNotMatch(text, /Tonight|This week|Your next session|You finished|Your marks/);
+    assert.doesNotMatch(text, /Tonight|This week|Your next session|You finished|Your sessions/);
     // Every week is over: week 2, all of it done, is Done; the others, with nothing done, say Not done (A3).
     assert.match(text, /Tue 10 Nov · Done 3 of 3/);
     for (const day of ["Tue 3 Nov", "Tue 17 Nov", "Tue 24 Nov", "Tue 1 Dec", "Tue 8 Dec"]) assert.match(text, new RegExp(`${day} · Not done 0 of 3`));
@@ -189,7 +189,7 @@ describe("1. the programme home", () => {
     assert.match(text, /Tonight · week 3 Tue 17 Nov, 6pm to 8pm/);
     assert.match(text, /Week 4 Week 4 readings Tue 24 Nov /);
     assert.match(html, /href="\/learn\/[^"]+\/weeks\/4"/);
-    assert.doesNotMatch(text, /Your marks|Your group|This week|See your progress|Opens tonight/);
+    assert.doesNotMatch(text, /Your sessions|Your group|This week|See your progress|Opens tonight/);
     assert.doesNotMatch(html, /type="checkbox"/);
     // What is done of a week is a member's own: a facilitator is shown none, and a week whose session is over
     // is Done for them, with nothing of theirs to count.
@@ -203,7 +203,7 @@ describe("1. the programme home", () => {
     const { text } = w.programmeHome("zach");
     assert.match(text, /Week 3 of 6/);
     assert.match(text, /The 6 weeks Week 1 Week 1 readings Done/);
-    assert.doesNotMatch(text, /Your marks|Your group|This week|Tonight/);
+    assert.doesNotMatch(text, /Your sessions|Your group|This week|Tonight/);
   });
 
   for (const [who, why] of [
@@ -243,7 +243,7 @@ describe("2. your marks: one per session, a legend, and no count", () => {
     const { text, html } = w.programmeHome("kofi");
     assert.match(
       text,
-      /Your marks P 3 Nov L 10 Nov LE 17 Nov E 24 Nov A 1 Dec 8 Dec P Present L Late LE Left early E Excused A Absent Not marked Your facilitators fill these in after each session\./,
+      /Your sessions P 3 Nov L 10 Nov LE 17 Nov E 24 Nov A 1 Dec 8 Dec P Present L Late LE Left early E Excused A Absent Not filled in Your facilitators fill these in after each session\./,
     );
     for (const label of [
       "Week 1, Tue 3 Nov: Present",
@@ -251,7 +251,7 @@ describe("2. your marks: one per session, a legend, and no count", () => {
       "Week 3, Tue 17 Nov: Left early",
       "Week 4, Tue 24 Nov: Excused",
       "Week 5, Tue 1 Dec: Absent",
-      "Week 6, Tue 8 Dec: Not marked",
+      "Week 6, Tue 8 Dec: Not filled in",
     ]) {
       assert.match(html, new RegExp(`aria-label="${label}"`));
     }
@@ -365,15 +365,14 @@ describe("4. a reading ticked on Home, the programme home or its week is the sam
     week.onTick("material", "w3r1", true);
     await new Promise((resolve) => setImmediate(resolve));
 
+    // Both go through the one tick route, which writes the person's own row on the server.
     assert.equal(t.ui.writes.length, 2);
     const [fromHome, fromWeek] = t.ui.writes;
-    assert.equal(fromHome.path, `courseProgress/${RUN.agi}__chloe__w3r1`);
+    assert.equal(fromHome.path, `/api/courses/runs/${RUN.agi}/ticks/w3r1`);
+    assert.equal(fromHome.method, "PUT");
     assert.equal(fromWeek.path, fromHome.path);
     assert.deepEqual(fromWeek.data, fromHome.data);
-    assert.deepEqual(
-      { runId: fromHome.data.runId, uid: fromHome.data.uid, weekNumber: fromHome.data.weekNumber, itemKind: fromHome.data.itemKind, itemId: fromHome.data.itemId, completed: fromHome.data.completed },
-      { runId: RUN.agi, uid: "chloe", weekNumber: 3, itemKind: "material", itemId: "w3r1", completed: true },
-    );
+    assert.deepEqual(fromHome.data, { weekId: "w03", completed: true });
   });
 
   test("the programme home before the start and week 1's page write the same document", async () => {
@@ -388,9 +387,9 @@ describe("4. a reading ticked on Home, the programme home or its week is the sam
     week.onTick("material", "w1v1", true);
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(t.ui.writes.length, 2);
-    assert.equal(t.ui.writes[0].path, `courseProgress/${RUN.agi}__chloe__w1v1`);
+    assert.equal(t.ui.writes[0].path, `/api/courses/runs/${RUN.agi}/ticks/w1v1`);
     assert.deepEqual(t.ui.writes[1], t.ui.writes[0]);
-    assert.equal(t.ui.writes[0].data.weekNumber, 1);
+    assert.equal(t.ui.writes[0].data.weekId, "w01");
   });
 
   test("an untick writes the same document as not done", async () => {
@@ -399,7 +398,7 @@ describe("4. a reading ticked on Home, the programme home or its week is the sam
     await t.homeCard("chloe");
     rowsDrawn()[0].onTick("material", "w3r1", false);
     await new Promise((resolve) => setImmediate(resolve));
-    assert.equal(t.ui.writes[0].path, `courseProgress/${RUN.agi}__chloe__w3r1`);
+    assert.equal(t.ui.writes[0].path, `/api/courses/runs/${RUN.agi}/ticks/w3r1`);
     assert.equal(t.ui.writes[0].data.completed, false);
   });
 

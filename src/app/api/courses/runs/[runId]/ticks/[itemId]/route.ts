@@ -157,7 +157,7 @@ export async function PUT(req: Request, ctx: Params) {
   if (week && weekSources(week).some((source) => source.id === itemId)) itemKind = "material";
   else if (week && weekChecklistItems(week).some((item) => item.id === itemId)) itemKind = "checklist";
   if (!week || !itemKind) {
-    return NextResponse.json({ error: "That isn’t on this week any more. Reload the page." }, { status: 404 });
+    return NextResponse.json({ error: `That isn’t on week ${weekNumber} any more. Reload the page.` }, { status: 404 });
   }
   const kind: ProgressItemKind = itemKind;
   const locks = isBlockWeek(week);

@@ -105,7 +105,8 @@ const routes = {
   guide: await courseRoute("runs", "[runId]", "guide", "[doc]"),
   rubric: await courseRoute("[courseId]", "rubric"),
   card: await courseRoute("[courseId]", "predictions"),
-  holderTick: await courseRoute("runs", "[runId]", "week-one", "ticks", "[itemId]"),
+  // Every tick, a holder's before groups go out among them, goes through the one tick route.
+  holderTick: await courseRoute("runs", "[runId]", "ticks", "[itemId]"),
   written: await courseRoute("runs", "[runId]", "written-answers", "[answerId]"),
   review: await courseRoute("runs", "[runId]", "written-answers", "[answerId]", "review"),
   packs: await courseRoute("runs", "[runId]", "packs-and-cases", "[blockId]"),
@@ -418,7 +419,7 @@ describe("1. before groups go out (Mon 26 Oct)", () => {
 
   test("Amara ticks and writes through week 1's own door; one task counts once every part is done", async () => {
     const w1 = stored(1);
-    for (const itemId of w1.sources) ok(await asCourse("amara", routes.holderTick.PUT, { runId: RUN.agi, itemId }, { completed: true }), "holder tick");
+    for (const itemId of w1.sources) ok(await asCourse("amara", routes.holderTick.PUT, { runId: RUN.agi, itemId }, { weekId: "w01", completed: true }), "holder tick");
     await reflect("amara", 1, w1.prompts.slice(0, -1));
     let page = await w.weekPage("amara", 1, ticksOf("amara"));
     assert.equal(doneOn(page.text), "0 of 1 done", "one box still empty");
