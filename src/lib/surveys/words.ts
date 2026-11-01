@@ -1150,7 +1150,7 @@ export const LEAD_STAGE_WORDS = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// The Surveys tab's Overview (sv-programme)
+// The Surveys tab's Overview
 // ---------------------------------------------------------------------------
 
 /**
