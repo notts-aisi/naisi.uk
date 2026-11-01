@@ -878,6 +878,7 @@ export const SPEC = {
       "/(auth)/login",
       "/re-consent",
       "/(app)/admin/(admin-only)",
+      "/(app)/dashboard",
       "/(app)/profile",
       "/(public)/courses/[courseId]",
     ],
