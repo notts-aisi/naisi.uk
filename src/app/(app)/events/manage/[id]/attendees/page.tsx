@@ -17,7 +17,7 @@ import styles from "../../events.module.css";
 export const dynamic = "force-dynamic";
 
 /**
- * An event's Sign-ups tab (ev-manage).
+ * An event's Sign-ups tab.
  *
  * THE REQUESTS WAITING FOR A DECISION, for everybody who sees them: admins,
  * SU-recognised committee, and the event's author and collaborators

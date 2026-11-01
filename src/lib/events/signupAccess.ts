@@ -28,8 +28,12 @@ import { runsCheckIn } from "./checkInAccess";
  * `canApproveEvent` each admit one whatever the event says.
  */
 
-/** The two fields of an event that name its organisers, read off a document or a normalised event. */
-export type EventOrganisers = { authorUid: unknown; collaboratorUids: unknown };
+/**
+ * The two fields of an event that name its organisers, read off a stored
+ * document or a normalised event. Either may be missing from a document
+ * somebody hand-edited, which names nobody.
+ */
+export type EventOrganisers = { authorUid?: unknown; collaboratorUids?: unknown };
 
 /** What one viewer may do with one event's sign-ups. */
 export type SignupAccess = {
