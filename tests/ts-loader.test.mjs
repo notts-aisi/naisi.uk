@@ -976,6 +976,12 @@ const USERS = new Map([
       "audience arithmetic under test is the shipping arithmetic",
   ],
   [
+    "names-rule.test.mjs",
+    "it runs the staff screens' name loader, which reads seats through the enrolment, run and " +
+      "group normalisers, and the course screens' name helper, whose module reads the application " +
+      "forms: neither graph is one module, and the rule under test has to be the shipping rule",
+  ],
+  [
     "newsletter-push.test.mjs",
     "the newsletter send route is the module under test and it imports `NewsletterEmail`, a " +
       "`.tsx` that imports the rest of the template tree, so the route cannot be executed at " +

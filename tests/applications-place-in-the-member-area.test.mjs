@@ -180,8 +180,10 @@ const { loadTs } = createLoader({
       "export async function homeEvents() {\n" +
         "  return { upcoming: [], week: { range: null, events: [], startsAt: null, endsAt: null } };\n" +
         "}\n" +
-        "export async function profileSteps() { return null; }",
+        "export async function profileSteps() { return null; }\n" +
+      "export async function fullNameQuestion() { return null; }",
     ],
+    ["./FullNameCard", MARK("FullNameCard")],
     [
       // Applications are open, which is when Home says "Nothing yet" to a member who has not applied.
       "@/features/term/fetchPublicTerm",

@@ -50,6 +50,11 @@ describe("adding a walk-in", () => {
         key: "-",
         rsvpId: null,
         name: "Dan Fitzgerald",
+        // A guest's name as typed: no other name to show, and two words, so
+        // nothing marks it.
+        goBy: null,
+        apart: null,
+        note: null,
         standing: "walk-in",
         checkIn: {
           id: "-",
@@ -68,6 +73,14 @@ describe("adding a walk-in", () => {
       ["walk-in", "Dan Fitzgerald", "dan@example.com", null, null, "door", "sue"],
     );
     assert.equal(row.emailGoesAt.toISOString(), "2026-11-08T17:00:00.000Z");
+  });
+
+  test("a walk-in who gives one word is marked as a first name only, so the door can ask for the second", async (t) => {
+    clock(t, DURING);
+    opened();
+    const res = await add("sue", { name: "  Dan " });
+    assert.equal(res.status, 201);
+    assert.deepEqual([res.body.row.name, res.body.row.note], ["Dan", "Guest: first name only"]);
   });
 
   test("a name alone: no email is kept, and the row says so", async (t) => {

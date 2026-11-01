@@ -364,7 +364,8 @@ describe("3. what an admin sees: the change questions side by side, each survey'
   test("Amara's answers, every word the surveys' own", async (t) => {
     const { before, after } = await bothAnswered(t);
     const { person } = (await open("zach", after, "amara")).body;
-    assert.equal(person.name, "Amara Okafor");
+    // By the name she goes by (`fullNameOfUser`), on an admin's page as on every other.
+    assert.equal(person.name, "Amara");
     assert.equal(person.key, "amara");
     assert.deepEqual(person.meta, ["Fellowship: AGI Strategy", "Group B", "Answered both"]);
     assert.equal(person.notice, "Only admins can open one person’s answers, and each opening is logged. You opened this at 11:04am.");
@@ -450,7 +451,7 @@ describe("3. what an admin sees: the change questions side by side, each survey'
   test("somebody never on these surveys has none to open, and the opening is still recorded", async (t) => {
     const { after } = await bothAnswered(t);
     const { person } = (await open("zach", after, "nobody")).body;
-    assert.equal(person.nothing, "Nell Carter has no answers here to open.");
+    assert.equal(person.nothing, "Nell has no answers here to open.");
     assert.equal(person.change, null);
     assert.deepEqual(person.rest, []);
     assert.deepEqual(person.namesOff, []);

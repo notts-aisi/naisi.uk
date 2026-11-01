@@ -117,14 +117,16 @@ describe("what the Kairos file holds", () => {
       "Next step",
     ]);
     const names = rows.map((row) => row[0]);
-    assert.deepEqual(names, ["Amara Okafor", "Dev Patel", "Rahul Mehta", "Sofia Rossi", "Tariq Mensah"]);
+    // "Their name" is the name they go by (`fullNameOfUser`), never a full
+    // name: only the committee sees that, and this file goes to Kairos.
+    assert.deepEqual(names, ["Amara", "Dev", "Rahul", "Sofia", "Tariq"]);
     assert.ok(!file.text.includes("Bea"), "somebody who said no is in the file");
-    assert.deepEqual(rows[0], ["Amara Okafor", "AGI Strategy", "6", "6", "Yes", "2", "4; 5", "5", "3", "Strong yes"]);
-    assert.deepEqual(rows[1], ["Dev Patel", "AGI Strategy", "2", "6", "No", "0", "", "", "", ""]);
-    assert.deepEqual(rows[2].slice(0, 6), ["Rahul Mehta", "AGI Strategy", "5", "6", "Yes", "1"]);
+    assert.deepEqual(rows[0], ["Amara", "AGI Strategy", "6", "6", "Yes", "2", "4; 5", "5", "3", "Strong yes"]);
+    assert.deepEqual(rows[1], ["Dev", "AGI Strategy", "2", "6", "No", "0", "", "", "", ""]);
+    assert.deepEqual(rows[2].slice(0, 6), ["Rahul", "AGI Strategy", "5", "6", "Yes", "1"]);
     assert.equal(rows[2][9], "Yes", "a facilitator's rating by the lead is in their row");
     assert.doesNotMatch(file.text, /@example\.com/, "never an address");
-    assert.doesNotMatch(file.text, /Claudia|Reyes|Sofia Rossi,AGI Strategy,6,6,Yes,1/, "never who gave a rating");
+    assert.doesNotMatch(file.text, /Claudia|Reyes|Sofia,AGI Strategy,6,6,Yes,1/, "never who gave a rating");
   });
 
   test("somebody who left is not in it, and a survey answer never is", async (t) => {

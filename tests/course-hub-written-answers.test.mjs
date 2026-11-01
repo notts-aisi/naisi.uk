@@ -785,7 +785,9 @@ describe("4. the pages, as the boards draw them", () => {
     // Never a word of an unsubmitted draft, nor how long it is (privacy v15).
     assert.ok(!page.html.includes("beacon"), "the review page shows Kofi's unsubmitted draft");
     assert.doesNotMatch(page.text, /Kofi Asante 4 words|Kofi’s answer/);
-    assert.doesNotMatch(page.text, /Rahul Mehta|Amara/, "a facilitator's own answer and another group's are not on the page");
+    // His own answer would be drawn as "Rahul’s answer" under "Rahul’s lamp
+    // plan" (the name he goes by, which the email preview above uses too).
+    assert.doesNotMatch(page.text, /Rahul’s answer|Rahul’s lamp plan|Amara/, "a facilitator's own answer and another group's are not on the page");
     assert.match(page.html, /aria-pressed="false"/);
     // Sofia, the co-facilitator, does not get Rahul's either.
     const sofia = (await w.writtenPage("sofia", { week: "2" })).element.props.model;
@@ -829,7 +831,7 @@ describe("4. the pages, as the boards draw them", () => {
     assert.deepEqual(model.toGive.map((person) => person.uid).sort(), ["chloe", "farah", "rahul"]);
     assert.equal(model.selected.person.uid, "rahul");
     assert.equal(model.selected.role.mayReview, true);
-    assert.match(page.text, /Rahul Mehta’s lamp plan/);
+    assert.match(page.text, /Rahul’s lamp plan/);
     assert.match(page.text, /Submitted Sun 8 Nov, 10am, so Rahul can’t change it now\. Reopen week 2 for Rahul/);
     assert.equal(page.wrote, false, "a GET never writes, and opening an answer stamps nothing");
     // The lead's page for another programme's lead, and for a fellow: nothing of it.
@@ -938,7 +940,7 @@ describe("4. the pages, as the boards draw them", () => {
     const group = await w.groupPage("rahul");
     inOrder(group.text, ["Review queue", "Written answers", "2 to give feedback on", "Chloe Nguyen", "Submitted Sun 8 Nov, 10am", "Give feedback", "Farah Hussain", "Submitted Tue 10 Nov, 12pm", "Give feedback"]);
     assert.match(group.html, /href="\/learn\/[^"]+\/group\/[^"]+\/written\?week=2&amp;person=chloe"/);
-    assert.doesNotMatch(group.text.slice(group.text.indexOf("Review queue"), group.text.indexOf("Review queue") + 400), /Rahul Mehta/);
+    assert.doesNotMatch(group.text.slice(group.text.indexOf("Review queue"), group.text.indexOf("Review queue") + 400), /\bRahul\b/);
     // The summer's card stays for the summer's answers still waiting, and holds no written answer.
     const summer = group.text.slice(group.text.indexOf("To review"));
     assert.match(summer, /^To review 1 CN Chloe Nguyen · Week 1 exercise/);

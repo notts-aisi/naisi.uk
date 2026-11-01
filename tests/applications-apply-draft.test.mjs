@@ -474,6 +474,7 @@ describe("About you, read off the account", () => {
       },
     });
     assert.deepEqual(about, {
+      fullName: "",
       preferredName: "Amara",
       universityEmail: "ada@nottingham.ac.uk",
       universityEmailVerified: true,
@@ -484,6 +485,17 @@ describe("About you, read off the account", () => {
       motivation: "Philosophy got me into it.",
       interests: "Governance and ethics",
     });
+  });
+
+  test("the full name is the profile's, else the account's own display name, to keep or change", () => {
+    // An account that gave one.
+    assert.equal(account.aboutYouFromAccount({ displayName: "A. Okafor", profile: { fullName: " Amara Okafor " } }).fullName, "Amara Okafor");
+    // An account made with Google before the form asked: Google's name in the box.
+    assert.equal(account.aboutYouFromAccount({ displayName: "Amara Okafor", profile: { preferredName: "Amara" } }).fullName, "Amara Okafor");
+    // An account made with an email address, which has no display name: an empty box.
+    assert.equal(account.aboutYouFromAccount({ displayName: null, profile: { preferredName: "Amara" } }).fullName, "");
+    // Held to the field's own limit.
+    assert.equal(account.aboutYouFromAccount({ profile: { fullName: "x".repeat(500) } }).fullName.length, 120);
   });
 
   test("an address is verified only when the account has proved it", () => {

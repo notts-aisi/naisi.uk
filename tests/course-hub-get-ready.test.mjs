@@ -806,7 +806,8 @@ describe("5. the two emails, as each person will get them", () => {
     assert.equal((await join_.publish("claudia")).status, 200);
     const real = world.mail.filter((mail) => !mail.subject.startsWith("[TEST]"));
     // The names are the people the press sent to, in the order it sent them,
-    // by the names on their accounts.
+    // by the names they go by (`fullNameOfUser`, the name people go by first
+    // since the full names change).
     const uidOf = (address) => address.split("@")[0];
     const facilitating = (mail) => mail.subject.startsWith("You’re facilitating");
     assert.deepEqual(
@@ -818,8 +819,8 @@ describe("5. the two emails, as each person will get them", () => {
       [...new Set(real.filter(facilitating).map((mail) => uidOf(mail.to)))],
     );
     assert.deepEqual(people.names.slice(0, 2), [
-      { uid: "amara", name: "Amara Okafor" },
-      { uid: "bea", name: "Bea Lindqvist" },
+      { uid: "amara", name: "Amara" },
+      { uid: "bea", name: "Bea" },
     ]);
 
     for (const [kind, email] of [["people", people.email], ["facilitators", facilitators.email]]) {
@@ -829,7 +830,7 @@ describe("5. the two emails, as each person will get them", () => {
       // The very element the mail door was handed, drawn: the page's bytes are the email's.
       assert.equal(email.html, await render(theirs.react), `the ${kind} email shown is not the email that was sent`);
     }
-    assert.equal(people.email.to, "Amara Okafor");
+    assert.equal(people.email.to, "Amara");
     assert.equal(people.email.subject, "Your AGI Strategy group: Tuesdays at 6pm");
     assert.equal(people.email.from, "NAISI");
     // The test of the same wording, which the press needed first, is the same email marked as a test.

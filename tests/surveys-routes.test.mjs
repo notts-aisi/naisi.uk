@@ -891,7 +891,7 @@ describe("the admins' pages", () => {
     );
     const answered = await w.page(w.pages.answered, { params: Promise.resolve({ surveyId: id }) }, "zach");
     assert.ok(answered.text.includes("2 of 4 have answered"));
-    assert.ok(answered.text.includes("Amara Okafor"));
+    assert.ok(answered.text.includes("Amara"));
     assert.ok(answered.text.includes("Personal link"));
     const results = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
     // Every number has its n and the response rate beside it.
@@ -899,7 +899,7 @@ describe("the admins' pages", () => {
     assert.ok(results.text.includes("5. Which best describes you right now?"));
     assert.ok(results.text.includes("2 answered, 50% of the 4 it was sent to"));
     assert.ok(results.text.includes("My leading plan, no concrete steps yet"));
-    assert.doesNotMatch(results.text, /Amara|Okafor|Dev Patel/, "results never name anybody");
+    assert.doesNotMatch(results.text, /Amara|Okafor|\bDev\b|Patel/, "results never name anybody");
   });
 
   test("the list's two tabs, By programme and Events, as every kind of caller: an admin sees each, everybody else is sent to the dashboard before anything is read", async (t) => {
@@ -950,7 +950,8 @@ describe("the admins' pages", () => {
     assert.match(header, /^Name,Sent,How,After their first session,1\. Level of study,2\. Subject of study,/);
     // Every question answered (Zach, 30 Oct 2026): those CHOICES leaves out
     // are answered plainly by the world, the first option of each menu here.
-    assert.match(row, /^Amara Okafor,2026-10-29 09:00,Personal link,No,"Undergraduate, first year",Computer science,/);
+    // The file names each person by the name they go by (`fullNameOfUser`).
+    assert.match(row, /^Amara,2026-10-29 09:00,Personal link,No,"Undergraduate, first year",Computer science,/);
     assert.ok(row.includes("Thought about it, not a serious option"), "a choice is written in its words");
     assert.doesNotMatch(file.text, /@example\.com/, "never an address");
     const logged = w.world.db.paths().filter((path) => path.startsWith("dataExports/")).map((path) => w.world.db.read(path));
@@ -1029,7 +1030,7 @@ describe("a survey outlives its form", () => {
     store.seed(formPath, { destroyed: true });
     assert.equal((await call("zach", routes.send.POST, { surveyId: id }, { body: { to: "joined", emails: 0 } })).body.error, REFUSAL.formGone);
     const answered = await w.page(w.pages.answered, { params: Promise.resolve({ surveyId: id }) }, "zach");
-    assert.ok(answered.text.includes("Amara Okafor"));
+    assert.ok(answered.text.includes("Amara"));
     const list = await w.page(w.pages.list, {}, "zach");
     assert.ok(list.text.includes("Fellowship: AGI Strategy"), "the survey names its programme without the form");
     assert.equal((await w.exportAs("zach", id)).status, 200);
@@ -1205,11 +1206,11 @@ describe("every kind of question, on the page and through the routes", () => {
     ]) {
       assert.ok(results.text.includes(words), `results: missing "${words}"`);
     }
-    assert.doesNotMatch(results.text, /Amara|Okafor|Bea /);
+    assert.doesNotMatch(results.text, /Amara|Okafor|\bBea\b/);
     const file = await w.exportAs("zach", id);
     const [header, ...rows] = file.text.trim().split(/\r?\n/);
     assert.match(header, /2\. How likely is it\?/);
-    assert.ok(rows.some((row) => row.startsWith("Amara Okafor,") && row.includes(",30,")));
+    assert.ok(rows.some((row) => row.startsWith("Amara,") && row.includes(",30,")));
   });
 });
 
@@ -1541,7 +1542,7 @@ describe("results for admins: n and the response rate beside every number, the c
     ]) {
       assert.ok(page.text.includes(words), `missing "${words}"`);
     }
-    assert.doesNotMatch(page.text, /Amara|Okafor|Bea |Dev Patel|To explain the risk clearly/, "results name nobody and quote no one's earlier answer");
+    assert.doesNotMatch(page.text, /Amara|Okafor|\bBea\b|\bDev\b|Patel|To explain the risk clearly/, "results name nobody and quote no one's earlier answer");
   });
 
   test("a reminder sends nobody new, so the response rate stays of the people it was sent to", async (t) => {

@@ -42,8 +42,8 @@ const everything = () => JSON.stringify(world.db.paths().sort().map((path) => [p
 
 /**
  * Each row of the list, in the words a screen reader is given: "Week 1 Ready
- * First session Thu 29 Oct Ready by Thu 22 Oct Claudia Reyes" (the owner's
- * initials are hidden from it).
+ * First session Thu 29 Oct Ready by Thu 22 Oct Claudia" (the owner, by the
+ * name they go by; their initials are hidden from it).
  */
 function rows(html) {
   return [...html.matchAll(/<li class="row[^"]*">(.*?)<\/li>/g)].map((m) =>
@@ -166,20 +166,20 @@ describe("2. each week, as the board draws it", () => {
   test("a week no group meets in says so, with no ready-by day", async () => {
     for (const group of [A, B, C, D]) world.db.poke(`courseGroups/${group}`, { archived: true });
     const said = rows((await draw("claudia", Page, PARAMS)).html);
-    assert.match(said[0], /^Week 1 Draft No session set yet Claudia Reyes$/);
+    assert.match(said[0], /^Week 1 Draft No session set yet Claudia$/);
   });
 
   test("the owner: the lead by default, a helper once chosen, the lead again when the one chosen is no longer one", async () => {
     let said = rows((await draw("claudia", Page, PARAMS)).html);
-    assert.ok(said.every((row) => row.endsWith("Claudia Reyes")), said.join("\n"));
+    assert.ok(said.every((row) => row.endsWith(" Claudia")), said.join("\n"));
     // Yusuf is the run's track lead: a helper.
     world.db.poke(weekPath("w04"), { ownerUid: "yusuf" });
     said = rows((await draw("claudia", Page, PARAMS)).html);
-    assert.ok(said[3].endsWith("Yusuf Demir"), said[3]);
+    assert.ok(said[3].endsWith(" Yusuf"), said[3]);
     // Rahul is no helper: a stored uid that is neither is shown as the lead.
     world.db.poke(weekPath("w04"), { ownerUid: "rahul" });
     said = rows((await draw("claudia", Page, PARAMS)).html);
-    assert.ok(said[3].endsWith("Claudia Reyes"), said[3]);
+    assert.ok(said[3].endsWith(" Claudia"), said[3]);
   });
 
   test("with no lead standing and no helper, a week has no owner yet", async () => {

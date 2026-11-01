@@ -439,6 +439,40 @@ says anything, because a term that was called off promises no decision day.
 
 ## What the form asks
 
+### About you, and the full name
+
+The first step asks what joining the site asks (`AboutStep.tsx`), starting
+with two names: **Full name** ("So the committee can tell people apart. Only
+the committee sees it.") and **What should we call you?** ("What everyone else
+sees."). Both are required to send (`aboutYouIssues` in `validate.ts`), and
+for somebody with no account the step is their join request, so the full name
+goes into their profile with the rest (`JOIN_FIELDS` in `applicant/join.ts`,
+then `completeRegistration`).
+
+For somebody with an account the step opens from their profile
+(`aboutYouFromAccount`): the full name they gave, else the account's display
+name, which for an account made with Google is Google's name for them. That
+fills a box on their own form. It is saved on the application only when they
+save, and never written back to the profile. A draft saved before the step
+asked opens with the same name in the box (`openingContent` in
+`ApplicationForm.tsx`).
+
+Who sees which name follows the site's one rule (`src/lib/names/staffName.ts`):
+
+- **The review screens** name an applicant by the staff rule, "Priya Shah
+  (Pri)" (`applicantName` in `review/people.ts`): the full name on their About
+  you, else the name on the account the application was made from, with the
+  name they go by after it when it adds something. Everybody who reads an
+  application is an admin or an SU-recognised committee member.
+- **The application's own `displayName`** is the account's display name when
+  it has one, as it always was (the save route builds it from `loadAccount`).
+  It is read by the hand-over, the term's lists and the rows written onto a
+  run, which course screens read, facilitators' included. So the full name is
+  never copied into it: it travels on `aboutYou.fullName`, where every file
+  that reads it names it and `tests/full-name-readers.test.mjs` lists them.
+  `nameOnRecord` (`handover/holders.ts`), which writes the run's rows, reads
+  `displayName` and never the full name.
+
 ### Question sets, and who is asked each
 
 A question set's `scope` says who is shown it, and its role follows from its

@@ -203,7 +203,8 @@ describe("2. the group page in week 3, as wk-fac-group draws it", () => {
   test("the head: the group, its week, its programme, its day, time and room, and the other facilitator", async () => {
     const drawn = await groupPage("rahul");
     assert.match(drawn.html, /<h1 class="title">Group B<\/h1><span class="weekChip">Week 3 of 6<\/span>/);
-    assert.match(drawn.text, /Fellowship: AGI Strategy · , Tuesdays 6pm · , Hallward B12 · , with Sofia Rossi/);
+    // The other facilitator by the name they go by (`fullNameOfUser`).
+    assert.match(drawn.text, /Fellowship: AGI Strategy · , Tuesdays 6pm · , Hallward B12 · , with Sofia Write to/);
     assert.match(
       drawn.html,
       new RegExp(
@@ -212,8 +213,8 @@ describe("2. the group page in week 3, as wk-fac-group draws it", () => {
       ),
     );
     // Sofia reads Rahul as the other; an admin, both.
-    assert.match((await groupPage("sofia")).text, /Hallward B12 · , with Rahul Mehta Write to/);
-    assert.match((await groupPage("zach")).text, /Hallward B12 · , with Rahul Mehta and Sofia Rossi Write to/);
+    assert.match((await groupPage("sofia")).text, /Hallward B12 · , with Rahul Write to/);
+    assert.match((await groupPage("zach")).text, /Hallward B12 · , with Rahul and Sofia Write to/);
   });
 
   test("the ticket: tonight's session, its room, who is expected, and Take the register leading to the register", async () => {
