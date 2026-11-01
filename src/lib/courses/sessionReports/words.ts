@@ -208,6 +208,42 @@ export function sentWords(sentAt: Date | null, updatedAt: Date | null): string {
   return updatedAt && updatedAt.getTime() - sentAt.getTime() >= 60_000 ? `${first}, changed ${at(updatedAt)}` : first;
 }
 
+// ---------------------------------------------------------------------------
+// Beside a written answer: what the week's reports say about its writer
+// ---------------------------------------------------------------------------
+
+/**
+ * The card on a written answer's review page (`./beside.ts`). Each line is
+ * named as the lead's page names its answer (`RUN_REPORTS_WORDS.engaged`,
+ * `notRead`, `needsHand`), so the two pages say one thing.
+ */
+export const BESIDE_WORDS = {
+  /** The title for the programme's lead and admins, who read every report. */
+  every: "From the session reports",
+  /** The title for a facilitator, beside the lines of the report they wrote. */
+  own: "From your session report",
+  /** The same, for a week whose two sessions they each wrote a report on. */
+  ownMany: "From your session reports",
+  /** Who wrote a report, when the reader did, on the lead's and admins' card. */
+  you: "You",
+} as const;
+
+/** The card's title: "From the session reports", or the facilitator's own. */
+export function besideTitleWords(whose: "every" | "own", reports: number): string {
+  if (whose === "every") return BESIDE_WORDS.every;
+  return reports > 1 ? BESIDE_WORDS.ownMany : BESIDE_WORDS.own;
+}
+
+/** "Not shown to Chloe", the chip beside the card's title. */
+export function besideNotShownWords(firstName: string): string {
+  return `Not shown to ${firstName.trim() || "the person whose answer it is"}`;
+}
+
+/** "Session 2", which of a week's sessions a report is on, for a week that met more than once. */
+export function besideSessionWords(occurrence: number): string {
+  return `Session ${occurrence}`;
+}
+
 function lowerFirst(textValue: string): string {
   return textValue ? `${textValue.charAt(0).toLowerCase()}${textValue.slice(1)}` : textValue;
 }

@@ -1977,6 +1977,21 @@ stay exactly as they are beside it.
   leads to the week on this page.
 - **The writer**, their own report, on their page: in the form while it is
   open, read only once it has closed.
+- **Beside a written answer** (the review page, both the group's and the
+  lead's): what that week's reports say about the person whose answer it is,
+  and nothing else of a report: who engaged well and why, who seemed not to
+  have done the readings, who might need a hand and the word about them
+  (`src/lib/courses/sessionReports/beside.ts`, `readReportLinesAbout`). The
+  programme's lead and admins see every report's lines, each under its
+  writer's first name ("A former facilitator" once the writer's account is
+  gone); a facilitator of the person's group sees only the lines of the
+  reports they wrote ("From your session report"), never a co-facilitator's,
+  whose report is not even read for them (`writerUid` equality, where the
+  lead's and admins' read is `aboutUids` array-contains). Read only once the
+  page's gate lets the reader review the answer; nobody sees what a report
+  says about themselves, and nothing is emailed. The card sits between the
+  feedback and the ratings for the team, says "Not shown to Chloe", and is
+  not drawn when no report says anything about the person.
 - Nobody in the group and no other facilitator reads a report on the site. A
   person can ask for what is written about them (see below).
 

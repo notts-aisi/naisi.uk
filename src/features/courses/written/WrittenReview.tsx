@@ -41,6 +41,7 @@ import StaffFeedbackCards from "../feedback/StaffFeedbackCards";
 import Prose from "../weekBlocks/Prose";
 import RatingForTheTeam from "./RatingForTheTeam";
 import ReopenWeekButton from "./ReopenWeekButton";
+import SessionReportLines from "./SessionReportLines";
 import weekly from "../weekly/weekly.module.css";
 import styles from "./written.module.css";
 
@@ -61,6 +62,11 @@ import styles from "./written.module.css";
  * v15: never shown to the person), and an admin alone sees Pangram's last
  * reading of the answer beside when it was sent. The model carries neither
  * for anybody else.
+ *
+ * Between the feedback and the ratings, what the week's session reports say
+ * about the person (`SessionReportLines`, privacy v15's "Session reports"):
+ * their lines alone, every report's for an admin or the lead, the reader's
+ * own report's for a facilitator. Read only, and never shown to the person.
  *
  * Drawn from `loadWrittenReview` on the server, after the page's gate; every
  * person here is somebody the reader may review by the one gate, and an
@@ -432,6 +438,7 @@ function Review({ model }: { model: ReviewPageModel }) {
           weekNumber={model.weekNumber}
           programme={model.programme}
         />
+        {selected.reportLines && <SessionReportLines view={selected.reportLines} firstName={person.firstName} />}
         {selected.team && (
           <RatingForTheTeam runId={model.runId} uid={person.uid} firstName={person.firstName} weekNumber={model.weekNumber} team={selected.team} />
         )}

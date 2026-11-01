@@ -1,5 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import { firstNameOfUser, fullNameOfUser } from "@/lib/courses/programmeLead";
 import { sessionInstants, resolveSessions } from "@/lib/courses/sessions";
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
@@ -10,17 +11,22 @@ import {
   type CourseSessionReportDoc,
 } from "@/lib/firestore/courseSessionReports";
 import { accountNamesOf, nameForViewer, type NameViewer } from "@/lib/names/staffName";
+import { reportLinesView, reportsAbout, type BesideScope, type ReportLinesView } from "./beside";
 import { RUN_REPORTS_WORDS, REPORT_WORDS } from "./words";
 
 /**
  * A RUN'S SESSION REPORTS, read on the server for the programme's lead and
  * admins: the reports page under the programme's Surveys tab, and the counts
- * on the tab's Overview that lead there, which name nobody.
+ * on the tab's Overview that lead there, which name nobody. And, beside a
+ * written answer on its review page, one person's lines in one week's
+ * reports (`readReportLinesAbout`), for whoever that page lets review the
+ * answer, each as `besideScopeOf` says.
  *
  * Who may read them is decided by the page that calls this, before it does
  * (`loadProgrammeRun`: the lead of the programme that names the run, or an
- * admin). Nothing here asks who is reading, so nothing here may be called
- * before that decision, and no route hands these rows to a browser.
+ * admin; for one person's lines, the review page's own gate and then
+ * `besideScopeOf`). Nothing here asks who is reading, so nothing here may be
+ * called before that decision, and no route hands these rows to a browser.
  *
  * Each report comes back whole, with its group, its writer's name and the
  * names of the people it picks, worked out from their accounts when it is
@@ -253,4 +259,52 @@ export async function ownReportView(
 ): Promise<RunReportView> {
   const [view] = await viewsOf(db, run, new Map([[group.id, group]]), [report], viewer);
   return view;
+}
+
+/**
+ * ONE PERSON'S LINES IN ONE WEEK'S REPORTS, for the review page beside their
+ * written answer: what each report says about them (engaged well and why,
+ * seemed not to have done the readings, might need a hand and the word about
+ * them), and nothing else of a report. Called only by the review page's
+ * loader, once its gate has let the reader review the answer and
+ * `besideScopeOf` has said whose reports' lines they see.
+ *
+ * One clause on one field per read, so neither needs a declared index: for
+ * the programme's lead and admins, every report that picks the person
+ * (`aboutUids` array-contains); for a facilitator, only the reports they
+ * wrote (`writerUid` equality), so a co-facilitator's report is never read
+ * for them at all. Held to the run and the week in memory, and, for a
+ * facilitator, to their own reports again (`reportsAbout`); only the
+ * person's lines leave (`reportLinesView`). A writer is named by the first
+ * word of the name they go by, as the page's other cards sign theirs; the
+ * reader's own reports are named by nobody.
+ */
+export async function readReportLinesAbout(
+  db: Firestore,
+  input: { runId: string; uid: string; weekNumber: number; scope: BesideScope },
+): Promise<ReportLinesView> {
+  const { uid, scope } = input;
+  const snap =
+    scope.whose === "every"
+      ? await db.collection(COURSE_SESSION_REPORTS_COLLECTION).where("aboutUids", "array-contains", uid).get()
+      : await db.collection(COURSE_SESSION_REPORTS_COLLECTION).where("writerUid", "==", scope.readerUid).get();
+  const about = reportsAbout(
+    snap.docs
+      .map((doc) => normalizeSessionReport(doc.id, doc.data() ?? {}))
+      .filter((report): report is CourseSessionReportDoc => report !== null),
+    input,
+  );
+  // The other writers of what is shown, named; nobody else's account is read.
+  const writers = [
+    ...new Set(about.flatMap(({ report }) => (report.writerUid && report.writerUid !== scope.readerUid ? [report.writerUid] : []))),
+  ];
+  const names = new Map<string, string>();
+  if (writers.length > 0) {
+    for (const account of await db.getAll(...writers.map((writer) => db.collection("users").doc(writer)))) {
+      if (!account.exists) continue;
+      const data = (account.data() ?? {}) as Record<string, unknown>;
+      names.set(account.id, firstNameOfUser(data) || fullNameOfUser(data));
+    }
+  }
+  return reportLinesView(about, scope, (writer) => names.get(writer) ?? "");
 }

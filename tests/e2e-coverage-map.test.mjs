@@ -1890,7 +1890,7 @@ const NOT_COVERED = {
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/written": {
     reason:
-      "Course hub: the programme's lead's way to the review page, where a facilitator's own answer gets feedback, and where the lead rates an answer for the team; drawn as the lead, another programme's lead and somebody signed out in tests/course-hub-written-answers.test.mjs, and with the ratings in tests/course-work-ratings.test.mjs.",
+      "Course hub: the programme's lead's way to the review page, where a facilitator's own answer gets feedback, and where the lead rates an answer for the team and reads what the week's session reports say about the person; drawn as the lead, another programme's lead and somebody signed out in tests/course-hub-written-answers.test.mjs, with the ratings in tests/course-work-ratings.test.mjs, and with the report's lines as every caller in tests/course-report-beside-work.test.mjs.",
     coverWhen:
       "When a browser spec signs in as the programme's lead and gives feedback on a facilitator's own answer.",
   },
@@ -2191,7 +2191,7 @@ const NOT_COVERED = {
   },
   "/(app)/learn/[runId]/group/[groupId]/written": {
     reason:
-      "Course hub: a group's written answers one at a time (wk-review, wk-review-phone), for its facilitators and admins, with Your feedback beside each and, for an admin or the programme's lead alone, the ratings for the team; drawn as each kind of caller in tests/course-hub-written-answers.test.mjs, tests/course-feedback.test.mjs and tests/course-work-ratings.test.mjs.",
+      "Course hub: a group's written answers one at a time (wk-review, wk-review-phone), for its facilitators and admins, with Your feedback beside each, the lines the week's session reports have about the person (every report's for an admin or the programme's lead, a facilitator's own report's for that facilitator) and, for an admin or the lead alone, the ratings for the team; drawn as each kind of caller in tests/course-hub-written-answers.test.mjs, tests/course-feedback.test.mjs, tests/course-work-ratings.test.mjs and tests/course-report-beside-work.test.mjs.",
     coverWhen:
       "When the work-loop spec (course-hub-work-loop) is written: a facilitator opens a submitted answer, saves feedback, " +
         "and the member reads it on their week page.",
