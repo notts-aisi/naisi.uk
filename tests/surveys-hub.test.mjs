@@ -286,7 +286,7 @@ describe("2. By programme: the term's programmes, a row for every stage, then th
     for (const id of ["ci-agi-w2", "ci-agi-w3"]) assert.ok(html.includes(`<a href="/admin/surveys/${id}/results" class="checkInLink">`), id);
     assert.ok(
       html.includes(
-        `<a href="/admin/admissions/forms/${ROUND}/programmes/${AGI}/surveys/reports" class="action" aria-label="Read the facilitators’ reports on Fellowship: AGI Strategy">Read them</a>`,
+        `<a href="/admin/admissions/forms/${ROUND}/programmes/${AGI}/surveys/reports" class="action" aria-label="Read them: the facilitators’ reports on Fellowship: AGI Strategy">Read them</a>`,
       ),
       "the facilitators' reports row does not lead to the programme's own page of them",
     );
@@ -518,6 +518,16 @@ describe("6. nothing about a person, every way in at least 44px, and the words",
     assert.equal(hubWords.dueAtLastSessionWords("Wed 9 Dec"), "due at the last session, Wed 9 Dec");
     assert.equal(hubWords.reportQuestionsWords(8), "8 questions, from each group’s facilitators");
     assert.equal(hubWords.rowLineWords(["Not sent yet", ""]), "Not sent yet");
+    // A link's name for a screen reader starts with the words it shows, so a
+    // person who says what they see can press it.
+    for (const [label, shown] of [
+      [hubWords.HUB_LABELS.results("AGI Strategy: before"), "Results"],
+      [hubWords.HUB_LABELS.edit("AGI Strategy: before"), "Edit"],
+      [hubWords.HUB_LABELS.remind("AGI Strategy: before"), "Remind"],
+      [hubWords.HUB_LABELS.reports("Fellowship: AGI Strategy"), hubWords.HUB_WORDS.readThem],
+    ]) {
+      assert.ok(label.startsWith(shown), `"${label}" does not start with "${shown}"`);
+    }
     for (const file of [
       join("lib", "surveys", "hub", "words.ts"),
       join("lib", "surveys", "hub", "model.ts"),

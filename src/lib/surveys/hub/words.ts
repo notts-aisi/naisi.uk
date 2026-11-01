@@ -86,10 +86,13 @@ export function reportQuestionsWords(questions: number): string {
   return `${questionsWords(questions)}, from each group’s facilitators`;
 }
 
-/** What each link on a row says to a screen reader, with the survey or the programme it is about. */
+/**
+ * What each link on a row says to a screen reader: its own words first, as
+ * drawn, then the survey or the programme it is about.
+ */
 export const HUB_LABELS = {
   results: (name: string) => `${LIST_WORDS.results} for ${name}`,
   edit: (name: string) => `${LIST_WORDS.edit} ${name}`,
   remind: (name: string) => `Remind people who haven’t answered ${name}: opens its Send tab`,
-  reports: (programme: string) => `Read the facilitators’ reports on ${programme}`,
+  reports: (programme: string) => `${HUB_WORDS.readThem}: the facilitators’ reports on ${programme}`,
 } as const;
