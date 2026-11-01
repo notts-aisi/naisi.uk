@@ -520,6 +520,12 @@ const ROUND_SURFACES = {
       "Copy weeks from the course, a page of one programme's Weeks tab. " +
       "It reaches the round only through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review": {
+    kind: "form",
+    why:
+      "A week's review, an admin's alone: loadProgrammeRun first, which reads the round through the form's own " +
+      "loader and answers 'none' for a round that is not a form, then the review's own door",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]": {
     kind: "form",
     why:
@@ -711,6 +717,20 @@ const ROUND_SURFACES = {
       "an admin asks for an arrangement of a programme's people into groups through " +
       "loadArranging, which starts from the form's own loader and answers 404 for a round " +
       "that is not a form, before anybody's application is read",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review": {
+    kind: "form",
+    why:
+      "Review with Claude on a week of the programme's run, an admin's alone, through openWeekReview and the " +
+      "coursework door, which starts from loadProgrammeRun and the form's own loader and answers 'none' (a 404) " +
+      "for a round that is not a form, before anybody's work is read",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review/follow-up": {
+    kind: "form",
+    why:
+      "A follow-up task from a week's review, an admin's alone, through openWeekReview and the coursework door, " +
+      "which starts from loadProgrammeRun and the form's own loader and answers 'none' (a 404) for a round that " +
+      "is not a form, before anybody is read or a task is made",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers": {
     kind: "form",
