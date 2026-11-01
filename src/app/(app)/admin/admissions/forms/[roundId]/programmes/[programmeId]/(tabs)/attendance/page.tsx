@@ -88,9 +88,9 @@ export default async function ProgrammeAttendancePage({
         : null;
   const noted = model.groups.filter((group) => (notes.get(group.id) ?? []).length > 0);
   const shared = await sharedNotesForAttendance(db, user, records.run, records.groups, programme?.leadFirstName ?? null);
-  // The written answers waiting for the lead's (or an admin's) feedback, a
-  // line per group, a facilitator's own answer among them: null on a run of
-  // the summer's weeks, which has none.
+  // Feedback to write: the written answers waiting for the lead's (or an
+  // admin's) feedback, a line per group, a facilitator's own answer among
+  // them: null on a run of the summer's weeks, which has none.
   const liveGroups = records.groups.filter((group) => !group.archived);
   const writtenQueues = await loadWrittenQueues(db, user, records.run, liveGroups);
   const writtenPath = `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}/written`;
@@ -123,7 +123,7 @@ export default async function ProgrammeAttendancePage({
               .map((group) => ({
                 id: group.id,
                 name: group.name.trim() || "Untitled group",
-                waiting: writtenQueues.get(group.id)?.length ?? 0,
+                weeks: (writtenQueues.get(group.id) ?? []).map((row) => row.weekNumber),
                 href: `${writtenPath}?group=${encodeURIComponent(group.id)}`,
               }))}
           />

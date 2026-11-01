@@ -23,7 +23,7 @@ import {
 } from "@/lib/courses/weekWork/words";
 import { resolveSessions } from "@/lib/courses/sessions";
 import { dueMoment } from "@/lib/courses/weekBlocks/due";
-import { NOT_CHOSEN_YET, TO_GIVE_FEEDBACK, feedbackSentByWords, weekColumnWords } from "./words";
+import { NOT_CHOSEN_YET, TO_GIVE_FEEDBACK, feedbackByWords, weekColumnWords } from "./words";
 
 /**
  * THIS WEEK'S WORK'S OTHER COLUMNS (board wk-fac-group: "Pathway", "Written
@@ -50,9 +50,9 @@ import { NOT_CHOSEN_YET, TO_GIVE_FEEDBACK, feedbackSentByWords, weekColumnWords 
  *    cell says what the review page says of the same answer, to the same
  *    reader, by the one gate: "Not started", "Started" (never how long, nor
  *    what it says, until the week is submitted or locked: privacy v15), "To
- *    give feedback" (a link to it on the review page), "Feedback sent ·
- *    Rahul". A person the reader may not review gets no cell. Drawn only for
- *    a week with a written answer.
+ *    give feedback" (a link to it on the review page), "Feedback · Rahul"
+ *    (who has left feedback on it, a link to it too). A person the reader may
+ *    not review gets no cell. Drawn only for a week with a written answer.
  *
  * Who the rows are is This week's work's own (`loadGroupWeek`): a facilitator
  * is never shown a facilitator's own row, the lead and admins are. Plain data
@@ -83,7 +83,7 @@ export type WorkColumnData = {
 
 /** What a written answer's cell says, as the review page groups the same answer. */
 function writtenCell(person: ReviewPerson, href: string): WorkCell {
-  if (person.readable && person.state === "feedback") return { text: feedbackSentByWords(person.feedbackByName), href: null };
+  if (person.readable && person.hasFeedback) return { text: feedbackByWords(person.feedbackByNames), href };
   if (person.readable && person.words > 0) return { text: TO_GIVE_FEEDBACK, href };
   if (person.week.state === "reopened") return { text: REOPENED_NOT_SUBMITTED, href: null };
   return { text: person.state === "not-started" ? NOT_STARTED : STARTED, href: null };

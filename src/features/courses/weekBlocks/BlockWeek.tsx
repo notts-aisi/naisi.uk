@@ -99,9 +99,11 @@ import {
   DUE_TONIGHT,
   SENT,
   draftStateWords,
-  feedbackFromWords,
   sentOnWords,
 } from "@/lib/courses/writtenAnswerWords";
+import type { OwnFeedbackCard } from "@/lib/courses/feedback/model";
+import { FEEDBACK_HEADING, feedbackLinkWords } from "@/lib/courses/feedback/words";
+import WeekFeedback, { FEEDBACK_ANCHOR } from "../feedback/WeekFeedback";
 import type { SubmitWeekAnswer } from "@/app/api/courses/runs/[runId]/weeks/[weekId]/submit/route";
 import {
   weekAsksForWriting,
@@ -368,22 +370,26 @@ export default function BlockWeek({
   // says the caller facilitates a group of the run (`answersReadBy`).
   const ownWorkIsTheLeads = asFacilitator || overviewWeek?.thisWeek?.answersReadBy === "lead";
   const answerDue = new Map((overviewWeek?.thisWeek?.answers ?? []).map((answer) => [answer.id, answer.due]));
+  // The feedback on the reader's own week (the overview's, theirs alone), and the first on each written answer.
+  const feedbackCards: OwnFeedbackCard[] = participant ? (overviewWeek?.feedback ?? []) : [];
+  const firstFeedbackOn = (answerId: string): OwnFeedbackCard | null => feedbackCards.find((card) => card.itemId === answerId) ?? null;
   /**
    * This week's line for a task that covers a written answer: "Draft · 241
    * words" with "Due tonight" on its last day, "Submitted Mon 16 Nov", then
-   * "Feedback from Rahul"; "Not submitted" once the week locked before it
-   * was. Nothing before anything is written.
+   * "Feedback from Rahul", leading to the week's Feedback; "Not submitted"
+   * once the week locked before it was. Nothing before anything is written.
    */
   const answerTaskLine = (answerIds: readonly string[], dueKey: string | null): ReactNode => {
     if (!participant || answerIds.length === 0) return null;
     const own = ownRows.byId.get(answerIds[0])?.written ?? null;
     if (!own) return null;
-    if (own.feedback) {
+    const given = firstFeedbackOn(answerIds[0]);
+    if (given) {
       return (
         <p className={styles.taskWhen}>
-          <Link href={`${runHomeHref}/weeks/${weekNumber}/feedback`} className={styles.inlineLink}>
-            {feedbackFromWords(own.feedback.byName)}
-          </Link>
+          <a href={`#${FEEDBACK_ANCHOR}`} className={styles.inlineLink}>
+            {feedbackLinkWords(given)}
+          </a>
         </p>
       );
     }
@@ -520,6 +526,8 @@ export default function BlockWeek({
   );
 
   const rail: RailEntry[] = [];
+  // The week's Feedback sits under its status, so it heads "On this page" when there is any.
+  if (feedbackCards.length > 0) rail.push({ id: FEEDBACK_ANCHOR, label: FEEDBACK_HEADING, count: null, mark: null, indent: false });
 
   const body: ReactNode[] = [];
   // The reader's own predictions card, once, at its place in the week.
@@ -641,7 +649,7 @@ export default function BlockWeek({
                 answer: {
                   readers: answerReaders,
                   leadName: leadFirstName,
-                  feedbackOn: overviewWeek?.thisWeek?.feedbackOn ?? [],
+                  feedbackOf: firstFeedbackOn,
                   dueOf: (id) => answerDue.get(id) ?? null,
                   dayBeforeTime: overviewWeek?.thisWeek?.dayBeforeTime ?? null,
                   first,
@@ -726,6 +734,7 @@ export default function BlockWeek({
           {work && (
             <WeekStatus work={work} counts={counts} readers={answerReaders} wroteAnything={wroteAnything} />
           )}
+          <WeekFeedback cards={feedbackCards} programme={payload.programme?.name ?? ""} />
           <PacingBanner
             runId={runId}
             viewedWeek={weekNumber}
@@ -1122,7 +1131,8 @@ type ChildContext = {
   answer: {
     readers: AnswerReaders;
     leadName: string | null;
-    feedbackOn: string[];
+    /** The first piece of feedback on a written answer, for its "Feedback from Rahul"; null with none. */
+    feedbackOf: (answerId: string) => OwnFeedbackCard | null;
     dueOf: (answerId: string) => { dateKey: string } | null;
     dayBeforeTime: string | null;
     first: boolean;
@@ -1214,7 +1224,6 @@ function renderPartChild(child: PartChild, rest: PartChild[], ctx: ChildContext)
             block={child}
             runId={ctx.runId}
             weekId={ctx.weekId}
-            weekNumber={ctx.weekNumber}
             row={ctx.ownRows.byId.get(child.id) ?? null}
             loaded={ctx.ownRows.loaded}
             loading={ctx.ownRows.loading}
@@ -1223,7 +1232,7 @@ function renderPartChild(child: PartChild, rest: PartChild[], ctx: ChildContext)
             canWrite={ctx.canWrite}
             readers={ctx.answer.readers}
             leadName={ctx.answer.leadName}
-            feedbackOn={ctx.answer.feedbackOn}
+            feedback={ctx.answer.feedbackOf(child.id)}
             due={ctx.answer.dueOf(child.id)}
             dayBeforeTime={ctx.answer.dayBeforeTime}
             first={ctx.answer.first}

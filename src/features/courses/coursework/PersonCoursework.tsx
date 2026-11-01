@@ -3,6 +3,9 @@ import type { ReactNode } from "react";
 import type { PersonCourseworkView } from "@/lib/courses/coursework/load";
 import type { PersonWeek } from "@/lib/courses/coursework/model";
 import { lastWrittenWords } from "@/lib/courses/facilitatorWeek/words";
+import { FEEDBACK_HEADING, FEEDBACK_ON_THE_WEEK, WEEK_FEEDBACK_HINT } from "@/lib/courses/feedback/words";
+import FeedbackWriter from "../feedback/FeedbackWriter";
+import StaffFeedbackCards from "../feedback/StaffFeedbackCards";
 import {
   ANSWER_STATE_WORDS,
   BACK_TO_COURSEWORK,
@@ -14,7 +17,7 @@ import {
   NOT_TOLD_YET,
   NOT_WRITTEN_YET,
   NO_FEEDBACK_YET,
-  OPEN_FEEDBACK_PAGE,
+  WRITE_FEEDBACK_ON_THE_ANSWER,
   PRIVATE_NOTE,
   PRIVATE_NOTES_WHO,
   REFLECTIONS,
@@ -22,7 +25,6 @@ import {
   TICKED,
   WEEK_NOT_IN_BLOCKS,
   WRITTEN_ANSWER,
-  feedbackFromWords,
   partHeadingWords,
   sentWhenWords,
   tickedOfWords,
@@ -36,8 +38,12 @@ import styles from "./coursework.module.css";
  * admins: their name, their group where this viewer may see it, and week by
  * week, NEWEST FIRST, everything they wrote: each reflection under its prompt
  * with when it was written, their written answer with where it stands and
- * the feedback on it (levels, comment, who gave it) and the way to the
- * feedback page, their fill-in boxes, and which sources they ticked.
+ * the way to its review page, their fill-in boxes, which sources they
+ * ticked, and the week's Feedback: every piece, signed as the person reads
+ * it, with whether its email has gone, and, once the week may be read,
+ * "Feedback on the week" for the lead or an admin to write a piece on the
+ * week as a whole (feedback on the written answer is written on its review
+ * page).
  *
  * PRIVATE NOTES are drawn only where the loader read them: for an admin,
  * never for the programme's lead (`readPersonPrivateNotes`). Survey answers
@@ -49,7 +55,7 @@ import styles from "./coursework.module.css";
  * column is drawn only when the page hands it something.
  */
 
-function Week({ week, notesShown }: { week: PersonWeek; notesShown: boolean }) {
+function Week({ week, notesShown, view }: { week: PersonWeek; notesShown: boolean; view: PersonCourseworkView }) {
   const heading = weekHeadingWords(week.weekNumber, week.title);
   return (
     <section id={`week-${week.weekNumber}`} className={styles.week} aria-labelledby={`week-${week.weekNumber}-title`}>
@@ -108,29 +114,10 @@ function Week({ week, notesShown }: { week: PersonWeek; notesShown: boolean }) {
                   ))}
                 </ul>
               )}
-              {week.answer.feedback ? (
-                <div className={styles.item}>
-                  <p className={styles.partTitle}>{feedbackFromWords(week.answer.feedback.byName)}</p>
-                  {week.answer.feedback.sentAt && <span className={styles.when}>{lastWrittenWords(week.answer.feedback.sentAt)}</span>}
-                  {week.answer.feedback.levels.length > 0 && (
-                    <ul className={styles.levels}>
-                      {week.answer.feedback.levels.map((level, index) => (
-                        <li key={`${week.weekNumber}-level-${index + 1}`} className={styles.level}>
-                          <span className={styles.levelRow}>{level.row}</span>
-                          {`: ${level.level}`}
-                          {level.descriptor ? ` (${level.descriptor})` : ""}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {week.answer.feedback.comment && <p className={styles.words}>{week.answer.feedback.comment}</p>}
-                </div>
-              ) : (
-                week.answer.state === "waiting" && <p className={styles.notYet}>{NO_FEEDBACK_YET}</p>
-              )}
+              {week.answer.state === "waiting" && <p className={styles.notYet}>{NO_FEEDBACK_YET}</p>}
               {week.answer.href && (
                 <Link href={week.answer.href} className={styles.link}>
-                  {OPEN_FEEDBACK_PAGE}
+                  {WRITE_FEEDBACK_ON_THE_ANSWER}
                 </Link>
               )}
             </div>
@@ -147,6 +134,33 @@ function Week({ week, notesShown }: { week: PersonWeek; notesShown: boolean }) {
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {week.feedback && (week.feedback.cards.length > 0 || week.feedback.own || week.feedback.open) && (
+            <div className={styles.block}>
+              <h3 className={styles.blockTitle}>{FEEDBACK_HEADING}</h3>
+              <StaffFeedbackCards
+                cards={week.feedback.cards}
+                runId={view.runId}
+                firstName={view.person.firstName}
+                weekNumber={week.weekNumber}
+                programme={view.programmeName}
+              />
+              {(week.feedback.open || week.feedback.own) && (
+                <FeedbackWriter
+                  runId={view.runId}
+                  uid={view.person.uid}
+                  firstName={view.person.firstName}
+                  weekNumber={week.weekNumber}
+                  on={{ kind: "week" }}
+                  own={week.feedback.own}
+                  viewerName={view.viewerFirstName}
+                  title={FEEDBACK_ON_THE_WEEK}
+                  hint={WEEK_FEEDBACK_HINT}
+                  mayWrite={week.feedback.open}
+                />
+              )}
             </div>
           )}
 
@@ -206,7 +220,7 @@ export default function PersonCoursework({
       <div className={styles.columns}>
         <div className={styles.weeks}>
           {view.weeks.map((week) => (
-            <Week key={week.weekNumber} week={week} notesShown={view.notesShown} />
+            <Week key={week.weekNumber} week={week} notesShown={view.notesShown} view={view} />
           ))}
         </div>
         {beside && <aside className={styles.beside}>{beside}</aside>}

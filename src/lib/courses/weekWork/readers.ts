@@ -262,6 +262,12 @@ export type RunWeekStates = {
   stateOf: (uid: string, weekNumber: number) => WeekWorkState;
   lockOf: (uid: string, weekNumber: number) => WeekLock;
   recordOf: (uid: string, weekNumber: number) => CourseWeekWorkDoc | null;
+  /**
+   * When the person's group's session that week starts (the lock's own
+   * moment, `dueMoment`'s "before" rule), whenever they were told their
+   * group: null with none to date. What "Feedback to write" counts from.
+   */
+  sessionOf: (uid: string, weekNumber: number) => Date | null;
 };
 
 function weekIdOf(weekNumber: number): string {
@@ -313,5 +319,6 @@ export async function loadRunWeekStates(
     stateOf: (uid, weekNumber) => weekStateOf(sourceOf(uid), weekNumber, recordOf(uid, weekNumber), now),
     lockOf: (uid, weekNumber) => weekLockOf(sourceOf(uid), weekNumber),
     recordOf,
+    sessionOf: (uid, weekNumber) => weekLockOf({ ...sourceOf(uid), toldAt: null }, weekNumber).at,
   };
 }

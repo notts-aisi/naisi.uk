@@ -46,11 +46,13 @@ export type EmailSendKind =
   // left get their confirmation" is a question the deliverability tab has to
   // answer without reading subject lines.
   | "course-enrolment"
-  // The one short "feedback is waiting" email (Q34 B): a facilitator, the
-  // programme's lead or an admin has sent feedback on somebody's own written
-  // answer, and this tells that person it is on the site. Its own kind so
-  // "was Amara told the feedback was waiting" is answerable without reading
-  // subject lines, apart from the enrolment and admissions mail.
+  // The "you have feedback" email: an admin's batch tells each person that
+  // feedback a facilitator, the programme's lead or an admin saved on their
+  // week is on the site, one message a person however many pieces it
+  // announces. Its own kind so "was Amara told the feedback was waiting" is
+  // answerable without reading subject lines, apart from the enrolment and
+  // admissions mail. Its `referenceId` is the RUN id; its test goes as
+  // `course-test`.
   | "course-feedback"
   // A programme's certificates (board en-finish): one email a person, with a
   // button to each certificate they are sent, from the lead's or an admin's

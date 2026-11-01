@@ -355,6 +355,16 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "Each tick and untick, the first save of each spell of writing, each emptied box, each submit and each reopen, with its time. Each one names a week this destroy deletes, so they go with the run.",
   },
+  feedback: {
+    label: "Feedback on people’s weeks",
+    fate: "destroyed",
+    note: "Each piece of feedback the people running a group wrote on somebody’s week, signed with their name, and whether its email went. Each one names a week this destroy deletes, so they go with the run.",
+  },
+  feedbackSends: {
+    label: "The feedback emails’ own record",
+    fate: "destroyed",
+    note: "Who sent the “you have feedback” emails and their tests, when, and to how many people. It belongs to this run, so it goes with the run.",
+  },
   pairs: {
     label: "Pairs and laptops",
     fate: "destroyed",

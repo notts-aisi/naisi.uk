@@ -2893,6 +2893,24 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === courseFeedback ===
+    // Feedback on one person's week: a short comment signed with its writer's
+    // name, and whether the email that says it is there went. Written by the
+    // feedback route and the batch's send (Admin SDK); read by routes and
+    // server pages after their own gates. Every browser is refused, admins
+    // included.
+    match /courseFeedback/{docId} {
+      allow read, write: if false;
+    }
+
+    // === courseFeedbackSends ===
+    // The "you have feedback" batch's own record: each test, each send, and
+    // the one press in progress on a run. Written by the batch's routes
+    // (Admin SDK); nothing reads it from a browser, admins included.
+    match /courseFeedbackSends/{docId} {
+      allow read, write: if false;
+    }
+
     // === courseAttendance ===
     // One register per (group, week), a map of uid -> status. That shape is
     // why even READS are locked: any row a member could read leaks every

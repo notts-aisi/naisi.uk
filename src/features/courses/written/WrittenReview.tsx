@@ -2,49 +2,30 @@
 
 import { useId, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import InitialsChip from "@/components/ui/InitialsChip";
-import { useHydrated } from "@/hooks/useHydrated";
-import type { WrittenReviewResult } from "@/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route";
-import { SOCIETY_ADDRESS } from "@/lib/courses/leavingWords";
-import { countWords } from "@/lib/courses/writtenAnswers/model";
 import type { ReviewPageModel, ReviewPerson } from "@/lib/courses/writtenAnswers/reviewPage";
+import { FEEDBACK_HINT, YOUR_FEEDBACK } from "@/lib/courses/feedback/words";
 import {
-  A_SHORT_COMMENT,
-  COMMENT_HINT,
-  FEEDBACK_NOT_SENT,
-  FEEDBACK_SENT,
   GROUP,
   LATE,
   NOBODY_HERE,
   NOBODY_SENT_YET,
   NOT_SENT_YET,
-  NO_RUBRIC_LINE,
   NO_WRITTEN_ANSWER_THIS_WEEK,
   PREVIOUS,
-  READ_YOUR_FEEDBACK,
   SHOW_ALL_OF_IT,
-  THE_RUBRIC,
   TO_GIVE_FEEDBACK_ON,
+  WITH_FEEDBACK,
   WRITTEN_ANSWERS,
   answerHeadWords,
   byWords,
-  commentCountWords,
-  emailTheyGetWords,
-  emailsLineWords,
-  feedbackEmailLead,
-  feedbackEmailSubject,
-  feedbackSentLineWords,
-  feedbackSentResultWords,
   listLockedWords,
   listSentWords,
   nextWords,
   positionWords,
   reviewEyebrowWords,
   reviewTitleWords,
-  seesLevelsWords,
   reviewWeekLineWords,
-  sendFeedbackWords,
   theQuestionWords,
   wordCountWords,
 } from "@/lib/courses/writtenAnswerWords";
@@ -54,6 +35,8 @@ import {
   REOPENED_NOT_SUBMITTED,
   STARTED,
 } from "@/lib/courses/weekWork/words";
+import FeedbackWriter from "../feedback/FeedbackWriter";
+import StaffFeedbackCards from "../feedback/StaffFeedbackCards";
 import Prose from "../weekBlocks/Prose";
 import ReopenWeekButton from "./ReopenWeekButton";
 import weekly from "../weekly/weekly.module.css";
@@ -62,13 +45,14 @@ import styles from "./written.module.css";
 /**
  * THE REVIEW PAGE (boards wk-review at 1440, wk-review-phone at 390): one
  * answer at a time with Previous and Next, the group's written answers for
- * the week as the board groups them ("To give feedback on", "Feedback sent",
- * "Not submitted yet"), the question with its range, the answer with its
- * count, when its week was submitted or locked and "Reopen week 3 for
- * Amara", the rubric (a level for each row, the level's descriptor under
- * it), "A short comment" with its count, Send feedback, and the email the
- * person gets. "Late" beside an answer is shown here, to staff, and nowhere
- * its writer reads.
+ * the week as the board groups them ("To give feedback on", "With
+ * feedback", "Not submitted yet"), the question with its range, the answer
+ * with its count, when its week was submitted or locked and "Reopen week 3
+ * for Amara", "Your feedback" (a signed comment, saved to the person's week
+ * page straight away and emailed later in an admin's batch), and every other
+ * piece of feedback on their week. "Late" beside an answer is shown here, to
+ * staff, and nowhere its writer reads. No rubric level is given here: the
+ * rubric stays on Start here, as guidance for writing.
  *
  * Drawn from `loadWrittenReview` on the server, after the page's gate; every
  * person here is somebody the reader may review by the one gate, and an
@@ -100,10 +84,6 @@ type Props = {
 /** One group to choose on the lead's page: "A" in its pill, "Group A" for a screen reader, and its page. */
 export type ReviewGroupLink = { id: string; name: string; tag: string; href: string };
 
-type Local = {
-  feedback: { levels: Array<{ row: string; level: string; descriptor: string }>; comment: string; sentAt: string | null; byName: string } | null;
-};
-
 /** The page's own address with its query begun: `?group=…&` on the lead's page, `?` otherwise. */
 function linkBaseOf(basePath: string, groupParam: string | undefined): string {
   return groupParam ? `${basePath}?group=${encodeURIComponent(groupParam)}&` : `${basePath}?`;
@@ -121,23 +101,7 @@ function paragraphs(text: string): string[] {
     .filter(Boolean);
 }
 
-async function post(model: ReviewPageModel, uid: string, body: Record<string, unknown>): Promise<WrittenReviewResult> {
-  if (!model.answer) throw new Error(NO_WRITTEN_ANSWER_THIS_WEEK);
-  const res = await fetch(
-    `/api/courses/runs/${encodeURIComponent(model.runId)}/written-answers/${encodeURIComponent(model.answer.id)}/review`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ weekId: model.weekId, uid, ...body }),
-    },
-  );
-  const out = (await res.json().catch(() => null)) as (WrittenReviewResult & { error?: string }) | null;
-  if (!res.ok || !out?.ok) throw new Error(out?.error ?? FEEDBACK_NOT_SENT);
-  return out;
-}
-
 export default function WrittenReview({ model, basePath, groupParam, groups, back }: Props) {
-  const router = useRouter();
   const linkBase = linkBaseOf(basePath, groupParam);
   const selected = model.selected;
   const person = selected?.person ?? null;
@@ -196,7 +160,7 @@ export default function WrittenReview({ model, basePath, groupParam, groups, bac
             </button>
           )}
           <p className={styles.positionText}>
-            {waitingAt >= 0 ? positionWords(waitingAt + 1, model.toGive.length) : FEEDBACK_SENT}
+            {waitingAt >= 0 ? positionWords(waitingAt + 1, model.toGive.length) : WITH_FEEDBACK}
           </p>
           {next ? (
             <Link href={hrefFor(linkBase, model.weekNumber, next.uid)} className={styles.roundButton} aria-label={nextWords(next.firstName)}>
@@ -234,7 +198,7 @@ export default function WrittenReview({ model, basePath, groupParam, groups, bac
               <p className={styles.quiet}>{ordered.length === 0 && model.notSent.length === 0 ? NOBODY_HERE : NOBODY_SENT_YET}</p>
             </>
           ) : (
-            <Review key={`${person.uid} ${model.weekNumber}`} model={model} onDone={() => router.refresh()} />
+            <Review key={`${person.uid} ${model.weekNumber}`} model={model} />
           )}
         </div>
       </div>
@@ -344,7 +308,12 @@ function AnswerList({ model, linkBase }: { model: ReviewPageModel; linkBase: str
               : "",
         true,
       )}
-      {group(FEEDBACK_SENT, model.feedbackSent, (person) => byWords(person.feedbackByUid === viewer ? "you" : (person.feedbackByName ?? "")), true)}
+      {group(
+        WITH_FEEDBACK,
+        model.feedbackSent,
+        (person) => byWords(person.feedbackByUids.map((uid, index) => (uid === viewer ? "you" : person.feedbackByNames[index] ?? ""))),
+        true,
+      )}
       {group(NOT_SENT_YET, model.notSent, notSubmittedLine, false)}
     </section>
   );
@@ -387,51 +356,14 @@ function Question({ model }: { model: ReviewPageModel }) {
 }
 
 // ---------------------------------------------------------------------------
-// One answer, its rubric and the comment
+// One answer, and the feedback on it
 // ---------------------------------------------------------------------------
 
-function Review({ model, onDone }: { model: ReviewPageModel; onDone: () => void }) {
+function Review({ model }: { model: ReviewPageModel }) {
   const selected = model.selected!;
   const person = selected.person;
   const answer = model.answer!;
-  const rubric = model.rubric;
-  const viewer = model.viewer;
-  const [local, setLocal] = useState<Local>({
-    feedback: selected.feedback ? { ...selected.feedback, byName: person.feedbackByUid === viewer.uid ? "you" : (person.feedbackByName ?? "") } : null,
-  });
-  const [levels, setLevels] = useState<Record<string, string>>({});
-  const [comment, setComment] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<string | null>(null);
-  const commentId = useId();
-  // The page is drawn on the server: nothing here takes a press or a word
-  // until React has it, so nothing typed before then is lost.
-  const hydrated = useHydrated();
-
-  const send = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const out = await post(model, person.uid, {
-        action: "feedback",
-        levels: rubric ? rubric.rows.map((row) => ({ row: row.name, level: levels[row.name] ?? "" })) : [],
-        comment,
-      });
-      if (out.state.feedback) setLocal({ feedback: { ...out.state.feedback, byName: "you" } });
-      setResult(feedbackSentResultWords(person.firstName, out.emailed === true));
-      onDone();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : FEEDBACK_NOT_SENT);
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const weekShut = person.week.state === "submitted" || person.week.state === "locked";
-  const allChosen = !rubric || rubric.rows.every((row) => Boolean(levels[row.name]));
-  const commentWords = countWords(comment);
-  const canSend = hydrated && !local.feedback && selected.role.mayReview && allChosen && (rubric ? true : commentWords > 0) && !busy;
 
   return (
     <div className={styles.reviewGrid}>
@@ -468,115 +400,25 @@ function Review({ model, onDone }: { model: ReviewPageModel; onDone: () => void 
       </div>
 
       <div className={styles.sideColumn}>
-        <section className={styles.rubricCard} aria-labelledby={`${commentId}-rubric`}>
-          <h2 id={`${commentId}-rubric`} className={styles.cardTitle}>
-            {THE_RUBRIC}
-          </h2>
-          {!rubric && <p className={styles.quiet}>{NO_RUBRIC_LINE}</p>}
-          {rubric?.rows.map((row) => {
-            const given = local.feedback?.levels.find((entry) => entry.row === row.name) ?? null;
-            const chosen = given?.level ?? levels[row.name] ?? null;
-            const index = chosen ? rubric.levels.indexOf(chosen) : -1;
-            const descriptor = given?.descriptor ?? (index >= 0 ? row.descriptors[index] : null);
-            return (
-              <div key={row.name} className={styles.rubricRow} role="group" aria-label={row.name}>
-                <p className={styles.rubricName}>{row.name}</p>
-                <div className={styles.levels}>
-                  {rubric.levels.map((level) => (
-                    <button
-                      key={level}
-                      type="button"
-                      className={chosen === level ? styles.levelOn : styles.level}
-                      aria-pressed={chosen === level}
-                      disabled={!hydrated || Boolean(local.feedback) || !selected.role.mayReview}
-                      onClick={() => setLevels((prev) => ({ ...prev, [row.name]: level }))}
-                    >
-                      {level}
-                    </button>
-                  ))}
-                </div>
-                {chosen && descriptor && (
-                  <p className={styles.descriptor}>
-                    <strong>{chosen}:</strong> {descriptor}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-
-          {local.feedback ? (
-            <>
-              {local.feedback.comment && (
-                <div className={styles.sentComment}>
-                  <p className={styles.commentLabel}>{A_SHORT_COMMENT}</p>
-                  <p className={styles.commentText}>{local.feedback.comment}</p>
-                </div>
-              )}
-              <p className={styles.quiet}>
-                {feedbackSentLineWords(local.feedback.byName, local.feedback.sentAt ? new Date(local.feedback.sentAt) : null)}
-              </p>
-            </>
-          ) : (
-            <>
-              <div className={styles.commentField}>
-                <label htmlFor={commentId} className={styles.commentLabel}>
-                  {A_SHORT_COMMENT}
-                </label>
-                <textarea
-                  id={commentId}
-                  className={styles.comment}
-                  rows={5}
-                  value={comment}
-                  onChange={(event) => setComment(event.currentTarget.value)}
-                  disabled={!hydrated || !selected.role.mayReview}
-                />
-                <div className={styles.commentFoot}>
-                  <span>{COMMENT_HINT}</span>
-                  <span className={styles.commentCount}>{commentCountWords(commentWords)}</span>
-                </div>
-              </div>
-              <button type="button" className={styles.sendButton} onClick={() => void send()} disabled={!canSend}>
-                {sendFeedbackWords(person.firstName)}
-              </button>
-              <p className={styles.sendLine}>{emailsLineWords(person.firstName)}</p>
-              <p className={styles.quiet}>{seesLevelsWords(person.firstName, rubric?.rows.length ?? 0)}</p>
-            </>
-          )}
-          {result && (
-            <p className={styles.result} role="status">
-              {result}
-            </p>
-          )}
-          {error && (
-            <p className={styles.error} role="alert">
-              {error}
-            </p>
-          )}
-        </section>
-
-        <section className={styles.emailPreview} aria-label={emailTheyGetWords(person.firstName)}>
-          <p className={styles.mono}>{emailTheyGetWords(person.firstName)}</p>
-          <div className={styles.emailCard}>
-            <div className={styles.emailHead}>
-              <p className={styles.emailSubject}>{feedbackEmailSubject(model.weekNumber)}</p>
-              <dl className={styles.emailMeta}>
-                <dt>From</dt>
-                <dd>NAISI</dd>
-                <dt>Reply to</dt>
-                <dd>{SOCIETY_ADDRESS}</dd>
-                <dt>To</dt>
-                <dd>{person.name}</dd>
-              </dl>
-            </div>
-            <div className={styles.emailBody}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/brand/naisi-lockup-email.png" alt="Nottingham AI Safety Initiative" className={styles.emailLogo} />
-              <p>{feedbackEmailLead(viewer.firstName || "Your facilitator", answer.answerName)}</p>
-              <span className={styles.emailButton}>{READ_YOUR_FEEDBACK}</span>
-            </div>
-            <p className={styles.emailFoot}>Nottingham AI Safety Initiative · University of Nottingham · {SOCIETY_ADDRESS}</p>
-          </div>
-        </section>
+        <FeedbackWriter
+          runId={model.runId}
+          uid={person.uid}
+          firstName={person.firstName}
+          weekNumber={model.weekNumber}
+          on={{ kind: "writtenAnswer", itemId: answer.id }}
+          own={selected.own}
+          viewerName={model.viewer.firstName}
+          title={YOUR_FEEDBACK}
+          hint={FEEDBACK_HINT}
+          mayWrite={selected.role.mayReview}
+        />
+        <StaffFeedbackCards
+          cards={selected.cards}
+          runId={model.runId}
+          firstName={person.firstName}
+          weekNumber={model.weekNumber}
+          programme={model.programme}
+        />
       </div>
     </div>
   );

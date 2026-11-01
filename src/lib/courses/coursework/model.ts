@@ -4,6 +4,7 @@ import { weekTaskNeeds, type TaskNeeds } from "@/lib/courses/weekBlocks/progress
 import { weekFillInBoxes, weekWrittenAnswers, type ReadableWeek } from "@/lib/courses/weekBlocks/reader";
 import { weekAsksForWriting, weekDone } from "@/lib/courses/weekWork/model";
 import type { AnswerState } from "@/lib/courses/writtenAnswers/model";
+import type { StaffFeedbackCard } from "@/lib/courses/feedback/model";
 
 /**
  * A PROGRAMME'S COURSEWORK, AS ITS LEAD AND ADMINS READ IT (Zach, Fri 30
@@ -365,10 +366,18 @@ export type PersonAnswer = {
   /** An answer in labelled boxes, in the week's order; empty for an answer of one box. */
   boxes: Array<{ label: string; text: string }>;
   sentAt: Date | null;
-  feedback: { levels: Array<{ row: string; level: string; descriptor: string }>; comment: string; byName: string | null; sentAt: Date | null } | null;
-  /** The feedback page for it, or null where the person is in no group to give feedback in. */
+  /** The review page for it, where feedback on it is written, or null where the person is in no group to give feedback in. */
   href: string | null;
 };
+
+/**
+ * The feedback on one week of the person's, as the people running the group
+ * read it: every piece, feedback given before pieces existed among them,
+ * oldest first; the reader's own piece on the week as a whole while it may
+ * change; and whether the reader may write feedback on the week now (they
+ * may act on the person's work, and its readers may read it).
+ */
+export type PersonWeekFeedback = { cards: StaffFeedbackCard[]; own: StaffFeedbackCard | null; open: boolean };
 
 /** One week on a person's page. */
 export type PersonWeek = {
@@ -382,6 +391,8 @@ export type PersonWeek = {
   boxes: Array<{ heading: string; label: string; text: string | null }> | null;
   sources: Array<{ id: string; title: string; kindLabel: string; partNumber: number | null; ticked: boolean; note: string | null }>;
   ticked: number;
+  /** The feedback on the week; null for a week not written as blocks. */
+  feedback: PersonWeekFeedback | null;
 };
 
 /** One written answer of the person whose page is drawn, as their page reads it. */
@@ -404,9 +415,10 @@ export type PersonWrites = {
 
 /**
  * A person's weeks, NEWEST FIRST: each reflection under its prompt, the
- * written answer with its feedback, the boxes (only when `boxesRead`: the
- * boxes' own gate answered), which sources they ticked, and the private note
- * on each (only when `notes` is given: admins, never the lead).
+ * written answer, the boxes (only when `boxesRead`: the boxes' own gate
+ * answered), which sources they ticked, the private note on each (only when
+ * `notes` is given: admins, never the lead), and the feedback on the week
+ * (`feedbackOf`, worked out by the loader, which reads it).
  */
 export function personWeeks(input: {
   columns: ReadonlyArray<{ weekNumber: number; title: string }>;
@@ -414,8 +426,9 @@ export function personWeeks(input: {
   writes: PersonWrites;
   boxesRead: boolean;
   notes: ReadonlyMap<string, string> | null;
-  nameOf: (uid: string) => string | null;
   writtenHref: (weekNumber: number) => string | null;
+  /** The feedback on a week written as blocks, given its written answer's id (null for a week with none). */
+  feedbackOf: (weekNumber: number, answerId: string | null) => PersonWeekFeedback;
 }): PersonWeek[] {
   const { writes } = input;
   return [...input.columns]
@@ -424,7 +437,7 @@ export function personWeeks(input: {
       const n = column.weekNumber;
       const week = input.weekOf(n);
       if (!week) {
-        return { weekNumber: n, title: column.title, counted: false, parts: [], answer: null, boxes: null, sources: [], ticked: 0 };
+        return { weekNumber: n, title: column.title, counted: false, parts: [], answer: null, boxes: null, sources: [], ticked: 0, feedback: null };
       }
       const stored = week.answer ? (writes.answers.get(workKey(n, week.answer.id)) ?? null) : null;
       const answer: PersonAnswer | null = week.answer
@@ -435,14 +448,6 @@ export function personWeeks(input: {
             text: stored && !stored.boxes ? stored.text : "",
             boxes: stored?.boxes ? week.answer.boxes.map((box) => ({ label: box.label, text: stored.boxes?.[box.id] ?? "" })) : [],
             sentAt: stored?.sentAt ?? null,
-            feedback: stored?.feedback
-              ? {
-                  levels: stored.feedback.levels,
-                  comment: stored.feedback.comment,
-                  byName: stored.feedback.byUid ? input.nameOf(stored.feedback.byUid) : null,
-                  sentAt: stored.feedback.sentAt,
-                }
-              : null,
             href: input.writtenHref(n),
           }
         : null;
@@ -470,6 +475,7 @@ export function personWeeks(input: {
             : null,
         sources,
         ticked: sources.filter((source) => source.ticked).length,
+        feedback: input.feedbackOf(n, week.answer?.id ?? null),
       };
     });
 }

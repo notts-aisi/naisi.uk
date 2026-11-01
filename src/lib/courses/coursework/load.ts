@@ -11,7 +11,10 @@ import { boxesReaderFor } from "@/lib/courses/fillInBoxes/access";
 import { fullNameOfUser } from "@/lib/courses/programmeLead";
 import { resolveGroupCalendar, resolveWeekDocs } from "@/lib/courses/groupResolve";
 import { readPackCaseRecords } from "@/lib/courses/packsAndCases/readers";
-import { liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
+import { liveGroupsOf, ownerFactsOf, reviewerFactsOf, writtenReviewRole } from "@/lib/courses/writtenAnswers/access";
+import { byOldest, staffCardOf, staffLegacyCardOf } from "@/lib/courses/feedback/model";
+import { cardNamesOf, legacyRoleOf } from "@/lib/courses/feedback/readers";
+import { workIsReadable } from "@/lib/courses/weekWork/model";
 import type { SessionUser } from "@/lib/firebase/session";
 import {
   courseEnrolmentId,
@@ -28,6 +31,7 @@ import {
   courseworkWeekOf,
   personWeeks,
   readFilter,
+  workKey,
   type CourseworkFilter,
   type CourseworkPerson,
   type CourseworkSection,
@@ -338,6 +342,8 @@ export type PersonCourseworkView = {
   person: {
     uid: string;
     name: string;
+    /** The first name they go by, for the lines about their week page. */
+    firstName: string;
     facilitating: boolean;
     /** Their group, where this viewer may see it; null: not in a group yet. */
     groupName: string | null;
@@ -347,6 +353,8 @@ export type PersonCourseworkView = {
   weeks: PersonWeek[];
   /** Whether private notes were read for this viewer: admins only. */
   notesShown: boolean;
+  /** The first name the person looking goes by, for "Written by Claudia". */
+  viewerFirstName: string;
 };
 
 export type PersonCourseworkOutcome =
@@ -402,12 +410,33 @@ export async function loadPersonCoursework(
       columns.map((column) => ({ weekNumber: column.weekNumber, sourceIds: new Set((weekOf(column.weekNumber)?.sources ?? []).map((source) => source.id)) })),
     ),
   ]);
-  const feedbackNames = await namesOf(
-    db,
-    [...coursework.writes.answers.values()].flatMap((answer) => (answer.feedback?.byUid ? [answer.feedback.byUid] : [])),
-  );
+  // The feedback on their weeks, and whether this viewer may write it: the one gate on whose work a reader may act on.
+  const [cardNames, facts, owner] = await Promise.all([
+    cardNamesOf(db, [
+      uid,
+      actor.uid,
+      ...[...coursework.writes.answers.values()].map((answer) => answer.feedback?.byUid ?? ""),
+      ...coursework.feedback.map((piece) => piece.byUid),
+    ]),
+    reviewerFactsOf(db, actor, run.id),
+    ownerFactsOf(db, run.id, uid, groups, { isAdmin: viewer === "admin" }),
+  ]);
+  const mayWrite = owner !== null && writtenReviewRole(actor, facts, owner, groups).mayReview;
   const programmePath = programmePathOf(view);
   const group = person.groupId ? (groups.find((candidate) => candidate.id === person.groupId) ?? null) : null;
+  const reader = { uid: actor.uid, isAdmin: facts.isAdmin, now: new Date() };
+  const feedbackOf = (weekNumber: number, answerId: string | null) => {
+    const stored = answerId ? (coursework.writes.answers.get(workKey(weekNumber, answerId)) ?? null) : null;
+    const cards = byOldest([
+      ...(answerId && stored?.feedback
+        ? [staffLegacyCardOf(answerId, stored.feedback, legacyRoleOf(stored.feedback.byUid, group?.facilitatorUids ?? []), cardNames, reader)]
+        : []),
+      ...coursework.feedback.filter((piece) => piece.weekNumber === weekNumber).map((piece) => staffCardOf(piece, cardNames, reader)),
+    ]);
+    const own = [...cards].reverse().find((card) => card.mine && card.mayChange && card.on === "week") ?? null;
+    const readable = workIsReadable(coursework.states.stateOf(uid, weekNumber), { firstSentAt: stored?.sentAt ?? null });
+    return { cards: cards.filter((card) => card !== own), own, open: mayWrite && readable };
+  };
   return {
     status: "ok",
     view: {
@@ -419,6 +448,7 @@ export async function loadPersonCoursework(
       person: {
         uid,
         name: person.name,
+        firstName: cardNames.firstName(uid) || person.name,
         facilitating: person.facilitating,
         groupName: group ? group.name.trim() || "Untitled group" : null,
         notToldYet: person.notToldYet,
@@ -429,10 +459,11 @@ export async function loadPersonCoursework(
         writes: coursework.writes,
         boxesRead: boxesReader !== null,
         notes,
-        nameOf: (byUid) => feedbackNames.get(byUid) ?? null,
         writtenHref: (weekNumber) => writtenHrefOf(programmePath, person, weekNumber),
+        feedbackOf,
       }),
       notesShown: notes !== null,
+      viewerFirstName: cardNames.firstName(actor.uid),
     },
   };
 }

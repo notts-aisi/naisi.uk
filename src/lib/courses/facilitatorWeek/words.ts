@@ -1,4 +1,4 @@
-import { FEEDBACK_SENT, dayAndClockWords } from "@/lib/courses/writtenAnswerWords";
+import { FEEDBACK, dayAndClockWords, namesAnd } from "@/lib/courses/writtenAnswerWords";
 
 /**
  * THE WORDS OF A GROUP'S WEEK (boards wk-fac-group, wk-fac-group-phone,
@@ -83,10 +83,14 @@ export const NOBODY_LISTED = "Nobody is in this group yet.";
 /** A written answer waiting for the reader's feedback, a link to it: the board's words. */
 export const TO_GIVE_FEEDBACK = "To give feedback";
 
-/** "Feedback sent · Rahul": the board's words, the first name of who sent it, or "Feedback sent" with none. */
-export function feedbackSentByWords(byName: string | null): string {
-  const name = byName?.trim();
-  return name ? `${FEEDBACK_SENT} · ${name}` : FEEDBACK_SENT;
+/**
+ * "Feedback · Rahul and Sofia": who has left feedback on the answer, by the
+ * first names they go by, each once; "Feedback" with none on record. Saving
+ * feedback emails nobody, so this says it is given, never that it was sent.
+ */
+export function feedbackByWords(names: readonly string[]): string {
+  const known = names.map((name) => name.trim()).filter(Boolean);
+  return known.length > 0 ? `${FEEDBACK} · ${namesAnd(known)}` : FEEDBACK;
 }
 
 /** A pack the person chooses themselves, not chosen yet. No board draws it: listed for the boards' designers. */

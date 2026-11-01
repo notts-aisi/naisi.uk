@@ -31,6 +31,7 @@ import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
 import { COURSE_WEEK_WORK_COLLECTION } from "./courseWeekWork";
 import { COURSE_WORK_LOG_COLLECTION } from "./courseWorkLog";
+import { COURSE_FEEDBACK_COLLECTION, COURSE_FEEDBACK_SENDS_COLLECTION } from "./courseFeedback";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
 import {
@@ -194,6 +195,16 @@ export type AccountDeletionSummary = {
    */
   courseWeekWorkDeleted: number;
   courseWorkLogDeleted: number;
+  /**
+   * Feedback (`courseFeedback`): every piece on this account's work, and
+   * every piece it wrote on somebody else's, deleted (a piece is shown signed
+   * with its writer's name, and the name has gone). Its press of the batch
+   * email (`emailedByUid` on a piece, `byUid` on the batch's own record,
+   * `courseFeedbackSends`) is cleared from what stays, which is about
+   * somebody else's feedback or about the run.
+   */
+  courseFeedbackDeleted: number;
+  courseFeedbackCleared: number;
   /**
    * This account's place in each session's pairs (`coursePairs`): which pair
    * it was in and whether it was bringing a laptop. Deleted: each record is
@@ -846,6 +857,56 @@ export async function deleteCourseWeekWork(db: Firestore, uid: string): Promise<
     weeks: await deleteOwnedCourseRows(db, COURSE_WEEK_WORK_COLLECTION, uid),
     log: await deleteOwnedCourseRows(db, COURSE_WORK_LOG_COLLECTION, uid),
   };
+}
+
+/**
+ * Take one account out of feedback (`courseFeedback` and the batch's own
+ * record, `courseFeedbackSends`, described in `courseFeedback.ts`).
+ *
+ * A piece about this account's work carries its `uid`, and a piece it wrote
+ * carries it as `byUid`: each found by its one equality and deleted, the
+ * first because it is part of their work, the second because a piece is
+ * shown signed with its writer's name. A piece whose email this account's
+ * press sent carries it as `emailedByUid`, and a press or a test of the batch
+ * carries it as `byUid`: each found by its one equality and kept, with who
+ * pressed cleared, because it is about somebody else's feedback or about the
+ * run. Counted once per document.
+ */
+export async function clearCourseFeedback(db: Firestore, uid: string): Promise<{ deleted: number; cleared: number }> {
+  const pieces = db.collection(COURSE_FEEDBACK_COLLECTION);
+  const [about, wrote, emailed, pressed] = await Promise.all([
+    pieces.where("uid", "==", uid).get(),
+    pieces.where("byUid", "==", uid).get(),
+    pieces.where("emailedByUid", "==", uid).get(),
+    db.collection(COURSE_FEEDBACK_SENDS_COLLECTION).where("byUid", "==", uid).get(),
+  ]);
+  const writes: Array<(batch: ReturnType<Firestore["batch"]>) => void> = [];
+  const touched = new Set<string>();
+  let deleted = 0;
+  let cleared = 0;
+  for (const doc of [...about.docs, ...wrote.docs]) {
+    if (touched.has(doc.ref.path)) continue;
+    touched.add(doc.ref.path);
+    deleted += 1;
+    writes.push((batch) => batch.delete(doc.ref));
+  }
+  for (const [snap, field] of [
+    [emailed, "emailedByUid"],
+    [pressed, "byUid"],
+  ] as const) {
+    for (const doc of snap.docs) {
+      if (touched.has(doc.ref.path)) continue;
+      touched.add(doc.ref.path);
+      cleared += 1;
+      writes.push((batch) => batch.update(doc.ref, { [field]: "" }));
+    }
+  }
+  for (let at = 0; at < writes.length; at += 400) {
+    const batch = db.batch();
+    for (const write of writes.slice(at, at + 400)) write(batch);
+    await batch.commit();
+  }
+  return { deleted, cleared };
 }
 
 /**
@@ -1511,6 +1572,8 @@ export async function deleteAccountCascade(
     coursePacksAndCasesDeleted: 0,
     courseWeekWorkDeleted: 0,
     courseWorkLogDeleted: 0,
+    courseFeedbackDeleted: 0,
+    courseFeedbackCleared: 0,
     coursePairsDeleted: 0,
     courseCertificatesDeleted: 0,
     courseCertificatesKept: 0,
@@ -1972,6 +2035,18 @@ export async function deleteAccountCascade(
     summary.courseWorkLogDeleted = removed.log;
   } catch (err) {
     console.error("[deleteAccount] courseWeekWork delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c. FEEDBACK. The feedback on this account's work, and the feedback it
+  //      wrote, go with it; its presses of the batch email stay, about
+  //      somebody else or the run, without its name (see courseFeedback.ts).
+  try {
+    const feedback = await clearCourseFeedback(db, uid);
+    summary.courseFeedbackDeleted = feedback.deleted;
+    summary.courseFeedbackCleared = feedback.cleared;
+  } catch (err) {
+    console.error("[deleteAccount] courseFeedback delete failed:", uid, err);
     partialFailure = true;
   }
 
