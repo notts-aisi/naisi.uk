@@ -254,7 +254,8 @@ export async function POST(
     }
   }
   if (!claim.announce) {
-    // Already announced on an earlier publish. The event is live either way.
+    // Already announced on an earlier publish, or its organiser switched the
+    // announcement off. The event is live either way.
     return NextResponse.json({ ok: true, announced: false });
   }
   if (queueIt) {
