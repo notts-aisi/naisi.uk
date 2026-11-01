@@ -1238,7 +1238,8 @@ describe("4c. the Check-ins view: whole weeks, its floors, never a group's own f
       "lib/surveys/checkIns/facilitatorView.ts": "the register's card, behind the register's gate: a count while open, totals from three answers once closed",
       "lib/surveys/checkIns/leadView.ts": "the Surveys tab's reading, behind the tab's gate: a whole week, totals from three answers and comments from five; each group's row for an admin alone",
       "lib/surveys/onePerson.ts": "the admins' page of one person's answers, read once the opening is recorded",
-      "app/(app)/admin/(admin-only)/surveys/page.tsx": "the admins' list, one line a programme, behind the admin-only layout; reads no answer",
+      "lib/surveys/hub/load.ts":
+        "the admins' Surveys page by programme, behind the admin-only layout and canRunSurveys: a line a programme with the weeks they were at; reads no answer",
     };
     assert.deepEqual(finding, Object.keys(LISTED).sort(), "a file finds check-ins and is not listed with why (or a listed one no longer does)");
   });
