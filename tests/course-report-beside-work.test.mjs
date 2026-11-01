@@ -161,6 +161,9 @@ const EVERY_ON_CHLOE = {
 
 const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** Each line as the card names it: the lead's page's names for the answers. */
+const LABEL = { engaged: "Engaged well", notRead: "Seemed not to have done the readings", needsHand: "Might need a hand" };
+
 // ---------------------------------------------------------------------------
 // 1. The rule, pure
 // ---------------------------------------------------------------------------
@@ -315,7 +318,7 @@ describe("2. the review page as every caller", () => {
       assert.deepEqual(linesOf(page), { whose: "own", reports: [{ by: "", mine: true, occurrence: 1, lines }] }, who);
       assert.ok(!payloadOf(page).includes(never), `${who} is handed the other facilitator's line`);
       assert.ok(!page.html.includes(never), `${who} is shown the other facilitator's line`);
-      assert.match(page.text, new RegExp(`${escape(words.BESIDE_WORDS.own)} Not shown to Chloe ${lines.map((line) => line.kind === "engaged" ? "Engaged well" : line.kind === "notRead" ? "Seemed not to have done the readings" : "Might need a hand").join(" ")}`), who);
+      assert.match(page.text, new RegExp(`${escape(words.BESIDE_WORDS.own)} Not shown to Chloe ${lines.map((line) => LABEL[line.kind]).join(" ")}`), who);
       assert.doesNotMatch(page.text, /From the session reports|\bRahul Engaged well|\bSofia Seemed/, `${who}'s card names a writer`);
     }
   });
@@ -594,9 +597,7 @@ describe("6. the words, and a card that draws nothing when there is nothing", ()
     assert.equal(words.besideNotShownWords("Chloe"), "Not shown to Chloe");
     assert.equal(words.besideNotShownWords(" "), "Not shown to the person whose answer it is");
     assert.equal(words.besideSessionWords(2), "Session 2");
-    assert.equal(words.RUN_REPORTS_WORDS.engaged, "Engaged well");
-    assert.equal(words.RUN_REPORTS_WORDS.notRead, "Seemed not to have done the readings");
-    assert.equal(words.RUN_REPORTS_WORDS.needsHand, "Might need a hand");
+    for (const [kind, label] of Object.entries(LABEL)) assert.equal(words.RUN_REPORTS_WORDS[kind], label, kind);
     const all = [
       ...Object.values(words.BESIDE_WORDS),
       words.besideTitleWords("own", 2),
