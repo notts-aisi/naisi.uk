@@ -101,6 +101,12 @@ group's session is cancelled, the work is due by the same rule before the
 group's next session. Work first sent after the moment shows as Late to the
 group's facilitators, the lead and admins, and to nobody else.
 
+A week LOCKS when its person submits it, or when the group's session that
+week starts (the "before" rule's moment), whichever comes first; the people
+running the group can reopen it for one person. The week page says until
+when under the title. See "The week you submit" in `docs/courses-ops.md` and
+`src/lib/courses/weekWork/`.
+
 The loader says when the Markdown's words ("by noon the day before") and the
 course's setting disagree. The site goes by the setting.
 
@@ -281,10 +287,12 @@ Send it to your facilitator by the end of the day before your session.
 - Copied out, it opens with its own line:
   `**Written answer** · 200 to 300 words · due by the end of the day before the session`.
 
-What each person writes in it, who reads it, the lock when it is opened, "Late"
-and the feedback on the course's rubric are `src/lib/courses/writtenAnswers/`:
-`access.ts` is the one gate, `model.ts` the stored fields, and
-`src/lib/courses/rubric.ts` the rubric. The answer keeps the block's id, so a
+What each person writes in it, who reads it, "Late" and the feedback on the
+course's rubric are `src/lib/courses/writtenAnswers/`: `access.ts` is the one
+gate, `model.ts` the stored fields, and `src/lib/courses/rubric.ts` the
+rubric. It is sent by submitting the week, which also locks it, and its
+readers read its words only once the week is submitted or locked
+(`workIsReadable`, `src/lib/courses/weekWork/model.ts`). The answer keeps the block's id, so a
 paste that keeps the id keeps everybody's answers to it.
 
 ### Fill-in boxes, a checklist and a talk
