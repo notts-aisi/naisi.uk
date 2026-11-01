@@ -258,8 +258,10 @@ describe("2. who ticked each source, by name, behind a button", () => {
     // page where lines are read out count. Until 27 October 2026 the lead's and an admin's ticks counted all 5
     // people listed while their reflections counted the 3 fellows.
     const expected = [
-      ["A keeper's diary", ["Chloe Nguyen", "Farah Hussain", "Rahul Mehta (facilitator)"], 3],
-      ["Lamps at night", ["Farah Hussain", "Sofia Rossi (facilitator)"], 3],
+      // A facilitator by the name they go by (`fullNameOfUser`); this world's
+      // fellows go by their whole names.
+      ["A keeper's diary", ["Chloe Nguyen", "Farah Hussain", "Rahul (facilitator)"], 3],
+      ["Lamps at night", ["Farah Hussain", "Sofia (facilitator)"], 3],
     ];
     const pages = [
       ["an admin on the group page", await groupPage("zach")],
@@ -358,7 +360,7 @@ describe("3. the page to read lines out, without names", () => {
 
   test("the page names nobody beside an answer, and says who may hear a line", async () => {
     const { html, text } = await reflectionsPage("rahul");
-    for (const name of ["Chloe", "Farah", "Nguyen", "Hussain", "Isaac", "Amara", "Sofia Rossi"]) {
+    for (const name of ["Chloe", "Farah", "Nguyen", "Hussain", "Isaac", "Amara", "\\bSofia\\b", "Rossi"]) {
       assert.doesNotMatch(text, new RegExp(name), `the page shows ${name}`);
     }
     assert.match(text, /Group B · Week 3 · Reflections Reflections before tonight Prompt/);
@@ -440,7 +442,7 @@ describe("4. This week's work and the review queue's counts", () => {
       // The phone's lines, as wk-fac-group-phone draws them.
       assert.match(drawn.text, /FH Farah Hussain Reflections Part 1 written · part 2 written · part 3 not yet Week 3 Started KA Kofi Asante Reflections Not yet/);
       assert.match(drawn.text, /Facilitators’ own work is for Claudia and admins to read, so it isn’t listed here\./);
-      assert.doesNotMatch(drawn.text, /Rahul Mehta Facilitator|Sofia Rossi Facilitator|Isaac|Amara/);
+      assert.doesNotMatch(drawn.text, /\bRahul Facilitator|\bSofia Facilitator|Mehta|Rossi|Isaac|Amara/);
     }
   });
 
@@ -453,13 +455,13 @@ describe("4. This week's work and the review queue's counts", () => {
           ["Chloe Nguyen", [true, false, false]],
           ["Farah Hussain", [true, true, false]],
           ["Kofi Asante", [false, false, false]],
-          ["Rahul Mehta (facilitator)", [true, false, false]],
-          ["Sofia Rossi (facilitator)", [false, false, false]],
+          ["Rahul (facilitator)", [true, false, false]],
+          ["Sofia (facilitator)", [false, false, false]],
         ],
       );
       assert.deepEqual(week.counts.map((count) => [count.number, count.written, count.of]), [[1, 2, 3], [2, 1, 3], [3, 0, 3]]);
       assert.equal(week.of, 3);
-      assert.match(drawn.text, /RM Rahul Mehta Facilitator Written Not yet Not yet/);
+      assert.match(drawn.text, /R Rahul Facilitator Written Not yet Not yet/);
       assert.doesNotMatch(drawn.text, /Facilitators’ own work is for/);
       // Under the table, whom every number counts.
       assert.match(drawn.text, /Every number here counts the group’s 3 fellows\. Facilitators’ own work is marked Facilitator and isn’t counted\./);
@@ -479,7 +481,7 @@ describe("4. This week's work and the review queue's counts", () => {
     assert.equal(queueOf(asFacilitator), null);
     assert.match(asFacilitator.text, /This week’s work Week 3 · Thu 12 to Wed 18 Nov · Locks Tue 6pm You’ll see your group’s names when groups go out\./);
     const asAdmin = await groupPage("zach");
-    assert.deepEqual(weekOf(asAdmin).rows.map(said), ["Chloe Nguyen", "Farah Hussain", "Kofi Asante", "Rahul Mehta (facilitator)", "Sofia Rossi (facilitator)"]);
+    assert.deepEqual(weekOf(asAdmin).rows.map(said), ["Chloe Nguyen", "Farah Hussain", "Kofi Asante", "Rahul (facilitator)", "Sofia (facilitator)"]);
     assert.ok(queueOf(asAdmin));
   });
 
@@ -513,7 +515,7 @@ describe("5. the private notes: the group's facilitators and admins, never the l
 
   test("an admin reads every note of the group, a facilitator's own among them, marked as theirs", async () => {
     assert.deepEqual(notesOf(weekOf(await groupPage("zach"))), [
-      ["A keeper's diary", [["Chloe Nguyen", NOTED.chloe[1]], ["Rahul Mehta (facilitator)", NOTED.rahul[1]]]],
+      ["A keeper's diary", [["Chloe Nguyen", NOTED.chloe[1]], ["Rahul (facilitator)", NOTED.rahul[1]]]],
       ["Lamps at night", [["Kofi Asante", NOTED.kofi[1]]]],
     ]);
   });
@@ -566,18 +568,18 @@ describe("6. the lead's and admins' view of a group's week", () => {
     assert.deepEqual(
       props.prompts.map((prompt) => prompt.own.map((person) => [person.name, person.text])),
       [
-        [["Rahul Mehta", SAID.rahul["k3-rp1"]], ["Sofia Rossi", SAID.sofia["k3-rp1"]]],
-        [["Rahul Mehta", SAID.rahul["k3-rp2"]], ["Sofia Rossi", null]],
-        [["Rahul Mehta", null], ["Sofia Rossi", null]],
-        [["Rahul Mehta", null], ["Sofia Rossi", null]],
-        [["Rahul Mehta", null], ["Sofia Rossi", null]],
-        [["Rahul Mehta", null], ["Sofia Rossi", null]],
+        [["Rahul", SAID.rahul["k3-rp1"]], ["Sofia", SAID.sofia["k3-rp1"]]],
+        [["Rahul", SAID.rahul["k3-rp2"]], ["Sofia", null]],
+        [["Rahul", null], ["Sofia", null]],
+        [["Rahul", null], ["Sofia", null]],
+        [["Rahul", null], ["Sofia", null]],
+        [["Rahul", null], ["Sofia", null]],
       ],
     );
     assert.match(asLead.text, /Only you and admins read these\. They’re never read out\./);
     assert.match(asLead.text, new RegExp(`Chloe Nguyen Sun 15 Nov, 4:12pm ${SAID.chloe["k3-rp1"]} Farah Hussain Sun 15 Nov, 4:12pm ${SAID.farah["k3-rp1"]}`));
     assert.match(asLead.text, /2 of 3 wrote one · Kofi Asante hasn’t/);
-    assert.match(asLead.text, new RegExp(`Facilitators’ own reflections Rahul Mehta Facilitator Sun 15 Nov, 4:12pm ${SAID.rahul["k3-rp1"]} Sofia Rossi Facilitator Sun 15 Nov, 4:12pm ${SAID.sofia["k3-rp1"]}`));
+    assert.match(asLead.text, new RegExp(`Facilitators’ own reflections Rahul Facilitator Sun 15 Nov, 4:12pm ${SAID.rahul["k3-rp1"]} Sofia Facilitator Sun 15 Nov, 4:12pm ${SAID.sofia["k3-rp1"]}`));
     assert.doesNotMatch(asLead.html, /Read this out|To read out|Copy for the session/);
     // Nobody who left and nobody of another group, and never a private note.
     for (const uid of ["isaac", "amara"]) for (const text of Object.values(SAID[uid])) assert.ok(!asLead.html.includes(text), `the lead is shown ${uid}'s reflection`);

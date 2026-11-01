@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/Input";
 import OptionRow from "@/components/ui/OptionRow";
 import { degreeOf } from "@/features/profile/studyChange";
 import { formatSiteDate } from "@/lib/datetime/siteTime";
+import { accountNamesOf, staffNameOf } from "@/lib/names/staffName";
 import {
   STATUS_LABELS,
   type NewsletterPrefs,
@@ -173,12 +174,9 @@ export default function ApprovalCard({
   }
 
   const profile = user.profile;
-  // The name on the account, with what they go by beside it when that differs.
-  const name = user.displayName ?? profile?.preferredName ?? "Unnamed";
-  const goesBy =
-    profile?.preferredName && user.displayName && !user.displayName.startsWith(profile.preferredName)
-      ? profile.preferredName
-      : null;
+  // The full name they gave (else the name on the account), with what they go
+  // by beside it when that adds something: the staff rule, for an admin.
+  const { name, goBy: goesBy } = staffNameOf(accountNamesOf(user), "Unnamed");
   const subject = degreeOf(profile);
   const status = profile?.status
     ? profile.status === "other" && profile.statusOther

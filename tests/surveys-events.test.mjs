@@ -43,10 +43,11 @@ describe("the audiences: the people who came, or everybody who signed up, and no
     assert.deepEqual(came, [
       ["Dan Fitzgerald", "g:ci-dan", null, false],
       ["Gwen Price", `g:${RSVP.gwen}`, "gwen@example.com", true],
-      ["Kofi Asante", "a:kofi", "kofi@example.com", true],
-      ["Mo Rahman", "a:mo", "mo@example.com", false],
+      // An account by the name it goes by (`fullNameOfUser`); a guest by what they typed.
+      ["Kofi", "a:kofi", "kofi@example.com", true],
+      ["Mo", "a:mo", "mo@example.com", false],
       ["Rosa Martinez", "g:ci-rosa", "rosa@example.com", false],
-      ["Wren Hale", "a:wren", "wren@example.com", true],
+      ["Wren", "a:wren", "wren@example.com", true],
     ]);
   });
 
@@ -58,9 +59,9 @@ describe("the audiences: the people who came, or everybody who signed up, and no
     assert.deepEqual(
       membersOf(read, "event-signups").map((member) => [member.name, member.key, member.came]),
       [
-        ["Chloe Nguyen", "a:chloe", false],
+        ["Chloe", "a:chloe", false],
         ["Gwen Price", `g:${RSVP.gwen}`, true],
-        ["Kofi Asante", "a:kofi", true],
+        ["Kofi", "a:kofi", true],
       ],
     );
     // Pat (pending), Cora (cancelled), Dina (refused) and the test sign-up are
@@ -673,7 +674,7 @@ describe("the admins' pages for a survey after an event", () => {
     const answered = await w.page("app/(app)/admin/(admin-only)/surveys/[surveyId]/answered/page.tsx", { params: Promise.resolve({ surveyId: id }) }, "zach");
     assert.match(answered.text, /2 have answered: 1 with the QR code before any email, and 1 of the 4 it was emailed to/);
     assert.match(answered.text, /Gwen Price/);
-    assert.match(answered.text, /Kofi Asante/);
+    assert.match(answered.text, /\bKofi\b/);
     assert.match(answered.text, /Rosa Martinez/);
     assert.match(answered.text, /With the QR code, signed in/);
     const results = await w.page("app/(app)/admin/(admin-only)/surveys/[surveyId]/results/page.tsx", { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
@@ -917,7 +918,7 @@ describe("the event's Survey after tab: admins see the results; the organiser se
     const lines = csv.trim().split(/\r?\n/);
     assert.match(lines[0], /^Name,Sent,How,1\. How was it\?,2\. Would you come to another NAISI social\?/);
     assert.match(csv, /Gwen Price,[^,]+,Personal link,5,Yes/);
-    assert.match(csv, /Mo Rahman,[^,]+,"?Signed in, with the QR code"?,5,Yes/);
+    assert.match(csv, /(?:^|\n)Mo,[^,]+,"?Signed in, with the QR code"?,5,Yes/);
     assert.ok(!/@example\.com/.test(csv), "the download holds an address");
     const logged = w.world.db.paths().filter((path) => path.startsWith("dataExports/")).map((path) => w.world.db.read(path));
     assert.equal(logged.length, 1);

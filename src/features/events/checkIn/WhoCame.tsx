@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import StaffNameText from "@/components/StaffNameText";
 import Button from "@/components/ui/Button";
 import InitialsChip from "@/components/ui/InitialsChip";
 import { clockWords, dayWords } from "@/features/events/manageWords";
@@ -13,6 +14,8 @@ import {
   doorCounts,
   howWords,
   notListedWords,
+  rowName,
+  withDrawnName,
   type DoorRow,
   type NamesOff,
 } from "@/lib/events/checkInView";
@@ -106,7 +109,7 @@ export default function WhoCame({
       const data = (await res.json().catch(() => ({}))) as { row?: DoorRow; error?: string };
       if (!res.ok || !data.row) throw new Error(data.error ?? "That didn’t save. Try again.");
       const saved = data.row;
-      setRows((current) => current.map((r) => (r.key === row.key ? saved : r)));
+      setRows((current) => current.map((r) => (r.key === row.key ? withDrawnName(saved, r) : r)));
     } catch (err) {
       setProblem(
         err instanceof TypeError
@@ -171,7 +174,9 @@ export default function WhoCame({
                       <div className={styles.personCell}>
                         <InitialsChip name={row.name} uid={row.key} size="sm" />
                         <div className={styles.personText}>
-                          <span className={styles.personName}>{row.name}</span>
+                          <span className={styles.personName}>
+                            <StaffNameText name={rowName(row)} />
+                          </span>
                           {row.standing === "walk-in" && emailsKept && row.checkIn && (row.checkIn.emailGoesAt || row.checkIn.noEmail) && (
                             <span className={styles.personSub}>
                               {row.checkIn.emailGoesAt
@@ -204,7 +209,9 @@ export default function WhoCame({
             {notHere.map((row) => (
               <li key={row.key} className={styles.notHereRow}>
                 <InitialsChip name={row.name} uid={row.key} size="sm" />
-                <span className={styles.personName}>{row.name}</span>
+                <span className={styles.personName}>
+                  <StaffNameText name={rowName(row)} />
+                </span>
                 {canAdd && (
                   <Button
                     size="sm"

@@ -422,6 +422,27 @@ describe("best answers: admins only, labels to Claude and names back", () => {
     assert.equal(answer.body.outOfDate, false);
   });
 
+  test("a full name an account holds is taken out too, though nothing on the run shows it", async () => {
+    // Dev joined with an email address: no display name, "Dev" to go by, and
+    // the full name the site asked for, which Bea's answer uses.
+    const accounts = seed();
+    reset({
+      "users/dev": {
+        ...accounts["users/dev"],
+        displayName: null,
+        profile: { ...accounts["users/dev"].profile, preferredName: "Dev", fullName: "Devendra Patel" },
+      },
+      [rowPath("bea", "k3-rp1")]: written("bea", "k3-rp1", "Devendra and I argued about the lamps.", AFTER),
+    });
+    globalThis.__cwClaudeAnswer = BEST;
+    const answer = await ask("zach", routes.best.POST, params, { body: { weekId: "w03" } });
+    assert.equal(answer.status, 200);
+    const [asked] = globalThis.__cwClaudeAsked;
+    assert.doesNotMatch(asked.message, /Devendra/, "the full name Dev gave was sent");
+    assert.ok(asked.message.includes("a fellow and I argued about the lamps."), "Bea's answer was not sent, or not as scrubbed");
+    assertClean(asked.message, "the best answers message");
+  });
+
   test("a changed answer marks it out of date; somebody no longer holding a place is dropped", async () => {
     reset();
     globalThis.__cwClaudeAnswer = BEST;

@@ -404,6 +404,13 @@ export type Answers = Record<string, Record<string, AnswerValue>>;
  * reviewer reads what was true when the person applied.
  */
 export type AboutYou = {
+  /**
+   * Their full name. Only the committee is shown it: the reviewers and leads
+   * who read an application are admins and SU-recognised committee members.
+   * Copied onto the application with the rest, and never written back to
+   * the profile from here.
+   */
+  fullName: string;
   preferredName: string;
   universityEmail: string;
   universityEmailVerified: boolean;

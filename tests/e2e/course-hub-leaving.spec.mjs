@@ -392,11 +392,23 @@ test(
     }
     assert.ok(groupA.meetingUrl, `${groupA.name} has no meeting link, so 'the link goes' would prove nothing`);
     const linkHost = new URL(groupA.meetingUrl).host;
-    /** A group's people in the order the lead's tabs list them: whole name, then uid. */
+    /**
+     * A group's people in the order the lead's tabs list them: by the name
+     * those tabs show, then uid. The course screens name people by the name
+     * they go by (`fullNameOfUser`), which for this term's fixtures is
+     * `first`; the Applications tab and the Settings panel keep the name on
+     * the application, the account's display name.
+     */
     const membersOf = (group) =>
       term.people
         .filter((person) => person.groupKey === group.key)
-        .sort((a, b) => a.displayName.localeCompare(b.displayName, "en-GB") || a.uid.localeCompare(b.uid));
+        .sort((a, b) => a.first.localeCompare(b.first, "en-GB") || a.uid.localeCompare(b.uid));
+    /**
+     * A row heading's name pattern for this person: their whole go-by name at
+     * its start, never the start of a longer name. Text read off the page
+     * runs the name straight into what follows it ("BenLeft Fri 13 Nov").
+     */
+    const headingOf = (person) => new RegExp(`^${escapeRegExp(person.first)}(?![a-z])`);
 
     const weeks = Array.from({ length: term.weekCount }, (_, i) => i + 1);
 
@@ -1196,7 +1208,7 @@ test(
             await textsOf(notices),
             leavers.map(
               (person) =>
-                `${person.displayName} left the programme on ${dayLabel(leftKeyOf.get(person.key))}. ` +
+                `${person.first} left the programme on ${dayLabel(leftKeyOf.get(person.key))}. ` +
                 `${person.first}’s off the register from ${dayLabel(nextSession.dateKey)}.`,
             ),
             "Home does not say who left the group",
@@ -1229,7 +1241,7 @@ test(
           for (const [index, person] of [...staying, ...leavers].entries()) {
             const row = rows.nth(index);
             const left = leftKeyOf.has(person.key);
-            await row.getByText(person.displayName, { exact: true }).waitFor({ timeout: WAIT_MS });
+            await row.getByText(person.first, { exact: true }).waitFor({ timeout: WAIT_MS });
             assert.equal(
               await row.getByText(/^Left /).count(),
               left ? 1 : 0,
@@ -1285,11 +1297,13 @@ test(
             assert.ok(caption.includes(expected), `the register's caption does not say ${JSON.stringify(expected)}: ${caption}`);
           }
           for (const person of leavers) {
-            const row = grid.getByRole("row").filter({ has: fernPage.getByRole("rowheader", { name: new RegExp(`^${escapeRegExp(person.displayName)}`) }) });
+            const row = grid
+              .getByRole("row")
+              .filter({ has: fernPage.getByRole("rowheader", { name: headingOf(person) }) });
             await row.waitFor({ timeout: WAIT_MS });
             assert.deepEqual(
               await textsOf(row.getByRole("rowheader").locator(":scope > span")),
-              [person.displayName, leftLabelOf(person)],
+              [person.first, leftLabelOf(person)],
               `${person.first}'s row on the register does not say when they left`,
             );
             const cells = row.getByRole("img");
@@ -1298,7 +1312,7 @@ test(
             assert.deepEqual(
               labels,
               finishedWeeks.map(
-                (weekNumber) => `${person.displayName}, week ${weekNumber}: ${MARK_WORD[markOf(person, weekNumber)]}. ${leftLabelOf(person)}.`,
+                (weekNumber) => `${person.first}, week ${weekNumber}: ${MARK_WORD[markOf(person, weekNumber)]}. ${leftLabelOf(person)}.`,
               ),
               `${person.first}'s marks on the register`,
             );
@@ -1306,9 +1320,9 @@ test(
           }
           // Last, after everybody still taking part.
           const rowHeads = await textsOf(grid.locator("tbody").getByRole("rowheader"));
-          assert.ok(rowHeads[0].startsWith(ada.first), `the register does not list ${ada.first} first: ${JSON.stringify(rowHeads)}`);
+          assert.ok(headingOf(ada).test(rowHeads[0]), `the register does not list ${ada.first} first: ${JSON.stringify(rowHeads)}`);
           assert.deepEqual(
-            rowHeads.slice(1).map((said) => leavers.find((person) => said.startsWith(person.displayName))?.key ?? said),
+            rowHeads.slice(1).map((said) => leavers.find((person) => headingOf(person).test(said))?.key ?? said),
             leavers.map((person) => person.key),
             "the register does not list the two who left last",
           );
@@ -1319,7 +1333,7 @@ test(
             register.body.leavers.map((leaver) => [leaver.uid, leaver.displayName, leaver.left, leaver.records]),
             leavers.map((person) => [
               person.uid,
-              person.displayName,
+              person.first,
               leftLabelOf(person),
               Object.fromEntries(finishedWeeks.map((weekNumber) => [`w${String(weekNumber).padStart(2, "0")}`, markOf(person, weekNumber)])),
             ]),
@@ -1364,7 +1378,7 @@ test(
         assert.deepEqual(
           listed,
           leavers.map((person) => [
-            `${person.displayName} left on ${dayLabel(leftKeyOf.get(person.key))}`,
+            `${person.first} left on ${dayLabel(leftKeyOf.get(person.key))}`,
             `${person.first} said: “${said.get(person.key)}” ${person.first}’s off ${groupA.name}’s register from week ${nextWeek}.`,
           ]),
           "Needs attention does not quote each who left",
@@ -1464,7 +1478,7 @@ test(
               : left
                 ? "after they left"
                 : "not yet";
-            return `${person.displayName}, week ${weekNumber}: ${what}`;
+            return `${person.first}, week ${weekNumber}: ${what}`;
           });
         const cameOf = (person) => {
           const marks = finishedWeeks.map((weekNumber) => markOf(person, weekNumber));
@@ -1473,7 +1487,7 @@ test(
         for (const group of ordered) {
           for (const person of membersOf(group)) {
             const row = grid.getByRole("row").filter({
-              has: adminPage.getByRole("rowheader", { name: new RegExp(`^${escapeRegExp(person.displayName)}`) }),
+              has: adminPage.getByRole("rowheader", { name: headingOf(person) }),
             });
             await row.waitFor({ timeout: WAIT_MS });
             const marks = row.getByRole("img");
@@ -1483,7 +1497,7 @@ test(
             const { came, of } = cameOf(person);
             assert.equal(await textOf(row.locator("td").last()), `${came} of ${of}`, `${person.first}'s Came`);
             const header = row.getByRole("rowheader");
-            await header.getByText(person.displayName, { exact: true }).waitFor({ timeout: WAIT_MS });
+            await header.getByText(person.first, { exact: true }).waitFor({ timeout: WAIT_MS });
             if (leftKeyOf.has(person.key)) {
               await header.getByText(leftLabelOf(person), { exact: true }).waitFor({ timeout: WAIT_MS });
             } else {
@@ -1513,7 +1527,7 @@ test(
             const { came, of } = cameOf(person);
             rows.push([
               group.name,
-              person.displayName,
+              person.first,
               ...weeks.map((weekNumber) => (weekNumber <= thisWeek ? MARK_WORD[markOf(person, weekNumber)] : "")),
               came,
               of,

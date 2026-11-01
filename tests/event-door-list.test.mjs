@@ -247,7 +247,8 @@ describe("POST /api/events/<id>/check-ins", () => {
     const res = await press("sue", { rsvpId: RSVP.gwen, from: "door" });
     assert.equal(res.status, 201);
     assert.equal(res.body.created, true);
-    assert.deepEqual(Object.keys(res.body.row).sort(), ["checkIn", "key", "name", "rsvpId", "standing"]);
+    // The name in the parts a staff screen draws it in (src/lib/names/staffName.ts).
+    assert.deepEqual(Object.keys(res.body.row).sort(), ["apart", "checkIn", "goBy", "key", "name", "note", "rsvpId", "standing"]);
     assert.deepEqual(Object.keys(res.body.row.checkIn).sort(), ["at", "by", "emailGoesAt", "how", "id", "noEmail"]);
     assert.deepEqual(
       { ...res.body.row, checkIn: { ...res.body.row.checkIn, id: "-" } },
@@ -255,6 +256,9 @@ describe("POST /api/events/<id>/check-ins", () => {
         key: RSVP.gwen,
         rsvpId: RSVP.gwen,
         name: "Gwen Price",
+        goBy: null,
+        apart: null,
+        note: null,
         standing: "signed-up",
         // Who checked them in, by the name they go by: the event's page says it.
         checkIn: { id: "-", how: "door", at: DURING.toISOString(), by: "Sue", emailGoesAt: null, noEmail: false },

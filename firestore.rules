@@ -130,6 +130,9 @@ service cloud.firestore {
         // sends `subject` as text, `expectedGraduation` as text or leaves it
         // out, and never sends the older `course`.
         && newStudyAnswersAreText()
+        // The full name arrives as text of at most 120 characters, or not at
+        // all. See `newFullNameIsText` below.
+        && newFullNameIsText()
         // `email` is the address the rest of the system treats as PROVEN: the
         // subscription sync marks rows `confirmed` from it without a click, the
         // newsletter sender resolves recipients from it, and the application
@@ -311,6 +314,33 @@ service cloud.firestore {
           : studyChangesOf(request.resource.data) == studyChangesOf(resource.data);
       }
 
+      // THE FULL NAME IS TEXT OF AT MOST 120 CHARACTERS, OR ABSENT.
+      //
+      // `profile.fullName` is the name only the committee is shown
+      // (src/lib/names/staffName.ts), asked when an account is made, once on
+      // Home and on Profile. What an account writes to its own document is
+      // held to text of at most FIELD_LIMITS.fullName (120) characters when
+      // the key is there at all: not a number, a map or a null, and not a
+      // page of text. Removing it (no key) is always allowed.
+      //
+      // The same reading as the degree's keeps an older document saving: a
+      // value already stored and left exactly as it was is not the write's,
+      // so a document an admin wrote some other way still saves its other
+      // fields. Such a value can be replaced only by text, or removed. An
+      // admin's write takes the isAdmin() branch and is held to none of this.
+      function newFullNameIsText() {
+        return !('fullName' in request.resource.data.get('profile', {}))
+          || (request.resource.data.profile.fullName is string
+              && request.resource.data.profile.fullName.size() <= 120);
+      }
+      // Kept means stored before and left exactly as it was: a value written
+      // where there was none is held to the text rule, null included.
+      function fullNameIsTextOrKept() {
+        return newFullNameIsText()
+          || ('fullName' in resource.data.get('profile', {})
+              && request.resource.data.profile.fullName == resource.data.profile.fullName);
+      }
+
       // Self-update: role, tracks, permissions and suRecognised all unchanged.
       // (These are admin-only; a user editing their own profile must not be able
       //  to flip or clear any of them. suRecognised in particular is a trust
@@ -409,6 +439,9 @@ service cloud.firestore {
             // because that clause reads the degree, and the degree is read
             // one way only while these fields are text.
             && studyAnswersAreTextOrKept()
+            // The full name is text of at most 120 characters, or absent, or
+            // left as it was stored. See `fullNameIsTextOrKept` above.
+            && fullNameIsTextOrKept()
             // A change to the degree or the graduation carries its entry in
             // `studyChanges`, and no write here touches an earlier one. The
             // helpers and their reasons are above this rule. Inside the

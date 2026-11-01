@@ -98,6 +98,12 @@ function compact<T extends Record<string, unknown>>(obj: T): Partial<T> {
 }
 
 export async function completeRegistration(profile: {
+  /**
+   * The full name, which joining asks for above the name they go by. Only the
+   * committee is shown it. Written as given, and never filled in for them:
+   * the register page offers Google's name in the box, and the person decides.
+   */
+  fullName: string;
   preferredName: string;
   universityEmail: string;
   status: AffiliationStatus;

@@ -596,6 +596,81 @@ describe("asking Claude about a whole programme", () => {
     assert.equal(response.body.answer, "Amara Okafor is more specific than Dev Patel, as Claudia said.");
   });
 
+  test("a row's name is swapped whichever part is typed: the full name, or the name they go by", async () => {
+    // A row names an applicant "Amara Okafor (Mara)" when she goes by Mara, and
+    // "Dev Patel (Dev P)" when Dev goes by Dev P: every name in those is taken
+    // out, and a person listed under two names keeps one label.
+    const goesBy = (doc, preferredName) => {
+      doc.sent = { ...doc.sent, aboutYou: { ...doc.sent.aboutYou, preferredName } };
+      doc.draft = doc.sent;
+      return doc;
+    };
+    world({
+      [applicationPath("amara")]: goesBy(amaraWithALongAnswer(), "Mara"),
+      [applicationPath("dev")]: goesBy(applicationDoc("dev", [AGI]), "Dev P"),
+    });
+    as("zach");
+    await ASK("claude");
+    globalThis.__claudeAsked = [];
+    globalThis.__claudeAnswer = {
+      ok: true,
+      model: "claude-opus-5-5",
+      usage: { inputTokens: 1, outputTokens: 1 },
+      value: { answer: "Applicant 1 is more specific than Applicant 2." },
+    };
+    const response = await PROGRAMME({
+      kind: "question",
+      question: "Is Mara more specific than Amara Okafor was? And Dev P, or Dev Patel, or just Dev?",
+    });
+    assert.equal(response.status, 200);
+    const { message } = globalThis.__claudeAsked[0];
+    for (const word of ["Mara", "Amara", "Okafor", "Dev", "Patel"]) {
+      assert.equal(new RegExp(`\\b${word}\\b`).test(message), false, `the question sent ${word}`);
+    }
+    assert.match(
+      message,
+      /Is Applicant 1 more specific than Applicant 1 was\? And Applicant 2, or Applicant 2, or just Applicant 2\?/,
+    );
+    assert.equal(response.body.answer, "Amara Okafor (Mara) is more specific than Dev Patel (Dev P).");
+  });
+
+  test("a full name on the account is taken out too, though the row names them otherwise", async () => {
+    // Dev gave a full name on Home after he applied: his row still shows the application's.
+    db.poke("users/dev", { "profile.fullName": "Devendra Patel" });
+    as("zach");
+    await ASK("claude");
+    globalThis.__claudeAsked = [];
+    globalThis.__claudeAnswer = {
+      ok: true,
+      model: "claude-opus-5-5",
+      usage: { inputTokens: 1, outputTokens: 1 },
+      value: { answer: "Applicant 2 is keener." },
+    };
+    const response = await PROGRAMME({ kind: "question", question: "Is Devendra keener than Amara?" });
+    assert.equal(response.status, 200);
+    const { message } = globalThis.__claudeAsked[0];
+    assert.doesNotMatch(message, /Devendra/, "the full name on Dev's account was sent");
+    assert.match(message, /Is Applicant 2 keener than Applicant 1\?/);
+  });
+
+  test("a name that starts or ends with an accented letter is taken out like any other", async () => {
+    db.poke("users/dev", { "profile.fullName": "Zoë Patel" });
+    as("zach");
+    await ASK("claude");
+    globalThis.__claudeAsked = [];
+    globalThis.__claudeAnswer = {
+      ok: true,
+      model: "claude-opus-5-5",
+      usage: { inputTokens: 1, outputTokens: 1 },
+      value: { answer: "Applicant 2 is keener." },
+    };
+    const response = await PROGRAMME({ kind: "question", question: "Is Zoë keener than Amara? Ask zoë PATEL." });
+    assert.equal(response.status, 200);
+    const { message } = globalThis.__claudeAsked[0];
+    assert.doesNotMatch(message, /zoë|patel/i, "an accented name was sent");
+    assert.match(message, /Is Applicant 2 keener than Applicant 1\? Ask Applicant 2\./);
+  });
+
   test("an empty or very long question is refused before anything is read", async () => {
     as("zach");
     assert.equal((await PROGRAMME({ kind: "question", question: "  " })).status, 400);

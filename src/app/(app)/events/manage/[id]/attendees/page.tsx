@@ -6,7 +6,10 @@ import AttendeeDashboard from "@/features/events/AttendeeDashboard";
 import EventTabs from "@/features/events/checkIn/EventTabs";
 import { getEventForPreview } from "@/features/events/fetchEvents";
 import { whenWords } from "@/features/events/manageWords";
+import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { staffNamesFor } from "@/lib/names/load";
+import type { StaffName } from "@/lib/names/staffName";
 import styles from "../../events.module.css";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +32,17 @@ export default async function AttendeesPage({
 
   const event = await getEventForPreview(id);
   if (!event) notFound();
+
+  // The names of the accounts that signed up, as the committee sees them: the
+  // full name, with the name they go by after it, and what tells two with one
+  // full name apart. The list shows every address beside its name already.
+  const db = getAdminDb();
+  const people: Record<string, StaffName> = {};
+  if (db) {
+    const signups = await db.collection("eventRsvps").where("eventId", "==", event.id).get();
+    const uids = signups.docs.map((doc) => doc.get("uid") as unknown).filter((uid): uid is string => typeof uid === "string");
+    for (const [uid, staff] of await staffNamesFor(db, uids, viewer, { emailShown: true })) people[uid] = staff;
+  }
 
   const name = event.title || "Untitled event";
 
@@ -65,7 +79,7 @@ export default async function AttendeesPage({
         showCheckIn={event.status === "published"}
       />
 
-      <AttendeeDashboard event={event} />
+      <AttendeeDashboard event={event} people={people} />
     </div>
   );
 }

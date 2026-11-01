@@ -10,10 +10,18 @@
  * different name from the one the person was shown.
  *
  * Now one rule decides, `accountNameOf` in `src/lib/firestore/users.ts`: the
- * stored display name when it has text, else the preferred name when it has
+ * preferred name when it has text, else the stored display name when it has
  * text, else nothing and the address stands in. The server applies it in
  * `getCurrentUser`, the browser in `AuthProvider`, and the form draws no boxes
  * for a signed-in person at all. This suite holds the three together:
+ *
+ * THE NAME PEOPLE GO BY COMES FIRST (the full names change, 1 November
+ * 2026). The display name of an account made with Google is Google's name
+ * for them, often their whole name, and the privacy policy says only the
+ * committee sees a full name. So the name a sign-up stores, which its
+ * organisers and the confirmation email use, is the name the person goes by.
+ * The committee's screens look the full name up themselves
+ * (tests/full-name-readers.test.mjs lists them).
  *
  *  1. THE RULE, as a table.
  *  2. THE ROUTE, executed with the REAL session reader over a fake Firestore,
@@ -132,9 +140,16 @@ const { default: RsvpForm } = await loadTs("features/events/RsvpForm.tsx");
 // ===========================================================================
 
 describe("the one name rule", () => {
-  test("the stored display name, else the preferred name, else nothing", () => {
+  test("the preferred name, else the stored display name, else nothing", () => {
     const cases = [
-      ["a Google account", { displayName: "Priya Shah", profile: { preferredName: "Priya" } }, "Priya Shah"],
+      ["a Google account", { displayName: "Priya Shah", profile: { preferredName: "Priya" } }, "Priya"],
+      ["a Google account that goes by another name", { displayName: "Priya Shah", profile: { preferredName: "Pri" } }, "Pri"],
+      ["a Google account with no preferred name", { displayName: "Priya Shah", profile: { preferredName: "" } }, "Priya Shah"],
+      ["a preferred name of spaces beside a display name", { displayName: "Priya Shah", profile: { preferredName: "  " } }, "Priya Shah"],
+      ["a preferred name that is not text", { displayName: "Priya Shah", profile: { preferredName: 7 } }, "Priya Shah"],
+      // The full name is never the name somebody goes by, whoever reads it.
+      ["a full name beside the name they go by", { displayName: null, profile: { fullName: "Priya Shah", preferredName: "Pri" } }, "Pri"],
+      ["a full name and nothing else", { displayName: null, profile: { fullName: "Priya Shah" } }, null],
       ["an email-and-password account", { displayName: null, profile: { preferredName: "Priya Shah" } }, "Priya Shah"],
       ["no display name stored at all", { profile: { preferredName: "Priya Shah" } }, "Priya Shah"],
       ["a stored empty display name", { displayName: "", profile: { preferredName: "Priya Shah" } }, "Priya Shah"],
@@ -259,7 +274,9 @@ describe("the route stores the rule's name for a signed-in sign-up", () => {
       stored[label] = storedRows()[0].name;
     }
     assert.deepEqual(stored, {
-      "an account made with Google": "Priya Shah",
+      // The name the person goes by, not Google's name for them, which until
+      // 1 November 2026 was the one stored here.
+      "an account made with Google": "Priya",
       "an account made with an email address and a password": "Priya Shah",
       // Before the rule, a stored "" did not fall through, and the row was
       // named by the address.
@@ -364,6 +381,16 @@ describe("the form, signed out, keeps the guest's boxes as they were", () => {
       assert.match(box, /required/);
     }
     assert.doesNotMatch(text, /Signing up as/);
+  });
+
+  test("the guest's one name box asks for a first and last name, under its old id", () => {
+    const { html } = renderForm(null, { visibility: "public" });
+    // The people at the door tell two guests called Sam apart by the second
+    // name. One box, so the stored name stays one string, and `#rsvp-name`
+    // is what tests/e2e/events-rsvp.spec.mjs fills.
+    assert.match(html, /<label[^>]*for="rsvp-name"[^>]*>Your first and last name<\/label>/);
+    assert.equal((html.match(/<input[^>]*id="rsvp-name"/g) ?? []).length, 1);
+    assert.match(/<input[^>]*id="rsvp-name"[^>]*>/.exec(html)?.[0] ?? "", /autoComplete="name"|autocomplete="name"/);
   });
 
   test("a session with no address keeps the boxes, so the form is never bricked", () => {

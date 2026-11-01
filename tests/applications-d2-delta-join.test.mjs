@@ -63,6 +63,7 @@ const codeOf = (file) => sourceOf(file).replace(/\/\*[\s\S]*?\*\//g, " ").replac
 /** A complete set of answers from an undergraduate. */
 function answers(overrides = {}) {
   return {
+    fullName: "Devika Rao",
     preferredName: "Dev",
     universityEmail: "someone@nottingham.ac.uk",
     universityEmailVerified: false,
@@ -85,6 +86,7 @@ const words = (count) => Array.from({ length: count }, (_, index) => `word${inde
 describe("what stops a join request", () => {
   test("a step nobody has typed in is missing everything it asks, in the order it asks", () => {
     assert.deepEqual(rules.joinIssues(rules.emptyJoinAnswers(), false), [
+      "Tell us your full name.",
       "Tell us what to call you.",
       "Add your university email.",
       "Tell us what you do at UoN.",
@@ -179,6 +181,7 @@ describe("what stops a join request", () => {
 describe("what is sent as the join request", () => {
   const SENT_KEYS = [
     "expectedGraduation",
+    "fullName",
     "interests",
     "motivation",
     "notifications",
@@ -224,6 +227,7 @@ describe("what is sent as the join request", () => {
   test("the answers go in as typed, without the spaces around them", () => {
     const request = rules.joinRequestFrom(
       answers({
+        fullName: "  Devika Rao ",
         preferredName: "  Dev ",
         universityEmail: " Someone@Nottingham.ac.uk ",
         subject: " BSc Physics ",
@@ -231,6 +235,7 @@ describe("what is sent as the join request", () => {
         interests: "  Evals ",
       }),
     );
+    assert.equal(request.fullName, "Devika Rao");
     assert.equal(request.preferredName, "Dev");
     assert.equal(request.universityEmail, "Someone@Nottingham.ac.uk");
     assert.equal(request.subject, "BSc Physics");
@@ -280,6 +285,7 @@ describe("what is kept while somebody signs in", () => {
   const NOW = Date.UTC(2026, 9, 7, 9, 0, 0);
   const KEPT_FIELDS = [
     "expectedGraduation",
+    "fullName",
     "interests",
     "motivation",
     "preferredName",

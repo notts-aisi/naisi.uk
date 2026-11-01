@@ -134,6 +134,13 @@ const READERS = {
       "admin included, and a facilitator runs only those, so a seat nobody has told is in no group's tag and no " +
       "message chosen by one reaches it; somebody who left after being told is listed as having left",
   },
+  "lib/names/load.ts": {
+    kind: "shown",
+    asks: 1,
+    why:
+      "what tells two people with one full name apart on a staff screen: their programme and group, the group named only " +
+      "where the placement may be shown to the screen's viewer, so an untold seat is named by its programme alone",
+  },
   "lib/courses/weekOne/door.ts": {
     kind: "told",
     asks: 1,

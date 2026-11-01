@@ -163,7 +163,11 @@ export async function PUT(req: Request, ctx: Ctx) {
         // From the SESSION, never the body: an applicant must not be able to
         // put somebody else's address on a document the committee will email.
         email: user.email ?? null,
-        displayName: user.displayName?.trim() || account.about.preferredName,
+        // The account's own display name first, as the session gave it before
+        // the session put the name people go by first: what this field has
+        // always held, for every screen and row that reads it. The full name
+        // is on the About you the draft carries.
+        displayName: account.displayName || user.displayName?.trim() || account.about.preferredName,
       },
       draft,
       paused,

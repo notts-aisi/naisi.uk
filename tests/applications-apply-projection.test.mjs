@@ -172,6 +172,7 @@ function storedSet(overrides = {}) {
 function content(overrides = {}) {
   return {
     aboutYou: {
+      fullName: "Amara Okafor",
       preferredName: "Amara",
       universityEmail: "ada@nottingham.ac.uk",
       universityEmailVerified: true,
@@ -429,8 +430,10 @@ describe("somebody's own application", () => {
         "suMembership",
         "wantsToFacilitate",
       ]);
+      // The full name is the applicant's own, sent back to them alone.
       assert.deepEqual(keys(part.aboutYou), [
         "expectedGraduation",
+        "fullName",
         "interests",
         "motivation",
         "preferredName",

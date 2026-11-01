@@ -189,6 +189,7 @@ export function contentFor(uid, ranked) {
   if (ranked.includes(TAIS)) answers[TAIS] = { built: "A small classifier." };
   return {
     aboutYou: {
+      fullName: who.displayName,
       preferredName: who.displayName.split(" ")[0],
       universityEmail: `${uid}@students.example.com`,
       universityEmailVerified: true,

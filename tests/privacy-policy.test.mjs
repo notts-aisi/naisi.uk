@@ -2461,6 +2461,7 @@ describe("the application form passage", () => {
       delete globalThis.window;
     });
     const typed = {
+      fullName: "Ada Lovelace",
       preferredName: "Ada",
       universityEmail: "ada@nottingham.ac.uk",
       universityEmailVerified: false,
@@ -2543,6 +2544,7 @@ describe("the application form passage", () => {
     // "Hold only your answers to that step and when you last changed them":
     // the rule that packs both copies, run on more than it should keep.
     const typed = {
+      fullName: "Ada Lovelace",
       preferredName: "Ada",
       universityEmail: "ada@nottingham.ac.uk",
       universityEmailVerified: true,
@@ -2559,8 +2561,11 @@ describe("the application form passage", () => {
     const now = Date.UTC(2026, 9, 7, 12);
     const packed = joinRules.packKept(typed, now);
     assert.deepEqual(Object.keys(JSON.parse(packed)).sort(), ["about", "at", "v"]);
+    // The full name is one of the step's answers (it asks it first), so it is
+    // kept with them.
     assert.deepEqual(Object.keys(JSON.parse(packed).about).sort(), [
       "expectedGraduation",
+      "fullName",
       "interests",
       "motivation",
       "preferredName",
@@ -3030,6 +3035,93 @@ describe("the account record passage", () => {
       serverTime: "the server's time",
     });
     assert.deepEqual(Object.keys(waiting.patch), ["profile.subject"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2f, continued: the full name
+// ---------------------------------------------------------------------------
+
+/**
+ * Two sentences under "Joining" say that we may ask for a full name beside the
+ * name somebody goes by, and who sees each. They are held here to the rule
+ * that decides which name a viewer sees, RUN as every kind of viewer
+ * (`nameForViewer` in src/lib/names/staffName.ts), to the shared helpers that
+ * name people on every other screen, and to the walk that lists every file
+ * that reads, writes or draws a full name with the gate in front of it
+ * (tests/full-name-readers.test.mjs, which runs that walk in full).
+ *
+ * "The committee" is the committee role and admins, SU-recognised or not. A
+ * member who facilitates a group is not on it, and is shown the name people
+ * go by, with no surname and no initial.
+ */
+const nameRule = await loadTs("lib/names/staffName.ts");
+const usersModule = await loadTs("lib/firestore/users.ts");
+
+describe("the full name passage", () => {
+  const SENTENCE =
+    "We may also ask for your full name as well as the name you go by. Only the committee sees your full name; everyone else sees the name you go by.";
+
+  test("joining may ask for a full name, and only the committee is shown it", () => {
+    const joining = PAGE_FLAT.slice(
+      PAGE_FLAT.indexOf("<strong>Joining.</strong>"),
+      PAGE_FLAT.indexOf("<strong>Membership.</strong>"),
+    );
+    assert.ok(joining.includes(SENTENCE), "the policy no longer says, under Joining, who sees a full name");
+
+    // The rule, run as every kind of viewer, for an account made with Google
+    // that goes by a name of its own and gave its full name.
+    const account = { displayName: "Priya Shah", profile: { preferredName: "Pri", fullName: "Priya Kaur Shah" } };
+    const names = nameRule.accountNamesOf(account);
+    const seen = (viewer) => nameRule.nameForViewer(viewer, names, "NAISI member");
+    // "Only the committee sees your full name": the committee role and admins.
+    assert.equal(seen({ role: "admin" }), "Priya Kaur Shah (Pri)");
+    assert.equal(seen({ role: "committee", suRecognised: true }), "Priya Kaur Shah (Pri)");
+    assert.equal(seen({ role: "committee", suRecognised: false }), "Priya Kaur Shah (Pri)");
+    // "Everyone else sees the name you go by": a member, a member who
+    // facilitates a group, somebody waiting or turned down, and nobody.
+    for (const viewer of [{ role: "member" }, { role: "pending" }, { role: "rejected" }, null]) {
+      assert.equal(seen(viewer), "Pri", `a viewer who is ${viewer?.role ?? "nobody"} is shown more than the name people go by`);
+    }
+    // Not even Google's name, which is often a whole name, reaches a member.
+    assert.ok(!/Shah|Kaur/.test(seen({ role: "member" })));
+
+    // The shared helpers every other screen names people by put the name
+    // people go by first, so a facilitator reading a course screen is not
+    // shown Google's name for somebody.
+    assert.equal(usersModule.accountNameOf(account), "Pri");
+    const programmeLead = withoutComments(read("src/lib/courses/programmeLead.ts"));
+    assert.match(programmeLead, /return preferred \|\| display \|\| "NAISI member";/);
+    assert.ok(!/profile\.fullName|fullName:/.test(programmeLead), "the course screens' name helper now reads the full name");
+
+    // Every file that reads, writes or draws one is listed with its gate, both
+    // directions, in its own walk; this checks the walk is still the walk.
+    const walk = read("tests/full-name-readers.test.mjs");
+    assert.match(walk, /const NAMES_A_FULL_NAME = new RegExp\(/);
+    assert.ok(walk.includes(String.raw`\\bfullName(?:AskedAt)?\\b`), "the walk no longer looks for the field");
+    assert.match(walk, /found\.filter\(\(file\) => !READERS\.has\(file\)\)/);
+    assert.match(walk, /\[\.\.\.READERS\.keys\(\)\]\.filter\(\(file\) => !found\.includes\(file\)\)/);
+
+    // Joining asks it, on both ways of making an account, and says who sees it.
+    const register = read("src/app/(auth)/register/page.tsx");
+    assert.match(register, /label="Full name"\s*hint="So the committee can tell people apart\. Only the committee sees it\."/);
+    const about = read("src/features/applications/apply/AboutStep.tsx");
+    assert.match(about, /label="Full name"[\s\S]{0,300}helpBelow="So the committee can tell people apart\. Only the committee sees it\."/);
+
+    // The users rule holds what an account writes of it to its own document.
+    const rules = read("firestore.rules");
+    assert.match(rules, /&& newFullNameIsText\(\)/);
+    assert.match(rules, /&& fullNameIsTextOrKept\(\)/);
+  });
+
+  test("a certificate does not print the full name somebody gave", () => {
+    // A certificate whose link is on can be read by anybody holding the link,
+    // so it prints what it printed before a full name was asked for, by its
+    // own rule. tests/names-rule.test.mjs holds its output to that.
+    const send = withoutComments(read("src/lib/courses/certificates/send.ts"));
+    assert.match(send, /name: certificateNameOf\(account\),/);
+    const rule = withoutComments(read("src/lib/names/certificateName.ts"));
+    assert.ok(!/fullName/.test(rule), "a certificate now prints the full name, which only the committee may see");
   });
 });
 
@@ -6974,7 +7066,12 @@ describe("the check-in passage", () => {
     const tab = withoutComments(read("src/app/(app)/events/manage/[id]/check-in/page.tsx"));
     assert.match(tab, /const namesOff = namesOffOf\(checkIns\);\s*const counts = doorCounts\(rows, namesOff\);/);
     assert.match(tab, /initialRows=\{rows\}\s*namesOff=\{namesOff\}/);
-    assert.match(withoutComments(read("src/app/(app)/events/manage/[id]/door/page.tsx")), /initialRows=\{doorRows\(doorListSignups\(signups\), checkIns\)\}\s*namesOff=\{namesOffOf\(checkIns\)\}/);
+    // The door list draws the door-list sign-ups and every check-in, with the
+    // names of the accounts on it looked up for the committee who run it
+    // (`staffNamesFor`, the full names change of 1 November 2026).
+    const doorPage = withoutComments(read("src/app/(app)/events/manage/[id]/door/page.tsx"));
+    assert.match(doorPage, /const listed = doorListSignups\(signups\);/);
+    assert.match(doorPage, /initialRows=\{doorRows\(listed, checkIns, undefined, people\)\}\s*namesOff=\{namesOffOf\(checkIns\)\}/);
     // This term in numbers counts each as one more person nobody can match,
     // and the head over a survey after an event's results counts it as came.
     assert.match(withoutComments(read("src/lib/surveys/term/load.ts")), /for \(const checkIn of checkIns\) if \(checkIn\.namesOff\) counted\.push\(\{ how: checkIn\.how, keys: \[\], namesOff: true \}\);/);
@@ -7127,7 +7224,16 @@ describe("the check-in passage", () => {
     const tab = withoutComments(read("src/app/(app)/events/manage/[id]/check-in/page.tsx"));
     // Names of who checked people in for the people who run check-in; for everybody else, the opener's alone.
     assert.match(tab, /const names = await staffNames\(db, staff \? \[\.\.\.checkIns\.map\(\(row\) => row\.byUid\), opening\?\.by \?\? null\] : \[opening\?\.by \?\? null\]\);/);
-    assert.match(tab, /const rows = doorRows\(doorListSignups\(signups\), checkIns, staff \? names : undefined\);/);
+    // The rows are the door-list sign-ups and every check-in. The names of
+    // the accounts on them are looked up for the people who run check-in
+    // alone (the full names change of 1 November 2026); everybody else's rows
+    // are counted and never drawn.
+    assert.match(tab, /const listed = doorListSignups\(signups\);/);
+    assert.match(
+      tab,
+      /const people = staff\s*\?\s*await staffNamesFor\(db, \[\.\.\.listed\.map\(\(row\) => row\.uid\), \.\.\.checkIns\.map\(\(row\) => row\.uid\)\], viewer\)\s*:\s*undefined;/,
+    );
+    assert.match(tab, /const rows = doorRows\(listed, checkIns, staff \? names : undefined, people\);/);
     assert.match(tab, /name: names\.get\(opening\.by\) \?\? null, isViewer: opening\.by === viewer\.uid/);
     // Who may open the door: the event's author while their account stands, and admins. Opening it checks nobody in.
     const opens = withoutComments(read("src/app/api/events/[id]/door/route.ts"));

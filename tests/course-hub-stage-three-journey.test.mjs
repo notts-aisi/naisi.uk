@@ -1604,27 +1604,31 @@ const RULE_SENTENCE = (n) =>
 const NO_RULE =
   "There’s no rule for who finished yet, so we haven’t ticked anybody. Set one in Settings, or tick people yourself. Only you and admins see this.";
 const NOTE = "Group B met 5 times. Its session on Tue 24 Nov was cancelled, and it doesn’t count against anyone.";
-/** Each person's row of Who finished, as the rule and the registers make it: [name, group, came to, exercises, line]. */
+/**
+ * Each person's row of Who finished, as the rule and the registers make it:
+ * [name, group, came to, exercises, line]. Every course screen names people
+ * by the name they go by (`fullNameOfUser`, since the full names change).
+ */
 const ROWS = {
-  farah: ["Farah Hussain", "Group B", "3 of 5", "0 of 6", "Missed weeks 5 and 6"],
-  kofi: ["Kofi Asante", "Group B", "3 of 5", "5 of 6", "Excused in weeks 1 and 3"],
-  mei: ["Mei Tanaka", "Group A", "3 of 6", "1 of 6", "Excused in week 2. Missed weeks 4 and 5."],
-  isaac: ["Isaac Mensah", "Group B", "4 of 5", "3 of 6", "Missed week 3"],
-  noah: ["Noah Bennett", "Group A", "4 of 6", "2 of 6", "Missed weeks 3 and 5"],
-  amara: ["Amara Okafor", "Group B", "5 of 5", "5 of 6", null],
-  dev: ["Dev Patel", "Group A", "6 of 6", "4 of 6", null],
+  farah: ["Farah", "Group B", "3 of 5", "0 of 6", "Missed weeks 5 and 6"],
+  kofi: ["Kofi", "Group B", "3 of 5", "5 of 6", "Excused in weeks 1 and 3"],
+  mei: ["Mei", "Group A", "3 of 6", "1 of 6", "Excused in week 2. Missed weeks 4 and 5."],
+  isaac: ["Isaac", "Group B", "4 of 5", "3 of 6", "Missed week 3"],
+  noah: ["Noah", "Group A", "4 of 6", "2 of 6", "Missed weeks 3 and 5"],
+  amara: ["Amara", "Group B", "5 of 5", "5 of 6", null],
+  dev: ["Dev", "Group A", "6 of 6", "4 of 6", null],
 };
 /** The list as drawn, fewest sessions first: each row with whether it is ticked and who changed it. */
 const listOf = (ticked, changed = {}) =>
   ["farah", "kofi", "mei", "isaac", "noah", "amara", "dev"].map((uid) => [...ROWS[uid], ticked.includes(uid), changed[uid] ?? null]);
 const LEFT = [
-  ["Joel Adeyemi", "Group A", "Left Wed 4 Nov"],
-  ["Sam Whitfield", "Group B", "Left Fri 13 Nov"],
+  ["Joel", "Group A", "Left Wed 4 Nov"],
+  ["Sam", "Group B", "Left Fri 13 Nov"],
 ];
 /** What the Overview says of the two who left, as every viewer reads it. */
 const LEFT_ATTENTION = [
-  ["left", "Sam Whitfield left on Fri 13 Nov", "Sam said: “Too much on this term.” Sam’s off Group B’s register from week 3."],
-  ["left", "Joel Adeyemi left on Wed 4 Nov", "Joel’s off Group A’s register from week 2."],
+  ["left", "Sam left on Fri 13 Nov", "Sam said: “Too much on this term.” Sam’s off Group B’s register from week 3."],
+  ["left", "Joel left on Wed 4 Nov", "Joel’s off Group A’s register from week 2."],
 ];
 /**
  * The page Sam reads once Sam has left, at the run's address and at its notes
@@ -1827,23 +1831,23 @@ describe("stage three of the course hub, one term from week 3 to after its end",
       for (const tabs of [l().lead, l().admin]) {
         assert.deepEqual(tabs.overview.attention, LEFT_ATTENTION);
         assert.deepEqual(tabs.overview.people, { takingPart: 7, left: 2, line: "2 left. Places can’t be offered after week 1." });
-        const sam = tabs.attendance.find((group) => group.name === "Group B").people.find((person) => person.name === "Sam Whitfield");
-        assert.deepEqual(sam, { name: "Sam Whitfield", left: "Left Fri 13 Nov", marks: [[1, "present"], [2, "absent"]], after: [3, 4, 5, 6], came: "1 of 2" });
-        const joel = tabs.attendance.find((group) => group.name === "Group A").people.find((person) => person.name === "Joel Adeyemi");
-        assert.deepEqual(joel, { name: "Joel Adeyemi", left: "Left Wed 4 Nov", marks: [[1, "present"]], after: [2, 3, 4, 5, 6], came: "1 of 1" });
+        const sam = tabs.attendance.find((group) => group.name === "Group B").people.find((person) => person.name === "Sam");
+        assert.deepEqual(sam, { name: "Sam", left: "Left Fri 13 Nov", marks: [[1, "present"], [2, "absent"]], after: [3, 4, 5, 6], came: "1 of 2" });
+        const joel = tabs.attendance.find((group) => group.name === "Group A").people.find((person) => person.name === "Joel");
+        assert.deepEqual(joel, { name: "Joel", left: "Left Wed 4 Nov", marks: [[1, "present"]], after: [2, 3, 4, 5, 6], came: "1 of 1" });
       }
       assert.equal(
         l().csv,
         `${BOM}Group,Name,Week 1,Week 2,Week 3,Week 4,Week 5,Week 6,Came,Of,Left\n` +
-          "Group B,Amara Okafor,Present,Present,,,,,2,2,\n" +
-          "Group B,Farah Hussain,Present,Late,,,,,2,2,\n" +
-          "Group B,Isaac Mensah,Present,Present,,,,,2,2,\n" +
-          "Group B,Kofi Asante,Excused,Present,,,,,1,2,\n" +
-          "Group B,Sam Whitfield,Present,Absent,,,,,1,2,2026-11-13\n" +
-          "Group A,Dev Patel,Late,Present,Present,,,,3,3,\n" +
-          "Group A,Joel Adeyemi,Present,,,,,,1,1,2026-11-04\n" +
-          "Group A,Mei Tanaka,Present,Excused,Present,,,,2,3,\n" +
-          "Group A,Noah Bennett,Present,Present,Absent,,,,2,3,",
+          "Group B,Amara,Present,Present,,,,,2,2,\n" +
+          "Group B,Farah,Present,Late,,,,,2,2,\n" +
+          "Group B,Isaac,Present,Present,,,,,2,2,\n" +
+          "Group B,Kofi,Excused,Present,,,,,1,2,\n" +
+          "Group B,Sam,Present,Absent,,,,,1,2,2026-11-13\n" +
+          "Group A,Dev,Late,Present,Present,,,,3,3,\n" +
+          "Group A,Joel,Present,,,,,,1,1,2026-11-04\n" +
+          "Group A,Mei,Present,Excused,Present,,,,2,3,\n" +
+          "Group A,Noah,Present,Present,Absent,,,,2,3,",
       );
       // The register names the people in the group by the name they go by,
       // and somebody who left by their whole name, as the grid and
@@ -1851,9 +1855,9 @@ describe("stage three of the course hub, one term from week 3 to after its end",
       for (const who of ["rahul", "claudia"]) {
         const register = l().registers[who];
         assert.deepEqual(register.members, ["Amara", "Farah", "Isaac", "Kofi"], who);
-        assert.deepEqual(register.leavers, [{ name: "Sam Whitfield", left: "Left Fri 13 Nov", marks: { "week 1": "present", "week 2": "absent" } }], who);
+        assert.deepEqual(register.leavers, [{ name: "Sam", left: "Left Fri 13 Nov", marks: { "week 1": "present", "week 2": "absent" } }], who);
       }
-      assert.deepEqual(l().registers.amelia.leavers, [{ name: "Joel Adeyemi", left: "Left Wed 4 Nov", marks: { "week 1": "present" } }]);
+      assert.deepEqual(l().registers.amelia.leavers, [{ name: "Joel", left: "Left Wed 4 Nov", marks: { "week 1": "present" } }]);
     });
 
     test("his group goes on without him: Publish owes nothing, his group's roster and Rahul's update leave him out", () => {
@@ -1967,7 +1971,7 @@ describe("stage three of the course hub, one term from week 3 to after its end",
       assert.deepEqual(groupB.weeks, [[1, "3 Nov", null], [2, "10 Nov", null], [3, "17 Nov", null], [4, "24 Nov", "not-held"], [5, "1 Dec", null], [6, "8 Dec", null]]);
       assert.deepEqual(
         groupB.people.map((person) => [person.name, person.came]),
-        [["Amara Okafor", "5 of 5"], ["Farah Hussain", "3 of 5"], ["Isaac Mensah", "4 of 5"], ["Kofi Asante", "3 of 5"], ["Sam Whitfield", "1 of 2"]],
+        [["Amara", "5 of 5"], ["Farah", "3 of 5"], ["Isaac", "4 of 5"], ["Kofi", "3 of 5"], ["Sam", "1 of 2"]],
       );
       // Until the walk of stage three Needs attention went on chasing Farah's
       // two absences in a row after the run's last session, and the grid drew
@@ -1975,8 +1979,8 @@ describe("stage three of the course hub, one term from week 3 to after its end",
       // chases anybody once the run is over.
       assert.deepEqual(a().lead.overview.attention.map(([kind]) => kind), ["left", "left"]);
       assert.deepEqual([a().lead.inARow, a().admin.inARow], [[], []]);
-      assert.deepEqual(a().registers.rahul.leavers.map((leaver) => [leaver.name, leaver.left]), [["Sam Whitfield", "Left Fri 13 Nov"]]);
-      assert.deepEqual(a().registers.amelia.leavers.map((leaver) => [leaver.name, leaver.left]), [["Joel Adeyemi", "Left Wed 4 Nov"]]);
+      assert.deepEqual(a().registers.rahul.leavers.map((leaver) => [leaver.name, leaver.left]), [["Sam", "Left Fri 13 Nov"]]);
+      assert.deepEqual(a().registers.amelia.leavers.map((leaver) => [leaver.name, leaver.left]), [["Joel", "Left Wed 4 Nov"]]);
     });
 
     test("the members' own calendars still run to tonight: their pages are on week 6 and claim nothing yet", () => {
@@ -2049,7 +2053,7 @@ describe("stage three of the course hub, one term from week 3 to after its end",
       assert.deepEqual(whoFinished(d().admin).rows, listOf(["kofi", "isaac", "noah", "amara", "dev"], { kofi: "Changed by Claudia" }));
       assert.deepEqual(d().farahBack.body.model.rows.find((row) => row.uid === "farah"), {
         uid: "farah",
-        name: "Farah Hussain",
+        name: "Farah",
         groupName: "Group B",
         came: "3 of 5",
         exercises: "0 of 6",
@@ -2063,8 +2067,8 @@ describe("stage three of the course hub, one term from week 3 to after its end",
     // who left by themselves (H7).
     test("nobody who left, nobody not taking part, and nobody but the lead and admins can be switched", () => {
       assert.deepEqual(d().refused, {
-        "Sam, who left": [409, "Sam Whitfield left the programme, so they aren’t on the list of who finished."],
-        "Joel, whom she removed": [409, "Joel Adeyemi left the programme, so they aren’t on the list of who finished."],
+        "Sam, who left": [409, "Sam left the programme, so they aren’t on the list of who finished."],
+        "Joel, whom she removed": [409, "Joel left the programme, so they aren’t on the list of who finished."],
         "Hannah, who was never on it": [404, "That person isn’t taking part in this programme."],
         "by the reviewer": [403, "Only the programme’s lead and admins can say who finished."],
         "by another programme's lead": [404, "That programme is not on this form."],
@@ -2198,7 +2202,7 @@ describe("stage three of the course hub, one term from week 3 to after its end",
     test("she keeps her finished record, her pages and her place on the form", () => {
       assert.equal(e().section.counts, "5 finished · 2 not");
       assert.deepEqual(e().section.left, LEFT);
-      assert.ok(e().section.rows.some(([name, , , , , finished]) => name === "Amara Okafor" && finished === true));
+      assert.ok(e().section.rows.some(([name, , , , , finished]) => name === "Amara" && finished === true));
       assert.deepEqual([e().member.overview, e().member.entry], [{ finished: true }, { finished: true, membership: "enrolled" }]);
       assert.equal(e().member.home, MEMBER_PAGES.amara.home);
       assert.deepEqual(e().application, e().applicationBefore);

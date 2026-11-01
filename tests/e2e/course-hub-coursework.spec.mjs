@@ -284,6 +284,10 @@ test(
         "the lead opens the Coursework tab: everybody in their group, the person in no group last, and each cell in counts",
         async () => {
           activePage = adminPage;
+          // Each fellow is named by the name their row on the run carries (the
+          // account's display name when they applied, unique to this run); a
+          // facilitator by the name they go by (`fullNameOfUser`, the fixture's
+          // `first`), since only the committee is shown more than that.
           await adminPage.goto(`${formBase}/attendance`, { waitUntil: "domcontentloaded" });
           // The tab sits after Attendance in the programme's row.
           const tabLink = adminPage.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Coursework", exact: true });
@@ -295,7 +299,7 @@ test(
           const expected = ordered.map((group) =>
             sectionOf(group.name, [
               ...state.people.filter((person) => person.groupKey === group.key).map((person) => ({ name: person.displayName })),
-              ...(group === facilitated ? [{ name: fern.displayName, mark: "Facilitator" }] : []),
+              ...(group === facilitated ? [{ name: fern.first, mark: "Facilitator" }] : []),
             ]),
           );
           expected.push(sectionOf("Not in a group yet", [{ name: dan.displayName }]));
@@ -383,10 +387,10 @@ test(
         await adminPage.getByRole("heading", { name: "Week 3 reflections", level: 1 }).waitFor({ timeout: WAIT_MS });
         const prompt = adminPage.locator("section").filter({ has: adminPage.getByRole("heading", { name: COURSEWORK_PROMPTS.rp1, level: 2 }) });
         const words = await wordsIn(prompt);
-        assert.ok(words.includes(`1 of 2 wrote one · ${ben.displayName} hasn’t`), `the prompt does not name who has not written: ${words}`);
-        assert.ok(new RegExp(`${escapeRegExp(ada.displayName)} ${WHEN.source} ${escapeRegExp(adaSaid)}`).test(words), `Ada's reflection is not under her name: ${words}`);
+        assert.ok(words.includes(`1 of 2 wrote one · ${ben.first} hasn’t`), `the prompt does not name who has not written: ${words}`);
+        assert.ok(new RegExp(`${escapeRegExp(ada.first)} ${WHEN.source} ${escapeRegExp(adaSaid)}`).test(words), `Ada's reflection is not under her name: ${words}`);
         // Fern's own reflections are the lead's to read, marked as hers.
-        assert.ok(words.includes(`Facilitators’ own reflections ${fern.displayName} Facilitator Not written yet.`), `Fern's own reflection is not marked: ${words}`);
+        assert.ok(words.includes(`Facilitators’ own reflections ${fern.first} Facilitator Not written yet.`), `Fern's own reflection is not marked: ${words}`);
         // Another group's never.
         assert.ok(!(await mainOf(adminPage)).includes(cleoSaid), "Group B's reflection is on Group A's page");
       });
@@ -403,8 +407,8 @@ test(
         ]);
         await facilitatorPage.getByRole("heading", { name: "Week 3 reflections", level: 1 }).waitFor({ timeout: WAIT_MS });
         const said = await mainOf(facilitatorPage);
-        assert.ok(new RegExp(`${escapeRegExp(ada.displayName)} ${WHEN.source} ${escapeRegExp(adaSaid)}`).test(said), `Ada's reflection is not under her name: ${said}`);
-        assert.ok(said.includes(`1 of 2 wrote one · ${ben.displayName} hasn’t`), "the prompt does not name who has not written");
+        assert.ok(new RegExp(`${escapeRegExp(ada.first)} ${WHEN.source} ${escapeRegExp(adaSaid)}`).test(said), `Ada's reflection is not under her name: ${said}`);
+        assert.ok(said.includes(`1 of 2 wrote one · ${ben.first} hasn’t`), "the prompt does not name who has not written");
         for (const words of [adaNote, adaAnswer, cleoSaid]) assert.ok(!said.includes(words), `the facilitator is shown ${JSON.stringify(words)}`);
         assert.ok(!said.includes("Facilitators’ own reflections"), "a facilitator is shown facilitators' own reflections");
         assert.ok(!said.includes("Private note"), "a facilitator's page with names shows a private note");
@@ -422,6 +426,7 @@ test(
         const said = await mainOf(facilitatorPage);
         assert.ok(said.includes(`Reflection 1 Read this out ${adaSaid}`), `the answer is not drawn as a reflection with no name: ${said}`);
         assert.ok(!said.includes(ada.displayName), "the page to read lines out names Ada");
+        assert.ok(!new RegExp(`\\b${escapeRegExp(ada.first)}\\b`).test(said), "the page to read lines out names Ada");
         assert.ok(!WHEN.test(said), "the page to read lines out says when an answer was written");
       });
     } finally {

@@ -11,6 +11,8 @@ import {
 } from "@/lib/ai/pangram";
 import type { SessionUser } from "@/lib/firebase/session";
 import { admissionAssessmentId, ASSESSMENTS_COLLECTION } from "@/lib/firestore/admissionAssessments";
+import { namesToScrubOf } from "@/lib/names/scrub";
+import { namesInStaffWords } from "@/lib/names/staffName";
 import { canRunTerm } from "../access";
 import { own } from "../keys";
 import { loadProgrammeBoard, loadReview, loadStaffNames } from "../review/load";
@@ -372,10 +374,15 @@ export async function askAboutProgramme(
   const named = (text: string) => namedFor(text, applicantNames, reviewerNames);
 
   if (ask.kind === "question") {
-    const people = [
-      ...Object.entries(applicantNames).map(([label, name]) => ({ label, name })),
-      ...Object.entries(reviewerNames).map(([label, name]) => ({ label, name })),
-    ];
+    // Every name each applicant holds is taken out of the question: the full
+    // name and the name they go by from their row ("Priya Shah (Pri)"), and
+    // their account's own names.
+    const accountNames = await namesToScrubOf(db, Object.values(input.applicants));
+    const applicants = Object.entries(input.applicants).flatMap(([label, uid]) => {
+      const names = new Set([...namesInStaffWords(own(applicantNames, label) ?? ""), ...(accountNames.get(uid) ?? [])]);
+      return [...names].map((name) => ({ label, name }));
+    });
+    const people = [...applicants, ...Object.entries(reviewerNames).map(([label, name]) => ({ label, name }))];
     const answer = await askAboutTheProgramme(input.message, scrubbed(ask.question, people));
     if (!answer.ok) return refuse(500, answer.reason);
     return { ok: true, answer: named(answer.answer), question: ask.question };

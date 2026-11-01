@@ -35,6 +35,7 @@ import {
   walkInEmailGoesAt,
 } from "@/lib/events/checkIns";
 import { findDoorCode } from "@/lib/events/doorCode";
+import { staffNamesFor } from "@/lib/names/load";
 import { publicLocationText } from "@/lib/events/location";
 import { shortLinkAddress, shortLinkUrl } from "@/lib/qr/shortLinkCode";
 import { surveyClosesFor } from "@/lib/surveys/events/records";
@@ -89,7 +90,14 @@ export default async function CheckInTabPage({ params }: { params: Promise<{ id:
   // Who checked each person in, for the people who see who came; who opened
   // the door, for everybody.
   const names = await staffNames(db, staff ? [...checkIns.map((row) => row.byUid), opening?.by ?? null] : [opening?.by ?? null]);
-  const rows = doorRows(doorListSignups(signups), checkIns, staff ? names : undefined);
+  const listed = doorListSignups(signups);
+  // The names of who came, as the committee sees them (`staffNamesFor`): read
+  // only for the people who are shown them. Everybody else's rows are counted
+  // and never drawn.
+  const people = staff
+    ? await staffNamesFor(db, [...listed.map((row) => row.uid), ...checkIns.map((row) => row.uid)], viewer)
+    : undefined;
+  const rows = doorRows(listed, checkIns, staff ? names : undefined, people);
   // A check-in whose names have come off has no row and still counts.
   const namesOff = namesOffOf(checkIns);
   const counts = doorCounts(rows, namesOff);

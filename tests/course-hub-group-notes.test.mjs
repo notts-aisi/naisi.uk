@@ -215,11 +215,14 @@ describe("3. the server's reader", () => {
     world.db.seed("courseGroupNotes/blank", { runId: RUN.agi, groupId: B, authorUid: "rahul", body: "   ", createdAt: NOW });
 
     const read = await readers.readGroupNotes(world.courseDb, { id: B, runId: RUN.agi });
+    // The writer by the name they go by (`fullNameOfUser`), never the
+    // account's display name: the group's other facilitators read these, and
+    // only the committee sees a full name.
     assert.deepEqual(
       read.map((note) => [note.writerFirstName, note.writerName, note.byline, note.body]),
       [
-        ["Rahul", "Rahul Mehta", "Rahul · Mon 16 Nov", "Room change this week."],
-        ["Sofia", "Sofia Rossi", "Sofia · Wed 11 Nov", "Chloe and Isaac carried week 2."],
+        ["Rahul", "Rahul", "Rahul · Mon 16 Nov", "Room change this week."],
+        ["Sofia", "Sofia", "Sofia · Wed 11 Nov", "Chloe and Isaac carried week 2."],
       ],
     );
 

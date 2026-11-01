@@ -770,7 +770,8 @@ describe("8. the admins' pages and routes", () => {
     assert.equal(groups[0].line, "1 check-in, 1 open now");
     assert.deepEqual(groups[0].rows.map((row) => [row.label, row.open, row.closes, row.reached]), [["Week 2 · Group B · Tue 27 Oct", true, "Closes Tue 27 Oct", 3]]);
     const opening = await openingView(world.db, records.normalizeSurvey(ID, read(`surveys/${ID}`)), DURING);
-    assert.equal(opening.opened, "Opened by Rahul Mehta on Tue 27 Oct, 7:50pm, for the 2 marked here.");
+    // Named by the name Rahul goes by, as every survey screen names people (`namesOf`).
+    assert.equal(opening.opened, "Opened by Rahul on Tue 27 Oct, 7:50pm, for the 2 marked here.");
     assert.deepEqual(opening.joined, ["1 more marked here after it opened, with no email."]);
     assert.deepEqual(opening.closes, { label: "Closes", value: "Tue 27 Oct, 11pm" });
   });

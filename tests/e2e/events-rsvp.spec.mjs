@@ -384,6 +384,13 @@ test("events RSVP: a signed-out guest books a place and the page fits a phone", 
       // and losing that race is what this step is here to notice.
       const nameBox = page.locator("#rsvp-name");
       const emailBox = page.locator("#rsvp-email");
+      // One box asks for both names, so the people at the door can tell two
+      // guests with one first name apart. Its id is unchanged.
+      assert.equal(
+        await page.getByLabel("Your first and last name", { exact: true }).getAttribute("id"),
+        "rsvp-name",
+        "the guest's name box no longer asks for a first and last name",
+      );
       await nameBox.fill(state.guestName);
       await emailBox.fill(state.guestEmail);
       await waitForHydration(page, "rsvp-form");

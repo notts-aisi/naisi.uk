@@ -384,8 +384,8 @@ describe("3. the draw", () => {
       "Chloe Nguyen",
       "Farah Hussain",
       "Kofi Asante",
-      "Rahul Mehta",
-      "Sofia Rossi",
+      "Rahul",
+      "Sofia",
       "Save",
       "Each person sees theirs on their week 3 page. No email.",
     ]);

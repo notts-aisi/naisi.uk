@@ -654,6 +654,24 @@ describe("the routes, as every kind of caller in the term", () => {
     const catalogue = JSON.stringify((await w.call("zach", route.GET, {})).body);
     assert.doesNotMatch(catalogue, /@/, "an address in the catalogue");
   });
+
+  test("names follow the site's one rule for the caller: the full name for the committee, the name they go by for a facilitator", async (t) => {
+    mock.timers.enable({ apis: ["Date"], now: AFTER });
+    t.after(() => mock.timers.reset());
+    w.reset(seed());
+    // Amara gave her full name, and goes by Mara.
+    w.world.db.poke("users/amara", { "profile.fullName": "Amara Okafor", "profile.preferredName": "Mara" });
+    const namesFor = async (who) => (await w.call(who, whoRoute.POST, {}, { body: { include: [T.groupB] } })).body.people.map((person) => person.name);
+    const asAdmin = await namesFor("zach");
+    const asLead = await namesFor("claudia");
+    // Sofia facilitates Group B and holds no committee role.
+    const asFacilitator = await namesFor("sofia");
+    assert.ok(asAdmin.includes("Amara Okafor (Mara)"), JSON.stringify(asAdmin));
+    assert.ok(asLead.includes("Amara Okafor (Mara)"), JSON.stringify(asLead));
+    assert.ok(asFacilitator.includes("Mara"), JSON.stringify(asFacilitator));
+    assert.ok(!asFacilitator.some((name) => /Okafor|Amara|\(/.test(name)), `a facilitator is shown a full name: ${JSON.stringify(asFacilitator)}`);
+    assert.equal(asFacilitator.length, asAdmin.length);
+  });
 });
 
 // ---------------------------------------------------------------------------

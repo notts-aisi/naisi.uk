@@ -39,6 +39,11 @@
  *    entry holding exactly the row's answer and with no other, or with no
  *    entry at all where the row says there was no answer.
  *
+ *  - THE FULL NAME IS TEXT OF AT MOST 120 CHARACTERS, OR NOTHING. The name
+ *    only the committee is shown (`profile.fullName`), which joining, Home's
+ *    question and Profile write. A value already stored and left as it was
+ *    is not the write's, as for the degree. An admin's write is not held.
+ *
  * It also still holds what it held before the entries existed. The save
  * depends on the rule pinning named FIELDS and keeping `keys().hasOnly()` off
  * `profile` (`users-push-preferences.test.mjs` explains that at length), and
@@ -1081,6 +1086,106 @@ describe("an admin's edit is not the member's change", () => {
     const after = await storedNow("subject1");
     assert.equal(after.profile.subject, "Statistics");
     assert.deepEqual(Object.keys(after.studyChanges), ["first1"]);
+  });
+});
+
+describe("the full name is text of at most 120 characters, or nothing", () => {
+  // `profile.fullName` is the name only the committee is shown. Joining asks
+  // it, Home asks it once of an older account (`FullNameCard.tsx`), and
+  // Profile always has the box. What an account writes to its own document is
+  // held to text of at most FIELD_LIMITS.fullName characters when the key is
+  // there at all; an admin's write is not.
+  const HOME = readFileSync(join(REPO_ROOT, "src", "app", "(app)", "dashboard", "FullNameCard.tsx"), "utf8");
+  const longest = "A".repeat(FIELD_LIMITS.fullName);
+  const registration = (uid, profile) => ({
+    email: `${uid}@example.com`,
+    displayName: "Ada Lovelace",
+    photoURL: null,
+    role: "pending",
+    showOnMembers: false,
+    profile: { preferredName: "Ada", subject: "Mathematics", ...profile },
+    policyVersion: "v1",
+    policyAgreedAt: serverTime(),
+    createdAt: serverTime(),
+  });
+
+  it("the limit the form reads is the rule's", () => {
+    assert.equal(FIELD_LIMITS.fullName, 120);
+  });
+
+  it("joining stores it as text, up to the limit, or leaves it out", async () => {
+    await assertSucceeds((await own("full1")).set(registration("full1", { fullName: "Ada Lovelace" })));
+    await assertSucceeds((await own("full2")).set(registration("full2", { fullName: longest })));
+    // An older client, which never asked.
+    await assertSucceeds((await own("full3")).set(registration("full3", {})));
+  });
+
+  it("joining with one that is too long, or not text, is refused", async () => {
+    const doc = await own("full4");
+    await assertFails(doc.set(registration("full4", { fullName: `${longest}A` })));
+    for (const value of [7, null, ["Ada", "Lovelace"], { first: "Ada" }, true]) {
+      await assertFails(doc.set(registration("full4", { fullName: value })));
+    }
+    assert.equal(await storedNow("full4"), undefined, "one of those creates went through");
+  });
+
+  it("Home's answer and Home's Skip both save, as the card sends them", async () => {
+    for (const literal of ['"profile.fullName": fullName', '"profile.fullNameAskedAt": serverTimestamp()']) {
+      assert.ok(HOME.includes(literal), `the Home card no longer sends \`${literal}\`: send what it sends now`);
+    }
+    await seedUser("home1", stored());
+    await assertSucceeds(
+      (await own("home1")).update({ "profile.fullName": "Ada Lovelace", "profile.fullNameAskedAt": serverTime() }),
+    );
+    assert.equal((await storedNow("home1")).profile.fullName, "Ada Lovelace");
+    await seedUser("home2", stored());
+    await assertSucceeds((await own("home2")).update({ "profile.fullNameAskedAt": serverTime() }));
+    assert.equal("fullName" in (await storedNow("home2")).profile, false);
+  });
+
+  it("Profile's save carries it beside everything else, and taking it out saves", async () => {
+    await seedUser("prof1", stored());
+    const { write } = formSave(stored());
+    await assertSucceeds((await own("prof1")).update({ ...write, "profile.fullName": longest }));
+    await assertSucceeds(
+      (await own("prof1")).update({
+        ...write,
+        "profile.fullName": firebase.firestore.FieldValue.delete(),
+        "profile.fullNameAskedAt": serverTime(),
+      }),
+    );
+    assert.equal("fullName" in (await storedNow("prof1")).profile, false);
+  });
+
+  it("an account's own write of one too long, or not text, is refused", async () => {
+    await seedUser("bad1", stored());
+    const doc = await own("bad1");
+    await assertFails(doc.update({ "profile.fullName": `${longest}A` }));
+    for (const value of [7, null, ["Ada"], { first: "Ada" }, false]) {
+      await assertFails(doc.update({ "profile.fullName": value }));
+    }
+    // And not slipped in beside the profile's ordinary save.
+    const { write } = formSave(stored());
+    await assertFails(doc.update({ ...write, "profile.fullName": `${longest}A` }));
+    assert.equal("fullName" in (await storedNow("bad1")).profile, false);
+  });
+
+  it("a stored value an admin wrote some other way is left where it is, and can only be replaced by text", async () => {
+    const odd = stored();
+    odd.profile.fullName = 7;
+    await seedUser("odd1", odd);
+    const doc = await own("odd1");
+    // The ordinary save, which leaves it exactly as it was.
+    await assertSucceeds(doc.update(formSave(odd).write));
+    await assertFails(doc.update({ "profile.fullName": 8 }));
+    await assertSucceeds(doc.update({ "profile.fullName": "Ada Lovelace" }));
+  });
+
+  it("an admin's write is not held to it", async () => {
+    await seedUser("admin2", { role: "admin" });
+    await seedUser("subject2", stored());
+    const db = await asUser("admin2");
+    await assertSucceeds(db.collection("users").doc("subject2").update({ "profile.fullName": `${longest}A` }));
   });
 });
 

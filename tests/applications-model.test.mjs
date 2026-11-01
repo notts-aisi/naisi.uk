@@ -153,6 +153,7 @@ const SETS = Object.entries(SETS_RAW).map(([id, raw]) =>
 function amara(overrides = {}) {
   return normalise.normaliseContent({
     aboutYou: {
+      fullName: "Amara Okafor",
       preferredName: "Amara",
       // A fixture address the tree already lists: the check needs a university domain.
       universityEmail: "ada@nottingham.ac.uk",
@@ -468,7 +469,11 @@ describe("what stops an application being sent", () => {
     const content = amara();
     content.aboutYou = { ...normalise.EMPTY_ABOUT_YOU };
     const messages = validate.issuesFor(FORM, SETS, content).filter((i) => i.step === "about");
-    assert.equal(messages.length, 5, "name, email, what you do, degree, why");
+    assert.equal(messages.length, 6, "full name, name, email, what you do, degree, why");
+    assert.equal(messages[0].message, "Tell us your full name.", "the full name is asked first, as the step asks it");
+    const noFullName = amara();
+    noFullName.aboutYou.fullName = "   ";
+    assert.deepEqual(steps(noFullName), ["about"], "an application with no full name can be sent");
     const outside = amara();
     outside.aboutYou.universityEmail = "amara@example.com";
     assert.deepEqual(steps(outside), ["about"]);

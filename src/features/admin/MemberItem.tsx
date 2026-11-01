@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import StaffNameText from "@/components/StaffNameText";
 import Button from "@/components/ui/Button";
 import Chip from "@/components/ui/Chip";
 import InitialsChip from "@/components/ui/InitialsChip";
@@ -33,7 +34,7 @@ import ConductFlagControl from "./ConductFlagControl";
 import PersonNotes from "./memberNotes/PersonNotes";
 import MemberApplicationHistory from "./MemberApplicationHistory";
 import MemberEditForm from "./MemberEditForm";
-import { ROLE_WORDS, accountName, joinedDay, roleTone } from "./MembersTable";
+import { ROLE_WORDS, accountStaffName, joinedDay, roleTone } from "./MembersTable";
 import MembershipChip from "./MembershipChip";
 import StudyChangeNotes from "./StudyChangeNotes";
 import {
@@ -161,7 +162,10 @@ export default function MemberItem({ user, currentAdminUid, nameByUid }: Props) 
   const isSelf = user.uid === currentAdminUid;
   const isRejected = shown.role === "rejected";
   const isAdminRole = shown.role === "admin";
-  const displayName = accountName(user);
+  // The page's heading is the staff name ("Priya Shah (Pri)"); a sentence and
+  // the delete box use its first part, the full name where there is one.
+  const staffName = accountStaffName(user);
+  const displayName = staffName.name;
   const firstName =
     user.profile?.preferredName?.trim() || displayName.trim().split(/\s+/)[0] || displayName;
   // Gave a university email and never clicked the link that proves it.
@@ -292,7 +296,9 @@ export default function MemberItem({ user, currentAdminUid, nameByUid }: Props) 
       title={
         <span className={styles.nameWithInitials}>
           <InitialsChip name={displayName} uid={user.uid} size="lg" />
-          <span>{displayName}</span>
+          <span>
+            <StaffNameText name={staffName} />
+          </span>
         </span>
       }
       badges={
