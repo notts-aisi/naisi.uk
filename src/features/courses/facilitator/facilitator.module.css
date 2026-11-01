@@ -1189,13 +1189,16 @@
 }
 
 /* The week's column: where each person's week stands, the count beside it,
-   and Reopen. A status colour always comes with its word. */
+   and Reopen. A status colour always comes with its word. Capped, so a
+   submitted week's pill, its count and Reopen wrap inside the cell rather
+   than widen the column until the names break mid-word. */
 .wkWeekCell {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 10px;
   min-width: 0;
+  max-width: 15rem;
 }
 
 .wkWeekDone,
@@ -1243,10 +1246,12 @@
   min-width: 0;
 }
 
+/* `break-word`, not `anywhere`: a name breaks between its words when the
+   table is tight, and inside a word only when one word cannot fit at all. */
 .wkPersonName {
   min-width: 0;
   font-weight: 600;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* "Facilitator", beside a facilitator's own row: their coursework, as theirs. */
