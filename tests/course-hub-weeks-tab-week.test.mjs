@@ -93,11 +93,10 @@ describe("1. one week's page", () => {
     const select = /<select[^>]*id="week-owner-w03"[^>]*>(.*?)<\/select>/.exec(page.html);
     assert.ok(select, "no owner menu");
     assert.match(select[0], /disabled=""/);
-    // Each by the name they go by (`fullNameOfUser`, the name people go by
-    // first since the full names change).
+    // Each by the names rule for the reader, who is the lead or an admin: the full name.
     assert.deepEqual([...select[1].matchAll(/<option[^>]*value="([^"]*)"[^>]*>([^<]*)<\/option>/g)].map((m) => [m[1], m[2]]), [
-      ["claudia", "Claudia"],
-      ["yusuf", "Yusuf"],
+      ["claudia", "Claudia Reyes"],
+      ["yusuf", "Yusuf Demir"],
     ]);
     assert.match(page.html, /<label[^>]*for="week-owner-w03"[^>]*>Owner<\/label>/);
     const segments = [...page.html.matchAll(/<button[^>]*aria-pressed="(true|false)"[^>]*>([^<]*)<\/button>/g)].map((m) => [m[2], m[1], /disabled=""/.test(m[0])]);
@@ -224,7 +223,7 @@ describe("3. the owner route", () => {
     assert.deepEqual((await owner("claudia", "w04", "yusuf")).body, { ok: true, week: { weekId: "w04", weekNumber: 4, ownerUid: "yusuf" } });
     assert.equal(world.db.read(weekPath("w04")).ownerUid, "yusuf");
     const page = await draw("claudia", WeekPage, at("w04"));
-    assert.match(page.html, /<option value="yusuf" selected="">Yusuf<\/option>/);
+    assert.match(page.html, /<option value="yusuf" selected="">Yusuf Demir<\/option>/);
     assert.deepEqual((await owner("zach", "w04", "claudia")).body.week.ownerUid, null);
     assert.equal(world.db.read(weekPath("w04")).ownerUid, null);
     assert.equal((await owner("claudia", "w04", null)).status, 200);

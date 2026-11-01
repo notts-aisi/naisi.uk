@@ -18,7 +18,7 @@ import {
   type RunAttendance,
   type RunRecords,
 } from "@/lib/courses/programmeAttendance";
-import { firstNameOfUser, fullNameOfUser, readRunLead, type RunLead } from "@/lib/courses/programmeLead";
+import { firstNameOfUser, readRunLead, type RunLead } from "@/lib/courses/programmeLead";
 import { emailsCountLine, readReminderState, remindLabel, type ReminderState } from "@/lib/courses/registerRemind";
 import { followUpDueAt } from "@/lib/courses/unmarkedRegisters";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
@@ -29,6 +29,7 @@ import { readCoursesConfig, type CoursesConfig } from "@/lib/firestore/config";
 import type { CourseEnrolmentDoc } from "@/lib/firestore/courseEnrolments";
 import { sessionModeForWeek } from "@/lib/firestore/courseGroups";
 import { weekDocId } from "@/lib/firestore/courses";
+import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 
 /**
  * A PROGRAMME'S OVERVIEW (board wk-overview), for its lead and admins: the
@@ -59,7 +60,8 @@ import { weekDocId } from "@/lib/firestore/courses";
  * one person through the site is new, and its email is not drawn: C21), the
  * week's readiness detail ("2 of 3 readings and the guide are missing": a
  * week has no Ready checklist yet), "Kofi can't make it" (Can't make it is
- * not built) and the Updates card (the Updates job).
+ * said on the group's register, which each session card's See it opens, and
+ * is not repeated here) and the Updates card (the Updates job).
  */
 
 export type OverviewRailWeek = {
@@ -161,7 +163,14 @@ export type OverviewModel = {
   ending: "finished" | "pushed";
 };
 
-export type OverviewViewer = { isAdmin: boolean; uid: string };
+/**
+ * Who the Overview is drawn for: whether they are an admin (who is a row),
+ * who they are (their own task's words), and their role, which decides the
+ * name each person is shown by (`nameForViewer`: the committee and admins
+ * see the full name, a lead who is not on the committee the name people go
+ * by). Left out, every name is the name people go by.
+ */
+export type OverviewViewer = { isAdmin: boolean; uid: string; role?: string | null };
 
 /** Where the programme's own tabs are, and the run, for the links. */
 export type OverviewPlace = {
@@ -354,7 +363,7 @@ type RunLeaver = {
  * recent first. The grid, its CSV and the facilitators' register keep their
  * own rule (`isListed`): a row there is somebody a register marked.
  */
-function leaversOfRun(records: RunRecords, listed: readonly ListedGroup[]): RunLeaver[] {
+function leaversOfRun(records: RunRecords, listed: readonly ListedGroup[], viewer: OverviewViewer): RunLeaver[] {
   const out: RunLeaver[] = [];
   const named = new Set<string>();
   for (const entry of listed) {
@@ -370,7 +379,7 @@ function leaversOfRun(records: RunRecords, listed: readonly ListedGroup[]): RunL
     named.add(enrolment.uid);
     unmarked.push({
       enrolment,
-      name: fullNameOfUser(records.accounts.get(enrolment.uid) ?? {}),
+      name: nameForViewer(viewer, accountNamesOf(records.accounts.get(enrolment.uid) ?? {}), "NAISI member"),
       leftDateKey: enrolment.droppedOutAt ? londonDateKey(enrolment.droppedOutAt) : null,
       entry: enrolment.groupId ? (listed.find((each) => each.group.id === enrolment.groupId) ?? null) : null,
     });
@@ -616,7 +625,7 @@ export async function buildProgrammeOverview(
   }
 
   // Somebody who left, the most recent first.
-  const leavers = leaversOfRun(records, listed);
+  const leavers = leaversOfRun(records, listed, viewer);
   for (const { enrolment, name, leftDateKey, entry } of leavers) {
     const first = firstNameOfUser(records.accounts.get(enrolment.uid) ?? {}) || name;
     const sentences: string[] = [];

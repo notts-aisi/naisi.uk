@@ -919,7 +919,8 @@ describe("the event's Survey after tab: admins see the results; the organiser se
     const lines = csv.trim().split(/\r?\n/);
     assert.match(lines[0], /^Name,Sent,How,1\. How was it\?,2\. Would you come to another NAISI social\?/);
     assert.match(csv, /Gwen Price,[^,]+,Personal link,5,Yes/);
-    assert.match(csv, /(?:^|\n)Mo,[^,]+,"?Signed in, with the QR code"?,5,Yes/);
+    // An account by the name the admin downloading is shown (the names rule: in full).
+    assert.match(csv, /(?:^|\n)Mo Rahman,[^,]+,"?Signed in, with the QR code"?,5,Yes/);
     assert.ok(!/@example\.com/.test(csv), "the download holds an address");
     const logged = w.world.db.paths().filter((path) => path.startsWith("dataExports/")).map((path) => w.world.db.read(path));
     assert.equal(logged.length, 1);

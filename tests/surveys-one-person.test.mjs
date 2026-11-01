@@ -345,7 +345,7 @@ describe("2. every opening is recorded before anything of the person is read", (
   test("the one writer, and its one caller: recorded first, then read", () => {
     const person = stripSource(read("lib", "surveys", "onePerson.ts"), { keepStrings: true });
     const recorded = person.indexOf("const opened = await openSurveyAnswersRecorded(");
-    const readsPerson = person.indexOf("() => readPerson(db, survey, shown, subject),");
+    const readsPerson = person.indexOf("() => readPerson(db, survey, shown, subject, actor),");
     assert.ok(recorded > -1 && readsPerson > recorded, "the person is read outside the recorded read");
     assert.equal(person.split("readPerson(").length, 3, "readPerson is called somewhere else too");
     assert.match(person, /if \(!opened\.ok\) return \{ kind: "not-recorded" \};/);
@@ -364,8 +364,8 @@ describe("3. what an admin sees: the change questions side by side, each survey'
   test("Amara's answers, every word the surveys' own", async (t) => {
     const { before, after } = await bothAnswered(t);
     const { person } = (await open("zach", after, "amara")).body;
-    // By the name she goes by (`fullNameOfUser`), on an admin's page as on every other.
-    assert.equal(person.name, "Amara");
+    // By the names rule for the admin opening it: in full.
+    assert.equal(person.name, "Amara Okafor");
     assert.equal(person.key, "amara");
     assert.deepEqual(person.meta, ["Fellowship: AGI Strategy", "Group B", "Answered both"]);
     assert.equal(person.notice, "Only admins can open one person’s answers, and each opening is logged. You opened this at 11:04am.");
@@ -451,7 +451,7 @@ describe("3. what an admin sees: the change questions side by side, each survey'
   test("somebody never on these surveys has none to open, and the opening is still recorded", async (t) => {
     const { after } = await bothAnswered(t);
     const { person } = (await open("zach", after, "nobody")).body;
-    assert.equal(person.nothing, "Nell has no answers here to open.");
+    assert.equal(person.nothing, "Nell Carter has no answers here to open.");
     assert.equal(person.change, null);
     assert.deepEqual(person.rest, []);
     assert.deepEqual(person.namesOff, []);

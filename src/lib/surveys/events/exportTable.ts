@@ -1,6 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import type { EventSurveyDoc } from "@/lib/firestore/surveys";
+import type { NameViewer } from "@/lib/names/staffName";
 import { NAME_TAKEN_OFF, surveyExportTable } from "../exportTable";
 import { readEventAudience, respondentKey } from "./audience";
 import { eventAnswersOf } from "./store";
@@ -10,7 +11,8 @@ import { eventAnswersOf } from "./store";
  * admins: one row per person who answered, their name (an account's, or the
  * one a guest gave the event), when and how they sent it (their own link, or
  * signed in with the QR code), and one column per question, laid out by the
- * programme surveys' own table. No column about a group's first session,
+ * programme surveys' own table. An account's name is the one the admin
+ * downloading is shown (`viewer`, the names rule). No column about a group's first session,
  * which an event has none of, and never an email address. A download the
  * site logs before it is handed over, by the same route as every survey's.
  */
@@ -18,8 +20,8 @@ import { eventAnswersOf } from "./store";
 /** "Signed in, with the QR code": how somebody answered without their link. */
 export const QR_HOW = "Signed in, with the QR code";
 
-export async function eventExportTable(db: Firestore, survey: EventSurveyDoc): Promise<{ header: string[]; rows: string[][] }> {
-  const [answers, read] = await Promise.all([eventAnswersOf(db, survey), readEventAudience(db, survey.audience.eventId)]);
+export async function eventExportTable(db: Firestore, survey: EventSurveyDoc, viewer: NameViewer): Promise<{ header: string[]; rows: string[][] }> {
+  const [answers, read] = await Promise.all([eventAnswersOf(db, survey), readEventAudience(db, survey.audience.eventId, viewer)]);
   const names = new Map((read?.people ?? []).map((member) => [member.key, member.name]));
   const table = surveyExportTable(
     survey.items,

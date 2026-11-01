@@ -1,6 +1,5 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { fullNameOfUser } from "@/lib/courses/programmeLead";
 import { sessionInstants, resolveSessions } from "@/lib/courses/sessions";
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
@@ -10,6 +9,7 @@ import {
   normalizeSessionReport,
   type CourseSessionReportDoc,
 } from "@/lib/firestore/courseSessionReports";
+import { accountNamesOf, nameForViewer, type NameViewer } from "@/lib/names/staffName";
 import { RUN_REPORTS_WORDS, REPORT_WORDS } from "./words";
 
 /**
@@ -22,9 +22,11 @@ import { RUN_REPORTS_WORDS, REPORT_WORDS } from "./words";
  * admin). Nothing here asks who is reading, so nothing here may be called
  * before that decision, and no route hands these rows to a browser.
  *
- * Each report comes back whole, with its group, its writer's whole name and
- * the whole names of the people it picks, worked out from their accounts when
- * it is read, as the lead's tabs name people. One equality on one field per
+ * Each report comes back whole, with its group, its writer's name and the
+ * names of the people it picks, worked out from their accounts when it is
+ * read, by the names rule for the reader (`nameForViewer`: the committee and
+ * admins see "Priya Shah (Pri)", a lead or facilitator who is not on it the
+ * name people go by), as the lead's tabs name people. One equality on one field per
  * read, sorted in memory, so no read needs a declared index. A read is
  * bounded by what a run's facilitators write in a term: one report per
  * facilitator per session.
@@ -37,7 +39,7 @@ export type RunReportView = {
   id: string;
   groupId: string;
   groupName: string;
-  /** The writer's whole name, or the words for a writer whose account was deleted. */
+  /** The writer's name as the reader is shown it, or the words for a writer whose account was deleted. */
   writerName: string;
   weekNumber: number;
   occurrence: number;
@@ -134,15 +136,17 @@ function unclearTitles(report: CourseSessionReportDoc): string[] {
 }
 
 /**
- * Reports as a page shows them: each with its group's name, its writer's whole
- * name and the whole names of the people it picks, from their accounts now,
- * and the day its session fell on. `groups` are the run's, by id.
+ * Reports as a page shows them to `viewer`: each with its group's name, its
+ * writer's name and the names of the people it picks, from their accounts
+ * now, by the names rule, and the day its session fell on. `groups` are the
+ * run's, by id.
  */
 async function viewsOf(
   db: Firestore,
   run: CourseRunDoc,
   groups: ReadonlyMap<string, CourseGroupDoc>,
   reports: readonly CourseSessionReportDoc[],
+  viewer: NameViewer,
 ): Promise<RunReportView[]> {
   const uids = new Set<string>();
   for (const report of reports) {
@@ -155,7 +159,7 @@ async function viewsOf(
     const snaps = await db.getAll(...addressable.map((uid) => db.collection("users").doc(uid)));
     for (const snap of snaps) if (snap.exists) accounts.set(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
   }
-  const nameOf = (uid: string) => fullNameOfUser(accounts.get(uid) ?? {});
+  const nameOf = (uid: string) => nameForViewer(viewer, accountNamesOf(accounts.get(uid) ?? {}), "NAISI member");
 
   // Each group's sessions, for the day each report's session fell on.
   const sessionsByGroup = new Map<string, ReturnType<typeof resolveSessions>>();
@@ -191,9 +195,9 @@ async function viewsOf(
 /**
  * Every report on the run, by week, newest week first; in a week, by group in
  * meeting order, then by writer. For a reader the caller has already let
- * read them.
+ * read them, named as that reader is shown people (`viewer`).
  */
-export async function readRunSessionReports(db: Firestore, runId: string): Promise<RunReportWeek[]> {
+export async function readRunSessionReports(db: Firestore, runId: string, viewer: NameViewer): Promise<RunReportWeek[]> {
   const [reports, groupSnap, runSnap] = await Promise.all([
     reportsOfRun(db, runId),
     db.collection("courseGroups").where("runId", "==", runId).get(),
@@ -204,7 +208,7 @@ export async function readRunSessionReports(db: Firestore, runId: string): Promi
   const groups = new Map<string, CourseGroupDoc>(
     groupSnap.docs.map((doc) => [doc.id, normalizeCourseGroup(doc.id, doc.data() ?? {})] as const),
   );
-  const views = await viewsOf(db, run, groups, reports);
+  const views = await viewsOf(db, run, groups, reports, viewer);
 
   const byWeek = new Map<number, RunReportView[]>();
   for (const view of views) {
@@ -236,15 +240,17 @@ export async function readRunSessionReports(db: Firestore, runId: string): Promi
 }
 
 /**
- * One writer's own report as a page shows it, for the writer, once its
- * session's report has closed. The caller has already read it as theirs.
+ * One writer's own report as a page shows it, for the writer (`viewer`),
+ * once its session's report has closed. The caller has already read it as
+ * theirs.
  */
 export async function ownReportView(
   db: Firestore,
   run: CourseRunDoc,
   group: CourseGroupDoc,
   report: CourseSessionReportDoc,
+  viewer: NameViewer,
 ): Promise<RunReportView> {
-  const [view] = await viewsOf(db, run, new Map([[group.id, group]]), [report]);
+  const [view] = await viewsOf(db, run, new Map([[group.id, group]]), [report], viewer);
   return view;
 }

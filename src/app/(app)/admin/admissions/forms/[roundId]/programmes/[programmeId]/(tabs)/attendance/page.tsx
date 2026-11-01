@@ -75,9 +75,10 @@ export default async function ProgrammeAttendancePage({
   if (!view.run) return <RunBlank view={view} />;
   const records = await readRunRecords(db, view.run.id);
   if (!records) return <RunBlank view={{ ...view, blank: "run-gone" }} />;
-  const model = buildRunAttendance(records, { isAdmin: view.viewer === "admin" }, new Date());
+  // The viewer's role decides the name each row is shown by (`nameForViewer`).
+  const model = buildRunAttendance(records, { isAdmin: view.viewer === "admin", role: user.role }, new Date());
   const asked = typeof query.group === "string" ? query.group : "all";
-  const [notes, programme] = await Promise.all([readRunGroupNotes(db, view.run.id), runProgrammeOf(db, view.run.id)]);
+  const [notes, programme] = await Promise.all([readRunGroupNotes(db, view.run.id, user), runProgrammeOf(db, view.run.id)]);
   // Who reads the notes, as the line under each card says it: "you" to the
   // lead, the lead by first name to an admin.
   const lead =

@@ -815,7 +815,8 @@ describe("4. the pages, as the boards draw them", () => {
     assert.deepEqual(model.toGive.map((person) => person.uid).sort(), ["chloe", "farah", "rahul"]);
     assert.equal(model.selected.person.uid, "rahul");
     assert.equal(model.selected.role.mayReview, true);
-    assert.match(page.text, /Rahul’s lamp plan/);
+    // The title names him as the names rule names him to the lead, who is on the committee; the sentences by the name he goes by.
+    assert.match(page.text, /Rahul Mehta’s lamp plan/);
     assert.match(page.text, /Submitted Sun 8 Nov, 10am, so Rahul can’t change it now\. Reopen week 2 for Rahul/);
     assert.equal(page.wrote, false, "a GET never writes, and opening an answer stamps nothing");
     // The lead's page for another programme's lead, and for a fellow: nothing of it.

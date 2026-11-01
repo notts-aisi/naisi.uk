@@ -55,7 +55,8 @@ export default async function ProgrammeSessionReportsPage({
       </SurveysFrame>
     );
   }
-  const weeks = await readRunSessionReports(db, view.run.id);
+  // Named as this reader is shown people (`nameForViewer`).
+  const weeks = await readRunSessionReports(db, view.run.id, user);
   return (
     <SurveysFrame roundId={view.roundId} programmeId={view.programmeId} current="reports">
       <div className={styles.page}>

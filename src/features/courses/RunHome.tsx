@@ -16,12 +16,14 @@ import SessionNotice from "./sessionChange/SessionNotice";
 import RunUpdates from "./updates/RunUpdates";
 import { useRunOverview } from "./useRunOverview";
 import { useSyncTasks } from "./useSyncTasks";
+import CantMakeIt from "./weekly/CantMakeIt";
 import SessionTicket from "./weekly/SessionTicket";
 import ThisWeekCard from "./weekly/ThisWeekCard";
 import WeekList from "./weekly/WeekList";
 import YourGroup from "./weekly/YourGroup";
 import AboutThisCourse from "./AboutThisCourse";
 import CertificateCard from "./CertificateCard";
+import type { CantMakeItView } from "@/lib/courses/cantMakeIt/model";
 import type { CertificateCardView } from "@/lib/courses/certificates/card";
 import type { GuideLinks } from "@/lib/courses/guide/model";
 import type { TeamCardView } from "@/lib/courses/teamPage/views";
@@ -89,9 +91,10 @@ import styles from "./RunHome.module.css";
  * "I can make it" and "I can't make this time". Either keeps their place; it
  * is not the leave at the foot.
  *
- * WHAT IS NOT HERE, though the boards draw it: "Can’t make it" on the ticket,
- * for one session. It does not exist yet, and the page draws no control for
- * a feature that does not.
+ * "CAN’T MAKE IT" on the ticket, beside Add to calendar, for somebody taking
+ * part in the group, until the next session starts (`cantMakeIt`, worked out
+ * by the server page): it records them as excused on that session's register,
+ * which their facilitators read.
  *
  * STAFF (a facilitator, an admin) read the same head, ticket and weeks, every
  * published week open, with their own panels below; no marks, no ticks.
@@ -146,6 +149,12 @@ type Props = {
    * draws nothing.
    */
   timeQuestion?: TimeQuestionView | null;
+  /**
+   * "Can’t make it" on the ticket of the group's next session, worked out by
+   * the server page for somebody taking part in the group (`cantMakeItFor`),
+   * until the session starts. Null draws nothing.
+   */
+  cantMakeIt?: CantMakeItView | null;
   /** An admin is looking at this as the member: the card's answers are drawn and cannot be pressed. */
   viewAs?: boolean;
   /** The session's own uid, from the server gate: the ticks' row, and "(you)" in the group. */
@@ -422,6 +431,7 @@ export default function RunHome({
   canLeave = false,
   leaveNote = null,
   timeQuestion = null,
+  cantMakeIt = null,
   viewAs = false,
   guide = null,
   uid = null,
@@ -592,6 +602,12 @@ export default function RunHome({
               roomChanged={factsSchedule?.roomChanged === true}
               facilitators={facilitatorPeople}
               calendar={learnerGroup !== null || access.isFacilitator}
+              cantMakeIt={
+                /* About the session this ticket shows, of the group it is the reader's place in. */
+                cantMakeIt && group?.id === cantMakeIt.groupId && group.calendar.nextSession?.sessionKey === cantMakeIt.sessionKey ? (
+                  <CantMakeIt key={cantMakeIt.sessionKey} view={cantMakeIt} locked={viewAs} />
+                ) : null
+              }
             />
           )}
         </div>

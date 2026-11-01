@@ -60,8 +60,8 @@ import styles from "./home.module.css";
  * who left). The register is on its own page beside the group's, and "Take
  * the register" goes there.
  *
- * NOT DRAWN, though the board draws it: who can't make it tonight (that
- * feature does not exist yet).
+ * NOT DRAWN: who can't make it tonight. The register says it, which "Take
+ * the register" opens.
  *
  * "Facilitator guide" under this week's title leads to that week of the
  * course's facilitator guide, drawn only when the guide's own route says the

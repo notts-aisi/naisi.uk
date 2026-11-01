@@ -1787,16 +1787,17 @@ test(
         await adminPage
           .getByRole("heading", { level: 2, name: ADMIN.answeredHeading(keptFor.size, people.length), exact: true })
           .waitFor({ timeout: WAIT_MS });
-        // By the name each goes by (the survey pages name people as the course screens do,
-        // `fullNameOfUser`: the fixture's `first`), with when it went, when and how each
-        // answered. The last column, the questions left blank, is empty: everybody here
-        // answered every required question.
+        // By the name the names rule shows an admin (`nameForViewer`): each account's full
+        // name, here the fixture's display name, unique to this run, which begins with the
+        // name each goes by. With when it went, when and how each answered. The last
+        // column, the questions left blank, is empty: everybody here answered every
+        // required question.
         const expectedRows = [...people]
-          .sort((a, b) => a.first.localeCompare(b.first, "en"))
+          .sort((a, b) => a.displayName.localeCompare(b.displayName, "en"))
           .map((person) => {
             const answer = answers.get(person.uid);
             return [
-              person.first,
+              person.displayName,
               dayAndClock(instantOf(rows.get(person.uid).sentAt)),
               answer ? dayAndClock(instantOf(answer.sentAt)) : "Not yet",
               answer ? (answer.via === "signed-in" ? "Signed in" : "Personal link") : "",
@@ -1825,7 +1826,7 @@ test(
         const expected = exportTable(
           now.items,
           [...answers.entries()].map(([uid, answer]) => ({
-            name: everybody.find((account) => account.uid === uid).first,
+            name: everybody.find((account) => account.uid === uid).displayName,
             sentAt: instantOf(answer.sentAt),
             via: answer.via,
             afterFirstSession: answer.afterFirstSession,
@@ -1916,8 +1917,8 @@ test(
         assert.deepEqual(pressed, [["first", people.length], ["remind", 1]], "the survey's record of what went");
         // Who answered says so beside her name.
         await adminPage.goto(`${origin}/admin/surveys/${enc(surveyId)}/answered`, { waitUntil: "domcontentloaded" });
-        // Her row, found by its name cell: the whole name she goes by, in this survey's own table.
-        const cleoRow = adminPage.getByRole("row").filter({ has: adminPage.getByRole("cell", { name: cleo.first, exact: true }) });
+        // Her row, found by its name cell: the whole of her name as an admin is shown it, unique to this run.
+        const cleoRow = adminPage.getByRole("row").filter({ has: adminPage.getByRole("cell", { name: cleo.displayName, exact: true }) });
         await cleoRow.waitFor({ timeout: WAIT_MS });
         assert.equal((await textsOf(cleoRow.locator("td")))[4], "Reminded once", "Who answered does not say Cleo was reminded");
 

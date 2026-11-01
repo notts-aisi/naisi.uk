@@ -25,6 +25,7 @@ import { TEAM_ENTRIES_COLLECTION } from "@/lib/courses/teamPage/model";
 import { TEAMS_COLLECTION } from "@/lib/courses/teams/model";
 import { TEAMS_MARKERS, TEAMS_TEST_KIND } from "@/lib/courses/teams/told";
 import { ASSESSMENTS_COLLECTION } from "./admissionAssessments";
+import { EXCUSED_IN_ADVANCE } from "./courseAttendance";
 import { normalizeCourseEnrolment } from "./courseEnrolments";
 import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
@@ -1081,18 +1082,19 @@ export async function clearCourseAttendanceMarks(
       if (snap.empty) break;
       cursor = snap.docs[snap.docs.length - 1];
 
-      // TWO map keys per register, not one. `participantNotes` (V3 W1 PR5)
+      // THREE map keys per register, not one. `participantNotes` (V3 W1 PR5)
       // is post-session prose ABOUT this member, written by their facilitator,
       // and it is personal data of exactly the kind an account deletion has to
-      // take with it. Both keys are cleared by FieldPath on the SAME document,
-      // in the same batch, for the same reason `records` always was: the
-      // register is shared, so deleting the doc would erase the whole group's
-      // session.
+      // take with it; `excusedInAdvance` is when they told us they could not
+      // make the session ("Can't make it"). Every key is cleared by FieldPath
+      // on the SAME document, in the same batch, for the same reason
+      // `records` always was: the register is shared, so deleting the doc
+      // would erase the whole group's session.
       //
       // A register can carry a note without a mark and a mark without a note
       // (a facilitator writes notes for the people they have something to say
       // about), so each key is tested separately and a document qualifies if
-      // it holds either.
+      // it holds any of them.
       const holds = (d: QueryDocumentSnapshot, field: string): boolean => {
         const map = (d.data() as Record<string, unknown>)[field];
         // `in` throws on a non-object, and a hand-edited register could carry
@@ -1100,7 +1102,7 @@ export async function clearCourseAttendanceMarks(
         return typeof map === "object" && map !== null && uid in map;
       };
       const marked = snap.docs.filter(
-        (d) => holds(d, "records") || holds(d, "participantNotes"),
+        (d) => holds(d, "records") || holds(d, "participantNotes") || holds(d, EXCUSED_IN_ADVANCE),
       );
       if (marked.length > 0) {
         const batch = db.batch();
@@ -1114,6 +1116,9 @@ export async function clearCourseAttendanceMarks(
               new FieldPath("participantNotes", uid),
               FieldValue.delete(),
             );
+          }
+          if (holds(d, EXCUSED_IN_ADVANCE)) {
+            batch.update(d.ref, new FieldPath(EXCUSED_IN_ADVANCE, uid), FieldValue.delete());
           }
         }
         await batch.commit();

@@ -337,6 +337,10 @@ const MUST_GUARD = [
     "records the person's own answer to can you make this time on their own seat, which the programme's lead and admins read",
   ],
   [
+    "src/app/api/courses/groups/[groupId]/cant-make-it/route.ts",
+    "records the person as excused on a session's register, on their own word that they can't make it, which their facilitators read",
+  ],
+  [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/groups/[groupId]/time/route.ts",
     "changes a group's day and start on the run a programme names, from the Times view",
   ],

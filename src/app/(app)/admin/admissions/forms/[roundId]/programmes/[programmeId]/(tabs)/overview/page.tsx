@@ -79,7 +79,8 @@ export default async function ProgrammeOverviewPage({
   if (!records) return <RunBlank view={{ ...view, blank: "run-gone" }} />;
   const groups = await loadRunGroups(db, records.run.id);
   const now = new Date();
-  const viewer = { isAdmin: view.viewer === "admin", uid: user.uid };
+  // The role decides the name each person is shown by (`nameForViewer`).
+  const viewer = { isAdmin: view.viewer === "admin", uid: user.uid, role: user.role };
   // Before any group has met: "Get ready for week 1".
   const beforeTheStart = !anyGroupHasMet(records, now);
   const [model, loaded, finishing, ready, feedbackToSend] = await Promise.all([

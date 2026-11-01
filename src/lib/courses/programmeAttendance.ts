@@ -2,7 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { clockWords, namesInWords } from "@/lib/courses/facilitatingEmail";
 import { runEndOf } from "@/lib/courses/finishing/runEnd";
-import { firstNameOfUser, fullNameOfUser, standingUserOf } from "@/lib/courses/programmeLead";
+import { firstNameOfUser, standingUserOf } from "@/lib/courses/programmeLead";
 import { displayNameOf } from "@/lib/courses/registerAccess";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { addDaysToKey, currentWeekFor, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
@@ -24,6 +24,7 @@ import {
 import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { readSchedulerConfig } from "@/lib/firestore/schedulerConfig";
+import { accountNamesOf, nameForViewer, type NameViewer } from "@/lib/names/staffName";
 import { registerSwitchesIn, type RegisterSwitches } from "@/lib/scheduler/registerSwitches";
 
 /**
@@ -70,12 +71,15 @@ import { registerSwitchesIn, type RegisterSwitches } from "@/lib/scheduler/regis
  * produced by the normaliser yet; see `src/lib/courses/sessions.ts`). When a
  * second slot exists, this is where its column goes.
  *
- * NAMES ONLY. A person is their whole name (`fullNameOfUser`, never an
- * address), as the boards draw the lead's tabs and the Facilitators view
- * names people, so two who go by one first name are told apart; a sentence
- * that talks about somebody uses the name they go by. A facilitator is named
- * only while their account still stands behind the role
- * (`isNamedWithStanding`).
+ * NAMES ONLY, never an address, by the names rule for whoever the tab is
+ * drawn for (`nameForViewer`, with the viewer's `role`): the committee and
+ * admins see "Priya Shah (Pri)", so two who go by one first name are told
+ * apart, and a lead or facilitator who is not on the committee sees the
+ * name people go by. A caller drawing for nobody in particular (a file, an
+ * email, a record) passes no role, and every row reads by the name people
+ * go by. A sentence that talks about somebody uses the name they go by. A
+ * facilitator is named only while their account still stands behind the
+ * role (`isNamedWithStanding`).
  *
  * ONE ORDER OF GROUPS. The groups are listed in the order People in groups
  * draws its columns (`compareGroupsByMeeting`), so the grid, its CSV and the
@@ -227,6 +231,22 @@ export type RunRecords = {
   switches: RegisterSwitches;
 };
 
+/**
+ * WHO A TAB IS DRAWN FOR. `isAdmin` decides who is a row (the register's
+ * rule, `placementIsShownTo`: an admin sees everybody placed, anybody else
+ * the people Publish has told). `role` decides the name each row is shown
+ * by, through the names rule (`nameForViewer`): the committee role and
+ * admins see the full name, everybody else the name people go by. Left out,
+ * every row reads by the name people go by, which is what the Kairos file,
+ * who finished's record and a certificate want.
+ */
+export type GridViewer = { isAdmin: boolean; role?: string | null };
+
+/** The name one account is shown by on these tabs, for this viewer. Never an address. */
+function personName(viewer: NameViewer, data: Record<string, unknown> | undefined): string {
+  return nameForViewer(viewer, accountNamesOf(data ?? {}), "NAISI member");
+}
+
 /** Accounts per addressed read. Well inside `getAll`'s own limits. */
 const ACCOUNT_BATCH = 300;
 
@@ -357,8 +377,12 @@ export function markWord(mark: AttendanceStatus): string {
 /** A facilitator of a group, while their account stands behind the role. */
 export type StandingFacilitator = { uid: string; firstName: string; name: string };
 
-/** A group's facilitators who still stand behind the role, in the group's own order. */
-export function facilitatorsOf(records: RunRecords, group: CourseGroupDoc): StandingFacilitator[] {
+/**
+ * A group's facilitators who still stand behind the role, in the group's own
+ * order: `name` by the names rule for `viewer` (none: the name they go by),
+ * `firstName` the name a sentence calls them by.
+ */
+export function facilitatorsOf(records: RunRecords, group: CourseGroupDoc, viewer: NameViewer = null): StandingFacilitator[] {
   const out: StandingFacilitator[] = [];
   for (const uid of [...new Set(group.facilitatorUids)]) {
     const data = records.accounts.get(uid);
@@ -366,7 +390,7 @@ export function facilitatorsOf(records: RunRecords, group: CourseGroupDoc): Stan
     if (!isNamedWithStanding(standingUserOf(uid, data), "courseGroups.facilitatorUids", group.facilitatorUids)) {
       continue;
     }
-    out.push({ uid, firstName: firstNameOfUser(data) || displayNameOf(data), name: fullNameOfUser(data) });
+    out.push({ uid, firstName: firstNameOfUser(data) || displayNameOf(data), name: personName(viewer, data) });
   }
   return out;
 }
@@ -580,7 +604,7 @@ export type ListedGroup = {
  */
 export function listGroups(
   records: RunRecords,
-  viewer: { isAdmin: boolean },
+  viewer: GridViewer,
   now: Date,
   weeks: readonly number[],
 ): ListedGroup[] {
@@ -618,11 +642,11 @@ export function listGroups(
         continue;
       }
       seen.add(enrolment.uid);
-      const name = fullNameOfUser(records.accounts.get(enrolment.uid) ?? {});
+      const name = personName(viewer, records.accounts.get(enrolment.uid));
       people.push({ enrolment, row: personRow(enrolment, name, weeks, sessions, over) });
     }
     people.sort((a, b) => a.row.name.localeCompare(b.row.name, "en-GB") || a.row.uid.localeCompare(b.row.uid));
-    return { group, sessions, facilitators: facilitatorsOf(records, group), people, notYetTold };
+    return { group, sessions, facilitators: facilitatorsOf(records, group, viewer), people, notYetTold };
   });
 }
 
@@ -705,7 +729,7 @@ function weekTotal(entries: readonly ListedGroup[], weekNumber: number): GridWee
  * THE GRID, as the Attendance tab draws it, for one viewer at one instant.
  * Pure: the records are read already.
  */
-export function buildRunAttendance(records: RunRecords, viewer: { isAdmin: boolean }, now: Date): RunAttendance {
+export function buildRunAttendance(records: RunRecords, viewer: GridViewer, now: Date): RunAttendance {
   const weeks = weeksOf(records);
   const thisWeek = runThisWeek(records.run, now);
   const listed = listGroups(records, viewer, now, weeks);

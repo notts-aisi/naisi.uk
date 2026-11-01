@@ -4,6 +4,7 @@ import { firstNameOfUser } from "@/lib/courses/programmeLead";
 import { runsCheckIn } from "@/lib/events/checkInAccess";
 import { NO_NAMES_OFF } from "@/lib/events/checkInView";
 import type { EventAudience, EventSurveyDoc } from "@/lib/firestore/surveys";
+import type { NameViewer } from "@/lib/names/staffName";
 import { shortLinkAddress } from "@/lib/qr/shortLinkCode";
 import { preview, testView, type EmailPreview, type SurveyState, type TestView } from "../adminView";
 import { blanksOf, blanksRowOf, type BlanksRow } from "../blanks";
@@ -139,8 +140,13 @@ function firstWords(n: number, kind: EventAudience["kind"]): string {
   return `Emailed the ${peopleWords(n)} ${kind === "event-came" ? "who came, with an email" : "who signed up"}`;
 }
 
-export async function eventSendView(db: Firestore, survey: EventSurveyDoc, presserUid: string, now: Date): Promise<EventSendView> {
-  const [plan, signer, code] = await Promise.all([readEventSendPlan(db, survey), signerOf(db, presserUid), findSurveyCode(db, survey.audience.eventId)]);
+/** The Send tab of a survey after an event, for the admin who would press (`presserUid`), named as `viewer` is shown people. */
+export async function eventSendView(db: Firestore, survey: EventSurveyDoc, presserUid: string, now: Date, viewer: NameViewer): Promise<EventSendView> {
+  const [plan, signer, code] = await Promise.all([
+    readEventSendPlan(db, survey, viewer),
+    signerOf(db, presserUid),
+    findSurveyCode(db, survey.audience.eventId),
+  ]);
   const state = surveyState(survey, now);
   const surveyWords = emailWordsFor(survey, "survey", signer);
   const reminderWords = emailWordsFor(survey, "reminder", signer);
@@ -250,10 +256,11 @@ export async function eventSendView(db: Firestore, survey: EventSurveyDoc, press
   };
 }
 
-/** Who answered, for admins: name, when it was emailed, when and how they answered. */
+/** Who answered, for admins (`viewer`, who is shown names by the names rule): name, when it was emailed, when and how they answered. */
 export async function eventAnsweredView(
   db: Firestore,
   survey: EventSurveyDoc,
+  viewer: NameViewer,
   plan?: EventSendPlan,
   now: Date = new Date(),
 ): Promise<{
@@ -262,11 +269,11 @@ export async function eventAnsweredView(
   sent: number;
   heading: string;
 }> {
-  const read = plan ?? (await readEventSendPlan(db, survey));
+  const read = plan ?? (await readEventSendPlan(db, survey, viewer));
   const answers = await eventAnswersOf(db, survey);
   const names = new Map((read.read?.people ?? []).map((member) => [member.key, member.name]));
   const byKey = new Map(answers.flatMap((answer) => (answer.respondent ? [[respondentKey(answer.respondent), answer] as const] : [])));
-  const pressers = await namesOf(db, read.rows.flatMap((row) => row.blanksPresses.map((press) => press.byUid)));
+  const pressers = await namesOf(db, read.rows.flatMap((row) => row.blanksPresses.map((press) => press.byUid)), viewer);
   const open = isOpen(survey, now);
   const rows = read.rows
     .filter((row) => row.sentAt !== null || row.answered)

@@ -8,7 +8,8 @@ import {
   placementIsShownTo,
 } from "@/lib/firestore/courseEnrolments";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
-import { programmeLedBy } from "./programmeLead";
+import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
+import { firstNameOfUser, programmeLedBy } from "./programmeLead";
 
 /**
  * WHO MAY TOUCH A GROUP'S REGISTER, in one place.
@@ -51,10 +52,13 @@ import { programmeLedBy } from "./programmeLead";
  * only by an admin, who could read those documents anyway.
  *
  * ── PII: NAMES ONLY ─────────────────────────────────────────────────────────
- * `displayNameOf` never returns an email. A register is a list of people who
- * did or did not turn up; it must not double as a mailing list. Anything that
- * needs to reach these people goes through the group email route, which
- * resolves addresses server-side and never hands them out.
+ * A register's names never include an email. A register is a list of people
+ * who did or did not turn up; it must not double as a mailing list. Anything
+ * that needs to reach these people goes through the group email route, which
+ * resolves addresses server-side and never hands them out. Each row is named
+ * by the names rule for whoever the register is drawn for (`nameForViewer`):
+ * the committee and admins see "Priya Shah (Pri)", a facilitator who is not
+ * on it the name people go by.
  */
 
 /** Roster read cap, the same number the roster and exercises routes use. */
@@ -252,7 +256,24 @@ export type RegisterRoster = {
    * Publish has not told them their group yet. Never true for an admin.
    */
   notYetTold: boolean;
+  /**
+   * The first word of the name each row goes by, by uid: what a sentence
+   * about them calls them ("What made Pri stand out?"), whoever reads it.
+   * Never sent with the rows.
+   */
+  firstNames: Map<string, string>;
 };
+
+/**
+ * WHO A REGISTER IS DRAWN FOR. `isAdmin` decides who is a row (an admin sees
+ * everybody placed, anybody else the people Publish has told). `role` decides
+ * the name each row is shown by, through the names rule (`nameForViewer`):
+ * the committee role and admins see the full name, everybody else the name
+ * people go by. Left out, every row reads by the name people go by, which is
+ * what anything that reaches the people themselves wants
+ * (`loadToldRegisterMembers`).
+ */
+export type RegisterViewer = { isAdmin: boolean; role?: string | null };
 
 /**
  * The group's ACTIVE members, name-sorted, with the joined week that scopes
@@ -270,7 +291,7 @@ export async function loadRegisterMembers(
   db: Firestore,
   runId: string,
   groupId: string,
-  viewer: { isAdmin: boolean },
+  viewer: RegisterViewer,
 ): Promise<RegisterRoster> {
   const memberSnap = await db
     .collection("courseEnrolments")
@@ -301,8 +322,12 @@ export async function loadRegisterMembers(
     ? await db.getAll(...uids.map((uid) => db.collection("users").doc(uid)))
     : [];
   const nameByUid = new Map<string, string>();
+  const firstNames = new Map<string, string>();
   for (const doc of userDocs) {
-    if (doc.exists) nameByUid.set(doc.id, displayNameOf(doc.data() ?? {}));
+    if (!doc.exists) continue;
+    const data = doc.data() ?? {};
+    nameByUid.set(doc.id, nameForViewer(viewer, accountNamesOf(data), "NAISI member"));
+    firstNames.set(doc.id, firstNameOfUser(data) || displayNameOf(data));
   }
 
   const members = [...byUid.values()]
@@ -315,7 +340,7 @@ export async function loadRegisterMembers(
       (a, b) =>
         a.displayName.localeCompare(b.displayName) || a.uid.localeCompare(b.uid),
     );
-  return { members, notYetTold };
+  return { members, notYetTold, firstNames };
 }
 
 /**

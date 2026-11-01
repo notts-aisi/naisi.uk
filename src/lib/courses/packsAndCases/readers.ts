@@ -153,8 +153,9 @@ export async function drawGate(db: Firestore, actor: SessionUser, group: CourseG
 /** One person in a group's draw. */
 export type DrawPerson = {
   uid: string;
-  /** Their whole name, as the group page names people. */
+  /** Their name as the group page names people for its reader. */
   name: string;
+  /** The name a sentence calls them by: the first word of the name they go by. */
   firstName: string;
   /** A facilitator of the group, who takes part in it too. */
   facilitates: boolean;
@@ -166,9 +167,14 @@ export type DrawPerson = {
  * placed and not told, as on the register) and its standing facilitators,
  * who take part too (Zach, Mon 26 Oct 2026). Somebody who left is in no
  * draw.
+ *
+ * A row that carries the first name it goes by keeps it: on a page drawn for
+ * the committee, `name` is the full name ("Priya Shah (Pri)", the names
+ * rule), whose first word is not the name they go by. A row with only a
+ * name is named by the name people go by, so its first word is.
  */
 export function drawPeople(
-  people: ReadonlyArray<{ uid: string; name: string }>,
+  people: ReadonlyArray<{ uid: string; name: string; firstName?: string }>,
   facilitators: readonly StandingFacilitator[],
 ): DrawPerson[] {
   const byUid = new Map<string, DrawPerson>();
@@ -177,7 +183,7 @@ export function drawPeople(
     byUid.set(person.uid, {
       uid: person.uid,
       name: person.name,
-      firstName: person.name.trim().split(/\s+/)[0] ?? person.name,
+      firstName: person.firstName?.trim() || (person.name.trim().split(/\s+/)[0] ?? person.name),
       facilitates: facilitating.has(person.uid),
     });
   }

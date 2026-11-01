@@ -19,7 +19,8 @@ export const dynamic = "force-dynamic";
  * buttons that send it, to everybody holding a place, then to whoever joins
  * since, and the reminder. Each email is signed by the admin looking at it,
  * who is the one who would press. Admins only, by the `(admin-only)` group's
- * layout (`requireAdminPage()`); the session is read here for the signature.
+ * layout (`requireAdminPage()`); the session is read here for the signature,
+ * and for the names rule: each name as the admin looking is shown it.
  *
  * A LEAVING SURVEY is never sent (Q46): at this address it has its Open tab
  * instead, where it is opened and, once open, closed. Nor is A CHECK-IN: its
@@ -43,7 +44,7 @@ export default async function SurveySendPage({ params }: { params: Promise<{ sur
     return (
       <AdminPage wide>
         <SurveyHead head={page.head} current="send" />
-        <OpeningTab surveyId={page.survey.id} view={await openingView(db, page.survey, now)} />
+        <OpeningTab surveyId={page.survey.id} view={await openingView(db, page.survey, now, admin)} />
       </AdminPage>
     );
   }
@@ -57,7 +58,7 @@ export default async function SurveySendPage({ params }: { params: Promise<{ sur
   }
   // A survey after an event: who it emails, its QR code at the event, and its email (sv-send).
   if (isEventSurvey(page.survey)) {
-    const eventView = await eventSendView(db, page.survey, admin.uid, now);
+    const eventView = await eventSendView(db, page.survey, admin.uid, now, admin);
     return (
       <AdminPage wide>
         <SurveyHead head={page.head} current="send" />
@@ -65,7 +66,7 @@ export default async function SurveySendPage({ params }: { params: Promise<{ sur
       </AdminPage>
     );
   }
-  const view = await sendView(db, page.survey, admin.uid, now);
+  const view = await sendView(db, page.survey, admin.uid, now, admin);
   return (
     <AdminPage wide>
       <SurveyHead head={page.head} current="send" />

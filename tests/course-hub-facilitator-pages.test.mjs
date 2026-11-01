@@ -212,9 +212,10 @@ describe("2. the group page in week 3, as wk-fac-group draws it", () => {
           `<a href="${GROUP_PATH()}/sessions" class="buttonGhost">Change a session</a></div>`,
       ),
     );
-    // Sofia reads Rahul as the other; an admin, both.
+    // Sofia reads Rahul as the other, by the name he goes by; an admin, both,
+    // by the full names the names rule shows the committee and admins.
     assert.match((await groupPage("sofia")).text, /Hallward B12 · , with Rahul Write to/);
-    assert.match((await groupPage("zach")).text, /Hallward B12 · , with Rahul and Sofia Write to/);
+    assert.match((await groupPage("zach")).text, /Hallward B12 · , with Rahul Mehta and Sofia Rossi Write to/);
   });
 
   test("the ticket: tonight's session, its room, who is expected, and Take the register leading to the register", async () => {

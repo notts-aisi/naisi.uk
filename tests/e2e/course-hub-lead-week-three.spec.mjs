@@ -262,13 +262,14 @@ test(
 
     /**
      * A group's people, in the grid's order: the names it shows, then uid.
-     * The lead's tabs name people by the name they go by (`fullNameOfUser`),
-     * which for this term's fixtures is `first`.
+     * The lead's tabs, read here by the admin, name people by the names rule
+     * (`nameForViewer`): the full name, which for this term's fixtures is the
+     * account's display name, unique to this run.
      */
     const membersOf = (group) =>
       state.people
         .filter((person) => person.groupKey === group.key)
-        .sort((a, b) => a.first.localeCompare(b.first, "en-GB") || a.uid.localeCompare(b.uid));
+        .sort((a, b) => a.displayName.localeCompare(b.displayName, "en-GB") || a.uid.localeCompare(b.uid));
     const markOf = (person, weekNumber) => WEEK_THREE.marks[person.groupKey]?.[weekNumber]?.[person.key] ?? null;
     const hasRegister = (group, weekNumber) => Boolean(WEEK_THREE.marks[group.key]?.[weekNumber]);
     const isFinished = (group, weekNumber) =>
@@ -493,7 +494,7 @@ test(
           const run = absentRun(person, now);
           if (run.length === 0) continue;
           items.push([
-            `${person.first} has missed ${run.length} sessions in a row without saying`,
+            `${person.displayName} has missed ${run.length} sessions in a row without saying`,
             `${group.name} · weeks ${namesInWords(run.map(String))}`,
           ]);
         }
@@ -813,7 +814,7 @@ test(
               group.name,
               `${day} · ${londonClockLabel(session.startsAt)}`,
               group.room,
-              group === facilitatedGroup ? fern.first : "No facilitator yet",
+              group === facilitatedGroup ? fern.displayName : "No facilitator yet",
             ];
             if (isFinished(group, thisWeek)) {
               expected.push(`Register ${word()}`, `${came} of ${members.length} came`);
@@ -1048,8 +1049,8 @@ test(
         for (const group of ordered) {
           for (const person of membersOf(group)) {
             const row = grid.getByRole("row").filter({
-              // The whole name the grid shows, never the start of a longer one.
-              has: adminPage.getByRole("rowheader", { name: new RegExp(`^${escapeRegExp(person.first)}(?![a-z])`) }),
+              // The whole name the grid shows the admin, never the start of a longer one.
+              has: adminPage.getByRole("rowheader", { name: new RegExp(`^${escapeRegExp(person.displayName)}(?![A-Za-z0-9])`) }),
             });
             await row.waitFor({ timeout: WAIT_MS });
             const marks = row.getByRole("img");
@@ -1061,7 +1062,7 @@ test(
                 : cell.today
                   ? "today, not yet"
                   : "not yet";
-              return `${person.first}, week ${cell.weekNumber}: ${what}`;
+              return `${person.displayName}, week ${cell.weekNumber}: ${what}`;
             });
             assert.deepEqual(said, expected, `${person.first}'s row of marks`);
             const { came, of } = cameOf(person, now);
@@ -1069,7 +1070,7 @@ test(
             // The name, and "2 in a row" for a run of absences (never for somebody who left).
             const run = absentRun(person, now);
             const header = row.getByRole("rowheader");
-            await header.getByText(person.first, { exact: true }).waitFor({ timeout: WAIT_MS });
+            await header.getByText(person.displayName, { exact: true }).waitFor({ timeout: WAIT_MS });
             assert.equal(
               await header.getByText(/^\d+ in a row$/).count(),
               run.length > 0 ? 1 : 0,
@@ -1117,7 +1118,7 @@ test(
             const { came, of } = cameOf(person, now);
             rows.push([
               group.name,
-              person.first,
+              person.displayName,
               ...cellsOf(person, now).map((cell) =>
                 cell.mark ? `${MARK_WORD[cell.mark]}${cell.saved ? ` (not ${word()})` : ""}` : "",
               ),

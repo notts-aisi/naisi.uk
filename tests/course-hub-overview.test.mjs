@@ -315,16 +315,16 @@ describe("2. the week and its sessions", () => {
   // their whole names, as wk-overview draws them; until then by first names.
   test("each group's session this week, in the order they meet, with its register in the register's own word", async () => {
     const { model, text: said } = await draw("claudia");
-    // Each facilitator by the name they go by (`fullNameOfUser`), which since
-    // the full names change comes before the account's display name: Sofia,
-    // Rahul and Tom go by their first names, and Grace has no other.
+    // Each facilitator by the names rule for the lead, who is on the
+    // committee (`nameForViewer`): each account's full name, here its own
+    // name, which begins with the name each goes by.
     assert.deepEqual(
       model.sessions.map((session) => [session.groupName, session.when, session.where, session.facilitators.map((person) => person.name), session.pill, session.line]),
       [
-        ["Group A", "Thu 12 Nov · 6pm", "Portland A13", ["Sofia"], "Register pushed", "3 of 4 came"],
+        ["Group A", "Thu 12 Nov · 6pm", "Portland A13", ["Sofia Rossi"], "Register pushed", "3 of 4 came"],
         ["Group D", "Mon 16 Nov · 6pm", "Room D4", ["Grace Okoye"], "Register not pushed", "Saved, not pushed. 1 of 2 so far."],
-        ["Group B", "Today · 6pm", "Hallward B12", ["Rahul", "Sofia"], "Today, 6pm", "3 in the group"],
-        ["Group C", "Tomorrow · 1pm", "Room B8", ["Tom"], "Tomorrow", null],
+        ["Group B", "Today · 6pm", "Hallward B12", ["Rahul Mehta", "Sofia Rossi"], "Today, 6pm", "3 in the group"],
+        ["Group C", "Tomorrow · 1pm", "Room B8", ["Tom Fletcher"], "Tomorrow", null],
       ],
     );
     assert.equal(model.sessions[0].seeIt, `${PAGE_PATH}/attendance?group=${encodeURIComponent(A)}`);

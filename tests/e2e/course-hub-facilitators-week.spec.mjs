@@ -638,6 +638,8 @@ test(
      * Everything the Overview's "Needs attention" lists once every register is
      * finished, in its order, as [title, detail]: `buildProgrammeOverview` in
      * src/lib/courses/programmeOverview.ts, restated (T2's, with the move).
+     * Read by the admin, who is shown each person by the names rule: the full
+     * name, the fixture's display name.
      */
     function attentionItems(now = new Date()) {
       const items = [];
@@ -646,7 +648,7 @@ test(
           const run = absentRun(person, now);
           if (run.length === 0) continue;
           items.push([
-            `${person.first} has missed ${run.length} sessions in a row without saying`,
+            `${person.displayName} has missed ${run.length} sessions in a row without saying`,
             `${group.name} · weeks ${namesInWords(run.map(String))}`,
           ]);
         }
@@ -1742,7 +1744,8 @@ test(
             for (const expected of [
               `${day} · ${londonClockLabel(session.startsAt)}`,
               group.room,
-              group === facilitated ? fern.first : "No facilitator yet",
+              // The admin is shown the facilitator by the names rule: in full.
+              group === facilitated ? fern.displayName : "No facilitator yet",
               `Register ${word()}`,
               `${came} of ${members.length} came`,
             ]) {

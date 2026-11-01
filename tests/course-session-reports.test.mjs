@@ -766,9 +766,16 @@ describe("4. the pages", () => {
     assert.equal((await send("rahul", withAnswers({ unclear: ["pt-races", "something-else"], forLead: "Can we swap rooms?" }))).status, 200);
     assert.equal((await send("sofia", withAnswers({ how: 3, wentWell: "", didnt: "", unclear: [], engaged: [], notRead: [], needsHand: [] }))).status, 200);
 
-    const weeks = await readers.readRunSessionReports(world.courseDb, RUN.agi);
-    // Each writer by the name they go by (`fullNameOfUser`, since the full names change).
+    // Read as the lead's page reads them, for the lead, who is on the
+    // committee: each writer by their full name (the names rule).
+    const weeks = await readers.readRunSessionReports(world.courseDb, RUN.agi, { role: "committee" });
     assert.deepEqual(weeks.map((week) => [week.weekNumber, week.reports.map((report) => `${report.groupName} · ${report.writerName}`)]), [
+      [3, ["Group A · Sofia Rossi"]],
+      [2, ["Group B · Rahul Mehta", "Group B · Sofia Rossi"]],
+    ]);
+    // A reader who is not on the committee is shown the name each goes by, and nothing of a full name.
+    const asMember = await readers.readRunSessionReports(world.courseDb, RUN.agi, { role: "member" });
+    assert.deepEqual(asMember.map((week) => [week.weekNumber, week.reports.map((report) => `${report.groupName} · ${report.writerName}`)]), [
       [3, ["Group A · Sofia"]],
       [2, ["Group B · Rahul", "Group B · Sofia"]],
     ]);
@@ -779,7 +786,7 @@ describe("4. the pages", () => {
         id: `${RUN.agi}__${B}__w02__rahul`,
         groupId: B,
         groupName: "Group B",
-        writerName: "Rahul",
+        writerName: "Rahul Mehta",
         weekNumber: 2,
         occurrence: 1,
         sessionAt: "2026-11-10T18:00:00.000Z",
@@ -803,14 +810,14 @@ describe("4. the pages", () => {
     for (const said of [
       // CHANGED ON PURPOSE: the page is the Surveys tab's Facilitators' reports view, under the tab's row of views.
       "Overview Before Check-ins Facilitators’ reports End Follow-ups Session reports What each group’s facilitators reported after each session, with names.",
-      "Week 3 Group A · Sofia Thu 12 Nov · Sent Thu 12 Nov at 7:30pm How it went 5 of 5 What went well Group A flew. Engaged well Amara Okafor : Led the debate.",
-      "Week 2 Group B · Rahul Tue 10 Nov · Sent Tue 17 Nov at 12pm How it went 4 of 5",
+      "Week 3 Group A · Sofia Rossi Thu 12 Nov · Sent Thu 12 Nov at 7:30pm How it went 5 of 5 What went well Group A flew. Engaged well Amara Okafor : Led the debate.",
+      "Week 2 Group B · Rahul Mehta Tue 10 Nov · Sent Tue 17 Nov at 12pm How it went 4 of 5",
       "What seemed unclear Races between AI developers Something else",
       "Engaged well Chloe Nguyen : Brought the compute reading into the race debate. Kofi Asante",
       "Seemed not to have done the readings Farah Hussain",
       "Might need a hand Kofi Asante : Arrives after a lab; missed the first half hour.",
       "For the lead and admins Can we swap rooms?",
-      "Group B · Sofia Tue 10 Nov · Sent Tue 17 Nov at 12pm How it went 3 of 5",
+      "Group B · Sofia Rossi Tue 10 Nov · Sent Tue 17 Nov at 12pm How it went 3 of 5",
     ]) {
       assert.ok(drawn.text.includes(said), `the lead's page does not say: ${said}\n${drawn.text}`);
     }
@@ -942,12 +949,12 @@ describe("5. what takes reports away", () => {
     assert.ok(!JSON.stringify(left.map((path) => world.db.read(path))).includes('"sofia"'), "a report still holds Sofia's account");
 
     // The lead reads them still, written by a former facilitator.
-    const weeks = await readers.readRunSessionReports(world.courseDb, RUN.agi);
+    const weeks = await readers.readRunSessionReports(world.courseDb, RUN.agi, { role: "committee" });
     assert.deepEqual(
       weeks.map((week) => [week.weekNumber, week.reports.map((report) => `${report.groupName} · ${report.writerName}`)]),
       [
         [3, ["Group A · A former facilitator"]],
-        [2, ["Group B · A former facilitator", "Group B · Rahul"]],
+        [2, ["Group B · A former facilitator", "Group B · Rahul Mehta"]],
       ],
     );
   });

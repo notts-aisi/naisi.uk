@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { homeEvents } from "@/app/(app)/dashboard/homeData";
+import { cantMakeItFor } from "@/lib/courses/cantMakeIt/seat";
 import { readOwnCertificates } from "@/lib/courses/certificates/own";
 import { liveGroupsOf, runEndOf } from "@/lib/courses/finishing/runEnd";
 import { endSurveyFor } from "@/lib/surveys/waiting";
@@ -137,6 +138,16 @@ export default async function RunHomePage({
     ? timeQuestionFor({ user: access.user, runId: access.run.id, enrolment: access.enrolment, groups: access.groups })
     : null;
 
+  // "Can't make it" on the next session's ticket, for somebody taking part in
+  // the group, until the session starts: one read, of that session's
+  // register. A read that fails draws nothing.
+  const cantMakeIt =
+    access.isEnrolled && db
+      ? await cantMakeItFor(db, { user: access.user, run: access.run, enrolment: access.enrolment, groups: access.groups, now: new Date() }).catch(
+          () => null,
+        )
+      : null;
+
   // "About this course" (wk-programme): the programme's Start here and
   // Glossary, each linked when the run has it; nothing for a run with neither.
   const guide = db ? await guideLinksOf(db, access.run.id).catch(() => null) : null;
@@ -174,6 +185,7 @@ export default async function RunHomePage({
       canLeave={canLeave}
       leaveNote={leaveNote}
       timeQuestion={timeQuestion}
+      cantMakeIt={cantMakeIt}
       viewAs={viewAs}
       uid={access.user.uid}
       {...(guide ? { guide } : {})}

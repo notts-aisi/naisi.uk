@@ -258,10 +258,11 @@ describe("2. who ticked each source, by name, behind a button", () => {
     // page where lines are read out count. Until 27 October 2026 the lead's and an admin's ticks counted all 5
     // people listed while their reflections counted the 3 fellows.
     const expected = [
-      // A facilitator by the name they go by (`fullNameOfUser`); this world's
-      // fellows go by their whole names.
-      ["A keeper's diary", ["Chloe Nguyen", "Farah Hussain", "Rahul (facilitator)"], 3],
-      ["Lamps at night", ["Farah Hussain", "Sofia (facilitator)"], 3],
+      // Everybody by the names rule for an admin or the lead, who is on the
+      // committee (`nameForViewer`): each account's full name, here the
+      // account's own name.
+      ["A keeper's diary", ["Chloe Nguyen", "Farah Hussain", "Rahul Mehta (facilitator)"], 3],
+      ["Lamps at night", ["Farah Hussain", "Sofia Rossi (facilitator)"], 3],
     ];
     const pages = [
       ["an admin on the group page", await groupPage("zach")],
@@ -455,13 +456,13 @@ describe("4. This week's work and the review queue's counts", () => {
           ["Chloe Nguyen", [true, false, false]],
           ["Farah Hussain", [true, true, false]],
           ["Kofi Asante", [false, false, false]],
-          ["Rahul (facilitator)", [true, false, false]],
-          ["Sofia (facilitator)", [false, false, false]],
+          ["Rahul Mehta (facilitator)", [true, false, false]],
+          ["Sofia Rossi (facilitator)", [false, false, false]],
         ],
       );
       assert.deepEqual(week.counts.map((count) => [count.number, count.written, count.of]), [[1, 2, 3], [2, 1, 3], [3, 0, 3]]);
       assert.equal(week.of, 3);
-      assert.match(drawn.text, /R Rahul Facilitator Written Not yet Not yet/);
+      assert.match(drawn.text, /RM Rahul Mehta Facilitator Written Not yet Not yet/);
       assert.doesNotMatch(drawn.text, /Facilitators’ own work is for/);
       // Under the table, whom every number counts.
       assert.match(drawn.text, /Every number here counts the group’s 3 fellows\. Facilitators’ own work is marked Facilitator and isn’t counted\./);
@@ -481,7 +482,7 @@ describe("4. This week's work and the review queue's counts", () => {
     assert.equal(queueOf(asFacilitator), null);
     assert.match(asFacilitator.text, /This week’s work Week 3 · Thu 12 to Wed 18 Nov · Locks Tue 6pm You’ll see your group’s names when groups go out\./);
     const asAdmin = await groupPage("zach");
-    assert.deepEqual(weekOf(asAdmin).rows.map(said), ["Chloe Nguyen", "Farah Hussain", "Kofi Asante", "Rahul (facilitator)", "Sofia (facilitator)"]);
+    assert.deepEqual(weekOf(asAdmin).rows.map(said), ["Chloe Nguyen", "Farah Hussain", "Kofi Asante", "Rahul Mehta (facilitator)", "Sofia Rossi (facilitator)"]);
     assert.ok(queueOf(asAdmin));
   });
 
@@ -515,7 +516,7 @@ describe("5. the private notes: the group's facilitators and admins, never the l
 
   test("an admin reads every note of the group, a facilitator's own among them, marked as theirs", async () => {
     assert.deepEqual(notesOf(weekOf(await groupPage("zach"))), [
-      ["A keeper's diary", [["Chloe Nguyen", NOTED.chloe[1]], ["Rahul (facilitator)", NOTED.rahul[1]]]],
+      ["A keeper's diary", [["Chloe Nguyen", NOTED.chloe[1]], ["Rahul Mehta (facilitator)", NOTED.rahul[1]]]],
       ["Lamps at night", [["Kofi Asante", NOTED.kofi[1]]]],
     ]);
   });
@@ -568,18 +569,18 @@ describe("6. the lead's and admins' view of a group's week", () => {
     assert.deepEqual(
       props.prompts.map((prompt) => prompt.own.map((person) => [person.name, person.text])),
       [
-        [["Rahul", SAID.rahul["k3-rp1"]], ["Sofia", SAID.sofia["k3-rp1"]]],
-        [["Rahul", SAID.rahul["k3-rp2"]], ["Sofia", null]],
-        [["Rahul", null], ["Sofia", null]],
-        [["Rahul", null], ["Sofia", null]],
-        [["Rahul", null], ["Sofia", null]],
-        [["Rahul", null], ["Sofia", null]],
+        [["Rahul Mehta", SAID.rahul["k3-rp1"]], ["Sofia Rossi", SAID.sofia["k3-rp1"]]],
+        [["Rahul Mehta", SAID.rahul["k3-rp2"]], ["Sofia Rossi", null]],
+        [["Rahul Mehta", null], ["Sofia Rossi", null]],
+        [["Rahul Mehta", null], ["Sofia Rossi", null]],
+        [["Rahul Mehta", null], ["Sofia Rossi", null]],
+        [["Rahul Mehta", null], ["Sofia Rossi", null]],
       ],
     );
     assert.match(asLead.text, /Only you and admins read these\. They’re never read out\./);
     assert.match(asLead.text, new RegExp(`Chloe Nguyen Sun 15 Nov, 4:12pm ${SAID.chloe["k3-rp1"]} Farah Hussain Sun 15 Nov, 4:12pm ${SAID.farah["k3-rp1"]}`));
     assert.match(asLead.text, /2 of 3 wrote one · Kofi Asante hasn’t/);
-    assert.match(asLead.text, new RegExp(`Facilitators’ own reflections Rahul Facilitator Sun 15 Nov, 4:12pm ${SAID.rahul["k3-rp1"]} Sofia Facilitator Sun 15 Nov, 4:12pm ${SAID.sofia["k3-rp1"]}`));
+    assert.match(asLead.text, new RegExp(`Facilitators’ own reflections Rahul Mehta Facilitator Sun 15 Nov, 4:12pm ${SAID.rahul["k3-rp1"]} Sofia Rossi Facilitator Sun 15 Nov, 4:12pm ${SAID.sofia["k3-rp1"]}`));
     assert.doesNotMatch(asLead.html, /Read this out|To read out|Copy for the session/);
     // Nobody who left and nobody of another group, and never a private note.
     for (const uid of ["isaac", "amara"]) for (const text of Object.values(SAID[uid])) assert.ok(!asLead.html.includes(text), `the lead is shown ${uid}'s reflection`);

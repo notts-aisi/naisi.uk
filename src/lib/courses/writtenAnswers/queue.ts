@@ -5,7 +5,7 @@ import { normalizeCourseEnrolment, placementIsShownTo } from "@/lib/firestore/co
 import { isReflectionResponse } from "@/lib/firestore/courseExercises";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import type { CourseRunDoc } from "@/lib/firestore/courses";
-import { fullNameOfUser } from "../programmeLead";
+import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { liveGroupsOf, reviewableIn, reviewerFactsOf, type OwnerFacts } from "./access";
 import { instantOf, isWordCountedAnswer, readWrittenAnswer } from "./model";
 import { workIsReadable } from "../weekWork/model";
@@ -47,7 +47,11 @@ export const TO_WRITE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type WrittenQueueRow = {
   uid: string;
-  /** The whole name, as the board lists people. */
+  /**
+   * The name by the names rule for the reader (`nameForViewer`): the
+   * committee and admins see "Priya Shah (Pri)", a facilitator who is not on
+   * it the name people go by.
+   */
   name: string;
   weekNumber: number;
   /** ISO 8601: when it was first sent, or when its week locked before it was. */
@@ -142,7 +146,7 @@ export async function loadWrittenQueues(
   const uids = [...new Set(waiting.map((row) => row.uid))];
   const names = new Map<string, string>();
   for (const snap of uids.length ? await db.getAll(...uids.map((uid) => db.collection("users").doc(uid))) : []) {
-    if (snap.exists) names.set(snap.id, fullNameOfUser(snap.data() ?? {}));
+    if (snap.exists) names.set(snap.id, nameForViewer(actor, accountNamesOf(snap.data() ?? {}), "NAISI member"));
   }
   const out = new Map<string, WrittenQueueRow[]>(groups.map((group) => [group.id, []]));
   for (const row of waiting) {

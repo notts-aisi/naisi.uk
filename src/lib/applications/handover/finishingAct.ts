@@ -112,8 +112,9 @@ export async function setFinishRule(
   const runId = records.run.id;
   const ref = db.collection(FINISHING_COLLECTION).doc(finishRuleId(runId));
   const end = runEndOf(records.run, records.groups, now);
-  // Every row of the run, as an admin's list has them, for the check below.
-  const rows = listGroups(records, { isAdmin: true }, now, weeksOf(records)).flatMap((listed) =>
+  // Every row of the run, as an admin's list has them, for the check below,
+  // each named as the caller is shown them (the refusal names who it would untick).
+  const rows = listGroups(records, { isAdmin: true, role: actor.role }, now, weeksOf(records)).flatMap((listed) =>
     listed.people.map((person) => person.row),
   );
   const unticked = await db.runTransaction(async (tx) => {
@@ -169,9 +170,10 @@ export async function decideFinished(
   const end = runEndOf(records.run, records.groups, now);
   if (!end.over) return refuse(409, notOverYet(end.lastDay));
 
-  const viewer = { isAdmin: view.viewer === "admin", uid: actor.uid };
+  // The role decides the name each person is shown by, as on the page.
+  const viewer = { isAdmin: view.viewer === "admin", uid: actor.uid, role: actor.role };
   // The person as this viewer's list shows them: the same rows the section draws.
-  const row = listGroups(records, { isAdmin: viewer.isAdmin }, now, weeksOf(records))
+  const row = listGroups(records, { isAdmin: viewer.isAdmin, role: viewer.role }, now, weeksOf(records))
     .flatMap((listed) => listed.people)
     .find((person) => person.row.uid === change.uid)?.row;
   if (!row) return refuse(404, NOT_ON_THE_LIST);

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import InitialsChip from "@/components/ui/InitialsChip";
 import { tilePartsOfDay } from "@/app/(app)/dashboard/homeWords";
 import type { TicketFacts } from "../sessionChange/cardFacts";
@@ -23,9 +24,9 @@ import styles from "./weekly.module.css";
  * (st-calendar-phone): under the room on the programme page, and in a row of
  * its own under the card on Home. An online week's ticket carries Join online
  * in its place, in the row under the card with the line that the link is
- * only here, as board wk-changes draws it. "Can’t make it", which the boards
- * draw beside it, is not here: it does not exist yet, and the page draws no
- * control for a feature that does not.
+ * only here. "Can’t make it" (`cantMakeIt`) sits beside Add to calendar on
+ * the programme page's ticket, for somebody taking part in the group, until
+ * the session starts; Home's ticket has none.
  */
 
 export type TicketPerson = { uid: string; name: string; firstName: string };
@@ -44,9 +45,20 @@ type Props = {
   home?: boolean;
   /** Offer "Add to calendar": the reader's ticket is a group Publish has told them about, or one they facilitate. */
   calendar?: boolean;
+  /** "Can’t make it", drawn beside Add to calendar (`CantMakeIt`), or nothing. */
+  cantMakeIt?: ReactNode;
 };
 
-export default function SessionTicket({ facts, eyebrow, heading, roomChanged, facilitators, home = false, calendar = false }: Props) {
+export default function SessionTicket({
+  facts,
+  eyebrow,
+  heading,
+  roomChanged,
+  facilitators,
+  home = false,
+  calendar = false,
+  cantMakeIt = null,
+}: Props) {
   const tile = tilePartsOfDay(facts.dateKey);
   const withLine = withWords(facilitators.map((person) => person.firstName));
   const offerCalendar = calendar && !facts.joinUrl;
@@ -110,9 +122,10 @@ export default function SessionTicket({ facts, eyebrow, heading, roomChanged, fa
               )
             )}
             {facts.missing && <p className={styles.ticketNote}>{facts.missing}</p>}
-            {offerCalendar && !home && (
+            {((offerCalendar && !home) || cantMakeIt) && (
               <div className={styles.ticketActions}>
-                <AddToCalendar />
+                {offerCalendar && !home && <AddToCalendar />}
+                {cantMakeIt}
               </div>
             )}
           </div>

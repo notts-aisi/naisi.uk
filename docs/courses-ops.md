@@ -1128,6 +1128,35 @@ reads **Not held** and its register needs nothing: a mark, the switch, a note
 and the push are each refused. To hold it after all, use Hold it as usual in
 Change a session.
 
+### "Can't make it", before a session
+
+Somebody taking part in a group can press **Can't make it** on the ticket of
+their group's next session, on their programme page, until the session starts
+(`POST /api/courses/groups/[groupId]/cant-make-it`). It writes their own line
+of that session's register and nothing else: `records.<uid>` as `excused`, and
+`excusedInAdvance.<uid>` as when they said so. **I can make it after all**
+deletes both while the session has not started. Nobody is emailed either way.
+
+So a register can exist before its session, holding nothing but excused marks.
+It is still a draft nobody has marked: nothing has been finished, and the
+reminder and the task chase it after the session exactly as they chase a
+register with no document. The register's page says who told us, in a line
+over the grid for each session still to come, and on that person's cell for a
+screen reader. A facilitator marks the person as usual, and their mark takes
+the line over: the marking route deletes the person's `excusedInAdvance`
+entry, and the person is asked to tell their facilitators rather than press
+again.
+
+The press is refused once the session has started, on a session called off
+through Change a session, and on a register that is finished or says the
+session did not happen. Deleting an account clears its `excusedInAdvance`
+entries with its other register keys. A session moved through Change a session
+keeps its register, so a person who told us about the old day is still
+excused on the new one until they press **I can make it after all**. And a
+group's pace that would stop teaching a week whose register holds such a word
+is refused, as it is for any mark on that register: ask the person to take it
+back first.
+
 ## Placing a term's accepted people on a course run
 
 The term's application form decides who holds a place on each programme

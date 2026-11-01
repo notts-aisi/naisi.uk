@@ -30,7 +30,7 @@ export default async function ProgrammeWeeksPage({
   if (outcome.status === "not-yours") return <WeeksNotYours roundId={roundId} programmeId={programmeId} />;
   const { view } = outcome;
   if (!view.run) return <RunBlank view={view} />;
-  const tab = await loadWeeksTab(db, view.run.id, view.programmeName);
+  const tab = await loadWeeksTab(db, view.run.id, view.programmeName, user);
   if (!tab) return <RunBlank view={{ ...view, blank: "run-gone" }} />;
   return <WeeksList tab={tab} roundId={view.roundId} programmeId={view.programmeId} />;
 }

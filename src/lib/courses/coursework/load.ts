@@ -8,7 +8,6 @@ import { listPlaceHolders } from "@/lib/applications/people/load";
 import { loadForm } from "@/lib/applications/repo";
 import { readPersonPrivateNotes, readRunCoursework } from "@/lib/courses/facilitatorWeek/readers";
 import { boxesReaderFor } from "@/lib/courses/fillInBoxes/access";
-import { fullNameOfUser } from "@/lib/courses/programmeLead";
 import { resolveGroupCalendar, resolveWeekDocs } from "@/lib/courses/groupResolve";
 import { readPackCaseRecords } from "@/lib/courses/packsAndCases/readers";
 import { liveGroupsOf, ownerFactsOf, reviewerFactsOf, writtenReviewRole } from "@/lib/courses/writtenAnswers/access";
@@ -24,6 +23,7 @@ import {
 } from "@/lib/firestore/courseEnrolments";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
+import { accountNamesOf, nameForViewer, type NameViewer } from "@/lib/names/staffName";
 import {
   NO_WORK,
   chooseOneIdsOf,
@@ -71,6 +71,11 @@ import { NOT_IN_A_GROUP_YET } from "./words";
  * question is asked twice per seat, once about the viewer (which group the
  * row sits in) and once about a viewer who is no admin (whether the person
  * has been told, so which copy of a week they read).
+ *
+ * NAMES, by the names rule for the person looking (`nameForViewer`): the
+ * committee and admins see "Priya Shah (Pri)", a lead who is not on the
+ * committee the name people go by. Every row is named off its account; the
+ * name on a place's record stands in only where the account has gone.
  */
 
 type Gate =
@@ -89,12 +94,16 @@ async function openCoursework(db: Firestore, actor: SessionUser, roundId: string
   return { status: "ok", view, run: normalizeCourseRun(runSnap.id, runSnap.data() ?? {}), form, viewer: view.viewer };
 }
 
-/** Whole names on accounts, by uid, as the lead's tabs name people. */
-async function namesOf(db: Firestore, uids: readonly string[]): Promise<Map<string, string>> {
+/** Names on accounts, by uid, as `viewer` is shown them (the names rule), as the lead's tabs name people. */
+async function namesOf(db: Firestore, uids: readonly string[], viewer: NameViewer): Promise<Map<string, string>> {
   const unique = [...new Set(uids.filter(Boolean))];
   if (unique.length === 0) return new Map();
   const docs = await db.getAll(...unique.map((uid) => db.collection("users").doc(uid)));
-  return new Map(docs.filter((doc) => doc.exists).map((doc) => [doc.id, fullNameOfUser(doc.data() ?? {})] as const));
+  return new Map(
+    docs
+      .filter((doc) => doc.exists)
+      .map((doc) => [doc.id, nameForViewer(viewer, accountNamesOf(doc.data() ?? {}), "NAISI member")] as const),
+  );
 }
 
 /** The weeks of the run's plan written as blocks, week 1 first: the tab's columns. */
@@ -139,7 +148,7 @@ function peopleOf(input: {
   groups: readonly CourseGroupDoc[];
   holders: readonly PlaceHolder[];
   seats: ReadonlyMap<string, CourseEnrolmentDoc>;
-  /** Names on accounts, for facilitators and for anybody placed with no place on the form. */
+  /** Names on accounts, by the names rule for the viewer: everybody whose account is there. */
   names: ReadonlyMap<string, string>;
 }): CourseworkPerson[] {
   const people: CourseworkPerson[] = [];
@@ -170,7 +179,8 @@ function peopleOf(input: {
   for (const holder of input.holders) {
     if (seen.has(holder.uid)) continue;
     seen.add(holder.uid);
-    fellow(holder.uid, holder.name, input.seats.get(holder.uid));
+    // The name on their place's record stands in only for an account that has gone.
+    fellow(holder.uid, input.names.get(holder.uid) ?? holder.name, input.seats.get(holder.uid));
   }
   for (const [uid, seat] of input.seats) {
     if (seen.has(uid) || !placedIn(seat, input.groups)) continue;
@@ -180,11 +190,12 @@ function peopleOf(input: {
   return people;
 }
 
-/** The people `peopleOf` names from their accounts: facilitators, and anybody placed with no place on the form. */
+/** The people `peopleOf` names from their accounts: facilitators, everybody holding a place, and anybody placed with no place on the form. */
 function accountsToName(groups: readonly CourseGroupDoc[], holders: readonly PlaceHolder[], seats: ReadonlyMap<string, CourseEnrolmentDoc>): string[] {
   const holding = new Set(holders.map((holder) => holder.uid));
   return [
     ...groups.flatMap((group) => group.facilitatorUids),
+    ...holders.map((holder) => holder.uid),
     ...[...seats.entries()].filter(([uid, seat]) => !holding.has(uid) && placedIn(seat, groups)).map(([uid]) => uid),
   ];
 }
@@ -253,7 +264,7 @@ export async function loadCourseworkTab(
   }
   const [groupWeeks, names, coursework] = await Promise.all([
     Promise.all(groups.map(async (group) => [group.id, await weeksRead(db, run.id, group.id)] as const)),
-    namesOf(db, accountsToName(groups, holders, seats)),
+    namesOf(db, accountsToName(groups, holders, seats), actor),
     readRunCoursework(db, { run, liveGroups: groups, now: new Date() }, null),
   ]);
   const weeksOf = new Map(groupWeeks);
@@ -392,7 +403,7 @@ export async function loadPersonCoursework(
 
   const mine = groups.filter((group) => !facilitates || group.facilitatorUids.includes(uid));
   const holding = holder ? [holder] : [];
-  const names = await namesOf(db, accountsToName(mine, holding, seats).filter((candidate) => candidate === uid));
+  const names = await namesOf(db, accountsToName(mine, holding, seats).filter((candidate) => candidate === uid), actor);
   const [person] = peopleOf({ viewer, groups: mine, holders: holding, seats, names }).filter((candidate) => candidate.uid === uid);
   if (!person) return { status: "not-here", programmeName: view.programmeName };
 

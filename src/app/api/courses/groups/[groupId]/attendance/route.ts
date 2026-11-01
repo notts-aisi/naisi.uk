@@ -12,7 +12,6 @@ import {
   type RegisterMember,
 } from "@/lib/courses/registerAccess";
 import { didNotHappenLine, leaversOfGroup, readRunRecords } from "@/lib/courses/programmeAttendance";
-import { fullNameOfUser } from "@/lib/courses/programmeLead";
 import { readRegisterEnding, type RegisterEnding } from "@/lib/courses/registerEnding";
 import {
   resolveSessions,
@@ -25,9 +24,11 @@ import {
   ATTENDANCE_LIMITS,
   ATTENDANCE_STATUSES,
   ATTENDANCE_STATUS_LABEL,
+  EXCUSED_IN_ADVANCE,
   attendanceDocId,
   normalizeCourseAttendance,
   type AttendanceStatus,
+  type CourseAttendanceDoc,
 } from "@/lib/firestore/courseAttendance";
 import { COURSE_AUDIT_COLLECTION } from "@/lib/firestore/courseAudit";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
@@ -37,6 +38,7 @@ import {
   type CourseRunDoc,
 } from "@/lib/firestore/courses";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { reachLateMarks } from "@/lib/surveys/checkIns/lateMark";
 
 /**
@@ -133,8 +135,11 @@ export type AttendancePayload = {
    */
   sessions: AttendanceSession[];
   /**
-   * The grid's ROWS: active members of the group, name-sorted. Names only.
-   * For anybody but an admin, only people Publish has told their group.
+   * The grid's ROWS: active members of the group, name-sorted. Names only,
+   * by the names rule for the caller (`nameForViewer`: the committee and
+   * admins see "Priya Shah (Pri)", a facilitator who is not on it the name
+   * people go by). For anybody but an admin, only people Publish has told
+   * their group.
    */
   members: RegisterMember[];
   /**
@@ -146,8 +151,8 @@ export type AttendancePayload = {
    * SOMEBODY WHO LEFT THE GROUP, read only, as wk-fac-group draws "Sam
    * Whitfield, Left Fri 13 Nov": the people the lead's Attendance tab lists
    * in this group as having left (`leaversOfGroup`, the grid's own rule, so
-   * the two agree), by their whole names as the lead's tabs name them,
-   * name-sorted, each with the marks this group's registers hold for them. They are NOT rows of the register: nobody can mark them
+   * the two agree), named as the rows are, name-sorted, each with the marks
+   * this group's registers hold for them. They are NOT rows of the register: nobody can mark them
    * (a write's marks are checked against `members`), they count in no tally,
    * and nothing chases a session after they left, which is blank.
    */
@@ -175,15 +180,36 @@ export type AttendancePayload = {
    * nobody finishes. The page words it (`registerEndingWords.ts`).
    */
   ending: RegisterEnding;
+  /**
+   * WHO TOLD US IN ADVANCE THAT THEY CAN'T MAKE A SESSION ("Can't make it" on
+   * their programme page, `src/lib/courses/cantMakeIt/`): each session of
+   * the group, a column or still to come, where a row of the register said
+   * so and is still excused on it, soonest first, with its day and whether
+   * it has ended. Rows only, as every map here is. The grid says it over the
+   * table for a session that has not ended, and beside the mark in a cell.
+   */
+  cantMakeIt: AttendanceCantMakeIt[];
+};
+
+/** One session where somebody told us in advance they can't make it. */
+export type AttendanceCantMakeIt = {
+  sessionKey: string;
+  weekNumber: number;
+  occurrence: number;
+  /** Civil date of the session, "" when it has none. */
+  dateKey: string;
+  /** The session has ended: nothing more to say about it before it. */
+  ended: boolean;
+  /** The register's rows who said so, in the rows' order. */
+  uids: string[];
 };
 
 /** Somebody who left the group, as the register lists them: read only. */
 export type AttendanceLeaver = {
   uid: string;
   /**
-   * Their whole name, as the lead's tabs and wk-fac-group name somebody who
-   * left: never an address. The register's own rows keep the name each
-   * person goes by.
+   * Their name by the names rule for the caller, as the register's own rows
+   * and the lead's tabs name people: never an address.
    */
   displayName: string;
   /** "Left Fri 13 Nov", or "Left" when the day is not on record. */
@@ -435,7 +461,7 @@ async function prepareWrite(
 
   const [runSnap, { members }] = await Promise.all([
     db.collection("courseRuns").doc(gated.runId).get(),
-    loadRegisterMembers(db, gated.runId, groupId, { isAdmin: gated.isAdmin }),
+    loadRegisterMembers(db, gated.runId, groupId, { isAdmin: gated.isAdmin, role: actor.role }),
   ]);
   if (!runSnap.exists) return fail("Run not found", 404);
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
@@ -533,7 +559,7 @@ export async function GET(
   // register last marked them), and the register asks the same function.
   const [runSnap, { members, notYetTold }, runRecords] = await Promise.all([
     db.collection("courseRuns").doc(runId).get(),
-    loadRegisterMembers(db, runId, groupId, { isAdmin: gated.isAdmin }),
+    loadRegisterMembers(db, runId, groupId, { isAdmin: gated.isAdmin, role: actor.role }),
     readRunRecords(db, runId),
   ]);
   if (!runSnap.exists) {
@@ -553,7 +579,17 @@ export async function GET(
   const weekCollection = db.collection("courseRuns").doc(runId).collection("weeks");
   const forkCollection = db.collection("courseGroups").doc(groupId).collection("weeks");
   const weekIds = [...new Set(columns.map((c) => c.weekId))].filter(isAddressableId);
-  const [weekDocs, forkDocs, registerDocs] = await Promise.all([
+  // The sessions still to end that are not columns yet: somebody may have
+  // told us they can't make one ("Can't make it"), and the register says so
+  // before its column is drawn. A session cancelled through "Change a
+  // session" meets nobody, so nothing is said of it.
+  const columnKeys = new Set(columns.map((c) => c.sessionKey));
+  const ahead = sessions.filter((s) => {
+    if (s.cancelled || columnKeys.has(s.sessionKey)) return false;
+    const { endsAt } = sessionInstants(s);
+    return endsAt !== null && endsAt.getTime() > now.getTime();
+  });
+  const [weekDocs, forkDocs, registerDocs, aheadDocs] = await Promise.all([
     weekIds.length
       ? db.getAll(...weekIds.map((id) => weekCollection.doc(id)))
       : Promise.resolve([]),
@@ -568,6 +604,9 @@ export async function GET(
               .doc(attendanceDocId(runId, groupId, c.weekNumber, c.occurrence)),
           ),
         )
+      : Promise.resolve([]),
+    ahead.length
+      ? db.getAll(...ahead.map((s) => db.collection("courseAttendance").doc(attendanceDocId(runId, groupId, s.weekNumber, s.occurrence))))
       : Promise.resolve([]),
   ]);
 
@@ -594,6 +633,14 @@ export async function GET(
   const records: AttendancePayload["records"] = {};
   const participantNotes: AttendancePayload["participantNotes"] = {};
   const stateByKey = new Map<string, { held: boolean; notes: string; pushedAt: string | null }>();
+  // Who told us in advance, by session: every register read, the columns' and
+  // the sessions still to come.
+  const registerBySessionKey = new Map<string, CourseAttendanceDoc>();
+  for (const snap of [...registerDocs, ...aheadDocs]) {
+    if (!snap.exists) continue;
+    const register = normalizeCourseAttendance(snap.id, snap.data() ?? {});
+    registerBySessionKey.set(register.sessionKey, register);
+  }
 
   for (const snap of registerDocs) {
     const column = sessionByDocId.get(snap.id);
@@ -654,11 +701,32 @@ export async function GET(
   const leavers: AttendanceLeaver[] = leaving
     .map((leaver) => ({
       uid: leaver.uid,
-      displayName: fullNameOfUser(runRecords?.accounts.get(leaver.uid) ?? {}),
+      displayName: nameForViewer(actor, accountNamesOf(runRecords?.accounts.get(leaver.uid) ?? {}), "NAISI member"),
       left: leaver.left,
       records: leaverMarks.get(leaver.uid) ?? {},
     }))
     .sort((a, b) => a.displayName.localeCompare(b.displayName) || a.uid.localeCompare(b.uid));
+
+  // Somebody told us in advance, and the register still has them excused:
+  // the rows only, in their order, soonest session first.
+  const cantMakeIt: AttendanceCantMakeIt[] = [];
+  for (const session of [...columns, ...ahead]) {
+    const register = registerBySessionKey.get(session.sessionKey);
+    if (!register) continue;
+    const uids = members
+      .map((m) => m.uid)
+      .filter((uid) => register.excusedInAdvance[uid] && register.records[uid] === "excused");
+    if (uids.length === 0) continue;
+    const { endsAt } = sessionInstants(session);
+    cantMakeIt.push({
+      sessionKey: session.sessionKey,
+      weekNumber: session.weekNumber,
+      occurrence: session.occurrence,
+      dateKey: session.dateKey,
+      ended: session.cancelled || (endsAt !== null && endsAt.getTime() <= now.getTime()),
+      uids,
+    });
+  }
 
   const payload: AttendancePayload = {
     group: { id: group.id, name: group.name },
@@ -687,6 +755,7 @@ export async function GET(
     participantNotes,
     canEditPushed: gated.isAdmin,
     ending,
+    cantMakeIt,
   };
 
   return NextResponse.json(payload);
@@ -789,6 +858,16 @@ export async function POST(
         // shared, and "not marked" is the absence of a key, not a status.
         records[uid] = status === null ? FieldValue.delete() : status;
       }
+      // A facilitator's mark makes the line theirs. The note that the person
+      // told us in advance they can't make it ("Can't make it") goes with the
+      // excused mark it came with, so the person's "I can make it after all"
+      // can never clear a mark a facilitator made. Only a key that is there
+      // is deleted, so a register nobody told keeps no such map.
+      const toldBefore = (data[EXCUSED_IN_ADVANCE] ?? {}) as Record<string, unknown>;
+      const toldTakenOver: Record<string, FieldValue> = {};
+      for (const uid of wanted.keys()) {
+        if (Object.hasOwn(toldBefore, uid)) toldTakenOver[uid] = FieldValue.delete();
+      }
 
       tx.set(
         ref,
@@ -799,6 +878,7 @@ export async function POST(
           weekNumber: session.weekNumber,
           occurrence: session.occurrence,
           records,
+          ...(Object.keys(toldTakenOver).length > 0 ? { [EXCUSED_IN_ADVANCE]: toldTakenOver } : {}),
           markedByUid: actor.uid,
           updatedAt: FieldValue.serverTimestamp(),
           ...(hasHeld ? { held: body.held === true } : {}),

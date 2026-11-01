@@ -1127,6 +1127,12 @@ const USERS = new Map([
       "only right if running them says so",
   ],
   [
+    "course-session-cant-make-it.test.mjs",
+    "renders the register's grid and the programme page's Can't make it control (.tsx) to HTML with the " +
+      "press's and the register's handlers behind them, because what the ticket offers and what the register " +
+      "says is decided by the components as they run",
+  ],
+  [
     "course-time-question-email.test.mjs",
     "loads the \"Your group\" email's own section (src/lib/courses/timeAnswer/emailSection.ts), whose words " +
       "come through the campus and time-answer word files and the society's contact address in " +

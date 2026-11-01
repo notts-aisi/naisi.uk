@@ -55,6 +55,8 @@ export type ReportGate =
       run: CourseRunDoc;
       /** True for a facilitator who is also an admin: the register shows them everybody placed. */
       isAdmin: boolean;
+      /** The writer's role, for the name the register shows each person by (`nameForViewer`). */
+      role: string;
     }
   | { ok: false; status: 403 | 404; error: string };
 
@@ -85,7 +87,13 @@ export async function gateReportWriter(db: Firestore, actor: SessionUser, groupI
   if (!runSnap.exists || (runSnap.data() ?? {}).destroying === true) {
     return { ok: false, status: 404, error: "Group not found" };
   }
-  return { ok: true, group, run: normalizeCourseRun(runSnap.id, runSnap.data() ?? {}), isAdmin: actor.role === "admin" };
+  return {
+    ok: true,
+    group,
+    run: normalizeCourseRun(runSnap.id, runSnap.data() ?? {}),
+    isAdmin: actor.role === "admin",
+    role: actor.role,
+  };
 }
 
 /** The group's sessions, as its register's columns resolve them. */
@@ -106,11 +114,6 @@ export type ReportSession = {
   parts: ReportPart[];
 };
 
-/** "Aisha" from "Aisha Rahman". */
-function firstNameOf(name: string): string {
-  return name.trim().split(/\s+/)[0] ?? "";
-}
-
 /**
  * What one session's report can pick from, and whether it is open, for a
  * writer the gate has admitted. Null for a session the group does not hold,
@@ -130,8 +133,9 @@ export async function loadReportSession(
   const [registerSnap, roster, week] = await Promise.all([
     db.collection("courseAttendance").doc(attendanceDocId(run.id, group.id, session.weekNumber, session.occurrence)).get(),
     // The register's rows as this writer sees them: the people Publish has
-    // told, or everybody placed for a facilitator who is also an admin.
-    loadRegisterMembers(db, run.id, group.id, { isAdmin: gated.isAdmin }),
+    // told, or everybody placed for a facilitator who is also an admin, each
+    // named as the register names them for this writer.
+    loadRegisterMembers(db, run.id, group.id, { isAdmin: gated.isAdmin, role: gated.role }),
     resolveWeekDoc(db, run.id, group.id, session.weekId),
   ]);
   const register = registerSnap.exists ? (registerSnap.data() ?? {}) : {};
@@ -139,7 +143,8 @@ export async function loadReportSession(
   const facilitators = new Set(group.facilitatorUids);
   const inGroup = roster.members
     .filter((member) => !facilitators.has(member.uid))
-    .map((member) => ({ uid: member.uid, name: member.displayName, firstName: firstNameOf(member.displayName) }));
+    // The first name is the one each goes by, whatever name the row shows.
+    .map((member) => ({ uid: member.uid, name: member.displayName, firstName: roster.firstNames.get(member.uid) ?? "" }));
   const came = inGroup.filter((person) => {
     const mark = marks[person.uid];
     return ATTENDANCE_STATUSES.includes(mark as AttendanceStatus) && CAME.includes(mark as AttendanceStatus);

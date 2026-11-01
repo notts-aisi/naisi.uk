@@ -1,6 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { isCheckIn, isEventSurvey, type SurveyDoc, type SurveyPersonDoc } from "@/lib/firestore/surveys";
+import type { NameViewer } from "@/lib/names/staffName";
 import { eventPeopleOf } from "./events/store";
 import { eventMeta } from "./events/words";
 import { blanksOf, blanksRowOf, mergedAnswers, type BlanksRow } from "./blanks";
@@ -179,7 +180,8 @@ export function testView(fresh: "none" | "stale" | "fresh", at: Date | null, now
   return { fresh: fresh === "fresh", line: fresh === "fresh" && at ? testSentWords(at, now) : "" };
 }
 
-export async function sendView(db: Firestore, survey: SurveyDoc, presserUid: string, now: Date): Promise<SendView> {
+/** The Send tab, for the admin who would press (`presserUid`, who signs its email), named as `viewer` is shown people. */
+export async function sendView(db: Firestore, survey: SurveyDoc, presserUid: string, now: Date, viewer: NameViewer): Promise<SendView> {
   const [plan, signer] = await Promise.all([readSendPlan(db, survey), signerOf(db, presserUid)]);
   const state = surveyState(survey, now);
   const surveyWords = emailWordsFor(survey, "survey", signer);
@@ -219,7 +221,7 @@ export async function sendView(db: Firestore, survey: SurveyDoc, presserUid: str
   // What went, in order, each in the board's words.
   const joinedNames = new Map<string, string[]>();
   const joinedRows = plan.people.filter((person) => person.sentAt !== null);
-  const names = await namesOf(db, joinedRows.map((person) => person.respondent.uid));
+  const names = await namesOf(db, joinedRows.map((person) => person.respondent.uid), viewer);
   for (const person of joinedRows) {
     const list = joinedNames.get(person.pressId) ?? [];
     list.push(names.get(person.respondent.uid) ?? "");
@@ -237,7 +239,7 @@ export async function sendView(db: Firestore, survey: SurveyDoc, presserUid: str
     return { at, line: remindedWords(press.count), email: null };
   });
 
-  const ownedNames = await namesOf(db, plan.owed.map((holder) => holder.uid));
+  const ownedNames = await namesOf(db, plan.owed.map((holder) => holder.uid), viewer);
   const lastSent = [...survey.presses].reverse().find((press) => press.kind !== "remind")?.at ?? survey.firstSentAt ?? now;
   const open = state === "open";
   return {
@@ -290,6 +292,7 @@ export type AnsweredRow = {
 export async function answeredView(
   db: Firestore,
   survey: SurveyDoc,
+  viewer: NameViewer,
   now: Date = new Date(),
 ): Promise<{ rows: AnsweredRow[]; answered: number; sent: number }> {
   const [people, answers] = await Promise.all([peopleOf(db, survey.id), answersOf(db, survey)]);
@@ -297,7 +300,7 @@ export async function answeredView(
   const sent = people.filter((person) => person.sentAt !== null);
   const pressers = sent.flatMap((person) => person.blanksPresses.map((press) => press.byUid));
   const [names, hidden] = await Promise.all([
-    namesOf(db, [...sent.map((person) => person.respondent.uid), ...pressers]),
+    namesOf(db, [...sent.map((person) => person.respondent.uid), ...pressers], viewer),
     hiddenLinesForEach(db, survey, sent.filter((person) => byUid.has(person.respondent.uid)).map((person) => person.respondent.uid)),
   ]);
   const open = isOpen(survey, now);

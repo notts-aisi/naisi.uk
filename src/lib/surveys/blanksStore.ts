@@ -28,6 +28,7 @@ import { blankItemsOf, blanksOf, outsideBlanks, type SurveyAnswers, type SurveyB
 import { siteAddress, surveyLink } from "./emails";
 import { readEventAudience, respondentKey } from "./events/audience";
 import { readEventPerson } from "./events/store";
+import type { NameViewer } from "@/lib/names/staffName";
 import { EVENT_CONFIDENTIAL_LINE } from "./events/words";
 import { readSurveyAnswers, storedSurveyAnswers, withoutLines } from "./items";
 import { namesOf } from "./names";
@@ -275,7 +276,8 @@ async function addressFor(db: Firestore, target: BlanksTarget): Promise<string |
  */
 export async function pressBlanks(
   db: Firestore,
-  input: { survey: SurveyDoc; subject: EventRespondent; presserUid: string; questions: number; now: Date },
+  /** `viewer` is the admin pressing, for the name the answer gives them (the names rule). */
+  input: { survey: SurveyDoc; subject: EventRespondent; presserUid: string; viewer: NameViewer; questions: number; now: Date },
 ): Promise<BlanksPressOutcome> {
   const { survey, subject, presserUid, now } = input;
   if (!siteAddress()) return { ok: false, status: 503, error: REFUSAL.noAddress };
@@ -349,6 +351,6 @@ export async function pressBlanks(
     return { ok: false, status: 502, error: BLANKS_REFUSAL.failed };
   }
   await personRef.update({ "blanks.sentAt": FieldValue.serverTimestamp(), "blanks.delivery": delivery });
-  const by = (await namesOf(db, [presserUid])).get(presserUid) ?? "";
+  const by = (await namesOf(db, [presserUid], input.viewer)).get(presserUid) ?? "";
   return { ok: true, delivery, pressed: blanksPressedWords({ at: now, by, delivery }) };
 }

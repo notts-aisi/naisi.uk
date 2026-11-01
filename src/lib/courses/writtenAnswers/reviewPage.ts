@@ -10,6 +10,7 @@ import {
 import { exerciseResponseId, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourse, weekDocId, type CourseRunDoc } from "@/lib/firestore/courses";
+import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { memberCurrentWeek, resolveCalendar, resolveWeekDoc } from "../groupResolve";
 import { firstNameOfUser, fullNameOfUser } from "../programmeLead";
 import { resolveSessions } from "../sessions";
@@ -91,7 +92,11 @@ import { readAnswerReading, type AnswerReading } from "../coursework/pangramRead
 
 export type ReviewPerson = {
   uid: string;
-  /** The whole name, as the board lists people. */
+  /**
+   * The name by the names rule for the reader (`nameForViewer`): the
+   * committee and admins see "Priya Shah (Pri)", a facilitator who is not on
+   * it the name people go by.
+   */
   name: string;
   firstName: string;
   state: AnswerState;
@@ -290,12 +295,17 @@ export async function loadWrittenReview(
   for (const piece of weekFeedback) if (piece.byUid && reviewable.has(piece.uid)) nameUids.add(piece.byUid);
   for (const uid of group.facilitatorUids) nameUids.add(uid);
   const userSnaps = await db.getAll(...[...nameUids].map((uid) => db.collection("users").doc(uid)));
-  const fullName = new Map<string, string>();
+  // Three names each: the one the reader is shown a person by (the names
+  // rule), the name they go by, which signs feedback for every reader, and
+  // its first word, for a sentence.
+  const shownName = new Map<string, string>();
+  const goByName = new Map<string, string>();
   const firstName = new Map<string, string>();
   for (const snap of userSnaps) {
     if (!snap.exists) continue;
     const data = (snap.data() ?? {}) as Record<string, unknown>;
-    fullName.set(snap.id, fullNameOfUser(data));
+    shownName.set(snap.id, nameForViewer(actor, accountNamesOf(data), "NAISI member"));
+    goByName.set(snap.id, fullNameOfUser(data));
     firstName.set(snap.id, firstNameOfUser(data) || fullNameOfUser(data));
   }
 
@@ -314,7 +324,7 @@ export async function loadWrittenReview(
     for (const entry of given) if (entry.byUid && !writers.includes(entry.byUid)) writers.push(entry.byUid);
     return {
       uid: owner.uid,
-      name: fullName.get(owner.uid) ?? "NAISI member",
+      name: shownName.get(owner.uid) ?? "NAISI member",
       firstName: firstName.get(owner.uid) ?? "NAISI member",
       state: answerState(record),
       readable,
@@ -360,7 +370,7 @@ export async function loadWrittenReview(
     const record = records.get(chosen.uid) ?? null;
     const owner = people.find((candidate) => candidate.uid === chosen.uid) as OwnerFacts;
     const role = writtenReviewRole(actor, facts, owner, liveGroups);
-    const names = { firstName: (uid: string) => firstName.get(uid) ?? "", goByName: (uid: string) => fullName.get(uid) ?? "" };
+    const names = { firstName: (uid: string) => firstName.get(uid) ?? "", goByName: (uid: string) => goByName.get(uid) ?? "" };
     const reader = { uid: actor.uid, isAdmin: facts.isAdmin, now };
     const cards = byOldest([
       ...(record?.feedback

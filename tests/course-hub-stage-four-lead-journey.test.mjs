@@ -1066,10 +1066,10 @@ describe("C. The before survey: Send, Results, Who answered, the download and on
     assert.ok(seen.resultsBefore.text.includes("3 answers from the 8 people it was sent to (38%)."));
     assert.ok(seen.answeredBefore.text.includes("3 of 8 have answered"));
     inOrder(seen.answeredBefore.text, [
-      // By the names they go by (`fullNameOfUser`, since the full names change).
-      "Amara Thu 29 Oct, 9am Thu 29 Oct, 7pm Personal link",
-      "Bea Thu 29 Oct, 9am Thu 29 Oct, 7pm Personal link After their first session",
-      "Dev Thu 29 Oct, 9am Fri 30 Oct, 9am Personal link",
+      // By the names rule for an admin (`nameForViewer`): each account's full name.
+      "Amara Okafor Thu 29 Oct, 9am Thu 29 Oct, 7pm Personal link",
+      "Bea Lindqvist Thu 29 Oct, 9am Thu 29 Oct, 7pm Personal link After their first session",
+      "Dev Patel Thu 29 Oct, 9am Fri 30 Oct, 9am Personal link",
     ]);
     assert.ok(seen.listMid.text.includes("Before the programme Sent Thu 29 Oct · 3 of 8 answered · Closes Wed 4 Nov Open Remind 5 haven’t answered Results"));
   });
@@ -1089,7 +1089,7 @@ describe("C. The before survey: Send, Results, Who answered, the download and on
     assert.equal(seen.personPageWrote, 0);
     assert.ok(seen.personPage.text.endsWith("Opening the answers…"));
     assert.equal(seen.personOpened.status, 200);
-    assert.equal(seen.personOpened.body.person.name, "Amara");
+    assert.equal(seen.personOpened.body.person.name, "Amara Okafor");
     assert.equal(seen.personOpened.body.person.notice, "Only admins can open one person’s answers, and each opening is logged. You opened this at 9am.");
     assert.deepEqual(
       seen.openings.map(({ kind, actorUid, subjectUid, surveyIds }) => ({ kind, actorUid, subjectUid, surveyIds })),
@@ -1272,8 +1272,9 @@ describe("C. Sam leaves before Group B first meets: People, the leaving survey a
       find(drawn.element, "ProgrammeOverview")[0]
         .props.model.attention.filter((item) => item.kind === "left")
         .map((item) => [item.title, item.detail]);
-    const SAM = ["Sam left on Sun 1 Nov", "Sam said: “Too much on this term.” Sam’s off Group B’s register from week 1."];
-    const CALLUM = ["Callum left on Wed 11 Nov", "Callum’s off Group B’s register from week 3."];
+    // The card names each by the names rule for the lead; its sentences by the name each goes by.
+    const SAM = ["Sam Whitfield left on Sun 1 Nov", "Sam said: “Too much on this term.” Sam’s off Group B’s register from week 1."];
+    const CALLUM = ["Callum Price left on Wed 11 Nov", "Callum’s off Group B’s register from week 3."];
     assert.deepEqual(leftCards(seen.overviewSamLeft), [SAM]);
     assert.ok(seen.overviewSamLeft.text.includes("People 7 taking part 1 left."));
     // Later in the term the same Overview names Callum, taken off after a
@@ -1478,13 +1479,13 @@ describe("E. The term's end: registers, Who finished, the head, the Kairos repor
     inOrder(seen.overviewAfterEnd.text, [
       "Who finished We’ve ticked everyone who came to at least 4 of 6 sessions.",
       "5 finished · 1 not",
-      "T Tariq Missed weeks 2, 3 and 4 Group B 3 of 6",
-      "D Dev Missed weeks 5 and 6 Group C 4 of 6",
-      "B Bea Missed week 5 Group A 5 of 6",
-      "K Kofi Excused in week 2 Group B 5 of 6",
-      "A Amara Group B 6 of 6",
-      "Z Zach Group A 6 of 6",
-      "Left the programme C Callum Group B Left Wed 11 Nov",
+      "TM Tariq Mensah Missed weeks 2, 3 and 4 Group B 3 of 6",
+      "DP Dev Patel Missed weeks 5 and 6 Group C 4 of 6",
+      "BL Bea Lindqvist Missed week 5 Group A 5 of 6",
+      "KA Kofi Asante Excused in week 2 Group B 5 of 6",
+      "AO Amara Okafor Group B 6 of 6",
+      "ZL Zach Levin Group A 6 of 6",
+      "Left the programme CP Callum Price Group B Left Wed 11 Nov",
     ]);
     // 6 taking part; Callum and Sam left (L1: Sam, who left before Group B met, is counted too).
     assert.ok(seen.overviewAfterEnd.text.includes("People 6 taking part 2 left."));
@@ -1547,6 +1548,9 @@ describe("E. Kairos: the ratings at the end, a no said on the survey's form, the
 
   test("the file: one row for each of the 6 on it at the end who did not say no (Kofi left out), the same marks Who finished shows", () => {
     assert.equal(seen.kairosFile.status, 200);
+    // Each by the name they go by, though an admin downloads it: the Kairos
+    // file keeps that name until a decision of its own says otherwise, and is
+    // never named by the staff rule an admin's screens follow.
     assert.deepEqual(seen.kairosFile.text.trim().split("\n"), [
       "Name,Programme,Sessions attended,Of,Finished,Ratings,Engagement (1 to 5),Grasp (1 to 5),Drive (1 to 5),Next step",
       "Amara,AGI Strategy,6,6,Yes,1,5,,,Strong yes",

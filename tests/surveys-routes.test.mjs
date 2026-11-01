@@ -891,7 +891,7 @@ describe("the admins' pages", () => {
     );
     const answered = await w.page(w.pages.answered, { params: Promise.resolve({ surveyId: id }) }, "zach");
     assert.ok(answered.text.includes("2 of 4 have answered"));
-    assert.ok(answered.text.includes("Amara"));
+    assert.ok(answered.text.includes("Amara Okafor"));
     assert.ok(answered.text.includes("Personal link"));
     const results = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
     // Every number has its n and the response rate beside it.
@@ -950,8 +950,8 @@ describe("the admins' pages", () => {
     assert.match(header, /^Name,Sent,How,After their first session,1\. Level of study,2\. Subject of study,/);
     // Every question answered (Zach, 30 Oct 2026): those CHOICES leaves out
     // are answered plainly by the world, the first option of each menu here.
-    // The file names each person by the name they go by (`fullNameOfUser`).
-    assert.match(row, /^Amara,2026-10-29 09:00,Personal link,No,"Undergraduate, first year",Computer science,/);
+    // The file names each person as the admin downloading is shown them (the names rule: in full).
+    assert.match(row, /^Amara Okafor,2026-10-29 09:00,Personal link,No,"Undergraduate, first year",Computer science,/);
     assert.ok(row.includes("Thought about it, not a serious option"), "a choice is written in its words");
     assert.doesNotMatch(file.text, /@example\.com/, "never an address");
     const logged = w.world.db.paths().filter((path) => path.startsWith("dataExports/")).map((path) => w.world.db.read(path));
@@ -1030,7 +1030,7 @@ describe("a survey outlives its form", () => {
     store.seed(formPath, { destroyed: true });
     assert.equal((await call("zach", routes.send.POST, { surveyId: id }, { body: { to: "joined", emails: 0 } })).body.error, REFUSAL.formGone);
     const answered = await w.page(w.pages.answered, { params: Promise.resolve({ surveyId: id }) }, "zach");
-    assert.ok(answered.text.includes("Amara"));
+    assert.ok(answered.text.includes("Amara Okafor"));
     const list = await w.page(w.pages.list, {}, "zach");
     assert.ok(list.text.includes("Fellowship: AGI Strategy"), "the survey names its programme without the form");
     assert.equal((await w.exportAs("zach", id)).status, 200);
@@ -1210,7 +1210,7 @@ describe("every kind of question, on the page and through the routes", () => {
     const file = await w.exportAs("zach", id);
     const [header, ...rows] = file.text.trim().split(/\r?\n/);
     assert.match(header, /2\. How likely is it\?/);
-    assert.ok(rows.some((row) => row.startsWith("Amara,") && row.includes(",30,")));
+    assert.ok(rows.some((row) => row.startsWith("Amara Okafor,") && row.includes(",30,")));
   });
 });
 
