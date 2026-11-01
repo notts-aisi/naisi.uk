@@ -3,7 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { readRunLead, standingUserOf } from "@/lib/courses/programmeLead";
 import { sessionOfWeek } from "@/lib/courses/sessionChange/model";
 import { dayRangeWords } from "@/lib/courses/sessionChange/words";
-import { resolveSessions } from "@/lib/courses/sessions";
+import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { weekReadiness } from "@/lib/courses/weekBlocks/reader";
 import { addDaysToKey, isValidDateKey } from "@/lib/courses/weekPlan";
@@ -76,6 +76,8 @@ export type WeeksTabWeek = {
   blockWeek: boolean;
   /** The first session that week across the groups, a London date, or null. */
   firstSession: string | null;
+  /** When that first session starts, or null: from then on the week can be reviewed. */
+  firstStartsAt: Date | null;
   /** `READY_BY_DAYS` before `firstSession`, or null. */
   readyBy: string | null;
   /** The week's seven days on the run's own calendar ("Thu 12 to Wed 18 Nov"), or "". */
@@ -165,8 +167,9 @@ export function weekSessions(
   run: CourseRunDoc,
   groups: readonly CourseGroupDoc[],
   weekNumber: number,
-): { firstSession: string | null; online: WeekOnline } {
+): { firstSession: string | null; firstStartsAt: Date | null; online: WeekOnline } {
   let first: string | null = null;
+  let firstStartsAt: Date | null = null;
   let meeting = 0;
   let online = 0;
   const weekId = weekDocId(weekNumber);
@@ -176,8 +179,10 @@ export function weekSessions(
     meeting += 1;
     if (sessionModeForWeek(group, weekId) === "virtual") online += 1;
     if (first === null || session.dateKey < first) first = session.dateKey;
+    const { startsAt } = sessionInstants(session);
+    if (startsAt && (firstStartsAt === null || startsAt.getTime() < firstStartsAt.getTime())) firstStartsAt = startsAt;
   }
-  return { firstSession: first, online: online === 0 ? "none" : online === meeting ? "all" : "some" };
+  return { firstSession: first, firstStartsAt, online: online === 0 ? "none" : online === meeting ? "all" : "some" };
 }
 
 /** `READY_BY_DAYS` before a session's date, or null. */
@@ -215,7 +220,7 @@ export async function loadWeeksTab(db: Firestore, runId: string, programmeName: 
     // The addressing doctrine: a slot's document is `weekDocId(n)`, never the entry's own id.
     const weekId = weekDocId(entry.weekNumber);
     const doc = docs.get(weekId) ?? null;
-    const { firstSession, online } = weekSessions(run, groups, entry.weekNumber);
+    const { firstSession, firstStartsAt, online } = weekSessions(run, groups, entry.weekNumber);
     const slotStart = slots.get(entry.weekNumber) ?? "";
     weeks.push({
       weekId,
@@ -226,6 +231,7 @@ export async function loadWeeksTab(db: Firestore, runId: string, programmeName: 
       published: doc?.published === true,
       blockWeek: doc !== null && isBlockWeek(doc),
       firstSession,
+      firstStartsAt,
       readyBy: readyByOf(firstSession),
       range: slotStart && isValidDateKey(slotStart) ? dayRangeWords(slotStart, addDaysToKey(slotStart, 6)) : "",
       owner: shownOwner(doc, owners),

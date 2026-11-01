@@ -171,23 +171,32 @@ describe("2. each week, as the board draws it", () => {
   });
 
   test("the owner: the lead by default, a helper once chosen, the lead again when the one chosen is no longer one", async () => {
-    let said = rows((await draw("claudia", Page, PARAMS)).html);
+    // CHANGED ON PURPOSE (the week review): a week whose first session has
+    // started ends with its review, "Review: admins only" for the lead, so
+    // the owner is read before it.
+    const owners = (html) => rows(html).map((row) => row.replace(/ Review(?:: admins only)?$/, ""));
+    assert.deepEqual(
+      rows((await draw("claudia", Page, PARAMS)).html).map((row) => row.endsWith(" Review: admins only")),
+      [true, true, true, false, false, false],
+    );
+    let said = owners((await draw("claudia", Page, PARAMS)).html);
     assert.ok(said.every((row) => row.endsWith(" Claudia Reyes")), said.join("\n"));
     // Yusuf is the run's track lead: a helper.
     world.db.poke(weekPath("w04"), { ownerUid: "yusuf" });
-    said = rows((await draw("claudia", Page, PARAMS)).html);
+    said = owners((await draw("claudia", Page, PARAMS)).html);
     assert.ok(said[3].endsWith(" Yusuf Demir"), said[3]);
     // Rahul is no helper: a stored uid that is neither is shown as the lead.
     world.db.poke(weekPath("w04"), { ownerUid: "rahul" });
-    said = rows((await draw("claudia", Page, PARAMS)).html);
+    said = owners((await draw("claudia", Page, PARAMS)).html);
     assert.ok(said[3].endsWith(" Claudia Reyes"), said[3]);
   });
 
   test("with no lead standing and no helper, a week has no owner yet", async () => {
     world.db.poke(`admissionRounds/${ROUND}`, { [`programmes.${AGI}.leadUid`]: null });
     world.db.poke(`courseRuns/${RUN.agi}`, { trackLeadUids: [] });
+    // CHANGED ON PURPOSE (the week review): an admin is offered week 1's review after the owner.
     const said = rows((await draw("zach", Page, PARAMS)).html);
-    assert.ok(said[0].endsWith("No owner yet"), said[0]);
+    assert.ok(said[0].endsWith("No owner yet Review"), said[0]);
   });
 });
 

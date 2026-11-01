@@ -290,6 +290,11 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "The committee cards raised when one of this run's groups left a register unpushed, and any comments on them. The chase history goes with the run.",
   },
+  reviewFollowUps: {
+    label: "Week review follow-ups",
+    fate: "destroyed",
+    note: "The tasks an admin made from a week’s review, asking a group’s facilitators to have a word with somebody, and any comments on them. They go with the run.",
+  },
   subscriptionRows: {
     label: "Cohort email subscriptions",
     fate: "destroyed",
@@ -334,6 +339,11 @@ const COUNT_META: Record<string, CountMeta> = {
     label: "Claude’s best answers",
     fate: "destroyed",
     note: "Claude’s pick of the strongest answers to each week, asked for by an admin or the programme’s lead. Every pick is an answer this destroy deletes, so they go with the run.",
+  },
+  weekReviews: {
+    label: "Claude’s week reviews",
+    fate: "destroyed",
+    note: "Claude’s review of each week, asked for by an admin: draft grades for the written answers, what people found hard, and who might need a hand. What Claude returns is kept with the run and deleted with it.",
   },
   pangramChecks: {
     label: "Pangram’s readings",

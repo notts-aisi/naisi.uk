@@ -392,6 +392,10 @@ export const FIXTURE_COLLECTIONS = [
   // answers and Pangram routes a spec presses, and by nothing a fixture seeds.
   "courseBestAnswers",
   "coursePangramChecks",
+  // Claude's review of a week (privacy v15), with `runId` on it. Written by
+  // the week review's route a spec presses, against a target with a key, and
+  // by nothing a fixture seeds.
+  "courseWeekReviews",
   // The end of a programme: who finished (the run's rule, set on the
   // programme's Settings tab, and the lead's decisions on its Overview, each
   // with `runId` on it), and the certificates the Overview's send makes, one

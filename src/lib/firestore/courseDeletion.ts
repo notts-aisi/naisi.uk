@@ -29,6 +29,7 @@ import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
 import { COURSE_SESSION_REPORTS_COLLECTION } from "./courseSessionReports";
 import { PLACEMENT_NOTES_COLLECTION } from "@/lib/courses/placementNotes/model";
 import { BEST_ANSWERS_COLLECTION, PANGRAM_CHECKS_COLLECTION } from "@/lib/courses/coursework/collections";
+import { COURSE_WEEK_REVIEWS_COLLECTION } from "./courseWeekReviews";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
 import { COURSE_WEEK_WORK_COLLECTION } from "./courseWeekWork";
 import { COURSE_WORK_LOG_COLLECTION } from "./courseWorkLog";
@@ -49,6 +50,7 @@ import {
 import {
   MIRRORED_TASK_SOURCE,
   REGISTER_FOLLOW_UP_TASK_SOURCE,
+  REVIEW_FOLLOW_UP_TASK_SOURCE,
 } from "./courseTasks";
 import { COURSE_MATERIAL_NOTES_COLLECTION } from "./courseMaterialNotes";
 import { DATA_EXPORTS_COLLECTION } from "./dataExports";
@@ -360,6 +362,22 @@ export type RunDestroyCounts = {
    * is deleted, and every pick is an answer this cascade deletes.
    */
   bestAnswers: number;
+  /**
+   * `courseWeekReviews` rows: Claude's review of each week of this run
+   * (privacy v15, `src/lib/firestore/courseWeekReviews.ts`): draft grades,
+   * what people found hard and who might need a hand. Keyed by `runId` on the
+   * row like every other leaf here, and it dies with the run: the privacy
+   * policy says what the tools return is kept with the programme's run and
+   * deleted with it.
+   */
+  weekReviews: number;
+  /**
+   * `tasks` carrying `source: "review-follow-up"` and pointing at this run:
+   * an admin asking a group's facilitators, from a week's review, to have a
+   * word with somebody. Counted apart from the other sourced tasks, as each
+   * is a different thing to the person reading the dialog.
+   */
+  reviewFollowUps: number;
   /**
    * `coursePangramChecks` rows: Pangram's readings of each person's answers
    * on this run (privacy v13, `src/lib/courses/coursework/pangram.ts`). Keyed
@@ -1226,6 +1244,8 @@ export async function countRunDestroyTargets(
     sessionReports,
     placementNotes,
     bestAnswers,
+    weekReviews,
+    reviewFollowUps,
     pangramChecks,
     packsAndCases,
     weekWork,
@@ -1315,6 +1335,15 @@ export async function countRunDestroyTargets(
     countAgg(db.collection(PLACEMENT_NOTES_COLLECTION).where("runId", "==", runId)),
     // The same single equality the best answers stage drains on.
     countAgg(db.collection(BEST_ANSWERS_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the week reviews stage drains on.
+    countAgg(db.collection(COURSE_WEEK_REVIEWS_COLLECTION).where("runId", "==", runId)),
+    // The review follow-ups' sweep, counted on the predicate its stage deletes on.
+    countAgg(
+      db
+        .collection("tasks")
+        .where("source", "==", REVIEW_FOLLOW_UP_TASK_SOURCE)
+        .where("sourceRef.cohortId", "==", runId),
+    ),
     // The same single equality the Pangram readings stage drains on.
     countAgg(db.collection(PANGRAM_CHECKS_COLLECTION).where("runId", "==", runId)),
     // The same single equality the packs and cases stage drains on.
@@ -1375,6 +1404,8 @@ export async function countRunDestroyTargets(
     sessionReports,
     placementNotes,
     bestAnswers,
+    weekReviews,
+    reviewFollowUps,
     pangramChecks,
     packsAndCases,
     weekWork,
@@ -1898,6 +1929,13 @@ export async function destroyRunCascade(
         ),
     },
     {
+      key: "reviewFollowUps",
+      // The THIRD sweep on the same collection, for the week review's
+      // follow-ups, on the same predicate and for the same reasons as the
+      // two above: its own stage, paged and resumed on its own.
+      drain: () => drainSourcedTasks(db, storage, REVIEW_FOLLOW_UP_TASK_SOURCE, runId, budget),
+    },
+    {
       key: "nudgeMarkers",
       drain: () => drainQuery(db, "courseNudges", byRunId("courseNudges"), budget),
     },
@@ -1992,6 +2030,14 @@ export async function destroyRunCascade(
       // client, and its route reads the run first and finds nothing once it
       // is being destroyed, so nothing recreates one behind the cascade.
       drain: () => drainQuery(db, BEST_ANSWERS_COLLECTION, byRunId(BEST_ANSWERS_COLLECTION), budget),
+    },
+    {
+      key: "weekReviews",
+      // Claude's review of each week: a leaf keyed by `runId`, drained with
+      // the other leaves. `write: if false` to every client, and its route
+      // reads the run first and finds nothing once it is being destroyed, so
+      // nothing recreates one behind the cascade.
+      drain: () => drainQuery(db, COURSE_WEEK_REVIEWS_COLLECTION, byRunId(COURSE_WEEK_REVIEWS_COLLECTION), budget),
     },
     {
       key: "pangramChecks",

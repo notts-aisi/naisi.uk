@@ -325,6 +325,10 @@ const REGISTRY = {
     "The due-soon template's send door. It has one caller and that caller consults the row before it gets here.",
     "src/lib/scheduler/jobs/worksheetDueReminders.ts",
   ),
+  "src/lib/courses/weekReview/followUp.ts#sendEmail": G(
+    "tasks",
+    "A week review's follow-up: the you-have-been-added mail to each of the person's group's facilitators, as the task is made. Grid: their tasks row is read first, behind the site's task-email switch.",
+  ),
   "src/app/api/worksheets/circulations/route.ts#notifyWorksheetEvent": G(
     "tasks",
     "Sending a worksheet: the `assigned` message to every recipient.",
@@ -385,6 +389,11 @@ const REGISTRY = {
   "src/lib/scheduler/jobs/worksheetDueReminders.ts#mirrorTaskEmailToPush": G(
     "tasks",
     "The due-soon reminder's push leg. It is a leg rather than a mirror here: the circulation's own push switch can be on with its email switch off.",
+    "src/lib/push/taskNotifications.ts",
+  ),
+  "src/lib/courses/weekReview/followUp.ts#mirrorTaskEmailToPush": G(
+    "tasks",
+    "The push mirror beside a week review follow-up's you-have-been-added email.",
     "src/lib/push/taskNotifications.ts",
   ),
   "src/lib/push/taskNotifications.ts#sendPushToUid": G(

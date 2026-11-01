@@ -27,6 +27,9 @@ export type TaskFilterState = {
    * union member stays so the day a board that CAN show worksheet tasks
    * mounts this component, the filter state does not have to be widened at
    * the same time as the option is added.
+   *
+   * `review-follow-up` has no option either, for the same reason: a week
+   * review's follow-up is always `assignees-only`.
    */
   source:
     | "all"
@@ -34,7 +37,8 @@ export type TaskFilterState = {
     | "fellowship-reminder"
     | "personal"
     | "course-register"
-    | "worksheet";
+    | "worksheet"
+    | "review-follow-up";
   kind: "all" | TaskKind;
 };
 

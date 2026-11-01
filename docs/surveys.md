@@ -80,6 +80,13 @@ questions somebody left blank, sent to them by an admin's press).
   programme's lead and admins, kept while the account exists; none of the
   rules here apply to it (docs/courses-ops.md, "A facilitator's session
   report").
+- **Check-ins may go to Claude, pooled by group, never by person.** An
+  admin's week review (docs/courses-ops.md, "The week review") sends a week's
+  check-in answers to Claude for what people found hard, pooled by group with
+  no sender, id or time (`poolWeekCheckIns`), only those sent after their
+  sender agreed to privacy version 15, and never for who might need a hand, a
+  grade, a note or a place. Nothing a check-in says is ever shown on the
+  review.
 
 ## The records
 

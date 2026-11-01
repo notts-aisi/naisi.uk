@@ -76,6 +76,19 @@ async function reportsOfRun(db: Firestore, runId: string): Promise<CourseSession
 }
 
 /**
+ * EVERY REPORT ON ONE WEEK OF A RUN, AS STORED (people by account, never by
+ * name), for the admins' week review (`src/lib/courses/weekReview/`), which
+ * holds each to its writer's and each named person's version 15 moment and
+ * labels them before anything leaves for Claude. Called only after that
+ * review's own door has admitted an admin.
+ */
+export async function weekReportsForReview(db: Firestore, runId: string, weekNumber: number): Promise<CourseSessionReportDoc[]> {
+  return (await reportsOfRun(db, runId))
+    .filter((report) => report.weekNumber === weekNumber)
+    .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/**
  * One week of a run's reports, counted for the Surveys tab's Overview, which
  * names nobody: how many there are, how the sessions went on average, the
  * parts they named unclear and the groups with one. Never a word a report

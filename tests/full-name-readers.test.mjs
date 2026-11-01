@@ -728,9 +728,20 @@ describe("every scrub of words that leave the site knows the full name", () => {
       builders: ["bestAnswersInput", "noteDraftInput"],
       handedBy: {
         "src/lib/courses/coursework/bestAnswers.ts": "runPeopleToScrub(db, door)",
-        "src/lib/memberNotes/draft.ts": "await loadAccountNames(db, [subjectUid, ...enrolled, ...people.facilitators])",
+        // CHANGED ON PURPOSE (the week review): the people running the
+        // programme are scrubbed from a note draft too.
+        "src/lib/memberNotes/draft.ts": "await loadAccountNames(db, [subjectUid, ...enrolled, ...people.facilitators, ...staff])",
       },
       why: "the best answers' and a note draft's messages: `scrubNames` over the people each builder is handed",
+    }],
+    ["src/lib/courses/weekReview/input.ts", {
+      names: [],
+      builders: ["reviewInputs"],
+      handedBy: {
+        // The gatherer reads the names by `runPeopleToScrub(db, door)`, the coursework door's every-name read.
+        "src/lib/courses/weekReview/store.ts": "gatherWeekReview(db, opened, now)",
+      },
+      why: "a week review's three messages: `scrubNames` over everybody on the run, its seats, its facilitators and the people running the programme, read by the review's gatherer through the coursework door",
     }],
   ]);
   const callsOf = (names) => new RegExp(`(?<!function\\s+)\\b(?:${names.join("|")})\\s*\\(`);
@@ -769,6 +780,7 @@ describe("every scrub of words that leave the site knows the full name", () => {
   test("what the scrubs read off an account is every name it holds, the full name among them", () => {
     assert.match(codeOf("src/lib/names/scrub.ts"), /\[data\.displayName, profile\.preferredName, profile\.fullName\]/);
     assert.match(codeOf("src/lib/courses/coursework/door.ts"), /const names = await loadAccountNames\(db, uids\);/);
+    assert.match(codeOf("src/lib/courses/weekReview/gather.ts"), /runPeopleToScrub\(db, door\)/);
     assert.match(codeOf("src/lib/courses/coursework/gather.ts"), /return namesToScrubOf\(db, uids\);/);
   });
 });

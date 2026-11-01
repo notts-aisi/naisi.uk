@@ -14,7 +14,8 @@ import { askClaudeForJson } from "@/lib/ai/claude";
  * a thin answer is thin.
  */
 
-const FAIRNESS = [
+/** The fairness lines every coursework request carries, the week review's among them. */
+export const FAIRNESS = [
   "Never mark anybody down for their English: many are writing in a second language.",
   "Never say or guess whether anything was written with AI. That is not your question.",
   "Judge what people think and how they engage with the material, not how polished the prose is. A thin or generic answer is thin, however well written.",

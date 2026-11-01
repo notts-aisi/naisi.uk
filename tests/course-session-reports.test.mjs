@@ -1025,9 +1025,14 @@ const READER_CALLERS = {
   "lib/courses/writtenAnswers/reviewPage.ts":
     "the review page's loader, once its gate lets the reader review a written answer: the person's own lines in that week's reports and " +
     "nothing else of one, every report's for the programme's lead and admins, a facilitator's own report's for that facilitator (besideScopeOf)",
+  // The admins' week review (privacy v15): a week's reports, held to their
+  // writers' and each named person's version 15 moment, labelled before any
+  // of it goes to Claude, and the site's own Might need a hand.
+  "lib/courses/weekReview/gather.ts":
+    "the admins' week review, after its admin-only door: a week's reports by account, held to each version 15 moment and labelled before Claude, and their picks as the site's own facts; never a note",
 };
 /** What reads a report: the readers and the own-report loaders. */
-const READERS = /\b(?:readRunSessionReports|countRunSessionReports|countRunReportsByWeek|ownReportView|readOwnReport|loadReportPage|readReportLinesAbout)\s*\(/;
+const READERS = /\b(?:readRunSessionReports|countRunSessionReports|countRunReportsByWeek|weekReportsForReview|ownReportView|readOwnReport|loadReportPage|readReportLinesAbout)\s*\(/;
 
 function sourceFiles(dir = SRC, out = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {

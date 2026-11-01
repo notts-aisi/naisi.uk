@@ -186,6 +186,40 @@ const RECIPIENT_MARKERS = [
  *                halves of that are checked against the source.
  */
 const RECIPIENT_SOURCES = new Map([
+  // A week review's follow-up (privacy v15): the request names the PERSON to
+  // have a word with, and the people it reaches are their group's live
+  // facilitators, read on the server.
+  [
+    "src/lib/courses/weekReview/followUp.ts#input.uid",
+    {
+      reads: 7,
+      origin: "caller",
+      filteredBy: "if (!fellowsOf(door).has(input.uid))",
+      why:
+        "The person to have a word with, named by uid. Refused unless they hold a place on the " +
+        "programme and do not facilitate on its run, and never a recipient: the message goes to " +
+        "their group's facilitators.",
+    },
+  ],
+  [
+    "src/lib/courses/weekReview/followUp.ts#local:recipient",
+    {
+      reads: 1,
+      origin: "assembled",
+      why: "One facilitator's resolved account, looked up from the task's completers, which the server chose.",
+    },
+  ],
+  [
+    "src/lib/courses/weekReview/followUp.ts#task.completerUids",
+    {
+      reads: 2,
+      origin: "roster",
+      writtenBy: "src/lib/courses/weekReview/followUpTask.ts",
+      why:
+        "The task's completers: the person's group's live facilitators with a standing account, " +
+        "read off the group on the server. The request names nobody it reaches.",
+    },
+  ],
   [
     "src/app/api/admin/application-emails/send/route.ts#body.uid",
     {

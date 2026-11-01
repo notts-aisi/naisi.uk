@@ -430,6 +430,14 @@ const READERS = {
       "lead) or an admin's notes: a seat's group only chooses which group's copy of a week a person's questions come " +
       "from. No group, and nothing of a seat, is shown or sent to anybody",
   },
+  "lib/courses/coursework/door.ts": {
+    kind: "staff",
+    proof: ['.map((doc) => (doc.data() ?? {}).uid)', "const outcome = await loadProgrammeRun(db, user, roundId, programmeId);"],
+    why:
+      "the coursework door's scrub list, for Claude's best answers and a week's review, each an admin's alone: the " +
+      "run's seats are read for WHO is on it, so their names can be swapped out of what is sent. No group or seat is " +
+      "shown or sent",
+  },
   "lib/memberNotes/draft.ts": {
     kind: "staff",
     proof: ['.map((doc) => (doc.data() ?? {}).uid)', "const refused = gateNotes(user, subjectUid);"],

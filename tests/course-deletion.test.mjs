@@ -328,6 +328,13 @@ const RUN_COUNT_KEYS = [
   // Two leaves keyed by `runId`, added to the manifest in the same change that
   // gave the cascade a stage for each, as placementNotes was.
   "bestAnswers",
+  // `courseWeekReviews`, Claude's review of each week (privacy v15), and the
+  // tasks an admin made from one, asking a group's facilitators to have a
+  // word with somebody (`source: "review-follow-up"`). A leaf keyed by
+  // `runId` and a third sweep of `tasks`, each added to the manifest in the
+  // same change that gave the cascade its stage, as bestAnswers was.
+  "weekReviews",
+  "reviewFollowUps",
   "pangramChecks",
   // `coursePacksAndCases`, what each person had in the weeks' packs and
   // talks (plan item 8). Keyed by `runId`, added to the manifest in the same
@@ -447,11 +454,12 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   const counts = Object.fromEntries(
     [...RUN_COUNT_KEYS, ...COURSE_COUNT_KEYS].map((k) => [k, 10]),
   );
-  // Forty-six counters at ten rows each: forty that die,
+  // Forty-eight counters at ten rows each: forty-two that die,
   // `materialNotes`, `auditRows`, `schedulerMarkers`, the V3 `coursePages`,
   // the V3 W2 `registerTasks`, the course hub's `pitches`, `updates`,
   // `groupNotes`, `groupSharedNotes`, `sessionReports`, `placementNotes`, v13's `bestAnswers`
-  // and `pangramChecks`, `packsAndCases`, the week you submit's `weekWork`
+  // and `pangramChecks`, the week review's `weekReviews` and
+  // `reviewFollowUps`, `packsAndCases`, the week you submit's `weekWork`
   // and `workLog`, feedback's `feedback` and `feedbackSends`, `pairs`, `teams`,
   // `teamEntries`, `finishing`, `facilitating`, `ratings`, `certificates`,
   // `anonymousFeedback`, `predictions`, `recordOpenings` and `checkInWeeks`,
@@ -459,11 +467,11 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   // (`admissionSeatOffers` is released, `dataExportRows` is retained,
   // `certificatesKept` stays without its run, `workRatingsKept` stays with
   // the person rated).
-  assert.equal(sumCounts(counts), 460);
+  assert.equal(sumCounts(counts), 480);
   // The progress denominator counts only what actually dies, so a large
   // retained counter cannot inflate it into a bar that never fills. Adding a
   // survivor must not move this number; adding a DESTROYED counter must.
-  assert.equal(destroyedTotal(counts), 400);
+  assert.equal(destroyedTotal(counts), 420);
 });
 
 test("MODEL — every key the cascade can report has copy, including the ones the manifest never shows", () => {
@@ -655,6 +663,9 @@ test("MODEL — the cascade's declared stage order is the one the contract needs
     // the same predicate with a different source. A separate stage rather
     // than one `in` filter so each is budgeted, paged and resumed on its own.
     "registerTasks",
+    // The week review's follow-ups: the third sweep of the same collection,
+    // beside the other two for the same reason.
+    "reviewFollowUps",
     "nudgeMarkers",
     // The scheduler tick's own markers. It sits here rather than beside the
     // other leaves because half of it is addressed by GROUP id (`unmarked__`
@@ -685,6 +696,9 @@ test("MODEL — the cascade's declared stage order is the one the contract needs
     // leaves that name a week and the answers in it, so they go before the
     // weeks, with the other leaves.
     "bestAnswers",
+    // Claude's review of each week: a run-keyed leaf that names a week and
+    // the answers in it, so it goes before the weeks with the other leaves.
+    "weekReviews",
     "pangramChecks",
     // What each person had in the weeks' packs and talks: a run-keyed leaf,
     // every record names a block of a week, so it goes before the weeks.
@@ -1736,7 +1750,8 @@ test("GUARD — the mirrored-task sweep is filtered on `source`, not just the po
   // filters below and their order; these lines only pin that the sweep is
   // still bound to named sources rather than to a literal somebody could
   // widen in passing.
-  assert.match(ENGINE, /MIRRORED_TASK_SOURCE,\n\s*REGISTER_FOLLOW_UP_TASK_SOURCE,\n\} from "\.\/courseTasks"/);
+  // CHANGED ON PURPOSE (the week review): a third named source, its follow-ups.
+  assert.match(ENGINE, /MIRRORED_TASK_SOURCE,\n\s*REGISTER_FOLLOW_UP_TASK_SOURCE,\n\s*REVIEW_FOLLOW_UP_TASK_SOURCE,\n\} from "\.\/courseTasks"/);
   const drain = ENGINE.slice(
     ENGINE.indexOf("async function drainSourcedTasks"),
     ENGINE.indexOf("async function drainSubscriptionRows"),
@@ -1756,6 +1771,8 @@ test("GUARD — the mirrored-task sweep is filtered on `source`, not just the po
   const stages = ENGINE.slice(ENGINE.indexOf('key: "mirroredTasks"'));
   assert.match(stages, /drainSourcedTasks\(db, storage, MIRRORED_TASK_SOURCE, runId, budget\)/);
   assert.match(stages, /REGISTER_FOLLOW_UP_TASK_SOURCE,\n\s*runId,\n\s*budget,/);
+  // The third, the week review's follow-ups, under the same two filters.
+  assert.match(stages, /drainSourcedTasks\(db, storage, REVIEW_FOLLOW_UP_TASK_SOURCE, runId, budget\)/);
 
   // The manifest counts the SAME rows: a manifest that counted rows the sweep
   // does not reach would promise to destroy rows the cascade leaves alone.
@@ -1765,6 +1782,7 @@ test("GUARD — the mirrored-task sweep is filtered on `source`, not just the po
   );
   assert.match(counts, /\.where\("source", "==", MIRRORED_TASK_SOURCE\)/);
   assert.match(counts, /\.where\("source", "==", REGISTER_FOLLOW_UP_TASK_SOURCE\)/);
+  assert.match(counts, /\.where\("source", "==", REVIEW_FOLLOW_UP_TASK_SOURCE\)/);
 });
 
 test("GUARD — the cohort channel is COMPUTED, never read off the run document", () => {

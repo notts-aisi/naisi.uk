@@ -49,6 +49,11 @@ export function readyByWords(dateKey: string | null): string {
 /** Where the owner is shown and nobody stands as the programme's lead or a helper: the owner is nobody yet. */
 export const NO_OWNER = "No owner yet";
 
+/** A week whose first session has started: its review, an admin's alone. */
+export const REVIEW_LINK = "Review";
+/** What the programme's lead is shown in its place. */
+export const REVIEW_ADMINS_ONLY = "Review: admins only";
+
 /**
  * The line under the list, about where the weeks meet (pr-weeks: "AGI
  * Strategy meets in person every week."). A week counts as online when every

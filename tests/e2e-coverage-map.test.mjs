@@ -2122,6 +2122,15 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a run whose last session is over, with a group's facilitator signed in.",
   },
+  // The week review (privacy v15): its page and its follow-up are driven by
+  // the course-hub-week-review spec; the press that sends to Claude is not,
+  // because the harness's own server has no key and a deployed one costs
+  // money for every run.
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review": {
+    reason:
+      "Course hub: Review with Claude; every caller, a view-as session, no key, a page that saw something else, nothing to send and a part that fails are executed by tests/week-review.test.mjs with Claude stubbed, reading every message that would go. The browser spec reads the page and never presses it.",
+    coverWhen: "When a browser spec runs against a server with a Claude key and presses Review with Claude once, as the coursework notes spec presses Claude's draft.",
+  },
   "/api/courses/groups/[groupId]/session-report": {
     reason:
       "Course hub: a facilitator's own report on a session of their group; who writes, every refusal, who a report may pick, when it is open and what it keeps are executed by tests/course-session-reports.test.mjs as each kind of caller, with the account deletion and the run's destroy.",
@@ -2237,12 +2246,6 @@ const NOT_COVERED = {
       "Newsletter: /(app)/newsletter/new is used by two people deliberately, and the result is read back on the page they are looking at.",
     coverWhen:
       "When the first issue goes to the real list, because a mis-send cannot be recalled.",
-  },
-  "/(app)/tasks": {
-    reason:
-      "My Work is the member half of the task manager: unchanged, and used daily by the people who would report it. The protected-route-gate battery asserts only that a signed-out visitor is redirected off it.",
-    coverWhen:
-      "When the task manager is next changed, or when the risk-ordered list reaches it: today it is covered only by the committee noticing within the hour.",
   },
   "/(auth)/pending-approval": {
     reason:

@@ -551,6 +551,16 @@ The same shape, older:
   fails as surely as a screen that shows it. The rule it stands beside is run
   as every kind of viewer in `tests/names-rule.test.mjs`, because the privacy
   policy says only the committee sees a full name.
+- `tests/claude-output-readers.test.mjs` holds who reads what Claude says
+  about a week's work: every file under `src` that addresses
+  `courseWeekReviews` (the record, the review's store, the two deletions), and
+  every file outside the review's own library that reaches it, each with why
+  it may, both ways; the review's loaders called only by its admin-only page
+  and route, and no browser file reaching its server code. It also fails when
+  the notes kept about a person reach a review, or a weekly note's drafts
+  (`courseNoteDrafts`, listed when the end-of-week notes are built), because
+  the privacy policy says Claude's grades are never kept on anybody's record
+  and what Claude returns is seen by admins only.
 
 ### Settings that are not files
 

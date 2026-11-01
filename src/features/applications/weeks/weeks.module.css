@@ -142,6 +142,36 @@
   min-width: 0;
   color: var(--color-text-muted);
 }
+/* A week's review, beside its row: a press for an admin, a quiet word for the lead. */
+.reviewLink {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.reviewLink:hover {
+  background: var(--color-surface-hover);
+}
+.reviewLink:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.reviewNote {
+  flex: 0 0 auto;
+  padding: 0 8px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
 .weekName {
   font-size: 16px;
   font-weight: 600;
@@ -424,5 +454,11 @@
   .colReadyBy,
   .colOwner {
     flex: 0 1 auto;
+  }
+  .row {
+    flex-wrap: wrap;
+  }
+  .reviewLink {
+    margin: 0 0 6px 4px;
   }
 }

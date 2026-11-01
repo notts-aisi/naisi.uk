@@ -2,6 +2,7 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { claudeConfigured } from "@/lib/ai/claude";
 import { askForNoteDraft } from "@/lib/courses/coursework/claude";
+import { RUNNING_LABEL, runStaffUids } from "@/lib/courses/coursework/door";
 import { loadAccountNames, loadAnswers, loadRunPeople, loadRunWeeks } from "@/lib/courses/coursework/gather";
 import { noteDraftInput, noteWithName, type NameToLabel } from "@/lib/courses/coursework/input";
 import type { SessionUser } from "@/lib/firebase/session";
@@ -46,15 +47,28 @@ export async function draftNote(
   const answers = await loadAnswers(db, runId, weeks, new Set([subjectUid]));
   if (!answers.some((answer) => answer.counted)) return { ok: false, status: 409, error: DRAFT_WORDS.nothingCounted };
 
-  // Everybody on the run whose name could be in their words: the person, the
-  // others holding a place, the facilitators.
-  const enrolled = (await db.collection("courseEnrolments").where("runId", "==", runId).get()).docs
+  // Everybody whose name could be in their words: the person, the others
+  // holding a place, the facilitators, and the people running the programme
+  // (its lead, the run's helpers and every admin).
+  const [enrolledSnap, staffUids] = await Promise.all([
+    db.collection("courseEnrolments").where("runId", "==", runId).get(),
+    runStaffUids(db, runId),
+  ]);
+  const enrolled = enrolledSnap.docs
     .map((doc) => (doc.data() ?? {}).uid)
     .filter((uid): uid is string => typeof uid === "string" && uid.length > 0);
-  const names = await loadAccountNames(db, [subjectUid, ...enrolled, ...people.facilitators]);
+  const staff = new Set(staffUids);
+  const names = await loadAccountNames(db, [subjectUid, ...enrolled, ...people.facilitators, ...staff]);
   const scrub: NameToLabel[] = [];
   for (const [uid, forms] of names) {
-    const label = uid === subjectUid ? "the fellow" : people.facilitators.has(uid) ? "a facilitator" : "another fellow";
+    const label =
+      uid === subjectUid
+        ? "the fellow"
+        : people.facilitators.has(uid)
+          ? "a facilitator"
+          : staff.has(uid) && !enrolled.includes(uid)
+            ? RUNNING_LABEL
+            : "another fellow";
     for (const name of forms) scrub.push({ label, name });
   }
 

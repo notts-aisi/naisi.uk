@@ -46,6 +46,8 @@ import {
 import { PLACEMENT_NOTES_COLLECTION } from "@/lib/courses/placementNotes/model";
 import { MEMBER_NOTES_COLLECTION } from "@/lib/memberNotes/model";
 import { BEST_ANSWERS_COLLECTION, PANGRAM_CHECKS_COLLECTION } from "@/lib/courses/coursework/collections";
+import { COURSE_WEEK_REVIEWS_COLLECTION, reviewWithout } from "./courseWeekReviews";
+import { REVIEW_FOLLOW_UP_TASK_SOURCE } from "./courseTasks";
 import {
   MEMBER_RECORDS_COLLECTION,
   MEMBER_RECORD_APPLICATIONS,
@@ -336,6 +338,20 @@ export type AccountDeletionSummary = {
    * and its account id). Counted once per document.
    */
   courseBestAnswersCleared: number;
+  /**
+   * Claude's reviews of a week (`courseWeekReviews`, privacy v15) that named
+   * this account: each is a week of a run, about everybody on it, so it
+   * stays, and this account is taken out of it (its draft grades, its place
+   * in what people found hard, its hand and its label). Counted once per
+   * document.
+   */
+  courseWeekReviewsCleared: number;
+  /**
+   * A week review's follow-ups ABOUT this account (`tasks` with `source:
+   * "review-follow-up"` and `sourceRef.aboutUid`): each asks a group's
+   * facilitators to have a word with this person by name, so each goes.
+   */
+  reviewFollowUpsDeleted: number;
   authDeleted: boolean;
   /** Set when the teardown was not fully clean (a best-effort step failed, or the
    *  Auth account could not be deleted). Routes return 207 when this is present. */
@@ -841,6 +857,50 @@ export async function clearBestAnswerPicks(db: Firestore, uid: string): Promise<
     cleared += 1;
   }
   return cleared;
+}
+
+/**
+ * Take this account out of every week of Claude's reviews that named it
+ * (`courseWeekReviews`, privacy v15, described in
+ * `src/lib/firestore/courseWeekReviews.ts`): its draft grades, its place in
+ * the answers a theme cites, its hand and its label, found by the one
+ * `array-contains` on `uids`. The rest of each week stays for everybody else
+ * on the run; Claude's words that named its label then read "a fellow".
+ */
+export async function clearWeekReviewEntries(db: Firestore, uid: string): Promise<number> {
+  const snap = await db.collection(COURSE_WEEK_REVIEWS_COLLECTION).where("uids", "array-contains", uid).get();
+  let cleared = 0;
+  for (const doc of snap.docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    await doc.ref.update({ ...reviewWithout(data, uid), uids: FieldValue.arrayRemove(uid) });
+    cleared += 1;
+  }
+  return cleared;
+}
+
+/**
+ * Delete every week review follow-up ABOUT this account (`tasks` carrying
+ * `source: "review-follow-up"` and `sourceRef.aboutUid`): each one asks a
+ * group's facilitators to have a word with this person, by name, and is
+ * about nobody else. Two equalities, so no declared index. A task this
+ * account was a completer or creator of is left, as every task is. The task
+ * goes with its comments and activity; a file a facilitator attached to it
+ * stays in storage under the task's own path, as this cascade holds no
+ * storage handle (the run's destroy, which does, never finds it once the
+ * task is gone).
+ */
+export async function deleteReviewFollowUpsAbout(db: Firestore, uid: string): Promise<number> {
+  const snap = await db
+    .collection("tasks")
+    .where("source", "==", REVIEW_FOLLOW_UP_TASK_SOURCE)
+    .where("sourceRef.aboutUid", "==", uid)
+    .get();
+  let deleted = 0;
+  for (const doc of snap.docs) {
+    await db.recursiveDelete(doc.ref);
+    deleted += 1;
+  }
+  return deleted;
 }
 
 /**
@@ -1630,6 +1690,8 @@ export async function deleteAccountCascade(
     memberNotesDeleted: 0,
     coursePangramChecksDeleted: 0,
     courseBestAnswersCleared: 0,
+    courseWeekReviewsCleared: 0,
+    reviewFollowUpsDeleted: 0,
     authDeleted: false,
   };
   // Tracks whether any best-effort step (2-5) failed after attempting, so we can
@@ -2174,6 +2236,21 @@ export async function deleteAccountCascade(
     summary.courseBestAnswersCleared = await clearBestAnswerPicks(db, uid);
   } catch (err) {
     console.error("[deleteAccount] courseBestAnswers clear failed:", uid, err);
+    partialFailure = true;
+  }
+  //      Claude's reviews of a week are about everybody on the run, so they
+  //      stay without this account in them; a follow-up asking a group's
+  //      facilitators to have a word with this person names them, and goes.
+  try {
+    summary.courseWeekReviewsCleared = await clearWeekReviewEntries(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseWeekReviews clear failed:", uid, err);
+    partialFailure = true;
+  }
+  try {
+    summary.reviewFollowUpsDeleted = await deleteReviewFollowUpsAbout(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] review follow-ups delete failed:", uid, err);
     partialFailure = true;
   }
 
