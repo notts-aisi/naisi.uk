@@ -131,6 +131,7 @@ export default function SessionReportForm({
     if (!Number.isInteger(howValue) || howValue < 1 || howValue > HOW_TOP) {
       setHowBlank(true);
       howRef.current?.scrollIntoView({ block: "center" });
+      howRef.current?.querySelector("input")?.focus({ preventScroll: true });
       return;
     }
     setHowBlank(false);
@@ -173,7 +174,11 @@ export default function SessionReportForm({
 
   return (
     <form ref={formRef} className={styles.form} onSubmit={onSubmit} noValidate>
-      <fieldset ref={howRef} className={styles.question} aria-describedby={howBlank ? "report-how-blank" : undefined}>
+      <fieldset
+        ref={howRef}
+        className={styles.question}
+        aria-describedby={howBlank ? "report-how-ends report-how-blank" : "report-how-ends"}
+      >
         <legend className={styles.legend}>{REPORT_WORDS.how}</legend>
         <div className={styles.points}>
           {Array.from({ length: HOW_TOP }, (_, at) => at + 1).map((point) => (
@@ -190,10 +195,10 @@ export default function SessionReportForm({
             </label>
           ))}
         </div>
-        <div className={styles.ends} aria-hidden="true">
+        <p id="report-how-ends" className={styles.ends}>
           <span>{REPORT_WORDS.howLow}</span>
           <span>{REPORT_WORDS.howHigh}</span>
-        </div>
+        </p>
         {howBlank && (
           <p id="report-how-blank" className={styles.blank} role="alert">
             {REPORT_REFUSAL.how}

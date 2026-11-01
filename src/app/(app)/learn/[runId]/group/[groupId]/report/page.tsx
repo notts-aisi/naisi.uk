@@ -61,8 +61,11 @@ export default async function SessionReportPage({
   if (!view) redirect(runHome);
 
   const groupPath = `${runHome}/group/${encodeURIComponent(groupId)}`;
+  // The facilitator pages' frame is a size container that draws the phone
+  // bar when it is narrow, so it keeps the column's whole width; the report
+  // keeps the width of a form read down a phone inside it.
   return (
-    <div className={`${facilitator.page} ${styles.page}`}>
+    <div className={facilitator.page}>
       <div className={`${weekly.bar} ${facilitator.phoneBar}`}>
         <div className={weekly.barStart}>
           <Link href={groupPath} className={weekly.back}>
@@ -76,30 +79,32 @@ export default async function SessionReportPage({
         <div className={weekly.barEnd} />
       </div>
 
-      <header className={styles.head}>
-        <Link href={groupPath} className={`${facilitator.crumb} ${facilitator.crumbDesk}`}>
-          {view.groupName}
-        </Link>
-        <p className={styles.eyebrow}>{REPORT_WORDS.eyebrow}</p>
-        <h1 className={styles.title}>{view.kind === "nothing-yet" ? REPORT_WORDS.barTitle : view.title}</h1>
-        {view.kind === "open" ? (
-          <p className={styles.intro}>{view.intro}</p>
-        ) : (
-          <p className={styles.line}>{view.kind === "nothing-yet" ? REPORT_WORDS.nothingYet : view.line}</p>
-        )}
-      </header>
+      <div className={styles.page}>
+        <header className={styles.head}>
+          <Link href={groupPath} className={`${facilitator.crumb} ${facilitator.crumbDesk}`}>
+            {view.groupName}
+          </Link>
+          <p className={styles.eyebrow}>{REPORT_WORDS.eyebrow}</p>
+          <h1 className={styles.title}>{view.kind === "nothing-yet" ? REPORT_WORDS.barTitle : view.title}</h1>
+          {view.kind === "open" ? (
+            <p className={styles.intro}>{view.intro}</p>
+          ) : (
+            <p className={styles.line}>{view.kind === "nothing-yet" ? REPORT_WORDS.nothingYet : view.line}</p>
+          )}
+        </header>
 
-      {view.kind === "open" && <SessionReportForm {...view.form} />}
+        {view.kind === "open" && <SessionReportForm {...view.form} />}
 
-      {view.kind === "closed" &&
-        (view.sent ? (
-          <section className={styles.week} aria-label={REPORT_WORDS.whatYouSent}>
-            <h2 className={styles.weekTitle}>{REPORT_WORDS.whatYouSent}</h2>
-            <ReportCard report={view.sent} />
-          </section>
-        ) : (
-          <p className={styles.note}>{REPORT_WORDS.noneSent}</p>
-        ))}
+        {view.kind === "closed" &&
+          (view.sent ? (
+            <section className={styles.week} aria-label={REPORT_WORDS.whatYouSent}>
+              <h2 className={styles.weekTitle}>{REPORT_WORDS.whatYouSent}</h2>
+              <ReportCard report={view.sent} />
+            </section>
+          ) : (
+            <p className={styles.note}>{REPORT_WORDS.noneSent}</p>
+          ))}
+      </div>
     </div>
   );
 }

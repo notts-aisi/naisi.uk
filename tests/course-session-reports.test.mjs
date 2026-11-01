@@ -701,6 +701,11 @@ describe("4. the pages", () => {
     assert.ok(textOf(finished).includes("Next: two minutes on how it went."));
     assert.ok(!(await gridAs("zach", undefined)).includes("/report?session="), "an admin's register leads to a report");
 
+    // A finished register that says its session did not happen: it has no report.
+    world.db.poke(registerPath(B, 2), { held: false });
+    assert.ok(!(await gridAs("rahul", REPORT_PAGE)).includes("/report?session="), "a session that did not happen leads to a report");
+    world.db.poke(registerPath(B, 2), { held: true });
+
     // Tonight's session has started and is not finished: no way on yet.
     at("2026-11-17T19:00:00Z");
     assert.ok(!(await gridAs("rahul", REPORT_PAGE)).includes("/report?session="), "an unfinished register leads to a report");
@@ -1015,6 +1020,7 @@ describe("6. every file that addresses reports, every caller of their readers, a
       if (!may.includes(file)) assert.equal(writes, false, `${file} writes a report`);
     }
     const route = readFileSync(join(SRC, "app", "api", "courses", "groups", "[groupId]", "session-report", "route.ts"), "utf8");
+    assert.match(route, /tx\.set\(ref, \{/, "the one writer no longer writes a report");
     assert.doesNotMatch(route, /export (?:async )?function (?:GET|POST|PATCH|DELETE)\b/, "the route answers more than PUT");
   });
 
