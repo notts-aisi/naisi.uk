@@ -516,16 +516,21 @@ export type AtTheDoorCard = {
  * The "At the door" card on the event's Check-in tab. The event's author and
  * admins (`canOpen`) are told the door list opens when they open it, and are
  * given the button, held until the door's hours; everybody else reads the
- * door's state in words. Once open, everybody reads who opened it and when it
- * closes by itself. `opening` is `openingOf`'s, with the opener's name.
+ * door's state in words. Before it is open, the card says who checks people
+ * in: the committee alone, or, at an event that lets people check themselves
+ * in (`selfCheckIn`), people themselves as well. Once open, everybody reads
+ * who opened it and when it closes by itself. `opening` is `openingOf`'s,
+ * with the opener's name.
  */
 export function atTheDoorWords(input: {
   phase: Exclude<CheckInPhase, "undated">;
   window: { opensAt: Date; closesAt: Date };
   opening: { at: Date; name: string | null; isViewer: boolean } | null;
   canOpen: boolean;
+  /** The event's switch, `selfCheckIn`: a stored true and nothing else. */
+  selfCheckIn: boolean;
 }): AtTheDoorCard {
-  const { phase, window, opening, canOpen } = input;
+  const { phase, window, opening, canOpen, selfCheckIn } = input;
   const who = opening ? (opening.isViewer ? "You" : (opening.name ?? "Somebody")) : "";
   const closes = clockWords(window.closesAt);
   if (phase === "later" || phase === "closed") {
@@ -549,13 +554,16 @@ export function atTheDoorWords(input: {
     };
   }
   const from = `${clockWords(window.opensAt)} on ${dayWords(window.opensAt)}`;
+  const checksIn = selfCheckIn
+    ? "The committee check people in, and people can also check themselves in."
+    : "Only the committee check people in.";
   if (canOpen) {
-    const intro = "The door list opens when you or an admin open it. Only the committee check people in.";
+    const intro = `The door list opens when you or an admin open it. ${checksIn}`;
     return phase === "before"
       ? { lines: [intro, `You can open the door from ${from}, an hour before the start.`], button: { enabled: false } }
       : { lines: [intro], button: { enabled: true } };
   }
-  const intro = "The door list opens when the event’s author or an admin opens it. Only the committee check people in.";
+  const intro = `The door list opens when the event’s author or an admin opens it. ${checksIn}`;
   return {
     lines: [intro, phase === "before" ? `It can be opened from ${from}, an hour before the start.` : "The door isn’t open yet."],
     button: null,

@@ -119,7 +119,8 @@ export default async function SelfCheckInPage({
         <Link href={`/login?next=${encodeURIComponent(here)}`} prefetch={false} className={styles.primary}>
           Sign in
         </Link>
-        <p>Signed up without an account? Open the check-in link in your confirmation email.</p>
+        {/* A drop-in takes no sign-ups, so nobody has a confirmation email to check in from. */}
+        {!event.noSignup && <p>Signed up without an account? Open the check-in link in your confirmation email.</p>}
         <p>Otherwise, give your name at the door.</p>
       </Frame>
     );
