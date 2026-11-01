@@ -5753,12 +5753,17 @@ describe("the course hub passage", () => {
       "summary.coursePacksAndCasesDeleted = await deleteCoursePacksAndCases(db, uid);",
       "summary.coursePairsDeleted = await deleteCoursePairs(db, uid);",
       "summary.coursePredictionsDeleted = await deleteCoursePredictions(db, uid);",
+      "const feedback = await clearCourseFeedback(db, uid);",
     ]) {
       assert.ok(
         cascade.includes(step),
         `the account deletion no longer runs \`${step}\`. The policy says a deletion removes what it took, or does not say a deletion leaves it.`,
       );
     }
+    // "Your work and the feedback on it": every piece about them goes, found by their uid; and so does
+    // every piece they wrote, which is shown signed with a name that has gone.
+    assert.match(cascade, /pieces\.where\("uid", "==", uid\)\.get\(\),\s*pieces\.where\("byUid", "==", uid\)\.get\(\),/);
+    assert.match(cascade, /for \(const doc of \[\.\.\.about\.docs, \.\.\.wrote\.docs\]\) \{[\s\S]*?writes\.push\(\(batch\) => batch\.delete\(doc\.ref\)\);/);
     // Pairs and both predictions cards go whole, every row the uid owns.
     assert.match(cascade, /export async function deleteCoursePairs\(db: Firestore, uid: string\): Promise<number> \{\s*return deleteOwnedCourseRows\(db, COURSE_PAIRS_COLLECTION, uid\);\s*\}/);
     assert.match(cascade, /export async function deleteCoursePredictions\(db: Firestore, uid: string\): Promise<number> \{\s*return deleteOwnedCourseRows\(db, COURSE_PREDICTIONS_COLLECTION, uid\);\s*\}/);
