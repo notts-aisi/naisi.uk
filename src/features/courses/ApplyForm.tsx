@@ -14,6 +14,7 @@ import { validateAnswers } from "@/lib/events/validateAnswers";
 import type { FormQuestion, RsvpAnswer } from "@/lib/firestore/events";
 import type { CourseApplicationStatus } from "@/lib/firestore/courseApplications";
 import type { ApplicationWindowState } from "@/lib/courses/window";
+import { availabilityLineWords, sessionLabelWords } from "@/lib/courses/outsideTheirTimes";
 import { own } from "@/lib/applications/keys";
 import { useMyApplication } from "./useMyApplication";
 import styles from "./ApplyForm.module.css";
@@ -48,7 +49,11 @@ import styles from "./ApplyForm.module.css";
 type GroupOption = {
   id: string;
   name: string;
-  /** e.g. "Tuesdays 18:00–19:30". */
+  /**
+   * The stored label ("Tuesdays 18:00" then the range mark and "19:30"):
+   * what a chip posts and the route stores. The chip prints it through
+   * `sessionLabelWords`.
+   */
   sessionLabel: string;
 };
 
@@ -411,7 +416,7 @@ export default function ApplyForm({
               {application.availability ? (
                 <div className={styles.summaryRow}>
                   <dt className={styles.summaryLabel}>Times you can make</dt>
-                  <dd className={styles.summaryValue}>{application.availability}</dd>
+                  <dd className={styles.summaryValue}>{availabilityLineWords(application.availability)}</dd>
                 </div>
               ) : null}
             </dl>
@@ -547,6 +552,7 @@ export default function ApplyForm({
               <div className={styles.chips}>
                 {timeOptions.map((label) => {
                   const checked = selected.includes(label);
+                  // The chip keeps the stored label and prints it in the house's clock.
                   return (
                     <label key={label} className={styles.chip}>
                       <input
@@ -554,7 +560,7 @@ export default function ApplyForm({
                         checked={checked}
                         onChange={(e) => toggleTime(label, e.target.checked)}
                       />
-                      <span>{label}</span>
+                      <span>{sessionLabelWords(label)}</span>
                     </label>
                   );
                 })}

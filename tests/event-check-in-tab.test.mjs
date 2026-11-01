@@ -465,6 +465,31 @@ describe("the At the door card", () => {
     assert.equal(await doorButton("sue"), null);
   });
 
+  test("at an event that lets people check themselves in, the card says the committee are not the only way in", async (t) => {
+    const ON = "The committee check people in, and people can also check themselves in.";
+    const opener = `At the door The door list opens when you or an admin open it. ${ON}`;
+    const others = `At the door The door list opens when the event’s author or an admin opens it. ${ON}`;
+    for (const [at, iris, sue] of [
+      [DURING, `${opener} Open the door`, `${others} The door isn’t open yet.`],
+      [
+        BEFORE,
+        `${opener} You can open the door from 1pm on Sun 1 Nov, an hour before the start. Open the door`,
+        `${others} It can be opened from 1pm on Sun 1 Nov, an hour before the start.`,
+      ],
+    ]) {
+      t.mock.timers.reset();
+      clock(t, at);
+      // An event that takes sign-ups, and a drop-in: anyone signed in can check themselves in at both.
+      for (const over of [withEvent(SELF_ON), withDropIn(SELF_ON)]) {
+        w.reset(over);
+        assert.ok((await open("iris")).text.includes(iris), `iris, ${at.toISOString()}`);
+        const said = (await open("sue")).text;
+        assert.ok(said.includes(sue), `sue, ${at.toISOString()}`);
+        assert.ok(!said.includes("Only the committee check people in."), "the switch is on");
+      }
+    }
+  });
+
   test("once it is open, everybody reads who opened it and when it closes by itself; nobody is offered the button", async (t) => {
     clock(t, DURING);
     w.reset(withEvent(DOOR_OPEN));

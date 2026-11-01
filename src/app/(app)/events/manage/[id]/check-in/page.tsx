@@ -110,6 +110,7 @@ export default async function CheckInTabPage({ params }: { params: Promise<{ id:
             ? { at: opening.at, name: names.get(opening.by) ?? null, isViewer: opening.by === viewer.uid }
             : null,
           canOpen,
+          selfCheckIn: event.selfCheckIn,
         })
       : null;
   const where = publicLocationText(event);

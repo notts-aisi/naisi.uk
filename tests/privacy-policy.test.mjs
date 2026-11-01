@@ -8264,6 +8264,38 @@ describe("the access-requirements read log", () => {
     const notice = read("src/features/admissions/ApplicationPrivacyNotice.tsx");
     assert.match(notice.replace(/\s+/g, " "), /We record each time one of them/i);
   });
+
+  test("the older form's notice says who reads it and how it is reviewed in the policy's terms, and nothing the policy does not", () => {
+    // Until November 2026 the in-form notice of the older kind of round said
+    // reviewers scored applications without the applicant's name attached,
+    // and that the person making the final decision could open the
+    // access-requirements answer. The policy says neither, and the code does
+    // neither. The box above the notice said the second as well.
+    const flat = (path) => read(path).replace(/\s+/g, " ");
+    const notice = flat("src/features/admissions/ApplicationPrivacyNotice.tsx");
+    const box = flat("src/features/admissions/ApplyFlow.tsx");
+    for (const [policy, form] of [
+      [
+        "They are students: admins and committee members the Students&apos; Union recognises.",
+        "They are students: admins and committee members the Students&apos; Union recognises.",
+      ],
+      ["Where a programme uses scores, a reviewer may score your answers", "Where a programme uses scores, a reviewer may score your answers."],
+      ["Reviewers may also comment on your answers", "Reviewers may also comment on them,"],
+      [
+        "it is never shown to reviewers or to a programme&apos;s lead. Only admins can open it,",
+        "it is never shown to reviewers or to the programme&apos;s lead. Only admins can open it,",
+      ],
+    ]) {
+      assert.ok(PAGE_FLAT.includes(policy), `the policy no longer says: ${policy}`);
+      assert.ok(notice.includes(form), `the in-form notice no longer says: ${form}`);
+    }
+    assert.ok(box.includes("it is never shown to reviewers or to the programme&apos;s lead, and only admins can open it."), "the box's own note");
+    for (const [file, text] of [["the notice", notice], ["the box", box]]) {
+      for (const stale of [/without your name/i, /name attached/i, /person making the final decision/i, /site admins can open/i]) {
+        assert.doesNotMatch(text, stale, `${file} says something the policy does not`);
+      }
+    }
+  });
 });
 
 describe("a team's page", () => {

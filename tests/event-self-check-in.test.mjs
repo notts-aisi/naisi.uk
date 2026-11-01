@@ -189,6 +189,16 @@ describe("the page the door code lands on", () => {
     for (const name of NAMES) assert.ok(!html.includes(name), `${name} is not named`);
   });
 
+  test("signed out at a drop-in: asked to sign in, and told of no email, because a drop-in sends none", async (t) => {
+    clock(t, DURING);
+    w.reset(withDropIn(SELF_ON, DOOR_OPEN));
+    const { text, html } = await open(null);
+    assert.equal(text, `NAISI Check in ${LINE} Are you here? Sign in to check yourself in. Sign in Otherwise, give your name at the door.`);
+    assert.ok(!/email/i.test(text), text);
+    assert.match(html, new RegExp(`href="/login\\?next=%2Fevents%2F${EVENT_ID}%2Fcheck-in"`));
+    for (const name of NAMES) assert.ok(!html.includes(name), `${name} is not named`);
+  });
+
   test("opened by the door code, signing in comes back the same way in, without counting the scan twice", async (t) => {
     clock(t, DURING);
     night();
@@ -578,6 +588,22 @@ describe("the confirmation emails follow the switch", () => {
       assert.ok(!html.includes("/check-in?"), `${variant} holds no place, so no check-in link`);
       assert.ok(!text.includes("On the day"), `${variant} says nothing about the day`);
     }
+  });
+
+  test("the editor's switch says only a confirmation sent while it is on has the link, and a drop-in's names no email", () => {
+    const editor = stripSource(
+      readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "src", "features", "events", "EventEditor.tsx"), "utf8"),
+      { keepStrings: true },
+    );
+    const hint = /label="People can check themselves in"\s*description=\{\s*noSignup\s*\?\s*"([^"]*)"\s*:\s*"([^"]*)"\s*\}/.exec(editor);
+    assert.ok(hint, "the switch's hint is not where this test reads it");
+    const [, dropIn, signUps] = hint;
+    assert.equal(
+      signUps,
+      `Off: everyone gives their name at the door, and the confirmation email says so. On: they can also scan the door code, or use the link in a confirmation email sent while it’s on.`,
+    );
+    assert.equal(dropIn, "Off: everyone gives their name at the door. On: they can also scan the door code.");
+    assert.ok(!/email/i.test(dropIn), "a drop-in sends no confirmation email");
   });
 
   test("off, or never said: give your name at the door, and no check-in link is built at all", async () => {

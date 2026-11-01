@@ -646,9 +646,9 @@ export default function ApplyFlow({
         </p>
         <p className={styles.note}>
           <strong>This box is never scored.</strong> It is stored apart from the
-          rest of your application, reviewers never see it, and only the person
-          making the final decision and site admins can open it. Leaving it
-          blank does not count against you.
+          rest of your application, it is never shown to reviewers or to the
+          programme&apos;s lead, and only admins can open it. Leaving it blank
+          does not count against you.
         </p>
         {editable ? (
           <CountedTextarea

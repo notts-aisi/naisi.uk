@@ -2366,8 +2366,10 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         ),
         board,
       );
-      assert.match(board, /Group A 2\/3 Thursdays /);
-      assert.match(board, /Priya Unpaid Withdrawn Thursdays 18:00.20:00 Move to: Group A · 2\/3 /);
+      // A column's session and a card's times are stored labels, printed in the house's clock.
+      assert.match(board, /Group A 2\/3 Thursdays 6pm to 8pm /);
+      assert.match(board, /Priya Unpaid Withdrawn Thursdays 6pm to 8pm Move to: Group A · 2\/3 /);
+      assert.doesNotMatch(board, /days \d{2}:\d{2}/, "a stored label is printed as it is stored");
       assert.doesNotMatch(board, /has no group|have no group|Group A · 3\/3/);
     });
 

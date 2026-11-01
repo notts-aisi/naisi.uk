@@ -17,6 +17,7 @@ import {
   type CourseApplicationStatus,
 } from "@/lib/firestore/courseApplications";
 import { own } from "@/lib/applications/keys";
+import { sessionLabelWords } from "@/lib/courses/outsideTheirTimes";
 import {
   useRunApplications,
   type AdmissionsGroup,
@@ -501,11 +502,13 @@ function ApplicationCard({
   // no decision buttons, no reviewer edits.
   const readOnly = row.status === "withdrawn";
 
+  // A group's label here and the times the applicant ticked, on the same card,
+  // are both stored labels, and both are printed in the house's clock.
   const groupOptions: ResponsiveSelectOption[] = [
     { value: "", label: "No preferred group" },
     ...groups.map((g) => ({
       value: g.id,
-      label: g.sessionLabel ? `${g.name} — ${g.sessionLabel}` : g.name,
+      label: g.sessionLabel ? `${g.name} · ${sessionLabelWords(g.sessionLabel)}` : g.name,
     })),
   ];
   // A group that has since been deleted would otherwise vanish from the select
@@ -585,7 +588,7 @@ function ApplicationCard({
           <ul className={styles.chips}>
             {row.availability.map((slot) => (
               <li key={slot} className={styles.chip}>
-                {slot}
+                {sessionLabelWords(slot)}
               </li>
             ))}
           </ul>

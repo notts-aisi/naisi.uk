@@ -1737,7 +1737,12 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                     }}
                     disabled={locked}
                     label="People can check themselves in"
-                    description="Off: everyone gives their name at the door, and the confirmation email says so. On: they can also use the link in their email, or scan the door code."
+                    description={
+                      // Only a confirmation sent while it is on carries the link, and a drop-in sends none.
+                      noSignup
+                        ? "Off: everyone gives their name at the door. On: they can also scan the door code."
+                        : "Off: everyone gives their name at the door, and the confirmation email says so. On: they can also scan the door code, or use the link in a confirmation email sent while it’s on."
+                    }
                   />
                   <Switch
                     checked={visibility === "members"}
