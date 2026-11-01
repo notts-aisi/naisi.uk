@@ -8,7 +8,7 @@ import type { ApplicationDoc, ProgrammeSettings } from "@/lib/applications/model
 import type { ApplicationForm } from "@/lib/applications/normalise";
 import { rankedProgrammes } from "@/lib/applications/sections";
 import { listDecisions, listSentApplications } from "@/lib/applications/staffRepo";
-import { fullNameOfUser, standingUserOf } from "@/lib/courses/programmeLead";
+import { standingUserOf } from "@/lib/courses/programmeLead";
 import { runsCheckIn } from "@/lib/events/checkInAccess";
 import { loadEventAtTheDoor } from "@/lib/events/checkInLoad";
 import { eventEnds, openingOf } from "@/lib/events/checkIns";
@@ -26,6 +26,7 @@ import { normalizeEvent, type EventDoc, type RsvpDoc } from "@/lib/firestore/eve
 import { findRecipientsForChannel } from "@/lib/firestore/subscriptions";
 import { filterSuppressed } from "@/lib/firestore/suppression";
 import { ALL_TRACKS } from "@/lib/firestore/users";
+import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
 import { chooseTerm } from "@/lib/surveys/term/choose";
 import {
   accountKey,
@@ -135,18 +136,21 @@ const isPlainId = (value: unknown): value is string =>
 const text = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
 
 /**
- * The name a person is listed by on the picker. Every name the picker shows
- * comes through here, so the rule for names changes in one place.
+ * The name a person is listed by on the picker, by the site's one rule for
+ * the person using it (`nameForViewer`): the committee and admins see "Priya
+ * Shah (Pri)", so two people who go by one name can be told apart when they
+ * are picked by name; a facilitator sees the name people go by. Every name the
+ * picker shows comes through here.
  */
-function accountName(data: Data): string {
-  return fullNameOfUser(data);
+function accountName(data: Data, viewer: SessionUser): string {
+  return nameForViewer(viewer, accountNamesOf(data), "NAISI member");
 }
 
-function worldAccount(uid: string, data: Data): WorldAccount {
+function worldAccount(uid: string, data: Data, viewer: SessionUser): WorldAccount {
   const profile = (data.profile as Data | undefined) ?? {};
   return {
     uid,
-    name: accountName(data),
+    name: accountName(data, viewer),
     email: text(data.email) || null,
     universityEmail: text(profile.universityEmail) || null,
     universityVerified: Boolean(profile.uniEmailVerifiedAt),
@@ -599,13 +603,13 @@ export async function loadAudienceWorld(db: Firestore, viewer: SessionUser, now:
   const accounts = new Map<string, WorldAccount>();
   for (const uid of named) {
     const data = staffData.get(uid) ?? fetched.get(uid);
-    if (data) accounts.set(uid, worldAccount(uid, data));
+    if (data) accounts.set(uid, worldAccount(uid, data, viewer));
   }
   const nameable = new Map<string, string>();
   if (scope.committee) {
     for (const [uid, data] of roster) {
-      nameable.set(uid, accountName(data));
-      if (!accounts.has(uid)) accounts.set(uid, worldAccount(uid, data));
+      nameable.set(uid, accountName(data, viewer));
+      if (!accounts.has(uid)) accounts.set(uid, worldAccount(uid, data, viewer));
     }
   }
 

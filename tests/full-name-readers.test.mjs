@@ -34,8 +34,10 @@
  *
  * ## What each entry says
  *
- *  - `rule`: the names module, which decides who sees what, and the
- *    component that draws a name it was handed.
+ *  - `rule`: the names module, which decides who sees what, the component
+ *    that draws a name it was handed, and a loader that names everybody
+ *    through `nameForViewer` with its own session's viewer (`proof` is the
+ *    call).
  *  - `shape`: declares the field or carries it in a typed shape, and shows
  *    nobody anything.
  *  - `own`: the person's own full name, to the person: joining, Home's
@@ -130,6 +132,11 @@ const READERS = new Map([
   ["src/lib/names/scrub.ts", {
     who: "rule",
     why: "every name an account holds, the full name among them, for a scrub: read to be taken out of words and never shown; its callers are the scrub entries below",
+  }],
+  ["src/lib/audience/load.ts", {
+    who: "rule",
+    proof: ['return nameForViewer(viewer, accountNamesOf(data), "NAISI member");'],
+    why: "the picker of who a message is for names everybody through one function, by the rule for the session's own viewer: the committee and admins see the full name, a facilitator the name people go by",
   }],
   ["src/lib/applications/review/people.ts", {
     who: "rule",
