@@ -69,6 +69,7 @@ const reportRoute = await courseRoute("groups", "[groupId]", "session-report");
 const model = await loadTs(join("lib", "courses", "sessionReports", "model.ts"));
 const record = await loadTs(join("lib", "firestore", "courseSessionReports.ts"));
 const words = await loadTs(join("lib", "courses", "sessionReports", "words.ts"));
+const surveyWords = await loadTs(join("lib", "surveys", "words.ts"));
 const readers = await loadTs(join("lib", "courses", "sessionReports", "readers.ts"));
 const accountDeletion = await loadTs(join("lib", "firestore", "accountDeletion.ts"));
 const courseDeletion = await loadTs(join("lib", "firestore", "courseDeletion.ts"));
@@ -76,7 +77,7 @@ const { normalizeCourseRun } = await loadTs(join("lib", "firestore", "courses.ts
 const { normalizeCourseGroup } = await loadTs(join("lib", "firestore", "courseGroups.ts"));
 const { resolveSessions } = await loadTs(join("lib", "courses", "sessions.ts"));
 const { default: AttendanceGrid } = await loadTs(join("features", "courses", "AttendanceGrid.tsx"));
-const { default: LeadSurveysTab } = await loadTs(join("features", "surveys", "lead", "LeadSurveysTab.tsx"));
+const { default: SurveysOverview } = await loadTs(join("features", "surveys", "lead", "SurveysOverview.tsx"));
 
 const GROUP_DIR = join("app", "(app)", "learn", "[runId]", "group", "[groupId]");
 const TABS_DIR = join("app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "(tabs)");
@@ -330,11 +331,21 @@ describe("1. the rules, pure", () => {
     assert.equal(words.changeUntilLine(new Date("2026-11-24T18:00:00Z"), 4), "You can change it until week 4 starts, Tue 24 Nov at 6pm.");
     assert.equal(words.changeUntilLine(new Date("2026-12-15T18:00:00Z"), null), "You can change it until Tue 15 Dec at 6pm.");
     assert.equal(words.sentLine(new Date("2026-11-18T20:14:00Z")), "Sent Wed 18 Nov at 8:14pm.");
-    assert.equal(words.tabLineWords(0), "None yet: each group’s facilitators can send one after each session. Only you and admins read them.");
-    assert.equal(words.tabLineWords(1), "1 report from the groups’ facilitators, with names. Only you and admins read them.");
+    // CHANGED ON PURPOSE: the Surveys tab no longer has a row for the reports.
+    // Its Overview counts a week's reports and leads to them in its own words,
+    // held here as the row's were, a count and never a name.
+    assert.equal(surveyWords.readReportsWords(1), "Read the report");
+    assert.equal(surveyWords.readReportsWords(10), "Read the 10 reports");
+    assert.equal(surveyWords.reportsAverageWords(4.12), "Average 4.1 of 5 for how it went.");
+    assert.equal(surveyWords.noReportsOnWeekWords(3), "No facilitator has sent a report on week 3.");
+    assert.equal(surveyWords.sessionsReportedWords(31, 33), "31 of 33 sessions");
+    assert.equal(surveyWords.reportsWeekTitleWords(3), "Facilitators’ reports, week 3");
+    for (const file of [join(SRC, "lib", "courses", "sessionReports", "words.ts"), join(SRC, "lib", "surveys", "words.ts")]) {
+      const source = readFileSync(file, "utf8");
+      assert.doesNotMatch(source, /[\u2013\u2014]/, `${file}: the words carry a dash`);
+      assert.doesNotMatch(source, /\b(?:he|she|his|her|him|hers)\b/i, `${file}: the words guess a pronoun`);
+    }
     const source = readFileSync(join(SRC, "lib", "courses", "sessionReports", "words.ts"), "utf8");
-    assert.doesNotMatch(source, /[\u2013\u2014]/, "the words carry a dash");
-    assert.doesNotMatch(source, /\b(?:he|she|his|her|him|hers)\b/i, "the words guess a pronoun");
     assert.doesNotMatch(source.replace(/^\s*(?:\/\/|\*).*$/gm, ""), /\b(?:mark(?:s|ed)?|grades?|scores?)\b/i, "the words mark, grade or score somebody");
   });
 });
@@ -790,7 +801,8 @@ describe("4. the pages", () => {
 
     const drawn = await leadPageAs("claudia");
     for (const said of [
-      "Surveys Session reports What each group’s facilitators reported after each session, with names.",
+      // CHANGED ON PURPOSE: the page is the Surveys tab's Facilitators' reports view, under the tab's row of views.
+      "Overview Before Check-ins Facilitators’ reports End Follow-ups Session reports What each group’s facilitators reported after each session, with names.",
       "Week 3 Group A · Sofia Thu 12 Nov · Sent Thu 12 Nov at 7:30pm How it went 5 of 5 What went well Group A flew. Engaged well Amara Okafor : Led the debate.",
       "Week 2 Group B · Rahul Tue 10 Nov · Sent Tue 17 Nov at 12pm How it went 4 of 5",
       "What seemed unclear Races between AI developers Something else",
@@ -803,27 +815,53 @@ describe("4. the pages", () => {
       assert.ok(drawn.text.includes(said), `the lead's page does not say: ${said}\n${drawn.text}`);
     }
     assert.ok(drawn.html.includes(`href="${BASE}/surveys"`), "the page does not lead back to the Surveys tab");
+    assert.match(drawn.html, new RegExp(`<a href="${BASE}/surveys/reports"[^>]*aria-current="page"`), "the page is not the tab's Facilitators' reports view");
   });
 
-  test("the lead's page before any report, and the Surveys tab's row that leads to it: a count, never a name", async () => {
+  test("the lead's page before any report, and the Surveys tab's Overview that leads to it: counts, never a name", async () => {
     assert.ok((await leadPageAs("claudia")).text.includes("No facilitator has sent a report yet."));
-    assert.equal(await readers.countRunSessionReports(world.courseDb, RUN.agi), 0);
+    assert.deepEqual(await readers.countRunReportsByWeek(world.courseDb, RUN.agi), []);
     await send("rahul");
     await send("sofia");
-    assert.equal(await readers.countRunSessionReports(world.courseDb, RUN.agi), 2);
+    const counted = await readers.countRunReportsByWeek(world.courseDb, RUN.agi);
+    assert.deepEqual(counted.map((week) => [week.weekNumber, week.reports, week.how, week.groupIds]), [[2, 2, 4, [B]]]);
+    assert.deepEqual(counted[0].unclear, [{ id: "something-else", title: "Something else", count: 2 }]);
+    for (const name of ["Chloe", "Kofi", "Farah", "Rahul", "Sofia", "chloe", "kofi", "farah", "rahul", "sofia"]) {
+      assert.ok(!JSON.stringify(counted).includes(name), `the count names ${name}`);
+    }
 
-    const view = { programmeKind: "fellowship", surveys: [], change: null, end: null, sources: null, links: { ratings: true, anonymousForm: false } };
-    const tab = renderToStaticMarkup(createElement(LeadSurveysTab, { view, base: BASE, reports: 2 }));
+    // CHANGED ON PURPOSE: the tab's row for the reports is now its Overview's
+    // card for a week's reports (and a view of its own in the tab's row of
+    // views): how many, how it went on average and the way to read them.
+    const view = {
+      before: null,
+      end: null,
+      followUp: null,
+      lastSession: null,
+      checkIns: { answers: 0, weeks: 0 },
+      reported: { sessions: 1, of: 2 },
+      weeks: [],
+      unclear: null,
+      came: [],
+      reports: { weekNumber: 2, reports: 2, how: 4 },
+      run: true,
+    };
+    const tab = renderToStaticMarkup(createElement(SurveysOverview, { view, base: BASE }));
+    assert.ok(tab.includes(`href="${BASE}/surveys/reports#reports-week-2"`));
     assert.ok(tab.includes(`href="${BASE}/surveys/reports"`));
-    assert.ok(textOf(tab).includes("Session reports Read them 2 reports from the groups’ facilitators, with names. Only you and admins read them."), textOf(tab));
+    assert.ok(textOf(tab).includes("Facilitators’ reports 1 of 2 sessions"), textOf(tab));
+    assert.ok(textOf(tab).includes("Facilitators’ reports, week 2 Average 4.0 of 5 for how it went. Read the 2 reports"), textOf(tab));
     for (const name of ["Chloe", "Kofi", "Farah", "Rahul", "Sofia"]) assert.ok(!tab.includes(name), `the tab names ${name}`);
-    const noRun = renderToStaticMarkup(createElement(LeadSurveysTab, { view, base: BASE, reports: null }));
-    assert.ok(!noRun.includes("/surveys/reports"), "a programme with no run is offered its reports");
+    const noRun = renderToStaticMarkup(createElement(SurveysOverview, { view: { ...view, reported: null, reports: null, run: false }, base: BASE }));
+    assert.ok(!noRun.includes("/surveys/reports#"), "a programme with no run is offered its reports");
+    assert.ok(textOf(noRun).includes("Facilitators’ reports None to show yet"), textOf(noRun));
 
-    // The tab counts only once its own gate has answered, and only the run it names.
-    const tabPage = readFileSync(join(SRC, TABS_DIR, "surveys", "page.tsx"), "utf8");
-    const code = tabPage.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
-    assert.ok(code.indexOf('if (outcome.status === "not-yours") {') < code.indexOf("countRunSessionReports(db, view.run.id)"));
+    // The Overview counts only once the tab's own gate has answered, and only the run the programme names.
+    const strip = (code) => code.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    const code = strip(readFileSync(join(SRC, TABS_DIR, "surveys", "page.tsx"), "utf8"));
+    assert.ok(code.indexOf('if (outcome.status === "not-yours") {') < code.indexOf("leadSurveysOverview("));
+    assert.match(code, /runId: view\.run\?\.id \?\? null/);
+    assert.match(strip(readFileSync(join(SRC, "lib", "surveys", "leadOverview.ts"), "utf8")), /countRunReportsByWeek\(db, records\.run\.id\)/);
   });
 });
 
@@ -973,11 +1011,12 @@ const READER_CALLERS = {
   "app/(app)/learn/[runId]/group/[groupId]/report/page.tsx": "the facilitator's page: a live facilitator of the group, their own report",
   "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/reports/page.tsx":
     "the programme's reports: its lead and admins",
-  "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/page.tsx":
-    "the Surveys tab: a count for its lead and admins, never what a report says",
+  // CHANGED ON PURPOSE: was the Surveys tab's page, which counted the run's reports for its row.
+  "lib/surveys/leadOverview.ts":
+    "the Surveys tab's Overview, made after its page's gate for its lead and admins: a week's count, its average and the parts named, never what a report says",
 };
 /** What reads a report: the readers and the own-report loaders. */
-const READERS = /\b(?:readRunSessionReports|countRunSessionReports|ownReportView|readOwnReport|loadReportPage)\s*\(/;
+const READERS = /\b(?:readRunSessionReports|countRunSessionReports|countRunReportsByWeek|ownReportView|readOwnReport|loadReportPage)\s*\(/;
 
 function sourceFiles(dir = SRC, out = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {

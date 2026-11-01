@@ -329,6 +329,8 @@ async function loadPages() {
   P.people = await tabPage("people");
   P.leadSurvey = await tabPage("surveys/[surveyId]");
   P.leadTab = await tabPage("surveys");
+  P.leadTabBefore = await tabPage("surveys/before");
+  P.leadTabEnd = await tabPage("surveys/end");
   P.surveyList = await adminSurveyPage("");
   P.surveySend = await adminSurveyPage("[surveyId]/send/");
   P.surveyResults = await adminSurveyPage("[surveyId]/results/");
@@ -790,6 +792,8 @@ async function tellTheStory() {
   seen.afterResults = await draw(P.surveyResults, "zach", { surveyId: after });
   // The lead's Surveys tab once the survey at the end has closed (L2): each number on it is the one its own page shows.
   seen.leadTab = await draw(P.leadTab, "claudia", PARAMS, { segment: "surveys" });
+  seen.leadTabBefore = await draw(P.leadTabBefore, "claudia", PARAMS, { segment: "surveys" });
+  seen.leadTabEnd = await draw(P.leadTabEnd, "claudia", PARAMS, { segment: "surveys" });
   seen.leadTabByReviewer = await draw(P.leadTab, "lloyd", PARAMS, { segment: "surveys" });
   // Ratings at the end: each group's facilitators rate its fellows; the lead rates one too.
   const rate = (who, groupId, uid, answers) => call(who, R.ratings.POST, { groupId }, { body: { uid, answers }, course: true });
@@ -1117,9 +1121,11 @@ describe("C. The before survey: Send, Results, Who answered, the download and on
       }
     }
     assert.ok(!seen.leadBefore.html.includes("/admin/surveys/"), "the lead's page links an admins' page");
+    // Under the Surveys tab's row of views (CHANGED ON PURPOSE: the tab has views now).
     assert.equal(
       seen.leadAfter.text,
-      "AGI Strategy: after Totals and comments, never a name, from the first answer. Only the programme’s lead and NAISI’s admins see them; facilitators never do. " +
+      "Overview Before Check-ins Facilitators’ reports End Follow-ups " +
+        "AGI Strategy: after Totals and comments, never a name, from the first answer. Only the programme’s lead and NAISI’s admins see them; facilitators never do. " +
         "No answers yet from the 6 people it was sent to. Compared, person by person, with AGI Strategy: before (3 answers). " +
         "Consent 0 said yes, 0% of the 6 it was sent to: Contact me at 6 and 12 months with a short follow-up survey.",
     );
@@ -1130,13 +1136,15 @@ describe("C. The before survey: Send, Results, Who answered, the download and on
     // the end has closed; its numbers are held here to the pages that show
     // them already: public numbers (considering it, and C4's averages), the
     // Results of each survey and the Kairos report (net promoter score).
-    inOrder(seen.leadTab.text, [
+    // CHANGED ON PURPOSE: the tab has views. What it drew is now its End view's,
+    // the before survey's row apart, which is on Before; the Overview's cards
+    // say the same counts.
+    inOrder(seen.leadTabEnd.text, [
       "What changed 3 answered both the before and the after. Only they are compared. See before and after",
       "Career plans Considering, planning or already doing it 0 → 1 of 2 2 moved up a stage, 0 stayed, 0 moved down.",
       "Confidence and knowledge Explaining the case that advanced AI could be catastrophic, and the main objections 3.0 → 5.0 out of 7 3 of 3 moved up.",
       "Beliefs about AI What people think about AI Beliefs are reported, never targets: the fellowship doesn’t aim to move them one way. See them at the start and the end",
       "This programme’s surveys Results show as answers come in, never with a name.",
-      "AGI Strategy: before See results 3 of 8 answered · closed Tue 3 Nov",
       "AGI Strategy: after See results 4 of 6 answered · closed Thu 10 Dec",
       "AGI Strategy: leaving See results 1 of 1 answered · no closing date",
       "Ratings See ratings",
@@ -1147,6 +1155,11 @@ describe("C. The before survey: Send, Results, Who answered, the download and on
       "Your facilitators Only you and admins Your facilitators don’t see this. Pass on the gist in your own words, never fellows’ words or the numbers.",
       "In their words 4 answers Did the programme have any negative effect on you or your plans? 2 of 2 I dropped a module for it. None. It made my plans clearer.",
     ]);
+    inOrder(seen.leadTabBefore.text, [
+      "This programme’s surveys Results show as answers come in, never with a name.",
+      "AGI Strategy: before See results 3 of 8 answered · closed Tue 3 Nov",
+    ]);
+    inOrder(seen.leadTab.text, ["Before 3 of 8 answered Closed Tue 3 Nov", "End 4 of 6 answered Closed Thu 10 Dec"]);
     const measure = (id) => seen.offer?.numbers.find((number) => number.id === id)?.figure ?? null;
     assert.deepEqual(measure("stage"), { kind: "pair", start: "0 of 2", end: "1 of 2" }, "public numbers counts considering it the same");
     assert.deepEqual(measure("explain"), { kind: "pair", start: "3.0 out of 7", end: "5.0" }, "public numbers averages C4 the same");
@@ -1155,14 +1168,17 @@ describe("C. The before survey: Send, Results, Who answered, the download and on
     assert.ok(seen.adminLeavingResults.text.includes("1 answer from the 1 person it reached (100%)."));
     assert.ok(seen.kairos.text.includes("Satisfaction Net promoter score +25 n = 4"));
     // The three pages that were reached from nowhere: each survey's results, Ratings and the anonymous form's answers.
-    for (const path of [`surveys/${seen.beforeId}`, `surveys/${seen.afterId}`, `surveys/${seen.leavingId}`, "ratings", "anonymous-feedback"]) {
-      assert.ok(seen.leadTab.html.includes(`href="/admin/admissions/forms/${ROUND}/programmes/${AGI}/${path}"`), `the tab does not link ${path}`);
+    for (const path of [`surveys/${seen.afterId}`, `surveys/${seen.leavingId}`, "ratings", "anonymous-feedback"]) {
+      assert.ok(seen.leadTabEnd.html.includes(`href="/admin/admissions/forms/${ROUND}/programmes/${AGI}/${path}"`), `End does not link ${path}`);
     }
-    assert.equal(seen.leadTab.wrote, false);
-    for (const uid of seen.sentPeople) {
-      const account = world.db.read(`users/${uid}`);
-      assert.doesNotMatch(seen.leadTab.html, new RegExp(`\\b${uid}\\b`), `the tab holds ${uid}'s uid`);
-      for (const said of [account.displayName, account.email].filter(Boolean)) assert.ok(!seen.leadTab.html.includes(said), `the tab names ${said}`);
+    assert.ok(seen.leadTabBefore.html.includes(`href="/admin/admissions/forms/${ROUND}/programmes/${AGI}/surveys/${seen.beforeId}"`), "Before does not link the before survey's results");
+    for (const drawn of [seen.leadTab, seen.leadTabBefore, seen.leadTabEnd]) {
+      assert.equal(drawn.wrote, false);
+      for (const uid of seen.sentPeople) {
+        const account = world.db.read(`users/${uid}`);
+        assert.doesNotMatch(drawn.html, new RegExp(`\\b${uid}\\b`), `the tab holds ${uid}'s uid`);
+        for (const said of [account.displayName, account.email].filter(Boolean)) assert.ok(!drawn.html.includes(said), `the tab names ${said}`);
+      }
     }
     assert.equal(
       seen.leadTabByReviewer.text,
@@ -1441,7 +1457,8 @@ describe("E. The term's end: registers, Who finished, the head, the Kairos repor
   test("A5: after the end the Overview draws The after survey, the Surveys tab's own count, with the way to the tab", async () => {
     // en-finish's card under Certificates. One count: the tab's row for the survey at the end ("4 of 6 answered")
     // and the card's sentence are the same reader's (its Results), never a second count.
-    assert.ok(seen.leadTab.text.includes("AGI Strategy: after See results 4 of 6 answered · closed Thu 10 Dec"));
+    assert.ok(seen.leadTabEnd.text.includes("AGI Strategy: after See results 4 of 6 answered · closed Thu 10 Dec"));
+    assert.ok(seen.leadTab.text.includes("End 4 of 6 answered Closed Thu 10 Dec"), "the tab's Overview counts the survey at the end otherwise");
     const card = "The after survey 4 of 6 have answered. Results show in Surveys as answers come in, never with a name.";
     inOrder(seen.overviewAfterEnd.text, ["Certificates", "People who didn’t finish get nothing and aren’t told.", card]);
     inOrder(seen.overviewCertificates.text, ["Certificates", card]);

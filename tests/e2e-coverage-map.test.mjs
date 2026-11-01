@@ -1490,9 +1490,31 @@ const NOT_COVERED = {
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys": {
     reason:
-      "Surveys: a programme's Surveys tab for its lead and admins (board sv-programme); tests/surveys-lead-tab.test.mjs renders it for an admin, the lead, another programme's lead, a reviewer, a track lead, a facilitator, a member and somebody signed out, finds no name, and holds each number to its own page's; the stage four journey draws it after the end.",
+      "Surveys: a programme's Surveys tab, its Overview, for its lead and admins; tests/surveys-lead-tab.test.mjs renders it for an admin, the lead, another programme's lead, a reviewer, a track lead, a facilitator, a member and somebody signed out over a term of check-ins and reports, finds no name and no group, holds each number to its own page's and a week of check-ins back until it is whole; the stage four journey draws it after the end.",
     coverWhen:
       "When the end-to-end fixtures seed a programme whose before survey and survey at the end have answers, so a spec can open the tab from the programme's head and follow its links.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/before": {
+    reason:
+      "Surveys: the Surveys tab's Before view, the before survey's row; tests/surveys-lead-tab.test.mjs renders it for every kind of caller and finds no name, and the stage four journey draws it after the end.",
+    coverWhen: "When the end-to-end fixtures seed a programme whose before survey has answers, so a spec can open the tab's views from the programme's head.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/check-ins": {
+    reason:
+      "Surveys: the Surveys tab's Check-ins view, each week of the check-ins pooled once whole, with each group's check-in for an admin alone; tests/surveys-lead-tab.test.mjs renders it for every kind of caller over check-ins opened and answered through their routes, holds its floors and finds no name and, for the lead, no group.",
+    coverWhen:
+      "When the course-hub-check-in spec has passed end to end and goes on to a whole week of every group's check-ins, so the programme's lead can read the week on the tab.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/end": {
+    reason:
+      "Surveys: the Surveys tab's End view, what the tab drew before it had views (what changed, the survey at the end and the one about leaving, Ratings, the anonymous form's answers, how it went, the weeks, the facilitator line and the comments); tests/surveys-lead-tab.test.mjs and the stage four journey render it and hold each number to its own page's.",
+    coverWhen:
+      "When the end-to-end fixtures seed a programme whose before survey and survey at the end have answers, so a spec can open the tab's End view and follow its links.",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/follow-ups": {
+    reason:
+      "Surveys: the Surveys tab's Follow-ups view, the rows of the follow-ups at 6 and 12 months once sent; tests/surveys-lead-tab.test.mjs renders it for every kind of caller, with none sent.",
+    coverWhen: "When the end-to-end fixtures seed a programme six months past its end with a follow-up sent, so a spec can open the view.",
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]": {
     reason:
@@ -1502,7 +1524,7 @@ const NOT_COVERED = {
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/reports": {
     reason:
-      "Course hub: a programme's session reports for its lead and admins, with names; tests/course-session-reports.test.mjs renders it for the lead, an admin, the programme's reviewer, another programme's lead, a facilitator, somebody in a group and somebody signed out, with reports and without.",
+      "Course hub: a programme's session reports for its lead and admins, with names, the Surveys tab's Facilitators' reports view; tests/course-session-reports.test.mjs renders it for the lead, an admin, the programme's reviewer, another programme's lead, a facilitator, somebody in a group and somebody signed out, with reports and without, and tests/surveys-lead-tab.test.mjs refuses it to the run's facilitators, a reviewer and members.",
     coverWhen:
       "When a browser spec has a group's facilitator send a session report, then signs in the programme's lead and follows the Surveys tab's link to read it.",
   },

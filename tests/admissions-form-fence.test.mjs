@@ -457,6 +457,30 @@ const ROUND_SURFACES = {
       "one of a programme's surveys' results, for its lead and admins. It reaches the round only " +
       "through loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/before": {
+    kind: "form",
+    why:
+      "the Surveys tab's Before view, for its lead and admins. It reaches the round only through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/check-ins": {
+    kind: "form",
+    why:
+      "the Surveys tab's Check-ins view, for its lead and admins. It reaches the round only through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/end": {
+    kind: "form",
+    why:
+      "the Surveys tab's End view, for its lead and admins. It reaches the round only through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/follow-ups": {
+    kind: "form",
+    why:
+      "the Surveys tab's Follow-ups view, for its lead and admins. It reaches the round only through " +
+      "loadProgrammeRun, which starts from the form's own loader and answers 'none' for a round that is not a form",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/reports": {
     kind: "form",
     why:
