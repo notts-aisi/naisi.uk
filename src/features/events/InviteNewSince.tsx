@@ -40,9 +40,9 @@ export default function InviteNewSince({ eventId }: { eventId: string }) {
 
   async function invite() {
     if (!count || count.newSince === 0) return;
-    const question = `Invite the ${peopleCount(count.newSince)} new since? It emails ${
-      count.emails === 1 ? "1 invitation" : `${count.emails} invitations`
-    }, and it shows on their Home.`;
+    const emailed =
+      count.emails === 0 ? "emails nobody" : `emails ${count.emails === 1 ? "1 invitation" : `${count.emails} invitations`}`;
+    const question = `Invite the ${peopleCount(count.newSince)} new since? It shows on their Home, and ${emailed}.`;
     if (!window.confirm(question)) return;
     setState({ kind: "inviting" });
     try {
@@ -62,12 +62,12 @@ export default function InviteNewSince({ eventId }: { eventId: string }) {
   return (
     <section className={styles.card} aria-labelledby="invite-new-since">
       <h2 id="invite-new-since" className={styles.title}>
-        People who joined its tags since
+        New since it was published
       </h2>
       <p className={styles.text}>
         {count.newSince === 0
           ? "Everybody it’s for is invited already."
-          : `${peopleCount(count.newSince)} in its tags ${count.newSince === 1 ? "isn’t" : "aren’t"} invited yet. Nobody is invited by themselves.`}
+          : `${peopleCount(count.newSince)} in its tags ${count.newSince === 1 ? "isn’t" : "aren’t"} invited yet. Nothing is sent until you invite them.`}
       </p>
       {state.kind === "done" && (
         <p className={styles.text} role="status">

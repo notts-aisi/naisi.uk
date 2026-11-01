@@ -84,7 +84,7 @@ export function invitationWords(count: InvitationCount, authorIsYou: boolean): s
   if (author > 0) lines.push(authorIsYou ? "You’re its author, so you aren’t emailed." : "Its author isn’t emailed.");
   if (settings > 0) {
     lines.push(
-      `${peopleCount(settings)} said no to event announcements, so it shows on their Home without an email.`,
+      `${peopleCount(settings)} didn’t say yes to event announcements, so it shows on their Home without an email.`,
     );
   }
   if (noAddress > 0) lines.push(`${peopleCount(noAddress)} with no email address on record: on their Home only.`);
@@ -118,5 +118,7 @@ export function newSinceWords(n: number): string {
 /** After the press. */
 export function invitedWords(invited: number, emailed: number): string {
   if (invited === 0) return "Nobody new to invite: everybody in its tags is invited already.";
-  return `Invited ${peopleCount(invited)}, and emailed ${emailed === invited ? (invited === 1 ? "them" : "all of them") : `${emailed} of them`}.`;
+  if (emailed === 0) return `Invited ${peopleCount(invited)}. Nobody was emailed.`;
+  if (emailed === invited) return `Invited ${peopleCount(invited)}, and emailed ${invited === 1 ? "them" : "all of them"}.`;
+  return `Invited ${peopleCount(invited)}, and emailed ${emailed} of them.`;
 }
