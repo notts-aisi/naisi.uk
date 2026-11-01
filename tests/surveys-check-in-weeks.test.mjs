@@ -386,6 +386,14 @@ describe("1. the job fixes a week once, the first tick it is whole, and nothing 
     }
   });
 
+  test("fixing a week reads which check-ins it has and whether any is open, never an answer or who a check-in was sent to", () => {
+    const strip = (code) => code.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    for (const file of [["lib", "surveys", "checkIns", "weeks.ts"], ["lib", "scheduler", "jobs", "surveyCheckInWeeks.ts"], ["lib", "firestore", "checkInWeeks.ts"]]) {
+      const code = strip(readFileSync(join(REPO_ROOT, "src", ...file), "utf8"));
+      assert.doesNotMatch(code, /\b(?:answersOf|peopleOf)\(|SURVEY_(?:ANSWERS|PEOPLE)_COLLECTION|["'`](?:surveyAnswers|surveyPeople)["'`]/, file.join("/"));
+    }
+  });
+
   test("the session's own changes went through their route: called off before the week, put back as usual after it was fixed", () => {
     assert.equal(seen.cancelled.status, 200, JSON.stringify(seen.cancelled.body));
     assert.equal(seen.restored.status, 200, JSON.stringify(seen.restored.body));
