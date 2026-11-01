@@ -1013,7 +1013,7 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
           its own route, which answers only the group's facilitators and
           admins (the lead, who reads the register, is shown nothing). */}
       {focus && (
-        <CheckInCard groupId={groupId} sessionKey={focus.sessionKey} marks={records[focus.sessionKey] ?? NO_MARKS} rows={members} />
+        <CheckInCard groupId={groupId} sessionKey={focus.sessionKey} marks={records[focus.sessionKey] ?? NO_MARKS} />
       )}
 
       {/* THE FOOT: wk-register's ending. The session the button finishes, the

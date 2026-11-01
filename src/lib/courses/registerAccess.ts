@@ -317,3 +317,16 @@ export async function loadRegisterMembers(
     );
   return { members, notYetTold };
 }
+
+/**
+ * THE ROWS PUBLISH HAS TOLD, whoever asks: the register as anybody but an
+ * admin is shown it. For what REACHES the people on a register rather than
+ * shows it to somebody: the check-in at the end of a session
+ * (`src/lib/surveys/checkIns/`) makes a row and sends an email naming the
+ * group, so it never reaches a person before Publish has told them their
+ * group, even when an admin presses. It can only narrow what a caller sees,
+ * which is why it takes no role.
+ */
+export function loadToldRegisterMembers(db: Firestore, runId: string, groupId: string): Promise<RegisterRoster> {
+  return loadRegisterMembers(db, runId, groupId, { isAdmin: false });
+}

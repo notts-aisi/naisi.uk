@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
-import { loadRegisterMembers } from "@/lib/courses/registerAccess";
+import { loadToldRegisterMembers } from "@/lib/courses/registerAccess";
 import type { ResolvedSession } from "@/lib/courses/sessions";
 import type { AttendanceStatus } from "@/lib/firestore/courseAttendance";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
@@ -58,7 +58,7 @@ export async function reachLateMarks(
 
   const [register, roster] = await Promise.all([
     readRegisterMarks(db, runId, group.id, session),
-    loadRegisterMembers(db, runId, group.id, { isAdmin: false }),
+    loadToldRegisterMembers(db, runId, group.id),
   ]);
   if (!register.held) return 0;
   const here = hereOf(register.marks, roster.members, group.facilitatorUids).slice(0, MAX_CHECK_IN_PEOPLE);

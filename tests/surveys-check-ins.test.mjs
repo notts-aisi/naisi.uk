@@ -590,16 +590,54 @@ describe("5. the register's card, as every kind of caller, and its floors", () =
     assert.equal((await card("rahul", "w09")).status, 400);
   });
 
-  test("before it opens on the session's day: ready, with when it closes and who it never reaches", async () => {
+  test("before it opens on the session's day: ready, with when it closes and the rows it can reach", async () => {
     const response = await card("rahul");
     assert.deepEqual(Object.keys(response.body).sort(), ["card", "last", "sessionKey"]);
-    assert.deepEqual(response.body.card, { state: "ready", closes: "It closes by itself at 11pm. Then you see your group’s totals, never who said what.", notCounted: ["rahul", "sofia"] });
+    assert.deepEqual(response.body.card, { state: "ready", closes: "It closes by itself at 11pm. Then you see your group’s totals, never who said what.", counted: ["amara", "chloe", "farah"] });
     assert.equal(response.body.last, null);
     // Not on its day, nothing.
     at(BEFORE);
     assert.equal((await card("rahul")).body.card, null);
     at(CLOSES);
     assert.equal((await card("rahul")).body.card, null);
+  });
+
+  test("an admin's register shows somebody Publish has not told their group; the check-in never counts, reaches or emails them", async () => {
+    // Nell is placed in Group B by an admin, and Publish has not told her yet.
+    world.db.seed(`courseEnrolments/${RUN}__nell`, {
+      runId: RUN,
+      courseId: "agi-strategy-fellowship__crs00001",
+      uid: "nell",
+      groupId: B,
+      status: "active",
+      role: "learner",
+      selfEnrolled: false,
+      joinedWeekNumber: 1,
+      allocatedEmailAt: null,
+    });
+    await mark({ amara: "present", chloe: "present", farah: "present", nell: "present" }, "zach");
+    assert.deepEqual((await card("zach")).body.card.counted, ["amara", "chloe", "farah"], "the admin's button counts only the told");
+    assert.deepEqual((await card("rahul")).body.card.counted, ["amara", "chloe", "farah"]);
+    assert.equal((await open("zach", { session: "w02", people: 4 })).status, 409, "a count with her in it is refused");
+    assert.equal((await open("zach")).status, 200);
+    assert.equal(rowOf("nell"), undefined);
+    assert.ok(!world.mail.some((message) => message.to === "nell@example.com"), "she was emailed her group before Publish");
+    // Marked again once it is open, she is still not reached.
+    await mark({ nell: "late" }, "zach");
+    assert.equal(rowOf("nell"), undefined);
+  });
+
+  test("what it reaches is the register's told rows, whoever presses: it never reads the register as a viewer is shown it", () => {
+    for (const file of ["open.ts", "lateMark.ts", "facilitatorView.ts"]) {
+      const code = readFileSync(join(SRC, "lib", "surveys", "checkIns", file), "utf8");
+      assert.match(code, /\bloadToldRegisterMembers\(db, runId, group\.id\)/, file);
+      assert.doesNotMatch(code, /\bloadRegisterMembers\b/, file);
+    }
+    const access = readFileSync(join(SRC, "lib", "courses", "registerAccess.ts"), "utf8");
+    assert.match(
+      access,
+      /export function loadToldRegisterMembers\(db: Firestore, runId: string, groupId: string\): Promise<RegisterRoster> \{\n {2}return loadRegisterMembers\(db, runId, groupId, \{ isAdmin: false \}\);\n\}/,
+    );
   });
 
   test("while it is open: how many have sent it, never who, and the code that opens it signed in", async () => {

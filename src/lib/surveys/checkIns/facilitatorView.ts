@@ -1,5 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import { loadToldRegisterMembers } from "@/lib/courses/registerAccess";
 import { sessionInstants } from "@/lib/courses/sessions";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { SURVEYS_COLLECTION, isCheckIn, normalizeSurvey, type CheckInSurveyDoc } from "@/lib/firestore/surveys";
@@ -23,8 +24,10 @@ import {
  * view of a check-in a facilitator ever reads.
  *
  *  - Before it is opened, on its session's day: that it can be opened, when
- *    it would close, and which of the register's rows it would leave out
- *    (the group's facilitators), so the button counts who it is for.
+ *    it would close, and which of the register's rows it can reach (the rows
+ *    Publish has told, never the group's facilitators), so the button counts
+ *    who it is for from the marks on the screen. An admin's register also
+ *    shows people Publish has not told yet; the check-in never counts them.
  *  - While it is open: how many have sent it, of how many it is for, never
  *    who; when it closes; and the code to show the room.
  *  - Once it has closed: its totals from three answers, how many answered
@@ -38,8 +41,8 @@ import {
 export type CheckInCodeView = { size: number; d: string; address: string };
 
 export type CheckInCardView =
-  /** On its session's day, not opened yet. `notCounted` are the rows it never reaches: the group's facilitators. */
-  | { state: "ready"; closes: string; notCounted: string[] }
+  /** On its session's day, not opened yet. `counted` are the rows it can reach when marked there. */
+  | { state: "ready"; closes: string; counted: string[] }
   | { state: "open"; sent: string; answered: number; of: number; closes: string; confirm: string; code: CheckInCodeView }
   /** Once it has closed: "Week 3’s check-in, Group C", and its totals (with how many answered) or too few. */
   | { state: "closed"; heading: string; totals: string[] | null; tooFew: string | null };
@@ -128,9 +131,14 @@ export async function checkInRegisterView(
       ...totalsLines(count),
     };
   } else if (window && !session.cancelled && windowState(window, now) === "now") {
-    const register = await readRegisterMarks(db, runId, group.id, session);
+    const [register, roster] = await Promise.all([
+      readRegisterMarks(db, runId, group.id, session),
+      loadToldRegisterMembers(db, runId, group.id),
+    ]);
     if (register.held) {
-      card = { state: "ready", closes: closesByItselfWords(window.closesAt, now), notCounted: [...new Set(group.facilitatorUids)].sort() };
+      const facilitators = new Set(group.facilitatorUids);
+      const counted = [...new Set(roster.members.map((member) => member.uid))].filter((uid) => !facilitators.has(uid)).sort();
+      card = { state: "ready", closes: closesByItselfWords(window.closesAt, now), counted };
     }
   }
 

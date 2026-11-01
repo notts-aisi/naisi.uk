@@ -18,7 +18,9 @@ import styles from "./CheckInCard.module.css";
  *
  *  - ON THE SESSION'S DAY, before it is opened: what it is, "Open it for the
  *    6 here" counted from the register as it stands on this screen (marked
- *    present, late or left early, never the group's facilitators), and
+ *    present, late or left early, among the rows the route says it can
+ *    reach: never the group's facilitators, nor anybody Publish has not told
+ *    their group, whom an admin's register shows), and
  *    "Take the register first" while nobody is. The route counts again on the
  *    press and refuses a number that has moved, with the new one.
  *  - WHILE IT IS OPEN: "4 of 6 have sent it", never who; "Show the QR code",
@@ -39,8 +41,6 @@ export type CheckInCardProps = {
   sessionKey: string;
   /** That session's marks, by uid, as the grid holds them now. */
   marks: Readonly<Record<string, AttendanceStatus>>;
-  /** The register's rows: who can be marked. */
-  rows: readonly { uid: string }[];
 };
 
 const HERE: readonly AttendanceStatus[] = ["present", "late", "left-early"];
@@ -51,7 +51,7 @@ const POLL_MS = 30_000;
 /** What was last read, tagged with the request it answered, so a slow answer for another session is never shown. */
 type Store = { key: string; view: CheckInRegisterView | null };
 
-export default function CheckInCard({ groupId, sessionKey, marks, rows }: CheckInCardProps) {
+export default function CheckInCard({ groupId, sessionKey, marks }: CheckInCardProps) {
   const [store, setStore] = useState<Store>({ key: "", view: null });
   const [nonce, setNonce] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -98,12 +98,11 @@ export default function CheckInCard({ groupId, sessionKey, marks, rows }: CheckI
     return () => window.clearTimeout(timer);
   }, [open, marksKey, reload]);
 
-  const notCounted = view?.card?.state === "ready" ? view.card.notCounted : null;
+  const counted = view?.card?.state === "ready" ? view.card.counted : null;
   const here = useMemo(() => {
-    if (!notCounted) return 0;
-    const skip = new Set(notCounted);
-    return rows.filter((row) => !skip.has(row.uid) && HERE.includes(marks[row.uid] as AttendanceStatus)).length;
-  }, [rows, marks, notCounted]);
+    if (!counted) return 0;
+    return counted.filter((uid) => Object.hasOwn(marks, uid) && HERE.includes(marks[uid])).length;
+  }, [marks, counted]);
 
   async function post(path: string, body: Record<string, unknown>): Promise<{ ok: boolean; data: Record<string, unknown> }> {
     const response = await fetch(`/api/courses/groups/${encodeURIComponent(groupId)}/${path}`, {

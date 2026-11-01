@@ -728,7 +728,9 @@ and `src/features/courses/register/CheckInCard.tsx` (the card).
   a run no programme names, and when the number on the button is not the
   register's now (nothing is opened and the answer carries the new number).
 - **Who it reaches**: the people the register marks present, late or left
-  early, among its rows (people Publish has told), never the group's
+  early, among its rows Publish has told (`loadToldRegisterMembers`, whoever
+  presses: an admin's register also shows people Publish has not told their
+  group, and the check-in never counts or reaches them), never the group's
   facilitators, a facilitator holding a place included; at most forty, a
   register's own cap. Each gets their own row, with their own link, written
   with the check-in in one batch, then one notice (surface `course-check-in`,
@@ -770,7 +772,8 @@ and `src/features/courses/register/CheckInCard.tsx` (the card).
 - **What its group's facilitators see** (`checkInRegisterView`, the one
   floored view, `GET .../check-in?session=w03`, the register's own gate): on
   the session's day, before it opens, "Open it for the 6 here" counted from the
-  register as it is tapped; while it is open, "4 of 6 have sent it", never who,
+  register as it is tapped, among the rows the route says it can reach; while
+  it is open, "4 of 6 have sent it", never who,
   the code and "Close it now"; once it has closed, its totals from three
   answers (`TOTALS_FROM`: usefulness and confidence on average, how many of
   how many answered, how many did most or all of the reading, the parts named
