@@ -48,7 +48,7 @@
  *
  * ## Why the loader dance
  *
- * Same root cause as `tests/lib/tsLoader.mjs`: this repo's Node predates the
+ * Same root cause as `course-schedule-changes.test.mjs`: this repo's Node predates the
  * v22.18 that strips TypeScript natively, so the module graph is transpiled in
  * memory with the `typescript` devDependency `npx tsc --noEmit` already uses.
  * The transpile path is taken unconditionally rather than as a fallback,
