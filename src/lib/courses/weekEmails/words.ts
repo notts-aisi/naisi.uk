@@ -28,6 +28,11 @@ function oneLine(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
+/** A sentence ending once: "?" or "!" or "." already there is kept, never doubled. */
+function sentence(text: string): string {
+  return /[.?!]$/.test(text) ? text : `${text}.`;
+}
+
 /** "Wed 18 Nov at 3pm in Portland A21", "Wed 18 Nov at 3pm, online", "Wed 18 Nov at 3pm". */
 export function sessionAtWords(at: Date, where: string): string {
   const when = `${londonDayLabel(at)} at ${londonClockLabel(at)}`;
@@ -126,11 +131,13 @@ export type WeekEmailWords = {
 function weekOpenLead(facts: WeekOpenFacts): string {
   const title = oneLine(facts.weekTitle);
   const course = oneLine(facts.courseTitle);
-  const open = course
-    ? `Week ${facts.weekNumber} of ${course} is open${title ? `: ${title}` : ""}.`
-    : `Week ${facts.weekNumber} is open${title ? `: ${title}` : ""}.`;
+  const open = sentence(
+    course
+      ? `Week ${facts.weekNumber} of ${course} is open${title ? `: ${title}` : ""}`
+      : `Week ${facts.weekNumber} is open${title ? `: ${title}` : ""}`,
+  );
   if (facts.cancelled || !facts.sessionAt) return open;
-  return `${open} Your ${facts.first ? "first" : "next"} session is ${sessionAtWords(facts.sessionAt, facts.where)}.`;
+  return `${open} Your ${facts.first ? "first" : "next"} session is ${sentence(sessionAtWords(facts.sessionAt, facts.where))}`;
 }
 
 /**
@@ -257,8 +264,7 @@ export function weekReminderEmailWords(facts: WeekReminderFacts, firstName: stri
   const course = oneLine(facts.courseTitle);
   const session = course ? `Your ${course} session` : "Your session";
   const when = sessionAtWords(facts.sessionAt, facts.where);
-  const lead =
-    facts.daysBefore === 1 ? `${session} is tomorrow, ${when}.` : `${session} is on ${when}.`;
+  const lead = sentence(facts.daysBefore === 1 ? `${session} is tomorrow, ${when}` : `${session} is on ${when}`);
   const first = facts.weeks[0]?.weekNumber ?? 0;
   return {
     subject: weekReminderSubject(facts),

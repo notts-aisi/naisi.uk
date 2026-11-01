@@ -184,6 +184,14 @@ describe("2. Week N is open, word for word", () => {
     assert.match(words.weekOpenEmailWords({ ...OPEN, where: "" }, "").paragraphs[0], /Your next session is Wed 18 Nov at 3pm\.$/);
   });
 
+  test("a title that ends a sentence of its own ends it once", () => {
+    const asked = words.weekOpenEmailWords({ ...OPEN, weekTitle: "How sure are you, again?" }, "");
+    assert.equal(asked.subject, "Week 3 is open: How sure are you, again?");
+    assert.match(asked.paragraphs[0], /^Week 3 of AGI Strategy is open: How sure are you, again\? Your next session/);
+    const said = words.weekOpenEmailWords({ ...OPEN, weekTitle: "Look again.", sessionAt: null }, "");
+    assert.deepEqual(said.paragraphs, ["Week 3 of AGI Strategy is open: Look again."]);
+  });
+
   test("a week with no title, a person with no name, and a group with no time say less, never something broken", () => {
     const bare = words.weekOpenEmailWords({ ...OPEN, weekTitle: "", sessionAt: null }, "");
     assert.equal(bare.subject, "Week 3 is open");
@@ -350,7 +358,7 @@ describe("2b. no combination of missing facts sends a broken email", () => {
       assert.ok(email.subject.length > 0 && !/[\r\n]/.test(email.subject), `${label}: subject`);
       const all = [email.subject, email.greeting, ...email.paragraphs, ...email.lists.flatMap((l) => [l.lead, ...l.items]), email.button, ...email.after];
       for (const line of all) {
-        assert.doesNotMatch(line, /undefined|null|NaN|[{}]|\s[,.]|\s{2}|\bin\s*\.|\bin\s*$|,\s*\.|\.\./, `${label}: "${line}"`);
+        assert.doesNotMatch(line, /undefined|null|NaN|[{}]|\s[,.]|\s{2}|\bin\s*\.|\bin\s*$|,\s*\.|\.\.|[?!]\./, `${label}: "${line}"`);
         assert.doesNotMatch(line, /\b(mark|marks|grade|graded|score|scored)\b/i, `${label}: "${line}"`);
         assert.doesNotMatch(line, /[–—]/, `${label}: a dash in "${line}"`);
       }
