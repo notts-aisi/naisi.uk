@@ -65,7 +65,7 @@ export async function writesMessages(db: Firestore, user: SessionUser, now: Date
   const mayLead = user.admissionsReviewer === true;
   const mayFacilitate = mayLead
     ? false
-    : !(await db.collection("courseGroups").where("facilitatorUids", "array-contains", user.uid).limit(1).get()).empty;
+    : (await db.collection("courseGroups").where("facilitatorUids", "array-contains", user.uid).get()).docs.length > 0;
   if (!mayLead && !mayFacilitate) return false;
   return (await messageWriterOf(db, user, now)) !== null;
 }
