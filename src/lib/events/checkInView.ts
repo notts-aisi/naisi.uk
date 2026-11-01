@@ -7,6 +7,7 @@ import {
   type SelfWay,
 } from "@/lib/firestore/eventCheckIns";
 import type { EventDoc, RsvpDoc, RsvpStatus } from "@/lib/firestore/events";
+import { guestStaffName, type StaffName } from "@/lib/names/staffName";
 import type { CheckInPhase } from "./checkIns";
 
 /**
@@ -119,10 +120,47 @@ export type DoorRow = {
   /** The sign-up's id, or the check-in's for a walk-in. Also seeds the avatar's colour. */
   key: string;
   rsvpId: string | null;
+  /**
+   * What the row is called: for an account, its full name where the page
+   * looked it up (the people who run check-in are the committee), else the
+   * name the sign-up was made with; for a guest, what they typed.
+   */
   name: string;
+  /** The name they go by, drawn after the full name when it adds something ("Pri"). */
+  goBy: string | null;
+  /** What tells them apart from somebody else on the list with the same full name. */
+  apart: string | null;
+  /** A guest who gave one word: "Guest: first name only". */
+  note: string | null;
   standing: DoorStanding;
   checkIn: DoorCheckIn | null;
 };
+
+/** A row's name in its parts, as `StaffNameText` draws it. */
+export function rowName(row: Pick<DoorRow, "name" | "goBy" | "apart" | "note">): StaffName {
+  return { name: row.name, goBy: row.goBy, apart: row.apart, note: row.note };
+}
+
+/**
+ * A row the check-in route sent back, named as the list drew it. The route
+ * answers with the sign-up's own name; the page looked the account's name up
+ * once, with everybody else on the list beside it, so the row keeps that.
+ */
+export function withDrawnName(saved: DoorRow, drawn: DoorRow): DoorRow {
+  return { ...saved, name: drawn.name, goBy: drawn.goBy, apart: drawn.apart, note: drawn.note };
+}
+
+/**
+ * The name a row is drawn with: the account's staff name where the page looked
+ * it up (`people`, by uid), else what was stored, a guest's marked when it is
+ * one word.
+ */
+function nameOfRow(stored: string, uid: string | null, people: ReadonlyMap<string, StaffName>): StaffName {
+  const looked = uid ? people.get(uid) : undefined;
+  if (looked) return looked;
+  if (!uid) return guestStaffName(stored, "No name given");
+  return { name: stored.trim() || "No name given", goBy: null, apart: null, note: null };
+}
 
 const STANDING_OF: Partial<Record<RsvpStatus, DoorStanding>> = {
   confirmed: "signed-up",
@@ -249,12 +287,16 @@ export function walkedInThemselves(row: Pick<DoorRow, "standing" | "checkIn">): 
  * then the walk-ins. A check-in whose names have come off has no row: it is
  * counted from `namesOffOf` instead. `names` are the people who checked
  * others in, by uid (`staffNames`), for the event's page to say who; the door
- * list does without.
+ * list does without. `people` are the names of the accounts on the list, by
+ * uid, as the page's viewer may see them (`staffNamesFor` in
+ * src/lib/names/load.ts); a row whose account is not in it keeps the name
+ * its sign-up or check-in stored.
  */
 export function doorRows(
   signups: readonly RsvpDoc[],
   checkIns: readonly EventCheckInDoc[],
   names: ReadonlyMap<string, string> = new Map(),
+  people: ReadonlyMap<string, StaffName> = new Map(),
 ): DoorRow[] {
   const live = checkIns.filter((row) => !row.namesOff);
   const bySignup = new Map<string, EventCheckInDoc>();
@@ -269,7 +311,7 @@ export function doorRows(
     rows.push({
       key: signup.id,
       rsvpId: signup.id,
-      name: signup.name.trim() || "No name given",
+      ...nameOfRow(signup.name, signup.uid, people),
       standing,
       checkIn: checkIn ? view(checkIn, names) : null,
     });
@@ -279,7 +321,7 @@ export function doorRows(
     rows.push({
       key: row.id,
       rsvpId: null,
-      name: row.name ?? "No name given",
+      ...nameOfRow(row.name ?? "", row.uid, people),
       standing: "walk-in",
       checkIn: view(row, names),
     });

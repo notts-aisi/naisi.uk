@@ -1,12 +1,16 @@
 import { STATUS_LABELS, subjectLabel, type AffiliationStatus } from "@/lib/firestore/users";
+import { staffNameOf, staffNameWords } from "@/lib/names/staffName";
 import type { AboutYou } from "../model";
 
 /**
  * How a person is named and described on the review screens.
  *
- * Names are shown: a reviewer sees who they are reading. What is derived here
- * is the short description under a name, from the same About you answers the
- * person gave when they joined.
+ * Names are shown: a reviewer sees who they are reading. Everybody who reads
+ * an application is an admin or an SU-recognised committee member, so a row
+ * names the person the way a staff screen does: their full name, with the
+ * name they go by after it. What is derived here besides is the short
+ * description under a name, from the same About you answers the person gave
+ * when they joined.
  *
  * Pure, with no server import.
  */
@@ -42,9 +46,16 @@ export function applicantFirstName(about: Pick<AboutYou, "preferredName">, displ
   return about.preferredName.trim() || firstWord(displayName) || UNNAMED_APPLICANT;
 }
 
-/** The name a row shows. The account's own name, or what they asked to be called. */
-export function applicantName(about: Pick<AboutYou, "preferredName">, displayName: string): string {
-  return displayName.trim() || about.preferredName.trim() || UNNAMED_APPLICANT;
+/**
+ * The name a review screen shows: "Priya Shah (Pri)". The full name they gave
+ * on the form, else the name on the account they applied from (`displayName`,
+ * what these screens showed before the form asked for a full name), with the
+ * name they go by after it when it adds something (`staffNameOf`).
+ */
+export function applicantName(about: Pick<AboutYou, "fullName" | "preferredName">, displayName: string): string {
+  const full = about.fullName.trim() || displayName.trim();
+  const goBy = about.preferredName.trim();
+  return staffNameWords(staffNameOf({ full: full || null, goBy: goBy || null }, UNNAMED_APPLICANT));
 }
 
 /** A status the join questions offer. An applicant's stored answer is any string. */

@@ -15,6 +15,7 @@ import {
   walkInEmailGoesAt,
 } from "@/lib/events/checkIns";
 import { findDoorCode } from "@/lib/events/doorCode";
+import { staffNamesFor } from "@/lib/names/load";
 import { shortLinkAddress } from "@/lib/qr/shortLinkCode";
 import { surveyClosesFor } from "@/lib/surveys/events/records";
 
@@ -32,6 +33,11 @@ export const dynamic = "force-dynamic";
  * sign-ups, who is already here and the door code's address. After that,
  * each Check in is one small request, so a phone on the hall's signal waits
  * once and then only for its own presses.
+ *
+ * NAMES AS THE COMMITTEE SEES THEM. Everybody who reaches this page is an
+ * admin or SU-recognised committee, so an account's row says its full name,
+ * with the name they go by after it, and two people with one full name are
+ * told apart (`staffNamesFor`). A guest who gave one word is marked so.
  *
  * NO TICK UNTIL THE DOOR IS OPEN. Inside the door's hours the names show from
  * the start, and Check in and Add a walk-in only once the event's author or an
@@ -60,12 +66,15 @@ export default async function DoorPage({ params }: { params: Promise<{ id: strin
   const title = event.title.trim() || "Untitled event";
   const emailGoesAt = walkInEmailGoesAt(event, surveyClosesAt);
   const untilSurvey = emailGoesAt !== null && emailGoesAt.getTime() !== walkInEmailGoesAt(event)?.getTime();
+  const listed = doorListSignups(signups);
+  // Everybody the list names, so two of them with one full name are told apart.
+  const people = await staffNamesFor(db, [...listed.map((row) => row.uid), ...checkIns.map((row) => row.uid)], viewer);
 
   return (
     <DoorList
       eventId={event.id}
       eventTitle={title}
-      initialRows={doorRows(doorListSignups(signups), checkIns)}
+      initialRows={doorRows(listed, checkIns, undefined, people)}
       namesOff={namesOffOf(checkIns)}
       closedWords={closedWords}
       selfCheckIn={event.selfCheckIn}

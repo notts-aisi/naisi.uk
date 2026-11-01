@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import StaffNameText from "@/components/StaffNameText";
 import Chip, { type ChipTone } from "@/components/ui/Chip";
 import InitialsChip from "@/components/ui/InitialsChip";
 import type { Role } from "@/lib/firebase/session";
 import { formatSiteDate } from "@/lib/datetime/siteTime";
 import { TRACK_LABELS, type AffiliationStatus, type UserDoc } from "@/lib/firestore/users";
+import { accountNamesOf, staffNameOf, staffNameWords, type StaffName } from "@/lib/names/staffName";
 import { AdminTable } from "./adminList";
 import type { MemberSort } from "./MembersToolbar";
 import styles from "./MembersTable.module.css";
@@ -44,9 +46,19 @@ const STATUS_WORDS: Record<AffiliationStatus, string> = {
   other: "Other",
 };
 
-/** The name an account goes by on the admin pages. */
+/**
+ * An account's name on the admin pages, in its parts, by the staff rule: the
+ * full name, with the name they go by after it when it adds something
+ * ("Priya Shah (Pri)"). Admins are the committee the privacy policy means,
+ * and these pages are behind the admin-only layout.
+ */
+export function accountStaffName(user: UserDoc): StaffName {
+  return staffNameOf(accountNamesOf(user), user.email ?? "Unnamed");
+}
+
+/** The same name as one line of words, for a sentence or a list. */
 export function accountName(user: UserDoc): string {
-  return user.displayName ?? user.profile?.preferredName ?? user.email ?? "Unnamed";
+  return staffNameWords(accountStaffName(user));
 }
 
 /** "13 Oct", with the year once it is not this one. London time. */
@@ -127,7 +139,7 @@ export default function MembersTable({
       <tbody>
         {users.map((user) => {
           const href = `/admin/members/${encodeURIComponent(user.uid)}`;
-          const name = accountName(user);
+          const name = accountStaffName(user);
           const status = user.profile?.status;
           const uniEmailUnverified =
             Boolean(user.profile?.universityEmail) && !user.profile?.uniEmailVerifiedAt;
@@ -148,10 +160,10 @@ export default function MembersTable({
             >
               <td className={styles.nameCell}>
                 <div className={styles.person}>
-                  <InitialsChip name={name} uid={user.uid} size="lg" />
+                  <InitialsChip name={name.name} uid={user.uid} size="lg" />
                   <div className={styles.personText}>
                     <Link href={href} className={styles.name}>
-                      {name}
+                      <StaffNameText name={name} />
                     </Link>
                     <span className={styles.email}>{user.email ?? "No email on file"}</span>
                   </div>

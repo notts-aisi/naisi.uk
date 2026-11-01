@@ -11,7 +11,7 @@ import {
   useClientPagination,
 } from "@/features/admin/adminList";
 import { loadCurrentPeriod } from "@/features/admin/currentPeriodCache";
-import MembersTable from "@/features/admin/MembersTable";
+import MembersTable, { accountStaffName } from "@/features/admin/MembersTable";
 import MembersToolbar, {
   type MemberSort,
   type NewsletterFilter,
@@ -33,6 +33,7 @@ function matchesQuery(u: UserDoc, needle: string): boolean {
   if (!q) return true;
   const haystacks: Array<string | null | undefined> = [
     u.displayName,
+    u.profile?.fullName,
     u.email,
     u.title,
     u.profile?.preferredName,
@@ -70,7 +71,8 @@ function matchesTrack(u: UserDoc, filter: TrackFilter): boolean {
   }
 }
 
-const nameOf = (u: UserDoc) => u.displayName ?? u.email ?? "";
+/** What the Name column sorts by: the name the row shows first. */
+const nameOf = (u: UserDoc) => accountStaffName(u).name;
 
 /**
  * Accounts: everyone with a naisi.uk account, as a table. A row opens that

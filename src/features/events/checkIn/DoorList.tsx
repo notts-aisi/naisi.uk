@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import StaffNameText from "@/components/StaffNameText";
 import Button from "@/components/ui/Button";
 import Chip from "@/components/ui/Chip";
 import InitialsChip from "@/components/ui/InitialsChip";
@@ -18,6 +19,8 @@ import {
   doorListSelfWords,
   hereWords,
   notListedWords,
+  rowName,
+  withDrawnName,
   type DoorRow,
   type NamesOff,
 } from "@/lib/events/checkInView";
@@ -89,7 +92,9 @@ export default function DoorList({
   const counts = doorCounts(rows, namesOff);
   const words = hereWords(counts);
   const needle = query.trim().toLowerCase();
-  const matches = (row: DoorRow) => needle === "" || row.name.toLowerCase().includes(needle);
+  // A search finds somebody by any name the row says: "Pri" finds Priya Shah.
+  const matches = (row: DoorRow) =>
+    needle === "" || [row.name, row.goBy ?? ""].some((name) => name.toLowerCase().includes(needle));
 
   const toCome = rows.filter((row) => row.standing !== "walk-in" && !row.checkIn);
   const expectedToCome = toCome.filter((row) => row.standing === "signed-up" && matches(row));
@@ -121,7 +126,7 @@ export default function DoorList({
       const data = (await res.json().catch(() => ({}))) as { row?: DoorRow; error?: string };
       if (!res.ok || !data.row?.checkIn) throw new Error(data.error ?? "it didn’t save.");
       const saved = data.row;
-      setRows((current) => current.map((r) => (r.key === row.key ? saved : r)));
+      setRows((current) => current.map((r) => (r.key === row.key ? withDrawnName(saved, r) : r)));
       setLastMine({ key: row.key, checkInId: saved.checkIn!.id });
     } catch (err) {
       setProblem(
@@ -168,7 +173,9 @@ export default function DoorList({
         <InitialsChip name={row.name} uid={row.key} size="sm" />
         <div className={styles.who}>
           <span className={styles.name}>
-            {row.name}
+            <span>
+              <StaffNameText name={rowName(row)} />
+            </span>
             {action === "stamp" && row.standing === "walk-in" && <Chip tone="neutral">Walk-in</Chip>}
           </span>
           <span className={styles.sub}>

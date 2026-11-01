@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import StaffNameText from "@/components/StaffNameText";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Chip from "@/components/ui/Chip";
@@ -20,6 +21,7 @@ import {
   type RsvpStatus,
 } from "@/lib/firestore/events";
 import { own } from "@/lib/applications/keys";
+import { guestStaffName, staffNameWords, type StaffName } from "@/lib/names/staffName";
 import { useEventRsvps } from "./useEventRsvps";
 import OrderHelper from "./OrderHelper";
 import TestRsvpPanel from "./TestRsvpPanel";
@@ -27,7 +29,28 @@ import Pie, { pickColor, type PieSlice } from "./Pie";
 import { SIGNUP_WORDS, dayWords, signupTone, stampWords } from "./manageWords";
 import styles from "./AttendeeDashboard.module.css";
 
-type Props = { event: EventDoc };
+type Props = {
+  event: EventDoc;
+  /**
+   * The names of the accounts that signed up, by uid, as the page's viewer
+   * may see them: an admin or SU-recognised committee member, so the full
+   * name with the name they go by after it (`staffNamesFor`). Read once, by
+   * the page; a sign-up that arrives after it keeps the name it was made with
+   * until the page is opened again.
+   */
+  people: Record<string, StaffName>;
+};
+
+/**
+ * A sign-up's name as this screen draws it: the account's staff name where
+ * the page looked it up, else the name the sign-up was made with, a guest's
+ * marked when it is one word.
+ */
+function signupName(r: RsvpDoc, people: Record<string, StaffName>): StaffName {
+  if (r.uid && Object.hasOwn(people, r.uid)) return people[r.uid];
+  if (!r.uid) return guestStaffName(r.name, "No name given");
+  return { name: r.name.trim() || "No name given", goBy: null, apart: null, note: null };
+}
 
 /** Stringify a raw answer for CSV / table display. */
 function renderAnswer(a: RsvpAnswer | undefined): string {
@@ -45,8 +68,9 @@ function renderAnswer(a: RsvpAnswer | undefined): string {
   return "";
 }
 
-export default function AttendeeDashboard({ event }: Props) {
+export default function AttendeeDashboard({ event, people }: Props) {
   const { role } = useAuth();
+  const nameOf = (r: RsvpDoc) => signupName(r, people);
   const { rsvps, loading, error, refresh } = useEventRsvps(event.id);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionErr, setActionErr] = useState<string | null>(null);
@@ -137,8 +161,8 @@ export default function AttendeeDashboard({ event }: Props) {
     // email. A request nobody had answered is withdrawn without one.
     const told = r.status === "confirmed" || r.status === "waitlisted";
     const question = told
-      ? `Cancel ${r.name}’s sign-up? They are told by email, and would have to sign up again.`
-      : `Cancel ${r.name}’s request? They are not emailed, and would have to sign up again.`;
+      ? `Cancel ${nameOf(r).name}’s sign-up? They are told by email, and would have to sign up again.`
+      : `Cancel ${nameOf(r).name}’s request? They are not emailed, and would have to sign up again.`;
     if (!window.confirm(question)) return;
     await act(r.id, "cancel");
   }
@@ -150,7 +174,7 @@ export default function AttendeeDashboard({ event }: Props) {
   async function onDenyChange(r: RsvpDoc) {
     if (
       !window.confirm(
-        `Turn down ${r.name}’s change? The answers they gave first stay as they are.`,
+        `Turn down ${nameOf(r).name}’s change? The answers they gave first stay as they are.`,
       )
     )
       return;
@@ -243,7 +267,7 @@ export default function AttendeeDashboard({ event }: Props) {
       ...questions.map((q) => q.label || q.id),
     ];
     const rows = rsvps.map((r) => [
-      r.name,
+      staffNameWords(nameOf(r)),
       r.email,
       r.status,
       r.createdAt?.toISOString() ?? "",
@@ -401,7 +425,9 @@ export default function AttendeeDashboard({ event }: Props) {
                 <div className={styles.rsvpRow}>
                   <div className={styles.rsvpMain}>
                     <div>
-                      <strong className={styles.who}>{r.name}</strong>
+                      <strong className={styles.who}>
+                        <StaffNameText name={nameOf(r)} />
+                      </strong>
                       <span className={styles.email}>{r.email}</span>
                     </div>
                     <ChangeDiff
@@ -451,7 +477,9 @@ export default function AttendeeDashboard({ event }: Props) {
                 <div className={styles.rsvpRow}>
                   <div className={styles.rsvpMain}>
                     <div>
-                      <strong className={styles.who}>{r.name}</strong>
+                      <strong className={styles.who}>
+                        <StaffNameText name={nameOf(r)} />
+                      </strong>
                       <span className={styles.email}>{r.email}</span>
                     </div>
                     <AnswerSummary rsvp={r} questions={event.signupForm} />
@@ -492,7 +520,7 @@ export default function AttendeeDashboard({ event }: Props) {
                     </Field>
                     <div className={styles.buttons}>
                       <Button variant="danger" onClick={onDenyConfirm} disabled={busyId === r.id}>
-                        Turn down {r.name}
+                        Turn down {nameOf(r).name}
                       </Button>
                       <Button
                         variant="secondary"
@@ -544,7 +572,7 @@ export default function AttendeeDashboard({ event }: Props) {
           </div>
           <div className={styles.chartsGrid}>
             {event.signupForm.map((q) => (
-              <QuestionChart key={q.id} question={q} rsvps={active} />
+              <QuestionChart key={q.id} question={q} rsvps={active} nameOf={nameOf} />
             ))}
             {event.signupForm.length === 0 && (
               <p className={styles.quiet}>This event asks no questions, so there is nothing to chart.</p>
@@ -609,7 +637,9 @@ export default function AttendeeDashboard({ event }: Props) {
                 <tbody>
                   {visibleRows.map((r) => (
                     <tr key={r.id}>
-                      <td className={styles.cellName}>{r.name}</td>
+                      <td className={styles.cellName}>
+                        <StaffNameText name={nameOf(r)} />
+                      </td>
                       <td className={styles.cellEmail}>{r.email}</td>
                       <td>
                         <span className={styles.chips}>
@@ -638,7 +668,7 @@ export default function AttendeeDashboard({ event }: Props) {
                             size="sm"
                             onClick={() => onCancel(r)}
                             disabled={busyId === r.id}
-                            aria-label={`Cancel ${r.name}’s sign-up`}
+                            aria-label={`Cancel ${nameOf(r).name}’s sign-up`}
                           >
                             Cancel
                           </Button>
@@ -727,13 +757,15 @@ function AnswerSummary({
 function QuestionChart({
   question,
   rsvps,
+  nameOf,
 }: {
   question: FormQuestion;
   rsvps: RsvpDoc[];
+  nameOf: (r: RsvpDoc) => StaffName;
 }) {
   if (question.type === "shortText" || question.type === "longText") {
     const answers = rsvps
-      .map((r) => ({ name: r.name, value: renderAnswer(own(r.answers, question.id)) }))
+      .map((r) => ({ name: staffNameWords(nameOf(r)), value: renderAnswer(own(r.answers, question.id)) }))
       .filter((a) => a.value);
     return (
       <Card padding="md">

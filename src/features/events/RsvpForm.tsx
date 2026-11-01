@@ -288,14 +288,15 @@ export default function RsvpForm({
       <form ref={formRef} onSubmit={onSubmit} className={styles.form} data-testid="rsvp-form">
         {!signedInAs && (
           <>
-            <Field id="rsvp-name" label="Name">
+            {/* One box for both names: the people at the door tell two
+                guests called Sam apart by the second. */}
+            <Field id="rsvp-name" label="Your first and last name">
               <Input
                 id="rsvp-name"
                 maxLength={NAME_MAX}
                 disabled={state.kind === "submitting"}
                 required
                 autoComplete="name"
-                placeholder="Your name"
               />
             </Field>
             <Field id="rsvp-email" label="Email">
