@@ -11,6 +11,7 @@ import {
 import { staffCardOf, type StaffFeedbackCard } from "@/lib/courses/feedback/model";
 import {
   ALREADY_EMAILED,
+  ALREADY_EMAILED_DELETE,
   ANSWER_EMPTY,
   BEING_EMAILED_REFUSAL,
   FEEDBACK_NOT_HERE,
@@ -337,7 +338,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ runId: strin
       const piece = normalizeCourseFeedback(snap.id, (snap.data() ?? {}) as Record<string, unknown>);
       // Its writer deletes it until its email has gone; an admin, whenever. Never while a press is sending it.
       if (feedbackIsClaimed(piece, now)) throw new FeedbackError(BEING_EMAILED_REFUSAL, 409);
-      if (piece.emailedAt && !isAdmin) throw new FeedbackError(ALREADY_EMAILED, 409);
+      if (piece.emailedAt && !isAdmin) throw new FeedbackError(ALREADY_EMAILED_DELETE, 409);
       tx.delete(ref);
     });
   } catch (err) {

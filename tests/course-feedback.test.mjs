@@ -155,6 +155,12 @@ describe("1. saving a piece: a signed comment, on readable work, emailing nobody
     assert.equal((await w.give("sofia", "farah", 2, "From Sofia.")).status, 200);
     const role = Object.fromEntries(w.pieces().map((piece) => [piece.text, piece.byRole]));
     assert.deepEqual(role, { "From the lead.": "lead", "From an admin.": "admin", "From Sofia.": "facilitator" });
+    // Each signs by name; a writer with no name on record still reads as a sentence.
+    const at = "2026-11-15T10:02:00.000Z";
+    assert.equal(words.cardByWords({ byRole: "lead", byName: "Claudia", at }, "AGI Strategy"), "Claudia, who leads AGI Strategy · Sun 15 Nov");
+    assert.equal(words.cardByWords({ byRole: "lead", byName: "", at }, "AGI Strategy"), "The lead of AGI Strategy · Sun 15 Nov");
+    assert.equal(words.cardByWords({ byRole: "facilitator", byName: "Rahul", at }, "AGI Strategy"), "Your facilitator · Sun 15 Nov");
+    assert.equal(words.cardByWords({ byRole: "admin", byName: "Zach", at }, ""), "Zach · Sun 15 Nov");
   });
 
   test("a facilitator's own work is the lead's and admins' to give feedback on, never a co-facilitator's or their own", async () => {
@@ -280,7 +286,7 @@ describe("2. changing and deleting: its writer until its email has gone, an admi
     const id = (await w.give("rahul", "chloe", 2, "Emailed soon.")).body.piece.id;
     w.world.db.poke(`courseFeedback/${id}`, { emailedAt: new Date(NOW), emailedByUid: "zach", emailDelivery: "sent" });
     assert.deepEqual([(await w.change("rahul", id, "Too late.")).body.error], [words.ALREADY_EMAILED]);
-    assert.deepEqual([(await w.remove("rahul", id)).body.error], [words.ALREADY_EMAILED]);
+    assert.deepEqual([(await w.remove("rahul", id)).body.error], [words.ALREADY_EMAILED_DELETE]);
     assert.equal((await w.remove("zach", id)).status, 200);
   });
 

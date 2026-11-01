@@ -44,7 +44,7 @@ export function cardByWords(card: Pick<OwnFeedbackCard, "byRole" | "byName" | "a
   const day = card.at ? londonDayLabel(new Date(card.at)) : "";
   let who: string;
   if (card.byRole === "facilitator") who = YOUR_FACILITATOR;
-  else if (card.byRole === "lead") who = card.byName ? `${card.byName}, who leads ${programme || "the programme"}` : `Who leads ${programme || "the programme"}`;
+  else if (card.byRole === "lead") who = card.byName ? `${card.byName}, who leads ${programme || "the programme"}` : `The lead of ${programme || "the programme"}`;
   else who = card.byName;
   return [who, day].filter(Boolean).join(" · ");
 }
@@ -148,7 +148,8 @@ export const NOT_READABLE_YET = "That week hasn’t been submitted yet, so there
 export const ANSWER_EMPTY = "That written answer is empty, so there’s nothing to give feedback on. Leave feedback on the week instead.";
 export const FEEDBACK_NOT_HERE = "That feedback isn’t here any more. Reload the page.";
 export const ALREADY_EMAILED = "Its email has gone, so it can’t change now.";
-export const BEING_EMAILED_REFUSAL = "Its email is being sent right now, so it can’t change. Try again in a few minutes.";
+export const ALREADY_EMAILED_DELETE = "Its email has gone, so only an admin can delete it now.";
+export const BEING_EMAILED_REFUSAL = "Its email is being sent right now. Try again in a few minutes.";
 
 // ---------------------------------------------------------------------------
 // Feedback to write (the group page, Home, the lead's Attendance tab)
@@ -198,7 +199,7 @@ export function feedbackOnWords(weekNumber: number, on: FeedbackOn["kind"]): str
   return on === "writtenAnswer" ? `Week ${weekNumber} written answer` : `Week ${weekNumber} as a whole`;
 }
 
-/** "Email Sofia Marin about this feedback", the name a row's tick box is read by. */
+/** "Email Sofia Marin about this feedback: Week 2 written answer", the name a row's tick box is read by. */
 export function tickLabelWords(name: string, on: string): string {
   return `Email ${name} about this feedback: ${on}`;
 }
