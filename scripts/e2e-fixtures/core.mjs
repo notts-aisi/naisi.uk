@@ -363,6 +363,12 @@ export const FIXTURE_COLLECTIONS = [
   "surveys",
   "surveyPeople",
   "surveyAnswers",
+  // The record of each time an admin opened people's survey answers: one
+  // person's answers, the names behind a bar or a comment, or the Answers
+  // table (`kind` survey-answers, survey-bar, survey-comment or survey-table),
+  // each with its survey's id as `surveyId`. Written by the survey routes a
+  // spec drives, before they read a name, and by nothing a fixture seeds.
+  "recordOpenings",
   // A person's Kairos choice, one document keyed by their uid. A survey's
   // answer route writes it only when the person changed the box on the form,
   // so a fixture account's is counted, and removed, by that uid.

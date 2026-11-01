@@ -2398,14 +2398,19 @@ export async function countTerm(state) {
   let surveyPeople = 0;
   let surveyAnswers = 0;
   let surveyExports = 0;
+  let surveyOpenings = 0;
   for (const id of surveyIds) {
     surveyPeople += (await fixtureQuery("surveyPeople").where("surveyId", "==", id).get()).size;
     surveyAnswers += (await fixtureQuery("surveyAnswers").where("surveyId", "==", id).get()).size;
     surveyExports += (await fixtureQuery("dataExports").where("scope.surveyId", "==", id).get()).size;
+    surveyOpenings += (await fixtureQuery("recordOpenings").where("surveyId", "==", id).get()).size;
   }
   counts.surveyPeople = surveyPeople;
   counts.surveyAnswers = surveyAnswers;
   counts.surveyExports = surveyExports;
+  // Each opening of the survey's names the routes recorded (one person's
+  // answers, See who, Whose is this, the Answers table), by the survey's id.
+  counts.surveyOpenings = surveyOpenings;
   let surveyCounters = 0;
   for (const id of surveyCounterIdsOf(state, surveyIds)) {
     if ((await fixtureDoc("courseNudges", id).get()).exists) surveyCounters += 1;
@@ -2513,6 +2518,7 @@ export async function teardownTerm(state) {
     await deleteQuery(fixtureQuery("surveyAnswers").where("surveyId", "==", id));
     await deleteQuery(fixtureQuery("surveyPeople").where("surveyId", "==", id));
     await deleteQuery(fixtureQuery("dataExports").where("scope.surveyId", "==", id));
+    await deleteQuery(fixtureQuery("recordOpenings").where("surveyId", "==", id));
   }
   for (const id of surveyCounterIdsOf(state, surveyIds)) await fixtureDoc("courseNudges", id).delete();
   // Each account's Kairos choice, by its uid: an answer keeps one only when its box was changed.
