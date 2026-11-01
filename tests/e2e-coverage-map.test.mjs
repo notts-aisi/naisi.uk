@@ -633,6 +633,18 @@ const NOT_COVERED = {
     coverWhen:
       "With the assessment route's spec, once the harness can stand in for Anthropic: a course hub world after the hand-over, Suggest, then Apply through the site's own routes.",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/notes": {
+    reason:
+      "The notes a programme's lead reads and adds about somebody on their programme (privacy v15). Only a lead who is not an admin is answered through this route's lead branch, and the harness never makes one: a lead must be SU-recognised committee, and the browser harness grants nothing above a waiting account (an admin a spec needs is an account it is given). Who reads which note, the projection a lead is sent and every refusal are executed by tests/notes-for-leads.test.mjs; the persona battery asks it as the lead persona on its own programme and another, against a real build.",
+    coverWhen:
+      "When the end-to-end harness is given a second account that stands as a programme's lead on dev without being an admin, as it is given its admin: then the coursework-notes spec reads and adds a note as that lead.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/notes/[noteId]": {
+    reason:
+      "A programme's lead changing or deleting a note they added (privacy v15), through the same door as the list, so it waits on the same lead account. The lead's own notes alone, another's refused and a note the lead may not read answered as not here are executed by tests/notes-for-leads.test.mjs.",
+    coverWhen:
+      "When the end-to-end harness is given a second account that stands as a programme's lead on dev without being an admin, as it is given its admin: then the coursework-notes spec changes and deletes the note that lead added.",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
     reason:
       "Circles reading the run's groups again after a change. It writes nothing; who may read it, who is on the screen and that a second Apply sends nothing are executed by tests/applications-circles.test.mjs.",

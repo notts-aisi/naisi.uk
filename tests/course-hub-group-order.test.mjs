@@ -206,8 +206,9 @@ const READS_WITHOUT_A_LIST = new Map([
 const FETCHES_IT_CANNOT_READ = new Map([
   [
     "src/features/admin/memberNotes/PersonNotes.tsx",
-    "The notes admins keep about one person, at the notes route under the member address it builds from the " +
-      "person's id: it draws notes and the runs a note may come from by name, and no group.",
+    "The notes kept about one person, at the notes route under the member address, or under the programme's " +
+      "address for its lead, each built from the ids it is handed: it draws notes, who reads each and the runs " +
+      "a note may come from by name, and no group.",
   ],
   [
     "src/features/applications/intake/PlacementBox.tsx",

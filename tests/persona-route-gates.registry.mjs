@@ -460,14 +460,15 @@ export const ROUTES = {
     GET: {
       expect: adminOnly(404),
       why:
-        "The notes admins keep about a person (privacy v13) are an admin's alone, about somebody else, decided " +
-        "on the session before anything is read; the admin is then told nobody has this account.",
+        "The admins' route to the notes about a person (privacy v13, v15) is an admin's alone, about somebody else, " +
+        "decided on the session before anything is read; the admin is then told nobody has this account. A " +
+        "programme's lead reads the notes kept for leads through the programme's own route instead.",
     },
     POST: {
       expect: adminOnly(400),
       why:
-        "Keeping a note: an admin's alone, decided on the session; the admin then meets the body check, an " +
-        "empty note, before the account is read.",
+        "Keeping a note on the admins' route: an admin's alone, decided on the session; the admin then meets the " +
+        "body check, an empty note, before the account is read.",
     },
   },
   "/api/admin/members/[uid]/notes/[noteId]": {
@@ -1005,6 +1006,40 @@ export const ROUTES = {
       why:
         "Asking Pangram about one person's coursework: an admin's alone, decided on the session; an empty " +
         "body asks for every week, and the admin is then told the programme is not there.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/notes": {
+    GET: {
+      expect: signedIn(404),
+      fields: ["agreed", "claude", "forLeads", "hidden", "notes", "runs"],
+      why:
+        "The notes about one person on a programme (privacy v15), for its lead and admins, decided from the form " +
+        "(loadProgrammeRun) before anything about the person is read: a form the address does not name is the same " +
+        "404 for everybody signed in, an admin included. Of the fields, the lead is sent notes and forLeads alone " +
+        "(projectNotesForLead); an admin is sent the programme's page as the admin area shows it.",
+    },
+    POST: {
+      expect: signedIn(404),
+      why:
+        "Keeping a note about somebody on a programme: a view-as session refused first, then the programme's own " +
+        "gate from the form before the body is read, so a form the address does not name is the same 404 for " +
+        "everybody signed in.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/notes/[noteId]": {
+    PATCH: {
+      expect: signedIn(404),
+      why:
+        "Changing a note about somebody on a programme: a view-as session refused first, then the programme's own " +
+        "gate from the form before the body or the note is read, so a form the address does not name is the same " +
+        "404 for everybody signed in.",
+    },
+    DELETE: {
+      expect: signedIn(404),
+      why:
+        "Deleting a note about somebody on a programme: a view-as session refused first, then the programme's own " +
+        "gate from the form before the note is read, so a form the address does not name is the same 404 for " +
+        "everybody signed in.",
     },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
@@ -4706,6 +4741,29 @@ function seatWrite(what, body) {
   };
 }
 
+/**
+ * The notes about one person on a programme (privacy v15), through the
+ * programme's own door: an admin on either programme, the programme's lead
+ * on THEIRS, each meeting what `admin` and `lead` say; everybody else is
+ * answered as a programme that is not there, before anything about the
+ * person is read. The set's `uid` is its participant, so on THEIRS the
+ * participant is asking about themselves, which nobody may.
+ */
+function programmeNotes(admin, lead) {
+  return {
+    another: {
+      anonymous: c(401, NO_SESSION),
+      "*": c(404, "No role on this programme: answered as a programme that is not there, before anything about the person is read."),
+      admin,
+    },
+    theirs: {
+      lead,
+      facilitator: c(404, "Facilitating one of the run's groups is no role on the form: answered as a programme that is not there."),
+      participant: c(403, "The participant asking about their own record: nobody is shown or keeps the notes about themselves, refused before the programme is read."),
+    },
+  };
+}
+
 // --- Pages ---------------------------------------------------------------
 
 const PAGE_BASE = {
@@ -4836,6 +4894,26 @@ export const REAL_ROUTES = {
     POST: adminAlone(
       "Pangram on coursework",
       c(ACTS, "An admin's empty body asks for every week of the participant's counted answers, which would send them to Pangram where it is set up: not sent."),
+    ),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/notes": {
+    GET: programmeNotes(
+      c(200, "An admin reads the notes about the set's participant, who holds a place, as the admin area's page for the programme shows them: none here. Nothing is written."),
+      c(200, "The programme's own lead reads the notes kept for leads about the participant, who holds a place on it: none here, and never how many others there are."),
+    ),
+    POST: programmeNotes(
+      c(400, "An admin is let through on any programme and meets the body check: an empty note is refused before anything is written."),
+      c(400, "The programme's own lead is let through to the participant and meets the body check: an empty note is refused before anything is written."),
+    ),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/notes/[noteId]": {
+    PATCH: programmeNotes(
+      c(400, "An admin is let through on any programme and meets the body check: an empty change is refused before the note is read."),
+      c(400, "The programme's own lead is let through to the participant and meets the body check: an empty change is refused before the note is read."),
+    ),
+    DELETE: programmeNotes(
+      c(404, "An admin is let through on any programme and told the note the address names is not here: the world writes no note."),
+      c(404, "The programme's own lead is let through to the participant and told the note the address names is not here: the world writes no note."),
     ),
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
