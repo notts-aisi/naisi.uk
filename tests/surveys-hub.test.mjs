@@ -17,7 +17,9 @@
  *     the way in of exactly one row on exactly one tab.
  *  4. EVENTS: each survey after an event, the newest first.
  *  5. REPORTS holds This term in numbers, Public numbers and Kairos, which each
- *     lead back to it.
+ *     lead back to it. Then the layout itself, on records made here: the
+ *     follow-ups' rows, an earlier programme on a form still there, and a
+ *     survey of a kind no stage draws.
  *  6. NOTHING ABOUT A PERSON on either page, nothing written, every way in a
  *     target of at least 44px, and the words with no dash.
  *
@@ -35,6 +37,7 @@ const w = await makeTermWorld("__surveysHub");
 const reportsPage = (await w.loadTs(join("app", "(app)", "admin", "(admin-only)", "reports", "page.tsx"))).default;
 const hubWords = await w.loadTs(join("lib", "surveys", "hub", "words.ts"));
 const { hubTabOf, hubTabHref } = await w.loadTs(join("lib", "surveys", "hub", "tabs.ts"));
+const model = await w.loadTs(join("lib", "surveys", "hub", "model.ts"));
 
 /** The clock, set to `at` for one test: Date only. */
 function clock(t, at = AFTER) {
@@ -474,6 +477,88 @@ describe("5. Reports holds This term in numbers, Public numbers and Kairos", () 
 });
 
 // ---------------------------------------------------------------------------
+// 5b. The layout itself, on records made here
+// ---------------------------------------------------------------------------
+
+describe("5b. the layout: the follow-ups, an earlier programme on a form still there, and a survey no stage draws", () => {
+  const records = w.lib.records;
+  const OLDER = "summer-2026__k1tterm9";
+  /** A survey record, counted. */
+  const counted = (id, raw, sent = 0, answered = 0) => ({ survey: records.normalizeSurvey(id, survey(raw)), sent, answered, remind: 0 });
+  const programmeSurvey = (kind, roundId, extra = {}) => ({
+    kind,
+    name: `AGI Strategy: ${kind}`,
+    audience: kind === "followUp6" || kind === "followUp12"
+      ? { kind: "followUps", roundId, programmeId: AGI, consentFrom: "s-before" }
+      : { kind: "programme", roundId, programmeId: AGI },
+    roundId,
+    programmeName: "AGI Strategy",
+    programmeKind: "fellowship",
+    closesAt: at("2027-06-09T22:59:00Z"),
+    firstSentAt: at("2027-06-02T09:00:00Z"),
+    presses: [{ id: "p1", kind: "first", at: at("2027-06-02T09:00:00Z"), count: 4 }],
+    createdAt: at("2027-06-01T09:00:00Z"),
+    ...extra,
+  });
+  const NOW = at("2027-06-03T12:00:00Z");
+
+  test("the follow-ups come after leaving, in their own order, on their programme's card", () => {
+    const cards = model.programmeCards({
+      forms: [{ roundId: ROUND, label: "Autumn 2026", programmes: [{ programmeId: AGI, title: "Fellowship: AGI Strategy", hasRun: true }] }],
+      termRoundId: ROUND,
+      lastDays: new Map(),
+      surveys: [counted("s-12", programmeSurvey("followUp12", ROUND)), counted("s-6", programmeSurvey("followUp6", ROUND), 4, 3)],
+      checkIns: [],
+      now: NOW,
+    });
+    assert.equal(cards.length, 1);
+    assert.deepEqual(
+      cards[0].rows.map((row) => row.name),
+      ["Before the programme", "Weekly check-ins", "Facilitators’ reports", "At the end of the programme", "Leaving a programme", "Six months on", "A year on"],
+    );
+    assert.equal(cards[0].rows[5].line, "Sent Wed 2 Jun · 3 of 4 answered · Closes Wed 9 Jun");
+  });
+
+  test("an earlier programme on a form still there is named as the form names it, and the most recent comes first", () => {
+    const cards = model.programmeCards({
+      forms: [
+        { roundId: ROUND, label: "Autumn 2026", programmes: [] },
+        { roundId: OLDER, label: "Summer 2026", programmes: [{ programmeId: AGI, title: "Fellowship: AGI Strategy (summer)", hasRun: false }] },
+      ],
+      termRoundId: ROUND,
+      lastDays: new Map(),
+      surveys: [
+        // Listed oldest first: the order on the page is the newest first, whatever the order read.
+        counted("s-gone", programmeSurvey("before", SPRING, { createdAt: at("2026-03-01T09:00:00Z"), firstSentAt: at("2026-03-02T09:00:00Z") })),
+        counted("s-old", programmeSurvey("before", OLDER, { createdAt: at("2026-06-01T09:00:00Z"), firstSentAt: at("2026-06-02T09:00:00Z") })),
+      ],
+      checkIns: [],
+      now: NOW,
+    });
+    assert.deepEqual(
+      cards.map((card) => [card.title, card.term, card.rows.map((row) => row.key)]),
+      [
+        ["Fellowship: AGI Strategy (summer)", "Summer 2026", ["s-old"]],
+        ["Fellowship: AGI Strategy", "", ["s-gone"]],
+      ],
+    );
+  });
+
+  test("a survey of a kind no stage draws is still a row, by its own name", () => {
+    const cards = model.programmeCards({
+      forms: [],
+      termRoundId: null,
+      lastDays: new Map(),
+      // An event's kind with a programme's audience: a record no route writes, listed rather than lost.
+      surveys: [counted("s-odd", programmeSurvey("event", SPRING, { name: "A stray survey" }))],
+      checkIns: [],
+      now: NOW,
+    });
+    assert.deepEqual(cards.map((card) => card.rows.map((row) => [row.name, row.link?.href])), [[["A stray survey", "/admin/surveys/s-odd/results"]]]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 6. Nothing about a person, the targets and the words
 // ---------------------------------------------------------------------------
 
@@ -536,7 +621,7 @@ describe("6. nothing about a person, every way in at least 44px, and the words",
       join("app", "(app)", "admin", "(admin-only)", "reports", "page.tsx"),
     ]) {
       const source = readFileSync(join(REPO_ROOT, "src", file), "utf8");
-      assert.doesNotMatch(source, /[–—]/, `${file} carries a dash`);
+      assert.doesNotMatch(source, /[\u2013\u2014]/, `${file} carries a dash`);
       assert.doesNotMatch(source.replace(/^\s*(?:\/\/|\*).*$/gm, ""), /\b(?:he|she|his|her|him|hers)\b/i, `${file} guesses a pronoun`);
     }
   });
