@@ -12,13 +12,14 @@ import type { SessionUser } from "@/lib/firebase/session";
 import { PANGRAM_CHECKS_COLLECTION } from "./collections";
 import { openCourseworkDoor, type CourseworkDoor, type DoorRefusal } from "./door";
 import { loadAnswers } from "./gather";
-import { pangramPartsOf, type CourseworkKind, type PangramPart } from "./input";
+import { fingerprintOf, pangramPartsOf, type CourseworkKind, type PangramPart } from "./input";
 import { COURSEWORK_DOOR_WORDS, PANGRAM_WORDS } from "./claudeWords";
 
 /**
  * PANGRAM ON COURSEWORK (privacy v13): ADMINS ONLY, everywhere. The lead is
  * turned away at the door (`adminOnly`) before anything is read, and no page
- * or route a lead reaches carries a reading.
+ * or route a lead reaches carries a reading: the chip beside a written answer
+ * on its review page (`readAnswerReading`) is read for an admin alone.
  *
  * What is sent: one person's counted written answers and reflections of 50
  * words or more (`pangramPartsOf`), never a fill-in box, joined into ONE
@@ -122,6 +123,27 @@ function viewOf(door: CourseworkDoor, parts: readonly PangramPart[], stored: Rec
     tooShort,
     notCounted,
   };
+}
+
+/** Pangram's last reading of one answer, as the chip beside it on the review page says it. */
+export type AnswerReading = { worthALook: boolean; outOfDate: boolean };
+
+/**
+ * Pangram's last reading of one written answer, for the chip beside it on its
+ * review page: whether it is worth a look, and whether the answer has changed
+ * since (`words` are its words as Pangram is sent them, `writtenAnswerWords`,
+ * hashed as the check hashes them). Null when it was never checked. ADMINS
+ * ONLY: the review page asks for it for an admin alone, and nothing else here
+ * is read. Writes nothing and sends nothing.
+ */
+export async function readAnswerReading(
+  db: Firestore,
+  input: { runId: string; uid: string; rowId: string; words: string },
+): Promise<AnswerReading | null> {
+  const snap = await db.collection(PANGRAM_CHECKS_COLLECTION).doc(pangramCheckId(input.runId, input.uid)).get();
+  const reading = readingsOf(snap.data() as Raw | undefined)[input.rowId] ?? null;
+  if (!reading) return null;
+  return { worthALook: reading.worthALook, outOfDate: reading.hash !== fingerprintOf(input.words) };
 }
 
 /** What Pangram found in one person's coursework on the programme, for an admin. Writes nothing and sends nothing. */

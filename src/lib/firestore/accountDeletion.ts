@@ -32,6 +32,7 @@ import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
 import { COURSE_WEEK_WORK_COLLECTION } from "./courseWeekWork";
 import { COURSE_WORK_LOG_COLLECTION } from "./courseWorkLog";
 import { COURSE_FEEDBACK_COLLECTION, COURSE_FEEDBACK_SENDS_COLLECTION } from "./courseFeedback";
+import { COURSE_WORK_RATINGS_COLLECTION } from "./courseWorkRatings";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
 import {
@@ -205,6 +206,14 @@ export type AccountDeletionSummary = {
    */
   courseFeedbackDeleted: number;
   courseFeedbackCleared: number;
+  /**
+   * Ratings for the team (`courseWorkRatings`, privacy v15): every rating of
+   * this account's written work, and every rating it gave of somebody
+   * else's. Deleted either way, as the policy says ("the notes and ratings
+   * about you, the ratings you gave"): a rating is about one named person, by
+   * one named person. Counted once per document.
+   */
+  courseWorkRatingsDeleted: number;
   /**
    * This account's place in each session's pairs (`coursePairs`): which pair
    * it was in and whether it was bringing a laptop. Deleted: each record is
@@ -910,6 +919,19 @@ export async function clearCourseFeedback(db: Firestore, uid: string): Promise<{
 }
 
 /**
+ * Delete every rating for the team about this account's written work, and
+ * every one it gave (`courseWorkRatings`, privacy v15), on every run, a page
+ * at a time: found by the one equality on `uid` (whose work), then by the one
+ * on `raterUid` (who rated). Nothing else names an account. Counted once per
+ * document: nobody rates their own work, so no rating is found twice.
+ */
+export async function deleteCourseWorkRatings(db: Firestore, uid: string): Promise<number> {
+  const about = await deleteOwnedCourseRows(db, COURSE_WORK_RATINGS_COLLECTION, uid);
+  const gave = await deleteOwnedCourseRows(db, COURSE_WORK_RATINGS_COLLECTION, uid, "raterUid");
+  return about + gave;
+}
+
+/**
  * Delete every record of this account's place in a session's pairs
  * (`coursePairs`), on every run and in every group, a page at a time: which
  * pair it was in and whether it was bringing a laptop. Found by the one
@@ -1574,6 +1596,7 @@ export async function deleteAccountCascade(
     courseWorkLogDeleted: 0,
     courseFeedbackDeleted: 0,
     courseFeedbackCleared: 0,
+    courseWorkRatingsDeleted: 0,
     coursePairsDeleted: 0,
     courseCertificatesDeleted: 0,
     courseCertificatesKept: 0,
@@ -2047,6 +2070,17 @@ export async function deleteAccountCascade(
     summary.courseFeedbackCleared = feedback.cleared;
   } catch (err) {
     console.error("[deleteAccount] courseFeedback delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c. RATINGS FOR THE TEAM. The ratings of this account's written work,
+  //      and the ratings it gave, go with it, both found by the one equality
+  //      on each field (privacy v15: "the notes and ratings about you, the
+  //      ratings you gave"; see courseWorkRatings.ts).
+  try {
+    summary.courseWorkRatingsDeleted = await deleteCourseWorkRatings(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseWorkRatings delete failed:", uid, err);
     partialFailure = true;
   }
 

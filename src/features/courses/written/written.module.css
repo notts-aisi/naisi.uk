@@ -447,9 +447,36 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  gap: 6px 8px;
   margin: -8px 0 0;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
+}
+
+.sentLine .lateChip {
+  margin-left: 0;
+}
+
+/* Pangram's last reading of the answer, beside when it was sent: an admin's alone. */
+.pangramChip,
+.pangramChipFlag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-hover);
+  color: var(--color-text-soft);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pangramChipFlag {
+  border-color: var(--color-warning-line);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
 }
 
 .answerBody {

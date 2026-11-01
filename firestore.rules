@@ -2911,6 +2911,16 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === courseWorkRatings ===
+    // Ratings for the team: an admin's or the programme's lead's rating of
+    // one person's written answer, from 1 to 10, with a comment for the team.
+    // Written by the ratings route (Admin SDK); read by the review page on the
+    // server, for admins and the lead alone. Never the person rated, never a
+    // facilitator as such: every browser is refused, admins included.
+    match /courseWorkRatings/{docId} {
+      allow read, write: if false;
+    }
+
     // === courseAttendance ===
     // One register per (group, week), a map of uid -> status. That shape is
     // why even READS are locked: any row a member could read leaks every
