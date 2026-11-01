@@ -54,6 +54,13 @@ type Props = {
    * See who is open, are asked for again.
    */
   recount?: number;
+  /**
+   * The picker counts people and names them, and the page that holds it says
+   * how they are reached: an event for chosen people invites by its own rule
+   * (src/lib/events/invitations.ts), so the picker's emailed and left-out
+   * lines, its class and its choice of row would describe another send.
+   */
+  peopleOnly?: boolean;
 };
 
 /** How long a change waits for the next before the count is asked for. */
@@ -75,7 +82,7 @@ const post = (url: string, body: string, signal: AbortSignal) =>
 /** What to say when a count or a list could not be had. */
 const problemWords = (err: unknown, otherwise: string) => (err instanceof Refused ? AUDIENCE_REFUSAL.notYours : otherwise);
 
-export default function WhoIsThisFor({ initial, onChange, recount = 0 }: Props) {
+export default function WhoIsThisFor({ initial, onChange, recount = 0, peopleOnly = false }: Props) {
   const id = useId();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -262,6 +269,7 @@ export default function WhoIsThisFor({ initial, onChange, recount = 0 }: Props) 
       inputRef={inputRef}
       state={{ catalogue, chosen, query, browsing, shown, counting, countFailed, whoOpen, whoLines, whoFailed, rowShown }}
       act={act}
+      peopleOnly={peopleOnly}
     />
   );
 }
@@ -301,11 +309,14 @@ export function PickerBody({
   inputRef,
   state,
   act,
+  peopleOnly = false,
 }: {
   id: string;
   inputRef?: RefObject<HTMLInputElement | null>;
   state: PickerState;
   act: PickerActions;
+  /** See `peopleOnly` on the picker: the count and the names, and nothing about how they are reached. */
+  peopleOnly?: boolean;
 }) {
   const { catalogue, chosen, query, browsing, shown, counting, countFailed, whoOpen, whoLines, whoFailed, rowShown } = state;
   const anything = chosen.length > 0;
@@ -410,7 +421,7 @@ export function PickerBody({
         ) : shown ? (
           <div className={`${styles.countLine} ${counting ? styles.stale : ""}`}>
             <strong className={styles.headline}>{headlineWords(shown.people, shown.you)}</strong>
-            <span className={styles.emailed}>{emailedWords(shown.emailed, shown.leftOut)}</span>
+            {!peopleOnly && <span className={styles.emailed}>{emailedWords(shown.emailed, shown.leftOut)}</span>}
             {shown.people > 0 && (
               <Button variant="ghost" aria-expanded={whoOpen} onClick={act.toggleWho}>
                 {whoOpen ? PICKER_WORDS.hideWho : PICKER_WORDS.seeWho}
@@ -437,12 +448,12 @@ export function PickerBody({
           ) : !whoLines ? (
             <p className={styles.quiet}>{PICKER_WORDS.counting}</p>
           ) : (
-            <WhoList lines={whoLines} row={shown?.row ?? rowShown} />
+            <WhoList lines={whoLines} row={shown?.row ?? rowShown} peopleOnly={peopleOnly} />
           )}
         </div>
       )}
 
-      {anything && shown && shown.people > 0 && (
+      {!peopleOnly && anything && shown && shown.people > 0 && (
         <div className={styles.panel}>
           <div className={styles.mode}>
             <Chip tone={shown.mode === "notice" ? "accent" : "neutral"}>{MODE_LABELS[shown.mode]}</Chip>
@@ -472,7 +483,7 @@ export function PickerBody({
         </div>
       )}
 
-      {anything && shown && shown.leftOut > 0 && (
+      {!peopleOnly && anything && shown && shown.leftOut > 0 && (
         <div className={styles.panel}>
           <h4 className={styles.panelTitle}>{PICKER_WORDS.leftOutTitle}</h4>
           <table className={styles.table}>
@@ -564,17 +575,20 @@ function TagRow({
   );
 }
 
-/** See who: the names, those to be emailed first, then those left out. */
-function WhoList({ lines, row }: { lines: WhoLine[]; row: GridRow }) {
-  const emailed = lines.filter((line) => line.emailed);
-  const left = lines.filter((line) => !line.emailed);
+/**
+ * See who: the names, those to be emailed first, then those left out; or,
+ * `peopleOnly`, the names alone, since the page says who is emailed.
+ */
+function WhoList({ lines, row, peopleOnly = false }: { lines: WhoLine[]; row: GridRow; peopleOnly?: boolean }) {
+  const emailed = lines.filter((line) => peopleOnly || line.emailed);
+  const left = lines.filter((line) => !peopleOnly && !line.emailed);
   const name = (line: WhoLine) => (line.you ? `${line.name} (${PICKER_WORDS.you})` : line.name);
   return (
     <div className={styles.who}>
       {emailed.length > 0 && (
-        <section aria-label={PICKER_WORDS.willBeEmailed}>
+        <section aria-label={peopleOnly ? PICKER_WORDS.people : PICKER_WORDS.willBeEmailed}>
           <h4 className={styles.panelTitle}>
-            {PICKER_WORDS.willBeEmailed} ({emailed.length})
+            {peopleOnly ? PICKER_WORDS.people : PICKER_WORDS.willBeEmailed} ({emailed.length})
           </h4>
           <ul className={styles.names}>
             {emailed.map((line, index) => (
