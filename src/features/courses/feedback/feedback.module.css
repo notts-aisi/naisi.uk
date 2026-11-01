@@ -531,6 +531,9 @@
   }
 
   .batchActions {
+    /* Stacked, the test lands at the bottom, the easy reach, and the send
+       that emails everybody is a deliberate stretch above it, as the nudge
+       panel's confirm does. Tab order still follows the DOM: the test first. */
     flex-direction: column-reverse;
     align-items: stretch;
   }
