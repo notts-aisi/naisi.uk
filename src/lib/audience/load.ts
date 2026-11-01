@@ -379,13 +379,21 @@ export async function loadTermRoles(db: Firestore, viewer: SessionUser, now: Dat
 /**
  * Everything this person's tags are made of, read once. Null for somebody who
  * may use no tag at all (signed out, waiting for approval or refused).
+ * `roles` is what `loadTermRoles` read for this person at this moment, when
+ * the caller has it already (Messages asks it to decide who may write), so
+ * the term is not read twice in one request.
  */
-export async function loadAudienceWorld(db: Firestore, viewer: SessionUser, now: Date): Promise<AudienceWorld | null> {
+export async function loadAudienceWorld(
+  db: Firestore,
+  viewer: SessionUser,
+  now: Date,
+  roles?: TermRoles,
+): Promise<AudienceWorld | null> {
   if (!scopeOf(viewer)) return null;
 
   // The term's programmes, their runs and groups, and what this person leads
   // and facilitates of them.
-  const { form, programmes, runs, leads, tagGroups } = await loadTermRoles(db, viewer, now);
+  const { form, programmes, runs, leads, tagGroups } = roles ?? (await loadTermRoles(db, viewer, now));
   const scope = scopeOf(viewer, { leads, groups: tagGroups });
   if (!scope) return null;
   const inScope = (programme: TermProgramme) => scope.admin || scope.programmes.has(programme.key);

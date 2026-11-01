@@ -122,7 +122,7 @@ export async function POST(req: Request) {
   if (!writer) return NextResponse.json({ error: MESSAGE_REFUSAL.notAWriter }, { status: 403 });
 
   // ── Who it reaches, counted as the picker counted it ─────────────────────
-  const world = await loadAudienceWorld(db, user, now);
+  const world = await loadAudienceWorld(db, user, now, writer.roles);
   if (!world) return NextResponse.json({ error: MESSAGE_REFUSAL.notApproved }, { status: 403 });
   const answer = await resolveAudience(db, world, send.selection, { row: send.row });
   if (!answer.ok) return NextResponse.json({ error: AUDIENCE_REFUSAL.notYours }, { status: 403 });
