@@ -24,7 +24,9 @@
  */
 import { describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
-import { join } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { makeWorld } from "./lib/handoverWorld.mjs";
@@ -764,5 +766,49 @@ describe("the picker renders on the server", () => {
   test("the picker draws its loading state first", async () => {
     const Picker = (await w.loadTs(join("features", "audience", "WhoIsThisFor.tsx"))).default;
     assert.match(renderToStaticMarkup(createElement(Picker)), /Loading the tags/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// What the privacy policy says about it
+// ---------------------------------------------------------------------------
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+describe("the privacy policy's sentence about choosing who a message reaches", () => {
+  const policy = readFileSync(join(REPO_ROOT, "src", "content", "legal", "privacy", "v15.tsx"), "utf8").replace(/\s+/g, " ");
+
+  test("it says what the picker reads, and the picker keeps no list of its own", () => {
+    assert.ok(
+      policy.includes(
+        "To choose who a message, survey or invitation reaches, we use what we already hold, such as your programme, your group, your role and the events you came to. Admins may also make lists of people for this;",
+      ),
+      "the policy no longer says how who a message reaches is chosen",
+    );
+    // "Your programme, your group, your role and the events you came to": tags the picker has.
+    const kinds = new Set(["programme", "group", "role", "event"]);
+    const parsed = [T.agiHolding, T.groupA, T.committee, T.vrCame].map((tagId) => tags.parseTag(tagId));
+    assert.deepEqual(parsed.map((tag) => tag.kind), [...kinds]);
+    assert.equal(parsed[3].part, "came");
+    // "Admins may also make lists of people": the admin-set tracks, which nobody but an admin may use.
+    for (const viewer of [{ uid: "s", role: "committee", suRecognised: true }, { uid: "m", role: "member" }]) {
+      assert.equal(scopeTable.mayUse(scopeTable.scopeOf(viewer, { leads: ["x:y"], groups: ["g"] }), { kind: "track", track: "technical" }), false);
+    }
+    // "What we already hold": nothing in the picker writes to the database.
+    const files = [
+      ...readdirSync(join(REPO_ROOT, "src", "lib", "audience")).map((name) => join("src", "lib", "audience", name)),
+      join("src", "app", "api", "audience", "route.ts"),
+      join("src", "app", "api", "audience", "who", "route.ts"),
+    ];
+    // A document written, made, changed or deleted, a batch, a transaction or a sentinel. A map's own
+    // `set` and `delete` are not the database's.
+    const WRITES =
+      /\.doc\([^)]*\)\s*\.(?:set|update|create|delete)\(|\.collection\([^)]*\)\s*\.add\(|\.(?:update|create)\(|\.batch\(|runTransaction\(|\bFieldValue\b/;
+    assert.match('db.collection("users").doc(uid).set({ seen: true })', WRITES);
+    assert.match('db.collection("lists").add({ uids })', WRITES);
+    assert.doesNotMatch("seen.set(key, true); seen.delete(key); out.add(uid);", WRITES);
+    for (const file of files) {
+      assert.doesNotMatch(readFileSync(join(REPO_ROOT, file), "utf8"), WRITES, `${file} writes to the database`);
+    }
   });
 });
