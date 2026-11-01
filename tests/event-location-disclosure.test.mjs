@@ -629,6 +629,10 @@ const SITES = {
     role: "renderer",
     reason: "The committee's list of events: under each event's name it prints the public text from the helper, and reads no location field of its own.",
   },
+  "src/lib/events/invitations.ts": {
+    role: "renderer",
+    reason: "An event for chosen people's invitation email: the public line, because an invitation is not a place yet and the exact room is a confirmed place's.",
+  },
   "src/app/api/events/[id]/rsvp/route.ts": {
     role: "relay",
     reason: "Hands the event to sendRsvpEmail, and snapshots the exact location onto the RSVP row, which only SU-recognised committee and admins may read.",
@@ -652,6 +656,7 @@ const SITES = {
   "src/emails/EventRsvpEmail.tsx": { role: "template", reason: "Renders the locationLine it is given." },
   "src/emails/EventUpdateEmail.tsx": { role: "template", reason: "Renders the locationLine and the changes it is given." },
   "src/emails/EventAnnouncementEmail.tsx": { role: "template", reason: "Renders the public locationLine it is given." },
+  "src/emails/EventInvitationEmail.tsx": { role: "template", reason: "Renders the public locationLine it is given." },
   "src/app/api/events/[id]/update/route.ts": {
     role: "writer",
     reason: "Stores the three fields for a live event and refuses a hidden location with no label.",

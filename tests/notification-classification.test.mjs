@@ -656,6 +656,14 @@ const REGISTRY = {
     "The queued announcement's email leg: the same per-recipient sender the publish request calls, one recipient per marker so the run survives a tick boundary. The audience it walks came from `resolveAnnouncementAudience`, which applied the events email cell.",
     "src/lib/email/eventAnnouncement.ts",
   ),
+  "src/lib/events/invitations.ts#sendEmail": G(
+    "events",
+    "An event for chosen people's invitation to somebody it is not a programme notice for (src/lib/events/invitations.ts): everybody chosen when the event is part of no programme, and everybody but the people holding a place on its programme when it is. Read off their events row, the announcement's row, by the picker's one resolver (`resolveAudience`, which asks `wantsCategory` and `addressesForSend`), with the events channel's unsubscribe link. Somebody who said no is still invited, on their Home, and not emailed. Never its author. Email only: no push leg.",
+    "src/lib/audience/resolve.ts",
+  ),
+  "src/lib/events/invitations.ts#sendNotice": N(
+    "An event for chosen people that is part of a programme: its invitation to each person holding a place on that programme, whatever their settings, as the privacy policy's Events for chosen people says, with the marker (surface event-invitation) and the lane's caps. Only that programme's lead or an admin may make an event part of it. Once a person, claimed by their document on the event's list. Never its author. Email only: no push leg.",
+  ),
   "src/lib/scheduler/jobs/eventAnnouncements.ts#sendPushToUid": G(
     "events",
     "The queued announcement's push leg. It cannot reuse `sendPushToRowAudience`, whose dispatch loop is request-shaped, so it enumerates the owners through the shared `rowPushOwners` and reads the events push cell itself, per account, with `wantsPushFor`.",

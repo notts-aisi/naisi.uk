@@ -86,8 +86,10 @@ const EMULATOR_WORLD_COLLECTIONS = {
   surveys: "each programme's before survey",
   surveyPeople: "who each survey was sent to",
   courseFacilitating: "each programme's open ask to its participant to facilitate the run's second group",
-  events: "each set's event, published, written by its author and helped by its collaborator",
+  events: "each set's event, published and for chosen people, written by its author and helped by its collaborator",
   eventRsvps: "each event's one request for a place, waiting for a decision",
+  eventAudiences: "who each set's event is for, as its chooser chose it",
+  eventInvitations: "each set's event's list of the people invited, THEIRS naming the invitee",
 };
 
 /**

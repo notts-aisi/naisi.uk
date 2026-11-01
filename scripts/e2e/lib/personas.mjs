@@ -61,8 +61,10 @@ import { mintSessionCookie } from "./session.mjs";
  *  - `facilitator` and `participant` are plain members: the bar for a group's
  *    facilitators and for a place is an approved account.
  *
- * The last two hold a role on an EVENT, which `./personaWorld.mjs` writes as
- * well: `eventAuthor` wrote it and `eventCollaborator` helps run it.
+ * The last three hold a role on an EVENT, which `./personaWorld.mjs` writes as
+ * well: `eventAuthor` wrote it, `eventCollaborator` helps run it, and
+ * `invitee` is on the list of the people invited to an event for chosen
+ * people.
  *
  *  - `eventAuthor` is a plain member holding draftEvent: anybody holding it
  *    may write an event, and the author decides its requests only while they
@@ -71,6 +73,8 @@ import { mintSessionCookie } from "./session.mjs";
  *    collaborator is chosen from are committee and admins, and one the SU
  *    does not recognise is the organiser the sign-ups rule sends the
  *    requests alone.
+ *  - `invitee` is a plain member: an invitation goes to an approved account,
+ *    and being on the list is the whole of the role.
  */
 export const PERSONAS = {
   anonymous: null,
@@ -93,6 +97,7 @@ export const PERSONAS = {
   participant: { role: "member" },
   eventAuthor: { role: "member", permissions: { draftEvent: true } },
   eventCollaborator: { role: "committee", suRecognised: false },
+  invitee: { role: "member" },
 };
 
 export const PERSONA_NAMES = Object.keys(PERSONAS);

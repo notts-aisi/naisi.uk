@@ -42,8 +42,10 @@
  * The same world holds two events, THEIRS written by the `eventAuthor`
  * persona and helped by the `eventCollaborator` persona, ANOTHER by accounts
  * that are none of the personas, each with a request waiting for a decision.
- * Every route and page whose columns say `world: "event"` (the ones whose
- * code asks the sign-ups rule) is asked again about both events the same way.
+ * Each is for chosen people, its list naming its asker and, on THEIRS, the
+ * `invitee` persona. Every route and page whose columns say `world: "event"`
+ * (the ones whose code asks the sign-ups rule, or who runs an event's list)
+ * is asked again about both events the same way.
  *
  * HOW A CELL IS READ lives in `scripts/e2e/lib/personaCells.mjs`: a request
  * path from a key, a redirect put back into key shape, the calm states a page
@@ -313,6 +315,7 @@ describe("persona route gates on a real build", { skip: !ARMED && !REQUIRED ? "E
       participant: personas.get("participant"),
       eventAuthor: personas.get("eventAuthor"),
       eventCollaborator: personas.get("eventCollaborator"),
+      invitee: personas.get("invitee"),
     });
   });
 

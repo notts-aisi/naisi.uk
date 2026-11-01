@@ -1326,6 +1326,15 @@ const NOT_COVERED = {
     coverWhen:
       "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
   },
+  "/api/events/[id]/audience": {
+    reason:
+      "Events for chosen people: who an event is for, chosen in the editor's Who's it for step and counted as it is chosen. " +
+      "Executed as every kind of caller, with its counts held to the send, by tests/event-chosen-people.test.mjs, and asked " +
+      "about a real event of the persona world by the standing red team's second pass.",
+    coverWhen:
+      "When scripts/e2e-fixtures/events-authoring.mjs has run green against the harness and is marked verified: it chooses " +
+      "the invitee in this step.",
+  },
   "/api/events/[id]/broadcast": {
     reason:
       "Events authoring: /api/events/[id]/broadcast is a deliberate committee action whose result is visible on the manage screen. " +
@@ -1357,6 +1366,15 @@ const NOT_COVERED = {
       "Events authoring: /api/events/[id]/delete is a deliberate committee action whose result is visible on the manage screen.",
     coverWhen:
       "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
+  },
+  "/api/events/[id]/invitations": {
+    reason:
+      "Events for chosen people: Invite the N new since, on a published event's sign-ups, reaching the people new to its " +
+      "tags. Executed as every kind of caller by tests/event-chosen-people.test.mjs, which holds that nothing goes by " +
+      "itself and a second press invites nobody twice.",
+    coverWhen:
+      "When an event for chosen people that is part of a programme is published on the live site, because somebody " +
+      "joining its tags afterwards is the first real use of this press.",
   },
   "/api/events/[id]/publish": {
     reason:

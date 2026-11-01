@@ -1811,6 +1811,7 @@ describe("the picker's people named one by one are the scope table's to admit", 
     accounts: new Map(),
     guests: new Map(),
     runs: new Map(),
+    holds: new Map(),
     gmailOnly: false,
   });
 

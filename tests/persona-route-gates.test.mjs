@@ -34,10 +34,13 @@
  *
  * THE EVENT WORLD'S COLUMNS, found from the code. Every route and page under
  * `src/app` whose code asks the sign-ups rule (`signupAccessFor` or
- * `decidesSignups`, `src/lib/events/signupAccess.ts`) has columns saying
- * `world: "event"`, and every such column is one of those, so a new reader or
- * decider of an event's requests is asked about two events the day it lands.
- * Their `theirs` names exactly the two event roles.
+ * `decidesSignups`, `src/lib/events/signupAccess.ts`), or who runs an event
+ * for chosen people's list (`maySeeChoice`, `mayChooseFor` or `mayInviteFor`,
+ * `src/lib/events/invitationAccess.ts`), has columns saying `world: "event"`,
+ * and every such column is one of those, so a new reader or decider of an
+ * event's requests or its list is asked about two events the day it lands.
+ * Their `theirs` names exactly the two event roles, and no column names the
+ * invitee, whose place on THEIRS list is no role on any of them.
  *
  * HOW THE BATTERY READS A CELL. The pure half of the battery
  * (`scripts/e2e/lib/personaCells.mjs`) is held here too: a key's path fills
@@ -59,6 +62,7 @@ import {
   ACTS,
   EVENT_ROLES,
   EVENT_WORLD_SEGMENTS,
+  INVITED_ROLES,
   PAGES,
   PERSONA_NAMES,
   PROGRAMME_ROLES,
@@ -127,11 +131,12 @@ describe("the registry and the tree agree in both directions", () => {
   test("the walk found the tree", () => {
     assert.ok(routes.size > 150, `only ${routes.size} routes found`);
     assert.ok(pages.length > 50, `only ${pages.length} authed pages found`);
-    assert.equal(PERSONA_NAMES.length, 20);
-    // The five who hold a role on a record (three on a programme, two on an
-    // event), each resolving through a base that is a persona of its own.
-    assert.deepEqual(Object.keys(ROLE_PERSONAS), ["lead", "facilitator", "participant", "eventAuthor", "eventCollaborator"]);
-    assert.deepEqual([...PROGRAMME_ROLES, ...EVENT_ROLES], Object.keys(ROLE_PERSONAS));
+    assert.equal(PERSONA_NAMES.length, 21);
+    // The six who hold a role on a record (three on a programme, two on an
+    // event, and one on an event's list of the people invited), each resolving
+    // through a base that is a persona of its own.
+    assert.deepEqual(Object.keys(ROLE_PERSONAS), ["lead", "facilitator", "participant", "eventAuthor", "eventCollaborator", "invitee"]);
+    assert.deepEqual([...PROGRAMME_ROLES, ...EVENT_ROLES, ...INVITED_ROLES], Object.keys(ROLE_PERSONAS));
     // The battery seeds exactly the personas this answer key names, in its order.
     assert.deepEqual(Object.keys(SEEDED_PERSONAS), PERSONA_NAMES);
     for (const [name, base] of Object.entries(ROLE_PERSONAS)) {
@@ -388,12 +393,13 @@ describe("the second pass's columns and the tree agree in both directions", () =
 function codeOfKey(key, kind) {
   return stripSource(readFileSync(join(APP_DIR, ...key.slice(1).split("/"), kind === "route" ? "route.ts" : "page.tsx"), "utf8"));
 }
-const ASKS_THE_SIGNUPS_RULE = /\b(?:signupAccessFor|decidesSignups)\s*\(/;
+const ASKS_THE_SIGNUPS_RULE = /\b(?:signupAccessFor|decidesSignups|maySeeChoice|mayChooseFor|mayInviteFor)\s*\(/;
 
 describe("the event world's columns and the code agree in both directions", () => {
   test("every route that asks the sign-ups rule has event columns for each handler, and every event column's route asks it", () => {
     const asking = [...routes.keys()].filter((key) => ASKS_THE_SIGNUPS_RULE.test(codeOfKey(key, "route"))).sort();
     assert.ok(asking.includes("/api/events/[id]/signups"), "the walk no longer finds the requests route");
+    assert.ok(asking.includes("/api/events/[id]/invitations"), "the walk no longer finds the route that invites the people new since");
     const missing = [];
     for (const key of asking) {
       for (const method of routes.get(key)) if (!asksAboutTheEvent(key, method)) missing.push(`${key}#${method}`);
@@ -434,6 +440,20 @@ describe("the event world's columns and the code agree in both directions", () =
     const hubSegments = new Set([...routes.keys(), ...pages].filter(isHubKey).flatMap(segmentsOf));
     for (const name of EVENT_WORLD_SEGMENTS) assert.ok(!hubSegments.has(name), `a course hub key has [${name}], which the event world fills`);
     for (const key of eventKeys) assert.ok(!isHubKey(key), `${key} is a course hub key and an event's`);
+  });
+
+  test("no column names the invitee: being on an event's list is no role on any of them", () => {
+    const named = [];
+    const columnsOf = [
+      ...Object.entries(REAL_ROUTES).flatMap(([key, byMethod]) => Object.entries(byMethod).map(([method, columns]) => [`${key}#${method}`, columns])),
+      ...Object.entries(REAL_PAGES),
+    ];
+    for (const [label, columns] of columnsOf) {
+      for (const set of SETS) {
+        for (const persona of INVITED_ROLES) if (columns?.[set] && persona in columns[set]) named.push(`${label} (${set}) ${persona}`);
+      }
+    }
+    assert.deepEqual(named, [], "A column names the invitee: say what role being invited is there, or read it as the member it is.");
   });
 });
 

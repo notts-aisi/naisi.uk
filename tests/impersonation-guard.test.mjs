@@ -599,6 +599,9 @@ const MUST_GUARD = [
   ["src/app/api/events/[id]/check-ins/[checkInId]/route.ts", "undoes a check-in at the door"],
   ["src/app/api/events/[id]/door-code/route.ts", "makes an event's permanent door code"],
   ["src/app/api/events/[id]/door/route.ts", "opens an event's door, recorded as whoever opened it"],
+  // ── The events lane: events for chosen people ────────────────────────────
+  ["src/app/api/events/[id]/audience/route.ts", "chooses who an event for chosen people is for, kept in the chooser's name, and counts what it would send"],
+  ["src/app/api/events/[id]/invitations/route.ts", "invites and emails the people new to an event's tags, in the presser's name"],
   // ── Messages ───────────────────────────────────────────────────────────────
   ["src/app/api/messages/route.ts", "sends a message to the people chosen, in the writer's name, and can post it on a programme's page"],
   ["src/app/api/messages/test/route.ts", "sends the presser a test and records the test the send waits for"],

@@ -5944,6 +5944,8 @@ describe("the course hub passage", () => {
         ["src/lib/qr/codeAccess.ts", "who may draw a code: an event survey's code for the people who run check-in while that survey takes answers (surveyCodeAtEvent), from the survey's state alone, and nothing of its answers or who answered"],
         // Who a message is for: which term this is, by its forms alone.
         ["src/lib/audience/load.ts", "which term the picker's tags are for (chooseTerm, the forms alone), and nothing of any survey, its answers or who answered"],
+        // An event for chosen people: which of the term's programmes it may be part of.
+        ["src/lib/events/eventProgramme.ts", "which of the term's programmes an event for chosen people may be part of (chooseTerm, the forms alone), and nothing of any survey, its answers or who answered"],
         // This term in numbers (sv-term, Q51 B): counts made on the server, never a name.
         ["src/app/(app)/admin/(admin-only)/surveys/term/page.tsx", `${ADMIN_PAGE}; This term in numbers, counts made on the server, never a name`],
         // Run NAISI › Reports: the way to This term in numbers, Public numbers
@@ -7664,6 +7666,69 @@ describe("the check-in passage", () => {
     assert.match(withoutComments(read("src/lib/surveys/leaving.ts")), /const namesOffOn = await namesOffDayFor\(db, survey\.runId, now\);/);
     assert.match(withoutComments(read("src/lib/surveys/create.ts")), /const namesOffOn = await namesOffDayFor\(db, runId, now\);/);
     assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-leaving.test.mjs")), "tests/surveys-leaving.test.mjs renders the lead's page for every kind of caller");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2g, continued: events for chosen people
+// ---------------------------------------------------------------------------
+
+/**
+ * v15's "Events for chosen people", held to the code that makes each of its
+ * sentences true (src/lib/events/reach.ts, src/lib/events/invitations.ts):
+ * an event can be for the people its organiser chose; it is listed nowhere
+ * and announced to nobody; it shows on their Home and they are emailed an
+ * invitation; and when it is part of a programme, the people holding a place
+ * on that programme get the invitation as a programme notice, whatever their
+ * settings, while everybody else gets it by their event announcements row.
+ * `tests/event-chosen-people.test.mjs` runs every route and page as every
+ * kind of caller, and `tests/event-visibility-readers.test.mjs` keeps every
+ * other reader out of the decision.
+ */
+const CHOSEN_PEOPLE =
+  "<strong>Events for chosen people.</strong> Some events may be for people we choose. They are not listed or announced: they show on your Home, and we email you an invitation. If an event is part of a programme you are on, its invitation is a programme email and reaches you whatever your settings.";
+const reachRules = await loadTs("lib/events/reach.ts");
+
+describe("the events for chosen people passage", () => {
+  test("the policy says it whole", () => {
+    assert.ok(PAGE_FLAT.includes(CHOSEN_PEOPLE), "the policy no longer says, whole, what an event for chosen people is");
+  });
+
+  test("some events may be for people we choose: the third audience, and the editor offers it", () => {
+    assert.deepEqual([...reachRules.VISIBILITIES], ["public", "members", "chosen"]);
+    assert.equal(reachRules.REACH_WORDS.choice.chosen, "Only people you choose");
+    assert.match(withoutComments(read("src/features/events/WhoItsFor.tsx")), /VISIBILITIES\.map/);
+  });
+
+  test("not listed or announced: every list leaves it out, nothing announces it, and no browser but the events team's reads it", () => {
+    assert.equal(reachRules.isListed({ visibility: "chosen" }), false);
+    assert.equal(reachRules.announces({ visibility: "chosen", announce: true }), false);
+    assert.match(withoutComments(read("src/features/events/fetchEvents.ts")), /\.filter\(isListed\)/);
+    assert.match(withoutComments(read("src/app/api/events/[id]/publish/route.ts")), /const announce = !current\.announcedAt && announces\(current\);/);
+    assert.match(withoutComments(read("src/lib/scheduler/jobs/eventAnnouncements.ts")), /if \(!announces\(event\)\) \{/);
+    assert.match(read("firestore.rules"), /resource\.data\.get\('visibility', 'members'\) in \['public', 'members'\]/);
+  });
+
+  test("they show on your Home: For you, from your own invitations, on every form of Home", () => {
+    const data = withoutComments(read("src/app/(app)/dashboard/homeData.ts"));
+    assert.match(data, /collection\(EVENT_INVITATIONS_COLLECTION\)\.where\("uid", "==", uid\)/);
+    const page = withoutComments(read("src/app/(app)/dashboard/page.tsx"));
+    assert.match(page, /<ForYou events=\{forYou\} \/>/);
+    assert.match(page, /const invite = \(/);
+  });
+
+  test("we email you an invitation: by your event announcements row, or as a programme email when you are on its programme", () => {
+    const invitations = withoutComments(read("src/lib/events/invitations.ts"));
+    assert.match(invitations, /\{ policy: "per-person", row: "events", noticeUnder: programmeKey\(programme\.roundId, programme\.programmeId\) \}/);
+    assert.match(invitations, /\{ policy: "whole", mode: "grid", row: "events" \}/);
+    assert.match(invitations, /surface: "event-invitation"/);
+    assert.match(invitations, /kind: "event-invitation"/);
+    // "A programme you are on" is holding a place on it, the policy's own words beside it.
+    assert.ok(PAGE_FLAT.includes("whether you are on a programme and in which group, whether you facilitate a group"));
+    assert.match(withoutComments(read("src/lib/audience/resolve.ts")), /world\.holds\.get\(key\)\?\.has\(plan\.noticeUnder\)/);
+    assert.match(read("src/emails/NoticeMarker.tsx"), /"event-invitation": "you are on the programme this event is part of"/);
+    // An email, and only an email.
+    assert.doesNotMatch(invitations, /sendNoticePush|sendPushToUid|sendPushToRowAudience/);
   });
 });
 

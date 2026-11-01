@@ -71,10 +71,17 @@
  * recognise); ANOTHER's event is written and helped by accounts that are none
  * of the personas, and each event has a request waiting for a decision (the
  * world fills `[id]` and `[rsvpId]`, `EVENT_WORLD_SEGMENTS`). Every route and
- * page whose code asks the sign-ups rule (`src/lib/events/signupAccess.ts`)
- * is asked about both events: its columns say `world: "event"`, and their
- * `theirs` names exactly the two event roles. Found from the code, not the
- * address, and held both ways by `tests/persona-route-gates.test.mjs`.
+ * page whose code asks the sign-ups rule (`src/lib/events/signupAccess.ts`),
+ * or who runs an event for chosen people's list
+ * (`src/lib/events/invitationAccess.ts`), is asked about both events: its
+ * columns say `world: "event"`, and their `theirs` names exactly the two
+ * event roles. Found from the code, not the address, and held both ways by
+ * `tests/persona-route-gates.test.mjs`.
+ *
+ * Each event is for chosen people, its list naming its asker and, on THEIRS,
+ * one more persona: `invitee`, a member. Being invited is no role on any of
+ * these routes or pages, so no column names the invitee (`INVITED_ROLES`) and
+ * every cell reads it as the member it is, on THEIRS event as on ANOTHER's.
  */
 
 export const PERSONA_NAMES = [
@@ -98,6 +105,7 @@ export const PERSONA_NAMES = [
   "participant",
   "eventAuthor",
   "eventCollaborator",
+  "invitee",
 ];
 
 /**
@@ -105,8 +113,8 @@ export const PERSONA_NAMES = [
  * everywhere else: on a record it holds no role on, a programme's lead is an
  * SU-recognised committee member (the bar a lead stands behind), a
  * facilitator or a participant is a member, an event's author is a member
- * holding draftEvent and its collaborator is committee the SU does not
- * recognise. An expectation that does not name one of them is read through
+ * holding draftEvent, its collaborator is committee the SU does not
+ * recognise, and somebody invited to it is a member. An expectation that does not name one of them is read through
  * its base before `"*"`, in the first pass and in the `another` column alike.
  *
  * One difference is real and is named wherever it shows: appointing a lead
@@ -120,6 +128,7 @@ export const ROLE_PERSONAS = Object.freeze({
   participant: "member",
   eventAuthor: "draftEvent",
   eventCollaborator: "committee",
+  invitee: "member",
 });
 
 /** The three who hold a role on a programme: a course hub column's `theirs` names exactly these. */
@@ -127,6 +136,16 @@ export const PROGRAMME_ROLES = Object.freeze(["lead", "facilitator", "participan
 
 /** The two who hold a role on an event: an event column's `theirs` names exactly these. */
 export const EVENT_ROLES = Object.freeze(["eventAuthor", "eventCollaborator"]);
+
+/**
+ * The one who is on THEIRS event's list of the people invited to it (each
+ * set's event is for chosen people), which is no role on any route or page
+ * the battery asks: an event's list is its organisers' and the events team's.
+ * So no column names the invitee, and every cell reads it through its base,
+ * a member, on THEIRS event as on ANOTHER's: the battery holds that being
+ * invited opens nothing an organiser's role does.
+ */
+export const INVITED_ROLES = Object.freeze(["invitee"]);
 
 /** The roles a key's `theirs` column names, by the world its columns ask about. */
 export function rolesOf(columns) {
@@ -298,6 +317,22 @@ export function expectedFor(expect, persona) {
   if ("*" in expect) return expect["*"];
   return undefined;
 }
+
+/**
+ * The people who run events (`runsEvents` in src/lib/events/reach.ts: admins,
+ * the committee, SU-recognised or not, and whoever may draft or approve an
+ * event) are let past the session and told an id that addresses nothing is
+ * missing; every other session is refused before anything is read.
+ */
+const RUNS_EVENTS_404 = Object.freeze({
+  anonymous: 401,
+  "*": 403,
+  committee: 404,
+  suCommittee: 404,
+  admin: 404,
+  draftEvent: 404,
+  approveEvent: 404,
+});
 
 /** Routes: key -> { METHOD: { expect, fields?, drive?, public?, why } }. */
 export const ROUTES = {
@@ -651,7 +686,7 @@ export const ROUTES = {
   "/api/admin/registrations/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFeedbackCleared", "courseFeedbackDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseSessionReportsCleared", "courseTeamEntriesCleared", "courseTeamsCleared", "courseWeekWorkDeleted", "courseWorkLogDeleted", "courseWorkRatingsDeleted", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFeedbackCleared", "courseFeedbackDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseSessionReportsCleared", "courseTeamEntriesCleared", "courseTeamsCleared", "courseWeekWorkDeleted", "courseWorkLogDeleted", "courseWorkRatingsDeleted", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "eventInvitationsDeleted", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -740,7 +775,7 @@ export const ROUTES = {
   "/api/admin/users/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFeedbackCleared", "courseFeedbackDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseSessionReportsCleared", "courseTeamEntriesCleared", "courseTeamsCleared", "courseWeekWorkDeleted", "courseWorkLogDeleted", "courseWorkRatingsDeleted", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFeedbackCleared", "courseFeedbackDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseSessionReportsCleared", "courseTeamEntriesCleared", "courseTeamsCleared", "courseWeekWorkDeleted", "courseWorkLogDeleted", "courseWorkRatingsDeleted", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "eventInvitationsDeleted", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -2898,6 +2933,29 @@ export const ROUTES = {
         "read, so every signed-in persona meets the same 400 on an empty one.",
     },
   },
+  "/api/events/[id]/audience": {
+    GET: {
+      expect: RUNS_EVENTS_404,
+      fields: ["choice", "chosenBy", "chosenByYou", "count", "mayChoose", "ok", "problem", "programme", "programmes"],
+      why:
+        "Who an event for chosen people is for, and what publishing it would do, counts only: the people " +
+        "who run events (admins, the committee, and whoever may draft or approve one) are told the event is " +
+        "missing, and everybody else is refused on the session before anything is read.",
+    },
+    POST: {
+      expect: RUNS_EVENTS_404,
+      fields: ["count", "ok"],
+      why:
+        "Counting a choice on the editor's screen, which writes nothing: the same gate as reading it, then " +
+        "the empty body is a choice of nobody, and the people who run events are told the event is missing.",
+    },
+    PUT: {
+      expect: RUNS_EVENTS_404,
+      why:
+        "Keeping a choice: the view-as guard, then the same gate, then the empty body is a choice of nobody, " +
+        "and the people who run events are told the event is missing before anything is written.",
+    },
+  },
   "/api/events/[id]/broadcast": {
     POST: {
       expect: adminOnly(404, { suCommittee: 404 }),
@@ -2974,6 +3032,22 @@ export const ROUTES = {
         "Session required, then the document is read and its own membership decides. The " +
         "battery's id addresses nothing, so every signed-in persona is told that the document " +
         "is missing. Authorship is per event.",
+    },
+  },
+  "/api/events/[id]/invitations": {
+    GET: {
+      expect: RUNS_EVENTS_404,
+      fields: ["emails", "newSince", "ok"],
+      why:
+        "How many people its tags reach now who are not invited yet, counts only: the people who run events " +
+        "are told the event is missing (an event they do not organise is answered the same way), and " +
+        "everybody else is refused on the session before anything is read.",
+    },
+    POST: {
+      expect: RUNS_EVENTS_404,
+      why:
+        "Invite the N new since: the view-as guard, then the same gate, and the people who run events are " +
+        "told the event is missing before anybody is invited or emailed.",
     },
   },
   "/api/events/[id]/door": {
@@ -5049,6 +5123,35 @@ const LEARN_ONLY_WHY =
 const LEAD_LEARN_ONLY_WHY =
   "The run layout does not admit a programme's lead, who works from the programme's own tabs, and the page beneath sends them to /learn as well.";
 
+/**
+ * A route about an event for chosen people's list (`invitationAccess.ts`),
+ * asked about the world's two events, each for chosen people. A stranger is
+ * refused on the session, and anybody who does not run events (a member, the
+ * invitee among them, an account waiting or refused, a permission holder for
+ * something else) before anything is read. `team` is what the people who run
+ * events get, `over` names the ones who get something else on either event,
+ * and `theirs` is what THEIRS event's own author and collaborator get. The
+ * invitee is on THEIRS list, and that is no role here: refused as the member
+ * it is, on either event.
+ */
+function eventTeam(team, { over = {}, theirs }) {
+  const member = c(403, "Does not run events: refused on the session before the event is read.");
+  return {
+    world: "event",
+    another: {
+      anonymous: c(401, NO_SESSION),
+      "*": member,
+      committee: team,
+      suCommittee: team,
+      admin: team,
+      draftEvent: team,
+      approveEvent: team,
+      ...over,
+    },
+    theirs,
+  };
+}
+
 export const REAL_ROUTES = {
   // ---- A programme on an application form: the programme's own console ----
   "/api/admissions/forms/[roundId]/programmes/[programmeId]": {
@@ -6426,6 +6529,80 @@ export const REAL_ROUTES = {
   },
   "/api/events/[id]/rsvp/[rsvpId]/deny": {
     POST: signupDecision("Turning a request down", "an empty body is no note, and turning down needs none"),
+  },
+
+  // ---- An event for chosen people's list: the event world, too ----------------
+  // Each set's event is for chosen people: THEIRS' written by `eventAuthor` and
+  // helped by `eventCollaborator`, ANOTHER's by two accounts that are none of
+  // the personas, each published, its choice kept by its programme's lead and
+  // its list naming its asker and, on THEIRS, the invitee. Who it is for is the
+  // events team's to read; changing it once it is published is an approver's
+  // or an admin's; inviting the people new to its tags is its organisers', an
+  // approver's or an admin's.
+  "/api/events/[id]/audience": {
+    GET: eventTeam(
+      c(200, "Reads who it is for and what publishing it would do, counts only, never a name or an address: the people who run events read every event's."),
+      {
+        theirs: {
+          eventAuthor: c(200, "Wrote the event and runs events: reads who it is for and the counts, as the whole events team does."),
+          eventCollaborator: c(200, "Helps run the event and is on the committee: reads who it is for and the counts, as the whole events team does."),
+        },
+      },
+    ),
+    POST: eventTeam(
+      c(403, "Runs events, but may not change who a published event is for: that is an approver's or an admin's, refused before anything is counted."),
+      {
+        over: {
+          admin: c(200, "An admin may change who it is for: the empty body is a choice of nobody, counted and written nowhere."),
+          approveEvent: c(200, "An approver may change who a published event is for: the empty body is a choice of nobody, counted and written nowhere."),
+        },
+        theirs: {
+          eventAuthor: c(403, "Wrote the event, but once it is published only an approver or an admin changes who it is for: refused before anything is counted."),
+          eventCollaborator: c(403, "Helps run the event, but once it is published only an approver or an admin changes who it is for: refused before anything is counted."),
+        },
+      },
+    ),
+    PUT: eventTeam(
+      c(403, "Runs events, but may not change who a published event is for: that is an approver's or an admin's, refused before anything is written."),
+      {
+        over: {
+          admin: c(ACTS, "An admin may change who it is for: the empty body would be kept as a choice of nobody. Not sent."),
+          approveEvent: c(ACTS, "An approver may change who a published event is for: the empty body would be kept as a choice of nobody. Not sent."),
+        },
+        theirs: {
+          eventAuthor: c(403, "Wrote the event, but once it is published only an approver or an admin changes who it is for: refused before anything is written."),
+          eventCollaborator: c(403, "Helps run the event, but once it is published only an approver or an admin changes who it is for: refused before anything is written."),
+        },
+      },
+    ),
+  },
+  "/api/events/[id]/invitations": {
+    GET: eventTeam(
+      c(404, "Runs events, but neither wrote it, is added to it nor approves events: answered as an event that is not there."),
+      {
+        over: {
+          admin: c(200, "An admin reads how many are new to its tags since, a count."),
+          approveEvent: c(200, "An approver reads how many are new to its tags since, a count."),
+        },
+        theirs: {
+          eventAuthor: c(200, "Wrote the event: reads how many are new to its tags since, a count, and everybody chosen is invited already."),
+          eventCollaborator: c(200, "Helps run the event: reads how many are new to its tags since, a count, and everybody chosen is invited already."),
+        },
+      },
+    ),
+    POST: eventTeam(
+      c(404, "Runs events, but neither wrote it, is added to it nor approves events: answered as an event that is not there, before anybody is invited."),
+      {
+        over: {
+          admin: c(ACTS, "An admin may invite the people new to its tags, which would write their invitations and email them. Not sent."),
+          approveEvent: c(ACTS, "An approver may invite the people new to its tags, which would write their invitations and email them. Not sent."),
+        },
+        theirs: {
+          eventAuthor: c(ACTS, "Wrote the event, so may invite the people new to its tags, which would write their invitations and email them. Not sent."),
+          eventCollaborator: c(ACTS, "Helps run the event, so may invite the people new to its tags, which would write their invitations and email them. Not sent."),
+        },
+      },
+    ),
   },
 };
 
