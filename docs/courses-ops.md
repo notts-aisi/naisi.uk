@@ -3276,7 +3276,9 @@ shows as out of date.
   and how many before the press, then the browser sends one person at a
   time. Kept per answer with a hash of its words, so a changed answer shows
   as out of date. A flag reads "worth a look". Deleted with the run and with
-  the account.
+  the account. A written answer's last reading also shows as a chip beside it
+  on its review page, read for an admin alone (`pangramReadings.ts`, which
+  only reads what is kept and never reaches the code that sends).
 - **What Claude is never sent**: a name, an email address, an account id, a
   group's name, a facilitator's name, availability, a review score, a survey
   answer, a private note, a tick, or anything written before its writer's
