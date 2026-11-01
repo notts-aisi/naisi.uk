@@ -923,7 +923,7 @@ export async function clearCourseFeedback(db: Firestore, uid: string): Promise<{
  * every one it gave (`courseWorkRatings`, privacy v15), on every run, a page
  * at a time: found by the one equality on `uid` (whose work), then by the one
  * on `raterUid` (who rated). Nothing else names an account. Counted once per
- * document: nobody rates their own work, so no rating is found twice.
+ * document: the second sweep runs after the first has deleted what it found.
  */
 export async function deleteCourseWorkRatings(db: Firestore, uid: string): Promise<number> {
   const about = await deleteOwnedCourseRows(db, COURSE_WORK_RATINGS_COLLECTION, uid);
