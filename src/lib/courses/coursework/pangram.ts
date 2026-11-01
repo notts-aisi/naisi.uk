@@ -6,20 +6,21 @@ import {
   PANGRAM_MIN_WORDS,
   readingsForParts,
   worthALook,
-  type PangramReading,
 } from "@/lib/ai/pangram";
 import type { SessionUser } from "@/lib/firebase/session";
 import { PANGRAM_CHECKS_COLLECTION } from "./collections";
 import { openCourseworkDoor, type CourseworkDoor, type DoorRefusal } from "./door";
 import { loadAnswers } from "./gather";
-import { fingerprintOf, pangramPartsOf, type CourseworkKind, type PangramPart } from "./input";
+import { pangramPartsOf, type CourseworkKind, type PangramPart } from "./input";
+import { pangramCheckId, readingsOf, type StoredReading } from "./pangramReadings";
 import { COURSEWORK_DOOR_WORDS, PANGRAM_WORDS } from "./claudeWords";
 
 /**
  * PANGRAM ON COURSEWORK (privacy v13): ADMINS ONLY, everywhere. The lead is
  * turned away at the door (`adminOnly`) before anything is read, and no page
  * or route a lead reaches carries a reading: the chip beside a written answer
- * on its review page (`readAnswerReading`) is read for an admin alone.
+ * on its review page (`readAnswerReading`, `./pangramReadings.ts`) is read
+ * for an admin alone.
  *
  * What is sent: one person's counted written answers and reflections of 50
  * words or more (`pangramPartsOf`), never a fill-in box, joined into ONE
@@ -35,11 +36,7 @@ import { COURSEWORK_DOOR_WORDS, PANGRAM_WORDS } from "./claudeWords";
  */
 
 
-export const pangramCheckId = (runId: string, uid: string) => `${runId}__${uid}`;
-
 type Raw = Record<string, unknown>;
-
-type StoredReading = PangramReading & { hash: string; worthALook: boolean; at: string };
 
 export type PangramPartView = {
   rowId: string;
@@ -58,26 +55,6 @@ export type PangramPersonView = {
   tooShort: number;
   notCounted: number;
 };
-
-function readingsOf(data: Raw | undefined): Record<string, StoredReading> {
-  const parts = data?.parts && typeof data.parts === "object" ? (data.parts as Record<string, Raw>) : {};
-  const out: Record<string, StoredReading> = {};
-  for (const [rowId, raw] of Object.entries(parts)) {
-    if (!raw || typeof raw !== "object" || typeof raw.label !== "string") continue;
-    const number = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : 0);
-    out[rowId] = {
-      label: raw.label,
-      headline: typeof raw.headline === "string" ? raw.headline : "",
-      fractionAi: number(raw.fractionAi),
-      fractionAiAssisted: number(raw.fractionAiAssisted),
-      fractionHuman: number(raw.fractionHuman),
-      hash: typeof raw.hash === "string" ? raw.hash : "",
-      worthALook: raw.worthALook === true,
-      at: typeof raw.at === "string" ? raw.at : "",
-    };
-  }
-  return out;
-}
 
 async function openAdminDoor(db: Firestore, user: SessionUser, roundId: string, programmeId: string) {
   return openCourseworkDoor(db, user, roundId, programmeId, { adminOnly: PANGRAM_WORDS.onlyAdmins });
@@ -123,27 +100,6 @@ function viewOf(door: CourseworkDoor, parts: readonly PangramPart[], stored: Rec
     tooShort,
     notCounted,
   };
-}
-
-/** Pangram's last reading of one answer, as the chip beside it on the review page says it. */
-export type AnswerReading = { worthALook: boolean; outOfDate: boolean };
-
-/**
- * Pangram's last reading of one written answer, for the chip beside it on its
- * review page: whether it is worth a look, and whether the answer has changed
- * since (`words` are its words as Pangram is sent them, `writtenAnswerWords`,
- * hashed as the check hashes them). Null when it was never checked. ADMINS
- * ONLY: the review page asks for it for an admin alone, and nothing else here
- * is read. Writes nothing and sends nothing.
- */
-export async function readAnswerReading(
-  db: Firestore,
-  input: { runId: string; uid: string; rowId: string; words: string },
-): Promise<AnswerReading | null> {
-  const snap = await db.collection(PANGRAM_CHECKS_COLLECTION).doc(pangramCheckId(input.runId, input.uid)).get();
-  const reading = readingsOf(snap.data() as Raw | undefined)[input.rowId] ?? null;
-  if (!reading) return null;
-  return { worthALook: reading.worthALook, outOfDate: reading.hash !== fingerprintOf(input.words) };
 }
 
 /** What Pangram found in one person's coursework on the programme, for an admin. Writes nothing and sends nothing. */

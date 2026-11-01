@@ -42,8 +42,8 @@ import { legacyRoleOf, readWeekFeedback } from "../feedback/readers";
 import { mayRateWorkOf, workRatingRoleOf } from "../workRatings/access";
 import type { TeamRatingsView } from "../workRatings/model";
 import { loadTeamRatings } from "../workRatings/readers";
-import { writtenAnswerWords } from "../coursework/gather";
-import { readAnswerReading, type AnswerReading } from "../coursework/pangram";
+import { writtenAnswerWords } from "../coursework/input";
+import { readAnswerReading, type AnswerReading } from "../coursework/pangramReadings";
 
 /**
  * WHAT THE REVIEW PAGE SHOWS (boards wk-review, wk-review-phone), worked
@@ -84,8 +84,9 @@ import { readAnswerReading, type AnswerReading } from "../coursework/pangram";
  * Reads: the run's groups and the reader's standing (the gate's), the run's
  * enrolments by one equality, the group's own copy of the week, each
  * person's row by its id, the week's feedback by two equalities, the names,
- * and the course's time for work due the day before. No query needs a
- * declared index.
+ * and the course's time for work due the day before; for an admin or the
+ * lead, the open answer's ratings by two equalities, and for an admin its
+ * Pangram reading by its id. No query needs a declared index.
  */
 
 export type ReviewPerson = {

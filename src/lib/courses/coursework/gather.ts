@@ -3,7 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { resolveWeekDocs, type ResolvedWeekEntry } from "@/lib/courses/groupResolve";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { weekFillInBoxes, weekReflectionPrompts, weekWrittenAnswers } from "@/lib/courses/weekBlocks/reader";
-import { readWrittenAnswer, type WrittenAnswerRecord } from "@/lib/courses/writtenAnswers/model";
+import { readWrittenAnswer } from "@/lib/courses/writtenAnswers/model";
 import { isFillInResponse, isOwnBoxResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { courseworkCountsFrom, rowCountsFrom } from "@/lib/legal/courseworkUse";
@@ -11,7 +11,7 @@ import { workIsReadable } from "@/lib/courses/weekWork/model";
 import { readRunForLock } from "@/lib/courses/weekWork/own";
 import { loadRunWeekStates } from "@/lib/courses/weekWork/readers";
 import { namesToScrubOf } from "@/lib/names/scrub";
-import type { CourseworkAnswer, CourseworkQuestion, CourseworkWeek } from "./input";
+import { writtenAnswerWords, type CourseworkAnswer, type CourseworkQuestion, type CourseworkWeek } from "./input";
 
 /**
  * THE ONE READER OF COURSEWORK FOR CLAUDE AND PANGRAM (privacy v13), on the
@@ -139,23 +139,6 @@ export async function loadRunWeeks(db: Firestore, runId: string, groupIds: reado
     }
   });
   return [...weeks.values()].sort((a, b) => a.weekNumber - b.weekNumber);
-}
-
-/**
- * A written answer's words as Claude and Pangram are sent them: an answer of
- * one box, its words; an answer in boxes, each box under its label. The
- * review page's Pangram chip hashes the same words to say whether a reading
- * is out of date.
- */
-export function writtenAnswerWords(boxes: ReadonlyArray<{ id: string; label: string }>, record: WrittenAnswerRecord): string {
-  if (record.boxes) {
-    return boxes
-      .map((box) => ({ label: box.label, text: (record.boxes?.[box.id] ?? "").trim() }))
-      .filter((box) => box.text)
-      .map((box) => `${box.label}: ${box.text}`)
-      .join("\n\n");
-  }
-  return record.text.trim();
 }
 
 /** One row's words: a written answer in boxes is its boxes, each under its label. */
