@@ -5783,6 +5783,9 @@ describe("the course hub passage", () => {
         ["src/lib/audience/load.ts", "which term the picker's tags are for (chooseTerm, the forms alone), and nothing of any survey, its answers or who answered"],
         // This term in numbers (sv-term, Q51 B): counts made on the server, never a name.
         ["src/app/(app)/admin/(admin-only)/surveys/term/page.tsx", `${ADMIN_PAGE}; This term in numbers, counts made on the server, never a name`],
+        // Run NAISI › Reports: the way to This term in numbers, Public numbers
+        // and Kairos, by their names; it reads no survey, answer or row.
+        ["src/app/(app)/admin/(admin-only)/reports/page.tsx", `${ADMIN_PAGE}; the way to the term's numbers, public numbers and Kairos, reading no survey, answer or row`],
         ["src/app/api/surveys/term/totals/route.ts", `${ADMIN_ROUTE}; This term in numbers as a file of totals that names nobody, not a recorded download`],
         // CHANGED ON PURPOSE (v15, "Facilitators may see their own group's
         // check-in totals"): the check-in at the end of a session, opened from

@@ -235,7 +235,7 @@ and sponsors, and the person's profile has the same choice.
 - **Deleting an account** deletes its choice (step 1f).
 
 **The Kairos file** (`POST /api/kairos/export`, `src/lib/kairos/file.ts`), from
-Run NAISI › Surveys › Kairos: admins only, once a programme's last session is
+Run NAISI › Reports › Kairos: admins only, once a programme's last session is
 over, one row per person on it at its end (the register's rows, leavers left
 out) who has not said no, with their name, the programme, the sessions they
 came to and of how many, whether they finished (`recordOf`, the lead's
@@ -246,7 +246,7 @@ download the site records before it hands the file over (`dataExports`, kind
 `kairos`, scope `roundId` and `runId`), and it is refused when that record
 cannot be written.
 
-**The Kairos report** (Run NAISI › Surveys › Kairos › a programme,
+**The Kairos report** (Run NAISI › Reports › Kairos › a programme,
 `src/lib/surveys/kairosReport.ts`, read by `kairosReportLoad.ts`): the
 questionnaire's fourteen measures for one programme, in totals and never a
 name. Every figure has its n beside it, and that as a share of the people who
@@ -780,11 +780,12 @@ and `src/features/courses/register/CheckInCard.tsx` (the card).
   unclear with how many named each), below that "2 of 6 answered. Too few
   answers to show.", never a comment; and beside it the group's latest closed check-in before this
   session's, the same way. The short answers are never read for it.
-- **What admins see**: one line a programme on Run NAISI › Surveys, opening on
-  its check-ins, each with a survey's own pages: Results, Who answered, one
-  person's answers (a check-in among them, week by week, the opening recorded
-  first), the questions (fixed, said so) and the logged download. In place of
-  a Send tab, an Opening tab: who opened it, when and for how many, how many
+- **What admins see**: each programme's Weekly check-ins row on Run NAISI ›
+  Surveys, opening on its check-ins, each with a survey's own pages: Results,
+  Who answered, one person's answers (a check-in among them, week by week, the
+  opening recorded first), the questions (fixed, said so) and the logged
+  download. In place of a Send tab, an Opening tab: who opened it, when and
+  for how many, how many
   more were marked there after, and when it closes, with Close. Send, Remind,
   a test, the questions' editor and the questions left blank each refuse a
   check-in in a sentence.
@@ -803,11 +804,46 @@ and `src/features/courses/register/CheckInCard.tsx` (the card).
 
 ## The admins' pages
 
-Run NAISI › Surveys (`/admin/surveys`): open, drafts and closed, each with its
-answers, closing day and the way to its tabs; New survey. Each survey has four
-tabs: **Questions** (the editor until it is sent), **Send** (above), **Who
-answered** (names, for admins only, and the spreadsheet; each name opens that
-person's answers, below), **Results**.
+Run NAISI › Surveys (`/admin/surveys`) lists every survey by what it is for,
+on two tabs of one page, and New survey. The page asks `canRunSurveys` before
+either tab reads anything; the code is `src/lib/surveys/hub/` and
+`src/features/surveys/admin/SurveyList.tsx`.
+
+- **By programme** (the page itself): a card for each of the term's programmes
+  (`chooseTerm`, the term This term in numbers counts), in the form's order,
+  with a row for every stage it will have, made or not: Before the programme,
+  Weekly check-ins (one row from its check-ins, the weeks they were at and how
+  many, opening in place on each one), Facilitators' reports (how many
+  questions a report asks, from the record's own list, and the way to the
+  programme's page of reports; no report is read for it), At the end of the
+  programme, and Leaving a programme, with the follow-ups once made. Each
+  survey's row says when it went, how many of the people it went to have
+  answered and when it closes, with Remind (and the number it reaches) while
+  it is open, and leads to its Results, or a draft to its Questions. A survey
+  at the end not sent yet says "Not sent yet · due at the last session, Wed 9
+  Dec", the run's last session by the finishing record's rule
+  (`readRunEndById`): programme surveys are sent by hand, so it is never said
+  to be scheduled. Below them, every other programme with a survey or a
+  check-in, the most recent first, with the rows it has, named as its form
+  names it or, once the form has gone, as its survey kept it.
+- **Events** (`?tab=events`): each survey after an event, the newest event
+  first, its answers a count (never "of" anybody), and nobody reminded from
+  here.
+
+Every survey is the way in of exactly one row on exactly one tab, whatever
+its programme's term and whether or not its form is still there. A survey's
+own head leads back to the tab it is on.
+
+**Reports** (Run NAISI › Reports, `/admin/reports`, its own entry in the menu)
+holds This term in numbers, Public numbers and Kairos, which were buttons on
+this page's head. Each kept its page and its address beneath
+`/admin/surveys` and leads back to Reports; the menu lights Reports on them
+(`currentEntry`: an entry that leads into one admin section is never lit on
+another section's page). Reports reads nothing itself.
+
+Each survey has four tabs: **Questions** (the editor until it is sent),
+**Send** (above), **Who answered** (names, for admins only, and the
+spreadsheet; each name opens that person's answers, below), **Results**.
 
 **Results** are made on the server and never carry a name. Every number has its
 n beside it and the share of the people the survey was sent to (taken from the
@@ -915,7 +951,7 @@ it is refused when that record cannot be written.
 
 ## Public numbers (sv-public)
 
-Run NAISI › Surveys › Public numbers (`/admin/surveys/public-numbers`): an
+Run NAISI › Reports › Public numbers (`/admin/surveys/public-numbers`): an
 admin picks numbers and quotes from a programme's own surveys and publishes
 them as a "Last term" block on the public page of the course the programme is
 tied to (pub-agi), and can take them down at any time.
@@ -1210,7 +1246,7 @@ with `isEventSurvey` and hand it over.
 
 ## This term in numbers
 
-Run NAISI › Surveys › This term in numbers (`/admin/surveys/term`, board
+Run NAISI › Reports › This term in numbers (`/admin/surveys/term`, board
 sv-term, Q51 B): the term at a glance for admins, each event's check-ins and
 survey, how many different people came and how many came back, and each
 programme's before and after. Counts only, never a name; every count with its
@@ -1319,7 +1355,9 @@ survey has who came to send to. What it can rely on:
 both emails, totals), `tests/surveys-required.test.mjs` (required unless
 marked optional: the rule, every template walked both ways, what answered
 means for each type), `tests/surveys-routes.test.mjs` (every route and page as
-every kind of caller), `tests/surveys-blanks.test.mjs` (the questions left
+every kind of caller), `tests/surveys-hub.test.mjs` (Run NAISI › Surveys' two
+tabs and Reports as every kind of caller, and every survey the way in of one
+row on one tab), `tests/surveys-blanks.test.mjs` (the questions left
 blank: the press, the link, the later send and every reader, as every kind of
 caller), `tests/surveys-blanks-merge.test.mjs` (the one merge, and no reader
 round it), `tests/surveys-deletion.test.mjs` (both cascades),

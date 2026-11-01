@@ -39,6 +39,7 @@ const ROOTS = [
   "src/app/survey",
   "src/app/(app)/learn/[runId]/survey",
   "src/app/(app)/admin/(admin-only)/surveys",
+  "src/app/(app)/admin/(admin-only)/reports",
   "src/features/surveys",
   "src/lib/surveys",
   "src/lib/firestore/surveys.ts",

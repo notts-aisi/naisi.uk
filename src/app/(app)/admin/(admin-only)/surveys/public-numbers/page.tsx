@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 const keyOf = (programme: Pick<NumbersProgramme, "roundId" | "programmeId">) => `${programme.roundId}.${programme.programmeId}`;
 
 /**
- * Run NAISI › Surveys › Public numbers (sv-public): an admin picks numbers
+ * Run NAISI › Reports › Public numbers (sv-public): an admin picks numbers
  * from a programme's own surveys, each with the answers it rests on, and the
  * comments their writers ticked "You can quote this, without my name", sees
  * them as the programme's public page will draw them on a phone and on a
@@ -33,7 +33,7 @@ export default async function PublicNumbersPage({ searchParams }: { searchParams
   const asked = (await searchParams).programme;
   const wanted = typeof asked === "string" ? asked : "";
   const current = programmes.find((programme) => keyOf(programme) === wanted) ?? programmes[0] ?? null;
-  const crumb = <Link href="/admin/surveys">{WORDS.crumb}</Link>;
+  const crumb = <Link href="/admin/reports">{WORDS.crumb}</Link>;
   if (!db || !current) {
     return (
       <AdminPage wide>

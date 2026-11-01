@@ -3716,7 +3716,8 @@ export const PAGES = {
     why:
       "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard, the " +
       "course and membership permission holders included, because the admin front door " +
-      "admits them and this inner gate is what keeps them out of the rest.",
+      "admits them and this inner gate is what keeps them out of the rest. The page asks " +
+      "canRunSurveys again itself before either tab reads anything.",
   },
   "/(app)/admin/(admin-only)/surveys/[surveyId]": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
@@ -3792,6 +3793,13 @@ export const PAGES = {
       "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard, and the page asks " +
       "canRunSurveys again itself. It shows how many came to a term's events and each programme's before and " +
       "after, counts only and never a name; with no term it says so in a sentence.",
+  },
+  "/(app)/admin/(admin-only)/reports": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard, and the page asks " +
+      "canRunSurveys again itself. It leads to This term in numbers, Public numbers and Kairos by their names " +
+      "and reads no record of its own.",
   },
   "/(app)/admin/(admin-only)/task-templates": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),

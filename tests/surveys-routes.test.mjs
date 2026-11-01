@@ -480,7 +480,7 @@ describe("people who join since get it with one button; reminders go only to who
       releaseReason: { kind: "times", other: "" },
     });
     const list = await w.page(w.pages.list, {}, "zach");
-    assert.ok(list.text.includes("1 of 4 Closes Wed 4 Nov Remind 2 haven’t answered"), list.text);
+    assert.ok(list.text.includes("Before the programme Sent Thu 29 Oct · 1 of 4 answered · Closes Wed 4 Nov Open Remind 2 haven’t answered Results"), list.text);
     const send = await w.page(w.pages.send, { params: Promise.resolve({ surveyId: id }) }, "zach");
     for (const words of [
       "1 of 4 have answered, and 1 who hasn’t no longer holds a place. It closes on Wed 4 Nov.",
@@ -497,7 +497,7 @@ describe("people who join since get it with one button; reminders go only to who
     w.reset(seed());
     const again = await sentSurvey();
     assert.equal((await w.answerByLink(w.tokenOf(again, "amara"), CHOICES)).status, 200);
-    assert.ok((await w.page(w.pages.list, {}, "zach")).text.includes("1 of 4 Closes Wed 4 Nov Remind 3 haven’t answered"));
+    assert.ok((await w.page(w.pages.list, {}, "zach")).text.includes("Sent Thu 29 Oct · 1 of 4 answered · Closes Wed 4 Nov Open Remind 3 haven’t answered Results"));
     assert.ok((await w.page(w.pages.send, { params: Promise.resolve({ surveyId: again }) }, "zach")).text.includes("1 of 4 have answered. It closes on Wed 4 Nov."));
   });
 
@@ -872,9 +872,18 @@ describe("the admins' pages", () => {
     await w.answerByLink(w.tokenOf(id, "amara"), CHOICES);
     await w.answerByLink(w.tokenOf(id, "dev"), { q_c1: { type: "choice", optionId: "o_stage3" } });
     const list = await w.page(w.pages.list, {}, "zach");
-    for (const words of ["Surveys", "Only admins make and send surveys.", "Open 1", "AGI Strategy: before", "Fellowship: AGI Strategy", "2 of 4", "Closes Wed 4 Nov", "2 haven’t answered"]) {
+    for (const words of [
+      "Surveys",
+      "Only admins make and send surveys.",
+      "By programme",
+      "Fellowship: AGI Strategy",
+      "Before the programme Sent Thu 29 Oct · 2 of 4 answered · Closes Wed 4 Nov Open Remind 2 haven’t answered Results",
+    ]) {
       assert.ok(list.text.includes(words), `list: missing "${words}"`);
     }
+    // The row's ways in name the survey to a screen reader.
+    assert.ok(list.html.includes(`<a href="/admin/surveys/${id}/results" class="action" aria-label="Results for AGI Strategy: before">Results</a>`));
+    assert.ok(list.html.includes(`aria-label="Remind people who haven’t answered AGI Strategy: before: opens its Send tab"`));
     // B6: sv-list's lede whole, in the board's words, now that the lead's Surveys tab it names exists.
     assert.ok(
       list.text.startsWith("Surveys Only admins make and send surveys. Leads see results for their own programme, in its Surveys tab. "),
@@ -891,6 +900,42 @@ describe("the admins' pages", () => {
     assert.ok(results.text.includes("2 answered, 50% of the 4 it was sent to"));
     assert.ok(results.text.includes("My leading plan, no concrete steps yet"));
     assert.doesNotMatch(results.text, /Amara|Okafor|Dev Patel/, "results never name anybody");
+  });
+
+  test("the list's two tabs, By programme and Events, as every kind of caller: an admin sees each, everybody else is sent to the dashboard before anything is read", async (t) => {
+    clock(t);
+    w.reset(seed());
+    await sentSurvey();
+    const CALLERS = [
+      ["claudia", "the programme's lead"],
+      ["tess", "the lead of another programme"],
+      ["rahul", "a facilitator of one of its groups"],
+      ["amara", "a member holding a place"],
+      ["nobody", "a member who holds none"],
+      [null, "somebody signed out"],
+    ];
+    for (const [tab, name] of [[undefined, "By programme"], ["events", "Events"]]) {
+      const props = { searchParams: Promise.resolve(tab ? { tab } : {}) };
+      for (const [who, why] of CALLERS) {
+        const reads = w.world.db.stats.reads;
+        assert.equal((await w.page(w.pages.list, props, who)).to, "/dashboard", `${name}: ${why}`);
+        assert.equal(w.world.db.stats.reads, reads, `${name}: ${why}: the page read something before sending them away`);
+      }
+      w.world.viewAs = true;
+      try {
+        assert.equal((await w.page(w.pages.list, props, "amara")).to, "/dashboard", `${name}: a view-as session is the member's`);
+      } finally {
+        w.world.viewAs = false;
+      }
+      const page = await w.page(w.pages.list, props, "zach");
+      assert.equal(page.to, null, `${name}: an admin`);
+      assert.ok(page.html.includes(`aria-current="page">${name}</a>`), `${name} is not the tab drawn as current`);
+    }
+    const byProgramme = await w.page(w.pages.list, { searchParams: Promise.resolve({}) }, "zach");
+    assert.ok(byProgramme.text.includes("Fellowship: AGI Strategy Autumn 2026 Before the programme Sent Thu 29 Oct · 0 of 4 answered · Closes Wed 4 Nov Open Remind 4 haven’t answered Results"), byProgramme.text);
+    const events = await w.page(w.pages.list, { searchParams: Promise.resolve({ tab: "events" }) }, "zach");
+    assert.ok(events.text.endsWith("Surveys after events No survey after an event yet. Make one from New survey."), events.text);
+    assert.ok(!events.text.includes("AGI Strategy"), "a programme's survey is listed among the surveys after events");
   });
 
   test("the spreadsheet with names: recorded as a download before it is handed over, and refused when it cannot be", async (t) => {

@@ -711,11 +711,14 @@ test(
     const mainText = async (pg) => textOf(pg.locator("main"));
 
     /**
-     * One survey's row on the list (sv-list), found by its name's link: the
-     * row is the third box out from the link (row, its first column, the name
-     * line), so a part another survey's row says is never read as this one's.
+     * One survey's row on Run NAISI › Surveys (By programme), found by its way
+     * in, which names the survey to a screen reader ("Edit AGI Strategy:
+     * before", "Results for AGI Strategy: before"): the row is the list item
+     * the link sits in, so a part another survey's row says is never read as
+     * this one's, and the card round it is its programme's.
      */
-    const listRow = (region) => region.getByRole("link", { name: surveyName, exact: true }).locator("xpath=ancestor::div[3]");
+    const listRow = (link) => link.locator("xpath=ancestor::li[1]");
+    const cardHeading = (link) => link.locator("xpath=ancestor::section[1]").getByRole("heading", { level: 2 });
 
     // ---- The records ------------------------------------------------------------
 
@@ -1142,7 +1145,7 @@ test(
         assert.equal((await fixtureQuery("surveys").where("roundId", "==", state.formId).get()).size, 0, "a survey of this programme exists already");
         await adminPage.goto(`${origin}/admin/surveys`, { waitUntil: "domcontentloaded" });
         await adminPage.getByRole("heading", { level: 1, name: ADMIN.list, exact: true }).waitFor({ timeout: WAIT_MS });
-        assert.equal(await adminPage.getByRole("link", { name: surveyName, exact: true }).count(), 0, "the list names this programme's survey before it is made");
+        assert.equal(await adminPage.getByRole("link", { name: new RegExp(escapeRegExp(surveyName)) }).count(), 0, "the list leads to this programme's survey before it is made");
         await adminPage.getByRole("link", { name: ADMIN.newSurvey, exact: true }).click();
         await adminPage.waitForURL(`${origin}/admin/surveys/new`, { timeout: WAIT_MS });
 
@@ -1249,20 +1252,13 @@ test(
         await again.getByText(`${programmeLabel}: ${ADMIN.hasOne}`, { exact: true }).waitFor({ timeout: WAIT_MS });
         const offered = await again.locator("select option").allTextContents().catch(() => []);
         assert.ok(!offered.map(flat).includes(programmeLabel), "New survey still offers this programme a before survey");
-        // And the list has it as a draft.
+        // And the list has it as a draft, its programme's before survey.
         await adminPage.goto(`${origin}/admin/surveys`, { waitUntil: "domcontentloaded" });
-        const drafts = adminPage.getByRole("region", { name: "Drafts", exact: true });
-        await drafts.getByRole("link", { name: surveyName, exact: true }).waitFor({ timeout: WAIT_MS });
-        assertInOrder(
-          await textOf(listRow(drafts)),
-          [surveyName, "Confidential", `Fellowship: ${state.programmeName}`, ADMIN.notSent, "Edit"],
-          "the list's draft",
-        );
-        assert.equal(
-          await drafts.getByRole("link", { name: `Edit ${surveyName}`, exact: true }).getAttribute("href"),
-          `/admin/surveys/${enc(surveyId)}/questions`,
-          "the draft's Edit does not open its Questions tab",
-        );
+        const edit = adminPage.getByRole("link", { name: `Edit ${surveyName}`, exact: true });
+        await edit.waitFor({ timeout: WAIT_MS });
+        assert.equal(await textOf(cardHeading(edit)), `Fellowship: ${state.programmeName}`, "the draft is not on its programme's card");
+        assertInOrder(await textOf(listRow(edit)), [BEFORE.card, ADMIN.notSent, "Draft", "Edit"], "the list's draft");
+        assert.equal(await edit.getAttribute("href"), `/admin/surveys/${enc(surveyId)}/questions`, "the draft's Edit does not open its Questions tab");
       });
 
       await step("the admin changes the survey's words and saves them", async () => {
@@ -1477,11 +1473,12 @@ test(
         assert.deepEqual([change.status, change.body?.error], [409, ADMIN.sentRefusal], "a change after the send was not refused");
         // The list has it open, none of four answered.
         await adminPage.goto(`${origin}/admin/surveys`, { waitUntil: "domcontentloaded" });
-        const open = adminPage.getByRole("region", { name: "Open", exact: true });
-        await open.getByRole("link", { name: surveyName, exact: true }).waitFor({ timeout: WAIT_MS });
+        const open = adminPage.getByRole("link", { name: `Results for ${surveyName}`, exact: true });
+        await open.waitFor({ timeout: WAIT_MS });
+        assert.equal(await textOf(cardHeading(open)), `Fellowship: ${state.programmeName}`, "the open survey is not on its programme's card");
         assertInOrder(
           await textOf(listRow(open)),
-          [surveyName, `Fellowship: ${state.programmeName}`, `0 of ${people.length}`, `Closes ${closesDay}`, "Remind", `${people.length} haven’t answered`, "Results"],
+          [BEFORE.card, `0 of ${people.length} answered`, `Closes ${closesDay}`, "Open", "Remind", `${people.length} haven’t answered`, "Results"],
           "the list's open survey",
         );
       });
@@ -1949,10 +1946,10 @@ test(
         assert.equal(await adminPage.getByRole("region", { name: "Remind", exact: true }).count(), 0, "a closed survey still offers Remind");
         // The list has it closed.
         await adminPage.goto(`${origin}/admin/surveys`, { waitUntil: "domcontentloaded" });
-        const closedList = adminPage.getByRole("region", { name: "Closed", exact: true });
-        await closedList.getByRole("link", { name: surveyName, exact: true }).waitFor({ timeout: WAIT_MS });
-        const closedRow = await textOf(listRow(closedList));
-        assertInOrder(closedRow, [surveyName, `${keptFor.size} of ${people.length}`, `Closed ${closedDay}`, "Results"], "the list's closed survey");
+        const closedResults = adminPage.getByRole("link", { name: `Results for ${surveyName}`, exact: true });
+        await closedResults.waitFor({ timeout: WAIT_MS });
+        const closedRow = await textOf(listRow(closedResults));
+        assertInOrder(closedRow, [BEFORE.card, `${keptFor.size} of ${people.length} answered`, `Closed ${closedDay}`, "Closed", "Results"], "the list's closed survey");
         assert.ok(!closedRow.includes("Remind"), "the list offers Remind on a closed survey");
 
         // Cleo's link says it has closed, and her answer is refused in its words.

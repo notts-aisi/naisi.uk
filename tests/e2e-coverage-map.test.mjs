@@ -1749,6 +1749,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a programme whose survey at the end has answers, so a spec can publish its numbers and read them on the programme's public page.",
   },
+  "/(app)/admin/(admin-only)/reports": {
+    reason:
+      "Reports: three links, to This term in numbers, Public numbers and Kairos, by their names, and nothing read; tests/surveys-hub.test.mjs renders it as every kind of caller and holds each link to its page, and tests/app-frame.test.mjs lights its menu entry on all three.",
+    coverWhen:
+      "When a spec opens This term in numbers, Public numbers or Kairos, which it reaches from the menu through this page.",
+  },
   "/(app)/admin/(admin-only)/surveys/term": {
     reason:
       "Surveys: This term in numbers; tests/surveys-term-numbers-page.test.mjs renders the real page as every kind of caller over a term with events, check-ins, an event's survey and two programmes, and tests/surveys-term-numbers.test.mjs holds each number to its own page's reader.",

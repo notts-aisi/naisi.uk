@@ -665,8 +665,11 @@ describe("the admins' pages for a survey after an event", () => {
     await press("send", "zach", id, { to: "everyone", emails: 4 });
     const links = new Map(w.world.mail.map((message) => [message.to, w.linkIn(message)]));
     await answerByLink(tokenOf(links.get("gwen@example.com")), { ...ANSWERS, q_ev_how: { type: "rating", value: 4 }, q_ev_change: { type: "text", text: "More headsets." } });
-    const list = await w.page("app/(app)/admin/(admin-only)/surveys/page.tsx", {}, "zach");
-    assert.match(list.text, /After VR games night Confidential Event: Sun 1 Nov 2 answers Closes Sun 8 Nov/);
+    // Run NAISI › Surveys lists it on its Events tab, its answers a count, and By programme does not.
+    const list = await w.page("app/(app)/admin/(admin-only)/surveys/page.tsx", { searchParams: Promise.resolve({ tab: "events" }) }, "zach");
+    assert.match(list.text, /After VR games night Sun 1 Nov · 2 answers · Closes Sun 8 Nov Open Results/);
+    const byProgramme = await w.page("app/(app)/admin/(admin-only)/surveys/page.tsx", { searchParams: Promise.resolve({}) }, "zach");
+    assert.ok(!byProgramme.text.includes("After VR games night"), "a survey after an event is listed under a programme");
     const answered = await w.page("app/(app)/admin/(admin-only)/surveys/[surveyId]/answered/page.tsx", { params: Promise.resolve({ surveyId: id }) }, "zach");
     assert.match(answered.text, /2 have answered: 1 with the QR code before any email, and 1 of the 4 it was emailed to/);
     assert.match(answered.text, /Gwen Price/);

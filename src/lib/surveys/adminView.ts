@@ -1,8 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { isCheckIn, isEventAudience, isEventSurvey, type SurveyDoc, type SurveyPersonDoc } from "@/lib/firestore/surveys";
-import { readAudience, type AudienceRead } from "./audience";
-import { eventListRow } from "./events/listRow";
+import { isCheckIn, isEventSurvey, type SurveyDoc, type SurveyPersonDoc } from "@/lib/firestore/surveys";
 import { eventPeopleOf } from "./events/store";
 import { eventMeta } from "./events/words";
 import { blanksOf, blanksRowOf, mergedAnswers, type BlanksRow } from "./blanks";
@@ -14,12 +12,11 @@ import { whoOf } from "./onePersonLayout";
 import { hiddenLinesForEach } from "./personFacts";
 import { answersOf, chainOf, closedOn, isOpen, peopleOf, readSurvey, sentCountOf, surveyState } from "./repo";
 import { surveyResults, type QuestionResult } from "./results";
-import { readSendPlan, remindReach, signerOf, testStateFor } from "./sending";
+import { readSendPlan, signerOf, testStateFor } from "./sending";
 import {
   LIST_WORDS,
   SURVEY_FROM_NAME,
   SURVEY_REPLY_TO,
-  answeredOf,
   audienceKindOf,
   audienceWords,
   closesWords,
@@ -29,7 +26,6 @@ import {
   leaversWords,
   namesOffWords,
   nobodyNewWords,
-  notAnsweredWords,
   notReachedWords,
   openSinceWords,
   peopleWords,
@@ -50,107 +46,11 @@ import {
 /**
  * WHAT THE ADMINS' SURVEY PAGES ARE HANDED, built on the server: plain
  * values in the boards' words, never a stored document. Admins only: the
- * pages that call these sit in the (admin-only) tree.
+ * pages that call these sit in the (admin-only) tree. Run NAISI › Surveys
+ * itself, every survey by what it is for, is `./hub/`.
  */
 
 export type SurveyState = "draft" | "open" | "closed";
-
-export type ListRow = {
-  id: string;
-  name: string;
-  programme: string;
-  state: SurveyState;
-  /** "20 of 32", or "Not sent yet". */
-  answers: string;
-  /** Share of the bar, 0 to 1, or null for a draft. */
-  share: number | null;
-  /** "Closes Wed 4 Nov", "Closed Wed 4 Nov", or "" for a draft. */
-  closes: string;
-  /** "12 haven’t answered", while open and somebody hasn't. */
-  unanswered: string;
-};
-
-export type ListView = { open: ListRow[]; drafts: ListRow[]; closed: ListRow[] };
-
-/** "Closes Wed 4 Nov", "Closed Wed 4 Nov", or a leaving survey's "No closing date" while it is open. */
-function closesFor(survey: SurveyDoc, state: SurveyState): string {
-  const ends = closedOn(survey);
-  if (state === "draft") return "";
-  if (!ends) return survey.kind === "leaving" ? LIST_WORDS.neverCloses : "";
-  return closesWords(ends, state === "closed");
-}
-
-/** Whether the list offers "Remind" on a survey: open, and not a leaving survey, which reaches each person as they leave. */
-function offersRemind(survey: SurveyDoc, now: Date): boolean {
-  return surveyState(survey, now) === "open" && survey.kind !== "leaving";
-}
-
-/**
- * One survey's row. `reach` is how many its Send tab's "Remind" reaches now
- * (`remindReach`, the button's and the press's own answer), read only for a
- * survey the list offers Remind on.
- */
-function rowOf(survey: SurveyDoc, people: readonly SurveyPersonDoc[], now: Date, reach: number): ListRow {
-  const state = surveyState(survey, now);
-  const sent = people.filter((person) => person.sentAt !== null).length;
-  const answered = people.filter((person) => person.answered).length;
-  return {
-    id: survey.id,
-    name: survey.name,
-    programme: programmeLine(survey.programmeKind, survey.programmeName),
-    state,
-    answers: state === "draft" ? LIST_WORDS.notSent : answeredOf(answered, sent),
-    share: state === "draft" ? null : sent > 0 ? answered / sent : 0,
-    closes: closesFor(survey, state),
-    unanswered: offersRemind(survey, now) && reach > 0 ? notAnsweredWords(reach) : "",
-  };
-}
-
-/** One key for one audience, so surveys with the same audience share one read of it. */
-function audienceKey(audience: SurveyDoc["audience"]): string {
-  return isEventAudience(audience)
-    ? `${audience.kind}:${audience.eventId}`
-    : `${audience.kind}:${audience.roundId}:${audience.programmeId}:${audience.kind === "followUps" ? audience.consentFrom : ""}`;
-}
-
-/**
- * THE SURVEY LIST. Each survey's people rows, as before; and for each survey
- * the list offers "Remind" on (open, a programme's, not a leaving survey),
- * one read of who it is for (`readAudience`: the form, its sent applications
- * and its decisions, or a follow-up's rows), so its "12 haven’t answered" is
- * the number the Remind button reaches, not everybody it was sent to who has
- * not answered (somebody who left since is no longer reminded). Surveys with
- * the same audience (a programme's survey before and at the end) share the
- * one read, so the list reads each programme's audience at most once, and a
- * draft, a closed survey, a leaving survey and a survey after an event read
- * none.
- */
-export async function listView(db: Firestore, surveys: readonly SurveyDoc[], now: Date): Promise<ListView> {
-  const audiences = new Map<string, Promise<AudienceRead>>();
-  const audienceOf = (survey: SurveyDoc): Promise<AudienceRead> => {
-    const key = audienceKey(survey.audience);
-    let read = audiences.get(key);
-    if (!read) {
-      read = readAudience(db, survey.audience);
-      audiences.set(key, read);
-    }
-    return read;
-  };
-  // A survey after an event lists its answers as a count, and its rows may hold guests (./events/listRow.ts).
-  const rows = await Promise.all(
-    surveys.map(async (survey) => {
-      if (isEventSurvey(survey)) return eventListRow(survey, await eventPeopleOf(db, survey.id), now);
-      const people = await peopleOf(db, survey.id);
-      const reach = offersRemind(survey, now) ? remindReach(people, await audienceOf(survey)).length : 0;
-      return rowOf(survey, people, now, reach);
-    }),
-  );
-  return {
-    open: rows.filter((row) => row.state === "open"),
-    drafts: rows.filter((row) => row.state === "draft"),
-    closed: rows.filter((row) => row.state === "closed"),
-  };
-}
 
 export type HeadView = {
   id: string;
@@ -164,6 +64,8 @@ export type HeadView = {
   leaving: boolean;
   /** A check-in: opened from a group's register, so its fourth tab is Opening. */
   checkIn: boolean;
+  /** A survey after an event: the way back is to Surveys' Events tab. */
+  event: boolean;
 };
 
 export function headView(survey: SurveyDoc, people: readonly { answered: boolean }[], now: Date): HeadView {
@@ -182,6 +84,7 @@ export function headView(survey: SurveyDoc, people: readonly { answered: boolean
     answered: people.filter((person) => person.answered).length,
     leaving: survey.kind === "leaving",
     checkIn: isCheckIn(survey),
+    event: isEventSurvey(survey),
   };
 }
 

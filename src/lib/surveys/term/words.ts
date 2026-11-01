@@ -11,9 +11,9 @@
 
 export const TERM_WORDS = {
   title: "This term in numbers",
-  /** The way back, and the list's own name. */
-  crumb: "Surveys",
-  /** The link on Run NAISI › Surveys (sv-list). */
+  /** The way back, to Reports, which holds it. */
+  crumb: "Reports",
+  /** Its name on Run NAISI › Reports. */
   link: "This term in numbers",
   download: "Download totals (CSV)",
   checkIns: "Check-ins",
