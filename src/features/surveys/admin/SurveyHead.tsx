@@ -25,9 +25,10 @@ export function surveyTabHref(id: string, tab: SurveyTab): string {
  * The head of a survey's pages (sv-send-programme): the way back to Surveys
  * (to its Events tab for a survey after an event), its name, whether it is
  * open, that it is confidential, its programme and when it closes, and its
- * four tabs. Drawn by each tab's page, which is the one <h1> on it. A leaving survey is opened rather than sent, so its fourth
- * tab is Open, at the same address; a check-in's is Opening, saying how its
- * group's facilitator opened it.
+ * four tabs. Drawn by each tab's page, which is the one <h1> on it. A leaving
+ * survey is opened rather than sent, so its fourth tab is Open, at the same
+ * address; a check-in's is Opening, saying how its group's facilitator
+ * opened it.
  */
 export default function SurveyHead({ head, current }: { head: HeadView; current: SurveyTab }) {
   const chip = STATE_CHIP[head.state];
