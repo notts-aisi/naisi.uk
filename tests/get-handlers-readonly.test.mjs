@@ -106,6 +106,12 @@ const MUTATION_HELPERS = {
   // and the member records are made in `src/lib/applications/lifecycle/move.ts`,
   // so a GET added beside it later could call this and show nothing in its body.
   moveFormStatus: "opens, closes, reopens or settles an application form, and on settling writes every applicant's member record",
+  // A week's check-ins are fixed the first time it is whole, by the
+  // scheduler's job alone (`src/lib/surveys/checkIns/weeks.ts`). The record is
+  // made in `src/lib/firestore/checkInWeeks.ts`, so a GET that fixed a week
+  // would show nothing in its body.
+  freezeWholeWeeks: "fixes which check-ins each whole week of a programme has, which its lead then reads",
+  createCheckInWeek: "creates one week's record of which check-ins its programme's lead reads",
 };
 
 /**

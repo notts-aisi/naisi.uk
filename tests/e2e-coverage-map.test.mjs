@@ -1564,7 +1564,7 @@ const NOT_COVERED = {
   },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/check-ins": {
     reason:
-      "Surveys: the Surveys tab's Check-ins view, each week of the check-ins pooled once whole, with each group's check-in for an admin alone; tests/surveys-lead-tab.test.mjs renders it for every kind of caller over check-ins opened and answered through their routes, holds its floors and finds no name and, for the lead, no group.",
+      "Surveys: the Surveys tab's Check-ins view, each week of the check-ins pooled once whole and fixed by the scheduler, with each group's check-in for an admin alone; tests/surveys-lead-tab.test.mjs renders it for every kind of caller over check-ins opened and answered through their routes, holds its floors and finds no name and, for the lead, no group; tests/surveys-check-in-weeks.test.mjs renders it before and after the job fixes a week and once a check-in is opened for that week later.",
     coverWhen:
       "When the course-hub-check-in spec has passed end to end and goes on to a whole week of every group's check-ins, so the programme's lead can read the week on the tab.",
   },

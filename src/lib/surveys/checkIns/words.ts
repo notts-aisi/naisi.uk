@@ -263,12 +263,14 @@ export function tooFewWords(answered: number, of: number): string {
 /**
  * The Check-ins view of a programme's Surveys tab. The lead and admins read
  * each week with every group's answers together, never a group's alone, and
- * only once every group's check-in that week has closed; an admin also has a
- * row for each group's check-in, leading to its own pages.
+ * only once every group's check-in that week has closed and the week's
+ * check-ins are fixed, which the scheduler does at its next tick; an admin
+ * also has a row for each group's check-in, leading to its own pages, and a
+ * line on a check-in opened after its week was fixed.
  */
 export const CHECK_INS_TAB_WORDS = {
   nothingYet: "No week has begun yet.",
-  waiting: "Shows once every group’s check-in this week has closed.",
+  waiting: "Shows shortly after every group’s check-in this week has closed.",
   none: "No group opened a check-in this week.",
   useful: "Useful",
   confident: "Confident",
@@ -284,11 +286,13 @@ export const CHECK_INS_TAB_WORDS = {
   whoAnswered: "Who answered",
   open: "Open",
   closed: "Closed",
+  /** On an admin's row for a check-in opened after its week's check-ins were fixed: the lead's week leaves it out. */
+  openedAfterWeek: "Not counted in the week above: it opened after the week had already shown.",
 } as const;
 
 /** The line under the view's row: what a week shows and from how many answers. */
 export function checkInsTabLine(totalsFrom: number, commentsFrom: number): string {
-  return `Every group’s check-ins together, week by week, without names. A week shows once every group’s check-in that week has closed: totals from ${totalsFrom} answers, comments from ${commentsFrom}.`;
+  return `Every group’s check-ins together, week by week, without names. A week shows shortly after every group’s check-in that week has closed: totals from ${totalsFrom} answers, comments from ${commentsFrom}.`;
 }
 
 /** Below the floor for totals: "2 of 6 answered. Totals show from 3, so nobody can be worked out." */

@@ -44,6 +44,7 @@ import { eventCheckInsTidyJob } from "./jobs/eventCheckInsTidy";
 import { heartbeatJob } from "./jobs/heartbeat";
 import { nextWeekEmailJob } from "./jobs/nextWeekEmail";
 import { registerRemindersJob } from "./jobs/registerReminders";
+import { surveyCheckInWeeksJob } from "./jobs/surveyCheckInWeeks";
 import { surveyNamesOffJob } from "./jobs/surveyNamesOff";
 import { unmarkedRegistersJob } from "./jobs/unmarkedRegisters";
 import { weekRemindersJob } from "./jobs/weekReminders";
@@ -104,6 +105,11 @@ export const SCHEDULER_JOB_IDS = [
   // it running.
   "event-check-ins-tidy",
   "newsletter-drain",
+  // Each week of a programme's check-ins is fixed the first time it is whole,
+  // and the programme's lead reads only fixed weeks (docs/surveys.md,
+  // "Check-ins at the end of a session"). It emails nobody, so it registers
+  // on: while it is off, no new week of check-ins shows to a lead.
+  "surveys-check-in-weeks",
   // Names come off confidential survey answers two years after the programme
   // (docs/surveys.md). It emails nobody, so it registers on: the privacy
   // policy's promise rests on it running.
@@ -269,6 +275,7 @@ export const JOBS: readonly JobRegistration[] = [
   eventAnnouncementsJob,
   eventCheckInsTidyJob,
   heartbeatJob,
+  surveyCheckInWeeksJob,
   surveyNamesOffJob,
   worksheetDueRemindersJob,
 ];

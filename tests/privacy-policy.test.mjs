@@ -5980,6 +5980,11 @@ describe("the course hub passage", () => {
         ["src/app/api/surveys/[surveyId]/blanks/route.ts", "the person's own answers to the questions they left blank, signed in, to their own row: there is no uid in the request"],
         ["src/lib/firestore/accountDeletion.ts", "deleting an account takes its name off its survey answers and deletes its survey rows"],
         ["src/lib/scheduler/jobs/surveyNamesOff.ts", "the job that takes names off two years after the programme"],
+        // A week's check-ins are fixed the first time it is whole, which is
+        // when the programme's lead first reads it: the job records which
+        // check-ins the week has, by their ids, and reads no answer and nobody
+        // a check-in was sent to.
+        ["src/lib/scheduler/jobs/surveyCheckInWeeks.ts", "the job that fixes which check-ins each whole week of a programme has, by their ids, reading no answer and no row of who a check-in was sent to"],
         // CHANGED ON PURPOSE (Q50 B): the cards of the surveys waiting for the
         // person, drawn on their own pages. Each card is a survey's title,
         // size and closing day and the person's own link: no answer, no name,
@@ -7717,9 +7722,15 @@ describe("the check-in passage", () => {
     assert.deepEqual(Object.keys(week.totals).sort(), ["confident", "reading", "unclear", "useful"]);
     assert.deepEqual(week.totals.unclear, [{ id: "part_a", label: "Compute as a lever", count: 5 }]);
     assert.deepEqual(checkInModel.leadWeekOf(3, false, [{ items, answers: [given(5, "Riya’s point")], of: 4 }]), { weekNumber: 3, state: "waiting" });
-    // The lead's reader reads answers only of whole weeks, and makes each group's rows for an admin alone.
+    // The lead's reader reads answers only of the check-ins each week was
+    // fixed with, the first time the week was whole, and makes each group's
+    // rows for an admin alone. CHANGED ON PURPOSE (narrower): it read every
+    // check-in of a week that was whole at the time of reading.
     const view = withoutComments(read("src/lib/surveys/checkIns/leadView.ts"));
-    assert.match(view, /const read = checkIns\.filter\(\(survey\) => admin \|\| whole\.get\(survey\.audience\.weekNumber\) === true\);/);
+    assert.match(view, /const inItsWeek = \(survey: CheckInSurveyDoc\) => frozen\.get\(survey\.audience\.weekNumber\)\?\.has\(survey\.id\) === true;/);
+    assert.match(view, /const read = checkIns\.filter\(\(survey\) => admin \|\| inItsWeek\(survey\)\);/);
+    assert.match(view, /\.filter\(\(survey\) => survey\.audience\.weekNumber === weekNumber && inItsWeek\(survey\)\)/);
+    assert.match(view, /return leadWeekOf\(weekNumber, fixed, sets\);/);
     assert.match(view, /const admin = input\.viewer === "admin";/);
     assert.match(view, /let rows: Map<number, AdminCheckInRow\[\]> \| null = null;\s*if \(admin\) \{/);
     // The Overview reads the check-ins as the lead reads them, whoever is reading.
@@ -7744,6 +7755,48 @@ describe("the check-in passage", () => {
     }
     assert.equal(sourceFilesNaming(/\b(?:readProgrammeCheckIns|leadSurveysOverview)\(/).filter((file) => file.startsWith("src/app/api/")).length, 0);
     assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-lead-tab.test.mjs")), "tests/surveys-lead-tab.test.mjs draws the views over a term of check-ins for every kind of caller");
+  });
+
+  test("a week's check-ins are fixed when it first shows: the record holds survey ids, a run and a week and nothing about a person, so an account's deletion has nothing of it to find, and the run's destroy deletes it", () => {
+    // The lead reads a week only once the scheduler's job has fixed which
+    // check-ins it has, and then only those (above). That record is kept, but
+    // it is not information about anybody: survey ids, the run and the week.
+    // So the policy needs no sentence for it, and an account's deletion has
+    // nothing of it to find. Held here so a field that names somebody cannot
+    // join it without this test, and the policy, being read first.
+    const record = withoutComments(read("src/lib/firestore/checkInWeeks.ts"));
+    const shape = /export type CheckInWeekDoc = \{([\s\S]*?)\};/.exec(record)?.[1] ?? "";
+    assert.deepEqual([...shape.matchAll(/^\s*(\w+):/gm)].map((match) => match[1]), ["id", "runId", "weekNumber", "surveyIds", "frozenAt"]);
+    assert.match(record, /\.create\(\{ runId, weekNumber, surveyIds: \[\.\.\.surveyIds\], frozenAt: FieldValue\.serverTimestamp\(\) \}\)/, "the record now keeps something besides survey ids, a run, a week and when");
+    // Every file that names the record, and why: its own module and the run's destroy, never an account's deletion.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bCHECK_IN_WEEKS_COLLECTION\b|["'`]checkInWeeks["'`]/),
+      new Map([
+        ["src/lib/firestore/checkInWeeks.ts", "the record's own name and shape, its reader, and its one writer, which only the scheduler's job reaches"],
+        ["src/lib/firestore/courseDeletion.ts", "the run's destroy: the record is counted on its dialog and deleted with the run, by runId"],
+      ]),
+      "naming the record of which check-ins each week of a programme showed its lead",
+      "It holds survey ids and nothing about a person. A new reader or writer reads the policy's sentence on what the lead sees first.",
+    );
+    assert.ok(
+      !/checkInWeeks|CHECK_IN_WEEKS/.test(withoutComments(read("src/lib/firestore/accountDeletion.ts"))),
+      "an account's deletion now reaches the record of which check-ins each week has, which names nobody",
+    );
+    assert.match(withoutComments(read("src/lib/firestore/courseDeletion.ts")), /drainQuery\(db, CHECK_IN_WEEKS_COLLECTION, byRunId\(CHECK_IN_WEEKS_COLLECTION\), budget\)/);
+    // Shut to every browser, admins and the lead included.
+    assert.match(read("firestore.rules"), /match \/checkInWeeks\/\{weekId\} \{\s*allow read, write: if false;\s*\}/);
+    // Fixed by the scheduler's job alone: no page and no route fixes a week, so nobody's looking decides when it shows.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\b(?:freezeWholeWeeks|createCheckInWeek)\(/),
+      new Map([
+        ["src/lib/firestore/checkInWeeks.ts", "the one writer of a week's record, created once"],
+        ["src/lib/surveys/checkIns/weeks.ts", "fixes every whole week of a programme not fixed yet, through that writer"],
+        ["src/lib/scheduler/jobs/surveyCheckInWeeks.ts", "the scheduler's job, the one caller"],
+      ]),
+      "fixing which check-ins a week of a programme has",
+      "The lead reads a week once it is fixed. A page or route that fixed one would write on a read, and decide when a week shows.",
+    );
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-check-in-weeks.test.mjs")), "tests/surveys-check-in-weeks.test.mjs drives the job, the fixed weeks and the destroy");
   });
 
   test("the survey about leaving is confidential: admins see who said what, the lead its totals and comments as they come and never a name, in no order that follows when they came, facilitators nothing, and names come off as every survey's", () => {

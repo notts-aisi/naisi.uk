@@ -28,8 +28,9 @@ import type { TotalsFacts, UnclearCount } from "./words";
  *    never read one by one. Never a comment, never who said what.
  *  - WHAT THE LEAD SEES (`leadWeekOf`). A week, never a group: nothing until
  *    every group's check-in that week has closed and none can still be opened
- *    (`weekIsWhole`), then every group's answers together, totals from three
- *    answers and comments from five, the comments in the order of their words.
+ *    (`weekIsWhole`) and the week's check-ins have been fixed (`./weeks.ts`),
+ *    then every group's answers together, totals from three answers and
+ *    comments from five, the comments in the order of their words.
  *  - ONE COUNT. Both readings count answers through `tallyOf`.
  */
 
@@ -252,7 +253,10 @@ export type WeekCheckIn = { weekNumber: number; open: boolean };
  * and none can still be opened, because every session of the week that can
  * have one (dated, and not called off) is past its check-in window. Only then
  * does the lead read the week, all of it at once, so no group's answers can be
- * had by reading the week before and after that group's check-in closed.
+ * had by reading the week before and after that group's check-in closed. The
+ * first tick at which a week that has begun is whole fixes its check-ins
+ * (`freezeWholeWeeks` in `./weeks.ts`), and the lead reads that week from then
+ * on, whatever its sessions do afterwards.
  */
 export function weekIsWhole(weekNumber: number, sessions: readonly WeekSession[], checkIns: readonly WeekCheckIn[], now: Date): boolean {
   for (const session of sessions) {
@@ -285,8 +289,9 @@ export type LeadWeekComments = { id: string; title: string; comments: string[] }
 
 /**
  * One week of a programme's check-ins as its lead reads it.
- *  - `waiting`: a check-in of the week is open, or one can still be opened.
- *  - `none`: every group's is in, and no group opened one.
+ *  - `waiting`: the week's check-ins are not fixed yet: one is open, one can
+ *    still be opened, or the job has not reached the week since it was whole.
+ *  - `none`: the week was fixed, and no group had opened one.
  *  - `too-few`: fewer than `TOTALS_FROM` answers in the whole week.
  *  - `shown`: the totals, and the comments from `COMMENTS_FROM` answers.
  * How many answered of how many the week's check-ins reached travels with the
@@ -323,9 +328,10 @@ function commentsOf(sets: readonly CheckInSet[]): LeadWeekComments[] {
 }
 
 /**
- * THE LEAD'S WEEK, with its floors: nothing while it is not whole
- * (`weekIsWhole`), and then its totals from `TOTALS_FROM` answers and its
- * comments from `COMMENTS_FROM`, every group's check-in of the week together
+ * THE LEAD'S WEEK, with its floors: nothing while it is not whole, which for
+ * the lead means not fixed yet (`weekIsWhole` at a tick, then `./weeks.ts`),
+ * and then its totals from `TOTALS_FROM` answers and its comments from
+ * `COMMENTS_FROM`, every check-in the week was fixed with together
  * (`tallyOf`). A share of a smaller slice than the week (the reading question,
  * asked only where the week had something to read) shows from `TOTALS_FROM`
  * answers to it too. `of` beside each check-in is how many it reached.

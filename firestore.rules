@@ -3473,6 +3473,19 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === checkInWeeks ===
+    // Which check-ins each week of a programme's run showed its lead, fixed the
+    // first time the week was whole (src/lib/firestore/checkInWeeks.ts): survey
+    // ids, the run and the week. Written only by the scheduler's job on the
+    // Admin SDK, with create, and deleted only by the run's destroy; read only
+    // on the server, by the Surveys tab, which reads a week only once it is
+    // fixed. So every browser is refused, admins and the lead included: a
+    // client able to write one could change which check-ins a lead's week
+    // counts.
+    match /checkInWeeks/{weekId} {
+      allow read, write: if false;
+    }
+
     // === eventCheckIns ===
     // Check-in (src/lib/firestore/eventCheckIns.ts): who came to an event, how
     // and when, and a walk-in's email for that event's survey. Written only by

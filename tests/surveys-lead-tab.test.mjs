@@ -31,19 +31,23 @@
  *     programme's or another programme's.
  *  4b. THE OVERVIEW: its cards, usefulness and reading week by week, what was
  *     unclear in a chosen week with the reports beside it, who came and the
- *     week's reports, nameless, and a week of check-ins only once whole.
- *  4c. THE CHECK-INS VIEW: whole weeks only, totals from three answers and
- *     comments from five, never a group's own figure, and each group's
- *     check-in for an admin alone, with the way to the admins' pages.
+ *     week's reports, nameless, and a week of check-ins only once whole and
+ *     fixed.
+ *  4c. THE CHECK-INS VIEW: whole weeks only, and only once the scheduler has
+ *     fixed their check-ins, totals from three answers and comments from five,
+ *     never a group's own figure, and each group's check-in for an admin
+ *     alone, with the way to the admins' pages.
  *  5. NOTHING IS WRITTEN by drawing any of the pages.
  *
  * Real: every survey route and page loaded, the check-in and session report
  * routes, the programme's pages and tab bar, the retrospective's count, the
- * register's attendance, the libraries. Faked: what tests/lib/leavingWorld.mjs
- * fakes. The clock is Tue 17 Nov 2026 at noon in London, week 3 of AGI
- * Strategy's run, which Claudia leads, after its groups' check-ins and reports
- * of weeks 1 to 3 as far as they have happened, moved to the day after the
- * survey at the end closes for the end's own checks.
+ * register's attendance, the scheduler's job that fixes each week's
+ * check-ins (`surveys-check-in-weeks`, run as a tick runs it), the libraries.
+ * Faked: what tests/lib/leavingWorld.mjs fakes. The clock is Tue 17 Nov 2026
+ * at noon in London, week 3 of AGI Strategy's run, which Claudia leads, after
+ * its groups' check-ins and reports of weeks 1 to 3 as far as they have
+ * happened, moved to the day after the survey at the end closes for the end's
+ * own checks; the job ticks at each.
  */
 import { before, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
@@ -130,6 +134,8 @@ const lib = {
   reportWords: await loadTs(join("lib", "courses", "sessionReports", "words.ts")),
 };
 const { LEAD_TAB_WORDS, LEAD_RESULTS_WORDS, LEAD_OVERVIEW_WORDS } = lib.words;
+/** The scheduler's job that fixes each week's check-ins the first time it is whole. */
+const { surveyCheckInWeeksJob } = await loadTs(join("lib", "scheduler", "jobs", "surveyCheckInWeeks.ts"));
 const { CHECK_INS_TAB_WORDS } = lib.checkInWords;
 const BASE = `/admin/admissions/forms/${ROUND}/programmes/${AGI}`;
 
@@ -179,6 +185,29 @@ function inOrder(text, parts) {
 }
 
 const at = (when) => mock.timers.setTime(new Date(when).getTime());
+
+/**
+ * One tick of the scheduler's `surveys-check-in-weeks` job at the clock's now,
+ * handed what the tick hands a job: it fixes every week of the programme's
+ * check-ins that is whole and not fixed yet. It emails nobody.
+ */
+async function tick() {
+  world.course = true;
+  const mail = world.mail.length;
+  try {
+    return await surveyCheckInWeeksJob.handler({
+      now: new Date(),
+      budget: { remainingMs: () => 20_000, expired: () => false },
+      log: () => {},
+      policy: { reclaimAfterMinutes: 20, maxAttempts: 3 },
+      maxPerTick: surveyCheckInWeeksJob.maxPerTick,
+      maxLateHours: surveyCheckInWeeksJob.maxLateHours,
+    });
+  } finally {
+    world.course = false;
+    assert.equal(world.mail.length, mail, "the job sent an email");
+  }
+}
 const rows = (surveyId) =>
   world.db
     .paths()
@@ -374,6 +403,8 @@ async function tellTheStory() {
   w.reset();
   await checkInsAndReports();
   at(NOW);
+  // By now the scheduler has fixed weeks 1 and 2, each whole by its last Wednesday night.
+  assert.equal((await tick()).processed, 2);
   // Four more of the run's people hold their place through the form, as Amara does, so the surveys reach eight.
   const application = world.db.read(`admissionApplications/${ROUND}__amara`);
   const decision = world.db.read(`admissionDecisions/${ROUND}__amara`);
@@ -435,8 +466,9 @@ async function tellTheStory() {
   for (const [uid, rating] of [["amara", 1], ["dev", 2], ["bea", 2]]) rated(uid, "m_w4_reading", rating);
   for (const [uid, rating] of [["amara", 5], ["dev", 5]]) rated(uid, "m_w1_slides", rating);
 
-  // The day after the survey at the end closes.
+  // The day after the survey at the end closes, by when the scheduler has fixed every week of the run.
   at(END);
+  await tick();
 }
 
 before(tellTheStory);
@@ -1029,7 +1061,8 @@ describe("4b. the Overview: cards, the weeks of check-ins, what was unclear with
       "Week 2: not shown yet",
       "Week 3: 4.0",
       "Week 4: not shown yet",
-      "7 and 4 answers. A dot is a week not shown yet: a week shows once every group’s check-in has closed, and from 3 answers.",
+      // CHANGED ON PURPOSE: a week shows at the first tick after it is whole, when the scheduler fixes its check-ins, so "shortly after", not "once".
+      "7 and 4 answers. A dot is a week not shown yet: a week shows shortly after every group’s check-in has closed, and from 3 answers.",
       "Did most or all of the reading Share of check-ins",
       "Week 1: 57%",
       "Week 3: 75%",
@@ -1236,7 +1269,10 @@ describe("4c. the Check-ins view: whole weeks, its floors, never a group's own f
       "lib/surveys/checkIns/close.ts": "closes one by its id; reads no answer",
       "lib/surveys/checkIns/lateMark.ts": "gives somebody marked later a row on the open one, by its id; reads no answer",
       "lib/surveys/checkIns/facilitatorView.ts": "the register's card, behind the register's gate: a count while open, totals from three answers once closed",
-      "lib/surveys/checkIns/leadView.ts": "the Surveys tab's reading, behind the tab's gate: a whole week, totals from three answers and comments from five; each group's row for an admin alone",
+      "lib/surveys/checkIns/leadView.ts":
+        "the Surveys tab's reading, behind the tab's gate: a week once its check-ins are fixed, and only those, totals from three answers and comments from five; each group's row for an admin alone",
+      "lib/surveys/checkIns/weeks.ts":
+        "the scheduler's job that fixes each week's check-ins the first time it is whole, by their ids and whether any is open; reads no answer",
       "lib/surveys/onePerson.ts": "the admins' page of one person's answers, read once the opening is recorded",
       "lib/surveys/hub/load.ts":
         "the admins' Surveys page by programme, behind the admin-only layout and canRunSurveys: a line a programme with the weeks they were at; reads no answer",
@@ -1244,12 +1280,20 @@ describe("4c. the Check-ins view: whole weeks, its floors, never a group's own f
     assert.deepEqual(finding, Object.keys(LISTED).sort(), "a file finds check-ins and is not listed with why (or a listed one no longer does)");
   });
 
-  test("a week shows once every group's check-in that week has closed, all at once, so no group's answers are had by reading it before and after", async () => {
+  test("a week shows once every group's check-in that week has closed and the scheduler has fixed its check-ins, all at once, so no group's answers are had by reading it before and after", async () => {
     const week3 = async (viewer = "lead") =>
       (await lib.checkIns.readProgrammeCheckIns(world.courseDb, await checkInInput(viewer))).weeks.find((week) => week.weekNumber === 3);
+    const fixedWeek3 = () => world.db.read(`checkInWeeks/${RUN.agi}__w03`);
+    // The store as it stood at noon on Tue 17 Nov: the weeks from 3 on were
+    // fixed by the tick at the end of the story, which has not come yet.
+    const later = world.db.paths().filter((path) => path.startsWith("checkInWeeks/") && world.db.read(path).weekNumber >= 3);
+    assert.ok(later.includes(`checkInWeeks/${RUN.agi}__w03`), "the story's last tick fixed no week 3");
+    for (const path of later) await world.db.collection("checkInWeeks").doc(path.slice("checkInWeeks/".length)).delete();
     try {
       // Tue 17 Nov at noon: Groups A and D have had week 3's check-in, B meets tonight and C tomorrow.
       at(NOW);
+      assert.equal((await tick()).processed, 0);
+      assert.equal(fixedWeek3(), undefined, "a week is fixed before it is whole");
       assert.deepEqual(await week3(), { weekNumber: 3, state: "waiting" });
       let tab = await tabAs("claudia");
       inOrder(tab.text, ["Check-ins 8 answers over 2 weeks", "Week 3: not shown yet", "What was unclear, week 1"]);
@@ -1269,23 +1313,37 @@ describe("4c. the Check-ins view: whole weeks, its floors, never a group's own f
       made.checkIns.b3 = await openCheckIn("rahul", B, "w03", 3, "2026-11-17T19:50:00Z");
       await answer(made.checkIns.b3, "chloe", checkInAnswers({ useful: 5, most: "Arguing both sides", unclear: ["pt-tests"], reading: "all", confident: 4 }));
       at("2026-11-17T21:00:00Z");
+      await tick();
+      assert.equal(fixedWeek3(), undefined, "a week is fixed while one of its check-ins is open");
       assert.deepEqual(await week3(), { weekNumber: 3, state: "waiting" });
       assert.ok((await checkInsAs("zach")).text.includes("Group B · Tue 17 Nov, 6pm · 1 of 3 answered · Open"));
       // It closes by itself at 11pm; Group C's session tomorrow can still have one.
       at("2026-11-17T23:30:00Z");
+      await tick();
+      assert.equal(fixedWeek3(), undefined, "a week is fixed while a session of it can still have a check-in");
       assert.deepEqual(await week3(), { weekNumber: 3, state: "waiting" });
       tab = await tabAs("claudia");
       assert.ok(tab.text.includes("Week 3: not shown yet") && !tab.text.includes("Arguing both sides"));
 
-      // Wed 18 Nov at 11pm, Group C's session is past its check-in's closing time: the week shows, whole, five answers and their comments.
+      // Wed 18 Nov at 11pm, Group C's session is past its check-in's closing
+      // time: the week is whole, and still shows nothing until the scheduler
+      // has fixed its check-ins.
       at("2026-11-18T23:00:00Z");
+      assert.deepEqual(await week3(), { weekNumber: 3, state: "waiting" }, "a week shows before its check-ins are fixed");
+      assert.ok((await checkInsAs("claudia")).text.includes(`Week 3 ${CHECK_INS_TAB_WORDS.waiting}`));
+      assert.ok(!(await tabAs("claudia")).text.includes("Arguing both sides"));
+      // The next tick fixes them, every group's check-in of the week, and the week shows, whole: five answers and their comments.
+      assert.equal((await tick()).processed, 1);
+      assert.deepEqual(fixedWeek3().surveyIds, [made.checkIns.a3, made.checkIns.d3, made.checkIns.b3]);
       const whole = await week3();
       assert.deepEqual([whole.state, whole.answered, whole.of], ["shown", 5, 7]);
       assert.deepEqual(whole.comments[0].comments, ["A clear week", "Arguing both sides", "Defining terms first", "The definitions table", "Who gets to decide"]);
       // Its figures are the week's, and nothing in it is a group's: the lead never read a figure of the week before it.
       assert.doesNotMatch(JSON.stringify(whole), /group|Group/);
     } finally {
+      // And the weeks after it, as the tick at the end of the story fixed them.
       at(END);
+      await tick();
     }
   });
 });
@@ -1327,9 +1385,10 @@ describe("4d. the words of the views, one by one: counted right, no dash, no pro
     assert.equal(ci.groupCheckInWords("Group C", new Date("2026-11-18T15:00:00Z")), "Group C · Wed 18 Nov, 3pm");
     assert.equal(ci.groupCheckInWords("Group C", null), "Group C");
     assert.equal(ci.checkInLinkLabel("Who answered", "Group C", 3), "Who answered: Group C, week 3");
+    // CHANGED ON PURPOSE: "shortly after", not "once", for the reason the Overview's dot gives above.
     assert.equal(
       ci.checkInsTabLine(3, 5),
-      "Every group’s check-ins together, week by week, without names. A week shows once every group’s check-in that week has closed: totals from 3 answers, comments from 5.",
+      "Every group’s check-ins together, week by week, without names. A week shows shortly after every group’s check-in that week has closed: totals from 3 answers, comments from 5.",
     );
     // The views' own names, in the row's order.
     const views = readFileSync(join(REPO_ROOT, "src", "features", "applications", "surveys", "SurveysViews.tsx"), "utf8");

@@ -1181,12 +1181,12 @@ export const LEAD_OVERVIEW_WORDS = {
   readingScale: "Share of check-ins",
   readingFrom: "From the check-ins: of everybody asked about the week’s reading, the share who did most or all of it.",
   /** Under both charts: what a week drawn as a dot is. */
-  dot: "A dot is a week not shown yet: a week shows once every group’s check-in has closed, and from 3 answers.",
-  noWeekYet: "Nothing to show yet: a week shows here once every group’s check-in that week has closed, and from 3 answers.",
+  dot: "A dot is a week not shown yet: a week shows shortly after every group’s check-in has closed, and from 3 answers.",
+  noWeekYet: "Nothing to show yet: a week shows here shortly after every group’s check-in that week has closed, and from 3 answers.",
   readingDot: "A dot is a week not shown yet, or one whose check-ins asked nothing about reading.",
   unclearTitle: "What was unclear",
   unclearLine: "From the check-ins and facilitators’ reports, without names.",
-  unclearNone: "What was unclear shows here once a week’s check-ins have all closed, from 3 answers.",
+  unclearNone: "What was unclear shows here shortly after a week’s check-ins have all closed, from 3 answers.",
   nothingUnclear: "Nothing was named unclear.",
   /** The name of the row of weeks above what was unclear, for assistive technology. */
   chooseWeek: "Choose a week",

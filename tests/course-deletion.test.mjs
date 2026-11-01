@@ -367,6 +367,11 @@ const RUN_COUNT_KEYS = [
   // it. Keyed by `runId`, added with its stage in the same change; it dies
   // with the run, as `auditRows` does, never retained like `dataExportRows`.
   "recordOpenings",
+  // `checkInWeeks`, which check-ins each week of the run showed the
+  // programme's lead, fixed the first time the week was whole. Keyed by
+  // `runId`, added with its stage in the same change; nothing can read a week
+  // of a run that is gone, so it dies with the run.
+  "checkInWeeks",
   // `schedulerMarkers`, the scheduler tick's claim-before-send markers.
   // Added with the tick itself, under the house rule that a PR adding a
   // collection adds it to the manifest AND the cascade in that same PR. Two
@@ -442,23 +447,23 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   const counts = Object.fromEntries(
     [...RUN_COUNT_KEYS, ...COURSE_COUNT_KEYS].map((k) => [k, 10]),
   );
-  // Forty-five counters at ten rows each: thirty-nine that die,
+  // Forty-six counters at ten rows each: forty that die,
   // `materialNotes`, `auditRows`, `schedulerMarkers`, the V3 `coursePages`,
   // the V3 W2 `registerTasks`, the course hub's `pitches`, `updates`,
   // `groupNotes`, `groupSharedNotes`, `sessionReports`, `placementNotes`, v13's `bestAnswers`
   // and `pangramChecks`, `packsAndCases`, the week you submit's `weekWork`
   // and `workLog`, feedback's `feedback` and `feedbackSends`, `pairs`, `teams`,
   // `teamEntries`, `finishing`, `facilitating`, `ratings`, `certificates`,
-  // `anonymousFeedback`, `predictions` and `recordOpenings`, and the course's
-  // `facilitatorGuide` among them, plus the six survivors
+  // `anonymousFeedback`, `predictions`, `recordOpenings` and `checkInWeeks`,
+  // and the course's `facilitatorGuide` among them, plus the six survivors
   // (`admissionSeatOffers` is released, `dataExportRows` is retained,
   // `certificatesKept` stays without its run, `workRatingsKept` stays with
   // the person rated).
-  assert.equal(sumCounts(counts), 450);
+  assert.equal(sumCounts(counts), 460);
   // The progress denominator counts only what actually dies, so a large
   // retained counter cannot inflate it into a bar that never fills. Adding a
   // survivor must not move this number; adding a DESTROYED counter must.
-  assert.equal(destroyedTotal(counts), 390);
+  assert.equal(destroyedTotal(counts), 400);
 });
 
 test("MODEL — every key the cascade can report has copy, including the ones the manifest never shows", () => {
@@ -705,6 +710,9 @@ test("MODEL — the cascade's declared stage order is the one the contract needs
     "predictions",
     // The records of admins opening a card, after the cards they are about.
     "recordOpenings",
+    // Which check-ins each week showed the programme's lead: a run-keyed leaf
+    // that names no group or week document, drained with the other leaves.
+    "checkInWeeks",
     "groups",
     "weeks",
   ]);

@@ -390,6 +390,11 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "Each time an admin opened somebody's sealed predictions card on this run, with who opened it and when. They are about the cards this destroy deletes, so they go with the run.",
   },
+  checkInWeeks: {
+    label: "Weeks of check-ins shown to the lead",
+    fate: "destroyed",
+    note: "Which check-ins each week of this run showed the programme's lead, fixed the first time the week showed. Ids only, nothing anybody wrote, so they go with the run. The check-ins themselves are surveys, and a destroy leaves surveys alone.",
+  },
   schedulerMarkers: {
     label: "Scheduler send markers",
     fate: "destroyed",

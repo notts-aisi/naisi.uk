@@ -532,6 +532,14 @@
   color: var(--color-text-muted);
 }
 
+/* An admin's line on a check-in its week does not count: below the row's own words. */
+.groupNote {
+  display: block;
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
 .groupLinks {
   display: flex;
   flex-wrap: wrap;
