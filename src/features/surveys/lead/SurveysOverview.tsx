@@ -183,7 +183,7 @@ function Unclear({ view, base }: { view: Overview; base: string }) {
       ) : (
         <ul className={styles.bars}>
           {unclear.rows.map((row) => (
-            <li key={row.label} className={unclear.reports > 0 ? styles.bar : `${styles.bar} ${styles.barPlain}`}>
+            <li key={row.id} className={unclear.reports > 0 ? styles.bar : `${styles.bar} ${styles.barPlain}`}>
               <span className={styles.barLabel}>{row.label}</span>
               <span className={styles.track} aria-hidden="true">
                 <span className={styles.fill} style={{ width: `${share(row.checkIns, unclear.answered)}%` }} />

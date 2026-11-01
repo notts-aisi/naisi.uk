@@ -51,8 +51,8 @@ export type OverviewWeek = {
   reading: { most: number; of: number } | null;
 };
 
-/** One part named unclear in the chosen week: by the check-ins (with their share of the week's answers) and by the reports. */
-export type OverviewUnclearRow = { label: string; checkIns: number; reports: number };
+/** One part named unclear in the chosen week: by the check-ins (with their share of the week's answers) and by the reports. `id` is the part's, for the list's keys. */
+export type OverviewUnclearRow = { id: string; label: string; checkIns: number; reports: number };
 
 export type SurveysOverview = {
   /** The stage's survey once it has gone out, as its view's row counts it, or null. */
@@ -91,16 +91,16 @@ function chartWeek(week: LeadCheckInWeek): OverviewWeek {
  */
 function unclearRows(week: Extract<LeadCheckInWeek, { state: "shown" }>, reports: ReportWeekCount | null): OverviewUnclearRow[] {
   const rows = new Map<string, OverviewUnclearRow & { first: number }>();
-  for (const part of week.totals.unclear) rows.set(part.id, { label: part.label, checkIns: part.count, reports: 0, first: rows.size });
+  for (const part of week.totals.unclear) rows.set(part.id, { id: part.id, label: part.label, checkIns: part.count, reports: 0, first: rows.size });
   for (const part of reports?.unclear ?? []) {
     const id = part.id === SOMETHING_ELSE ? UNCLEAR_ELSE : part.id;
     const row = rows.get(id);
     if (row) row.reports += part.count;
-    else rows.set(id, { label: part.title, checkIns: 0, reports: part.count, first: rows.size });
+    else rows.set(id, { id, label: part.title, checkIns: 0, reports: part.count, first: rows.size });
   }
   return [...rows.values()]
     .sort((a, b) => b.checkIns - a.checkIns || b.reports - a.reports || a.first - b.first)
-    .map(({ label, checkIns, reports: named }) => ({ label, checkIns, reports: named }));
+    .map(({ id, label, checkIns, reports: named }) => ({ id, label, checkIns, reports: named }));
 }
 
 export async function leadSurveysOverview(
