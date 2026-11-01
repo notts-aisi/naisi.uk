@@ -1452,9 +1452,12 @@ numbers' three: `tests/surveys-term-numbers.test.mjs` (the counting, and every
 number held to its own page's reader), `tests/surveys-term-numbers-page.test.mjs`
 and `tests/surveys-term-numbers-file.test.mjs` (the page and the file as every
 kind of caller, and nothing about a person in either), and
-`tests/surveys-lead-tab.test.mjs` (the lead's Surveys tab and each survey's
-results under it as every kind of caller, every number held to its own page's
-reader, and nothing about a person in either), and
+`tests/surveys-lead-tab.test.mjs` (the lead's Surveys tab, every view of it,
+and each survey's results under it as every kind of caller, over check-ins and
+session reports sent through their routes; every number held to its own
+page's reader; a week of check-ins only once whole, with its floors; nothing
+about a person, and no group for the lead; and a walk of every file that
+finds check-ins), and
 `tests/surveys-check-ins.test.mjs` (the check-in at the end of a session: its
 window, who it reaches, its questions and its floors, and every route, page
 and card as every kind of caller).
@@ -1472,7 +1475,9 @@ that the lead may still tell whose an answer is when few have left, and the
 page that says somebody left showing its card; and the lead's reading of the
 programme's surveys: totals and comments as answers come in, never a name, who
 answered or a download, that the lead may still tell whose an answer is when
-few answer, and the average rating of each source from three. A change that
+few answer, and the average rating of each source from three; and the lead's
+reading of the check-ins, a whole week at a time with its floors, and who may
+call it. A change that
 alters any of them changes the policy first: a template that asks a new kind
 of question fails until the policy names it.
 

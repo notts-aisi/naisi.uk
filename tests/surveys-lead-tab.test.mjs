@@ -792,7 +792,7 @@ describe("2. every number is the one its own page shows", () => {
       (await count("lead")).map((week) => lib.attendanceWords.cameWords(week.came, week.of, week.soFar)),
       ["11 of 12 came", "7 of 11 came", "4 of 6 came so far"],
     );
-    // Una, placed and not told, marked on Group C's week 2 register: an admin's tab counts her and the lead's does not, and so does each one's Overview.
+    // Una, placed and not told, marked on Group C's week 2 register: an admin's tab counts Una and the lead's does not, and so does each one's Overview.
     const path = registerPath(C, 2);
     const kept = world.db.read(path).records;
     world.db.poke(path, { records: { ...kept, una: "present" } });
