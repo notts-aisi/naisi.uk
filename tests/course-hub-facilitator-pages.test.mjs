@@ -463,17 +463,18 @@ describe("4. a facilitator's Home on session day, as wk-fac-home-phone draws it"
     assert.doesNotMatch(drawn.text, /Chloe|Farah|Kofi/);
   });
 
-  test("next week's email: nothing while the push still sends it", async () => {
+  test("the week's email: nothing while the push still sends it", async () => {
     week3EmailSent();
-    assert.doesNotMatch((await home("rahul")).text, /Next week’s email/);
+    assert.doesNotMatch((await home("rahul")).text, /Week \d+’s email|Next week’s email/);
   });
 
-  test("next week's email on its schedule: when the next one goes, at the session's own time two days before", async () => {
+  test("“Week N is open” on its schedule: when the next one goes, at 9am six days before the session", async () => {
     world.db.seed("config/scheduler", switches({ scheduled: true }));
     week3EmailSent();
     const drawn = await home("rahul");
-    assert.match(drawn.text, /3 exercises to review Review Next week’s email goes to Group B on Sun 22 Nov at 6pm\./);
-    assert.deepEqual(drawn.summary.nextEmail, { state: "goes", at: "Sun 22 Nov at 6pm" });
+    // Week 4 meets on Tue 24 Nov at 6pm: six days before is Wed 18 Nov, at 9am.
+    assert.match(drawn.text, /3 exercises to review Review Week 4’s email goes to Group B on Wed 18 Nov at 9am\./);
+    assert.deepEqual(drawn.summary.nextEmail, { state: "goes", at: "Wed 18 Nov at 9am", weekNumber: 4 });
   });
 
   test("somebody who left recently, by name and never a pronoun, until the session after they left is over", async () => {
@@ -575,7 +576,7 @@ describe("5. the words in week 1, before the first session and after the end", (
     assert.match(drawn.text, /Week 3 Tue 17 Nov Not pushed See it/);
     const onHome = await home("rahul");
     assert.match(onHome.text, /No more sessions are planned for your group\./);
-    assert.doesNotMatch(onHome.text, /Take the register|left the programme|Next week’s email/);
+    assert.doesNotMatch(onHome.text, /Take the register|left the programme|Week \d+’s email|Next week’s email/);
   });
 
   test("a session cancelled through Change a session is said as cancelled, and nothing is asked of its register", async () => {
@@ -623,7 +624,14 @@ describe("6. the words", () => {
     assert.equal(words.finishedWeeksWords([1]), "Week 1");
     assert.equal(words.programmeWords("fellowship", "AGI Strategy"), "Fellowship: AGI Strategy");
     assert.equal(words.programmeWords(null, "AGI Strategy Fellowship"), "AGI Strategy Fellowship");
-    assert.equal(words.homeNextEmailWords("Group B", { state: "goes", at: "Sun 22 Nov at 6pm" }), "Next week’s email goes to Group B on Sun 22 Nov at 6pm.");
+    assert.equal(
+      words.homeNextEmailWords("Group B", { state: "goes", at: "Wed 18 Nov at 9am", weekNumber: 4 }),
+      "Week 4’s email goes to Group B on Wed 18 Nov at 9am.",
+    );
+    assert.equal(
+      words.homeNextEmailWords("Group B", { state: "held", missing: ["the group’s room"], weekNumber: 4 }),
+      "Week 4’s email to Group B is held: it’s missing the group’s room.",
+    );
   });
 
   test("the words module carries no dash of either kind and no gendered pronoun", () => {

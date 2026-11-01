@@ -647,26 +647,8 @@ const PUBLIC_HANDLERS = new Map([
       gatedBy: "gateRunStaff(",
       refusedIn: "src/lib/email/courseFacilitatorEmails.ts",
       why:
-        "Only a run's staff may address it. The gate is shared with the nudge routes and " +
-        "returns the refusal rather than throwing, which is why the status codes live there.",
-    },
-  ],
-  [
-    "src/app/api/courses/runs/[runId]/nudge/route.ts#GET",
-    {
-      anonymous: false,
-      gatedBy: "gateRunStaff(",
-      refusedIn: "src/lib/email/courseFacilitatorEmails.ts",
-      why: "The same gate on the read that fills the weekly nudge composer with its recipients.",
-    },
-  ],
-  [
-    "src/app/api/courses/runs/[runId]/nudge/route.ts#POST",
-    {
-      anonymous: false,
-      gatedBy: "gateRunStaff(",
-      refusedIn: "src/lib/email/courseFacilitatorEmails.ts",
-      why: "The same gate on the send that puts the weekly nudge in front of a run's members.",
+        "Only a run's staff may address it. The gate lives in the shared course email module " +
+        "and returns the refusal rather than throwing, which is why the status codes live there.",
     },
   ],
   [

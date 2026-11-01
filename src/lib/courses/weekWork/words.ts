@@ -127,7 +127,7 @@ function quotedAnd(titles: readonly string[]): string {
   return namesAnd(titles.map((title) => `“${title}”`));
 }
 
-/** "your action plan" from "My action plan". */
+/** "your action plan", for a title of "My action plan". */
 export function yourWords(title: string): string {
   const plain = title.trim();
   if (!plain) return "your boxes";

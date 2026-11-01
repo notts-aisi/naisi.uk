@@ -9,6 +9,7 @@ import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { weekTaskNeeds } from "@/lib/courses/weekBlocks/progress";
 import { blockWeekAsks, legacyWeekAsks } from "@/lib/courses/weekEmails/model";
 import {
+  missingWeekOpenValues,
   weekOpenEmailWords,
   type WeekOpenFacts,
   type WeekOpenValue,
@@ -197,13 +198,7 @@ export async function readNextWeekEmail(
     feedbackUrl: args.feedbackUrl,
     locks: blocks !== null,
   };
-  const missing: WeekOpenValue[] = [];
-  if (week) {
-    if (!facts.cancelled && !facts.sessionAt) missing.push("sessionWhen");
-    if (!facts.cancelled && !facts.where) missing.push("sessionWhere");
-    if (!facts.weekTitle.trim()) missing.push("weekTitle");
-    if (facts.asks.length === 0) missing.push("weekAsks");
-  }
+  const missing = week ? missingWeekOpenValues(facts) : [];
   return { published: Boolean(week?.published), missing, facts, week };
 }
 

@@ -475,7 +475,7 @@ async function handler(ctx: JobContext): Promise<JobResult> {
 }
 
 export const weekRemindersJob: JobRegistration = {
-  id: JOB_ID,
+  id: "courses-week-reminders",
   label: "Reminders before a session",
   description:
     "3 days and 1 day before each session, at 9am, emails each person in the group whose week isn’t done, listing what’s left of it. Finishing the week stops them.",

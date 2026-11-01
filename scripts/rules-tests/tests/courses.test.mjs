@@ -1086,8 +1086,8 @@ describe("courseEmailTemplates", () => {
     await seedCast();
     const admin = await asUser("admin1");
     await assertFails(
-      admin.collection("courseEmailTemplates").doc("course-week-nudge").set({
-        templateId: "course-week-nudge",
+      admin.collection("courseEmailTemplates").doc("course-dropped-out").set({
+        templateId: "course-dropped-out",
         subject: "x".repeat(201),
         blocks: [],
       }),

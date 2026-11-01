@@ -405,7 +405,7 @@ export async function POST(
   // make that impossible would be theirs to overwrite.
   if (force && !isAdmin) {
     return NextResponse.json(
-      { error: "Only an admin can re-send a reminder that has already gone." },
+      { error: "Only an admin can re-send an email that has already gone." },
       { status: 403 },
     );
   }

@@ -19,17 +19,26 @@ import type { ReminderDays, WeekAsk, WeekLeft } from "./model";
 
 const capitalise = (words: string) => (words ? words[0].toUpperCase() + words.slice(1) : words);
 
+/**
+ * A value somebody typed (a week's title, a course's, a room), on one line:
+ * a line break in a week's title must never reach a Subject header, and a
+ * run of spaces never a sentence.
+ */
+function oneLine(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
 /** "Wed 18 Nov at 3pm in Portland A21", "Wed 18 Nov at 3pm, online", "Wed 18 Nov at 3pm". */
 export function sessionAtWords(at: Date, where: string): string {
   const when = `${londonDayLabel(at)} at ${londonClockLabel(at)}`;
-  const place = where.trim();
+  const place = oneLine(where);
   if (!place) return when;
   return place.toLowerCase() === "online" ? `${when}, online` : `${when} in ${place}`;
 }
 
 /** "Hi Priya,", or nothing when the account gives no name. */
 export function greetingWords(firstName: string): string {
-  const name = firstName.trim();
+  const name = oneLine(firstName);
   return name ? `Hi ${name},` : "";
 }
 
@@ -54,7 +63,7 @@ export function weekAskWords(ask: WeekAsk): string {
     case "reflections":
       return ask.count === 1 ? "A short reflection" : `${ask.count} short reflections`;
     case "boxes":
-      return capitalise(yourWords(ask.title));
+      return capitalise(yourWords(oneLine(ask.title)));
     case "answers":
       return ask.count === 1 ? "A written answer" : `${ask.count} written answers`;
     case "talks":
@@ -93,7 +102,7 @@ export type WeekOpenFacts = {
 
 /** "Week 3 is open: Power and incentives", or "Week 3 is open" for a week with no title. */
 export function weekOpenSubject(facts: Pick<WeekOpenFacts, "weekNumber" | "weekTitle">): string {
-  const title = facts.weekTitle.trim();
+  const title = oneLine(facts.weekTitle);
   return title ? `Week ${facts.weekNumber} is open: ${title}` : `Week ${facts.weekNumber} is open`;
 }
 
@@ -115,8 +124,8 @@ export type WeekEmailWords = {
 
 /** The paragraph that opens "Week N is open", with the session's day, time and room. */
 function weekOpenLead(facts: WeekOpenFacts): string {
-  const title = facts.weekTitle.trim();
-  const course = facts.courseTitle.trim();
+  const title = oneLine(facts.weekTitle);
+  const course = oneLine(facts.courseTitle);
   const open = course
     ? `Week ${facts.weekNumber} of ${course} is open${title ? `: ${title}` : ""}.`
     : `Week ${facts.weekNumber} is open${title ? `: ${title}` : ""}.`;
@@ -134,7 +143,7 @@ function weekOpenLead(facts: WeekOpenFacts): string {
 export function weekOpenEmailWords(facts: WeekOpenFacts, firstName: string): WeekEmailWords {
   const lead = weekOpenLead(facts);
   const paragraphs = [lead];
-  if (facts.change.trim()) paragraphs.push(facts.change.trim());
+  if (oneLine(facts.change)) paragraphs.push(oneLine(facts.change));
   const after: string[] = [];
   if (facts.locks) {
     after.push(
@@ -143,7 +152,7 @@ export function weekOpenEmailWords(facts: WeekOpenFacts, firstName: string): Wee
         : "Your work saves as you go and locks when your session starts.",
     );
   }
-  const feedbackUrl = facts.first ? "" : facts.feedbackUrl.trim();
+  const feedbackUrl = facts.first ? "" : oneLine(facts.feedbackUrl);
   return {
     subject: weekOpenSubject(facts),
     preheader: lead,
@@ -163,6 +172,20 @@ export function weekOpenEmailWords(facts: WeekOpenFacts, firstName: string): Wee
  * group needs, read from a record somebody can fill in.
  */
 export type WeekOpenValue = "sessionWhen" | "sessionWhere" | "weekTitle" | "weekAsks";
+
+/**
+ * The facts "Week N is open" carries that are empty, of the ones a whole
+ * email needs. A cancelled session's email says it is off instead of when and
+ * where the group meets, so it goes without those two.
+ */
+export function missingWeekOpenValues(facts: WeekOpenFacts): WeekOpenValue[] {
+  const missing: WeekOpenValue[] = [];
+  if (!facts.cancelled && !facts.sessionAt) missing.push("sessionWhen");
+  if (!facts.cancelled && !oneLine(facts.where)) missing.push("sessionWhere");
+  if (!oneLine(facts.weekTitle)) missing.push("weekTitle");
+  if (facts.asks.length === 0) missing.push("weekAsks");
+  return missing;
+}
 
 /** What an empty value means to the person who has to fill it in, finishing "missing: ...". */
 export function missingWeekOpenWords(keys: readonly WeekOpenValue[], weekNumber: number): string[] {
@@ -231,7 +254,7 @@ function reminderAfterWords(weeks: readonly ReminderWeek[]): string {
  * the reminders. Why it reached them is the notice line above the words.
  */
 export function weekReminderEmailWords(facts: WeekReminderFacts, firstName: string): WeekEmailWords {
-  const course = facts.courseTitle.trim();
+  const course = oneLine(facts.courseTitle);
   const session = course ? `Your ${course} session` : "Your session";
   const when = sessionAtWords(facts.sessionAt, facts.where);
   const lead =

@@ -57,6 +57,13 @@
  * The assertion then runs against that file, and the delegation is written
  * down rather than assumed.
  *
+ * A notice entry may name `via` for the same reason: the register's push and
+ * the `courses-next-week-email` job both send "Week N is open" through
+ * `sendNextWeekEmail`, and the notice lane's door is called inside it. The
+ * door is then looked for in that file, and that file must itself be
+ * registered as a notice, so a delegation cannot point at a module that sends
+ * some other class.
+ *
  * ## One entry, two rows
  *
  * A grid entry's `row` is normally one of the four. `sendPushToRowAudience` in
@@ -273,8 +280,8 @@ const G = (row, reason, via, calls = 1) => ({ class: "grid", row, reason, via, c
 /** Every row an entry serves, as a list. One row is the normal case. */
 const rowsOf = (entry) => (Array.isArray(entry.row) ? entry.row : [entry.row]);
 const T = (reason, calls = 1) => ({ class: "transactional", reason, calls });
-/** The notice lane. Takes no row: it consults none, which is the point. */
-const N = (reason, calls = 1) => ({ class: "notice", reason, calls });
+/** The notice lane. Takes no row: it consults none, which is the point. `via`: see the header. */
+const N = (reason, calls = 1, via) => ({ class: "notice", reason, calls, via });
 
 /**
  * Every send in the tree, with the class it belongs to and why.
@@ -400,16 +407,6 @@ const REGISTRY = {
     "The cohort announcement composer. `resolveCohortAudience` drops everybody whose courses cell is a stored false before a single message is rendered.",
     "src/lib/email/courseFacilitatorEmails.ts",
   ),
-  "src/app/api/courses/runs/[runId]/nudge/route.ts#sendCourseWeekNudgeEmail": G(
-    "courses",
-    "The run catch-up nudge, over the same audience resolver.",
-    "src/lib/email/courseFacilitatorEmails.ts",
-  ),
-  "src/lib/courses/nextWeekEmail.ts#sendCourseWeekNudgeEmail": G(
-    "courses",
-    "Next week's email to one group, the one send both of its lanes go through: the register's push while the email is not on its schedule (and an admin's resend), and the `courses-next-week-email` job while it is. `resolveCohortAudience` drops everybody whose courses cell is a stored false before a message is rendered.",
-    "src/lib/email/courseFacilitatorEmails.ts",
-  ),
   "src/lib/scheduler/jobs/registerReminders.ts#sendRegisterReminderEmail": G(
     "tasks",
     "The one reminder to a group's facilitators about an unfinished register: work they took on, like a worksheet's due-soon reminder, so their own tasks row is its off switch. `resolveFacilitator` reads it beside the address and the suppression check. Email only: this job has no push leg.",
@@ -423,11 +420,6 @@ const REGISTRY = {
     "tasks",
     "The register reminder's send door. Its two callers, the job and a lead's Remind, both consult the row through the job's own resolveFacilitator before they get here.",
     "src/lib/scheduler/jobs/registerReminders.ts",
-  ),
-  "src/lib/email/courseNudgeEmail.ts#sendEmail": G(
-    "courses",
-    "The nudge template's send door. Both of its callers resolve their audience through the cohort resolver first.",
-    "src/lib/email/courseFacilitatorEmails.ts",
   ),
   "src/lib/scheduler/jobs/admissionsReminders.ts#sendAdmissionEmail": G(
     "courses",
@@ -708,6 +700,22 @@ const REGISTRY = {
   "src/app/api/courses/runs/[runId]/email/route.ts#sendNoticePush": N(
     "The notification beside that notice. The ordinary announcement lane has no push leg at all, deliberately: a scheduled cohort mail that also buzzed every phone is how people turn notifications off for good.",
   ),
+  "src/lib/courses/nextWeekEmail.ts#sendNotice": N(
+    "\"Week N is open\" to one group, the one send both of its lanes go through: the register's push while it is not on its schedule (and an admin's resend), and the `courses-next-week-email` job 6 days before each session while it is. It was next week's email, a grid send that honoured the courses row and the cohort list's unsubscribe; it is now the people running the programme telling everybody holding a place in the group (`resolveNoticeAudience`) what this week is, whatever they unsubscribed from, with the marker (surface course-week). Once per group per session, by the group's claim. Email only: no push leg.",
+  ),
+  "src/app/api/courses/groups/[groupId]/attendance/push/route.ts#sendNextWeekEmail": N(
+    "Pushing a register while \"Week N is open\" is not on its schedule, and an admin's resend on a finished register: the group's email about its next session, sent as the notice it is.",
+    1,
+    "src/lib/courses/nextWeekEmail.ts",
+  ),
+  "src/lib/scheduler/jobs/nextWeekEmail.ts#sendNextWeekEmail": N(
+    "The `courses-next-week-email` job: \"Week N is open\" to each group 6 days before each session at 9am, sent as the notice it is.",
+    1,
+    "src/lib/courses/nextWeekEmail.ts",
+  ),
+  "src/lib/scheduler/jobs/weekReminders.ts#sendNotice": N(
+    "The reminders 3 days and 1 day before a session (`courses-week-reminders`): one email to each person holding a place in the group whose week is not done, listing what is left of it, whatever their courses row says or which list they left (privacy v15, \"Reminders\": part of running the programme, and they stop once the week is done), with the marker (surface course-week-reminder). One per person per reminder, by a scheduler marker; nobody whose week is done is sent one. Email only: no push leg.",
+  ),
   "src/lib/surveys/sending.ts#sendNotice": N(
     "A programme survey and its reminder (docs/surveys.md): an admin writing to everybody holding a place on the programme the survey is about, each with their own link, whatever their courses row says, with the marker and the lane's caps. Email only: no push leg.",
   ),
@@ -812,7 +820,10 @@ describe("every send in the tree declares its class", () => {
         assert.equal(entry.row, undefined, `${key} is ${entry.class} and must take no row`);
       }
       if (entry.via !== undefined) {
-        assert.equal(entry.class, "grid", `${key} is not grid and cannot delegate a row check`);
+        assert.ok(
+          entry.class === "grid" || entry.class === "notice",
+          `${key} is ${entry.class} and cannot delegate: only a row check or the notice door can be made elsewhere`,
+        );
         assert.ok(
           SOURCE_BY_FILE.has(entry.via),
           `${key} delegates to ${entry.via}, which is not a source file`,
@@ -864,11 +875,20 @@ describe("a class is a claim about the code, and the code is read", () => {
   for (const [key, entry] of Object.entries(REGISTRY)) {
     if (entry.class !== "notice") continue;
     const file = key.slice(0, key.lastIndexOf("#"));
-    test(`${key} goes through the notice lane`, () => {
+    const where = entry.via ?? file;
+    test(`${key} goes through the notice lane${entry.via ? ` in ${where}` : ""}`, () => {
       assert.ok(
-        referencesAny(file, NOTICE_MARKERS),
-        `${file} is registered notice but calls neither ${NOTICE_MARKERS.join(" nor ")}`,
+        referencesAny(where, NOTICE_MARKERS),
+        `${where} is registered notice but calls neither ${NOTICE_MARKERS.join(" nor ")}`,
       );
+      if (entry.via !== undefined) {
+        assert.ok(
+          Object.entries(REGISTRY).some(
+            ([other, its]) => other.startsWith(`${entry.via}#`) && its.class === "notice",
+          ),
+          `${key} delegates to ${entry.via}, which has no notice entry of its own`,
+        );
+      }
     });
   }
 
