@@ -10,8 +10,10 @@ import {
   FEEDBACK_ON,
   FEEDBACK_TO_SEND,
   GROUP,
+  NO_CONNECTION,
   ONE_EMAIL_PER_PERSON,
   PERSON,
+  PRESS_DIDNT_GO,
   SAVED,
   SEND_TEST,
   THE_EMAIL_EACH_PERSON_GETS,
@@ -77,13 +79,13 @@ export default function FeedbackToSend({ model: initial, runId }: { model: Feedb
         setUnticked(new Set());
       }
       if (!response.ok) {
-        setProblem(typeof answer.error === "string" ? answer.error : "That didn’t go. Try again in a minute.");
+        setProblem(typeof answer.error === "string" ? answer.error : PRESS_DIDNT_GO);
         if (!answer.model) router.refresh();
         return;
       }
       setSaid(words(answer));
     } catch {
-      setProblem("Couldn’t reach the site. Check your connection and try again.");
+      setProblem(NO_CONNECTION);
     } finally {
       setBusy(false);
     }

@@ -235,6 +235,8 @@ export const NO_ADDRESS_FOR_TEST = "Your account has no email address on file, s
 export const PRESS_IN_PROGRESS = "Somebody is sending this programme’s feedback emails right now. Wait a minute, then press again.";
 export const ADMINS_ONLY = "Only an admin can send the feedback emails.";
 export const NO_RUN_HERE = "There’s no programme run here.";
+export const PRESS_DIDNT_GO = "That didn’t go. Try again in a minute.";
+export const NO_CONNECTION = "Couldn’t reach the site. Check your connection and try again.";
 
 /** The numbers on the button are no longer what a press would send. */
 export function countMovedWords(pieces: number, people: number): string {
