@@ -101,7 +101,7 @@ export type EmailSendKind =
   // An event for chosen people's invitation, to somebody reached by their
   // events row (src/lib/events/invitations.ts). Its own kind rather than
   // `event-announcement`, because one goes to the people the organiser chose
-  // and the other to the whole list, and "did Lloyd get his invitation" has
+  // and the other to the whole list, and "did Lloyd get the invitation" has
   // to be answerable without reading subject lines. The same message to the
   // people holding a place on the event's programme goes as a `notice` with
   // the `event-invitation` surface. Its `referenceId` is the EVENT id.

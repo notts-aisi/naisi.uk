@@ -206,14 +206,14 @@ describe("choosing who it is for", () => {
     assert.equal((await put(as("sue"))).status, 403);
     // The author, who holds no permission to draft: refused, as the rules refuse.
     assert.equal((await put(as("iris"))).status, 403);
-    // The author holding draftEvent may choose, but not a programme she does not lead.
+    // The author holding draftEvent may choose, but not a programme Iris does not lead.
     const notHers = await put(as("iris", { draftEvent: true }));
     assert.equal(notHers.status, 403);
     assert.match(notHers.body.error, /lead or an admin/);
-    // Nor tags she may not use: a programme's people are its lead's.
+    // Nor tags Iris may not use: a programme's people are its lead's.
     const tagsNotHers = await put(as("iris", { draftEvent: true }), { include: [T.agiHolding], exclude: [], programme: null });
     assert.equal(tagsNotHers.status, 403);
-    // Her own: names, as committee who is not SU-recognised, she may not use either.
+    // Names, as committee who is not SU-recognised, Iris may not use either.
     assert.equal((await put(as("iris", { draftEvent: true }), { include: [T.person("gwen")], exclude: [], programme: null })).status, 403);
     // An admin may choose anybody, and make it part of any of the term's programmes.
     assert.equal((await put(as("zach"))).status, 200);
@@ -346,7 +346,7 @@ describe("publishing an event for chosen people", () => {
     today(t);
     w.reset(seed());
     await chosenAndApproved();
-    // Claudia steps down from the committee: she leads nothing and may name nobody.
+    // Claudia steps down from the committee: Claudia leads nothing now and may name nobody.
     await w.world.db.collection("users").doc("claudia").update({ role: "member", suRecognised: false });
     const refused = await call(as("zach"), publishRoute.POST, DINNER);
     assert.equal(refused.status, 409);
