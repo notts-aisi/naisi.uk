@@ -6214,8 +6214,38 @@ export const REAL_ROUTES = {
     ),
   },
   "/api/courses/runs/[runId]/work-ratings": {
-    PUT: bodyFirst("Then the gate: an admin or the programme's lead, on work the one gate lets them read, asked before anything of the person's is read."),
-    DELETE: bodyFirst("Then the gate, asked before anything of the person's is read; only the caller's own rating is ever cleared."),
+    PUT: {
+      realDrive: {
+        body: { uid: "e2e-battery-person", weekId: "w01", itemId: "e2e-battery-answer", rating: 8, comment: "Written by the persona battery." },
+        why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither an admin nor the lead of the programme naming the run: refused before the person's place, or anything of theirs, is read."),
+        admin: c(ACTS, "An admin rates on any run, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "Leads the programme naming the run, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(403, "Facilitating one of the run's groups gives no say in ratings for the team: refused before anything of the person's is read."),
+        participant: c(403, "Holding a place gives no say in ratings for the team: refused before anything of the person's is read."),
+      },
+    },
+    DELETE: {
+      realDrive: {
+        body: { uid: "e2e-battery-person", weekId: "w01" },
+        why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Neither an admin nor the lead of the programme naming the run: refused before the person's place, or anything of theirs, is read."),
+        admin: c(ACTS, "An admin clears their own rating on any run, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+      },
+      theirs: {
+        lead: c(ACTS, "Leads the programme naming the run, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        facilitator: c(403, "Facilitating one of the run's groups gives no say in ratings for the team: refused before anything of the person's is read."),
+        participant: c(403, "Holding a place gives no say in ratings for the team: refused before anything of the person's is read."),
+      },
+    },
   },
 
   // ---- A programme's survey ---------------------------------------------------
