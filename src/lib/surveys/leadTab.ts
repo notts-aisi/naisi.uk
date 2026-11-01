@@ -1,7 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import { readSourceRatings, type RatedSource } from "@/lib/courses/sourceRatings";
-import { isProgrammeAudience, type SurveyAnswerDoc, type SurveyDoc, type SurveyProgrammeKind } from "@/lib/firestore/surveys";
+import { isProgrammeAudience, type SurveyAnswerDoc, type SurveyDoc, type SurveyKind, type SurveyProgrammeKind } from "@/lib/firestore/surveys";
 import { resultsView, type ResultsView } from "./adminView";
 import { bothOf, type PairedAnswers } from "./change";
 import { isLinesQuestion, surveyQuestionsOf } from "./items";
@@ -10,7 +10,7 @@ import { consideringOf, type OfferSurvey } from "./publicNumbers";
 import { answersOf, closedOn, listSurveys, sentCountOf, surveyState } from "./repo";
 import type { QuestionResult, ScaleRow } from "./results";
 import { FACILITATOR_LINE_ID, SURVEY_TEMPLATES, type SurveyStage } from "./templates";
-import { AFTER_SURVEY_CARD_WORDS, haveAnsweredParts, leadSurveyLineWords } from "./words";
+import { AFTER_SURVEY_CARD_WORDS, haveAnsweredParts, leadSurveyLineWords, leadSurveyWhenWords } from "./words";
 
 /**
  * A PROGRAMME LEAD'S SURVEYS TAB (board sv-programme; Q41, Q49 A): the
@@ -52,12 +52,16 @@ export type CommentsResult = Extract<QuestionResult, { kind: "comments" }>;
 
 export type LeadSurveyRow = {
   id: string;
+  /** Its stage, which says which view of the tab it is on: Before, End (with the survey about leaving) or Follow-ups. */
+  kind: SurveyKind;
   name: string;
   /** Its answers and the people its rate is of, as its results page counts them. */
   answers: number;
   of: number;
   /** "29 of 32 answered · closed Wed 4 Nov". */
   line: string;
+  /** The line's second part, "closed Wed 4 Nov", for the Overview's card. */
+  when: string;
 };
 
 export type LeadChange = {
@@ -203,13 +207,39 @@ function endOf(after: SurveyDoc, view: ResultsView): LeadEnd {
 
 /** One survey's row on the tab: its answers and the people its rate is of, as its Results count them, and its line. */
 function rowOf(survey: SurveyDoc, view: ResultsView, now: Date): LeadSurveyRow {
+  const closed = surveyState(survey, now) === "closed";
   return {
     id: survey.id,
+    kind: survey.kind,
     name: survey.name,
     answers: view.answers,
     of: view.sent,
-    line: leadSurveyLineWords(view.answers, view.sent, closedOn(survey), surveyState(survey, now) === "closed"),
+    line: leadSurveyLineWords(view.answers, view.sent, closedOn(survey), closed),
+    when: leadSurveyWhenWords(closedOn(survey), closed),
   };
+}
+
+/** The programme's own surveys a lead reads, once each has gone out, each with its Results as its own page counts them. */
+async function leadSurveysRead(
+  db: Firestore,
+  programme: { roundId: string; programmeId: string },
+): Promise<{ surveys: SurveyDoc[]; views: Map<string, ResultsView> }> {
+  const surveys = leadSurveysOf(await listSurveys(db), programme.roundId, programme.programmeId);
+  // Each survey's Results, as its own page counts them, with the lead's order of comments.
+  const views = new Map(
+    await Promise.all(surveys.map(async (survey) => [survey.id, await resultsView(db, survey, false, { commentsInOrder: "words" })] as const)),
+  );
+  return { surveys, views };
+}
+
+/**
+ * THE PROGRAMME'S SURVEYS AS ROWS, for the Overview's cards: the same rows,
+ * counted by the same reader, as the views that list them, so a card and its
+ * view never show two counts.
+ */
+export async function leadSurveyRows(db: Firestore, programme: { roundId: string; programmeId: string }, now: Date): Promise<LeadSurveyRow[]> {
+  const { surveys, views } = await leadSurveysRead(db, programme);
+  return surveys.map((survey) => rowOf(survey, views.get(survey.id)!, now));
 }
 
 /** "The after survey" on the lead's Overview, worded: its heading, how many have answered, and the line that leads to the tab. */
@@ -249,11 +279,7 @@ export async function leadSurveysTab(
   programme: { roundId: string; programmeId: string; runId: string | null },
   now: Date,
 ): Promise<LeadTabView> {
-  const surveys = leadSurveysOf(await listSurveys(db), programme.roundId, programme.programmeId);
-  // Each survey's Results, as its own page counts them, with the lead's order of comments.
-  const views = new Map(
-    await Promise.all(surveys.map(async (survey) => [survey.id, await resultsView(db, survey, false, { commentsInOrder: "words" })] as const)),
-  );
+  const { surveys, views } = await leadSurveysRead(db, programme);
   const rows = surveys.map((survey): LeadSurveyRow => rowOf(survey, views.get(survey.id)!, now));
 
   const after = surveys.find((survey) => survey.kind === "after") ?? null;

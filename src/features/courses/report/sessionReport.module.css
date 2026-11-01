@@ -433,27 +433,6 @@
   color: var(--color-text);
 }
 
-/* The way back to the Surveys tab, on the lead's page. */
-.back {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.75rem;
-  align-self: flex-start;
-  font-size: var(--text-sm);
-  color: var(--color-accent-text);
-  text-decoration: none;
-}
-
-.back:hover {
-  color: var(--color-accent-text-hover);
-}
-
-.back:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-  border-radius: var(--radius-sm);
-}
-
 /* The register's way on to the report, under its foot. */
 .next {
   display: inline-flex;

@@ -3,7 +3,8 @@ import { clockWords, dateKeyWords, dayWords, minutesWords, questionsWords } from
 
 /**
  * EVERY SENTENCE A CHECK-IN SAYS: the register's card, the member's page, its
- * box, its email, its card on Home and the admins' pages, in one place. Every
+ * box, its email, its card on Home, the admins' pages and the Check-ins view of
+ * a programme's Surveys tab, in one place. Every
  * value comes from a record and arrives here as an argument; times print in
  * the house's clock ("3pm", "11pm", "12:30am"), read in London.
  *
@@ -209,7 +210,7 @@ export function totalsHeadingWords(weekNumber: number, groupName: string): strin
 }
 
 /** "4.2 of 5". */
-function outOfFive(mean: number): string {
+export function outOfFive(mean: number): string {
   return `${(Math.round(mean * 10) / 10).toFixed(1)} of 5`;
 }
 
@@ -253,6 +254,66 @@ export function totalsLineParts(totals: TotalsFacts): string[] {
 /** Below the floor: "2 of 6 answered. Too few answers to show." */
 export function tooFewWords(answered: number, of: number): string {
   return `${answered} of ${of} answered. ${CHECK_IN_CARD.tooFew}`;
+}
+
+// ---------------------------------------------------------------------------
+// The programme's Surveys tab: each week's check-ins, for its lead and admins
+// ---------------------------------------------------------------------------
+
+/**
+ * The Check-ins view of a programme's Surveys tab. The lead and admins read
+ * each week with every group's answers together, never a group's alone, and
+ * only once every group's check-in that week has closed; an admin also has a
+ * row for each group's check-in, leading to its own pages.
+ */
+export const CHECK_INS_TAB_WORDS = {
+  nothingYet: "No week has begun yet.",
+  waiting: "Shows once every group’s check-in this week has closed.",
+  none: "No group opened a check-in this week.",
+  useful: "Useful",
+  confident: "Confident",
+  reading: "Did most or all of the reading",
+  unclear: "What was unclear",
+  nothingUnclear: "Nobody named anything unclear.",
+  inTheirWords: "In their words",
+  noComments: "Nobody wrote anything here.",
+  groups: "Each group’s check-in",
+  groupsLine:
+    "Only admins see these. Each check-in’s own pages open who said what, one person at a time, and every opening is recorded.",
+  results: "Results",
+  whoAnswered: "Who answered",
+  open: "Open",
+  closed: "Closed",
+} as const;
+
+/** The line under the view's row: what a week shows and from how many answers. */
+export function checkInsTabLine(totalsFrom: number, commentsFrom: number): string {
+  return `Every group’s check-ins together, week by week, without names. A week shows once every group’s check-in that week has closed: totals from ${totalsFrom} answers, comments from ${commentsFrom}.`;
+}
+
+/** Below the floor for totals: "2 of 6 answered. Totals show from 3, so nobody can be worked out." */
+export function weekTooFewWords(answered: number, of: number, totalsFrom: number): string {
+  return `${answered} of ${of} answered. Totals show from ${totalsFrom}, so nobody can be worked out.`;
+}
+
+/** Below the floor for comments: "Comments show from 5 answers, so nobody can be worked out." */
+export function commentsFromWords(commentsFrom: number): string {
+  return `Comments show from ${commentsFrom} answers, so nobody can be worked out.`;
+}
+
+/** "33 of 46 · 72%": how many said most or all of the reading, of everybody who answered it. */
+export function readingShareWords(most: number, of: number): string {
+  return `${most} of ${of} · ${of > 0 ? Math.round((most * 100) / of) : 0}%`;
+}
+
+/** An admin's row for one group's check-in: "Group C · Wed 18 Nov, 3pm". */
+export function groupCheckInWords(groupName: string, startsAt: Date | null): string {
+  return startsAt ? `${groupName} · ${sessionWhenWords(startsAt)}` : groupName;
+}
+
+/** What a link on an admin's row says to assistive technology: "Who answered: Group C, week 3". */
+export function checkInLinkLabel(action: string, groupName: string, weekNumber: number): string {
+  return `${action}: ${groupName}, week ${weekNumber}`;
 }
 
 // ---------------------------------------------------------------------------

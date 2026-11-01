@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import InitialsChip from "@/components/ui/InitialsChip";
+import { cameWords } from "@/lib/courses/attendanceWords";
 import type {
   GridCell,
   GridGroup,
@@ -279,7 +280,7 @@ function weekWords(group: GridGroup, weekNumber: number, ending: RunAttendance["
   const date = week?.dateLabel ?? "";
   if (!week || !date) return { date: "", said: NOT_YET };
   if (total && total.percent !== null) {
-    return { date, said: `${total.came} of ${total.of} came${total.soFar ? " so far" : ""}` };
+    return { date, said: cameWords(total.came, total.of, total.soFar) };
   }
   return { date, said: tagWord(week.tag, ending) ?? NOT_YET };
 }
