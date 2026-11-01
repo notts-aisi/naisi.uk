@@ -8,6 +8,7 @@ import { isGridRow, type GridRow } from "@/lib/audience/kind";
 import type { Catalogue, CountView, WhoLine } from "@/lib/audience/resolve";
 import type { Selection } from "@/lib/audience/tags";
 import {
+  AUDIENCE_REFUSAL,
   INCLUDE_SIGN,
   LEAVE_OUT_SIGN,
   MODE_LABELS,
@@ -16,6 +17,7 @@ import {
   headlineWords,
   leftOutWords,
   modeWords,
+  signLabel,
 } from "@/lib/audience/words";
 import styles from "./WhoIsThisFor.module.css";
 
@@ -49,12 +51,19 @@ const SETTLE_MS = 250;
 /** How many matches the box offers for what is typed. */
 const MATCHES_SHOWN = 8;
 
+/** A refusal the person can act on: a tag they may not use, or one that has gone. */
+class Refused extends Error {}
+
 const post = (url: string, body: string, signal: AbortSignal) =>
   fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body, signal }).then(async (res) => {
     const json = (await res.json().catch(() => null)) as unknown;
+    if (res.status === 403) throw new Refused();
     if (!res.ok || !json || typeof json !== "object") throw new Error(`status ${res.status}`);
     return json as Record<string, unknown>;
   });
+
+/** What to say when a count or a list could not be had. */
+const problemWords = (err: unknown, otherwise: string) => (err instanceof Refused ? AUDIENCE_REFUSAL.notYours : otherwise);
 
 export default function WhoIsThisFor({ initial, onChange }: Props) {
   const id = useId();
@@ -73,12 +82,12 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
   const [browsing, setBrowsing] = useState(false);
 
   const [count, setCount] = useState<{ key: string; view: CountView } | null>(null);
-  const [countFailedFor, setCountFailedFor] = useState<string | null>(null);
+  const [countProblem, setCountProblem] = useState<{ key: string; words: string } | null>(null);
   const [countAttempt, setCountAttempt] = useState(0);
 
   const [whoOpen, setWhoOpen] = useState(false);
   const [who, setWho] = useState<{ key: string; lines: WhoLine[] } | null>(null);
-  const [whoFailedFor, setWhoFailedFor] = useState<string | null>(null);
+  const [whoProblem, setWhoProblem] = useState<{ key: string; words: string } | null>(null);
   const [whoAttempt, setWhoAttempt] = useState(0);
 
   // The tags this person may use, once.
@@ -118,17 +127,16 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
   useEffect(() => {
     if (!anything) return;
     const controller = new AbortController();
-    const timer = setTimeout(() => {
-      post("/api/audience", key, controller.signal)
-        .then((json) => {
-          const view = json.count as CountView | undefined;
-          if (!view || typeof view.people !== "number") throw new Error("no count");
-          setCount({ key, view });
-          setCountFailedFor(null);
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) setCountFailedFor(key);
-        });
+    const timer = setTimeout(async () => {
+      try {
+        const json = await post("/api/audience", key, controller.signal);
+        const view = json.count as CountView | undefined;
+        if (!view || typeof view.people !== "number") throw new Error("no count");
+        setCount({ key, view });
+        setCountProblem(null);
+      } catch (err: unknown) {
+        if (!controller.signal.aborted) setCountProblem({ key, words: problemWords(err, PICKER_WORDS.countFailed) });
+      }
     }, SETTLE_MS);
     return () => {
       clearTimeout(timer);
@@ -140,16 +148,15 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
   useEffect(() => {
     if (!whoOpen || !anything) return;
     const controller = new AbortController();
-    const timer = setTimeout(() => {
-      post("/api/audience/who", key, controller.signal)
-        .then((json) => {
-          if (!Array.isArray(json.people)) throw new Error("no names");
-          setWho({ key, lines: json.people as WhoLine[] });
-          setWhoFailedFor(null);
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) setWhoFailedFor(key);
-        });
+    const timer = setTimeout(async () => {
+      try {
+        const json = await post("/api/audience/who", key, controller.signal);
+        if (!Array.isArray(json.people)) throw new Error("no names");
+        setWho({ key, lines: json.people as WhoLine[] });
+        setWhoProblem(null);
+      } catch (err: unknown) {
+        if (!controller.signal.aborted) setWhoProblem({ key, words: problemWords(err, PICKER_WORDS.whoFailed) });
+      }
     }, SETTLE_MS);
     return () => {
       clearTimeout(timer);
@@ -240,7 +247,9 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
   }
 
   const shown = current ?? (anything ? count?.view ?? null : null);
-  const counting = anything && !current && countFailedFor !== key;
+  const countFailed = countProblem?.key === key ? countProblem.words : null;
+  const whoFailed = whoProblem?.key === key ? whoProblem.words : null;
+  const counting = anything && !current && !countFailed;
   const rowShown: GridRow = row ?? shown?.suggestedRow ?? "courses";
   const whoLines = who?.key === key ? who.lines : null;
 
@@ -265,7 +274,7 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
                 type="button"
                 className={styles.sign}
                 onClick={() => flip(each.id)}
-                aria-label={leaving ? `${label}: left out. Include them instead` : `${label}: included. Leave them out instead`}
+                aria-label={signLabel(label, leaving)}
               >
                 <span aria-hidden="true">{leaving ? LEAVE_OUT_SIGN : INCLUDE_SIGN}</span>
               </button>
@@ -296,7 +305,7 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
       </div>
 
       {query.trim() !== "" && (
-        <div className={styles.matches} role="region" aria-label={PICKER_WORDS.inputLabel}>
+        <div className={styles.matches} role="region" aria-label={PICKER_WORDS.matches}>
           {matches.length === 0 ? (
             <p className={styles.quiet}>{PICKER_WORDS.noMatch}</p>
           ) : (
@@ -312,9 +321,9 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
       <div className={styles.count} aria-live="polite">
         {!anything ? (
           <p className={styles.quiet}>{PICKER_WORDS.nothingChosen}</p>
-        ) : countFailedFor === key ? (
+        ) : countFailed ? (
           <div className={styles.countLine}>
-            <p className={styles.problem}>{PICKER_WORDS.countFailed}</p>
+            <p className={styles.problem}>{countFailed}</p>
             <Button variant="secondary" onClick={() => setCountAttempt((n) => n + 1)}>
               {PICKER_WORDS.retry}
             </Button>
@@ -336,6 +345,23 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
       </div>
 
       {anything && shown && shown.people === 0 && !counting && <p className={styles.quiet}>{PICKER_WORDS.nobody}</p>}
+
+      {whoOpen && anything && shown && shown.people > 0 && (
+        <div className={styles.panel}>
+          {whoFailed ? (
+            <div className={styles.countLine}>
+              <p className={styles.problem}>{whoFailed}</p>
+              <Button variant="secondary" onClick={() => setWhoAttempt((n) => n + 1)}>
+                {PICKER_WORDS.retry}
+              </Button>
+            </div>
+          ) : !whoLines ? (
+            <p className={styles.quiet}>{PICKER_WORDS.counting}</p>
+          ) : (
+            <WhoList lines={whoLines} row={shown?.row ?? rowShown} />
+          )}
+        </div>
+      )}
 
       {anything && shown && shown.people > 0 && (
         <div className={styles.panel}>
@@ -388,23 +414,6 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
               ))}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {whoOpen && anything && (
-        <div className={styles.panel}>
-          {whoFailedFor === key ? (
-            <div className={styles.countLine}>
-              <p className={styles.problem}>{PICKER_WORDS.whoFailed}</p>
-              <Button variant="secondary" onClick={() => setWhoAttempt((n) => n + 1)}>
-                {PICKER_WORDS.retry}
-              </Button>
-            </div>
-          ) : !whoLines ? (
-            <p className={styles.quiet}>{PICKER_WORDS.counting}</p>
-          ) : (
-            <WhoList lines={whoLines} row={shown?.row ?? rowShown} />
-          )}
         </div>
       )}
 

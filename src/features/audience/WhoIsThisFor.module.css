@@ -351,7 +351,7 @@
 
 .names {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(14rem, 100%), 1fr));
   gap: var(--space-1) var(--space-4);
   margin: var(--space-2) 0 0;
   padding: 0;
@@ -384,7 +384,7 @@
 
 .groups {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(18rem, 100%), 1fr));
   gap: var(--space-4);
   width: 100%;
   min-width: 0;

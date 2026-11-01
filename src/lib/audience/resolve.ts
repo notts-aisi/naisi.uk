@@ -222,6 +222,14 @@ export type ResolveOptions = {
   row?: GridRow | null;
   /** "grid" when the writer says it is not about running a programme. Defaults to the rule. */
   mode?: "auto" | "grid";
+  /**
+   * Per person only: the one programme (`<roundId>:<programmeId>`) whose
+   * people a notice may reach. An event that is part of a programme is a
+   * notice to the people the writer runs under that programme and by their
+   * settings to everybody else, whoever else the writer runs. Absent, a
+   * notice reaches everybody the writer runs.
+   */
+  noticeUnder?: string | null;
 };
 
 export type Plan = {
@@ -235,6 +243,8 @@ export type Plan = {
   tagsAllow: boolean;
   /** The row whose guests' own subscriptions have to be read, or null when no guest is asked. */
   guestRow: "newsletter" | "events" | null;
+  /** Per person: the one programme whose people a notice may reach, or null for any the writer runs. */
+  noticeUnder: string | null;
 };
 
 const isRunBy = (world: AudienceWorld, key: PersonKey) =>
@@ -262,7 +272,14 @@ export function planFor(
     suggestedRow: suggested,
     tagsAllow,
     guestRow: guestsAsked && (row === "newsletter" || row === "events") ? row : null,
+    noticeUnder: options.noticeUnder ?? null,
   };
+}
+
+/** Whether a send person by person reaches this person with a notice. */
+function noticePerPerson(world: AudienceWorld, plan: Plan, key: PersonKey): boolean {
+  if (plan.noticeUnder === null) return isRunBy(world, key);
+  return world.runs.get(key)?.has(plan.noticeUnder) ?? false;
 }
 
 /** One person a selection reaches. `addresses` and `uid` are for a send, never for a page. */
@@ -302,7 +319,7 @@ export function reachedBy(world: AudienceWorld, plan: Plan, guestSaidYes: (addre
   const you = accountKey(world.viewerUid);
   for (const [key, membership] of plan.picked.people) {
     const under = [...(world.runs.get(key) ?? [])];
-    const kind: SendMode = plan.policy === "per-person" ? (isRunBy(world, key) ? "notice" : "grid") : plan.mode;
+    const kind: SendMode = plan.policy === "per-person" ? (noticePerPerson(world, plan, key) ? "notice" : "grid") : plan.mode;
     const base = { key, you: key === you, kind, under, addresses: [] as string[] };
     if (key.startsWith("a:")) {
       const uid = key.slice(2);

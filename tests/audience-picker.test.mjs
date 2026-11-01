@@ -28,7 +28,7 @@ import { join } from "node:path";
 import { makeWorld } from "./lib/handoverWorld.mjs";
 import { userDoc, session } from "./lib/applicationsSmallTerm.mjs";
 import { A, B, C, TOLD } from "./lib/surveyWorld.mjs";
-import { AFTER, AGI, EV, ROUND, RUN, TAIS, TAIS_GROUP, rsvpDoc, termSeed } from "./lib/termWorld.mjs";
+import { AFTER, AGI, EV, ROUND, RUN, TAIS, TAIS_GROUP, termSeed } from "./lib/termWorld.mjs";
 import { PERSONA_NAMES, ROLE_PERSONAS } from "./persona-route-gates.registry.mjs";
 
 const INCUBATOR = "research-incubator";
@@ -474,6 +474,16 @@ describe("who a selection reaches, how, and who is left out and why", () => {
     assert.deepEqual(resolution.people.find((person) => person.key === "a:dev").under, [scopeTable.programmeKey(ROUND, AGI)]);
     // Gwen said yes to event announcements, and her address bounced.
     assert.equal(line(resolution)["a:gwen"], "suppressed");
+  });
+
+  test("per person under one programme: a notice for that programme's people only", async () => {
+    w.reset(seed());
+    const agi = scopeTable.programmeKey(ROUND, AGI);
+    const { resolution } = await reach("zach", [T.holding], [], { policy: "per-person", row: "events", noticeUnder: agi });
+    const kinds = Object.fromEntries(resolution.people.map((person) => [person.key, person.kind]));
+    // Wen holds a place on Technical AI Safety, which this send is not part of.
+    assert.deepEqual(kinds, { "a:amara": "notice", "a:bea": "notice", "a:dev": "notice", "a:tariq": "notice", "a:wen": "grid" });
+    assert.equal(line(resolution)["a:wen"], "settings");
   });
 
   test("a tag the person may not use, or one that has gone, resolves nobody", async () => {

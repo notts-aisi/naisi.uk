@@ -104,7 +104,9 @@ somebody writes to a list.
 A send that decides person by person (an event's invitation, a notice to the
 programme's people and everybody else by their events row) asks the same
 resolver with `policy: "per-person"`; each person it reaches carries the
-programmes the writer runs them under, so such a send can ask which.
+programmes the writer runs them under, and `noticeUnder` names the one
+programme whose people get the notice when the send is part of a programme,
+so everybody else the writer runs goes by their settings.
 
 **The writer is included when they match**, and the count says "including
 you".

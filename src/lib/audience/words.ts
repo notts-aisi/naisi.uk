@@ -23,6 +23,7 @@ export const PICKER_WORDS = {
   inputLabel: "Add a tag or a name",
   inputPlaceholder: "Add a tag or a name",
   noMatch: "No tag or name matches that.",
+  matches: "Tags and names that match",
   browse: "All tags",
   browseHide: "Hide the tags",
   add: "Add",
@@ -40,8 +41,7 @@ export const PICKER_WORDS = {
   rowLabel: "Which of their settings it reads",
   nothingChosen: "Add a tag to see who it reaches.",
   nobody: "Nobody is in these tags.",
-  noTags:
-    "There are no tags you can use yet. They come from the programmes you lead, the groups you facilitate, and, for the committee, the term's events.",
+  noTags: "There are no tags you can use yet. They come from the programmes you lead and the groups you facilitate.",
   loading: "Loading the tags…",
   counting: "Counting…",
   loadFailed: "We couldn’t load the tags. Try again in a moment.",
@@ -49,6 +49,11 @@ export const PICKER_WORDS = {
   whoFailed: "We couldn’t list who this reaches. Try again in a moment.",
   retry: "Try again",
 } as const;
+
+/** What a tag's sign says to a screen reader: what it does now, and what pressing it does. */
+export function signLabel(label: string, leftOut: boolean): string {
+  return leftOut ? `${label}: left out. Include them instead` : `${label}: included. Leave them out instead`;
+}
 
 /** What the routes answer when they refuse, by the refusal. */
 export const AUDIENCE_REFUSAL = {
