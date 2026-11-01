@@ -1041,6 +1041,14 @@ describe("4b. the Overview: cards, the weeks of check-ins, what was unclear with
     assert.ok((await reportsAs("claudia")).html.includes('id="reports-week-3"'));
     // No group, by its name or its id: a week is every group's together.
     for (const group of ["Group A", "Group B", "Group C", "Group D", A, B, C, D]) assert.ok(!lead.html.includes(group), group);
+    // Before the survey at the end goes out, its card says so and when the run's last session is.
+    const after = world.db.read(`surveys/${made.after}`);
+    world.db.poke(`surveys/${made.after}`, { firstSentAt: null });
+    try {
+      assert.ok((await tabAs("claudia")).text.includes(`${LEAD_OVERVIEW_WORDS.end} ${LEAD_OVERVIEW_WORDS.notSent} Last session Wed 9 Dec`));
+    } finally {
+      world.db.poke(`surveys/${made.after}`, { firstSentAt: after.firstSentAt });
+    }
     // What the records do not hold yet is not drawn: the share who ticked every reading, the team's ratings, explainers, draft grades.
     for (const never of ["ticked", "team’s ratings", "explainer", "grades", "Senior lead", "Marks"]) assert.ok(!lead.text.includes(never), never);
     // Every bar is the theme's accent, one colour, its figure written beside it.
