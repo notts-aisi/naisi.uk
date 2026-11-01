@@ -1220,8 +1220,7 @@ export function sessionsReportedWords(reported: number, of: number): string {
 /** Under the usefulness chart: "48, 45 and 46 answers.". */
 export function weeksAnswersWords(answers: readonly number[]): string {
   if (answers.length === 0) return "";
-  const last = answers[answers.length - 1];
-  return `${namesInWords(answers.map(String))} ${last === 1 && answers.length === 1 ? "answer" : "answers"}.`;
+  return `${namesInWords(answers.map(String))} ${answers.length === 1 && answers.includes(1) ? "answer" : "answers"}.`;
 }
 
 /** "What was unclear, week 3". */

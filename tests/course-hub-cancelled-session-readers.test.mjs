@@ -181,6 +181,15 @@ const READERS = {
     proof: ["listGroups(records, viewer, now, weeksOf(records))"],
     why: "the Overview's sessions this week and Needs attention: each group's session facts, as the lead's tabs read them",
   },
+  "lib/surveys/leadOverview.ts": {
+    kind: "told",
+    from: ["lib/courses/programmeAttendance.ts"],
+    via: ["facts"],
+    proof: ["groupSessions(records, group, now)"],
+    why:
+      "the Surveys tab's Overview counts the sessions held so far that a report is about from each group's session " +
+      "facts, as the lead's tabs read them, so a cancelled session is never counted as one a report is owed for",
+  },
   "features/courses/AttendanceGrid.tsx": {
     kind: "told",
     from: ["app/api/courses/groups/[groupId]/attendance/route.ts"],

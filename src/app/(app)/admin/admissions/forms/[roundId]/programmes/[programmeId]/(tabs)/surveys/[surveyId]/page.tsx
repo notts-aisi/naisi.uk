@@ -30,14 +30,21 @@ export const dynamic = "force-dynamic";
  * Before, End (the survey at the end and the survey about leaving) or
  * Follow-ups.
  */
-/** The view a survey of this stage is listed on. */
-const VIEW_OF: Partial<Record<string, SurveysView>> = {
-  before: "before",
-  after: "end",
-  leaving: "end",
-  followUp6: "follow-ups",
-  followUp12: "follow-ups",
-};
+/** The view a survey of this stage is listed on, or none. */
+function viewOf(kind: string): SurveysView | null {
+  switch (kind) {
+    case "before":
+      return "before";
+    case "after":
+    case "leaving":
+      return "end";
+    case "followUp6":
+    case "followUp12":
+      return "follow-ups";
+    default:
+      return null;
+  }
+}
 
 export default async function ProgrammeSurveyResultsPage({
   params,
@@ -67,7 +74,7 @@ export default async function ProgrammeSurveyResultsPage({
   }
   const view = await resultsView(db, survey, false, { commentsInOrder: "words" });
   return (
-    <SurveysFrame roundId={roundId} programmeId={programmeId} current={VIEW_OF[survey.kind] ?? null}>
+    <SurveysFrame roundId={roundId} programmeId={programmeId} current={viewOf(survey.kind)}>
       <div className={styles.section}>
         <section className={styles.card} aria-labelledby="programme-survey">
           <h2 id="programme-survey" className={styles.sectionTitle}>
