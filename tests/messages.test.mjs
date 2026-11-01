@@ -586,16 +586,22 @@ describe("notice or by their settings, one class for the whole send", () => {
     assert.deepEqual({ ...tokenOf(mo), iat: 0, exp: 0 }, { s: "unsubscribe", email: "mo@example.com", c: "events", iat: 0, exp: 0 });
   });
 
-  test("no push but the group email's: only the notice lane's door, only for a notice to one group", () => {
-    // The record, the post and the picker's words never push.
-    for (const file of [join("src", "lib", "messages", "sending.ts"), join("src", "lib", "messages", "posting.ts"), join("src", "lib", "messages", "groupPush.ts")]) {
+  test("no push but the run composers' own: only the notice lane's door, only for a notice to one group or one programme's people", () => {
+    // The record, the post, the rule and the note never push.
+    for (const file of [
+      join("src", "lib", "messages", "sending.ts"),
+      join("src", "lib", "messages", "posting.ts"),
+      join("src", "lib", "messages", "pushTarget.ts"),
+      join("src", "lib", "messages", "pushing.ts"),
+    ]) {
       assert.doesNotMatch(read(file), /sendNoticePush|sendPushToUid|sendPushToRowAudience|mirror\w*ToPush/, file);
     }
     // The send pushes through the door that reads no preference, once a person, and through nothing else.
     const sendRoute = read("src", "app", "api", "messages", "route.ts");
     assert.doesNotMatch(sendRoute, /sendPushToUid|sendPushToRowAudience|mirror\w*ToPush|wantsPushFor/);
     assert.equal((sendRoute.match(/\bsendNoticePush\(/g) ?? []).length, 1, "the send pushes from more than one place");
-    assert.match(sendRoute, /const pushGroupId = groupPushOf\(send\.selection\.include, resolution\.mode\);/);
+    assert.match(sendRoute, /const pushTarget = pushTargetOf\(send\.selection\.include, resolution\.mode\);/);
+    assert.match(sendRoute, /const note = pushTarget \? await pushNoteFor\(db, writer\.roles, pushTarget, send\.subject\)\.catch\(\(\) => null\) : null;/);
     assert.match(sendRoute, /if \(!person\.uid \|\| person\.you \|\| \(person\.leftOut !== null && person\.leftOut !== "suppressed"\)\) continue;\s*if \(await sendNoticePush\(person\.uid, note\)\) pushed \+= 1;/);
     // The test never pushes.
     assert.doesNotMatch(read("src", "app", "api", "messages", "test", "route.ts"), /Push/);
@@ -927,7 +933,8 @@ describe("the words", () => {
       join("src", "app", "(app)", "messages", "sent", "page.tsx"),
       join("src", "lib", "messages", "sent.ts"),
       join("src", "lib", "messages", "sentSenders.ts"),
-      join("src", "lib", "messages", "groupPush.ts"),
+      join("src", "lib", "messages", "pushTarget.ts"),
+      join("src", "lib", "messages", "pushing.ts"),
       join("src", "lib", "messages", "handover.ts"),
       join("src", "features", "messages", "MessagesTabs.tsx"),
       join("src", "features", "messages", "SentList.tsx"),
@@ -972,7 +979,8 @@ describe("what a Messages notice says about itself", () => {
 const sentLib = await lib("messages", "sent.ts");
 const senders = await lib("messages", "sentSenders.ts");
 const handover = await lib("messages", "handover.ts");
-const groupPush = await lib("messages", "groupPush.ts");
+const pushRule = await lib("messages", "pushTarget.ts");
+const pushing = await lib("messages", "pushing.ts");
 const SentPage = (await w.loadTs(join("app", "(app)", "messages", "sent", "page.tsx"))).default;
 
 /**
@@ -1299,7 +1307,7 @@ describe("Sent: its words", () => {
     assert.equal(words.sentModeWords("grid", "events"), "By their settings: event announcements");
     assert.equal(words.sentModeWords("grid", "courses"), "By their settings: course announcements");
     assert.equal(words.sentWindowWords("Mon 19 Oct", "Sun 1 Nov"), "Sent from Mon 19 Oct to Sun 1 Nov.");
-    for (const said of [...Object.values(words.SENT_WORDS), ...Object.values(words.HANDOVER_WORDS), ...Object.values(words.TAB_WORDS), words.COMPOSER_WORDS.pushes]) {
+    for (const said of [...Object.values(words.SENT_WORDS), ...Object.values(words.HANDOVER_WORDS), ...Object.values(words.TAB_WORDS), words.COMPOSER_WORDS.pushesGroup, words.COMPOSER_WORDS.pushesProgramme]) {
       assert.doesNotMatch(said, /[\u2013\u2014]/, said);
     }
   });
@@ -1362,7 +1370,7 @@ describe("Sent: the page", () => {
   });
 });
 
-describe("the push the group email made, kept for a notice to one group", () => {
+describe("the pushes the run's composers made, kept for a notice to one group or one programme's people", () => {
   test("a facilitator's notice to their group goes to each person's devices, the group's name and the subject, never the writer's", async (t) => {
     freshTerm(t);
     const response = await testAndSend("tom", [T.groupC], { post: false });
@@ -1399,17 +1407,100 @@ describe("the push the group email made, kept for a notice to one group", () => 
     assert.equal(record0.counts.pushed, taken);
   });
 
-  test("nothing else pushes: a notice to a programme's people, to two groups, or a message by their settings", async (t) => {
+  test("a lead's notice to the programme's everyone pushes as the cohort email's important notice did, never to the writer", async (t) => {
     freshTerm(t);
-    assert.equal((await testAndSend("claudia", [T.agiEveryone], { post: false })).status, 200);
+    const response = await testAndSend("claudia", [T.agiEveryone], { post: false });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    const run = w.world.db.read(`courseRuns/${RUN.agi}`);
+    const title = run.courseTitle.trim() || run.label.trim();
+    assert.ok(title, "the world's run has no title to push with");
+    const record = w.world.db.read(recordPaths()[0]);
+    // Claudia leads AGI Strategy, so she is among its everyone and emailed, and never pushed.
+    assert.ok(record.people.some((person) => person.uid === "claudia" && person.leftOut === null));
+    const reached = record.people
+      .filter((person) => person.uid && person.uid !== "claudia" && (person.leftOut === null || person.leftOut === "suppressed"))
+      .map((person) => person.uid)
+      .sort();
+    const pushes = w.world.pushes;
+    assert.ok(pushes.length > 0, "nothing was pushed");
+    assert.deepEqual(pushes.map((push) => push.uid).sort(), reached);
+    for (const push of pushes) {
+      assert.deepEqual({ title: push.title, body: push.body, url: push.url }, { title, body: WORDS.subject, url: `/learn/${encodeURIComponent(RUN.agi)}` });
+    }
+    assert.equal(response.body.pushed, pushes.length);
+    assert.equal(record.counts.pushed, pushes.length);
+  });
+
+  test("an admin's notice to the programme's people holding a place pushes the same way", async (t) => {
+    freshTerm(t);
+    const response = await testAndSend("zach", [T.agiHolding], { post: false });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    const record = w.world.db.read(recordPaths()[0]);
+    const reached = record.people
+      .filter((person) => person.uid && (person.leftOut === null || person.leftOut === "suppressed"))
+      .map((person) => person.uid)
+      .sort();
+    assert.deepEqual(w.world.pushes.map((push) => push.uid).sort(), reached);
+    assert.ok(w.world.pushes.every((push) => push.url === `/learn/${encodeURIComponent(RUN.agi)}`));
+    assert.ok(!w.world.pushes.some((push) => push.uid === "zach"));
+  });
+
+  test("nothing else pushes: the programme's facilitators alone, two groups, the term's people, or a message by their settings", async (t) => {
+    freshTerm(t);
+    assert.equal((await testAndSend("claudia", [T.agiFacilitating], { post: false })).status, 200);
     assert.equal((await testAndSend("zach", [T.groupA, T.groupB])).status, 200);
+    assert.equal((await testAndSend("zach", [T.holding])).status, 200);
     assert.equal((await testAndSend("zach", [T.vrCame], { row: "events" })).status, 200);
     assert.deepEqual(w.world.pushes, []);
     for (const path of recordPaths()) assert.equal(w.world.db.read(path).counts.pushed, 0, path);
-    assert.equal(groupPush.groupPushOf([T.groupC], "notice"), C);
-    assert.equal(groupPush.groupPushOf([T.groupC], "grid"), null);
-    assert.equal(groupPush.groupPushOf([T.groupC, T.groupB], "notice"), null);
-    assert.equal(groupPush.groupPushOf([T.agiHolding], "notice"), null);
+    // The rule, as the composer and the route both ask it.
+    assert.deepEqual(pushRule.pushTargetOf([T.groupC], "notice"), { kind: "group", groupId: C });
+    assert.deepEqual(pushRule.pushTargetOf([T.agiEveryone], "notice"), { kind: "programme", roundId: ROUND, programmeId: AGI });
+    assert.deepEqual(pushRule.pushTargetOf([T.agiHolding], "notice"), { kind: "programme", roundId: ROUND, programmeId: AGI });
+    for (const [include, mode] of [
+      [[T.groupC], "grid"],
+      [[T.agiEveryone], "grid"],
+      [[T.agiFacilitating], "notice"],
+      [[T.groupC, T.groupB], "notice"],
+      [[T.agiEveryone, T.taisEveryone], "notice"],
+      [[T.holding], "notice"],
+      [[], "notice"],
+    ]) {
+      assert.equal(pushRule.pushTargetOf(include, mode), null, `${JSON.stringify(include)} ${mode}`);
+    }
+  });
+
+  test("what the notification says: the course's title else the run's label, and with no run the programme's name and its people's programmes", async () => {
+    const runDb = (data) => ({ collection: () => ({ doc: (runId) => ({ get: async () => ({ exists: data !== null, id: runId, data: () => data }) }) }) });
+    const roles = (runs) => ({
+      form: { round: { id: ROUND } },
+      programmes: [{ programmeId: AGI, key: `${ROUND}:${AGI}`, name: "AGI Strategy", settings: {} }],
+      runs,
+      leads: [],
+      facilitates: [],
+      tagGroups: [],
+    });
+    const target = { kind: "programme", roundId: ROUND, programmeId: AGI };
+    const named = [{ programmeId: AGI, runId: "run-1", published: true, groups: [] }];
+    assert.deepEqual(await pushing.pushNoteFor(runDb({ courseTitle: "AGI Strategy Fellowship", label: "Autumn 2026" }), roles(named), target, "S"), {
+      title: "AGI Strategy Fellowship",
+      body: "S",
+      url: "/learn/run-1",
+    });
+    assert.equal((await pushing.pushNoteFor(runDb({ courseTitle: " ", label: "Autumn 2026" }), roles(named), target, "S")).title, "Autumn 2026");
+    assert.equal((await pushing.pushNoteFor(runDb(null), roles(named), target, "S")).title, "AGI Strategy");
+    assert.deepEqual(await pushing.pushNoteFor(runDb(null), roles([]), target, "S"), { title: "AGI Strategy", body: "S", url: "/learn" });
+    // Another term's programme, and a group of no run the term holds: nothing to say, so no push.
+    assert.equal(await pushing.pushNoteFor(runDb(null), roles(named), { ...target, roundId: "another-round" }, "S"), null);
+    assert.equal(await pushing.pushNoteFor(runDb(null), roles(named), { kind: "group", groupId: "nowhere" }, "S"), null);
+  });
+
+  test("the composer says which messages go to phones, before the press, by the same rule", () => {
+    const composer = read("src", "features", "messages", "MessageComposer.tsx");
+    assert.match(composer, /const pushTarget = count !== null \? pushTargetOf\(choice\.include, count\.mode\) : null;/);
+    assert.match(composer, /\{pushTarget\.kind === "group" \? COMPOSER_WORDS\.pushesGroup : COMPOSER_WORDS\.pushesProgramme\}/);
+    assert.equal(words.COMPOSER_WORDS.pushesGroup, "A notice to one group also goes as a notification to any device its people have set up.");
+    assert.equal(words.COMPOSER_WORDS.pushesProgramme, "A notice to a programme’s people also goes as a notification to any device they have set up.");
   });
 });
 

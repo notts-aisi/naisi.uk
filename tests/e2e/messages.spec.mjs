@@ -279,7 +279,8 @@ test("messages: one message to a programme's people, from a test to their inboxe
       const send = main.getByRole("button", { name: WORDS.send, exact: true });
       await waitFor("Send to be live once the test reached the admin", async () => send.isEnabled());
       const [sent] = await Promise.all([responseTo("/api/messages", "POST"), send.click()]);
-      // A notice to a programme's people is email alone: only a notice to one group pushes.
+      // A notice to a programme's people pushes too, to each of them with a device set
+      // up; the three never signed in, so no phone took one.
       assert.deepEqual(await okBody(sent, "Sending"), { ok: true, sent: 3, held: 0, suppressed: 0, failed: 0, pushed: 0, posted: term.programmeName });
       await main.getByText(WORDS.sent(term.programmeName), { exact: true }).waitFor({ timeout: WAIT_MS });
       for (const person of people) {
@@ -311,7 +312,7 @@ test("messages: one message to a programme's people, from a test to their inboxe
       assert.deepEqual(record.people.map((person) => person.uid).sort(), people.map((person) => person.uid).sort());
       assert.doesNotMatch(JSON.stringify(record), /@/, "the record keeps an address");
       assert.ok(!JSON.stringify(record).includes("Room E3"), "the record keeps the message");
-      assert.equal(record.counts.pushed, 0, "a notice to a programme's people was pushed");
+      assert.equal(record.counts.pushed, 0, "a notification was counted for people with no device set up");
     });
 
     await step("Sent lists the send, with who it reached by name and no address", async () => {

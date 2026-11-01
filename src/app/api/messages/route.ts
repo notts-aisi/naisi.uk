@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import MessageEmail from "@/emails/MessageEmail";
 import { loadAudienceWorld, resolveAudience } from "@/lib/audience/load";
-import { AUDIENCE_REFUSAL, UNNAMED_GROUP } from "@/lib/audience/words";
+import { AUDIENCE_REFUSAL } from "@/lib/audience/words";
 import { displayNameOf, staffMessageBlocks, staffPreheader } from "@/lib/email/courseFacilitatorEmails";
 import { dispatchSends } from "@/lib/email/dispatch";
 import { sendNotice } from "@/lib/email/notice";
@@ -11,7 +11,8 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import type { MessageOutcome, MessageTally } from "@/lib/firestore/messageSends";
-import { groupPushOf, groupPushPath } from "@/lib/messages/groupPush";
+import { pushNoteFor } from "@/lib/messages/pushing";
+import { pushTargetOf } from "@/lib/messages/pushTarget";
 import { parseMessageSend } from "@/lib/messages/parse";
 import { mayPostOn, postOnProgrammePage, postTargetFor, settlePostedEmail } from "@/lib/messages/posting";
 import {
@@ -63,11 +64,13 @@ import { sendNoticePush } from "@/lib/push/noticeNotifications";
  * it read and the link that unsubscribes them from it, guests through their
  * own subscription to that row's list.
  *
- * EMAIL, AND ONE PUSH. A programme notice to one group is the group email it
- * took over from a run's pages, and keeps that email's push: each person it
- * reached with an account, and each whose every address bounced, gets a
- * notification through the notice lane's push door, never the writer
- * (`src/lib/messages/groupPush.ts`). Every other message is email alone.
+ * EMAIL, AND TWO PUSHES. A programme notice to one group is the group email
+ * Messages took over from a run's pages, and one to one programme's people is
+ * that run's cohort email sent as an important notice: each keeps the push
+ * its composer made, to each person it reached with an account and each whose
+ * every address bounced, never the writer (`src/lib/messages/pushTarget.ts`,
+ * what the notification says in `src/lib/messages/pushing.ts`). Every other
+ * message is email alone.
  *
  * WHOLE OR NOT AT ALL. Every refusal comes before anything is written or
  * sent: the body, the gate, a tag the writer may not use, nobody to email, a
@@ -247,18 +250,18 @@ export async function POST(req: Request) {
   const tally: MessageTally = { sent: 0, held: 0, suppressed: 0, failed: 0 };
   for (const outcome of outcomes.values()) tally[outcome] += 1;
 
-  // The group email's push, for the one send that is that email (see the
-  // module comment). Over the people it reached and those whose every address
-  // bounced, as the group email pushed over its recipients and not only its
-  // deliverable ones; never the writer, whom the group email never sent to.
-  // `sendNoticePush` reads no preference, never throws, and answers whether a
-  // device took it, so `pushed` counts notifications rather than calls.
+  // The push of the composer this send took over, for the two sends that are
+  // one (see the module comment): a notice to one group, or to one
+  // programme's people. Over the people it reached and those whose every
+  // address bounced, as the group email pushed over its recipients and not
+  // only its deliverable ones; never the writer, whom neither composer sent
+  // to. `sendNoticePush` reads no preference, never throws, and answers
+  // whether a device took it, so `pushed` counts notifications rather than
+  // calls.
   let pushed = 0;
-  const pushGroupId = groupPushOf(send.selection.include, resolution.mode);
-  const pushRun = pushGroupId ? writer.roles.runs.find((run) => run.groups.some((group) => group.id === pushGroupId)) : undefined;
-  const pushGroup = pushRun?.groups.find((group) => group.id === pushGroupId);
-  if (pushRun && pushGroup) {
-    const note = { title: pushGroup.name.trim() || UNNAMED_GROUP, body: send.subject, url: groupPushPath(pushRun.runId, pushGroup.id) };
+  const pushTarget = pushTargetOf(send.selection.include, resolution.mode);
+  const note = pushTarget ? await pushNoteFor(db, writer.roles, pushTarget, send.subject).catch(() => null) : null;
+  if (note) {
     for (const person of resolution.people) {
       if (!person.uid || person.you || (person.leftOut !== null && person.leftOut !== "suppressed")) continue;
       if (await sendNoticePush(person.uid, note)) pushed += 1;
