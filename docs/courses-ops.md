@@ -3360,11 +3360,22 @@ shows as out of date.
   the account. A written answer's last reading also shows as a chip beside it
   on its review page, read for an admin alone (`pangramReadings.ts`, which
   only reads what is kept and never reaches the code that sends).
+- **Who is scrubbed** (`runPeopleToScrub` in
+  `src/lib/courses/coursework/door.ts`, for the best answers and the week
+  review; the profile's note draft reads the same people). Every name of
+  everybody holding a place and anybody else with a seat on the run ("a
+  fellow" unless numbered), the run's facilitators ("a facilitator"), and the
+  people running the programme, its lead, the run's helpers and every admin
+  ("someone running the programme"), so "as Claudia said in the session"
+  leaves without Claudia. The run's explainers join the last group once a run
+  can have any.
 - **What Claude is never sent**: a name, an email address, an account id, a
-  group's name, a facilitator's name, availability, a review score, a survey
-  answer, a private note, a tick, or anything written before its writer's
-  moment. Claude is told never to judge somebody's English or whether AI
-  wrote anything, and that a thin answer is thin.
+  group's name, a facilitator's name, availability, a review score, a
+  register or a tick, a private note, or anything written before its
+  writer's moment. Survey answers go only to the week review, and only the
+  week's check-ins, pooled by group with no person attached, for what people
+  found hard and for nothing else. Claude is told never to judge somebody's
+  English or whether AI wrote anything, and that a thin answer is thin.
 
 `tests/coursework-use-cut-off.test.mjs` holds the moment and the rows at the
 boundary; `tests/coursework-claude.test.mjs` drives every route as an admin,
@@ -3373,6 +3384,91 @@ would go, and runs the account cascade over the three records;
 `tests/notes-for-leads.test.mjs` drives the programme's notes routes as every
 one of them, with notes kept for each reader and from before and after the
 v15 moment.
+
+### The week review
+
+A week's review is an admin's page under the week on a programme's Weeks tab
+(`.../weeks/[weekId]/review`), offered from the week's first session on: the
+tab's row says **Review** to an admin and "Review: admins only" to the
+programme's lead, whom the page shows a calm "a week's review is for admins"
+and reads nothing of the week for. Privacy version 15 lets admins ask Claude
+to help review coursework, survey answers and session reports: to grade
+answers, pick out the strongest and weakest, and say what people found hard
+and who might need a hand. `src/lib/courses/weekReview/` holds it.
+
+- **The door** (`door.ts`): the coursework door with `adminOnly`, the week a
+  taught week of the run's plan, and each live group's session of it, so the
+  page says how many groups have met. Who is reviewed is the coursework
+  door's: people holding a place, never a facilitator's own work.
+- **What would be sent, before any press.** The page builds the three
+  messages and shows only their counts ("2 written answers · 1 reflection ·
+  2 check-ins · 1 facilitator report") and how many are not included yet.
+  The press carries a hash of the three (`seen`), and the route refuses one
+  whose page saw something else, so nothing goes that the admin was not told
+  of.
+- **Three requests, side by side** (`input.ts`, `claude.ts`): DRAFT GRADES,
+  the written answers by an item id alone, no person and no group, each
+  graded 1 to 10 on the team's scale; WHAT PEOPLE FOUND HARD, the answers and
+  reflections by item id and group, the check-ins POOLED BY GROUP (survey
+  code hands them over with no sender, id or time, `poolWeekCheckIns` in
+  `src/lib/surveys/checkIns/reviewPool.ts`) and the reports' own words, with
+  no label for any person anywhere in it; WHO MIGHT NEED A HAND, the answers
+  and reflections by fellow ("Fellow 3") and group and the reports with the
+  people they pick as labels, and never a check-in. Each carries the
+  coursework fairness lines; the themes are also told never to quote or
+  attribute a check-in, and the hands to rest on answers and reports alone.
+- **The moment.** Version 15 is what tells people their check-ins, the
+  reports about them and their work may go to Claude for this, so each
+  counts from the moment that person agreed to version 15 (`reviewUseFrom`):
+  work also only once it counts under version 13, a check-in only when every
+  send came after its sender's moment, a report only when it was last sent
+  after its writer's, and a report's line about somebody (or their name in
+  anybody's words) only when it was written after THEIR moment; otherwise the
+  line goes and the name becomes "someone in the group".
+- **What comes back is checked** (`check.ts`): ids that were sent, whole
+  grades from 1 to 10, one per answer; a theme's groups worked out from what
+  it cites, never Claude's list, and a title or line that repeats six words
+  of a check-in dropped; a hand only for a fellow's label that was sent,
+  resting on their own answers or a report that names them, and a hand that
+  cites or mentions a check-in dropped whole.
+- **Kept** (`courseWeekReviews/{runId}__{weekId}`, `store.ts`): three parts,
+  each replaced whole by its next answer, so one that failed says so and the
+  others stay, and "Ask for this part again" asks for it alone. People by
+  account; Claude's words keep its labels and the page puts names back from
+  who holds a place NOW, so somebody who gave their place back drops out,
+  and a grade whose answer has changed since leaves the chart. Deleted with
+  the run (`weekReviews`); an account's deletion takes the account out of
+  every review (`clearWeekReviewEntries`). The rules refuse every browser.
+- **The page**: the draft grades as a chart in the theme's accent with each
+  count beside its bar, and "Read the strongest 6" and "Read the weakest 6",
+  each answer a link to its review page; what people found hard, each theme
+  with its counts by source and the groups they came from, and never a
+  check-in's words; might need a hand, the site's own facts (absent at the
+  last two sessions without saying, from the Attendance tab's count; the week
+  not started when the group met, or locked unsent; named under "might need a
+  hand" or "hadn't done the readings" in this week's reports, `facts.ts`, never
+  sent) beside Claude's picks, each line saying where it came from; Pangram on
+  the week, as on the Coursework tab; and what was sent.
+- **"Ask Rahul to have a word with Grace"** (`followUp.ts`, the route
+  `.../review/follow-up`): one task for the person's group's live
+  facilitators, `source: "review-follow-up"`, `assignees-only`, with fixed
+  words and no reason (the reason may be Claude's or a check-in's, and
+  neither may reach a facilitator), due at the group's next session, made
+  once a week per person. The you-have-been-added email goes as it is made,
+  on each facilitator's tasks row (a grid send); the task is born notified.
+  Its `sourceRef` names the run, week, group and person (`aboutUid`): the
+  run's destroy sweeps it (`reviewFollowUps`), and the person's account
+  deletion deletes it, because it names them.
+- **Not built here**: a way to schedule an explainer from a theme, and
+  Claude's grade beside the team's own rating of an answer, which is to
+  show only once the admin has saved theirs. Each joins the review's own
+  code and `tests/claude-output-readers.test.mjs`'s list when it lands.
+
+`tests/week-review.test.mjs` reads every message that would go, the checkers,
+the facts, the page as every reader, every press and the follow-up as every
+caller, and the account cascade; `tests/claude-output-readers.test.mjs` walks
+the tree for every reader of a review, both ways, and fails one in the notes
+kept about a person.
 
 ## Cutover: membership periods
 
