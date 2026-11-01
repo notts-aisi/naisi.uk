@@ -45,7 +45,7 @@ export function sessionLineWords(groupName: string, startsAt: Date | null, now: 
   return sameLondonDay(startsAt, now) ? `${groupName}, today at ${clockWords(startsAt)}.` : `${groupName}, ${sessionWhenWords(startsAt)}.`;
 }
 
-/** "11pm", or "Thu 19 Nov, 12:30am" when it closes on another London day than `from`. */
+/** "11pm", or "12:30am on Thu 19 Nov" when it closes on another London day than `from`. */
 export function closesClockWords(closesAt: Date, from: Date): string {
   return sameLondonDay(closesAt, from) ? clockWords(closesAt) : `${clockWords(closesAt)} on ${dayWords(closesAt)}`;
 }
@@ -126,7 +126,7 @@ export function checkInEmailWords(facts: CheckInEmailFacts): { subject: string; 
     paragraphs: [
       `${when} Tell us how the session went while it’s fresh. It’s ${questionsWords(facts.questions)} and takes ${minutesWords(facts.minutes)}.`,
       CHECK_IN_CONFIDENTIAL_LINE,
-      `It closes at ${closesClockWords(facts.closesAt, facts.startsAt ?? facts.closesAt)} on ${dayWords(facts.startsAt ?? facts.closesAt)}.`,
+      `It closes at ${clockWords(facts.closesAt)} on ${dayWords(facts.closesAt)}.`,
     ],
     button: "Answer the check-in",
     signOff: facts.signer ? [facts.signer, "For NAISI"] : ["NAISI"],
@@ -173,7 +173,7 @@ export function openButtonWords(here: number): string {
   return `Open it for the ${here} here`;
 }
 
-/** What the press did: "Open. 6 people emailed." */
+/** What the press did: "It’s open. 6 people emailed." */
 export function openedWords(emailed: number): string {
   return `It’s open. ${emailed === 1 ? "1 person" : `${emailed} people`} emailed.`;
 }

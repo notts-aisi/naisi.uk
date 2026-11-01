@@ -257,6 +257,16 @@ describe("1. the rules: the window, who it is for, its questions, its id and its
     assert.equal(words.checkInTitle(3), "How was week 3?");
     assert.equal(words.closesByItselfWords(new Date("2026-11-18T23:00:00Z"), three), "It closes by itself at 11pm. Then you see your group’s totals, never who said what.");
     assert.equal(words.closesClockWords(new Date("2026-11-19T00:30:00Z"), new Date("2026-11-18T21:30:00Z")), "12:30am on Thu 19 Nov");
+    // The email names the day it closes on, which after a late session is the next one.
+    const late = { title: "How was week 3?", groupName: "Group C", questions: 6, minutes: 2, programmeName: "AGI Strategy", signer: "Rahul" };
+    assert.equal(
+      words.checkInEmailWords({ ...late, startsAt: new Date("2026-11-18T21:30:00Z"), closesAt: new Date("2026-11-19T00:30:00Z") }).paragraphs[2],
+      "It closes at 12:30am on Thu 19 Nov.",
+    );
+    assert.equal(
+      words.checkInEmailWords({ ...late, startsAt: three, closesAt: new Date("2026-11-18T23:00:00Z") }).paragraphs[2],
+      "It closes at 11pm on Wed 18 Nov.",
+    );
     assert.equal(words.openButtonWords(6), "Open it for the 6 here");
     assert.equal(words.sentSoFarWords(4, 6), "4 of 6 have sent it");
     assert.equal(words.sentSoFarWords(1, 6), "1 of 6 has sent it");

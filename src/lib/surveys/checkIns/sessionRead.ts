@@ -4,7 +4,7 @@ import { resolveWeekDoc } from "@/lib/courses/groupResolve";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
 import { partsOf } from "@/lib/courses/weekBlocks/model";
 import { weekSources } from "@/lib/courses/weekBlocks/reader";
-import { ATTENDANCE_STATUSES, attendanceDocId, type AttendanceStatus } from "@/lib/firestore/courseAttendance";
+import { attendanceDocId, normalizeCourseAttendance, type AttendanceStatus } from "@/lib/firestore/courseAttendance";
 import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import { checkInWindow, type CheckInWindow } from "./model";
@@ -52,18 +52,19 @@ export async function readCheckInSession(
   return { run, sessions, session, startsAt, endsAt, window: checkInWindow({ dateKey: session.dateKey, startsAt, endsAt }) };
 }
 
-/** What one session's register says: whether it was held, and each row's mark. */
+/**
+ * What one session's register says: whether the session happened, and each
+ * row's mark. A session cancelled through "Change a session" is recorded on
+ * the group and usually has no register at all, so it is asked here and
+ * reads as not held whatever its register says.
+ */
 export type RegisterMarks = { held: boolean; marks: Record<string, AttendanceStatus> };
 
 export async function readRegisterMarks(db: Firestore, runId: string, groupId: string, session: ResolvedSession): Promise<RegisterMarks> {
-  const snap = await db.collection("courseAttendance").doc(attendanceDocId(runId, groupId, session.weekNumber, session.occurrence)).get();
-  const data = (snap.data() ?? {}) as Record<string, unknown>;
-  const raw = (data.records ?? {}) as Record<string, unknown>;
-  const marks: Record<string, AttendanceStatus> = {};
-  for (const [uid, status] of Object.entries(raw)) {
-    if (ATTENDANCE_STATUSES.includes(status as AttendanceStatus)) marks[uid] = status as AttendanceStatus;
-  }
-  return { held: data.held !== false, marks };
+  const id = attendanceDocId(runId, groupId, session.weekNumber, session.occurrence);
+  const snap = await db.collection("courseAttendance").doc(id).get();
+  const register = normalizeCourseAttendance(id, snap.data() ?? {});
+  return { held: !session.cancelled && register.held, marks: register.records };
 }
 
 /**

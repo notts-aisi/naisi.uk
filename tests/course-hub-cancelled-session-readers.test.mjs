@@ -149,6 +149,13 @@ const READERS = {
       "a facilitator's session report: a session called off has no report (its window is refused before its register " +
       "is read), and one whose register says it did not happen has none either",
   },
+  "lib/surveys/checkIns/sessionRead.ts": {
+    kind: "asks",
+    proof: ["held: !session.cancelled && register.held"],
+    why:
+      "the check-in's read of a session's register: a cancelled session reads as not held, so the check-in is " +
+      "never offered or opened for it and nobody marked on it is reached",
+  },
 
   // ── Readers handed an answer one of those built ──────────────────────────
   "app/api/admissions/forms/[roundId]/programmes/[programmeId]/registers/remind/route.ts": {
@@ -201,6 +208,13 @@ const READERS = {
     via: ["r"],
     proof: ["RegisterFact"],
     why: "the rollup's arithmetic, handed its facts by the mirror, which says a cancelled session was not held",
+  },
+  "lib/surveys/checkIns/lateMark.ts": {
+    kind: "told",
+    from: ["lib/surveys/checkIns/sessionRead.ts"],
+    via: ["register"],
+    proof: ["readRegisterMarks(db, runId, group.id, session)"],
+    why: "a mark kept after the check-in opened reaches its person only while the check-in's own read says the session was held",
   },
   "lib/courses/unmarkedRegisters.ts": {
     kind: "told",
