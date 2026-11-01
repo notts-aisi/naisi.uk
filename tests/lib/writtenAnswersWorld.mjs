@@ -375,9 +375,16 @@ export async function makeWrittenAnswersWorld(key = "__writtenAnswers") {
   const weekIdOf = (n) => `w0${n}`;
   const rowPath = (uid, n, answerId = n === 2 ? ONE_BOX.id : BOXES.id) => answerPath(uid, n, answerId);
 
-  /** `who` saves their own answer to week `n`'s written answer. */
-  const write = (who, n, content, { viewAs = false, answerId = n === 2 ? ONE_BOX.id : BOXES.id } = {}) =>
-    call(who, routes.write.PUT, { runId: RUN.agi, answerId }, { course: true, viewAs, body: { weekId: weekIdOf(n), ...content } });
+  /**
+   * `who` saves their own answer to week `n`'s written answer; with `send`,
+   * then submits the week, which is how an answer is sent (the week you
+   * submit), answering with the submit's own answer when the save went.
+   */
+  const write = async (who, n, content, { send = false, viewAs = false, answerId = n === 2 ? ONE_BOX.id : BOXES.id } = {}) => {
+    const saved = await call(who, routes.write.PUT, { runId: RUN.agi, answerId }, { course: true, viewAs, body: { weekId: weekIdOf(n), ...content } });
+    if (!send || saved.status !== 200) return saved;
+    return call(who, routes.submitWeek.POST, { runId: RUN.agi, weekId: weekIdOf(n) }, { course: true, viewAs, body: { submit: true } });
+  };
 
   /** `who` submits their own week `n`, which sends its written answer. */
   const submitWeek = (who, n, { viewAs = false, body = { submit: true } } = {}) =>
