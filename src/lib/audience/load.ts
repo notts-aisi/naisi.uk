@@ -184,9 +184,9 @@ async function readAccounts(db: Firestore, uids: Iterable<string>, known: Readon
 // The term's form, its programmes' runs and their groups
 // ---------------------------------------------------------------------------
 
-type TermProgramme = { programmeId: string; key: string; settings: ProgrammeSettings; name: string };
+export type TermProgramme = { programmeId: string; key: string; settings: ProgrammeSettings; name: string };
 
-type TermRun = {
+export type TermRun = {
   programmeId: string;
   runId: string;
   /** Publish has told the run's people their groups: its groups have tags. */
@@ -320,19 +320,32 @@ async function readEvents(db: Firestore, viewer: SessionUser, opensAt: Date): Pr
 const SIGNED_UP = new Set(["pending", "confirmed", "waitlisted"]);
 
 // ---------------------------------------------------------------------------
-// The world
+// The term, and what one person runs of it
 // ---------------------------------------------------------------------------
 
 /**
- * Everything this person's tags are made of, read once. Null for somebody who
- * may use no tag at all (signed out, waiting for approval or refused).
+ * The term's programmes, their runs and live groups, and what one person
+ * leads and facilitates of them. The first read the picker makes, and the
+ * one Messages asks to decide who may write at all
+ * (`src/lib/messages/writers.ts`), so the two cannot disagree about who runs
+ * what.
  */
-export async function loadAudienceWorld(db: Firestore, viewer: SessionUser, now: Date): Promise<AudienceWorld | null> {
-  if (!scopeOf(viewer)) return null;
-  const form = chooseTerm(await listForms(db), now);
+export type TermRoles = {
+  /** The term's form, or null before any form has opened. */
+  form: ApplicationForm | null;
+  programmes: TermProgramme[];
+  runs: TermRun[];
+  /** `<roundId>:<programmeId>` of each of the term's programmes this person leads, held to the lead's bar. */
+  leads: string[];
+  /** Each group of a published run this person facilitates, held to the facilitator's bar. */
+  facilitates: string[];
+  /** Each group whose tag this person may use: the groups they facilitate, and every group of a programme they lead. */
+  tagGroups: string[];
+};
 
-  // The term's programmes, their runs and groups, and what this person leads
-  // and facilitates of them.
+/** What this person runs of the term: the forms, the term's programmes' runs and their groups, and nothing about anybody else. */
+export async function loadTermRoles(db: Firestore, viewer: SessionUser, now: Date): Promise<TermRoles> {
+  const form = chooseTerm(await listForms(db), now);
   const programmes: TermProgramme[] = form
     ? form.programmeIds.flatMap((programmeId) => {
         const settings = own(form.programmes, programmeId);
@@ -345,15 +358,35 @@ export async function loadAudienceWorld(db: Firestore, viewer: SessionUser, now:
   const leads = programmes
     .filter((programme) => isNamedWithStanding(viewer, "admissionRounds.leadUid", programme.settings.leadUid))
     .map((programme) => programme.key);
+  const facilitates = new Set<string>();
   const tagGroups = new Set<string>();
   for (const run of runs) {
     if (!run.published) continue;
     const led = form ? leads.includes(programmeKey(form.round.id, run.programmeId)) : false;
     for (const group of run.groups) {
-      if (led || isNamedWithStanding(viewer, "courseGroups.facilitatorUids", group.facilitatorUids)) tagGroups.add(group.id);
+      const facilitating = isNamedWithStanding(viewer, "courseGroups.facilitatorUids", group.facilitatorUids);
+      if (facilitating) facilitates.add(group.id);
+      if (led || facilitating) tagGroups.add(group.id);
     }
   }
-  const scope = scopeOf(viewer, { leads, groups: [...tagGroups] });
+  return { form, programmes, runs, leads, facilitates: [...facilitates], tagGroups: [...tagGroups] };
+}
+
+// ---------------------------------------------------------------------------
+// The world
+// ---------------------------------------------------------------------------
+
+/**
+ * Everything this person's tags are made of, read once. Null for somebody who
+ * may use no tag at all (signed out, waiting for approval or refused).
+ */
+export async function loadAudienceWorld(db: Firestore, viewer: SessionUser, now: Date): Promise<AudienceWorld | null> {
+  if (!scopeOf(viewer)) return null;
+
+  // The term's programmes, their runs and groups, and what this person leads
+  // and facilitates of them.
+  const { form, programmes, runs, leads, tagGroups } = await loadTermRoles(db, viewer, now);
+  const scope = scopeOf(viewer, { leads, groups: tagGroups });
   if (!scope) return null;
   const inScope = (programme: TermProgramme) => scope.admin || scope.programmes.has(programme.key);
 

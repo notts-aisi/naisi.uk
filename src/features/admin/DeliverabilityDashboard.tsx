@@ -93,15 +93,17 @@ function statusBadge(status: SendStatus, reason?: string) {
  *
  * Most `EmailSendKind` values are already legible ("newsletter", "rsvp",
  * "course-nudge") and are shown as they are stored, which keeps this map short
- * and keeps the badge honest about the field behind it. The two here are the
+ * and keeps the badge honest about the field behind it. The ones here are the
  * ones a name alone would under-describe: a `notice` row is mail that IGNORED
  * the recipient's notification settings, which is the single most important
- * thing this table can tell an admin, and an `event-announcement` is the events
- * row's own send rather than a newsletter.
+ * thing this table can tell an admin, an `event-announcement` is the events
+ * row's own send rather than a newsletter, and a `message` is one written in
+ * Messages that went by each person's settings rather than as a notice.
  */
 const KIND_LABELS: Record<string, string> = {
   notice: "Important notice",
   "event-announcement": "Event announcement",
+  message: "Message by their settings",
 };
 
 /**
@@ -122,6 +124,7 @@ const SURFACE_LABELS: Record<string, string> = {
   "course-check-in": "check-in at a session",
   "course-week": "week is open",
   "course-week-reminder": "reminder before a session",
+  messages: "a message from Messages",
 };
 
 function kindBadge(kind: string, surface?: string) {

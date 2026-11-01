@@ -1445,6 +1445,17 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === messageSends ===
+    // One record per message sent from Messages (src/lib/firestore/messageSends.ts):
+    // who wrote it, the tags it was for, how each person was reached or why
+    // they were left out, by account id, and the counts; never an address and
+    // never the message. Written only by the send route on the Admin SDK and
+    // read by nothing in the browser, so every browser is refused, admins and
+    // the message's own writer included.
+    match /messageSends/{sendId} {
+      allow read, write: if false;
+    }
+
     // === registrations ===
     // One durable doc per account created via the email-only register route
     // (keyed by Auth uid). Tracks emailVerified / passwordSet → the admin orphan

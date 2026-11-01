@@ -15,13 +15,15 @@
  * update without asking. So:
  *
  *  1. EVERY FILE THAT ADDRESSES THE COLLECTION is listed with what it does:
- *     the one reader, the one writer, and the run destroy. A new file that
- *     reads or writes it fails here until somebody decides.
+ *     the one reader, the two writers (the updates route, and Messages
+ *     posting a message on a programme's page as well), and the run destroy.
+ *     A new file that reads or writes it fails here until somebody decides.
  *  2. EVERY CALLER OF THE READER hands it a reading worked out for the
  *     caller, by `updateReadingOf`, narrowed to one group's page at most.
- *  3. THE WRITER refuses view-as first, checks the body before it opens the
- *     database, asks the gate before it writes, and writes only after every
- *     refusal (the count, the caps) has had its say.
+ *  3. THE WRITERS refuse view-as first, check the body before they open the
+ *     database, ask the gate before they write, and write only after every
+ *     refusal (the count, the caps, and for Messages the test) has had its
+ *     say.
  *  4. A MESSAGE IS TEXT: nothing that draws an update hands it to the page as
  *     markup.
  *  5. THE COLLECTION HAS ITS RULES BLOCK, refusing every browser.
@@ -56,7 +58,14 @@ const ADDRESSERS = {
   },
   "app/api/courses/runs/[runId]/updates/route.ts": {
     does: "write",
-    why: "the one writer: an update is posted here, behind the gate, and nowhere else",
+    why: "the updates composer's writer: an update is posted here, behind the gate",
+  },
+  "lib/messages/posting.ts": {
+    does: "write",
+    why:
+      "Messages' \"Also post it on the programme's page\": the send route (app/api/messages/route.ts) posts a " +
+      "message to one programme's people as an update too, after the updates route's own gate (mayPostOn) and " +
+      "every refusal, and settles what its email did (section 3 holds the order)",
   },
   "lib/firestore/courseDeletion.ts": {
     does: "destroy",
@@ -164,6 +173,53 @@ describe("3. the writer's order", () => {
   test("a test posts nothing: it answers before the update is written", () => {
     const test = post.slice(post.indexOf("if (post.test) {"));
     assert.ok(test.indexOf("return NextResponse.json({ ok: true, test:") < test.indexOf("await ref.set("));
+  });
+});
+
+describe("3b. Messages' writer's order", () => {
+  const route = read("app/api/messages/route.ts");
+  const post = route.slice(route.indexOf("export async function POST("));
+  const at = (needle) => {
+    const index = post.indexOf(needle);
+    assert.notEqual(index, -1, `Messages' send no longer contains \`${needle}\``);
+    return index;
+  };
+  const posting = read("lib/messages/posting.ts");
+
+  test("the update is written in one place, by the send's own helper, and nothing else there writes the collection", () => {
+    assert.match(posting, /export async function postOnProgrammePage\(/);
+    assert.equal([...posting.matchAll(/\.collection\(COURSE_UPDATES_COLLECTION\)\.doc\(\)/g)].length, 1);
+    // The test route never posts.
+    assert.doesNotMatch(read("app/api/messages/test/route.ts"), /postOnProgrammePage|COURSE_UPDATES_COLLECTION/);
+  });
+
+  test("view-as is refused first, then the session, then the body, before the database is opened", () => {
+    assert.match(post, /^export async function POST\([^)]*\) \{\s*const blocked = await assertNotImpersonating\(\);\s*if \(blocked\) return blocked;/);
+    assert.ok(at("await getCurrentUser()") < at("parseMessageSend(raw)"));
+    assert.ok(at("parseMessageSend(raw)") < at("getAdminDb()"));
+  });
+
+  test("the gate is asked before anything is written, and every refusal before the update is", () => {
+    const write = at("await postOnProgrammePage(");
+    for (const before of [
+      "await messageWriterOf(db, user, now)",
+      "resolveAudience(",
+      "send.count",
+      "await mayPostOn(db, user, target)",
+      "testStandingOf(",
+      "reserveNoticeSlots(",
+    ]) {
+      assert.ok(at(before) < write, `\`${before}\` comes after the update is written`);
+    }
+    // The emails go after the update is written, and what they did is recorded on it after the last.
+    assert.ok(write < at("dispatchSends("));
+    assert.ok(at("dispatchSends(") < at("settlePostedEmail("));
+  });
+
+  test("the update's message is text, and its email is built only through the staff email's escaping", () => {
+    assert.match(route, /staffMessageBlocks\(send\.message, senderName, ""\)/);
+    assert.doesNotMatch(route, /type: "richText"|dangerouslySetInnerHTML/);
+    assert.doesNotMatch(posting, /dangerouslySetInnerHTML|\binnerHTML\b/);
   });
 });
 

@@ -402,6 +402,19 @@ const RAW_SITES = {
       "the caller as a facilitator (a facilitator who holds a place has a learner's row), " +
       "before any of them adds the `facilitator` role.",
   },
+  "src/lib/messages/writers.ts": {
+    role: "not-a-gate",
+    matches: { facilitatorUids: 1 },
+    provedBy: ["return (await messageWriterOf(db, user, now)) !== null;"],
+    // The control runs after the query, as on the course hub: the query only
+    // finds whether any group names the caller, and decides nothing.
+    controlAfter: true,
+    why:
+      "One `array-contains` query scoped to the caller's own uid, asked only to spare a member who " +
+      "facilitates nothing the term's reads when the menu asks whether to draw Messages. A group " +
+      "naming the caller grants nothing here: the answer is `messageWriterOf`'s, which reads the " +
+      "term and holds every facilitator to their bar with `isNamedWithStanding`.",
+  },
   "src/app/api/members/roster/route.ts": {
     role: "not-a-gate",
     matches: { completerUids: 1, reviewerUids: 1 },
