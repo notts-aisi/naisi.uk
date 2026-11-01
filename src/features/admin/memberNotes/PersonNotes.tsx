@@ -430,7 +430,7 @@ export default function PersonNotes({ uid, firstName, place, lead, draft = "none
                     ) : (
                       <MemberText text={note.text} className={styles.text} />
                     )}
-                    {(note.draftedByClaude || (note.programme && !note.beforeAgreement)) && (
+                    {!editing && (note.draftedByClaude || (note.programme && !note.beforeAgreement)) && (
                       <div className={styles.meta}>
                         {note.draftedByClaude && (
                           <Chip tone="accent" size="sm">
