@@ -373,9 +373,12 @@ the privacy policy says "If an event is part of a programme you are on, its
 invitation is a programme email and reaches you whatever your settings".
 Everybody else chosen, the programme's facilitators and lead among them, who
 are not on it, gets it by their `events` row (grid, kind `event-invitation`,
-with the events channel's unsubscribe link); somebody who said no is still
-invited, it is on their Home, and is not emailed. The event's author is
-never emailed. No push leg on either class: the policy says email. The
+with the events channel's unsubscribe link); somebody who has not said yes
+is still invited, it is on their Home, and is not emailed. The choice is
+resolved in the world of whoever chose the people, so the notice goes only
+to the people that person runs under the programme: somebody who saved the
+people without leading it reaches everybody by their row, and the editor's
+count says so. The event's author is never emailed. No push leg on either class: the policy says email. The
 caps are the lane's (3 an hour per presser and event, 10 a day per event),
 claimed only by a press that sends a notice; a press is refused whole over
 300 people or 200 messages, never trimmed.
