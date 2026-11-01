@@ -224,7 +224,7 @@ describe("who is sent the requests", () => {
     for (const who of [NIA, ED, ABE, MO]) {
       const res = await ask(who);
       assert.equal(res.status, 403, who.uid);
-      assert.equal(res.body.error, "Only the people organising this event can see who has asked for a place.", who.uid);
+      assert.equal(res.body.error, "Only this event’s organisers, admins and SU-recognised committee can see who has asked for a place.", who.uid);
       assert.ok(!("requests" in res.body), who.uid);
     }
   });

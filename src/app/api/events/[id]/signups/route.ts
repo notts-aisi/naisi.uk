@@ -40,7 +40,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const event = normalizeEvent(snap.id, snap.data() ?? {});
   const access = signupAccessFor(viewer, event);
   if (!access.requests) {
-    return NextResponse.json({ error: "Only the people organising this event can see who has asked for a place." }, { status: 403 });
+    return NextResponse.json({ error: "Only this event’s organisers, admins and SU-recognised committee can see who has asked for a place." }, { status: 403 });
   }
 
   // The event's other sign-ups are read with these and left behind, never sent.
