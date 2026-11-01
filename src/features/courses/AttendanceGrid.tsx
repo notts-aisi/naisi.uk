@@ -1042,9 +1042,11 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
               ))}
             </div>
           )}
-          {focus.finished && focusSession?.held !== false && reportHref && (
-            <ReportLink href={reportHref} sessionKey={focus.sessionKey} />
-          )}
+          {focus.finished &&
+            reportHref &&
+            sessions.some((session) => session.sessionKey === focus.sessionKey && session.held) && (
+              <ReportLink href={reportHref} sessionKey={focus.sessionKey} />
+            )}
         </section>
       )}
 

@@ -84,7 +84,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ groupId: string
   const sessions = sessionsOf(run, group);
   const asked = sessions.find((session) => session.sessionKey === parsed.sessionKey);
   if (!asked) return NextResponse.json({ error: REPORT_REFUSAL.session }, { status: 400 });
-  const session = await loadReportSession(db, run, group, parsed.sessionKey, now, sessions);
+  const session = await loadReportSession(db, gated, parsed.sessionKey, now, sessions);
   if (!session) {
     // Called off through "Change a session", or with no day and time to open at.
     const why = asked.cancelled ? noReportLine(asked.weekNumber, asked.occurrence) : undatedLine(asked.weekNumber, asked.occurrence);

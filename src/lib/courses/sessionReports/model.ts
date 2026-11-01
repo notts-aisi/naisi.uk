@@ -93,14 +93,17 @@ export function parseReportBody(raw: unknown): ParsedReport {
     return { ok: false, error: REPORT_REFUSAL.how };
   }
 
-  const texts: Record<"wentWell" | "didnt" | "forLead", string> = { wentWell: "", didnt: "", forLead: "" };
-  for (const key of ["wentWell", "didnt", "forLead"] as const) {
-    const value = typed(answers[key]);
-    if (value === null) return { ok: false, error: REPORT_REFUSAL.body };
-    if (value.length > SESSION_REPORT_LIMITS.text) {
-      return { ok: false, error: tooLongWords(ANSWER_NAMES[key], SESSION_REPORT_LIMITS.text) };
-    }
-    texts[key] = value;
+  // Each free-text answer by its own name, never by a key worked out here.
+  const wentWell = typed(answers.wentWell);
+  const didnt = typed(answers.didnt);
+  const forLead = typed(answers.forLead);
+  if (wentWell === null || didnt === null || forLead === null) return { ok: false, error: REPORT_REFUSAL.body };
+  for (const [value, name] of [
+    [wentWell, ANSWER_NAMES.wentWell],
+    [didnt, ANSWER_NAMES.didnt],
+    [forLead, ANSWER_NAMES.forLead],
+  ] as const) {
+    if (value.length > SESSION_REPORT_LIMITS.text) return { ok: false, error: tooLongWords(name, SESSION_REPORT_LIMITS.text) };
   }
 
   const unclearRaw = answers.unclear ?? [];
@@ -135,13 +138,13 @@ export function parseReportBody(raw: unknown): ParsedReport {
     sessionKey,
     answers: {
       how,
-      wentWell: texts.wentWell,
-      didnt: texts.didnt,
+      wentWell,
+      didnt,
       unclear,
       engaged: engaged as ReportPick[],
       notRead,
       needsHand: needsHand as ReportPick[],
-      forLead: texts.forLead,
+      forLead,
     },
   };
 }

@@ -78,19 +78,24 @@ function stylesheets() {
   return [...found];
 }
 
-/** What the page's components are handed: the grid's data hook reads it. */
+/** What the page's components are handed: the grid's data hook reads it, and a link is drawn with `h`. */
 const UI = "__registerPushEmailUi";
-globalThis[UI] = { attendance: null };
+globalThis[UI] = { attendance: null, h: createElement };
 const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(name) });";
 
 // The routes and the page's own components, through the world's one loader.
-// The page needs three things the routes never reach: the grid is handed
+// The page needs four things the routes never reach: the grid is handed
 // the register route's own answer through its data hook, a dialog is drawn
-// where it stands (the real one waits for the browser to portal itself), and
-// a stylesheet reads as its class names.
+// where it stands (the real one waits for the browser to portal itself), a
+// Next link is drawn as the anchor it renders, and a stylesheet reads as its
+// class names.
 const made = makeWorld("__registerPushEmail", [
   ["./useAttendance", `export default function useAttendance() { return globalThis[${JSON.stringify(UI)}].attendance; }`],
   ["@/components/ui/Modal", "export default function Modal(props) { return props.open ? props.children : null; }"],
+  [
+    "next/link",
+    `export default ({ href, className, children, scroll, prefetch, ...rest }) => globalThis[${JSON.stringify(UI)}].h('a', { href, className, ...rest }, children);`,
+  ],
   ...stylesheets().map((specifier) => [specifier, CLASS_NAMES]),
 ]);
 const { world, reset, call, courseRoute, loadTs } = made;

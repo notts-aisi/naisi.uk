@@ -49,8 +49,17 @@ import { REPORT_REFUSAL } from "./words";
 export type ReportPerson = { uid: string; name: string; firstName: string };
 
 export type ReportGate =
-  | { ok: true; group: CourseGroupDoc; run: CourseRunDoc }
+  | {
+      ok: true;
+      group: CourseGroupDoc;
+      run: CourseRunDoc;
+      /** True for a facilitator who is also an admin: the register shows them everybody placed. */
+      isAdmin: boolean;
+    }
   | { ok: false; status: 403 | 404; error: string };
+
+/** The gate's answer to somebody it admits. */
+export type ReportWriter = Extract<ReportGate, { ok: true }>;
 
 /**
  * Decide whether `actor` may write a report on this group, off the group's
@@ -76,7 +85,7 @@ export async function gateReportWriter(db: Firestore, actor: SessionUser, groupI
   if (!runSnap.exists || (runSnap.data() ?? {}).destroying === true) {
     return { ok: false, status: 404, error: "Group not found" };
   }
-  return { ok: true, group, run: normalizeCourseRun(runSnap.id, runSnap.data() ?? {}) };
+  return { ok: true, group, run: normalizeCourseRun(runSnap.id, runSnap.data() ?? {}), isAdmin: actor.role === "admin" };
 }
 
 /** The group's sessions, as its register's columns resolve them. */
@@ -103,25 +112,25 @@ function firstNameOf(name: string): string {
 }
 
 /**
- * What one session's report can pick from, and whether it is open. Null for a
- * session the group does not hold, one called off and one with no date: none
- * of them has a report.
+ * What one session's report can pick from, and whether it is open, for a
+ * writer the gate has admitted. Null for a session the group does not hold,
+ * one called off and one with no date: none of them has a report.
  */
 export async function loadReportSession(
   db: Firestore,
-  run: CourseRunDoc,
-  group: CourseGroupDoc,
+  gated: ReportWriter,
   sessionKey: string,
   now: Date,
-  sessions: readonly ResolvedSession[] = sessionsOf(run, group),
+  sessions: readonly ResolvedSession[] = sessionsOf(gated.run, gated.group),
 ): Promise<ReportSession | null> {
+  const { run, group } = gated;
   const window = reportWindowOf(sessions, sessionKey);
   if (!window) return null;
   const { session } = window;
   const [registerSnap, roster, week] = await Promise.all([
     db.collection("courseAttendance").doc(attendanceDocId(run.id, group.id, session.weekNumber, session.occurrence)).get(),
-    // As a facilitator sees the register: the people Publish has told.
-    loadRegisterMembers(db, run.id, group.id, { isAdmin: false }),
+    // The register's rows as this writer sees them: the people Publish has told.
+    loadRegisterMembers(db, run.id, group.id, { isAdmin: gated.isAdmin }),
     resolveWeekDoc(db, run.id, group.id, session.weekId),
   ]);
   const register = registerSnap.exists ? (registerSnap.data() ?? {}) : {};
@@ -143,7 +152,10 @@ export async function loadReportSession(
   return {
     window,
     state: windowStateAt(window, now),
-    held: register.held !== false,
+    // A session called off was never held, whatever its register says (and
+    // `reportWindowOf` has already refused one): the register's own switch
+    // speaks only for a session that met.
+    held: !session.cancelled && register.held !== false,
     came,
     inGroup,
     parts,

@@ -74,7 +74,7 @@ export async function loadReportPage(
   if (!chosen) return { kind: "nothing-yet", groupName };
   const title = reportTitle(chosen.weekNumber, chosen.occurrence);
 
-  const session = await loadReportSession(db, run, group, chosen.sessionKey, now, sessions);
+  const session = await loadReportSession(db, gated, chosen.sessionKey, now, sessions);
   if (!session) {
     // Called off through "Change a session", or with no day and time to open at.
     const line = chosen.cancelled ? noReportLine(chosen.weekNumber, chosen.occurrence) : undatedLine(chosen.weekNumber, chosen.occurrence);

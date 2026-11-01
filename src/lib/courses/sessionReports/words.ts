@@ -144,7 +144,7 @@ export const REPORT_REFUSAL = {
 
 /** "What went well is too long: keep it to 2,000 characters." */
 export function tooLongWords(what: string, limit: number): string {
-  return `${what} is too long: keep it to ${limit.toLocaleString("en-GB")} characters.`;
+  return `${what} is too long: keep it to ${new Intl.NumberFormat("en-GB").format(limit)} characters.`;
 }
 
 /** What each free-text answer is called in a refusal. */
