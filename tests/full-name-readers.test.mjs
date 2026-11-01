@@ -158,6 +158,19 @@ const READERS = new Map([
       "the session's own viewer, so the committee and admins are sent the full name and an organiser who is a member the " +
       "name people go by; the name a sign-up kept is sent only to admins and SU-recognised committee",
   }],
+  ["src/lib/courses/explainers/readers.ts", {
+    who: "rule",
+    proof: ['out.set(snap.id, nameForViewer(viewer, names, ""));'],
+    why: "who explains and who scheduled an explainer, named through `nameForViewer` for the viewer each page hands it, the session's own: a facilitator who is not on the committee reads the name people go by on their ticket, the committee and admins a full name",
+  }],
+  ["src/lib/courses/explainers/schedule.ts", {
+    who: "rule",
+    proof: [
+      'people.push({ uid: doc.id, name: nameForViewer(viewer, accountNamesOf(data), "NAISI member"), role });',
+      'nameForViewer({ role: String(explainerData.role) }, accountNamesOf(schedulerSnap.data() ?? {}), "An admin")',
+    ],
+    why: "an admin's form names who may explain through `nameForViewer` for the admin; the task and the email to whoever explains name the admin who asked through it for them, somebody the server held to the committee or an admin",
+  }],
   ["src/lib/applications/review/people.ts", {
     who: "rule",
     why: "the review screens' name for an applicant (`applicantName`): the staff rule over the full name on their application",

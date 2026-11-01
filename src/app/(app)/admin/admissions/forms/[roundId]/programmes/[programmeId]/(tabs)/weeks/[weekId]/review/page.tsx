@@ -4,6 +4,7 @@ import RunBlank from "@/features/applications/groups/RunBlank";
 import WeeksNotYours from "@/features/applications/weeks/WeeksNotYours";
 import WeekReviewScreen from "@/features/courses/weekReview/WeekReviewScreen";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
+import { explainersFromWeek } from "@/lib/courses/explainers/readers";
 import { loadWeekReview } from "@/lib/courses/weekReview/store";
 import { LEAD_REVIEW_WORDS, REVIEW_WORDS } from "@/lib/courses/weekReview/words";
 import { weeksPath } from "@/lib/courses/weeksTab/paths";
@@ -23,6 +24,9 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * Claude" would send before anybody presses it. The presses send their own
  * routes, which ask who the caller is again. `?read=strongest` and
  * `?read=weakest` open the lists under the chart, as plain links.
+ *
+ * The explainers scheduled from this week's review are read here too, after
+ * the review's door, for its Explainers card and their Cancel.
  */
 
 export const dynamic = "force-dynamic";
@@ -67,6 +71,13 @@ export default async function WeekReviewPage({
       </Refusal>
     );
   }
+  const explainers = await explainersFromWeek(
+    db,
+    user,
+    page.opened.run.id,
+    page.opened.weekNumber,
+    page.opened.groups.map((each) => ({ id: each.group.id, name: each.group.name })),
+  );
   return (
     <WeekReviewScreen
       view={page.view}
@@ -75,6 +86,7 @@ export default async function WeekReviewPage({
       programmeName={view.programmeName}
       names={page.names}
       read={read}
+      explainers={explainers}
     />
   );
 }

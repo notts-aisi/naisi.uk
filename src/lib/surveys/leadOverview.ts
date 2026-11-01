@@ -1,5 +1,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import { explainersBookedFrom } from "@/lib/courses/explainers/readers";
+import { overviewExplainersWords } from "@/lib/courses/explainers/words";
 import { runEndOf } from "@/lib/courses/finishing/runEnd";
 import { buildRunAttendance, groupSessions, readRunRecords, weeksOf } from "@/lib/courses/programmeAttendance";
 import { countRunReportsByWeek, type ReportWeekCount } from "@/lib/courses/sessionReports/readers";
@@ -33,9 +35,12 @@ import { leadSurveyRows, type LeadSurveyRow } from "./leadTab";
  *    the first time it is whole, and then only those check-ins, with their
  *    floors (`leadWeekOf`): the Check-ins view's weeks, one count.
  *  - NOTHING THE RECORDS DO NOT HOLD YET. The share who ticked every reading,
- *    the team's ratings of written work, a summary of what reports say and
- *    anything booked to explain a week again are not drawn, and nothing
- *    stands in for them.
+ *    the team's ratings of written work and a summary of what reports say
+ *    are not drawn, and nothing stands in for them.
+ *  - AN EXPLAINER BOOKED from the chosen week's review is a line under what
+ *    was unclear ("The week 3 review has an explainer booked for four
+ *    groups."): how many explainers and how many groups, never a topic, a
+ *    group, a name or anything of the review it came from.
  *
  * Who may ask is the caller's business: the page holds the caller to the
  * programme's lead or an admin first (`loadProgrammeRun`).
@@ -69,8 +74,18 @@ export type SurveysOverview = {
   reported: { sessions: number; of: number } | null;
   /** Every taught week of the run, for the charts; empty while no run is named. */
   weeks: OverviewWeek[];
-  /** What was unclear in the chosen week; null while no week shows. */
-  unclear: { weeks: number[]; chosen: number; answered: number; reports: number; rows: OverviewUnclearRow[] } | null;
+  /**
+   * What was unclear in the chosen week; null while no week shows. `explainers`
+   * is the line saying what was booked from that week's review, or null.
+   */
+  unclear: {
+    weeks: number[];
+    chosen: number;
+    answered: number;
+    reports: number;
+    rows: OverviewUnclearRow[];
+    explainers: string | null;
+  } | null;
   /** Who came, week by week, for the weeks anybody has been marked; null while no run is named. */
   came: { weekNumber: number; came: number; of: number; soFar: boolean }[] | null;
   /** The reports on the chosen week, or the latest week with any while no week shows. */
@@ -177,6 +192,8 @@ export async function leadSurveysOverview(
   const reportsWeek = chosen ? (chosenReports ?? { weekNumber: chosen.weekNumber, reports: 0, how: null }) : latestReported;
 
   const attendance = buildRunAttendance(records, { isAdmin: programme.viewer === "admin" }, now);
+  // What was booked from the chosen week's review: counts alone.
+  const booked = chosen ? await explainersBookedFrom(db, records.run.id, chosen.weekNumber) : null;
   return {
     before,
     end,
@@ -192,6 +209,8 @@ export async function leadSurveysOverview(
           answered: chosen.answered,
           reports: chosenReports?.reports ?? 0,
           rows: unclearRows(chosen, chosenReports),
+          explainers:
+            booked && booked.explainers > 0 ? overviewExplainersWords(chosen.weekNumber, booked.explainers, booked.groups) : null,
         }
       : null,
     came: attendance.totals

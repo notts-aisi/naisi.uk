@@ -39,8 +39,9 @@ import styles from "./analysis.module.css";
  * beside its bar: a week is reported, never marked as good or bad.
  *
  * What the records do not hold yet is left out, not drawn empty: the share
- * who ticked every reading, the team's ratings of written work, a summary of
- * what the reports say and anything booked to explain a week again.
+ * who ticked every reading, the team's ratings of written work and a summary
+ * of what the reports say. An explainer booked from the chosen week's review
+ * is a line under what was unclear, counts alone.
  */
 
 /** A week with nothing to show yet: the register's own dot. */
@@ -196,6 +197,7 @@ function Unclear({ view, base }: { view: Overview; base: string }) {
       )}
       <p className={styles.caption}>{WORDS.unclearLine}</p>
       {unclear.reports > 0 && <p className={styles.caption}>{besideEachPartWords(unclear.reports)}</p>}
+      {unclear.explainers && <p className={styles.caption}>{unclear.explainers}</p>}
     </section>
   );
 }

@@ -266,6 +266,49 @@
   margin-top: 8px;
 }
 
+/* An explainer at the start of the session, an admin scheduled from a week's
+   review: the chip, then how long, what about and who; and under the ticket,
+   who scheduled it. */
+.explainerBox {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-bg);
+}
+
+.explainerChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 10px;
+  border: 1px solid var(--color-live-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-live-soft);
+  color: var(--color-live);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.explainerText {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.explainerLine {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
 /* "Facilitator guide for week 3", beside Take the register (wk-fac-group). */
 .ticketGuide {
   display: inline-flex;

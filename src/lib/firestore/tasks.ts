@@ -21,6 +21,13 @@
  * POST .../weeks/[weekId]/review/follow-up, always `assignees-only`, with
  * fixed words and no reason. Its `sourceRef` names the run, the week, the
  * group and the person it is about (`aboutUid`).
+ *
+ * `explainer` is one session of an explainer an admin scheduled from a
+ * week's review, for the committee member giving it: minted by
+ * POST .../weeks/[weekId]/explainers, one per session, always
+ * `assignees-only`, with the session's day, time and room and never a
+ * meeting link. Its `sourceRef` names the run, the week, the group and the
+ * session (`sessionKey`).
  */
 export type TaskSource =
   | "committee"
@@ -28,7 +35,8 @@ export type TaskSource =
   | "personal"
   | "course-register"
   | "worksheet"
-  | "review-follow-up";
+  | "review-follow-up"
+  | "explainer";
 
 /** Board-facing names for the sources above. */
 export const TASK_SOURCE_LABELS: Record<TaskSource, string> = {
@@ -38,6 +46,7 @@ export const TASK_SOURCE_LABELS: Record<TaskSource, string> = {
   "course-register": "Register",
   worksheet: "Worksheet",
   "review-follow-up": "Week review",
+  explainer: "Explainer",
 };
 
 export type TaskKind =

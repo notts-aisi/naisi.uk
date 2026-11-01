@@ -560,7 +560,10 @@ The same shape, older:
   the notes kept about a person reach a review, or a weekly note's drafts
   (`courseNoteDrafts`, listed when the end-of-week notes are built), because
   the privacy policy says Claude's grades are never kept on anybody's record
-  and what Claude returns is seen by admins only.
+  and what Claude returns is seen by admins only. An explainer reads one
+  theme for the admin's form and nothing else: the guard holds the
+  explainers' record and every reader of it (the tickets, the overview, the
+  week's email, the week's page) off the review.
 
 ### Settings that are not files
 

@@ -19,6 +19,9 @@ import { inLastWeek } from "@/lib/courses/programmeEnd";
 import { whatsNextFor, type WhatsNext } from "@/lib/courses/whatsNext";
 import { resolveSessions, sessionInstants, sessionRange, type ResolvedSession } from "@/lib/courses/sessions";
 import { cardChangeFacts } from "@/lib/courses/sessionChange/model";
+import { memberExplainerOn, type MemberExplainer } from "@/lib/courses/explainers/model";
+import { readRunExplainers } from "@/lib/courses/explainers/readers";
+import type { CourseExplainerDoc } from "@/lib/firestore/courseExplainers";
 import { slotRangeWords } from "@/lib/courses/sessionChange/words";
 import type { GroupCampus } from "@/lib/courses/campus";
 import { weekOneDoorFor, type PlaceBeforeGroups } from "@/lib/courses/weekOne/door";
@@ -204,6 +207,13 @@ export type OverviewNextSession = {
    * on the site only (Q23): no email or calendar feed carries it.
    */
   meetingUrl: string | null;
+  /**
+   * The explainer an admin scheduled at the start of this session, as each
+   * person in the group reads it on their ticket: how long and what about
+   * (the admin's own words), or null. Never who explains, who scheduled it
+   * or the review it came from (`src/lib/courses/explainers/`).
+   */
+  explainer: MemberExplainer | null;
 };
 
 /**
@@ -1212,6 +1222,16 @@ export async function GET(
    * route's own rule and is applied here so every group gets it identically.
    */
   const groupCalendars = resolveGroupCalendars(run, groupCards, now);
+  // The explainers an admin scheduled on the run, for each card's next
+  // session (one equality on the run). A read that fails says nothing of
+  // one rather than fail the page every member opens.
+  const explainers: CourseExplainerDoc[] =
+    groupCards.length > 0
+      ? await readRunExplainers(db, runId).catch((err: unknown) => {
+          console.error("[overview] explainers could not be read", runId, err);
+          return [];
+        })
+      : [];
   const scheduled = run.status !== "draft";
   const asScheduled = (resolved: GroupCalendar): GroupCalendar =>
     scheduled ? resolved : { ...resolved, currentWeek: null };
@@ -1438,6 +1458,7 @@ export async function GET(
               location: changes.next?.location ?? "",
               // The same gate as the group's own link, below.
               meetingUrl: canSeeMeetingUrlFor(source) ? (changes.next?.meetingUrl ?? null) : null,
+              explainer: memberExplainerOn(explainers, source.id, range.next.sessionKey),
             }
           : null,
       },

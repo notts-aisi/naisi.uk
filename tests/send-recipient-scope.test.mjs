@@ -209,6 +209,24 @@ const RECIPIENT_SOURCES = new Map([
       why: "One facilitator's resolved account, looked up from the task's completers, which the server chose.",
     },
   ],
+  // An explainer, scheduled from a week's review: the one email goes to
+  // whoever explains, the account the admin chose, which the server reads and
+  // holds to the committee or an admin before anything is written or sent.
+  [
+    "src/lib/courses/explainers/schedule.ts#local:recipient",
+    {
+      reads: 1,
+      origin: "assembled",
+      sourceOutsideScan:
+        "The one account the admin chose as whoever explains (`ask.explainerUid`, read from the request by " +
+        "`readScheduleAsk`), a field the scan cannot name. The server reads that account and refuses anybody not on " +
+        "the committee or an admin (`MAY_EXPLAIN`) before anything is written or sent, and the request names nobody " +
+        "else: nobody in the groups is a recipient.",
+      why:
+        "Whoever explains, resolved from the one account the admin chose, after the server held it to the committee " +
+        "or an admin. Nobody in the groups is a recipient: their tickets say it.",
+    },
+  ],
   [
     "src/lib/courses/weekReview/followUp.ts#task.completerUids",
     {

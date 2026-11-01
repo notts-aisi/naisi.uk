@@ -3370,6 +3370,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === courseExplainers ===
+    // An explainer an admin scheduled from a week's review
+    // (src/lib/firestore/courseExplainers.ts): the admin's topic, who
+    // explains, how long, and the sessions it opens. Read and written only on
+    // the Admin SDK: by its route after the review's door admits an admin, by
+    // the pages and routes that draw a session's ticket after their own
+    // gates, by "Week N is open", and by the two deletions. Every browser is
+    // refused, admins included.
+    match /courseExplainers/{docId} {
+      allow read, write: if false;
+    }
+
     // === coursePangramChecks ===
     // Pangram's reading of each of one person's counted answers on a run
     // (privacy v13; src/lib/courses/coursework/pangram.ts). Read and written

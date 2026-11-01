@@ -44,6 +44,7 @@ import { JOIN_ONLINE, LINK_IS_HERE, dayWords } from "@/lib/courses/sessionChange
 import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
 import { ATTENDANCE_STATUS_LABEL, type AttendanceStatus } from "@/lib/firestore/courseAttendance";
 import weekly from "@/features/courses/weekly/weekly.module.css";
+import { STARTS_WITH_AN_EXPLAINER, facilitatorLineWords, scheduledByWords } from "@/lib/courses/explainers/words";
 import { PeopleIcon } from "./icons";
 import styles from "./facilitator.module.css";
 
@@ -69,6 +70,11 @@ import styles from "./facilitator.module.css";
  *
  * Not drawn: who can't make it (the register says it, which "Take the
  * register" opens) and the facilitator guide (no record holds one).
+ *
+ * AN EXPLAINER at the start of the session, when an admin scheduled one from
+ * a week's review: "Starts with an explainer", how long, what about and who
+ * gives it, then the week as planned, and under the ticket who scheduled it
+ * and from which week's review. Never the review itself.
  */
 export function FacilitatorTicket({
   facts,
@@ -78,6 +84,7 @@ export function FacilitatorTicket({
   expected,
   registerHref,
   guide = null,
+  explainer = null,
 }: {
   facts: TicketFacts;
   eyebrow: string;
@@ -91,6 +98,11 @@ export function FacilitatorTicket({
    * when the session's week has nothing in the course's facilitator guide.
    */
   guide?: { href: string; label: string } | null;
+  /**
+   * The explainer the session starts with, named as this reader sees people
+   * (`by` and `scheduledBy`, null once an account is gone), or null.
+   */
+  explainer?: { minutes: number; topic: string; by: string | null; scheduledBy: string | null; fromWeekNumber: number } | null;
 }) {
   const tile = tilePartsOfDay(facts.dateKey);
   const modeChip =
@@ -100,6 +112,7 @@ export function FacilitatorTicket({
       <span className={weekly.plainChip}>In person this week</span>
     ) : null;
   return (
+    <>
     <section className={weekly.ticket} aria-label="Your next session" data-testid="session-card">
       {/* The stub and the body side by side, as wk-fac-group draws them: the
           ticket's frame is a column since Home's row of buttons sits under both. */}
@@ -131,6 +144,12 @@ export function FacilitatorTicket({
               </span>
             </div>
           )}
+          {explainer && (
+            <div className={styles.explainerBox}>
+              <span className={styles.explainerChip}>{STARTS_WITH_AN_EXPLAINER}</span>
+              <p className={styles.explainerText}>{facilitatorLineWords(explainer.minutes, explainer.topic, explainer.by)}</p>
+            </div>
+          )}
           <div className={styles.ticketButtons}>
             <Link href={registerHref} className={styles.buttonPrimary}>
               {TAKE_THE_REGISTER}
@@ -152,6 +171,8 @@ export function FacilitatorTicket({
       </div>
       </div>
     </section>
+    {explainer && <p className={styles.explainerLine}>{scheduledByWords(explainer.scheduledBy, explainer.fromWeekNumber)}</p>}
+    </>
   );
 }
 

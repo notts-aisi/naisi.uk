@@ -1347,6 +1347,14 @@ const USERS = new Map([
       "row falls. Only `server-only` is stubbed; `firebase-admin/firestore` is the real one",
   ],
   [
+    "course-explainers.test.mjs",
+    "it drives scheduling and cancelling an explainer, its page, the review's list, both kinds of session ticket, " +
+      "Home, the overview, \"Week N is open\" and the week's page on the facilitator week's world, and runs the " +
+      "account cascade over the record, because who may explain, which sessions it opens and who reads it are " +
+      "decided across the routes, the review's door, the sessions resolver, the tickets' readers and the week's " +
+      "email together. The push mirror is stubbed to record what it is handed",
+  ],
+  [
     "week-review.test.mjs",
     "it drives the week review's page and both of its routes (privacy v15) on the facilitator week's world, and runs " +
       "the account cascade over its record, because what leaves for Claude, what comes back and who may see it are " +

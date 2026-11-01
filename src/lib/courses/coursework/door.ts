@@ -5,6 +5,7 @@ import { placeHoldersOn, type PlaceHolder } from "@/lib/applications/handover/ho
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { loadForm } from "@/lib/applications/repo";
 import { readRunLead } from "@/lib/courses/programmeLead";
+import { COURSE_EXPLAINERS_COLLECTION } from "@/lib/firestore/courseExplainers";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { listDecisions, listSentApplications } from "@/lib/applications/staffRepo";
 import type { SessionUser } from "@/lib/firebase/session";
@@ -77,19 +78,25 @@ export const RUNNING_LABEL = "someone running the programme";
 
 /**
  * The people running the programme beyond its groups, whose names may be
- * typed into anybody's words ("as Claudia said in the session"): the
- * programme's lead, the run's helpers (its track leads) and every admin. The
- * run's explainers join them here once a run can have any. Ids only.
+ * typed into anybody's words ("as Claudia said in the session", "Maya's
+ * explainer helped"): the programme's lead, the run's helpers (its track
+ * leads), every admin, and everybody who has explained on the run, a
+ * cancelled explainer's included. Ids only.
  */
 export async function runStaffUids(db: Firestore, runId: string): Promise<string[]> {
-  const [lead, runSnap, admins] = await Promise.all([
+  const [lead, runSnap, admins, explainers] = await Promise.all([
     readRunLead(db, runId),
     db.collection("courseRuns").doc(runId).get(),
     // One equality on one field; ids only, as the register's tasks read them.
     db.collection("users").where("role", "==", "admin").select().get(),
+    // The run's explainers: one equality on one field, and only who explains.
+    db.collection(COURSE_EXPLAINERS_COLLECTION).where("runId", "==", runId).select("explainerUid").get(),
   ]);
   const helpers = runSnap.exists ? normalizeCourseRun(runSnap.id, runSnap.data() ?? {}).trackLeadUids : [];
-  return [...new Set([...(lead ? [lead.uid] : []), ...helpers, ...admins.docs.map((doc) => doc.id)])].filter(Boolean);
+  const explaining = explainers.docs
+    .map((doc) => (doc.data() ?? {}).explainerUid)
+    .filter((uid): uid is string => typeof uid === "string" && uid.length > 0);
+  return [...new Set([...(lead ? [lead.uid] : []), ...helpers, ...admins.docs.map((doc) => doc.id), ...explaining])].filter(Boolean);
 }
 
 /**

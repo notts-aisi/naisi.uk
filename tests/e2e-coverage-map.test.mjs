@@ -2131,6 +2131,24 @@ const NOT_COVERED = {
       "Course hub: Review with Claude; every caller, a view-as session, no key, a page that saw something else, nothing to send and a part that fails are executed by tests/week-review.test.mjs with Claude stubbed, reading every message that would go. The browser spec reads the page and never presses it.",
     coverWhen: "When a browser spec runs against a server with a Claude key and presses Review with Claude once, as the coursework notes spec presses Claude's draft.",
   },
+  // Explainers, from a week's review: the form, the press and Cancel.
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review/explainer": {
+    reason:
+      "Course hub: Schedule an explainer, an admin's form under a week's review. Drawn as an admin, the lead, a reviewer, a facilitator and a member, from a theme and with a typed topic, before and after the week's first session, by tests/course-explainers.test.mjs, which reads the props it hands the browser's form.",
+    coverWhen:
+      "When the course-hub-week-review spec next changes: it schedules one with a typed topic from this page and reads the facilitator's ticket.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/explainers": {
+    reason:
+      "Course hub: scheduling an explainer. Every caller, a view-as session, every body it refuses, somebody not on the committee, a session that is not its group's next, a second explainer on one session, the record, the tasks, the one email and its push are executed by tests/course-explainers.test.mjs on the term's world.",
+    coverWhen:
+      "When the course-hub-week-review spec next changes: it schedules one with a typed topic and the facilitator reads it on their ticket.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/explainers/[explainerId]": {
+    reason:
+      "Course hub: cancelling an explainer. Every caller, a view-as session, an explainer of another run, the tasks closed, every ticket and the week's email line cleared and nobody emailed are executed by tests/course-explainers.test.mjs.",
+    coverWhen: "When the course-hub-week-review spec next changes: after scheduling one it cancels it and finds the ticket clear.",
+  },
   "/api/courses/groups/[groupId]/session-report": {
     reason:
       "Course hub: a facilitator's own report on a session of their group; who writes, every refusal, who a report may pick, when it is open and what it keeps are executed by tests/course-session-reports.test.mjs as each kind of caller, with the account deletion and the run's destroy.",

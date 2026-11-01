@@ -1148,6 +1148,42 @@ describe("4b. the Overview: cards, the weeks of check-ins, what was unclear with
       world.db.poke(`admissionRounds/${ROUND}`, { programmes: form.programmes });
     }
   });
+
+  test("an explainer booked from the chosen week's review is one line of counts, never its topic, a group or a name; a cancelled one is none", async () => {
+    const explainer = (id, over) => ({
+      runId: RUN.agi,
+      roundId: ROUND,
+      programmeId: AGI,
+      fromWeekId: "w03",
+      fromWeekNumber: 3,
+      topic: "Who decides what counts as AGI",
+      explainerUid: "nadia",
+      minutes: 10,
+      sessions: [
+        { groupId: A, sessionKey: "w04", weekNumber: 4, startsAt: new Date("2026-11-19T18:00:00Z") },
+        { groupId: D, sessionKey: "w04", weekNumber: 4, startsAt: new Date("2026-11-23T18:00:00Z") },
+      ],
+      scheduledByUid: "zach",
+      scheduledAt: new Date("2026-11-18T10:00:00Z"),
+      cancelledAt: null,
+      cancelledByUid: null,
+      ...over,
+      id,
+    });
+    world.db.seed("courseExplainers/x1", explainer("x1", {}));
+    try {
+      const lead = await tabAs("claudia");
+      assert.ok(lead.text.includes("The week 3 review has an explainer booked for two groups."), lead.text);
+      for (const never of ["Who decides what counts", "Nadia", "Group A", "Group D", A, D]) assert.ok(!lead.html.includes(never), never);
+      // Week 1's review booked nothing: its card says nothing of one.
+      assert.ok(!(await tabAs("claudia", AGI, { week: "1" })).text.includes("explainer"));
+      // Cancelled: no line.
+      world.db.poke("courseExplainers/x1", { cancelledAt: new Date("2026-11-18T11:00:00Z"), cancelledByUid: "zach" });
+      assert.ok(!(await tabAs("claudia")).text.includes("explainer"));
+    } finally {
+      await world.db.collection("courseExplainers").doc("x1").delete();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

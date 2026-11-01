@@ -38,6 +38,7 @@ import {
   whosComingSentence,
 } from "@/lib/courses/facilitatorPageWords";
 import { facilitatorGuidePath } from "@/lib/courses/facilitatorGuide/model";
+import { STARTS_WITH_AN_EXPLAINER, facilitatorLineWords, scheduledByWords } from "@/lib/courses/explainers/words";
 import { FACILITATOR_GUIDE } from "@/lib/courses/facilitatorGuide/words";
 import { WRITE_FEEDBACK, toWriteWords } from "@/lib/courses/feedback/words";
 import { sessionEyebrow, weekTitleWords } from "@/lib/courses/memberPageWords";
@@ -81,6 +82,10 @@ import styles from "./home.module.css";
  *
  * SOMEBODY WITH TWO GROUPS sees the one that meets next, and a line saying
  * there are more with the way to all of them.
+ *
+ * AN EXPLAINER at the start of the next session, when an admin scheduled one:
+ * the ticket says so as the group page's does, from the summary route, and
+ * only on the session the summary names it for.
  */
 
 /** A facilitator's groups on this run, the one that meets soonest first. */
@@ -149,6 +154,9 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
   const firstDay = group?.calendar.firstSessionDate ?? "";
   const beforeFirst = Boolean(group && facts && firstDay && todayKey < firstDay);
   const whosComing = known?.whosComing ?? null;
+  // The explainer the next session starts with, on that session's ticket alone.
+  const explainer =
+    known?.explainer && known.explainer.sessionKey === group?.calendar.nextSession?.sessionKey ? known.explainer : null;
   // This week's part of the course's facilitator guide, when it has one. An
   // overview that names no course asks for nothing.
   const guide = useFacilitatorGuide(data?.run?.courseId ?? "");
@@ -216,6 +224,14 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
                       </h2>
                       {roomLine && <p className={facilitator.ticketRoomMuted}>{roomLine}</p>}
                       {facts.mode === "virtual" && <span className={weekly.liveChip}>Online this week</span>}
+                      {explainer && (
+                        <div className={facilitator.explainerBox}>
+                          <span className={facilitator.explainerChip}>{STARTS_WITH_AN_EXPLAINER}</span>
+                          <p className={facilitator.explainerText}>
+                            {facilitatorLineWords(explainer.minutes, explainer.topic, explainer.by)}
+                          </p>
+                        </div>
+                      )}
                       <Link href={groupHref} className={`${styles.primary} ${facilitator.beforeOpen}`}>
                         {OPEN_YOUR_GROUP}
                       </Link>
@@ -223,6 +239,9 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
                   </div>
                 </div>
               </section>
+              {explainer && (
+                <p className={facilitator.explainerLine}>{scheduledByWords(explainer.scheduledBy, explainer.fromWeekNumber)}</p>
+              )}
 
               {/* Who's coming: once Publish has told them, each person by
                   first name, "coming" or "hasn't said", and nothing else. */}
@@ -304,6 +323,14 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
                       </h2>
                       {roomLine && <p className={facilitator.ticketRoomMuted}>{roomLine}</p>}
                       {facts.mode === "virtual" && <span className={weekly.liveChip}>Online this week</span>}
+                      {explainer && (
+                        <div className={facilitator.explainerBox}>
+                          <span className={facilitator.explainerChip}>{STARTS_WITH_AN_EXPLAINER}</span>
+                          <p className={facilitator.explainerText}>
+                            {facilitatorLineWords(explainer.minutes, explainer.topic, explainer.by)}
+                          </p>
+                        </div>
+                      )}
                       {known && (
                         <div className={facilitator.homeTicketFoot}>
                           <p className={facilitator.homeTicketRow}>
@@ -325,6 +352,9 @@ export default function HomeFacilitator({ given, invite, entry, comingUp, more }
                 </div>
               </section>
 
+              {explainer && (
+                <p className={facilitator.explainerLine}>{scheduledByWords(explainer.scheduledBy, explainer.fromWeekNumber)}</p>
+              )}
               <div className={facilitator.registerCta}>
                 <Link
                   href={`${groupHref}/register`}

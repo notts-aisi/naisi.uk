@@ -75,6 +75,8 @@ export type TicketFacts = {
   joinUrl: string | null;
   /** A sentence for an online week whose link is not here yet, or an in-person week with no room yet. */
   missing: string | null;
+  /** The explainer the session starts with: how long and what about, or null. */
+  explainer: { minutes: number; topic: string } | null;
 };
 
 export function ticketFacts(group: OverviewGroup): TicketFacts | null {
@@ -102,6 +104,7 @@ export function ticketFacts(group: OverviewGroup): TicketFacts | null {
         : mode === "in-person" && !room
           ? "Your facilitator will confirm the room."
           : null,
+    explainer: next.explainer ?? null,
   };
 }
 

@@ -983,6 +983,10 @@ nameless:
   the latest by default): each part the check-ins named, with how many named
   it and their share of the week's answers, and beside it how many of the
   week's session reports named it; a part only the reports named is a row too.
+  When an admin scheduled an explainer from that week's review, one line
+  under it says so in counts ("The week 3 review has an explainer booked for
+  four groups."), never its topic, a group, a name or anything of the review
+  (docs/courses-ops.md, "Explainers").
 - **Came to the session**, week by week, the Attendance tab's own count
   (`buildRunAttendance` for the same viewer) in its words ("50 of 54 came",
   "so far" while a register of the week is not finished).
@@ -992,8 +996,8 @@ nameless:
   opening is recorded."
 
 Not drawn, because no record holds it yet: the share who ticked every
-reading, the team's ratings of written work, a summary of what the reports
-say and anything booked to explain a week again.
+reading, the team's ratings of written work and a summary of what the reports
+say.
 
 **Check-ins**: the weeks of the programme's check-ins (Check-ins, above),
 newest first, each with how many answered of how many its check-ins reached,

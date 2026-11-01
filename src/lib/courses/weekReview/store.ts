@@ -15,9 +15,9 @@ import { askForGrades, askForHands, askForThemes } from "./claude";
 import { openWeekReview, type WeekReviewDoor } from "./door";
 import { handFacts } from "./facts";
 import { gatherWeekReview } from "./gather";
-import { reviewInputs, type ReviewInputs } from "./input";
+import { reviewInputs, withNamesBack, type ReviewInputs } from "./input";
 import { weekReviewView, type WeekReviewView } from "./view";
-import { REVIEW_WORDS } from "./words";
+import { REVIEW_WORDS, listWords } from "./words";
 
 /**
  * A WEEK'S REVIEW, KEPT AND READ (privacy v15), for an admin alone.
@@ -39,6 +39,10 @@ import { REVIEW_WORDS } from "./words";
  * answer. Deleted with the run (`courseDeletion.ts`, `weekReviews`); an
  * account's deletion takes the account out (`accountDeletion.ts`,
  * `clearWeekReviewEntries`). Never on anybody's profile.
+ *
+ * `themeForExplainer` is the explainer form's: one theme, read behind the
+ * review's door for an admin, to start a topic from. What an explainer keeps
+ * is the admin's topic and nothing of the theme.
  */
 
 export type WeekReviewPage = {
@@ -106,6 +110,49 @@ export async function loadWeekReview(
     programmePath: programmePathOf(opened.roundId, opened.programmeId),
   });
   return { ok: true, page: { opened, view, names } };
+}
+
+/** One theme of the review, as "Schedule an explainer" is opened from it. */
+export type ThemeForExplainer = {
+  /** Claude's title, with the groups' names put back: the topic the admin starts from. */
+  title: string;
+  /** The live groups it came from, by id: the sessions ticked to begin with. */
+  groupIds: string[];
+  /** Where it came from, in the review's own words: "9 answers and 4 facilitator reports, from Group C and Group D". */
+  from: string;
+};
+
+/**
+ * ONE THEME OF THE REVIEW KEPT FOR THIS WEEK, for "Schedule an explainer"
+ * (`src/lib/courses/explainers/`), read behind the review's door (`opened`,
+ * which admits an admin alone), by its place in the list, or null when the
+ * review holds no such theme. Only the admin's page shows any of it: an
+ * explainer keeps none of it but the topic the admin schedules, in the
+ * admin's own words.
+ */
+export async function themeForExplainer(db: Firestore, opened: WeekReviewDoor, index: number): Promise<ThemeForExplainer | null> {
+  if (!Number.isInteger(index) || index < 0) return null;
+  const { stored } = await readStored(db, opened.run.id, opened.weekId);
+  if (stored?.themes?.state !== "ready") return null;
+  const theme = stored.themes.list[index];
+  if (!theme) return null;
+  const fellows = fellowsOf(opened.door);
+  const groupName = new Map(opened.groups.map((each) => [each.group.id, each.group.name.trim() || "Untitled group"]));
+  const groupsNow: Record<string, string> = {};
+  for (const [label, groupId] of Object.entries(stored.themes.groupLabels)) {
+    const name = groupName.get(groupId);
+    if (name) groupsNow[label] = name;
+  }
+  const groupIds = theme.groupIds.filter((groupId) => groupName.has(groupId));
+  const answers = theme.answers.filter((answer) => fellows.has(answer.uid)).length;
+  return {
+    title: withNamesBack(theme.title, {}, groupsNow),
+    groupIds,
+    from: REVIEW_WORDS.themeFrom(
+      REVIEW_WORDS.themeCounts(answers, theme.checkIns, theme.reports),
+      listWords(groupIds.map((groupId) => groupName.get(groupId) ?? "")),
+    ),
+  };
 }
 
 /** Whether a part has anything to send. */

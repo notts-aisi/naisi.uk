@@ -305,6 +305,18 @@ const MUST_GUARD = [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review/follow-up/route.ts",
     "makes a task on a group's facilitators' boards and emails each of them, in the caller's name",
   ],
+  // Explainers, from a week's review: a record that puts a line on every
+  // ticket of the groups chosen, a task a session on the board of whoever
+  // explains and an email to them, and Cancel, which closes those tasks;
+  // each in the caller's name.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/explainers/route.ts",
+    "schedules an explainer: a record every chosen group's tickets read, a task a session for whoever explains and an email to them, in the caller's name",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/explainers/[explainerId]/route.ts",
+    "cancels an explainer: stamps it cancelled and closes its tasks on somebody's board, in the caller's name",
+  ],
   // The notes about a person on a programme, for its lead and admins
   // (privacy v15): a record about a named member, written as the caller,
   // which no client can read back to check what happened.

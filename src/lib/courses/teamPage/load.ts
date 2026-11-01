@@ -214,6 +214,9 @@ function ticketOf(run: CourseRunDoc, group: CourseGroupDoc, now: Date): TeamTick
     mode,
     joinUrl: null,
     missing: mode === "in-person" && !room ? "Your facilitator will confirm the room." : null,
+    // An explainer at the start of the session is said on the programme's
+    // page and on Home, from the run's overview; the team's page reads none.
+    explainer: null,
   };
   const clock = clockWords(next.session.startTimeLocal);
   return {
