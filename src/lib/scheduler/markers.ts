@@ -43,6 +43,7 @@ export {
   breakReturnMarker,
   decideMarkerClaim,
   eventAnnouncementMarker,
+  eventSurveyMarker,
   isStaleWork,
   markerFamilyOf,
   normalizeSchedulerMarker,
@@ -57,6 +58,7 @@ export {
 } from "@/lib/firestore/schedulerMarkers";
 export type {
   EventAnnouncementLeg,
+  EventSurveyStep,
   MarkerDecision,
   MarkerPolicy,
   SchedulerMarker,

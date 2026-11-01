@@ -10,8 +10,10 @@
  * the STRANGER. The admin approves both on a real page, because the harness
  * may write no role above `pending`. Everything else is the product's: the
  * event, who it is for (`eventAudiences`), the list of the people invited
- * (`eventInvitations`), the invitee's request (`eventRsvps`), and whatever the
- * send log records.
+ * (`eventInvitations`), the survey after it that publishing sets up from the
+ * editor's Survey after step (`surveys`, keyed on the event's id: a draft
+ * with no rows, which emails nobody), the invitee's request (`eventRsvps`),
+ * and whatever the send log records.
  *
  * ## Teardown sweeps the event by its TITLE
  *
@@ -46,6 +48,7 @@ export const AUTHORING_STEPS = [
   "the admin approves the two people this journey signs in as",
   "the admin makes an event for the invitee alone, and the editor counts it on one Home",
   "the admin sends it for approval, approves it and publishes it, and the confirm says it is not listed or announced",
+  "the admin finds the survey after it set up on the Survey after tab, and changes it to go only when sent",
   "a signed-out visitor is told it is only for the people invited, and the page's title names nothing",
   "the events page does not list it",
   "the invitee finds it on Home, for them, and asks for a place",
@@ -96,12 +99,13 @@ async function runEvents(state) {
 }
 
 async function countRows(state) {
-  const counts = { events: 0, eventAudiences: 0, eventInvitations: 0, eventRsvps: 0 };
+  const counts = { events: 0, eventAudiences: 0, eventInvitations: 0, eventRsvps: 0, surveys: 0 };
   for (const event of await runEvents(state)) {
     counts.events += 1;
     counts.eventAudiences += (await fixtureDoc("eventAudiences", event.id).get()).exists ? 1 : 0;
     counts.eventInvitations += (await fixtureQuery("eventInvitations").where("eventId", "==", event.id).get()).size;
     counts.eventRsvps += (await fixtureQuery("eventRsvps").where("eventId", "==", event.id).get()).size;
+    counts.surveys += (await fixtureQuery("surveys").where("eventId", "==", event.id).get()).size;
   }
   const people = [state.invitee, state.stranger].filter(Boolean);
   let sendRows = 0;
@@ -145,6 +149,9 @@ async function teardown(state) {
     try {
       await deleteQuery(fixtureQuery("eventRsvps").where("eventId", "==", event.id));
       await deleteQuery(fixtureQuery("eventInvitations").where("eventId", "==", event.id));
+      // The survey after it, set up as it was published: a draft, never
+      // opened, so it has no rows, no answers and no code of its own.
+      await deleteQuery(fixtureQuery("surveys").where("eventId", "==", event.id));
       await fixtureDoc("eventAudiences", event.id).delete();
       await event.ref.delete();
     } catch (err) {
@@ -190,6 +197,7 @@ export const SPEC = {
       "/api/events/[id]/audience",
       "/api/events/[id]/publish",
       "/api/events/[id]/rsvp",
+      "/api/events/[id]/survey-after",
     ],
     pages: [
       "/(auth)/login",
@@ -197,6 +205,7 @@ export const SPEC = {
       "/(app)/events/manage",
       "/(app)/events/manage/new",
       "/(app)/events/manage/[id]",
+      "/(app)/events/manage/[id]/survey",
       "/(app)/dashboard",
       "/(public)/events",
       "/(public)/events/[id]",

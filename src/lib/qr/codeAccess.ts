@@ -26,7 +26,7 @@ import { eventSurveyOf } from "@/lib/surveys/events/records";
  *  - THE SAME PEOPLE, for an event survey's code (the link that goes to an
  *    event's survey page) while that survey is taking answers, which they
  *    show at the end of the event: `surveyCodeAtEvent`, the one rule the
- *    event's Survey after tab asks too.
+ *    event's Check-in tab asks too.
  *
  * Everybody else is refused before any link is read. A slug that names no
  * link is refused too, so neither door is a QR drawer for made-up addresses.
@@ -83,7 +83,7 @@ export async function codeForViewer(user: SessionUser, rawSlug: string): Promise
       if (surveyEventId && (await surveyCodeShowable(user, surveyEventId))) {
         return {
           ok: true,
-          link: { slug, name: record.label || slug, note: null, backHref: `/events/manage/${surveyEventId}/survey` },
+          link: { slug, name: record.label || slug, note: null, backHref: `/events/manage/${surveyEventId}/check-in` },
         };
       }
       return { ok: false, status: 403, reason: ADMINS_ONLY };

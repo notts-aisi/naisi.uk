@@ -44,6 +44,7 @@ export const SEND_DOOR_NAMES = [
   "sendFeedbackBatch",
   "sendFeedbackTest",
   "sendFreeReminders",
+  "sendSurveyAfter",
 ];
 
 /** Any of the doors, as a call. */

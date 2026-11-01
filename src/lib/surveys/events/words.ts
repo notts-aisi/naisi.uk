@@ -60,6 +60,25 @@ export function eventIntro(startAt: Date, questions: number, minutes: number): s
   return `Thanks for coming on ${weekdayWords(startAt)}. ${questions} quick ${questions === 1 ? "question" : "questions"}, ${minutesWords(minutes)}.`;
 }
 
+// ---------------------------------------------------------------------------
+// The one question for people who had a place and weren't checked in
+// ---------------------------------------------------------------------------
+
+/** "After VR games night: didn’t come": what admins call it. */
+export function missedSurveyName(title: string): string {
+  return `After ${title}: didn’t come`;
+}
+
+/** "Sorry we missed you at VR games night": what people see at the top, and the email's subject. */
+export function missedSurveyTitle(title: string): string {
+  return `Sorry we missed you at ${title}`;
+}
+
+/** "You had a place at VR games night on Sunday, and you weren’t checked in at the door. One quick question." */
+export function missedIntro(title: string, startAt: Date): string {
+  return `You had a place at ${title} on ${weekdayWords(startAt)}, and you weren’t checked in at the door. One quick question.`;
+}
+
 /** "VR games night · Sun 1 Nov". */
 export function eventLine(title: string, startAt: Date | null): string {
   return startAt ? `${title} · ${dayWords(startAt)}` : title;
@@ -75,13 +94,18 @@ export function eventListLine(startAt: Date | null): string {
   return startAt ? `Event: ${dayWords(startAt)}` : "Event";
 }
 
-/** What each of the two audiences is called. */
+/** What each of the audiences is called. */
 export const AUDIENCE_WORDS: Record<EventAudience["kind"], string> = {
   "event-came": TEMPLATE_WORDS.came,
   "event-signups": TEMPLATE_WORDS.signups,
+  "event-missed": "Everyone with a place who wasn’t checked in",
 };
 
-const JOINED_WORDS: Record<EventAudience["kind"], string> = { "event-came": "who came since", "event-signups": "who signed up since" };
+const JOINED_WORDS: Record<EventAudience["kind"], string> = {
+  "event-came": "who came since",
+  "event-signups": "who signed up since",
+  "event-missed": "with a place since",
+};
 
 /** The send button for people who came since: "Send to the 2 who came since". */
 export function joinedButtonFor(kind: EventAudience["kind"], n: number): string {
@@ -107,7 +131,12 @@ export const SEND_TAB_WORDS = {
   emailHeading: "The email",
   linkLine: "Each email has its own link, so nobody signs in.",
   noReminders: "No reminders go on their own. You can remind people by hand from this page.",
-  emailed: (kind: EventAudience["kind"]) => (kind === "event-came" ? "It went to everyone who came, with an email." : "It went to everyone who signed up."),
+  emailed: (kind: EventAudience["kind"]) =>
+    kind === "event-came"
+      ? "It went to everyone who came, with an email."
+      : kind === "event-signups"
+        ? "It went to everyone who signed up."
+        : "It went to everyone with a place who wasn’t checked in.",
   atEvent: "At the event",
   byEmail: "By email",
   results: "Results",
@@ -133,14 +162,19 @@ export const CODE_CARD_WORDS = {
 } as const;
 
 /**
- * The event's Survey after tab, to the people who show the survey's code at
- * the event (admins and SU-recognised committee): the card's words are the
- * Send tab's (`CODE_CARD_WORDS`), and this line stands in its place while
- * the survey is a draft. No board draws it: listed in the build notes for
- * the boards' designers to confirm.
+ * The event's Check-in tab, to the people who show the survey's code at the
+ * event (admins and SU-recognised committee): the card's words are the Send
+ * tab's (`CODE_CARD_WORDS`), and one of these lines stands in its place while
+ * the survey is a draft: an admin's survey waits for an admin to open it; one
+ * its event set up opens itself when the event starts, while sending by
+ * itself is switched on here.
  */
 export const CODE_AT_EVENT_WORDS = {
+  heading: "The survey’s QR code",
   notYet: "Its QR code shows here once an admin opens the survey.",
+  atStart: "Its QR code shows here when the event starts.",
+  atStartJobOff:
+    "Its QR code shows here once the survey opens: sending by itself is switched off on this site for now, so it opens when it’s sent from the Survey after tab, or when an admin opens it.",
 } as const;
 
 /** The refusals a person can act on, word for word. */

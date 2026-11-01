@@ -1115,7 +1115,7 @@ export function readSurveyConsents(
   return { consents, problem: null };
 }
 
-/** A new option or line id, in the shape Worksheets mints one. */
-export function newSurveyId(prefix: "o" | "l"): string {
+/** A new question, option or line id, in the shape Worksheets mints one. */
+export function newSurveyId(prefix: "q" | "o" | "l"): string {
   return newItemId(prefix);
 }

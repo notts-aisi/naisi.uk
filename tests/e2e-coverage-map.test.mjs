@@ -1437,6 +1437,32 @@ const NOT_COVERED = {
       "With the events-authoring browser spec owed by the editor's reshaping: sign in as an event's author, open Sign-ups, " +
       "read who is asking and approve a request.",
   },
+  "/api/events/[id]/survey-after": {
+    reason:
+      "The survey after an event: its setting changed on the event's Survey after tab once the event is published, its questions until it " +
+      "opens and who and when until it goes. Executed as every kind of caller, with each lock, by tests/event-survey-after.test.mjs, " +
+      "and asked about a real event of the persona world by the standing red team's second pass.",
+    coverWhen:
+      "When scripts/e2e-fixtures/events-authoring.mjs has run green against the harness and is marked verified: it changes when the " +
+      "survey goes on the Survey after tab of the event it publishes, and saves.",
+  },
+  "/api/events/[id]/survey-after/send": {
+    reason:
+      "The survey after an event: Send it now, by the event's author, a collaborator or an admin, from the event's start until it has gone. " +
+      "Executed as every kind of caller by tests/event-survey-after.test.mjs, with the number on the button, the question about not " +
+      "coming beside it, one send against the job's tick, and the job sending nothing more but the reminder.",
+    coverWhen:
+      "When the events-rsvp spec is extended past its event to the survey after it, in the pull request that next changes that spec: " +
+      "it needs an event that has started and people checked in, which the events authoring spec's event (next month) is not.",
+  },
+  "/api/events/[id]/survey-after/test": {
+    reason:
+      "The survey after an event: Send a test to me, beside Send it now, to the presser's own address. Executed as every kind of caller " +
+      "by tests/event-survey-after.test.mjs, which reads the one message it sends.",
+    coverWhen:
+      "When a spec's teardown can tell its own test mail to the harness's one admin account from another spec's (the Messages fixture's " +
+      "test rows), so the events authoring spec can press it and leave nothing behind.",
+  },
   "/api/events/[id]/test-rsvps": {
     reason:
       "Events authoring: /api/events/[id]/test-rsvps is a deliberate committee action whose result is visible on the manage screen.",
@@ -2564,9 +2590,9 @@ const NOT_COVERED = {
   },
   "/(app)/events/manage/[id]/survey": {
     reason:
-      "Surveys after events: an event's Survey after tab; tests/surveys-events.test.mjs renders it as the organiser the SU does not recognise, a collaborator, SU-recognised committee (that it went and when, no result) and an admin (the results), before and after the email.",
+      "Surveys after events: an event's Survey after tab; tests/surveys-events.test.mjs renders it as the organiser the SU does not recognise, a collaborator, SU-recognised committee (that it went and when, no result) and an admin (the results), before and after the email, and tests/event-survey-after.test.mjs with the survey its event set up: what is set, the organisers' setting and Send it now, and what went.",
     coverWhen:
-      "When the end-to-end fixtures seed a published event with sign-ups and check-ins, so a spec can send its survey and read the tab as its organiser.",
+      "When scripts/e2e-fixtures/events-authoring.mjs has run green against the harness and is marked verified: it opens this tab on the event it publishes and changes when its survey goes.",
   },
   "/(app)/events/manage/[id]/check-in": {
     reason:

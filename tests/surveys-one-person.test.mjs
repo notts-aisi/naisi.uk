@@ -662,7 +662,7 @@ describe("6. a survey after an event: an account's answers, and a guest's", asyn
   const ANSWERS = {
     q_ev_how: { type: "rating", value: 5 },
     q_ev_again: { type: "choice", optionId: "o_ev_yes" },
-    q_ev_next: { type: "choices", optionIds: ["o_ev_games", "o_ev_quiz"] },
+    q_ev_next_text: { type: "text", text: "A quiz night" },
     // Required since 30 Oct 2026, as every question not marked optional.
     q_ev_heard: { type: "choice", optionId: "o_ev_friend" },
     q_ev_change: { type: "text", text: "More headsets." },
@@ -700,7 +700,7 @@ describe("6. a survey after an event: an account's answers, and a guest's", asyn
     assert.equal(person.change, null);
     assert.equal(person.rest.length, 1);
     assert.equal(person.rest[0].columns[0].label, "Answers");
-    assert.deepEqual(rowsOf(person.rest[0]).slice(0, 2), ["-. How was it? {1 Not good to 5 Great} => 4", "-. Would you come to another NAISI social? => Maybe"]);
+    assert.deepEqual(rowsOf(person.rest[0]).slice(0, 2), ["-. How was it? {1 Not good to 5 Great} => 4", "-. Would you come to another? => Maybe"]);
     assert.ok(rowsOf(person.rest[0]).includes("-. Anything we should change? => No answer"), "an optional question left blank says so");
     assert.deepEqual(person.namesOff, ["Gwen’s name comes off on Wed 1 Nov 2028. Their answers stay in the totals."]);
     const [row] = eventOpenings();
@@ -711,8 +711,8 @@ describe("6. a survey after an event: an account's answers, and a guest's", asyn
     const kofi = (await e.call("zach", eventOpening.POST, { surveyId: id, who: "kofi" })).body.person;
     assert.deepEqual(rowsOf(kofi.rest[0]).slice(0, 3), [
       "-. How was it? {1 Not good to 5 Great} => 5",
-      "-. Would you come to another NAISI social? => Yes",
-      "-. What should we run next? {Pick any} => Another games night / A quiz",
+      "-. Would you come to another? => Yes",
+      "-. What should we run next? => A quiz night",
     ]);
     // Neither page holds the other's answers, and the organiser opens nothing.
     assert.ok(!JSON.stringify(person).includes("More headsets."));

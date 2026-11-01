@@ -21,6 +21,7 @@ import { announces, guestsMayHear, isForChosenPeople } from "@/lib/events/reach"
 import { EVENT_INVITATIONS_COLLECTION, eventInvitationId } from "@/lib/firestore/eventInvitations";
 import { normalizeEvent } from "@/lib/firestore/events";
 import { announcementQueueEnabled } from "@/lib/scheduler/announcementQueue";
+import { setUpEventSurvey } from "@/lib/surveys/events/setUp";
 
 /**
  * Server-only transition from "approved" to "published". Firestore rules block
@@ -100,6 +101,14 @@ import { announcementQueueEnabled } from "@/lib/scheduler/announcementQueue";
  * invitees: it shows on their Home and opens for them from that moment. The
  * emails go after it, best effort, and how each went is written back onto
  * that person's document. The author is on the list and never emailed.
+ *
+ * ── AND THE SURVEY AFTER IT ─────────────────────────────────────────────────
+ * Publishing sets up the event's survey from its editor's Survey after step
+ * (`setUpEventSurvey`): a draft that opens itself at the event's start and
+ * goes when the step said. An event with no stored setting, or one switched
+ * off, has none. Like the announcement it is best effort after the write: a
+ * survey that could not be set up says so in the answer (`surveyNotSetUp`),
+ * and Save on the event's Survey after tab sets it up again.
  *
  * ── PUBLISHING NEVER FAILS BECAUSE THE ANNOUNCEMENT FAILED ──────────────────
  * The write is committed first and the send is best effort inside a try/catch,
@@ -233,6 +242,18 @@ export async function POST(
   if (!claim.ok) {
     return NextResponse.json({ error: claim.error }, { status: claim.status });
   }
+  // The survey after it, from the step, before anybody is told: published
+  // either way, and every answer below says when it could not be set up.
+  let surveyNotSetUp: string | null = null;
+  try {
+    const set = await setUpEventSurvey(db, id, actor.uid, new Date());
+    if (!set.ok) surveyNotSetUp = set.error;
+  } catch (err) {
+    console.error("[event publish] the survey after it could not be set up", id, err);
+    surveyNotSetUp = "Something went wrong setting it up.";
+  }
+  const respond = (body: Record<string, unknown>) =>
+    NextResponse.json(surveyNotSetUp ? { ...body, surveyNotSetUp } : body);
   if (invitations) {
     // Published, with its list. The invitations go now, and never turn a
     // published event into a failed publish: a send that throws is logged and
@@ -243,25 +264,25 @@ export async function POST(
         invitees: claim.created,
         actorUid: actor.uid,
       });
-      return NextResponse.json({
+      return respond({
         ok: true,
         announced: false,
         invited: { home: invitations.count.home, emailed: tally.emailed, failed: tally.failed },
       });
     } catch (err) {
       console.error("[event publish] invitations failed", id, err);
-      return NextResponse.json({ ok: true, announced: false, invitationsFailed: true });
+      return respond({ ok: true, announced: false, invitationsFailed: true });
     }
   }
   if (!claim.announce) {
     // Already announced on an earlier publish, or its organiser switched the
     // announcement off. The event is live either way.
-    return NextResponse.json({ ok: true, announced: false });
+    return respond({ ok: true, announced: false });
   }
   if (queueIt) {
     // Queued, and this request is done. `announced` is false because nobody
     // has been told yet, which is the same word it has always meant here.
-    return NextResponse.json({
+    return respond({
       ok: true,
       announced: false,
       announcementQueued: true,
@@ -307,7 +328,7 @@ export async function POST(
         // is a missing announcement, not a failed publish.
         console.error("[event publish] could not release the announcement claim", id, err);
       }
-      return NextResponse.json({
+      return respond({
         ok: true,
         announced: false,
         announcementRefused: true,
@@ -322,7 +343,7 @@ export async function POST(
     // `announced` is whether anybody was actually told, not whether the attempt
     // ran. A publisher reading `true` over an empty send would have no way to
     // learn that nobody heard.
-    return NextResponse.json({
+    return respond({
       ok: true,
       announced: result.sent > 0 || result.pushed > 0,
       announcement: result,
@@ -331,7 +352,7 @@ export async function POST(
     // The event is published. A failed announcement is logged and reported, and
     // is never allowed to look like a failed publish. See the header.
     console.error("[event publish] announcement failed", id, err);
-    return NextResponse.json({ ok: true, announced: false, announcementFailed: true });
+    return respond({ ok: true, announced: false, announcementFailed: true });
   }
 }
 

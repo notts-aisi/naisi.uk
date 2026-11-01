@@ -1436,16 +1436,12 @@ describe("D. VR games night: Check-in, the organiser's tab and the night's surve
     const went = "The survey after After VR games night: Zach emailed it to 4 people on Mon 2 Nov at 10am. Results go to admins. Ask Zach for the summary.";
     assert.ok(seen.surveyTabIris.text.endsWith(went));
     // SU-recognised committee run check-in, so while the survey takes answers
-    // the tab gives them its code to show at the event, and nothing more.
-    assert.ok(
-      seen.surveyTabSue.text.endsWith(`${went} At the event: the QR code naisi.invalid/q/vr-survey Download PNG Show full screen`),
-    );
-    assert.ok(
-      seen.surveyTabZach.text.includes(
-        `${went} Open the survey At the event: the QR code naisi.invalid/q/vr-survey Download PNG Show full screen 2 Answers 1 with the QR code, 1 by email 6 Came`,
-      ),
-    );
-    for (const drawn of [seen.surveyTabIris, seen.surveyTabSue]) assert.ok(!drawn.text.includes("More games"));
+    // the Check-in tab (since November 2026; the Survey after tab before)
+    // gives them its code to show at the event, and nothing more.
+    assert.ok(seen.surveyTabSue.text.endsWith(went));
+    assert.ok(seen.checkInAfter.text.includes("The survey’s QR code naisi.invalid/q/vr-survey Download PNG Show full screen"));
+    assert.ok(seen.surveyTabZach.text.includes(`${went} Open the survey 2 Answers 1 with the QR code, 1 by email 6 Came`));
+    for (const drawn of [seen.surveyTabIris, seen.surveyTabSue, seen.checkInAfter]) assert.ok(!drawn.text.includes("More games"));
   });
 });
 

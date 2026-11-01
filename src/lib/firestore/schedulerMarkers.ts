@@ -54,6 +54,7 @@ export const MARKER_FAMILIES = [
   "evannounce",
   "regremind",
   "weekremind",
+  "evsurvey",
 ] as const;
 
 export type SchedulerMarkerFamily = (typeof MARKER_FAMILIES)[number];
@@ -368,6 +369,32 @@ export function weekReminderMarker(
   return {
     id: `weekremind__${fields.groupId}__${fields.sessionKey}__${fields.uid}__${fields.daysBefore}`,
     family: "weekremind",
+    fields,
+  };
+}
+
+/** The two things the `event-surveys` job sends of a survey after an event: its first email and its one reminder. */
+export type EventSurveyStep = "send" | "remind";
+
+/**
+ * `evsurvey__{surveyId}__{send|remind}`, the `event-surveys` job's email of a
+ * survey after an event that its event set up, or its one reminder: claimed
+ * before the press and stamped after it, so two ticks at once press once.
+ *
+ * Per survey and per step, not per person: the press itself writes each
+ * person's row with their own link before their email, and the survey's own
+ * claim makes two presses (the job's and an organiser's "Send it now") send
+ * once, as it does for an admin's. The marker is what the job claims; the
+ * one question for people who didn't come goes inside the same press.
+ */
+export function eventSurveyMarker(surveyId: string, step: EventSurveyStep): SchedulerMarkerRef {
+  const fields = {
+    surveyId: assertDocIdComponent("surveyId", surveyId),
+    step: assertKeyComponent("step", step),
+  };
+  return {
+    id: `evsurvey__${fields.surveyId}__${fields.step}`,
+    family: "evsurvey",
     fields,
   };
 }

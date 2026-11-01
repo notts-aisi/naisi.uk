@@ -135,7 +135,9 @@ export function cameDetail(members: readonly EventAudienceMember[]): string {
 
 /** "Emailed the 14 people who came, with an email". */
 function firstWords(n: number, kind: EventAudience["kind"]): string {
-  return `Emailed the ${peopleWords(n)} ${kind === "event-came" ? "who came, with an email" : "who signed up"}`;
+  const missed = n === 1 ? "with a place who wasn’t checked in" : "with a place who weren’t checked in";
+  const who = kind === "event-came" ? "who came, with an email" : kind === "event-signups" ? "who signed up" : missed;
+  return `Emailed the ${peopleWords(n)} ${who}`;
 }
 
 /** The Send tab of a survey after an event, for the admin who would press (`presserUid`), named as `viewer` is shown people. */
@@ -183,8 +185,12 @@ export async function eventSendView(db: Firestore, survey: EventSurveyDoc, press
 
   if (!plan.firstEmailed) {
     const answeredKeys = new Set(plan.rows.filter((row) => row.answered).map((row) => respondentKey(row.respondent)));
-    const choices: AudienceChoice[] = (["event-came", "event-signups"] as const)
-      .filter((kind) => kind === "event-came" || !noSignup)
+    // The one question for people who weren't checked in has its own
+    // audience and no other to choose.
+    const kinds: readonly EventAudience["kind"][] =
+      survey.audience.kind === "event-missed" ? ["event-missed"] : ["event-came", "event-signups"];
+    const choices: AudienceChoice[] = kinds
+      .filter((kind) => kind !== "event-signups" || !noSignup)
       .map((kind) => {
         const members = plan.audiences[kind].members.filter((member) => member.address !== null);
         return {

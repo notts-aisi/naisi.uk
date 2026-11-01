@@ -190,9 +190,15 @@ const DEADLINE_NAMES = new Map([
         "src/lib/surveys/create.ts",
         "src/lib/surveys/emails.ts",
         // A survey after an event's: `events/create.ts` writes its close when it
-        // is made, and `events/words.ts` names it in its two emails.
+        // is made, and `events/words.ts` names it in its two emails. One its
+        // event set up: `events/setUp.ts` writes it (a week after the event,
+        // following the event until the survey opens) and `events/after.ts`
+        // works it out for the step's preview of the email; the survey's own
+        // `isOpen` refuses an answer past it, as for every survey.
         "src/lib/surveys/events/create.ts",
         "src/lib/surveys/events/words.ts",
+        "src/lib/surveys/events/setUp.ts",
+        "src/lib/surveys/events/after.ts",
         "src/lib/surveys/words.ts",
         // The anonymous form's (src/lib/anonymousFeedback/): `model.ts` declares
         // its close and `forms.ts` stores it, copied from the survey at the
@@ -508,8 +514,11 @@ const DEADLINE_NAMES = new Map([
         // on a new survey.
         "src/lib/firestore/surveys.ts",
         "src/lib/surveys/create.ts",
-        // A survey after an event's, written as null when it is made.
+        // A survey after an event's, written as null when it is made, by an
+        // admin or by publishing its event (`events/setUp.ts`, which also
+        // reads it to know whether the job still has work for the survey).
         "src/lib/surveys/events/create.ts",
+        "src/lib/surveys/events/setUp.ts",
         // A check-in's, written as null when it is opened.
         "src/lib/surveys/checkIns/open.ts",
         // The anonymous form's: `model.ts` declares it and `forms.ts` writes it

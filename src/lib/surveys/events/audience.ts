@@ -20,6 +20,10 @@ import { accountNamesOf, nameForViewer, type NameViewer } from "@/lib/names/staf
  *  - EVERYBODY WHO SIGNED UP (`event-signups`): every confirmed sign-up, never
  *    a test one. A sign-up on the waiting list, not decided, cancelled or
  *    refused is nobody's until they come.
+ *  - EVERYBODY WITH A PLACE WHO WASN'T CHECKED IN (`event-missed`), for the one
+ *    question about what stopped them: a confirmed sign-up with no check-in.
+ *    Asked only where the event's door was opened, so check-in says who came
+ *    (`src/lib/surveys/events/setUp.ts`).
  *
  * Never anybody who did neither: nothing here reads an account that is not
  * on the event's sign-ups or check-ins. One person is one member however
@@ -63,9 +67,20 @@ export function respondentKey(respondent: EventRespondent): string {
   return respondent.kind === "account" ? `a:${respondent.uid}` : `g:${respondent.signupId}`;
 }
 
-/** The people one of the two audiences holds. */
+/**
+ * Whether one person is in one of the three audiences: the people who came;
+ * everybody whose sign-up is confirmed; and, for the one question about not
+ * coming, everybody whose sign-up is confirmed who was not checked in.
+ */
+export function isMemberOf(member: Pick<EventAudienceMember, "came" | "signedUp">, kind: EventAudience["kind"]): boolean {
+  if (kind === "event-came") return member.came;
+  if (kind === "event-signups") return member.signedUp;
+  return member.signedUp && !member.came;
+}
+
+/** The people one of the audiences holds. */
 export function membersOf(read: EventAudienceRead, kind: EventAudience["kind"]): EventAudienceMember[] {
-  return read.people.filter((member) => (kind === "event-came" ? member.came : member.signedUp));
+  return read.people.filter((member) => isMemberOf(member, kind));
 }
 
 const safeId = (id: string) => id.length > 0 && !id.includes("/");
