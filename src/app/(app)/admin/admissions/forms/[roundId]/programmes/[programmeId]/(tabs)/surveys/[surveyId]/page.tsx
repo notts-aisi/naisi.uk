@@ -1,4 +1,5 @@
 import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
+import { SurveysFrame, type SurveysView } from "@/features/applications/surveys/SurveysViews";
 import ResultsTab from "@/features/surveys/admin/ResultsTab";
 import styles from "@/features/surveys/admin/surveyAdmin.module.css";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
@@ -6,6 +7,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 import { resultsView } from "@/lib/surveys/adminView";
 import { leadSurveyOf } from "@/lib/surveys/leadResults";
+import { stageOf, type LeadStage } from "@/lib/surveys/leadTab";
 import { LEAD_RESULTS_WORDS } from "@/lib/surveys/words";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +26,25 @@ export const dynamic = "force-dynamic";
  * in the order they came in, and the admins' switch that leaves out answers
  * sent after someone's first session is not drawn. Who answered is never
  * here: that is the admins' Who answered tab.
+ *
+ * Under the tab's row of views, with the view its stage is listed on current:
+ * Before, End (the survey at the end and the survey about leaving) or
+ * Follow-ups.
  */
+/** The view a survey's stage is listed on (`stageOf`, from the lists the views draw from), or none. */
+function viewOf(stage: LeadStage | null): SurveysView | null {
+  switch (stage) {
+    case "before":
+      return "before";
+    case "end":
+      return "end";
+    case "followUps":
+      return "follow-ups";
+    default:
+      return null;
+  }
+}
+
 export default async function ProgrammeSurveyResultsPage({
   params,
 }: {
@@ -44,21 +64,25 @@ export default async function ProgrammeSurveyResultsPage({
   const survey = await leadSurveyOf(db, roundId, programmeId, surveyId);
   if (!survey) {
     return (
-      <section className={styles.card}>
-        <p className={styles.lead}>{LEAD_RESULTS_WORDS.notHere}</p>
-      </section>
+      <SurveysFrame roundId={roundId} programmeId={programmeId} current={null}>
+        <section className={styles.card}>
+          <p className={styles.lead}>{LEAD_RESULTS_WORDS.notHere}</p>
+        </section>
+      </SurveysFrame>
     );
   }
   const view = await resultsView(db, survey, false, { commentsInOrder: "words" });
   return (
-    <div className={styles.section}>
-      <section className={styles.card} aria-labelledby="programme-survey">
-        <h2 id="programme-survey" className={styles.sectionTitle}>
-          {survey.name}
-        </h2>
-        <p className={styles.muted}>{LEAD_RESULTS_WORDS.line}</p>
-      </section>
-      <ResultsTab view={view} surveyId={survey.id} beforeFirstSession={false} switches={false} />
-    </div>
+    <SurveysFrame roundId={roundId} programmeId={programmeId} current={viewOf(stageOf(survey.kind))}>
+      <div className={styles.section}>
+        <section className={styles.card} aria-labelledby="programme-survey">
+          <h2 id="programme-survey" className={styles.sectionTitle}>
+            {survey.name}
+          </h2>
+          <p className={styles.muted}>{LEAD_RESULTS_WORDS.line}</p>
+        </section>
+        <ResultsTab view={view} surveyId={survey.id} beforeFirstSession={false} switches={false} />
+      </div>
+    </SurveysFrame>
   );
 }

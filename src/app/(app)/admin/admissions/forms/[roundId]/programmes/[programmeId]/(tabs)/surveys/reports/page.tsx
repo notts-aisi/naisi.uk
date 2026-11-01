@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { NoProgrammeHere, Refusal } from "@/features/applications/editor/Refusals";
 import RunBlank from "@/features/applications/groups/RunBlank";
+import { SurveysFrame } from "@/features/applications/surveys/SurveysViews";
 import ReportCard from "@/features/courses/report/ReportCard";
 import styles from "@/features/courses/report/sessionReport.module.css";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
@@ -17,8 +17,10 @@ export const dynamic = "force-dynamic";
  * session, week by week, newest first, each report whole with its group, its
  * writer and its day, and the people it picks by name.
  *
- * Its own page under the Surveys tab, apart from the tab itself, because the
- * tab names nobody and these name the people in each group.
+ * Its own page under the Surveys tab, its Facilitators' reports view, apart
+ * from the tab's Overview, because the Overview names nobody and these name
+ * the people in each group. The Overview counts them and links here, to a
+ * week (`#reports-week-3`).
  *
  * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`loadProgrammeRun`), decided from the
  * form before any report is read; a reviewer is told the reports are the
@@ -46,33 +48,38 @@ export default async function ProgrammeSessionReportsPage({
     );
   }
   const { view } = outcome;
-  if (!view.run) return <RunBlank view={view} />;
+  if (!view.run) {
+    return (
+      <SurveysFrame roundId={view.roundId} programmeId={view.programmeId} current="reports">
+        <RunBlank view={view} />
+      </SurveysFrame>
+    );
+  }
   const weeks = await readRunSessionReports(db, view.run.id);
   return (
-    <div className={styles.page}>
-      <Link href={`${base}/surveys`} className={styles.back}>
-        {RUN_REPORTS_WORDS.back}
-      </Link>
-      <header className={styles.head}>
-        <h2 className={styles.title}>{RUN_REPORTS_WORDS.title}</h2>
-        <p className={styles.intro}>{RUN_REPORTS_WORDS.line}</p>
-      </header>
-      {weeks.length === 0 ? (
-        <p className={styles.note}>{RUN_REPORTS_WORDS.none}</p>
-      ) : (
-        <div className={styles.reports}>
-          {weeks.map((week) => (
-            <section key={week.weekNumber} className={styles.week} aria-labelledby={`reports-week-${week.weekNumber}`}>
-              <h3 id={`reports-week-${week.weekNumber}`} className={styles.weekTitle}>
-                {sessionName(week.weekNumber)}
-              </h3>
-              {week.reports.map((report) => (
-                <ReportCard key={report.id} report={report} headingLevel={4} />
-              ))}
-            </section>
-          ))}
-        </div>
-      )}
-    </div>
+    <SurveysFrame roundId={view.roundId} programmeId={view.programmeId} current="reports">
+      <div className={styles.page}>
+        <header className={styles.head}>
+          <h2 className={styles.title}>{RUN_REPORTS_WORDS.title}</h2>
+          <p className={styles.intro}>{RUN_REPORTS_WORDS.line}</p>
+        </header>
+        {weeks.length === 0 ? (
+          <p className={styles.note}>{RUN_REPORTS_WORDS.none}</p>
+        ) : (
+          <div className={styles.reports}>
+            {weeks.map((week) => (
+              <section key={week.weekNumber} className={styles.week} aria-labelledby={`reports-week-${week.weekNumber}`}>
+                <h3 id={`reports-week-${week.weekNumber}`} className={styles.weekTitle}>
+                  {sessionName(week.weekNumber)}
+                </h3>
+                {week.reports.map((report) => (
+                  <ReportCard key={report.id} report={report} headingLevel={4} />
+                ))}
+              </section>
+            ))}
+          </div>
+        )}
+      </div>
+    </SurveysFrame>
   );
 }

@@ -3200,9 +3200,10 @@ const surveyNamesOff = await loadTs("lib/surveys/namesOff.ts");
 const surveyProfileOffer = await loadTs("lib/surveys/profileOffer.ts");
 const surveyExport = await loadTs("lib/surveys/exportTable.ts");
 const surveyRecords = await loadTs("lib/firestore/surveys.ts");
-/** The check-in at the end of a session: its rules and its questions, both pure. */
+/** The check-in at the end of a session: its rules, its questions and its words, all pure. */
 const checkInModel = await loadTs("lib/surveys/checkIns/model.ts");
 const checkInTemplate = await loadTs("lib/surveys/checkIns/template.ts");
+const checkInWords = await loadTs("lib/surveys/checkIns/words.ts");
 /** The Kairos file's layout. Pure: its route and its loader are read as source. */
 const kairosFileTable = await loadTs("lib/kairos/fileTable.ts");
 /** The Kairos choice's record and words, who rates whom, and the Kairos report's counting. All pure. */
@@ -4890,14 +4891,15 @@ describe("the course hub passage", () => {
     const surveysTab = "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/page.tsx";
     const ownPage = "src/app/(app)/learn/[runId]/group/[groupId]/report/page.tsx";
     assertExactlyTheseFiles(
-      sourceFilesNaming(/\b(?:readRunSessionReports|countRunSessionReports|ownReportView|readOwnReport|loadReportPage)\(/),
+      sourceFilesNaming(/\b(?:readRunSessionReports|countRunSessionReports|countRunReportsByWeek|ownReportView|readOwnReport|loadReportPage)\(/),
       new Map([
-        ["src/lib/courses/sessionReports/readers.ts", "the lead's and admins' reader and the tab's count, which ask nobody who is reading, so each caller decides that first"],
+        ["src/lib/courses/sessionReports/readers.ts", "the lead's and admins' reader and the Overview's counts, which ask nobody who is reading, so each caller decides that first"],
         ["src/lib/courses/sessionReports/context.ts", "the writer's own report, read by the id that names the writer"],
         ["src/lib/courses/sessionReports/page.ts", "the facilitator's page, after the writer's own gate: only the caller's own report"],
         [ownPage, "the facilitator's page, which sends everybody but the group's live facilitators away first"],
         [leadPage, "the programme's session reports, for its lead and admins (loadProgrammeRun)"],
-        [surveysTab, "the Surveys tab, for its lead and admins (loadProgrammeRun): how many reports, never what one says"],
+        // CHANGED ON PURPOSE: was the Surveys tab's page, which counted the run's reports for its row.
+        ["src/lib/surveys/leadOverview.ts", "the Surveys tab's Overview, made only by its page after the tab's gate (loadProgrammeRun): each week's count, how it went on average and the parts named, never what a report says"],
       ]),
       "reading session reports",
       "The policy says the programme's lead and admins read session reports, and the people they name don't see them on " +
@@ -4907,6 +4909,10 @@ describe("the course hub passage", () => {
     assert.match(lead, /const outcome = db \? await loadProgrammeRun\(db, user, roundId, programmeId\) : null;/);
     const refused = lead.indexOf('if (outcome.status === "not-yours") {');
     assert.ok(refused !== -1 && refused < lead.indexOf("readRunSessionReports(db, view.run.id)"), "the lead's page reads reports before it refuses a reviewer");
+    // The Overview's counts: only its page makes them, after the same gate, of the run the programme names.
+    const tab = withoutComments(read(surveysTab));
+    assert.ok(tab.indexOf('if (outcome.status === "not-yours") {') < tab.indexOf("leadSurveysOverview("), "the Overview counts reports before it refuses a reviewer");
+    assert.match(withoutComments(read("src/lib/surveys/leadOverview.ts")), /countRunReportsByWeek\(db, records\.run\.id\)/);
     assert.equal(applicationAccess.opensProgrammeGroups("reviewer"), false, "a programme's reviewer now opens its session reports");
     const own = withoutComments(read("src/lib/courses/sessionReports/page.ts"));
     assert.match(own, /const own = await readOwnReport\(db, run, group, chosen\.sessionKey, user\.uid\);/, "the facilitator's page reads somebody else's report");
@@ -5857,7 +5863,29 @@ describe("the course hub passage", () => {
         ],
         [
           "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/page.tsx",
-          "the programme's lead and admins (loadProgrammeRun first): its Surveys tab, its surveys' totals and comments made on the server, never a name or a row per person",
+          "the programme's lead and admins (loadProgrammeRun first): its Surveys tab's Overview, its surveys' totals and its check-ins' whole weeks with their floors, made on the server, never a name, a group or a row per person",
+        ],
+        // CHANGED ON PURPOSE (v15, "The programme's lead sees the totals and
+        // comments of its surveys"): the tab's views. Before, End and
+        // Follow-ups are what the tab drew before it had views; Check-ins is
+        // every group's check-ins a whole week at a time, totals from three
+        // answers and comments from five, with each group's check-in for an
+        // admin alone.
+        [
+          "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/before/page.tsx",
+          "the programme's lead and admins (loadProgrammeRun first): the Surveys tab's Before view, the before survey's totals, never a name",
+        ],
+        [
+          "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/end/page.tsx",
+          "the programme's lead and admins (loadProgrammeRun first): the Surveys tab's End view, its surveys' totals and comments made on the server, never a name or a row per person",
+        ],
+        [
+          "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/follow-ups/page.tsx",
+          "the programme's lead and admins (loadProgrammeRun first): the Surveys tab's Follow-ups view, the follow-ups' totals, never a name",
+        ],
+        [
+          "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/check-ins/page.tsx",
+          "the programme's lead and admins (loadProgrammeRun first): the Surveys tab's Check-ins view, a whole week of every group's check-ins with its floors, never a name or a group's own figure; for an admin, a row per group's check-in leading to the admins' pages",
         ],
         [
           "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/overview/page.tsx",
@@ -6162,15 +6190,50 @@ describe("the course hub passage", () => {
       [
         "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]/page.tsx",
         [
-          "a reading of answers here: one of the programme's surveys' totals and comments for its lead and admins, never a name, deciding nothing",
-          ["@/features/surveys/admin/ResultsTab", "@/features/surveys/admin/surveyAdmin.module.css", "@/lib/surveys/adminView", "@/lib/surveys/leadResults", "@/lib/surveys/words"],
+          "a reading of answers here: one of the programme's surveys' totals and comments for its lead and admins, never a name, deciding nothing; the tab's view its kind is listed on, from the lists the views draw from (stageOf)",
+          [
+            "@/features/surveys/admin/ResultsTab",
+            "@/features/surveys/admin/surveyAdmin.module.css",
+            "@/lib/surveys/adminView",
+            "@/lib/surveys/leadResults",
+            "@/lib/surveys/leadTab",
+            "@/lib/surveys/words",
+          ],
         ],
       ],
       [
         "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/page.tsx",
         [
-          "the other reading of answers here: the programme's Surveys tab, its surveys' totals and comments for its lead and admins, never a name, deciding nothing",
+          "the other reading of answers here: the programme's Surveys tab's Overview, its surveys' totals and its check-ins' whole weeks for its lead and admins, never a name, deciding nothing",
+          ["@/features/surveys/lead/SurveysOverview", "@/lib/surveys/leadOverview", "@/lib/surveys/words"],
+        ],
+      ],
+      [
+        "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/before/page.tsx",
+        [
+          "the Surveys tab's Before view: the before survey's totals for its lead and admins, never a name, deciding nothing",
           ["@/features/surveys/lead/LeadSurveysTab", "@/lib/surveys/leadTab", "@/lib/surveys/words"],
+        ],
+      ],
+      [
+        "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/end/page.tsx",
+        [
+          "the Surveys tab's End view: its surveys' totals and comments for its lead and admins, never a name, deciding nothing",
+          ["@/features/surveys/lead/LeadSurveysTab", "@/lib/surveys/leadTab", "@/lib/surveys/words"],
+        ],
+      ],
+      [
+        "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/follow-ups/page.tsx",
+        [
+          "the Surveys tab's Follow-ups view: the follow-ups' totals for its lead and admins, never a name, deciding nothing",
+          ["@/features/surveys/lead/LeadSurveysTab", "@/lib/surveys/leadTab", "@/lib/surveys/words"],
+        ],
+      ],
+      [
+        "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/check-ins/page.tsx",
+        [
+          "the Surveys tab's Check-ins view: a whole week of check-ins for its lead and admins, totals from three answers and comments from five, never a name, deciding nothing",
+          ["@/features/surveys/lead/CheckInsWeeks", "@/lib/surveys/checkIns/leadView", "@/lib/surveys/words"],
         ],
       ],
       [
@@ -7333,10 +7396,14 @@ describe("the check-in passage", () => {
     const reads = withoutComments(read("src/lib/surveys/leadResults.ts"));
     assert.match(reads, /export const LEAD_READS: readonly SurveyKind\[\] = \["before", "after", "followUp6", "followUp12", "leaving"\];/);
     assert.match(reads, /if \(!isProgrammeAudience\(survey\.audience, roundId, programmeId\)\) return null;/);
-    // Its two pages, the Surveys tab and one survey's results, each ask the lead's gate before any survey is read.
+    // Its pages, the Surveys tab's views and one survey's results, each ask the lead's gate before any survey is read.
     const TABS = "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys";
     for (const [page, reader] of [
-      [`${TABS}/page.tsx`, "leadSurveysTab(db,"],
+      [`${TABS}/page.tsx`, "leadSurveysOverview("],
+      [`${TABS}/before/page.tsx`, "leadSurveysTab(db,"],
+      [`${TABS}/end/page.tsx`, "leadSurveysTab(db,"],
+      [`${TABS}/follow-ups/page.tsx`, "leadSurveysTab(db,"],
+      [`${TABS}/check-ins/page.tsx`, "readProgrammeCheckIns(db,"],
       [`${TABS}/[surveyId]/page.tsx`, "leadSurveyOf(db,"],
     ]) {
       const code = withoutComments(read(page));
@@ -7370,6 +7437,79 @@ describe("the check-in passage", () => {
       existsSync(join(REPO_ROOT, "tests", "surveys-lead-tab.test.mjs")),
       "tests/surveys-lead-tab.test.mjs renders the tab and each survey's results for every kind of caller, and finds no name",
     );
+  });
+
+  test("a programme's lead reads its check-ins a whole week at a time, every group's together, totals from three answers and comments from five, never a name, a group or who answered, and cannot download them", () => {
+    // v15: "The programme's lead sees the totals and comments of its surveys,
+    // and never sees your name or who answered and who did not, and cannot
+    // download the answers." The check-in's own box says the same of the
+    // lead ("sees totals and comments without names"). The Surveys tab's
+    // Check-ins view and its Overview make it true of check-ins.
+    assert.ok(
+      PAGE_FLAT.includes(
+        "The programme&apos;s lead sees the totals and comments of its surveys, and never sees your name or who answered and who did not, and cannot download the answers.",
+      ),
+    );
+    assert.ok(
+      checkInWords
+        .checkInBoxPoints({ leadName: "Claudia", programmeName: "AGI Strategy", namesOffOn: "2028-12-09", programmeKind: "fellowship" })
+        .includes("Claudia, who leads AGI Strategy, sees totals and comments without names."),
+      "the check-in's box no longer says what the lead sees",
+    );
+    // The floors, on the server, and a week only once it is whole.
+    assert.deepEqual([checkInModel.TOTALS_FROM, checkInModel.COMMENTS_FROM], [3, 5]);
+    const model = withoutComments(read("src/lib/surveys/checkIns/model.ts"));
+    assert.match(model, /if \(!whole\) return \{ weekNumber, state: "waiting" \};/);
+    assert.match(model, /if \(tally\.answered < TOTALS_FROM\) return \{ weekNumber, state: "too-few", answered: tally\.answered, of \};/);
+    assert.match(model, /reading: tally\.readOf >= TOTALS_FROM \? \{ most: tally\.readMost, of: tally\.readOf \} : null,/);
+    assert.match(model, /comments: tally\.answered >= COMMENTS_FROM \? commentsOf\(sets\) : null,/);
+    assert.match(model, /\.sort\(\(a, b\) => a\.localeCompare\(b, "en-GB"\)\)/, "a week's comments are not in the order of their words");
+    // "Never who answered": what a week hands on holds no person and no group, whatever it counts.
+    const items = checkInTemplate.checkInItems({ parts: [{ id: "part_a", title: "Compute as a lever" }], hasReading: true });
+    const given = (useful, text) => ({
+      answers: {
+        q_ci_useful: { type: "rating", value: useful },
+        q_ci_most: { type: "text", text },
+        q_ci_unclear: { type: "choices", optionIds: ["part_a"] },
+        q_ci_reading: { type: "choice", optionId: "o_ci_read_most" },
+        q_ci_confident: { type: "rating", value: 3 },
+      },
+    });
+    const week = checkInModel.leadWeekOf(3, true, [
+      { items, answers: [given(5, "Riya’s point"), given(4, "The races")], of: 4 },
+      { items, answers: [given(3, "Chips"), given(2, "The debate"), given(1, "Maps")], of: 3 },
+    ]);
+    assert.deepEqual(Object.keys(week).sort(), ["answered", "comments", "of", "state", "totals", "weekNumber"]);
+    assert.deepEqual(Object.keys(week.totals).sort(), ["confident", "reading", "unclear", "useful"]);
+    assert.deepEqual(week.totals.unclear, [{ id: "part_a", label: "Compute as a lever", count: 5 }]);
+    assert.deepEqual(checkInModel.leadWeekOf(3, false, [{ items, answers: [given(5, "Riya’s point")], of: 4 }]), { weekNumber: 3, state: "waiting" });
+    // The lead's reader reads answers only of whole weeks, and makes each group's rows for an admin alone.
+    const view = withoutComments(read("src/lib/surveys/checkIns/leadView.ts"));
+    assert.match(view, /const read = checkIns\.filter\(\(survey\) => admin \|\| whole\.get\(survey\.audience\.weekNumber\) === true\);/);
+    assert.match(view, /const admin = input\.viewer === "admin";/);
+    assert.match(view, /let rows: Map<number, AdminCheckInRow\[\]> \| null = null;\s*if \(admin\) \{/);
+    // The Overview reads the check-ins as the lead reads them, whoever is reading.
+    assert.match(withoutComments(read("src/lib/surveys/leadOverview.ts")), /readProgrammeCheckIns\(db, \{[^}]*viewer: "lead",/);
+    // Who reads a programme's check-ins for its lead: the two pages, after the lead's gate, and the Overview's maker.
+    const TABS = "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys";
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\b(?:readProgrammeCheckIns|leadSurveysOverview)\(/),
+      new Map([
+        ["src/lib/surveys/checkIns/leadView.ts", "the reader itself, which asks nobody who is reading: each caller decides that first"],
+        ["src/lib/surveys/leadOverview.ts", "the Overview's maker, which reads the check-ins as the lead reads them, whoever is reading"],
+        [`${TABS}/page.tsx`, "the Surveys tab's Overview, for its lead and admins (loadProgrammeRun first)"],
+        [`${TABS}/check-ins/page.tsx`, "the Surveys tab's Check-ins view, for its lead and admins (loadProgrammeRun first); each group's rows for an admin alone"],
+      ]),
+      "reading a programme's check-ins for its lead",
+      "The policy says the lead sees totals and comments and never a name or who answered. If this file shows a " +
+        "programme's check-ins to anybody else, or a group's or a person's, the sentence is wrong and a new version has to say so.",
+    );
+    // Drawn on the server: neither view is a browser's component, and no route hands either to a browser.
+    for (const file of ["src/features/surveys/lead/SurveysOverview.tsx", "src/features/surveys/lead/CheckInsWeeks.tsx"]) {
+      assert.doesNotMatch(read(file), /^\s*["']use client["'];?/, `${file} is drawn in the browser`);
+    }
+    assert.equal(sourceFilesNaming(/\b(?:readProgrammeCheckIns|leadSurveysOverview)\(/).filter((file) => file.startsWith("src/app/api/")).length, 0);
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-lead-tab.test.mjs")), "tests/surveys-lead-tab.test.mjs draws the views over a term of check-ins for every kind of caller");
   });
 
   test("the survey about leaving is confidential: admins see who said what, the lead its totals and comments as they come and never a name, in no order that follows when they came, facilitators nothing, and names come off as every survey's", () => {

@@ -98,7 +98,7 @@ export function programmeLine(kind: SurveyProgrammeKind, name: string): string {
 /** The before survey is week 1's: "Week 1", beside the programme on the answer page. */
 export const BEFORE_WEEK = "Week 1";
 
-/** "Week 6", beside the programme on the survey at its end. */
+/** "Week 6", beside the programme on the survey at its end, and a week on the programme's Surveys tab. */
 export function weekWords(n: number): string {
   return `Week ${n}`;
 }
@@ -1138,6 +1138,136 @@ export const LEAD_TAB_WORDS = {
   refusalAction: "Go to applications",
 } as const;
 
+/**
+ * What the views holding the programme's own surveys say when the stage's
+ * survey has not gone out yet: the before survey on Before, the survey at the
+ * end (and the one about leaving) on End, the follow-ups on Follow-ups.
+ */
+export const LEAD_STAGE_WORDS = {
+  before: "The before survey hasn’t gone out yet.",
+  end: "The survey at the end hasn’t gone out yet.",
+  followUps: "No follow-up has gone out yet.",
+} as const;
+
+// ---------------------------------------------------------------------------
+// The Surveys tab's Overview
+// ---------------------------------------------------------------------------
+
+/**
+ * The words of the Overview a programme's Surveys tab opens on: a card per
+ * view, usefulness and reading week by week from the check-ins, what was
+ * unclear in a week with the facilitators' reports beside it, who came to the
+ * sessions (the Attendance tab's own count and words) and the week's reports.
+ * Nameless: every figure is a total.
+ */
+export const LEAD_OVERVIEW_WORDS = {
+  /** The cards' eyebrows, set in capitals by the page's style. */
+  before: "Before",
+  checkIns: "Check-ins",
+  reports: "Facilitators’ reports",
+  end: "End",
+  followUps: "Follow-ups",
+  notSent: "Not sent yet",
+  beforeWhen: "Before the first session",
+  everySession: "Every session",
+  endWhen: "At the end",
+  followUpsWhen: "6 and 12 months on",
+  noneYet: "None to show yet",
+  /** A week drawn as a dot, to assistive technology. */
+  notShown: "not shown yet",
+  useful: "How useful was the session?",
+  usefulScale: "Average of 1 to 5",
+  reading: "Did most or all of the reading",
+  readingScale: "Share of check-ins",
+  readingFrom: "From the check-ins: of everybody asked about the week’s reading, the share who did most or all of it.",
+  /** Under both charts: what a week drawn as a dot is. */
+  dot: "A dot is a week not shown yet: a week shows once every group’s check-in has closed, and from 3 answers.",
+  noWeekYet: "Nothing to show yet: a week shows here once every group’s check-in that week has closed, and from 3 answers.",
+  readingDot: "A dot is a week not shown yet, or one whose check-ins asked nothing about reading.",
+  unclearTitle: "What was unclear",
+  unclearLine: "From the check-ins and facilitators’ reports, without names.",
+  unclearNone: "What was unclear shows here once a week’s check-ins have all closed, from 3 answers.",
+  nothingUnclear: "Nothing was named unclear.",
+  /** The name of the row of weeks above what was unclear, for assistive technology. */
+  chooseWeek: "Choose a week",
+  came: "Came to the session",
+  cameLine: "From the registers, as the Attendance tab counts them.",
+  nobodyMarked: "Nobody’s marked yet.",
+  noReports: "No facilitator has sent a report yet.",
+  footer: "Check-ins show without names. Admins can open who said what, and every opening is recorded.",
+} as const;
+
+/** A card's line once its survey has gone out: "Closed Wed 4 Nov", from its row's "closed Wed 4 Nov". */
+export function cardWhenWords(when: string): string {
+  return when ? `${when.charAt(0).toUpperCase()}${when.slice(1)}` : when;
+}
+
+/** The End card's line before its survey goes out: "Last session Wed 9 Dec". */
+export function lastSessionWords(day: string): string {
+  return `Last session ${day}`;
+}
+
+/** The Check-ins card: "139 answers over 3 weeks". */
+export function answersOverWeeksWords(answers: number, weeks: number): string {
+  return `${answersCountWords(answers)} over ${weeks} ${weeks === 1 ? "week" : "weeks"}`;
+}
+
+/** The Facilitators’ reports card: "31 of 33 sessions". */
+export function sessionsReportedWords(reported: number, of: number): string {
+  return `${reported} of ${of} ${of === 1 ? "session" : "sessions"}`;
+}
+
+/** Under the usefulness chart: "48, 45 and 46 answers.". */
+export function weeksAnswersWords(answers: readonly number[]): string {
+  if (answers.length === 0) return "";
+  return `${namesInWords(answers.map(String))} ${answers.length === 1 && answers.includes(1) ? "answer" : "answers"}.`;
+}
+
+/** "What was unclear, week 3". */
+export function unclearTitleWords(weekNumber: number): string {
+  return `What was unclear, week ${weekNumber}`;
+}
+
+/** "14 · 30%": how many named it, and their share of the week's answers. */
+export function namedShareWords(count: number, of: number): string {
+  return `${count} · ${of > 0 ? Math.round((count * 100) / of) : 0}%`;
+}
+
+/** Beside a part: how many of the week's reports named it, "3 of 10 reports". */
+export function ofReportsWords(count: number, of: number): string {
+  return `${count} of ${of} ${of === 1 ? "report" : "reports"}`;
+}
+
+/** Under what was unclear, when the week has reports: "Beside each part, how many of the week’s 10 reports named it." */
+export function besideEachPartWords(reports: number): string {
+  return reports === 1 ? "Beside each part, whether the week’s one report named it." : `Beside each part, how many of the week’s ${reports} reports named it.`;
+}
+
+/** "58%". */
+export function percentWords(part: number, whole: number): string {
+  return `${whole > 0 ? Math.round((part * 100) / whole) : 0}%`;
+}
+
+/** "Facilitators’ reports, week 3". */
+export function reportsWeekTitleWords(weekNumber: number): string {
+  return `Facilitators’ reports, week ${weekNumber}`;
+}
+
+/** "Average 4.1 of 5 for how it went." */
+export function reportsAverageWords(how: number): string {
+  return `Average ${oneDecimalWords(how)} of 5 for how it went.`;
+}
+
+/** "No facilitator has sent a report on week 3." */
+export function noReportsOnWeekWords(weekNumber: number): string {
+  return `No facilitator has sent a report on week ${weekNumber}.`;
+}
+
+/** "Read the 10 reports", "Read the report". */
+export function readReportsWords(n: number): string {
+  return n === 1 ? "Read the report" : `Read the ${n} reports`;
+}
+
 /** "23 of 31 have answered.": how many have answered of the people it was sent to, as the Send tab says it. */
 export function haveAnsweredWords(answered: number, of: number): string {
   return `${answered} of ${of} have answered.`;
@@ -1186,8 +1316,17 @@ export function beliefsLineWords(kind: SurveyProgrammeKind): string {
 
 /** "29 of 32 answered · closed Wed 4 Nov", "3 of 8 answered · closes Wed 4 Nov", "1 of 1 answered · no closing date". */
 export function leadSurveyLineWords(answers: number, of: number, closes: Date | null, closed: boolean): string {
-  const when = closes ? `${closed ? "closed" : "closes"} ${dayWords(closes)}` : "no closing date";
-  return `${answers} of ${of} answered · ${when}`;
+  return `${answeredOfWords(answers, of)} · ${leadSurveyWhenWords(closes, closed)}`;
+}
+
+/** "29 of 32 answered". */
+export function answeredOfWords(answers: number, of: number): string {
+  return `${answers} of ${of} answered`;
+}
+
+/** The line's second part: "closed Wed 4 Nov", "closes Wed 4 Nov", "no closing date". */
+export function leadSurveyWhenWords(closes: Date | null, closed: boolean): string {
+  return closes ? `${closed ? "closed" : "closes"} ${dayWords(closes)}` : "no closing date";
 }
 
 /** "27 answers", the count beside a section's heading. */

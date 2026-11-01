@@ -1836,7 +1836,8 @@ minutes: the check-in" (`src/features/courses/register/CheckInCard.tsx`, the
 survey at the end of a session, `docs/surveys.md`, "Check-ins at the end of a
 session"). Its own route, `GET /api/courses/groups/[groupId]/check-in`, behind
 the register's own gate, so the programme's lead, who reads the register,
-is shown nothing of it.
+is shown nothing of it there: the lead reads check-ins a whole week at a time,
+every group's together, on the programme's Surveys tab.
 
 - On the session's day, from its start until it would close: "Open it for the
   6 here", counted from the grid as it is tapped (marked present, late or left
@@ -1936,12 +1937,15 @@ stay exactly as they are beside it.
 
 ### Who reads
 
-- **The programme's lead and admins**, on the programme's Surveys tab under
-  "Session reports" (`.../programmes/[programmeId]/surveys/reports`, the tab's
-  own gate, `loadProgrammeRun`): every report of the run, week by week, newest
-  first, each whole with its group, its writer, its session's day, when it
-  was sent, and the people it picks by their whole names. The tab itself
-  shows how many there are and names nobody.
+- **The programme's lead and admins**, on the programme's Surveys tab, its
+  Facilitators' reports view (`.../programmes/[programmeId]/surveys/reports`,
+  the tab's own gate, `loadProgrammeRun`): every report of the run, week by
+  week, newest first, each whole with its group, its writer, its session's
+  day, when it was sent, and the people it picks by their whole names. The
+  tab's Overview names nobody: it counts each week's reports, their average
+  for how it went, the parts they named beside the check-ins' and the
+  sessions held so far that a report is about (`countRunReportsByWeek`), and
+  leads to the week on this page.
 - **The writer**, their own report, on their page: in the form while it is
   open, read only once it has closed.
 - Nobody in the group and no other facilitator reads a report on the site. A

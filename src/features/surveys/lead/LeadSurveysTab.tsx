@@ -1,8 +1,9 @@
 import Link from "next/link";
 import type { RatedSource } from "@/lib/courses/sourceRatings";
-import type { LeadEnd, LeadFacilitatorLine, LeadTabView, ScaleResult } from "@/lib/surveys/leadTab";
+import { STAGE_KINDS, type LeadEnd, type LeadFacilitatorLine, type LeadStage, type LeadTabView, type ScaleResult } from "@/lib/surveys/leadTab";
 import type { ScaleRow } from "@/lib/surveys/results";
 import {
+  LEAD_STAGE_WORDS,
   LEAD_TAB_WORDS,
   RESULT_WORDS,
   answeredBothWords,
@@ -19,14 +20,16 @@ import {
   shownOfWords,
   stagesMovedWords,
 } from "@/lib/surveys/words";
-import { RUN_REPORTS_WORDS, tabLineWords } from "@/lib/courses/sessionReports/words";
 import styles from "./leadSurveys.module.css";
 
 /**
- * A PROGRAMME LEAD'S SURVEYS TAB (board sv-programme): what changed, the
- * programme's surveys with a way to each one's results, how it went, the
- * sources people rated, the facilitator line and what people wrote, all in
- * totals and comments, never a name.
+ * THE VIEWS OF A PROGRAMME LEAD'S SURVEYS TAB THAT HOLD ITS OWN SURVEYS:
+ * Before, the before survey; End, what changed, the survey at
+ * the end and the survey about leaving with a way to each one's results,
+ * Ratings and the anonymous form's answers, how it went, the sources people
+ * rated, the facilitator line and what people wrote; and Follow-ups. All in
+ * totals and comments, never a name. Each view draws the sections that were
+ * on the one tab before it had views, unchanged, for its own stage (`stage`).
  *
  * A Server Component, drawn from the view the server made (`leadSurveysTab`),
  * which holds no name, uid or address and no row per person. Every link is
@@ -34,12 +37,12 @@ import styles from "./leadSurveys.module.css";
  * gate as this one. The bars are one quiet colour: what people believe or
  * say is reported, never cheered or marked as good or bad.
  *
- * What the board draws that the records do not hold is left out, not drawn
- * empty: "How useful was each week?" (no survey asks it), each facilitator's
- * own scores and the comments about each group (the survey at the end asks
- * one line about the facilitator, for every group together), "Can be quoted"
- * beside a comment (not on Results yet), and the report's download (not
- * built).
+ * What the records do not hold is left out, not drawn empty: each
+ * facilitator's own scores and the comments about each group (the survey at
+ * the end asks one line about the facilitator, for every group together),
+ * "Can be quoted" beside a comment (not on Results yet), and the report's
+ * download (not built). How useful each week's sessions were comes from the
+ * check-ins, on the Overview (`SurveysOverview`).
  */
 
 const COMMENTS_SHOWN = 5;
@@ -212,17 +215,19 @@ function Beliefs({ view, base }: { view: LeadTabView; base: string }) {
   );
 }
 
-function Surveys({ view, base, reports }: { view: LeadTabView; base: string; reports: number | null }) {
-  const also = view.links.ratings || view.links.anonymousForm || reports !== null;
+function Surveys({ view, base, stage }: { view: LeadTabView; base: string; stage: LeadStage }) {
+  const rows = view.surveys.filter((survey) => STAGE_KINDS[stage].includes(survey.kind));
+  const ratings = stage === "end" && view.links.ratings;
+  const anonymousForm = stage === "end" && view.links.anonymousForm;
   return (
     <section className={styles.card} aria-labelledby="lead-surveys">
       <h2 id="lead-surveys" className={styles.cardTitleSmall}>
         {LEAD_TAB_WORDS.surveys}
       </h2>
-      <p className={styles.cardLine}>{view.surveys.length > 0 ? LEAD_TAB_WORDS.surveysLine : LEAD_TAB_WORDS.nothingSent}</p>
-      {view.surveys.length > 0 && (
+      <p className={styles.cardLine}>{rows.length > 0 ? LEAD_TAB_WORDS.surveysLine : LEAD_STAGE_WORDS[stage]}</p>
+      {rows.length > 0 && (
         <ul className={styles.rows}>
-          {view.surveys.map((survey) => (
+          {rows.map((survey) => (
             <li key={survey.id} className={styles.rowItem}>
               <div className={styles.rowHead}>
                 <span className={styles.rowName}>{survey.name}</span>
@@ -233,9 +238,9 @@ function Surveys({ view, base, reports }: { view: LeadTabView; base: string; rep
           ))}
         </ul>
       )}
-      {also && (
+      {(ratings || anonymousForm) && (
         <ul className={`${styles.rows} ${styles.also}`}>
-          {view.links.ratings && (
+          {ratings && (
             <li className={styles.rowItem}>
               <div className={styles.rowHead}>
                 <span className={styles.rowName}>{LEAD_TAB_WORDS.ratingsTitle}</span>
@@ -244,22 +249,13 @@ function Surveys({ view, base, reports }: { view: LeadTabView; base: string; rep
               <p className={styles.rowLine}>{LEAD_TAB_WORDS.ratingsLine}</p>
             </li>
           )}
-          {view.links.anonymousForm && (
+          {anonymousForm && (
             <li className={styles.rowItem}>
               <div className={styles.rowHead}>
                 <span className={styles.rowName}>{LEAD_TAB_WORDS.anonymousTitle}</span>
                 <ArrowLink href={`${base}/anonymous-feedback`}>{LEAD_TAB_WORDS.seeAnswers}</ArrowLink>
               </div>
               <p className={styles.rowLine}>{LEAD_TAB_WORDS.anonymousLine}</p>
-            </li>
-          )}
-          {reports !== null && (
-            <li className={styles.rowItem}>
-              <div className={styles.rowHead}>
-                <span className={styles.rowName}>{RUN_REPORTS_WORDS.tabTitle}</span>
-                <ArrowLink href={`${base}/surveys/reports`}>{RUN_REPORTS_WORDS.tabAction}</ArrowLink>
-              </div>
-              <p className={styles.rowLine}>{tabLineWords(reports)}</p>
             </li>
           )}
         </ul>
@@ -403,11 +399,23 @@ function InTheirWords({ end }: { end: LeadEnd }) {
 }
 
 /**
- * `reports` is how many session reports the run has, for the row that leads
- * to them (their own page, which names people: this tab names nobody), or
- * null while the programme names no run.
+ * One view's sections. Before and Follow-ups list their stage's surveys; End
+ * draws what changed beside its surveys, then how it went beside the weeks,
+ * the facilitator line and what people wrote, as the tab drew them before it
+ * had views.
  */
-export default function LeadSurveysTab({ view, base, reports = null }: { view: LeadTabView; base: string; reports?: number | null }) {
+export default function LeadSurveysTab({ view, base, stage }: { view: LeadTabView; base: string; stage: LeadStage }) {
+  if (stage !== "end") {
+    return (
+      <div className={styles.tab}>
+        <div className={styles.row}>
+          <div className={styles.whole}>
+            <Surveys view={view} base={base} stage={stage} />
+          </div>
+        </div>
+      </div>
+    );
+  }
   const end = view.end;
   const how = end !== null && end.howItWent.length > 0;
   return (
@@ -420,7 +428,7 @@ export default function LeadSurveysTab({ view, base, reports = null }: { view: L
           </div>
         )}
         <div className={view.change ? styles.side : styles.whole}>
-          <Surveys view={view} base={base} reports={reports} />
+          <Surveys view={view} base={base} stage={stage} />
         </div>
       </div>
       {(how || view.sources) && (

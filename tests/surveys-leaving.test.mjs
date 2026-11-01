@@ -617,6 +617,8 @@ describe("7. results: for admins, and for the programme's lead, never a name", (
     const base = w.sessionOf(uid);
     return base ? { ...base, admissionsReviewer: world.db.read(`users/${uid}`)?.admissionsReviewer === true } : null;
   };
+  /** The Surveys tab's row of views, as its words read: a survey's results page sits under it. */
+  const VIEWS_TEXT = "Overview Before Check-ins Facilitators’ reports End Follow-ups";
   /** The lead's results page under a programme, as `who` sees it; a redirect answers where it went. */
   async function leadPage(who, surveyId, programmeId = AGI) {
     world.user = who === null ? null : sessionFor(who);
@@ -694,10 +696,12 @@ describe("7. results: for admins, and for the programme's lead, never a name", (
     const page = await leadPage("claudia", before.body.survey.id);
     assert.equal(page.to, null);
     assert.ok(!page.text.includes(lib.words.LEAD_RESULTS_WORDS.notHere), page.text);
-    assert.ok(page.text.startsWith(`AGI Strategy: before ${lib.words.LEAD_RESULTS_WORDS.line} No answers yet.`), page.text);
+    // Under the Surveys tab's row of views, the before survey's view current (CHANGED ON PURPOSE: the tab has views).
+    assert.ok(page.text.startsWith(`${VIEWS_TEXT} AGI Strategy: before ${lib.words.LEAD_RESULTS_WORDS.line} No answers yet.`), page.text);
+    assert.match(page.html, /<a href="[^"]*\/surveys\/before"[^>]*aria-current="page"/);
     const event = await call("zach", routes.create.POST, {}, { body: { template: "event", eventId: "pizza", audience: "came", closesOn: "2026-11-26" } });
     assert.equal(event.status, 200, JSON.stringify(event.body));
     const night = await leadPage("claudia", event.body.survey.id);
-    assert.equal(night.text, lib.words.LEAD_RESULTS_WORDS.notHere);
+    assert.equal(night.text, `${VIEWS_TEXT} ${lib.words.LEAD_RESULTS_WORDS.notHere}`);
   });
 });

@@ -2,8 +2,9 @@ import { londonClockLabel, londonDayLabel } from "@/lib/courses/londonLabels";
 
 /**
  * THE WORDS OF A SESSION REPORT: the facilitator's page that writes one, the
- * route's refusals, the lead's page that reads them and the row on the
- * Surveys tab that leads there.
+ * route's refusals and the lead's page that reads them. The Surveys tab's
+ * Overview counts them in its own words (`LEAD_OVERVIEW_WORDS` and the
+ * functions beside it in `src/lib/surveys/words.ts`).
  *
  * Every name, week, day and time is a slot the caller fills from a record.
  * Times go through the house clock (`londonClockLabel`), never a stored wall
@@ -169,12 +170,11 @@ export function closedRefusal(weekNumber: number, occurrence: number, nextWeekNu
 }
 
 // ---------------------------------------------------------------------------
-// The lead's page, and the row on the Surveys tab
+// The lead's page
 // ---------------------------------------------------------------------------
 
 export const RUN_REPORTS_WORDS = {
   title: "Session reports",
-  back: "Surveys",
   line:
     "What each group’s facilitators reported after each session, with names. Only the programme’s lead and admins read these: " +
     "nobody in a group does on the site, though anyone can ask for what’s written about them.",
@@ -194,9 +194,6 @@ export const RUN_REPORTS_WORDS = {
   refusalTitle: "Only the programme’s lead and admins can read session reports",
   refusalBody: "Session reports name the people in each group, so only the programme’s lead or an admin can open them.",
   refusalAction: "Go to applications",
-  /** The Surveys tab's row. */
-  tabTitle: "Session reports",
-  tabAction: "Read them",
 } as const;
 
 /** "4 of 5". */
@@ -209,12 +206,6 @@ export function sentWords(sentAt: Date | null, updatedAt: Date | null): string {
   if (!sentAt) return "";
   const first = `Sent ${at(sentAt)}`;
   return updatedAt && updatedAt.getTime() - sentAt.getTime() >= 60_000 ? `${first}, changed ${at(updatedAt)}` : first;
-}
-
-/** The Surveys tab's line under "Session reports". */
-export function tabLineWords(count: number): string {
-  const how = count === 0 ? "None yet: each group’s facilitators can send one after each session." : `${count === 1 ? "1 report" : `${count} reports`} from the groups’ facilitators, with names.`;
-  return `${how} Only you and admins read them.`;
 }
 
 function lowerFirst(textValue: string): string {

@@ -4080,6 +4080,39 @@ export const PAGES = {
       "role on, or one that does not exist, renders 'there is no programme here' with a 200. The lead persona is " +
       "admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads).",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/before": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: the Surveys tab's Before view is the " +
+      "programme's lead's and an admin's, so a reviewer is told so before any survey is read, and a programme the caller " +
+      "has no role on, or one that does not exist, renders 'there is no programme here' with a 200. The lead persona is " +
+      "admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads).",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/check-ins": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: the Surveys tab's Check-ins view is the " +
+      "programme's lead's and an admin's, so a reviewer is told so before any check-in is read, and a programme the caller " +
+      "has no role on, or one that does not exist, renders 'there is no programme here' with a 200. Each group's check-in " +
+      "is drawn for an admin alone. The lead persona is admitted as an approveCourse holder is (appointing a lead sets the " +
+      "flag the tree reads).",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/end": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: the Surveys tab's End view is the " +
+      "programme's lead's and an admin's, so a reviewer is told so before any survey is read, and a programme the caller " +
+      "has no role on, or one that does not exist, renders 'there is no programme here' with a 200. The lead persona is " +
+      "admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads).",
+  },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/follow-ups": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: the Surveys tab's Follow-ups view is the " +
+      "programme's lead's and an admin's, so a reviewer is told so before any survey is read, and a programme the caller " +
+      "has no role on, or one that does not exist, renders 'there is no programme here' with a 200. The lead persona is " +
+      "admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads).",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
@@ -6233,7 +6266,19 @@ export const REAL_PAGES = {
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/pitches": programmePage("the pitches page, which says a fellowship has none."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/messages": programmePage("Messages."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys": programmePage(
-    "the Surveys tab: the totals and comments of the programme's surveys, never a name.",
+    "the Surveys tab's Overview: totals of the programme's surveys, its check-ins' whole weeks, its reports and who came, never a name.",
+  ),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/before": programmePage(
+    "the Surveys tab's Before view: the before survey's row, never a name.",
+  ),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/check-ins": programmePage(
+    "the Surveys tab's Check-ins view: each whole week of check-ins with its floors, never a name, and each group's check-in for an admin.",
+  ),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/end": programmePage(
+    "the Surveys tab's End view: what changed and the totals and comments of the survey at the end, never a name.",
+  ),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/follow-ups": programmePage(
+    "the Surveys tab's Follow-ups view: the follow-ups' rows, never a name.",
   ),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]": programmePage(
     "the page of one survey: its results when it is one of the programme's surveys, a sentence when it is not.",

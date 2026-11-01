@@ -14,8 +14,8 @@ import { RUN_REPORTS_WORDS, REPORT_WORDS } from "./words";
 
 /**
  * A RUN'S SESSION REPORTS, read on the server for the programme's lead and
- * admins: the reports page under the programme's Surveys tab, and the count
- * on the tab's row that leads there.
+ * admins: the reports page under the programme's Surveys tab, and the counts
+ * on the tab's Overview that lead there, which name nobody.
  *
  * Who may read them is decided by the page that calls this, before it does
  * (`loadProgrammeRun`: the lead of the programme that names the run, or an
@@ -67,10 +67,62 @@ async function reportsOfRun(db: Firestore, runId: string): Promise<CourseSession
     .filter((report): report is CourseSessionReportDoc => report !== null && report.runId === runId);
 }
 
-/** How many reports the run has, for the Surveys tab's row. Reads nothing of what they say. */
-export async function countRunSessionReports(db: Firestore, runId: string): Promise<number> {
-  const snap = await db.collection(COURSE_SESSION_REPORTS_COLLECTION).where("runId", "==", runId).select("runId").get();
-  return snap.docs.length;
+/**
+ * One week of a run's reports, counted for the Surveys tab's Overview, which
+ * names nobody: how many there are, how the sessions went on average, the
+ * parts they named unclear and the groups with one. Never a word a report
+ * says, who wrote it, or whom it picks.
+ */
+export type ReportWeekCount = {
+  weekNumber: number;
+  /** How many reports: the reports page lists the same number under the week. */
+  reports: number;
+  /** The average of "How did the session go?", 1 to 5, over the reports that say; null when none does. */
+  how: number | null;
+  /**
+   * Each part named unclear, by the part's id (a part keeps its id in every
+   * group's copy of the week), with its title as the first report to name it
+   * kept it and how many of the week's reports named it; "Something else" by
+   * `SOMETHING_ELSE`. Most named first.
+   */
+  unclear: { id: string; title: string; count: number }[];
+  /** The groups with a report on one of the week's sessions, by id. */
+  groupIds: string[];
+};
+
+/**
+ * THE RUN'S REPORTS, COUNTED BY WEEK, oldest week first: the same reports the
+ * reports page lists (`reportsOfRun`), so a week's count here is the number of
+ * reports under it there. For the Surveys tab's Overview, after its gate.
+ */
+export async function countRunReportsByWeek(db: Firestore, runId: string): Promise<ReportWeekCount[]> {
+  const reports = (await reportsOfRun(db, runId)).sort((a, b) => a.id.localeCompare(b.id));
+  const weeks = new Map<number, CourseSessionReportDoc[]>();
+  for (const report of reports) weeks.set(report.weekNumber, [...(weeks.get(report.weekNumber) ?? []), report]);
+  return [...weeks.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([weekNumber, list]) => {
+      const hows = list.flatMap((report) => (report.answers.how === null ? [] : [report.answers.how]));
+      const named = new Map<string, { title: string; count: number; first: number }>();
+      for (const report of list) {
+        const titles = new Map(report.parts.map((part) => [part.id, part.title.trim()]));
+        for (const id of new Set(report.answers.unclear)) {
+          const title = id === SOMETHING_ELSE ? REPORT_WORDS.somethingElse : titles.get(id) || RUN_REPORTS_WORDS.partGone;
+          const kept = named.get(id);
+          if (kept) kept.count += 1;
+          else named.set(id, { title, count: 1, first: named.size });
+        }
+      }
+      return {
+        weekNumber,
+        reports: list.length,
+        how: hows.length > 0 ? hows.reduce((sum, value) => sum + value, 0) / hows.length : null,
+        unclear: [...named.entries()]
+          .sort(([, a], [, b]) => b.count - a.count || a.first - b.first)
+          .map(([id, { title, count }]) => ({ id, title, count })),
+        groupIds: [...new Set(list.map((report) => report.groupId))].sort(),
+      };
+    });
 }
 
 /** The titles a report's ticks name, as the week read when it was sent. */

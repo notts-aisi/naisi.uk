@@ -28,8 +28,10 @@ questions somebody left blank, sent to them by an admin's press).
   is the check-in at the end of a session** (below): the group's live
   facilitators open it from the register and may close it, and see their own
   group's count while it is open and its totals from three answers once it
-  has closed, never a comment or who said what. Facilitators see nothing else
-  of any survey, about themselves included.
+  has closed, never a comment or who said what; the lead reads check-ins a
+  whole week at a time, once every group's check-in that week has closed,
+  every group's together, totals from three answers and comments from five.
+  Facilitators see nothing else of any survey, about themselves included.
 - **Confidential, never anonymous.** Every survey on the site knows who answered.
   The confidential box at the top of every survey says so, in sv-privacy's words.
   The one anonymous form on the site is not a survey and has no anonymous mode
@@ -63,7 +65,9 @@ questions somebody left blank, sent to them by an admin's press).
   2026): an admin chooses what is published, and every number says what it
   rests on. A check-in's totals reach its group's facilitators only once it
   has closed and only from three answers (Zach, 1 Nov 2026), so a small group's
-  answers are never read one by one.
+  answers are never read one by one; its programme's lead reads a week of them
+  only once every group's has closed, never a group's alone, totals from three
+  answers and comments from five, decided on the server.
 - **No answer or result is ever in an email.**
 - **Names come off** two years after the programme's last session (Zach, 26
   Oct 2026), the same day for every stage, and at once when an account is
@@ -717,7 +721,8 @@ and `src/features/courses/register/CheckInCard.tsx` (the card).
   `surveyPeople` and `surveyAnswers` as every survey's, and an answer keeps
   exactly what every survey's does. Every reader that tells kinds apart asks
   `isCheckIn`, so none reads it as a programme's before survey: no Kairos box,
-  no quote tick, and the lead's pages never read it (`LEAD_READS`).
+  no quote tick, and the lead's survey pages never read it (`LEAD_READS`): the
+  lead reads check-ins only a whole week at a time, floored (below).
 - **Who opens it**: the group's live facilitators and admins, the register's
   own gate (`gateGroupRegister`), never the programme's lead, who reads the
   register and runs no session. `POST /api/courses/groups/[groupId]/check-in`
@@ -789,10 +794,26 @@ and `src/features/courses/register/CheckInCard.tsx` (the card).
   more were marked there after, and when it closes, with Close. Send, Remind,
   a test, the questions' editor and the questions left blank each refuse a
   check-in in a sentence.
-- **Not built yet**: the programme's lead's reading of check-ins, a week's
-  totals across every group once every group's check-in that week has closed,
-  totals from three answers and comments from five (`COMMENTS_FROM`), never
-  group by group. Until then the lead reads nothing of a check-in.
+- **What the programme's lead and admins read**, on the programme's Surveys
+  tab (below): its Check-ins view and the Overview's figures, by
+  `readProgrammeCheckIns` (`src/lib/surveys/checkIns/leadView.ts`). A week,
+  never a group: nothing of it until it is **whole** (`weekIsWhole`: every
+  session of the week that can have a check-in, dated and not called off, is
+  past its check-in window, and none of the week's check-ins is open, so none
+  can still be opened), then every group's answers together (`leadWeekOf`),
+  totals from three answers (`TOTALS_FROM`) and comments from five
+  (`COMMENTS_FROM`), the comments in the order of their words. Below three it
+  says how many answered and that totals show from three, so nobody can be
+  worked out. A share of a smaller slice than the week (the reading question,
+  asked only where the week had something to read) shows from three answers
+  to it. Nothing of a week that is not whole is read at all, not even how many
+  have answered so far, so no group's answers can be had by reading the week
+  before and after its check-in closed. An admin also has a row for each
+  group's check-in (when its session started, how many answered of how many
+  it reached, open or closed), with the way to its Results and Who answered on
+  the admins' own pages; the lead never has those rows. One count: the
+  facilitators' totals and the lead's week both count answers through
+  `tallyOf`, and the comments are each check-in's Results' own.
 - **Names come off** on the day the survey says, two years after the run's last
   session, by the same job: it finds every survey due by its day
   (`surveysNamesDueBy`), so the check-ins the list of surveys leaves out are
@@ -876,8 +897,10 @@ set beside a larger one). The lead reads every kind of survey the programme
 has of its own: before it, at its end, the follow-ups and leaving
 (`LEAD_READS` in `src/lib/surveys/leadResults.ts`). A survey after an event is
 no programme's, and another programme's is not this one's: each is answered
-in a sentence. A check-in is never one the lead reads here: its totals are
-floored, week by week, and that reading is not built yet.
+in a sentence. A check-in is never one the lead reads here: its weeks are on
+the tab's Check-ins view, floored. The page sits under the tab's row of
+views, with the view its stage is listed on current (Before; End for the
+survey at the end and the survey about leaving; Follow-ups).
 
 ## The lead's Surveys tab (sv-programme)
 
@@ -885,57 +908,114 @@ Each programme's tabs have **Surveys**, between Messages and Settings
 (`/admin/admissions/forms/<form>/programmes/<programme>/surveys`), a link for
 the programme's lead and admins and not drawn for a reviewer, whose tabs are
 Applications alone. Board sv-programme, with Q41 (no floors) and Q49 A (as answers come
-in). The page asks `loadProgrammeRun` before it reads any survey; the admin
-area is closed during a view-as session, and the page writes nothing.
+in). Every page under it asks `loadProgrammeRun` before it reads anything; the
+admin area is closed during a view-as session, and no page writes.
 
-**What it shows**, made on the server by `leadSurveysTab`
-(`src/lib/surveys/leadTab.ts`) and drawn by
-`src/features/surveys/lead/LeadSurveysTab.tsx`:
+**Its views**, each an address under the tab, in a row each page draws once
+its gate has answered (`SurveysViews` in `src/features/applications/surveys/`),
+the one on screen current: **Overview** (the tab's own address), **Before**
+(`/before`), **Check-ins** (`/check-ins`), **Facilitators' reports**
+(`/reports`, the session reports, on a page of their own because they name
+people: docs/courses-ops.md, "A facilitator's session report"), **End**
+(`/end`) and **Follow-ups** (`/follow-ups`). The team's ratings of written work
+have no view until they exist.
 
-- **This programme's surveys**: each of the programme's own surveys of the
-  kinds the lead reads, once it has gone out (sent, or opened for the survey
-  about leaving), in the order of the stages, with "29 of 32 answered · closed
-  Wed 4 Nov" and a way to its results. Below them, **Ratings** once the
-  programme names a run, and **What to keep, change and drop** (the anonymous
-  form's answers) once the survey at the end has gone out.
-- **What changed**, once the survey at the end pairs with the before survey:
-  how many answered both, C1 at stage 2 and up at each end ("Considering,
-  planning or already doing it", "8 → 15 of 25") with who moved a stage, and
-  C4's averages then and now with how many moved up. Beside it, **Beliefs
-  about AI**, which reports and never targets, with a way to them at the start
-  and the end. Once names come off, nothing pairs: it says so in the Results'
-  own words and compares nothing, and every survey's totals stay.
-- **How it went**, once the survey at the end has an answer: Q1, Q2 and Q3 of
-  the questionnaire, each an average with a bar per point or per line.
-- **The weeks**: the sources people rated on the week pages, up to three
-  highest and the lowest, from the retrospective's count and its floor (an
-  average shows from three ratings).
-- **Your facilitators**: the Facilitator line of "How valuable was each
-  part?", for every group together, with the board's note that facilitators
-  never see it.
-- **In their words**: every written answer's question of the survey at the
-  end, five comments shown and the rest behind "See all", in the order of
+**The Overview**, made on the server by `leadSurveysOverview`
+(`src/lib/surveys/leadOverview.ts`) and drawn by
+`src/features/surveys/lead/SurveysOverview.tsx`, the same for the lead and an
+admin but for who came (each sees the Attendance tab's count for them), and
+nameless:
+
+- **A card for each view**, each the way to it: Before, End and Follow-ups
+  with their survey's count and closing day once it has gone out ("Not sent
+  yet" before, with the run's last session for End); Check-ins with the
+  answers over the weeks that are whole ("139 answers over 3 weeks");
+  Facilitators' reports with the sessions held so far that a report is about
+  ("31 of 33 sessions", the Attendance tab's facts: held, and started).
+- **How useful the sessions were** and **how much of the reading people did**,
+  week by week, a column a week of the run in the theme's accent with its
+  figure on its cap, a dot for a week not shown yet; from the check-ins'
+  whole weeks (the reading's share of everybody asked about it).
+- **What was unclear** in a chosen week (`?week=3`, among the weeks that show;
+  the latest by default): each part the check-ins named, with how many named
+  it and their share of the week's answers, and beside it how many of the
+  week's session reports named it; a part only the reports named is a row too.
+- **Came to the session**, week by week, the Attendance tab's own count
+  (`buildRunAttendance` for the same viewer) in its words ("50 of 54 came",
+  "so far" while a register of the week is not finished).
+- **The week's reports**: their average for how it went, and "Read the 10
+  reports", to that week on the reports page.
+- "Check-ins show without names. Admins can open who said what, and every
+  opening is recorded."
+
+Not drawn, because no record holds it yet: the share who ticked every
+reading, the team's ratings of written work, a summary of what the reports
+say and anything booked to explain a week again.
+
+**Check-ins**: the weeks of the programme's check-ins (Check-ins, above),
+newest first, each with how many answered of how many its check-ins reached,
+usefulness and confidence on average, the share who did most or all of the
+reading, what was unclear, and from five answers what people wrote; for an
+admin, each group's check-in under its week.
+
+**Before, End and Follow-ups** draw what the tab drew before it had views, made
+on the server by `leadSurveysTab` (`src/lib/surveys/leadTab.ts`) and drawn by
+`src/features/surveys/lead/LeadSurveysTab.tsx` for its stage:
+
+- **This programme's surveys**, each view its stage's: each of the programme's
+  own surveys of the kinds the lead reads, once it has gone out (sent, or
+  opened for the survey about leaving), with "29 of 32 answered · closed Wed
+  4 Nov" and a way to its results. Before lists the before survey; End the
+  survey at the end and the survey about leaving, then **Ratings** once the
+  programme names a run and **What to keep, change and drop** (the anonymous
+  form's answers) once the survey at the end has gone out; Follow-ups the
+  follow-ups at 6 and 12 months. A view whose survey has not gone out says so.
+- On End, **what changed**, once the survey at the end pairs with the before
+  survey: how many answered both, C1 at stage 2 and up at each end
+  ("Considering, planning or already doing it", "8 → 15 of 25") with who moved
+  a stage, and C4's averages then and now with how many moved up. Beside it,
+  **Beliefs about AI**, which reports and never targets, with a way to them at
+  the start and the end. Once names come off, nothing pairs: it says so in the
+  Results' own words and compares nothing, and every survey's totals stay.
+- On End, **How it went**, once the survey at the end has an answer: Q1, Q2 and
+  Q3 of the questionnaire, each an average with a bar per point or per line.
+- On End, **The weeks**: the sources people rated on the week pages, up to
+  three highest and the lowest, from the retrospective's count and its floor
+  (an average shows from three ratings).
+- On End, **Your facilitators**: the Facilitator line of "How valuable was each
+  part?", for every group together, with the note that facilitators never see
+  it.
+- On End, **In their words**: every written answer's question of the survey at
+  the end, five comments shown and the rest behind "See all", in the order of
   their words.
 
 **One count each.** Every number on the tab is the one its own page shows,
 through that page's reader: a survey's answers, its rate, its totals and
-comments are its Results (`resultsView`, with the lead's order of comments);
+comments are its Results (`resultsView`, with the lead's order of comments),
+and the Overview's cards are the views' own rows (`leadSurveyRows`);
 "answered both" is the change view's pairing (`bothOf`); "considering,
 planning or already doing it" is public numbers' count (`consideringOf` in
 `src/lib/surveys/publicNumbers.ts`, which its own measure uses); moved up,
 stayed and moved down, and the averages then and now, are the Results' Before
 and now; the sources people rated are the retrospective's
 (`readSourceRatings` in `src/lib/courses/sourceRatings.ts`, with its
-projection of `itemId`, `rating` and `completed`, and `aggregateRetrospective`).
+projection of `itemId`, `rating` and `completed`, and `aggregateRetrospective`);
+a week of check-ins is its check-ins counted by the facilitators' own tally,
+its comments their Results' own; who came is the Attendance tab's
+(`buildRunAttendance`, through its words, `cameWords`); and the reports are
+counted from the records the reports page lists (`countRunReportsByWeek`).
 
 **Nothing about a person** reaches the tab: no name, uid, email address, row
-per person, who answered or who did not. The lead never has the download with
-names (an admin's alone).
+per person, who answered or who did not, and nothing of the check-ins by
+group but an admin's rows. The lead never has the download with names (an
+admin's alone). The session reports, which name people, are on their own view
+behind the same gate; the Overview only counts them and leads there.
 
 **Not drawn**, because no record holds it (the questionnaire replaced the
-board's questions): "How useful was each week?", each facilitator's own
-scores, the comments by group and "Comments about facilitators are never
-quoted or put in reports". Also not drawn: "Can be quoted" beside a comment
+questions first drawn for it): each facilitator's own scores, the comments by
+group and "Comments about facilitators are never quoted or put in reports".
+How useful the sessions were, week by week, is drawn from the check-ins
+instead (the Overview, above). Also not drawn: "Can be quoted" beside a comment
 (not on Results either) and the report's download (sv-report is not built).
 The board's "Results show once each survey closes" (Q49 B, which Zach did not
 choose) reads "Results show as answers come in, never with a name.", and its
@@ -1316,8 +1396,9 @@ base; no threshold (Zach, 26 Oct 2026). The code: `src/lib/surveys/term/`
 
 Downloading or deleting one person's answers from their page; "Can be quoted"
 beside a ticked comment on Results (sv-results) and on the lead's tab; the
-lead's Surveys tab's per-week usefulness and per-facilitator scores, which no
-survey asks; and an option's own words ("Something else: ..."). The model is built so none
+lead's Surveys tab's per-facilitator scores, which no survey asks (its
+usefulness week by week comes from the check-ins); and an option's own words
+("Something else: ..."). The model is built so none
 of them needs a rewrite: another `audience.kind`, another `respondent.kind`,
 the same records.
 
@@ -1373,9 +1454,12 @@ numbers' three: `tests/surveys-term-numbers.test.mjs` (the counting, and every
 number held to its own page's reader), `tests/surveys-term-numbers-page.test.mjs`
 and `tests/surveys-term-numbers-file.test.mjs` (the page and the file as every
 kind of caller, and nothing about a person in either), and
-`tests/surveys-lead-tab.test.mjs` (the lead's Surveys tab and each survey's
-results under it as every kind of caller, every number held to its own page's
-reader, and nothing about a person in either), and
+`tests/surveys-lead-tab.test.mjs` (the lead's Surveys tab, every view of it,
+and each survey's results under it as every kind of caller, over check-ins and
+session reports sent through their routes; every number held to its own
+page's reader; a week of check-ins only once whole, with its floors; nothing
+about a person, and no group for the lead; and a walk of every file that
+finds check-ins), and
 `tests/surveys-check-ins.test.mjs` (the check-in at the end of a session: its
 window, who it reaches, its questions and its floors, and every route, page
 and card as every kind of caller).
@@ -1393,7 +1477,9 @@ that the lead may still tell whose an answer is when few have left, and the
 page that says somebody left showing its card; and the lead's reading of the
 programme's surveys: totals and comments as answers come in, never a name, who
 answered or a download, that the lead may still tell whose an answer is when
-few answer, and the average rating of each source from three. A change that
+few answer, and the average rating of each source from three; and the lead's
+reading of the check-ins, a whole week at a time with its floors, and who may
+call it. A change that
 alters any of them changes the policy first: a template that asks a new kind
 of question fails until the policy names it.
 

@@ -1031,6 +1031,13 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/features/applications/surveys/SurveysViews.tsx",
+    {
+      built: ["surveysViewPath(roundId, programmeId, view)"],
+      from: "the Surveys tab's own views (Overview, Before, Check-ins, Facilitators' reports, End, Follow-ups), from `surveysViewPath` and the form's and the programme's ids, encoded",
+    },
+  ],
+  [
     "src/features/applications/groups/GroupsViews.tsx",
     {
       built: ["groupsViewPath(roundId, programmeId, view)"],
@@ -1175,8 +1182,8 @@ const BUILT = new Map([
   [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/reports/page.tsx",
     {
-      built: ["`${base}/applications`", "`${base}/surveys`"],
-      from: "the programme's own Applications tab, for a reviewer told the session reports are not theirs, and the way back to its Surveys tab: each made from the form's and the programme's ids in the address, encoded. Nothing anybody typed",
+      built: ["`${base}/applications`"],
+      from: "the programme's own Applications tab, for a reviewer told the session reports are not theirs: made from the form's and the programme's ids in the address, encoded. The way back to the Surveys tab is its row of views (SurveysViews). Nothing anybody typed",
     },
   ],
   [
