@@ -232,6 +232,12 @@ const HELD = new Map([
     },
   ],
   [
+    "src/lib/scheduler/jobs/surveyCheckInWeeks.ts",
+    {
+      why: "the job that fixes each week of a programme's check-ins: it reads each form's programmes by the ids on that form's own programmeIds, to take the run each names, and then fixes a run's weeks only for the one programme namingProgrammeIn finds naming it",
+    },
+  ],
+  [
     "src/lib/courses/placementNotes/draft.ts",
     {
       why: "Claude's draft of a note for somebody placed outside the times they gave: it reads the form's programmes by the programme id the person's row on the run names (`fromForm.programmeId`), to tell Claude that programme's description",
