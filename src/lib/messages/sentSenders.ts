@@ -57,6 +57,9 @@ export const SENT_KINDS: Record<EmailSendKind, SentEntry> = {
   admissions: { notListed: "Somebody’s own application to a round: its receipt, a decision or an invitation." },
   notice: { listed: { label: "Notice", byPerson: true } },
   "event-announcement": { listed: { label: "Event announcement", byPerson: true } },
+  // An event for chosen people's invitation, to somebody reached by their
+  // events row; pressed by whoever published it or invited the new people.
+  "event-invitation": { listed: { label: "Event invitation", byPerson: true } },
   message: { notListed: "A message from Messages: Sent lists it from its own record, with who was left out and why." },
   "message-test": { notListed: TEST },
   "course-test": { notListed: TEST },
@@ -83,6 +86,8 @@ export const SENT_SURFACES: Record<EmailSendSurface, SentEntry> = {
   // whose id is no account: Sent names whichever is an account.
   "course-week": { listed: { label: "The week’s email", byPerson: true } },
   "course-week-reminder": { listed: { label: "Reminder before a session", byPerson: false } },
+  // The same invitation, to the people holding a place on the event's programme.
+  "event-invitation": { listed: { label: "Event invitation", byPerson: true } },
   messages: { notListed: "A message from Messages that went as a notice: Sent lists it from its own record." },
 };
 
