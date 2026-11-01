@@ -25,7 +25,8 @@ import type { GivenLevel } from "../rubric";
  *
  * WHICH NAME SIGNS A PIECE: the name its writer goes by, for every reader.
  * Privacy v15 says only the committee sees a full name and everyone else
- * the name you go by, and the person a piece is about is everyone else. The
+ * the name you go by, and the person a piece is about need not be on the
+ * committee, so a piece is signed with the name anybody may see. The
  * signature is the first word of it ("Feedback from Rahul"), as the member
  * area names people; the chip's initials come from the whole of it, so no
  * initial is taken from a full name. The people running the group read each
