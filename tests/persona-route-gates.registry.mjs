@@ -3555,6 +3555,25 @@ export const ROUTES = {
         "writes nothing, and a file, not JSON, so no fields.",
     },
   },
+  "/api/surveys/[surveyId]/chart": {
+    GET: {
+      expect: adminOnly(400),
+      why:
+        "Make a chart's numbers as a file is an admin's alone: canRunSurveys refuses everybody else before " +
+        "anything is read, the programme's lead included, and the admin meets the 400 for a request that names no " +
+        "question. A GET that writes nothing and names nobody, and a file, not JSON, so no fields.",
+    },
+  },
+  "/api/surveys/check-ins/[roundId]/[programmeId]/chart": {
+    GET: {
+      expect: adminOnly(400),
+      why:
+        "Make a chart's numbers across a programme's check-ins, by group if chosen, are an admin's alone: " +
+        "canRunSurveys refuses everybody else before anything is read, the programme's lead included, who reads " +
+        "check-ins a whole week at a time and never by group; the admin meets the 400 for a request that names no " +
+        "question. A GET that writes nothing and names nobody, and a file, not JSON, so no fields.",
+    },
+  },
   "/api/surveys/[surveyId]/people/[who]/blanks": {
     POST: {
       expect: adminOnly(400),
@@ -4067,6 +4086,20 @@ export const PAGES = {
       "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard. The survey id changes " +
       "nothing about the gate: an id that opens no survey is answered on the page in a sentence, never " +
       "notFound.",
+  },
+  "/(app)/admin/(admin-only)/surveys/[surveyId]/chart": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard, the programme's lead " +
+      "included. Make a chart reads the survey's answers alone, never a name: an id that opens no survey is " +
+      "answered on the page in a sentence, never notFound.",
+  },
+  "/(app)/admin/(admin-only)/surveys/check-ins/[roundId]/[programmeId]/chart": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard, the programme's lead " +
+      "included, who reads check-ins on the programme's own Surveys tab and never by group. An address that " +
+      "names no programme with a check-in is answered on the page in a sentence, never notFound.",
   },
   "/(app)/admin/(admin-only)/surveys/[surveyId]/send": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
@@ -6814,6 +6847,15 @@ export const REAL_ROUTES = {
   },
   "/api/surveys/[surveyId]/totals": {
     GET: adminAlone("A file of one question's totals", c(400, "An admin meets the question check: the battery names no question, so nothing is read.")),
+  },
+  "/api/surveys/[surveyId]/chart": {
+    GET: adminAlone("A file of Make a chart's numbers", c(400, "An admin meets the question check: the battery names no question, so nothing is read.")),
+  },
+  "/api/surveys/check-ins/[roundId]/[programmeId]/chart": {
+    GET: adminAlone(
+      "A file of Make a chart's numbers across the programme's check-ins",
+      c(400, "An admin meets the question check: the battery names no question, so nothing is read."),
+    ),
   },
 };
 

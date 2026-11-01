@@ -5979,6 +5979,22 @@ describe("the course hub passage", () => {
         ["src/app/api/surveys/[surveyId]/answers/route.ts", `${ADMIN_ROUTE}; opens the Answers tab, every answer with names, the opening recorded before any name is read`],
         ["src/app/api/surveys/[surveyId]/totals/route.ts", `${ADMIN_ROUTE}; one question's totals and comments as a file that names nobody, not a recorded download`],
         ["src/app/(app)/admin/(admin-only)/surveys/[surveyId]/log/page.tsx", `${ADMIN_PAGE}; the survey's log: who opened names on it or downloaded its answers, and when, never whose`],
+        // CHANGED ON PURPOSE (v15, "The programme's lead sees the totals and
+        // comments of its surveys ... and cannot download the answers"): Make a
+        // chart, an admin's alone, of a survey's question or of a programme's
+        // check-ins, by group if an admin chooses; totals and groups' names,
+        // never a name, and its file of numbers names nobody, so it is not a
+        // recorded download. The lead's pages never reach it.
+        ["src/app/(app)/admin/(admin-only)/surveys/[surveyId]/chart/page.tsx", `${ADMIN_PAGE}; Make a chart: a question's totals made on the server, by group if chosen, never a name`],
+        [
+          "src/app/(app)/admin/(admin-only)/surveys/check-ins/[roundId]/[programmeId]/chart/page.tsx",
+          `${ADMIN_PAGE}; Make a chart across a programme's check-ins: totals by week and by group made on the server, never a name`,
+        ],
+        ["src/app/api/surveys/[surveyId]/chart/route.ts", `${ADMIN_ROUTE}; Make a chart's numbers as a file that names nobody, not a recorded download`],
+        [
+          "src/app/api/surveys/check-ins/[roundId]/[programmeId]/chart/route.ts",
+          `${ADMIN_ROUTE}; Make a chart's numbers across a programme's check-ins, a file that names nobody, not a recorded download`,
+        ],
         ["src/app/survey/[token]/page.tsx", "the person's own survey, by the secret in their link, which opens their own row and nobody else's"],
         ["src/app/api/surveys/answer/route.ts", "the person's own answers, sent through the secret in their link"],
         ["src/app/(app)/learn/[runId]/survey/[surveyId]/page.tsx", "the person's own survey, signed in: shown only to somebody it was sent to, by their own row"],
@@ -6199,6 +6215,8 @@ describe("the course hub passage", () => {
       "src/app/api/surveys/[surveyId]/who/route.ts",
       "src/app/api/surveys/[surveyId]/answers/route.ts",
       "src/app/api/surveys/[surveyId]/totals/route.ts",
+      "src/app/api/surveys/[surveyId]/chart/route.ts",
+      "src/app/api/surveys/check-ins/[roundId]/[programmeId]/chart/route.ts",
     ]) {
       const code = withoutComments(read(route));
       const refused = code.indexOf("if (!canRunSurveys(actor)) return NextResponse.json({ error: REFUSAL.adminOnly }, { status: 403 });");

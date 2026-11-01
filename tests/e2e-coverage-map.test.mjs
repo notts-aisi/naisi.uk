@@ -1654,6 +1654,30 @@ const NOT_COVERED = {
     coverWhen:
       "When an end-to-end spec downloads a file anywhere on the site, so the download path is driven in a browser once for all of them.",
   },
+  "/(app)/admin/(admin-only)/surveys/[surveyId]/chart": {
+    reason:
+      "Surveys: Make a chart on a survey's own pages; tests/surveys-chart.test.mjs draws it for an admin over a sent before survey and a survey after an event, a chart a group and Who, reads no name and writes nothing, and holds every bar to its Results' count.",
+    coverWhen:
+      "When the course-hub-before-survey spec is next extended past its Results, so a browser makes a chart of the survey it sent and answered.",
+  },
+  "/(app)/admin/(admin-only)/surveys/check-ins/[roundId]/[programmeId]/chart": {
+    reason:
+      "Surveys: Make a chart across a programme's check-ins; tests/surveys-chart.test.mjs draws it for an admin over five groups' check-ins of two weeks, average by week and by group, the rest of the groups behind the press, and an address with no check-ins in a sentence.",
+    coverWhen:
+      "When the course-hub-check-in spec answers check-ins in more than one group, so a browser charts them by group.",
+  },
+  "/api/surveys/[surveyId]/chart": {
+    reason:
+      "Surveys: Make a chart's numbers as a file; tests/surveys-chart.test.mjs asks for it as every kind of caller, refused before anything is read, and reads it against the page's own chart, naming nobody and writing nothing.",
+    coverWhen:
+      "When an end-to-end spec downloads a file anywhere on the site, so the download path is driven in a browser once for all of them.",
+  },
+  "/api/surveys/check-ins/[roundId]/[programmeId]/chart": {
+    reason:
+      "Surveys: Make a chart's numbers across a programme's check-ins; tests/surveys-chart.test.mjs asks for it as every kind of caller, refused before anything is read, and reads it against the page's own chart, naming nobody and writing nothing.",
+    coverWhen:
+      "When an end-to-end spec downloads a file anywhere on the site, so the download path is driven in a browser once for all of them.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/anonymous-feedback": {
     reason:
       "The anonymous form's answers for the programme's lead and admins; tests/anonymous-feedback.test.mjs renders it as the lead, an admin, the lead of another programme, a reviewer, a facilitator, a member and signed out, and finds only answers from a day that is over, each question's in alphabetical order.",

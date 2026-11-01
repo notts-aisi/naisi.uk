@@ -368,8 +368,8 @@ describe("4. the admins' pages", () => {
     assert.ok(before.html.includes(`href="/survey/${survey(id).testToken}"`), "no way to see it as people will");
     assert.ok(before.text.includes(`${OPEN_WORDS.see} ${OPEN_WORDS.fixes} ${OPEN_WORDS.open}`), before.text);
     assert.ok(before.text.includes("Who Everyone who leaves AGI Strategy"), before.text);
-    // Its tabs: the fourth is Open, at the Send tab's address.
-    assert.ok(before.text.includes("Results Answers 0 Questions Open"), before.text);
+    // Its tabs: the last is Open, at the Send tab's address.
+    assert.ok(before.text.includes("Results Make a chart Answers 0 Questions Open"), before.text);
     await call("zach", routes.open.POST, { surveyId: id }, { body: {} });
     const after = await page(pages.send, { params: Promise.resolve({ surveyId: id }) }, "zach");
     assert.ok(after.text.includes("Open since Tue 17 Nov. Nobody has left since it opened."), after.text);

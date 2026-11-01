@@ -63,6 +63,14 @@ export type ChosenAnswers = {
   filters: ResultsFilters;
   /** Whether an answer, by its id, is among those the results count; null for every answer. */
   only: ((answer: { id: string }) => boolean) | null;
+  /**
+   * Where the Who filter is offered, the groups it was read from: each
+   * answer's group by the answer's id (null for nobody's group), and the
+   * run's groups' names in their one order. A chart split by group cuts the
+   * answers by these, so its charts are the Who filter's groups. Null where
+   * Who is not offered.
+   */
+  grouped: { groupOf: ReadonlyMap<string, string | null>; names: ReadonlyMap<string, string> } | null;
 };
 
 const EVERYBODY: ResultsFilters = { who: null, as: null, chosen: { who: "", as: "" }, narrowed: "" };
@@ -113,7 +121,7 @@ export async function groupsOfAnswers(
  * guest's.
  */
 export async function chosenAnswers(db: Firestore, survey: SurveyDoc, asked: ResultsChoice): Promise<ChosenAnswers> {
-  const everybody: ChosenAnswers = { choice: { ...asked, who: null, as: null }, filters: EVERYBODY, only: null };
+  const everybody: ChosenAnswers = { choice: { ...asked, who: null, as: null }, filters: EVERYBODY, only: null, grouped: null };
   if (survey.namesOffAt !== null || isCheckIn(survey)) return everybody;
 
   if (isEventSurvey(survey)) {
@@ -123,11 +131,11 @@ export async function chosenAnswers(db: Firestore, survey: SurveyDoc, asked: Res
       { value: "guests", label: CHART_WORDS.guests },
     ];
     const filters: ResultsFilters = { who: null, as, chosen: { who: "", as: asked.as ?? "" }, narrowed: asked.as ?? "" };
-    if (!asked.as) return { choice: { ...asked, who: null }, filters, only: null };
+    if (!asked.as) return { choice: { ...asked, who: null }, filters, only: null, grouped: null };
     // Whether each answer is an account's or a guest's, read only when the results are narrowed by it.
     const kindOf = new Map((await eventAnswersOf(db, survey)).map((answer) => [answer.id, answer.respondent?.kind ?? null]));
     const wanted = asked.as === "members" ? "account" : "guest";
-    return { choice: { ...asked, who: null }, filters, only: (answer) => kindOf.get(answer.id) === wanted };
+    return { choice: { ...asked, who: null }, filters, only: (answer) => kindOf.get(answer.id) === wanted, grouped: null };
   }
 
   const { groups, groupOf } = await groupsOfAnswers(db, survey);
@@ -149,7 +157,8 @@ export async function chosenAnswers(db: Firestore, survey: SurveyDoc, asked: Res
     chosen: { who: target ?? "", as: "" },
     narrowed: target === null ? "" : target === NO_GROUP ? CHART_WORDS.noGroupPeople : (groups.get(target) ?? ""),
   };
-  if (target === null) return { choice: { ...asked, who: null, as: null }, filters, only: null };
+  const grouped = { groupOf, names: groups };
+  if (target === null) return { choice: { ...asked, who: null, as: null }, filters, only: null, grouped };
   const wanted = target === NO_GROUP ? null : target;
-  return { choice: { ...asked, who: target, as: null }, filters, only: (answer) => (groupOf.get(answer.id) ?? null) === wanted };
+  return { choice: { ...asked, who: target, as: null }, filters, only: (answer) => (groupOf.get(answer.id) ?? null) === wanted, grouped };
 }

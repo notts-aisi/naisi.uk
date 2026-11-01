@@ -1331,6 +1331,9 @@ describe("4c. the Check-ins view: whole weeks, its floors, never a group's own f
         "the admins' week review, behind its admin-only door: a week's answers pooled by group with no sender, id or time, each held to its sender's version 15 moment, for Claude's themes alone",
       "lib/surveys/hub/load.ts":
         "the admins' Surveys page by programme, behind the admin-only layout and canRunSurveys: a line a programme with the weeks they were at; reads no answer",
+      // Make a chart (docs/surveys.md): an admin's, with no floor, as an admin's own pages show each check-in.
+      "lib/surveys/chartLoad.ts":
+        "Make a chart across a programme's check-ins, behind the admin-only layout and canRunSurveys: every check-in's answers counted by the Results' own counting, by week and by group, for admins alone; the lead's pages never reach it",
     };
     assert.deepEqual(finding, Object.keys(LISTED).sort(), "a file finds check-ins and is not listed with why (or a listed one no longer does)");
   });

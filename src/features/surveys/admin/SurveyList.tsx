@@ -3,7 +3,7 @@ import Chip from "@/components/ui/Chip";
 import SectionTabs from "@/components/ui/SectionTabs";
 import type { CheckInListRow } from "@/lib/surveys/checkIns/adminView";
 import { CHECK_IN_ADMIN_WORDS } from "@/lib/surveys/checkIns/words";
-import type { HubRow, HubView, ProgrammeCard } from "@/lib/surveys/hub/model";
+import type { HubLink, HubRow, HubView, ProgrammeCard } from "@/lib/surveys/hub/model";
 import { hubTabHref } from "@/lib/surveys/hub/tabs";
 import { HUB_WORDS } from "@/lib/surveys/hub/words";
 import { LIST_WORDS, peopleWords } from "@/lib/surveys/words";
@@ -41,10 +41,15 @@ function RowText({ row }: { row: HubRow }) {
   );
 }
 
-function CheckIns({ rows }: { rows: readonly CheckInListRow[] }) {
+function CheckIns({ rows, chart }: { rows: readonly CheckInListRow[]; chart: HubLink | null }) {
   return (
     <div className={styles.checkIns}>
       <p className={styles.muted}>{CHECK_IN_ADMIN_WORDS.listLede}</p>
+      {chart && (
+        <Link href={chart.href} className={styles.checkInLink} aria-label={chart.aria}>
+          {chart.label}
+        </Link>
+      )}
       <ul className={styles.checkInRows}>
         {rows.map((row) => (
           <li key={row.id} className={styles.checkInRow}>
@@ -79,7 +84,7 @@ function Row({ row }: { row: HubRow }) {
               </span>
             </span>
           </summary>
-          <CheckIns rows={row.checkIns} />
+          <CheckIns rows={row.checkIns} chart={row.chart} />
         </details>
       </li>
     );

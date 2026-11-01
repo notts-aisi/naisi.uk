@@ -18,7 +18,9 @@ records), `src/app/api/surveys/` (the routes), `src/app/survey/[token]/` and
 `src/lib/surveys/charts.ts`, `seeWho.ts`, `answersTable.ts`, `resultsFilters.ts`,
 `questionFile.ts` and `surveyLog.ts` (the results as charts, the names behind
 them and the Answers tab, each opening recorded first, the file of one question
-and the survey's log),
+and the survey's log), `chart.ts`, `chartLoad.ts` and `chartWords.ts` with
+`src/features/surveys/chart/` (Make a chart, an admin's, of a survey's question
+or across a programme's check-ins),
 `src/lib/surveys/blanks.ts`, `blanksStore.ts` and `blanksView.ts` (the
 questions somebody left blank, sent to them by an admin's press).
 
@@ -808,10 +810,10 @@ week has, fixed the first time it is whole, in `weeks.ts`),
   answers to show.", never a comment; and beside it the group's latest closed check-in before this
   session's, the same way. The short answers are never read for it.
 - **What admins see**: each programme's Weekly check-ins row on Run NAISI ›
-  Surveys, opening on its check-ins, each with a survey's own pages: Results,
-  Answers, one person's answers (a check-in among them, week by week, the
-  opening recorded first), the questions (fixed, said so) and the logged
-  download. In place of a Send tab, an Opening tab: who opened it, when and
+  Surveys, opening on its check-ins and on Make a chart across them (below),
+  each with a survey's own pages: Results, Make a chart, Answers, one
+  person's answers (a check-in among them, week by week, the opening recorded
+  first), the questions (fixed, said so) and the logged download. In place of a Send tab, an Opening tab: who opened it, when and
   for how many, how many
   more were marked there after, and when it closes, with Close. Send, Remind,
   a test, the questions' editor and the questions left blank each refuse a
@@ -880,7 +882,8 @@ either tab reads anything; the code is `src/lib/surveys/hub/` and
   (`chooseTerm`, the term This term in numbers counts), in the form's order,
   with a row for every stage it will have, made or not: Before the programme,
   Weekly check-ins (one row from its check-ins, the weeks they were at and how
-  many, opening in place on each one), Facilitators' reports (how many
+  many, opening in place on each one and, once there is one, on Make a chart
+  across them), Facilitators' reports (how many
   questions a report asks, from the record's own list, and the way to the
   programme's page of reports; no report is read for it), At the end of the
   programme, and Leaving a programme, with the follow-ups once made. Each
@@ -908,9 +911,10 @@ this page's head. Each kept its page and its address beneath
 (`currentEntry`: an entry that leads into one admin section is never lit on
 another section's page). Reports reads nothing itself.
 
-Each survey has four tabs: **Questions** (the editor until it is sent),
+Each survey has five tabs: **Questions** (the editor until it is sent),
 **Send** (above), **Answers** (every answer in one table, with names, for
-admins only, and the spreadsheet; below), **Results**.
+admins only, and the spreadsheet; below), **Results**, and beside it **Make a
+chart** (below).
 
 **Results** are made on the server and never carry a name. Every question is a
 chart (`src/lib/surveys/charts.ts`, from the totals `results.ts` counts): its
@@ -958,7 +962,56 @@ and on the before side of every later stage's comparison.
   server.
 
 Not drawn: a choice of chart ("Chart: bars"), since bars are the one kind
-there is, and Make a chart, which is built later.
+there is.
+
+**Make a chart**, for admins only (the programme's lead never has it, nor any
+figure by group): one question drawn as an admin chooses, on a survey's own
+tab (`/admin/surveys/<id>/chart`) and across a programme's check-ins
+(`/admin/surveys/check-ins/<form>/<programme>/chart`, from the programme's
+Weekly check-ins row on Run NAISI › Surveys, and from each check-in's own
+tab). The model is `src/lib/surveys/chart.ts`, pure; the reads are
+`chartLoad.ts`; the components `src/features/surveys/chart/`.
+
+- **Question**: every question that draws as bars, a survey's by its number as
+  its Results list it, a check-in's by its words (its number moves with the
+  week). Comments are not charted: Results list them.
+- **Show**: Counts, Shares, or the Average where the question has one (a
+  rating, a scale, a grid by its lines, a number, a percentage, a choice that
+  scores); for check-ins every one of them by week: an average a column a
+  week, a dot for a week with no answers, and counts or shares a run of bars a
+  week that any check-in asked the question in.
+- **Split by**: nothing, one chart; or Group, one chart each, every chart on
+  one scale (an average on its question's own, 1 to 5 for a rating; counts on
+  the largest count drawn; shares on 0 to 100%). The first four groups are
+  drawn and the rest are behind "Show all 11 groups", a press that needs no
+  script. A survey's groups are the Results' Who filter's (the group the
+  person was told on the run, then nobody's group); a check-in's group is the
+  group whose session it was, so no seat is read, and its groups are the run's
+  that still meet in their one order, then any group a check-in was opened for
+  that no longer meets.
+- **Who**: the Results' own filter, with its keys (`?who=`, `?as=`): everyone,
+  one group, or nobody's group on a programme's survey; members and guests,
+  members or guests after an event; everyone or one group across check-ins.
+  None, and no split, once names have come off.
+- **One count.** Every figure is counted by the Results' own counting
+  (`surveyResults`, `chartGroupsOf`): a chart of everybody's answers to a
+  question is its Results counting every answer (the before survey's switch
+  that leaves some out is the Results' alone), a group's chart is what Results
+  show under Who for that group, and a check-in week's average is the average the programme's
+  lead's week counts (`tallyOf`) over the same check-ins. A week's question is
+  every group's copy put together, a part once by its id, "Something else" and
+  "Nothing was unclear" last.
+- **No floor.** An admin's chart shows small counts, as an admin's Results do.
+  It counts every check-in of the programme as it stands, open ones and one
+  opened after its week was fixed included. The floors the facilitators and
+  the lead read check-ins behind are theirs, and neither reaches a chart.
+- **"Download the chart"**: every chart, those behind the press included, as
+  one picture drawn in the admin's browser. **"Download the numbers"**: the
+  chart as a spreadsheet (`GET /api/surveys/[surveyId]/chart`, `GET
+  /api/surveys/check-ins/[roundId]/[programmeId]/chart`, `chartNumbersCsv`),
+  built by the same reads and the same model as the page. Both name nobody, so
+  neither is a recorded download; drawing the page reads no name and writes
+  nothing. Guards: `tests/surveys-chart.test.mjs`.
 
 **A programme's survey results for its lead** are at
 `/admin/admissions/forms/<form>/programmes/<programme>/surveys/<survey>`, under
@@ -1623,7 +1676,11 @@ check-ins: once, at the first tick the week is whole and has begun, two ticks
 at once included; a week not fixed shows the lead nothing; a check-in opened
 for a fixed week later left out of the lead's week and the Overview, and
 said so on an admin's row alone; the record naming nobody, and the run's
-destroy deleting it).
+destroy deleting it), and `tests/surveys-chart.test.mjs` (Make a chart: every
+bar of every template's question its Results' bar, a check-in week's average
+the lead's own count of it, one scale over every chart; the tab, the page
+across check-ins and both files as every kind of caller, reading no name and
+writing nothing; and no page of the lead's reaching it).
 
 The privacy policy says what a survey keeps, who sees it, when names come off
 and what a deletion does, under "When you answer a survey", and
