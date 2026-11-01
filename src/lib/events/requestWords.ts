@@ -31,6 +31,12 @@ export const REQUEST_WORDS = {
   offered: "Offered to facilitate",
   /** What a place on a programme says before Publish has told its owner a group, or when it has none. */
   notInGroup: "not in a group yet",
+  /**
+   * The two most recent events that count went by without them
+   * (`src/lib/events/missedEvents.ts`). Admins only, and drawn apart from the
+   * card's lines. "They": the site does not know anybody's pronouns.
+   */
+  missed: "Didn’t come to the last 2 events they had a place at.",
 } as const;
 
 /** "AGI Strategy · Group K", or "AGI Strategy · not in a group yet". */
@@ -185,6 +191,12 @@ export type SignupRequestView = {
   about: AboutLine[];
   /** The person's page, for an admin, when the request has an account. */
   page: string | null;
+  /**
+   * For an admin alone: the two most recent events they had a place at that
+   * count went by without them (`REQUEST_WORDS.missed`). False for everybody
+   * else, and for a guest.
+   */
+  missed: boolean;
   /** A test sign-up an admin made. */
   test: boolean;
 };

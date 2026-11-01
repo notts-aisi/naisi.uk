@@ -183,6 +183,15 @@ The same shape, older:
   and the rules' read branch is held to the same two decisions.
   `tests/event-chosen-people.test.mjs` runs the routes and pages of an event
   for chosen people as every kind of caller against a real term.
+- `tests/missed-events.test.mjs`, its last block: whether somebody missed
+  the last two events they had a place at is an admin's alone and reads no
+  survey. Every file under `src` that imports `src/lib/events/missedEvents.ts`
+  is listed and held to the admin check it sits behind, and the module's own
+  imports are walked, however deep, for survey code. And because the count
+  trusts that nothing writes to a confirmed sign-up after its event starts
+  unless the place itself changed, every file that names the sign-ups
+  collection is registered with what it writes and what that does to the
+  count, both directions.
 - `tests/event-check-ins.test.mjs`, its last block: every write of a
   check-in says which way the person came in. It walks every call of
   `recordCheckIn` under `src` and holds each one's `how` to a registered

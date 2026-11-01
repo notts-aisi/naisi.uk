@@ -7226,6 +7226,12 @@ describe("the check-in passage", () => {
     assert.match(card, /if \(!isAdmin\) return \{ kind: "member", words: REQUEST_WORDS\.member \};/);
     assert.match(card, /seat\.groupId && placementIsShownTo\(seat, \{ isAdmin \}\)/);
     const requestWords = await loadTs("lib/events/requestWords.ts");
+    // CHANGED ON PURPOSE (missed events, for admins alone): the last words are the
+    // two-in-a-row line. v15's "Attendance" lets admins see whether somebody
+    // came and says missing two in a row may be taken into account when places
+    // are decided; the route sends the line to an admin alone (`missed`
+    // below), drawn apart from the card's lines, and the test "Attendance,
+    // held to the function" holds what counts.
     assert.deepEqual(
       Object.values(requestWords.REQUEST_WORDS),
       [
@@ -7237,9 +7243,12 @@ describe("the check-in passage", () => {
         "SU member: on the SU’s list",
         "Offered to facilitate",
         "not in a group yet",
+        "Didn’t come to the last 2 events they had a place at.",
       ],
       "the card says something new about a person: decide who may read it, and whether v15 says so",
     );
+    assert.match(card, /missed: viewer\.isAdmin && account !== null && facts\.missed\.has\(account\),/);
+    assert.match(card, /viewer\.role === "admin" \? missedEventsOf\(db, uids, now\) : Promise\.resolve\(new Set<string>\(\)\),/);
     // The dietary checklist and a question about access are never answered to an organiser the SU does not recognise.
     const questions = [
       { id: "diet", type: "dietaryAllergies", label: "Dietary needs", required: false },
@@ -7583,18 +7592,131 @@ describe("the check-in passage", () => {
 
   // TAKEN BACK BY v15: v14 said nobody is shown one person's list of the
   // events they came to. v15 says admins can see which events somebody signed
-  // up for and whether they came. No page lists them yet, so the walk below
-  // still finds one read by person, the deletion's: the day a page lists one
-  // person's events, this check fails, and whoever builds it shows it to
-  // admins alone, as v15 says, and moves the check with it.
+  // up for and whether they came.
+  // CHANGED ON PURPOSE (missed events, for admins alone): a page lists one person's
+  // events now, the Events card on an admin's page about them, and the line
+  // beside a request says whether they missed the last two. So the check
+  // moved with it, as this test said it would, and walks the whole tree
+  // rather than one file: one person's check-ins, and one person's sign-ups
+  // across events, are read in exactly two places, the account deletion's
+  // (check-ins) and the missed-events module's, and every file that reaches
+  // that module is behind an admin check.
   test("the record is used to count who comes, and one person's list of events is an admin's alone", () => {
     assert.ok(PAGE_FLAT.includes("counting who comes to events;"), "the policy no longer names counting who comes among its legitimate interests");
     assert.ok(PAGE_FLAT.includes("Admins can see which events you signed up for and whether you came."));
     assert.ok(!/Nobody is shown one person&apos;s list of the events they came to/.test(PAGE_FLAT), "the policy still says nobody is shown one person's events, which v15 took back");
-    // The only read of check-ins by person is the account deletion's.
+    // In the check-in rules, the only read by person is the account deletion's.
     const rules = withoutComments(read("src/lib/events/checkIns.ts"));
     assert.equal((rules.match(/\.where\("uid"/g) ?? []).length, 1);
     assert.equal((rules.match(/\.where\("rsvpId"/g) ?? []).length, 0);
+    // Across the tree: every file that reads check-ins by person.
+    const checkInsByPerson = sourceFilesNaming(/EVENT_CHECK_INS_COLLECTION|"eventCheckIns"/).filter((file) =>
+      /\.where\("uid"/.test(withoutComments(read(file))),
+    );
+    assert.deepEqual(checkInsByPerson, ["src/lib/events/checkIns.ts", "src/lib/events/missedEvents.ts"]);
+    // And every read of sign-ups by person that is not about one event: the
+    // sign-ups' collection, or a name bound to it, whose first filter is on
+    // `uid`. A read of somebody's own sign-up for one event filters on the
+    // event first (the RSVP route, Home, the event page).
+    const readsSignupsByPerson = (source) => {
+      const bound = [...source.matchAll(/(?:const|let)\s+(\w+)\s*=\s*(?:[\w.]+\.)?collection\("eventRsvps"\)\s*;/g)].map((m) => `\\b${m[1]}`);
+      return new RegExp(`(?:collection\\("eventRsvps"\\)|${["(?!)", ...bound].join("|")})\\s*\\.where\\("uid",`).test(source);
+    };
+    const signupsByPerson = sourceFilesNaming(/"eventRsvps"/).filter((file) => readsSignupsByPerson(withoutComments(read(file))));
+    assert.deepEqual(signupsByPerson, ["src/lib/events/missedEvents.ts"]);
+    // The reader itself, run on the two shapes it must tell apart.
+    assert.equal(readsSignupsByPerson('db.collection("eventRsvps").where("uid", "in", piece)'), true);
+    assert.equal(readsSignupsByPerson('const rsvps = db.collection("eventRsvps"); rsvps.where("uid", "==", uid)'), true);
+    assert.equal(readsSignupsByPerson('db.collection("eventRsvps").where("eventId", "==", id).where("uid", "==", uid)'), false);
+    const missed = withoutComments(read("src/lib/events/missedEvents.ts"));
+    assert.match(missed, /db\.collection\("eventRsvps"\)\.where\("uid", "in", piece\)\.get\(\)/);
+    assert.match(missed, /db\.collection\(EVENT_CHECK_INS_COLLECTION\)\.where\("uid", "in", piece\)\.get\(\)/);
+    // Who reaches it: the requests' card for an admin's session, and the
+    // Events card's route after it has refused everybody but an admin.
+    // tests/missed-events.test.mjs walks every import of the module and runs
+    // both routes as every caller.
+    assert.deepEqual(
+      sourceFilesNaming(/\bmissedEventsOf\(|\beventsOfPerson\(/).filter((file) => file !== "src/lib/events/missedEvents.ts"),
+      ["src/app/api/admin/members/[uid]/events/route.ts", "src/lib/events/requestCard.ts"],
+    );
+    const route = withoutComments(read("src/app/api/admin/members/[uid]/events/route.ts"));
+    assert.ok(route.indexOf('if (viewer.role !== "admin") {') < route.indexOf("await eventsOfPerson(db, uid, new Date())"));
+    assert.match(
+      withoutComments(read("src/lib/events/requestCard.ts")),
+      /viewer\.role === "admin" \? missedEventsOf\(db, uids, now\) : Promise\.resolve\(new Set<string>\(\)\),/,
+    );
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "missed-events.test.mjs")));
+  });
+
+  // v15's "Attendance", sentence by sentence, held to the function that
+  // decides it (`src/lib/events/missedEvents.ts`): two in a row that you had
+  // a place at; telling us beforehand or giving your place back never counts;
+  // the count starts again each academic year; and, the house's rule for a
+  // new use, only from when the person agreed to this version. What the
+  // event page's panel promises is held to the same function.
+  test("Attendance, held to the function: two in a row that you had a place at, what never counts, and the year", async () => {
+    assert.ok(
+      PAGE_FLAT.includes(
+        "Missing two events in a row that you had a place at may be taken into account when places are decided. Telling us beforehand that you can&apos;t make it, or giving your place back before the day, never counts, and the count starts again each academic year.",
+      ),
+    );
+    const missedEvents = await loadTs("lib/events/missedEvents.ts");
+    const attendanceWords = await loadTs("lib/events/attendanceWords.ts");
+    const HOUR = 60 * 60 * 1000;
+    const eventAt = (id, start) => {
+      const startAt = new Date(start);
+      return {
+        id,
+        title: id,
+        status: "published",
+        startAt,
+        endAt: new Date(startAt.getTime() + 3 * HOUR),
+        noSignup: false,
+        doorOpenedAt: new Date(startAt.getTime() - HOUR / 2),
+        doorOpenedBy: "author",
+      };
+    };
+    const events = new Map([
+      ["film", eventAt("film", "2026-10-22T18:00:00Z")],
+      ["social", eventAt("social", "2026-10-29T19:00:00Z")],
+    ]);
+    const person = (signups, extra = {}) => ({
+      uid: "u1",
+      agreedFrom: new Date("2026-10-01T09:00:00Z"),
+      signups: signups.map((signup, i) => ({
+        id: `s${i}`,
+        uid: "u1",
+        status: "confirmed",
+        synthetic: false,
+        createdAt: new Date("2026-09-29T10:00:00Z"),
+        writtenAt: new Date("2026-09-30T10:00:00Z"),
+        ...signup,
+      })),
+      checkIns: [],
+      events,
+      ...extra,
+    });
+    const now = new Date("2026-11-20T12:00:00Z");
+    const both = [{ eventId: "film" }, { eventId: "social" }];
+    // "Missing two events in a row that you had a place at."
+    assert.equal(missedEvents.missedTwoInARow(person(both), now), true);
+    assert.equal(missedEvents.missedTwoInARow(person(both, { checkIns: [{ eventId: "social", uid: "u1", rsvpId: null, namesOff: false }] }), now), false);
+    // "... that you had a place at": a request not decided, the waiting list and a test sign-up are no place.
+    for (const notAPlace of [{ status: "pending" }, { status: "waitlisted" }, { synthetic: true }]) {
+      assert.equal(missedEvents.missedTwoInARow(person([{ eventId: "film", ...notAPlace }, { eventId: "social" }]), now), false);
+    }
+    // "Telling us beforehand that you can't make it, or giving your place back before the day, never counts."
+    const gaveBack = { eventId: "film", status: "cancelled", writtenAt: new Date("2026-10-21T10:00:00Z") };
+    assert.equal(missedEvents.missedTwoInARow(person([gaveBack, { eventId: "social" }]), now), false);
+    assert.match(read("src/lib/events/missedEvents.ts"), /if \(signup\.synthetic \|\| signup\.status !== "confirmed"\) return false;/);
+    // "... and the count starts again each academic year": on 1 September.
+    assert.equal(missedEvents.missedTwoInARow(person(both), new Date("2027-08-31T12:00:00Z")), true);
+    assert.equal(missedEvents.missedTwoInARow(person(both), new Date("2027-09-01T12:00:00Z")), false);
+    // A new use applies from when the person agreed to the version that says it.
+    assert.equal(missedEvents.missedTwoInARow(person(both, { agreedFrom: null }), now), false);
+    assert.equal(missedEvents.missedTwoInARow(person(both, { agreedFrom: new Date("2026-10-25T09:00:00Z") }), now), false);
+    // The event page's panel says it in its own words, and the function keeps it.
+    assert.equal(attendanceWords.HELD_PLACE_WORDS.never, "Giving it back before it starts never counts as not coming.");
   });
 
   // The survey about leaving (26 October 2026): two sentences, each held

@@ -631,6 +631,14 @@ const MUST_GUARD = [
   // ── Messages ───────────────────────────────────────────────────────────────
   ["src/app/api/messages/route.ts", "sends a message to the people chosen, in the writer's name, and can post it on a programme's page"],
   ["src/app/api/messages/test/route.ts", "sends the presser a test and records the test the send waits for"],
+  // ── Giving a place back ─────────────────────────────────────────────────────
+  // Outside the trees above: the events tree is not one yet. The event page's
+  // "Can't make it" reaches this route as the session's own sign-up, so a
+  // view-as session would give the member's place back as them.
+  [
+    "src/app/api/events/[id]/rsvp/[rsvpId]/cancel/route.ts",
+    "gives a place at an event back, as the sign-up's own person or an organiser, and moves the first person on the waiting list up, who is emailed",
+  ],
 ];
 
 /**

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
+import { HELD_PLACE_WORDS } from "@/lib/events/attendanceWords";
 import styles from "./RsvpPages.module.css";
 
 type Props = {
@@ -11,6 +12,12 @@ type Props = {
   token: string;
   name: string;
   eventTitle: string;
+  /**
+   * Whether the sign-up holds a confirmed place, which this page then offers
+   * to give back in the event page's own words ("Can't make it"). A request
+   * not decided yet, or a place on the waiting list, is cancelled as before.
+   */
+  confirmedPlace: boolean;
 };
 
 type State =
@@ -25,6 +32,7 @@ export default function SelfCancelForm({
   token,
   name,
   eventTitle,
+  confirmedPlace,
 }: Props) {
   const router = useRouter();
   const [state, setState] = useState<State>({ kind: "idle" });
@@ -56,7 +64,15 @@ export default function SelfCancelForm({
   }
 
   if (state.kind === "cancelled") {
-    return (
+    return confirmedPlace ? (
+      <div className={styles.card}>
+        <h1 className={styles.title}>{HELD_PLACE_WORDS.givenHeading}.</h1>
+        <p className={styles.muted}>
+          Thanks for letting us know. If you change your mind, you can ask for a place
+          again from the event page.
+        </p>
+      </div>
+    ) : (
       <div className={styles.card}>
         <h1 className={styles.title}>Your RSVP is cancelled.</h1>
         <p className={styles.muted}>
@@ -67,11 +83,17 @@ export default function SelfCancelForm({
     );
   }
 
+  const submitting = state.kind === "submitting";
+
   return (
     <div className={styles.card}>
-      <h1 className={styles.title}>Cancel your RSVP for {eventTitle}?</h1>
+      <h1 className={styles.title}>
+        {confirmedPlace ? `Can’t make it to ${eventTitle}?` : `Cancel your RSVP for ${eventTitle}?`}
+      </h1>
       <p className={styles.muted}>
-        Hi {name || "there"}. Confirm below and we&apos;ll free up your spot.
+        {confirmedPlace
+          ? `Hi ${name || "there"}. Give your place back and somebody else can have it.`
+          : `Hi ${name || "there"}. Confirm below and we'll free up your spot.`}
       </p>
 
       {state.kind === "error" && (
@@ -81,17 +103,24 @@ export default function SelfCancelForm({
       )}
 
       <div className={styles.actions}>
-        <Button onClick={onConfirm} disabled={state.kind === "submitting"}>
-          {state.kind === "submitting" ? "Cancelling…" : "Yes, cancel my RSVP"}
+        <Button onClick={onConfirm} disabled={submitting}>
+          {confirmedPlace
+            ? submitting
+              ? HELD_PLACE_WORDS.giving
+              : HELD_PLACE_WORDS.giveBack
+            : submitting
+              ? "Cancelling…"
+              : "Yes, cancel my RSVP"}
         </Button>
         <Button
           variant="ghost"
           onClick={() => router.push(`/events/${eventId}`)}
-          disabled={state.kind === "submitting"}
+          disabled={submitting}
         >
-          Never mind
+          {confirmedPlace ? HELD_PLACE_WORDS.keep : "Never mind"}
         </Button>
       </div>
+      {confirmedPlace && <p className={styles.muted}>{HELD_PLACE_WORDS.never}</p>}
     </div>
   );
 }

@@ -25,7 +25,12 @@
  *    automatic id for `doc()` with no argument (audit rows);
  *  - `arrayUnion` beside the other sentinels, and the sentinels on the
  *    handle's own class as well, where the member-record writer looks;
- *  - a clock the suite can move, for `serverTimestamp()`.
+ *  - a clock the suite can move, for `serverTimestamp()`;
+ *  - a snapshot's `updateTime`, when its document was last written, by the
+ *    same clock (missed events read it: `src/lib/events/missedEvents.ts`).
+ *    A seeded document reads as written at `options.seededAt`, or long ago
+ *    (the epoch) when the suite does not say; `seed(path, data, at)` names
+ *    its own.
  *
  * ## The sentinels
  *
@@ -40,6 +45,8 @@
  * be a query that needs an index. A range on one field is there, for the jobs
  * that find what is due by one date (the check-in tidy job); a range beside
  * another filter would need an index, so nothing should ask this for one.
+ * One ordered read is there too: the cancel route's first person on an
+ * event's waiting list (`orderBy` and `limit`), whose index is declared.
  */
 
 /** The source of a `firebase-admin/firestore` stub whose sentinels this store resolves. */
@@ -77,7 +84,8 @@ const isMap = (value) =>
 /**
  * `seed` is documents by path. `options.now` is the instant a
  * `serverTimestamp()` resolves to: a Date, or a function returning one for a
- * suite that moves its clock.
+ * suite that moves its clock. `options.seededAt` is when every seeded
+ * document reads as last written (a snapshot's `updateTime`).
  */
 export function makeDb(seed = {}, options = {}) {
   const clock =
@@ -86,19 +94,43 @@ export function makeDb(seed = {}, options = {}) {
       : () => new Date(options.now ?? "2026-10-05T12:00:00Z");
   const docs = new Map();
   const versions = new Map();
+  // When each document was last written, as Firestore keeps it beside the document.
+  const written = new Map();
+  /**
+   * The clock's time for a write's `updateTime`. A suite's clock may read
+   * state it has not set up yet, and nothing before this read it on every
+   * write, so a clock that cannot answer leaves the write undated (the epoch)
+   * rather than failing it.
+   */
+  const writeTime = () => {
+    try {
+      const at = clock();
+      const date = at instanceof Date ? at : new Date(at);
+      return Number.isNaN(date.getTime()) ? new Date(0) : date;
+    } catch {
+      return new Date(0);
+    }
+  };
   const stats = { reads: 0, writes: [] };
   let autoId = 0;
-  const put = (path, data) => {
+  const put = (path, data, at = writeTime()) => {
     docs.set(path, data);
     versions.set(path, (versions.get(path) ?? 0) + 1);
+    written.set(path, new Date(at));
   };
   const drop = (path) => {
     docs.delete(path);
     versions.set(path, (versions.get(path) ?? 0) + 1);
+    written.delete(path);
   };
-  for (const [path, data] of Object.entries(seed)) put(path, structuredClone(data));
+  // Seeded documents were there before anything the suite does, so they read
+  // as written long ago unless the suite says when.
+  const seededAt = options.seededAt ? new Date(options.seededAt) : new Date(0);
+  for (const [path, data] of Object.entries(seed)) put(path, structuredClone(data), seededAt);
 
   const last = (path) => path.split("/").pop();
+  /** A write time as the Admin SDK hands one back: a Timestamp's `toDate` and `toMillis`. */
+  const stampOf = (date) => ({ toDate: () => new Date(date.getTime()), toMillis: () => date.getTime() });
   const snap = (path) => ({
     id: last(path),
     exists: docs.has(path),
@@ -106,6 +138,8 @@ export function makeDb(seed = {}, options = {}) {
     data: () => (docs.has(path) ? structuredClone(docs.get(path)) : undefined),
     // One field by its dotted path, as a snapshot's own `get` reads it.
     get: (field) => (docs.has(path) ? structuredClone(fieldAt(docs.get(path), field)) : undefined),
+    // When the document was last written; absent for one that does not exist.
+    updateTime: docs.has(path) ? stampOf(written.get(path)) : undefined,
   });
   const read = (path) => {
     stats.reads += 1;
@@ -135,22 +169,41 @@ export function makeDb(seed = {}, options = {}) {
     }
     throw new Error(`the test database does not know the operator ${op}`);
   };
-  const query = (collectionPath, filters, cap = Number.POSITIVE_INFINITY) => ({
+  /** One field's value as an order compares it: an instant by its time. */
+  const orderValue = (data, field) => {
+    const value = fieldAt(data, field);
+    return value instanceof Date ? value.getTime() : value;
+  };
+  const query = (collectionPath, filters, cap = Number.POSITIVE_INFINITY, orders = []) => ({
     path: collectionPath,
     isQuery: true,
-    where: (field, op, value) => query(collectionPath, [...filters, [field, op, value]], cap),
+    where: (field, op, value) => query(collectionPath, [...filters, [field, op, value]], cap, orders),
     // A projection changes what is sent, not which documents match.
-    select: () => query(collectionPath, filters, cap),
-    // As many as Firestore would send, in the order the store keeps them.
-    limit: (n) => query(collectionPath, filters, Math.min(cap, n)),
+    select: () => query(collectionPath, filters, cap, orders),
+    // As many as Firestore would send: in the order asked for, else the order the store keeps them.
+    limit: (n) => query(collectionPath, filters, Math.min(cap, n), orders),
+    // By one field or more, each "asc" or "desc", for the cancel route's
+    // waiting list. As Firestore does, a document missing an ordered field is
+    // not in the answer at all.
+    orderBy: (field, direction = "asc") => query(collectionPath, filters, cap, [...orders, [field, direction]]),
     get: async () => {
       stats.reads += 1;
-      return {
-        docs: childrenOf(collectionPath)
-          .filter((path) => filters.every((filter) => matches(docs.get(path), filter)))
-          .slice(0, cap)
-          .map(snap),
-      };
+      const found = childrenOf(collectionPath).filter(
+        (path) =>
+          filters.every((filter) => matches(docs.get(path), filter)) &&
+          orders.every(([field]) => fieldAt(docs.get(path), field) !== undefined),
+      );
+      found.sort((a, b) => {
+        for (const [field, direction] of orders) {
+          const x = orderValue(docs.get(a), field);
+          const y = orderValue(docs.get(b), field);
+          if (x === y) continue;
+          const before = x < y ? -1 : 1;
+          return direction === "desc" ? -before : before;
+        }
+        return 0;
+      });
+      return { docs: found.slice(0, cap).map(snap) };
     },
   });
   function docRef(path) {
@@ -325,8 +378,8 @@ export function makeDb(seed = {}, options = {}) {
     paths: () => [...docs.keys()],
     /** A change made by somebody else, outside any request under test. */
     poke: (path, patch) => applyUpdate(path, patch),
-    /** A document put there by the suite, whole. */
-    seed: (path, data) => put(path, structuredClone(data)),
+    /** A document put there by the suite, whole, written now or at `at`. */
+    seed: (path, data, at) => put(path, structuredClone(data), at ?? writeTime()),
   });
   return db;
 }

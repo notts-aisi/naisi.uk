@@ -21,6 +21,7 @@ import {
 import type { SessionUser } from "@/lib/firebase/session";
 import { LIVE_RUN, staffNamesFor } from "@/lib/names/load";
 import { guestStaffName, type StaffName } from "@/lib/names/staffName";
+import { missedEventsOf } from "./missedEvents";
 import {
   REQUEST_WORDS,
   answerLines,
@@ -51,9 +52,12 @@ import {
  *
  * Admins are also told where the membership came from ("SU member: bought",
  * "SU member: marked by an admin"), whether the person's latest application
- * offered to facilitate, and the way to the person's page. Nobody else is,
- * because the policy's few words do not include them, and the application is
- * not theirs to read.
+ * offered to facilitate, the way to the person's page, and, apart from the
+ * card's lines, "Didn't come to the last 2 events they had a place at." when
+ * that is so (`src/lib/events/missedEvents.ts`, privacy v15's
+ * "Attendance"). Nobody else is, because the policy's few words do not
+ * include them, the application is not theirs to read, and one person's
+ * attendance is an admin's alone.
  *
  * Every read is by id, by an `in` on one field or by `array-contains` on one
  * field, so no composite index is owed.
@@ -252,7 +256,12 @@ export async function waitingRequests(db: Firestore, eventId: string): Promise<R
 }
 
 /** What `projectSignupRequests` draws on besides the requests themselves. */
-export type RequestFacts = { names: Map<string, StaffName>; about: Map<string, AboutLine[]> };
+export type RequestFacts = {
+  names: Map<string, StaffName>;
+  about: Map<string, AboutLine[]>;
+  /** The accounts whose last two events that count went by without them. Read for an admin alone. */
+  missed: ReadonlySet<string>;
+};
 
 /**
  * The names and the cards of the people asking, for the session looking:
@@ -260,19 +269,23 @@ export type RequestFacts = { names: Map<string, StaffName>; about: Map<string, A
  * admins read the full name and anybody else the name people go by, and the
  * card's lines as `aboutAccounts` gives them to the viewer's role. `everyone`
  * says whether the viewer sees each address already, as the whole list does.
+ * For an admin alone, who among them did not come to the last two events
+ * they had a place at, as at `now`; for anybody else that is never read.
  */
 export async function requestFacts(
   db: Firestore,
   requests: readonly RsvpDoc[],
   viewer: SessionUser,
   access: { everyone: boolean },
+  now: Date,
 ): Promise<RequestFacts> {
   const uids = requests.map((row) => row.uid).filter((uid): uid is string => typeof uid === "string" && uid !== "");
-  const [names, about] = await Promise.all([
+  const [names, about, missed] = await Promise.all([
     staffNamesFor(db, uids, viewer, { emailShown: access.everyone }),
     aboutAccounts(db, uids, { isAdmin: viewer.role === "admin" }),
+    viewer.role === "admin" ? missedEventsOf(db, uids, now) : Promise.resolve(new Set<string>()),
   ]);
-  return { names, about };
+  return { names, about, missed };
 }
 
 /** What a request's name says when its account holds no name, or is gone. */
@@ -285,7 +298,8 @@ const NO_NAME = "NAISI member";
  * holds none. Everybody else is sent no address, no answer to a dietary or
  * accessibility question, and nothing the request stored about an account's
  * name, which can be an address or a name from before the name rule. `names`
- * comes from `staffNamesFor` for the same viewer.
+ * comes from `staffNamesFor` for the same viewer. Whether somebody missed the
+ * last two events they had a place at is sent to an admin alone.
  */
 export function projectSignupRequests(
   requests: readonly RsvpDoc[],
@@ -309,6 +323,7 @@ export function projectSignupRequests(
       answers: answerLines(questions, request.answers, { withFoodHealthAndAccess: viewer.everyone }),
       about: account ? (facts.about.get(account) ?? []) : [{ kind: "guest", words: REQUEST_WORDS.guest }],
       page: viewer.isAdmin && account ? `/admin/members/${encodeURIComponent(account)}` : null,
+      missed: viewer.isAdmin && account !== null && facts.missed.has(account),
       test: request.synthetic,
     };
   });

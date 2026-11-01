@@ -144,6 +144,31 @@
   color: var(--color-text-muted);
 }
 
+/* "Didn't come to the last 2 events they had a place at.", an admin's alone:
+   a band across the card in the warning colours, the words first and who
+   sees it after them, under them on a narrow card. */
+.missed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-warning-line);
+  border-radius: var(--radius-row);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.missedWho {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+
 /* A link that stands on its own: as tall as a button, so it is easy to press. */
 .page {
   display: inline-flex;
