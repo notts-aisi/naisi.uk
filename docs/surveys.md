@@ -838,8 +838,8 @@ own head leads back to the tab it is on.
 holds This term in numbers, Public numbers and Kairos, which were buttons on
 this page's head. Each kept its page and its address beneath
 `/admin/surveys` and leads back to Reports; the menu lights Reports on them
-(`currentEntry`: the way into one admin section never holds another's page).
-Reports reads nothing itself.
+(`currentEntry`: an entry that leads into one admin section is never lit on
+another section's page). Reports reads nothing itself.
 
 Each survey has four tabs: **Questions** (the editor until it is sent),
 **Send** (above), **Who answered** (names, for admins only, and the
