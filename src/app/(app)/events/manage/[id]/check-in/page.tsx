@@ -10,6 +10,7 @@ import WhoCame from "@/features/events/checkIn/WhoCame";
 import { clockWords, dayWords, isOver, timeRangeWords } from "@/features/events/manageWords";
 import codeActions from "@/features/qr/codeActions.module.css";
 import { QrCode } from "@/features/qr/QrCode";
+import SurveyCodeAtEvent from "@/features/surveys/events/SurveyCodeAtEvent";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
@@ -39,7 +40,10 @@ import { findDoorCode } from "@/lib/events/doorCode";
 import { staffNamesFor } from "@/lib/names/load";
 import { publicLocationText } from "@/lib/events/location";
 import { shortLinkAddress, shortLinkUrl } from "@/lib/qr/shortLinkCode";
-import { surveyClosesFor } from "@/lib/surveys/events/records";
+import { eventSurveysGoByThemselves } from "@/lib/scheduler/eventSurveysSwitch";
+import { findSurveyCode, surveyCodeAtEvent } from "@/lib/surveys/events/code";
+import { eventSurveyOf, surveyClosesOf } from "@/lib/surveys/events/records";
+import { CODE_AT_EVENT_WORDS } from "@/lib/surveys/events/words";
 import styles from "@/features/events/checkIn/CheckInTab.module.css";
 import eventStyles from "../../events.module.css";
 
@@ -68,6 +72,12 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  *
  * The door code is offered only at an event that lets people check
  * themselves in (`selfCheckIn`): anywhere else it would check nobody in.
+ *
+ * THE SURVEY'S QR CODE, for the same people, to show at the end of the
+ * event while the survey takes answers (`surveyCodeAtEvent`), with its PNG
+ * and full screen, and nothing else of the survey: not its answers, not who
+ * answered. A survey its event set up shows it only where its Survey after
+ * step left the code on.
  */
 export default async function CheckInTabPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -83,7 +93,27 @@ export default async function CheckInTabPage({ params }: { params: Promise<{ id:
   const now = new Date();
   // People who came are added, and a walk-in's email kept, until the event's
   // survey closes when that is sooner than a week (src/lib/events/checkIns.ts).
-  const surveyClosesAt = await surveyClosesFor(db, event.id);
+  const survey = await eventSurveyOf(db, event.id);
+  const surveyClosesAt = surveyClosesOf(survey);
+  // The survey's code, for the people who run the door, while it takes answers.
+  const atEvent = surveyCodeAtEvent(viewer, survey, now);
+  const surveyCode = atEvent === "show" ? await findSurveyCode(db, event.id) : null;
+  let surveysGo = false;
+  if (atEvent === "not-yet" && survey?.auto) {
+    try {
+      surveysGo = await eventSurveysGoByThemselves(db);
+    } catch (err) {
+      console.error("[check-in tab] could not read the event-surveys switch", err);
+    }
+  }
+  const surveyCodeLine =
+    atEvent !== "not-yet"
+      ? null
+      : survey?.auto
+        ? surveysGo
+          ? CODE_AT_EVENT_WORDS.atStart
+          : CODE_AT_EVENT_WORDS.atStartJobOff
+        : CODE_AT_EVENT_WORDS.notYet;
   const title = event.title.trim() || "Untitled event";
   const takes = eventTakesCheckIns(event);
   const phase = takes ? checkInPhase(event, now, surveyClosesAt) : null;
@@ -256,6 +286,26 @@ export default async function CheckInTabPage({ params }: { params: Promise<{ id:
                   ) : null
                 }
               />
+            )}
+            {surveyCode && (
+              <SurveyCodeAtEvent
+                code={{ slug: surveyCode.slug, address: shortLinkAddress(surveyCode.slug), active: surveyCode.active }}
+                qr={
+                  <QrCode
+                    className={styles.qr}
+                    text={shortLinkUrl(surveyCode.slug)}
+                    label={`QR code for ${shortLinkAddress(surveyCode.slug)}`}
+                  />
+                }
+              />
+            )}
+            {surveyCodeLine && (
+              <section className={styles.card} aria-labelledby="survey-code-soon-heading">
+                <h2 id="survey-code-soon-heading" className={styles.cardHeading}>
+                  {CODE_AT_EVENT_WORDS.heading}
+                </h2>
+                <p className={styles.cardText}>{surveyCodeLine}</p>
+              </section>
             )}
             {window && (
               <section className={styles.card} aria-labelledby="door-list-heading">

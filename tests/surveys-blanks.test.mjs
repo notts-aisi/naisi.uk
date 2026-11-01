@@ -529,12 +529,12 @@ describe("a survey after an event: a guest with no account, by the address they 
     assert.ok(!page.text.includes("Anything we should change?"), "the optional question she left blank is on the link");
 
     const byLink = (await e.route("surveys/blanks")).POST;
-    const optional = { q_ev_next: { type: "choices", optionIds: ["o_ev_quiz"] }, q_ev_change: { type: "text", text: "More games." } };
+    const optional = { q_ev_next_text: { type: "text", text: "A quiz night" }, q_ev_change: { type: "text", text: "More games." } };
     const refused = await e.call(null, byLink, {}, { body: { token, answers: optional } });
     assert.deepEqual([refused.status, refused.body.error], [400, BLANKS_REFUSAL.notBlank], "an answer to the optional question came in as a blank");
     const empty = await e.call(null, byLink, {}, { body: { token, answers: {} } });
-    assert.deepEqual([empty.status, empty.body], [400, { error: "Question 1 still needs an answer.", missing: ["q_ev_next"] }]);
-    const fill = { q_ev_next: { type: "choices", optionIds: ["o_ev_quiz"] } };
+    assert.deepEqual([empty.status, empty.body], [400, { error: "Question 1 still needs an answer.", missing: ["q_ev_next_text"] }]);
+    const fill = { q_ev_next_text: { type: "text", text: "A quiz night" } };
     const sent = await e.call(null, byLink, {}, { body: { token, answers: fill } });
     assert.equal(sent.status, 200, JSON.stringify(sent.body));
     const kept = e.answers(id).find((answer) => answer.respondent?.signupId === RSVP.gwen);

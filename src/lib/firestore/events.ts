@@ -1,6 +1,7 @@
 // Relative, as this module's other imports are: a suite that loads it
 // without the app's path aliases (tests/course-task-mirror.test.mjs) reaches it.
 import { visibilityOf } from "../events/reach";
+import { readSurveyAfter, type StoredSurveyAfter } from "../events/surveyAfter";
 import { sanitizeBlocks, type Block } from "./newsletterBlocks";
 
 /**
@@ -580,6 +581,14 @@ export type EventDoc = {
    */
   doorOpenedAt: Date | null;
   doorOpenedBy: string | null;
+  /**
+   * The survey after the event, as its editor's Survey after step chose it:
+   * on or off, its questions, who it goes to and when
+   * (`src/lib/events/surveyAfter.ts`). Publishing sets the survey up from it.
+   * Null on every event made before the step existed, which has none: only a
+   * stored setting counts.
+   */
+  surveyAfter: StoredSurveyAfter | null;
   signupForm: FormQuestion[];
   /**
    * @deprecated Legacy food classification. New and edited events use
@@ -848,6 +857,7 @@ export function normalizeEvent(id: string, data: Raw): EventDoc {
     selfCheckIn: data.selfCheckIn === true,
     doorOpenedAt: tsToDate(data.doorOpenedAt),
     doorOpenedBy: typeof data.doorOpenedBy === "string" && data.doorOpenedBy ? data.doorOpenedBy : null,
+    surveyAfter: readSurveyAfter(data.surveyAfter),
     signupForm: sanitizeSignupForm(data.signupForm),
     foodProvenance: asFoodProvenance(data.foodProvenance),
     foodProvenanceNote: (data.foodProvenanceNote as string | null | undefined) ?? null,

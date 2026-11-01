@@ -41,6 +41,7 @@ import { applicationInvitationRemindersJob } from "./jobs/applicationInvitationR
 import { applicationPlaceConfirmationsJob } from "./jobs/applicationPlaceConfirmations";
 import { eventAnnouncementsJob } from "./jobs/eventAnnouncements";
 import { eventCheckInsTidyJob } from "./jobs/eventCheckInsTidy";
+import { eventSurveysJob } from "./jobs/eventSurveys";
 import { heartbeatJob } from "./jobs/heartbeat";
 import { nextWeekEmailJob } from "./jobs/nextWeekEmail";
 import { registerRemindersJob } from "./jobs/registerReminders";
@@ -104,6 +105,12 @@ export const SCHEDULER_JOB_IDS = [
   // emails nobody, so it registers on: the privacy policy's promise rests on
   // it running.
   "event-check-ins-tidy",
+  // The survey after an event that its event's Survey after step set up:
+  // opened at the event's start, emailed when the step said and reminded once
+  // 3 days later (`src/lib/surveys/events/setUp.ts`). It emails people, so it
+  // registers with `enabledByDefault: false`, and the editor's step reads its
+  // switch to say whether anything goes by itself.
+  "event-surveys",
   "newsletter-drain",
   // Each week of a programme's check-ins is fixed the first time it is whole,
   // and the programme's lead reads only fixed weeks (docs/surveys.md,
@@ -274,6 +281,7 @@ export const JOBS: readonly JobRegistration[] = [
   weekRemindersJob,
   eventAnnouncementsJob,
   eventCheckInsTidyJob,
+  eventSurveysJob,
   heartbeatJob,
   surveyCheckInWeeksJob,
   surveyNamesOffJob,

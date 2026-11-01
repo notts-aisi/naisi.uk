@@ -1,3 +1,4 @@
+import { SURVEY_AFTER_HOURS, isSurveyAfterHours, type SurveyAfterWhen } from "@/lib/events/surveyAfter";
 import { mergedAnswers } from "@/lib/surveys/blanks";
 import { CONSENT_PURPOSES, sanitizeSurveyItems, type SurveyAnswer, type SurveyConsents, type SurveyItem } from "@/lib/surveys/items";
 import { INCUBATOR_STRANDS, SURVEY_TEMPLATES, type IncubatorStrand, type SurveyTemplate } from "@/lib/surveys/templates";
@@ -107,12 +108,20 @@ export type CheckInFacts = { groupName: string; startsAt: Date | null; endsAt: D
  * the people who came (`event-came`, from check-in), or everybody whose
  * sign-up was confirmed (`event-signups`). Never anybody who did neither.
  * Chosen when the survey is made, and fixed by its first email.
+ *
+ * `event-missed` is the one question for people who had a place and weren't
+ * checked in ("what stopped you coming?"), a survey of its own beside the
+ * event's survey, made when that one's email goes, and only at an event
+ * whose door was opened (`src/lib/surveys/events/setUp.ts`).
  */
-export type EventAudience = { kind: "event-came" | "event-signups"; eventId: string };
+export type EventAudience = { kind: "event-came" | "event-signups" | "event-missed"; eventId: string };
+
+/** The three kinds of an event's audience. */
+export const EVENT_AUDIENCE_KINDS: readonly EventAudience["kind"][] = ["event-came", "event-signups", "event-missed"];
 
 /** Whether an audience is an event's. */
 export function isEventAudience(audience: SurveyAudience): audience is EventAudience {
-  return audience.kind === "event-came" || audience.kind === "event-signups";
+  return audience.kind === "event-came" || audience.kind === "event-signups" || audience.kind === "event-missed";
 }
 
 /**
@@ -131,6 +140,29 @@ export function isProgrammeAudience(audience: SurveyAudience, roundId: string, p
 
 /** A survey after an event: its audience is the event's. */
 export type EventSurveyDoc = SurveyDoc & { kind: "event"; audience: EventAudience; event: SurveyEventFacts };
+
+/**
+ * How a survey after an event that its event set up goes by itself: what the
+ * editor's Survey after step chose (`src/lib/events/surveyAfter.ts`), and
+ * where the `event-surveys` job has got to with it. Null on every survey an
+ * admin made from New survey, and on the one question for people who didn't
+ * come, which goes and is reminded with the survey it is beside.
+ */
+export type SurveyAuto = {
+  when: SurveyAfterWhen;
+  /** Whole hours after the event ends, for `after`. */
+  hours: number;
+  reminder: boolean;
+  showCode: boolean;
+  /** Ask the people who had a place and weren't checked in one question instead. */
+  missed: boolean;
+  /** While true the job looks at it every tick; false once nothing is left for it to do. */
+  pending: boolean;
+  /** When the job's one reminder went. */
+  remindedAt: Date | null;
+  /** Why the job left its send or its reminder undone ("stale", "cancelled", "nobody"...), or null. */
+  skipped: { send: string | null; remind: string | null };
+};
 
 /** Whether a survey is one after an event. */
 export function isEventSurvey(survey: SurveyDoc): survey is EventSurveyDoc {
@@ -179,6 +211,8 @@ export type SurveyPress = {
   count: number;
   /** Who pressed it, where the press recorded them (a survey after an event's do: its organisers are told who sent it). */
   byUid?: string;
+  /** Sent by the `event-surveys` job rather than by a person: a survey after an event that went by itself. */
+  byJob?: true;
 };
 
 /** The two emails a test is taken of. */
@@ -223,6 +257,8 @@ export type SurveyDoc = {
   event: SurveyEventFacts | null;
   /** The session a check-in is about, as it was when it opened; null for any other kind. */
   checkIn: CheckInFacts | null;
+  /** How a survey after an event that its event set up goes by itself; null for any other. */
+  auto: SurveyAuto | null;
   /** It refuses answers from this moment: 23:59 in London on the day an admin picked. Null for a leaving survey, which has no closing day. */
   closesAt: Date | null;
   /** Closed early, by hand. */
@@ -439,7 +475,7 @@ function readAudience(raw: unknown): SurveyAudience {
     return { kind: "followUps", roundId: str(r.roundId), programmeId: str(r.programmeId), consentFrom: r.consentFrom };
   }
   if (r.kind === "leaving") return { kind: "leaving", roundId: str(r.roundId), programmeId: str(r.programmeId) };
-  if ((r.kind === "event-came" || r.kind === "event-signups") && typeof r.eventId === "string" && r.eventId) {
+  if ((r.kind === "event-came" || r.kind === "event-signups" || r.kind === "event-missed") && typeof r.eventId === "string" && r.eventId) {
     return { kind: r.kind, eventId: r.eventId };
   }
   // A check-in's audience is whole or it is none: a group, a session and its
@@ -471,6 +507,24 @@ function readEvent(raw: unknown): SurveyEventFacts | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Raw;
   return { title: str(r.title), startAt: tsToDate(r.startAt), endAt: tsToDate(r.endAt) };
+}
+
+/** A survey's `auto`, read strictly: anything that is not a map is none, and a value the step never writes is the quieter one. */
+function readAuto(raw: unknown): SurveyAuto | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = raw as Raw;
+  const skipped = (r.skipped ?? {}) as Raw;
+  const reason = (value: unknown) => (typeof value === "string" && value ? value : null);
+  return {
+    when: r.when === "after" || r.when === "hand" ? r.when : r.when === "standard" ? "standard" : "hand",
+    hours: isSurveyAfterHours(r.hours) ? r.hours : SURVEY_AFTER_HOURS.standard,
+    reminder: r.reminder === true,
+    showCode: r.showCode === true,
+    missed: r.missed === true,
+    pending: r.pending === true,
+    remindedAt: tsToDate(r.remindedAt),
+    skipped: { send: reason(skipped.send), remind: reason(skipped.remind) },
+  };
 }
 
 function readCheckIn(raw: unknown): CheckInFacts | null {
@@ -552,6 +606,7 @@ function readPresses(raw: unknown): SurveyPress[] {
     if (r.kind !== "first" && r.kind !== "joined" && r.kind !== "remind") continue;
     const press: SurveyPress = { id: str(r.id), kind: r.kind, at: tsToDate(r.at), count: count(r.count) };
     if (typeof r.byUid === "string" && r.byUid) press.byUid = r.byUid;
+    if (r.byJob === true) press.byJob = true;
     out.push(press);
   }
   return out;
@@ -577,6 +632,7 @@ export function normalizeSurvey(id: string, data: Raw): SurveyDoc {
     strand: INCUBATOR_STRANDS.includes(data.strand as IncubatorStrand) ? (data.strand as IncubatorStrand) : null,
     event: data.kind === "event" ? readEvent(data.event) : null,
     checkIn: data.kind === "checkIn" ? readCheckIn(data.checkIn) : null,
+    auto: data.kind === "event" ? readAuto(data.auto) : null,
     closesAt: tsToDate(data.closesAt),
     closedAt: tsToDate(data.closedAt),
     namesOffOn: typeof data.namesOffOn === "string" && DATE_KEY.test(data.namesOffOn) ? data.namesOffOn : null,

@@ -34,9 +34,10 @@
  *
  * THE EVENT WORLD'S COLUMNS, found from the code. Every route and page under
  * `src/app` whose code asks the sign-ups rule (`signupAccessFor` or
- * `decidesSignups`, `src/lib/events/signupAccess.ts`), or who runs an event
+ * `decidesSignups`, `src/lib/events/signupAccess.ts`), who runs an event
  * for chosen people's list (`maySeeChoice`, `mayChooseFor` or `mayInviteFor`,
- * `src/lib/events/invitationAccess.ts`), has columns saying `world: "event"`,
+ * `src/lib/events/invitationAccess.ts`), or who runs the survey after it
+ * (`runsSurveyAfter`, `src/lib/events/surveyAfterAccess.ts`), has columns saying `world: "event"`,
  * and every such column is one of those, so a new reader or decider of an
  * event's requests or its list is asked about two events the day it lands.
  * Their `theirs` names exactly the two event roles, and no column names the
@@ -393,7 +394,7 @@ describe("the second pass's columns and the tree agree in both directions", () =
 function codeOfKey(key, kind) {
   return stripSource(readFileSync(join(APP_DIR, ...key.slice(1).split("/"), kind === "route" ? "route.ts" : "page.tsx"), "utf8"));
 }
-const ASKS_THE_SIGNUPS_RULE = /\b(?:signupAccessFor|decidesSignups|maySeeChoice|mayChooseFor|mayInviteFor)\s*\(/;
+const ASKS_THE_SIGNUPS_RULE = /\b(?:signupAccessFor|decidesSignups|maySeeChoice|mayChooseFor|mayInviteFor|runsSurveyAfter)\s*\(/;
 
 describe("the event world's columns and the code agree in both directions", () => {
   test("every route that asks the sign-ups rule has event columns for each handler, and every event column's route asks it", () => {

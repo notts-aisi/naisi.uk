@@ -175,7 +175,7 @@ The exception is declared in the registry as `enabledByDefault: false` and is
 set on every job that emails people: `admissions-deadline-reminders`,
 `admissions-stage-release`, `application-invitation-reminders`,
 `courses-next-week-email`, `courses-register-reminders`,
-`courses-week-reminders`, `worksheet-due-reminders` and `event-announcements`. A job that emails a live
+`courses-week-reminders`, `worksheet-due-reminders`, `event-announcements` and `event-surveys`. A job that emails a live
 audience must not arm itself the moment it deploys, so each ships dark and the
 owner switches it on from the panel, per environment. The panel says so on the
 job's row.
@@ -697,6 +697,31 @@ crossing the 64-hour mark raising exactly one card; a second tick over the same
 session raising none; finishing the register archiving the card it raised; and
 a task id that is already taken going to the `__alt` fallback rather than
 overwriting anything.
+
+#### `event-surveys`
+
+"Surveys after events" on Site status. The survey after an event that its
+event's Survey after step set up, when publishing set it up: on every tick it
+reads the surveys still waiting for it (`auto.pending`), opens each at its
+event's start (making its QR code then), emails it when its step said (a
+number of whole hours after the event ends, never when it goes only by hand),
+with the one question for people who had a place and weren't checked in, and
+sends its one reminder 3 days after it went. The contract is docs/surveys.md,
+"Surveys after events".
+
+| | |
+| --- | --- |
+| Handler | [`src/lib/scheduler/jobs/eventSurveys.ts`](../src/lib/scheduler/jobs/eventSurveys.ts) |
+| Marker | `evsurvey__{surveyId}__send` and `__remind`, per survey; the press itself writes each person's row with their own link |
+| Surveys looked at | those with `auto.pending`, which a survey drops once nothing is left for it, or when it closes a week after its event |
+| Cap | 300 emails per tick, and its share of the tick's budget |
+| Stale after | 24 hours: later than that nothing goes by itself, the event's Survey after tab says so, and its organisers can still send it there |
+
+**Ships switched off.** It emails people. While it is off nothing opens or goes
+by itself, and the editor's step and the Survey after tab say so; an event's
+organisers send it with "Send it now", which opens it too. Switched on, a
+survey whose time passed more than a day before is not sent by itself, so
+switching it on never mails the people of every recent event at once.
 
 #### `surveys-check-in-weeks`
 

@@ -750,13 +750,26 @@ const REGISTRY = {
     "A programme survey and its reminder (docs/surveys.md): an admin writing to everybody holding a place on the programme the survey is about, each with their own link, whatever their courses row says, with the marker and the lane's caps. Email only: no push leg.",
   ),
   "src/lib/surveys/events/sending.ts#sendNotice": N(
-    "The survey after an event, its email to people who came since and its reminder (docs/surveys.md): an admin writing to the people who came to the event or everybody whose place was confirmed, each with their own link, whatever their events row says, with the marker (surface event-survey) and the lane's caps. A guest's and a walk-in's go to the address they gave the event. Email only: no push leg.",
+    "The survey after an event, its email to people who came since and its reminder (docs/surveys.md): an admin writing to the people who came to the event or everybody whose place was confirmed, each with their own link, whatever their events row says, with the marker (surface event-survey) and the lane's caps. A guest's and a walk-in's go to the address they gave the event. Since November 2026 the same presses, with no button, for a survey its event's Survey after step set up: an organiser's Send it now and the event-surveys job (`sendSurveyAfter`, below), and the one question to the people who had a place and weren't checked in. Email only: no push leg.",
+  ),
+  "src/lib/surveys/events/setUp.ts#sendSurveyAfter": N(
+    "The first email of a survey its event set up, and the one question beside it to the people who had a place and weren't checked in (docs/surveys.md, \"Surveys after events\"): pressed by an event's author, a collaborator or an admin (Send it now, on the event's Survey after tab), or by the event-surveys job when it is due. The organisers and the job run the event, so it reaches the people who came or had a place whatever their events row says, as the admins' press does, with the marker (surface event-survey). The job's press takes no slot under the caps: its scheduler marker claims it once. Email only: no push leg.",
+    2,
+    "src/lib/surveys/events/sending.ts",
+  ),
+  "src/lib/scheduler/jobs/eventSurveys.ts#sendSurveyAfter": N(
+    "The event-surveys job's one reminder, 3 days after a survey its event set up went, to the people it reached who haven't answered, and to the people asked the question about not coming who haven't: sent as the survey was, a notice (surface event-survey), signed by the event's author, once per survey by a scheduler marker. Email only: no push leg.",
+    2,
+    "src/lib/surveys/events/sending.ts",
   ),
   "src/lib/surveys/blanksStore.ts#sendNotice": N(
     "The questions somebody left blank on a survey they sent (docs/surveys.md): an admin's press, for that one person, sending a link of their own to just those questions, whatever their grid says, as the survey's own email did, with the marker (surface survey-blanks). Never in bulk and never on its own; one person a press, at most three a day, and the lane's hourly cap per admin. Email only: no push leg.",
   ),
   "src/lib/surveys/checkIns/open.ts#sendNotice": N(
     "The check-in at the end of a session (docs/surveys.md, \"Check-ins\"): a group's facilitator, or an admin, opening it from the register, which emails each person the register marks at that session, never the group's facilitators, a link of their own, whatever their courses row says, with the marker (surface course-check-in). Once per session, by the check-in's own claim; two a day per group, and at most the register's forty. Nobody is reminded, and somebody marked there later is reached with no email. Email only: no push leg.",
+  ),
+  "src/app/api/events/[id]/survey-after/test/route.ts#sendEmail": T(
+    "\"Send a test to me\" beside Send it now on an event's Survey after tab: the survey's email, marked [TEST], to the address on the presser's own session and nobody else. Nobody's preference is passed over, so it is no notice.",
   ),
   "src/app/api/surveys/[surveyId]/test/route.ts#sendEmail": T(
     "\"Send a test to me\" under a survey's email or its reminder: the email, marked [TEST], to the address on the presser's own session and nobody else. Nobody's preference is passed over, so it is no notice.",

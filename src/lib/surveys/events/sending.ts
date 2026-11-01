@@ -13,19 +13,27 @@ import {
   noticeRecipientRefusal,
   reserveNoticeSlots,
 } from "@/lib/email/noticeCaps";
-import { SURVEYS_COLLECTION, type EventAudience, type EventSurveyDoc, type EventSurveyPersonDoc, type SurveyDelivery, type SurveyPressKind } from "@/lib/firestore/surveys";
+import {
+  EVENT_AUDIENCE_KINDS,
+  SURVEYS_COLLECTION,
+  type EventAudience,
+  type EventSurveyDoc,
+  type EventSurveyPersonDoc,
+  type SurveyDelivery,
+  type SurveyPressKind,
+} from "@/lib/firestore/surveys";
 import type { NameViewer } from "@/lib/names/staffName";
 import { emailWordsFor, siteAddress, surveyLink } from "../emails";
 import { signerOf } from "../sending";
 import { REFUSAL, SURVEY_FROM_NAME, SURVEY_REPLY_TO, countChangedWords, type SurveyEmailWords } from "../words";
 import { membersOf, readEventAudience, respondentKey, type EventAudienceMember, type EventAudienceRead } from "./audience";
 import { ensureSurveyCode } from "./code";
-import { eventNamesOffDay } from "./records";
+import { besideSurveyId, eventNamesOffDay } from "./records";
 import { eventPeopleOf, stampEventDelivery, stampEventReminder, writeEventRows } from "./store";
 import { EVENT_REFUSAL } from "./words";
 
 /**
- * OPENING A SURVEY AFTER AN EVENT, EMAILING IT AND REMINDING, BY HAND (sv-send).
+ * OPENING A SURVEY AFTER AN EVENT, EMAILING IT AND REMINDING (sv-send).
  *
  *  - OPEN IT, for the QR code at the event: from then on it takes answers
  *    from anybody signed in who came or signed up, and its questions, words
@@ -45,6 +53,15 @@ import { EVENT_REFUSAL } from "./words";
  * Each press re-reads who it reaches and compares the number with the one on
  * the button it came from: when they differ nothing is sent and the page is
  * told the new number. Over the notice lane's ceiling it is refused whole.
+ *
+ * THE SAME PRESSES, WITH NO BUTTON, for a survey its event set up
+ * (`./setUp.ts`): the `event-surveys` job's email and reminder, and an
+ * organiser's "Send it now" on the event's Survey after tab. Neither waits for
+ * a test (the words are fixed and the editor's step shows them, and "Send
+ * a test to me" is offered beside the button). The job's press has no number
+ * to compare (`emails: null`), takes no slot under the caps (each of its
+ * presses is claimed once by a scheduler marker), is recorded as the job's
+ * (`byJob`) and is signed by the event's author, "For NAISI".
  *
  * THE CLASS IS NOTICE (`docs/notifications.md`, surface `event-survey`): it
  * reaches the people who came or signed up whatever their notification grid
@@ -79,11 +96,19 @@ export type EventSendPlan = {
   firstEmailed: boolean;
 };
 
-const KINDS: readonly EventAudience["kind"][] = ["event-came", "event-signups"];
+const KINDS: readonly EventAudience["kind"][] = EVENT_AUDIENCE_KINDS;
 
 export async function readEventSendPlan(db: Firestore, survey: EventSurveyDoc, viewer: NameViewer = null): Promise<EventSendPlan> {
-  const [read, rows] = await Promise.all([readEventAudience(db, survey.audience.eventId, viewer), eventPeopleOf(db, survey.id)]);
+  // The one question for people who weren't checked in skips anybody who has
+  // answered the survey it is beside: they came, and the door missed them.
+  const beside = survey.audience.kind === "event-missed" ? besideSurveyId(survey.id) : null;
+  const [read, rows, besideRows] = await Promise.all([
+    readEventAudience(db, survey.audience.eventId, viewer),
+    eventPeopleOf(db, survey.id),
+    beside ? eventPeopleOf(db, beside) : Promise.resolve([]),
+  ]);
   const reached = new Set(rows.filter((row) => row.sentAt !== null || row.answered).map((row) => respondentKey(row.respondent)));
+  for (const row of besideRows) if (row.answered) reached.add(respondentKey(row.respondent));
   const audiences = Object.fromEntries(
     KINDS.map((kind) => {
       const members = read ? membersOf(read, kind) : [];
@@ -153,8 +178,20 @@ async function claim(
   });
 }
 
-/** Hand the claim back and write the press, and who pressed it, into the survey's record of what went. */
-async function release(db: Firestore, surveyId: string, pressId: string, kind: SurveyPressKind, count: number, byUid: string): Promise<void> {
+/**
+ * Hand the claim back and write the press, and who pressed it, into the
+ * survey's record of what went: an account's uid, or for the `event-surveys`
+ * job its id and `byJob`.
+ */
+async function release(
+  db: Firestore,
+  surveyId: string,
+  pressId: string,
+  kind: SurveyPressKind,
+  count: number,
+  byUid: string,
+  byJob: boolean,
+): Promise<void> {
   const ref = db.collection(SURVEYS_COLLECTION).doc(surveyId);
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -163,7 +200,7 @@ async function release(db: Firestore, surveyId: string, pressId: string, kind: S
     const presses = Array.isArray(data.presses) ? [...data.presses] : [];
     // A press that reached nobody is no line in the record, except the first
     // email, whose claim has fixed who the survey emails.
-    if (count > 0 || kind === "first") presses.push({ id: pressId, kind, at: new Date(), count, byUid });
+    if (count > 0 || kind === "first") presses.push({ id: pressId, kind, at: new Date(), count, byUid, ...(byJob ? { byJob: true } : {}) });
     const held = data.inFlight as { id?: unknown } | null | undefined;
     const patch: Record<string, unknown> = { presses, updatedAt: FieldValue.serverTimestamp() };
     if (held?.id === pressId) patch.inFlight = FieldValue.delete();
@@ -229,9 +266,14 @@ async function sendOne(survey: EventSurveyDoc, words: SurveyEmailWords, to: stri
 
 export type EventPressInput = {
   survey: EventSurveyDoc;
+  /** Who pressed it: an account's uid, or the job's id when it went by itself. */
   presserUid: string;
-  /** The number on the button that was pressed. */
-  emails: number;
+  /** Sent by the `event-surveys` job: no button, no slot under the caps, recorded as the job's. */
+  byJob?: boolean;
+  /** Whose first name signs the email: the presser's, unless the job sends it (the event's author). */
+  signerUid?: string;
+  /** The number on the button that was pressed; null for the job, which has none. */
+  emails: number | null;
   /** The first email's audience, as the Send tab's choice named it; null keeps the survey's. */
   audience: EventAudience["kind"] | null;
   now: Date;
@@ -275,8 +317,13 @@ async function emailPeople(
  */
 export async function pressEventSend(db: Firestore, kind: "first" | "joined", input: EventPressInput): Promise<EventPressOutcome> {
   const { presserUid, now } = input;
+  const byJob = input.byJob === true;
+  // The one question for people who weren't checked in keeps its own
+  // audience: nothing a press names moves it.
   const survey: EventSurveyDoc =
-    kind === "first" && input.audience ? { ...input.survey, audience: { kind: input.audience, eventId: input.survey.audience.eventId } } : input.survey;
+    kind === "first" && input.audience && input.survey.audience.kind !== "event-missed"
+      ? { ...input.survey, audience: { kind: input.audience, eventId: input.survey.audience.eventId } }
+      : input.survey;
   if (!siteAddress()) return { ok: false, status: 503, error: REFUSAL.noAddress };
   const plan = await readEventSendPlan(db, survey);
   if (plan.gone) return { ok: false, status: 409, error: EVENT_REFUSAL.noEvent };
@@ -285,7 +332,7 @@ export async function pressEventSend(db: Firestore, kind: "first" | "joined", in
   }
   if (kind === "joined" && !plan.firstEmailed) return { ok: false, status: 409, error: EVENT_REFUSAL.notEmailed };
   const owed = plan.audiences[survey.audience.kind].owed;
-  if (owed.length !== input.emails) {
+  if (input.emails !== null && owed.length !== input.emails) {
     return { ok: false, status: 409, error: countChangedWords(owed.length), emails: owed.length };
   }
   if (owed.length === 0) return { ok: false, status: 400, error: REFUSAL.nobody };
@@ -296,13 +343,17 @@ export async function pressEventSend(db: Firestore, kind: "first" | "joined", in
       error: noticeRecipientRefusal(owed.length, MAX_NOTICE_RECIPIENTS, "ask whoever looks after the site to send it in parts"),
     };
   }
-  const words = emailWordsFor(survey, "survey", await signerOf(db, presserUid));
+  const words = emailWordsFor(survey, "survey", await signerOf(db, input.signerUid ?? presserUid));
   if (!words) return { ok: false, status: 409, error: REFUSAL.closesPast };
   const namesOffOn = survey.firstSentAt ? survey.namesOffOn : await eventNamesOffDay(db, survey);
   if (!namesOffOn) return { ok: false, status: 409, error: EVENT_REFUSAL.undated };
 
-  const caps = await claimCaps(db, survey.id, presserUid);
-  if (!caps.ok) return { ok: false, status: 429, error: caps.refusal ?? REFUSAL.inFlight, retryAfterSeconds: caps.retryAfterSeconds };
+  // The job's press is claimed once by its scheduler marker, so it takes no
+  // slot under the lane's caps; a person's press does.
+  if (!byJob) {
+    const caps = await claimCaps(db, survey.id, presserUid);
+    if (!caps.ok) return { ok: false, status: 429, error: caps.refusal ?? REFUSAL.inFlight, retryAfterSeconds: caps.retryAfterSeconds };
+  }
   const claimed = await claim(db, survey.id, kind, now, { namesOffOn, audience: kind === "first" ? survey.audience : undefined });
   if (!claimed.ok) return { ok: false, status: claimed.status, error: claimed.error };
 
@@ -310,7 +361,7 @@ export async function pressEventSend(db: Firestore, kind: "first" | "joined", in
   try {
     tally = await emailPeople(db, survey, plan, owed, words, claimed.pressId, presserUid);
   } finally {
-    await release(db, survey.id, claimed.pressId, kind, tally.sent + tally.held + tally.suppressed, presserUid);
+    await release(db, survey.id, claimed.pressId, kind, tally.sent + tally.held + tally.suppressed, presserUid, byJob);
   }
   return { ok: true, tally };
 }
@@ -323,11 +374,12 @@ export async function pressEventSend(db: Firestore, kind: "first" | "joined", in
  */
 export async function pressEventRemind(db: Firestore, input: EventPressInput): Promise<EventPressOutcome> {
   const { survey, presserUid, now } = input;
+  const byJob = input.byJob === true;
   if (!siteAddress()) return { ok: false, status: 503, error: REFUSAL.noAddress };
   const plan = await readEventSendPlan(db, survey);
   if (plan.gone) return { ok: false, status: 409, error: EVENT_REFUSAL.noEvent };
   const owed = plan.unanswered;
-  if (owed.length !== input.emails) {
+  if (input.emails !== null && owed.length !== input.emails) {
     return { ok: false, status: 409, error: countChangedWords(owed.length), emails: owed.length };
   }
   if (owed.length === 0) return { ok: false, status: 400, error: REFUSAL.nobody };
@@ -338,11 +390,13 @@ export async function pressEventRemind(db: Firestore, input: EventPressInput): P
       error: noticeRecipientRefusal(owed.length, MAX_NOTICE_RECIPIENTS, "ask whoever looks after the site to send it in parts"),
     };
   }
-  const words = emailWordsFor(survey, "reminder", await signerOf(db, presserUid));
+  const words = emailWordsFor(survey, "reminder", await signerOf(db, input.signerUid ?? presserUid));
   if (!words) return { ok: false, status: 409, error: REFUSAL.closesPast };
 
-  const caps = await claimCaps(db, survey.id, presserUid);
-  if (!caps.ok) return { ok: false, status: 429, error: caps.refusal ?? REFUSAL.inFlight, retryAfterSeconds: caps.retryAfterSeconds };
+  if (!byJob) {
+    const caps = await claimCaps(db, survey.id, presserUid);
+    if (!caps.ok) return { ok: false, status: 429, error: caps.refusal ?? REFUSAL.inFlight, retryAfterSeconds: caps.retryAfterSeconds };
+  }
   const claimed = await claim(db, survey.id, "remind", now, { namesOffOn: survey.namesOffOn });
   if (!claimed.ok) return { ok: false, status: claimed.status, error: claimed.error };
 
@@ -369,9 +423,20 @@ export async function pressEventRemind(db: Firestore, input: EventPressInput): P
       await stampEventReminder(db, row.id);
     });
   } finally {
-    await release(db, survey.id, claimed.pressId, "remind", tally.sent + tally.held + tally.suppressed, presserUid);
+    await release(db, survey.id, claimed.pressId, "remind", tally.sent + tally.held + tally.suppressed, presserUid, byJob);
   }
   return { ok: true, tally };
+}
+
+/**
+ * THE DOOR A SURVEY ITS EVENT SET UP GOES OUT THROUGH, with no button: its
+ * first email (`first`) or its reminder (`remind`), pressed by the
+ * `event-surveys` job when it is due or by an organiser's "Send it now"
+ * (`./setUp.ts`). The same presses as an admin's, through the same notice
+ * door, each person with their own link; never a test first.
+ */
+export async function sendSurveyAfter(db: Firestore, step: "first" | "remind", input: EventPressInput): Promise<EventPressOutcome> {
+  return step === "remind" ? pressEventRemind(db, input) : pressEventSend(db, "first", input);
 }
 
 /** A press's outcome as a route answers it: counts, never an address. */

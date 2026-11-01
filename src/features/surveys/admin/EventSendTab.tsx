@@ -125,7 +125,7 @@ export default function EventSendTab({ surveyId, view }: { surveyId: string; vie
         {view.joined && (
           <section className={`${styles.card} ${styles.section}`} aria-labelledby="send-joined">
             <h2 id="send-joined" className={styles.sectionTitle}>
-              {view.audience === "event-came" ? "Came since" : "Signed up since"}
+              {view.audience === "event-came" ? "Came since" : view.audience === "event-signups" ? "Signed up since" : "With a place since"}
             </h2>
             {view.joined.emails === 0 ? (
               <p className={`${styles.muted} ${styles.dashed}`}>{view.joined.nobody}</p>

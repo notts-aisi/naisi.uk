@@ -47,9 +47,12 @@ import {
   publicLocationText,
 } from "@/lib/events/location";
 import { signupsButtonWords } from "@/lib/events/requestWords";
+import { newSurveyAfter, type StoredSurveyAfter } from "@/lib/events/surveyAfter";
 import { confirmChosenWords, peopleCount, type InvitationCount } from "@/lib/events/inviteWords";
 import { REACH_WORDS, announces, eventReach, isForChosenPeople } from "@/lib/events/reach";
 import { canApproveEvent, canDraftEvent } from "@/lib/firestore/users";
+import SurveyAfterSettings from "@/features/surveys/events/SurveyAfterSettings";
+import { STEP_WORDS, asksMissed, questionProblems, setUpSummaryWords, setUpWords, settingsOf, timesOf, whoAt } from "@/lib/surveys/events/after";
 import BlockEditor from "@/components/blocks/BlockEditor";
 import ImageUpload from "@/components/blocks/ImageUpload";
 import {
@@ -94,14 +97,20 @@ type Props = {
    * Publish confirm and nothing else: the server decides the path either way.
    */
   announcementsQueued?: boolean;
+  /**
+   * Whether the `event-surveys` job is switched on here, so the survey after
+   * an event goes by itself. Read from `config/scheduler` by the page above,
+   * for the same reason; while it is off, the Survey after step says so.
+   */
+  surveysGoByThemselves?: boolean;
 };
 
 /**
- * The editor's five steps. They are a way of looking at one form: every field
+ * The editor's six steps. They are a way of looking at one form: every field
  * lives in the editor whichever step is showing, and nothing is saved by
  * moving between them.
  */
-type StepKey = "basics" | "details" | "signup" | "who" | "send";
+type StepKey = "basics" | "details" | "signup" | "survey" | "who" | "send";
 
 /**
  * Every field of the form, as the form holds it. One entry per field that
@@ -122,6 +131,7 @@ type FormValues = {
   waitlistEnabled: boolean;
   noSignup: boolean;
   selfCheckIn: boolean;
+  surveyAfter: StoredSurveyAfter | null;
   signupForm: FormQuestion[];
   foodText: string;
   dietaryTags: FoodTag[];
@@ -153,6 +163,7 @@ function formValuesOf(next: EventDoc): FormValues {
     waitlistEnabled: next.waitlistEnabled,
     noSignup: next.noSignup,
     selfCheckIn: next.selfCheckIn,
+    surveyAfter: next.surveyAfter,
     signupForm: next.signupForm,
     foodText: next.foodText ?? "",
     dietaryTags: next.dietaryTags ?? [],
@@ -190,6 +201,8 @@ type PublishResponse = {
   invited?: { home?: number; emailed?: number; failed?: number };
   /** Its invitations threw after it was published. The list is kept; nobody was told how many were emailed. */
   invitationsFailed?: boolean;
+  /** The survey after it, from the Survey after step, could not be set up: why. The event is published. */
+  surveyNotSetUp?: string;
   announcement?: {
     sent?: number;
     pushed?: number;
@@ -469,7 +482,7 @@ function buildNotifyDraft(
   return { subject, body };
 }
 
-export default function EventEditor({ eventId, announcementsQueued = false }: Props) {
+export default function EventEditor({ eventId, announcementsQueued = false, surveysGoByThemselves = false }: Props) {
   const router = useRouter();
   const { user, role, permissions, suRecognised } = useAuth();
 
@@ -490,6 +503,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
   const [waitlistEnabled, setWaitlistEnabled] = useState(true);
   const [noSignup, setNoSignup] = useState(false);
   const [selfCheckIn, setSelfCheckIn] = useState(false);
+  const [surveyAfter, setSurveyAfter] = useState<StoredSurveyAfter | null>(null);
   const [signupForm, setSignupForm] = useState<FormQuestion[]>([]);
   const [foodText, setFoodText] = useState("");
   const [dietaryTags, setDietaryTags] = useState<FoodTag[]>([]);
@@ -621,6 +635,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
         setWaitlistEnabled(pick("waitlistEnabled"));
         setNoSignup(pick("noSignup"));
         setSelfCheckIn(pick("selfCheckIn"));
+        setSurveyAfter(pick("surveyAfter"));
         setSignupForm(pick("signupForm"));
         setFoodText(pick("foodText"));
         setDietaryTags(pick("dietaryTags"));
@@ -741,6 +756,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
       waitlistEnabled,
       noSignup,
       selfCheckIn,
+      surveyAfter,
       signupForm,
       foodText,
       dietaryTags,
@@ -769,6 +785,9 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
       waitlistEnabled: capacity === null ? false : waitlistEnabled,
       noSignup,
       selfCheckIn,
+      // The survey after it, as the step left it. Once the event is published
+      // the update route takes no part of it: the Survey after tab changes it.
+      surveyAfter: surveyAfter ?? undefined,
       signupForm,
       foodText: foodText.trim() ? foodText : null,
       dietaryTags,
@@ -942,6 +961,12 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     if (forChosenPeople && nothingChosen) {
       add("who", "Choose who it’s for: nobody would be invited.");
     }
+    // The survey after it: its questions, when it is on, must be ones it can
+    // be set up with. Once published it is changed on the Survey after tab.
+    if (surveyAfter?.on && status !== "published" && status !== "cancelled") {
+      const problem = questionProblems(settingsOf(surveyAfter).items)[0];
+      if (problem) add("survey", `The survey after it: ${problem}`);
+    }
     return found;
   }
 
@@ -1112,7 +1137,12 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
         });
         return;
       }
-      const line = announcementLine(body);
+      // The survey after it is set up by the same press; when it couldn't be,
+      // the publisher is told, and how to set it up again.
+      const surveyLine = body.surveyNotSetUp
+        ? `The survey after it wasn’t set up: ${body.surveyNotSetUp} Save it on the Survey after tab to set it up.`
+        : null;
+      const line = [announcementLine(body), surveyLine].filter(Boolean).join(" ");
       setPublishStatus(line ? { kind: "announced", message: line } : { kind: "idle" });
     } catch (err) {
       setPublishStatus({
@@ -1283,9 +1313,20 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     { key: "basics", label: "Basics", done: !missing("basics") },
     { key: "details", label: "Details", done: !missing("details") },
     { key: "signup", label: "Sign-up", done: !missing("signup") },
+    { key: "survey", label: STEP_WORDS.heading, done: !missing("survey") },
     { key: "who", label: "Who’s it for", done: !missing("who") },
     { key: "send", label: lastLabel, done: status !== "draft" && status !== "rejected" },
   ];
+  // What publishing sets up of the survey after it, as the step stands.
+  const surveySetUp = {
+    on: surveyAfter?.on === true,
+    who: whoAt(surveyAfter ?? newSurveyAfter(), noSignup),
+    missed: surveyAfter ? asksMissed(surveyAfter, noSignup) : false,
+    sendAt: surveyAfter ? timesOf({ startAt, endAt }, surveyAfter).sendAt : null,
+    byHand: surveyAfter?.when === "hand",
+    jobOn: surveysGoByThemselves,
+  };
+  const surveySetUpLine = setUpWords(surveySetUp);
   const at = steps.findIndex((s) => s.key === step);
   const previous = at > 0 ? steps[at - 1] : null;
   const next = at < steps.length - 1 ? steps[at + 1] : null;
@@ -1859,6 +1900,48 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
               </div>
             </section>
 
+            <section hidden={step !== "survey"} aria-labelledby="editor-step-survey">
+              <h2 id="editor-step-survey" tabIndex={-1} className={styles.sectionTitle}>
+                {STEP_WORDS.heading}
+              </h2>
+              <p className={styles.sectionHint}>{STEP_WORDS.hint}</p>
+              {status === "published" ? (
+                // Set up by publishing: from here on it is changed, and sent
+                // sooner, on the event's Survey after tab.
+                <div className={styles.fields}>
+                  <p className={styles.surveyNote}>
+                    {surveyAfter === null
+                      ? STEP_WORDS.publishedBefore
+                      : surveyAfter.on
+                        ? STEP_WORDS.published
+                        : STEP_WORDS.publishedOff}
+                  </p>
+                  <div>
+                    <Link href={`/events/manage/${event.id}/survey`} className={styles.buttonLink}>
+                      <Button variant="secondary" tabIndex={-1}>
+                        {STEP_WORDS.openTab}
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              ) : status === "cancelled" ? (
+                <p className={styles.surveyNote}>This event is cancelled, so no survey goes after it.</p>
+              ) : (
+                <SurveyAfterSettings
+                  value={surveyAfter}
+                  onChange={(next) => {
+                    setSurveyAfter(next);
+                    markDirty();
+                  }}
+                  disabled={locked}
+                  event={{ title, startAt, endAt, noSignup }}
+                  jobOn={surveysGoByThemselves}
+                  where="editor"
+                  summary={<p className={styles.surveyNote}>{surveySetUpLine}</p>}
+                />
+              )}
+            </section>
+
             <section hidden={step !== "who"} aria-labelledby="editor-step-who">
               <h2 id="editor-step-who" tabIndex={-1} className={styles.sectionTitle}>
                 Who’s it for
@@ -1959,6 +2042,10 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                             : "Listed, and not announced."}
                     </span>
                   </dd>
+                </div>
+                <div>
+                  <dt>Survey after</dt>
+                  <dd>{setUpSummaryWords(surveySetUp)}</dd>
                 </div>
                 <div>
                   <dt>Food</dt>

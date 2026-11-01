@@ -3229,6 +3229,32 @@ export const ROUTES = {
         "collaborators, SU-recognised committee, admins) is the event's to say. The second pass asks it about two events.",
     },
   },
+  "/api/events/[id]/survey-after": {
+    PATCH: {
+      expect: RUNS_EVENTS_404,
+      why:
+        "Changing the survey after a published event, its questions, who gets it and when: the view-as guard, then " +
+        "the people who run events are told the event is missing (one they do not organise is answered the same " +
+        "way), and everybody else is refused on the session before anything is read. The second pass asks it about two events.",
+    },
+  },
+  "/api/events/[id]/survey-after/send": {
+    POST: {
+      expect: RUNS_EVENTS_404,
+      why:
+        "Send it now, which emails the survey after an event to the people who came: the view-as guard, then the " +
+        "people who run events are told the event is missing before anybody is emailed, and everybody else is " +
+        "refused on the session. The second pass asks it about two events.",
+    },
+  },
+  "/api/events/[id]/survey-after/test": {
+    POST: {
+      expect: RUNS_EVENTS_404,
+      why:
+        "Send a test to me, beside Send it now: the view-as guard, then the people who run events are told the event " +
+        "is missing before anything is sent, and everybody else is refused on the session. The second pass asks it about two events.",
+    },
+  },
   "/api/events/[id]/test-rsvps": {
     POST: {
       expect: adminOnly(400),
@@ -6855,6 +6881,49 @@ export const REAL_ROUTES = {
     GET: adminAlone(
       "A file of Make a chart's numbers across the programme's check-ins",
       c(400, "An admin meets the question check: the battery names no question, so nothing is read."),
+    ),
+  },
+
+  // ---- The survey after an event: the event world, too -------------------------
+  // Its setting, Send it now and the test are the event's author's and
+  // collaborators', while they stand, and admins' (`runsSurveyAfter`), on any
+  // event an admin's; everybody else who runs events is told the event is not
+  // there. Neither set's event has a survey set up, so the test is refused
+  // for want of one and nothing is sent.
+  "/api/events/[id]/survey-after": {
+    PATCH: eventTeam(
+      c(404, "Runs events, but neither wrote it, is added to it nor is an admin: answered as an event that is not there, before anything is read."),
+      {
+        over: { admin: c(400, "An admin may change any event's survey after it: the empty body is no setting, refused before anything is written.") },
+        theirs: {
+          eventAuthor: c(400, "Wrote the event, so may change its survey after it: the empty body is no setting, refused before anything is written."),
+          eventCollaborator: c(400, "Helps run the event, so may change its survey after it: the empty body is no setting, refused before anything is written."),
+        },
+      },
+    ),
+  },
+  "/api/events/[id]/survey-after/send": {
+    POST: eventTeam(
+      c(404, "Runs events, but neither wrote it, is added to it nor is an admin: answered as an event that is not there, before anybody is emailed."),
+      {
+        over: { admin: c(400, "An admin may send any event's survey now: the empty body names no number from the button, refused before anybody is emailed.") },
+        theirs: {
+          eventAuthor: c(400, "Wrote the event, so may send its survey now: the empty body names no number from the button, refused before anybody is emailed."),
+          eventCollaborator: c(400, "Helps run the event, so may send its survey now: the empty body names no number from the button, refused before anybody is emailed."),
+        },
+      },
+    ),
+  },
+  "/api/events/[id]/survey-after/test": {
+    POST: eventTeam(
+      c(404, "Runs events, but neither wrote it, is added to it nor is an admin: answered as an event that is not there, before anything is sent."),
+      {
+        over: { admin: c(409, "An admin may send themselves a test of any event's survey: this event has none set up, so nothing is sent.") },
+        theirs: {
+          eventAuthor: c(409, "Wrote the event, so may send themselves a test of its survey: it has none set up, so nothing is sent."),
+          eventCollaborator: c(409, "Helps run the event, so may send themselves a test of its survey: it has none set up, so nothing is sent."),
+        },
+      },
     ),
   },
 };

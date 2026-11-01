@@ -10,6 +10,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { getClientAuth, getClientDb } from "@/lib/firebase/client";
+import { newSurveyAfter, type StoredSurveyAfter } from "@/lib/events/surveyAfter";
 import type { Block } from "@/lib/firestore/newsletterBlocks";
 import { sanitizeSignupForm } from "@/lib/firestore/events";
 import type {
@@ -43,6 +44,10 @@ export async function createEvent(params: {
     noSignup: false,
     // Off for a new event: the committee check people in at the door unless its author turns this on.
     selfCheckIn: false,
+    // On for a new event: publishing sets up the survey after it, unless its
+    // organiser switches it off in the Survey after step. Only a stored
+    // setting counts, so an event made before the step existed has none.
+    surveyAfter: newSurveyAfter(),
     signupForm: [],
     foodProvenance: "none" satisfies FoodProvenance,
     coverBranding: "corner" satisfies CoverBranding,
@@ -82,6 +87,7 @@ type EditableEventFields = Partial<{
   waitlistEnabled: boolean;
   noSignup: boolean;
   selfCheckIn: boolean;
+  surveyAfter: StoredSurveyAfter;
   signupForm: FormQuestion[];
   foodProvenance: FoodProvenance;
   foodProvenanceNote: string | null;
@@ -123,6 +129,10 @@ export async function updateEvent(id: string, fields: EditableEventFields) {
   if (fields.waitlistEnabled !== undefined) patch.waitlistEnabled = fields.waitlistEnabled;
   if (fields.noSignup !== undefined) patch.noSignup = fields.noSignup === true;
   if (fields.selfCheckIn !== undefined) patch.selfCheckIn = fields.selfCheckIn === true;
+  // The survey after it, whole, as the step left it. Its questions are plain
+  // data, so a copy through JSON drops any undefined Firestore would refuse;
+  // survey code reads them strictly when publishing sets the survey up.
+  if (fields.surveyAfter !== undefined) patch.surveyAfter = JSON.parse(JSON.stringify(fields.surveyAfter));
   if (fields.signupForm !== undefined)
     // Clamp here too, not only in the published-event route. This is the
     // client-direct path every draft save takes, so without it a per-question

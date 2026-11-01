@@ -644,6 +644,10 @@ const MUST_GUARD = [
   // ── The events lane: events for chosen people ────────────────────────────
   ["src/app/api/events/[id]/audience/route.ts", "chooses who an event for chosen people is for, kept in the chooser's name, and counts what it would send"],
   ["src/app/api/events/[id]/invitations/route.ts", "invites and emails the people new to an event's tags, in the presser's name"],
+  // ── The events lane: the survey after an event ───────────────────────────
+  ["src/app/api/events/[id]/survey-after/route.ts", "changes the survey after an event, its questions, who gets it and when, or switches it off, in the presser's name"],
+  ["src/app/api/events/[id]/survey-after/send/route.ts", "emails the survey after an event to the people who came, each a link of their own, signed by and recorded as the presser"],
+  ["src/app/api/events/[id]/survey-after/test/route.ts", "sends the presser a test of the survey's email, to the session's own address"],
   // ── Messages ───────────────────────────────────────────────────────────────
   ["src/app/api/messages/route.ts", "sends a message to the people chosen, in the writer's name, and can post it on a programme's page"],
   ["src/app/api/messages/test/route.ts", "sends the presser a test and records the test the send waits for"],

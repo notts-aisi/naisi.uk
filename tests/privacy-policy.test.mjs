@@ -6086,8 +6086,19 @@ describe("the course hub passage", () => {
         // Surveys after events (the event survey block below holds each to its gate).
         ["src/app/api/surveys/[surveyId]/open-at-event/route.ts", `${ADMIN_ROUTE}; opening a survey after an event for its QR code`],
         ["src/app/events/[id]/survey/page.tsx", "the survey after an event by its QR code: signed in, shown only to somebody who signed up or came, by their own row; signed out, it names nobody"],
-        ["src/app/(app)/events/manage/[id]/survey/page.tsx", "the event's Survey after tab: everybody in the events area reads that it went and when; the people who run check-in its QR code while it takes answers (surveyCodeAtEvent), never an answer; its results only when canRunSurveys says the viewer is an admin"],
-        ["src/app/(app)/events/manage/[id]/check-in/page.tsx", "the Check-in tab reads when the event's survey closes, the end of adding somebody who came and of a walk-in's email, and nothing of its answers or who answered"],
+        // CHANGED ON PURPOSE (November 2026): the tab gives the
+        // event's author, collaborators and admins the survey its event set
+        // up, to change and send now, with the number it emails; results
+        // stay admins'. The survey's QR code moved to the Check-in tab.
+        ["src/app/(app)/events/manage/[id]/survey/page.tsx", "the event's Survey after tab: everybody in the events area reads what is set, that it went, when and to how many; its organisers (runsSurveyAfter) its setting and Send it now with the number it emails, never an answer or a count of answers; its results only when canRunSurveys says the viewer is an admin"],
+        ["src/app/(app)/events/manage/[id]/check-in/page.tsx", "the Check-in tab reads when the event's survey closes, the end of adding somebody who came and of a walk-in's email; and the people who run check-in its QR code while it takes answers (surveyCodeAtEvent), and nothing of its answers or who answered"],
+        // The survey after an event, set up by its event (November 2026).
+        ["src/features/events/EventEditor.tsx", "the event editor's Survey after step: the standard questions, the setting's words and what publishing sets up, from the event's own setting; never a survey record, an answer or who answered"],
+        ["src/app/api/events/[id]/publish/route.ts", "publishing sets the survey up from the event's Survey after step (setUpEventSurvey), a draft with no rows; reads no answer"],
+        ["src/app/api/events/[id]/survey-after/route.ts", "the event's author, collaborators and admins (runsSurveyAfter first) change the survey its event set up: its questions until it opens, who and when until it goes; reads no answer"],
+        ["src/app/api/events/[id]/survey-after/send/route.ts", "Send it now, for the event's author, collaborators and admins (runsSurveyAfter first): the survey its event set up emailed now, answered with counts, never an answer or an address"],
+        ["src/app/api/events/[id]/survey-after/test/route.ts", "Send a test to me, for the event's author, collaborators and admins (runsSurveyAfter first): the survey's email to the presser's own address, reading no answer"],
+        ["src/lib/scheduler/jobs/eventSurveys.ts", "the event-surveys job: opens a survey its event set up at the event's start, emails it when the step said and reminds once, through the survey's own presses; reads no answer"],
         ["src/app/(app)/events/manage/[id]/door/page.tsx", "the door list reads when the event's survey closes, for the day a walk-in's email goes, and nothing of its answers or who answered"],
         ["src/app/api/events/[id]/check-ins/route.ts", "the door list's route reads when the event's survey closes, the end of adding somebody who came and the day a walk-in's email goes, and nothing of its answers or who answered"],
         ["src/lib/qr/codeAccess.ts", "who may draw a code: an event survey's code for the people who run check-in while that survey takes answers (surveyCodeAtEvent), from the survey's state alone, and nothing of its answers or who answered"],
@@ -8132,7 +8143,13 @@ describe("the survey after an event", () => {
     const audience = withoutComments(read("src/lib/surveys/events/audience.ts"));
     assert.match(audience, /if \(row\.status !== "confirmed"\) continue;/, "a sign-up that is not confirmed now reaches the survey");
     assert.match(audience, /if \(checkIn\.namesOff \|\| checkIn\.eventId !== eventId\) continue;/);
-    assert.match(audience, /return read\.people\.filter\(\(member\) => \(kind === "event-came" \? member\.came : member\.signedUp\)\);/);
+    // CHANGED ON PURPOSE (November 2026): a third audience, the people who
+    // had a place and weren't checked in, asked the one question about not
+    // coming. Each of the three is held to who it reaches, and nobody else:
+    // the people who came; everybody confirmed; everybody confirmed who did
+    // not come. Run in tests/event-survey-after.test.mjs.
+    assert.match(audience, /if \(kind === "event-came"\) return member\.came;\s*if \(kind === "event-signups"\) return member\.signedUp;\s*return member\.signedUp && !member\.came;/);
+    assert.match(audience, /return read\.people\.filter\(\(member\) => isMemberOf\(member, kind\)\);/);
     assert.match(audience, /\.filter\(\(row\) => row\.eventId === eventId && !row\.synthetic\);/);
     // Confidential: an answer keeps its person, an account or a guest.
     assert.equal(surveyRecords.normalizeSurvey("s1", { kind: "event", privacy: "anonymous", audience: { kind: "event-came", eventId: "e1" }, event: { title: "VR games night" } }).privacy, "confidential");
@@ -8155,15 +8172,27 @@ describe("the survey after an event", () => {
     // added to this list.
     const items = eventSurveyTemplate.eventTemplateItems();
     assert.deepEqual(
-      items.map((item) => [item.title, item.type]),
+      items.map((item) => [item.id, item.title, item.type]),
       [
-        ["How was it?", "rating"],
-        ["Would you come to another NAISI social?", "singleChoice"],
-        ["What should we run next?", "multipleChoice"],
-        ["How did you hear about it?", "singleChoice"],
-        ["Anything we should change?", "longText"],
+        ["q_ev_how", "How was it?", "rating"],
+        ["q_ev_again", "Would you come to another?", "singleChoice"],
+        // CHANGED ON PURPOSE (November 2026): "What should we run next?" is
+        // a short answer, the event editor's standard set, under a new id so
+        // the pick-any's answers (`q_ev_next`, on every survey made before)
+        // still compare with each other. How the event went, as before.
+        ["q_ev_next_text", "What should we run next?", "shortText"],
+        ["q_ev_heard", "How did you hear about it?", "singleChoice"],
+        ["q_ev_change", "Anything we should change?", "longText"],
       ],
       "the survey after an event asks something new: check it against the kinds the policy names, then list it here",
+    );
+    // The one question for people who had a place and weren't checked in:
+    // how the event went for them, which the policy's "how the programme or
+    // event went" names, sent only after an event they had a place at.
+    assert.deepEqual(
+      eventSurveyTemplate.missedTemplateItems().map((item) => [item.id, item.title, item.type, surveyItems.isQuestionRequired(item)]),
+      [["q_ev_missed_why", "What stopped you coming?", "longText", true]],
+      "the question about not coming asks something new: check it against the kinds the policy names, then list it here",
     );
     // CHANGED ON PURPOSE (v14): was "no question is required". What the policy
     // says, run: every question needs an answer unless it is marked optional,
@@ -8227,6 +8256,63 @@ describe("the survey after an event", () => {
     assert.equal(box.points[0], "Only NAISI’s admins can see who said what.");
     assert.ok(box.points.includes("Your name comes off on Wed 1 Nov 2028, two years after the event. The totals stay."));
     assert.equal(box.note, "We keep your answers with your name, and that you came, so nobody is emailed it twice.");
+  });
+
+  test("sent automatically after it ends: by the event-surveys job, switched off until an admin switches it on, and only where the event's own step set it up", async () => {
+    says("An event&apos;s survey may be sent automatically after it ends.");
+    const job = withoutComments(read("src/lib/scheduler/jobs/eventSurveys.ts"));
+    // It ships off, as every job that emails: nothing goes by itself until
+    // an admin switches it on, and the editor's step says so meanwhile.
+    assert.match(job, /enabledByDefault: false,/);
+    // It reads only the surveys an event's step set up, by one equality.
+    assert.match(job, /\.where\("auto\.pending", "==", true\)/);
+    // Through the survey's own presses and the notice door, signed by the
+    // event's author: the email by `pressFirstEmails`, the reminder here.
+    assert.match(job, /await pressFirstEmails\(db, \{ survey, event, presserUid: JOB_ID, byJob: true, count, now: ctx\.now \}\);/);
+    assert.match(job, /await sendSurveyAfter\(db, "remind", \{ \.\.\.press, survey \}\);/);
+    assert.match(withoutComments(read("src/lib/surveys/events/setUp.ts")), /const signerUid = byJob \? event\.authorUid : presserUid;/);
+    // Only a stored setting counts: an event made before the step has none,
+    // and nothing reads a missing setting as on.
+    const settings = await loadTs("lib/events/surveyAfter.ts");
+    assert.equal(settings.readSurveyAfter(undefined), null);
+    assert.equal(settings.readSurveyAfter({}).on, false);
+    assert.equal(settings.newSurveyAfter().on, true, "a new event's survey is no longer on");
+    // After it ends: whole hours from 1 to 96 after the event's end, never
+    // before it; or only by somebody's press.
+    const after = await loadTs("lib/surveys/events/after.ts");
+    const event = { startAt: new Date("2026-11-19T19:00:00Z"), endAt: new Date("2026-11-19T22:00:00Z") };
+    assert.equal(after.timesOf(event, { when: "standard", hours: 12 }).sendAt.toISOString(), "2026-11-20T10:00:00.000Z");
+    for (const hours of [1, 24, 96]) {
+      assert.equal(after.timesOf(event, { when: "after", hours }).sendAt.getTime() - event.endAt.getTime(), hours * 3600_000);
+    }
+    assert.equal(after.timesOf(event, { when: "hand", hours: 12 }).sendAt, null);
+    assert.equal(settings.isSurveyAfterHours(0) || settings.isSurveyAfterHours(97) || settings.isSurveyAfterHours(1.5), false);
+    // tests/event-survey-after.test.mjs runs the job: on time, late, by hand only, and for an event published before.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "event-survey-after.test.mjs")));
+  });
+
+  test("its organisers are told what is set, that it went, when and to how many, never its results; they may send it, and admins alone read it", () => {
+    says("An event&apos;s organisers are told that its survey went and when, and nothing of its results.");
+    const tab = withoutComments(read("src/lib/surveys/events/tab.ts"));
+    // The sentence for a survey its event set up: who sent it (by itself, or
+    // a first name), when, and how many its press emailed. Never an answer.
+    assert.match(tab, /went = `Sent \$\{await byWords\(db, first\)\}, \$\{at\(first\.at\)\}, to \$\{reachedWords\(first\.count, survey\.audience\.kind\)\}\.`;/);
+    // The organisers' part of the tab: their setting and Send it now with the
+    // number it emails, read with no answer, row of an answer or result.
+    const panel = withoutComments(read("src/lib/surveys/events/afterView.ts"));
+    assert.ok(!/eventAnswersOf|resultsView|SURVEY_(?:ANSWERS|PEOPLE)_COLLECTION|answered/.test(panel), "the organisers' part of the tab now reads answers");
+    // Send it now and its setting are the event's author's, collaborators' and admins' alone, asked before anything is read.
+    for (const route of ["src/app/api/events/[id]/survey-after/route.ts", "src/app/api/events/[id]/survey-after/send/route.ts", "src/app/api/events/[id]/survey-after/test/route.ts"]) {
+      const code = withoutComments(read(route));
+      const gate = code.indexOf("if (!event || !runsSurveyAfter(event, viewer)) {");
+      const acts = Math.max(code.indexOf("changeSurveyAfter(db"), code.indexOf("sendItNow(db"), code.indexOf("prepareSurveyTest(db"));
+      assert.ok(gate !== -1 && acts !== -1 && gate < acts, `${route} acts before it asks who may`);
+    }
+    assert.match(withoutComments(read("src/lib/events/surveyAfterAccess.ts")), /return viewer\.role === "admin" \|\| organises\(event, viewer\);/);
+    // Results stay an admin's on the same tab.
+    const page = withoutComments(read("src/app/(app)/events/manage/[id]/survey/page.tsx"));
+    assert.match(page, /const admin = canRunSurveys\(viewer\);/);
+    assert.match(page, /const results =\s*admin && survey && survey\.firstSentAt\s*\?/);
   });
 
   test("names come off two years after the event by the surveys' own job, and the file names no group", () => {

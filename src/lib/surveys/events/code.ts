@@ -32,10 +32,12 @@ import { surveyState } from "../repo";
  * WHO SHOWS IT AT THE EVENT (`surveyCodeAtEvent`): exactly the people who
  * may draw the event's door code (`runsCheckIn`: admins and the committee
  * members the Students' Union recognises), while the survey is taking
- * answers. They show it from the event's Survey after tab, with its PNG and
- * full screen, and the QR image route asks the same function before it draws
- * the code for anybody who is not an admin. Opening the survey stays an
- * admin's act, on the survey's own Send tab.
+ * answers. They show it from the event's Check-in tab, with its PNG and full
+ * screen, and the QR image route asks the same function before it draws the
+ * code for anybody who is not an admin. A survey its event set up shows it
+ * only where its Survey after step left "Show its QR code at the end of the
+ * event" on; it opens itself at the event's start (the `event-surveys` job),
+ * and an admin may open any survey on its own Send tab.
  */
 
 /** The campaign every survey's code is filed under in the console. */
@@ -55,16 +57,17 @@ export function eventOfSurveyCodePath(destination: string): string | null {
 /**
  * What the people who may show an event's survey code at the event are shown
  * of it: the code (`"show"`) while the survey takes answers, a line that it
- * shows once an admin opens the survey (`"not-yet"`) while it is a draft,
- * and nothing (`null`) once it has closed, before there is a survey, or to
- * anybody who does not run check-in.
+ * shows once the survey opens (`"not-yet"`) while it is a draft, and nothing
+ * (`null`) once it has closed, before there is a survey, where its event's
+ * step switched the code off, or to anybody who does not run check-in.
  */
 export function surveyCodeAtEvent(
   viewer: CheckInViewer | null | undefined,
-  survey: Pick<EventSurveyDoc, "kind" | "firstSentAt" | "closedAt" | "closesAt"> | null,
+  survey: Pick<EventSurveyDoc, "kind" | "firstSentAt" | "closedAt" | "closesAt" | "auto"> | null,
   now: Date,
 ): "show" | "not-yet" | null {
   if (!survey || !runsCheckIn(viewer)) return null;
+  if (survey.auto && !survey.auto.showCode) return null;
   const state = surveyState(survey, now);
   if (state === "open") return "show";
   return state === "draft" ? "not-yet" : null;

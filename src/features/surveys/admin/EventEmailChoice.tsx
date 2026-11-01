@@ -89,7 +89,7 @@ export default function EventEmailChoice({
         testFresh={testFresh}
         testLine={testLine}
         blocked={blocked}
-        extraBody={{ audience: choice.kind === "event-came" ? "came" : "signups" }}
+        extraBody={choice.kind === "event-missed" ? {} : { audience: choice.kind === "event-came" ? "came" : "signups" }}
       />
     </>
   );

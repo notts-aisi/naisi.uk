@@ -32,15 +32,44 @@ export async function readEventFor(db: Firestore, eventId: string): Promise<Even
   return snap.exists ? normalizeEvent(snap.id, snap.data() ?? {}) : null;
 }
 
-/** An event's survey, or null: one equality on `eventId`, the oldest should there be two. */
+/**
+ * An event's survey, or null: one equality on `eventId`, the oldest should
+ * there be two. Never the one question for people who didn't come, which is
+ * a survey beside it (`missedSurveyOf`), chosen out by its audience.
+ */
 export async function eventSurveyOf(db: Firestore, eventId: string): Promise<EventSurveyDoc | null> {
   if (!isEventId(eventId)) return null;
   const snap = await db.collection(SURVEYS_COLLECTION).where("eventId", "==", eventId).get();
   const surveys = snap.docs
     .map((doc) => normalizeSurvey(doc.id, doc.data() ?? {}))
-    .filter((survey): survey is EventSurveyDoc => isEventSurvey(survey) && survey.audience.eventId === eventId)
+    .filter(
+      (survey): survey is EventSurveyDoc =>
+        isEventSurvey(survey) && survey.audience.eventId === eventId && survey.audience.kind !== "event-missed",
+    )
     .sort((a, b) => (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0) || a.id.localeCompare(b.id));
   return surveys[0] ?? null;
+}
+
+/**
+ * The id of the one question for people who didn't come, beside the event's
+ * survey `surveyId`: fixed by that survey's, so it is made once however many
+ * presses or ticks try.
+ */
+export function missedSurveyId(surveyId: string): string {
+  return `${surveyId}-missed`;
+}
+
+/** The event's survey the one question for people who didn't come (`missedId`) is beside, or null for any other id. */
+export function besideSurveyId(missedId: string): string | null {
+  return missedId.endsWith("-missed") ? missedId.slice(0, -"-missed".length) || null : null;
+}
+
+/** The one question for people who didn't come, beside the event's survey `surveyId`, or null when it has none. */
+export async function missedSurveyOf(db: Firestore, survey: Pick<EventSurveyDoc, "id" | "audience">): Promise<EventSurveyDoc | null> {
+  const snap = await db.collection(SURVEYS_COLLECTION).doc(missedSurveyId(survey.id)).get();
+  if (!snap.exists) return null;
+  const missed = normalizeSurvey(snap.id, snap.data() ?? {});
+  return isEventSurvey(missed) && missed.audience.kind === "event-missed" && missed.audience.eventId === survey.audience.eventId ? missed : null;
 }
 
 /**

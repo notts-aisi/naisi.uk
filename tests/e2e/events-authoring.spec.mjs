@@ -2,11 +2,13 @@
  * Events authoring, end to end, in a real browser: an event for chosen people.
  *
  * Sign in as the admin -> approve the two people of this journey -> Manage
- * events -> New event -> its basics and a description -> Who's it for: only
- * the invitee, by name -> send it for approval, approve it, publish it -> a
- * signed-out visitor and the events page see nothing of it -> the invitee
- * finds it on Home and asks for a place -> a member who was not invited is
- * told it is only for the people invited to it.
+ * events -> New event -> its basics and a description -> Survey after: on,
+ * the standard questions -> Who's it for: only the invitee, by name -> send
+ * it for approval, approve it, publish it -> its Survey after tab: the survey
+ * set up, changed to go only when sent -> a signed-out visitor and the events
+ * page see nothing of it -> the invitee finds it on Home and asks for a place
+ * -> a member who was not invited is told it is only for the people invited
+ * to it.
  *
  * ## How to run it
  *
@@ -154,6 +156,13 @@ test(
         await page.getByRole("button", { name: /Heading/ }).first().click();
         await page.getByPlaceholder("e.g. What's new this month").fill("A dinner for the people chosen");
 
+        // Survey after: on for a new event, the standard questions, and what
+        // publishing sets up. The step's own words (src/lib/surveys/events/after.ts).
+        await page.getByRole("button", { name: /Survey after/ }).first().click();
+        await page.getByText("Ask people how it went", { exact: true }).first().waitFor({ timeout: WAIT_MS });
+        await page.getByText("How was it?", { exact: true }).first().waitFor({ timeout: WAIT_MS });
+        await page.getByText("Publishing sets this up:", { exact: false }).first().waitFor({ timeout: WAIT_MS });
+
         // Who's it for: only the invitee, by name.
         await page.getByRole("button", { name: /Who’s it for/ }).first().click();
         await page.getByRole("radio", { name: /Only people you choose/ }).check();
@@ -185,6 +194,20 @@ test(
         const asked = confirms.at(-1) ?? "";
         assert.match(asked, /Publishing shows it on 1 person’s Home/);
         assert.match(asked, /It won’t be listed on the events page or announced\./);
+      });
+
+      await step("the admin finds the survey after it set up on the Survey after tab, and changes it to go only when sent", async () => {
+        // Publishing set it up from the step: a draft, emailing nobody, which
+        // goes by itself 12 hours after the event (or is set to, while the
+        // event-surveys job is off). The tab's Save changes it.
+        await page.goto(`${origin}/events/manage/${eventId}/survey`, { waitUntil: "domcontentloaded" });
+        await page.getByText(/set to go on|goes by itself on/).first().waitFor({ timeout: WAIT_MS });
+        await page.getByRole("radio", { name: /Only when you or an admin send it/ }).check();
+        await page.getByRole("button", { name: "Save", exact: true }).click();
+        await page.getByText("Saved.", { exact: true }).waitFor({ timeout: WAIT_MS });
+        await page
+          .getByText("It goes to everyone who came when its organisers or an admin send it from here.", { exact: false })
+          .waitFor({ timeout: WAIT_MS });
       });
 
       await step("a signed-out visitor is told it is only for the people invited, and the page's title names nothing", async () => {

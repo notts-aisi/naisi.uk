@@ -107,6 +107,7 @@ const {
   breakReturnMarker,
   decideMarkerClaim,
   eventAnnouncementMarker,
+  eventSurveyMarker,
   isStaleWork,
   markerFamilyOf,
   normalizeSchedulerMarker,
@@ -337,6 +338,7 @@ const FAMILY_SAMPLES = {
   evannounce: () => eventAnnouncementMarker("reading-group__b8c1d0e2", "email", "uid1"),
   regremind: () => registerReminderMarker("tuesdays-1800__aa11bb22", "w03", "uid1"),
   weekremind: () => weekReminderMarker("tuesdays-1800__aa11bb22", "w03", "uid1", 3),
+  evsurvey: () => eventSurveyMarker("Ab3dE5fG7hJ9kL1mN3pQ", "send"),
 };
 
 describe("marker ids", () => {
@@ -490,6 +492,14 @@ describe("marker ids", () => {
       uid: "uid1",
       daysBefore: "3",
     });
+
+    // A survey after an event's email and its one reminder are two markers,
+    // per survey: the email never silences the reminder.
+    const surveySend = eventSurveyMarker("Ab3dE5fG7hJ9kL1mN3pQ", "send");
+    const surveyRemind = eventSurveyMarker("Ab3dE5fG7hJ9kL1mN3pQ", "remind");
+    assert.equal(surveySend.id, "evsurvey__Ab3dE5fG7hJ9kL1mN3pQ__send");
+    assert.equal(surveyRemind.id, "evsurvey__Ab3dE5fG7hJ9kL1mN3pQ__remind");
+    assert.deepEqual(surveySend.fields, { surveyId: "Ab3dE5fG7hJ9kL1mN3pQ", step: "send" });
   });
 
   test("refuse a component Firestore would reject or that we compose ourselves", () => {
@@ -502,6 +512,8 @@ describe("marker ids", () => {
     assert.throws(() => unmarkedRegisterMarker("g1", "w03.1"), /sessionKey/);
     assert.throws(() => breakReturnMarker("", "g1", "20270201"), /runId/);
     assert.throws(() => unmarkedRegisterMarker("g/1", "w03"), /groupId/);
+    assert.throws(() => eventSurveyMarker("s/1", "send"), /surveyId/);
+    assert.throws(() => eventSurveyMarker("", "remind"), /surveyId/);
     // The worksheet reminder splits its three components the same way the
     // admissions one does: the circulation id is a slugId and keeps its
     // `__`, while the uid and the date key are ours to compose and must not

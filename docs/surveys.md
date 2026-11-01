@@ -39,7 +39,13 @@ questions somebody left blank, sent to them by an admin's press).
   every group's together, totals from three answers and comments from five,
   and a week's check-ins are fixed when it first shows: one opened for that
   week later never joins it. Facilitators see nothing else of any survey,
-  about themselves included.
+  about themselves included. **The other exception is the survey after an
+  event that its event sets up** (below): the event's author and
+  collaborators set it up in the event editor's Survey after step, change it
+  on the event's Survey after tab until it goes, and may send it sooner
+  there ("Send it now"); the `event-surveys` job sends it by itself. They see
+  what is set, that it went, when and to how many, never an answer, a count
+  of answers or who answered: its results stay admins' alone.
 - **Confidential, never anonymous.** Every survey on the site knows who answered.
   The confidential box at the top of every survey says so, in the words
   `src/lib/surveys/words.ts` keeps for it.
@@ -66,9 +72,12 @@ questions somebody left blank, sent to them by an admin's press).
   What they send through it is kept beside their first answers, never over
   them, and every reader merges the two through one function (see "Sending
   the questions left blank").
-- **No reminder goes on its own.** An admin presses Remind. No schedule sends
-  anything, and nothing sends the questions somebody left blank but an
-  admin's press for that one person.
+- **No reminder goes on its own**, but one. An admin presses Remind, and no
+  schedule sends anything, except the survey after an event that its event
+  set up: its Survey after step may ask for it to go by itself a number of
+  hours after the event, and for one reminder 3 days after it went, which
+  the `event-surveys` job sends (below). Nothing sends the questions
+  somebody left blank but an admin's press for that one person.
 - **No floors**, but on check-ins. Results show from the first answer (Zach,
   25 Oct 2026), and public numbers have no threshold either (Zach, 26 Oct
   2026): an admin chooses what is published, and every number says what it
@@ -103,7 +112,7 @@ is a server page or route. The rules blocks are deny-all.
 
 | Collection | One per | Holds |
 | --- | --- | --- |
-| `surveys/{autoId}` | survey | its stage (`before`, `after`, `followUp6`, `followUp12`, `leaving`, `event`, or `checkIn`), privacy (`confidential`), the admins' name, the title and intro people see, its items, about how many minutes, its audience (`{ kind: "programme", roundId, programmeId }`, or for a follow-up `{ kind: "followUps", roundId, programmeId, consentFrom }`, or for a check-in `{ kind: "checkIn", roundId, programmeId, groupId, sessionKey, weekNumber }`), the programme's short name and kind as they were when it was made, the run the programme named, the survey it pairs with (`pairOf`), an incubator's strand, a check-in's session as it was when it opened (`checkIn`: the group's name, when the session started and ended), when it closes, when it was closed by hand, the day names come off and when they did, when it was first sent, a record of each press of a send button (kind, time, how many), the last test of each email (who, when, the wording's fingerprint), the secret of its test link. A check-in's id is worked out from its session (`ci-` and a hash of the run, the group and the session), and it carries no `roundId` at its top |
+| `surveys/{autoId}` | survey | its stage (`before`, `after`, `followUp6`, `followUp12`, `leaving`, `event`, or `checkIn`), privacy (`confidential`), the admins' name, the title and intro people see, its items, about how many minutes, its audience (`{ kind: "programme", roundId, programmeId }`, or for a follow-up `{ kind: "followUps", roundId, programmeId, consentFrom }`, or for a check-in `{ kind: "checkIn", roundId, programmeId, groupId, sessionKey, weekNumber }`), the programme's short name and kind as they were when it was made, the run the programme named, the survey it pairs with (`pairOf`), an incubator's strand, a check-in's session as it was when it opened (`checkIn`: the group's name, when the session started and ended), when it closes, when it was closed by hand, the day names come off and when they did, when it was first sent, a record of each press of a send button (kind, time, how many), the last test of each email (who, when, the wording's fingerprint), the secret of its test link; for a survey after an event that its event set up, `auto` (when it goes by itself, its reminder, its QR code, the question for people who didn't come, and where the `event-surveys` job has got to). A check-in's id is worked out from its session (`ci-` and a hash of the run, the group and the session), and it carries no `roundId` at its top |
 | `surveyPeople/{surveyId}__{uid}` | person a survey is for | the survey and form, the person (`respondent: { kind: "account", uid }`), the secret in their personal link, the press that sent it, when it was sent and what became of it, when they were last reminded and how often, whether they have answered, what their consent boxes say (`consents`, `consentsAt`), and once an admin has sent them the questions they left blank, that link (`blanks`: its own secret, what became of its email, when it was used) and each press for it (`blanksPresses`: when, by whom, how many questions) |
 | `surveyAnswers/{autoId}` | person who answered | the survey and form, the person (`respondent`, null once names come off), the answers, when "Send my answers" was pressed (day and time), how (`link` or `signed-in`), and whether their group had met for the first time by then; and each later send of questions they had left blank (`fills`, oldest first: its answers, when, how, and whether the group had met by then), beside the first answers and never over them |
 
@@ -1445,8 +1454,10 @@ Event-only code lives in
 with `isEventSurvey` and hand it over.
 
 - **The record.** A `surveys` document with `kind: "event"`, `audience: { kind:
-  "event-came" | "event-signups", eventId }`, a top-level `eventId` (one
-  equality finds an event's survey; one survey per event) and `event: { title,
+  "event-came" | "event-signups" | "event-missed", eventId }`, a top-level
+  `eventId` (one equality finds an event's survey; one survey per event, and
+  beside it, at most, the one question for people who didn't come, which the
+  readers tell apart by its audience) and `event: { title,
   startAt, endAt }` as it was when made, so it stands without the event. The
   programme fields are empty. Its rows and answers are `surveyPeople` and
   `surveyAnswers` like every survey's, read and written by
@@ -1461,13 +1472,68 @@ with `isEventSurvey` and hand it over.
   the door's record's id; their row is `{surveyId}__g_{signupId}`. The
   programme code reads accounts only (`normalizeSurveyPerson`); the event code
   reads both (`normalizeEventPerson`).
-- **Made** from "After a social" (`events/template.ts`, five questions, about a
-  minute, fixed ids `q_ev_*`, every one required but "Anything we should
-  change?", which starts optional) for a published event that is coming up or no more
-  than a week over, with who it emails and a closing day no earlier than the
-  event's (`POST /api/surveys` with `template: "event"`). Names come off two
-  years after the event (`eventNamesOffOn`), by the `surveys-names-off` job as
-  for every survey.
+- **Set up by its event** (since November 2026; the rest of this list holds
+  for both ways of making one):
+  - *The editor's Survey after step* (between Sign-up and Who's it for):
+    "Ask people how it went", on for a new event (`newSurveyAfter` in
+    `src/lib/events/surveyAfter.ts`, written by `createEvent`); its questions,
+    the standard set to reword, move, remove and add to (choose one, pick any,
+    1 to 5, short or long answer), never retyping a standard one, and "Back to
+    the standard questions"; who gets it, everyone who came or everyone with a
+    place, and the one question instead for people with a place who weren't
+    checked in; when it goes, by itself 12 hours after the event ends, after
+    another number of whole hours from 1 to 96, or only when somebody sends
+    it; one reminder 3 days after it went; and whether its QR code shows on
+    the Check-in tab. Saved with the event, on `events/{id}.surveyAfter`. Only
+    a stored setting counts: an event made before the step has none, and
+    nothing reads a missing one as on.
+  - *Publishing sets it up* (`setUpEventSurvey` in `events/setUp.ts`, from the
+    publish route): the survey as an admin's is made, with the step's
+    questions and who, closing a week after the event (when a walk-in's
+    address goes) and carrying `auto` (when it goes, the reminder, the code,
+    the question about not coming, and `pending` while the job has work for
+    it). A draft until the event starts; nobody is emailed, and no code is
+    made yet. Best effort after the publish: a survey that could not be set up
+    says so in the publish's answer, and Save on the Survey after tab sets it
+    up again. Until it opens its words and days follow the event's name and
+    times (`refreshFromEvent`).
+  - *The `event-surveys` job* (ships switched off, like every job that emails;
+    while it is off the step and the tab say nothing goes by itself) reads the
+    surveys with `auto.pending` (one equality) and, from the event as it
+    stands: opens it at the event's start, making its code then; emails it
+    when it is due, signed by the event's author, "For NAISI", with the one
+    question beside it; and reminds once, 3 days after it went (by itself or
+    by hand), whoever it reached who hasn't answered. Each email and reminder
+    is claimed once per survey by a scheduler marker
+    (`evsurvey__{surveyId}__send|remind`) and keeps the survey's own claim, so
+    a tick racing "Send it now" sends once. More than a day late, nothing goes
+    by itself and the tab says so. A cancelled or deleted event sends nothing.
+  - *The one question for people who had a place and weren't checked in*
+    ("What stopped you coming?", `missedTemplateItems`): a survey of its own,
+    audience `event-missed`, id `{surveyId}-missed`, made as the survey's email
+    goes, with who = everyone who came, and only at an event whose door was
+    opened (otherwise nobody was checked in, and everybody with a place would
+    look as if they hadn't come). It closes and its names come off with the
+    survey beside it, and it is answered from its email alone.
+  - *"Send it now (21)"* on the event's Survey after tab, for the event's
+    author and collaborators while they stand and admins (`runsSurveyAfter`,
+    `POST /api/events/[id]/survey-after/send`), from the event's start until it
+    has gone, with the number it emails on the button, refused when that has
+    changed; no test first, the words being fixed and shown in the step.
+    "Send a test to me" (`.../survey-after/test`) is offered beside it. The
+    setting changes there too (`PATCH /api/events/[id]/survey-after`): its
+    questions until it opens, who and when until it goes, its reminder until
+    that has gone, the code at any time; switched off before it opens, the
+    draft goes.
+- **Made by an admin** from "After a social" (`events/template.ts`, the same
+  standard set: five questions, about a minute, fixed ids `q_ev_*`, every one
+  required but "Anything we should change?", which starts optional; "What
+  should we run next?" is a short answer, `q_ev_next_text`, since November
+  2026, and the pick-any `q_ev_next` stays on every survey made before it) for
+  a published event that is coming up or no more than a week over, with who it
+  emails and a closing day no earlier than the event's (`POST /api/surveys`
+  with `template: "event"`). Names come off two years after the event
+  (`eventNamesOffOn`), by the `surveys-names-off` job as for every survey.
 - **Opened, then emailed.** "Open it" on the Send tab (`POST
   /api/surveys/[surveyId]/open-at-event`, admins, emails nobody) opens it for
   its QR code at the event; the first email opens it too if nobody did. Either
@@ -1486,7 +1552,9 @@ with `isEventSurvey` and hand it over.
   downloaded through check-in's QR routes by admins and, while the survey
   takes answers, by the people who may draw the event's door code (admins and
   SU-recognised committee, `runsCheckIn`), who show it at the end of the event
-  from the event's Survey after tab (`surveyCodeAtEvent`, below). Its page
+  from the event's Check-in tab (`surveyCodeAtEvent`, below). A survey its
+  event set up makes its code when it opens, and shows it only where its step
+  left the code on. Its page
   (`events/codePage.ts`) is outside the route groups and never `notFound()`:
   signed in, somebody who signed up or came answers it (their row is made as
   they answer, `via: "signed-in"`); somebody who did neither is told so, with
@@ -1504,17 +1572,23 @@ with `isEventSurvey` and hand it over.
   (`ofAnswers`). Its download, on the Answers tab, is the programme table less
   the group's column, logged as `survey-answers` with scope `{ surveyId }`.
 - **The event's Survey after tab** (`/events/manage/[id]/survey`): everybody in
-  the events area reads that it went, who sent it and when, and who to ask for
-  the summary (`events/tab.ts`, which reads no answer and no row); admins read
-  the results there too. An event's organiser does not see its results.
-  The people who may draw the event's door code (`runsCheckIn`: admins and
-  SU-recognised committee) are shown the survey's QR code there while it takes
-  answers, with "Download PNG" and "Show full screen" and nothing else of the
-  survey's: not "Open it" (opening fixes its questions, an admin's act on the
-  Send tab), not its answers, not who answered. While it is a draft they read
-  "Its QR code shows here once an admin opens the survey." One function
-  decides it for the tab and for the image route: `surveyCodeAtEvent` in
-  `src/lib/surveys/events/code.ts`.
+  the events area reads what is set, that it went, who sent it (or that it
+  went by itself), when and to how many, and who to ask for the summary
+  (`events/tab.ts`, which reads no answer and no row); admins read the results
+  there too. An event's organiser does not see its results. Its
+  organisers (`runsSurveyAfter`) have the setting, "Send it now" and the test
+  there (`events/afterView.ts`, counts only).
+- **The code on the Check-in tab.** The people who may draw the event's door
+  code (`runsCheckIn`: admins and SU-recognised committee) are shown the
+  survey's QR code on the event's Check-in tab while it takes answers, with
+  "Download PNG" and "Show full screen" and nothing else of the survey's: not
+  "Open it" (opening fixes its questions, an admin's act on the Send tab, or
+  the job's at the event's start), not its answers, not who answered. While it
+  is a draft they read when it shows: "Its QR code shows here once an admin
+  opens the survey." for an admin's, and for one its event set up, that it
+  shows when the event starts (or, while the job is off, once it opens). One
+  function decides it for the tab and for the image route:
+  `surveyCodeAtEvent` in `src/lib/surveys/events/code.ts`.
 - **A walk-in's email** goes at the earlier of the survey's close and a week
   after the event: `walkInEmailGoesAt(event, surveyClosesAt)`, kept on
   the check-in record and moved by `setWalkInEmailDeadlines` whenever the
@@ -1526,8 +1600,11 @@ with `isEventSurvey` and hand it over.
   after the event. An event deleted leaves its survey, as a form's destroy
   leaves a programme's: the survey keeps the event's name and day.
 - Guards: `tests/surveys-events.test.mjs` (every route and page as every kind of
-  caller), and the policy's "survey after an event" block in
-  `tests/privacy-policy.test.mjs`.
+  caller), `tests/event-survey-after.test.mjs` (the step's setting, publishing
+  setting it up, the job on time, late, by hand only and for an event published
+  before, the question about not coming, Send it now and the setting's locks,
+  the tabs, each as every kind of caller), and the policy's "survey after an
+  event" block in `tests/privacy-policy.test.mjs`.
 
 ## This term in numbers
 
