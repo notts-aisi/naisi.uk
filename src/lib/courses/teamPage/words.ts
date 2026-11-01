@@ -16,9 +16,9 @@ import { clockWords, dayWords, namesWords } from "@/lib/courses/sessionChange/wo
  * One change to a drawn line, on purpose: in-team's "Zach and your team see
  * this." names admins too, because the privacy policy says the page names
  * everybody who reads what is written there ("the team, the programme's lead
- * and admins"). And the team's weekly entry the boards call a "check-in" is
- * an UPDATE here ("This week’s update", "Save update"), as the privacy
- * policy calls it: "the check-in" is the survey at the end of a session
+ * and admins"). And the team's weekly entry is an UPDATE in every word a
+ * person reads ("This week’s update", "Save update"), as the privacy policy
+ * calls it: "the check-in" is the survey at the end of a session
  * (`src/lib/surveys/checkIns/`). The stored kind stays `check-in`.
  *
  * Pure, with no server import, so a page's client code can read them.
