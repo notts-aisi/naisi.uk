@@ -4622,11 +4622,12 @@ export const PAGES = {
       "there, or a caller the gate does not admit, is given the same one calm sentence.",
   },
   "/(app)/learn/[runId]/weeks/[n]/feedback": {
-    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    expect: everyone(["learn", "run"], { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
     why:
       "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
-      "missing. The page itself reads nothing: it sends whoever the layout admits to the week's own " +
-      "page, at its Feedback, which keeps its own gate.",
+      "missing. The page itself reads nothing and renders beside the layout: a week number it cannot " +
+      "read (the battery's) sends to the run's home, any other to the week's own page at its Feedback, " +
+      "which keeps its own gate. Both redirects can be in the stream, so either is accepted.",
   },
   "/(app)/learn/draw/[groupId]": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
@@ -6455,6 +6456,13 @@ export const REAL_PAGES = {
     admin: c("week", "The old feedback page reads nothing: whoever the run layout admits is sent to the week's page, at its Feedback."),
     facilitator: c("week", "The old feedback page reads nothing: sent to the week's page, at its Feedback, which keeps its own gate."),
     participant: c("week", "The old feedback page reads nothing: sent to the week's page, at its Feedback, which keeps its own gate."),
+    refused: ["learn", "week"],
+    why:
+      "Holds no role on this run, so the run layout sends them to /learn; the old feedback page beside it reads nothing " +
+      "and sends everybody on to the week's page, so either is accepted, and the week's page keeps its own gate.",
+    leadWhy:
+      "The run layout does not admit a programme's lead, so it sends the lead to /learn; the old feedback page beside it " +
+      "sends everybody on to the week's page, which refuses the lead in turn, so either is accepted.",
   }),
 
   // ---- Course-scoped, group-scoped and ask-scoped pages under /learn --------------
