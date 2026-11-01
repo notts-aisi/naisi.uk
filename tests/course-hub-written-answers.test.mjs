@@ -928,7 +928,10 @@ describe("4. the pages, as the boards draw them", () => {
       "Write feedback",
     ]);
     assert.match(group.html, /href="\/learn\/[^"]+\/group\/[^"]+\/written\?week=2&amp;person=chloe"/);
-    assert.doesNotMatch(group.text.slice(group.text.indexOf("Feedback to write"), group.text.indexOf("Feedback to write") + 400), /\bRahul\b/);
+    // The card lists the group's fellows and never Rahul's own answer, which is the lead's and admins' to read.
+    const toWrite = group.text.slice(group.text.indexOf("Feedback to write"), group.text.indexOf("Feedback to write") + 400);
+    assert.match(toWrite, /Chloe Nguyen/, "the slice is the card");
+    assert.doesNotMatch(toWrite, /\bRahul\b/);
     // The summer's card stays for the summer's answers still waiting, and holds no written answer.
     const summer = group.text.slice(group.text.indexOf("To review"));
     assert.match(summer, /^To review 1 CN Chloe Nguyen · Week 1 exercise/);
