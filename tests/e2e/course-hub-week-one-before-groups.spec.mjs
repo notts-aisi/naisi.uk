@@ -543,7 +543,7 @@ test(
     const startHerePath = `${programmePath}/start-here`;
     const glossaryPath = `${programmePath}/glossary`;
     const overviewPath = `/api/courses/runs/${enc(state.runId)}/overview`;
-    const tickPath = (itemId) => `/api/courses/runs/${enc(state.runId)}/week-one/ticks/${enc(itemId)}`;
+    const tickPath = (itemId) => `/api/courses/runs/${enc(state.runId)}/ticks/${enc(itemId)}`;
     const reflectionPath = (promptId) => `/api/courses/runs/${enc(state.runId)}/reflections/${enc(promptId)}`;
     const applicationUrl = `${origin}/applications/${enc(state.formId)}`;
     const freeHref = `/applications/${enc(state.formId)}#when-youre-free`;
@@ -749,7 +749,7 @@ test(
       }
       const overview = await fetchAs(pg, overviewPath);
       assert.equal(overview.status, 403, `week 1's data answered ${person.first} ${overview.status}: ${JSON.stringify(overview.body)}`);
-      const tick = await fetchAs(pg, tickPath(sourceId), putJson({ completed: true }));
+      const tick = await fetchAs(pg, tickPath(sourceId), putJson({ weekId: weekDocId(1), completed: true }));
       assert.deepEqual([tick.status, tick.body?.error], [403, REFUSED.tick], `${person.first}'s tick was not refused in its words`);
       const box = await fetchAs(pg, reflectionPath(promptId), putJson({ weekId: weekDocId(1), text: "Let me in." }));
       assert.deepEqual(
@@ -1270,9 +1270,9 @@ test(
           assert.equal(await tick.isChecked(), false, "a source is ticked before Ada ticked it");
           await adaPage.getByText(READERS.ticks, { exact: true }).waitFor({ timeout: WAIT_MS });
 
-          // The tick goes through week 1's door: her own row, written by the server.
+          // The tick goes through the tick route, which asks week 1's door: her own row, written by the server.
           const [ticked] = await Promise.all([responseTo(adaPage, tickPath(source.id), "PUT"), tick.check()]);
-          assert.deepEqual(ticked.request().postDataJSON(), { completed: true }, "the tick sent something else");
+          assert.deepEqual(ticked.request().postDataJSON(), { weekId: weekDocId(1), completed: true }, "the tick sent something else");
           assert.deepEqual(
             await okBody(ticked, "Ada's tick"),
             { ok: true, itemId: source.id, completed: true },

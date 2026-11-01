@@ -281,10 +281,10 @@ export async function loadWrittenReview(
   // Only an answer its readers may read is given feedback on or opened here.
   const toGive = all.filter((person) => person.readable && person.words > 0 && person.state !== "feedback").sort(bySent);
   const feedbackSent = all.filter((person) => person.readable && person.state === "feedback").sort(bySent);
-  const given = new Set([...toGive, ...feedbackSent].map((person) => person.uid));
+  const opened = new Set([...toGive, ...feedbackSent].map((person) => person.uid));
   const started = (person: ReviewPerson) => person.state !== "not-started";
   const notSent = all
-    .filter((person) => !given.has(person.uid))
+    .filter((person) => !opened.has(person.uid))
     .sort((a, b) => (started(a) === started(b) ? a.name.localeCompare(b.name) : started(a) ? -1 : 1));
 
   // Who is open on the page: the one asked for, if the reader may review

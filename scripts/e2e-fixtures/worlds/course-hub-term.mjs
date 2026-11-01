@@ -2270,6 +2270,9 @@ export async function countTerm(state) {
   counts.courseExerciseResponses = (
     await fixtureQuery("courseExerciseResponses").where("runId", "==", runId).get()
   ).size;
+  // The week you submit: a submitted or reopened week, and the log every tick, box, submit and reopen writes.
+  counts.courseWeekWork = (await fixtureQuery("courseWeekWork").where("runId", "==", runId).get()).size;
+  counts.courseWorkLog = (await fixtureQuery("courseWorkLog").where("runId", "==", runId).get()).size;
   counts.weeks = (await fixtureSubcollection("courseRuns", runId, "weeks").get()).size;
   counts.tasks = (await fixtureQuery("tasks").where("sourceRef.cohortId", "==", runId).get()).size;
   counts.subscriptions = (
@@ -2386,6 +2389,9 @@ export async function teardownTerm(state) {
   await deleteQuery(fixtureQuery("courseProgress").where("runId", "==", runId));
   // The seventh point's: the reflection boxes written in on a week page.
   await deleteQuery(fixtureQuery("courseExerciseResponses").where("runId", "==", runId));
+  // The week you submit's rows, written by the routes a spec drives.
+  await deleteQuery(fixtureQuery("courseWeekWork").where("runId", "==", runId));
+  await deleteQuery(fixtureQuery("courseWorkLog").where("runId", "==", runId));
   await deleteQuery(fixtureQuery("tasks").where("sourceRef.cohortId", "==", runId));
   // The second point's: registers and updates (seeded and posted alike), the
   // download log's row, the updates route's counters, Remind's markers.

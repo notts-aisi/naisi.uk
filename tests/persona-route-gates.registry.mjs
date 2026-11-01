@@ -2645,13 +2645,32 @@ export const ROUTES = {
         "admin meets the week address check.",
     },
   },
-  "/api/courses/runs/[runId]/week-one/ticks/[itemId]": {
+  "/api/courses/runs/[runId]/ticks/[itemId]": {
     PUT: {
       expect: signedIn(400),
       why:
-        "Ticking week 1 off before groups go out: view-as is refused first, then the session, then the " +
-        "body is checked before anything is read, so every signed-in persona meets the same 400 on an " +
-        "empty one. Once a valid body arrives, week 1's door decides, and it opens for nobody here.",
+        "Ticking a week's item off, the one way every tick is written: view-as is refused first, then the " +
+        "session, then the body is checked before anything is read (which week, and whether it is done), so " +
+        "every signed-in persona meets the same 400 on an empty one. Once a valid body arrives the caller's " +
+        "own seat, a group they facilitate, or week 1's door decides, and none of them is here.",
+    },
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/submit": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Submitting one's own week: view-as is refused first, then the session, then the body is checked " +
+        "before anything is read (it must say to submit), so every signed-in persona meets the same 400 on " +
+        "an empty one. Once a valid body arrives the caller's own seat decides.",
+    },
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/reopen": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "Reopening somebody's week: view-as is refused first, then the session, then the body is checked " +
+        "before anything is read (whose week), so every signed-in persona meets the same 400 on an empty " +
+        "one. The one gate on whose work a reader may act on is asked once a valid body arrives.",
     },
   },
   "/api/courses/runs/[runId]/weeks/[weekId]/ready": {
@@ -5980,8 +5999,14 @@ export const REAL_ROUTES = {
     POST: leadOrAdmin("Reading a pasted week", c(400, "Admitted, then the body is checked: no Markdown.")),
     PUT: leadOrAdmin("Saving a pasted week", c(400, "Admitted, then the body is checked: no Markdown.")),
   },
-  "/api/courses/runs/[runId]/week-one/ticks/[itemId]": {
-    PUT: bodyFirst("Then week 1's door, which opens only to somebody holding a place before groups go out."),
+  "/api/courses/runs/[runId]/ticks/[itemId]": {
+    PUT: seatWrite("ticking a week's item", { weekId: "w01", completed: false }),
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/submit": {
+    POST: seatWrite("submitting their own week", { submit: true }),
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/reopen": {
+    POST: bodyFirst("Then the one gate on whose work it is, asked before anything of theirs is read."),
   },
   "/api/courses/runs/[runId]/weeks/[weekId]/ready": {
     PUT: {

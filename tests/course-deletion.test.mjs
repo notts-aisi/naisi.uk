@@ -333,6 +333,12 @@ const RUN_COUNT_KEYS = [
   // talks (plan item 8). Keyed by `runId`, added to the manifest in the same
   // change that gave the cascade a stage for it, as groupSharedNotes was.
   "packsAndCases",
+  // `courseWeekWork` and `courseWorkLog`, where each person's week stands
+  // and what they did to it and when (the week you submit). Keyed by `runId`,
+  // added to the manifest in the same change that gave the cascade a stage
+  // for each, as packsAndCases was.
+  "weekWork",
+  "workLog",
   // `coursePairs`, who was paired with whom for a session in pairs and who
   // was bringing a laptop. Keyed by `runId`, added to the manifest in the same
   // change that gave the cascade a stage for it, as packsAndCases was.
@@ -423,22 +429,22 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   const counts = Object.fromEntries(
     [...RUN_COUNT_KEYS, ...COURSE_COUNT_KEYS].map((k) => [k, 10]),
   );
-  // Forty counters at ten rows each: thirty-five that die,
+  // Forty-two counters at ten rows each: thirty-seven that die,
   // `materialNotes`, `auditRows`, `schedulerMarkers`, the V3 `coursePages`,
   // the V3 W2 `registerTasks`, the course hub's `pitches`, `updates`,
   // `groupNotes`, `groupSharedNotes`, `sessionReports`, `placementNotes`, v13's `bestAnswers`
-  // and `pangramChecks`, `packsAndCases`,
-  // `pairs`, `teams`,
+  // and `pangramChecks`, `packsAndCases`, the week you submit's `weekWork`
+  // and `workLog`, `pairs`, `teams`,
   // `teamEntries`, `finishing`, `facilitating`, `ratings`, `certificates`,
   // `anonymousFeedback`, `predictions` and `recordOpenings`, and the course's
   // `facilitatorGuide` among them, plus the five survivors
   // (`admissionSeatOffers` is released, `dataExportRows` is retained,
   // `certificatesKept` stays without its run).
-  assert.equal(sumCounts(counts), 400);
+  assert.equal(sumCounts(counts), 420);
   // The progress denominator counts only what actually dies, so a large
   // retained counter cannot inflate it into a bar that never fills. Adding a
   // survivor must not move this number; adding a DESTROYED counter must.
-  assert.equal(destroyedTotal(counts), 350);
+  assert.equal(destroyedTotal(counts), 370);
 });
 
 test("MODEL — every key the cascade can report has copy, including the ones the manifest never shows", () => {
@@ -664,6 +670,10 @@ test("MODEL — the cascade's declared stage order is the one the contract needs
     // What each person had in the weeks' packs and talks: a run-keyed leaf,
     // every record names a block of a week, so it goes before the weeks.
     "packsAndCases",
+    // Where each person's week stands, and what they did to it: run-keyed
+    // leaves, every record names a week, so they go before the weeks.
+    "weekWork",
+    "workLog",
     // Who was paired with whom for a session in pairs: a run-keyed leaf,
     // every record names a group and a block of a week, so it goes before both.
     "pairs",

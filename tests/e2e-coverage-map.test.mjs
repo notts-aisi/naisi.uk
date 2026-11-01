@@ -1261,15 +1261,27 @@ const NOT_COVERED = {
     coverWhen:
       "When a browser spec signs in as a programme's lead on the Weeks tab, holds a week online and a member of a group opens its join link on the programme page.",
   },
+  "/api/courses/runs/[runId]/weeks/[weekId]/submit": {
+    reason:
+      "Course hub: submitting one's own week, which locks it and sends its written answer to its readers (the week you submit); who may, the week that asks for nothing written, the word limit, the stamps and the log are executed by tests/course-week-work.test.mjs.",
+    coverWhen:
+      "When the fellowships' first week written as blocks is submitted on the site by people taking part, and a browser spec then drives a member through the check and Submit anyway.",
+  },
+  "/api/courses/runs/[runId]/weeks/[weekId]/reopen": {
+    reason:
+      "Course hub: reopening one person's submitted or locked week, for the people running their group (the week you submit); every caller, the week that is not locked, the cleared answer lock and the log are executed by tests/course-week-work.test.mjs.",
+    coverWhen:
+      "When the first facilitator reopens a week for somebody on the site, and a browser spec then drives a facilitator's Reopen and the member's resubmit.",
+  },
   "/api/courses/runs/[runId]/written-answers/[answerId]": {
     reason:
-      "Course hub: a written answer on a week written as blocks, saved as the person types and sent once (wk-week, wk-week-phone); who writes, the first-sent time, the limit, the boxes and the lock are executed by tests/course-hub-written-answers.test.mjs.",
+      "Course hub: a written answer on a week written as blocks, saved as the person types and sent by submitting its week (wk-week, wk-week-phone); who writes, the limit, the boxes and the week's lock are executed by tests/course-hub-written-answers.test.mjs.",
     coverWhen:
-      "When a browser spec signs in a member of a group Publish has told, opens a week with a written answer, writes, sends, reloads and reads it back as sent.",
+      "When a browser spec signs in a member of a group Publish has told, opens a week with a written answer, writes, submits the week, reloads and reads it back as submitted.",
   },
   "/api/courses/runs/[runId]/written-answers/[answerId]/review": {
     reason:
-      "Course hub: opening, reopening and feedback on a written answer by the rubric, with the one email that it is waiting (wk-review); every caller, the lock, Late and the email are executed by tests/course-hub-written-answers.test.mjs.",
+      "Course hub: feedback on a written answer its readers may read, by the rubric, with the one email that it is waiting (wk-review); every caller, the reading gate, Late and the email are executed by tests/course-hub-written-answers.test.mjs.",
     coverWhen:
       "When a browser spec signs in as a group's facilitator, opens a sent answer, gives feedback by the rubric, " +
         "and the member reads it on the feedback page.",

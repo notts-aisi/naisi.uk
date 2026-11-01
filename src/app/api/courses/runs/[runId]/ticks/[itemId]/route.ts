@@ -77,6 +77,8 @@ const MAX_WEEK_NUMBER = 60;
 const MAX_GROUPS = 50;
 
 const NOT_YOURS = "Only somebody taking part in this programme can tick its weeks.";
+/** Week 1, to somebody its door is not open to (a holder who gave their place back, say). */
+const WEEK_ONE_NOT_YOURS = "Week 1 isn’t open to you yet.";
 
 export type TickAnswer = { ok: true; itemId: string; completed: boolean };
 
@@ -142,7 +144,7 @@ export async function PUT(req: Request, ctx: Params) {
   // Week 1 before groups go out (Q35 B): through week 1's door, and in no other week.
   const beforeGroups = !seated && facilitates.length === 0 && weekNumber === 1 && (await weekOneDoorFor(db, actor, runId)).open;
   if (!seated && facilitates.length === 0 && !beforeGroups) {
-    return NextResponse.json({ error: NOT_YOURS }, { status: 403 });
+    return NextResponse.json({ error: weekNumber === 1 ? WEEK_ONE_NOT_YOURS : NOT_YOURS }, { status: 403 });
   }
 
   // ---- What: a source or checklist item of the week as they read it --------

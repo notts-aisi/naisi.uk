@@ -374,6 +374,14 @@ export const FIXTURE_COLLECTIONS = [
   // route, by somebody holding a place on week 1 before groups go out too.
   // Written by nothing a fixture seeds.
   "courseExerciseResponses",
+  // The week you submit: where a person's week stands once they submit it or
+  // somebody reopens it (`courseWeekWork`), and the log of every tick, first
+  // save of a writing spell, emptied box, submit and reopen
+  // (`courseWorkLog`), each with `runId` on it. Written by the routes a spec
+  // drives (a tick, a box, the written answer, Submit, Reopen), and by
+  // nothing a fixture seeds.
+  "courseWeekWork",
+  "courseWorkLog",
   // What Claude picked from a week and what Pangram read in a person's
   // answers (privacy v13), each with `runId` on it. Written by the best
   // answers and Pangram routes a spec presses, and by nothing a fixture seeds.

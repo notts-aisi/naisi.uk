@@ -131,6 +131,18 @@ const READERS = {
       "items a paste would take out, reflections included, because a reflection is an answer somebody gave; the lead " +
       "or an admin, or a group's facilitator, is shown the count, never a row",
   },
+  "app/api/courses/runs/[runId]/weeks/[weekId]/submit/route.ts": {
+    treats: "tells",
+    why: "submitting a week stamps when each of its written answers was first sent: a reflection's or a fill-in box's row is never stamped",
+  },
+  "app/api/courses/runs/[runId]/weeks/[weekId]/reopen/route.ts": {
+    treats: "tells",
+    why: "reopening a week clears the lock an opened written answer kept: a reflection's row is never touched",
+  },
+  "lib/courses/weekWork/readers.ts": {
+    treats: "tells",
+    why: "how far each person has got with a week: which boxes hold something and which written answers are sent, by who and which item, never a word",
+  },
   "app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts": {
     treats: "tells",
     why: "the written answer's writer: it refuses to write over a reflection's row, or any row not counted in words",
