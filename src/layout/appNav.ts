@@ -41,7 +41,7 @@ export type NavRule =
   | "courseAdmin"
   | "membershipAdmin";
 
-export type AdminSectionId = "people" | "programmes" | "publicity" | "surveys" | "site";
+export type AdminSectionId = "people" | "programmes" | "publicity" | "surveys" | "reports" | "site";
 
 export type NavEntry = {
   label: string;
@@ -99,6 +99,9 @@ export const APP_NAV: NavGroup[] = [
       { label: "Worksheets", href: "/worksheets", rule: "committeeAndUp" },
       // Only admins make, send and read surveys (docs/surveys.md).
       { label: "Surveys", href: "/admin/surveys", rule: "adminOnly", section: "surveys" },
+      // This term in numbers, Public numbers and Kairos: admins' reading of
+      // the term's records, which were buttons on the Surveys page's head.
+      { label: "Reports", href: "/admin/reports", rule: "adminOnly", section: "reports" },
     ],
   },
   {
@@ -191,8 +194,18 @@ const ADMISSIONS = (a: AdminTabAccess) => a.isAdmin || a.canAuthorRounds || a.is
 
 /** This address or one beneath it. Never a bare prefix: see Accounts below. */
 const under = (href: string) => (p: string) => p === href || p.startsWith(`${href}/`);
-/** The same, leaving out one address beneath it that is a page of its own. */
-const underBut = (href: string, not: string) => (p: string) => under(href)(p) && !under(not)(p);
+/** The same, leaving out addresses beneath it that belong to another page. */
+const underBut =
+  (href: string, ...not: string[]) =>
+  (p: string) =>
+    under(href)(p) && !not.some((each) => under(each)(p));
+
+/**
+ * The three reports Run NAISI › Reports holds. Each kept the address it had
+ * when it was a button on the Surveys page's head, so the Surveys page leaves
+ * them out and Reports takes them in.
+ */
+const REPORT_ADDRESSES = ["/admin/surveys/term", "/admin/surveys/public-numbers", "/admin/surveys/kairos"];
 
 /**
  * The admin area's pages, grouped as the sidebar reaches them.
@@ -201,7 +214,8 @@ const underBut = (href: string, not: string) => (p: string) => under(href)(p) &&
  * the old flat strip was sorted into four sections, with two pages that used
  * to be reached from inside another page given a place of their own (the
  * application forms, and what the public /links page says). Surveys came
- * later, as a section of one page.
+ * later, as a section of one page, and Reports after it, a section of one
+ * page that also holds the three reports beneath Surveys' address.
  *
  * Every admin address belongs to exactly ONE page here. Where one page's
  * address sits beneath another's (the application forms beneath the older
@@ -250,7 +264,20 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     id: "surveys",
     label: "Surveys",
     pages: [
-      { label: "Surveys", href: "/admin/surveys", match: under("/admin/surveys"), visible: ADMIN_ONLY, ownHead: true },
+      { label: "Surveys", href: "/admin/surveys", match: underBut("/admin/surveys", ...REPORT_ADDRESSES), visible: ADMIN_ONLY, ownHead: true },
+    ],
+  },
+  {
+    id: "reports",
+    label: "Reports",
+    pages: [
+      {
+        label: "Reports",
+        href: "/admin/reports",
+        match: (p) => under("/admin/reports")(p) || REPORT_ADDRESSES.some((each) => under(each)(p)),
+        visible: ADMIN_ONLY,
+        ownHead: true,
+      },
     ],
   },
   {
@@ -293,18 +320,22 @@ export function isAtOrUnder(pathname: string, href: string): boolean {
  *
  * An entry whose own address holds the page wins, the longest address first,
  * so "Courses" beats "Programmes" on a course page for somebody shown both.
- * Failing that, the first entry that is a way into the page's admin section,
- * so "People" is lit on Join requests (`/admin`) and "Settings" on Email
- * delivery. Null when nothing the person is shown leads here.
+ * An entry that is the way into an admin section holds only that section's
+ * addresses, so "Surveys" is not lit on the reports beneath its address,
+ * which belong to Reports. Failing that, the first entry that is a way into
+ * the page's admin section, so "People" is lit on Join requests (`/admin`),
+ * "Settings" on Email delivery and "Reports" on This term in numbers. Null
+ * when nothing the person is shown leads here.
  */
 export function currentEntry(entries: NavEntry[], pathname: string): NavEntry | null {
+  const section = adminSectionFor(pathname);
   let best: NavEntry | null = null;
   for (const entry of entries) {
     if (!isAtOrUnder(pathname, entry.href)) continue;
+    if (entry.section && section && entry.section !== section.id) continue;
     if (!best || entry.href.length > best.href.length) best = entry;
   }
   if (best) return best;
-  const section = adminSectionFor(pathname);
   if (!section) return null;
   return entries.find((entry) => entry.section === section.id) ?? null;
 }

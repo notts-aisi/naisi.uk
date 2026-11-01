@@ -1,0 +1,284 @@
+/*
+  Run NAISI › Surveys, by what each survey is for: two tabs, then a card per
+  programme (or one card of surveys after events), each a list of rows.
+
+  Desktop first. A row is four cells across, its name, its line, its chip and
+  its ways in, lined up down the card so the chips form a column. On a phone
+  the name and the chip share a line and the rest goes under them. Every way
+  in is at least 44px tall, the check-ins' whole row included.
+*/
+
+.hub {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.tabs {
+  margin-bottom: calc(-1 * var(--space-2));
+}
+
+.confidential {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.card {
+  min-width: 0;
+  padding: var(--space-4) var(--space-5) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+  padding-bottom: var(--space-3);
+}
+
+.cardTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.cardTerm {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  border-top: 1px solid var(--color-border);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1fr) minmax(0, 1.7fr) 8.5rem minmax(5.5rem, auto);
+  grid-template-areas: "name line chip actions";
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  min-height: 3.25rem;
+  padding: var(--space-1) 0;
+}
+
+.name {
+  grid-area: name;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.line {
+  grid-area: line;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.chip {
+  grid-area: chip;
+  display: flex;
+  min-width: 0;
+}
+
+.actions {
+  grid-area: actions;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2) var(--space-3);
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-accent-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.action:hover {
+  text-decoration: underline;
+}
+
+.remind {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.remindButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.remindNote {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.action:focus-visible,
+.remindButton:focus-visible,
+.checkInLink:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* --- the check-ins' row, which opens its list in place ----------------- */
+
+.summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary:focus-visible {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.seeThem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  padding: 0 var(--space-2);
+  color: var(--color-accent-text);
+  font-weight: 600;
+}
+
+/* A chevron drawn with two borders: right while closed, down once open. */
+.seeThem::after {
+  content: "";
+  width: 0.4rem;
+  height: 0.4rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+}
+
+.more[open] .seeThem::after {
+  transform: rotate(45deg);
+}
+
+.checkIns {
+  margin: 0 0 var(--space-3) var(--space-2);
+  padding-left: var(--space-4);
+  border-left: 2px solid var(--color-border);
+}
+
+.checkInRows {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checkInRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.checkInLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  border-radius: var(--radius-sm);
+  color: var(--color-accent-text);
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.checkInLink:hover {
+  text-decoration: underline;
+}
+
+.muted {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-5);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-muted);
+}
+
+.card > .muted {
+  padding-bottom: var(--space-3);
+}
+
+/* === Mobile === */
+@media (max-width: 48rem) { /* --bp-md */
+  .card {
+    padding: var(--space-3) var(--space-4) var(--space-1);
+  }
+
+  /* The name and the chip on one line, the line under them, then the ways in. */
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name chip"
+      "line line"
+      "actions actions";
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-3) 0 var(--space-1);
+  }
+
+  .actions {
+    justify-content: flex-start;
+  }
+
+  .action {
+    padding: 0;
+    justify-content: flex-start;
+  }
+
+  .checkIns {
+    margin-left: 0;
+    padding-left: var(--space-3);
+  }
+}
