@@ -24,7 +24,7 @@ function dayClock(at: Date): string {
 
 export const RATING_FOR_THE_TEAM = "Rating for the team";
 /** Who reads a rating: the chip beside the card's title. */
-export const WHO_READS_RATINGS = "Admins and the programme’s lead";
+export const WHO_READS_RATINGS = "Admins and the programme’s lead only";
 export const YOUR_RATING = "Your rating";
 export const RATING_SCALE_LINE = "Out of 10: 1 is weak, 10 is exceptional.";
 export const COMMENT_FOR_THE_TEAM = "Comment for the team";
