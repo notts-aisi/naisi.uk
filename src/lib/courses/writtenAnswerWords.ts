@@ -41,7 +41,7 @@ export function namesOr(names: readonly string[]): string {
   return `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}`;
 }
 
-/** "Mon 16 Nov, 10:42pm", an instant as the review page and the feedback page date it. */
+/** "Mon 16 Nov, 10:42pm", an instant as the review page dates it. */
 export function dayAndClockWords(at: Date): string {
   return `${londonDayLabel(at)}, ${londonClockLabel(at)}`;
 }

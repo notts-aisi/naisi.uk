@@ -151,7 +151,7 @@ export type CourseworkCell = {
   reflections: { written: number; of: number } | null;
   /** Sources ticked, of the week's ticked sources; null for a week with none. */
   ticks: { ticked: number; of: number } | null;
-  /** The written answer's state and the feedback page for it; null for a week with none. */
+  /** The written answer's state and its review page; null for a week with none. */
   answer: { state: CellAnswerState; href: string | null } | null;
   /** Boxes filled in, of the week's boxes; null for a week with none. */
   boxes: { filled: number; of: number } | null;
@@ -298,7 +298,7 @@ export function courseworkSections(input: {
   weekOf: (groupId: string | null, weekNumber: number) => CourseworkWeek | null;
   /** The person's page, without a week. */
   personHref: (uid: string) => string;
-  /** The feedback page for a person's answer in a week, or null where there is none to open. */
+  /** The review page for a person's answer in a week, or null where there is none to open. */
   writtenHref: (person: CourseworkPerson, weekNumber: number) => string | null;
   /** Whether a person's week is submitted (`loadRunWeekStates`). */
   submittedOf: (uid: string, weekNumber: number) => boolean;

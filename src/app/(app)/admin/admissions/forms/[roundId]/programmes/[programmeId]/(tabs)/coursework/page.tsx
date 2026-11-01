@@ -15,7 +15,8 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * blocks; a cell that leads with whether the week is done, by the one
  * meaning of done every page uses, then counts, never anybody's words. A
  * name opens the person's page (`../../coursework/[uid]`, a screen of its
- * own), and the written answer in a cell opens the existing feedback page.
+ * own), and the written answer in a cell opens its review page, where feedback
+ * on it is written.
  *
  * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`loadCourseworkTab`, through
  * `loadProgrammeRun`), decided from the form before the run is read. A

@@ -221,7 +221,7 @@ function programmePathOf(view: ProgrammeRunView): string {
   return `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}`;
 }
 
-/** The feedback page for one person's answer in one week: a person in a group this viewer sees, or a facilitator's own. */
+/** The review page for one person's answer in one week, where feedback on it is written: a person in a group this viewer sees, or a facilitator's own. */
 function writtenHrefOf(programmePath: string, person: Pick<CourseworkPerson, "uid" | "groupId">, weekNumber: number): string | null {
   if (!person.groupId) return null;
   return `${programmePath}/written?group=${encodeURIComponent(person.groupId)}&week=${weekNumber}&person=${encodeURIComponent(person.uid)}`;
