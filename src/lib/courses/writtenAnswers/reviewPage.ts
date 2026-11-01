@@ -339,7 +339,7 @@ export async function loadWrittenReview(
     const record = records.get(chosen.uid) ?? null;
     const owner = people.find((candidate) => candidate.uid === chosen.uid) as OwnerFacts;
     const role = writtenReviewRole(actor, facts, owner, liveGroups);
-    const names = { firstName: (uid: string) => firstName.get(uid) ?? "", fullName: (uid: string) => fullName.get(uid) ?? "" };
+    const names = { firstName: (uid: string) => firstName.get(uid) ?? "", goByName: (uid: string) => fullName.get(uid) ?? "" };
     const reader = { uid: actor.uid, isAdmin: facts.isAdmin, now };
     const cards = byOldest([
       ...(record?.feedback

@@ -23,6 +23,16 @@ import type { GivenLevel } from "../rubric";
  * plain lines, since the person was emailed about them and has read them.
  * Being emailed, it is never in a batch.
  *
+ * WHICH NAME SIGNS A PIECE: the name its writer goes by, for every reader.
+ * Privacy v15 says only the committee sees a full name and everyone else
+ * the name you go by, and the person a piece is about is everyone else. The
+ * signature is the first word of it ("Feedback from Rahul"), as the member
+ * area names people; the chip's initials come from the whole of it, so no
+ * initial is taken from a full name. The people running the group read each
+ * piece signed as the person reads it, beside course screens that name
+ * people the same way (`fullNameOfUser`); a piece never reads one way to the
+ * person and another to the people running their group.
+ *
  * Pure: no reads, no clock. The pages in the browser import it.
  */
 
@@ -43,9 +53,9 @@ export type OwnFeedbackCard = {
   /** The first name the writer goes by, or "" when no account is on record. */
   byName: string;
   /**
-   * The chip beside a facilitator's card: their whole name and uid, for its
-   * initials and colour. Null for a card from the team, which carries the
-   * society's own.
+   * The chip beside a facilitator's card: the name they go by and their uid,
+   * for its initials and colour. Null for a card from the team, which carries
+   * the society's own.
    */
   chip: { name: string; uid: string } | null;
   /** ISO 8601: when it was saved. */
@@ -62,8 +72,6 @@ export type OwnFeedbackCard = {
  */
 export type StaffFeedbackCard = OwnFeedbackCard & {
   byUid: string;
-  /** The writer's whole name, as the lead's pages name people. */
-  byFullName: string;
   /** ISO 8601: its last change, or null. */
   editedAt: string | null;
   /** Its email: when, and what became of it; null while it is owed. Feedback from before pieces is always emailed. */
@@ -95,10 +103,10 @@ export function legacyWords(feedback: LegacyFeedback): { text: string; lines: st
   return { text: "", lines: feedback.levels.map((level) => `${level.row}: ${level.level}`) };
 }
 
-/** What a reader knows of the people named on cards. */
+/** What a reader knows of the people named on cards: the first word of the name each goes by, and the whole of it. */
 export type CardNames = {
   firstName: (uid: string) => string;
-  fullName: (uid: string) => string;
+  goByName: (uid: string) => string;
 };
 
 function iso(value: Date | null): string | null {
@@ -114,7 +122,7 @@ export function ownCardOf(piece: CourseFeedbackDoc, names: CardNames): OwnFeedba
     itemId: piece.on.kind === "writtenAnswer" ? piece.on.itemId : null,
     byRole: piece.byRole,
     byName: piece.byUid ? names.firstName(piece.byUid) : "",
-    chip: facilitator && piece.byUid ? { name: names.fullName(piece.byUid) || names.firstName(piece.byUid), uid: piece.byUid } : null,
+    chip: facilitator && piece.byUid ? { name: names.goByName(piece.byUid) || names.firstName(piece.byUid), uid: piece.byUid } : null,
     at: iso(piece.createdAt),
     text: piece.text,
     lines: [],
@@ -135,7 +143,7 @@ export function ownLegacyCardOf(answerId: string, feedback: LegacyFeedback, byRo
     itemId: answerId,
     byRole,
     byName: feedback.byUid ? names.firstName(feedback.byUid) : "",
-    chip: byRole === "facilitator" && feedback.byUid ? { name: names.fullName(feedback.byUid) || names.firstName(feedback.byUid), uid: feedback.byUid } : null,
+    chip: byRole === "facilitator" && feedback.byUid ? { name: names.goByName(feedback.byUid) || names.firstName(feedback.byUid), uid: feedback.byUid } : null,
     at: iso(feedback.sentAt),
     text: words.text,
     lines: words.lines,
@@ -153,7 +161,6 @@ export function staffCardOf(piece: CourseFeedbackDoc, names: CardNames, reader: 
   return {
     ...ownCardOf(piece, names),
     byUid: piece.byUid,
-    byFullName: piece.byUid ? names.fullName(piece.byUid) : "",
     editedAt: iso(piece.editedAt),
     emailed,
     sending,
@@ -175,7 +182,6 @@ export function staffLegacyCardOf(
   return {
     ...ownLegacyCardOf(answerId, feedback, byRole, names),
     byUid: feedback.byUid,
-    byFullName: feedback.byUid ? names.fullName(feedback.byUid) : "",
     editedAt: null,
     emailed: { at: iso(feedback.sentAt), delivery: "sent" },
     sending: false,

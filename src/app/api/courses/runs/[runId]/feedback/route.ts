@@ -119,13 +119,10 @@ async function cardFor(
 ): Promise<StaffFeedbackCard> {
   const snap = await db.collection("users").doc(piece.byUid).get();
   const data = snap.exists ? ((snap.data() ?? {}) as Record<string, unknown>) : {};
-  const first = firstNameOfUser(data);
-  const full = fullNameOfUser(data);
-  return staffCardOf(
-    piece,
-    { firstName: () => first || full, fullName: () => full },
-    { uid: actor.uid, isAdmin, now: new Date() },
-  );
+  // The name the writer goes by, as every card signs it (`fullNameOfUser` puts it first).
+  const goBy = fullNameOfUser(data);
+  const first = firstNameOfUser(data) || goBy;
+  return staffCardOf(piece, { firstName: () => first, goByName: () => goBy }, { uid: actor.uid, isAdmin, now: new Date() });
 }
 
 /** The run's id from the address, or null. */

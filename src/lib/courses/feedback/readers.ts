@@ -37,18 +37,22 @@ export async function readOwnFeedback(db: Firestore, runId: string, uid: string)
   return piecesOf(snap.docs, (piece) => piece.runId === runId && piece.uid === uid);
 }
 
-/** The names cards are signed with, for these writers: one read of their accounts. A name not on record is "". */
+/**
+ * The names cards are signed with, for these writers: one read of their
+ * accounts. The name each goes by (`fullNameOfUser`, which puts it first),
+ * never a full name; a name not on record is "".
+ */
 export async function cardNamesOf(db: Firestore, uids: Iterable<string>): Promise<CardNames> {
   const wanted = [...new Set([...uids].filter(Boolean))];
   const first = new Map<string, string>();
-  const full = new Map<string, string>();
+  const goBy = new Map<string, string>();
   for (const snap of wanted.length ? await db.getAll(...wanted.map((uid) => db.collection("users").doc(uid))) : []) {
     if (!snap.exists) continue;
     const data = (snap.data() ?? {}) as Record<string, unknown>;
-    full.set(snap.id, fullNameOfUser(data));
+    goBy.set(snap.id, fullNameOfUser(data));
     first.set(snap.id, firstNameOfUser(data) || fullNameOfUser(data));
   }
-  return { firstName: (uid) => first.get(uid) ?? "", fullName: (uid) => full.get(uid) ?? "" };
+  return { firstName: (uid) => first.get(uid) ?? "", goByName: (uid) => goBy.get(uid) ?? "" };
 }
 
 /**
