@@ -333,10 +333,12 @@ service cloud.firestore {
           || (request.resource.data.profile.fullName is string
               && request.resource.data.profile.fullName.size() <= 120);
       }
+      // Kept means stored before and left exactly as it was: a value written
+      // where there was none is held to the text rule, null included.
       function fullNameIsTextOrKept() {
         return newFullNameIsText()
-          || request.resource.data.get(['profile', 'fullName'], null)
-               == resource.data.get(['profile', 'fullName'], null);
+          || ('fullName' in resource.data.get('profile', {})
+              && request.resource.data.profile.fullName == resource.data.profile.fullName);
       }
 
       // Self-update: role, tracks, permissions and suRecognised all unchanged.
