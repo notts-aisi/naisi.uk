@@ -181,9 +181,12 @@ const { loadTs } = createLoader({
         "  return { upcoming: [], week: { range: null, events: [], startsAt: null, endsAt: null } };\n" +
         "}\n" +
         "export async function profileSteps() { return null; }\n" +
-      "export async function fullNameQuestion() { return null; }",
+        "export async function fullNameQuestion() { return null; }\n" +
+        // "For you": no event for chosen people in this world, so it draws nothing.
+        "export async function forYouEvents() { return []; }",
     ],
     ["./FullNameCard", MARK("FullNameCard")],
+    ["./ForYou", "export default function ForYou() { return null; }"],
     [
       // Applications are open, which is when Home says "Nothing yet" to a member who has not applied.
       "@/features/term/fetchPublicTerm",
