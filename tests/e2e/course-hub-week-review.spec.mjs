@@ -307,7 +307,7 @@ test(
         activePage = adminPage;
         const hands = adminPage.locator('section[aria-labelledby="review-hands"]');
         await hands.getByRole("heading", { name: WORDS.handsTitle }).waitFor({ timeout: WAIT_MS });
-        const row = hands.locator("li").filter({ hasText: WORDS.notStarted }).filter({ hasText: /^Ben\b/ }).first();
+        const row = hands.locator("li").filter({ hasText: WORDS.notStarted }).filter({ hasText: ben.displayName }).first();
         await row.waitFor({ timeout: WAIT_MS });
         const said = await wordsIn(row);
         assert.ok(said.includes(WORDS.fromWeek), `Ben's line does not say where it came from: ${said}`);
