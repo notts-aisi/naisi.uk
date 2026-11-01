@@ -1,14 +1,16 @@
 /**
- * Notes admins keep about a person, and Claude's draft of one (privacy v13),
- * end to end, in a real browser.
+ * Notes the team keeps about a person, and Claude's draft of one (privacy v13
+ * and v15), end to end, in a real browser.
  *
  * The term three weeks in (scripts/e2e-fixtures/coursework-notes.mjs, on
  * scripts/e2e-fixtures/worlds/course-hub-term.mjs at "week-three"), with
  * week 3 written as blocks, Ada's reflection to it written after she agreed
  * to privacy v13, and a note about Ada written before she agreed -> the admin
- * approves Ada -> her profile shows the notes admins keep, says its rule in
- * one line and marks the earlier note -> the admin adds a note, changes its
- * words and deletes it, and the database agrees each time -> keeps one ->
+ * approves Ada -> her profile shows the notes the team keeps, says its rule
+ * in one line and marks the earlier note, which only admins read -> the admin
+ * adds a note, choosing who reads it, changes its words and deletes it, and
+ * the database agrees each time -> keeps one for the programme's leads with a
+ * suggestion for next term, then keeps it to admins -> keeps one ->
  * meets Claude's draft: in local mode, where the site has no key, the calm
  * sentence that says so; against a deployed target with a key, one press,
  * answered with a draft or one of the site's reasons, never Claude's words
@@ -90,6 +92,11 @@ const WORDS = {
   hiddenOne: "1 earlier note isn’t shown here: it was written before they agreed, so it stays with its own programme.",
   claudeNotSetUp: "Claude isn’t set up on this site yet.",
   drafted: "Claude’s draft. Change anything you like; nothing is kept until you press Save note.",
+  audienceAdmins: "Admins only",
+  audienceLeads: "Admins and the programme’s leads",
+  staysWithAdmins: "Written before they agreed to version 15 of the privacy policy, so only admins read it.",
+  suggestFacilitating: "Facilitating",
+  suggestedFacilitating: "Suggested for next term: facilitating.",
   add: "Add a note",
   save: "Save note",
   edit: "Edit",
@@ -206,9 +213,22 @@ test(
       page.waitForResponse((r) => new URL(r.url()).pathname.endsWith(suffix) && r.request().method() === method, { timeout });
     const notesPath = `/api/admin/members/${ada.uid}/notes`;
 
-    async function addNote(text) {
+    /** The one note open for changing: its words are in a box then, so it is found by the box, not by them. */
+    const openEdit = () => notes().locator('textarea[id^="edit-"]').locator("xpath=ancestor::li[1]");
+
+    /** Tick a box or choose a round one: the row's label is what the pointer presses, the input under it is out of sight. */
+    async function press(control, what) {
+      await control.locator("xpath=ancestor::label[1]").click();
+      await waitFor(`${what} to be ticked`, async () => control.isChecked());
+    }
+
+    async function addNote(text, { audience = WORDS.audienceAdmins, suggest = [] } = {}) {
       await notes().getByRole("button", { name: WORDS.add }).click();
       await notes().locator(`#new-note-${ada.uid}`).fill(text);
+      // Nothing is chosen for the admin: Save waits for who reads it.
+      assert.equal(await notes().getByRole("button", { name: WORDS.save }).isDisabled(), true, "a note can be saved with nobody chosen to read it");
+      await press(notes().getByRole("radio", { name: audience }), `who reads it: ${audience}`);
+      for (const box of suggest) await press(notes().getByRole("checkbox", { name: box, exact: true }), `the suggestion ${box}`);
       const saved = responseTo(notesPath, "POST");
       await notes().getByRole("button", { name: WORDS.save }).click();
       const answer = await saved;
@@ -224,13 +244,23 @@ test(
         await waitFor(`${ada.first}'s account to say member`, async () => (await readUserDoc(ada.uid))?.role === "member");
       });
 
-      await step("the profile shows the notes admins keep, with its rule, and marks the note written before the agreement", async () => {
-        await page.goto(profileUrl, { waitUntil: "domcontentloaded" });
-        await notes().getByText(WORDS.ruleProfile, { exact: true }).waitFor({ timeout: WAIT_MS });
-        await notes().getByText(EARLIER_NOTE, { exact: true }).waitFor({ timeout: WAIT_MS });
-        const earlier = notes().locator("li").filter({ hasText: EARLIER_NOTE });
-        assert.ok((await textOf(earlier)).includes(WORDS.beforeNoProgramme), "the earlier note is not marked as written before the agreement");
-      });
+      await step(
+        "the profile shows the notes the team keeps, with its rule, and marks the note written before the agreement as read by admins only",
+        async () => {
+          await page.goto(profileUrl, { waitUntil: "domcontentloaded" });
+          await notes().getByText(WORDS.ruleProfile, { exact: true }).waitFor({ timeout: WAIT_MS });
+          await notes().getByText(EARLIER_NOTE, { exact: true }).waitFor({ timeout: WAIT_MS });
+          const earlier = notes().locator("li").filter({ hasText: EARLIER_NOTE });
+          assert.ok((await textOf(earlier)).includes(WORDS.beforeNoProgramme), "the earlier note is not marked as written before the agreement");
+          assert.ok((await textOf(earlier)).includes(WORDS.audienceAdmins), "the earlier note does not say only admins read it");
+          // Written before Ada agreed to privacy v15, it can never be kept for leads: its form says so and offers no choice.
+          await earlier.getByRole("button", { name: WORDS.edit }).click();
+          const form = openEdit();
+          await form.getByText(WORDS.staysWithAdmins, { exact: true }).waitFor({ timeout: WAIT_MS });
+          assert.equal(await form.getByRole("radio").count(), 0, "a note written before the agreement offers a choice of who reads it");
+          await form.getByRole("button", { name: WORDS.cancel }).click();
+        },
+      );
 
       let keptId = null;
       await step("the admin adds a note, changes its words and deletes it, and the record agrees each time", async () => {
@@ -260,6 +290,40 @@ test(
         await waitFor("the deleted note to leave the page", async () => (await notes().getByText("E2E note: asks the best questions").count()) === 0);
         assert.equal((await storedNotes(ada.uid)).some((note) => note.id === id), false, "the deleted note is still stored");
       });
+
+      await step(
+        "the admin keeps a note for the programme's leads with a suggestion for next term, then keeps it to admins, and the record agrees each time",
+        async () => {
+          const text = "E2E note for the leads: explains the reading to others.";
+          const id = await addNote(text, { audience: WORDS.audienceLeads, suggest: [WORDS.suggestFacilitating] });
+          let stored = (await storedNotes(ada.uid)).find((note) => note.id === id);
+          assert.equal(stored?.audience, "leads", "the note is not kept for the programme's leads");
+          assert.deepEqual(stored?.suggest, ["facilitating"], "the note does not keep its suggestion");
+          const row = notes().locator("li").filter({ hasText: text });
+          await row.getByText(WORDS.audienceLeads, { exact: true }).waitFor({ timeout: WAIT_MS });
+          await row.getByText(WORDS.suggestedFacilitating, { exact: true }).waitFor({ timeout: WAIT_MS });
+
+          // Who reads it changes later, and nothing else does.
+          await row.getByRole("button", { name: WORDS.edit }).click();
+          const form = openEdit();
+          await press(form.getByRole("radio", { name: WORDS.audienceAdmins }), "who reads it: admins only");
+          const changed = responseTo(`${notesPath}/${id}`, "PATCH");
+          await form.getByRole("button", { name: WORDS.save }).click();
+          assert.equal((await changed).status(), 200);
+          await waitFor("the note to say only admins read it", async () => (await textOf(row)).includes(WORDS.audienceAdmins));
+          stored = (await storedNotes(ada.uid)).find((note) => note.id === id);
+          assert.equal(stored?.audience, "admins", "the note is still kept for the programme's leads");
+          assert.equal(stored?.text, text, "changing who reads a note changed its words");
+          assert.deepEqual(stored?.suggest, ["facilitating"], "changing who reads a note lost its suggestion");
+
+          // Taken away again, so the steps after this one read the record as they always have.
+          page.once("dialog", (dialog) => void dialog.accept());
+          const removed = responseTo(`${notesPath}/${id}`, "DELETE");
+          await row.getByRole("button", { name: WORDS.remove }).click();
+          assert.equal((await removed).status(), 200);
+          await waitFor("the note to leave the page", async () => (await notes().getByText(text).count()) === 0);
+        },
+      );
 
       await step("the admin keeps a note for the application screen", async () => {
         keptId = await addNote("E2E note kept: would make a good facilitator.");

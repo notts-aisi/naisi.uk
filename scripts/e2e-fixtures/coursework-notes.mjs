@@ -1,6 +1,6 @@
 /**
- * Notes admins keep about a person, and Claude's draft of one (privacy v13),
- * in a real browser.
+ * Notes the team keeps about a person, and Claude's draft of one (privacy v13
+ * and v15), in a real browser.
  *
  * The term T1 stands on (`./worlds/course-hub-term.mjs`), at its second
  * point, "week-three": the people hold their places, Publish told them their
@@ -15,13 +15,17 @@
  *    writing Claude may be sent. Every word of it is made up.
  *  - A NOTE ABOUT ADA WRITTEN BEFORE THAT AGREEMENT (a day before the seed),
  *    by the harness's admin, from no programme: the profile shows it marked,
- *    and the application screen leaves it out and says so.
+ *    and the application screen leaves it out and says so. Written before
+ *    she agreed to privacy v15 as well (the seed's agreement is to v15), it
+ *    says admins only read it, and can never be kept for leads.
  *
  * The spec (`tests/e2e/coursework-notes.spec.mjs`) is the harness's admin,
  * who approves Ada, keeps and changes and deletes notes about her on her
- * profile, meets Claude's draft (the calm sentence where Claude is not set
- * up, one press against a deployed target that has a key), and reads the
- * notes beside her application. Then the Coursework tab's panels, an admin's
+ * profile, choosing who reads each one, keeps one for the programme's leads
+ * with a suggestion for next term and then keeps it to admins, meets
+ * Claude's draft (the calm sentence where Claude is not set up, one press
+ * against a deployed target that has a key), and reads the notes beside her
+ * application. Then the Coursework tab's panels, an admin's
  * alone since privacy v15: the admin names the running run on the
  * programme's Settings tab (the fixture never does), reads Claude's best
  * answers to week 3 under the tab and Pangram's count before any press, and
@@ -33,14 +37,20 @@
  * ## What it cannot drive, and where that is held instead
  *
  * Nobody leads the programme at this point of the term, and the harness
- * cannot make a lead who is not an admin. So "the lead is refused the
- * notes", "the lead is handed no column beside a person's weeks", "the lead
- * is drawn no panel under the tab and refused Claude's best answers" and "the
- * lead never sees Pangram" are held by the persona battery against a real
- * build (`tests/persona-route-gates.registry.mjs`, the `lead` persona on the
- * notes, best answers and Pangram routes), by
- * `tests/course-hub-coursework.test.mjs` (both pages drawn for the lead) and
- * by `tests/coursework-claude.test.mjs`, not here.
+ * cannot make a lead who is not an admin: a lead must be SU-recognised
+ * committee, and the harness grants nothing above a waiting account (an admin
+ * it needs is an account it is given), so an admin named as the lead would be
+ * answered as an admin. So the lead's side of the notes (reading only the
+ * notes kept for leads about the people on their programme, never how many
+ * others there are, adding their own, changing only those), "the lead is
+ * refused the admins' notes routes and Claude's draft", "the lead is drawn no
+ * panel under the tab and refused Claude's best answers" and "the lead never
+ * sees Pangram" are held by the persona battery against a real build
+ * (`tests/persona-route-gates.registry.mjs`, the `lead` persona on the
+ * programme's notes routes, the admins' notes routes, best answers and
+ * Pangram), by `tests/course-hub-coursework.test.mjs` (both pages drawn for
+ * the lead), by `tests/notes-for-leads.test.mjs` and by
+ * `tests/coursework-claude.test.mjs`, not here.
  *
  * ## It sends nothing
  *
@@ -54,8 +64,9 @@ import { countTerm, seedTerm, teardownTerm } from "./worlds/course-hub-term.mjs"
 /** Every step the spec must complete, in order. */
 export const COURSEWORK_NOTES_STEPS = [
   "the admin approves the account the notes are about",
-  "the profile shows the notes admins keep, with its rule, and marks the note written before the agreement",
+  "the profile shows the notes the team keeps, with its rule, and marks the note written before the agreement as read by admins only",
   "the admin adds a note, changes its words and deletes it, and the record agrees each time",
+  "the admin keeps a note for the programme's leads with a suggestion for next term, then keeps it to admins, and the record agrees each time",
   "the admin keeps a note for the application screen",
   "Claude's draft: the calm sentence where Claude is not set up, or one press answered with a draft or a reason",
   "beside the application only the note written after the agreement shows, with its rule and the count of earlier notes",
