@@ -233,12 +233,17 @@ export function ofWords(done: number, of: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Your marks (C26): one per session, a legend, and no count
+// Your sessions (C26): one per session, a legend, and no count. Never "mark"
+// in a word a member reads: the card is "Your sessions", its legend "What
+// each one means", and a register nobody filled in "Not filled in". The
+// names in the code stay, so the register's own words keep theirs.
 // ---------------------------------------------------------------------------
 
-export const YOUR_MARKS = "Your marks";
+export const YOUR_MARKS = "Your sessions";
 export const MARKS_LINE = "Your facilitators fill these in after each session.";
-export const MARKS_LEGEND_LABEL = "What the marks mean";
+export const MARKS_LEGEND_LABEL = "What each one means";
+/** The card before a group: there is nothing to fill in yet. */
+export const MARKS_BEFORE_GROUP = "You’ll be placed in a group soon. Your sessions appear here after that.";
 
 /** A mark's letter, as the register and the lead's tabs draw it. */
 export const MARK_LETTER = {
@@ -252,7 +257,7 @@ export const MARK_LETTER = {
 /** What a session that is not one of those five says. */
 export const MARK_STATE_WORDS = {
   "not-yet": "Not yet",
-  "not-marked": "Not marked",
+  "not-marked": "Not filled in",
   cancelled: "Cancelled",
   "did-not-happen": "Didn’t happen",
 } as const;

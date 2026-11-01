@@ -7,6 +7,10 @@ import { readWrittenAnswer } from "@/lib/courses/writtenAnswers/model";
 import { isFillInResponse, isOwnBoxResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { courseworkCountsFrom, rowCountsFrom } from "@/lib/legal/courseworkUse";
+import { workIsReadable } from "@/lib/courses/weekWork/model";
+import { readRunForLock } from "@/lib/courses/weekWork/own";
+import { loadRunWeekStates } from "@/lib/courses/weekWork/readers";
+import { liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
 import type { CourseworkAnswer, CourseworkQuestion, CourseworkWeek } from "./input";
 
 /**
@@ -24,6 +28,12 @@ import type { CourseworkAnswer, CourseworkQuestion, CourseworkWeek } from "./inp
  * Every row is marked `counted` or not by `rowCountsFrom`, here and only
  * here: what leaves for Claude or Pangram is built from counted rows alone
  * (`model.ts`), and the rest is only counted ("N not included yet").
+ *
+ * A WRITTEN ANSWER is read only once its readers may read it (privacy v15,
+ * `workIsReadable`): its week submitted or locked, or the answer sent before
+ * weeks were submitted. Where each week stands is read once for the run
+ * (`loadRunWeekStates`). Reflections and fill-in boxes are read as typed, as
+ * v15 says, from each writer's coursework-use moment.
  *
  * Every query is one equality on one field (`runId`, or `uid` for one
  * person), filtered in memory, so nothing needs a declared index.
@@ -147,14 +157,16 @@ function answerWords(question: CourseworkQuestion, data: Raw): string {
   return typeof data.text === "string" ? data.text.trim() : "";
 }
 
-/** Whether a stored row is the kind its question asks for. */
-function rowFits(question: CourseworkQuestion, data: Raw): boolean {
+/**
+ * Whether a stored row is the kind its question asks for. A written answer
+ * must also be one its readers may read (`readable`): a draft is its writer's
+ * until they submit the week, or it locks.
+ */
+function rowFits(question: CourseworkQuestion, data: Raw, readable: (data: Raw) => boolean): boolean {
   if (question.kind === "reflection") return isReflectionResponse(data);
   if (question.kind === "fillIn") return isFillInResponse(data);
-  // A written answer: an answer's row (no kind) that counts words, and SENT:
-  // a draft is its writer's until they send it.
   // Every kind of box its writer fills in is left out by the one question.
-  return !isOwnBoxResponse(data) && typeof data.words === "number" && readWrittenAnswer(data).firstSentAt !== null;
+  return !isOwnBoxResponse(data) && typeof data.words === "number" && readable(data);
 }
 
 /**
@@ -170,9 +182,22 @@ export async function loadAnswers(
   writers: ReadonlySet<string> | null,
 ): Promise<CourseworkAnswer[]> {
   const only = writers && writers.size === 1 ? [...writers][0] : null;
-  const snap = only
-    ? await db.collection("courseExerciseResponses").where("uid", "==", only).get()
-    : await db.collection("courseExerciseResponses").where("runId", "==", runId).get();
+  const [snap, run, liveGroups] = await Promise.all([
+    only
+      ? db.collection("courseExerciseResponses").where("uid", "==", only).get()
+      : db.collection("courseExerciseResponses").where("runId", "==", runId).get(),
+    readRunForLock(db, runId),
+    liveGroupsOf(db, runId),
+  ]);
+  // Where each writer's week stands, for whether their written answer may be read.
+  const states = run ? await loadRunWeekStates(db, { run, liveGroups, now: new Date() }) : null;
+  const readable = (data: Raw) => {
+    const uid = typeof data.uid === "string" ? data.uid : "";
+    const weekNumber = typeof data.weekNumber === "number" ? data.weekNumber : 0;
+    const record = readWrittenAnswer(data);
+    if (!states) return record.firstSentAt !== null;
+    return workIsReadable(states.stateOf(uid, weekNumber), record);
+  };
   const byRow = new Map<string, CourseworkQuestion>();
   for (const week of weeks) for (const question of week.questions) byRow.set(`${week.weekId} ${question.rowId}`, question);
 
@@ -183,7 +208,7 @@ export async function loadAnswers(
     const uid = typeof data.uid === "string" ? data.uid : "";
     if (!uid || (writers && !writers.has(uid))) continue;
     const question = byRow.get(`${String(data.weekId ?? "")} ${String(data.exerciseId ?? "")}`);
-    if (!question || !rowFits(question, data)) continue;
+    if (!question || !rowFits(question, data, readable)) continue;
     rows.push({ id: doc.id, uid, question, data });
   }
 

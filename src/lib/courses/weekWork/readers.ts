@@ -14,8 +14,22 @@ import {
   normalizeCourseWeekWork,
   type CourseWeekWorkDoc,
 } from "@/lib/firestore/courseWeekWork";
+import { firstNameOfUser } from "@/lib/courses/programmeLead";
+import { readPackCaseRecords, recordBlocksOf } from "@/lib/courses/packsAndCases/readers";
+import type { WeekBlock } from "@/lib/courses/weekBlocks/model";
+import { weekTaskNeeds } from "@/lib/courses/weekBlocks/progress";
+import { instantOf, isWordCountedAnswer } from "@/lib/courses/writtenAnswers/model";
+import { isOwnBoxResponse } from "@/lib/firestore/courseExercises";
 import { NO_GROUP, weekLockOf, weekStateOf, type LockSource } from "./lock";
-import type { WeekLock, WeekWorkState } from "./model";
+import {
+  personWeekProgress,
+  weekAsksForWriting,
+  weekWorkWire,
+  type PersonWeekProgress,
+  type WeekLock,
+  type WeekWorkState,
+  type WeekWorkWire,
+} from "./model";
 
 /**
  * THE READS BEHIND WHERE A WEEK STANDS, on the server, each after its
@@ -75,6 +89,138 @@ export async function readRunWeekWork(db: Firestore, runId: string): Promise<Map
     const own = out.get(record.uid) ?? new Map<string, CourseWeekWorkDoc>();
     own.set(record.weekId, record);
     out.set(record.uid, own);
+  }
+  return out;
+}
+
+/**
+ * ONE PERSON'S OWN WEEKS, as the overview hands them to their pages: each
+ * week asked about, by its id, with where it stands and, when somebody
+ * reopened it, that person's first name. Their own records alone, by address.
+ */
+export async function ownWeekWires(
+  db: Firestore,
+  input: { runId: string; uid: string; weeks: ReadonlyArray<{ id: string; weekNumber: number }>; source: LockSource; now: Date },
+): Promise<Map<string, WeekWorkWire>> {
+  const out = new Map<string, WeekWorkWire>();
+  if (input.weeks.length === 0) return out;
+  const snaps = await db.getAll(
+    ...input.weeks.map((week) => db.collection(COURSE_WEEK_WORK_COLLECTION).doc(courseWeekWorkId(input.runId, input.uid, week.id))),
+  );
+  const states = input.weeks.map((week, index) => {
+    const snap = snaps[index];
+    const record = snap.exists ? normalizeCourseWeekWork(snap.id, snap.data() ?? {}) : null;
+    return weekStateOf(input.source, week.weekNumber, record && record.uid === input.uid ? record : null, input.now);
+  });
+  const reopeners = [...new Set(states.flatMap((state) => (state.kind === "reopened" && state.byUid ? [state.byUid] : [])))];
+  const names = new Map<string, string>();
+  for (const snap of reopeners.length ? await db.getAll(...reopeners.map((uid) => db.collection("users").doc(uid))) : []) {
+    if (snap.exists) names.set(snap.id, firstNameOfUser(snap.data() ?? {}));
+  }
+  input.weeks.forEach((week, index) => {
+    out.set(week.id, weekWorkWire(states[index], (uid) => names.get(uid) || "Your facilitator"));
+  });
+  return out;
+}
+
+/**
+ * HOW FAR EACH OF SOME PEOPLE HAS GOT WITH ONE WEEK WRITTEN AS BLOCKS, by the
+ * one count every page uses (`personWeekProgress`): This week's tasks done,
+ * whether the week is done, and whether they have started it. Read on the
+ * server after the page's own gate, as counts and nothing else: the week's
+ * rows of the answers store by who and which item (never a word), its ticks
+ * by who and which item, and each person's pack and ready mark by address.
+ * `submitted` says whose week is submitted (`loadRunWeekStates`).
+ */
+export async function loadPeopleWeekProgress(
+  db: Firestore,
+  input: {
+    runId: string;
+    weekNumber: number;
+    blocks: readonly WeekBlock[];
+    uids: readonly string[];
+    submitted: (uid: string) => boolean;
+  },
+): Promise<Map<string, PersonWeekProgress>> {
+  const { runId, weekNumber, blocks } = input;
+  const uids = new Set(input.uids);
+  const out = new Map<string, PersonWeekProgress>();
+  if (uids.size === 0) return out;
+  const recordBlocks = recordBlocksOf(blocks);
+  const [rows, ticks, records] = await Promise.all([
+    // Who wrote in which box and which answers are sent: never a word.
+    db
+      .collection("courseExerciseResponses")
+      .where("runId", "==", runId)
+      .where("weekNumber", "==", weekNumber)
+      .select("uid", "exerciseId", "kind", "words", "firstSentAt", "runId")
+      .get(),
+    // The projection is the boundary: who, which item and whether it is ticked.
+    db
+      .collection("courseProgress")
+      .where("runId", "==", runId)
+      .where("weekNumber", "==", weekNumber)
+      .select("uid", "itemId", "completed")
+      .get(),
+    readPackCaseRecords(
+      db,
+      runId,
+      [...uids].flatMap((uid) => recordBlocks.map((block) => ({ uid, blockId: block.id }))),
+    ),
+  ]);
+  const facts = new Map<string, { written: Set<string>; sent: Set<string>; ticked: Set<string>; touched: boolean }>();
+  const of = (uid: string) => {
+    let found = facts.get(uid);
+    if (!found) {
+      found = { written: new Set(), sent: new Set(), ticked: new Set(), touched: false };
+      facts.set(uid, found);
+    }
+    return found;
+  };
+  for (const doc of rows.docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    const uid = typeof data.uid === "string" ? data.uid : "";
+    const id = typeof data.exerciseId === "string" ? data.exerciseId : "";
+    if (!uids.has(uid) || !id || data.runId !== runId) continue;
+    // A box's row exists only while it holds something: an emptied box deletes it.
+    if (isOwnBoxResponse(data)) {
+      of(uid).written.add(id);
+      of(uid).touched = true;
+    } else if (isWordCountedAnswer(data)) {
+      if (instantOf(data.firstSentAt)) of(uid).sent.add(id);
+      if (typeof data.words === "number" && data.words > 0) of(uid).touched = true;
+    }
+  }
+  for (const doc of ticks.docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    const uid = typeof data.uid === "string" ? data.uid : "";
+    const itemId = typeof data.itemId === "string" ? data.itemId : "";
+    if (data.completed !== true || !uids.has(uid) || !itemId) continue;
+    of(uid).ticked.add(itemId);
+    of(uid).touched = true;
+  }
+  const tasks = weekTaskNeeds(blocks);
+  const writes = weekAsksForWriting(blocks);
+  for (const uid of uids) {
+    const own = of(uid);
+    const record = (blockId: string) => records.get(`${uid} ${blockId}`) ?? null;
+    if (recordBlocks.some((block) => record(block.id)?.packId || record(block.id)?.ready)) own.touched = true;
+    out.set(
+      uid,
+      personWeekProgress({
+        tasks,
+        state: {
+          isTicked: (id) => own.ticked.has(id),
+          isWritten: (id) => own.written.has(id),
+          isSent: (id) => own.sent.has(id),
+          packOf: (id) => record(id)?.packId ?? null,
+          isReady: (id) => record(id)?.ready === true,
+        },
+        writes,
+        submitted: input.submitted(uid),
+        touched: own.touched,
+      }),
+    );
   }
   return out;
 }

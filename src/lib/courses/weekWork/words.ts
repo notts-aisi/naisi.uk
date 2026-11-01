@@ -198,6 +198,14 @@ export function answerReadersWords(readers: Readers, leadName: string | null): s
   return `Once you submit, or your week locks, ${namesAnd(names)} can read your written answer.`;
 }
 
+/**
+ * Who else may read it: "Other fellows can’t." A facilitator's own: "Nobody
+ * else on the programme can read it, your co-facilitators included."
+ */
+export function othersReadWords(readers: Readers): string {
+  return readers.kind === "lead" ? "Nobody else on the programme can read it, your co-facilitators included." : "Other fellows can’t.";
+}
+
 /** "146 words, saved Tue 17 Nov." (the locked week's written answer, not submitted). */
 export function savedOnWords(words: number, at: Date | null): string {
   const count = `${words} ${words === 1 ? "word" : "words"}`;

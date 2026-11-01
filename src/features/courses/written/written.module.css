@@ -708,6 +708,42 @@
   color: var(--color-danger-text);
 }
 
+/* === Reopening a week, with a confirm === */
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.dialogTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.25rem;
+  line-height: 1.25;
+  color: var(--color-text);
+}
+
+.dialogBody {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--color-text-soft);
+}
+
+.dialogActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.dialogActions button {
+  min-height: 44px;
+}
+
 /* === The email the person gets === */
 
 .emailPreview {

@@ -35,6 +35,7 @@ import { boxesFilled } from "@/lib/courses/weekBlocks/progress";
 import { LEAVE_LINK } from "@/lib/courses/leavingWords";
 import { ENDED_SUB, ENDED_THANKS, FINISHED_SUB, hasEnded, youFinished } from "@/lib/courses/finishing/words";
 import {
+  MARKS_BEFORE_GROUP,
   MARKS_LEGEND_LABEL,
   MARKS_LINE,
   MARK_LETTER,
@@ -266,7 +267,7 @@ function RunHomeSkeleton() {
 }
 
 // ---------------------------------------------------------------------------
-// Your marks (C26): one per session, a legend, and no count
+// Your sessions (C26): one per session, a legend, and no count
 // ---------------------------------------------------------------------------
 
 type MarkKind = AttendanceStatus | "not-yet" | "not-marked" | "cancelled" | "did-not-happen";
@@ -364,7 +365,7 @@ function YourMarks({
       {ownAttendance === null ? (
         /* No group yet: there is no session, no register and no facilitator
            to name. Allocation is what happens next, so that is what it says. */
-        <p className={weekly.cardLine}>You’ll be placed in a group soon. Your marks appear here after that.</p>
+        <p className={weekly.cardLine}>{MARKS_BEFORE_GROUP}</p>
       ) : (
         <>
           {rows.length > 0 && (
@@ -450,7 +451,10 @@ export default function RunHome({
   const beforeStart =
     data?.currentWeek?.phase === "before" ||
     (firstNext !== null && firstNext.dateKey === data?.group?.calendar.firstSessionDate);
-  const ticks = useMaterialTicks(runId, uid, 1, learner?.status === "active");
+  // A week 1 submitted or locked takes no tick until somebody running the group reopens it.
+  const weekOneWork = data?.weeks.find((week) => week.weekNumber === 1)?.work ?? null;
+  const weekOneTakesTicks = weekOneWork ? weekOneWork.state === "open" || weekOneWork.state === "reopened" : true;
+  const ticks = useMaterialTicks(runId, uid, 1, learner?.status === "active" && weekOneTakesTicks);
 
   /*
     P10, the primary mirror trigger. The gate is an ACTIVE ENROLMENT, the

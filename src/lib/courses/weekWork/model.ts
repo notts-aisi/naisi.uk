@@ -311,6 +311,21 @@ export type WeekWorkWire = {
   reopened: { at: string; byName: string } | null;
 };
 
+/** A state back from its wire, for the page's words; `byUid` is not on the wire and reads as "". */
+export function weekWorkStateOf(wire: WeekWorkWire): WeekWorkState {
+  const at = (iso: string | null) => (iso ? new Date(iso) : null);
+  switch (wire.state) {
+    case "submitted":
+      return { kind: "submitted", at: at(wire.submittedAt) ?? new Date(0) };
+    case "locked":
+      return { kind: "locked", at: at(wire.lockedAt) ?? new Date(0) };
+    case "reopened":
+      return { kind: "reopened", at: at(wire.reopened?.at ?? null) ?? new Date(0), byUid: "", locksAt: at(wire.locksAt) };
+    case "open":
+      return { kind: "open", locksAt: at(wire.locksAt), by: wire.by ?? "undated" };
+  }
+}
+
 /** The wire for one state. `nameOf` gives the first name a uid goes by. */
 export function weekWorkWire(state: WeekWorkState, nameOf: (uid: string) => string): WeekWorkWire {
   switch (state.kind) {

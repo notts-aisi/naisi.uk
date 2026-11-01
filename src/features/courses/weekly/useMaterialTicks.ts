@@ -3,38 +3,32 @@
 import { useCallback, useState } from "react";
 import { useRunProgress } from "@/features/courses/useRunProgress";
 import type { CourseProgressDoc, ProgressItemKind } from "@/lib/firestore/courseProgress";
-import { tickWeekOneBeforeGroups, toggleProgressItem } from "../progressMutations";
+import { tickThroughRoute } from "../progressMutations";
 import { TICK_NOT_SAVED, tickNotSavedWords } from "./tickWords";
 
 /**
  * TICKING A READING OFF, the one way every page does it (C33): the week page,
  * the programme home before the first session, and Home's card.
  *
- * A tick is the member's own `courseProgress` row for the item, written from
- * the browser by `toggleProgressItem`, the one client write the courses
- * feature has (its rules hold the whole invariant: their own row, on a run
- * they take part in). Home and the programme home tick through this hook, and
- * so does the week page, so a tick on Home and a tick on the week's own page
- * are the same write of the same document, and each page shows the other's
- * tick as soon as it lands (the rows are live).
+ * A tick is the member's own `courseProgress` row for the item, written by
+ * the tick route (`tickThroughRoute`), which refuses a week that is submitted
+ * or locked and records the tick with its time. Home and the programme home
+ * tick through this hook, and so does the week page, so a tick on Home and a
+ * tick on the week's own page are the same write of the same document, and
+ * each page shows the other's tick as soon as it lands (the rows are live).
  *
- * WHO MAY TICK is the caller's to say (`canTick`): somebody taking part, on an
- * active enrolment, as the session's own uid (`uid`, which the rules hold the
- * row to). Staff reading the week tick nothing, and a refused write is put
- * back and reported, never kept on screen as if it had saved.
- *
- * `writer` says which door the tick goes through: the browser's own write
- * (`"browser"`, everybody taking part), or week 1's door
- * (`"week-one-door"`, somebody holding a place before groups go out, Q35 B),
- * which writes the same row on the server. Either way the row comes back
- * through the same listener.
+ * WHO MAY TICK is the caller's to say (`canTick`): somebody taking part, as
+ * the session's own uid (`uid`), on a week that takes work. Staff reading the
+ * week tick nothing, and a refused write is put back and reported, never kept
+ * on screen as if it had saved. The route asks again: an active seat told its
+ * group, a facilitator of a live group, or, in week 1 before groups go out,
+ * somebody holding a place.
  *
  * Optimistic: the box flips at once, and the live row settles it.
  *
  * WHAT A REFUSED TICK SAYS (`tick`'s `words`): the route's own sentence when
- * week 1's door refused it, that the page needs reloading when the rules
- * refused the browser's own write, and the connection only when nothing came
- * back (`./tickWords.ts`).
+ * it refused (a week that locked while the page was open says so), and the
+ * connection only when nothing came back (`./tickWords.ts`).
  */
 
 /** What became of a tick: saved, or put back with what the page says about it. */
@@ -63,7 +57,6 @@ export function useMaterialTicks(
   uid: string | null,
   weekNumber: number,
   canTick: boolean,
-  writer: "browser" | "week-one-door" = "browser",
 ): MaterialTicks {
   const progress = useRunProgress(runId);
   const [flips, setFlips] = useState<ReadonlyMap<string, boolean>>(new Map());
@@ -89,19 +82,7 @@ export function useMaterialTicks(
       if (!allowed || !uid) return { saved: false, words: TICK_NOT_SAVED };
       setFlip(itemId, next);
       try {
-        if (writer === "week-one-door") {
-          await tickWeekOneBeforeGroups({ runId, itemId, next });
-        } else {
-          await toggleProgressItem({
-            runId,
-            uid,
-            weekNumber,
-            itemKind,
-            itemId,
-            current: progress.byItemId.get(itemId) ?? null,
-            next,
-          });
-        }
+        await tickThroughRoute({ runId, weekNumber, itemId, next });
         setFlip(itemId, null);
         return { saved: true };
       } catch (err) {
@@ -109,7 +90,7 @@ export function useMaterialTicks(
         return { saved: false, words: tickNotSavedWords(err) };
       }
     },
-    [allowed, progress.byItemId, runId, setFlip, uid, weekNumber, writer],
+    [allowed, runId, setFlip, uid, weekNumber],
   );
 
   const toggle = useCallback(

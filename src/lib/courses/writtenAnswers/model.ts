@@ -24,15 +24,18 @@ import { normalizeGivenLevels, type GivenLevel } from "../rubric";
  *  - `boxes`: an answer of labelled boxes (a one-page plan), box id to
  *    words; `text` holds an answer of one box. Never both.
  *  - `words`: the count of everything it holds.
- *  - `firstSentAt`: when it was FIRST sent, stored once and never moved.
- *    `submittedAt` is stamped with it, as every reader of answers sent
- *    already reads (who finished counts it).
+ *  - `firstSentAt`: when it was FIRST sent, stored once and never moved:
+ *    since weeks are submitted, the first time its week was submitted with
+ *    words in it. `submittedAt` is stamped with it, as every reader of
+ *    answers sent already reads (who finished counts it).
  *  - `editedAt`: the latest change after it was first sent.
- *  - `openedAt`, `openedByUid`: the lock (Q33). Set when the answer is first
- *    opened on the review page by one of its own reviewers; from then on the
- *    writer cannot change it. "Reopen for edits" clears both.
- *  - `reopenedAt`, `reopenedByUid`: the last time it was reopened, which the
- *    writer is told.
+ *  - `openedAt`, `openedByUid`: the lock an answer kept before weeks were
+ *    submitted (Q33): set when one of its own reviewers first opened it on
+ *    the review page, after which its writer could not change it. Nothing
+ *    writes them now; reopening the week (`src/lib/courses/weekWork/`)
+ *    clears both.
+ *  - `reopenedAt`, `reopenedByUid`: the last time that lock was cleared,
+ *    which the writer is told.
  *  - `feedback`: `{ levels, comment, byUid, sentAt }`. A level for each row
  *    of the course's rubric (with its descriptor, as given) and a short
  *    comment. Never a mark, a score or a total.
@@ -87,6 +90,8 @@ export type WrittenAnswerRecord = {
   editedAt: Date | null;
   openedAt: Date | null;
   openedByUid: string;
+  /** When its writer last saved it (the row's `updatedAt`), or null. */
+  savedAt: Date | null;
   reopenedAt: Date | null;
   reopenedByUid: string;
   feedback: WrittenFeedback | null;
@@ -122,6 +127,7 @@ export function readWrittenAnswer(data: Record<string, unknown>): WrittenAnswerR
     editedAt: instantOf(data.editedAt),
     openedAt: instantOf(data.openedAt),
     openedByUid: str(data.openedByUid),
+    savedAt: instantOf(data.updatedAt),
     reopenedAt: instantOf(data.reopenedAt),
     reopenedByUid: str(data.reopenedByUid),
     feedback: feedback && (feedback.levels.length > 0 || feedback.comment.trim()) ? feedback : null,

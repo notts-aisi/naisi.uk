@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useDebouncedWrite } from "@/hooks/useDebouncedWrite";
+import { useRegisterFlush } from "./weekSaves";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
 import {
   FILL_IN_SAVE_LINE,
@@ -210,6 +211,8 @@ function FillInBoxField({
   // Leaving the week, or the page being hidden, with a change waiting sends
   // it: the writer's own unmount and page-hide paths, with keepalive.
   const saver = useDebouncedWrite(write);
+  // Submit writes this box's waiting save before it submits the week.
+  useRegisterFlush(saver.flush);
 
   const handleChange = (next: string) => {
     setTouched(true);

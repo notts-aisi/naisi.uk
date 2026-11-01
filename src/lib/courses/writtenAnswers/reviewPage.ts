@@ -35,6 +35,8 @@ import {
   type AnswerState,
   type WrittenAnswerRecord,
 } from "./model";
+import { workIsReadable, type WeekWorkState } from "../weekWork/model";
+import { loadRunWeekStates } from "../weekWork/readers";
 
 /**
  * WHAT THE REVIEW PAGE SHOWS (boards wk-review, wk-review-phone), worked
@@ -45,9 +47,16 @@ import {
  * (`reviewableIn`, `writtenReviewRole`): for a facilitator, the group's
  * fellows but its facilitators; for the lead and admins, those and the
  * group's facilitators' own answers. Grouped as the board draws: "To give
- * feedback on" (sent, opened or not, with no feedback yet), "Feedback sent",
- * "Not sent yet" (a draft, or nothing). "Late" travels here, to staff, and
- * nowhere a writer reads.
+ * feedback on" (an answer they may read, with no feedback yet), "Feedback
+ * sent", "Not submitted yet" (everybody else). "Late" travels here, to
+ * staff, and nowhere a writer reads.
+ *
+ * THE READING GATE (privacy v15): an answer's words, and its count of words,
+ * leave here only when `workIsReadable` says its readers may read it: the
+ * week submitted or locked, or the answer sent before weeks were submitted.
+ * Until then the page says only that it is started ("Started"), and a week
+ * reopened reads "Reopened, not submitted again". Where each week stands is
+ * read once for the run (`loadRunWeekStates`).
  *
  * Reads: the run's groups and the reader's standing (the gate's), the run's
  * enrolments by one equality, the group's own copy of the week, each
@@ -61,10 +70,19 @@ export type ReviewPerson = {
   name: string;
   firstName: string;
   state: AnswerState;
+  /**
+   * Its words may be read (`workIsReadable`): the week submitted or locked, or
+   * the answer sent before weeks were submitted. Never the words, nor their
+   * count, otherwise.
+   */
+  readable: boolean;
+  /** Where their week stands, and when it was submitted or locked (ISO 8601). */
+  week: { state: WeekWorkState["kind"]; at: string | null; joinedLate: boolean };
   /** ISO 8601: first sent, never moved; null for a draft or nothing. */
   firstSentAt: string | null;
   /** First sent after the group's due moment. Staff only. */
   late: boolean;
+  /** Its count of words, while it may be read; 0 otherwise. */
   words: number;
   openedAt: string | null;
   openedByUid: string | null;
@@ -82,12 +100,9 @@ export type ReviewSelected = {
   /** An answer in labelled boxes, box id to words, or null. */
   boxes: Record<string, string> | null;
   editedAt: string | null;
-  reopenedAt: string | null;
   feedback: { levels: Array<{ row: string; level: string; descriptor: string }>; comment: string; sentAt: string | null } | null;
-  /** What the reader may do with this answer. */
+  /** What the reader may do with this answer: give feedback, and reopen the week. */
   role: ReviewRole;
-  /** The first names of the people whose opening locks it, for "can still change it until …". */
-  lockers: string[];
 };
 
 export type ReviewPageModel = {
@@ -200,6 +215,8 @@ export async function loadWrittenReview(
         }
       : null;
 
+  // Where each person's week stands, for whether their answer may be read.
+  const states = await loadRunWeekStates(db, { run, liveGroups, enrolments, now });
   // Each person's row, by its id: nobody's but theirs.
   const records = new Map<string, WrittenAnswerRecord>();
   if (answer && people.length > 0) {
@@ -234,14 +251,22 @@ export async function loadWrittenReview(
   const personOf = (owner: OwnerFacts): ReviewPerson => {
     const record = records.get(owner.uid) ?? null;
     const facilitates = liveGroups.some((candidate) => candidate.facilitatorUids.includes(owner.uid));
+    const standing = states.stateOf(owner.uid, weekNumber);
+    const readable = record !== null && workIsReadable(standing, record);
     return {
       uid: owner.uid,
       name: fullName.get(owner.uid) ?? "NAISI member",
       firstName: firstName.get(owner.uid) ?? "NAISI member",
       state: answerState(record),
+      readable,
+      week: {
+        state: standing.kind,
+        at: standing.kind === "submitted" || standing.kind === "locked" ? standing.at.toISOString() : null,
+        joinedLate: standing.kind === "open" && standing.by === "joined-late",
+      },
       firstSentAt: record?.firstSentAt ? record.firstSentAt.toISOString() : null,
       late: record?.firstSentAt ? isLate(record.firstSentAt, due) : false,
-      words: record?.words ?? 0,
+      words: readable ? (record?.words ?? 0) : 0,
       openedAt: record?.openedAt ? record.openedAt.toISOString() : null,
       openedByUid: record?.openedAt ? record.openedByUid || null : null,
       openedByName: record?.openedAt && record.openedByUid ? (firstName.get(record.openedByUid) ?? null) : null,
@@ -253,33 +278,31 @@ export async function loadWrittenReview(
   const all = people.map(personOf);
   const bySent = (a: ReviewPerson, b: ReviewPerson) =>
     (a.firstSentAt ?? "").localeCompare(b.firstSentAt ?? "") || a.name.localeCompare(b.name);
-  const toGive = all.filter((person) => person.state === "sent" || person.state === "opened").sort(bySent);
-  const feedbackSent = all.filter((person) => person.state === "feedback").sort(bySent);
+  // Only an answer its readers may read is given feedback on or opened here.
+  const toGive = all.filter((person) => person.readable && person.words > 0 && person.state !== "feedback").sort(bySent);
+  const feedbackSent = all.filter((person) => person.readable && person.state === "feedback").sort(bySent);
+  const given = new Set([...toGive, ...feedbackSent].map((person) => person.uid));
+  const started = (person: ReviewPerson) => person.state !== "not-started";
   const notSent = all
-    .filter((person) => person.state === "draft" || person.state === "not-started")
-    .sort((a, b) => (a.state === b.state ? a.name.localeCompare(b.name) : a.state === "draft" ? -1 : 1));
+    .filter((person) => !given.has(person.uid))
+    .sort((a, b) => (started(a) === started(b) ? a.name.localeCompare(b.name) : started(a) ? -1 : 1));
 
   // Who is open on the page: the one asked for, if the reader may review
-  // them and they sent something; else the first waiting, else the first
+  // them and may read their answer; else the first waiting, else the first
   // with feedback.
   const readable = [...toGive, ...feedbackSent];
   const chosen =
     (askedPerson ? readable.find((person) => person.uid === askedPerson) : undefined) ?? toGive[0] ?? feedbackSent[0] ?? null;
   let selected: ReviewSelected | null = null;
-  if (chosen && answer) {
+  if (chosen && answer && chosen.readable) {
     const record = records.get(chosen.uid) ?? null;
     const owner = people.find((candidate) => candidate.uid === chosen.uid) as OwnerFacts;
     const role = writtenReviewRole(actor, facts, owner, liveGroups);
-    // Whose opening locks it: the group's facilitators for a fellow, the lead and admins for a facilitator.
-    const lockers = chosen.facilitates
-      ? []
-      : group.facilitatorUids.filter((uid) => uid !== chosen.uid).map((uid) => firstName.get(uid) ?? "").filter(Boolean);
     selected = {
       person: chosen,
       text: record?.text ?? "",
       boxes: record?.boxes ?? null,
       editedAt: record?.editedAt ? record.editedAt.toISOString() : null,
-      reopenedAt: record?.reopenedAt ? record.reopenedAt.toISOString() : null,
       feedback: record?.feedback
         ? {
             levels: record.feedback.levels,
@@ -288,7 +311,6 @@ export async function loadWrittenReview(
           }
         : null,
       role,
-      lockers,
     };
   }
 

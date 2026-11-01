@@ -30,6 +30,8 @@ import { COURSE_SESSION_REPORTS_COLLECTION } from "./courseSessionReports";
 import { PLACEMENT_NOTES_COLLECTION } from "@/lib/courses/placementNotes/model";
 import { BEST_ANSWERS_COLLECTION, PANGRAM_CHECKS_COLLECTION } from "@/lib/courses/coursework/collections";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
+import { COURSE_WEEK_WORK_COLLECTION } from "./courseWeekWork";
+import { COURSE_WORK_LOG_COLLECTION } from "./courseWorkLog";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import { RECORD_OPENINGS_COLLECTION } from "./recordOpenings";
 import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
@@ -371,6 +373,21 @@ export type RunDestroyCounts = {
    * run: each record names a block of a week this cascade deletes.
    */
   packsAndCases: number;
+  /**
+   * `courseWeekWork` rows: where each person's week stands, when they
+   * submitted it and when somebody reopened it
+   * (`src/lib/firestore/courseWeekWork.ts`). Keyed by `runId` on the row like
+   * every other leaf here, and it dies with the run: each record names a week
+   * this cascade deletes.
+   */
+  weekWork: number;
+  /**
+   * `courseWorkLog` rows: what each person did to their weeks and when, a
+   * tick, a save, a submit, a reopen (`src/lib/firestore/courseWorkLog.ts`).
+   * Keyed by `runId` on the row like every other leaf here, and it dies with
+   * the run: each row names a week this cascade deletes.
+   */
+  workLog: number;
   /**
    * `coursePairs` rows: who was paired with whom for a session in pairs, and
    * who was bringing a laptop (`src/lib/firestore/coursePairs.ts`). Keyed by
@@ -1170,6 +1187,8 @@ export async function countRunDestroyTargets(
     bestAnswers,
     pangramChecks,
     packsAndCases,
+    weekWork,
+    workLog,
     pairs,
     anonymousFeedbackCounts,
     predictions,
@@ -1255,6 +1274,9 @@ export async function countRunDestroyTargets(
     countAgg(db.collection(PANGRAM_CHECKS_COLLECTION).where("runId", "==", runId)),
     // The same single equality the packs and cases stage drains on.
     countAgg(db.collection(COURSE_PACKS_AND_CASES_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the weeks' work stages drain on.
+    countAgg(db.collection(COURSE_WEEK_WORK_COLLECTION).where("runId", "==", runId)),
+    countAgg(db.collection(COURSE_WORK_LOG_COLLECTION).where("runId", "==", runId)),
     // The same single equality the pairs stage drains on.
     countAgg(db.collection(COURSE_PAIRS_COLLECTION).where("runId", "==", runId)),
     // The same single equality, on each of the three collections the
@@ -1303,6 +1325,8 @@ export async function countRunDestroyTargets(
     bestAnswers,
     pangramChecks,
     packsAndCases,
+    weekWork,
+    workLog,
     pairs,
     anonymousFeedback: anonymousFeedbackCounts.reduce((a, b) => a + b, 0),
     predictions,
@@ -1928,6 +1952,21 @@ export async function destroyRunCascade(
       // so nothing recreates one behind the cascade.
       drain: () =>
         drainQuery(db, COURSE_PACKS_AND_CASES_COLLECTION, byRunId(COURSE_PACKS_AND_CASES_COLLECTION), budget),
+    },
+    {
+      key: "weekWork",
+      // Where each person's week stands: a leaf keyed by `runId`, drained
+      // with the other leaves and BEFORE the weeks each record names. `write:
+      // if false` to every client, and the routes that write it (Submit and
+      // Reopen) read the run first and leave alone one being destroyed.
+      drain: () => drainQuery(db, COURSE_WEEK_WORK_COLLECTION, byRunId(COURSE_WEEK_WORK_COLLECTION), budget),
+    },
+    {
+      key: "workLog",
+      // What each person did to their weeks and when: a leaf keyed by
+      // `runId`, drained with the other leaves and BEFORE the weeks each row
+      // names. `write: if false` to every client.
+      drain: () => drainQuery(db, COURSE_WORK_LOG_COLLECTION, byRunId(COURSE_WORK_LOG_COLLECTION), budget),
     },
     {
       key: "pairs",

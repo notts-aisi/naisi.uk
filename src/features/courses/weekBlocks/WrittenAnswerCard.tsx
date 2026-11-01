@@ -2,7 +2,6 @@
 
 import { useCallback, useId, useRef, useState } from "react";
 import Link from "next/link";
-import Button from "@/components/ui/Button";
 import { useDebouncedWrite } from "@/hooks/useDebouncedWrite";
 import type { ExerciseResponseWire } from "@/app/api/courses/runs/[runId]/exercises/[exerciseId]/submit/route";
 import { SAVED } from "@/lib/courses/memberPageWords";
@@ -13,18 +12,16 @@ import {
   ANSWER_NOT_SAVED,
   WRITTEN_ANSWER,
   YOUR_ANSWER,
-  alsoReadByWords,
-  changeUntilWords,
   dueLineWords,
   feedbackFromWords,
   lockedLineWords,
   readersFeedbackWords,
-  reopenedLineWords,
-  seenWhereWords,
-  sendToWords,
   sentLineWords,
   wordCountWords,
 } from "@/lib/courses/writtenAnswerWords";
+import type { WeekWorkWire } from "@/lib/courses/weekWork/model";
+import { answerReadersWords, othersReadWords, savedOnWords } from "@/lib/courses/weekWork/words";
+import { useRegisterFlush } from "./weekSaves";
 import Prose from "./Prose";
 import styles from "./blockWeek.module.css";
 import own from "./writtenAnswer.module.css";
@@ -32,28 +29,33 @@ import own from "./writtenAnswer.module.css";
 /**
  * THE WEEK'S WRITTEN ANSWER ON THE WEEK PAGE (boards wk-week, wk-week-phone;
  * Q30 C, Q33): the question, what a strong answer does, "Your answer" (one
- * box, or a box per label for an answer in labelled boxes, sent together),
- * a live count of words against the range, a box that saves as the person
- * types, Send, the day it is due for their own group, and who reads it.
+ * box, or a box per label for an answer in labelled boxes), a live count of
+ * words against the range, a box that saves as the person types, the day it
+ * is due for their own group, and who reads it and from when. It is sent by
+ * submitting the week (`SubmitWeek`), never on its own.
  *
  * WHO SEES THE BOX. Somebody taking part: a fellow placed in a group, or a
  * facilitator writing their own answer. Anybody else reading the week (an
  * admin, the run's other staff) sees the question and no box.
  *
- * AFTER SEND the answer is "Sent" and still saves as they type, until one of
- * its reviewers opens it on the review page; from then on the box is read
- * only and says who opened it and when ("Rahul opened it on Tue 17 Nov at
- * 9:58am, so it can’t change now."). "Reopen for edits" hands it back and
- * the box says so. Once feedback is sent, "Feedback from Rahul" leads to it.
- * The person never sees "Late": that is shown to staff only.
+ * WHO READS IT, AND FROM WHEN (privacy v15): the line under the box says
+ * the people who read it can read it once the week is submitted, or locks
+ * ("Once you submit, or your week locks, Rahul, Claudia and admins can read
+ * your written answer."). Once the week is submitted or locked the box is
+ * read only: "Submitted Tue 10 Nov, 9:31pm.", or, locked before it was
+ * submitted, "146 words, saved Tue 17 Nov.". An answer one of its reviewers
+ * opened before weeks were submitted stays read only until the week is
+ * reopened, and says who opened it and when. Once feedback is sent,
+ * "Feedback from Rahul" leads to it. The person never sees "Late": that is
+ * shown to staff only.
  *
  * NEVER A WRITABLE BOX OVER WHAT WE DO NOT KNOW: until the person's own rows
  * have loaded, the card says so instead, as the reflection boxes do.
  *
  * THE WRITE is `PUT /api/courses/runs/[runId]/written-answers/[answerId]`
  * through `useDebouncedWrite` (one writer, newest value wins, flushed on
- * blur, on leaving and on the page being hidden); Send flushes what is
- * waiting, then sends what the box shows.
+ * blur, on leaving and on the page being hidden); Submit flushes what is
+ * waiting first (`useRegisterFlush`).
  */
 
 type Readers = { kind: "facilitators"; names: string[] } | { kind: "lead"; leadName: string | null };
@@ -83,6 +85,8 @@ type Props = {
   dayBeforeTime: string | null;
   first: boolean;
   todayKey: string;
+  /** Where the week stands: an answer in a submitted or locked week is read only. */
+  work: WeekWorkWire | null;
   onSaved: (row: ExerciseResponseWire) => void;
 };
 
@@ -96,7 +100,6 @@ async function putAnswer(args: {
   answerId: string;
   weekId: string;
   body: Body;
-  send: boolean;
   keepalive: boolean;
 }): Promise<ExerciseResponseWire | null> {
   const res = await fetch(
@@ -104,7 +107,7 @@ async function putAnswer(args: {
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ weekId: args.weekId, ...args.body, send: args.send }),
+      body: JSON.stringify({ weekId: args.weekId, ...args.body }),
       keepalive: args.keepalive,
     },
   );
@@ -162,14 +165,13 @@ function AnswerForm({
   dayBeforeTime,
   first,
   todayKey,
+  work,
   onSaved,
 }: Props) {
   const fieldId = useId();
   const stored = storedValue(block, row);
   const [value, setValue] = useState<Body>(stored);
   const [touched, setTouched] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [sendError, setSendError] = useState<string | null>(null);
   const dispatchedRef = useRef(false);
 
   // A row that arrives after the form was drawn seeds it, but never once the
@@ -182,24 +184,26 @@ function AnswerForm({
   }
 
   const written = row?.written ?? null;
-  const locked = Boolean(written?.opened || written?.feedback);
+  // Opened by one of its reviewers before weeks were submitted: read only until the week is reopened.
+  const locked = Boolean(written?.opened);
   const sent = Boolean(written?.firstSentAt);
   const writable = canWrite && !locked;
 
   const write = useCallback(
     async (next: Body, opts: { keepalive: boolean }) => {
       dispatchedRef.current = true;
-      const saved = await putAnswer({ runId, answerId: block.id, weekId, body: next, send: false, keepalive: opts.keepalive });
+      const saved = await putAnswer({ runId, answerId: block.id, weekId, body: next, keepalive: opts.keepalive });
       if (saved) onSaved(saved);
     },
     [block.id, onSaved, runId, weekId],
   );
   const saver = useDebouncedWrite(write);
+  // Submit writes this box's waiting save before it submits the week.
+  useRegisterFlush(saver.flush);
 
   const change = (next: Body) => {
     setTouched(true);
     setValue(next);
-    setSendError(null);
     if (!writable) {
       saver.cancel();
       return;
@@ -214,30 +218,13 @@ function AnswerForm({
     saver.push(next);
   };
 
-  const send = async () => {
-    if (!writable || sending) return;
-    setSending(true);
-    setSendError(null);
-    try {
-      await saver.flush();
-      const saved = await putAnswer({ runId, answerId: block.id, weekId, body: value, send: true, keepalive: false });
-      if (saved) onSaved(saved);
-      saver.reset();
-      setTouched(false);
-    } catch (err) {
-      setSendError(err instanceof Error ? err.message : ANSWER_NOT_SAVED);
-    } finally {
-      setSending(false);
-    }
-  };
-
   const words = "text" in value ? countWords(value.text) : answerWords("", value.boxes);
   const over = block.words !== null && words > block.words.max;
   const pending = touched && valueKey(value) !== storedKey;
   const showSaved = saver.state !== "error" && !pending && storedKey !== "" && words > 0;
   const rubric = feedbackOn.length > 0 ? { count: feedbackOn.length, inWords: rowNamesInWords(feedbackOn) } : null;
   const opened = written?.opened ? { byName: written.opened.byName, at: new Date(written.opened.at) } : null;
-  const reopened = !opened && written?.reopened ? { byName: written.reopened.byName, at: new Date(written.reopened.at) } : null;
+  const shut = work?.state === "submitted" || work?.state === "locked";
   const feedbackHref = `/learn/${encodeURIComponent(runId)}/weeks/${weekNumber}/feedback`;
 
   const status = (
@@ -309,16 +296,15 @@ function AnswerForm({
 
       {opened ? (
         <p className={own.line}>{lockedLineWords(opened.byName, opened.at)}</p>
+      ) : sent && written?.firstSentAt ? (
+        <p className={own.lineStrong}>{sentLineWords(new Date(written.firstSentAt))}</p>
+      ) : shut ? (
+        // Locked before it was submitted: what was saved, and when.
+        <p className={own.line}>{savedOnWords(written?.words ?? 0, written?.savedAt ? new Date(written.savedAt) : null)}</p>
       ) : (
-        <>
-          {sent && written?.firstSentAt && <p className={own.lineStrong}>{sentLineWords(new Date(written.firstSentAt))}</p>}
-          {reopened && <p className={own.line}>{reopenedLineWords(reopened.byName, reopened.at)}</p>}
-          {!sent && (
-            <p className={own.line}>
-              {dueLineWords(block.due, due, { todayKey, dayBeforeTime, first })} {readersFeedbackWords(readers, rubric)}
-            </p>
-          )}
-        </>
+        <p className={own.line}>
+          {dueLineWords(block.due, due, { todayKey, dayBeforeTime, first })} {readersFeedbackWords(readers, rubric)}
+        </p>
       )}
 
       {written?.feedback && (
@@ -329,20 +315,10 @@ function AnswerForm({
         </p>
       )}
 
-      {!sent && canWrite && (
-        <div className={own.sendRow}>
-          <Button type="button" onClick={() => void send()} disabled={sending || words === 0 || over}>
-            {sendToWords(readers.kind === "facilitators" ? readers.names : [readers.leadName ? `${readers.leadName} and admins` : "admins"])}
-          </Button>
-        </div>
-      )}
-      {sendError && <p className={styles.boxError} role="alert">{sendError}</p>}
-
-      {!opened && !written?.feedback && (
+      {!written?.feedback && (
         <div className={own.readers}>
-          <p className={styles.readersLine}>{seenWhereWords(readers)}</p>
-          <p className={styles.readersLine}>{alsoReadByWords(readers, leadName)}</p>
-          <p className={styles.readersLine}>{changeUntilWords(readers, Boolean(reopened))}</p>
+          <p className={styles.readersLine}>{answerReadersWords(readers, leadName)}</p>
+          <p className={styles.readersLine}>{othersReadWords(readers)}</p>
         </div>
       )}
     </div>

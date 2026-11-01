@@ -2696,12 +2696,20 @@ service cloud.firestore {
     }
 
     // === courseProgress ===
-    // THE one client-direct member write in the courses feature: the
-    // check-off hot path (complete a material, rate it, leave a comment)
-    // commits instantly from the client, because the rules below can express
-    // the entire invariant. Everything hangs off the deterministic doc id —
-    // runId + '__' + auth.uid + '__' + itemId — which makes own-row-only
-    // writes STRUCTURAL: there is no way to address anyone else's row.
+    // THE one client-direct member write in the courses feature: a rating, a
+    // comment or a private note on a material commits from the client,
+    // because the rules below can express the entire invariant. Everything
+    // hangs off the deterministic doc id — runId + '__' + auth.uid + '__' +
+    // itemId — which makes own-row-only writes STRUCTURAL: there is no way to
+    // address anyone else's row.
+    //
+    // A TICK is not a browser write any more. `completed` and `completedAt`
+    // are written only by the tick route
+    // (/api/courses/runs/[runId]/ticks/[itemId], Admin SDK), because a week
+    // locks when it is submitted or its group's session starts, which these
+    // rules cannot know, and an untick is recorded there with its time. So a
+    // browser create carries an unticked row with no completion time, and a
+    // browser update carries both fields through exactly as stored.
     match /courseProgress/{progressId} {
       // NEVER use this in a READ rule. `allow read` also covers `list`, and
       // a list query evaluates its rule per candidate doc — so these lookups
@@ -2791,7 +2799,9 @@ service cloud.firestore {
       // clear, or launder a moderation stamp by re-saving the row.
       allow create: if progressShapeOk()
         && !('moderatedByUid' in request.resource.data)
-        && !('moderatedAt' in request.resource.data);
+        && !('moderatedAt' in request.resource.data)
+        && request.resource.data.completed == false
+        && !('completedAt' in request.resource.data);
 
       // The id pins runId/uid/itemId already (a doc id can't change), but
       // the field pins are stated anyway so a future id-scheme change can't
@@ -2805,7 +2815,10 @@ service cloud.firestore {
         && request.resource.data.get('moderatedByUid', null)
           == resource.data.get('moderatedByUid', null)
         && request.resource.data.get('moderatedAt', null)
-          == resource.data.get('moderatedAt', null);
+          == resource.data.get('moderatedAt', null)
+        && request.resource.data.completed == resource.data.get('completed', false)
+        && request.resource.data.get('completedAt', null)
+          == resource.data.get('completedAt', null);
 
       // A member may retract their own row (un-check everything, including a
       // moderated comment — deletion REMOVES content, which is the moderation
@@ -2820,11 +2833,31 @@ service cloud.firestore {
     // — checking it would mean fetching the week doc and searching an array —
     // and the URL validation (validateSubmissionUrl) is string-parsing rules
     // can't do. Own-row read lets the member see their submission state;
-    // facilitators review through the PII-free facilitator routes.
+    // facilitators, the lead and admins read through the routes, which hold
+    // a written answer's words back until its week is submitted or locked
+    // (privacy v15). No admin branch: an admin's own browser reading a draft
+    // would break that, and no page reads the store client-direct as an admin.
     match /courseExerciseResponses/{docId} {
-      allow read: if isAdmin()
-        || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
       allow write: if false;
+    }
+
+    // === courseWeekWork ===
+    // Where one person's week stands: when they submitted it, and when and by
+    // whom it was reopened. Written by the Submit and Reopen routes, read by
+    // routes and server pages (Admin SDK). Every browser is refused, admins
+    // included.
+    match /courseWeekWork/{docId} {
+      allow read, write: if false;
+    }
+
+    // === courseWorkLog ===
+    // What one person did to their own week and when: a tick, an untick, the
+    // first save of a writing spell, an emptied box, a submit, a reopen.
+    // Written by the routes that do each (Admin SDK); nothing reads it from a
+    // browser, admins included.
+    match /courseWorkLog/{docId} {
+      allow read, write: if false;
     }
 
     // === courseAttendance ===

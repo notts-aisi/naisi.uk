@@ -246,7 +246,7 @@ export async function loadCourseworkTab(
   const [groupWeeks, names, coursework] = await Promise.all([
     Promise.all(groups.map(async (group) => [group.id, await weeksRead(db, run.id, group.id)] as const)),
     namesOf(db, accountsToName(groups, holders, seats)),
-    readRunCoursework(db, run.id, null),
+    readRunCoursework(db, { run, liveGroups: groups, now: new Date() }, null),
   ]);
   const weeksOf = new Map(groupWeeks);
   const columns = columnsOf(run, runWeeks);
@@ -357,7 +357,7 @@ export async function loadPersonCoursework(
   const columns = columnsOf(run, runWeeks);
   const weekOf = (weekNumber: number) => weeks.get(weekNumber) ?? null;
   const [coursework, boxesReader, notes] = await Promise.all([
-    readRunCoursework(db, run.id, uid),
+    readRunCoursework(db, { run, liveGroups: groups, now: new Date() }, uid),
     boxesReaderFor(db, actor, run.id, uid),
     readPersonPrivateNotes(
       db,
