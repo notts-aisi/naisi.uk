@@ -242,6 +242,8 @@ describe("2. a fill-in box is its writer's own", () => {
   });
 
   test("who may write: somebody taking part or facilitating, each in their own box, and nobody on anybody's behalf", async () => {
+    // Thursday noon: Group A meets at 6pm, so week 6 takes work for everybody here (the week you submit).
+    at("2026-12-03T12:00:00Z");
     for (const who of ["chloe", "farah", "kofi", "amara"]) {
       assert.equal((await w.writeFillIn(who, FB[0], "w06", `${who}'s words.`)).status, 200, who);
       assert.equal(w.world.db.read(rowPath(who, "w06", FB[0])).text, `${who}'s words.`);
@@ -615,15 +617,16 @@ describe("6. the checklist in blocks (part 2)", () => {
     const checklist = view.slice(view.indexOf("function Checklist("), view.indexOf("// Go further"));
     assert.match(checklist, /kind: "checklist"/);
     assert.match(checklist, /id: item\.id/);
-    // And the one write a tick makes, for a step as for any checklist item.
-    const mutations = await w.loadTs(join("features", "courses", "progressMutations.ts"));
-    await mutations.toggleProgressItem({ runId: RUN.agi, uid: "chloe", weekNumber: 6, itemKind: "checklist", itemId: CI[0], current: null, next: true });
-    const write = w.ui.writes.at(-1);
-    assert.equal(write.path, `courseProgress/${RUN.agi}__chloe__${CI[0]}`);
-    assert.equal(write.data.itemKind, "checklist");
-    assert.equal(write.data.itemId, CI[0]);
-    assert.equal(write.data.weekNumber, 6);
-    assert.equal(write.data.completed, true);
+    // And the one write a tick makes, for a step as for any checklist item: the tick route, which finds
+    // the step on the week and writes the person's own row as a checklist item's.
+    const tickRoute = await w.courseRoute("runs", "[runId]", "ticks", "[itemId]");
+    const ticked = await w.call("chloe", tickRoute.PUT, { runId: RUN.agi, itemId: CI[0] }, { course: true, body: { weekId: "w06", completed: true } });
+    assert.equal(ticked.status, 200, JSON.stringify(ticked.body));
+    const write = w.world.db.read(`courseProgress/${RUN.agi}__chloe__${CI[0]}`);
+    assert.equal(write.itemKind, "checklist");
+    assert.equal(write.itemId, CI[0]);
+    assert.equal(write.weekNumber, 6);
+    assert.equal(write.completed, true);
   });
 
   test("the steps keep their ids when the week is copied out and pasted back", async () => {
