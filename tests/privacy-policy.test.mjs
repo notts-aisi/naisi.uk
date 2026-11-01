@@ -828,6 +828,10 @@ const MUST_NAME = [
   // note about a named person after a session, the group's facilitators and
   // admins (`readsNotes` in `src/lib/courses/registerAccess.ts`, held in §2g).
   ["who reads the notes a group's facilitators share", /and a note may mention you; they, the programme&apos;s lead and admins read them\./],
+  // A facilitator's session report (src/lib/firestore/courseSessionReports.ts):
+  // what it asks, who reads it, that the person it names never sees it on
+  // the site and can ask for it. §2g holds each to its code.
+  ["session reports, who reads them, and asking for what is written about you", /<strong>Session reports\.<\/strong> After a session, facilitators may report how it went, including who engaged well and who seemed to need a hand or hadn&apos;t done the reading\. The programme&apos;s lead and admins read these\. You don&apos;t see them on the site, but you can ask for what is written about you\./],
   ["the notes shared with a group", /<strong>Notes shared with your group\.<\/strong> On a programme that places you in a group, each week&apos;s page has notes the group and its facilitators share\./],
   ["who sees a note shared with a group, and with what", /A note you add is shown with your name and the day to your group, its facilitators, the programme&apos;s lead and admins\./],
   ["a note shared with a group can be deleted by its writer", /While you are in the group you can delete your own notes;/],
@@ -4744,6 +4748,109 @@ describe("the course hub passage", () => {
     for (const suite of ["course-hub-group-notes.test.mjs", "course-hub-facilitator-pages.test.mjs"]) {
       assert.ok(existsSync(join(REPO_ROOT, "tests", suite)), `tests/${suite} is gone`);
     }
+  });
+
+  test("a session report is written by the group's facilitators after a session, read by the programme's lead and admins and never by the person it names, kept with the course record, and found by account for a copy or a deletion", () => {
+    // "Session reports.", whole, and the three lines elsewhere that name
+    // them: kept while the account exists, in a lawful basis, and in a copy
+    // of somebody's data.
+    const passage = hubPassageOf("<strong>Session reports.</strong>");
+    assert.equal(
+      passage,
+      "<strong>Session reports.</strong> After a session, facilitators may report how it went, including who engaged well and who seemed to need a hand or hadn&apos;t done the reading. The programme&apos;s lead and admins read these. You don&apos;t see them on the site, but you can ask for what is written about you. ",
+    );
+    assertHubSays(
+      "<strong>Your course record</strong> (your place, the registers, your work and the feedback on it, notes facilitators wrote and session reports): while your account exists.",
+      " notes facilitators and admins wrote, session reports, ratings, and the reason for a conduct flag.",
+    );
+
+    // "including who engaged well and who seemed to need a hand or hadn't
+    // done the reading": the questions, by their fixed ids and in the form's
+    // words.
+    const record = read("src/lib/firestore/courseSessionReports.ts");
+    assert.match(record, /export const SESSION_REPORT_QUESTIONS = \[\s*"how",\s*"wentWell",\s*"didnt",\s*"unclear",\s*"engaged",\s*"notRead",\s*"needsHand",\s*"forLead",\s*\] as const;/);
+    const reportWords = read("src/lib/courses/sessionReports/words.ts");
+    for (const question of ["How did the session go?", "Who engaged well?", "Did anyone seem not to have done the readings?", "Anyone who might need a hand?"]) {
+      assert.ok(reportWords.includes(`"${question}"`), `the report no longer asks: ${question}`);
+    }
+
+    // "After a session, facilitators": the one writer takes a report only
+    // from a live facilitator of the group, refuses an admin and the lead,
+    // and only once the session has started.
+    const gate = withoutComments(read("src/lib/courses/sessionReports/context.ts"));
+    assert.match(gate, /group && !group\.archived && isNamedWithStanding\(actor, "courseGroups\.facilitatorUids", group\.facilitatorUids\),/);
+    assert.match(gate, /if \(actor\.role !== "admin"\) return \{ ok: false, status: 403, error: "Forbidden" \};/);
+    const route = withoutComments(read("src/app/api/courses/groups/[groupId]/session-report/route.ts"));
+    assert.ok(!/export\s+(?:async\s+)?function\s+(?:GET|POST|PATCH|DELETE)\b/.test(route), "the report route now answers more than its writer's PUT");
+    assert.ok(route.indexOf("gateReportWriter(db, actor, groupId)") !== -1 && route.indexOf("gateReportWriter(db, actor, groupId)") < route.indexOf("tx.set(ref, {"), "the report route writes before it asks who is writing");
+    assert.match(route, /if \(session\.state === "not-yet"\) \{/, "the report route takes a report before its session starts");
+    assert.match(read("src/lib/courses/sessionReports/model.ts"), /return \{ session, opensAt: startsAt, closesAt: next, nextWeekNumber: later\.weekNumber \};/);
+
+    // "The programme's lead and admins read these. You don't see them on the
+    // site": every caller of the readers, each with its gate. Nothing under a
+    // member's pages reads one, a co-facilitator reads only their own, and
+    // the Surveys tab gets a count and no words.
+    const leadPage = "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/reports/page.tsx";
+    const surveysTab = "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/page.tsx";
+    const ownPage = "src/app/(app)/learn/[runId]/group/[groupId]/report/page.tsx";
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\b(?:readRunSessionReports|countRunSessionReports|ownReportView|readOwnReport|loadReportPage)\(/),
+      new Map([
+        ["src/lib/courses/sessionReports/readers.ts", "the lead's and admins' reader and the tab's count, which ask nobody who is reading, so each caller decides that first"],
+        ["src/lib/courses/sessionReports/context.ts", "the writer's own report, read by the id that names the writer"],
+        ["src/lib/courses/sessionReports/page.ts", "the facilitator's page, after the writer's own gate: only the caller's own report"],
+        [ownPage, "the facilitator's page, which sends everybody but the group's live facilitators away first"],
+        [leadPage, "the programme's session reports, for its lead and admins (loadProgrammeRun)"],
+        [surveysTab, "the Surveys tab, for its lead and admins (loadProgrammeRun): how many reports, never what one says"],
+      ]),
+      "reading session reports",
+      "The policy says the programme's lead and admins read session reports, and the people they name don't see them on " +
+        "the site. If this file shows them to anybody else, the sentence is wrong and a new version has to say so.",
+    );
+    const lead = withoutComments(read(leadPage));
+    assert.match(lead, /const outcome = db \? await loadProgrammeRun\(db, user, roundId, programmeId\) : null;/);
+    const refused = lead.indexOf('if (outcome.status === "not-yours") {');
+    assert.ok(refused !== -1 && refused < lead.indexOf("readRunSessionReports(db, view.run.id)"), "the lead's page reads reports before it refuses a reviewer");
+    assert.equal(applicationAccess.opensProgrammeGroups("reviewer"), false, "a programme's reviewer now opens its session reports");
+    const own = withoutComments(read("src/lib/courses/sessionReports/page.ts"));
+    assert.match(own, /const own = await readOwnReport\(db, run, group, chosen\.sessionKey, user\.uid\);/, "the facilitator's page reads somebody else's report");
+    assert.match(withoutComments(read("src/lib/courses/sessionReports/context.ts")), /report\.writerUid === writerUid \? report : null;/);
+
+    // "but you can ask for what is written about you": everybody a report
+    // picks is stored by account, and every report that picks somebody is
+    // found by that account, for a copy of their data as for a deletion.
+    assert.match(route, /aboutUids: aboutUidsOf\(parsed\.answers\),/);
+    assert.match(record, /export type ReportPick = \{ uid: string; note: string \};/);
+    const cascade = withoutComments(read("src/lib/firestore/accountDeletion.ts"));
+    assert.match(cascade, /const about = await rows\.where\("aboutUids", "array-contains", uid\)\.get\(\);/);
+
+    // "the notes and ratings about you": a deletion takes the person out of
+    // every report that picks them. "while your account exists": nothing else
+    // deletes a report but the run's destroy, which deletes the course record.
+    assert.match(
+      cascade,
+      /try \{\s*summary\.courseSessionReportsCleared = await clearSessionReports\(db, uid\);\s*\} catch \(err\) \{[^}]*partialFailure = true;/,
+    );
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bCOURSE_SESSION_REPORTS_COLLECTION\b|["'`]courseSessionReports["'`]/),
+      new Map([
+        ["src/lib/firestore/courseSessionReports.ts", "the record: its shape, its limits and its normaliser"],
+        ["src/lib/courses/sessionReports/context.ts", "the writer's own report, read on the server"],
+        ["src/lib/courses/sessionReports/readers.ts", "the lead's and admins' reader, read on the server"],
+        ["src/app/api/courses/groups/[groupId]/session-report/route.ts", "the one writer, a live facilitator of the group"],
+        ["src/lib/firestore/accountDeletion.ts", "a deletion takes the person out of every report, and keeps the reports they wrote with no writer"],
+        ["src/lib/firestore/courseDeletion.ts", "destroying the run deletes its reports with the rest of its course record"],
+      ]),
+      "addressing session reports",
+      "Session reports are kept while the account exists, taken out with the person's account and deleted with the run. " +
+        "A new reader, writer or job here changes who sees them or how long they are kept, and the policy has to say so.",
+    );
+    // REPORTED: v15's "It leaves" does not name the reports a deleted account
+    // wrote. They stay for the lead and admins with no writer at all (owner
+    // decision, 1 November 2026: "as notes on a register do"), so no sentence
+    // here is false; a date-only update can add them to the list.
+    assert.match(cascade, /tx\.create\(rows\.doc\(\), \{ \.\.\.data, writerUid: null, answers, aboutUids: aboutUidsOf\(answers\) \}\);/);
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-session-reports.test.mjs")), "tests/course-session-reports.test.mjs runs the writer, the pages and both deletions as each kind of caller");
   });
 
   test("the notes a group shares on its week pages reach the group, its facilitators, the programme's lead and admins and nobody else, are deleted by their writer alone, stay when somebody leaves, and go with the writer's account", () => {

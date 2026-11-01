@@ -1458,6 +1458,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a programme whose surveys have answers, so a spec can follow the Surveys tab's links from the programme's head.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/reports": {
+    reason:
+      "Course hub: a programme's session reports for its lead and admins, with names; tests/course-session-reports.test.mjs renders it for the lead, an admin, the programme's reviewer, another programme's lead, a facilitator, somebody in a group and somebody signed out, with reports and without.",
+    coverWhen:
+      "When a browser spec has a group's facilitator send a session report, then signs in the programme's lead and follows the Surveys tab's link to read it.",
+  },
   // The questions somebody left blank (docs/surveys.md). A spec would need a
   // world holding an answer kept before questions were required, which no
   // fixture world holds and no page can make any more.
@@ -1939,6 +1945,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a run whose last session is over, with a group's facilitator signed in.",
   },
+  "/(app)/learn/[runId]/group/[groupId]/report": {
+    reason:
+      "Course hub: a facilitator's session report, the form after the register; tests/course-session-reports.test.mjs renders it as both of a group's facilitators, an admin, the programme's lead, another group's facilitator, somebody in the group and somebody signed out, open, before its session and once closed.",
+    coverWhen:
+      "When a browser spec signs in a group's facilitator, finishes a register, follows its link to the report and sends one.",
+  },
   "/(app)/learn/[runId]/group/[groupId]/review": {
     reason:
       "Learn hub: /(app)/learn/[runId]/group/[groupId]/review is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
@@ -1974,6 +1986,12 @@ const NOT_COVERED = {
       "Course hub: one rating of one fellow at a programme's end; who rates whom, every refusal and what a rating keeps are executed by tests/course-ratings.test.mjs as each kind of caller.",
     coverWhen:
       "When the end-to-end fixtures seed a run whose last session is over, with a group's facilitator signed in.",
+  },
+  "/api/courses/groups/[groupId]/session-report": {
+    reason:
+      "Course hub: a facilitator's own report on a session of their group; who writes, every refusal, who a report may pick, when it is open and what it keeps are executed by tests/course-session-reports.test.mjs as each kind of caller, with the account deletion and the run's destroy.",
+    coverWhen:
+      "When a browser spec signs in a group's facilitator, finishes a register, follows its link to the report and sends one, and the programme's lead reads it.",
   },
   "/api/courses/groups/[groupId]/shared-notes": {
     reason:

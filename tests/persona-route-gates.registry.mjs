@@ -604,7 +604,7 @@ export const ROUTES = {
   "/api/admin/registrations/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseTeamEntriesCleared", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseSessionReportsCleared", "courseTeamEntriesCleared", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -693,7 +693,7 @@ export const ROUTES = {
   "/api/admin/users/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseTeamEntriesCleared", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseSessionReportsCleared", "courseTeamEntriesCleared", "courseTeamsCleared", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -1898,6 +1898,16 @@ export const ROUTES = {
         "so every signed-in persona meets the same 400 on an empty one. Who may change a session of the " +
         "group (its live facilitators, the lead of the programme naming its run, the run's track leads, " +
         "admins) is asked once a valid body arrives.",
+    },
+  },
+  "/api/courses/groups/[groupId]/session-report": {
+    PUT: {
+      expect: signedIn(400),
+      why:
+        "One facilitator's own report on a session of their group: view-as is refused first, then the session, then " +
+        "the body is checked before anything is read, so every signed-in persona meets the same 400 on an empty one. " +
+        "Who may write one (the group's live facilitators, each their own, and nobody else: the programme's lead and " +
+        "admins read reports on the programme's page) is asked once a valid body arrives.",
     },
   },
   "/api/courses/groups/[groupId]/draw": {
@@ -3978,6 +3988,15 @@ export const PAGES = {
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
       "and with an address that names nothing is drawn the same not-here state.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/reports": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "The admissions tree's gate, then the programme layout's and the page's own: a programme's session reports are " +
+      "the programme's lead's and an admin's, so a reviewer is told so before any report is read, and a programme the " +
+      "caller has no role on, or one that does not exist, renders 'there is no programme here' with a 200. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
@@ -4297,6 +4316,13 @@ export const PAGES = {
       "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
       "missing, and the page's own gate (the register's: a live facilitator of the group, or an admin) " +
       "sends everybody else to the run's home.",
+  },
+  "/(app)/learn/[runId]/group/[groupId]/report": {
+    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
+      "missing, and the page's own gate (the report route's: a live facilitator of the group, each writing " +
+      "their own, and not an admin) sends everybody else to the run's home.",
   },
   "/(app)/learn/[runId]/group/[groupId]/reflections": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
@@ -5238,6 +5264,24 @@ export const REAL_ROUTES = {
       },
     },
   },
+  "/api/courses/groups/[groupId]/session-report": {
+    PUT: {
+      realDrive: {
+        body: { sessionKey: "w01", answers: { how: 3 } },
+        why: "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the refused are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(403, "Facilitates no live group here: a session report is the group's live facilitators' own, so one 403 before anything is read."),
+        admin: c(403, "An admin is none of this group's facilitators, and each facilitator writes their own report: refused with the report's own sentence."),
+      },
+      theirs: {
+        lead: c(403, "Leading the programme does not make the lead one of the group's facilitators: the lead reads reports and writes none, refused before anything is read."),
+        facilitator: c(ACTS, "A live facilitator of the group, so admitted: a whole body is never sent to somebody the gate admits, so it is not sent."),
+        participant: c(403, "Holds a place in the run's other group and facilitates none: refused before anything is read."),
+      },
+    },
+  },
   "/api/courses/groups/[groupId]/draw": {
     PUT: {
       realDrive: {
@@ -6065,6 +6109,9 @@ export const REAL_PAGES = {
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/[surveyId]": programmePage(
     "the page of one survey: its results when it is one of the programme's surveys, a sentence when it is not.",
   ),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/reports": programmePage(
+    "the session reports of the run it names, with names: none written in the world, so the page says so.",
+  ),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams": programmePage("the Teams tab, which says teams are an incubator's."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/teams/[teamId]": programmePage("the Teams tab's page, which says teams are an incubator's."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/ratings": programmePage("the ratings given at the programme's end."),
@@ -6111,6 +6158,11 @@ export const REAL_PAGES = {
   "/(app)/learn/[runId]/group/[groupId]/email": groupLearnPage("emailing the group"),
   "/(app)/learn/[runId]/group/[groupId]/ratings": groupLearnPage("rating the group's people at the end"),
   "/(app)/learn/[runId]/group/[groupId]/register": groupLearnPage("the group's register"),
+  "/(app)/learn/[runId]/group/[groupId]/report": learnPage({
+    admin: c("run", "An admin writes no report on a group they do not facilitate (each facilitator writes their own, and admins read them on the programme's page): sent to the run's home."),
+    facilitator: c(200, "A live facilitator of the group: their own report on the group's latest session, week 3, which is open."),
+    participant: c("run", "Admitted to the run, but facilitates no group and this group is not theirs: sent to the run's home instead of a report."),
+  }),
   "/(app)/learn/[runId]/group/[groupId]/reflections": groupLearnPage("the group's reflections"),
   "/(app)/learn/[runId]/group/[groupId]/reflections/names": groupLearnPage("the group's reflections read with names"),
   "/(app)/learn/[runId]/group/[groupId]/review": groupLearnPage("the group's exercises to review (week 1 is a plain week, so the page draws)"),

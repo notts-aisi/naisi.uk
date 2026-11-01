@@ -61,6 +61,11 @@ questions somebody left blank, sent to them by an admin's press).
 - **Names come off** two years after the programme's last session (Zach, 26
   Oct 2026), the same day for every stage, and at once when an account is
   deleted. The answers stay, so the totals stay.
+- **A facilitator's session report is not a survey.** It is a course record
+  written by staff about named people and read with those names by the
+  programme's lead and admins, kept while the account exists; none of the
+  rules here apply to it (docs/courses-ops.md, "A facilitator's session
+  report").
 
 ## The records
 

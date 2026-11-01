@@ -1,6 +1,7 @@
 import { NoProgrammeHere, Refusal } from "@/features/applications/editor/Refusals";
 import LeadSurveysTab from "@/features/surveys/lead/LeadSurveysTab";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
+import { countRunSessionReports } from "@/lib/courses/sessionReports/readers";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 import { leadSurveysTab } from "@/lib/surveys/leadTab";
@@ -14,7 +15,8 @@ export const dynamic = "force-dynamic";
  * end, the programme's surveys with a way to each one's results, how it went,
  * the sources people rated, the facilitator line and what people wrote, in
  * totals and comments, never a name, from the first answer. Ratings and the
- * anonymous form's answers are linked from it.
+ * anonymous form's answers are linked from it, and so are the session
+ * reports, on a page of their own because they name people.
  *
  * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`loadProgrammeRun`), decided from the
  * form before any survey is read; a reviewer is told the tab is the lead's and
@@ -43,7 +45,12 @@ export default async function ProgrammeSurveysPage({
     );
   }
   const { view } = outcome;
-  const tab = await leadSurveysTab(db, { roundId: view.roundId, programmeId: view.programmeId, runId: view.run?.id ?? null }, new Date());
+  const [tab, reports] = await Promise.all([
+    leadSurveysTab(db, { roundId: view.roundId, programmeId: view.programmeId, runId: view.run?.id ?? null }, new Date()),
+    // How many session reports the run has, for the row that leads to their
+    // own page: a count, never what one says.
+    view.run ? countRunSessionReports(db, view.run.id) : Promise.resolve(null),
+  ]);
   const base = `/admin/admissions/forms/${encodeURIComponent(view.roundId)}/programmes/${encodeURIComponent(view.programmeId)}`;
-  return <LeadSurveysTab view={tab} base={base} />;
+  return <LeadSurveysTab view={tab} base={base} reports={reports} />;
 }

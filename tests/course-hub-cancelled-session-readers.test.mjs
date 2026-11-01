@@ -142,6 +142,13 @@ const READERS = {
     proof: ["!session.cancelled &&"],
     why: "the task for the lead and admins: a cancelled session is left out before its register is read",
   },
+  "lib/courses/sessionReports/context.ts": {
+    kind: "asks",
+    proof: ["held: !session.cancelled && register.held !== false,"],
+    why:
+      "a facilitator's session report: a session called off has no report (its window is refused before its register " +
+      "is read), and one whose register says it did not happen has none either",
+  },
 
   // ── Readers handed an answer one of those built ──────────────────────────
   "app/api/admissions/forms/[roundId]/programmes/[programmeId]/registers/remind/route.ts": {

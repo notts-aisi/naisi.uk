@@ -3148,6 +3148,20 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === courseSessionReports ===
+    // Each facilitator's own report on a session of their group
+    // (src/lib/firestore/courseSessionReports.ts): how it went, and who
+    // engaged well, seemed not to have done the readings or might need a
+    // hand, by account. Written only by the report route on the Admin SDK, by
+    // a live facilitator of the group, and read only on the server: the
+    // writer's own on the report page, every report of a run on the
+    // programme's page for its lead and admins, after their own gates. So
+    // every browser is refused, the writer, a co-facilitator, the people a
+    // report picks, the programme's lead and admins included.
+    match /courseSessionReports/{reportId} {
+      allow read, write: if false;
+    }
+
     // === courseFacilitatorGuide ===
     // A course's facilitator guide: each week's session plan and notes, and
     // the course's own documents for its facilitators

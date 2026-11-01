@@ -1,0 +1,492 @@
+/* A facilitator's session report: the form a facilitator sends straight after
+   the register, and the reports the programme's lead and admins read.
+
+   Phone first: one column at every width, every control at least 44px tall,
+   nothing wider than the screen. On a laptop the column keeps the width of a
+   form a person reads down, not the width of the window. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+  max-width: 40rem;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* "After the register · 2 minutes", in the house's meta type, cyan. */
+.eyebrow {
+  margin: 0;
+  font-family: var(--font-meta);
+  font-size: var(--text-xs);
+  line-height: 1.3;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-live);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.625rem;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.intro,
+.line {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: var(--leading-normal);
+  color: var(--color-text-body);
+  overflow-wrap: anywhere;
+}
+
+/* === The form === */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.question {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.label,
+.legend {
+  padding: 0;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+/* A legend's own margin, since a fieldset's gap does not reach it. */
+.legend {
+  margin-bottom: var(--space-3);
+}
+
+.blank {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger-text);
+}
+
+.empty {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* 1 to 5, five equal boxes across the column. */
+.points {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.point {
+  position: relative;
+  display: block;
+  min-height: 2.75rem;
+  cursor: pointer;
+}
+
+/* The radio is real and keeps focus and the keyboard; the face is drawn. */
+.pointInput {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.pointFace {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-weight: 600;
+  font-size: var(--text-ui);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.pointInput:checked + .pointFace {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.pointInput:focus-visible + .pointFace {
+  box-shadow: var(--focus-ring);
+}
+
+.ends {
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* "What seemed unclear": plain rows, a hairline between each. */
+.rows {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--color-border);
+}
+
+.rows > * {
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Somebody to pick: a pill with a real checkbox inside it. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  min-height: 2.75rem;
+  max-width: 100%;
+  padding: 0 var(--space-4) 0 0.875rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: var(--text-ui);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.chipInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+.chipBox {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 1rem;
+  height: 1rem;
+  border: 1.5px solid var(--color-control-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  color: var(--color-on-accent);
+}
+
+.chipTick {
+  display: block;
+  opacity: 0;
+}
+
+.chipName {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.chip:has(.chipInput:checked) {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.chipInput:checked + .chipBox {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+
+.chipInput:checked + .chipBox .chipTick {
+  opacity: 1;
+}
+
+.chip:has(.chipInput:focus-visible) {
+  outline: 2px solid var(--color-live);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .chip:hover {
+    border-color: var(--color-text-muted);
+  }
+
+  .chip:has(.chipInput:checked):hover {
+    border-color: var(--color-accent-hover);
+  }
+}
+
+/* The free-text boxes, three lines tall as drawn; two classes deep, so they
+   outrank the shared box's own height. */
+.form .short {
+  min-height: 5rem;
+}
+
+/* A line about somebody picked, under the people it is about. */
+.aboutOne {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.send {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 2.75rem;
+  padding: 0 var(--space-6);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.send:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.send:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.said {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.error {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-danger-line);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+  font-size: var(--text-sm);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* === A report, read (the lead's page, and the writer's own once closed) === */
+
+.reports {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.week {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.weekTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.cardHead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.cardTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.cardMeta {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.answers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  min-width: 0;
+}
+
+.answer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.answerName {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.answerText {
+  margin: 0;
+  font-size: var(--text-ui);
+  line-height: var(--leading-normal);
+  color: var(--color-text-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.answerList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.answerItem {
+  font-size: var(--text-ui);
+  line-height: var(--leading-normal);
+  color: var(--color-text-body);
+  overflow-wrap: anywhere;
+}
+
+.person {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* The way back to the Surveys tab, on the lead's page. */
+.back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  align-self: flex-start;
+  font-size: var(--text-sm);
+  color: var(--color-accent-text);
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.back:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+/* The register's way on to the report, under its foot. */
+.next {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  align-self: flex-start;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-accent-text);
+  text-decoration: none;
+}
+
+.next:hover {
+  color: var(--color-accent-text-hover);
+}
+
+.next:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+@media (max-width: 48rem) {
+  .title {
+    font-size: 1.5rem;
+  }
+
+  .card {
+    padding: var(--space-4);
+  }
+
+  .send {
+    width: 100%;
+  }
+}

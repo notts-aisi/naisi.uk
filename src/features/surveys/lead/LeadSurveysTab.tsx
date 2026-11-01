@@ -19,6 +19,7 @@ import {
   shownOfWords,
   stagesMovedWords,
 } from "@/lib/surveys/words";
+import { RUN_REPORTS_WORDS, tabLineWords } from "@/lib/courses/sessionReports/words";
 import styles from "./leadSurveys.module.css";
 
 /**
@@ -211,8 +212,8 @@ function Beliefs({ view, base }: { view: LeadTabView; base: string }) {
   );
 }
 
-function Surveys({ view, base }: { view: LeadTabView; base: string }) {
-  const also = view.links.ratings || view.links.anonymousForm;
+function Surveys({ view, base, reports }: { view: LeadTabView; base: string; reports: number | null }) {
+  const also = view.links.ratings || view.links.anonymousForm || reports !== null;
   return (
     <section className={styles.card} aria-labelledby="lead-surveys">
       <h2 id="lead-surveys" className={styles.cardTitleSmall}>
@@ -250,6 +251,15 @@ function Surveys({ view, base }: { view: LeadTabView; base: string }) {
                 <ArrowLink href={`${base}/anonymous-feedback`}>{LEAD_TAB_WORDS.seeAnswers}</ArrowLink>
               </div>
               <p className={styles.rowLine}>{LEAD_TAB_WORDS.anonymousLine}</p>
+            </li>
+          )}
+          {reports !== null && (
+            <li className={styles.rowItem}>
+              <div className={styles.rowHead}>
+                <span className={styles.rowName}>{RUN_REPORTS_WORDS.tabTitle}</span>
+                <ArrowLink href={`${base}/surveys/reports`}>{RUN_REPORTS_WORDS.tabAction}</ArrowLink>
+              </div>
+              <p className={styles.rowLine}>{tabLineWords(reports)}</p>
             </li>
           )}
         </ul>
@@ -392,7 +402,12 @@ function InTheirWords({ end }: { end: LeadEnd }) {
   );
 }
 
-export default function LeadSurveysTab({ view, base }: { view: LeadTabView; base: string }) {
+/**
+ * `reports` is how many session reports the run has, for the row that leads
+ * to them (their own page, which names people: this tab names nobody), or
+ * null while the programme names no run.
+ */
+export default function LeadSurveysTab({ view, base, reports = null }: { view: LeadTabView; base: string; reports?: number | null }) {
   const end = view.end;
   const how = end !== null && end.howItWent.length > 0;
   return (
@@ -405,7 +420,7 @@ export default function LeadSurveysTab({ view, base }: { view: LeadTabView; base
           </div>
         )}
         <div className={view.change ? styles.side : styles.whole}>
-          <Surveys view={view} base={base} />
+          <Surveys view={view} base={base} reports={reports} />
         </div>
       </div>
       {(how || view.sources) && (

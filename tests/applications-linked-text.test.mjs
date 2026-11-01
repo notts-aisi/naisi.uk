@@ -1173,6 +1173,13 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/reports/page.tsx",
+    {
+      built: ["`${base}/applications`", "`${base}/surveys`"],
+      from: "the programme's own Applications tab, for a reviewer told the session reports are not theirs, and the way back to its Surveys tab: each made from the form's and the programme's ids in the address, encoded. Nothing anybody typed",
+    },
+  ],
+  [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/attendance/page.tsx",
     {
       built: ["`${writtenPath}?group=${encodeURIComponent(group.id)}`"],

@@ -160,6 +160,9 @@ const DEADLINE_NAMES = new Map([
         // The questions somebody left blank: `blanksStore.ts` hands the survey's
         // close to the email of blanks and refuses a send past it.
         "src/lib/surveys/blanksStore.ts",
+        // A facilitator's session report: `model.ts` works out when a
+        // session's report closes, which the report route refuses past.
+        "src/lib/courses/sessionReports/model.ts",
       ],
       promises: [
         {
@@ -424,6 +427,16 @@ const DEADLINE_NAMES = new Map([
           ],
           enforced: ["src/app/api/events/[id]/check-ins/route.ts"],
           predicate: "checkInPhase(",
+        },
+        {
+          of: "a facilitator's session report",
+          binds: "a group's facilitators, each writing their own report on a session",
+          why:
+            "A report on a session can be sent and changed from the session's start until the group's next held " +
+            "session starts, or for a week after the group's last one, so it is settled before the group meets again.",
+          told: ["src/lib/courses/sessionReports/page.ts"],
+          enforced: ["src/app/api/courses/groups/[groupId]/session-report/route.ts"],
+          predicate: 'session.state === "closed"',
         },
       ],
     },

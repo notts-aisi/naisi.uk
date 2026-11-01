@@ -320,6 +320,11 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "The notes each group's people and facilitators shared with their group on the week pages. They belong to the groups this destroy deletes, so they go with the run.",
   },
+  sessionReports: {
+    label: "Session reports",
+    fate: "destroyed",
+    note: "What each group’s facilitators reported after each session: how it went, and who engaged well, seemed not to have done the readings or might need a hand, by name. Staff writing about the groups this destroy deletes, so they go with the run.",
+  },
   placementNotes: {
     label: "Notes for people placed outside their times",
     fate: "destroyed",
