@@ -2022,7 +2022,10 @@ comment, who gave it) and the way to the feedback page, the fill-in boxes
 (after their own gate, `boxesReaderFor`), and which sources they ticked.
 PRIVATE NOTES are shown to admins only, never to the lead, through the one
 reader of private notes. Survey answers never appear on the tab or the page.
-The page keeps a column beside the weeks for notes admins keep about a person.
+The page keeps a column beside the weeks for the notes the team keeps about a
+person: for an admin, with Claude's draft and Pangram; for the lead, only the
+notes kept for leads (see "Claude and Pangram on coursework, and the notes the
+team keeps").
 
 ### Reads
 
@@ -2960,7 +2963,7 @@ certificate was sent in error, and tell its owner.
   (`outputFileTracingIncludes`). The fonts are in
   `src/lib/courses/certificates/fonts/`, each beside its licence.
 
-## Claude and Pangram on coursework, and the notes admins keep
+## Claude and Pangram on coursework, and the notes the team keeps
 
 Privacy policy version 13 took back version 12's promise that nothing
 written in a course is used outside its programme, from its own agreement on,
@@ -2984,9 +2987,12 @@ shows as out of date.
   a row without it (every row written before this change) never counts. A
   written answer counts only once sent. Somebody with no moment is sent to
   nobody, and their writing is used only within its programme.
-- **Notes admins keep about a person** (`src/lib/memberNotes/`,
-  `memberNotes`, the routes under `/api/admin/members/[uid]/notes`). Admins
-  only, both ways; an admin is refused the notes about themselves; the person
+- **Notes the team keeps about a person** (`src/lib/memberNotes/`,
+  `memberNotes`). Admins read and write every note through the routes under
+  `/api/admin/members/[uid]/notes`; a programme's lead reads and writes
+  through the programme's own,
+  `.../programmes/[programmeId]/people/[uid]/notes` (`programme.ts`).
+  Nobody is shown the notes about themselves, an admin included; the person
   never sees them on the site. One record per person: a note belongs to the
   person, not a run, keeps the name of the programme it was written from, and
   stays when that run is destroyed. WHERE A NOTE SHOWS (`notesShownIn`): the
@@ -2998,8 +3004,34 @@ shows as out of date.
   week's questions, a written answer's feedback as LEVELS and never its
   comment, and every name of everybody on the run swapped for a label ("the
   fellow"); the draft is returned and never stored, and only Save note keeps
-  it, with `draftedByClaude`. Deleted with the person's account; a note an
-  account wrote about somebody else stays, and no longer names its author.
+  it, with `draftedByClaude`, an admin's alone. Deleted with the person's
+  account; a note an account wrote about somebody else stays, and no longer
+  names its author.
+- **Who reads a note** (privacy v15). Each note keeps `audience`: "admins"
+  or "leads" (admins and the programme's leads). A note with none, every note
+  written before this, is admins only, and nothing back-fills it. An admin
+  chooses for every note they write, nothing chosen for them, and can change
+  it later. A programme's lead reads a note only when it is kept for leads,
+  is about somebody holding a place on the lead's programme now or
+  facilitating one of its run's live groups (the coursework door's set,
+  decided after `loadProgrammeRun`, so `roleOnProgramme` says who leads),
+  was written after that person agreed to privacy v15 (`reviewUseFrom` in
+  `src/lib/legal/reviewUse.ts`: the agreement's own time while it is to v15
+  or later), and passes the programme's place rule above: the lead's place in
+  `notesShownIn`, the one rule. Never notes about the lead themselves. A
+  lead's own notes are always kept for leads, never one Claude drafted, and
+  only about somebody who has agreed to v15; a lead changes or deletes only
+  their own, while they may read it. A lead is sent each note field by field
+  (`projectNotesForLead`) and never how many notes the place leaves out, nor
+  anything an admin is sent for Claude. A note is kept for leads only when
+  its person has agreed to v15 and it was written after: asking for leads on
+  any other note is refused, so no note ever says leads read it when none
+  may. The moment is `policyAgreedAt`, which a new version of the Terms of
+  Use would move forward; `tests/notes-for-leads.test.mjs` fails the day the
+  Terms move past version 1, saying to keep the moment once first.
+- **Suggest for next term**. Any note may keep `suggest`: facilitating, an
+  incubator, the committee. The boxes start unticked on every note, Claude's
+  drafts included, and only a person ticks them.
 - **Best answers to a week** (`src/lib/courses/coursework/bestAnswers.ts`,
   `courseBestAnswers/{runId}__{weekId}`, the route
   `.../programmes/[programmeId]/coursework/best-answers`). ADMINS ONLY since
@@ -3038,7 +3070,10 @@ shows as out of date.
 `tests/coursework-use-cut-off.test.mjs` holds the moment and the rows at the
 boundary; `tests/coursework-claude.test.mjs` drives every route as an admin,
 the lead, a reviewer, a facilitator and a fellow, reads every message that
-would go, and runs the account cascade over the three records.
+would go, and runs the account cascade over the three records;
+`tests/notes-for-leads.test.mjs` drives the programme's notes routes as every
+one of them, with notes kept for each reader and from before and after the
+v15 moment.
 
 ## Cutover: membership periods
 

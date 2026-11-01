@@ -26,13 +26,14 @@
  *     lead's; survey answers never.
  *  7. THE MODEL, run on its own.
  *  8. THE TREE: each page gates before it reads.
- *  9. CLAUDE, PANGRAM AND THE NOTES ADMINS KEEP (privacy v13). Under the
- *     tab's table, for an admin alone (privacy v15), one week chosen by links
- *     that keep the filters: Claude's best answers and Pangram. Beside a
- *     person's weeks, for an admin alone: notes about them written from this
- *     run, Claude's draft of one, and Pangram. The lead is handed none of
- *     them, and no word of Claude's answers or of Pangram reaches the lead's
- *     pages.
+ *  9. CLAUDE, PANGRAM AND THE NOTES THE TEAM KEEPS (privacy v13, v15). Under
+ *     the tab's table, for an admin alone (privacy v15), one week chosen by
+ *     links that keep the filters: Claude's best answers and Pangram. Beside
+ *     a person's weeks, for an admin: notes about them written from this
+ *     run, Claude's draft of one, and Pangram. For the lead: the notes kept
+ *     for leads alone, through the programme's route, and nothing of Claude
+ *     or Pangram; no word of Claude's answers or of Pangram reaches the
+ *     lead's pages.
  *
  * Real: the two pages, the loader and the model, rendered to HTML. Faked:
  * see `tests/lib/facilitatorWeekWorld.mjs`.
@@ -40,6 +41,8 @@
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stripSource } from "./lib/stripSource.mjs";
@@ -378,7 +381,12 @@ describe("6. a person's page", () => {
     const drawn = await person("claudia", "rahul");
     assert.deepEqual([personOf(drawn).person.facilitating, personOf(drawn).person.groupName], [true, "Group B"]);
     assert.match(drawn.text, /Rahul Mehta AGI Strategy · Group B Facilitator/);
-    assert.doesNotMatch(drawn.html, /<aside/);
+    // The lead is handed the column with the notes kept for leads (section 9), so it is drawn;
+    // handed nothing, the same page draws no column at all.
+    const page = find(drawn.element, "PersonCoursework")[0];
+    assert.equal(page.props.beside.props.viewer, "lead");
+    assert.match(drawn.html, /<aside/);
+    assert.doesNotMatch(renderToStaticMarkup(createElement(page.type, { ...page.props, beside: null })), /<aside/);
   });
 });
 
@@ -435,7 +443,7 @@ describe("7. the model", () => {
   });
 });
 
-describe("9. Claude, Pangram and the notes admins keep", () => {
+describe("9. Claude, Pangram and the notes the team keeps", () => {
   const COURSEWORK_PATH = `${PROGRAMME_PATH}/coursework`;
   const panelsOf = (drawn) => find(drawn.element, "CourseworkWeekPanels")[0] ?? null;
   /** What the panels under the table draw, one level down: the client panels and their props. */
@@ -476,20 +484,31 @@ describe("9. Claude, Pangram and the notes admins keep", () => {
     assert.match(unknown.html, new RegExp(`<a href="${COURSEWORK_PATH}\\?waiting=1" class="filter filterWaiting">Waiting for feedback</a>`));
   });
 
-  test("a person's page: the column beside the weeks is an admin's, with notes from this run, Claude's draft and Pangram; the lead is handed none of them", async () => {
+  test("a person's page: beside the weeks an admin has notes from this run, Claude's draft and Pangram; the lead has the notes kept for leads alone", async () => {
     for (const uid of ["chloe", "tariq", "rahul"]) {
       const asLead = await person("claudia", uid);
-      assert.equal(personOf(asLead) && find(asLead.element, "PersonCoursework")[0].props.beside, null, `the lead is handed the column beside ${uid}'s weeks`);
-      assert.doesNotMatch(asLead.html, /<aside|Notes about|Draft a note|Pangram/, `the lead's page for ${uid}`);
+      const beside = find(asLead.element, "PersonCoursework")[0].props.beside;
+      assert.equal(beside.type.name, "PersonBeside", `the lead's column beside ${uid}'s weeks`);
+      assert.equal(beside.props.viewer, "lead");
+      const inside = beside.type(beside.props);
+      // The notes, through the programme's own route, with no Claude: never the admins' route or its draft.
+      assert.deepEqual(
+        find(inside, "PersonNotes").map((notes) => [notes.props.uid, notes.props.place, notes.props.lead, notes.props.draft]),
+        [[uid, { run: RUN.agi }, { roundId: ROUND, programmeId: AGI }, undefined]],
+      );
+      assert.equal(find(inside, "PangramPanel").length, 0, `the lead is handed Pangram beside ${uid}'s weeks`);
+      assert.match(asLead.html, /<aside/);
+      assert.match(asLead.text, /Notes about /);
+      assert.doesNotMatch(asLead.html, /Draft a note|Pangram|\/api\/admin\/members/, `the lead's page for ${uid}`);
     }
     const asAdmin = await person("zach", "chloe");
     const beside = find(asAdmin.element, "PersonCoursework")[0].props.beside;
     assert.equal(beside.type.name, "PersonBeside");
-    assert.deepEqual(beside.props, { roundId: ROUND, programmeId: AGI, runId: RUN.agi, uid: "chloe", name: "Chloe Nguyen", self: false });
+    assert.deepEqual(beside.props, { roundId: ROUND, programmeId: AGI, runId: RUN.agi, uid: "chloe", name: "Chloe Nguyen", viewer: "admin", self: false });
     const inside = beside.type(beside.props);
     assert.deepEqual(
-      find(inside, "PersonNotes").map((notes) => [notes.props.uid, notes.props.place, notes.props.draft]),
-      [["chloe", { run: RUN.agi }, "run"]],
+      find(inside, "PersonNotes").map((notes) => [notes.props.uid, notes.props.place, notes.props.draft, notes.props.lead]),
+      [["chloe", { run: RUN.agi }, "run", undefined]],
     );
     assert.deepEqual(find(inside, "PangramPanel").map((panel) => [panel.props.roundId, panel.props.programmeId, panel.props.uid]), [[ROUND, AGI, "chloe"]]);
     assert.match(asAdmin.html, /<aside/);
@@ -499,6 +518,8 @@ describe("9. Claude, Pangram and the notes admins keep", () => {
     const own = beside.type({ ...beside.props, self: true });
     assert.equal(find(own, "PersonNotes").length, 0);
     assert.equal(find(own, "PangramPanel").length, 1);
+    // Nor does a lead's: nothing at all is drawn beside a lead's own weeks.
+    assert.equal(beside.type({ ...beside.props, viewer: "lead", self: true }), null);
   });
 
   test("the model: a week from the address only when it is a column, else the latest written in, else the first", () => {

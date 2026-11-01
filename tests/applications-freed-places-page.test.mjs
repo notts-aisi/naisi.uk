@@ -70,8 +70,10 @@ const STYLESHEETS = [
   "./AssessmentBlock.module.css",
   "./PlacementBox.module.css",
   "./MemberText.module.css",
-  // The notes admins keep about the person, beside their application (privacy v13).
+  // The notes the team keeps about the person, beside their application (privacy v13, v15),
+  // with the round and ticked boxes for who reads a note and what it suggests.
   "./PersonNotes.module.css",
+  "./OptionRow.module.css",
   "./Button.module.css",
   "./Chip.module.css",
   "./Input.module.css",

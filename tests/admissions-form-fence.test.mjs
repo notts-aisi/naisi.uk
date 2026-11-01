@@ -707,6 +707,19 @@ const ROUND_SURFACES = {
       "Pangram's readings of one person's coursework, an admin's alone, through openCourseworkDoor, which " +
       "answers 'none' (a 404) for a round that is not a form before their coursework is read",
   },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/notes": {
+    kind: "form",
+    why:
+      "the notes about one person on the programme, for its lead and admins, through openProgrammeNotes, which " +
+      "starts from loadProgrammeRun and the form's own loader and answers 'none' (a 404) for a round that is not " +
+      "a form, before anything about the person is read",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/notes/[noteId]": {
+    kind: "form",
+    why:
+      "changing or deleting one note about a person on the programme, through the same door as the list, which " +
+      "answers 'none' (a 404) for a round that is not a form before the note is read",
+  },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/circles": {
     kind: "form",
     why:

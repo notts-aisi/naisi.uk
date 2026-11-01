@@ -3498,13 +3498,16 @@ service cloud.firestore {
     }
 
     // === memberNotes ===
-    // The notes admins keep about a person (privacy v13, "Notes admins keep
+    // The notes the team keeps about a person (privacy v13, and v15's "Notes
     // about you"; src/lib/memberNotes/). Read and written only by the notes
     // routes on the Admin SDK, after their own gate: an admin, about somebody
-    // else. So every browser is refused, the person a note is about, the
-    // programme's lead and admins included: the person must never read one
-    // from their own browser, and an admin's screen reads them through the
-    // routes, which decide which notes each page may show.
+    // else, or a programme's lead, about somebody on their programme, through
+    // the programme's door, which shows a lead only the notes kept for leads
+    // and written after their person agreed to v15. So every browser is
+    // refused, the person a note is about, the programme's lead and admins
+    // included: the person must never read one from their own browser, a
+    // lead must never read a note kept to admins, and every screen reads them
+    // through the routes, which decide which notes each page may show.
     match /memberNotes/{noteId} {
       allow read, write: if false;
     }

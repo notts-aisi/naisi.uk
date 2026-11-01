@@ -757,10 +757,11 @@ export default function MemberItem({ user, currentAdminUid, nameByUid }: Props) 
         <MemberApplicationHistory uid={user.uid} />
       </section>
 
-      {/* The notes admins keep about this person (privacy v13): every note,
-          with Claude's draft from a programme they are on. Not on your own
-          page: notes about a person are never shown to them, an admin
-          included, and the route refuses the same request. */}
+      {/* The notes the team keeps about this person (privacy v13, v15):
+          every note, each saying who reads it, with Claude's draft from a
+          programme they are on. Not on your own page: notes about a person
+          are never shown to them, an admin included, and the route refuses
+          the same request. */}
       {!isSelf && (
         <section className={styles.card}>
           <PersonNotes uid={user.uid} firstName={firstName} place="profile" draft="picker" />

@@ -278,6 +278,17 @@ const MUST_GUARD = [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]/pangram/route.ts",
     "sends one person's answers to Pangram and keeps its readings with the run, in the caller's name",
   ],
+  // The notes about a person on a programme, for its lead and admins
+  // (privacy v15): a record about a named member, written as the caller,
+  // which no client can read back to check what happened.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/notes/route.ts",
+    "keeps a note about a person on the programme in the caller's name",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/notes/[noteId]/route.ts",
+    "changes or deletes a note about a person on the programme, as the caller",
+  ],
   [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/facilitators/remind/route.ts",
     "reminds one person of their ask by email, in the caller's name, and counts the reminder",

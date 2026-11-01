@@ -8908,8 +8908,8 @@ describe("v13 took back the coursework promise from its own agreement on, and na
     ],
     // TAKEN BACK BY v15, for notes written from it on: the people leading a
     // programme may keep notes too. Notes written before v15 stay admins'
-    // alone, which src/lib/memberNotes/store.ts makes true of every note
-    // today (an admin's alone, both ways: held below).
+    // alone, which the lead's place in `notesShownIn`
+    // (src/lib/memberNotes/model.ts) makes true of every note: §2m′ below.
     [
       "Only admins read and write them, and they are never shown to you on the site.",
       ["Notes written before version 15 stay readable by admins only. You don&apos;t see notes on the site,"],
@@ -8987,8 +8987,109 @@ describe("v13 took back the coursework promise from its own agreement on, and na
     assert.match(read("src/app/api/account/reconsent/route.ts"), /courseworkUseStampFor\(/);
   });
 
-  test("notes about a person are an admin's alone today, both ways, as v15 says of every note written before it", () => {
+  test("notes about a person are an admin's alone on the admins' routes, both ways; a programme's lead reaches them only through §2m′", () => {
     assert.match(read("src/lib/memberNotes/store.ts"), /if \(user\.role !== "admin"\) return refuse\(403, NOTES_WORDS\.onlyAdmins\);/);
+    for (const route of ["src/app/api/admin/members/[uid]/notes/route.ts", "src/app/api/admin/members/[uid]/notes/[noteId]/route.ts", "src/app/api/admin/members/[uid]/notes/draft/route.ts"]) {
+      assert.match(read(route), /gateNotes\(user, uid\)/, `${route} no longer asks the admins' gate`);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2m′ Notes the people leading a programme read and write (v15)
+// ---------------------------------------------------------------------------
+
+describe("v15 lets the people leading a programme keep notes, and keeps every note written before it an admin's; the code agrees", () => {
+  const strip = (source) => source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+  const AGREED = new Date("2026-11-02T09:00:00Z");
+  const BEFORE = new Date("2026-10-20T09:00:00Z");
+  const AFTER = new Date("2026-11-10T09:00:00Z");
+  const PROGRAMME_ROUTES = [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/notes/route.ts",
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/people/[uid]/notes/[noteId]/route.ts",
+  ];
+
+  test("v15 says it", () => {
+    v15Says([
+      "<strong>Notes about you.</strong> Admins, and the people leading a programme you are on, may keep notes about you,",
+      "Each says who wrote it and when, and admins can keep some to themselves.",
+      "Notes written before version 15 stay readable by admins only.",
+      "a person reads and edits it before it is kept, and a kept note says it was drafted by Claude.",
+    ]);
+  });
+
+  test("\"Notes written before version 15 stay readable by admins only\": a lead is shown a note only when it is kept for leads and was written after its person agreed to v15", async () => {
+    const use = await loadTs("lib/legal/reviewUse.ts");
+    assert.equal(use.REVIEW_USE_FROM_VERSION, 15);
+    assert.equal(use.reviewUseFrom({ policyVersion: "terms.1+privacy.14", policyAgreedAt: AGREED }), null, "a person on v14 has no moment");
+    assert.equal(use.reviewUseFrom({ policyVersion: "terms.1+privacy.15", policyAgreedAt: AGREED })?.getTime(), AGREED.getTime());
+    const model = await loadTs("lib/memberNotes/model.ts");
+    const note = (id, createdAt, audience) =>
+      model.normalizeMemberNote(id, { uid: "u", text: id, authorUid: "a", runId: "r", createdAt, updatedAt: createdAt, ...(audience ? { audience } : {}) });
+    const notes = [note("before-v15", BEFORE, "leads"), note("nobody-chose", AFTER), note("admins", AFTER, "admins"), note("for-leads", AFTER, "leads")];
+    const lead = { kind: "lead", runId: "r" };
+    assert.deepEqual(model.notesShownIn(lead, notes, BEFORE, AGREED).shown.map((shown) => shown.id), ["for-leads"]);
+    assert.deepEqual(model.notesShownIn(lead, notes, BEFORE, null).shown, [], "a lead is shown a note about somebody who has not agreed to v15");
+    // Every note written before v15 existed has no audience, and reads as admins only.
+    assert.equal(model.normalizeMemberNote("old", {}).audience, "admins");
+    // The lead's reads go through that place, and the lead's place alone.
+    const door = strip(read("src/lib/memberNotes/programme.ts"));
+    assert.equal((door.match(/notesShownIn\(\{ kind: "lead", runId: door\.runId \}/g) ?? []).length, 2, "the lead reads or changes a note outside the lead's place");
+    assert.match(door, /reviewFrom: reviewUseFrom\(subject\)/);
+  });
+
+  test("\"the people leading a programme you are on\": the programme's own gate, then the person on the programme now, before anything about them is read", () => {
+    const door = strip(read("src/lib/memberNotes/programme.ts"));
+    const body = door.slice(door.indexOf("export async function openProgrammeNotes("));
+    const order = [
+      "if (user.uid === subjectUid) return refuse(403, NOTES_WORDS.notYours);",
+      "const outcome = await loadProgrammeRun(db, user, roundId, programmeId);",
+      'if (outcome.status === "not-yours") return refuse(403, NOTES_WORDS.notTheirs);',
+      "if (!form || form.decisionsSentAt === null) return refuse(404, NOTES_WORDS.notOnProgramme);",
+      "holdsPlaceOn(form, view.programmeId, application,",
+      "if (!onProgramme) return refuse(404, NOTES_WORDS.notOnProgramme);",
+      "loadSubject(db, subjectUid)",
+    ];
+    let at = -1;
+    for (const step of order) {
+      const next = body.indexOf(step);
+      assert.ok(next > at, `the programme's door no longer does this in order: ${step}`);
+      at = next;
+    }
+    for (const route of PROGRAMME_ROUTES) {
+      const code = strip(read(route));
+      assert.match(code, /openProgrammeNotes\(db, user, roundId, programmeId, uid\)/, `${route} does not open the programme's door`);
+      assert.doesNotMatch(code, /draftNote|askClaude|pangram/i, `${route} reaches Claude or Pangram`);
+    }
+    // "Only admins see what they return": the lead is answered before whether Claude is set up is even asked.
+    const list = strip(read(PROGRAMME_ROUTES[0]));
+    const leadAnswered = list.indexOf('if (loaded.viewer === "lead") return NextResponse.json(projectNotesForLead(loaded.lead)');
+    assert.ok(leadAnswered !== -1 && leadAnswered < list.indexOf("claudeConfigured()"), "the lead's answer is built after Claude is asked about");
+  });
+
+  test("\"admins can keep some to themselves\": a lead's note is always kept for leads, and only an admin saves a note Claude drafted", async () => {
+    const store = strip(read("src/lib/memberNotes/store.ts"));
+    assert.match(store, /if \(viewer === "lead" && raw !== "leads"\) return refuse\(403, NOTES_WORDS\.leadsAlways\);/);
+    assert.match(store, /if \(draftedByClaude && viewer !== "admin"\) return refuse\(403, NOTES_WORDS\.onlyAdminsKeepDrafts\);/);
+    const door = strip(read("src/lib/memberNotes/programme.ts"));
+    assert.match(door, /if \(fields\.audience !== "leads"\) return refuse\(403, NOTES_WORDS\.leadsAlways\);/);
+    assert.match(door, /if \(fields\.draftedByClaude\) return refuse\(403, NOTES_WORDS\.onlyAdminsKeepDrafts\);/);
+    // A note kept for leads only about somebody who agreed to v15, written after they did.
+    assert.match(store, /if \(fields\.audience === "leads" && reviewFrom === null\) return refuse\(409, NOTES_WORDS\.notYetForLeads409\);/);
+    assert.match(store, /if \(change\.audience === "leads" && !writtenAfterReviewUse\(note\.createdAt, reviewFrom\)\) \{/);
+  });
+
+  test("\"Each says who wrote it and when\" and \"a kept note says it was drafted by Claude\", to a lead as to an admin; nothing else of an admin's reaches a lead", () => {
+    const door = strip(read("src/lib/memberNotes/programme.ts"));
+    const projection = door.slice(door.indexOf("export function projectNotesForLead("), door.indexOf("export async function addProgrammeNote("));
+    for (const field of ["authorName:", "createdAt:", "draftedByClaude: note.draftedByClaude,"]) {
+      assert.ok(projection.includes(field), `the lead's projection no longer carries ${field}`);
+    }
+    for (const never of ["hidden", "agreed", "runs", "claude:", "beforeAgreement", "leadsMayRead"]) {
+      assert.ok(!projection.includes(never), `the lead's projection carries ${never}`);
+    }
+    const list = strip(read(PROGRAMME_ROUTES[0]));
+    assert.match(list, /if \(loaded\.viewer === "lead"\) return NextResponse\.json\(projectNotesForLead\(loaded\.lead\), \{ headers: NO_STORE \}\);/);
   });
 });
 

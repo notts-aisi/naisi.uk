@@ -287,9 +287,23 @@ const RAW_SITES = {
     role: "not-a-gate",
     matches: { authorUid: 1 },
     why:
-      "Not a gate. The one comparison decides whether an edit records `editedByUid` (an admin changing " +
-      "another admin's note). Who may read or write a note is `gateNotes`, the admin role on the session, " +
-      "decided before anything is read; the author's uid grants nothing.",
+      "Not a gate. The one comparison decides whether an edit records `editedByUid` (somebody changing " +
+      "another person's note). Who may read or write a note is `gateNotes` (the admin role on the session) or " +
+      "the programme's door in `programme.ts`, each decided before anything is read; the author's uid grants nothing.",
+  },
+  "src/lib/memberNotes/programme.ts": {
+    role: "not-a-gate",
+    matches: { authorUid: 1 },
+    provedBy: [
+      'if (outcome.status === "none") return refuse(404, NOTES_WORDS.noProgramme);',
+      'if (outcome.status === "not-yours") return refuse(403, NOTES_WORDS.notTheirs);',
+    ],
+    why:
+      "`memberNotes.authorUid` is a note's writer, an ownership scalar and not an appointment, caught because " +
+      "worksheets and events name their author the same way. The comparison only narrows a programme's lead to " +
+      "the notes they added (`wroteIt`): who may change a note at all is the programme's door above it, " +
+      "`loadProgrammeRun`, which asks `roleOnProgramme` and so the lead's standing on every request, so a lead " +
+      "who no longer stands changes nothing, their own notes included.",
   },
   "src/app/(app)/events/manage/page.tsx": {
     role: "client",

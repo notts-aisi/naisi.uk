@@ -25,8 +25,11 @@
  * one the site would make. Every name, address and word is made up.
  *
  * What is held, by section:
- *  1. Notes: admins only, never about yourself, the lead refused; add, edit,
- *     delete; which notes each place shows; a view-as session refused.
+ *  1. Notes on the admins' routes: admins only, never about yourself, the
+ *     lead refused there; add, edit, delete; which notes each place shows; a
+ *     view-as session refused. The programme's leads read and write the notes
+ *     kept for them through the programme's own routes, held by
+ *     `tests/notes-for-leads.test.mjs`.
  *  2. Claude's draft of a note: only counted rows, no name, nothing stored.
  *  3. Best answers: admins only since privacy v15 (the lead refused on the
  *     session, before anything is read); labels to Claude, names back on the
@@ -154,7 +157,7 @@ function assertClean(text, what) {
 // 1. Notes
 // ---------------------------------------------------------------------------
 
-describe("notes about a person: admins only, and never about yourself", () => {
+describe("notes about a person on the admins' routes: admins only, and never about yourself", () => {
   test("everybody but an admin is refused before anything is read, the lead included", async () => {
     reset();
     for (const who of ["claudia", "lloyd", "rahul", "amara", "yusuf"]) {
@@ -186,7 +189,7 @@ describe("notes about a person: admins only, and never about yourself", () => {
 
   test("an admin adds, edits and deletes a note, and the answer is field by field", async () => {
     reset();
-    const added = await ask("zach", routes.notes.POST, { uid: "amara" }, { body: { text: "  Sharp on the reading.\r\n\r\n\r\nAsk her to facilitate.  ", runId: RUN.agi } });
+    const added = await ask("zach", routes.notes.POST, { uid: "amara" }, { body: { text: "  Sharp on the reading.\r\n\r\n\r\nAsk her to facilitate.  ", runId: RUN.agi, audience: "admins" } });
     assert.equal(added.status, 200);
     assert.deepEqual(Object.keys(added.body), ["id"]);
     const stored = w.world.db.read(`memberNotes/${added.body.id}`);
@@ -195,18 +198,24 @@ describe("notes about a person: admins only, and never about yourself", () => {
     assert.equal(stored.text, "Sharp on the reading.\n\nAsk her to facilitate.");
     assert.equal(stored.draftedByClaude, false);
     assert.equal(stored.runId, RUN.agi);
+    assert.equal(stored.audience, "admins", "a note keeps who the admin chose to read it");
+    assert.deepEqual(stored.suggest, [], "a note suggests nothing unless somebody ticks a box");
     assert.ok(stored.programmeLabel.length > 0, "a note from a run keeps the programme's name");
     assert.ok(!("authorName" in stored), "the author's name is looked up, never stored");
 
     const read = await ask("zach", routes.notes.GET, { uid: "amara" }, { query: "?place=profile" });
     assert.equal(read.status, 200);
-    assert.deepEqual(Object.keys(read.body).sort(), ["agreed", "claude", "hidden", "notes", "runs"]);
+    assert.deepEqual(Object.keys(read.body).sort(), ["agreed", "claude", "forLeads", "hidden", "notes", "runs"]);
     assert.deepEqual(Object.keys(read.body.notes[0]).sort(), [
-      "authorName", "beforeAgreement", "createdAt", "draftedByClaude", "edited", "id", "mine", "programme", "text", "updatedAt",
+      "audience", "authorName", "beforeAgreement", "createdAt", "draftedByClaude", "edited", "id", "leadsMayRead", "mine", "programme", "suggest", "text", "updatedAt",
     ]);
     assert.equal(read.body.notes[0].mine, true);
     assert.equal(read.body.notes[0].beforeAgreement, false, "written after Amara agreed");
+    assert.equal(read.body.notes[0].audience, "admins");
     assert.equal(read.body.agreed, true);
+    // Amara agreed to privacy v13 and not v15, so no note about her is kept for leads yet.
+    assert.equal(read.body.forLeads, false);
+    assert.equal(read.body.notes[0].leadsMayRead, false);
 
     assert.equal((await ask("zach", routes.note.PATCH, { uid: "amara", noteId: added.body.id }, { body: { text: "Sharp on the reading." } })).status, 200);
     assert.equal(w.world.db.read(`memberNotes/${added.body.id}`).text, "Sharp on the reading.");
@@ -216,12 +225,18 @@ describe("notes about a person: admins only, and never about yourself", () => {
     assert.equal(w.world.db.read(`memberNotes/${added.body.id}`), undefined);
   });
 
-  test("a note is refused empty, too long, or from a run the person is not on", async () => {
+  test("a note is refused empty, too long, with nobody chosen to read it, or from a run the person is not on", async () => {
     reset();
-    assert.equal((await ask("zach", routes.notes.POST, { uid: "amara" }, { body: { text: "   " } })).status, 400);
-    assert.equal((await ask("zach", routes.notes.POST, { uid: "amara" }, { body: { text: "x".repeat(4001) } })).status, 400);
-    assert.equal((await ask("zach", routes.notes.POST, { uid: "amara" }, { body: { text: "Fine", runId: "another-run" } })).status, 400);
-    assert.equal((await ask("zach", routes.notes.POST, { uid: "nobody-here" }, { body: { text: "Fine" } })).status, 404);
+    const refused = async (uid, body, status, words) => {
+      const answer = await ask("zach", routes.notes.POST, { uid }, { body });
+      assert.equal(answer.status, status, JSON.stringify(body));
+      assert.match(answer.body.error, words, JSON.stringify(body));
+    };
+    await refused("amara", { text: "   ", audience: "admins" }, 400, /Write the note first/);
+    await refused("amara", { text: "x".repeat(4001), audience: "admins" }, 400, /up to 4000 characters/);
+    await refused("amara", { text: "Fine" }, 400, /Choose who reads the note/);
+    await refused("amara", { text: "Fine", audience: "admins", runId: "another-run" }, 400, /isn’t one this person is on/);
+    await refused("nobody-here", { text: "Fine", audience: "admins" }, 404, /Nobody has this account/);
   });
 
   test("beside an application only notes written after the agreement show; a programme's pages show its own earlier ones", async () => {
@@ -314,7 +329,7 @@ describe("Claude drafts a note from counted coursework, with no name, and nothin
 
   test("Save keeps the draft as the admin's, marked as drafted by Claude", async () => {
     reset();
-    const saved = await ask("zach", routes.notes.POST, { uid: "amara" }, { body: { text: "Amara writes with care.", runId: RUN.agi, draftedByClaude: true } });
+    const saved = await ask("zach", routes.notes.POST, { uid: "amara" }, { body: { text: "Amara writes with care.", runId: RUN.agi, draftedByClaude: true, audience: "admins" } });
     assert.equal(saved.status, 200);
     assert.equal(w.world.db.read(`memberNotes/${saved.body.id}`).draftedByClaude, true);
     const read = await ask("zach", routes.notes.GET, { uid: "amara" });

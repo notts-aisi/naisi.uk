@@ -170,6 +170,16 @@ const PROJECTIONS = {
       "who could be added, a summary of its question sets (never the questions) and its " +
       "email wording",
   },
+  projectNotesForLead: {
+    from: "@/lib/memberNotes/programme",
+    serves: "a programme's lead, about somebody on their programme",
+    why:
+      "the notes kept for leads about that person (privacy v15), each with who wrote it and when, whether Claude " +
+      "drafted it, the programme it came from and what it suggests, and whether a note may be kept for leads yet. " +
+      "Withholds everything else an admin's screen is sent: how many notes the place leaves out, whether the " +
+      "person's coursework may go to Claude, the runs Claude may draft from and whether Claude is set up, and on " +
+      "each note the privacy v13 mark and whether an admin may share it",
+  },
 };
 
 /**
