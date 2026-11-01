@@ -98,6 +98,14 @@ export type EmailSendKind =
   | "message"
   // "Send a test to me" in Messages: the message, to its writer alone.
   | "message-test"
+  // An event for chosen people's invitation, to somebody reached by their
+  // events row (src/lib/events/invitations.ts). Its own kind rather than
+  // `event-announcement`, because one goes to the people the organiser chose
+  // and the other to the whole list, and "did Lloyd get his invitation" has
+  // to be answerable without reading subject lines. The same message to the
+  // people holding a place on the event's programme goes as a `notice` with
+  // the `event-invitation` surface. Its `referenceId` is the EVENT id.
+  | "event-invitation"
   | "course-test"
   | "admin-test"
   | "subscription-confirm"
@@ -167,7 +175,10 @@ export type EmailSendSurface =
   // A message written in Messages (docs/messages.md) that goes as a programme
   // notice: an admin, a programme's lead or a group's facilitator writing to
   // people they run a programme for, about running it.
-  | "messages";
+  | "messages"
+  // An event for chosen people that is part of a programme: its invitation, to
+  // the people holding a place on that programme (src/lib/events/invitations.ts).
+  | "event-invitation";
 
 export type EmailSend = {
   messageId: string;

@@ -443,6 +443,12 @@ export async function loadAudienceWorld(
     set.add(programme);
     runsFor.set(key, set);
   };
+  const holdsFor = new Map<PersonKey, Set<string>>();
+  const markHold = (key: PersonKey, programme: string) => {
+    const set = holdsFor.get(key) ?? new Set<string>();
+    set.add(programme);
+    holdsFor.set(key, set);
+  };
   const addTag = (tag: Tag, words: { label: string; listLabel: string; hint?: string | null; heading: string }, members: Map<PersonKey, Membership>) => {
     tags.push({ id: tagId(tag), tag, label: words.label, listLabel: words.listLabel, hint: words.hint ?? null, heading: words.heading, members });
   };
@@ -458,7 +464,10 @@ export async function loadAudienceWorld(
     for (const programme of programmesInScope) {
       const staff = staffOf.get(programme.programmeId);
       if (!staff) continue;
-      for (const uid of places.holders.get(programme.programmeId) ?? []) markRun(accountKey(uid), programme.key);
+      for (const uid of places.holders.get(programme.programmeId) ?? []) {
+        markRun(accountKey(uid), programme.key);
+        markHold(accountKey(uid), programme.key);
+      }
       for (const uid of staff.facilitators) markRun(accountKey(uid), programme.key);
       if (staff.lead) markRun(accountKey(staff.lead), programme.key);
     }
@@ -663,6 +672,7 @@ export async function loadAudienceWorld(
     accounts,
     guests,
     runs: runsFor,
+    holds: holdsFor,
     gmailOnly: process.env.EMAIL_GMAIL_ONLY_MODE === "true",
   };
 }

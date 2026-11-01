@@ -11,6 +11,7 @@ import { deleteCalendarLink } from "@/lib/courses/calendarLink";
 import { deleteKairosChoice } from "@/lib/kairos/choice";
 import { deleteRatingsForAccount } from "@/lib/ratings/store";
 import { takeCheckInNamesOffForAccount } from "@/lib/events/checkIns";
+import { deleteInvitationsForAccount } from "@/lib/events/invitations";
 import { takeNamesOffForAccount } from "@/lib/surveys/namesOff";
 import { FACILITATING_COLLECTION } from "@/lib/courses/facilitatorAsks/model";
 import { CERTIFICATES_COLLECTION } from "@/lib/courses/certificates/model";
@@ -109,6 +110,12 @@ export type AccountDeletionSummary = {
    * is left counts that one person came and names nobody, as a year on does.
    */
   eventCheckInsNamesTakenOff: number;
+  /**
+   * The events for chosen people the account was invited to
+   * (`eventInvitations`): who was chosen for what. Deleted: an invitation to
+   * an account that is gone opens nothing, and the list names them.
+   */
+  eventInvitationsDeleted: number;
   registrationDeleted: boolean;
   collaboratorDeleted: boolean;
   userDocDeleted: boolean;
@@ -1578,6 +1585,7 @@ export async function deleteAccountCascade(
     kairosChoiceDeleted: false,
     programmeRatingsDeleted: 0,
     eventCheckInsNamesTakenOff: 0,
+    eventInvitationsDeleted: 0,
     registrationDeleted: false,
     collaboratorDeleted: false,
     userDocDeleted: false,
@@ -1767,6 +1775,16 @@ export async function deleteAccountCascade(
     summary.eventCheckInsNamesTakenOff = await takeCheckInNamesOffForAccount(db, uid);
   } catch (err) {
     console.error("[deleteAccount] check-in names-off failed:", uid, (err as { code?: unknown } | null)?.code ?? "unknown");
+    partialFailure = true;
+  }
+
+  // 1i. INVITATIONS. Every event for chosen people the account was invited
+  //     to (`deleteInvitationsForAccount`, `src/lib/events/invitations.ts`).
+  //     One equality on `uid`. Best-effort, retried by the sweep like 1h.
+  try {
+    summary.eventInvitationsDeleted = await deleteInvitationsForAccount(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] invitations delete failed:", uid, (err as { code?: unknown } | null)?.code ?? "unknown");
     partialFailure = true;
   }
 

@@ -97,6 +97,14 @@ export type AudienceWorld = {
    * may reach.
    */
   runs: ReadonlyMap<PersonKey, ReadonlySet<string>>;
+  /**
+   * Everybody holding a place on a programme the viewer runs, with those
+   * programmes: the people a send that is part of one programme reaches with
+   * a notice (`noticeUnder`). Holding a place is what "a programme you are on"
+   * means in the privacy policy; its facilitators and its lead are run by the
+   * writer and are not on it.
+   */
+  holds: ReadonlyMap<PersonKey, ReadonlySet<string>>;
   /** Whether this copy of the site writes to account addresses only (`EMAIL_GMAIL_ONLY_MODE`). */
   gmailOnly: boolean;
 };
@@ -225,9 +233,10 @@ export type ResolveOptions = {
   /**
    * Per person only: the one programme (`<roundId>:<programmeId>`) whose
    * people a notice may reach. An event that is part of a programme is a
-   * notice to the people the writer runs under that programme and by their
-   * settings to everybody else, whoever else the writer runs. Absent, a
-   * notice reaches everybody the writer runs.
+   * notice to the people holding a place on that programme, among those the
+   * writer runs, and by their settings to everybody else: its facilitators
+   * and its lead included, who are not on it, and whoever else the writer
+   * runs. Absent, a notice reaches everybody the writer runs.
    */
   noticeUnder?: string | null;
 };
@@ -279,7 +288,8 @@ export function planFor(
 /** Whether a send person by person reaches this person with a notice. */
 function noticePerPerson(world: AudienceWorld, plan: Plan, key: PersonKey): boolean {
   if (plan.noticeUnder === null) return isRunBy(world, key);
-  return world.runs.get(key)?.has(plan.noticeUnder) ?? false;
+  // Somebody the writer runs under that programme, holding a place on it.
+  return (world.runs.get(key)?.has(plan.noticeUnder) ?? false) && (world.holds.get(key)?.has(plan.noticeUnder) ?? false);
 }
 
 /** One person a selection reaches. `addresses` and `uid` are for a send, never for a page. */
