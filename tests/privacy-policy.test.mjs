@@ -708,6 +708,8 @@ const MUST_NAME = [
   // mark): rubric levels may go from feedback, and the sentence is true
   // before and after.
   ["feedback on written answers, and the email that says it is waiting", /<strong>Feedback\.<\/strong> Feedback on your work is written by a person on the team running your programme, and shows their name\. It appears on the week&apos;s page, and we may email you to say feedback is waiting\./],
+  // The team's ratings of written work (v15), which §2m″ holds to the code.
+  ["the team's ratings of written work, never shown to the person rated", /<strong>Ratings for the team\.<\/strong> The people running a programme may rate your written work and comment on it for each other, alongside the feedback you see\. You are never shown these ratings or comments\./],
   // A rating on every programme, and the comment shown to the run only on a
   // programme anyone can join (`runSharesGroupNotes`, which §2g runs).
   ["feedback on the material", /<strong>Feedback on the material\.<\/strong> You can give a piece of course material a star rating, and on a programme anyone can join, leave a comment the rest of your run sees\./],
@@ -9558,6 +9560,156 @@ describe("v15 lets the people leading a programme keep notes, and keeps every no
     }
     const list = strip(read(PROGRAMME_ROUTES[0]));
     assert.match(list, /if \(loaded\.viewer === "lead"\) return NextResponse\.json\(projectNotesForLead\(loaded\.lead\), \{ headers: NO_STORE \}\);/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2m″ Ratings for the team (v15)
+// ---------------------------------------------------------------------------
+
+/** The record of a rating for the team: its scale and its normaliser. Pure. */
+const workRatingsRecord = await loadTs("lib/firestore/courseWorkRatings.ts");
+
+describe("v15 lets the people running a programme rate written work for each other, never shown to the person rated; the code agrees", () => {
+  const strip = (source) => source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+  /** v15's paragraph, whole. */
+  const PASSAGE =
+    "<strong>Ratings for the team.</strong> The people running a programme may rate your written work and comment on it for each other, alongside the feedback you see. You are never shown these ratings or comments.";
+  const RETENTION =
+    "<strong>Notes about you, and the team&apos;s ratings of your work:</strong> while you are a member. Once a year an admin goes through them by hand and deletes those about people who have left the society.";
+  const ROUTE = "src/app/api/courses/runs/[runId]/work-ratings/route.ts";
+  const ACCESS = "src/lib/courses/workRatings/access.ts";
+  const REVIEW_PAGE = "src/lib/courses/writtenAnswers/reviewPage.ts";
+
+  test("v15 says it: the passage in Feedback, ratings and notes, how long ratings are kept, a deletion both ways, the lawful basis and a copy of your data", () => {
+    const section = PAGE_FLAT.slice(PAGE_FLAT.indexOf('<section id="feedback-and-notes"'), PAGE_FLAT.indexOf('<section id="surveys"'));
+    assert.ok(section.length > 500, "could not find Feedback, ratings and notes");
+    assert.ok(section.includes(PASSAGE), "Feedback, ratings and notes no longer says what ratings for the team are and that the person never sees them");
+    v15Says([
+      RETENTION,
+      " the notes and ratings about you, the ratings you gave,",
+      "the team&apos;s ratings and notes about you, and using them and your work (written after version 13) when we consider you for something else later;",
+      " notes facilitators and admins wrote, session reports, ratings, and the reason for a conduct flag.",
+    ]);
+  });
+
+  test("\"The people running a programme may rate your written work\": admins and the lead of the programme that names the run, on work they may read, never their own, asked before anything of the person's is read", () => {
+    const access = strip(read(ACCESS));
+    assert.ok(access.includes("return facts.isAdmin || facts.isLead;"), "somebody besides an admin and the programme's lead gives or reads ratings");
+    assert.ok(access.includes("return readsWorkRatings(facts) && writtenReviewRole(actor, facts, owner, liveGroups).mayReview;"));
+    // The lead is the lead of the programme that names the run, while they stand; never a track lead.
+    const reviewAccess = strip(read("src/lib/courses/writtenAnswers/access.ts"));
+    assert.match(reviewAccess, /return \{ isAdmin, isLead: isAdmin \? false : \(await programmeLedBy\(db, actor, runId\)\) !== null \};/);
+    assert.doesNotMatch(access, /trackLead/, "a track lead rates written work");
+    // Never their own: nobody reads or reviews their own answer, an admin included.
+    assert.match(reviewAccess, /if \(!actor\.uid \|\| actor\.uid === owner\.uid\) return \{ mayReview: false, locksOnOpen: false, ownerFacilitates \};/);
+    // Who is asking is decided before the person's place is read, and that before anything of theirs.
+    const gate = access.slice(access.indexOf("export async function workRatingGate("));
+    let at = -1;
+    for (const step of [
+      "const facts = await reviewerFactsOf(db, actor, runId);",
+      "if (!readsWorkRatings(facts)) return refused;",
+      "const owner = await ownerFactsOf(db, runId, uid, liveGroups, { isAdmin: facts.isAdmin });",
+      "if (!owner || !mayRateWorkOf(actor, facts, owner, liveGroups)) return refused;",
+    ]) {
+      const next = gate.indexOf(step);
+      assert.ok(next > at, `the ratings gate no longer does this in order: ${step}`);
+      at = next;
+    }
+    const route = strip(read(ROUTE));
+    for (const method of ["PUT", "DELETE"]) {
+      const handler = route.slice(route.indexOf(`export async function ${method}(`));
+      const gated = handler.indexOf("const gate = await workRatingGate(db, actor, runId, week.uid);");
+      assert.ok(gated !== -1, `the ratings route's ${method} no longer asks the gate`);
+      assert.ok(handler.indexOf("COURSE_WORK_RATINGS_COLLECTION") > gated, `the ratings route's ${method} touches a rating before the gate`);
+    }
+    assert.doesNotMatch(route, /export\s+(?:async\s+)?function\s+(?:GET|POST|PATCH)\b|export\s+const\s+(?:GET|POST|PATCH)\b/, "the ratings route answers more than its PUT and DELETE");
+    // "Your written work": the week's written answer, once its readers may read it, and with words in it.
+    assert.ok(route.includes("if (!theirs || !theirs.answerIds.includes(itemId)) return NextResponse.json({ error: NOT_A_RATING_WEEK }, { status: 404 });"));
+    assert.ok(
+      route.includes('const refusal = feedbackRefusalFor("writtenAnswer", standing.state, standing.answer, { notReadable: NOT_READABLE_YET, answerEmpty: ANSWER_EMPTY });'),
+      "a rating is no longer asked whether its work may be read, inside the save",
+    );
+  });
+
+  test("\"and comment on it for each other\": a whole number from 1 to 10 and a comment, both needed, stored with who gave it and as what", () => {
+    assert.deepEqual([...workRatingsRecord.WORK_RATING_SCALE], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    assert.equal(workRatingsRecord.isWorkRating(0), false);
+    assert.equal(workRatingsRecord.isWorkRating(7.5), false);
+    const route = strip(read(ROUTE));
+    assert.ok(route.includes("if (!isWorkRating(body.rating)) return NextResponse.json({ error: PICK_A_RATING }, { status: 400 });"));
+    assert.ok(route.includes("if (!comment) return { ok: false, error: WRITE_A_COMMENT };"), "a rating saves with no comment for the team");
+    assert.ok(route.includes("raterUid: actor.uid,"), "a rating no longer stores who gave it");
+    assert.ok(route.includes("raterRole: gate.raterRole,"), "a rating no longer stores as what it was given");
+  });
+
+  test("\"You are never shown these ratings or comments\": one reader, behind the gate, on a review page that never opens its reader's own answer; nothing a member's pages read reaches them", () => {
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bCOURSE_WORK_RATINGS_COLLECTION\b|["'`]courseWorkRatings["'`]/),
+      new Map([
+        ["src/lib/firestore/courseWorkRatings.ts", "the record: its name, its id, its scale and its normaliser"],
+        ["src/lib/courses/workRatings/readers.ts", "the one reader, which asks nobody who is reading, so its one caller decides that first"],
+        [ROUTE, "the one writer: the caller's own rating, saved or cleared, after the gate"],
+        ["src/lib/firestore/accountDeletion.ts", "a deletion takes the ratings about the account and those it gave"],
+        ["src/lib/firestore/courseDeletion.ts", "a run's destroy counts them, and keeps them"],
+      ]),
+      "addressing ratings for the team",
+      "The policy says the people running a programme rate written work for each other and the person " +
+        "rated never sees it. If this file shows a rating to anybody else, the sentence is wrong and a new version has to say so.",
+    );
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\b(?:loadTeamRatings|readAnswerRatings)\(/),
+      new Map([
+        ["src/lib/courses/workRatings/readers.ts", "the reader itself, which reads one person's answer and the names of whoever rated it"],
+        [REVIEW_PAGE, "the review page, for an admin or the programme's lead alone (`mayRateWorkOf`)"],
+      ]),
+      "reading ratings for the team",
+      "A new caller shows ratings somewhere new: decide it is an admin's or the lead's alone first.",
+    );
+    const page = strip(read(REVIEW_PAGE));
+    assert.match(page, /mayRateWorkOf\(actor, facts, owner, liveGroups\)\s*\?\s*loadTeamRatings\(db, \{/, "the review page reads ratings for somebody who may not read them");
+    // The page never opens its reader's own answer: everybody on it passes the one gate, which refuses yourself.
+    assert.match(page, /const people = reviewableIn\(actor, facts, group, owners, liveGroups\);/);
+    // What the route hands back is that it went, and nothing of a rating.
+    const route = strip(read(ROUTE));
+    assert.equal((route.match(/NextResponse\.json\(answer\)/g) ?? []).length, 2);
+    assert.match(route, /const answer: WorkRatingSaved = \{ ok: true \};/);
+    assert.match(route, /const answer: WorkRatingCleared = \{ ok: true \};/);
+    // The browser never reads one: the rules refuse every browser, admins included.
+    assert.match(read("firestore.rules"), /match \/courseWorkRatings\/\{docId\} \{\s*allow read, write: if false;\s*\}/);
+    // tests/course-work-ratings.test.mjs draws the person's own pages and a facilitator's with ratings stored, and reads none.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-work-ratings.test.mjs")));
+  });
+
+  test("Kairos receives the ratings at a programme's end, and nothing of these", () => {
+    v15Says(["Unless you say no, when a programme ends we send Kairos a file with, for each person on it at the end: their name, the programme, how many sessions they came to, whether they finished, and the ratings they were given at the end."]);
+    const kairos = sourceFilesNaming(/workRatings|courseWorkRatings|WorkRating/).filter(
+      (file) => file.startsWith("src/lib/kairos/") || file.startsWith("src/app/api/kairos/") || file.startsWith("src/lib/ratings/") || file.includes("/(tabs)/ratings/"),
+    );
+    assert.deepEqual(kairos, [], "the Kairos file, or the Ratings tab, reads ratings for the team");
+    assert.match(read("src/lib/kairos/file.ts"), /readRunRatings\(db, programme\.runId\),/, "the Kairos file no longer reads the ratings at a programme's end");
+  });
+
+  test("\"while you are a member\" and \"the notes and ratings about you, the ratings you gave\": a run's destroy keeps them, an account takes them both ways, and nothing else deletes them", () => {
+    // Kept when a run is destroyed: counted, drained by no stage, and the dialog says so.
+    const engine = strip(read("src/lib/firestore/courseDeletion.ts"));
+    assert.match(engine, /countAgg\(db\.collection\(COURSE_WORK_RATINGS_COLLECTION\)\.where\("runId", "==", runId\)\),/);
+    assert.doesNotMatch(engine, /(?:drainQuery\(db, |byRunId\()COURSE_WORK_RATINGS_COLLECTION/, "a run's destroy deletes ratings for the team");
+    assert.match(read("src/features/courses/useDestroy.ts"), /workRatingsKept: \{\s*label: "Ratings for the team",\s*fate: "retained",\s*note: "KEPT\./);
+    // Each keeps the programme's name and the week, for when the run has gone.
+    const route = strip(read(ROUTE));
+    assert.ok(route.includes("programmeLabel: programmeLabelOf(gate.run),"));
+    assert.ok(route.includes("weekNumber: week.weekNumber,"));
+    // Both ways with an account: the ratings about it, by `uid`, and those it gave, by `raterUid`.
+    const cascade = strip(read("src/lib/firestore/accountDeletion.ts"));
+    assert.match(
+      cascade,
+      /export async function deleteCourseWorkRatings\(db: Firestore, uid: string\): Promise<number> \{\s*const about = await deleteOwnedCourseRows\(db, COURSE_WORK_RATINGS_COLLECTION, uid\);\s*const gave = await deleteOwnedCourseRows\(db, COURSE_WORK_RATINGS_COLLECTION, uid, "raterUid"\);\s*return about \+ gave;\s*\}/,
+    );
+    assert.match(cascade, /try \{\s*summary\.courseWorkRatingsDeleted = await deleteCourseWorkRatings\(db, uid\);\s*\} catch \(err\) \{[^}]*partialFailure = true;/);
+    // Nothing else deletes them: no job, no clear-out, no stage. The yearly clear-out is by hand.
+    assert.doesNotMatch(route, /\.delete\(ref\)[\s\S]*\.delete\(ref\)/, "the ratings route deletes more than the caller's own rating");
+    assert.ok(route.includes("courseWorkRatingId(runId, week.uid, week.weekId, actor.uid)"), "the route reaches a rating that is not the caller's own");
   });
 });
 
