@@ -1792,6 +1792,32 @@ export const ROUTES = {
         "non-admin; an admin is told the group is missing.",
     },
   },
+  "/api/courses/groups/[groupId]/check-in": {
+    GET: {
+      expect: adminOnly(404),
+      fields: ["sessionKey", "card", "last"],
+      why:
+        "What the register's check-in card shows: the register's own gate (gateGroupRegister) collapses " +
+        "missing, archived and not-yours onto one 403 for a non-admin and tells an admin the group is " +
+        "missing, before the session in the query is read. Never the programme's lead, who reads the " +
+        "register and runs no session.",
+    },
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Opening a session's check-in: view-as first, then the register's own gate, which collapses " +
+        "missing, archived and not-yours onto one 403 for a non-admin and tells an admin the group is " +
+        "missing, before the body is read.",
+    },
+  },
+  "/api/courses/groups/[groupId]/check-in/close": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Closing a session's check-in: view-as first, then the register's own gate, one 403 for a " +
+        "non-admin, and an admin is told the group is missing, before the body is read.",
+    },
+  },
   "/api/courses/groups/[groupId]/email": {
     POST: {
       expect: adminOnly(404),
@@ -5166,6 +5192,16 @@ export const REAL_ROUTES = {
   },
   "/api/courses/groups/[groupId]/attendance/push": {
     POST: groupStaff("Finishing a register", c(400, "Admitted, then the body is checked: an empty one says no week.")),
+  },
+  "/api/courses/groups/[groupId]/check-in": {
+    GET: {
+      realDrive: { query: "?session=w01", why: "The session is required in the query, which an empty one fails for everybody admitted: week 1 reaches the card." },
+      ...groupStaff("The check-in's card", c(200, "Admitted, and week 1 is asked for: its card, which here is none, and the group's last closed check-in, none either.")),
+    },
+    POST: groupStaff("Opening a session's check-in", c(400, "Admitted, then the body is checked: an empty one names no session.")),
+  },
+  "/api/courses/groups/[groupId]/check-in/close": {
+    POST: groupStaff("Closing a session's check-in", c(400, "Admitted, then the body is checked: an empty one names no session.")),
   },
   "/api/courses/groups/[groupId]/email": {
     POST: groupStaff("Emailing the group", c(400, "Admitted, then the body is checked: an empty one has no subject or message.")),

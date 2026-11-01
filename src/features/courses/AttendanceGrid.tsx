@@ -16,6 +16,7 @@ import {
 } from "@/lib/firestore/courseAttendance";
 import styles from "./AttendanceGrid.module.css";
 import ParticipantNoteDrawer from "./ParticipantNoteDrawer";
+import CheckInCard from "./register/CheckInCard";
 import ReportLink from "./report/ReportLink";
 import PushConfirm from "./PushConfirm";
 import { registerEndingWords } from "./registerEndingWords";
@@ -149,6 +150,9 @@ const UNMARKED_GLYPH = "·";
 
 /** Shared empty list of people who left. Read only by contract. */
 const NO_LEAVERS: AttendanceLeaver[] = [];
+
+/** A session nobody has been marked at yet. Read only by contract. */
+const NO_MARKS: Record<string, AttendanceStatus> = {};
 
 const STATUS_CLASS: Record<AttendanceStatus, string> = {
   present: styles.isPresent,
@@ -1004,6 +1008,13 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
           </tbody>
         </table>
       </div>
+
+      {/* THE CHECK-IN for the session the foot finishes: its own card, with
+          its own route, which answers only the group's facilitators and
+          admins (the lead, who reads the register, is shown nothing). */}
+      {focus && (
+        <CheckInCard groupId={groupId} sessionKey={focus.sessionKey} marks={records[focus.sessionKey] ?? NO_MARKS} rows={members} />
+      )}
 
       {/* THE FOOT: wk-register's ending. The session the button finishes, the
           button, and the words under it, every value read off a record by the

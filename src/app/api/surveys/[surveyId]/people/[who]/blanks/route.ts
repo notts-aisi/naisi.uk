@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
+import { isCheckIn } from "@/lib/firestore/surveys";
 import { pressBlanks } from "@/lib/surveys/blanksStore";
 import { subjectOf } from "@/lib/surveys/onePerson";
 import { canRunSurveys, isOpen, isSurveyId, readSurvey } from "@/lib/surveys/repo";
@@ -49,6 +50,8 @@ export async function POST(req: Request, ctx: Ctx) {
 
   const survey = await readSurvey(db, surveyId);
   if (!survey) return NextResponse.json({ error: REFUSAL.noSurvey }, { status: 404 });
+  // A check-in is never sent again, its questions left blank included.
+  if (isCheckIn(survey)) return NextResponse.json({ error: REFUSAL.checkInNotSent }, { status: 409 });
   const subject = subjectOf(survey, who);
   if (!subject) return NextResponse.json({ error: BLANKS_REFUSAL.nobody }, { status: 404 });
   const now = new Date();

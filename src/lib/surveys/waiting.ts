@@ -10,6 +10,7 @@ import type { SessionUser } from "@/lib/firebase/session";
 import { courseEnrolmentId, enrolmentHasLeft, normalizeCourseEnrolment, placementIsTold } from "@/lib/firestore/courseEnrolments";
 import {
   SURVEY_PEOPLE_COLLECTION,
+  isCheckIn,
   isEventAudience,
   normalizeSurveyPerson,
   programmeOf,
@@ -17,6 +18,7 @@ import {
   type SurveyKind,
   type SurveyPersonDoc,
 } from "@/lib/firestore/surveys";
+import { CHECK_IN_CARD_WORDS, checkInCardClosesWords } from "./checkIns/words";
 import { surveyLinkPath } from "./emails";
 import { surveyQuestionsOf } from "./items";
 import { isOpen, ownAnswerOf, readSurvey } from "./repo";
@@ -39,7 +41,9 @@ import { CARD_WORDS, cardSizeWords, closesWords, dateKeyWords, dayWords } from "
  *    theirs once it was sent to them: it went because they said yes. A
  *    leaving survey is theirs while their seat on the run still says they
  *    left: their row was made as they left, and somebody put back on the
- *    programme is not asked why they left;
+ *    programme is not asked why they left. A check-in at the end of a
+ *    session is theirs while their seat on its run is live and told: their
+ *    row was made because the register marked them there;
  *  - THEY HAVE NOT ANSWERED IT.
  *
  * What a card says is the survey's own record: its title, its programme, how
@@ -151,6 +155,18 @@ async function leftTheRun(db: Firestore, runId: string, uid: string): Promise<bo
   return seat.uid === uid && seat.runId === runId && placementIsTold(seat) && enrolmentHasLeft(seat.status);
 }
 
+/**
+ * Whether the person's own seat on a run is live: told by Publish and not
+ * left. Their own seat only, and nothing of it is shown.
+ */
+async function onTheRun(db: Firestore, runId: string, uid: string): Promise<boolean> {
+  if (!runId || runId.includes("/")) return false;
+  const snap = await db.collection("courseEnrolments").doc(courseEnrolmentId(runId, uid)).get();
+  if (!snap.exists) return false;
+  const seat = normalizeCourseEnrolment(snap.id, snap.data() ?? {});
+  return seat.uid === uid && seat.runId === runId && placementIsTold(seat) && !enrolmentHasLeft(seat.status);
+}
+
 /** Whether a survey sent to the person is still theirs to answer: see the note at the top. */
 async function stillTheirs(
   db: Firestore,
@@ -162,19 +178,22 @@ async function stillTheirs(
   if (isEventAudience(survey.audience)) return false;
   if (survey.audience.kind === "followUps") return true;
   if (survey.audience.kind === "leaving") return leftTheRun(db, survey.runId, uid);
+  // A check-in: the register marked them at its session, and their seat on the run is still live.
+  if (survey.audience.kind === "checkIn") return isCheckIn(survey) && onTheRun(db, survey.runId, uid);
   return holdsPlaceNow(db, survey, uid, forms);
 }
 
-function cardOf(survey: SurveyDoc, person: SurveyPersonDoc, atTheEnd: AtTheEnd | null): SurveyCard {
+function cardOf(survey: SurveyDoc, person: SurveyPersonDoc, atTheEnd: AtTheEnd | null, now: Date): SurveyCard {
+  const checkIn = isCheckIn(survey);
   return {
     surveyId: survey.id,
     runId: survey.runId,
     kind: survey.kind,
-    eyebrow: CARD_WORDS.eyebrow,
+    eyebrow: checkIn ? CHECK_IN_CARD_WORDS.eyebrow : CARD_WORDS.eyebrow,
     title: survey.title,
     programme: survey.programmeName,
     size: cardSizeWords(surveyQuestionsOf(survey.items).length, survey.minutes),
-    closes: survey.closesAt ? closesWords(survey.closesAt, false) : "",
+    closes: survey.closesAt ? (checkIn ? checkInCardClosesWords(survey.closesAt, now) : closesWords(survey.closesAt, false)) : "",
     href: surveyLinkPath(person.token),
     answer: CARD_WORDS.answer,
     ...(atTheEnd ? { atTheEnd } : {}),
@@ -217,11 +236,14 @@ export async function surveysWaitingFor(db: Firestore, person: Pick<SessionUser,
 
   const forms = new Map<string, ApplicationForm | null>();
   const cards: { card: SurveyCard; closesAt: number }[] = [];
-  for (const row of rows) {
-    const survey = await readSurvey(db, row.surveyId);
+  // Every survey the rows name, read at once: a person keeps a row on each
+  // check-in they were marked at, so there may be several.
+  const read = await Promise.all(rows.map((row) => readSurvey(db, row.surveyId)));
+  for (const [index, row] of rows.entries()) {
+    const survey = read[index];
     if (!survey || !isOpen(survey, now)) continue;
     if (!(await stillTheirs(db, survey, uid, forms))) continue;
-    cards.push({ card: cardOf(survey, row, await atTheEndOf(db, survey)), closesAt: survey.closesAt?.getTime() ?? Number.POSITIVE_INFINITY });
+    cards.push({ card: cardOf(survey, row, await atTheEndOf(db, survey), now), closesAt: survey.closesAt?.getTime() ?? Number.POSITIVE_INFINITY });
   }
   return cards
     .sort((a, b) => a.closesAt - b.closesAt || a.card.title.localeCompare(b.card.title, "en") || a.card.surveyId.localeCompare(b.card.surveyId))

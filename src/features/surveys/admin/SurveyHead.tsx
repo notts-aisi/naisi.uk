@@ -3,6 +3,7 @@ import Chip from "@/components/ui/Chip";
 import PageHead from "@/components/ui/PageHead";
 import SectionTabs from "@/components/ui/SectionTabs";
 import type { HeadView } from "@/lib/surveys/adminView";
+import { CHECK_IN_ADMIN_WORDS } from "@/lib/surveys/checkIns/words";
 import { LIST_WORDS, OPEN_WORDS, TAB_WORDS } from "@/lib/surveys/words";
 import styles from "./surveyAdmin.module.css";
 
@@ -24,11 +25,15 @@ export function surveyTabHref(id: string, tab: SurveyTab): string {
  * its name, whether it is open, that it is confidential, its programme and
  * when it closes, and its four tabs. Drawn by each tab's page, which is the
  * one <h1> on it. A leaving survey is opened rather than sent, so its fourth
- * tab is Open, at the same address.
+ * tab is Open, at the same address; a check-in's is Opening, saying how its
+ * group's facilitator opened it.
  */
 export default function SurveyHead({ head, current }: { head: HeadView; current: SurveyTab }) {
   const chip = STATE_CHIP[head.state];
-  const words: Record<SurveyTab, string> = { ...TAB_WORDS, send: head.leaving ? OPEN_WORDS.tab : TAB_WORDS.send };
+  const words: Record<SurveyTab, string> = {
+    ...TAB_WORDS,
+    send: head.leaving ? OPEN_WORDS.tab : head.checkIn ? CHECK_IN_ADMIN_WORDS.tab : TAB_WORDS.send,
+  };
   return (
     <>
       <PageHead

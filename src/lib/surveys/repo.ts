@@ -2,8 +2,10 @@ import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import {
   SURVEY_ANSWERS_COLLECTION,
+  SURVEY_KINDS_LISTED,
   SURVEY_PEOPLE_COLLECTION,
   SURVEYS_COLLECTION,
+  isCheckIn,
   isEventSurvey,
   isSurveyToken,
   normalizeEventPerson,
@@ -11,6 +13,7 @@ import {
   normalizeSurveyAnswer,
   normalizeSurveyPerson,
   surveyPersonId,
+  type CheckInSurveyDoc,
   type EventSurveyDoc,
   type EventSurveyPersonDoc,
   type SurveyAnswerDoc,
@@ -22,9 +25,9 @@ import type { SessionUser } from "@/lib/firebase/session";
 import { storedSurveyAnswers } from "./items";
 
 /**
- * READING SURVEYS, on the Admin SDK. Every read is one document by its id or
- * one equality on one field, so nothing here needs a declared index, and
- * lists are sorted in memory.
+ * READING SURVEYS, on the Admin SDK. Every read is one document by its id, or
+ * one equality, one `in` or one range on one field, so nothing here needs a
+ * declared index, and lists are sorted in memory.
  *
  * WHO MAY ASK is the caller's business: these functions read, and the routes
  * and pages decide first. `canRunSurveys` is the one predicate they ask.
@@ -46,12 +49,48 @@ export async function readSurvey(db: Firestore, surveyId: string): Promise<Surve
   return snap.exists ? normalizeSurvey(snap.id, snap.data() ?? {}) : null;
 }
 
-/** Every survey, newest first. A handful a term, so the whole collection is read. */
-export async function listSurveys(db: Firestore): Promise<SurveyDoc[]> {
-  const snap = await db.collection(SURVEYS_COLLECTION).get();
-  return snap.docs
+/** Newest first, then by id. */
+function newestFirst(docs: readonly FirebaseFirestore.QueryDocumentSnapshot[]): SurveyDoc[] {
+  return docs
     .map((doc) => normalizeSurvey(doc.id, doc.data() ?? {}))
     .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0) || a.id.localeCompare(b.id));
+}
+
+/**
+ * Every survey but the check-ins, newest first: a handful a term, so the rest
+ * of the collection is read whole. A check-in is one per group per session,
+ * well over a hundred a term and never deleted, so it is left out by its kind
+ * (`SURVEY_KINDS_LISTED`, one `in` on one field) and read where it is wanted,
+ * by its run (`checkInsOfRun`) or by its kind (`listCheckIns`). Every survey
+ * this site writes says its kind.
+ */
+export async function listSurveys(db: Firestore): Promise<SurveyDoc[]> {
+  const snap = await db.collection(SURVEYS_COLLECTION).where("kind", "in", [...SURVEY_KINDS_LISTED]).get();
+  return newestFirst(snap.docs).filter((survey) => !isCheckIn(survey));
+}
+
+/** Every check-in of one run, newest first: one equality on `runId`, the rest in memory. */
+export async function checkInsOfRun(db: Firestore, runId: string): Promise<CheckInSurveyDoc[]> {
+  if (!runId || runId.includes("/")) return [];
+  const snap = await db.collection(SURVEYS_COLLECTION).where("runId", "==", runId).get();
+  return newestFirst(snap.docs).filter((survey): survey is CheckInSurveyDoc => isCheckIn(survey) && survey.runId === runId);
+}
+
+/** Every check-in, newest first, for the admins' list: one equality on `kind`. */
+export async function listCheckIns(db: Firestore): Promise<CheckInSurveyDoc[]> {
+  const snap = await db.collection(SURVEYS_COLLECTION).where("kind", "==", "checkIn").get();
+  return newestFirst(snap.docs).filter(isCheckIn);
+}
+
+/**
+ * Every survey whose day for names to come off is `today` or before, of every
+ * kind, check-ins included: one range on `namesOffOn`. The job that takes names
+ * off asks this, and keeps those not yet taken off (`namesDueOff`). A survey
+ * with no day has nothing due and is never found.
+ */
+export async function surveysNamesDueBy(db: Firestore, today: string): Promise<SurveyDoc[]> {
+  const snap = await db.collection(SURVEYS_COLLECTION).where("namesOffOn", "<=", today).get();
+  return newestFirst(snap.docs);
 }
 
 /** The people a survey is for, as stored. */

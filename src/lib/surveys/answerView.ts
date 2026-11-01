@@ -4,9 +4,10 @@ import { own } from "@/lib/applications/keys";
 import { lastTaughtWeek } from "@/lib/courses/weekPlan";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { answerLimitOf, ratingScaleOf } from "@/lib/firestore/worksheets";
-import { asksKairos, asksQuotes, type SurveyDoc, type SurveyPersonDoc } from "@/lib/firestore/surveys";
+import { asksKairos, asksQuotes, isCheckIn, type SurveyDoc, type SurveyPersonDoc } from "@/lib/firestore/surveys";
 import { kairosChoicesOf } from "@/lib/kairos/choice";
 import { sharesWithKairos } from "@/lib/kairos/model";
+import { checkInSurveyFor } from "./checkIns/answerView";
 import { consentSurveyIdFor, consentsAskedOf, followUpsHolderFor } from "./consent";
 import {
   isLinesQuestion,
@@ -144,6 +145,10 @@ export type AnswerSurvey = {
   submit: AnswerSubmit;
   /** The Kairos choice the form ends with, on every programme survey; null on any other. */
   kairos: AnswerKairos | null;
+  /** The Send button's words where they are not "Send my answers": a check-in's "Send check-in". */
+  send?: string;
+  /** The page's own name in the bar above it where it is not "Survey": a check-in's "Check-in". */
+  bar?: string;
 };
 
 /**
@@ -433,6 +438,12 @@ export async function answerScreenFor(
   }
   // Every survey closes on a day but the leaving survey, which takes answers until it is closed by hand.
   if ((!survey.closesAt && survey.kind !== "leaving") || !survey.namesOffOn) return { state: "message", ...STATE_WORDS.noSurvey, consent: null };
+  // A check-in at the end of a session: its own eyebrow, line, box and button
+  // (`./checkIns/answerView.ts`), its one page of questions, and nothing it
+  // could ask of the person's permission.
+  if (isCheckIn(survey)) {
+    return { state: "open", survey: await checkInSurveyFor(db, survey, { pages: answerPagesOf(survey), submit: input.submit, now: input.now }), consent: null };
+  }
   const [facts, offered, piped, eyebrow, consent, kairos, hiddenLines] = await Promise.all([
     confidentialFactsFor(db, survey, input.uid),
     profileOffersFor(db, survey, input.uid),

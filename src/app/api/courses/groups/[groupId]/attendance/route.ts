@@ -37,6 +37,7 @@ import {
   type CourseRunDoc,
 } from "@/lib/firestore/courses";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
+import { reachLateMarks } from "@/lib/surveys/checkIns/lateMark";
 
 /**
  * THE ATTENDANCE REGISTER for one group: the whole grid on GET, one session's
@@ -828,6 +829,15 @@ export async function POST(
       );
     }
     throw err;
+  }
+
+  // THE CHECK-IN: somebody marked there while the session's check-in is open
+  // gets their own row on it, with no email (`reachLateMarks`, one read when
+  // none is open). The mark is kept whatever happens there.
+  try {
+    await reachLateMarks(db, { runId, group: prepared.ctx.group, session, marked: [...wanted.values()], markedBy: actor.uid, now: new Date() });
+  } catch (err) {
+    console.error("[attendance] the check-in's late rows failed", runId, groupId, session.sessionKey, err);
   }
 
   const result: AttendanceMarkResult = {

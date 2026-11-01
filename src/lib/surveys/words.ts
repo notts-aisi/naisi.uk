@@ -840,6 +840,8 @@ export const REFUSAL = {
   strand: "Pick which research this incubator does: it words the first line of its skills question.",
   consentNotAsked: "This survey doesn’t ask that.",
   leavingNotSent: "A leaving survey isn’t sent: once it’s open, it reaches each person as they leave the programme.",
+  checkInNotSent:
+    "A check-in isn’t sent or changed from here: the group’s facilitator opens it from the register, it reaches the people marked there, and it closes by itself.",
   notLeaving: "Only a leaving survey is opened. Send this one from its Send tab.",
   alreadyOpen: "This survey is open already.",
   consentNoRow: "You weren’t sent the survey that asks this, so there’s nothing to change.",
@@ -1290,6 +1292,7 @@ export const PERSON_COLUMN_WORDS: Record<SurveyKind, string> = {
   followUp12: "A year on",
   leaving: "Leaving",
   event: "Answers",
+  checkIn: "Check-in",
 };
 
 /** "Only admins can open one person’s answers, and each opening is logged. You opened this at 11:04am." */

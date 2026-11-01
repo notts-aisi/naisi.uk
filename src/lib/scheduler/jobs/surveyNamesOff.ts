@@ -2,7 +2,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { deleteRunRatings, readRatingSheets } from "@/lib/ratings/store";
 import { namesDueOff, takeNamesOffSurvey, twoYearsAfter } from "@/lib/surveys/namesOff";
-import { listSurveys } from "@/lib/surveys/repo";
+import { surveysNamesDueBy } from "@/lib/surveys/repo";
 import type { JobContext, JobRegistration, JobResult } from "../registry";
 
 /**
@@ -14,7 +14,10 @@ import type { JobContext, JobRegistration, JobResult } from "../registry";
  * For each survey whose day has come, every answer's person is set to null
  * (the answers stay, so the totals stay) and every row of who it was sent to
  * is deleted, then the survey is stamped so it is not visited again
- * (`src/lib/surveys/namesOff.ts`).
+ * (`src/lib/surveys/namesOff.ts`). Every kind is found, a check-in at the end
+ * of a session included: the surveys due are read by their day
+ * (`surveysNamesDueBy`, one range on `namesOffOn`), never by the list of
+ * surveys, which leaves the check-ins out.
  *
  * THE RATINGS GO THE SAME DAY. The facilitators' and mentors' ratings of a
  * programme's people (`src/lib/ratings/`) are deleted two years after the
@@ -34,7 +37,7 @@ async function run(ctx: JobContext): Promise<JobResult> {
   const db = getAdminDb();
   if (!db) return { processed: 0, hasMore: false, note: "no database" };
   const today = londonDateKey(ctx.now);
-  const due = (await listSurveys(db)).filter((survey) => namesDueOff(survey, today));
+  const due = (await surveysNamesDueBy(db, today)).filter((survey) => namesDueOff(survey, today));
   let processed = 0;
   for (const survey of due) {
     if (processed >= ctx.maxPerTick || ctx.budget.expired()) {

@@ -99,7 +99,7 @@ export default async function SurveyLinkPage({ params }: { params: Promise<{ tok
           <Link href="/" prefetch={false} className={styles.brand} aria-label="NAISI home">
             <BrandMark size={28} />
           </Link>
-          <span className={styles.barTitle}>{ANSWER_WORDS.eyebrow}</span>
+          <span className={styles.barTitle}>{(screen.state === "open" && screen.survey.bar) || ANSWER_WORDS.eyebrow}</span>
           <span className={styles.barEnd} aria-hidden="true" />
         </div>
         <div className={styles.body}>

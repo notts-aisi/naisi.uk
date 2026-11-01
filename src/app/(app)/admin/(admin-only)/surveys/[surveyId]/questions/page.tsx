@@ -6,7 +6,8 @@ import SurveyMissing from "@/features/surveys/admin/SurveyMissing";
 import { londonDateKey } from "@/lib/courses/weekPlan";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { surveyPage } from "@/lib/surveys/adminView";
-import { isEventSurvey } from "@/lib/firestore/surveys";
+import { isCheckIn, isEventSurvey } from "@/lib/firestore/surveys";
+import { CHECK_IN_ADMIN_WORDS } from "@/lib/surveys/checkIns/words";
 import { LOCK_WORDS } from "@/lib/surveys/events/words";
 import { TEMPLATE_MEASURES } from "@/lib/surveys/templates";
 
@@ -30,13 +31,15 @@ export default async function SurveyQuestionsPage({ params }: { params: Promise<
     );
   }
   const { survey, head } = page;
-  // A survey after an event locks when it opens, at the event or with its email.
+  // A survey after an event locks when it opens, at the event or with its email;
+  // a check-in's questions are made from its group's week when it opens.
   const event = isEventSurvey(survey);
+  const lockNote = event ? LOCK_WORDS.fixed : isCheckIn(survey) ? CHECK_IN_ADMIN_WORDS.fixed : null;
   return (
     <AdminPage wide>
       <SurveyHead head={head} current="questions" />
       {survey.firstSentAt ? (
-        <QuestionsList items={survey.items} measures={TEMPLATE_MEASURES} intro={survey.intro} title={survey.title} {...(event ? { lockNote: LOCK_WORDS.fixed } : {})} />
+        <QuestionsList items={survey.items} measures={TEMPLATE_MEASURES} intro={survey.intro} title={survey.title} {...(lockNote ? { lockNote } : {})} />
       ) : (
         <QuestionsEditor
           surveyId={survey.id}
