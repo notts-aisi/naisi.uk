@@ -1870,6 +1870,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the first application form is opened to applicants, alongside the spec that walks an applicant through it.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/next-term": {
+    reason:
+      "Application system: /(app)/admin/admissions/forms/[roundId]/next-term is an admin's read-only page that sends and writes nothing; tests/applications-next-term.test.mjs builds it from a stored term as an admin, a lead and a member, and holds what counts (notes and rated work from after the person agreed to version 13) to fixtures. No end-to-end world yet seeds saved notes with suggestions beside ratings for the team.",
+    coverWhen:
+      "When an end-to-end spec seeds the term world with saved notes that suggest somebody for next term (the week review's spec, once end-of-week notes save them), and opens this page as an admin.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/pool": {
     reason:
       "Application system: /(app)/admin/admissions/forms/[roundId]/pool is an admin's page whose every number is worked out by modules the unit suite executes; nobody has applied through the new form yet, so there is no term to drive it against.",

@@ -1,6 +1,7 @@
 import type { ProgrammeRole } from "../access";
 import { own } from "../keys";
 import type { ProgrammeKind } from "../model";
+import { NEXT_TERM_WORDS } from "../nextTerm/words";
 import type { TermStage } from "./status";
 
 /**
@@ -13,7 +14,8 @@ import type { TermStage } from "./status";
  *    this caller, and for an admin the pooled applicants who still need an
  *    outcome and the line about decision day;
  *  - each programme card's own numbers and its one button;
- *  - "Also this term": the pooled applicants, for an admin.
+ *  - "Also this term": the pooled applicants, for an admin, and from decision
+ *    day on, Next term: who to ask.
  *
  * ## No number here is counted here
  *
@@ -112,6 +114,12 @@ export type TermHomeView = {
   cards: Record<string, ProgrammeCardView>;
   /** The pooled applicants card. Null for anybody who does not run the term. */
   pooled: { chip: string; line: string; link: { label: string; href: string } } | null;
+  /**
+   * The card that leads to Next term: who to ask. For somebody who runs the
+   * term, once decision day has gone out (a term's runs have people on them
+   * only from then). It carries no number, so nothing is counted for it here.
+   */
+  nextTerm: { title: string; chip: string; line: string; link: { label: string; href: string } } | null;
 };
 
 const plain = (text: string): TextPart => ({ text, tone: "plain" });
@@ -227,5 +235,15 @@ export function buildTermHome(input: TermHomeInput): TermHomeView {
         }
       : null;
 
-  return { needsYou, cards, pooled };
+  const nextTerm =
+    canRunTerm && (stage === "decided" || stage === "settled" || stage === "archived")
+      ? {
+          title: NEXT_TERM_WORDS.card.title,
+          chip: NEXT_TERM_WORDS.chip,
+          line: NEXT_TERM_WORDS.card.line,
+          link: { label: NEXT_TERM_WORDS.card.link, href: `${home}/next-term` },
+        }
+      : null;
+
+  return { needsYou, cards, pooled, nextTerm };
 }

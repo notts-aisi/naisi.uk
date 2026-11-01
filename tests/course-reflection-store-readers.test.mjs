@@ -173,6 +173,12 @@ const READERS = {
     treats: "tells",
     why: "the review page's answers, each read by its id: a reflection's row reads as no answer",
   },
+  "lib/applications/nextTerm/load.ts": {
+    treats: "tells",
+    why:
+      "a term's Next term page: each written answer a rating for the team rates, read by its id only for when it was " +
+      "first written, never a word of it; a reflection's or a fill-in box's row reads as no answer, so its rating counts for nothing",
+  },
   "lib/firestore/accountDeletion.ts": {
     treats: "every-row",
     why: "deleting an account deletes every answer and every reflection its owner wrote",

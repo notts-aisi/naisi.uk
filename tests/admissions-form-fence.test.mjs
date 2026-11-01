@@ -294,6 +294,13 @@ const ROUND_SURFACES = {
       "the question sets from the form's own repository, so a round of the older kind renders " +
       "the same 'no application form here' as one that does not exist",
   },
+  "/(app)/admin/admissions/forms/[roundId]/next-term": {
+    kind: "form",
+    why:
+      "Next term: who to ask, an admin's page. It loads the round with the form's own loader, " +
+      "which answers null for a round that is not a form, and the page then answers as it does " +
+      "for a form that is not there; its runs are the ones the form's programmes name",
+  },
   "/(app)/admin/admissions/forms/[roundId]/pool": {
     kind: "form",
     why:

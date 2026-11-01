@@ -479,6 +479,14 @@ const READERS = {
       "where it is in a suggestion; one Publish has not told may be moved by the admin, or by a suggestion only when " +
       "the admin starts again, and Circles marks it not told yet. It shows the admin alone and writes nothing",
   },
+  "lib/applications/nextTerm/load.ts": {
+    kind: "staff",
+    proof: ['if (!canRunTerm(viewer)) return { status: "admins-only" };', "courseEnrolmentId(runId, uid)"],
+    why:
+      "a term's Next term page, an admin's alone: the seat of each person a note suggests on each of the term's " +
+      "runs, read by id, for their programme and group, which an admin is shown placed or not. No member, " +
+      "facilitator or lead is shown a placement, and nobody is emailed",
+  },
   "lib/applications/handover/load.ts": {
     kind: "staff",
     proof: ['if (!canRunTerm(actor)) return { status: "not-admin" };'],

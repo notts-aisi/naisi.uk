@@ -22,16 +22,18 @@ import { NOTES_WORDS, programmeLabelOf } from "./words";
 
 /**
  * THE ONE READER AND WRITER OF `memberNotes`, on the Admin SDK, for the notes
- * routes alone. `model.ts` says what the notes are and the rules they keep;
- * this file keeps them:
+ * routes and a term's Next term page. `model.ts` says what the notes are and
+ * the rules they keep; this file keeps them:
  *
  *  - `gateNotes`: the admins' routes (`/api/admin/members/[uid]/notes`), an
  *    admin, and never about themselves. Decided before anything is read. A
  *    programme's lead reaches notes only through the programme's door
  *    (`./programme.ts`), which asks who they are on the programme before
  *    anything about the person is read, and then reads and writes through
- *    this file.
- *  - Every read is ONE EQUALITY on `uid` (the person a note is about), sorted
+ *    this file. A term's Next term page (`listNotesFromRuns`, an admin's
+ *    alone) asks `canRunTerm` before it calls this file.
+ *  - Every read of one person's notes is ONE EQUALITY on `uid` (the person a
+ *    note is about), and the term's read is ONE `in` on `runId`, each sorted
  *    and filtered in memory, so nothing here needs a declared index.
  *  - Every answer is built field by field (`viewOf`, and the lead's
  *    projection in `./programme.ts`): the author's name is looked up as it is
@@ -87,6 +89,29 @@ export async function listNotes(db: Firestore, subjectUid: string): Promise<Memb
   return snap.docs
     .map((doc) => normalizeMemberNote(doc.id, (doc.data() ?? {}) as Record<string, unknown>))
     .filter((note) => note.uid === subjectUid);
+}
+
+/** Firestore's cap on the values one `in` filter takes. */
+const IN_FILTER_LIMIT = 30;
+
+/**
+ * Every note written from one of these runs, about anybody, as stored: one
+ * `in` on `runId` for each 30 runs (a term names a handful). For a term's
+ * Next term page alone (`src/lib/applications/nextTerm/load.ts`), which has
+ * asked `canRunTerm` first and decides which of them may be used.
+ */
+export async function listNotesFromRuns(db: Firestore, runIds: readonly string[]): Promise<MemberNoteDoc[]> {
+  const wanted = [...new Set(runIds.filter(Boolean))];
+  const out: MemberNoteDoc[] = [];
+  for (let at = 0; at < wanted.length; at += IN_FILTER_LIMIT) {
+    const chunk = wanted.slice(at, at + IN_FILTER_LIMIT);
+    const snap = await db.collection(MEMBER_NOTES_COLLECTION).where("runId", "in", chunk).get();
+    for (const doc of snap.docs) {
+      const note = normalizeMemberNote(doc.id, (doc.data() ?? {}) as Record<string, unknown>);
+      if (note.uid && note.runId !== null && chunk.includes(note.runId)) out.push(note);
+    }
+  }
+  return out;
 }
 
 /** A run this person is on, for the notes' programme picker. */

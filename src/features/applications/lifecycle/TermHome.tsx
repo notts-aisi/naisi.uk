@@ -66,25 +66,34 @@ export function NeedsYou({ needsYou }: { needsYou: NonNullable<TermHomeView["nee
   );
 }
 
-/** What else the term holds, under the programmes. */
-export function AlsoThisTerm({ pooled }: { pooled: NonNullable<TermHomeView["pooled"]> }) {
+/** One card under "Also this term": a title and its chip, a line, and where it leads. */
+function AlsoCard({ title, chip, line, link }: { title: string; chip: string; line: string; link: { label: string; href: string } }) {
+  return (
+    <div className={styles.card}>
+      <div className={styles.alsoHead}>
+        <h3 className={styles.cardTitle}>{title}</h3>
+        <Chip>{chip}</Chip>
+      </div>
+      <p className={styles.alsoLine}>{line}</p>
+      <Link href={link.href} className={styles.see}>
+        <span>{link.label}</span>
+        <ArrowRightIcon />
+      </Link>
+    </div>
+  );
+}
+
+/** What else the term holds, under the programmes: the pooled applicants, and who to ask next term. */
+export function AlsoThisTerm({ pooled, nextTerm }: Pick<TermHomeView, "pooled" | "nextTerm">) {
+  if (!pooled && !nextTerm) return null;
   return (
     <section className={styles.also} aria-labelledby="also-this-term">
       <h2 id="also-this-term" className={kit.mono}>
         Also this term
       </h2>
       <div className={styles.alsoGrid}>
-        <div className={styles.card}>
-          <div className={styles.alsoHead}>
-            <h3 className={styles.cardTitle}>Pooled applicants</h3>
-            <Chip>{pooled.chip}</Chip>
-          </div>
-          <p className={styles.alsoLine}>{pooled.line}</p>
-          <Link href={pooled.link.href} className={styles.see}>
-            <span>{pooled.link.label}</span>
-            <ArrowRightIcon />
-          </Link>
-        </div>
+        {pooled && <AlsoCard title="Pooled applicants" chip={pooled.chip} line={pooled.line} link={pooled.link} />}
+        {nextTerm && <AlsoCard title={nextTerm.title} chip={nextTerm.chip} line={nextTerm.line} link={nextTerm.link} />}
       </div>
     </section>
   );

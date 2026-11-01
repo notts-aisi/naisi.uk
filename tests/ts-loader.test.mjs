@@ -786,6 +786,13 @@ const USERS = new Map([
       "each function reads its map, and only running each one shows it",
   ],
   [
+    "applications-next-term.test.mjs",
+    "executes the Next term page's builder, its loader with the real readers of notes and ratings " +
+      "beneath it, and the term page's builder against an in-memory term, and draws the page (.tsx " +
+      "server and client components) as an admin, a lead on the form and somebody with no role, " +
+      "because what counts, who is a row and what each person is shown are decided by the code that runs",
+  ],
+  [
     "applications-model.test.mjs",
     "executes every pure module under src/lib/applications (reading, steps, send validation, " +
       "scoring, placement, the decision-day tallies) against a small term and against the " +

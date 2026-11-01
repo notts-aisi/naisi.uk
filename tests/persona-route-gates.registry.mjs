@@ -4118,6 +4118,17 @@ export const PAGES = {
       "admitted; a lead or a reviewer on the form is shown a notice that planning the intake is an " +
       "admin's, before anything about an applicant is read. Nothing is sent to Claude on the way in.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/next-term": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "Next term: who to ask, in the pooled applicants page's order: requireAdmissionsPage admits round authors " +
+      "(admin or approveCourse) and named reviewers; a draftCourse holder passes the admin front door and is sent " +
+      "on to the dashboard here. A missing form, or one the caller has no role on, renders not found for those " +
+      "admitted; a lead or a reviewer on the form is shown a notice that the page is an admin's, before anything " +
+      "about anybody is read, and the loader asks canRunTerm again before its first read. " +
+      "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
+      "and with an address that names nothing is drawn the same not-here state.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/pool": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:

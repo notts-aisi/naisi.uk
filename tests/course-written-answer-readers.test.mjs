@@ -105,6 +105,10 @@ const READERS = {
   "lib/courses/finishing/whoFinished.ts": { treats: "no-words", why: "who finished counts written answers sent, by their first-sent time, never their words" },
   "lib/courses/weekPaste.ts": { treats: "no-words", why: "a paste counts the rows on the items it would take out, never their words" },
   "lib/courses/weekWork/readers.ts": { treats: "no-words", why: "how far each person has got: which answers are sent and how many words they hold, projected so no word is read" },
+  "lib/applications/nextTerm/load.ts": {
+    treats: "no-words",
+    why: "a term's Next term page: each written answer a rating for the team rates, read by its id only for when it was first written, and nothing else of it kept",
+  },
   "lib/firestore/accountDeletion.ts": { treats: "no-words", why: "deleting an account deletes every row its owner wrote" },
   "lib/firestore/courseDeletion.ts": { treats: "no-words", why: "destroying a run counts and deletes every row on it" },
 };
