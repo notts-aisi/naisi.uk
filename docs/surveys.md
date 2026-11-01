@@ -718,8 +718,11 @@ The code: `src/lib/surveys/checkIns/` (the rules in `model.ts`, the questions in
 `template.ts`, the words in `words.ts`, opening in `open.ts`, closing in
 `close.ts`, somebody marked later in `lateMark.ts`, the register's card in
 `facilitatorView.ts`, the page in `answerView.ts`, the admins' pages in
-`adminView.ts`), `src/app/api/courses/groups/[groupId]/check-in/` (the routes)
-and `src/features/courses/register/CheckInCard.tsx` (the card).
+`adminView.ts`, the lead's weeks in `leadView.ts`, and which check-ins each
+week has, fixed the first time it is whole, in `weeks.ts`),
+`src/app/api/courses/groups/[groupId]/check-in/` (the routes),
+`src/features/courses/register/CheckInCard.tsx` (the card) and
+`src/lib/scheduler/jobs/surveyCheckInWeeks.ts` (the job that fixes the weeks).
 
 - **Its own kind on the same records.** A `surveys` document with `kind:
   "checkIn"`, its audience `{ kind: "checkIn", roundId, programmeId, groupId,
