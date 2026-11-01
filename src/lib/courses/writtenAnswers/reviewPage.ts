@@ -45,6 +45,8 @@ import type { TeamRatingsView } from "../workRatings/model";
 import { loadTeamRatings } from "../workRatings/readers";
 import { writtenAnswerWords } from "../coursework/input";
 import { readAnswerReading, type AnswerReading } from "../coursework/pangramReadings";
+import { besideScopeOf, type ReportLinesView } from "../sessionReports/beside";
+import { readReportLinesAbout } from "../sessionReports/readers";
 
 /**
  * WHAT THE REVIEW PAGE SHOWS (boards wk-review, wk-review-phone), worked
@@ -82,12 +84,23 @@ import { readAnswerReading, type AnswerReading } from "../coursework/pangramRead
  * all, `team` is null and no rating is read. Pangram's last reading of the
  * answer is read for an admin alone (`pangram`), never for the lead.
  *
+ * THE REPORT BESIDE THE WORK (`src/lib/courses/sessionReports/beside.ts`,
+ * privacy v15's "Session reports"): the person open on the page carries what
+ * that week's session reports say about them, their own lines and nothing
+ * else of a report (`reportLines`). The programme's lead and admins see every
+ * report's lines; a facilitator of the person's group sees only the lines of
+ * the reports they wrote, never a co-facilitator's. Read only once the gate
+ * has let the reader review the answer, and nothing is emailed.
+ *
  * Reads: the run's groups and the reader's standing (the gate's), the run's
  * enrolments by one equality, the group's own copy of the week, each
  * person's row by its id, the week's feedback by two equalities, the names,
  * and the course's time for work due the day before; for an admin or the
  * lead, the open answer's ratings by two equalities, and for an admin its
- * Pangram reading by its id. No query needs a declared index.
+ * Pangram reading by its id; the session reports that pick the open person
+ * (an admin or the lead) or that the reader wrote (a facilitator), by one
+ * clause, and the names of their other writers. No query needs a declared
+ * index.
  */
 
 export type ReviewPerson = {
@@ -147,6 +160,13 @@ export type ReviewSelected = {
   team: TeamRatingsView | null;
   /** Pangram's last reading of this answer, for an admin alone; null for everybody else, and when it was never checked. */
   pangram: AnswerReading | null;
+  /**
+   * What the week's session reports say about the person (`besideScopeOf`):
+   * every report's lines for an admin or the programme's lead, the lines of
+   * the reports the reader wrote for a facilitator, never the rest of a
+   * report; null for a reader who is handed no line.
+   */
+  reportLines: ReportLinesView | null;
 };
 
 export type ReviewPageModel = {
@@ -382,8 +402,11 @@ export async function loadWrittenReview(
     const own =
       [...cards].reverse().find((card) => card.mine && card.mayChange && card.on === "writtenAnswer" && !card.legacy) ?? null;
     // Ratings for the team, read for an admin or the programme's lead and for
-    // nobody else; Pangram's reading of the answer for an admin alone.
-    const [team, pangram] = await Promise.all([
+    // nobody else; Pangram's reading of the answer for an admin alone; what
+    // the week's session reports say about the person, as `besideScopeOf`
+    // lets this reader see them.
+    const beside = besideScopeOf({ uid: actor.uid, isAdmin: facts.isAdmin, isLead: facts.isLead }, chosen.uid, role.mayReview);
+    const [team, pangram, reportLines] = await Promise.all([
       mayRateWorkOf(actor, facts, owner, liveGroups)
         ? loadTeamRatings(db, {
             runId: run.id,
@@ -401,6 +424,7 @@ export async function loadWrittenReview(
             words: writtenAnswerWords(answer.boxes, record),
           })
         : Promise.resolve(null),
+      beside ? readReportLinesAbout(db, { runId: run.id, uid: chosen.uid, weekNumber, scope: beside }) : Promise.resolve(null),
     ]);
     selected = {
       person: chosen,
@@ -412,6 +436,7 @@ export async function loadWrittenReview(
       role,
       team,
       pangram,
+      reportLines,
     };
   }
 

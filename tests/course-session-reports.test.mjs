@@ -1021,9 +1021,13 @@ const READER_CALLERS = {
   // CHANGED ON PURPOSE: was the Surveys tab's page, which counted the run's reports for its row.
   "lib/surveys/leadOverview.ts":
     "the Surveys tab's Overview, made after its page's gate for its lead and admins: a week's count, its average and the parts named, never what a report says",
+  // The report beside the work: tests/course-report-beside-work.test.mjs draws it as every caller.
+  "lib/courses/writtenAnswers/reviewPage.ts":
+    "the review page's loader, once its gate lets the reader review a written answer: the person's own lines in that week's reports and " +
+    "nothing else of one, every report's for the programme's lead and admins, a facilitator's own report's for that facilitator (besideScopeOf)",
 };
 /** What reads a report: the readers and the own-report loaders. */
-const READERS = /\b(?:readRunSessionReports|countRunSessionReports|countRunReportsByWeek|ownReportView|readOwnReport|loadReportPage)\s*\(/;
+const READERS = /\b(?:readRunSessionReports|countRunSessionReports|countRunReportsByWeek|ownReportView|readOwnReport|loadReportPage|readReportLinesAbout)\s*\(/;
 
 function sourceFiles(dir = SRC, out = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {

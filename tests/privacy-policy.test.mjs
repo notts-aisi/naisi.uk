@@ -3188,6 +3188,8 @@ const sharedNotesRecord = await loadTs("lib/firestore/courseGroupSharedNotes.ts"
 const sharedNotesWords = await loadTs("lib/courses/sharedNotes/words.ts");
 /** What each session in a calendar link says. Pure. */
 const calendarWords = await loadTs("lib/courses/calendarWords.ts");
+/** The report beside the work: whose reports' lines a reader of a written answer sees, and what of them. Pure. */
+const besideRule = await loadTs("lib/courses/sessionReports/beside.ts");
 /** Who reads a week's fill-in boxes, as the page says it under them. Pure. */
 const fillInWords = await loadTs("lib/courses/fillInWords.ts");
 /**
@@ -4895,7 +4897,7 @@ describe("the course hub passage", () => {
     const surveysTab = "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/surveys/page.tsx";
     const ownPage = "src/app/(app)/learn/[runId]/group/[groupId]/report/page.tsx";
     assertExactlyTheseFiles(
-      sourceFilesNaming(/\b(?:readRunSessionReports|countRunSessionReports|countRunReportsByWeek|ownReportView|readOwnReport|loadReportPage)\(/),
+      sourceFilesNaming(/\b(?:readRunSessionReports|countRunSessionReports|countRunReportsByWeek|ownReportView|readOwnReport|loadReportPage|readReportLinesAbout)\(/),
       new Map([
         ["src/lib/courses/sessionReports/readers.ts", "the lead's and admins' reader and the Overview's counts, which ask nobody who is reading, so each caller decides that first"],
         ["src/lib/courses/sessionReports/context.ts", "the writer's own report, read by the id that names the writer"],
@@ -4904,6 +4906,11 @@ describe("the course hub passage", () => {
         [leadPage, "the programme's session reports, for its lead and admins (loadProgrammeRun)"],
         // CHANGED ON PURPOSE: was the Surveys tab's page, which counted the run's reports for its row.
         ["src/lib/surveys/leadOverview.ts", "the Surveys tab's Overview, made only by its page after the tab's gate (loadProgrammeRun): each week's count, how it went on average and the parts named, never what a report says"],
+        // The report beside the work: held by the test after this one.
+        [
+          "src/lib/courses/writtenAnswers/reviewPage.ts",
+          "the review page beside a written answer, after its gate: the person's own lines, every report's for the lead and admins (besideScopeOf), a facilitator's own report's for that facilitator",
+        ],
       ]),
       "reading session reports",
       "The policy says the programme's lead and admins read session reports, and the people they name don't see them on " +
@@ -4957,6 +4964,106 @@ describe("the course hub passage", () => {
     // here is false; a date-only update can add them to the list.
     assert.match(cascade, /tx\.create\(rows\.doc\(\), \{ \.\.\.data, writerUid: null, answers, aboutUids: aboutUidsOf\(answers\) \}\);/);
     assert.ok(existsSync(join(REPO_ROOT, "tests", "course-session-reports.test.mjs")), "tests/course-session-reports.test.mjs runs the writer, the pages and both deletions as each kind of caller");
+  });
+
+  test("beside a written answer, a session report's lines about the person: every report's for the programme's lead and admins, a facilitator's own report's for that facilitator, and nothing for the person", () => {
+    // "The programme's lead and admins read these. You don't see them on the
+    // site." The review page shows what the week's reports say about the
+    // person whose answer it is, and nothing else of a report. The lead and
+    // admins read every report whole on the programme's page, so every
+    // report's lines here are theirs. A facilitator sees only the lines of
+    // the reports they wrote, which their own report page shows them whole
+    // already: not a new reader of reports, so the sentence stays true, and a
+    // co-facilitator never reads the other's. Nobody sees what a report says
+    // about themselves, and the person is never on the page as a reader of
+    // their own answer.
+    assertHubSays(
+      "The programme&apos;s lead and admins read these. You don&apos;t see them on the site, but you can ask for what is written about you.",
+    );
+    const BESIDE = "src/lib/courses/sessionReports/beside.ts";
+    const READERS = "src/lib/courses/sessionReports/readers.ts";
+    const REVIEW_PAGE = "src/lib/courses/writtenAnswers/reviewPage.ts";
+
+    // THE RULE, run: whose reports' lines each reader sees.
+    const reader = (uid, over = {}) => ({ uid, isAdmin: false, isLead: false, ...over });
+    assert.deepEqual(besideRule.besideScopeOf(reader("zach", { isAdmin: true }), "chloe", true), { whose: "every", readerUid: "zach" });
+    assert.deepEqual(besideRule.besideScopeOf(reader("claudia", { isLead: true }), "chloe", true), { whose: "every", readerUid: "claudia" });
+    assert.deepEqual(besideRule.besideScopeOf(reader("rahul"), "chloe", true), { whose: "own", readerUid: "rahul" });
+    assert.equal(besideRule.besideScopeOf(reader("rahul"), "rahul", true), null, "a facilitator reads what the reports say about themselves");
+    assert.equal(besideRule.besideScopeOf(reader("zach", { isAdmin: true }), "zach", true), null, "an admin reads what the reports say about themselves");
+    assert.equal(besideRule.besideScopeOf(reader("tess", { isLead: true }), "chloe", false), null, "somebody the review page does not let review the answer is handed a line");
+    assert.equal(besideRule.besideScopeOf(reader(""), "chloe", true), null);
+    // ...and as written, so the run above is the rule the page asks.
+    const rule = withoutComments(read(BESIDE));
+    assert.match(rule, /if \(!mayReview \|\| !reader\.uid \|\| reader\.uid === ownerUid\) return null;/);
+    assert.match(rule, /return \{ whose: reader\.isAdmin \|\| reader\.isLead \? "every" : "own", readerUid: reader\.uid \};/);
+
+    // The page asks it with its own gate's answer, for the person open on it
+    // and nobody else, after everybody on the page passed the one gate.
+    const page = withoutComments(read(REVIEW_PAGE));
+    const gated = page.indexOf("const people = reviewableIn(actor, facts, group, owners, liveGroups);");
+    const opened = page.indexOf("if (chosen && answer && chosen.readable) {");
+    const scoped = page.indexOf(
+      "const beside = besideScopeOf({ uid: actor.uid, isAdmin: facts.isAdmin, isLead: facts.isLead }, chosen.uid, role.mayReview);",
+    );
+    const asked = page.indexOf("beside ? readReportLinesAbout(db, { runId: run.id, uid: chosen.uid, weekNumber, scope: beside }) : Promise.resolve(null),");
+    assert.ok(gated !== -1 && opened > gated && scoped > opened && asked > scoped, "the review page reads report lines before its gate and the rule");
+    assert.ok(page.indexOf("const role = writtenReviewRole(actor, facts, owner, liveGroups);") < scoped, "the rule is asked before the page knows what the reader may do");
+
+    // A facilitator's read names the reports they wrote, so a co-facilitator's
+    // is never read for them; the lead's and admins' read the reports that
+    // pick the person. Each held to the run and the week, and a facilitator's
+    // to their own reports again, whatever the query returned.
+    const readers = withoutComments(read(READERS));
+    assert.match(readers, /\? await db\.collection\(COURSE_SESSION_REPORTS_COLLECTION\)\.where\("aboutUids", "array-contains", uid\)\.get\(\)\s*: await db\.collection\(COURSE_SESSION_REPORTS_COLLECTION\)\.where\("writerUid", "==", scope\.readerUid\)\.get\(\);/);
+    assert.match(rule, /\.filter\(\(report\) => report\.runId === runId && report\.weekNumber === weekNumber\)/);
+    assert.match(rule, /\.filter\(\(report\) => scope\.whose === "every" \|\| \(report\.writerUid !== null && report\.writerUid === scope\.readerUid\)\)/);
+
+    // Only the person's own lines leave, and nothing else of a report: the
+    // projection hands the page who wrote it, whether the reader did, its
+    // session and those lines, run here on a whole report.
+    const whole = {
+      id: "r1",
+      runId: "run1",
+      groupId: "g1",
+      sessionKey: "w02",
+      weekNumber: 2,
+      occurrence: 1,
+      writerUid: "rahul",
+      answers: {
+        how: 4,
+        wentWell: "The race debate.",
+        didnt: "Ran over.",
+        unclear: ["something-else"],
+        engaged: [{ uid: "chloe", note: "Brought the reading in." }, { uid: "kofi", note: "About Kofi." }],
+        notRead: ["farah"],
+        needsHand: [{ uid: "farah", note: "About Farah." }],
+        forLead: "For the lead.",
+      },
+      aboutUids: ["chloe", "farah", "kofi"],
+      parts: [],
+      sentAt: new Date("2026-11-17T12:00:00Z"),
+      updatedAt: new Date("2026-11-17T12:00:00Z"),
+    };
+    const input = { runId: "run1", uid: "chloe", weekNumber: 2 };
+    const asLead = besideRule.reportLinesView(
+      besideRule.reportsAbout([whole], { ...input, scope: { whose: "every", readerUid: "claudia" } }),
+      { whose: "every", readerUid: "claudia" },
+      () => "Rahul",
+    );
+    assert.deepEqual(asLead, { whose: "every", reports: [{ by: "Rahul", mine: false, occurrence: 1, lines: [{ kind: "engaged", note: "Brought the reading in." }] }] });
+    assert.doesNotMatch(JSON.stringify(asLead), /race|Ran over|something-else|Kofi|Farah|farah|kofi|For the lead|r1|run1|g1|aboutUids|writerUid/);
+    // A facilitator who did not write it is handed nothing of it.
+    assert.deepEqual(besideRule.reportsAbout([whole], { ...input, scope: { whose: "own", readerUid: "sofia" } }), []);
+    assert.match(
+      rule,
+      /by: mine \? "" : \(report\.writerUid \? nameOf\(report\.writerUid\) : ""\) \|\| RUN_REPORTS_WORDS\.writerGone,\s*mine,\s*occurrence: report\.occurrence,\s*lines: lines\.map\(\(line\) => \(\{ kind: line\.kind, note: line\.note \}\)\),/,
+    );
+
+    // Read only, and nobody is told: the card draws, and nothing beside it writes or sends.
+    const card = withoutComments(read("src/features/courses/written/SessionReportLines.tsx"));
+    assert.doesNotMatch(card, /fetch\(|<form|<button|onClick/, "the report's lines on the review page can be acted on");
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "course-report-beside-work.test.mjs")), "tests/course-report-beside-work.test.mjs draws the review page as every kind of caller");
   });
 
   test("the notes a group shares on its week pages reach the group, its facilitators, the programme's lead and admins and nobody else, are deleted by their writer alone, stay when somebody leaves, and go with the writer's account", () => {
