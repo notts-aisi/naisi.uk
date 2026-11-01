@@ -341,6 +341,10 @@ const ENTRY_RULES = {
   "/admin/members": ["adminOnly", "The (admin-only) group admits admins."],
   "/admin/membership": ["membershipAdmin", "The membership tree admits the grant; an admin reaches it through People."],
   "/events/manage": ["events", "The events area is open to the committee and to a draft or approve grant."],
+  "/messages": [
+    "messages",
+    "Messages writes for admins, a programme's lead and a group's facilitator, as the records say; anybody else reaching it by its address reads who it is for.",
+  ],
   "/newsletter": ["newsletter", "The newsletter tools need a draft or approve grant."],
   "/admin/links": ["adminOnly", "The (admin-only) group admits admins."],
   "/committee/tasks": ["suCommitteeAndUp", "The committee layout admits admins and SU-recognised committee."],
@@ -376,6 +380,9 @@ const RULE_BODIES = {
     '(v: Viewer) => v.role !== "admin" && (Boolean(v.permissions.draftCourse) || Boolean(v.permissions.approveCourse))',
   ],
   membershipAdmin: ["MEMBERSHIP_ADMIN_ACCESS", '(v: Viewer) => v.role !== "admin" && Boolean(v.permissions.manageMembership)'],
+  // Added with Messages (November 2026): who leads and who facilitates is in
+  // the records, not on the session, so the shell asks once (`useWritesMessages`).
+  messages: ["MESSAGES_ACCESS", '(v: Viewer) => v.role === "admin" || v.writesMessages'],
 };
 
 describe("regrouping the menu did not change who is shown what", () => {

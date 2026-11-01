@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { NoProgrammeHere } from "@/features/applications/editor/Refusals";
 import RunBlank from "@/features/applications/groups/RunBlank";
 import MessagesNotYours from "@/features/courses/updates/MessagesNotYours";
@@ -9,9 +10,13 @@ import { updateAudienceCounts } from "@/lib/courses/updates/audience";
 import { loadRunGroups, loadUpdatesFor, updateReadingOf } from "@/lib/courses/updates/readers";
 import { composerAudiences, staffUpdateRows } from "@/lib/courses/updates/views";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { tagId } from "@/lib/audience/tags";
 import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
 import { compareGroupsByMeeting } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun } from "@/lib/firestore/courses";
+import { postTargetsOf } from "@/lib/messages/posting";
+import { OPEN_IN_MESSAGES, messagesHrefFor } from "@/lib/messages/words";
+import { messageWriterOf } from "@/lib/messages/writers";
 
 /**
  * One programme's Messages tab (wk-messages, option B): "New update", and
@@ -27,6 +32,11 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  *
  * The board's "Next week's email" table belongs to the scheduled email's own
  * piece of work and is not drawn here.
+ *
+ * ABOVE IT, "Write in Messages": Messages set to this programme's people,
+ * where a message can be posted here as well. Drawn only when the programme
+ * is one of this term's and Messages would start with it for the person
+ * reading (`postTargetsOf`), so the link never opens an empty composer.
  */
 export default async function ProgrammeMessagesPage({
   params,
@@ -48,13 +58,24 @@ export default async function ProgrammeMessagesPage({
   const groups = (await loadRunGroups(db, run.id)).sort(compareGroupsByMeeting);
   const programmeName = view.programmeName.trim() || run.courseTitle.trim() || "this programme";
   const reading = await updateReadingOf(db, user, run, groups);
-  const [counts, loaded] = await Promise.all([
+  const [counts, loaded, writer] = await Promise.all([
     updateAudienceCounts(db, run, groups, null, user.uid),
     loadUpdatesFor(db, run, reading, groups, programmeName),
+    messageWriterOf(db, user, new Date()),
   ]);
+  const everyone = tagId({ kind: "programme", roundId, programmeId, part: "everyone" });
+  const opensMessages = writer !== null && postTargetsOf(writer).some((target) => target.tagId === everyone);
 
   return (
     <div className={styles.stack}>
+      {opensMessages && (
+        <div className={styles.write}>
+          <Link href={messagesHrefFor(everyone)} className={styles.writeLink}>
+            {OPEN_IN_MESSAGES.link}
+          </Link>
+          <p className={styles.writeLine}>{OPEN_IN_MESSAGES.line}</p>
+        </div>
+      )}
       <UpdateComposer runId={run.id} audiences={composerAudiences(counts, programmeName)} />
       <StaffUpdatesSection updates={staffUpdateRows(loaded.updates)} headingId="programme-updates" />
     </div>

@@ -48,6 +48,12 @@ type Props = {
   initial?: Partial<AudienceChoice>;
   /** Told the selection and its count whenever either changes; the count is null while it is being worked out. */
   onChange?: (choice: AudienceChoice, count: CountView | null) => void;
+  /**
+   * Bumped by a page that has learnt the count no longer holds (a send
+   * refused because who it reaches changed): the count, and the names if
+   * See who is open, are asked for again.
+   */
+  recount?: number;
 };
 
 /** How long a change waits for the next before the count is asked for. */
@@ -69,7 +75,7 @@ const post = (url: string, body: string, signal: AbortSignal) =>
 /** What to say when a count or a list could not be had. */
 const problemWords = (err: unknown, otherwise: string) => (err instanceof Refused ? AUDIENCE_REFUSAL.notYours : otherwise);
 
-export default function WhoIsThisFor({ initial, onChange }: Props) {
+export default function WhoIsThisFor({ initial, onChange, recount = 0 }: Props) {
   const id = useId();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -146,7 +152,7 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [key, anything, countAttempt]);
+  }, [key, anything, countAttempt, recount]);
 
   // The names, while See who is open.
   useEffect(() => {
@@ -166,7 +172,7 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [whoOpen, key, anything, whoAttempt]);
+  }, [whoOpen, key, anything, whoAttempt, recount]);
 
   const current = anything && count?.key === key ? count.view : null;
 

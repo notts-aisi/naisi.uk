@@ -197,6 +197,9 @@ export function channelLabel(channel: string): string {
   if (channel === "all") return "all NAISI emails";
   if (channel === "newsletter") return "our newsletter";
   if (channel === "events") return "event announcements";
+  // No list is called this: it is the row of the settings an unsubscribe
+  // link at the foot of a message by their settings names (Messages).
+  if (channel === "courses") return "course announcements";
   if (channel.startsWith("cohort:")) {
     return `the ${prettifySlug(stripSlugIdSuffix(channel.slice("cohort:".length)))} cohort updates`;
   }

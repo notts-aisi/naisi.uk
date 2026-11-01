@@ -87,6 +87,17 @@ export type EmailSendKind =
   // next to a newsletter that went out the same afternoon. Its `referenceId`
   // is the EVENT id.
   | "event-announcement"
+  // A message written in Messages (docs/messages.md) that goes by each
+  // person's settings: the one row of the grid its writer chose, with the
+  // link that unsubscribes them from it. Its own kind, apart from the
+  // newsletter and the announcement, because the deliverability tab has to
+  // answer "what did people write to a list this week" without reading
+  // subject lines. A message that goes as a notice is a `notice` row on the
+  // `messages` surface instead. Its `referenceId` is the send's record in
+  // `messageSends`.
+  | "message"
+  // "Send a test to me" in Messages: the message, to its writer alone.
+  | "message-test"
   | "course-test"
   | "admin-test"
   | "subscription-confirm"
@@ -152,7 +163,11 @@ export type EmailSendSurface =
   | "course-week"
   // The reminders 3 days and 1 day before a group's session, to each person
   // in it whose week is not done (`courses-week-reminders`).
-  | "course-week-reminder";
+  | "course-week-reminder"
+  // A message written in Messages (docs/messages.md) that goes as a programme
+  // notice: an admin, a programme's lead or a group's facilitator writing to
+  // people they run a programme for, about running it.
+  | "messages";
 
 export type EmailSend = {
   messageId: string;

@@ -52,6 +52,9 @@ const NOTICE_REASON: Record<EmailSendSurface, string> = {
   "course-week": "you are in this course group",
   // A reminder goes only to somebody whose week is not done, and says so.
   "course-week-reminder": "our records show this week’s work isn’t finished",
+  // Messages goes as a notice only to people its writer runs a programme for:
+  // somebody holding a place on it, in one of its groups, or helping to run it.
+  messages: "you hold a place on a programme or help run one",
 };
 
 type Props = {

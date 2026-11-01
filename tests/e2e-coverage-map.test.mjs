@@ -856,15 +856,15 @@ const NOT_COVERED = {
   },
   "/api/audience": {
     reason:
-      "The picker sends nothing: /api/audience answers the tags a person may use and how many a choice reaches, to a person looking at the result, and tests/audience-picker.test.mjs drives it as every kind of caller against a real term.",
+      "The picker answers the tags a person may use and how many a choice reaches, and tests/audience-picker.test.mjs drives it as every kind of caller against a real term. Messages now sends to its count: tests/messages.test.mjs holds the send's number to it, and the Messages spec (tests/e2e/messages.spec.mjs) drives it in a browser but has not passed end to end yet.",
     coverWhen:
-      "When a send first takes its people from the picker, so a wrong count becomes a wrong send.",
+      "When the Messages spec has passed end to end against the harness's server with its mail caught, and is marked verified.",
   },
   "/api/audience/who": {
     reason:
-      "The picker sends nothing: /api/audience/who lists names to a person looking at them, and tests/audience-picker.test.mjs drives it as every kind of caller against a real term.",
+      "The picker lists names to a person looking at them, and tests/audience-picker.test.mjs drives it as every kind of caller against a real term. The Messages spec opens See who in a browser but has not passed end to end yet.",
     coverWhen:
-      "When a send first takes its people from the picker, so a wrong count becomes a wrong send.",
+      "When the Messages spec has passed end to end against the harness's server with its mail caught, and is marked verified.",
   },
   "/api/auth/google/callback": {
     reason:
@@ -1431,6 +1431,18 @@ const NOT_COVERED = {
       "The members roster feeds a directory that is feature-flagged off, so nothing renders from it today.",
     coverWhen:
       "When the members directory is switched back on.",
+  },
+  "/api/messages": {
+    reason:
+      "Messages: the send, and whether the menu draws it. Every caller, the count's promise, the test it waits for, the caps, notice or by their settings, the writer included, suppression and held mail are driven offline in tests/messages.test.mjs; its browser spec (tests/e2e/messages.spec.mjs) has not passed end to end yet.",
+    coverWhen:
+      "When the Messages spec has passed end to end against the harness's server with its mail caught, and is marked verified.",
+  },
+  "/api/messages/test": {
+    reason:
+      "Messages' Send a test to me. Driven as every caller in tests/messages.test.mjs, with the test the send waits for; its browser spec has not passed end to end yet.",
+    coverWhen:
+      "When the Messages spec has passed end to end against the harness's server with its mail caught, and is marked verified.",
   },
   "/api/newsletter/[id]/send": {
     reason:
@@ -2178,6 +2190,12 @@ const NOT_COVERED = {
       "Course hub: the pairs page for a session in pairs, drawn as each kind of caller and with its pairs, checks and rows held word for word by tests/course-hub-pairs.test.mjs; photographed on the preview kit at 390 and 1440.",
     coverWhen:
       "When the browser spec that pairs a group drives the page.",
+  },
+  "/(app)/messages": {
+    reason:
+      "Messages' composer: the picker, the words, the test and the send. Its server render and its moments are drawn in tests/messages.test.mjs; its browser spec (tests/e2e/messages.spec.mjs) has not passed end to end yet.",
+    coverWhen:
+      "When the Messages spec has passed end to end against the harness's server with its mail caught, and is marked verified.",
   },
   "/(app)/newsletter": {
     reason:

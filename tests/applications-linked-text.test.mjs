@@ -1212,6 +1212,13 @@ const BUILT = new Map([
     { built: ["home"], from: "the term's own page, from the form's id" },
   ],
   [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/messages/page.tsx",
+    {
+      built: ["messagesHrefFor(everyone)"],
+      from: "Messages, set to this programme's people: the picker's tag for them, spelled from the form's and the programme's ids in the address, encoded. Nothing anybody typed",
+    },
+  ],
+  [
     "src/app/(app)/admin/admissions/forms/page.tsx",
     { built: ["applicationFormPath(form.id)"], from: "a form's own page, from its id" },
   ],

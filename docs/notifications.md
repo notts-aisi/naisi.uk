@@ -180,9 +180,9 @@ is that helper inverted, for the loops that hold a raw document and are asking
 
 | Row | Email | Push |
 | --- | --- | --- |
-| `newsletter` | `POST /api/newsletter/[id]/send`, the only sender that addresses this row | the same send, alongside its email loop |
-| `events` | the new-event announcement, on publish, inline or queued to the `event-announcements` job | the same announcement |
-| `courses` | the cohort announcement composer, the admissions deadline reminder job, the admissions stage-release job, the daily invitation reminder job | an admissions decision, an allocation publish, the stage release |
+| `newsletter` | `POST /api/newsletter/[id]/send`, the only sender of an issue; and a message in Messages by their settings whose writer chose this row | the newsletter send, alongside its email loop |
+| `events` | the new-event announcement, on publish, inline or queued to the `event-announcements` job; and a message in Messages by their settings whose writer chose this row | the same announcement |
+| `courses` | the cohort announcement composer, the admissions deadline reminder job, the admissions stage-release job, the daily invitation reminder job; and a message in Messages by their settings whose writer chose this row | an admissions decision, an allocation publish, the stage release |
 | `tasks` | the five `/api/tasks/[id]/*` senders, the four worksheet circulation messages, the worksheet due-soon reminder, the register reminder to a group's facilitators (`courses-register-reminders`) | a mirror beside each of those but the register reminder, which is email only |
 
 **The two opt-in rows share one push audience shape**, in
@@ -348,6 +348,7 @@ preference at all.
 | `course-check-in` | `POST /api/courses/groups/[groupId]/check-in`, opening the check-in at the end of a session (docs/surveys.md) | admins, and a facilitator of THIS group while it is live | the people the session's register marks present, late or left early, never the group's facilitators, each at their account's address with their own link; once, when it opens: somebody marked there later is reached with no email, and nobody is reminded |
 | `course-week` | "Week N is open", 6 days before each of a group's sessions at 9am: the `courses-next-week-email` job, or, while that job is off, `POST /api/courses/groups/[groupId]/attendance/push` (finishing the register before it) and an admin's Resend on a finished register | the job; the group's facilitator or an admin pressing the register; an admin resending | everybody holding a place in the group whose group has gone out, whatever they unsubscribed from; once per group per session, by the group's claim |
 | `course-week-reminder` | the reminders 3 days and 1 day before each of a group's sessions at 9am: the `courses-week-reminders` job | the job | each person holding a place in the group whose week (written as blocks, and published) is not done, listing what is left of it; one per person per reminder, by a scheduler marker; a week done, submitted or locked is never reminded about |
+| `messages` | `POST /api/messages`, a message written in Messages that goes as a programme notice ([messages.md](messages.md)) | admins, a programme's lead and a group's facilitator, each to the tags the picker gives them | the people the writer chose, when every tag is about running a programme and the writer runs everybody it reaches: holding a place on a programme they run, facilitating or leading it, or in a group they facilitate; each at their account's own address (or a university address they verified), the writer too when they are in the tags. Otherwise the message goes by their settings, not as a notice |
 
 **The week's emails** (`course-week` and `course-week-reminder`) are the
 people running the programme telling the people on it what this week is and
@@ -457,6 +458,13 @@ to be rationed like any other send.
 | course run notice | 3 | 10 | 200 recipients, refused |
 | course update | 3, per (writer, audience) | 10, its own counter | 200 recipients, refused |
 | course check-in | **none** | 2, per group, its own counter | 40 people, refused |
+| Messages | 3, per (writer, audience) | 10, per audience, its own counter | 300 emails, refused |
+
+**Messages claims both windows for every send**, a message by their settings
+as much as a notice: an audience is the choice of tags, spelled in one order
+and hashed, so the same tags chosen in another order are the same audience.
+Its ceiling counts emails rather than people, because a message by their
+settings can go to both of a member's addresses.
 
 **The check-in omits the hourly window** because it is claimed once per
 session by the check-in itself (two presses make one), and its daily counter

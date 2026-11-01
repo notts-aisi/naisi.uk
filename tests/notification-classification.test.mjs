@@ -735,6 +735,22 @@ const REGISTRY = {
   "src/app/api/surveys/[surveyId]/test/route.ts#sendEmail": T(
     "\"Send a test to me\" under a survey's email or its reminder: the email, marked [TEST], to the address on the presser's own session and nobody else. Nobody's preference is passed over, so it is no notice.",
   ),
+
+  // -- Messages (docs/messages.md) -----------------------------------------
+  // One composer, two lanes, one per send and never a mix: the picker decides
+  // which (`wholeMode` in src/lib/audience/kind.ts), each person carries it,
+  // and the route sends each person through the door their class names.
+  "src/app/api/messages/route.ts#sendNotice": N(
+    "A message that goes as a programme notice: every tag is about running a programme and the writer (an admin, a programme's lead or a group's facilitator) runs everybody it reaches, so it reaches them whatever their settings, with the marker (surface messages), no unsubscribe link and the lane's caps. Email only: no push leg.",
+  ),
+  "src/app/api/messages/route.ts#sendEmail": G(
+    ["newsletter", "events", "courses"],
+    "A message that goes by their settings: the one row of the grid its writer chose (or the tags suggest), never a mix of two. An account is asked through `wantsCategory` and addressed through `addressesForSend` inside the picker's resolution, which this route sends exactly; a guest's yes is their own subscription to that row's list. Every message carries the link that unsubscribes them from the row, and the RFC 8058 headers. Email only: no push leg.",
+    "src/lib/audience/resolve.ts",
+  ),
+  "src/app/api/messages/test/route.ts#sendEmail": T(
+    "\"Send a test to me\" in Messages: the message, marked [TEST], to the address on the presser's own account and nobody else, with no marker and no unsubscribe link. Nobody's preference is passed over, so it is no notice, and it reads no row.",
+  ),
 };
 
 // ---------------------------------------------------------------------------
@@ -912,38 +928,54 @@ describe("a class is a claim about the code, and the code is read", () => {
 
   test("a two-row entry names exactly the rows its helper's type allows", () => {
     /*
-     * The array form exists for ONE shape: a helper parametrised on the row,
+     * The array form exists for ONE shape: a send parametrised on the row,
      * whose type says which rows it may be handed. Left to prose, an entry
      * could name any two rows and the guard would nod. So the declared rows are
-     * read back out of the type: `PushBroadcastRow` in
-     * `src/lib/push/rowAudience.ts` is an `Extract` over the four, and the
-     * entry for that helper's send must equal it exactly. Narrow the type and
-     * this fails until the registry agrees; widen the registry and it fails
-     * until the type does.
+     * read back out of the type, and each such entry must equal its type
+     * exactly. Narrow the type and this fails until the registry agrees; widen
+     * the registry and it fails until the type does. Two sends have the shape:
+     *
+     *  - `sendPushToRowAudience`'s own push, whose callers name the row:
+     *    `PushBroadcastRow` in `src/lib/push/rowAudience.ts`, an `Extract`
+     *    over the four;
+     *  - a message by their settings in Messages, whose writer chooses the
+     *    one row it reads: `GridRow` in `src/lib/audience/kind.ts`, the
+     *    picker's own `Extract` over the categories.
      */
-    const HELPER = "src/lib/push/rowAudience.ts";
-    const source = SOURCE_BY_FILE.get(HELPER);
-    assert.ok(source, `${HELPER} is gone: the array-valued entry describes nothing`);
-    const union = /export type PushBroadcastRow = Extract<\s*PushNotificationKey,\s*([^>]+)>/.exec(
-      source,
-    );
-    assert.ok(union, "PushBroadcastRow moved or changed shape: re-read that file");
-    const allowed = [...union[1].matchAll(/"([a-zA-Z]+)"/g)].map((m) => m[1]).sort();
-    assert.ok(allowed.length >= 2, "a one-row helper does not need the array form");
+    const PARAMETRISED = [
+      {
+        key: "src/lib/push/rowAudience.ts#sendPushToUid",
+        file: "src/lib/push/rowAudience.ts",
+        type: /export type PushBroadcastRow = Extract<\s*PushNotificationKey,\s*([^>]+)>/,
+      },
+      {
+        key: "src/app/api/messages/route.ts#sendEmail",
+        file: "src/lib/audience/kind.ts",
+        type: /export type GridRow = Extract<\s*NotificationCategory,\s*([^>]+)>/,
+      },
+    ];
+    for (const { key, file, type } of PARAMETRISED) {
+      const source = SOURCE_BY_FILE.get(file);
+      assert.ok(source, `${file} is gone: the array-valued entry ${key} describes nothing`);
+      const union = type.exec(source);
+      assert.ok(union, `the row type in ${file} moved or changed shape: re-read that file`);
+      const allowed = [...union[1].matchAll(/"([a-zA-Z]+)"/g)].map((m) => m[1]).sort();
+      assert.ok(allowed.length >= 2, "a one-row helper does not need the array form");
 
-    const entry = REGISTRY[`${HELPER}#sendPushToUid`];
-    assert.ok(entry, `${HELPER}#sendPushToUid is not registered`);
-    assert.deepEqual(
-      rowsOf(entry).slice().sort(),
-      allowed,
-      "the rows this entry declares and the rows its helper's type permits have " +
-        "drifted apart, so one of the two is describing a tree that does not exist",
-    );
+      const entry = REGISTRY[key];
+      assert.ok(entry, `${key} is not registered`);
+      assert.deepEqual(
+        rowsOf(entry).slice().sort(),
+        allowed,
+        "the rows this entry declares and the rows its helper's type permits have " +
+          "drifted apart, so one of the two is describing a tree that does not exist",
+      );
+    }
 
-    // Every OTHER grid entry names exactly one row: the array is for a helper
+    // Every OTHER grid entry names exactly one row: the array is for a send
     // that genuinely serves several, not a way to avoid choosing.
     for (const [key, other] of Object.entries(REGISTRY)) {
-      if (other.class !== "grid" || key === `${HELPER}#sendPushToUid`) continue;
+      if (other.class !== "grid" || PARAMETRISED.some((each) => each.key === key)) continue;
       assert.equal(
         rowsOf(other).length,
         1,

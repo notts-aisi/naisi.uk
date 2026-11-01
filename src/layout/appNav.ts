@@ -39,7 +39,8 @@ export type NavRule =
   | "events"
   | "admissions"
   | "courseAdmin"
-  | "membershipAdmin";
+  | "membershipAdmin"
+  | "messages";
 
 export type AdminSectionId = "people" | "programmes" | "publicity" | "surveys" | "reports" | "site";
 
@@ -91,6 +92,9 @@ export const APP_NAV: NavGroup[] = [
       // membership: the one page of People they can open. Nobody is shown both.
       { label: "People", href: "/admin/membership", rule: "membershipAdmin", section: "people" },
       { label: "Manage events", href: "/events/manage", rule: "events" },
+      // Writing to people: admins, a programme's lead and a group's
+      // facilitator, each to the people the picker gives them.
+      { label: "Messages", href: "/messages", rule: "messages" },
       { label: "Newsletter", href: "/newsletter", rule: "newsletter" },
       { label: "Publicity", href: "/admin/links", rule: "adminOnly", section: "publicity" },
       { label: "Committee tasks", href: "/committee/tasks", rule: "suCommitteeAndUp" },

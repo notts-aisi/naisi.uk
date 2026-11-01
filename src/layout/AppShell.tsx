@@ -11,6 +11,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { exitImpersonation } from "@/auth/impersonation";
 import { signOut } from "@/auth/signInWithGoogle";
 import { usePendingCount } from "@/features/admin/usePendingCount";
+import { useWritesMessages } from "@/features/messages/useWritesMessages";
 import type { UserPermissions } from "@/lib/firestore/users";
 import { mark, warn } from "@/lib/devMonitor";
 import { hardNavigate } from "@/lib/navigation/hardNavigate";
@@ -43,6 +44,9 @@ type Viewer = {
   /** Server-owned: this member reviews or decides at least one admission
    *  round. See `users.admissionsReviewer`. */
   admissionsReviewer: boolean;
+  /** This person leads a programme or facilitates a group Messages can write
+   *  to, as the records say (`useWritesMessages`). Draws the entry only. */
+  writesMessages: boolean;
 };
 
 /*
@@ -100,6 +104,12 @@ const ADMISSIONS_ACCESS = (v: Viewer) =>
 const MEMBERSHIP_ADMIN_ACCESS = (v: Viewer) =>
   v.role !== "admin" && Boolean(v.permissions.manageMembership);
 
+// Messages: admins, and whoever leads one of the term's programmes or
+// facilitates a group the picker gives them, which the records say and the
+// session does not, so the shell asks once (`useWritesMessages`). The page
+// and its routes ask the records again.
+const MESSAGES_ACCESS = (v: Viewer) => v.role === "admin" || v.writesMessages;
+
 /** The rule behind each name `appNav.ts` uses. Typed by `NavRule`, so an entry
  *  there cannot name a rule that is missing here. */
 const RULES: Record<NavRule, (v: Viewer) => boolean> = {
@@ -112,6 +122,7 @@ const RULES: Record<NavRule, (v: Viewer) => boolean> = {
   admissions: ADMISSIONS_ACCESS,
   courseAdmin: COURSE_ADMIN_ACCESS,
   membershipAdmin: MEMBERSHIP_ADMIN_ACCESS,
+  messages: MESSAGES_ACCESS,
 };
 
 const NAV_DRAWER_ID = "app-nav-drawer";
@@ -150,6 +161,7 @@ export default function AppShell({
   const pathname = usePathname();
   const { user, role, permissions, suRecognised, admissionsReviewer, loading } = useAuth();
   const pendingCount = usePendingCount();
+  const writesMessages = useWritesMessages();
   const [exiting, setExiting] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Fade the main content in once when we arrive from the sign-in flow.
@@ -271,7 +283,7 @@ export default function AppShell({
       ? APP_NAV.map((g) => ({
           ...g,
           entries: g.entries.filter((entry) =>
-            RULES[entry.rule]({ role, permissions, suRecognised, admissionsReviewer }),
+            RULES[entry.rule]({ role, permissions, suRecognised, admissionsReviewer, writesMessages }),
           ),
         })).filter((g) => g.entries.length > 0)
       : [];

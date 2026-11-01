@@ -3139,6 +3139,33 @@ export const ROUTES = {
         "nothing about anybody else is in it.",
     },
   },
+  "/api/messages": {
+    GET: {
+      expect: approvedOnly(200),
+      fields: ["writes"],
+      why:
+        "Whether the menu draws Messages for the caller, from their own records: every approved account is " +
+        "answered, true for an admin, a programme's lead and a group's facilitator and false for anybody else, " +
+        "and a pending or rejected account is refused before anything is read. It writes nothing.",
+    },
+    POST: {
+      expect: approvedOnly(400),
+      why:
+        "The send. View-as is refused first, then the session, then an account that is not approved, then the " +
+        "body is checked before anything is read, so every approved persona meets the same 400 on an empty one. " +
+        "Who may write to whom (an admin, a programme's lead, a group's facilitator, each to the tags the picker " +
+        "gives them) is asked once a whole message arrives; tests/messages.test.mjs runs that as every kind of caller.",
+    },
+  },
+  "/api/messages/test": {
+    POST: {
+      expect: approvedOnly(400),
+      why:
+        "\"Send a test to me\": refused in a view-as session, then to anybody signed out or not approved, then " +
+        "an empty body is a 400 before anything is read. The writers' gate comes after, and the test goes to the " +
+        "presser's own address alone.",
+    },
+  },
   "/api/newsletter/[id]/send": {
     POST: {
       expect: everyone(403, { admin: 404, approveNewsletter: 404 }),
@@ -4717,6 +4744,14 @@ export const PAGES = {
       "The pairs page, a static segment under /learn so a programme's lead can open it, as the draw's " +
       "page is: the battery's group id addresses nothing, so every approved account is sent back to " +
       "/learn, as everybody but the group's live facilitators, the programme's lead and admins is once it exists.",
+  },
+  "/(app)/messages": {
+    expect: everyone(200, { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "The authed shell: a stranger is sent to sign in, a pending account to the waiting page and a rejected " +
+      "one home by the layout. Every approved account renders it: an admin, a programme's lead and a group's " +
+      "facilitator get the composer, and anybody else a line saying who Messages is for, so the answer is the " +
+      "same whichever programme the term is.",
   },
   "/(app)/newsletter": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, draftNewsletter: 200, approveNewsletter: 200 }),

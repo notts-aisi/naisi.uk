@@ -524,6 +524,9 @@ test("the funnel fixture declares every collection its teardown must drain", () 
     "surveyPeople",
     "surveyAnswers",
     "kairosChoices",
+    // A message from Messages to a term's people: the send's own record, found
+    // by the tags it was for.
+    "messageSends",
   ]) {
     assert.ok(
       FIXTURE_COLLECTIONS.includes(required),

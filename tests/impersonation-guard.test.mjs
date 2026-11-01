@@ -92,6 +92,11 @@ const GUARDED_TREES = [
   // The tree is registered so a route added beside them that writes (a kept
   // list, a send) is caught by the sweep.
   "src/app/api/audience",
+
+  // Messages: every write in this tree is a message sent in the session's
+  // name, or the test it waits for. Its one read (whether the menu draws
+  // Messages) is a GET, which the sweep does not ask about.
+  "src/app/api/messages",
 ];
 
 /**
@@ -590,6 +595,9 @@ const MUST_GUARD = [
   ["src/app/api/events/[id]/check-ins/[checkInId]/route.ts", "undoes a check-in at the door"],
   ["src/app/api/events/[id]/door-code/route.ts", "makes an event's permanent door code"],
   ["src/app/api/events/[id]/door/route.ts", "opens an event's door, recorded as whoever opened it"],
+  // ── Messages ───────────────────────────────────────────────────────────────
+  ["src/app/api/messages/route.ts", "sends a message to the people chosen, in the writer's name, and can post it on a programme's page"],
+  ["src/app/api/messages/test/route.ts", "sends the presser a test and records the test the send waits for"],
 ];
 
 /**
