@@ -152,6 +152,9 @@ export type ForYouEvent = {
 /** How many "For you" cards Home draws. */
 const MAX_FOR_YOU = 4;
 
+/** How many of a person's invitations Home reads the events of. */
+const MAX_INVITATIONS_READ = 100;
+
 /** The sign-ups that are a place asked for or held. */
 const LIVE_RSVP = new Set(["pending", "confirmed", "waitlisted"]);
 
@@ -173,6 +176,8 @@ export async function forYouEvents(uid: string, now: Date): Promise<ForYouEvent[
   if (!db) return [];
   try {
     const invitations = await db.collection(EVENT_INVITATIONS_COLLECTION).where("uid", "==", uid).get();
+    // The bound is on the read, not a choice of events: somebody is invited
+    // to a handful a term, so a hundred covers years of them, past ones too.
     const ids = [
       ...new Set(
         invitations.docs.flatMap((doc) => {
@@ -180,7 +185,7 @@ export async function forYouEvents(uid: string, now: Date): Promise<ForYouEvent[
           return data.uid === uid && typeof data.eventId === "string" && data.eventId ? [data.eventId] : [];
         }),
       ),
-    ].slice(0, 50);
+    ].slice(0, MAX_INVITATIONS_READ);
     if (ids.length === 0) return [];
     const snaps = await db.getAll(...ids.map((id) => db.collection("events").doc(id)));
     const events = snaps

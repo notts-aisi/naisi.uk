@@ -388,7 +388,7 @@ export async function GET(
       plan = await planForStoredChoice(db, normalizeEvent(id, event), new Date());
     } catch (err) {
       console.error("[event publish count] invitations uncountable", id, err);
-      return NextResponse.json({ error: "Couldn't count the invitations just now." }, { status: 500 });
+      return NextResponse.json({ error: "We couldn’t count the invitations just now." }, { status: 500 });
     }
     if (!plan.ok) return NextResponse.json({ error: plan.error }, { status: plan.status });
     const { count } = plan.plan;
