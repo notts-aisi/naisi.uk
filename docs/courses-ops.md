@@ -1815,9 +1815,11 @@ is shown nothing of it.
 
 - On the session's day, from its start until it would close: "Open it for the
   6 here", counted from the grid as it is tapped (marked present, late or left
-  early; never the group's facilitators), or "Take the register first" while
-  nobody is. The press counts again on the server and refuses a number that
-  has moved, with the new one.
+  early, among the rows the route says it can reach: never the group's
+  facilitators, nor anybody Publish has not told their group, whom an admin's
+  register shows), or "Take the register first" while nobody is. The press
+  counts again on the server and refuses a number that has moved, with the
+  new one.
 - While it is open: how many have sent it, never who; "Show the QR code";
   "Close it now", asked once; and when it closes by itself (11pm, or an hour
   after a late session ends).
@@ -1829,6 +1831,14 @@ Marking somebody there while the session's check-in is open gives them their
 own row on it, with no email (`reachLateMarks`): the register's marking route
 asks it after it keeps the mark, and the mark is kept whatever happens there.
 Finishing the register changes nothing of the check-in, before or after.
+
+So the page reads in the order the end of a session runs: the grid, then the
+check-in for the room's last ten minutes, then the foot that finishes the
+register, which once it is finished leads the group's facilitators on to
+their own session report ("Next: two minutes on how it went.", "A
+facilitator's session report" below). The check-in is the group's answers
+about the session; the report is the facilitator's own, and neither reads the
+other.
 
 ### Notes for the group's facilitators
 
