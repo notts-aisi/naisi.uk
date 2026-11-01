@@ -10,7 +10,8 @@
  * programme and its groups have tags in the picker), open Messages from the
  * programme's Messages tab, set to its people, send themselves a test, then
  * send it: one notice each to the three, the update kept on the programme's
- * page as well, and a record of the send that names no address.
+ * page as well, and a record of the send that names no address. Then Sent
+ * lists it, and the run's home opens Messages from "Email the whole cohort".
  *
  * ## The term is the one Messages writes to, and the seed makes it so
  *
@@ -85,6 +86,8 @@ export const MESSAGES_STEPS = [
   "the send waits for a test, and the test reaches the admin alone, marked as one",
   "the send goes to the number on its button: one notice each, and nobody else",
   "the message is kept on the programme's page too, and the send's record names no address",
+  "Sent lists the send, with who it reached by name and no address",
+  "the run's home opens Messages set to the programme's people holding a place, from Email the whole cohort",
 ];
 
 /**
@@ -112,12 +115,15 @@ export const SPEC = {
       "/api/audience/who",
       "/api/messages",
       "/api/messages/test",
+      "/api/courses/runs/[runId]/overview",
     ],
     pages: [
       "/(auth)/login",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/messages",
       "/(app)/messages",
+      "/(app)/messages/sent",
+      "/(app)/learn/[runId]",
     ],
   },
   /**

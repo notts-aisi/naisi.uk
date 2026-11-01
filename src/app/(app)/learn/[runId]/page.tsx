@@ -13,6 +13,7 @@ import { timeQuestionFor } from "@/lib/courses/timeAnswer/seat";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
+import { NO_ENTRIES, messagesEntriesFor } from "@/lib/messages/handover";
 import LeftProgramme from "@/features/courses/leaving/LeftProgramme";
 import { leftPageSurvey } from "@/features/courses/leaving/leftSurvey";
 import RunHome from "@/features/courses/RunHome";
@@ -147,6 +148,14 @@ export default async function RunHomePage({
           () => null,
         )
       : null;
+  // Where "Email the group" and "Email the whole cohort" open Messages, set
+  // to that audience (`messagesEntriesFor`), for somebody who staffs the run
+  // or facilitates one of its groups; read for nobody else. A link with no
+  // entry keeps its old page on the run.
+  const messages =
+    db && (canEmailCohort || access.isFacilitator)
+      ? await messagesEntriesFor(db, access.user, runId, new Date()).catch(() => NO_ENTRIES)
+      : NO_ENTRIES;
 
   // "About this course" (wk-programme): the programme's Start here and
   // Glossary, each linked when the run has it; nothing for a run with neither.
@@ -180,6 +189,7 @@ export default async function RunHomePage({
       runId={runId}
       isAdmin={access.isAdmin}
       canEmailCohort={canEmailCohort}
+      messages={messages}
       pitching={pitching}
       team={team}
       canLeave={canLeave}

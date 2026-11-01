@@ -36,6 +36,11 @@ import styles from "./FacilitatorGroupPanel.module.css";
  * The cohort-wide link (announcements) is passed in rather than derived here,
  * and only the first card is asked to draw it: it addresses the RUN, and
  * repeating it under every group would read as separate lanes.
+ *
+ * Both email links open Messages, set to the group or the cohort, where
+ * Messages would start with that audience for the person reading; the run's
+ * own email pages stay the way in everywhere else, until they go
+ * (`src/lib/messages/handover.ts`).
  */
 
 type Props = {
@@ -50,6 +55,14 @@ type Props = {
    */
   publishedWeekNumbers: readonly number[];
   showCohortLinks: boolean;
+  /**
+   * Messages set to this group, where Messages would start with it for the
+   * person reading (`messagesEntriesFor`); null keeps "Email the group" on
+   * the group's own email page.
+   */
+  emailGroupHref?: string | null;
+  /** Messages set to the run's cohort, in the same way; null keeps the run's own page. */
+  emailCohortHref?: string | null;
 };
 
 /**
@@ -144,6 +157,8 @@ export default function FacilitatorGroupPanel({
   group,
   publishedWeekNumbers,
   showCohortLinks,
+  emailGroupHref = null,
+  emailCohortHref = null,
 }: Props) {
   /*
     The shared hook, the same one the facilitator group page and the email
@@ -225,7 +240,10 @@ export default function FacilitatorGroupPanel({
         </span>
       </Link>
 
-      <Link className={styles.panelLink} href={`${groupHref}/email`}>
+      {/* Messages, set to this group, does what the group's email page did,
+          its phone notification included; the old page stays the way in
+          where Messages would not start with the group (`emailGroupHref`). */}
+      <Link className={styles.panelLink} href={emailGroupHref ?? `${groupHref}/email`}>
         Email the group
         <span className={styles.arrow} aria-hidden="true">
           →
@@ -238,7 +256,7 @@ export default function FacilitatorGroupPanel({
       {showCohortLinks && (
         <Link
           className={styles.panelLink}
-          href={`/learn/${encodeURIComponent(runId)}/email`}
+          href={emailCohortHref ?? `/learn/${encodeURIComponent(runId)}/email`}
         >
           Email the whole cohort
           <span className={styles.arrow} aria-hidden="true">

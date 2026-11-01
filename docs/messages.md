@@ -10,14 +10,14 @@ when it sends, so the number the writer reads beside the button is the number
 sent.
 
 The picker's code is `src/lib/audience/` and
-`src/features/audience/WhoIsThisFor.tsx`. Messages is `/messages`
-(`src/app/(app)/messages/page.tsx`), `src/features/messages/`,
-`src/lib/messages/` and `src/app/api/messages/`; its own section is
-[Messages](#messages) below. An event for chosen people's invitation takes its
-people from the picker too: [Events for chosen people](#events-for-chosen-people)
-below. The mailing list page (`/admin/subscriptions`, admins only) also
-carries the picker at its foot, closed until opened, under "Who would a
-message reach?", with nothing to send.
+`src/features/audience/WhoIsThisFor.tsx`. Messages is `/messages` (Write,
+`src/app/(app)/messages/page.tsx`) and `/messages/sent` (Sent),
+`src/features/messages/`, `src/lib/messages/` and `src/app/api/messages/`;
+its own section is [Messages](#messages) below. An event for chosen people's
+invitation takes its people from the picker too: [Events for chosen
+people](#events-for-chosen-people) below. The mailing list page
+(`/admin/subscriptions`, admins only) also carries the picker at its foot,
+closed until opened, under "Who would a message reach?", with nothing to send.
 
 ## Tags
 
@@ -171,9 +171,12 @@ people from the picker without going through `resolveAudience`.
 
 ## Messages
 
-One composer for writing to people: who it is for (the picker), a subject and
-a message, "Send a test to me", and "Send to N people". It sends email only,
-never a phone notification.
+Two halves, Write and Sent, as two pills under the title. Write is one
+composer for writing to people: who it is for (the picker), a subject and a
+message, "Send a test to me", and "Send to N people". It sends email, and a
+notice to one group goes to phones as well, as the group email it took over
+did ([The push](#the-push)). Sent is what was sent, and who it reached
+([Sent](#sent)).
 
 ### Who writes
 
@@ -231,6 +234,23 @@ The email is the staff email's own blocks (`staffMessageBlocks`): the message
 as typed, escaped, then "Sent by" and the writer's name
 (`src/emails/MessageEmail.tsx`). Replies go to the society's inbox.
 
+### The push
+
+One message in Messages also goes to phones: a programme notice whose one
+included tag is a group's (people left out of it or not), which is the group
+email Messages took over from a run's pages
+(`POST /api/courses/groups/[groupId]/email`). That email pushed to every
+member of the group with a device, through the notice lane's push door
+(`sendNoticePush`, which reads no preference), and the send keeps that push:
+the group's name as its title, the subject as its words and the group's page
+as where it opens, to each person it reached with an account and to each
+whose every address bounced (a bounce is a fact about an inbox, not a phone),
+never to the writer. `groupPushOf` in `src/lib/messages/groupPush.ts` is the
+rule, asked by the route and by the composer, which says so above its
+buttons. The send answers `pushed`, the notifications a device took, and its
+record keeps it (`counts.pushed`). Nothing else in Messages pushes: a message
+by their settings, or a notice to anybody but one group, is email alone.
+
 ### The send, whole or not at all
 
 `POST /api/messages` with `{ include, exclude, row, subject, message, count,
@@ -283,7 +303,8 @@ emails did. It is on by default.
 A programme's Messages tab links to Messages set to that programme
 (`/messages?for=<the programme's everyone tag>`), drawn only when Messages
 would start with it for the person reading. The tab's own update composer
-stays beside it for now.
+stays beside it for now ([The old composers hand
+over](#the-old-composers-hand-over)).
 
 ### What a send keeps
 
@@ -296,6 +317,87 @@ they were left out and what became of their email, the counts, how many were
 left out for each reason, the subject, the update it was posted as, and when.
 Never an address and never the message. Like the email log, it is kept when an
 account is deleted.
+
+### Sent
+
+`/messages/sent` (`src/lib/messages/sent.ts`, drawn by
+`src/features/messages/SentList.tsx`): what was sent, newest first, two weeks
+at a time in London days ("Earlier" and "Later" step a fortnight,
+`?until=<day>`). Each send says when, its subject, what it was and who sent
+it, a message's tags, how many it reached, and behind See who the names.
+
+**Who reads it**: the people who write in Messages (`messageWriterOf`, Write's
+own gate), each only the sends to people they may write to. Anybody else who
+opens it reads Write's line about who Messages is for.
+
+| Reader | Reads |
+| --- | --- |
+| An admin | every message written in Messages, and the site's other sends from the email log |
+| A programme's lead, a group's facilitator | a message written in Messages when every tag in it, included or left out, is one the picker's scope table lets them use now (`maySeeSend`, the question the send asks of every tag): a message to the people they run, whoever wrote it. Nothing of the email log |
+
+**Who it reached**, by name, by the site's one rule for the person reading
+(`nameForViewer`): the committee and admins see the full name, a facilitator
+the name people go by. A person named one by one is named for the reader,
+not as the writer saw them. Somebody with no account (a guest, a walk-in) is
+a count. Why somebody was not emailed (left out, held, bounced, cut off) is
+said person by person to an admin alone (`seesReasonsByName`); everybody else
+reads who was and was not emailed, and the reasons as counts, as See who
+does. No address and no account id reach the page.
+
+**A message from Messages** is read from its record (`messageSends`), so it
+says who was left out and why. One whose record never settled says it
+stopped before it finished, and counts what it was to email.
+
+**The site's other sends** are read from the email log (`emailSends`), for
+admins: one send for the rows of one kind, surface, sender, reference and
+subject sent within half an hour of each other. The log records nobody it
+left out, so these say who they reached and what became of each email
+(emailed, bounced or marked as spam, held on a copy of the site that may not
+write to them, or on the do-not-email list); an address the log holds is
+matched to an account to name it, and one no account holds is counted. A send
+is a message to people: the newsletter, an event's announcement, every notice
+surface but Messages' own, and the course mail that came before the notice
+lane. Mail that answers something one person did or is about their own
+application, place, work or certificate, every test, and Messages' own rows
+(read from the record instead) are not listed; the admins' Email delivery
+page lists every email. Which kind is which, with why, is `src/lib/messages/sentSenders.ts`,
+held to every kind and surface the log can hold by `tests/messages.test.mjs`.
+A window holds at most 3,000 rows of the log, and the page says when it held
+more.
+
+Every read is one range on one field ordered by it, or documents by id, so
+none needs a declared index. An admin's read of the names is every account
+(the log names people by address); anybody else's is the accounts their
+sends name.
+
+### The old composers hand over
+
+Messages does what a run's two email composers did, so their ways in open
+Messages, set to that audience, wherever Messages would start with it for
+the person reading (the list `?for=` is held to, `postTargetsOf`), and keep
+their old page anywhere else (`src/lib/messages/handover.ts`):
+
+| Way in | Opens |
+| --- | --- |
+| "Email the group" on a facilitator's group card on a run's home | Messages set to the group (`group:<id>`), whose notice pushes as the group email did |
+| "Email the whole cohort" on a run's home and on the first group card | Messages set to the programme's people holding a place |
+
+Anywhere else: a run of an earlier term, a group whose run has not been
+published, a run its programme no longer names, and somebody who staffs a run
+without leading its programme (a track lead or a run facilitator), whom
+Messages does not offer the programme's people. There the run's own email
+pages stay the way in. The run's own pages (`/learn/[runId]/email`, a group's
+email and update pages, and the group page's "Write to Group B", which opens
+its update page) are left as they are for now. The room notice and the event
+broadcast keep their own places: they belong to a session and an event.
+
+A programme's Messages tab keeps its update composer under "Write in
+Messages" for now. Its updates reach the people Publish has told their group
+(`resolveNoticeAudience`), and a message in Messages to the programme's
+people holding a place reaches everybody holding one, told or not; the stage
+two journey (`tests/course-hub-stage-two-journey.test.mjs`) pins the
+composer's counts at every moment of a term, so the composer goes when that
+journey follows the lead's updates into Messages.
 
 ## Events for chosen people
 

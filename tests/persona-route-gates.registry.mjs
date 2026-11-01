@@ -4892,6 +4892,17 @@ export const PAGES = {
       "facilitator get the composer, and anybody else a line saying who Messages is for, so the answer is the " +
       "same whichever programme the term is.",
   },
+  "/(app)/messages/sent": {
+    expect: everyone(200, { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
+    why:
+      "Messages' Sent, read by the people who write in Messages (`messageWriterOf`, Write's own gate), each only the " +
+      "sends to people they may write to: an admin every message and the email log's other sends; a programme's lead " +
+      "or a group's facilitator a message only when every tag in it, included or left out, is one the picker's scope " +
+      "table lets them use now, and nothing of the email log. The layout sends a stranger to sign in, a pending " +
+      "account to the waiting page and a rejected one home; every other approved account is answered with Write's " +
+      "line saying who Messages is for, so the status is the same whichever programme the term is. Who reads which " +
+      "send is driven as every kind of writer against a real term in tests/messages.test.mjs.",
+  },
   "/(app)/newsletter": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, draftNewsletter: 200, approveNewsletter: 200 }),
     why:

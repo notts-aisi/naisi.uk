@@ -2247,6 +2247,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the Messages spec has passed end to end against the harness's server with its mail caught, and is marked verified.",
   },
+  "/(app)/messages/sent": {
+    reason:
+      "Messages' Sent: what was sent and who it reached, read for the person looking and sending nothing. Who reads which send, the names by the reader's rule, the reasons by name to admins alone, the email log's sends and the two weeks it shows are driven offline in tests/messages.test.mjs; the Messages spec reads the send it made on it in a browser but has not passed end to end yet.",
+    coverWhen:
+      "When the Messages spec has passed end to end against the harness's server with its mail caught, and is marked verified.",
+  },
   "/(app)/newsletter": {
     reason:
       "Newsletter: /(app)/newsletter is used by two people deliberately, and the result is read back on the page they are looking at. The protected-route-gate battery asserts only that a signed-out visitor is redirected off it.",

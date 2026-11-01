@@ -28,6 +28,8 @@ import type { CertificateCardView } from "@/lib/courses/certificates/card";
 import type { GuideLinks } from "@/lib/courses/guide/model";
 import type { TeamCardView } from "@/lib/courses/teamPage/views";
 import type { TimeQuestionView } from "@/lib/courses/timeAnswer/model";
+import type { MessagesEntries } from "@/lib/messages/handover";
+import { HANDOVER_WORDS } from "@/lib/messages/words";
 import { YOUR_TEAM, YOUR_TEAMS_PAGE } from "@/lib/courses/teamPage/words";
 import { useMaterialTicks } from "./weekly/useMaterialTicks";
 import AfterTheEnd, { type AfterEvent, type AfterSurvey, type KeepItem } from "./weekly/AfterTheEnd";
@@ -119,6 +121,13 @@ type Props = {
    * the send route is the boundary.
    */
   canEmailCohort: boolean;
+  /**
+   * Where the run's composers hand over to Messages for this person
+   * (`messagesEntriesFor`, from the server page): Messages set to the run's
+   * cohort, and to each group, where Messages would start with it. A link
+   * with no entry keeps its old page on the run.
+   */
+  messages?: MessagesEntries;
   /**
    * Pitching week's card, worked out by the server page for somebody taking
    * part (`pitchingCard`): its line, and whether pitching is still open. Null
@@ -422,10 +431,14 @@ function YourMarks({
 // RunHome
 // ---------------------------------------------------------------------------
 
+/** No way into Messages from this run: every link keeps its old page. */
+const NO_MESSAGES: MessagesEntries = { cohort: null, groups: {} };
+
 export default function RunHome({
   runId,
   isAdmin,
   canEmailCohort,
+  messages = NO_MESSAGES,
   pitching = null,
   team = null,
   canLeave = false,
@@ -698,6 +711,7 @@ export default function RunHome({
             groups={facilitatedGroups}
             publishedWeekNumbers={publishedWeekNumbers}
             canEmailCohort={canEmailCohort}
+            messages={messages}
           />
         </AfterTheEnd>
       </PageEnter>
@@ -826,6 +840,8 @@ export default function RunHome({
                 group={facilitated}
                 publishedWeekNumbers={publishedWeekNumbers}
                 showCohortLinks={canEmailCohort && index === 0}
+                emailGroupHref={messages.groups[facilitated.id] ?? null}
+                emailCohortHref={messages.cohort}
               />
             </div>
           ))}
@@ -833,14 +849,25 @@ export default function RunHome({
           {canEmailCohort && facilitatedGroups.length === 0 && (
             /* The same link as in the facilitator panel, for the people that
                panel never renders for: a run facilitator, track lead or admin
-               who holds no group of their own. */
+               who holds no group of their own. Messages, set to the cohort,
+               where it would start with it for them; the run's own page
+               otherwise. */
             <Card as="section" padding="md" className={`${styles.panel} ${weekly.order7}`}>
-              <h3 className={styles.panelTitle}>Cohort announcements</h3>
-              <p className={styles.panelNote}>
-                One message to everyone subscribed to this run&apos;s channel. Announcements only: anything a single
-                group needs goes out from that group&apos;s own page instead.
-              </p>
-              <Link className={styles.panelLink} href={`/learn/${encodeURIComponent(runId)}/email`}>
+              {messages.cohort ? (
+                <>
+                  <h3 className={styles.panelTitle}>{HANDOVER_WORDS.cohortTitle}</h3>
+                  <p className={styles.panelNote}>{HANDOVER_WORDS.cohortNote}</p>
+                </>
+              ) : (
+                <>
+                  <h3 className={styles.panelTitle}>Cohort announcements</h3>
+                  <p className={styles.panelNote}>
+                    One message to everyone subscribed to this run&apos;s channel. Announcements only: anything a single
+                    group needs goes out from that group&apos;s own page instead.
+                  </p>
+                </>
+              )}
+              <Link className={styles.panelLink} href={messages.cohort ?? `/learn/${encodeURIComponent(runId)}/email`}>
                 Email the whole cohort
                 <span className={styles.arrow} aria-hidden="true">
                   →
@@ -899,11 +926,13 @@ function FacilitatedPanels({
   groups,
   publishedWeekNumbers,
   canEmailCohort,
+  messages,
 }: {
   runId: string;
   groups: OverviewPayload["groups"];
   publishedWeekNumbers: number[];
   canEmailCohort: boolean;
+  messages: MessagesEntries;
 }) {
   return (
     <>
@@ -914,6 +943,8 @@ function FacilitatedPanels({
           group={facilitated}
           publishedWeekNumbers={publishedWeekNumbers}
           showCohortLinks={canEmailCohort && index === 0}
+          emailGroupHref={messages.groups[facilitated.id] ?? null}
+          emailCohortHref={messages.cohort}
         />
       ))}
     </>

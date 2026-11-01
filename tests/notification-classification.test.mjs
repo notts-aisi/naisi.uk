@@ -767,7 +767,10 @@ const REGISTRY = {
   // which (`wholeMode` in src/lib/audience/kind.ts), each person carries it,
   // and the route sends each person through the door their class names.
   "src/app/api/messages/route.ts#sendNotice": N(
-    "A message that goes as a programme notice: every tag is about running a programme and the writer (an admin, a programme's lead or a group's facilitator) runs everybody it reaches, so it reaches them whatever their settings, with the marker (surface messages), no unsubscribe link and the lane's caps. Email only: no push leg.",
+    "A message that goes as a programme notice: every tag is about running a programme and the writer (an admin, a programme's lead or a group's facilitator) runs everybody it reaches, so it reaches them whatever their settings, with the marker (surface messages), no unsubscribe link and the lane's caps. Email only, but for the one push below.",
+  ),
+  "src/app/api/messages/route.ts#sendNoticePush": N(
+    "The notification beside a programme notice to one group, and beside nothing else in Messages (`groupPushOf`): that send is the group email Messages took over from a run's pages, and keeps the push the group email made, to each person it reached with an account and each whose every address bounced, never the writer. Through the lane's push door, which reads no preference.",
   ),
   "src/app/api/messages/route.ts#sendEmail": G(
     ["newsletter", "events", "courses"],
