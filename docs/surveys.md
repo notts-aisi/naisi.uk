@@ -842,8 +842,8 @@ week has, fixed the first time it is whole, in `weeks.ts`),
   dated, moved or put back after the week was fixed, never joins it. An
   admin's row for such a check-in says "Not counted in the week above: it
   opened after the week had already shown."; the lead is never told. A week
-  whose sessions are none of them dated has not begun and is never fixed, so
-  a run given its times later fixes nothing early. No page or route writes
+  is not fixed before it has begun, so a run whose groups have no times yet
+  has nothing fixed early, empty, for weeks still to come. No page or route writes
   the record: the job is its one writer (`tests/get-handlers-readonly.test.mjs`
   names both its helpers). **The job registers on**, as `surveys-names-off`
   does: it emails nobody, and while it is off no new week of check-ins shows
