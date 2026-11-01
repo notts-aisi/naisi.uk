@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
+import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { canApproveEvent, canDraftEvent } from "@/lib/firestore/users";
 import { sendRsvpEmail } from "@/lib/events/sendRsvpEmail";
@@ -14,11 +15,18 @@ import { verifyRsvpToken } from "@/lib/events/rsvpToken";
  *
  * Gated to: the RSVP's own uid (for logged-in members), event approvers,
  * and admins. Public (anonymous) cancellation via signed tokens is deferred.
+ *
+ * The event page's "Can't make it" comes here too, as the RSVP's own uid.
+ * Refused outright during a view-as session: giving a member's place back
+ * would be recorded as the member doing it.
  */
 export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string; rsvpId: string }> },
 ) {
+  const blocked = await assertNotImpersonating();
+  if (blocked) return blocked;
+
   const { id: eventId, rsvpId } = await ctx.params;
   const db = getAdminDb();
   if (!db) return NextResponse.json({ error: "Server not configured" }, { status: 500 });

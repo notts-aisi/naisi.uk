@@ -17,8 +17,10 @@ const EVENT_ID = /^[A-Za-z0-9_-]{1,128}$/;
  * SU-recognised committee, and the event's author and collaborators while
  * their accounts stand. What each is sent is decided once, by
  * `projectSignupRequests`: an address and every answer only for admins and
- * SU-recognised committee, who read the whole list client-direct as well.
- * Nobody here is sent anybody already given a place.
+ * SU-recognised committee, who read the whole list client-direct as well, and
+ * whether somebody missed the last two events they had a place at only for
+ * admins (`src/lib/events/missedEvents.ts`). Nobody here is sent anybody
+ * already given a place.
  *
  * Nobody below an approved account organises an event, so they are refused
  * before anything is read. A GET, and it writes nothing.
@@ -45,7 +47,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   // The event's other sign-ups are read with these and left behind, never sent.
   const waiting = await waitingRequests(db, event.id);
-  const facts = await requestFacts(db, waiting, viewer, access);
+  const facts = await requestFacts(db, waiting, viewer, access, new Date());
 
   return NextResponse.json({
     requests: projectSignupRequests(waiting, event.signupForm, facts, {

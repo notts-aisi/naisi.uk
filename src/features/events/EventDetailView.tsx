@@ -36,16 +36,25 @@ import styles from "./EventDetailView.module.css";
  * bottom of a long description. The panel never sticks to the screen: a
  * sign-up form can be taller than a phone, and a pinned panel is how a submit
  * button ends up underneath something.
+ *
+ * `held` is the place the person looking holds here, found by their own
+ * session (`heldPlaceAt`): the panel then says so and offers "Can't make it"
+ * until the event starts, in place of the form.
  */
 export default function EventDetailView({
   event,
   previewMode,
+  held,
 }: {
   event: EventDoc;
   previewMode?: boolean;
+  held?: { rsvpId: string } | null;
 }) {
   const isCancelled = event.status === "cancelled";
   const { now, ended } = clockFor(event);
+  // A place is given back before the event starts; once it has, the panel
+  // only says they have one.
+  const started = event.startAt !== null && event.startAt.getTime() <= now.getTime();
   // Nothing to sign up to and nothing to put in a calendar.
   const over = isCancelled || ended;
   const dietaryTags = event.dietaryTags ?? [];
@@ -344,6 +353,7 @@ export default function EventDetailView({
               rsvpCountConfirmed={event.rsvpCountConfirmed ?? 0}
               waitlistEnabled={event.waitlistEnabled}
               previewMode={previewMode}
+              heldPlace={held && !previewMode ? { rsvpId: held.rsvpId, started } : null}
             />
           )}
         </div>

@@ -34,6 +34,7 @@ import ConductFlagControl from "./ConductFlagControl";
 import PersonNotes from "./memberNotes/PersonNotes";
 import MemberApplicationHistory from "./MemberApplicationHistory";
 import MemberEditForm from "./MemberEditForm";
+import MemberEvents from "./MemberEvents";
 import { ROLE_WORDS, accountStaffName, joinedDay, roleTone } from "./MembersTable";
 import MembershipChip from "./MembershipChip";
 import StudyChangeNotes from "./StudyChangeNotes";
@@ -105,7 +106,8 @@ function shortDay(date: Date | null | undefined): string {
  *
  * Everything here is drawn from the account document the Accounts list
  * already reads, plus the same three things the list's rows used to open: the
- * membership control, the conduct flag and the application record. Every
+ * membership control, the conduct flag and the application record, and the
+ * person's events this academic year, through their own route. Every
  * permission an admin can grant has its control in this file, which is what
  * `tests/admin-permissions-keys.test.mjs` reads.
  */
@@ -761,6 +763,14 @@ export default function MemberItem({ user, currentAdminUid, nameByUid }: Props) 
             to, what was decided, and what the reviewers wrote. Admins only,
             which this page is. */}
         <MemberApplicationHistory uid={user.uid} />
+      </section>
+
+      {/* The events they signed up for this academic year and whether they
+          came, with the two-in-a-row line when it is so (privacy v15,
+          "Attendance"). Admins only, which this page is; worked out by its
+          route each time and stored nowhere. */}
+      <section className={styles.card} aria-labelledby={`events-${user.uid}`}>
+        <MemberEvents uid={user.uid} />
       </section>
 
       {/* The notes the team keeps about this person (privacy v13, v15):

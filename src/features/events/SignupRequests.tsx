@@ -9,6 +9,7 @@ import Chip, { type ChipTone } from "@/components/ui/Chip";
 import { Field, Input } from "@/components/ui/Input";
 import Notice from "@/components/ui/Notice";
 import {
+  REQUEST_WORDS,
   openPageWords,
   questionLead,
   waitingHeading,
@@ -16,6 +17,7 @@ import {
   type SignupRequestView,
   type SignupRequestsAnswer,
 } from "@/lib/events/requestWords";
+import { PERSON_EVENTS_WORDS } from "@/lib/events/attendanceWords";
 import { askedWords } from "./manageWords";
 import styles from "./SignupRequests.module.css";
 
@@ -187,9 +189,10 @@ type ViewProps = {
 /**
  * The requests as the route sent them, each saying who is asking: the name
  * by the rule for the viewer, when they asked, a few words about who they
- * are, their answers, and for an admin the way to their page. Approve and
- * Turn down show only where the route says the viewer may decide. Draws
- * nothing it was not handed.
+ * are, their answers, and for an admin the way to their page and, when it is
+ * so, that they did not come to the last two events they had a place at.
+ * Approve and Turn down show only where the route says the viewer may decide.
+ * Draws nothing it was not handed.
  */
 export function SignupRequestsView({
   answer: { requests, decides },
@@ -311,6 +314,15 @@ function RequestCard({
             </li>
           ))}
         </ul>
+      )}
+
+      {/* Sent to an admin alone, and only when it is so: nothing is drawn
+          for anybody who came, or who has not had two events to miss. */}
+      {request.missed && (
+        <p className={styles.missed}>
+          <span>{REQUEST_WORDS.missed}</span>
+          <span className={styles.missedWho}>{PERSON_EVENTS_WORDS.admins}</span>
+        </p>
       )}
 
       {request.answers.length > 0 && (

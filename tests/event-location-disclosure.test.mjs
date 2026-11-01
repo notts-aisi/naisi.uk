@@ -173,6 +173,9 @@ const { loadTs } = createLoader({
     ["firebase-admin/firestore", FIRESTORE_STUB],
     ["@/lib/firebase/admin", "export const getAdminDb = () => globalThis.__db ?? null;"],
     ["@/lib/firebase/session", "export const getCurrentUser = async () => globalThis.__user ?? null;"],
+    // The view-as guard the cancel route asks first: nothing here is a view-as
+    // session (tests/missed-events.test.mjs runs one against the route).
+    ["@/lib/firebase/impersonation", "export async function assertNotImpersonating() { return null; }"],
     // The RSVP route's bot gate and throttle, faked: this file is about the
     // location line a recipient reads, and the throttle counts hits in module
     // state no test can reset. Both are proved by

@@ -268,7 +268,9 @@ describe("who is sent the requests", () => {
     w.reset(world());
     for (const who of [ADA, CAL, SUE, ZACH]) {
       for (const request of (await ask(who)).body.requests) {
-        assert.deepEqual(Object.keys(request).sort(), ["about", "answers", "askedAt", "email", "id", "name", "page", "test"], who.uid);
+        // `missed`: the two-in-a-row line, true only ever for an admin (tests/missed-events.test.mjs).
+        assert.deepEqual(Object.keys(request).sort(), ["about", "answers", "askedAt", "email", "id", "missed", "name", "page", "test"], who.uid);
+        if (who !== ZACH) assert.equal(request.missed, false, `${who.uid} was told whether ${request.id} came to events`);
       }
     }
   });

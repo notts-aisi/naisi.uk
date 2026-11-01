@@ -445,6 +445,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the risk-ordered list reaches admin CRUD, which is after every applicant-facing and member-facing journey in this map is verified.",
   },
+  "/api/admin/members/[uid]/events": {
+    reason:
+      "The Events card on an admin's page about a person: a read for an admin alone that changes nothing, drawn on the page the coursework-notes spec opens, which asserts nothing about the card. What counts, the line and the route as every caller are executed by tests/missed-events.test.mjs, and the persona battery asks it as every persona against a real build.",
+    coverWhen:
+      "When the person's page is redrawn with the Events card inside their profile, which reshapes the page the coursework-notes spec drives, or when a spec first checks somebody in at an event's door.",
+  },
   "/api/admin/membership/export": {
     reason:
       "Membership: the column matching behind /api/admin/membership/export is a guess until a real Students' Union export exists to match against.",

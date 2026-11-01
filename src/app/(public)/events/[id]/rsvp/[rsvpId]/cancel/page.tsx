@@ -83,6 +83,7 @@ export default async function CancelRsvpPage({
       token={token}
       name={typeof rsvp.name === "string" ? rsvp.name : ""}
       eventTitle={event.title}
+      confirmedPlace={rsvp.status === "confirmed"}
     />,
   );
 }

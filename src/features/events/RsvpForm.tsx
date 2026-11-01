@@ -24,6 +24,7 @@ import {
   type FormQuestion,
   type RsvpAnswer,
 } from "@/lib/firestore/events";
+import { HELD_PLACE_WORDS } from "@/lib/events/attendanceWords";
 import { REACH_WORDS, eventReach, needsAccount } from "@/lib/events/reach";
 import { placesState, placesTone, placesWords } from "./eventWhen";
 import FormRenderer from "./FormRenderer";
@@ -31,7 +32,9 @@ import links from "./eventLinks.module.css";
 import styles from "./RsvpForm.module.css";
 
 /**
- * The six facts the form needs, and NOT the event document.
+ * The six facts the form needs, and NOT the event document; and, for
+ * somebody who holds a place here, that place's sign-up id and whether the
+ * event has started, which only their own page carries.
  *
  * This is a client component rendered by a Server Component on the public
  * event page, and React serialises every prop a client component receives
@@ -54,7 +57,16 @@ type Props = {
   waitlistEnabled: boolean;
   /** When true, renders a banner indicating test mode (still saves real RSVPs). */
   previewMode?: boolean;
+  /**
+   * The place the person looking holds here, found on the server by their
+   * own session: the id of their confirmed sign-up, and whether the event has
+   * started. Null for everybody else, and the form is drawn as before.
+   */
+  heldPlace?: { rsvpId: string; started: boolean } | null;
 };
+
+/** Where giving a held place back has got to. */
+type GiveBack = "holding" | "asking" | "giving" | "given";
 
 type SubmitState =
   | { kind: "idle" }
@@ -70,6 +82,7 @@ export default function RsvpForm({
   rsvpCountConfirmed,
   waitlistEnabled,
   previewMode,
+  heldPlace,
 }: Props) {
   const router = useRouter();
   const { user, accountName, loading: authLoading } = useAuth();
@@ -99,6 +112,12 @@ export default function RsvpForm({
   // someone trying to free up a place helps nobody.
   const siteNotice = useSiteNotice();
   const signupsPaused = isSurfacePaused(siteNotice, "eventSignups");
+  // A held place: "Can't make it", then a question, then the place given
+  // back. `askAgain` is a press of "Ask for a place again" after that, which
+  // draws the form.
+  const [giveBack, setGiveBack] = useState<GiveBack>("holding");
+  const [giveBackError, setGiveBackError] = useState<string | null>(null);
+  const [askAgain, setAskAgain] = useState(false);
 
   const questions: FormQuestion[] = signupForm;
   // Who the event is for decides whether a guest may sign up at all
@@ -210,6 +229,101 @@ export default function RsvpForm({
         message: err instanceof Error ? err.message : "Signup failed",
       });
     }
+  }
+
+  /**
+   * "Can't make it": the held place goes back through the route the cancel
+   * link in their email uses, which knows the sign-up as theirs by the
+   * session, frees the place and moves the first person on the waiting list
+   * up (who is emailed, as they always are). Nobody else is emailed.
+   */
+  async function onGiveBack() {
+    if (!heldPlace) return;
+    setGiveBack("giving");
+    setGiveBackError(null);
+    try {
+      const res = await fetch(
+        `/api/events/${encodeURIComponent(eventId)}/rsvp/${encodeURIComponent(heldPlace.rsvpId)}/cancel`,
+        { method: "POST" },
+      );
+      const body = (await res.json().catch(() => null)) as { ok?: true; error?: string } | null;
+      if (!res.ok || !body?.ok) {
+        setGiveBackError(body?.error ?? HELD_PLACE_WORDS.failed);
+        setGiveBack("asking");
+        return;
+      }
+      setGiveBack("given");
+      // The page's places and the panel are read again: the place is free now.
+      router.refresh();
+    } catch {
+      setGiveBackError(HELD_PLACE_WORDS.failed);
+      setGiveBack("asking");
+    }
+  }
+
+  // Given back: said once, with the way to ask again. Kept through the
+  // refresh above, which takes the held place away.
+  if (giveBack === "given" && !askAgain) {
+    return (
+      <section className={styles.panel}>
+        <h2 className={styles.h2}>{HELD_PLACE_WORDS.givenHeading}</h2>
+        <p className={styles.lede}>{HELD_PLACE_WORDS.givenLede}</p>
+        {/* The button pressed a moment ago has gone, so the next one takes the focus. */}
+        <Button variant="secondary" size="lg" fullWidth onClick={() => setAskAgain(true)} autoFocus>
+          {HELD_PLACE_WORDS.askAgain}
+        </Button>
+      </section>
+    );
+  }
+
+  // A place held: said in place of the form, with "Can't make it" until the
+  // event starts. Every control here is as wide as the panel and 52px tall,
+  // as the form's own button is, and nothing is pinned.
+  if (heldPlace && giveBack !== "given" && !askAgain) {
+    const asking = giveBack === "asking" || giveBack === "giving";
+    return (
+      <section className={styles.panel}>
+        <h2 className={styles.h2}>{HELD_PLACE_WORDS.heading}</h2>
+        {heldPlace.started ? (
+          <p className={styles.lede}>{HELD_PLACE_WORDS.started}</p>
+        ) : asking ? (
+          <>
+            <p className={styles.lede}>
+              <strong>{HELD_PLACE_WORDS.ask}</strong> {HELD_PLACE_WORDS.askLede}
+            </p>
+            {giveBackError && (
+              <p className={styles.danger} role="alert">
+                {giveBackError}
+              </p>
+            )}
+            {/* "Can't make it" has gone from under the pointer, so the answer to the question takes the focus. */}
+            <Button size="lg" fullWidth onClick={onGiveBack} disabled={giveBack === "giving" || !hydrated} autoFocus>
+              {giveBack === "giving" ? HELD_PLACE_WORDS.giving : HELD_PLACE_WORDS.giveBack}
+            </Button>
+            <Button
+              variant="secondary"
+              size="lg"
+              fullWidth
+              onClick={() => {
+                setGiveBack("holding");
+                setGiveBackError(null);
+              }}
+              disabled={giveBack === "giving"}
+            >
+              {HELD_PLACE_WORDS.keep}
+            </Button>
+          </>
+        ) : (
+          <>
+            <p className={styles.lede}>{HELD_PLACE_WORDS.lede}</p>
+            <Button variant="secondary" size="lg" fullWidth onClick={() => setGiveBack("asking")} disabled={!hydrated}>
+              {HELD_PLACE_WORDS.cantMakeIt}
+            </Button>
+            <p className={styles.after}>{HELD_PLACE_WORDS.never}</p>
+          </>
+        )}
+      </section>
+    );
   }
 
   if (needsLogin) {

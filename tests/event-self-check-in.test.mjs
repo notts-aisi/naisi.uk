@@ -536,6 +536,9 @@ const mail = createLoader({
     ["firebase-admin/firestore", FIELD_VALUE_STUB],
     ["@/lib/firebase/admin", "export const getAdminDb = () => globalThis.__checkInMailDb ?? null;"],
     ["@/lib/firebase/session", "export const getCurrentUser = async () => globalThis.__checkInMailUser ?? null;"],
+    // The view-as guard the cancel route asks first: nothing here is a view-as
+    // session (tests/missed-events.test.mjs runs one against the route).
+    ["@/lib/firebase/impersonation", "export async function assertNotImpersonating() { return null; }"],
     ["@/lib/email/send", "export const sendEmail = async (args) => { (globalThis.__checkInMail ||= []).push(args); };"],
     ["@/lib/firestore/suppression", "export const isSuppressed = async () => false;"],
   ]),

@@ -530,6 +530,9 @@ describe("no browser reaches a check-in", () => {
   const ADDRESSES_THE_COLLECTION = {
     "src/lib/firestore/eventCheckIns.ts": "names the collection and normalises a record; holds no query",
     "src/lib/events/checkIns.ts": "every read and write of a check-in, on the Admin SDK, behind server-only",
+    // Missed events (privacy v15, "Attendance"): reads, never writes.
+    "src/lib/events/missedEvents.ts":
+      "reads one person's own check-ins for an admin, to say whether they came: the Events card on an admin's page about them and the line beside a request; on the Admin SDK, behind server-only, and writes nothing",
   };
 
   test("only the files listed name the collection, and none of them runs in a browser", () => {
@@ -548,11 +551,11 @@ describe("no browser reaches a check-in", () => {
       const text = readFileSync(join(REPO_ROOT, file), "utf8");
       assert.ok(!/^\s*["']use client["']/m.test(text), `${file} must not run in a browser`);
     }
-    assert.match(
-      readFileSync(join(REPO_ROOT, "src/lib/events/checkIns.ts"), "utf8"),
-      /^import "server-only";/,
-      "the reads and writes are server-only",
-    );
+    // tests/missed-events.test.mjs runs the missed-events reads against a
+    // store and finds nothing written.
+    for (const file of ["src/lib/events/checkIns.ts", "src/lib/events/missedEvents.ts"]) {
+      assert.match(readFileSync(join(REPO_ROOT, file), "utf8"), /^import "server-only";/, `${file}: the reads and writes are server-only`);
+    }
   });
 });
 

@@ -18,6 +18,8 @@ It was rewritten on 7 October 2026, when the events pages were rebuilt to the re
 
 **The sign-up panel is never sticky and never fixed, at any width.** It is an ordinary block. A sign-up form can be taller than a phone, and a pinned panel is how a submit button ends up underneath something. The submit button is the last control in the form, as wide as the panel, 52px tall.
 
+**For somebody signed in who holds a place**, the panel says "You have a place" in place of the form, with "Can't make it" until the event starts. It asks once ("Give your place back?", with "Give my place back" and "Keep my place"), then says "Your place is given back" with "Ask for a place again", which draws the form. Once the event has started it says "It has started. See you there." and offers nothing. Every button in it is as wide as the panel and 52px tall, and it takes no styles of its own: it is the panel, its heading, its line and the site's buttons.
+
 **The small pages around it** are one narrow card each: the confirmation ("Your RSVP is in"), the change form, the cancel page, and the cards those pages show when a link no longer works.
 
 ## Mobile-frozen modules
@@ -62,7 +64,8 @@ For each viewport above:
 1. **A signed-out sign-up.** Open `/events/[id]` for an event with sign-up questions. Fill in the name, the email and every question. Press "Request a place". The confirmation page says "Your RSVP is in".
 2. **A signed-in sign-up.** The same, signed in as a member. There are no name or email boxes: a note above the form says "Signing up as" with the account's name and its address, or the address alone for an account with no name. Press "Request a place". The confirmation page follows.
 3. **A change request.** The confirmation EMAIL carries a link to change your answers (the confirmation page itself has no such link). Open it, change an answer, press "Send change request". The card says "Request sent."
-4. **A self-cancel.** The same email carries a link to cancel. Open it, press "Yes, cancel my RSVP". The card says "Your RSVP is cancelled."
+4. **A self-cancel.** The same email carries a link to cancel. Open it. For a confirmed place it asks "Can't make it to" the event: press "Give my place back", and the card says "Your place is given back." For a request not decided yet, or a place on the waiting list, press "Yes, cancel my RSVP", and the card says "Your RSVP is cancelled."
+5. **Can't make it.** Signed in as a member holding a confirmed place, open the event's page. The panel says "You have a place". Press "Can't make it", then "Give my place back". The panel says "Your place is given back", and "Ask for a place again" draws the form.
 
 ## What "still works" means
 
@@ -79,14 +82,14 @@ For each viewport above:
 
 `tests/e2e/events-rsvp.spec.mjs` runs with the browser suite on pull requests, in Chromium. It walks flow 1 once at a desktop width, then opens the event page at 375 by 667 and at 414 by 896 and checks that the document is no wider than its window and that the submit button, once scrolled to, is fully on screen with nothing painted over its centre. It finds the form by `#rsvp-name`, `#rsvp-email` and the test ids `rsvp-form`, `rsvp-submit`, `rsvp-error` and `rsvp-submitted`, so those stay as they are.
 
-That is a regression net on two of the five viewports and one of the four flows, in one browser. Flows 2, 3 and 4, the tablet and landscape viewports, Safari, the notch and the keyboard remain a hand walk.
+That is a regression net on two of the five viewports and one of the five flows, in one browser. Flows 2 to 5, the tablet and landscape viewports, Safari, the notch and the keyboard remain a hand walk.
 
 ## Verification checkbox
 
 A pull request that touches a mobile-frozen module or anything listed as shared says so in its description:
 
 ```
-- [ ] Walked the events sign-up baseline: four flows at 375 / 414 / 768 / 1024 / 844 by 390
+- [ ] Walked the events sign-up baseline: five flows at 375 / 414 / 768 / 1024 / 844 by 390
 - [ ] Browsers and devices it was walked on, named
 - [ ] Pictures kept for each flow
 ```
@@ -108,6 +111,7 @@ Not yet walked on real hardware. Clear a line when it is done, and do not let on
 - **The rebuilt flow on a real iPhone, and in Safari.** Everything above was measured in Chromium. Owed: the four flows at 375 and 414 on an iPhone in Safari, and at 844 by 390 in landscape on a notched one. In particular: that the on-screen keyboard does not hide the field being edited now that the panel sits higher on the page; that the option rows (a native tick box in a 44px row that takes the accent edge when ticked) and the Yes and No rows look and tap as drawn, since Safari styles native boxes and buttons its own way; that the bottom sheet a "pick one" question opens still works; that the "Apple" calendar button hands the file to Calendar; and that the date box and the chips in the hero read clearly over the motif and under a cover image.
 - **Flow 2 without its two boxes (31 October 2026).** A signed-in person's form no longer draws the name and email boxes, and the note above it says who the sign-up is for. No stylesheet changed and a guest's form is as it was, so flow 1 and the automatic half stand. Owed: flow 2 at 375, 414 and 844 by 390, once with an account made through Google and once with one made with an email address and a password, checking the note wraps cleanly and the first question sits where the boxes were.
 - **Who an event is for, in the form's words (1 November 2026).** The sign-in panel's heading for an event that needs an account now reads "Account needed", its line and the form's line under "Request a place" come from `src/lib/events/reach.ts`, and the hero's badge reads "Account needed" or "Invitation only". No stylesheet changed. Owed: flows 1 and 2 at 375, 414 and 844 by 390, once on an event for people with a NAISI account signed out (the panel's heading, its line and the Sign in link, which now comes back to the event) and once on an event for chosen people signed in as somebody invited to it (the badge, "Who can come" and the form's line).
+- **A place held, and Can't make it (1 November 2026).** A signed-in person holding a confirmed place sees "You have a place" in place of the form, with "Can't make it" until the event starts (flow 5), and the email's cancel page asks "Can't make it to" the event in the same words for a confirmed place (flow 4). No stylesheet in the flow changed: the panel is the sign-up panel's own heading, line and footnote, and the site's buttons. Walked on 1 November 2026 in Chromium (Playwright, touch emulated at 390) against a local server with sample events: every step of flow 5 at 390 (the panel, the question, the place given back, the form again) and its first at 1440, and flow 4 at 390. No sideways scroll at any step; every button in the panel 52px tall and as wide as it (308px at 390, 362px at 1440), flow 4's two 44px tall. Giving the place back moved the waiting list up and emailed only the person moved up. Owed: flows 4 and 5 at 375, 414 and 844 by 390 on a real iPhone in Safari, and, with a keyboard, that the focus moves to "Give my place back" when "Can't make it" is pressed and to "Ask for a place again" once the place is given back.
 - **The long-answer box.** It draws through the shared `CountedTextarea` and takes the look of the other text boxes, with a counter row under it. It starts 5rem tall on purpose. Whether a taller answer still clears the iOS keyboard cannot be answered by CSS: a real-device walk at 375, 414 and 844 by 390 is owed.
 - **The spam-check badge.** `RsvpForm` mounts Google's invisible check, whose badge floats in the bottom-right corner on a deployed site (about 70 by 60 CSS pixels showing, 14px from the bottom). The submit button is now as wide as the panel, so its right-hand end can pass behind the badge. Measured with a box of the badge's size standing in for it (the real badge does not render on a local server): when the button rests in the bottom 74px of the screen the box covers a strip 33px wide at the button's right-hand end, about a tenth of it, and never its centre; at the button's resting place after being scrolled to, it covers none. Owed: a look at the real badge at 375 and 414, and at 844 by 390, where it also competes with the notch inset.
 

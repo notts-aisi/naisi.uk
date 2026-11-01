@@ -4,7 +4,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { mayOpenFor } from "@/lib/events/opening";
 import { REACH_WORDS, isForChosenPeople, isListed } from "@/lib/events/reach";
-import { normalizeEvent, type EventDoc } from "@/lib/firestore/events";
+import { normalizeEvent, normalizeRsvp, type EventDoc } from "@/lib/firestore/events";
 
 /**
  * Server-only fetchers for the public events pages. Runs with the admin SDK
@@ -75,6 +75,28 @@ export async function getEventForViewer(id: string): Promise<EventForViewer> {
   const db = getAdminDb();
   if (db && viewer && (await mayOpenFor(db, event.id, event, viewer))) return { kind: "open", event };
   return { kind: "invited-only", signedIn: viewer !== null };
+}
+
+/** The place the person asking holds at an event: their own confirmed sign-up. */
+export type HeldPlace = { rsvpId: string };
+
+/**
+ * WHETHER THE PERSON ASKING HOLDS A PLACE at this event: their own confirmed
+ * sign-up, found by their account, which the event page offers to give back
+ * ("Can't make it"). Null signed out, for anybody without one, and for a test
+ * sign-up. Read by the session's own uid on this one event, so it says
+ * nothing about anybody else; the cancel route checks the sign-up is theirs
+ * again before it gives anything back.
+ */
+export async function heldPlaceAt(event: Pick<EventDoc, "id">): Promise<HeldPlace | null> {
+  const viewer = await getCurrentUser();
+  const db = getAdminDb();
+  if (!viewer || !db) return null;
+  const own = await db.collection("eventRsvps").where("eventId", "==", event.id).where("uid", "==", viewer.uid).get();
+  const held = own.docs
+    .map((doc) => normalizeRsvp(doc.id, doc.data() ?? {}))
+    .find((row) => row.uid === viewer.uid && row.eventId === event.id && row.status === "confirmed" && !row.synthetic);
+  return held ? { rsvpId: held.id } : null;
 }
 
 /**

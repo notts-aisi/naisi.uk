@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import EventDetailView from "@/features/events/EventDetailView";
 import OnlyForInvited from "@/features/events/OnlyForInvited";
-import { eventMetaFor, getEventForViewer } from "@/features/events/fetchEvents";
+import { eventMetaFor, getEventForViewer, heldPlaceAt } from "@/features/events/fetchEvents";
 import styles from "../events.module.css";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +35,13 @@ export default async function PublicEventPage({
   const { id } = await params;
   const found = await getEventForViewer(id);
   if (!found) notFound();
+  // The place the person looking holds here, if any, which the page offers
+  // to give back. Theirs alone: it is found by their own session. Only an
+  // event that takes sign-ups has a panel to say it in.
+  const held =
+    found.kind === "open" && found.event.status === "published" && !found.event.noSignup
+      ? await heldPlaceAt(found.event)
+      : null;
 
   return (
     <section className={styles.eventSection}>
@@ -42,7 +49,7 @@ export default async function PublicEventPage({
         {/* An event for chosen people that is not this person's: a calm page
             of its own, rendered here, never notFound(). See OnlyForInvited. */}
         {found.kind === "open" ? (
-          <EventDetailView event={found.event} />
+          <EventDetailView event={found.event} held={held} />
         ) : (
           <OnlyForInvited eventId={id} signedIn={found.signedIn} />
         )}

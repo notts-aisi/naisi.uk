@@ -539,6 +539,15 @@ export const ROUTES = {
         "member is read.",
     },
   },
+  "/api/admin/members/[uid]/events": {
+    GET: {
+      expect: adminOnly(404),
+      why:
+        "One person's events this academic year and whether they missed the last two they had a place at (privacy v15, " +
+        "Attendance): an admin's alone, decided on the session before anything is read, the person themselves included; " +
+        "the admin is then told nobody has this account.",
+    },
+  },
   "/api/admin/members/[uid]/notes": {
     GET: {
       expect: adminOnly(404),
