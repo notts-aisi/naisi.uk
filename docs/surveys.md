@@ -843,12 +843,12 @@ week has, fixed the first time it is whole, in `weeks.ts`),
   admin's row for such a check-in says "Not counted in the week above: it
   opened after the week had already shown."; the lead is never told. A week
   is not fixed before it has begun, so a run whose groups have no times yet
-  has nothing fixed early, empty, for weeks still to come. No page or route writes
-  the record: the job is its one writer (`tests/get-handlers-readonly.test.mjs`
-  names both its helpers). **The job registers on**, as `surveys-names-off`
-  does: it emails nobody, and while it is off no new week of check-ins shows
-  to any lead (each shows at the first tick once it is on again). A run being
-  destroyed is left alone.
+  has nothing fixed early, empty, for weeks still to come. No page or route
+  writes the record: the job is its one writer
+  (`tests/get-handlers-readonly.test.mjs` names both its helpers). **The job
+  registers on**, as `surveys-names-off` does: it emails nobody, and while it
+  is off no new week of check-ins shows to any lead (each shows at the first
+  tick once it is on again). A run being destroyed is left alone.
 - **Names come off** on the day the survey says, two years after the run's last
   session, by the same job: it finds every survey due by its day
   (`surveysNamesDueBy`), so the check-ins the list of surveys leaves out are
