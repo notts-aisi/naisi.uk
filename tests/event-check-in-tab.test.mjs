@@ -33,6 +33,7 @@ import {
   makeCheckInWorld,
   person,
   textOf,
+  withDropIn,
   withEvent,
 } from "./lib/checkInWorld.mjs";
 
@@ -57,6 +58,16 @@ function clock(t, at) {
 }
 const open = (as, id = EVENT_ID) => render(tab, { as, params: { id } });
 const NAMES = ["Kofi", "Chloe", "Gwen", "Wren", "Pat", "Dan Fitzgerald", "Mo Rahman", "Asante"];
+/**
+ * Under the door code, as patterns: who can check themselves in at an event
+ * that takes sign-ups, and at one with no sign-up (`doorCodeLine`, held to
+ * `decideSelf` person by person in tests/event-self-check-in.test.mjs).
+ */
+const SIGNUPS =
+  "Anyone signed in can check themselves in by scanning this code, unless they’re still waiting for a place or were turned down\\. " +
+  "People with a place can also use the link in their confirmation email, if it has one\\. Everyone else gives their name at the door\\.";
+const NO_SIGNUP =
+  "Anyone signed in can check themselves in by scanning this code, unless they were turned down\\. Everyone else gives their name at the door\\.";
 
 /**
  * The night as it went, at an event that lets people check themselves in,
@@ -213,13 +224,23 @@ describe("the Check-in tab", () => {
     }
     // One way alone is said without its number.
     const counts = (themselvesBy) => ({ themselves: Object.values(themselvesBy).reduce((a, b) => a + b, 0), themselvesBy: { ...NO_SELF, ...themselvesBy } });
-    assert.equal(view.themselvesWords(counts({ code: 2 }), true), "With the door code");
-    assert.equal(view.themselvesWords(counts({ email: 1 }), true), "From their email");
-    assert.equal(view.themselvesWords(counts({ site: 3 }), true), "On the check-in page");
-    assert.equal(view.themselvesWords(counts({ qr: 2 }), false), "The way in wasn’t recorded");
-    assert.equal(view.themselvesWords(counts({ code: 2, qr: 2 }), true), "2 with the door code, and 2 whose ways in weren’t recorded");
-    assert.equal(view.themselvesWords(counts({}), true), "With the door code, or the link in their email");
-    assert.equal(view.themselvesWords(counts({}), false), "Self check-in is off for this event");
+    const ON = { selfCheckIn: true, noSignup: false };
+    const OFF = { selfCheckIn: false, noSignup: false };
+    assert.equal(view.themselvesWords(counts({ code: 2 }), ON), "With the door code");
+    assert.equal(view.themselvesWords(counts({ email: 1 }), ON), "From their email");
+    assert.equal(view.themselvesWords(counts({ site: 3 }), ON), "On the check-in page");
+    assert.equal(view.themselvesWords(counts({ qr: 2 }), OFF), "The way in wasn’t recorded");
+    assert.equal(view.themselvesWords(counts({ code: 2, qr: 2 }), ON), "2 with the door code, and 2 whose ways in weren’t recorded");
+    assert.equal(view.themselvesWords(counts({}), ON), "With the door code, or the link in their email");
+    assert.equal(view.themselvesWords(counts({}), OFF), "Self check-in is off for this event");
+    // Only a stored true is on, as everywhere else.
+    assert.equal(view.themselvesWords(counts({}), { selfCheckIn: "true", noSignup: false }), "Self check-in is off for this event");
+    // An event with no sign-up sends no confirmation email: before anybody
+    // comes, the door code is the one way it names. Who came is said as itself.
+    const DROP_IN = { selfCheckIn: true, noSignup: true };
+    assert.equal(view.themselvesWords(counts({}), DROP_IN), "With the door code");
+    assert.equal(view.themselvesWords(counts({}), { ...DROP_IN, selfCheckIn: false }), "Self check-in is off for this event");
+    assert.equal(view.themselvesWords(counts({ code: 1, site: 2 }), DROP_IN), "1 with the door code, and 2 on the check-in page");
     // Who checked them in: themselves for every way of their own, else a name, else said not to be known.
     assert.equal(view.byWords({ how: "qr", by: null }), "Themselves");
     assert.equal(view.byWords({ how: "door", by: "Sue" }), "Sue");
@@ -295,7 +316,7 @@ describe("the Check-in tab", () => {
     const before = await open("sue");
     assert.match(
       before.text,
-      /The door QR code No door code yet\. Make one, then print it for the door\. People with a place can check themselves in with this code or the link in their email\. Everyone else gives their name at the door\. Make the door code/,
+      new RegExp(`The door QR code No door code yet\\. Make one, then print it for the door\\. ${SIGNUPS} Make the door code`),
     );
     assert.match(
       before.text,
@@ -307,7 +328,7 @@ describe("the Check-in tab", () => {
     const after = await open("sue");
     assert.match(
       after.text,
-      /The door QR code naisi\.uk\/q\/vr-in People with a place can check themselves in with this code or the link in their email\. Everyone else gives their name at the door\. Print an A4 sign Download PNG/,
+      new RegExp(`The door QR code naisi\\.uk\\/q\\/vr-in ${SIGNUPS} Print an A4 sign Download PNG`),
     );
     assert.match(after.html, /aria-label="QR code for naisi.uk\/q\/vr-in"/);
     assert.match(after.html, /href="\/signs\/vr-in" target="_blank" rel="noopener"/);
@@ -326,6 +347,27 @@ describe("the Check-in tab", () => {
       assert.ok(!text.includes("naisi.uk/q/vr-in"), who);
       assert.match(text, /Door list Check people in on it from 1pm to 6pm/, `${who}: the door list stays`);
     }
+  });
+
+  test("the door code card says who can check themselves in: at an event that takes sign-ups, and at a drop-in, where it names no place or email", async (t) => {
+    clock(t, DURING);
+    w.reset(withEvent(SELF_ON, DOOR_OPEN));
+    await call(doorCode.POST, { as: "sue", params: { id: EVENT_ID } });
+    assert.match((await open("sue")).text, new RegExp(`The door QR code naisi\\.uk\\/q\\/vr-in ${SIGNUPS} Print an A4 sign`));
+    // No sign-up: nobody holds a place or was sent a confirmation, so its
+    // card, and the count before anybody comes, name neither.
+    w.reset(withDropIn(SELF_ON, DOOR_OPEN));
+    await call(doorCode.POST, { as: "sue", params: { id: EVENT_ID } });
+    for (const who of ["sue", "zach"]) {
+      const { text } = await open(who);
+      assert.match(text, new RegExp(`The door QR code naisi\\.uk\\/q\\/vr-in ${NO_SIGNUP} Print an A4 sign`), who);
+      const card = /The door QR code ([\s\S]*?) Print an A4 sign/.exec(text)[1];
+      assert.ok(!/place|email/i.test(card), `${who}: ${card}`);
+      assert.match(text, /0 checked themselves in With the door code 0 at the door list/, who);
+    }
+    // Before the code is made, the card says the same words.
+    w.reset(withDropIn(SELF_ON));
+    assert.match((await open("sue")).text, new RegExp(`No door code yet\\. Make one, then print it for the door\\. ${NO_SIGNUP} Make the door code`));
   });
 
   test("a switched-off door code says where a scan lands", async (t) => {

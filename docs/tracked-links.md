@@ -292,6 +292,16 @@ off here, a scan of it lands on `/links`, as any switched-off code does, and
 the event's Check-in tab says so. Repointed elsewhere, it stops being the door
 code and the event can have a new one.
 
+Who can check themselves in with it is said in one file,
+`src/lib/events/checkInView.ts`: `doorCodeLine` for the code's card on the
+Check-in tab and its sign, `doorListSelfWords` for the line under the door
+list. Both say the rule of `decideSelf`: anyone signed in, unless still
+waiting for a place or turned down; and, at an event that takes sign-ups,
+somebody with a place through the link in their confirmation email, if it
+has one (only an email sent while the event let people check themselves in
+does). `tests/event-self-check-in.test.mjs` holds the words to the press,
+person by person, at both kinds of event.
+
 ## Survey codes
 
 The survey after an event has a short link of its own, to the event's survey

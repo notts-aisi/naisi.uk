@@ -15,6 +15,7 @@ import {
   cameUntickedWords,
   checkInStamp,
   doorCounts,
+  doorListSelfWords,
   hereWords,
   notListedWords,
   type DoorRow,
@@ -34,6 +35,8 @@ type Props = {
   closedWords: string | null;
   /** The event lets people check themselves in. Off, the list says everyone gives their name here. */
   selfCheckIn: boolean;
+  /** The event takes no sign-ups: the line under the list names no place or email (`doorListSelfWords`). */
+  noSignup: boolean;
   /** The door code as people type it, when the event lets people check themselves in and has one that is on. */
   doorAddress: string | null;
   /** "VR games night · Sun 1 Nov", under the walk-in dialog's heading. */
@@ -67,12 +70,14 @@ export default function DoorList({
   namesOff = NO_NAMES_OFF,
   closedWords,
   selfCheckIn,
+  noSignup,
   doorAddress,
   eventLine,
   emailGoesOn,
   untilSurvey = false,
 }: Props) {
   const hydrated = useHydrated();
+  const selfWords = doorListSelfWords({ noSignup });
   const [rows, setRows] = useState<DoorRow[]>(initialRows);
   const [show, setShow] = useState<Show>("to-come");
   const [query, setQuery] = useState("");
@@ -311,7 +316,9 @@ export default function DoorList({
 
       {doorAddress && (
         <p className={styles.footnote}>
-          People with a place can check themselves in at <strong>{doorAddress}</strong>, or from their email.
+          {selfWords.before}
+          <strong>{doorAddress}</strong>
+          {selfWords.after}
         </p>
       )}
 

@@ -162,7 +162,7 @@ export default async function CheckInTabPage({ params }: { params: Promise<{ id:
           <li className={styles.stat}>
             <span className={styles.statNumber}>{counts.themselves}</span>
             <span className={styles.statLabel}>checked themselves in</span>
-            <span className={styles.statSub}>{themselvesWords(counts, event.selfCheckIn)}</span>
+            <span className={styles.statSub}>{themselvesWords(counts, event)}</span>
           </li>
           <li className={styles.stat}>
             <span className={styles.statNumber}>{counts.byList}</span>
@@ -229,6 +229,7 @@ export default async function CheckInTabPage({ params }: { params: Promise<{ id:
             {event.selfCheckIn && (
               <DoorCodeCard
                 eventId={event.id}
+                noSignup={event.noSignup}
                 code={
                   doorCode
                     ? { slug: doorCode.slug, address: shortLinkAddress(doorCode.slug), active: doorCode.active }

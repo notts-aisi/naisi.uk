@@ -13,7 +13,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import decodeQR from "qr/decode.js";
-import { EVENT_ID, ORIGIN, SELF_ON, makeCheckInWorld, withEvent } from "./lib/checkInWorld.mjs";
+import { EVENT_ID, ORIGIN, SELF_ON, makeCheckInWorld, withDropIn, withEvent } from "./lib/checkInWorld.mjs";
 
 const w = await makeCheckInWorld("__doorCode");
 const { call, render, load } = w;
@@ -206,11 +206,29 @@ describe("what the door code does", () => {
     const page = await render(pages.sign, { as: "sue", params: { slug: "vr-in" } });
     assert.match(
       page.text,
-      /VR games night naisi\.uk\/q\/vr-in People with a place can check themselves in with this code or the link in their email\. Everyone else gives their name at the door\.$/,
+      /VR games night naisi\.uk\/q\/vr-in Anyone signed in can check themselves in by scanning this code, unless they’re still waiting for a place or were turned down\. People with a place can also use the link in their confirmation email, if it has one\. Everyone else gives their name at the door\.$/,
     );
+    // The sign's words are the card's: one rule, `doorCodeLine`, which
+    // tests/event-self-check-in.test.mjs holds to `decideSelf`.
+    assert.ok(page.text.endsWith(door.doorCodeLine({ noSignup: false })));
     assert.match(page.html, new RegExp(`<a href="/events/manage/${EVENT_ID}/check-in"`));
     const refused = await render(pages.sign, { as: "iris", params: { slug: "vr-in" } });
     assert.match(refused.text, /Only admins can print or download this code\./);
+  });
+
+  test("at an event with no sign-up, its sign names no place and no email: nobody holds one or was sent one", async () => {
+    w.reset(withDropIn(SELF_ON));
+    await make("sue");
+    for (const who of ["sue", "zach"]) {
+      const page = await render(pages.sign, { as: who, params: { slug: "vr-in" } });
+      assert.match(
+        page.text,
+        /VR games night naisi\.uk\/q\/vr-in Anyone signed in can check themselves in by scanning this code, unless they were turned down\. Everyone else gives their name at the door\.$/,
+        who,
+      );
+      assert.ok(page.text.endsWith(door.doorCodeLine({ noSignup: true })), who);
+      assert.ok(!/place|email/i.test(page.text.slice(page.text.indexOf("naisi.uk/q/vr-in"))), who);
+    }
   });
 
   test("at an event that does not let people check themselves in, its sign never says they can", async () => {

@@ -33,6 +33,7 @@ import {
   WEEK_LATER,
   makeCheckInWorld,
   person,
+  withDropIn,
   withEvent,
 } from "./lib/checkInWorld.mjs";
 
@@ -127,12 +128,23 @@ describe("the door list page", () => {
     assert.ok(!on.text.includes(SELF_OFF));
   });
 
-  test("letting people check themselves in, with a door code, the line under the list gives its address", async (t) => {
+  test("letting people check themselves in, with a door code, the line under the list gives its address and who can use it", async (t) => {
     clock(t, DURING);
     opened(SELF_ON);
     await call(doorCode.POST, { as: "sue", params: { id: EVENT_ID } });
-    const { text } = await open("sue");
-    assert.match(text, /People with a place can check themselves in at naisi\.uk\/q\/vr-in ?, or from their email\. Add a walk-in$/);
+    const { text, html } = await open("sue");
+    assert.match(
+      text,
+      /Anyone signed in can check themselves in at naisi\.uk\/q\/vr-in ?, unless they’re still waiting for a place or were turned down\. People with a place can also use the link in their confirmation email, if it has one\. Add a walk-in$/,
+    );
+    assert.match(html, /check themselves in at <strong>naisi\.uk\/q\/vr-in<\/strong>, unless/);
+    // At an event with no sign-up nobody holds a place or was sent a
+    // confirmation, so the line names neither, by the rule the code's sign says.
+    w.reset(withDropIn(SELF_ON, DOOR_OPEN));
+    await call(doorCode.POST, { as: "sue", params: { id: EVENT_ID } });
+    const dropIn = await open("sue");
+    assert.match(dropIn.text, /Anyone signed in can check themselves in at naisi\.uk\/q\/vr-in ?, unless they were turned down\. Add a walk-in$/);
+    assert.ok(!/place|email/i.test(dropIn.text.slice(dropIn.text.indexOf("Anyone signed in"))), dropIn.text);
   });
 
   test("before the door opens and after it closes, it says when, and offers no Check in", async (t) => {

@@ -19,7 +19,9 @@
  * in and neither. And every state of the evening: before the door's hours,
  * inside them before the door is opened and after, after them; a cancelled
  * event, a draft and one that is not there, which a printed code must still
- * answer with a page.
+ * answer with a page. Last, the door code's words (its card, its sign and the
+ * door list), held person by person to who the press lets in, at an event
+ * that takes sign-ups and at one with no sign-up.
  *
  * The world is `tests/lib/checkInWorld.mjs`. Run with `npm test`.
  */
@@ -37,15 +39,20 @@ import {
   BEFORE,
   DOOR_OPEN,
   DURING,
+  END,
   EVENT_ID,
   OPENED_AT,
   PEOPLE,
   RSVP,
   SELF_ON,
+  START,
   checkInSeed,
   eventDoc,
   makeCheckInWorld,
+  person,
+  rsvp,
   textOf,
+  withDropIn,
   withEvent,
 } from "./lib/checkInWorld.mjs";
 import { stripSource } from "./lib/stripSource.mjs";
@@ -649,5 +656,148 @@ describe("the confirmation emails follow the switch", () => {
     }
     globalThis.__checkInMailDb = null;
     globalThis.__checkInMailUser = null;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// What the door code's words say, person by person
+// ---------------------------------------------------------------------------
+
+/**
+ * The door code's card on the Check-in tab and its printed sign say who can
+ * check themselves in (`doorCodeLine`), and the door list says the same
+ * beside the code's address. Here every kind of person presses "I'm here" on
+ * a page the code opened, at an event that takes sign-ups and at one with no
+ * sign-up, and each answer is held to the group the words put them in: anyone
+ * signed in can, unless still waiting for a place or turned down (a refused
+ * sign-up, or an account whose request to join was turned down); a place's
+ * email link can, if the email has one; everyone else gives their name at the
+ * door. A person the words leave out, or put in the wrong group, fails here.
+ */
+const view = await load("lib/events/checkInView.ts");
+
+describe("the door code's words say exactly who can press I’m here", () => {
+  /** An account whose request to join was turned down, signed in: `decideSelf` sends it to the door. */
+  const rex = person("rex", "rejected", "Rex Moor");
+  const CAN = "anyone signed in";
+  const WAITING = "still waiting for a place";
+  const TURNED_DOWN = "were turned down";
+  /** What each group's press answers: checked in by the code, or sent to the door with nothing written. */
+  async function pressedByCode(who, why) {
+    const before = checkIns().length;
+    const res = await press(who, { doorCode: true });
+    return { res, wrote: checkIns().length - before, why };
+  }
+
+  test("an event that takes sign-ups: anyone signed in, unless still waiting for a place or turned down; a place's email link, if it has one", async (t) => {
+    clock(t, DURING);
+    const line = view.doorCodeLine({ noSignup: false });
+    assert.equal(
+      line,
+      "Anyone signed in can check themselves in by scanning this code, unless they’re still waiting for a place or were turned down. " +
+        "People with a place can also use the link in their confirmation email, if it has one. Everyone else gives their name at the door.",
+    );
+    // The door list says the same beside the code's address: the same groups, the same email link.
+    const listed = view.doorListSelfWords({ noSignup: false });
+    assert.equal(
+      `${listed.before}naisi.uk/q/vr-in${listed.after}`,
+      "Anyone signed in can check themselves in at naisi.uk/q/vr-in, unless they’re still waiting for a place or were turned down. " +
+        "People with a place can also use the link in their confirmation email, if it has one.",
+    );
+    const rows = [
+      ["kofi", CAN, "a confirmed sign-up, checked in as it"],
+      ["mo", CAN, "no sign-up: a walk-in with the account"],
+      ["cora", CAN, "only a cancelled sign-up: a walk-in with the account"],
+      ["ines", CAN, "a pending account with no sign-up: a walk-in with the account"],
+      ["wren", WAITING, "on the waiting list"],
+      ["pat", WAITING, "a sign-up not decided yet"],
+      ["dina", TURNED_DOWN, "a refused sign-up"],
+      [rex, TURNED_DOWN, "an account whose request to join was turned down"],
+    ];
+    for (const [who, group, why] of rows) {
+      night();
+      assert.ok(group === CAN ? line.startsWith("Anyone signed in can check themselves in") : line.includes(group), `the words name ${why}`);
+      const { res, wrote } = await pressedByCode(who, why);
+      if (group === CAN) {
+        assert.equal(res.status, 201, why);
+        assert.equal(checkIns()[0].how, "code", why);
+      } else {
+        assert.equal(res.status, 409, why);
+        assert.match(res.body.error, /Give your name at the door/, why);
+        assert.equal(wrote, 0, why);
+      }
+    }
+    // Turned down is the account, whatever its sign-up says: even a confirmed one.
+    night();
+    w.world.db.seed("eventRsvps/rsvp-rex", rsvp("rsvp-rex", "confirmed", "Rex Moor", "rex@example.com", "rex"));
+    assert.equal((await pressedByCode(rex, "a turned-down account with a place")).res.status, 409);
+    assert.equal(checkIns().length, 0);
+
+    // A place's email link checks its sign-up in, with no account...
+    night();
+    const link = gwenLink();
+    assert.ok(line.includes("People with a place can also use the link in their confirmation email"));
+    const guest = await press(null, { rsvpId: link.r, token: link.t, doorCode: true });
+    assert.equal(guest.status, 201);
+    assert.deepEqual([checkIns()[0].rsvpId, checkIns()[0].how], [RSVP.gwen, "email"]);
+    // ...if the email has one: a confirmation sent while the event did not let
+    // people check themselves in carries none, which is why the words say so.
+    assert.ok(line.includes("if it has one"));
+    for (const [extra, carries] of [[{}, false], [SELF_ON, true]]) {
+      globalThis.__checkInMail = [];
+      await sendRsvpEmail({
+        variant: "approved",
+        to: "gwen@example.com",
+        recipientName: "Gwen",
+        rsvpId: RSVP.gwen,
+        event: { id: EVENT_ID, title: "VR games night", startAt: START, endAt: END, ...extra },
+      });
+      const html = await renderEmail(globalThis.__checkInMail[0].react);
+      assert.equal(html.includes("/check-in?r="), carries, JSON.stringify(extra));
+    }
+
+    // Everyone else: signed out with no link is asked to sign in, or to give their name.
+    night();
+    assert.equal((await press(null, { doorCode: true })).status, 401);
+    assert.equal(checkIns().length, 0);
+  });
+
+  test("an event with no sign-up: anyone signed in, unless turned down; it names no place and no email", async (t) => {
+    clock(t, DURING);
+    const line = view.doorCodeLine({ noSignup: true });
+    assert.equal(
+      line,
+      "Anyone signed in can check themselves in by scanning this code, unless they were turned down. Everyone else gives their name at the door.",
+    );
+    // Nobody holds a place at it or was sent a confirmation: the RSVP route refuses it a sign-up (tests/event-no-signup.test.mjs).
+    assert.ok(!/place|email/i.test(line), line);
+    const listed = view.doorListSelfWords({ noSignup: true });
+    assert.equal(
+      `${listed.before}naisi.uk/q/vr-in${listed.after}`,
+      "Anyone signed in can check themselves in at naisi.uk/q/vr-in, unless they were turned down.",
+    );
+    const rows = [
+      ["kofi", CAN, "a member"],
+      ["mo", CAN, "another member"],
+      ["sue", CAN, "a committee member"],
+      ["ines", CAN, "a pending account"],
+      [rex, TURNED_DOWN, "an account whose request to join was turned down"],
+    ];
+    for (const [who, group, why] of rows) {
+      w.reset(withDropIn(SELF_ON, DOOR_OPEN));
+      assert.ok(group === CAN ? line.startsWith("Anyone signed in can check themselves in") : line.includes(group), `the words name ${why}`);
+      const { res, wrote } = await pressedByCode(who, why);
+      if (group === CAN) {
+        assert.equal(res.status, 201, why);
+        assert.deepEqual([checkIns()[0].kind, checkIns()[0].how], ["walk-in", "code"], why);
+      } else {
+        assert.equal(res.status, 409, why);
+        assert.equal(wrote, 0, why);
+      }
+    }
+    w.reset(withDropIn(SELF_ON, DOOR_OPEN));
+    assert.equal((await press(null, { doorCode: true })).status, 401);
+    // The page says the drop-in's own words to a walk-in.
+    assert.match((await open("mo", { q: "vr-in" })).text, /Hi Mo\. Are you here\? No sign-up needed for this one\. I’m here/);
   });
 });

@@ -3,7 +3,7 @@ import { isCampaignSlug } from "@/lib/campaign/attribution";
 import { PRINTED_LINKS } from "@/lib/campaign/printedLinks";
 import { lookupTrackedLink } from "@/lib/campaign/trackedLinkStore";
 import { runsCheckIn } from "@/lib/events/checkInAccess";
-import { DOOR_CODE_LINE, eventOfCheckInPath } from "@/lib/events/doorCode";
+import { doorCodeLine, eventOfCheckInPath } from "@/lib/events/doorCode";
 import { AT_THE_DOOR_ONLY } from "@/lib/events/selfCheckIn";
 import { getAdminDb } from "@/lib/firebase/admin";
 import type { SessionUser } from "@/lib/firebase/session";
@@ -71,8 +71,9 @@ export async function codeForViewer(user: SessionUser, rawSlug: string): Promise
         link: {
           slug,
           name: event?.title ?? (record.label || slug),
-          // A sign never says people check themselves in at an event that does not let them.
-          note: event?.selfCheckIn ? DOOR_CODE_LINE : AT_THE_DOOR_ONLY,
+          // A sign never says people check themselves in at an event that does
+          // not let them, and at one with no sign-up it names no place or email.
+          note: event?.selfCheckIn ? doorCodeLine(event) : AT_THE_DOOR_ONLY,
           backHref: `/events/manage/${eventId}/check-in`,
         },
       };
@@ -112,12 +113,18 @@ async function surveyCodeShowable(user: SessionUser, eventId: string): Promise<b
   return surveyCodeAtEvent(user, await eventSurveyOf(db, eventId), new Date()) === "show";
 }
 
-/** The event's name as its sign prints it, and whether it lets people check themselves in; null when the event is gone. */
-async function eventOfCode(eventId: string): Promise<{ title: string | null; selfCheckIn: boolean } | null> {
+/**
+ * The event's name as its sign prints it, whether it lets people check
+ * themselves in, and whether it takes sign-ups (`doorCodeLine` says who can);
+ * null when the event is gone.
+ */
+async function eventOfCode(
+  eventId: string,
+): Promise<{ title: string | null; selfCheckIn: boolean; noSignup: boolean } | null> {
   const db = getAdminDb();
   if (!db) return null;
   const snap = await db.collection("events").doc(eventId).get();
   if (!snap.exists) return null;
   const event = normalizeEvent(snap.id, snap.data() ?? {});
-  return { title: event.title.trim() || null, selfCheckIn: event.selfCheckIn };
+  return { title: event.title.trim() || null, selfCheckIn: event.selfCheckIn, noSignup: event.noSignup };
 }

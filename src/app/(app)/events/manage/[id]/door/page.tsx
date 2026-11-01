@@ -69,6 +69,7 @@ export default async function DoorPage({ params }: { params: Promise<{ id: strin
       namesOff={namesOffOf(checkIns)}
       closedWords={closedWords}
       selfCheckIn={event.selfCheckIn}
+      noSignup={event.noSignup}
       doorAddress={doorCode && doorCode.active ? shortLinkAddress(doorCode.slug) : null}
       eventLine={event.startAt ? `${title} · ${dayWords(event.startAt)}` : title}
       emailGoesOn={emailGoesAt ? dayWords(emailGoesAt) : "the day after"}

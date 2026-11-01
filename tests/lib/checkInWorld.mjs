@@ -14,7 +14,8 @@
  * As every event starts: people cannot check themselves in (no `selfCheckIn`)
  * and the door has not been opened. A suite turns either on with
  * `withEvent(SELF_ON, DOOR_OPEN)`: the switch, and the door as the door route
- * leaves it, opened by Iris at 1:05pm (`OPENED_AT`).
+ * leaves it, opened by Iris at 1:05pm (`OPENED_AT`). `withDropIn(...)` makes
+ * it an event with no sign-up, whose sign-ups are all another event's.
  *
  * Sign-ups: Kofi (a member, confirmed), Chloe (a member, confirmed), Gwen (a
  * guest with no account, confirmed), Wren (a member on the waiting list), Pat
@@ -163,6 +164,20 @@ export const RSVP = {
 /** The seed's event with each of `extras` on it, as the one document `reset` replaces. */
 export function withEvent(...extras) {
   return { [`events/${EVENT_ID}`]: eventDoc(Object.assign({}, ...extras)) };
+}
+
+/**
+ * The seed's event as one with no sign-up (`noSignup`), each of `extras` on
+ * it, and every sign-up moved to another event: a drop-in made as one has
+ * none, so nobody at it holds a place or was sent a confirmation.
+ */
+export function withDropIn(...extras) {
+  const over = withEvent({ noSignup: true }, ...extras);
+  const seed = checkInSeed();
+  for (const id of Object.values(RSVP)) {
+    over[`eventRsvps/${id}`] = { ...seed[`eventRsvps/${id}`], eventId: "another-event-ev02" };
+  }
+  return over;
 }
 
 /** Every document the suites start from. `over` adds or replaces whole documents. */

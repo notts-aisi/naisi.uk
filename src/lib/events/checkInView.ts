@@ -6,7 +6,7 @@ import {
   type EventCheckInDoc,
   type SelfWay,
 } from "@/lib/firestore/eventCheckIns";
-import type { RsvpDoc, RsvpStatus } from "@/lib/firestore/events";
+import type { EventDoc, RsvpDoc, RsvpStatus } from "@/lib/firestore/events";
 import type { CheckInPhase } from "./checkIns";
 
 /**
@@ -20,12 +20,70 @@ import type { CheckInPhase } from "./checkIns";
  */
 
 /**
- * What the event's page and a door code's sign say under the code, at an
- * event that lets people check themselves in: guests with a place do it from
- * their email, as signed-in people do with the code.
+ * WHO CAN CHECK THEMSELVES IN, as the door code's words say it: under the
+ * code on the event's Check-in tab and on the A4 sign printed from it
+ * (`doorCodeLine`), and under the door list beside the code's address
+ * (`doorListSelfWords`). Exactly the rule of `decideSelf`
+ * (`src/lib/events/selfCheckIn.ts`), which decides who may press "I'm here",
+ * at an event that lets people and once its door is open:
+ *
+ *  - ANYONE SIGNED IN: with a confirmed sign-up, as that sign-up; with none,
+ *    or only a cancelled one, as a walk-in with their account. A pending
+ *    account too.
+ *  - UNLESS STILL WAITING FOR A PLACE (on the waiting list, or a sign-up not
+ *    decided yet) OR TURNED DOWN (a refused sign-up, or an account whose
+ *    request to join was turned down, whatever its sign-ups): the people at
+ *    the door decide, so they give their name there.
+ *  - A PLACE'S EMAIL LINK, for a guest with no account: only a confirmation
+ *    that went out while the event let people check themselves in carries
+ *    one (`sendRsvpEmail`), so the words say "if it has one".
+ *
+ * At an event with no sign-up (`noSignup`) nobody holds a place or is sent a
+ * confirmation, so the words say neither. `tests/event-self-check-in.test.mjs`
+ * presses "I'm here" as every kind of person at both kinds of event and holds
+ * each to what these words say of them.
  */
-export const DOOR_CODE_LINE =
-  "People with a place can check themselves in with this code or the link in their email. Everyone else gives their name at the door.";
+function signedInUnless(event: Pick<EventDoc, "noSignup">): string {
+  return event.noSignup
+    ? "unless they were turned down"
+    : "unless they’re still waiting for a place or were turned down";
+}
+
+/** The email's link, for somebody with a place; null at an event with no sign-up, which sends no confirmation. */
+function placeLinkWords(event: Pick<EventDoc, "noSignup">): string | null {
+  return event.noSignup ? null : "People with a place can also use the link in their confirmation email, if it has one.";
+}
+
+/**
+ * What the event's Check-in tab and a door code's sign say under the code, at
+ * an event that lets people check themselves in. At an event that takes
+ * sign-ups: "Anyone signed in can check themselves in by scanning this code,
+ * unless they’re still waiting for a place or were turned down. People with a
+ * place can also use the link in their confirmation email, if it has one.
+ * Everyone else gives their name at the door."
+ */
+export function doorCodeLine(event: Pick<EventDoc, "noSignup">): string {
+  return [
+    `Anyone signed in can check themselves in by scanning this code, ${signedInUnless(event)}.`,
+    placeLinkWords(event),
+    "Everyone else gives their name at the door.",
+  ]
+    .filter((sentence): sentence is string => sentence !== null)
+    .join(" ");
+}
+
+/**
+ * Under the door list, around the door code's address, which the list draws
+ * in bold between the two: who can check themselves in there instead of
+ * giving their name, by the same rule as `doorCodeLine`.
+ */
+export function doorListSelfWords(event: Pick<EventDoc, "noSignup">): { before: string; after: string } {
+  const link = placeLinkWords(event);
+  return {
+    before: "Anyone signed in can check themselves in at ",
+    after: `, ${signedInUnless(event)}.${link ? ` ${link}` : ""}`,
+  };
+}
 
 /** Over the door list's names, at an event that does not let people check themselves in. */
 export const SELF_OFF_DOOR_LIST = "Self check-in is off for this event: everyone gives their name here.";
@@ -381,11 +439,16 @@ const SELF_WAY_COUNTED: Record<SelfWay, (n: number) => string> = {
  * without its number ("With the door code"); several, with theirs ("2 with
  * the door code, and 1 from their email"). A record from before the ways
  * were told apart is counted as one whose way in wasn't recorded. Nobody yet:
- * how they would, or that the event does not let them.
+ * how they would, or that the event does not let them. An event with no
+ * sign-up sends no confirmation email, so there it is the door code alone.
  */
-export function themselvesWords(counts: Pick<DoorCounts, "themselves" | "themselvesBy">, selfCheckIn: boolean): string {
+export function themselvesWords(
+  counts: Pick<DoorCounts, "themselves" | "themselvesBy">,
+  event: Pick<EventDoc, "selfCheckIn" | "noSignup">,
+): string {
   if (counts.themselves === 0) {
-    return selfCheckIn ? "With the door code, or the link in their email" : "Self check-in is off for this event";
+    if (event.selfCheckIn !== true) return "Self check-in is off for this event";
+    return event.noSignup ? "With the door code" : "With the door code, or the link in their email";
   }
   const ways = SELF_WAYS.filter((way) => counts.themselvesBy[way] > 0);
   if (ways.length === 1) return SELF_WAY_ALONE[ways[0]];

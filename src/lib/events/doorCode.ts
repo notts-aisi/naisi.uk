@@ -37,8 +37,8 @@ import {
 /** The campaign every door code is filed under in the console. */
 export const DOOR_CODE_CAMPAIGN = "Check-in";
 
-/** What the sign and the event page say under a door code. */
-export { DOOR_CODE_LINE } from "./checkInView";
+/** What the sign and the event page say under a door code, at an event that lets people check themselves in. */
+export { doorCodeLine } from "./checkInView";
 
 /** The event's check-in page: where its door code goes. */
 export function checkInPath(eventId: string): string {
