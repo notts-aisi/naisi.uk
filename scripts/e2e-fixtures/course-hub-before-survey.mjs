@@ -14,9 +14,12 @@
  * says she has answered; Ben answers from the card on Home, signed in; Dan
  * answers signed in at the survey's address inside the programme. The lead
  * reads the results, with no name anywhere, and Fern, Group A's facilitator,
- * is refused them. The admin reads who answered and downloads the answers
- * with names (logged), reminds the one person who has not answered after a
- * test of the reminder, and closes the survey.
+ * is refused them. The admin opens the Answers tab, every answer in one
+ * table, its opening recorded first, and downloads the answers with names
+ * (logged); opens the people behind one bar of the results with See who,
+ * recorded first, downloads that question's totals, which name nobody, and
+ * reads the survey's log; reminds the one person who has not answered after
+ * a test of the reminder, and closes the survey.
  *
  * ## Every grant is the admin's, on a real page
  *
@@ -56,7 +59,8 @@ export const BEFORE_SURVEY_STEPS = [
   "a third person answers signed in at the survey's own address inside the programme",
   "the lead's results give totals with n and the response rate, and comments, and no name anywhere",
   "a facilitator is refused the survey's pages and its download, and is sent nothing",
-  "Who answered names each person, and the download with names is that table, logged",
+  "the Answers tab, recorded first, holds every answer in one table, and the download with names is that table, logged",
+  "See who behind a bar names its people to the admin who opened it, recorded first; its question's file names nobody; the log says who opened what, never whose",
   "the reminder, after its own test, goes only to the person who has not answered, with their own link",
   "Close it now ends the survey, and the person who never answered is told it has closed",
   "every survey email went to the send log as it should, and none carries an answer or the meeting link",
@@ -104,6 +108,9 @@ export const SPEC = {
       "/api/surveys/consent",
       "/api/surveys/[surveyId]/answer",
       "/api/surveys/[surveyId]/export",
+      "/api/surveys/[surveyId]/answers",
+      "/api/surveys/[surveyId]/who",
+      "/api/surveys/[surveyId]/totals",
       "/api/surveys/[surveyId]/remind",
       "/api/surveys/[surveyId]/close",
     ],
@@ -119,6 +126,7 @@ export const SPEC = {
       "/(app)/admin/(admin-only)/surveys/[surveyId]/send",
       "/(app)/admin/(admin-only)/surveys/[surveyId]/answered",
       "/(app)/admin/(admin-only)/surveys/[surveyId]/results",
+      "/(app)/admin/(admin-only)/surveys/[surveyId]/log",
       "/survey/[token]",
       "/(app)/dashboard",
       "/(app)/learn/[runId]/survey/[surveyId]",

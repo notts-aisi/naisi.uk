@@ -865,7 +865,7 @@ describe("the admins' pages", () => {
     }
   });
 
-  test("the list, Who answered and the results", async (t) => {
+  test("the list, the Answers tab and the results", async (t) => {
     clock(t);
     w.reset(seed());
     const id = await sentSurvey();
@@ -884,15 +884,20 @@ describe("the admins' pages", () => {
     // The row's ways in name the survey to a screen reader.
     assert.ok(list.html.includes(`<a href="/admin/surveys/${id}/results" class="action" aria-label="Results for AGI Strategy: before">Results</a>`));
     assert.ok(list.html.includes(`aria-label="Remind people who haven’t answered AGI Strategy: before: opens its Send tab"`));
-    // B6: sv-list's lede whole, in the board's words, now that the lead's Surveys tab it names exists.
+    // The list's lede whole, in the words designed for it, now that the lead's Surveys tab it names exists.
     assert.ok(
       list.text.startsWith("Surveys Only admins make and send surveys. Leads see results for their own programme, in its Surveys tab. "),
       list.text.slice(0, 200),
     );
+    // The Answers tab: its page draws the head and asks the route, which records the opening and hands back the table.
     const answered = await w.page(w.pages.answered, { params: Promise.resolve({ surveyId: id }) }, "zach");
-    assert.ok(answered.text.includes("2 of 4 have answered"));
-    assert.ok(answered.text.includes("Amara Okafor"));
-    assert.ok(answered.text.includes("Personal link"));
+    assert.ok(answered.text.includes("Answers 2"), answered.text);
+    assert.doesNotMatch(answered.text, /Amara|\bDev\b/, "the Answers tab's page names somebody before the opening");
+    const tab = (await call("zach", routes.answersTab.POST, { surveyId: id })).body.answers;
+    // By the names rule for an admin (`nameForViewer`): each account's full name.
+    assert.deepEqual(tab.rows.map((row) => row.name), ["Amara Okafor", "Dev Patel"]);
+    assert.ok(tab.rows[0].sent.endsWith(", from their own link."), tab.rows[0].sent);
+    assert.deepEqual(tab.notAnswered.map((person) => person.name), ["Bea Lindqvist", "Tariq Mensah"]);
     const results = await w.page(w.pages.results, { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
     // Every number has its n and the response rate beside it.
     assert.ok(results.text.includes("2 answers from the 4 people it was sent to (50%)."), "results show from the first answers: there is no floor");
@@ -1018,7 +1023,7 @@ describe("names come off two years after the programme, and the totals stay", ()
 });
 
 describe("a survey outlives its form", () => {
-  test("its results, who answered and its spreadsheet stay; nothing more can be sent", async (t) => {
+  test("its results, its answers and its spreadsheet stay; nothing more can be sent", async (t) => {
     clock(t);
     w.reset(seed());
     const id = await sentSurvey();
@@ -1029,8 +1034,8 @@ describe("a survey outlives its form", () => {
     assert.ok(before);
     store.seed(formPath, { destroyed: true });
     assert.equal((await call("zach", routes.send.POST, { surveyId: id }, { body: { to: "joined", emails: 0 } })).body.error, REFUSAL.formGone);
-    const answered = await w.page(w.pages.answered, { params: Promise.resolve({ surveyId: id }) }, "zach");
-    assert.ok(answered.text.includes("Amara Okafor"));
+    const answered = (await call("zach", routes.answersTab.POST, { surveyId: id })).body.answers;
+    assert.deepEqual(answered.rows.map((row) => row.name), ["Amara Okafor"]);
     const list = await w.page(w.pages.list, {}, "zach");
     assert.ok(list.text.includes("Fellowship: AGI Strategy"), "the survey names its programme without the form");
     assert.equal((await w.exportAs("zach", id)).status, 200);

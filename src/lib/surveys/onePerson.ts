@@ -26,13 +26,14 @@ import {
   nameComesOffWords,
   nothingToOpenWords,
   openingLineWords,
+  openingWhereWords,
   personNoticeWords,
   programmeLine,
   surveyComesOffWords,
 } from "./words";
 
 /**
- * ONE PERSON'S ANSWERS, OPENED BY AN ADMIN (sv-person): to every survey of the
+ * ONE PERSON'S ANSWERS, OPENED BY AN ADMIN: to every survey of the
  * programme the survey belongs to, or to a survey after an event. Usually for
  * a request to see or delete them.
  *
@@ -294,7 +295,7 @@ export async function openPersonAnswers(
       openings: openings.map((row) => ({
         name: row.actorName || "An admin",
         key: row.actorUid || row.id,
-        line: openingLineWords(row.actorName || "An admin", row.at),
+        line: openingLineWords(row.actorName || "An admin", row.at, openingWhereWords(row.kind)),
       })),
     },
   };

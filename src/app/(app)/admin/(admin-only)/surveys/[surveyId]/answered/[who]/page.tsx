@@ -7,7 +7,7 @@ import { readSurvey } from "@/lib/surveys/repo";
 export const dynamic = "force-dynamic";
 
 /**
- * One person's answers (sv-person), opened from a survey's Who answered tab:
+ * One person's answers, opened from a survey's Answers tab:
  * admins only, by the `(admin-only)` group's layout, and closed in a view-as
  * session with the rest of the admin area.
  *

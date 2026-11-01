@@ -1,24 +1,26 @@
 import { AdminPage } from "@/features/admin/adminList";
-import AnsweredTab from "@/features/surveys/admin/AnsweredTab";
+import AnswersTab from "@/features/surveys/admin/AnswersTab";
 import SurveyHead from "@/features/surveys/admin/SurveyHead";
 import SurveyMissing from "@/features/surveys/admin/SurveyMissing";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { getCurrentUser } from "@/lib/firebase/session";
-import { isEventSurvey } from "@/lib/firestore/surveys";
-import { answeredView, surveyPage } from "@/lib/surveys/adminView";
-import { eventAnsweredView } from "@/lib/surveys/events/adminView";
+import { surveyPage } from "@/lib/surveys/adminView";
 
 export const dynamic = "force-dynamic";
 
 /**
- * A survey's Who answered tab: names, for admins only, by the `(admin-only)`
- * group's layout. Nobody else is shown who has answered. The session is read
- * here for the names rule (`nameForViewer`): each name as the admin looking
- * is shown it.
+ * A survey's Answers tab: every answer in one table, with names,
+ * for admins only, by the `(admin-only)` group's layout, and closed in a
+ * view-as session with the rest of the admin area.
+ *
+ * This page reads the survey and how many have answered, for its head, and
+ * nothing of anybody: the table comes from the route that records the
+ * opening of the tab first (`POST /api/surveys/[surveyId]/answers`), which
+ * the tab asks once it is open in the admin's browser. So a prefetch or a
+ * preview of this address records nothing and shows nothing of anybody.
  */
 export default async function SurveyAnsweredPage({ params }: { params: Promise<{ surveyId: string }> }) {
   const { surveyId } = await params;
-  const [db, viewer] = [getAdminDb(), await getCurrentUser()];
+  const db = getAdminDb();
   const page = db ? await surveyPage(db, surveyId, new Date()) : null;
   if (!db || !page) {
     return (
@@ -27,14 +29,10 @@ export default async function SurveyAnsweredPage({ params }: { params: Promise<{
       </AdminPage>
     );
   }
-  // A survey after an event names its guests too, and how each answered.
-  const view: { rows: Awaited<ReturnType<typeof answeredView>>["rows"]; answered: number; sent: number; heading?: string } = isEventSurvey(page.survey)
-    ? await eventAnsweredView(db, page.survey, viewer)
-    : await answeredView(db, page.survey, viewer);
   return (
     <AdminPage wide>
       <SurveyHead head={page.head} current="answered" />
-      <AnsweredTab surveyId={page.survey.id} rows={view.rows} answered={view.answered} sent={view.sent} heading={view.heading} />
+      <AnswersTab surveyId={page.survey.id} />
     </AdminPage>
   );
 }

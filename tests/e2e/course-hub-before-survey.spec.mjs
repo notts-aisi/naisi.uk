@@ -22,8 +22,11 @@
  * address inside the programme, after Next has refused a page with one left
  * blank -> the
  * lead's results: totals with n and the response rate, the comments, and no
- * name -> Fern is refused the survey's pages and its download -> Who answered
- * names each person, and the download with names is that table, logged ->
+ * name -> Fern is refused the survey's pages and its download -> the Answers
+ * tab, its opening recorded first, holds every answer in one table, and the
+ * download with names is that table, logged -> See who names one bar's
+ * people, recorded first, one question's file names nobody, and the
+ * survey's log says who opened what, never whose ->
  * the reminder, after its own test, reaches Cleo alone, with her own link ->
  * Close it now, and Cleo's link says it has closed -> every survey email is
  * in the send log, and none carries an answer or the meeting link.
@@ -227,9 +230,19 @@ const ADMIN = Object.freeze({
   close: "Close it now",
   closeSure: "Nobody will be able to answer after this, and it can’t be opened again.",
   closeConfirm: "Close it now: no more answers",
-  answeredHeading: (answered, of) => `${answered} of ${of} have answered`,
-  download: "Download the answers, with names",
-  recorded: "Each download is recorded. Delete your copy when you’re done.",
+  download: "Download all answers",
+  recorded: "A download with names is logged too. Delete your copy when you’re done.",
+  // The Answers tab and the names behind the results.
+  tabRecorded: "You’re seeing names because you’re an admin. Opening this tab was recorded: ",
+  caption: "Every answer to this survey, one person to a row",
+  person: "Person",
+  group: "Group",
+  leftBlank: "Left blank",
+  noAnswer: "No answer",
+  notAnswered: (n) => `Not answered yet (${n})`,
+  seeWhoLabel: (label, n) => `See who answered “${label}” (${n})`,
+  hide: "Hide the names",
+  byWords: "in the order of their words, not when they came",
   adminOnly: "Only an admin can do this with a survey.",
   sentRefusal: "This survey has been sent, so its questions, words and closing date can’t change.",
   answeredRefusal: "You’ve already sent your answers to this survey. They can’t change.",
@@ -1674,7 +1687,7 @@ test(
         const c1Parts = [ADMIN.rate(c1Answers.length, of)];
         for (const option of c1.options) {
           const count = c1Answers.filter((answers) => answers.q_c1.optionId === option.id).length;
-          c1Parts.push(option.label, `${count} (${Math.round((count / c1Answers.length) * 100)}%)`);
+          c1Parts.push(option.label, `${count} · ${Math.round((count / c1Answers.length) * 100)}%`);
         }
         const scores = c1Answers.map((answers) => c1.scores[answers.q_c1.optionId]);
         const c1Mean = scores.reduce((sum, value) => sum + value, 0) / scores.length;
@@ -1692,7 +1705,7 @@ test(
           ];
           for (const [low, high, label] of bands) {
             const count = values.filter((value) => value >= low && value <= high).length;
-            parts.push(label, `${count} (${Math.round((count / values.length) * 100)}%)`);
+            parts.push(label, `${count} · ${Math.round((count / values.length) * 100)}%`);
           }
           return parts;
         };
@@ -1707,14 +1720,20 @@ test(
           "the number's result, 0 counted as an answer",
         );
 
-        // An agreement grid, line by line.
+        // An agreement grid, line by line: its average and middle value, then each point from the
+        // top of the scale down, the two ends in their words, each with its count and share.
         const c7 = byId.get("q_c7").question;
         const gridParts = [];
         for (const line of c7.lines) {
-          const values = answeredHow("q_c7").map((answers) => answers.q_c7.values[line.id]).filter((value) => typeof value === "number");
-          gridParts.push(line.label, ADMIN.rate(values.length, of));
-          for (let point = 1; point <= c7.scale.max; point += 1) gridParts.push(`${point} ${values.filter((value) => value === point).length}`);
-          gridParts.push(`Mean ${(values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1)}`);
+          const values = answeredHow("q_c7").map((answers) => answers.q_c7.values[line.id]).filter((value) => typeof value === "number").sort((a, b) => a - b);
+          const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+          const middle = values.length % 2 === 1 ? values[(values.length - 1) / 2] : (values[values.length / 2 - 1] + values[values.length / 2]) / 2;
+          gridParts.push(line.label, `${ADMIN.rate(values.length, of)}. Average ${(Math.round(mean * 10) / 10).toFixed(1)}, middle value ${Number.isInteger(middle) ? middle : middle.toFixed(1)}.`);
+          for (let point = c7.scale.max; point >= 1; point -= 1) {
+            const count = values.filter((value) => value === point).length;
+            const label = point === c7.scale.max ? `${point}: ${c7.scale.points[point - 1]}` : point === 1 ? `1: ${c7.scale.points[0]}` : String(point);
+            gridParts.push(label, `${count} · ${Math.round((count / values.length) * 100)}%`);
+          }
         }
         gridParts.push(`1 is ${c7.scale.points[0]}, ${c7.scale.max} is ${c7.scale.points[c7.scale.max - 1]}.`);
         assertInOrder(await textOf(result("q_c7")), gridParts, "the agreement grid's result");
@@ -1725,22 +1744,24 @@ test(
         const p5Parts = [`${ADMIN.rate(p5Answers.length, of)}, ticking as many as applied`];
         for (const option of p5.options) {
           const count = p5Answers.filter((answers) => answers.q_p5.optionIds.includes(option.id)).length;
-          p5Parts.push(option.label, `${count} (${Math.round((count / p5Answers.length) * 100)}%)`);
+          p5Parts.push(option.label, `${count} · ${Math.round((count / p5Answers.length) * 100)}%`);
         }
         assertInOrder(await textOf(result("q_p5")), p5Parts, "the pick-any question's result");
 
-        // The comments, in full, in the order they came, under the admin's own words for the question.
+        // The comments, in full, in the order of their words and never when they came, under the
+        // admin's own words for the question, each with the way to whose it is.
         const comments = result("q_p6");
         assert.equal(
           await textOf(comments.locator("p").first()),
-          ADMIN.rate(answeredHow("q_p6").length, of, "wrote something"),
+          `${ADMIN.rate(answeredHow("q_p6").length, of, "wrote something")}, ${ADMIN.byWords}`,
           "the comments' count",
         );
         assert.deepEqual(
-          await textsOf(comments.getByRole("listitem")),
-          ["ada", "ben", "dan"].map((key) => keptFor.get(key).q_p6.text),
-          "the comments, in full",
+          await textsOf(comments.getByRole("listitem").locator("p")),
+          ["ada", "ben", "dan"].map((key) => keptFor.get(key).q_p6.text).sort((a, b) => a.localeCompare(b, "en-GB")),
+          "the comments, in full, by their words",
         );
+        assert.equal(await comments.getByRole("button", { name: /^Whose is this\?/ }).count(), 3, "a comment has no Whose is this?");
         assert.equal(await textOf(comments.getByRole("heading")), `${byId.get("q_p6").number}. ${EDITS.question.now}`, "the comments' question is not the admin's words");
 
         // No name anywhere: not a whole name, a first name, an address or an account's id.
@@ -1778,39 +1799,65 @@ test(
         assert.equal((await messagesTo(fern.email)).length, 1, "the facilitator was emailed about the survey");
       });
 
-      await step("Who answered names each person, and the download with names is that table, logged", async () => {
+      await step("the Answers tab, recorded first, holds every answer in one table, and the download with names is that table, logged", async () => {
         activePage = adminPage;
         const now = await survey();
-        const rows = await rowsOf();
         const answers = await answersOfSurvey();
+        const openingsOf = async (kind) =>
+          (await fixtureQuery("recordOpenings").where("surveyId", "==", surveyId).get()).docs.map((doc) => doc.data()).filter((row) => row.kind === kind);
+        assert.equal((await openingsOf("survey-table")).length, 0, "the Answers tab was opened before anybody went to it");
         await adminPage.goto(`${origin}/admin/surveys/${enc(surveyId)}/answered`, { waitUntil: "domcontentloaded" });
-        await adminPage
-          .getByRole("heading", { level: 2, name: ADMIN.answeredHeading(keptFor.size, people.length), exact: true })
-          .waitFor({ timeout: WAIT_MS });
-        // By the name the names rule shows an admin (`nameForViewer`): each account's full
-        // name, here the fixture's display name, unique to this run, which begins with the
-        // name each goes by. With when it went, when and how each answered. The last
-        // column, the questions left blank, is empty: everybody here answered every
-        // required question.
-        const expectedRows = [...people]
-          .sort((a, b) => a.displayName.localeCompare(b.displayName, "en"))
-          .map((person) => {
-            const answer = answers.get(person.uid);
-            return [
-              person.displayName,
-              dayAndClock(instantOf(rows.get(person.uid).sentAt)),
-              answer ? dayAndClock(instantOf(answer.sentAt)) : "Not yet",
-              answer ? (answer.via === "signed-in" ? "Signed in" : "Personal link") : "",
-              "",
-              "",
-            ];
-          });
+        // Nothing of anybody is drawn until the tab's route has recorded the opening; then the line says so.
+        const recorded = adminPage.getByRole("status").filter({ hasText: ADMIN.tabRecorded });
+        await recorded.waitFor({ timeout: WAIT_MS });
+        const [opening] = await openingsOf("survey-table");
+        assert.ok(opening, "opening the Answers tab was not recorded");
+        assertSame(
+          { keys: Object.keys(opening).sort(), actorUid: opening.actorUid, subjectUids: [...opening.subjectUids].sort(), subjectSignupIds: opening.subjectSignupIds },
+          {
+            keys: ["actorName", "actorUid", "kind", "openedAt", "subjectSignupIds", "subjectUids", "surveyId"],
+            actorUid: state.adminUid,
+            subjectUids: [...answers.keys()].sort(),
+            subjectSignupIds: [],
+          },
+          "the tab's opening: who, whose by account id, the survey and when, and nothing of the answers",
+        );
+        // The line's time is the route's, taken as it records: the stored time's minute, or the one before it.
+        const line = await textOf(recorded.locator("p"));
+        const at = instantOf(opening.openedAt);
+        const minutes = [at, new Date(at.getTime() - 60_000)].map((each) => `${dayAndClock(each)}.`);
+        assert.ok(line.startsWith(ADMIN.tabRecorded) && minutes.some((each) => line.endsWith(each)), hidden(`the tab says ${JSON.stringify(line)}`));
+        // Every answer in one table: the person, their group as Publish told it, each question as the
+        // download lays it out ("No answer" where there is none), and nothing left blank. Each person
+        // by the name the names rule shows an admin (`nameForViewer`): their account's full name,
+        // here the fixture's display name, unique to this run.
         const table = adminPage.getByRole("table");
         await table.waitFor({ timeout: WAIT_MS });
+        assert.equal(await textOf(table.locator("caption")), ADMIN.caption, "the table's caption");
+        const laidOut = exportTable(
+          now.items,
+          [...answers.entries()].map(([uid, answer]) => ({
+            name: everybody.find((account) => account.uid === uid).displayName,
+            sentAt: instantOf(answer.sentAt),
+            via: answer.via,
+            afterFirstSession: answer.afterFirstSession,
+            answers: answer.answers,
+          })),
+        );
+        assert.deepEqual(await textsOf(table.locator("thead th")), [ADMIN.person, ADMIN.group, ...laidOut.header.slice(4), ADMIN.leftBlank], "the table's columns");
         const drawn = [];
-        for (const row of await table.locator("tbody tr").all()) drawn.push(await textsOf(row.locator("td")));
-        assert.deepEqual(drawn, expectedRows, "Who answered");
-        assert.equal(await textOf(table.locator("caption")), "Who it was sent to, and who has answered", "the table's caption");
+        for (const row of await table.locator("tbody tr").all()) drawn.push([await textOf(row.locator("th")), ...(await textsOf(row.locator("td")))]);
+        assert.deepEqual(
+          drawn,
+          laidOut.rows.map((cells) => {
+            const person = everybody.find((account) => account.displayName === cells[0]);
+            return [cells[0], groupOf(person.groupKey).name, ...cells.slice(4).map((cell) => cell || ADMIN.noAnswer), ""];
+          }),
+          "the Answers tab",
+        );
+        // Who has not answered yet, by name.
+        const waiting = adminPage.getByRole("region", { name: ADMIN.notAnswered(people.length - answers.size), exact: true });
+        assert.deepEqual(await textsOf(waiting.getByRole("link")), people.filter((person) => !answers.has(person.uid)).map((person) => person.displayName), "Not answered yet");
 
         // The download: the answers with names, laid out from the survey as saved, recorded before it is handed over.
         await adminPage.getByText(ADMIN.recorded, { exact: true }).waitFor({ timeout: WAIT_MS });
@@ -1848,6 +1895,64 @@ test(
           "the download's log row",
         );
         assert.ok(row.actorUid === state.adminUid, "the download's log row does not name the admin who pressed it");
+      });
+
+      await step("See who behind a bar names its people to the admin who opened it, recorded first; its question's file names nobody; the log says who opened what, never whose", async () => {
+        activePage = adminPage;
+        const now = await survey();
+        const answers = await answersOfSurvey();
+        const questions = questionsOf(now.items);
+        const c1 = questions.find((question) => question.id === "q_c1");
+        // The bar of C1's answers with the most people behind it.
+        const [option, uids] = c1.options
+          .map((each) => [each, [...answers.entries()].filter(([, answer]) => answer.answers.q_c1?.optionId === each.id).map(([uid]) => uid)])
+          .reduce((best, each) => (each[1].length > best[1].length ? each : best));
+        await adminPage.goto(`${origin}/admin/surveys/${enc(surveyId)}/results`, { waitUntil: "domcontentloaded" });
+        const result = adminPage.getByRole("region", { name: `${questions.indexOf(c1) + 1}. ${c1.title}`, exact: true });
+        const press = await whenEnabled(result.getByRole("button", { name: ADMIN.seeWhoLabel(option.label, uids.length), exact: true }), "See who");
+        const [response] = await Promise.all([responseTo(adminPage, `/api/surveys/${surveyId}/who`, "POST"), press.click()]);
+        const body = await okBody(response, "See who");
+        // Each by the name the names rule shows an admin: the account's full name, the fixture's display name.
+        const names = uids.map((uid) => everybody.find((account) => account.uid === uid).displayName).sort((a, b) => a.localeCompare(b, "en-GB"));
+        assertSame(body.who.names, names, "the names behind the bar");
+        assert.doesNotMatch(JSON.stringify(body), /@/, "See who handed over an address");
+        // The names show to the admin who opened them, in that view; hidden, what stays is who opened them and when.
+        const shown = result.getByRole("status");
+        await shown.getByText(names[0], { exact: true }).waitFor({ timeout: WAIT_MS });
+        await result.getByRole("button", { name: ADMIN.hide, exact: true }).click();
+        await result.getByText(body.who.opened, { exact: true }).waitFor({ timeout: WAIT_MS });
+        assert.equal(await result.getByText(names[0], { exact: true }).count(), 0, "a name stayed on the page once hidden");
+        // Recorded first: whose by account id, and never which bar.
+        const bars = (await fixtureQuery("recordOpenings").where("surveyId", "==", surveyId).get()).docs.map((doc) => doc.data()).filter((row) => row.kind === "survey-bar");
+        assert.equal(bars.length, 1, `See who was recorded ${bars.length} times`);
+        assertSame(
+          { keys: Object.keys(bars[0]).sort(), subjectUids: [...bars[0].subjectUids].sort() },
+          { keys: ["actorName", "actorUid", "kind", "openedAt", "subjectSignupIds", "subjectUids", "surveyId"], subjectUids: [...uids].sort() },
+          "the bar's opening",
+        );
+        // Download this question: the question's totals as a file that names nobody, and no recorded download.
+        const exportsBefore = (await fixtureQuery("dataExports").where("scope.surveyId", "==", surveyId).get()).size;
+        const file = await adminPage.evaluate(async (target) => {
+          const res = await fetch(target);
+          return { status: res.status, type: res.headers.get("content-type"), text: await res.text() };
+        }, `/api/surveys/${enc(surveyId)}/totals?question=q_c1`);
+        assert.deepEqual([file.status, file.type], [200, "text/csv; charset=utf-8"], "the file of one question");
+        assert.ok(file.text.includes(option.label), "the file of one question leaves out its answers");
+        for (const account of everybody) {
+          assert.ok(!new RegExp(`\\b${escapeRegExp(account.first)}\\b`).test(file.text) && !file.text.includes(account.email), `the file names ${account.first}`);
+        }
+        assert.equal((await fixtureQuery("dataExports").where("scope.surveyId", "==", surveyId).get()).size, exportsBefore, "the file of one question was logged as a download");
+        // The survey's log: who opened what and downloaded, newest first, and never whose.
+        await adminPage.goto(`${origin}/admin/surveys/${enc(surveyId)}/log`, { waitUntil: "domcontentloaded" });
+        await adminPage.getByRole("heading", { level: 2, name: "The log", exact: true }).waitFor({ timeout: WAIT_MS });
+        const log = await mainText(adminPage);
+        const many = (n) => `${n} ${n === 1 ? "person" : "people"}`;
+        assertInOrder(
+          log,
+          [`opened who is behind a bar: ${many(uids.length)}`, `downloaded all answers: ${many(answers.size)}`, `opened the Answers tab: ${many(answers.size)}`],
+          "the survey's log",
+        );
+        for (const account of everybody) assert.ok(!new RegExp(`\\b${escapeRegExp(account.first)}\\b`).test(log), `the log names ${account.first}`);
       });
 
       await step("the reminder, after its own test, goes only to the person who has not answered, with their own link", async () => {
@@ -1915,12 +2020,15 @@ test(
         }
         const pressed = (await survey()).presses.map((each) => [each.kind, each.count]);
         assert.deepEqual(pressed, [["first", people.length], ["remind", 1]], "the survey's record of what went");
-        // Who answered says so beside her name.
+        // The Answers tab says so beside her name, under Not answered yet (opening it is recorded again).
         await adminPage.goto(`${origin}/admin/surveys/${enc(surveyId)}/answered`, { waitUntil: "domcontentloaded" });
-        // Her row, found by its name cell: the whole of her name as an admin is shown it, unique to this run.
-        const cleoRow = adminPage.getByRole("row").filter({ has: adminPage.getByRole("cell", { name: cleo.displayName, exact: true }) });
+        const waiting = adminPage.getByRole("region", { name: ADMIN.notAnswered(1), exact: true });
+        await waiting.waitFor({ timeout: WAIT_MS });
+        // Cleo's line, found by the whole name an admin is shown, unique to this run, then when it
+        // went and that Cleo was reminded.
+        const cleoRow = waiting.getByRole("listitem").filter({ has: adminPage.getByRole("link", { name: cleo.displayName, exact: true }) });
         await cleoRow.waitFor({ timeout: WAIT_MS });
-        assert.equal((await textsOf(cleoRow.locator("td")))[4], "Reminded once", "Who answered does not say Cleo was reminded");
+        assert.ok((await textOf(cleoRow)).endsWith(" · Reminded once"), "the Answers tab does not say Cleo was reminded");
 
         // Her link opens her own survey, whose box names no facilitator: Group B has none.
         activePage = cleoPage;

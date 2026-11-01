@@ -30,7 +30,7 @@
  *     a press sends, to the people the People tab holds.
  *  C. The before survey (Thu 29 Oct to Tue 3 Nov) and the leaving survey. An
  *     admin makes the before survey, tests it, sends it, reminds and closes
- *     it. Its Send tab's count, its Results, Who answered, the logged
+ *     it. Its Send tab's count, its Results, the Answers tab, the logged
  *     download and one person's answers agree; the lead reads its totals
  *     and comments with no name, as the box at its top says. Sam leaves
  *     before Group B first meets and answers the leaving survey, which the
@@ -300,6 +300,7 @@ async function loadRoutes() {
   R.surveyOpen = await route("surveys/[surveyId]/open");
   R.surveyExport = await route("surveys/[surveyId]/export");
   R.surveyPerson = await route("surveys/[surveyId]/people/[who]");
+  R.surveyAnswers = await route("surveys/[surveyId]/answers");
   R.answerByLink = await route("surveys/answer");
   R.answerSignedIn = await route("surveys/[surveyId]/answer");
   R.openAtEvent = await route("surveys/[surveyId]/open-at-event");
@@ -599,6 +600,8 @@ async function tellTheStory() {
   // The admins' pages and the lead's.
   seen.resultsBefore = await draw(P.surveyResults, "zach", { surveyId: before });
   seen.answeredBefore = await draw(P.surveyAnswered, "zach", { surveyId: before });
+  // The Answers tab's table, from the route that records its opening first.
+  seen.answersTabBefore = await call("zach", R.surveyAnswers.POST, { surveyId: before }, {});
   seen.leadBefore = await draw(P.leadSurvey, "claudia", { ...PARAMS, surveyId: before }, { segment: "surveys" });
   seen.listMid = await draw(P.surveyList, "zach", {});
 
@@ -1037,7 +1040,7 @@ describe("B. Publish: the number on its button is the emails a press sends, to t
   });
 });
 
-describe("C. The before survey: Send, Results, Who answered, the download and one person's answers agree", () => {
+describe("C. The before survey: Send, Results, the Answers tab, the download and one person's answers agree", () => {
   test("Send says 8, the wrong number is refused with the right one, and the press emails the 8 the People tab holds", () => {
     assert.ok(seen.sendDraft.text.includes("To 8 people"));
     assert.ok(seen.sendDraft.text.includes("Who Everyone holding a place on AGI Strategy (8)"));
@@ -1062,15 +1065,22 @@ describe("C. The before survey: Send, Results, Who answered, the download and on
     }
   });
 
-  test("three answers: Results, Who answered and the list all say 3 of 8, and Bea's, sent during Group A's first session, is labelled", () => {
+  test("three answers: Results, the Answers tab and the list all say 3 of 8, and Bea's, sent during Group A's first session, is labelled", () => {
     assert.ok(seen.resultsBefore.text.includes("3 answers from the 8 people it was sent to (38%)."));
-    assert.ok(seen.answeredBefore.text.includes("3 of 8 have answered"));
-    inOrder(seen.answeredBefore.text, [
-      // By the names rule for an admin (`nameForViewer`): each account's full name.
-      "Amara Okafor Thu 29 Oct, 9am Thu 29 Oct, 7pm Personal link",
-      "Bea Lindqvist Thu 29 Oct, 9am Thu 29 Oct, 7pm Personal link After their first session",
-      "Dev Patel Thu 29 Oct, 9am Fri 30 Oct, 9am Personal link",
-    ]);
+    // The tab's head counts them; its table comes from the route that records the opening first.
+    assert.ok(seen.answeredBefore.text.includes("Answers 3"), seen.answeredBefore.text);
+    assert.doesNotMatch(seen.answeredBefore.text, /Amara|\bBea\b|\bDev\b/);
+    const tab = seen.answersTabBefore.body.answers;
+    assert.deepEqual(
+      tab.rows.map((row) => [row.name, row.note, row.sent]),
+      [
+        // By the names rule for an admin (`nameForViewer`): each account's full name.
+        ["Amara Okafor", "", "Sent Thu 29 Oct, 7pm, from their own link."],
+        ["Bea Lindqvist", "After their first session", "Sent Thu 29 Oct, 7pm, from their own link."],
+        ["Dev Patel", "", "Sent Fri 30 Oct, 9am, from their own link."],
+      ],
+    );
+    assert.equal(tab.notAnswered.length, 5, "everybody it was sent to is the three who answered and the five who have not");
     assert.ok(seen.listMid.text.includes("Before the programme Sent Thu 29 Oct · 3 of 8 answered · Closes Wed 4 Nov Open Remind 5 haven’t answered Results"));
   });
 
@@ -1102,7 +1112,7 @@ describe("C. The before survey: Send, Results, Who answered, the download and on
     // CHANGED ON PURPOSE (L2, made true): this pinned the lead's results page
     // answering "That survey isn’t one of this programme’s." of both surveys,
     // since it read the leaving survey alone. The lead now reads every survey
-    // of the programme (`LEAD_READS`, Q49 A), from the first answer: the same
+    // of the programme (`LEAD_READS`), from the first answer: the same
     // counts as the admins' Results, the comments by their words, and nothing
     // that names anybody or opens the admins' own pages.
     inOrder(seen.leadBefore.text, [
@@ -1132,7 +1142,7 @@ describe("C. The before survey: Send, Results, Who answered, the download and on
   });
 
   test("the lead's Surveys tab, after the end, shows each number its own page shows, links the three pages that had no way in, and names nobody (L2)", () => {
-    // Board sv-programme, built for L2. The tab is drawn once the survey at
+    // Built for L2. The tab is drawn once the survey at
     // the end has closed; its numbers are held here to the pages that show
     // them already: public numbers (considering it, and C4's averages), the
     // Results of each survey and the Kairos report (net promoter score).
@@ -1189,8 +1199,8 @@ describe("C. The before survey: Send, Results, Who answered, the download and on
   test("and the box at the top of both surveys says so: the lead sees totals and comments, never names (L2)", () => {
     // `confidentialPoints` (src/lib/surveys/words.ts) names the lead on every
     // programme survey, and the lead now reads every programme survey's
-    // totals and comments (the test above). The words are sv-privacy's, as
-    // approved, unchanged.
+    // totals and comments (the test above). The words are the confidential
+    // box's, as approved, unchanged.
     for (const page of [seen.answerPageBefore, seen.answerPageAfter]) {
       assert.ok(
         page.text.includes("Confidential Only NAISI’s admins can see who said what. Claudia sees totals and comments, never names. Rahul and Sofia never see your answers."),
@@ -1382,7 +1392,7 @@ describe("D. VR games night: Check-in, the organiser's tab and the night's surve
     // src/lib/events/checkIns.ts), so a survey closing on that day, at 23:59,
     // takes the walk-ins' emails and adding somebody who came with it: the
     // survey is never open on its last evening without them, and Check-in
-    // says "Until the survey closes", as ev-manage draws it.
+    // says "Until the survey closes", as designed.
     assert.equal(seen.rosaWalkIn.body.row.checkIn.emailGoesAt, "2026-11-08T23:59:00.000Z");
     assert.ok(seen.nightSendPage.text.includes("Closes Sun 8 Nov, 23:59"));
     assert.ok(seen.checkInAfter.text.includes("Who came 6 Until the survey closes on Sun 8 Nov Add someone who came"));
@@ -1410,16 +1420,16 @@ describe("D. VR games night: Check-in, the organiser's tab and the night's surve
     assert.deepEqual(seen.rosaAnswers, { status: 200, body: { ok: true } });
   });
 
-  test("Results and Who answered say what Check-in says: 6 came, 3 who signed up and 3 walk-ins; 2 answers", () => {
+  test("Results and the Answers tab say what Check-in says: 6 came, 3 who signed up and 3 walk-ins; 2 answers", () => {
     inOrder(seen.nightResults.text, [
       "2 Answers 1 with the QR code, 1 by email",
       "6 Came 3 who signed up, 3 walk-ins",
       "1 of 4 Answered the email Sent Mon 2 Nov, 10am",
-      "Mean 4.5",
+      "Average 4.5",
       "More games, fewer speeches.",
       "Who sees this Admins only. Iris, the organiser, sees how many came, not the results: send Iris the summary.",
     ]);
-    assert.ok(seen.nightAnswered.text.includes("2 have answered: 1 with the QR code before any email, and 1 of the 4 it was emailed to"));
+    assert.ok(seen.nightAnswered.text.includes("Answers 2"), seen.nightAnswered.text);
   });
 
   test("the organiser and SU-recognised committee read that it went and when, never its results; an admin reads them on the same tab", () => {
@@ -1457,7 +1467,7 @@ describe("E. The term's end: registers, Who finished, the head, the Kairos repor
   });
 
   test("A5: after the end the Overview draws The after survey, the Surveys tab's own count, with the way to the tab", async () => {
-    // en-finish's card under Certificates. One count: the tab's row for the survey at the end ("4 of 6 answered")
+    // The finished programme's card under Certificates. One count: the tab's row for the survey at the end ("4 of 6 answered")
     // and the card's sentence are the same reader's (its Results), never a second count.
     assert.ok(seen.leadTabEnd.text.includes("AGI Strategy: after See results 4 of 6 answered · closed Thu 10 Dec"));
     assert.ok(seen.leadTab.text.includes("End 4 of 6 answered Closed Thu 10 Dec"), "the tab's Overview counts the survey at the end otherwise");

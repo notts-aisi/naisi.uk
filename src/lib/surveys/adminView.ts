@@ -1,17 +1,16 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { isCheckIn, isEventSurvey, type SurveyDoc, type SurveyPersonDoc } from "@/lib/firestore/surveys";
+import { isCheckIn, isEventSurvey, type SurveyAnswerDoc, type SurveyDoc, type SurveyPersonDoc } from "@/lib/firestore/surveys";
 import type { NameViewer } from "@/lib/names/staffName";
 import { eventPeopleOf } from "./events/store";
 import { eventMeta } from "./events/words";
-import { blanksOf, blanksRowOf, mergedAnswers, type BlanksRow } from "./blanks";
+import { mergedAnswers } from "./blanks";
 import { changeBetween, lookBackBetween, type ChangeResult, type PairedAnswers } from "./change";
+import { byWords, commentsWithKeys } from "./charts";
 import { emailWordsFor, siteAddress, surveyLinkPath } from "./emails";
 import { consentItemsOf, surveyQuestionsOf } from "./items";
 import { namesOf } from "./names";
-import { whoOf } from "./onePersonLayout";
-import { hiddenLinesForEach } from "./personFacts";
-import { answersOf, chainOf, closedOn, isOpen, peopleOf, readSurvey, sentCountOf, surveyState } from "./repo";
+import { answersOf, chainOf, closedOn, peopleOf, readSurvey, sentCountOf, surveyState } from "./repo";
 import { surveyResults, type QuestionResult } from "./results";
 import { readSendPlan, signerOf, testStateFor } from "./sending";
 import {
@@ -90,7 +89,7 @@ export function headView(survey: SurveyDoc, people: readonly { answered: boolean
 }
 
 /**
- * A leaving survey's Open tab (Q46): what opening it does, the way to see it
+ * A leaving survey's Open tab: what opening it does, the way to see it
  * as people will, and once open, since when and how many it has reached.
  */
 export type OpenView = {
@@ -273,64 +272,6 @@ export async function sendView(db: Firestore, survey: SurveyDoc, presserUid: str
   };
 }
 
-export type AnsweredRow = {
-  name: string;
-  /** Who the row is, in the address of the page that opens their answers: their uid, or `g_<signupId>` for a guest. */
-  who: string;
-  /** "Thu 29 Oct, 9am": when it was sent to them. */
-  sent: string;
-  /** "Thu 29 Oct, 7:41pm", or "" while they haven't answered. */
-  answered: string;
-  how: string;
-  /** "After their first session", or "". */
-  label: string;
-  reminded: string;
-  /** How many required questions they left blank, the last press and whether it can be pressed now, or null. */
-  blanks: BlanksRow | null;
-};
-
-export async function answeredView(
-  db: Firestore,
-  survey: SurveyDoc,
-  viewer: NameViewer,
-  now: Date = new Date(),
-): Promise<{ rows: AnsweredRow[]; answered: number; sent: number }> {
-  const [people, answers] = await Promise.all([peopleOf(db, survey.id), answersOf(db, survey)]);
-  const byUid = new Map(answers.flatMap((answer) => (answer.respondent ? [[answer.respondent.uid, answer] as const] : [])));
-  const sent = people.filter((person) => person.sentAt !== null);
-  const pressers = sent.flatMap((person) => person.blanksPresses.map((press) => press.byUid));
-  const [names, hidden] = await Promise.all([
-    namesOf(db, [...sent.map((person) => person.respondent.uid), ...pressers], viewer),
-    hiddenLinesForEach(db, survey, sent.filter((person) => byUid.has(person.respondent.uid)).map((person) => person.respondent.uid)),
-  ]);
-  const open = isOpen(survey, now);
-  const rows = sent
-    .map((person) => {
-      const answer = byUid.get(person.respondent.uid);
-      const blanks = answer
-        ? blanksRowOf({
-            count: blanksOf(survey.items, answer.answers, { hiddenLines: hidden.get(person.respondent.uid) ?? [] }).length,
-            open,
-            link: person.blanks,
-            presses: person.blanksPresses,
-            nameOf: (uid) => names.get(uid) ?? "",
-          })
-        : null;
-      return {
-        name: names.get(person.respondent.uid) ?? "Somebody whose account has gone",
-        who: whoOf(person.respondent),
-        sent: person.sentAt ? dayAndClockWords(person.sentAt) : "",
-        answered: answer?.sentAt ? dayAndClockWords(answer.sentAt) : person.answered ? "Answered" : "",
-        how: answer ? (answer.via === "signed-in" ? "Signed in" : "Personal link") : "",
-        label: answer?.afterFirstSession ? "After their first session" : "",
-        reminded: person.reminders > 0 ? `Reminded ${person.reminders === 1 ? "once" : `${person.reminders} times`}` : "",
-        blanks,
-      };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name, "en"));
-  return { rows, answered: people.filter((person) => person.answered).length, sent: sent.length };
-}
-
 /** One question's totals, with what it is compared against. */
 export type ResultRow = QuestionResult & {
   /** How it changed since an earlier survey of the programme, for people who answered both. */
@@ -361,10 +302,35 @@ export type ResultsView = {
   questions: ResultRow[];
   /** What the consent boxes say now, of the people it was sent to. */
   consents: { label: string; yes: number; of: number }[];
+  /**
+   * FOR ADMINS ALONE, and only when asked for (`keys`): beside each comments
+   * question, the id of the answer each of its comments came from, in the
+   * order of `comments`, for "Whose is this?". Null when not asked: the lead's
+   * pages never ask, so no key reaches them.
+   */
+  commentKeys: Record<string, string[]> | null;
 };
 
 function paired(answers: readonly { respondent: { uid: string } | null; answers: PairedAnswers["answers"] }[]): PairedAnswers[] {
   return answers.flatMap((answer) => (answer.respondent ? [{ uid: answer.respondent.uid, answers: answer.answers }] : []));
+}
+
+/**
+ * The answers a survey's results count: every one, or with the switch on, a
+ * before survey's without those sent after the person's first session. From
+ * an answer sent before it, so is anything the person sent later, after it,
+ * in the questions they had left blank (merged again without those sends).
+ * One rule for the Results, "See who" and the file of one question.
+ */
+export function keptAnswers(list: readonly SurveyAnswerDoc[], kind: SurveyDoc["kind"], beforeFirstSession: boolean): SurveyAnswerDoc[] {
+  if (!beforeFirstSession || kind !== "before") return [...list];
+  return list
+    .filter((answer) => !answer.afterFirstSession)
+    .map((answer) =>
+      answer.fills.some((fill) => fill.afterFirstSession)
+        ? { ...answer, answers: mergedAnswers(answer.first, answer.fills.filter((fill) => !fill.afterFirstSession)) }
+        : answer,
+    );
 }
 
 /**
@@ -377,35 +343,30 @@ function paired(answers: readonly { respondent: { uid: string } | null; answers:
  *
  * `commentsInOrder: "words"` lists each question's comments by their words,
  * not in the order they came in: the programme's lead's reading, so the order
- * of the comments says nothing of when, or after whom, each was written.
+ * of the comments says nothing of when, or after whom, each was written, and
+ * the admins' too.
+ *
+ * `only` narrows this survey's answers to some of them, by an admin's filter
+ * (`./resultsFilters.ts`), after the switch; a survey it pairs with is read
+ * whole, so the change is of the narrowed people who answered both. `keys`
+ * hands back each comment's answer id beside it (`commentKeys`), for admins.
  */
 export async function resultsView(
   db: Firestore,
   survey: SurveyDoc,
   beforeFirstSession: boolean,
-  options: { commentsInOrder?: "arrival" | "words" } = {},
+  options: { commentsInOrder?: "arrival" | "words"; only?: ((answer: { id: string }) => boolean) | null; keys?: boolean } = {},
 ): Promise<ResultsView> {
   const [answers, people, chain] = await Promise.all([answersOf(db, survey), peopleOf(db, survey.id), chainOf(db, survey)]);
-  // Before the first session: an answer sent after it is left out whole, and
-  // from one sent before it, so is anything the person sent later, after it,
-  // in the questions they had left blank (merged again without those sends).
-  const leaveOut = (list: Awaited<ReturnType<typeof answersOf>>, kind: SurveyDoc["kind"]) =>
-    beforeFirstSession && kind === "before"
-      ? list
-          .filter((answer) => !answer.afterFirstSession)
-          .map((answer) =>
-            answer.fills.some((fill) => fill.afterFirstSession)
-              ? { ...answer, answers: mergedAnswers(answer.first, answer.fills.filter((fill) => !fill.afterFirstSession)) }
-              : answer,
-          )
-      : list;
-  const kept = leaveOut(answers, survey.kind);
-  let leftOut = answers.length - kept.length;
+  const only = options.only ?? null;
+  const own = only ? answers.filter(only) : answers;
+  const kept = keptAnswers(own, survey.kind, beforeFirstSession);
+  let leftOut = own.length - kept.length;
   const earlier = await Promise.all(
     chain.map(async (each) => {
-      const all = await answersOf(db, each);
-      const counted = leaveOut(all, each.kind);
-      leftOut += all.length - counted.length;
+      const read = await answersOf(db, each);
+      const counted = keptAnswers(read, each.kind, beforeFirstSession);
+      leftOut += read.length - counted.length;
       return { survey: each, answers: counted };
     }),
   );
@@ -417,10 +378,20 @@ export async function resultsView(
   const rows = people.filter((person) => person.sentAt !== null);
   const mine = paired(kept);
   const questions = surveyQuestionsOf(survey.items);
-  const inWords = (result: QuestionResult): QuestionResult =>
-    options.commentsInOrder === "words" && result.kind === "comments"
-      ? { ...result, comments: [...result.comments].sort((a, b) => a.localeCompare(b, "en-GB")) }
-      : result;
+  const commentKeys: Record<string, string[]> | null = options.keys ? {} : null;
+  const inWords = (result: QuestionResult): QuestionResult => {
+    if (result.kind !== "comments") return result;
+    if (!commentKeys) {
+      return options.commentsInOrder === "words" ? { ...result, comments: [...result.comments].sort(byWords) } : result;
+    }
+    // For admins: each comment with the answer it came from, the same comments
+    // in the same order (`commentsWithKeys`), put in order together.
+    const question = questions.find((each) => each.id === result.id)!;
+    const keyed = commentsWithKeys(question, kept);
+    const ordered = options.commentsInOrder === "words" ? [...keyed].sort((a, b) => byWords(a.text, b.text)) : keyed;
+    commentKeys[result.id] = ordered.map((comment) => comment.key);
+    return { ...result, comments: ordered.map((comment) => comment.text) };
+  };
   const results = surveyResults(survey.items, kept).map(inWords).map((result): ResultRow => {
     const question = questions.find((each) => each.id === result.id)!;
     // The earliest survey of the pairs that asks the same question, the same way.
@@ -450,6 +421,7 @@ export async function resultsView(
     namesOff: survey.namesOffAt !== null || earlier.some((each) => each.survey.namesOffAt !== null),
     questions: results,
     consents,
+    commentKeys,
   };
 }
 

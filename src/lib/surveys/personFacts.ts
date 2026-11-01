@@ -16,7 +16,7 @@ import type { ConfidentialFacts } from "./words";
  * programme's run, as they have been told it, and from that two facts.
  *
  *  - The confidential box names the programme's lead and the person's own
- *    group's facilitators (sv-privacy). A placement Publish has not told them
+ *    group's facilitators. A placement Publish has not told them
  *    is no group of theirs yet (`placementIsTold`), so nobody's group is
  *    named early: the box then speaks of "your facilitators" without names.
  *  - Whether their answers came after their group first met, worked out at
@@ -130,7 +130,7 @@ export async function hiddenLinesFor(
 
 /**
  * `hiddenLinesFor` for several people at once, with the run's groups read
- * once: the admins' Who answered tab asks it of everybody who answered, to
+ * once: the admins' Answers tab asks it of everybody who answered, to
  * say how many questions each left blank. The same rule, person by person.
  */
 export async function hiddenLinesForEach(

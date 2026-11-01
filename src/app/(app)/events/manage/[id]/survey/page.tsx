@@ -31,11 +31,11 @@ export const dynamic = "force-dynamic";
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /**
- * An event's Survey after tab (ev-manage).
+ * An event's Survey after tab, on the event's own management pages.
  *
  * FOR EVERYBODY IN THE EVENTS AREA, that the survey went and when, and who to
  * ask for its results: an event's organiser does not see its survey's
- * results (Q42), so nothing here is a result, a count of answers or a name.
+ * results, so nothing here is a result, a count of answers or a name.
  *
  * FOR ADMINS (`canRunSurveys`), the results themselves, as the survey's own
  * Results tab draws them, with n beside every number, the logged download,
@@ -70,7 +70,7 @@ export default async function SurveyAfterTabPage({ params }: { params: Promise<{
 
   const results =
     admin && survey && survey.firstSentAt
-      ? await Promise.all([eventResultsHead(db, survey), resultsView(db, survey, false), resultsWhoFor(db, survey)])
+      ? await Promise.all([eventResultsHead(db, survey), resultsView(db, survey, false, { commentsInOrder: "words" }), resultsWhoFor(db, survey)])
       : null;
 
   return (

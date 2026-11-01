@@ -12,7 +12,7 @@ type Ctx = { params: Promise<{ surveyId: string; who: string }> };
 
 /**
  * "SEND THE QUESTIONS THEY LEFT BLANK", BY HAND, FOR ONE PERSON
- * (docs/surveys.md): an admin's press, from Who answered or the person's own
+ * (docs/surveys.md): an admin's press, from the Answers tab or the person's own
  * answers page, for somebody who sent the survey with required questions left
  * blank. It mints a new secret for that person's link of blanks, records the
  * press on their row (who, when, how many questions), then emails them the

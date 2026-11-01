@@ -29,7 +29,7 @@ import styles from "./analysis.module.css";
  *
  * An admin also has each group's check-in under its week (`rows`, which the
  * server makes only for an admin): how many answered it, and the way to its
- * Results and Who answered on the admins' own pages, where one person's
+ * Results and Answers on the admins' own pages, where one person's
  * answers open only once the opening is recorded. A check-in opened after its
  * week's check-ins were fixed says, on its row alone, that the week above
  * does not count it; the lead is never told.
@@ -152,9 +152,9 @@ function GroupRows({ weekNumber, rows }: { weekNumber: number; rows: AdminCheckI
                 <Link
                   href={`${survey}/answered`}
                   className={styles.adminLink}
-                  aria-label={checkInLinkLabel(WORDS.whoAnswered, row.groupName, weekNumber)}
+                  aria-label={checkInLinkLabel(WORDS.answers, row.groupName, weekNumber)}
                 >
-                  {WORDS.whoAnswered}
+                  {WORDS.answers}
                 </Link>
               </span>
             </li>
