@@ -18,7 +18,9 @@
  *  3. The routes, executed on AGI Strategy's run in week 3
  *     (`tests/lib/writtenAnswersWorld.mjs`): Submit as every caller, the
  *     lock it leaves on the written answer and the ticks, the session's own
- *     lock, Reopen as every caller, and the log.
+ *     lock, Reopen as every caller (the review page's own "Reopen for edits"
+ *     before it), who it tells its writer did it, that feedback already
+ *     given stays, and the log.
  */
 import { describe, test, mock, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -433,6 +435,52 @@ describe("4. Submit, the lock and Reopen", () => {
     assert.equal(w.weekWorkOf("chloe", 2).reopenCount, 3);
   });
 
+  test("the group's other facilitator reopens a fellow's week too; its writer is told who, on their own week, never whether it was late; nobody is emailed", async () => {
+    w.at(BEFORE_WEEK_TWO);
+    await w.write("chloe", 2, { text: ENOUGH });
+    await w.submitWeek("chloe", 2);
+    w.at("2026-11-09T10:15:00Z");
+    const reopened = await w.reopenWeek("sofia", "chloe", 2);
+    assert.equal(reopened.status, 200, JSON.stringify(reopened.body));
+    assert.equal(reopened.body.work.reopened.byName, "Sofia");
+    assert.equal(w.weekWorkOf("chloe", 2).reopenedByUid, "sofia");
+    assert.deepEqual(w.logOf("chloe").map((entry) => [entry.kind, entry.byUid]).at(-1), ["reopen", "sofia"]);
+    // Her own week says so, through the overview, from when.
+    const overview = await w.call("chloe", w.routes.overview.GET, { runId: RUN.agi }, { course: true });
+    const work = overview.body.weeks.find((week) => week.weekNumber === 2).work;
+    assert.deepEqual([work.state, work.reopened.byName, work.reopened.at, work.locksAt], ["reopened", "Sofia", "2026-11-09T10:15:00.000Z", "2026-11-10T18:00:00.000Z"]);
+    // Her own read of the answer never says whether it was late; and a reopen emails nobody.
+    const own = await w.ownRowsOf("chloe", 2);
+    assert.equal(own.status, 200);
+    assert.doesNotMatch(JSON.stringify(own.body), /late/i);
+    assert.equal(w.world.mail.length, 0);
+    // The change after it has its own time; the first-sent time stays the submit's.
+    w.at("2026-11-09T10:20:00Z");
+    assert.equal((await w.write("chloe", 2, { text: `${ENOUGH} again` })).status, 200);
+    const row = w.world.db.read(w.rowPath("chloe", 2));
+    assert.equal(new Date(row.editedAt).toISOString(), "2026-11-09T10:20:00.000Z");
+    assert.equal(new Date(row.firstSentAt).toISOString(), new Date(BEFORE_WEEK_TWO).toISOString());
+  });
+
+  test("a reopen after feedback goes through: the feedback stays, with its date, and the answer can change again", async () => {
+    w.at(BEFORE_WEEK_TWO);
+    await w.write("chloe", 2, { text: ENOUGH });
+    await w.submitWeek("chloe", 2);
+    w.at("2026-11-09T11:00:00Z");
+    const levels = w.levels();
+    assert.equal((await w.review("rahul", "chloe", 2, { action: "feedback", levels, comment: "Clear." })).status, 200);
+    const given = w.world.db.read(w.rowPath("chloe", 2)).feedback;
+    w.at("2026-11-09T12:00:00Z");
+    assert.equal((await w.reopenWeek("sofia", "chloe", 2)).status, 200, "reopened after feedback");
+    assert.equal((await w.write("chloe", 2, { text: `${ENOUGH} more` })).status, 200);
+    const row = w.world.db.read(w.rowPath("chloe", 2));
+    assert.deepEqual(row.feedback, given, "the feedback stays as it was given");
+    assert.equal(new Date(row.feedback.sentAt).toISOString(), "2026-11-09T11:00:00.000Z");
+    // Her own read still leads to it.
+    const own = await w.ownRowsOf("chloe", 2);
+    assert.equal(own.body.responses.find((entry) => entry.exerciseId === ONE_BOX.id).written.feedback.byName, "Rahul");
+  });
+
   test("a facilitator's own week is reopened by the lead and admins alone, never a co-facilitator", async () => {
     w.at(BEFORE_WEEK_TWO);
     assert.equal((await w.submitWeek("rahul", 2)).status, 200);
@@ -462,6 +510,9 @@ describe("4. Submit, the lock and Reopen", () => {
     const row = w.world.db.read(w.rowPath("chloe", 3));
     assert.equal(row.openedAt, undefined);
     assert.equal(row.reopenedByUid, "rahul");
+    // Its writer's own read of the answer no longer says who opened it, and says who reopened it.
+    const own = (await w.ownRowsOf("chloe", 3)).body.responses.find((entry) => entry.exerciseId === "wa-three");
+    assert.deepEqual([own.written.opened, own.written.reopened.byName], [null, "Rahul"]);
     assert.equal((await w.write("chloe", 3, { boxes: { "wb-what": "Lamps and keepers." } })).status, 200);
   });
 
