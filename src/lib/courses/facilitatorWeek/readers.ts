@@ -10,7 +10,7 @@ import { weekFillInBoxes } from "@/lib/courses/weekBlocks/reader";
 import { addDaysToKey, isValidDateKey, londonDateKey } from "@/lib/courses/weekPlan";
 import { answerState, instantOf, isWordCountedAnswer, readWrittenAnswer, type AnswerState } from "@/lib/courses/writtenAnswers/model";
 import { workIsReadable } from "@/lib/courses/weekWork/model";
-import { loadRunWeekStates } from "@/lib/courses/weekWork/readers";
+import { loadRunWeekStates, type RunWeekStates } from "@/lib/courses/weekWork/readers";
 import { workKey, type PersonAnswerWrite, type PersonWork, type PersonWrites } from "@/lib/courses/coursework/model";
 import { isFillInResponse, isOwnBoxResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import type { SessionUser } from "@/lib/firebase/session";
@@ -569,6 +569,8 @@ export async function loadNamedReflections(
  *    are read as they are typed, as v15 says.
  *  - From the progress store, who ticked which item, through a projection
  *    with no rating, no comment and no private note.
+ *  - Where each person's every week stands (`states`), which the tab's one
+ *    meaning of done asks too.
  *
  * Survey answers live elsewhere and are never read here.
  */
@@ -576,7 +578,7 @@ export async function readRunCoursework(
   db: Firestore,
   on: { run: CourseRunDoc; liveGroups: readonly CourseGroupDoc[]; now: Date },
   wordsOf: string | null,
-): Promise<{ work: Map<string, PersonWork>; writes: PersonWrites }> {
+): Promise<{ work: Map<string, PersonWork>; writes: PersonWrites; states: RunWeekStates }> {
   const runId = on.run.id;
   const [responses, progress, states] = await Promise.all([
     db.collection("courseExerciseResponses").where("runId", "==", runId).get(),
@@ -652,7 +654,7 @@ export async function readRunCoursework(
     of(uid).ticked.add(itemId);
     if (uid === wordsOf) ticked.add(itemId);
   }
-  return { work, writes: { reflections, boxes, answers, ticked } };
+  return { work, writes: { reflections, boxes, answers, ticked }, states };
 }
 
 /**

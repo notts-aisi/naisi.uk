@@ -2008,14 +2008,21 @@ For the programme's lead and admins (the Groups and Attendance tabs' gate,
 `loadProgrammeRun`); a reviewer is told it is theirs. A row per person holding
 a place (the People tab's set, in a group or not yet), anybody else placed in
 one of the run's live groups, and each facilitator, marked as facilitating. A
-column per week of the run's plan written as blocks. Each cell counts what the
-person did in the week they read (their group's copy once Publish has told
-them their group, the run's own week before that, so week 1 work written
-before groups go out is counted): reflection parts written, sources ticked,
-where the written answer stands (waiting for feedback stands out and opens the
-existing feedback page), boxes filled in. Never anybody's words in a cell.
-Filters are plain links: a group, "Not in a group yet", "Waiting for
-feedback".
+column per week of the run's plan written as blocks. Each cell leads with
+"Done" or "Not done", by the one meaning of done every page uses
+(`weekDone`: the week is submitted, where it asks for anything written, and
+every tick its tasks count is ticked, the person's own pathway reading
+among them). Then it counts what the person did in the week they read
+(their group's copy once Publish has told them their group, the run's own
+week before that, so week 1 work written before groups go out is counted):
+reflection parts written, sources ticked, where the written answer stands
+(waiting for feedback stands out and opens the existing feedback page),
+boxes filled in. Never anybody's words in a cell. Filters are plain links: a
+group, "Not in a group yet", "Waiting for feedback", and "Not done": the
+people with a week that has begun for them (on the calendar of the group
+whose weeks they read) and is not done. A week still to come reads "Not
+done" quietly and puts nobody under the filter. Weeks that locked before
+weeks were submitted were never submitted, so they read "Not done" too.
 
 A placement Publish has not told is shown to admins alone (marked "Not told
 yet"); the lead sees that person under "Not in a group yet".
@@ -2040,8 +2047,10 @@ Everything is read on the server after the gate. One equality on the run per
 store (`readRunCoursework` in `src/lib/courses/facilitatorWeek/readers.ts`):
 the answers store whole, the progress store through a projection with no
 rating, comment or private note, and where each week stands
-(`loadRunWeekStates`, one equality on the run). No query needs a composite
-index. Nothing on either page writes.
+(`loadRunWeekStates`, one equality on the run). For the tab, each person's
+pack in the pathways their weeks count, by id (`readPackCaseRecords`), for
+whether a week is done; never the ready box for a talk. No query needs a
+composite index. Nothing on either page writes.
 
 ## The week you submit
 

@@ -4,6 +4,7 @@ import { NOT_IN_A_GROUP, filterHref, type CourseworkCell, type CourseworkRow } f
 import {
   ANSWER_STATE_WORDS,
   COURSEWORK,
+  DONE,
   EVERYBODY,
   FACILITATING,
   NAME,
@@ -12,6 +13,7 @@ import {
   NOT_TOLD_YET,
   NO_BLOCK_WEEKS,
   NO_COURSEWORK,
+  NOT_DONE,
   SHOW,
   WAITING_FOR_FEEDBACK,
   answerLinkLabelWords,
@@ -30,11 +32,14 @@ import styles from "./coursework.module.css";
  * A PROGRAMME'S COURSEWORK TAB (Zach, Fri 30 Oct), for its lead and admins:
  * a row per person holding a place (in a group or not yet) and per
  * facilitator, marked as facilitating; a column per week of the run written
- * as blocks. A cell says, in counts, what the person did in the week they
- * read, never a word they wrote: reflections written, sources ticked, where
- * the written answer stands (waiting for feedback stands out, and opens the
- * feedback page) and boxes filled in. The rest of a cell, and the name, open
- * the person's page.
+ * as blocks. A cell leads with whether the week is done, by the one meaning
+ * of done every page uses (`weekDone`), "Not done" standing out only for a
+ * week that has begun for them; then it says, in counts, what the person did
+ * in the week they read, never a word they wrote: reflections written,
+ * sources ticked, where the written answer stands (waiting for feedback
+ * stands out, and opens the feedback page) and boxes filled in. The rest of
+ * a cell, and the name, open the person's page. "Not done", a filter, keeps
+ * the people with a week that has begun and is not done.
  *
  * A server component: the filters are plain links, so the tab works before
  * any script arrives. Handed the loader's view and nothing else
@@ -43,6 +48,7 @@ import styles from "./coursework.module.css";
 
 function Cell({ cell, name }: { cell: CourseworkCell; name: string }) {
   if (!cell.counted) return <span className={styles.muted}>{NO_COURSEWORK}</span>;
+  const done = cell.done === true;
   const counts: Array<{ key: string; words: string; full: boolean }> = [];
   if (cell.reflections) counts.push({ key: "r", words: reflectionsCellWords(cell.reflections.written, cell.reflections.of), full: cell.reflections.written === cell.reflections.of });
   if (cell.ticks) counts.push({ key: "t", words: ticksCellWords(cell.ticks.ticked, cell.ticks.of), full: cell.ticks.ticked === cell.ticks.of });
@@ -56,16 +62,13 @@ function Cell({ cell, name }: { cell: CourseworkCell; name: string }) {
         : styles.answer;
   return (
     <div className={styles.cell}>
-      <Link href={cell.href} className={styles.cellLink} aria-label={cellLinkLabelWords(name, cell.weekNumber)}>
-        {counts.length === 0 ? (
-          <span className={styles.muted}>{NO_COURSEWORK}</span>
-        ) : (
-          counts.map((count) => (
-            <span key={count.key} className={count.full ? styles.full : styles.part}>
-              {count.words}
-            </span>
-          ))
-        )}
+      <Link href={cell.href} className={styles.cellLink} aria-label={cellLinkLabelWords(name, cell.weekNumber, done)}>
+        <span className={done ? styles.weekDone : cell.reached ? styles.weekNotDone : styles.weekToCome}>{done ? DONE : NOT_DONE}</span>
+        {counts.map((count) => (
+          <span key={count.key} className={count.full ? styles.full : styles.part}>
+            {count.words}
+          </span>
+        ))}
       </Link>
       {answer &&
         (answer.href ? (
@@ -130,7 +133,7 @@ export default function CourseworkTable({
             return (
               <li key={filter.key}>
                 <Link
-                  href={filterHref(base, { group: filter.key, waiting: view.filter.waiting }, week)}
+                  href={filterHref(base, { ...view.filter, group: filter.key }, week)}
                   className={on ? `${styles.filter} ${styles.filterOn}` : styles.filter}
                   aria-current={on ? "page" : undefined}
                 >
@@ -141,11 +144,20 @@ export default function CourseworkTable({
           })}
           <li>
             <Link
-              href={filterHref(base, { group: view.filter.group, waiting: !view.filter.waiting }, week)}
+              href={filterHref(base, { ...view.filter, waiting: !view.filter.waiting }, week)}
               className={view.filter.waiting ? `${styles.filter} ${styles.filterWaiting} ${styles.filterOn}` : `${styles.filter} ${styles.filterWaiting}`}
               aria-current={view.filter.waiting ? "page" : undefined}
             >
               {WAITING_FOR_FEEDBACK}
+            </Link>
+          </li>
+          <li>
+            <Link
+              href={filterHref(base, { ...view.filter, notDone: !view.filter.notDone }, week)}
+              className={view.filter.notDone ? `${styles.filter} ${styles.filterNotDone} ${styles.filterOn}` : `${styles.filter} ${styles.filterNotDone}`}
+              aria-current={view.filter.notDone ? "page" : undefined}
+            >
+              {NOT_DONE}
             </Link>
           </li>
         </ul>

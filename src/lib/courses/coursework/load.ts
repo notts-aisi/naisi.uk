@@ -9,7 +9,8 @@ import { loadForm } from "@/lib/applications/repo";
 import { readPersonPrivateNotes, readRunCoursework } from "@/lib/courses/facilitatorWeek/readers";
 import { boxesReaderFor } from "@/lib/courses/fillInBoxes/access";
 import { fullNameOfUser } from "@/lib/courses/programmeLead";
-import { resolveWeekDocs } from "@/lib/courses/groupResolve";
+import { resolveGroupCalendar, resolveWeekDocs } from "@/lib/courses/groupResolve";
+import { readPackCaseRecords } from "@/lib/courses/packsAndCases/readers";
 import { liveGroupsOf } from "@/lib/courses/writtenAnswers/access";
 import type { SessionUser } from "@/lib/firebase/session";
 import {
@@ -22,6 +23,7 @@ import type { CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import {
   NO_WORK,
+  chooseOneIdsOf,
   courseworkSections,
   courseworkWeekOf,
   personWeeks,
@@ -50,10 +52,12 @@ import { NOT_IN_A_GROUP_YET } from "./words";
  * (`listPlaceHolders`, the People tab's set by the same test, nobody before
  * decisions have gone out); the run, its live groups and its seats (one
  * equality on the run each); the run's weeks and each group's own copies;
- * every reflection, box, written answer and tick on the run
- * (`readRunCoursework`, one equality on the run per store, words only for the
- * one person whose page is drawn); and the names of the facilitators and of
- * whoever gave feedback. A private note is read only on a person's page and
+ * every reflection, box, written answer and tick on the run, and where each
+ * week stands (`readRunCoursework`, one equality on the run per store, words
+ * only for the one person whose page is drawn); for the tab, each person's
+ * pack in the Choose ones their weeks count, by id, for whether a week is
+ * done; and the names of the facilitators and of whoever gave feedback. A
+ * private note is read only on a person's page and
  * only for an admin (`readPersonPrivateNotes`); a person's boxes only once
  * their gate has answered (`boxesReaderFor`). Survey answers never. Nothing
  * is written.
@@ -224,7 +228,7 @@ export async function loadCourseworkTab(
   actor: SessionUser,
   roundId: string,
   programmeId: string,
-  query: { group?: unknown; waiting?: unknown },
+  query: { group?: unknown; waiting?: unknown; notdone?: unknown },
 ): Promise<CourseworkTabOutcome> {
   const gate = await openCoursework(db, actor, roundId, programmeId);
   if (gate.status !== "ok") return gate;
@@ -251,6 +255,35 @@ export async function loadCourseworkTab(
   const weeksOf = new Map(groupWeeks);
   const columns = columnsOf(run, runWeeks);
   const people = peopleOf({ viewer, groups, holders, seats, names });
+  const weekOf = (groupId: string | null, weekNumber: number) =>
+    groupId ? (weeksOf.get(groupId)?.get(weekNumber) ?? null) : (runWeeks.get(weekNumber) ?? null);
+  // Each person's pack in the Choose ones the weeks they read count, by id: a
+  // week with a pathway is done only once its pack's reading is ticked.
+  const packRecords = await readPackCaseRecords(
+    db,
+    run.id,
+    people.flatMap((person) =>
+      columns.flatMap((column) => chooseOneIdsOf(weekOf(person.readsGroupId, column.weekNumber)).map((blockId) => ({ uid: person.uid, blockId }))),
+    ),
+  );
+  const packs = new Map<string, Map<string, string>>();
+  for (const record of packRecords.values()) {
+    if (!record.packId) continue;
+    const own = packs.get(record.uid) ?? new Map<string, string>();
+    own.set(record.blockId, record.packId);
+    packs.set(record.uid, own);
+  }
+  // The last week that has begun on each group's calendar (the run's own for
+  // somebody in no group), for which weeks a row is not done in.
+  const now = new Date();
+  const reached = new Map<string | null, number>();
+  const reachedOf = (groupId: string | null) => {
+    if (!reached.has(groupId)) {
+      const group = groupId ? (groups.find((candidate) => candidate.id === groupId) ?? null) : null;
+      reached.set(groupId, resolveGroupCalendar(run, group, now).currentWeek?.anchorWeekNumber ?? 0);
+    }
+    return reached.get(groupId) ?? 0;
+  };
   const programmePath = programmePathOf(view);
   const groupList = groups.map((group) => ({ id: group.id, name: group.name.trim() || "Untitled group" }));
   const filter = readFilter(query, groupList.map((group) => group.id));
@@ -259,14 +292,16 @@ export async function loadCourseworkTab(
       columns,
       groups: groupList,
       people,
-      workOf: (uid) => coursework.work.get(uid) ?? NO_WORK,
-      weekOf: (groupId, weekNumber) => (groupId ? (weeksOf.get(groupId)?.get(weekNumber) ?? null) : (runWeeks.get(weekNumber) ?? null)),
+      workOf: (uid) => ({ ...(coursework.work.get(uid) ?? NO_WORK), packs: packs.get(uid) ?? new Map() }),
+      weekOf,
       personHref: (uid) => `${programmePath}/coursework/${encodeURIComponent(uid)}`,
       writtenHref: (person, weekNumber) => writtenHrefOf(programmePath, person, weekNumber),
+      submittedOf: (uid, weekNumber) => coursework.states.stateOf(uid, weekNumber).kind === "submitted",
+      reachedOf: (person) => reachedOf(person.readsGroupId),
       filter: wanted,
       notInAGroupTitle: NOT_IN_A_GROUP_YET,
     });
-  const everybody = build({ group: "all", waiting: false }).flatMap((section) => section.rows);
+  const everybody = build({ group: "all", waiting: false, notDone: false }).flatMap((section) => section.rows);
   return {
     status: "ok",
     view: {
