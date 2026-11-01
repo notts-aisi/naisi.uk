@@ -22,6 +22,8 @@
  *     screens read.
  *  5. THE CERTIFICATE prints what it printed before the site asked for a full
  *     name, through its own rule.
+ *  6. A SCRUB knows every name an account holds, the full name among them,
+ *     so a full name typed into words that leave the site is taken out.
  *
  * `tests/full-name-readers.test.mjs` is the other half: every file that reads,
  * writes or draws a full name, with the gate in front of it.
@@ -41,6 +43,7 @@ const { loadTs } = createLoader({
 
 const names = await loadTs("lib/names/staffName.ts");
 const { staffNamesFor } = await loadTs("lib/names/load.ts");
+const { namesToScrubOf } = await loadTs("lib/names/scrub.ts");
 const { certificateNameOf } = await loadTs("lib/names/certificateName.ts");
 const { accountNameOf } = await loadTs("lib/firestore/users.ts");
 const { fullNameOfUser, firstNameOfUser } = await loadTs("lib/courses/programmeLead.ts");
@@ -311,5 +314,26 @@ describe("a certificate prints what it printed before", () => {
     assert.equal(certificateNameOf(accounts[0]), "Priya Shah");
     assert.equal(certificateNameOf(accounts[2]), "Pri");
     assert.equal(certificateNameOf(accounts[7]), "NAISI member");
+  });
+});
+
+// ===========================================================================
+// 6. What a scrub knows
+// ===========================================================================
+
+describe("a scrub knows every name an account holds", () => {
+  test("the display name, the name they go by and the full name, each once, and nothing else", async () => {
+    const db = makeDb({
+      "users/priya": { email: "priya@example.com", displayName: " Priya  Shah ", profile: { preferredName: "Pri", fullName: "Priya Shah" } },
+      "users/sam": { email: "sam@example.com", displayName: null, profile: { preferredName: "Sam", fullName: "Samuel Okoro" } },
+      "users/odd": { displayName: 7, profile: { preferredName: "", fullName: ["x"] } },
+    });
+    const held = await namesToScrubOf(db, ["priya", "sam", "odd", "gone", "", "priya"]);
+    assert.deepEqual(Object.fromEntries(held), {
+      priya: ["Priya Shah", "Pri"],
+      sam: ["Sam", "Samuel Okoro"],
+      odd: [],
+    });
+    assert.equal((await namesToScrubOf(db, [])).size, 0);
   });
 });

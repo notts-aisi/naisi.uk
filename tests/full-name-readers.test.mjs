@@ -44,11 +44,20 @@
  *    is the gate, as text the file must contain; a component is proved by
  *    the files that import it (`mountedBy`, every one of them), each of which
  *    must itself be behind the gate.
+ *  - `scrub`: reads every name an account holds, the full name among them,
+ *    only to take each out of words before they leave the site for an
+ *    outside service. It shows nobody anything: server code, with `proof`
+ *    saying where the names are read and where they go.
  *  - `other`: a different thing that is also called `fullName`. It may not
  *    read an account's full name.
  *
  * Both directions: a file that names a full name and is not listed fails, and
  * so does an entry whose file no longer does. Every entry carries a reason.
+ *
+ * The other half of a scrub is the last section: every file that takes names
+ * out of words before they leave, and where its names come from, so a scrub
+ * that does not know the full name is found as well as a screen that shows
+ * it.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -75,6 +84,7 @@ const PRODUCERS = [
   "applicantName",
   "accountStaffName",
   "accountStaffWords",
+  "namesToScrubOf",
 ];
 
 const NAMES_A_FULL_NAME = new RegExp(
@@ -116,6 +126,10 @@ const READERS = new Map([
       "src/features/events/checkIn/WhoCame.tsx",
     ],
     why: "draws a staff name it is handed, in its parts; every screen that mounts it is a committee screen listed here",
+  }],
+  ["src/lib/names/scrub.ts", {
+    who: "rule",
+    why: "every name an account holds, the full name among them, for a scrub: read to be taken out of words and never shown; its callers are the scrub entries below",
   }],
   ["src/lib/applications/review/people.ts", {
     who: "rule",
@@ -284,6 +298,26 @@ const READERS = new Map([
     why: "the list of people who would facilitate, for the programme's lead and admins, read behind the programme's own gate",
   }],
 
+  // --- Scrubs: read to be taken out, never shown ---------------------------
+  ["src/lib/applications/assessment/run.ts", {
+    who: "scrub",
+    proof: [
+      "const accountNames = await namesToScrubOf(db, Object.values(input.applicants));",
+      "scrubbed(ask.question, people)",
+    ],
+    why: "an admin's question about a whole programme has every name on each applicant's account taken out before it is sent",
+  }],
+  ["src/lib/applications/arrange/advise.ts", {
+    who: "scrub",
+    proof: ["const accountNames = await namesToScrubOf(db, uids);", "question: scrubbed(input.question, named),"],
+    why: "an admin's question about arranging groups, and the turns before it, have every name on each person's account taken out before they are sent",
+  }],
+  ["src/lib/courses/coursework/gather.ts", {
+    who: "scrub",
+    proof: ["return namesToScrubOf(db, uids);"],
+    why: "the names the coursework scrub takes out of the best answers' and a note draft's messages (`loadAccountNames`), read here and used there",
+  }],
+
   // --- Other things called fullName ----------------------------------------
   ["src/app/api/admissions/rounds/[roundId]/apply/route.ts", {
     who: "other",
@@ -351,7 +385,7 @@ const READERS = new Map([
   }],
 ]);
 
-const WHO = ["rule", "shape", "own", "committee", "other"];
+const WHO = ["rule", "shape", "own", "committee", "scrub", "other"];
 
 /** Every file under `src` that imports `target`, by repository path. A type-only import draws nothing and is left out. */
 function importersOf(target) {
@@ -430,6 +464,11 @@ describe("every file that names a full name says who reads it", () => {
         // What draws a staff name it is handed is drawn only on committee screens.
         for (const parent of entry.mountedBy) assert.ok(behindCommitteeGate(parent), `${parent} mounts it and is not a committee screen`);
       }
+      if (entry.who === "scrub") {
+        // Server code that hands names to a scrub draws nothing.
+        assert.ok(file.startsWith("src/lib/") && file.endsWith(".ts"), "a scrub entry is server code under src/lib");
+        assert.ok((entry.proof ?? []).length > 0, "a scrub entry has to say where the names are read and where they go");
+      }
       if (entry.who === "other") {
         assert.ok(
           !readsAnAccountsFullName(code),
@@ -447,10 +486,12 @@ describe("every file that names a full name says who reads it", () => {
     // Course screens move to the staff rule in a later change. Until then
     // nothing under the courses tree reads the field or a staff name, but for
     // the lead's list of people who would facilitate, which is a review of
-    // applications by the lead and admins.
+    // applications by the lead and admins, and the coursework scrub, which
+    // reads every name an account holds only to take it out of what is sent.
     const courseSide = found.filter((file) => /^src\/(?:lib\/courses|features\/courses|app\/\(app\)\/learn|app\/api\/courses)\//.test(file));
     assert.deepEqual(courseSide, [
       "src/app/api/courses/runs/[runId]/allocation/publish/preview/route.ts",
+      "src/lib/courses/coursework/gather.ts",
       "src/lib/courses/facilitatorAsks/people.ts",
       "src/lib/courses/writtenAnswers/reviewPage.ts",
     ]);
@@ -482,7 +523,82 @@ describe("the names module hands out what this file knows", () => {
       [...load.matchAll(/\bexport\s+(?:async\s+)?(?:function|const|type)\s+(\w+)/g)].map((match) => match[1]).sort(),
       ["StaffNamesOptions", "staffNamesFor"],
     );
+    const scrub = codeOf("src/lib/names/scrub.ts");
+    assert.deepEqual(
+      [...scrub.matchAll(/\bexport\s+(?:async\s+)?(?:function|const|type)\s+(\w+)/g)].map((match) => match[1]).sort(),
+      ["namesToScrubOf"],
+    );
     // The name people go by is never read off the full name.
     assert.match(code, /goBy: text\(profile\.preferredName\) \?\? display,/);
+  });
+});
+
+describe("every scrub of words that leave the site knows the full name", () => {
+  /**
+   * The files that take names out of words before they go to an outside
+   * service, and where each one's names come from. The site asks for a full
+   * name, so a scrub that knew only the name people go by, or the account's
+   * display name, would let a full name typed into a question or an answer
+   * through. `names` is where its list of names is read, as text the file
+   * must contain; a scrub whose names are handed to it says by whom
+   * (`handedBy`: every file that calls its builders, with where that file
+   * reads them).
+   */
+  const SCRUBS = new Map([
+    ["src/lib/applications/assessment/run.ts", {
+      names: ["namesInStaffWords(applicantNames[label]", "namesToScrubOf(db, Object.values(input.applicants))"],
+      why: "an admin's question about a programme: each row's names, read back from its staff line, and every name on each account",
+    }],
+    ["src/lib/applications/arrange/advise.ts", {
+      names: ["namesToScrubOf(db, uids)"],
+      why: "an admin's question about arranging groups, and the turns before it: the name on the screen, and every name on each account",
+    }],
+    ["src/lib/courses/coursework/input.ts", {
+      names: [],
+      builders: ["bestAnswersInput", "noteDraftInput"],
+      handedBy: {
+        "src/lib/courses/coursework/bestAnswers.ts": "runPeopleToScrub(db, door)",
+        "src/lib/memberNotes/draft.ts": "await loadAccountNames(db, [subjectUid, ...enrolled, ...people.facilitators])",
+      },
+      why: "the best answers' and a note draft's messages: `scrubNames` over the people each builder is handed",
+    }],
+  ]);
+  const callsOf = (names) => new RegExp(`(?<!function\\s+)\\b(?:${names.join("|")})\\s*\\(`);
+
+  test("every file that scrubs names out of words is listed, and every entry still does", () => {
+    const scrubbing = [...walkSource(SRC)]
+      .map(repoPath)
+      .filter((file) => callsOf(["scrubbed", "scrubNames"]).test(codeOf(file)))
+      .sort();
+    assert.deepEqual(
+      scrubbing,
+      [...SCRUBS.keys()].sort(),
+      "A file takes names out of words and is not listed here. Read every name the people in it hold, the full " +
+        "name among them (`namesToScrubOf` in src/lib/names/scrub.ts), and list it with where its names come from.",
+    );
+  });
+
+  for (const [file, entry] of SCRUBS) {
+    test(`${file} reads every name it takes out`, () => {
+      assert.ok(entry.why.length >= 40, "a reason is missing or too short to weigh");
+      const code = codeOf(file);
+      for (const literal of entry.names) assert.ok(code.includes(literal), `its names are read by \`${literal}\`, which it no longer contains`);
+      if (entry.handedBy) {
+        const callers = [...walkSource(SRC)]
+          .map(repoPath)
+          .filter((other) => other !== file && callsOf(entry.builders).test(codeOf(other)))
+          .sort();
+        assert.deepEqual(callers, Object.keys(entry.handedBy).sort(), "its builders are called by files this entry does not name");
+        for (const [caller, literal] of Object.entries(entry.handedBy)) {
+          assert.ok(codeOf(caller).includes(literal), `${caller} reads the names by \`${literal}\`, which it no longer contains`);
+        }
+      }
+    });
+  }
+
+  test("what the scrubs read off an account is every name it holds, the full name among them", () => {
+    assert.match(codeOf("src/lib/names/scrub.ts"), /\[data\.displayName, profile\.preferredName, profile\.fullName\]/);
+    assert.match(codeOf("src/lib/courses/coursework/door.ts"), /const names = await loadAccountNames\(db, uids\);/);
+    assert.match(codeOf("src/lib/courses/coursework/gather.ts"), /return namesToScrubOf\(db, uids\);/);
   });
 });

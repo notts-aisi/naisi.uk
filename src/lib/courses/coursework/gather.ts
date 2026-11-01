@@ -10,6 +10,7 @@ import { courseworkCountsFrom, rowCountsFrom } from "@/lib/legal/courseworkUse";
 import { workIsReadable } from "@/lib/courses/weekWork/model";
 import { readRunForLock } from "@/lib/courses/weekWork/own";
 import { loadRunWeekStates } from "@/lib/courses/weekWork/readers";
+import { namesToScrubOf } from "@/lib/names/scrub";
 import type { CourseworkAnswer, CourseworkQuestion, CourseworkWeek } from "./input";
 
 /**
@@ -241,23 +242,11 @@ export async function loadAnswers(
 }
 
 /**
- * The names each account goes by (its display name and its preferred name),
- * for swapping a name somebody typed into their words for a label before
- * anything leaves (`scrubNames`). Read here, used there, never sent.
+ * Every name each account holds (its display name, the name it goes by and
+ * the full name it gave), for swapping a name somebody typed into their
+ * words for a label before anything leaves (`scrubNames`). Read here, used
+ * there, never sent.
  */
 export async function loadAccountNames(db: Firestore, uids: readonly string[]): Promise<Map<string, string[]>> {
-  const out = new Map<string, string[]>();
-  const unique = [...new Set(uids.filter(Boolean))];
-  if (unique.length === 0) return out;
-  const snaps = await db.getAll(...unique.map((uid) => db.collection("users").doc(uid)));
-  for (const snap of snaps) {
-    if (!snap.exists) continue;
-    const data = (snap.data() ?? {}) as Raw;
-    const profile = (data.profile && typeof data.profile === "object" ? data.profile : {}) as Raw;
-    const names = [data.displayName, profile.preferredName]
-      .filter((name): name is string => typeof name === "string" && name.trim().length > 0)
-      .map((name) => name.trim());
-    out.set(snap.id, [...new Set(names)]);
-  }
-  return out;
+  return namesToScrubOf(db, uids);
 }

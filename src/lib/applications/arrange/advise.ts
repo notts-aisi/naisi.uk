@@ -4,6 +4,7 @@ import { askClaudeForJson, claudeConfigured } from "@/lib/ai/claude";
 import type { SessionUser } from "@/lib/firebase/session";
 import { admissionAssessmentId, ASSESSMENTS_COLLECTION } from "@/lib/firestore/admissionAssessments";
 import { compareGroupsByMeeting } from "@/lib/firestore/courseGroups";
+import { namesToScrubOf } from "@/lib/names/scrub";
 import { canRunTerm } from "../access";
 import { storedReadFor } from "../assessment/stored";
 import { own } from "../keys";
@@ -475,7 +476,14 @@ export async function askAboutArrangement(
   const notes = await notesFor(db, roundId, programmeId, [...arranging.people.keys()]);
   const uids = [...arranging.people.keys()].sort();
   const label = (uid: string) => `Applicant ${uids.indexOf(uid) + 1}`;
-  const named = uids.map((uid) => ({ label: label(uid), name: arranging.people.get(uid)?.name ?? "" }));
+  // Every name each person holds is taken out of what the admin typed: the
+  // name on the screen, and their account's own, the full name among them.
+  const accountNames = await namesToScrubOf(db, uids);
+  const named = uids.flatMap((uid) =>
+    [...new Set([arranging.people.get(uid)?.name ?? "", ...(accountNames.get(uid) ?? [])])]
+      .filter((name) => name.trim())
+      .map((name) => ({ label: label(uid), name })),
+  );
   // On the screen anybody may be moved by hand but the told and the facilitators, who stay in their group.
   const kept = new Set(
     [...arranging.people.values()]

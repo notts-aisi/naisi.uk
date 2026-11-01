@@ -634,6 +634,25 @@ describe("asking Claude about a whole programme", () => {
     assert.equal(response.body.answer, "Amara Okafor (Mara) is more specific than Dev Patel (Dev P).");
   });
 
+  test("a full name on the account is taken out too, though the row names them otherwise", async () => {
+    // Dev gave a full name on Home after he applied: his row still shows the application's.
+    db.poke("users/dev", { "profile.fullName": "Devendra Patel" });
+    as("zach");
+    await ASK("claude");
+    globalThis.__claudeAsked = [];
+    globalThis.__claudeAnswer = {
+      ok: true,
+      model: "claude-opus-5-5",
+      usage: { inputTokens: 1, outputTokens: 1 },
+      value: { answer: "Applicant 2 is keener." },
+    };
+    const response = await PROGRAMME({ kind: "question", question: "Is Devendra keener than Amara?" });
+    assert.equal(response.status, 200);
+    const { message } = globalThis.__claudeAsked[0];
+    assert.doesNotMatch(message, /Devendra/, "the full name on Dev's account was sent");
+    assert.match(message, /Is Applicant 2 keener than Applicant 1\?/);
+  });
+
   test("an empty or very long question is refused before anything is read", async () => {
     as("zach");
     assert.equal((await PROGRAMME({ kind: "question", question: "  " })).status, 400);
