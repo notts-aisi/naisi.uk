@@ -60,7 +60,8 @@ import { accountNamesOf, nameForViewer } from "@/lib/names/staffName";
  * one person through the site is new, and its email is not drawn: C21), the
  * week's readiness detail ("2 of 3 readings and the guide are missing": a
  * week has no Ready checklist yet), "Kofi can't make it" (Can't make it is
- * not built) and the Updates card (the Updates job).
+ * said on the group's register, which each session card's See it opens, and
+ * is not repeated here) and the Updates card (the Updates job).
  */
 
 export type OverviewRailWeek = {

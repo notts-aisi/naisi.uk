@@ -16,9 +16,8 @@ import weekly from "@/features/courses/weekly/weekly.module.css";
  * people the group page lets in. Names only. Its classes are in the group
  * page's own stylesheets, imported by the names the page imports them by.
  * The board draws this inside This week's work; until that table exists it
- * is a card of its own, and the table can take it whole. Not drawn, though
- * the board draws it: who can't make it tonight (that feature does not exist
- * yet).
+ * is a card of its own, and the table can take it whole. Not drawn: who
+ * can't make it tonight, which the register says.
  */
 export default function PathwaySpread({
   title,

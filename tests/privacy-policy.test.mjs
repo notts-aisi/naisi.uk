@@ -9854,6 +9854,50 @@ describe("v15 says reminders before a session are about what is left, are part o
   });
 });
 
+describe("v15 says you may tell us in advance that you can't make a session, which records you as excused; the code agrees", () => {
+  // "We may let you tell us in advance that you can't make a session, which
+  // records you as excused." Each clause, held to the one write that does it
+  // (`recordCantMakeIt`, from "Can't make it" on the programme page); the
+  // route is run as every kind of caller in
+  // tests/course-session-cant-make-it.test.mjs.
+  const seat = withoutComments(read("src/lib/courses/cantMakeIt/seat.ts"));
+  const model = withoutComments(read("src/lib/courses/cantMakeIt/model.ts"));
+  const route = withoutComments(read("src/app/api/courses/groups/[groupId]/cant-make-it/route.ts"));
+
+  test("the policy says it, in those words, beside the register's marks", () => {
+    assert.ok(
+      PAGE_FLAT.includes(
+        "<strong>Registers.</strong> Your group&apos;s facilitators take the register at each session: present, arrived late, left early, absent or excused. You can see your own once it is submitted. We may let you tell us in advance that you can&apos;t make a session, which records you as excused.",
+      ),
+      "the policy no longer says you may tell us in advance, and that it records you as excused",
+    );
+  });
+
+  test("you: your own line of the register, read and written by your own uid, and nobody else's", () => {
+    assert.match(seat, /tx\.get\(db\.collection\("courseEnrolments"\)\.doc\(courseEnrolmentId\(group\.runId, user\.uid\)\)\)/);
+    assert.match(seat, /if \(seat\.uid !== user\.uid \|\| seat\.runId !== runId\) return false;/);
+    // The press names a session and nothing else: there is no way to spell another person.
+    assert.match(model, /return \{ ok: true, value: \{ sessionKey: body\.sessionKey, cantMakeIt: body\.cantMakeIt \} \};/);
+    assert.match(route, /const outcome = await recordCantMakeIt\(db, user, groupId, parsed\.value, new Date\(\)\);/);
+  });
+
+  test("in advance: only before the session starts", () => {
+    assert.match(model, /if \(startsAt\.getTime\(\) <= now\.getTime\(\)\) return \{ kind: "closed", why: "started" \};/);
+    assert.match(seat, /if \(state\.kind === "closed"\) return refuse\(409, CLOSED\[state\.why\]\);/);
+  });
+
+  test("records you as excused: the one mark it writes is excused, beside when you said so, and nothing is sent", () => {
+    assert.match(seat, /records: \{ \[user\.uid\]: "excused" \},/);
+    assert.deepEqual(
+      [...seat.matchAll(/"(present|late|left-early|absent|excused)"/g)].map((match) => match[1]),
+      ["excused"],
+      "the write records something other than excused",
+    );
+    assert.match(seat, /\[EXCUSED_IN_ADVANCE\]: \{ \[user\.uid\]: FieldValue\.serverTimestamp\(\) \},/);
+    assert.doesNotMatch(seat + route, /sendEmail|sendNotice|dispatchSends|mirrorCourse/, "telling us in advance now emails or notifies somebody");
+  });
+});
+
 describe("the services we use", () => {
   const SERVICES_PAGE = "src/app/(public)/privacy/services/page.tsx";
   /** Each listed service, with the line of code or configuration that calls it. */

@@ -1852,7 +1852,7 @@ describe("stage three of the course hub, one term from week 3 to after its end",
           "Group A,Noah Bennett,Present,Present,Absent,,,,2,3,",
       );
       // The register names the people in the group, and somebody who left,
-      // by the names rule for its reader, as the grid and wk-fac-group do
+      // by the names rule for its reader, as the grid and the group page do
       // (until the walk of stage three somebody who left was named apart:
       // H8): Rahul, a facilitator who is not on the committee, by the name
       // each goes by; Claudia, the lead on the committee, by the full name.

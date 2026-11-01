@@ -102,8 +102,8 @@ import type { OverviewGroup } from "@/app/api/courses/runs/[runId]/overview/rout
  * pair, who is bringing a laptop and the check that every pair has one, and
  * the way to the pairs page (`/learn/pairs/[groupId]`), where they are typed.
  *
- * NOT DRAWN, though the board draws it: who can't make it tonight (that
- * feature does not exist yet).
+ * NOT DRAWN HERE: who can't make it tonight. The register says it, from the
+ * moment somebody tells us, and the ticket's Take the register leads there.
  *
  * THE FACILITATOR GUIDE FOR THE WEEK ("Facilitator guide for week 3" on the
  * ticket) is drawn when that week of the course's facilitator guide has its

@@ -1876,7 +1876,7 @@ export const ROUTES = {
   "/api/courses/groups/[groupId]/attendance": {
     GET: {
       expect: adminOnly(404),
-      fields: ["group", "sessions", "members", "notYetTold", "leavers", "records", "participantNotes", "canEditPushed", "ending"],
+      fields: ["group", "sessions", "members", "notYetTold", "leavers", "records", "participantNotes", "canEditPushed", "ending", "cantMakeIt"],
       why:
         "The register gate (gateGroupRegister) collapses missing, archived and not-yours onto " +
         "one 403 for a non-admin and tells an admin the group is missing.",
@@ -1900,6 +1900,15 @@ export const ROUTES = {
       why:
         "The register gate collapses missing, archived and not-yours onto one 403 for a " +
         "non-admin; an admin is told the group is missing.",
+    },
+  },
+  "/api/courses/groups/[groupId]/cant-make-it": {
+    POST: {
+      expect: signedIn(400),
+      why:
+        "View-as is refused first, then the session, then the address and the body (a session of the group and " +
+        "whether they can make it) are checked before anything is read, so every signed-in persona meets the same " +
+        "400 on an empty one. The caller's own seat is read once a whole body arrives.",
     },
   },
   "/api/courses/groups/[groupId]/check-in": {
@@ -5484,6 +5493,30 @@ export const REAL_ROUTES = {
   },
   "/api/courses/groups/[groupId]/attendance/push": {
     POST: groupStaff("Finishing a register", c(400, "Admitted, then the body is checked: an empty one says no week.")),
+  },
+  "/api/courses/groups/[groupId]/cant-make-it": {
+    POST: {
+      realDrive: {
+        body: { sessionKey: "w01", cantMakeIt: true },
+        why:
+          "An empty body is the same 400 for everybody before the gate; a whole one reaches it, and only the " +
+          "refused (nobody with a told seat in the group) are sent it.",
+      },
+      another: {
+        anonymous: c(401, NO_SESSION),
+        "*": c(404, "No seat in this group: there is no line of its register for them to tell us about."),
+        admin: c(404, "An admin holds no seat in this group, so has no line of its register to tell us about."),
+      },
+      theirs: {
+        lead: c(404, "Leading the programme gives no seat in the group: answered as a group they are not in."),
+        facilitator: c(
+          ACTS,
+          "Holds a told seat in this group as well as facilitating it, so admitted: a whole body is never sent to " +
+            "somebody the gate admits, so it is not sent (it would write their line of a register).",
+        ),
+        participant: c(404, "Holds a place in the run's other group: answered as a group they are not in."),
+      },
+    },
   },
   "/api/courses/groups/[groupId]/check-in": {
     GET: {

@@ -103,6 +103,26 @@
   color: var(--color-danger);
 }
 
+/* "Tue 17 Nov: Kofi Asante can't make it.": who told us in advance, a line a
+   session, over the table. Words, never a cell: the table's geometry is the
+   register's, and nothing here changes it. */
+.cantMakeIt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-soft);
+}
+
+.cantMakeItLine {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
 .skeleton {
   display: flex;
   flex-direction: column;

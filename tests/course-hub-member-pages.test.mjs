@@ -14,8 +14,8 @@
  *     cancelled as Change a session says, and "Add to calendar" under it),
  *     "This week" or week 1's readings to tick, the weeks with their dates and
  *     states and when the next one opens, the updates, the group by first
- *     names, and nothing the boards draw that does not exist yet ("Can’t make
- *     it").
+ *     names, and "Can’t make it" only from the view the server page hands
+ *     the ticket (tests/course-session-cant-make-it.test.mjs presses it).
  *  2. YOUR MARKS: one per session with its mark, a legend of the marks used,
  *     the board's line, and NO COUNT anywhere a member reads: no "of", no "in
  *     full", no "so far". Late and left early are drawn as having come.
@@ -89,7 +89,9 @@ describe("1. the programme home", () => {
         "Week 5 Week 5 readings Tue 1 Dec Week 6 Week 6 readings Tue 8 Dec " +
         "You can read ahead: each week opens as soon as it’s published. See your progress week by week →",
     );
-    // "Add to calendar" exists now, once and on the ticket; "Can’t make it" still does not.
+    // "Add to calendar" exists now, once and on the ticket. "Can’t make it" is
+    // drawn only from the view the server page hands the ticket, which is not
+    // handed here (tests/course-session-cant-make-it.test.mjs draws it).
     assert.equal(text.match(/Add to calendar/g)?.length, 1);
     assert.doesNotMatch(text, /Week \d of 6|Your sessions|Can’t make it/);
   });
@@ -127,7 +129,9 @@ describe("1. the programme home", () => {
     );
     assert.equal(html.match(/<path d="M5 12\.5l4\.5 4\.5L19 7\.5"/g)?.length, 1);
     assert.match(html, /aria-current="step"/);
-    // "Add to calendar" exists now, once and on the ticket; "Can’t make it" still does not.
+    // "Add to calendar" exists now, once and on the ticket. "Can’t make it" is
+    // drawn only from the view the server page hands the ticket, which is not
+    // handed here (tests/course-session-cant-make-it.test.mjs draws it).
     assert.equal(text.match(/Add to calendar/g)?.length, 1);
     assert.doesNotMatch(text, /Can’t make it|Names only/);
   });
@@ -315,7 +319,8 @@ describe("3. Home's card (wk-home-phone)", () => {
         "Your group Group B CN Chloe (you) FH Farah KA Kofi R S Facilitators: Rahul and Sofia",
     );
     assert.equal((home.html.match(/type="checkbox"/g) ?? []).length, 3);
-    // "Add to calendar" exists now, once and under the ticket; "Can’t make it" still does not.
+    // "Add to calendar" exists now, once and under the ticket. "Can’t make it"
+    // is the programme page's alone, never Home's.
     assert.equal(home.text.match(/Add to calendar/g)?.length, 1);
     assert.doesNotMatch(home.text, /Your attendance|Can’t make it/);
   });

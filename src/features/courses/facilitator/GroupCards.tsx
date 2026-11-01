@@ -67,8 +67,8 @@ import styles from "./facilitator.module.css";
  * register". The session's own week: a session moved for one week shows its
  * new day, time and room, and an online week its link to join.
  *
- * Not drawn, though the board draws them: who can't make it (that feature
- * does not exist yet) and the facilitator guide (no record holds one).
+ * Not drawn: who can't make it (the register says it, which "Take the
+ * register" opens) and the facilitator guide (no record holds one).
  */
 export function FacilitatorTicket({
   facts,

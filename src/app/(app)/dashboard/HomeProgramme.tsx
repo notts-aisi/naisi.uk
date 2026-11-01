@@ -84,8 +84,8 @@ import styles from "./home.module.css";
  * week 1, `src/lib/courses/weekBlocks/progress.ts`) and lists the sources on
  * its path to tick, with no bar: the boards draw no percentages for it.
  *
- * WHAT IS NOT HERE, though the board draws it: "Can’t make it" beside it on
- * the ticket (it does not exist yet). The member's marks are on their
+ * WHAT IS NOT HERE: "Can’t make it" beside it on the ticket, which is the
+ * programme page's alone (`CantMakeIt`). The member's marks are on their
  * programme's own page, with no count (C26), and not on Home, which the board
  * draws without them.
  */

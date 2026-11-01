@@ -64,6 +64,8 @@ export type AttendanceMember = AttendancePayload["members"][number];
 export type AttendanceLeaver = AttendancePayload["leavers"][number];
 export type AttendanceRecords = AttendancePayload["records"];
 export type AttendanceNotes = AttendancePayload["participantNotes"];
+/** A session where somebody told us in advance they can't make it, with who. */
+export type AttendanceCantMakeIt = AttendancePayload["cantMakeIt"][number];
 
 /** What one save is changing about one session, beyond its marks. */
 export type SessionPatch = { held?: boolean; notes?: string };
@@ -89,6 +91,8 @@ export type AttendanceState = {
   canEditPushed: boolean;
   /** How the register ends: which button, and the words under it. */
   ending: RegisterEnding | null;
+  /** Who told us in advance they can't make a session, soonest session first. */
+  cantMakeIt: AttendanceCantMakeIt[];
   /** True on the first load of a group AND on a manual refresh. */
   loading: boolean;
   /** A fetch for the CURRENT group has landed, so the grid is real. */
@@ -138,6 +142,7 @@ const NO_MEMBERS: AttendanceMember[] = [];
 const NO_LEAVERS: AttendanceLeaver[] = [];
 const NO_RECORDS: AttendanceRecords = {};
 const NO_NOTES: AttendanceNotes = {};
+const NO_CANT_MAKE_IT: AttendanceCantMakeIt[] = [];
 
 /**
  * A separator that cannot occur in a group id, so the composite stamp can
@@ -428,6 +433,7 @@ export function useAttendance(groupId: string): AttendanceState {
     participantNotes: data?.participantNotes ?? NO_NOTES,
     canEditPushed: data?.canEditPushed ?? false,
     ending: data?.ending ?? null,
+    cantMakeIt: data?.cantMakeIt ?? NO_CANT_MAKE_IT,
     loading,
     loaded: !idle && !loading && data !== null,
     error: fresh?.error ?? null,

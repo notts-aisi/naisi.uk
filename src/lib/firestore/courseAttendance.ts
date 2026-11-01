@@ -149,9 +149,29 @@ export type CourseAttendanceDoc = {
    * marks for that session.
    */
   participantNotes: Record<string, string>;
+  /**
+   * THE PEOPLE WHO TOLD US IN ADVANCE THAT THEY CAN'T MAKE THIS SESSION,
+   * keyed by uid, with when they said so ("Can't make it" on their
+   * programme page, `src/lib/courses/cantMakeIt/`). Each one's mark in
+   * `records` is `excused`, set by the same write, before the session
+   * started. A facilitator who marks the person afterwards takes the line
+   * over: the marking route deletes their entry with the mark it came with.
+   * The register shows it to the group's facilitators, the lead and admins,
+   * and nobody else reads it.
+   *
+   * Keyed by uid, so account deletion clears it key by key with a
+   * `FieldPath`, as it does `records` and `participantNotes`.
+   */
+  excusedInAdvance: Record<string, Date>;
   markedByUid: string;
   updatedAt?: Date | null;
 };
+
+/**
+ * The register's map of who told us in advance they can't make the session.
+ * One name for the field, for the write, the readers and account deletion.
+ */
+export const EXCUSED_IN_ADVANCE = "excusedInAdvance";
 
 /**
  * Deterministic doc id: one register per (run, group, SESSION), structurally
@@ -215,6 +235,24 @@ function asParticipantNotes(v: unknown): Record<string, string> {
   return out;
 }
 
+/**
+ * Who told us in advance, capped in number of keys as `asRecords` is: a
+ * stamp that is not a time is no entry.
+ */
+function asExcusedInAdvance(v: unknown): Record<string, Date> {
+  if (!v || typeof v !== "object") return {};
+  const out: Record<string, Date> = {};
+  let count = 0;
+  for (const uid of Object.keys(v as Record<string, unknown>).sort()) {
+    if (count >= ATTENDANCE_LIMITS.maxRecords) break;
+    const at = tsToDate((v as Record<string, unknown>)[uid]);
+    if (!uid || !at) continue;
+    out[uid] = at;
+    count += 1;
+  }
+  return out;
+}
+
 export function normalizeCourseAttendance(id: string, data: Raw): CourseAttendanceDoc {
   const weekNumber =
     typeof data.weekNumber === "number" && Number.isFinite(data.weekNumber)
@@ -245,6 +283,7 @@ export function normalizeCourseAttendance(id: string, data: Raw): CourseAttendan
     pushedAt: tsToDate(data.pushedAt),
     pushedByUid: str(data.pushedByUid),
     participantNotes: asParticipantNotes(data.participantNotes),
+    excusedInAdvance: asExcusedInAdvance(data[EXCUSED_IN_ADVANCE]),
     markedByUid: str(data.markedByUid),
     updatedAt: tsToDate(data.updatedAt),
   };

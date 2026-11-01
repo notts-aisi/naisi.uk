@@ -789,6 +789,11 @@ const NOT_COVERED = {
       "Course hub: a group's campus, from the Sessions view of a programme's Groups tab. tests/course-hub-time-answer.test.mjs executes it as every kind of caller, before Publish and after, with the board's columns carrying it.",
     coverWhen: "When the groups-go-out spec sets a group's campus on the Sessions view before it presses Publish.",
   },
+  "/api/courses/groups/[groupId]/cant-make-it": {
+    reason:
+      "Course hub: Can't make it on the next session's ticket, which records the person as excused on that session's register. tests/course-session-cant-make-it.test.mjs executes it as every kind of caller, with the ticket it is pressed from, the register's line its facilitators read and every refusal.",
+    coverWhen: "When a browser spec signs in as somebody Publish has told their group and presses Can't make it on their programme page.",
+  },
   "/api/courses/runs/[runId]/time-answer": {
     reason:
       "Course hub: a person's answer to Can you make this time? on their programme page. tests/course-hub-time-answer.test.mjs executes it as every kind of caller, with the card it is pressed from, every move that clears it and who reads it.",

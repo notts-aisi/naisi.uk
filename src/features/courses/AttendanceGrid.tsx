@@ -8,6 +8,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import MemberName from "@/components/ui/MemberName";
 import Modal from "@/components/ui/Modal";
 import Skeleton from "@/components/ui/Skeleton";
+import { TOLD_IN_ADVANCE, registerCantMakeItLine } from "@/lib/courses/cantMakeIt/words";
 import { londonClockLabel } from "@/lib/courses/londonLabels";
 import {
   ATTENDANCE_LIMITS,
@@ -74,6 +75,16 @@ import useAttendance, {
  * without finishing it. The foot under the grid is wk-register's: the session
  * the button finishes, the button, and the words under it, every value read
  * off a record by the route (`registerEndingWords`).
+ *
+ * ── "CAN'T MAKE IT" ─────────────────────────────────────────────────────────
+ * Somebody taking part can tell us, before a session starts, that they can't
+ * make it, from their programme page. Their mark on that session's register
+ * is then `excused`, and the register says so to whoever reads it: a line
+ * over the table for each session that has not ended ("Tue 17 Nov: Kofi
+ * Asante can't make it."), from the moment they say it, whether or not the
+ * session is a column yet; and beside the mark, to a screen reader, that
+ * the excused mark was their own word. A facilitator who taps the cell takes
+ * the mark over, and the line goes with it.
  *
  * ── MID-RUN JOINERS ─────────────────────────────────────────────────────────
  * Cells before a member's `joinedWeekNumber` are INERT: a dash, not an
@@ -308,6 +319,7 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
     participantNotes,
     canEditPushed,
     ending,
+    cantMakeIt,
     loading,
     error,
     reload,
@@ -371,6 +383,18 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
     (sessionKey: string, uid: string): AttendanceStatus | null =>
       records[sessionKey]?.[uid] ?? null,
     [records],
+  );
+
+  /** Who told us in advance they can't make each session, by session key. */
+  const toldInAdvance = useMemo(
+    () => new Map((cantMakeIt ?? []).map((entry) => [entry.sessionKey, new Set(entry.uids)])),
+    [cantMakeIt],
+  );
+  /** Whether this cell's excused mark is the person's own word, given in advance. */
+  const toldUs = useCallback(
+    (sessionKey: string, uid: string): boolean =>
+      statusOf(sessionKey, uid) === "excused" && (toldInAdvance.get(sessionKey)?.has(uid) ?? false),
+    [statusOf, toldInAdvance],
   );
 
   // ---- The session a dialog is pointed at ----------------------------------
@@ -631,6 +655,21 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
     );
   }
 
+  // "Tue 17 Nov: Kofi Asante can't make it.", for each session that has not
+  // ended. On a column, only while the mark is still the person's excused: a
+  // facilitator's tap takes it over.
+  const columnKeys = new Set(sessions.map((session) => session.sessionKey));
+  const cantMakeItLines = (cantMakeIt ?? [])
+    .filter((entry) => !entry.ended)
+    .map((entry) => {
+      const names = members
+        .filter((member) => entry.uids.includes(member.uid))
+        .filter((member) => !columnKeys.has(entry.sessionKey) || toldUs(entry.sessionKey, member.uid))
+        .map((member) => member.displayName);
+      return { key: entry.sessionKey, words: names.length > 0 ? registerCantMakeItLine(dateLabel(entry.dateKey), names) : "" };
+    })
+    .filter((line) => line.words !== "");
+
   const pushTally = pushSession
     ? (tallies.get(pushSession.sessionKey) ?? { marked: 0, eligible: 0 })
     : { marked: 0, eligible: 0 };
@@ -697,6 +736,17 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
         <p className={styles.error} role="status">
           {cellError ?? error?.message}
         </p>
+      )}
+
+      {/* Who told us in advance they can't make a session still to come. */}
+      {cantMakeItLines.length > 0 && (
+        <div className={styles.cantMakeIt}>
+          {cantMakeItLines.map((line) => (
+            <p key={line.key} className={styles.cantMakeItLine}>
+              {line.words}
+            </p>
+          ))}
+        </div>
       )}
 
       {/* The register's OWN scroller. Never `.mainWide`: a wide data view
@@ -912,7 +962,7 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
                             role="img"
                             aria-label={`${member.displayName}, week ${session.weekNumber}: ${
                               status ? ATTENDANCE_STATUS_LABEL[status] : "not marked"
-                            }. This register is finished and locked.`}
+                            }.${toldUs(session.sessionKey, member.uid) ? ` ${TOLD_IN_ADVANCE}` : ""} This register is finished and locked.`}
                           >
                             {status ? GLYPH[status] : UNMARKED_GLYPH}
                           </span>
@@ -926,7 +976,9 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
                             aria-pressed={status !== null}
                             aria-label={`${member.displayName}, week ${session.weekNumber}: ${
                               status ? ATTENDANCE_STATUS_LABEL[status] : "not marked"
-                            }. Sets ${next ? ATTENDANCE_STATUS_LABEL[next] : "not marked"}.`}
+                            }.${toldUs(session.sessionKey, member.uid) ? ` ${TOLD_IN_ADVANCE}` : ""} Sets ${
+                              next ? ATTENDANCE_STATUS_LABEL[next] : "not marked"
+                            }.`}
                             onClick={() => void onCycle(session, member)}
                           >
                             {/* Keyed by status so a change REMOUNTS the glyph:

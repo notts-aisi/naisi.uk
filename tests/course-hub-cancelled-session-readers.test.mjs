@@ -156,6 +156,14 @@ const READERS = {
       "the check-in's read of a session's register: a cancelled session reads as not held, so the check-in is " +
       "never offered or opened for it and nobody marked on it is reached",
   },
+  "lib/courses/cantMakeIt/seat.ts": {
+    kind: "asks",
+    proof: ["cancelled: session.cancelled, line, now", "notHeld: !register.held,"],
+    why:
+      "Can't make it, pressed on a programme page: a session called off is closed before its register's switch is " +
+      "asked (`cantMakeItState` answers cancelled first), so nobody is offered it or recorded as excused for a session " +
+      "that is not happening, and a register that says its session did not happen closes it too",
+  },
 
   // ── Readers handed an answer one of those built ──────────────────────────
   "app/api/admissions/forms/[roundId]/programmes/[programmeId]/registers/remind/route.ts": {
