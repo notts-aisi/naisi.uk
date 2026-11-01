@@ -394,21 +394,28 @@ test(
     const linkHost = new URL(groupA.meetingUrl).host;
     /**
      * A group's people in the order the lead's tabs list them: by the name
-     * those tabs show, then uid. The course screens name people by the name
-     * they go by (`fullNameOfUser`), which for this term's fixtures is
-     * `first`; the Applications tab and the Settings panel keep the name on
-     * the application, the account's display name.
+     * those tabs show, then uid. Course screens name people by the names rule
+     * for their reader (`nameForViewer`): the admin, who reads the lead's tabs
+     * here, is shown each full name, which for this term's fixtures is the
+     * account's display name, unique to this run; Fern, a facilitator who is
+     * not on the committee, the name each goes by, the fixture's `first`. The
+     * two sort alike: every display name is its `first` and the same words.
+     * The Applications tab and the Settings panel keep the name on the
+     * application, the account's display name.
      */
     const membersOf = (group) =>
       term.people
         .filter((person) => person.groupKey === group.key)
-        .sort((a, b) => a.first.localeCompare(b.first, "en-GB") || a.uid.localeCompare(b.uid));
+        .sort((a, b) => a.displayName.localeCompare(b.displayName, "en-GB") || a.uid.localeCompare(b.uid));
     /**
-     * A row heading's name pattern for this person: their whole go-by name at
-     * its start, never the start of a longer name. Text read off the page
-     * runs the name straight into what follows it ("BenLeft Fri 13 Nov").
+     * A row heading's name pattern for this person, on a page drawn for Fern:
+     * their whole go-by name at its start, never the start of a longer name.
+     * Text read off the page runs the name straight into what follows it
+     * ("BenLeft Fri 13 Nov").
      */
     const headingOf = (person) => new RegExp(`^${escapeRegExp(person.first)}(?![a-z])`);
+    /** The same, on a page drawn for the admin: the full name the names rule shows them. */
+    const adminHeadingOf = (person) => new RegExp(`^${escapeRegExp(person.displayName)}(?![A-Za-z0-9])`);
 
     const weeks = Array.from({ length: term.weekCount }, (_, i) => i + 1);
 
@@ -1375,10 +1382,11 @@ test(
         const leavers = membersOf(groupA)
           .filter((person) => leftKeyOf.has(person.key))
           .sort((a, b) => leftKeyOf.get(b.key).localeCompare(leftKeyOf.get(a.key)));
+        // Each card names them by the names rule for the admin, in full; its sentences by the name they go by.
         assert.deepEqual(
           listed,
           leavers.map((person) => [
-            `${person.first} left on ${dayLabel(leftKeyOf.get(person.key))}`,
+            `${person.displayName} left on ${dayLabel(leftKeyOf.get(person.key))}`,
             `${person.first} said: “${said.get(person.key)}” ${person.first}’s off ${groupA.name}’s register from week ${nextWeek}.`,
           ]),
           "Needs attention does not quote each who left",
@@ -1478,7 +1486,7 @@ test(
               : left
                 ? "after they left"
                 : "not yet";
-            return `${person.first}, week ${weekNumber}: ${what}`;
+            return `${person.displayName}, week ${weekNumber}: ${what}`;
           });
         const cameOf = (person) => {
           const marks = finishedWeeks.map((weekNumber) => markOf(person, weekNumber));
@@ -1487,7 +1495,7 @@ test(
         for (const group of ordered) {
           for (const person of membersOf(group)) {
             const row = grid.getByRole("row").filter({
-              has: adminPage.getByRole("rowheader", { name: headingOf(person) }),
+              has: adminPage.getByRole("rowheader", { name: adminHeadingOf(person) }),
             });
             await row.waitFor({ timeout: WAIT_MS });
             const marks = row.getByRole("img");
@@ -1497,7 +1505,7 @@ test(
             const { came, of } = cameOf(person);
             assert.equal(await textOf(row.locator("td").last()), `${came} of ${of}`, `${person.first}'s Came`);
             const header = row.getByRole("rowheader");
-            await header.getByText(person.first, { exact: true }).waitFor({ timeout: WAIT_MS });
+            await header.getByText(person.displayName, { exact: true }).waitFor({ timeout: WAIT_MS });
             if (leftKeyOf.has(person.key)) {
               await header.getByText(leftLabelOf(person), { exact: true }).waitFor({ timeout: WAIT_MS });
             } else {
@@ -1527,7 +1535,7 @@ test(
             const { came, of } = cameOf(person);
             rows.push([
               group.name,
-              person.first,
+              person.displayName,
               ...weeks.map((weekNumber) => (weekNumber <= thisWeek ? MARK_WORD[markOf(person, weekNumber)] : "")),
               came,
               of,

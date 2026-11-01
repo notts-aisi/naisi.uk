@@ -598,13 +598,13 @@ test(
     const stayed = over.people.filter((person) => !plan.left?.[person.key]);
     /**
      * The section's rows, fewest sessions first, then by the name shown
-     * (`buildWhoFinished`): the lead's tabs name people by the name they go
-     * by (`fullNameOfUser`), the fixture's `first`. A certificate prints the
-     * account's display name (`certificateNameOf`), so everything about the
-     * certificates below keeps `displayName`.
+     * (`buildWhoFinished`): the lead's tabs, read here by the admin, name
+     * people by the names rule (`nameForViewer`), so each by the full name,
+     * the fixture's display name. A certificate prints the account's display
+     * name by its own rule (`certificateNameOf`).
      */
     const listed = [...stayed].sort(
-      (a, b) => cameOf(a) - cameOf(b) || a.first.localeCompare(b.first, "en-GB") || a.uid.localeCompare(b.uid),
+      (a, b) => cameOf(a) - cameOf(b) || a.displayName.localeCompare(b.displayName, "en-GB") || a.uid.localeCompare(b.uid),
     );
     const byRule = (person) => cameOf(person) >= AT_LEAST;
     assert.deepEqual(
@@ -1109,8 +1109,8 @@ test(
           const [who, group, came, written] = rows[at];
           const line = lineOf(person) ?? "";
           assert.ok(
-            who.endsWith(`${person.first}${line}`),
-            `row ${at + 1} is not ${person.first} with ${JSON.stringify(line)}: ${who}`,
+            who.endsWith(`${person.displayName}${line}`),
+            `row ${at + 1} is not ${person.displayName} with ${JSON.stringify(line)}: ${who}`,
           );
           assert.deepEqual(
             [group, came, written],
@@ -1121,13 +1121,13 @@ test(
         // Who left: listed apart, with the day, and no switch.
         assert.equal(rows[listed.length][0], FINISHING.leftHead, "the section does not list who left apart");
         const [leftWho, leftGroup, , , leftDay] = rows[listed.length + 1];
-        assert.ok(leftWho.endsWith(dan.first), `the person listed as having left is not Dan: ${leftWho}`);
+        assert.ok(leftWho.endsWith(dan.displayName), `the person listed as having left is not Dan: ${leftWho}`);
         assert.deepEqual([leftGroup, leftDay], [groupOf(dan.groupKey).name, FINISHING.left(danLeftDay)], "Dan's row as somebody who left");
         // Each switch, and the counts agreeing with them.
         const switches = await switchesOf(section);
         assert.deepEqual(
           switches,
-          listed.map((person) => [FINISHING.switchName(person.first), finished.includes(person)]),
+          listed.map((person) => [FINISHING.switchName(person.displayName), finished.includes(person)]),
           "the switches",
         );
         assert.deepEqual(
@@ -1137,10 +1137,10 @@ test(
         );
         // "Changed by you" beside the switch the lead turned, and nowhere else.
         for (const person of listed) {
-          // The row with this person's switch: its name is "Finished: " and the whole name they go by.
+          // The row with this person's switch: its name is "Finished: " and their whole name as the admin is shown it.
           const row = section
             .locator("tbody tr")
-            .filter({ has: adminPage.getByRole("switch", { name: FINISHING.switchName(person.first), exact: true }) });
+            .filter({ has: adminPage.getByRole("switch", { name: FINISHING.switchName(person.displayName), exact: true }) });
           assert.equal(
             await row.getByText(FINISHING.changedByYou, { exact: true }).count(),
             person === ticked && finished.includes(ticked) ? 1 : 0,
@@ -1162,7 +1162,7 @@ test(
         // The lead ticks one more: saved at once, from the keyboard, and the
         // answer is the section as the server now has it.
         const toggle = await whenEnabled(
-          section.getByRole("switch", { name: FINISHING.switchName(ticked.first), exact: true }),
+          section.getByRole("switch", { name: FINISHING.switchName(ticked.displayName), exact: true }),
           `${ticked.first}'s switch`,
         );
         const [request, response] = await Promise.all([

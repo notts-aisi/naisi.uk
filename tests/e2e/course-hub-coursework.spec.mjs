@@ -284,10 +284,9 @@ test(
         "the lead opens the Coursework tab: everybody in their group, the person in no group last, and each cell in counts",
         async () => {
           activePage = adminPage;
-          // Each fellow is named by the name their row on the run carries (the
-          // account's display name when they applied, unique to this run); a
-          // facilitator by the name they go by (`fullNameOfUser`, the fixture's
-          // `first`), since only the committee is shown more than that.
+          // Everybody is named off their account by the names rule for an admin
+          // (`nameForViewer`): the full name, here the fixture's display name,
+          // unique to this run, which begins with the name each goes by.
           await adminPage.goto(`${formBase}/attendance`, { waitUntil: "domcontentloaded" });
           // The tab sits after Attendance in the programme's row.
           const tabLink = adminPage.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Coursework", exact: true });
@@ -299,7 +298,7 @@ test(
           const expected = ordered.map((group) =>
             sectionOf(group.name, [
               ...state.people.filter((person) => person.groupKey === group.key).map((person) => ({ name: person.displayName })),
-              ...(group === facilitated ? [{ name: fern.first, mark: "Facilitator" }] : []),
+              ...(group === facilitated ? [{ name: fern.displayName, mark: "Facilitator" }] : []),
             ]),
           );
           expected.push(sectionOf("Not in a group yet", [{ name: dan.displayName }]));
@@ -387,10 +386,11 @@ test(
         await adminPage.getByRole("heading", { name: "Week 3 reflections", level: 1 }).waitFor({ timeout: WAIT_MS });
         const prompt = adminPage.locator("section").filter({ has: adminPage.getByRole("heading", { name: COURSEWORK_PROMPTS.rp1, level: 2 }) });
         const words = await wordsIn(prompt);
-        assert.ok(words.includes(`1 of 2 wrote one · ${ben.first} hasn’t`), `the prompt does not name who has not written: ${words}`);
-        assert.ok(new RegExp(`${escapeRegExp(ada.first)} ${WHEN.source} ${escapeRegExp(adaSaid)}`).test(words), `Ada's reflection is not under her name: ${words}`);
+        // Each by the names rule for an admin: the full name, the fixture's display name.
+        assert.ok(words.includes(`1 of 2 wrote one · ${ben.displayName} hasn’t`), `the prompt does not name who has not written: ${words}`);
+        assert.ok(new RegExp(`${escapeRegExp(ada.displayName)} ${WHEN.source} ${escapeRegExp(adaSaid)}`).test(words), `Ada's reflection is not under her name: ${words}`);
         // Fern's own reflections are the lead's to read, marked as hers.
-        assert.ok(words.includes(`Facilitators’ own reflections ${fern.first} Facilitator Not written yet.`), `Fern's own reflection is not marked: ${words}`);
+        assert.ok(words.includes(`Facilitators’ own reflections ${fern.displayName} Facilitator Not written yet.`), `Fern's own reflection is not marked: ${words}`);
         // Another group's never.
         assert.ok(!(await mainOf(adminPage)).includes(cleoSaid), "Group B's reflection is on Group A's page");
       });
