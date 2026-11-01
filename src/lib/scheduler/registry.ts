@@ -46,16 +46,17 @@ import { nextWeekEmailJob } from "./jobs/nextWeekEmail";
 import { registerRemindersJob } from "./jobs/registerReminders";
 import { surveyNamesOffJob } from "./jobs/surveyNamesOff";
 import { unmarkedRegistersJob } from "./jobs/unmarkedRegisters";
+import { weekRemindersJob } from "./jobs/weekReminders";
 import { worksheetDueRemindersJob } from "./jobs/worksheetDueReminders";
 
 /**
  * Every job id the platform will register. The union is complete ahead of the
  * handlers on purpose (see the module comment).
  *
- * `week-lock-notices` is deliberately absent: next week's email (sent by the
- * register's push, or on its schedule by `courses-next-week-email`) already
- * tells a group about its week, so a second notice would be a duplicate with
- * worse timing.
+ * `week-lock-notices` is deliberately absent: "Week N is open" (sent by the
+ * register's push, or on its schedule by `courses-next-week-email`) and the
+ * reminders before a session already tell a group about its week and when it
+ * locks, so a third notice would be a duplicate with worse timing.
  */
 export const SCHEDULER_JOB_IDS = [
   "heartbeat",
@@ -78,15 +79,20 @@ export const SCHEDULER_JOB_IDS = [
   "application-place-confirmations",
   "courses-unmarked-registers",
   "courses-break-return",
-  // Next week's email on a schedule (wk-register, option B). Its switch is
-  // load-bearing in two places: the tick runs it, and the attendance push
-  // reads it to decide whether pushing still sends the email
+  // "Week N is open" on a schedule, 6 days before each session (wk-register,
+  // option B). The id is the one it shipped with as next week's email. Its
+  // switch is load-bearing in two places: the tick runs it, and the
+  // attendance push reads it to decide whether pushing still sends the email
   // (`nextWeekEmailSchedule.ts`). It emails whole groups, so it registers with
   // `enabledByDefault: false`.
   "courses-next-week-email",
   // The one reminder to a group's facilitators when a register is still not
   // finished. It emails people, so it registers with `enabledByDefault: false`.
   "courses-register-reminders",
+  // The reminders 3 days and 1 day before a session to each person whose week
+  // is not done. It emails people, so it registers with
+  // `enabledByDefault: false`.
+  "courses-week-reminders",
   // The queued new-event announcement (docs/notifications.md). Publishing
   // consults THIS switch to decide between sending inline and queueing, so
   // the id is load-bearing in two places rather than one: rename it after it
@@ -259,6 +265,7 @@ export const JOBS: readonly JobRegistration[] = [
   nextWeekEmailJob,
   registerRemindersJob,
   unmarkedRegistersJob,
+  weekRemindersJob,
   eventAnnouncementsJob,
   eventCheckInsTidyJob,
   heartbeatJob,

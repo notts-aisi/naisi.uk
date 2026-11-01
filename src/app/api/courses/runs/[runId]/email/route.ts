@@ -51,9 +51,8 @@ import { sendNoticePush } from "@/lib/push/noticeNotifications";
  * rather than truncates. Both carry the full argument in their own headers, and
  * so does `resolveNoticeAudience` beside them, the notice lane's audience.
  *
- * They are shared with P11's weekly nudge because a nudge IS an announcement to
- * the whole run: the two lanes must agree on who may speak for a cohort and who
- * is in it, and they used to agree by being written out twice.
+ * They were once shared with the weekly nudge (since removed), which is why
+ * they live in a module of their own rather than in this route.
  *
  * ── THE 200 CAP FAILS THE REQUEST ───────────────────────────────────────────
  * `MAX_COHORT_RECIPIENTS` refuses rather than truncates. A partial cohort send

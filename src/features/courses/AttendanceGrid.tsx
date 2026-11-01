@@ -841,7 +841,7 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
                       </button>
                     )}
 
-                    {/* The recovery lane for next week's email when it failed
+                    {/* The recovery lane for the week's email when it failed
                         after it was claimed. Admin only, and it reaches THIS
                         group alone. */}
                     {pushed && canEditPushed && (
@@ -850,9 +850,9 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
                         className={styles.bulk}
                         data-testid="attendance-resend"
                         onClick={() => setResendTarget(session.sessionKey)}
-                        aria-label={`Send the week ${session.weekNumber} reminder to this group again`}
+                        aria-label={`Send this group the email after week ${session.weekNumber} again`}
                       >
-                        {scheduled ? "Resend next week’s email" : "Resend reminder"}
+                        Resend the week’s email
                       </button>
                     )}
                   </th>
@@ -1078,19 +1078,19 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
         <Modal
           open
           onClose={() => setResendTarget(null)}
-          ariaLabel="Re-send this group's reminder"
+          ariaLabel="Re-send this group's email"
           width="sm"
         >
           <div className={styles.dialog}>
             <h2 className={styles.dialogTitle}>
-              {scheduled ? "Re-send next week’s email" : "Re-send the reminder"} after week{" "}
+              Re-send the week’s email after week{" "}
               {resendSession.weekNumber}
               {resendSession.occurrence > 1 ? `, session ${resendSession.occurrence}` : ""}?
             </h2>
             <p className={styles.dialogMeta}>
               {scheduled
-                ? "Use it when next week’s email went out on its schedule and failed: "
-                : "This group has already been sent (or claimed) this reminder. Use it when the push locked the register but the email failed: "}
+                ? "Use it when the week’s email went out on its schedule and failed: "
+                : "This group has already been sent (or claimed) this email. Use it when the push locked the register but the email failed: "}
               everyone in {group?.name || "this group"} gets the message again, and nobody
               outside the group is emailed. The re-send is recorded against your name.
               {scheduled ? " An email that hasn’t gone yet isn’t sent early." : ""}
@@ -1108,7 +1108,7 @@ export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridPr
                 disabled={resending}
                 data-testid="attendance-resend-confirm"
               >
-                {resending ? "Re-sending..." : "Re-send reminder"}
+                {resending ? "Re-sending..." : "Re-send the email"}
               </Button>
             </div>
           </div>

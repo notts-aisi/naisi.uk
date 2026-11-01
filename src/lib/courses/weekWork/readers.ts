@@ -25,6 +25,7 @@ import {
   personWeekProgress,
   weekAsksForWriting,
   weekWorkWire,
+  type CheckState,
   type PersonWeekProgress,
   type WeekLock,
   type WeekWorkState,
@@ -124,27 +125,29 @@ export async function ownWeekWires(
 }
 
 /**
- * HOW FAR EACH OF SOME PEOPLE HAS GOT WITH ONE WEEK WRITTEN AS BLOCKS, by the
- * one count every page uses (`personWeekProgress`): This week's tasks done,
- * whether the week is done, and whether they have started it. Read on the
- * server after the page's own gate, as counts and nothing else: the week's
- * rows of the answers store by who and which item (never a word), its ticks
- * by who and which item, and each person's pack and ready mark by address.
- * `submitted` says whose week is submitted (`loadRunWeekStates`).
+ * WHAT EACH OF SOME PEOPLE HAS DONE OF ONE WEEK WRITTEN AS BLOCKS, as the
+ * check before Submit reads a person's own week (`CheckState`): which
+ * readings and steps they ticked, which boxes they wrote in, which written
+ * answers are sent and how many words each holds, their pack and their ready
+ * mark, and whether they have touched the week at all. Read on the server
+ * after the caller's own gate, as counts and nothing else: the week's rows of
+ * the answers store by who and which item (never a word), its ticks by who
+ * and which item, and each person's pack and ready mark by address.
  */
-export async function loadPeopleWeekProgress(
+export type PersonWeekFacts = { state: CheckState; touched: boolean };
+
+export async function loadPeopleWeekFacts(
   db: Firestore,
   input: {
     runId: string;
     weekNumber: number;
     blocks: readonly WeekBlock[];
     uids: readonly string[];
-    submitted: (uid: string) => boolean;
   },
-): Promise<Map<string, PersonWeekProgress>> {
+): Promise<Map<string, PersonWeekFacts>> {
   const { runId, weekNumber, blocks } = input;
   const uids = new Set(input.uids);
-  const out = new Map<string, PersonWeekProgress>();
+  const out = new Map<string, PersonWeekFacts>();
   if (uids.size === 0) return out;
   const recordBlocks = recordBlocksOf(blocks);
   const [rows, ticks, records] = await Promise.all([
@@ -168,11 +171,12 @@ export async function loadPeopleWeekProgress(
       [...uids].flatMap((uid) => recordBlocks.map((block) => ({ uid, blockId: block.id }))),
     ),
   ]);
-  const facts = new Map<string, { written: Set<string>; sent: Set<string>; ticked: Set<string>; touched: boolean }>();
+  type Facts = { written: Set<string>; sent: Set<string>; words: Map<string, number>; ticked: Set<string>; touched: boolean };
+  const facts = new Map<string, Facts>();
   const of = (uid: string) => {
     let found = facts.get(uid);
     if (!found) {
-      found = { written: new Set(), sent: new Set(), ticked: new Set(), touched: false };
+      found = { written: new Set(), sent: new Set(), words: new Map(), ticked: new Set(), touched: false };
       facts.set(uid, found);
     }
     return found;
@@ -188,7 +192,10 @@ export async function loadPeopleWeekProgress(
       of(uid).touched = true;
     } else if (isWordCountedAnswer(data)) {
       if (instantOf(data.firstSentAt)) of(uid).sent.add(id);
-      if (typeof data.words === "number" && data.words > 0) of(uid).touched = true;
+      if (typeof data.words === "number" && data.words > 0) {
+        of(uid).words.set(id, Math.floor(data.words));
+        of(uid).touched = true;
+      }
     }
   }
   for (const doc of ticks.docs) {
@@ -199,27 +206,52 @@ export async function loadPeopleWeekProgress(
     of(uid).ticked.add(itemId);
     of(uid).touched = true;
   }
-  const tasks = weekTaskNeeds(blocks);
-  const writes = weekAsksForWriting(blocks);
   for (const uid of uids) {
     const own = of(uid);
     const record = (blockId: string) => records.get(`${uid} ${blockId}`) ?? null;
     if (recordBlocks.some((block) => record(block.id)?.packId || record(block.id)?.ready)) own.touched = true;
+    out.set(uid, {
+      state: {
+        isTicked: (id) => own.ticked.has(id),
+        isWritten: (id) => own.written.has(id),
+        isSent: (id) => own.sent.has(id),
+        packOf: (id) => record(id)?.packId ?? null,
+        isReady: (id) => record(id)?.ready === true,
+        // Counts only: no word of an answer is read here, so an answer in
+        // boxes with words in some of them reads as having none empty.
+        answerOf: (id) => ({ words: own.words.get(id) ?? 0, emptyBoxes: 0 }),
+      },
+      touched: own.touched,
+    });
+  }
+  return out;
+}
+
+/**
+ * HOW FAR EACH OF SOME PEOPLE HAS GOT WITH ONE WEEK WRITTEN AS BLOCKS, by the
+ * one count every page uses (`personWeekProgress`): This week's tasks done,
+ * whether the week is done, and whether they have started it, from what
+ * `loadPeopleWeekFacts` reads. `submitted` says whose week is submitted
+ * (`loadRunWeekStates`).
+ */
+export async function loadPeopleWeekProgress(
+  db: Firestore,
+  input: {
+    runId: string;
+    weekNumber: number;
+    blocks: readonly WeekBlock[];
+    uids: readonly string[];
+    submitted: (uid: string) => boolean;
+  },
+): Promise<Map<string, PersonWeekProgress>> {
+  const out = new Map<string, PersonWeekProgress>();
+  const facts = await loadPeopleWeekFacts(db, input);
+  const tasks = weekTaskNeeds(input.blocks);
+  const writes = weekAsksForWriting(input.blocks);
+  for (const [uid, own] of facts) {
     out.set(
       uid,
-      personWeekProgress({
-        tasks,
-        state: {
-          isTicked: (id) => own.ticked.has(id),
-          isWritten: (id) => own.written.has(id),
-          isSent: (id) => own.sent.has(id),
-          packOf: (id) => record(id)?.packId ?? null,
-          isReady: (id) => record(id)?.ready === true,
-        },
-        writes,
-        submitted: input.submitted(uid),
-        touched: own.touched,
-      }),
+      personWeekProgress({ tasks, state: own.state, writes, submitted: input.submitted(uid), touched: own.touched }),
     );
   }
   return out;

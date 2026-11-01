@@ -21,7 +21,8 @@ import { reserveSendSlot } from "@/lib/email/courseFacilitatorEmails";
 import { didNotHappenLine } from "@/lib/courses/programmeAttendance";
 import { readRunLead } from "@/lib/courses/programmeLead";
 import { unpublishedPushWords, type MarksReady } from "@/features/courses/registerEndingWords";
-import { joinWords, missingNudgeValueWords } from "@/lib/email/courseNudgeEmail";
+import { namesAnd } from "@/lib/courses/writtenAnswerWords";
+import { missingWeekOpenWords } from "@/lib/courses/weekEmails/words";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser, type SessionUser } from "@/lib/firebase/session";
@@ -38,7 +39,7 @@ import { nextWeekEmailIsScheduled } from "@/lib/scheduler/nextWeekEmailSchedule"
 
 /**
  * FINISHING A REGISTER: the one human action that closes a session. The
- * button is "Finish the register" while next week's email is on its schedule,
+ * button is "Finish the register" while "Week N is open" is on its schedule,
  * and "Push attendance" while it is not; this route is both.
  *
  * A facilitator marks the room as often as they like during the session; the
@@ -61,11 +62,11 @@ import { nextWeekEmailIsScheduled } from "@/lib/scheduler/nextWeekEmailSchedule"
  *      effort, after the commit, and free (no reads at all) on any register
  *      finished before the task's hours have passed. See
  *      `archiveRegisterFollowUp`.
- *   4. NEXT WEEK'S EMAIL, ONLY WHILE IT IS NOT ON ITS SCHEDULE. With the
+ *   4. "WEEK N IS OPEN", ONLY WHILE IT IS NOT ON ITS SCHEDULE. With the
  *      `courses-next-week-email` job switched off (how it ships), the group's
  *      email about its next session goes out once from here, as it always
- *      has. With it switched on, the job sends that email a set time before
- *      the session whatever happens to the register, and finishing emails
+ *      has. With it switched on, the job sends that email 6 days before the
+ *      session at 9am whatever happens to the register, and finishing emails
  *      NOBODY. `src/lib/courses/nextWeekEmail.ts` holds the send and says how
  *      the two lanes never both send: one switch, read by both through
  *      `nextWeekEmailIsScheduled`, and one shared claim. The register's page
@@ -81,15 +82,14 @@ import { nextWeekEmailIsScheduled } from "@/lib/scheduler/nextWeekEmailSchedule"
  * had already been sent, which is precisely backwards. So the transaction
  * commits first, and the marker is claimed by a standalone `.create()` after
  * it. A send failure after that point leaves the register locked and the
- * mirrors correct, which is the outcome we want, and the admin catch-up lane
- * (POST /api/courses/runs/[runId]/nudge, with `force`) is how the mail is
+ * mirrors correct, which is the outcome we want, and an admin's resend on
+ * the finished register (`{ force: true }`, below) is how the mail is
  * recovered.
  *
  * ── CLAIM BEFORE SEND ───────────────────────────────────────────────────────
  * The marker is claimed BEFORE the first message goes out, never after. That
- * trades "possible partial send" for "never a duplicate blast", the same trade
- * the run-level nudge documents at length. A missed reminder is a reminder; a
- * duplicate blast is an incident.
+ * trades "possible partial send" for "never a duplicate blast". A missed email
+ * is an email; a duplicate blast is an incident.
  *
  * ── A SECOND PRESS IS A 200, NOT AN ERROR ───────────────────────────────────
  * `{ ok: true, alreadyPushed: true }`. A facilitator pressing twice because
@@ -103,19 +103,18 @@ import { nextWeekEmailIsScheduled } from "@/lib/scheduler/nextWeekEmailSchedule"
  *
  * The claim-before-send trade above has one bad outcome: a transport failure
  * after the claim leaves a locked register, correct mirrors, and a group that
- * was never mailed, with the marker taken so a second press does nothing. The
- * only lane that used to reach them was the run-wide catch-up, which mails
- * every OTHER group of the run a second time to fix one.
+ * was never mailed, with the marker taken so a second press does nothing.
  *
  * So an ADMIN may POST `{ force: true }` against a pushed register. It skips
  * the "already pushed" early return, re-derives the same audience, and updates
  * the existing marker with `forceCount`, `lastForcedAt`, `lastForcedByUid` and
- * a `forces` entry, the shape the run-level nudge writes for its own forces.
+ * a `forces` entry naming the marker it went over.
  * A facilitator is refused 403: the marker exists to stop a group being mailed
  * the same reminder every evening, and it must not be theirs to overwrite.
  *
- * Everything the mail needs (the config, the template) is now resolved BEFORE
- * the claim, so the ONLY thing that can fail after it is the transport itself.
+ * Everything the mail needs (the config, the week, the audience) is resolved
+ * BEFORE the claim, so the ONLY thing that can fail after it is the transport
+ * itself.
  *
  * ── AN EMPTY HELD REGISTER IS REFUSED ───────────────────────────────────────
  * The participant-note lane creates the register document with a merge, so
@@ -132,11 +131,11 @@ import { nextWeekEmailIsScheduled } from "@/lib/scheduler/nextWeekEmailSchedule"
  * read or a throttle slot is spent. Nothing is locked, mirrored or sent.
  *
  * ── WHAT THIS ROUTE DOES NOT DO ─────────────────────────────────────────────
- * THE SESSION-1 WELCOME. There is no push before a run's first session, so
- * nothing here can send one. That send is the ADMIN CATCH-UP lane's job (the
- * run-level nudge), pressed by hand before the first week. Do not add a
- * "first session" branch here: it would need its own idempotency marker for a
- * send that happens once per run, and the catch-up lane already has one.
+ * "WEEK 1 IS OPEN". There is no push before a group's first session, so
+ * nothing here can send it. It goes on the schedule, 6 days before the first
+ * session, once `courses-next-week-email` is switched on; until then the
+ * placement email Publish sends is what tells people about it. Do not add a
+ * "first session" branch here: the schedule's claim already covers it.
  * docs/courses-ops.md carries the operational half of this note.
  */
 
@@ -168,15 +167,15 @@ export type AttendancePushResult = {
    */
   reason: string | null;
   /**
-   * True when next week's email is on its schedule, so finishing emailed
+   * True when "Week N is open" is on its schedule, so finishing emailed
    * nobody by design. The screen words its answer from this.
    */
   scheduled: boolean;
 };
 
-/** The answer a finish gives while next week's email is on its schedule. */
+/** The answer a finish gives while "Week N is open" is on its schedule. */
 const SCHEDULED_REASON =
-  "Next week’s email goes on its schedule, so finishing the register emailed nobody.";
+  "Each week’s email goes on its schedule, so finishing the register emailed nobody.";
 
 // ---------------------------------------------------------------------------
 // Tunables
@@ -320,8 +319,8 @@ async function archiveRegisterFollowUp(
 
 /**
  * WHO MARKS NEXT WEEK READY, said to the person who pressed when its email
- * waits for the week to be published: an admin may mark it ready and use the
- * run's catch-up send; the programme's lead may mark it ready; anybody else,
+ * waits for the week to be published: an admin may mark it ready and resend
+ * from the register; the programme's lead may mark it ready; anybody else,
  * a facilitator, is told who does (the lead by name, or an admin when no lead
  * stands). One read of the forms and the lead's account, only on this path.
  */
@@ -432,7 +431,7 @@ export async function POST(
     );
   }
   const session = sessions[index];
-  // The session next week's email is about: the one after this one in the
+  // The session the week's email is about: the one after this one in the
   // group's whole schedule. The register's page asks the same function to say
   // what this press emails, so the page and the press cannot disagree.
   const nextSession: ResolvedSession | null = sessionAfter(sessions, session.sessionKey);
@@ -681,7 +680,7 @@ export async function POST(
       return done(
         0,
         0,
-        "Next week’s email to this group hasn’t gone yet, so there’s nothing to send again. It goes on its schedule.",
+        "The week’s email to this group hasn’t gone yet, so there’s nothing to send again. It goes on its schedule.",
       );
     }
   }
@@ -702,8 +701,8 @@ export async function POST(
   });
   const reason =
     outcome.held === "missing"
-      ? `Next week’s email wasn’t sent again: it’s missing ${joinWords(
-          missingNudgeValueWords(outcome.missing, nextSession.weekNumber),
+      ? `Week ${nextSession.weekNumber}’s email wasn’t sent again: it’s missing ${namesAnd(
+          missingWeekOpenWords(outcome.missing, nextSession.weekNumber),
         )}.`
       : outcome.held === "unpublished"
         ? // Only the programme's lead and admins mark a week ready, so who

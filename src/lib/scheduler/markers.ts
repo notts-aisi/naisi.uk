@@ -52,6 +52,7 @@ export {
   stageRecipientMarker,
   stageReleaseMarker,
   unmarkedRegisterMarker,
+  weekReminderMarker,
   worksheetReminderMarker,
 } from "@/lib/firestore/schedulerMarkers";
 export type {

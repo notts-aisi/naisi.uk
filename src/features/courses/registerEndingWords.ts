@@ -9,13 +9,13 @@ import type { NextEmailLine, RegisterEnding } from "@/lib/courses/registerEnding
  * Two endings, and the next-week email's switch on Site status decides which:
  *
  *  - ON ITS SCHEDULE (option B, as drawn): "Finish the register", then
- *    "Locks it and shows everyone their mark. Nobody’s emailed.", when next
- *    week's email goes, and who is chased if nobody finishes.
+ *    "Locks it and shows everyone their mark. Nobody’s emailed.", when the
+ *    next "Week N is open" goes, and who is chased if nobody finishes.
  *  - NOT ON ITS SCHEDULE (option A, how the site has always worked):
- *    "Push attendance", which emails the group about next week, when there is
- *    an email to send: the board's words when it goes, and why nobody is
- *    emailed when it does not (the group's last session, a week not published
- *    yet, an email that has already gone).
+ *    "Push attendance", which emails the group that the next week is open,
+ *    when there is an email to send: the board's words when it goes, and why
+ *    nobody is emailed when it does not (the group's last session, a week not
+ *    published yet, an email that has already gone).
  *
  * WHAT A PRESS EMAILS IS NEVER WORKED OUT HERE. The route answers it for every
  * register on the page (`ending.pushEmails`, from the push's own decision in
@@ -66,20 +66,21 @@ function taskPeople(leadName: string): string {
   return leadName ? `${leadName} and admins` : "admins";
 }
 
-/** The sentence about next week's email, while it is on its schedule. */
+/** The sentence about the next "Week N is open", while it is on its schedule. */
 export function nextEmailSentence(groupName: string, line: NextEmailLine): string {
   const group = groupName.trim() || "the group";
+  const email = `Week ${line.weekNumber}’s email`;
   switch (line.state) {
     case "goes":
-      return `Next week’s email goes to ${group} on ${line.at}, whatever happens here.`;
+      return `${email} goes to ${group} on ${line.at}, whatever happens here.`;
     case "went":
-      return `Next week’s email went to ${group} on ${line.at}.`;
+      return `${email} went to ${group} on ${line.at}.`;
     case "waiting-for-week":
-      return `Next week’s email to ${group} is waiting for week ${line.weekNumber} to be published.`;
+      return `${email} to ${group} is waiting for week ${line.weekNumber} to be published.`;
     case "held":
-      return `Next week’s email to ${group} is held: it’s missing ${listOfNames(line.missing)}.`;
+      return `${email} to ${group} is held: it’s missing ${listOfNames(line.missing)}.`;
     case "shortly":
-      return `Next week’s email to ${group} goes out shortly.`;
+      return `${email} to ${group} goes out shortly.`;
     case "missed":
       return `Week ${line.weekNumber} has started without its email.`;
   }
@@ -176,7 +177,7 @@ export function pushEmailSentence(groupName: string, line: PushEmailLine): strin
   const group = groupName.trim() || "this group";
   switch (line.kind) {
     case "scheduled":
-      return "Nobody’s emailed. Next week’s email goes on its own schedule, whatever happens here.";
+      return "Nobody’s emailed. Each week’s email goes on its own schedule, whatever happens here.";
     case "not-held":
       return "Nobody is emailed: this session didn’t happen, so its register needs nothing.";
     case "last":
@@ -224,7 +225,13 @@ export function registerEndingWords(ending: RegisterEnding): RegisterEndingWords
   const sends = line ? line.kind === "sends" : ending.hasNext;
   const notes: string[] = [];
   if (finished) notes.push("This register is pushed. Everyone can see their mark.");
-  if (!finished && sends) notes.push("If nobody pushes, nobody gets next week’s email.");
+  if (!finished && sends) {
+    notes.push(
+      line?.kind === "sends"
+        ? `If nobody pushes, nobody gets week ${line.weekNumber}’s email.`
+        : "If nobody pushes, nobody gets the next week’s email.",
+    );
+  }
   if (!finished && chase) notes.push(chase);
   return {
     button: "Push attendance",
@@ -238,14 +245,18 @@ export function registerEndingWords(ending: RegisterEnding): RegisterEndingWords
 function pushEffect(group: string, line: PushEmailLine | undefined, hasNext: boolean): string {
   const locks = "Locks the register and shows everyone their mark.";
   const kind = line?.kind ?? (hasNext ? "sends" : "last");
-  if (kind === "sends") return `Locks the register, shows everyone their mark and emails ${group} about next week.`;
+  if (kind === "sends") {
+    return line?.kind === "sends"
+      ? `Locks the register, shows everyone their mark and emails ${group} that week ${line.weekNumber} is open.`
+      : `Locks the register, shows everyone their mark and emails ${group} that the next week is open.`;
+  }
   if (kind === "last") return `${locks} It’s the group’s last session, so nobody’s emailed.`;
   if (line?.kind === "held") return `${locks} ${heldFootSentence(group, line)}`;
   return `${locks} Nobody’s emailed.`;
 }
 
 // ---------------------------------------------------------------------------
-// The push's own answer, when next week's email waits for its week
+// The push's own answer, when the week's email waits for its week
 // ---------------------------------------------------------------------------
 
 /**
@@ -255,7 +266,7 @@ function pushEffect(group: string, line: PushEmailLine | undefined, hasNext: boo
  * themselves; nobody is named to themselves.
  */
 export type MarksReady =
-  /** The person who pressed is an admin: marking it ready and the run's catch-up send are both theirs. */
+  /** The person who pressed is an admin: marking it ready and the register's Resend are both theirs. */
   | { kind: "admin" }
   /** The person who pressed leads the programme that names the run. */
   | { kind: "you" }
@@ -273,7 +284,7 @@ export function unpublishedHeldWords(weekNumber: number): string {
 function marksReadyWords(who: MarksReady): string {
   switch (who.kind) {
     case "admin":
-      return "Mark it ready, then use the run’s catch-up send.";
+      return "Mark it ready, then use Resend on this register.";
     case "you":
       return "Marking it ready publishes it.";
     case "lead": {

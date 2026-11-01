@@ -144,7 +144,13 @@ export type EmailSendSurface =
   | "survey-blanks"
   // The check-in at the end of a session (docs/surveys.md, "Check-ins"), to
   // the people the register marks at it, when the group's facilitator opens it.
-  | "course-check-in";
+  | "course-check-in"
+  // "Week N is open", 6 days before a group's session, to everybody holding a
+  // place in the group (`src/lib/courses/nextWeekEmail.ts`).
+  | "course-week"
+  // The reminders 3 days and 1 day before a group's session, to each person
+  // in it whose week is not done (`courses-week-reminders`).
+  | "course-week-reminder";
 
 export type EmailSend = {
   messageId: string;

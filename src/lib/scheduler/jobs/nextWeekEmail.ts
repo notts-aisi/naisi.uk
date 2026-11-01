@@ -3,15 +3,11 @@ import type { Firestore } from "firebase-admin/firestore";
 import { buildHeldEmailTask, heldEmailTaskId } from "@/lib/courses/heldEmailTask";
 import { nextWeekEmailMarkerId, sendNextWeekEmail } from "@/lib/courses/nextWeekEmail";
 import { nextWeekEmailTiming } from "@/lib/courses/registerChase";
+import { missingWeekOpenWords } from "@/lib/courses/weekEmails/words";
 import { readAdminUids, registerTaskPeople } from "@/lib/courses/registerTaskPeople";
 import type { RunLead } from "@/lib/courses/programmeLead";
 import { resolveSessions, type ResolvedSession } from "@/lib/courses/sessions";
 import { isOurFollowUpTask } from "@/lib/courses/unmarkedRegisters";
-import {
-  missingNudgeValueWords,
-  resolveCourseNudgeTemplate,
-  type CourseNudgeTemplate,
-} from "@/lib/email/courseNudgeEmail";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { readCoursesConfig, type CoursesConfig } from "@/lib/firestore/config";
 import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
@@ -24,16 +20,16 @@ import { TASK_FIELD_LIMITS } from "@/lib/firestore/tasks";
 import type { JobContext, JobRegistration, JobResult } from "../registry";
 
 /**
- * `courses-next-week-email`: NEXT WEEK'S EMAIL ON A SCHEDULE (wk-register,
- * option B).
+ * `courses-next-week-email`: "WEEK N IS OPEN" ON A SCHEDULE (wk-register,
+ * option B). The id is the one the job shipped with as next week's email, so
+ * the switch an admin set on Site status still means what it meant.
  *
- * Each group is sent next week's time, room and reading a set number of days
- * before each of its sessions (`config/courses.nextWeekEmailDaysBefore`, set
- * in Site status), at that session's own time of day, whatever happens to the
- * register. While this job is switched off, pushing the register sends the
- * email instead, as it always has; switching it on moves the email here and
- * makes the register's button "Finish the register", which emails nobody.
- * How the two never both send is written at the top of
+ * Each group is sent "Week N is open" (the week, when and where it meets,
+ * what the week asks for) 6 days before each of its sessions, at 9am in
+ * London, whatever happens to the register. While this job is switched off,
+ * pushing the register sends the email instead; switching it on moves the
+ * email here and makes the register's button "Finish the register", which
+ * emails nobody. How the two never both send is written at the top of
  * `src/lib/courses/nextWeekEmail.ts`: one switch, one shared claim.
  *
  * ── WHAT IS DUE ─────────────────────────────────────────────────────────────
@@ -45,19 +41,19 @@ import type { JobContext, JobRegistration, JobResult } from "../registry";
  *    tick after it is published sends it, if the session is still ahead;
  *  - a week published only after its session has started is never sent
  *    about: the window has closed;
- *  - a template value that is EMPTY (the room, the week's reading) holds the
- *    email whole rather than sending it without the sentence, and puts one
- *    card on the boards of the programme's lead and the admins saying what is
- *    missing. Filling it in sends the email on the next tick and archives the
- *    card.
+ *  - a fact the email carries that is EMPTY (the group's room, the week's
+ *    title, what the week asks for) holds the email whole rather than sending
+ *    it without, and puts one card on the boards of the programme's lead and
+ *    the admins saying what is missing. Filling it in sends the email on the
+ *    next tick and archives the card.
  *
- * The group's FIRST session is never mailed about here: there is no "next
- * week" before it. People hear about it from the email Publish sends.
+ * The group's FIRST session is mailed about like every other: "Week 1 is
+ * open" goes 6 days before it, to the people told their group by then.
  *
  * ── ONE SEND PER GROUP PER SESSION ──────────────────────────────────────────
  * Claimed with `.create()` on the group's `gnudge__` marker in
- * `courseNudges`, the same document the push and the run's catch-up read.
- * Two ticks at once aim at one document, and one of them sends.
+ * `courseNudges`, the same document the push reads. Two ticks at once aim at
+ * one document, and one of them sends.
  *
  * ── IT SHIPS SWITCHED OFF ───────────────────────────────────────────────────
  * `enabledByDefault: false`: it emails whole groups. It may only be switched on
@@ -70,7 +66,8 @@ const JOB_ID = "courses-next-week-email";
 
 /**
  * A live cohort's statuses, the same allowlist the register follow-up and the
- * run-level nudge use. An allowlist, so a status added later fails closed.
+ * reminders before a session use. An allowlist, so a status added later fails
+ * closed.
  */
 const LIVE_STATUSES: CourseRunStatus[] = ["applications-open", "applications-closed", "running"];
 
@@ -103,7 +100,6 @@ type TickState = {
   db: Firestore;
   ctx: JobContext;
   config: CoursesConfig;
-  template: CourseNudgeTemplate;
   appUrl: string;
   deadlineMs: number;
   /** Read the first time a card is needed, then kept. */
@@ -211,7 +207,7 @@ async function sendForGroup(
   const sessions = resolveSessions(run, group);
   const due: { session: ResolvedSession; startsAt: Date; markerId: string }[] = [];
   sessions.forEach((session, index) => {
-    const timing = nextWeekEmailTiming(sessions, index, config.nextWeekEmailDaysBefore, ctx.now);
+    const timing = nextWeekEmailTiming(sessions, index, ctx.now);
     const markerId = nextWeekEmailMarkerId(run.id, group.id, session);
     // A due session always has a date, and so a marker id; the check is for
     // the type, and for a plan somebody broke by hand.
@@ -222,7 +218,7 @@ async function sendForGroup(
   if (due.length === 0) return "done";
 
   // One round trip for the group's claims. A claim that exists is a send that
-  // happened (the push, the catch-up or an earlier tick), and costs nothing more.
+  // happened (the push or an earlier tick), and costs nothing more.
   const markerSnaps = await db.getAll(
     ...due.map(({ markerId }) => db.collection("courseNudges").doc(markerId)),
   );
@@ -244,7 +240,6 @@ async function sendForGroup(
         config,
         now: ctx.now,
         appUrl: state.appUrl,
-        template: state.template,
       });
       if (outcome.held === null) {
         pass.sent += 1;
@@ -256,7 +251,7 @@ async function sendForGroup(
           run,
           group,
           session,
-          missingNudgeValueWords(outcome.missing, session.weekNumber),
+          missingWeekOpenWords(outcome.missing, session.weekNumber),
           startsAt,
         );
       } else if (outcome.held === "unpublished") {
@@ -297,15 +292,11 @@ async function handler(ctx: JobContext): Promise<JobResult> {
     return { processed: 0, hasMore: false, note: "no site address" };
   }
 
-  const [config, template] = await Promise.all([
-    readCoursesConfig(db),
-    resolveCourseNudgeTemplate(db),
-  ]);
+  const config = await readCoursesConfig(db);
   const state: TickState = {
     db,
     ctx,
     config,
-    template,
     appUrl,
     deadlineMs: Date.now() + Math.max(0, Math.min(SCAN_BUDGET_MS, ctx.budget.remainingMs())),
     adminUids: null,
@@ -365,9 +356,9 @@ async function handler(ctx: JobContext): Promise<JobResult> {
 
 export const nextWeekEmailJob: JobRegistration = {
   id: "courses-next-week-email",
-  label: "Next week's email",
+  label: "Week N is open",
   description:
-    "Sends each group next week's time, room and reading a set number of days before its session (Course settings, below), and holds it while that week is unpublished or a value is missing. Turning it on also stops pushing a register from sending the email: only turn it on where the scheduler is running.",
+    "Emails everyone in each group “Week N is open” (the week, when and where the group meets, and what the week asks for) 6 days before each session at 9am, and holds it while that week is unpublished or a value is missing. Turning it on also stops pushing a register from sending the email: only turn it on where the scheduler is running.",
   // Groups emailed per tick, each one a message per member. The budget is the
   // real bound; this one stops a misdated run mailing every group at once.
   maxPerTick: 25,

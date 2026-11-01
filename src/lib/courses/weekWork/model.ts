@@ -220,8 +220,8 @@ export type CheckState = DoneState & {
   answerOf: (answerId: string) => { words: number; emptyBoxes: number };
 };
 
-/** A Choose one's name for the check: "pathway", a table's own first header, or "pack". */
-function packNameOf(block: ChooseOneBlock): string {
+/** A Choose one's name for the check (and the week's emails): "pathway", a table's own first header, or "pack". */
+export function packNameOf(block: ChooseOneBlock): string {
   const title = block.title.trim();
   return block.form === "table" && /^[A-Za-z][A-Za-z ]{0,24}$/.test(title) ? title.toLowerCase() : "pack";
 }

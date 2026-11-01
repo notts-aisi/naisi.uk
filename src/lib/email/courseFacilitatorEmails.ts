@@ -30,21 +30,19 @@ import { sendEmail } from "./send";
 /**
  * The send-side machinery for COHORT- AND GROUP-ADDRESSED course mail — the two
  * P9 email routes (`/api/courses/groups/[groupId]/email`,
- * `/api/courses/runs/[runId]/email`) and P11's weekly nudge
- * (`/api/courses/runs/[runId]/nudge`). Templates, payload validation, the
+ * `/api/courses/runs/[runId]/email`), and the audiences of the week's emails
+ * ("Week N is open" and the reminders before a session). Templates, payload
+ * validation, the
  * durable send throttle, the run-staff gate, the cohort audience derivation and
  * the notice audience beside it live together because the routes must agree on
  * all of them; route handlers don't import from one another by house
  * convention, so this module is where they meet.
  *
  * ── WHO MAY SEND AND WHO RECEIVES ARE DEFINED ONCE, HERE ────────────────────
- * `gateRunStaff` and `resolveCohortAudience` were previously written out twice,
- * line for line, in the announcement route and the nudge route — with a comment
- * in each saying "IF YOU CHANGE ONE, CHANGE BOTH". They are the same predicate
- * and the same audience by design (a nudge IS an announcement to the whole run),
- * so they are now one function each and the comment is retired. The extraction
- * was a pure move: both routes' status codes, refusal sentences, `skipped`
- * arithmetic, log tags and read ordering are unchanged.
+ * `gateRunStaff` and `resolveCohortAudience` were once written out twice, line
+ * for line, in the announcement route and the weekly nudge's route (since
+ * removed), with a comment in each saying "IF YOU CHANGE ONE, CHANGE BOTH".
+ * They became one function each and the comment was retired.
  *
  * Sits beside `courseApplicationEmails.ts` and takes the same shape (a thin,
  * typed wrapper over `sendEmail` that renders through the shared chrome), with
@@ -220,10 +218,10 @@ export async function gateRunStaff(runId: string): Promise<RunStaffGate> {
  * preferred name nor a display name.
  *
  * IT IS NOT ALWAYS THE RIGHT FALLBACK. `NewsletterEmail` renders a greeting of
- * its own and needs *something*, so the announcement lane uses it. The weekly
- * nudge greets with `{firstName}`, and `firstWord("NAISI member")` is "NAISI" —
- * "Hi NAISI," — so it uses `memberNameOf` instead and lets its renderer drop
- * the greeting line entirely. Hence two functions rather than one.
+ * its own and needs *something*, so the announcement lane uses it. The week's
+ * emails greet by first name, and `firstWord("NAISI member")` is "NAISI" ("Hi
+ * NAISI,"), so they use `memberNameOf` instead and drop the greeting line
+ * entirely. Hence two functions rather than one.
  */
 export const COURSE_MEMBER_PLACEHOLDER = "NAISI member";
 
@@ -353,11 +351,25 @@ export type CohortAudience = {
   enrolledCount: number;
   /** Non-null when the caller must REFUSE rather than send. */
   refusal: string | null;
+  /**
+   * The notice audience only: each person in scope it left out, by uid, and
+   * why. For a caller that records, per person, why somebody was not sent
+   * anything (the reminders before a session stamp it on their marker). Never
+   * an address.
+   */
+  dropped?: NoticeDrop[];
+};
+
+/** Why `resolveNoticeAudience` left somebody in scope out. */
+export type NoticeDrop = {
+  uid: string;
+  why: "no-account" | "no-address" | "same-inbox" | "suppressed";
 };
 
 /**
- * The two strings that differ between the announcement lane and the nudge lane,
- * and the only reason this function takes a third argument.
+ * The two strings that differ between the lanes that derive an audience here
+ * (the announcement, the notices, the week's emails), and the only reason
+ * these functions take a third argument.
  *
  * Both are OBSERVABLE: the log tag is what an operator greps for when a cohort
  * reports missing mail, and the advice completes a sentence a sender reads in
@@ -415,9 +427,9 @@ export const MAX_COHORT_CHANNEL_ROWS = 500;
  *    not a membership claim, so each candidate is checked against an active
  *    enrolment here, whatever wrote the row.
  *
- * THIS IS THE OPTIONAL MAIL'S AUDIENCE: the announcement lane, the weekly
- * nudge and next week's email, each of which a member can switch off with the
- * unsubscribe link at its foot or the courses row on /profile. A NOTICE does
+ * THIS IS THE OPTIONAL MAIL'S AUDIENCE: the announcement lane, which a member
+ * can switch off with the unsubscribe link at its foot or the courses row on
+ * /profile. A NOTICE does
  * not come through here. It reaches everybody holding a place whatever they
  * unsubscribed from, and `resolveNoticeAudience` below is its audience.
  *
@@ -434,8 +446,8 @@ export const MAX_COHORT_CHANNEL_ROWS = 500;
  *
  * A PLACEMENT PUBLISH HAS NOT TOLD IS NOT IN THE COHORT YET. Somebody moved to
  * another group after Publish keeps their row on the channel, and every lane
- * here can name their group's time and place (the reminder after a register,
- * the week nudge). So an enrolment that is not told (`placementIsTold`) is
+ * here can name their group's time and place. So an enrolment that is not
+ * told (`placementIsTold`) is
  * left out like a member of another group: not this send's audience, and not
  * counted as skipped. Publish emailing them their new group is what puts them
  * back.
@@ -692,8 +704,9 @@ export const MAX_NOTICE_ENROLMENT_ROWS = 500;
  * has gone out, whatever they unsubscribed from.
  *
  * A CONSENT DECISION, AND IT IS MADE (Zach, Sat 31 Oct 2026): unsubscribing
- * from a run's emails stops its OPTIONAL mail (the announcement lane, the
- * weekly nudge, next week's email), and a notice is not optional mail. It is
+ * from a run's emails stops its OPTIONAL mail (the announcement lane), and a
+ * notice is not optional mail ("Week N is open" and the reminders before a
+ * session among them). It is
  * the people running the programme telling the people on it something they
  * need in order to take part. So the audience is derived from the run's
  * ACTIVE enrolments, never from the cohort list, and an unsubscribed row on
@@ -832,6 +845,7 @@ export async function resolveNoticeAudience(
   }
 
   let skipped = 0;
+  const dropped: NoticeDrop[] = [];
   const candidates: CohortRecipient[] = [];
   for (const place of inScope) {
     const data = dataByUid.get(place.uid);
@@ -839,12 +853,14 @@ export async function resolveNoticeAudience(
       // A place whose account is gone. Skip rather than mail an address we can
       // no longer attribute to a member.
       skipped += 1;
+      dropped.push({ uid: place.uid, why: "no-account" });
       continue;
     }
     const address =
       listedAddress.get(place.uid) ?? anyAddress.get(place.uid) ?? ownAddressFor(data, null, gmailOnly);
     if (!address) {
       skipped += 1;
+      dropped.push({ uid: place.uid, why: "no-address" });
       continue;
     }
     const ownName = memberNameOf(data);
@@ -869,6 +885,7 @@ export async function resolveNoticeAudience(
     const addressKey = candidate.address.toLowerCase();
     if (seenAddress.has(addressKey)) {
       skipped += 1;
+      dropped.push({ uid: candidate.uid, why: "same-inbox" });
       continue;
     }
     seenAddress.add(addressKey);
@@ -876,14 +893,19 @@ export async function resolveNoticeAudience(
   }
 
   if (members.length === 0) {
-    return { members, skipped, enrolledCount: inScope.length, refusal: null };
+    return { members, skipped, enrolledCount: inScope.length, refusal: null, dropped };
   }
-  const { deliverable, dropped } = await dropSuppressed(db, members);
+  const suppression = await dropSuppressed(db, members);
+  const kept = new Set(suppression.deliverable.map((member) => member.uid));
+  for (const member of members) {
+    if (!kept.has(member.uid)) dropped.push({ uid: member.uid, why: "suppressed" });
+  }
   return {
-    members: deliverable,
-    skipped: skipped + dropped,
+    members: suppression.deliverable,
+    skipped: skipped + suppression.dropped,
     enrolledCount: inScope.length,
     refusal: null,
+    dropped,
   };
 }
 
@@ -898,7 +920,8 @@ export async function resolveNoticeAudience(
  *
  * Stored in `courseNudges`, which firestore.rules locks `read, write: if
  * false` as server-side course-email bookkeeping. Doc ids are prefixed
- * `emailrate__` to stay clear of P11's nudge markers in the same collection.
+ * `emailrate__` to stay clear of the group email claims (`gnudge__`) in the
+ * same collection.
  */
 const THROTTLE_COLLECTION = "courseNudges";
 

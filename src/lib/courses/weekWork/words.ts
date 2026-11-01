@@ -128,7 +128,7 @@ function quotedAnd(titles: readonly string[]): string {
 }
 
 /** "your action plan" from "My action plan". */
-function yourWords(title: string): string {
+export function yourWords(title: string): string {
   const plain = title.trim();
   if (!plain) return "your boxes";
   return /^my\s/i.test(plain) ? `your ${plain.replace(/^my\s+/i, "")}` : `your ${plain[0].toLowerCase()}${plain.slice(1)}`;
