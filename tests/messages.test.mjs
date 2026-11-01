@@ -908,7 +908,7 @@ describe("the words", () => {
       join("src", "app", "(app)", "messages", "page.tsx"),
       join("docs", "messages.md"),
     ];
-    for (const file of files) assert.doesNotMatch(read(file), /[–—]/, file);
+    for (const file of files) assert.doesNotMatch(read(file), /[\u2013\u2014]/, file);
   });
 
   test("the button, the test, the send and the refusals", () => {
