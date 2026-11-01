@@ -6,8 +6,14 @@
  * links to the policy's "Applying to a programme" section for the rest. Keep it to
  * the four things an applicant would not guess: their drafts are saved on our
  * servers, other students read the answers, the access-requirements box is
- * handled differently from everything else, and reviewer notes are theirs to
- * ask for.
+ * handled differently from everything else, and reviewers' scores and comments
+ * are theirs to ask for.
+ *
+ * Who reads an application, and how it is reviewed, are said in the policy's
+ * own terms ("Who reads your application" and "Scores, comments and
+ * decisions"), and nothing beyond them. Like the application form's line about
+ * who reads (the owner's decision of 7 October 2026), it does not say who
+ * sees a name: the policy does.
  *
  * PLAIN TEXT ONLY, deliberately. Nothing here is authored in a database, so
  * there is no member-written string to render and no reason for any markup
@@ -71,10 +77,12 @@ export default function ApplicationPrivacyNotice({
         }}
       >
         Your answers are saved to your NAISI account as you go, including
-        drafts, so you can come back and finish later. Applications are read
-        and scored by student reviewers from our committee, without your name
-        attached. Reviewers write notes, and you can ask us at any time what
-        was written about you.
+        drafts, so you can come back and finish later. Your application is read
+        by the lead and the reviewers of the programme, and by NAISI&apos;s
+        admins. They are students: admins and committee members the
+        Students&apos; Union recognises. Where a programme uses scores, a
+        reviewer may score your answers. Reviewers may also comment on them,
+        and you can ask us at any time what was written about you.
       </p>
       <p
         style={{
@@ -86,8 +94,8 @@ export default function ApplicationPrivacyNotice({
       >
         Anything you put in the access-requirements box is handled separately:
         it is stored apart from the rest of your application, it is never
-        scored, reviewers never see it, and only the person making the final
-        decision and site admins can open it. We record each time one of them
+        scored, and it is never shown to reviewers or to the programme&apos;s
+        lead. Only admins can open it, and we record each time one of them
         does. Leaving it blank does not count against you.
       </p>
       <p
