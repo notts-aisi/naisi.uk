@@ -1324,6 +1324,13 @@ const USERS = new Map([
       "stubbed to record what it is asked; Pangram's real client runs with `fetch` faked; the cascade gets the " +
       "cascade store's Firestore stub",
   ],
+  [
+    "notes-for-leads.test.mjs",
+    "it drives the programme's notes routes and the admins' notes routes (privacy v15) on the facilitator week's " +
+      "world as every persona, and executes the version 15 moment (src/lib/legal/reviewUse.ts) on its own, because " +
+      "which notes a lead may read is decided across the programme's door, the form's place test, the one rule in " +
+      "the notes model and two stored instants together. Claude's door is stubbed and never asked",
+  ],
 ]);
 
 /**

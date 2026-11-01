@@ -67,6 +67,7 @@ const PLACE_TESTERS = {
   "lib/courses/weekOne/door.ts": "week 1's door: whether this person holds a place on the programme that names the run",
   "lib/applications/people/model.ts": "the programme's People tab, for its lead and admins: everybody holding a place, by the same one test",
   "lib/surveys/waiting.ts": "a survey waiting for somebody (Home, My programmes, week 1's first card): whether they still hold the place a programme's survey before it or at its end was sent for, the test its own reminder asks through placeHoldersOn",
+  "lib/memberNotes/programme.ts": "the notes about one person on a programme, for its lead and admins (privacy v15): whether that person holds a place on it now, the coursework door's own set asked of one person through the same test, after the programme's gate and only once decision day has told them; it opens nothing of the run to anybody",
 };
 
 /** Every page under the run that reads a holder's way in, and what it shows them. */
