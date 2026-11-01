@@ -1989,8 +1989,9 @@ stay exactly as they are beside it.
   whose report is not even read for them (`writerUid` equality, where the
   lead's and admins' read is `aboutUids` array-contains). Read only once the
   page's gate lets the reader review the answer; nobody sees what a report
-  says about themselves, and nothing is emailed. The card says "Not shown to
-  Chloe" and is not drawn when no report says anything about the person.
+  says about themselves, and nothing is emailed. The card sits between the
+  feedback and the ratings for the team, says "Not shown to Chloe", and is
+  not drawn when no report says anything about the person.
 - Nobody in the group and no other facilitator reads a report on the site. A
   person can ask for what is written about them (see below).
 
@@ -2274,12 +2275,10 @@ Ratings tab or the Kairos file.
   person's. Nothing is emailed.
 - **On the page**: "Rating for the team" (ten 44px choices and the comment)
   and "What the team said" (every rating on the answer, oldest first, and
-  "Not rated yet" for the reader until they rate it), under the feedback and
-  the session reports' lines about the person ("A facilitator's session
-  report" above). An admin also sees Pangram's last reading of the answer
-  beside when it was sent ("Pangram: worth a look", "nothing to flag", or
-  "changed since it checked"), read for an admin alone; the lead never sees a
-  reading.
+  "Not rated yet" for the reader until they rate it), under the feedback. An
+  admin also sees Pangram's last reading of the answer beside when it was sent
+  ("Pangram: worth a look", "nothing to flag", or "changed since it checked"),
+  read for an admin alone; the lead never sees a reading.
 - **A copy of somebody's data** includes the ratings about them and those they
   gave: `courseWorkRatings` where `uid` is theirs, and where `raterUid` is.
 - **Deleting**: an account takes the ratings about it and those it gave
