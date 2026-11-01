@@ -174,7 +174,7 @@ export default function CheckInCard({ groupId, sessionKey, marks, rows }: CheckI
                 <span data-testid="check-in-sent">{card.sent}</span>
               </p>
               <div className={styles.actions}>
-                <Button variant="secondary" onClick={() => setShowCode(true)} data-testid="check-in-show-code">
+                <Button variant="secondary" onClick={() => setShowCode(true)}>
                   {CHECK_IN_CARD.showCode}
                 </Button>
                 <Button variant="ghost" className={styles.closeNow} onClick={() => setConfirmClose(true)} disabled={busy} data-testid="check-in-close">

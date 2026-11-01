@@ -230,6 +230,7 @@ export const TERM_POINTS = Object.freeze([
   "last-week",
   "after-the-end",
   "programme-over",
+  "check-in",
 ]);
 
 /** The form's one programme at the first three points. Fixed: a programme id is unique on its own form. */
@@ -430,6 +431,7 @@ export function laterPlanOf(point) {
   if (point === "last-week") return LAST_WEEK;
   if (point === "programme-over") return PROGRAMME_OVER;
   if (point === "coursework") return COURSEWORK;
+  if (point === "check-in") return CHECK_IN_DAY;
   return null;
 }
 
@@ -1708,7 +1710,9 @@ export async function seedTerm({ runId: termRunId, suppress = true, onState, poi
       id: fixtureId(`e2e-term-group-${plan.key.toLowerCase()}`, termRunId),
       name: plan.name,
       weekday: (startWeekday + plan.dayAfterStart) % 7,
-      startTimeLocal: plan.startTimeLocal,
+      // A session under way when the seed runs (`SESSION_UNDER_WAY`) starts
+      // half an hour before it, by the seed's own clock.
+      startTimeLocal: plan.startTimeLocal === SESSION_UNDER_WAY ? underWayClock(now) : plan.startTimeLocal,
       durationMinutes: SESSION_MINUTES,
       room: plan.room,
       // A reserved domain: nothing answers there.
@@ -2007,7 +2011,10 @@ function subscriptionIdsOf(state) {
  */
 async function surveyIdsOf(state) {
   const snap = await fixtureQuery("surveys").where("roundId", "==", state.formId).get();
-  return snap.docs.map((doc) => doc.id).sort();
+  // A check-in at the end of a session names its run and no form at its top
+  // (src/lib/surveys/checkIns/open.ts): found by the run, the rest by its id.
+  const checkIns = state.runId ? await fixtureQuery("surveys").where("runId", "==", state.runId).get() : { docs: [] };
+  return [...new Set([...snap.docs, ...checkIns.docs].map((doc) => doc.id))].sort();
 }
 
 /**
@@ -2023,6 +2030,8 @@ function surveyCounterIdsOf(state, surveyIds) {
     ids.push(`emailrate__surveyday__${id}`);
     if (state.adminUid) ids.push(`emailrate__survey__${id}__${state.adminUid}`);
   }
+  // A check-in's daily counter is its group's (`checkinday__<group>`), whoever opens it.
+  for (const group of state.groups ?? []) ids.push(`emailrate__checkinday__${group.id}`);
   return ids;
 }
 
@@ -2559,6 +2568,68 @@ export async function teardownTerms(state) {
   if (failed) throw failed;
   return addCounts(list);
 }
+
+// ---------------------------------------------------------------------------
+// The check-in at the end of a session: a session under way when the seed runs
+// ---------------------------------------------------------------------------
+
+/**
+ * A group plan's `startTimeLocal` that means "half an hour before the seed",
+ * worked out when the seed runs (`underWayClock`), so the group's session that
+ * day is under way while a spec runs.
+ */
+export const SESSION_UNDER_WAY = "under-way";
+
+/**
+ * The London wall clock half an hour before `now`, on five minutes, and never
+ * before midnight: a seed at 00:10 has a session that started at 00:00 that
+ * day. A ninety-minute session started then is under way for an hour at
+ * least, and its check-in stays open until 11pm, or an hour after it ends
+ * when that is later.
+ */
+export function underWayClock(now) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+      .formatToParts(now)
+      .map((part) => [part.type, part.value]),
+  );
+  const minutes = Math.max(0, Number(parts.hour) * 60 + Number(parts.minute) - 30);
+  const floored = minutes - (minutes % 5);
+  return `${String(Math.floor(floored / 60)).padStart(2, "0")}:${String(floored % 60).padStart(2, "0")}`;
+}
+
+/**
+ * THE CHECK-IN AT THE END OF A SESSION ("check-in"). The fellowship three
+ * weeks in, with one group of five, every one of them in it, which meets on
+ * the run's second day each week and whose week 3 session started half an
+ * hour before the seed (`SESSION_UNDER_WAY`): the run began `daysIn` days
+ * before the seed, so the seed's day is day 15 of the plan, week 3's session
+ * day. Five, so its facilitator's totals have three answers to show without
+ * everybody answering. Weeks 1 to 3 are published and written as blocks
+ * (`courseworkWeekDoc`), so the check-in asks what was unclear by the week's
+ * parts and how much of the reading people did; weeks 1 and 2's registers are
+ * finished, everybody present, and week 3's is not opened. Fern is the account
+ * the admin appoints to the group on the real page. Nobody leads the
+ * programme, so the check-in's box names no lead.
+ */
+export const CHECK_IN_DAY = Object.freeze({
+  daysIn: 15,
+  programme: FELLOWSHIP,
+  groups: Object.freeze([
+    Object.freeze({ key: "A", name: "Group A", dayAfterStart: 1, startTimeLocal: SESSION_UNDER_WAY, room: "Room E1", online: false }),
+  ]),
+  people: Object.freeze(
+    ["ada", "ben", "cleo", "dan", "eve"].map((key) => Object.freeze({ key, first: key[0].toUpperCase() + key.slice(1), canMake: Object.freeze(["A"]) })),
+  ),
+  facilitator: FACILITATOR_PLAN,
+  places: Object.freeze({ ada: "A", ben: "A", cleo: "A", dan: "A", eve: "A" }),
+  marks: Object.freeze({ A: Object.freeze({ 1: ALL_FIVE_PRESENT, 2: ALL_FIVE_PRESENT }) }),
+  unfinished: null,
+  facilitated: "A",
+  published: 3,
+  blockWeeks: true,
+  earlierUpdate: false,
+});
 
 // ---------------------------------------------------------------------------
 // The end of a programme: its last week, and after its last session

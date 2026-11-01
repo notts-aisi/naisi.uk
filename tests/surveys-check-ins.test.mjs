@@ -94,8 +94,6 @@ const DURING = new Date("2026-10-27T19:50:00Z");
 const BEFORE = new Date("2026-10-27T17:30:00Z");
 /** 11pm GMT that night: it closes. */
 const CLOSES = new Date("2026-10-27T23:00:00Z");
-/** The next morning. */
-const NEXT_DAY = new Date("2026-10-28T09:00:00Z");
 
 mock.timers.enable({ apis: ["Date"], now: DURING });
 const at = (instant) => mock.timers.setTime(instant.getTime());
