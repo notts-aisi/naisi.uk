@@ -239,6 +239,11 @@
   min-height: 2rem;
 }
 
+/* A bar with no session reports to set beside its count: the track takes that column too. */
+.barPlain {
+  grid-template-columns: minmax(0, 15rem) minmax(4rem, 1fr) 4.75rem;
+}
+
 .barLabel {
   min-width: 0;
   font-size: var(--text-sm);
@@ -590,7 +595,8 @@
   }
 
   /* A part's words above its bar; the bar beside its count, and the reports under them. */
-  .bar {
+  .bar,
+  .barPlain {
     grid-template-columns: minmax(3rem, 1fr) 4.75rem;
     row-gap: 0.25rem;
   }

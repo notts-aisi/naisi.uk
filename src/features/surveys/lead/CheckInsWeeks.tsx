@@ -104,7 +104,7 @@ function Shown({ week }: { week: Extract<LeadCheckInWeek, { state: "shown" }> })
       ) : (
         <ul className={styles.bars}>
           {totals.unclear.map((part) => (
-            <li key={part.id} className={styles.bar}>
+            <li key={part.id} className={`${styles.bar} ${styles.barPlain}`}>
               <span className={styles.barLabel}>{part.label}</span>
               <span className={styles.track} aria-hidden="true">
                 <span className={styles.fill} style={{ width: `${week.answered > 0 ? Math.min(100, (part.count / week.answered) * 100) : 0}%` }} />
