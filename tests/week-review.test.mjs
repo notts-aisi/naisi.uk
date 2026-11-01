@@ -60,7 +60,9 @@
  */
 import { after, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { CASCADE_FIRESTORE_STUB, makeCascadeDb } from "./lib/cascadeStore.mjs";
 import { makeFacilitatorPagesWorld } from "./lib/facilitatorPagesWorld.mjs";
 import { A, AGI, B, NOW, ROUND, RUN, SAID, facilitatorWeekSeed, reflection } from "./lib/facilitatorWeekWorld.mjs";
@@ -864,5 +866,56 @@ describe("7. an account's deletion takes it out of the review, and a follow-up a
     const read = record.normalizeWeekReview("r__w03", { runId: "r", weekId: "w03", weekNumber: 3, grades: { state: "ready", items: [{ uid: "u", rowId: "x", grade: 12 }] } });
     assert.deepEqual(read.grades.items, [], "a grade outside 1 to 10 was read back");
     assert.equal(record.normalizeWeekReview("x", { weekId: "w03" }), null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. The house's words and the page's shape
+// ---------------------------------------------------------------------------
+
+describe("8. the words and the stylesheet of this piece", () => {
+  const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
+  const FILES = [
+    "lib/courses/weekReview/words.ts",
+    "lib/courses/weekReview/input.ts",
+    "lib/courses/weekReview/check.ts",
+    "lib/courses/weekReview/claude.ts",
+    "lib/courses/weekReview/facts.ts",
+    "lib/courses/weekReview/view.ts",
+    "lib/courses/weekReview/store.ts",
+    "lib/courses/weekReview/gather.ts",
+    "lib/courses/weekReview/door.ts",
+    "lib/courses/weekReview/followUp.ts",
+    "lib/courses/weekReview/followUpTask.ts",
+    "lib/firestore/courseWeekReviews.ts",
+    "lib/surveys/checkIns/reviewPool.ts",
+    "features/courses/weekReview/WeekReviewScreen.tsx",
+    "features/courses/weekReview/ReviewPress.tsx",
+    "features/courses/weekReview/FollowUpButton.tsx",
+    "features/courses/weekReview/weekReview.module.css",
+  ];
+
+  test("no dash of either kind, and no word the house does not use, in any file of it", () => {
+    for (const file of FILES) {
+      const source = readFileSync(join(SRC, file), "utf8");
+      assert.doesNotMatch(source, /[\u2013\u2014]/, `${file} carries a dash`);
+      assert.doesNotMatch(source, /\bcollate\b/i, file);
+    }
+  });
+
+  test("the words a person reads name nobody by a pronoun, and the task a facilitator reads never says mark, grade or score", () => {
+    const said = JSON.stringify({ ...words.REVIEW_WORDS, lead: words.LEAD_REVIEW_WORDS }, (_, value) => (typeof value === "function" ? value("3", "2", "1", "0") : value));
+    assert.doesNotMatch(said, /\b(?:he|she|him|her|his|hers)\b/i);
+    const task = [words.FOLLOW_UP_WORDS.title("Grace Chen", "Group C"), words.FOLLOW_UP_WORDS.description("Zach", "Grace", "AGI Strategy", 3)].join(" ");
+    assert.doesNotMatch(task, /\b(?:he|she|him|her|his|hers|mark|grade|score|Claude|check-in|report)\b/i);
+  });
+
+  test("the stylesheet ends with its phone block, and every press is at least 44px", () => {
+    const css = readFileSync(join(SRC, "features/courses/weekReview/weekReview.module.css"), "utf8");
+    assert.match(css, /@media \(max-width: 48rem\) \{[^]*\}\s*$/);
+    for (const rule of [".linkButton", ".inlineLink", ".answer"]) {
+      const block = new RegExp(`\\${rule} \\{([^}]*)\\}`).exec(css)?.[1] ?? "";
+      assert.match(block, /min-height: 44px;/, `${rule} is under 44px`);
+    }
   });
 });
