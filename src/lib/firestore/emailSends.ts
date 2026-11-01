@@ -172,13 +172,13 @@ export type EmailSendSurface =
   // The reminders 3 days and 1 day before a group's session, to each person
   // in it whose week is not done (`courses-week-reminders`).
   | "course-week-reminder"
+  // An event for chosen people that is part of a programme: its invitation, to
+  // the people holding a place on that programme (src/lib/events/invitations.ts).
+  | "event-invitation"
   // A message written in Messages (docs/messages.md) that goes as a programme
   // notice: an admin, a programme's lead or a group's facilitator writing to
   // people they run a programme for, about running it.
-  | "messages"
-  // An event for chosen people that is part of a programme: its invitation, to
-  // the people holding a place on that programme (src/lib/events/invitations.ts).
-  | "event-invitation";
+  | "messages";
 
 export type EmailSend = {
   messageId: string;
