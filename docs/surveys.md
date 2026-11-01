@@ -970,7 +970,8 @@ nameless:
 - **How useful the sessions were** and **how much of the reading people did**,
   week by week, a column a week of the run in the theme's accent with its
   figure on its cap, a dot for a week not shown yet; from the check-ins'
-  whole weeks (the reading's share of everybody asked about it).
+  weeks once each is whole and fixed, the Check-ins view's own weeks (the
+  reading's share of everybody asked about it).
 - **What was unclear** in a chosen week (`?week=3`, among the weeks that show;
   the latest by default): each part the check-ins named, with how many named
   it and their share of the week's answers, and beside it how many of the
