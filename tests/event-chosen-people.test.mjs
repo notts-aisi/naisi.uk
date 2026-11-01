@@ -37,7 +37,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { render } from "@react-email/render";
 import { makeWorld } from "./lib/handoverWorld.mjs";
-import { session, userDoc } from "./lib/applicationsSmallTerm.mjs";
 import { TOLD } from "./lib/surveyWorld.mjs";
 import { AFTER, AGI, EV, ROUND, RUN, eventDoc, termSeed } from "./lib/termWorld.mjs";
 

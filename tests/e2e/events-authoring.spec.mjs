@@ -144,17 +144,23 @@ test(
         await page.getByText("1 person", { exact: false }).first().waitFor({ timeout: WAIT_MS });
         // The step's own count: one Home, and an invitation by their settings, which are off.
         await page.getByText("Publishing shows it on 1 person’s Home", { exact: false }).waitFor({ timeout: WAIT_MS });
-        await page.getByRole("button", { name: "Save" }).click();
-        await page.getByText("Saved", { exact: false }).first().waitFor({ timeout: WAIT_MS });
+        await page.getByRole("button", { name: "Save", exact: true }).click();
+        // "Unsaved changes" goes once the write lands. (Not a wait for "Saved":
+        // a text match ignores case, and "Unsaved" contains it.)
+        await page.getByText("Unsaved changes").waitFor({ state: "hidden", timeout: WAIT_MS });
       });
 
       await step("the admin sends it for approval, approves it and publishes it, and the confirm says it is not listed or announced", async () => {
+        // The step rail's buttons carry "Step 5: ..." before their label, so the
+        // footer's are the exact names.
         await page.getByRole("button", { name: /Send for approval/ }).first().click();
-        await page.getByRole("button", { name: "Send for approval" }).last().click();
-        await page.getByRole("button", { name: "Approve" }).waitFor({ timeout: WAIT_MS });
-        await page.getByRole("button", { name: "Approve" }).click();
-        await page.getByRole("button", { name: "Publish" }).waitFor({ timeout: WAIT_MS });
-        await page.getByRole("button", { name: "Publish" }).click();
+        await page.getByRole("button", { name: "Send for approval", exact: true }).click();
+        const approve = page.getByRole("button", { name: "Approve", exact: true });
+        await approve.waitFor({ timeout: WAIT_MS });
+        await approve.click();
+        const publish = page.getByRole("button", { name: "Publish", exact: true });
+        await publish.waitFor({ timeout: WAIT_MS });
+        await publish.click();
         await page.getByText("Published. It shows on 1 person’s Home", { exact: false }).waitFor({ timeout: WAIT_MS });
         const asked = confirms.at(-1) ?? "";
         assert.match(asked, /Publishing shows it on 1 person’s Home/);
