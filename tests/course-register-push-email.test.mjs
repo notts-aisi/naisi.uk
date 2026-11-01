@@ -34,10 +34,12 @@
  * Next week published (the ordinary case), not published, moved, held online,
  * cancelled, the group's last session, a register whose own session was
  * cancelled, a register for an earlier week pushed late, people the email
- * does not reach (a switched-off course row, a suppressed address, a
- * placement nobody has told yet), an email that has already gone, a group
- * nobody can be emailed in, a run with no dates, a one-person group, and the
- * finished ending (next week's email on its schedule), which is unchanged.
+ * does not reach (a suppressed address, a placement nobody has told yet) and
+ * people it does although they asked for less (a switched-off course row,
+ * an unsubscribe from the run's list: it is a notice), an email that has
+ * already gone, a group nobody can be emailed in, a run with no dates, a
+ * one-person group, and the finished ending ("Week N is open" on its
+ * schedule), which is unchanged.
  *
  * ## The tree
  *
@@ -281,8 +283,8 @@ describe("this week's register, while the push sends next week's email", () => {
     });
     // The foot says the board's words for a press that emails the group.
     assert.deepEqual(drawnFoot(payload), {
-      effect: "Locks the register, shows everyone their mark and emails Group B about next week.",
-      notes: ["If nobody pushes, nobody gets next week’s email.", "After 60 hours Claudia and admins get a task."],
+      effect: "Locks the register, shows everyone their mark and emails Group B that week 2 is open.",
+      notes: ["If nobody pushes, nobody gets week 2’s email.", "After 60 hours Claudia and admins get a task."],
     });
 
     const pressedTogether = await pressTogether(GROUP.b, 1);
@@ -290,7 +292,12 @@ describe("this week's register, while the push sends next week's email", () => {
     assert.equal(pressedTogether.confirm.first, "Everyone in Group B gets one email about week 2 on Tue 27 Oct: 3 people.");
     assertCounted(pressedTogether, ["amara", "chloe", "farah"]);
     const text = await emailText(pressedTogether.sent[0]);
-    assert.match(text, /Your group meets Tue 27 Oct, 6pm to 8pm, Room C20\./);
+    assert.match(text, /Week 2 of AGI Strategy Fellowship is open: Week 2 theme\. Your next session is Tue 27 Oct at 6pm in Room C20\./);
+    for (const message of pressedTogether.sent) {
+      assert.equal(message.kind, "notice");
+      assert.equal(message.surface, "course-week");
+      assert.equal(message.subject, "Week 2 is open: Week 2 theme");
+    }
 
     // Pushed: nothing left to press on the page, and the foot says so.
     const after = await readAsEveryone(GROUP.b);
@@ -311,7 +318,9 @@ describe("this week's register, while the push sends next week's email", () => {
     const pressed = await pressTogether(GROUP.b, 1);
     assert.equal(pressed.confirm.first, "Everyone in Group B gets one email about week 2 on Tue 27 Oct: 3 people.");
     assertCounted(pressed, ["amara", "chloe", "farah"]);
-    assert.match(await emailText(pressed.sent[0]), /Your group meets Tue 27 Oct, 6pm to 8pm\./);
+    const text = await emailText(pressed.sent[0]);
+    assert.match(text, /Your next session is Tue 27 Oct at 6pm\./);
+    assert.doesNotMatch(text, /Room C20/);
   });
 
   test("a group of one says one person", async () => {
@@ -342,7 +351,7 @@ describe("this week's register, while the push sends next week's email", () => {
     assert.equal(pressed.confirm.first, "Everyone in Group B gets one email about week 2 on Wed 28 Oct: 3 people.");
     assertCounted(pressed, ["amara", "chloe", "farah"]);
     const text = await emailText(pressed.sent[0]);
-    assert.match(text, /Your group meets Wed 28 Oct, 7pm to 9pm, Room D1\./);
+    assert.match(text, /Your next session is Wed 28 Oct at 7pm in Room D1\./);
   });
 
   test("next week held online: the same day, and the email says Online, never the link", async () => {
@@ -357,7 +366,7 @@ describe("this week's register, while the push sends next week's email", () => {
     const pressed = await pressTogether(GROUP.b, 1);
     assert.equal(pressed.confirm.first, "Everyone in Group B gets one email about week 2 on Tue 27 Oct: 3 people.");
     assertCounted(pressed, ["amara", "chloe", "farah"]);
-    assert.match(await emailText(pressed.sent[0]), /Your group meets Tue 27 Oct, 6pm to 8pm, Online\./);
+    assert.match(await emailText(pressed.sent[0]), /Your next session is Tue 27 Oct at 6pm, online\./);
     assert.ok(!JSON.stringify(pressed.sent).includes("meet.example.com"), "the link is in an email");
   });
 
@@ -370,15 +379,15 @@ describe("this week's register, while the push sends next week's email", () => {
     at(AT.week1Evening);
     await markAll(GROUP.b, 1);
     const payload = await readAsEveryone(GROUP.b);
-    // The foot: the press still emails the group about next week.
-    assert.equal(drawnFoot(payload).effect, "Locks the register, shows everyone their mark and emails Group B about next week.");
+    // The foot: the press still emails the group that week 2 is open.
+    assert.equal(drawnFoot(payload).effect, "Locks the register, shows everyone their mark and emails Group B that week 2 is open.");
     const pressed = await pressTogether(GROUP.b, 1);
     assert.deepEqual(pressed.line, { kind: "sends", weekNumber: 2, day: "Tue 27 Oct", cancelled: true, emails: 3, people: 3 });
     assert.equal(pressed.confirm.first, "Everyone in Group B gets one email saying Tue 27 Oct’s session is cancelled: 3 people.");
     assertCounted(pressed, ["amara", "chloe", "farah"]);
     const text = await emailText(pressed.sent[0]);
     assert.match(text, /Tue 27 Oct is cancelled\. Rahul and Sofia are both away\./);
-    assert.doesNotMatch(text, /Your group meets/);
+    assert.doesNotMatch(text, /Your next session/);
   });
 });
 
@@ -478,8 +487,10 @@ describe("a press that emails nobody says so, and why, before it", () => {
   });
 
   test("nobody in the group can be emailed: nobody, and the push says so", async () => {
+    // Every address on the do-not-email list: the one thing a notice still
+    // answers to. A course row switched off no longer stops it.
     for (const uid of ["amara", "chloe", "farah"]) {
-      world.db.poke(`users/${uid}`, { "profile.notifications": { categories: { courses: false } } });
+      world.db.seed(`suppressedEmails/${uid}@example.com`, { email: `${uid}@example.com` });
     }
     await markAll(GROUP.b, 1);
     const pressed = await pressTogether(GROUP.b, 1);
@@ -503,9 +514,9 @@ describe("a press that emails nobody says so, and why, before it", () => {
 // ===========================================================================
 
 describe("how many the confirm counts is how many the push emails", () => {
-  test("a switched-off course row and a suppressed address leave the email short, and the confirm says so", async () => {
-    world.db.poke("users/chloe", { "profile.notifications": { categories: { courses: false } } });
+  test("a suppressed address leaves the email short, and the confirm says so", async () => {
     world.db.seed("suppressedEmails/farah@example.com", { email: "farah@example.com" });
+    world.db.seed("suppressedEmails/chloe@example.com", { email: "chloe@example.com" });
     await markAll(GROUP.b, 1);
     const pressed = await pressTogether(GROUP.b, 1);
     assert.deepEqual(pressed.line, { kind: "sends", weekNumber: 2, day: "Tue 27 Oct", cancelled: false, emails: 1, people: 3 });
@@ -514,11 +525,21 @@ describe("how many the confirm counts is how many the push emails", () => {
   });
 
   test("two of three, in the plural", async () => {
-    world.db.poke("users/chloe", { "profile.notifications": { categories: { courses: false } } });
+    world.db.seed("suppressedEmails/chloe@example.com", { email: "chloe@example.com" });
     await markAll(GROUP.b, 1);
     const pressed = await pressTogether(GROUP.b, 1);
     assert.equal(pressed.confirm.first, "2 of the 3 people in Group B get one email about week 2 on Tue 27 Oct.");
     assertCounted(pressed, ["amara", "farah"]);
+  });
+
+  test("a switched-off course row and an unsubscribe from the run's list stop nothing: the email is a notice", async () => {
+    world.db.poke("users/chloe", { "profile.notifications": { categories: { courses: false } } });
+    world.db.poke(`subscriptions/sub_farah__cohort-${RUN}`, { subscribed: false });
+    await markAll(GROUP.b, 1);
+    const pressed = await pressTogether(GROUP.b, 1);
+    assert.equal(pressed.confirm.first, "Everyone in Group B gets one email about week 2 on Tue 27 Oct: 3 people.");
+    assertCounted(pressed, ["amara", "chloe", "farah"]);
+    for (const message of pressed.sent) assert.equal(message.listUnsubscribe, undefined, "a notice offers no unsubscribe");
   });
 
   test("somebody placed and not told yet is in nobody's count, whoever reads the register", async () => {
@@ -591,9 +612,9 @@ describe("while next week's email is on its schedule", () => {
     assert.equal(pressed.confirm.title, "Finish the week 1 register?");
     assert.equal(
       pressed.confirm.first,
-      "Nobody’s emailed. Next week’s email goes on its own schedule, whatever happens here.",
+      "Nobody’s emailed. Each week’s email goes on its own schedule, whatever happens here.",
     );
-    assertNobody(pressed, "Next week’s email goes on its schedule, so finishing the register emailed nobody.");
+    assertNobody(pressed, "Each week’s email goes on its schedule, so finishing the register emailed nobody.");
   });
 });
 
@@ -604,7 +625,7 @@ describe("while next week's email is on its schedule", () => {
 describe("the confirm's line, for every answer the route can give", () => {
   const sends = (over) => ({ kind: "sends", weekNumber: 4, day: "Fri 30 Oct", cancelled: false, emails: 7, people: 7, ...over });
   const cases = [
-    [{ kind: "scheduled" }, "Nobody’s emailed. Next week’s email goes on its own schedule, whatever happens here."],
+    [{ kind: "scheduled" }, "Nobody’s emailed. Each week’s email goes on its own schedule, whatever happens here."],
     [{ kind: "not-held" }, "Nobody is emailed: this session didn’t happen, so its register needs nothing."],
     [{ kind: "last" }, "Nobody is emailed: this is the group’s last session, so there is nothing to remind them about."],
     [sends(), "Everyone in Group A gets one email about week 4 on Fri 30 Oct: 7 people."],
@@ -639,7 +660,7 @@ describe("the confirm's line, for every answer the route can give", () => {
       reminder: null,
       task: null,
     };
-    assert.equal(registerEndingWords(ending).effect, "Locks the register, shows everyone their mark and emails Group A about next week.");
+    assert.equal(registerEndingWords(ending).effect, "Locks the register, shows everyone their mark and emails Group A that the next week is open.");
     const html = renderToStaticMarkup(
       createElement(PushConfirm, {
         open: true,

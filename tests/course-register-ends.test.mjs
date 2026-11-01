@@ -7,12 +7,13 @@
  *     their marks, closes the follow-up card, and emails NOBODY. While it is
  *     not, "Push attendance" does all that and sends the email, as it always
  *     has: the job's switch is the switch between the two.
- *  2. NEXT WEEK'S EMAIL ON ITS SCHEDULE. A set number of days before each
- *     session, at that session's own time in London, on either side of the
- *     clocks going back; once per group per session; held while its week is
+ *  2. "WEEK N IS OPEN" ON ITS SCHEDULE. Six days before each session, at 9am
+ *     in London, on either side of the clocks going back, the group's first
+ *     session included; once per group per session; held while its week is
  *     unpublished and sent once it is; never sent once the session has started;
  *     held whole, with a card for the lead and the admins, when a value is
- *     empty; never a meeting link; the same recipients and opt-outs as before.
+ *     empty; never a meeting link; a notice, so it reaches everybody holding a
+ *     place in the group whatever they unsubscribed from, and nobody else.
  *  3. THE CHASE. One reminder to the group's facilitators 36 hours after the
  *     session ENDS, and a task for the programme's lead and the admins at 60.
  *  4. WHO MAY FINISH. A facilitator of the group or an admin; nobody else, and
@@ -63,6 +64,8 @@ const afterEnd = (hours) => new Date(WEEK1_ENDS.getTime() + hours * HOUR);
 const MEMBERS_B = ["amara", "chloe", "farah"];
 const address = (uid) => `${uid}@example.com`;
 const mailTo = (uid) => world.mail.filter((message) => message.to === address(uid));
+/** The "Week N is open" emails one person was sent about week `n`. */
+const weekMail = (uid, n) => mailTo(uid).filter((message) => message.subject.startsWith(`Week ${n} is open`));
 const read = (path) => world.db.read(path);
 
 /** A message as its reader sees it: the real template, rendered to text. */
@@ -104,6 +107,10 @@ const gnudgeFor = (groupId, slotStartKey, runId = RUN) =>
   `courseNudges/gnudge__${runId}__${groupId}__${slotStartKey}`;
 /** Week 2's slot starts Thursday 22 October. */
 const WEEK2_SLOT = "2026-10-22";
+/** Week 1's slot starts Thursday 15 October, the run's first day. */
+const WEEK1_SLOT = "2026-10-15";
+/** Week 3's slot starts Thursday 29 October. */
+const WEEK3_SLOT = "2026-10-29";
 
 beforeEach(() => {
   at(AT.week1Evening);
@@ -220,6 +227,7 @@ describe("Finish the register, while next week's email is on its schedule", () =
 
     // Once the schedule has sent it, the resend re-sends it, and says so on the claim.
     await runJob(nextWeekEmailJob, AT.groupBDue);
+    at(AT.week1Evening);
     for (const uid of MEMBERS_B) assert.equal(mailTo(uid).length, 1);
     const resent = await finish("zach", GROUP.b, 1, { force: true });
     assert.equal(resent.body.sent, MEMBERS_B.length);
@@ -241,15 +249,17 @@ describe("Push attendance, while next week's email is not on its schedule", () =
     assert.equal(done.body.sent, MEMBERS_B.length);
     for (const uid of MEMBERS_B) {
       assert.equal(mailTo(uid).length, 1, `${uid} heard once`);
-      assert.equal(mailTo(uid)[0].kind, "course-nudge");
+      assert.equal(mailTo(uid)[0].kind, "notice");
+      assert.equal(mailTo(uid)[0].surface, "course-week");
+      assert.equal(mailTo(uid)[0].listUnsubscribe, undefined);
     }
     const marker = read(gnudgeFor(GROUP.b, WEEK2_SLOT));
     assert.equal(marker.via, "push");
     assert.equal(marker.sentByUid, "rahul");
     assert.equal(marker.pushedSessionKey, "w01");
     const text = await textOf(mailTo("amara")[0]);
-    assert.match(text, /Week 2 theme/);
-    assert.match(text, /Room C20/);
+    assert.match(text, /Week 2 of AGI Strategy Fellowship is open: Week 2 theme\. Your next session is Tue 27 Oct at 6pm in Room C20\./);
+    assert.match(text, /Sent as an important notice/);
 
     const again = await finish("rahul", GROUP.b, 1);
     assert.equal(again.body.alreadyPushed, true);
@@ -263,9 +273,7 @@ describe("Push attendance, while next week's email is not on its schedule", () =
     const done = await finish("rahul", GROUP.b, 1);
     assert.equal(done.body.sent, MEMBERS_B.length, "the push lane keeps today's behaviour");
     const text = await textOf(mailTo("amara")[0]);
-    // Since the walk of stage two's fixes (G6) the session is written as the
-    // placement email writes one, with its end added and no dash.
-    assert.match(text, /Your group meets Tue 27 Oct, 6pm to 8pm\./);
+    assert.match(text, /Your next session is Tue 27 Oct at 6pm\./);
     assert.doesNotMatch(text, /Room C20/);
   });
 });
@@ -274,42 +282,57 @@ describe("Push attendance, while next week's email is not on its schedule", () =
 // 2. Next week's email on its schedule
 // ===========================================================================
 
-describe("next week's email on its schedule", () => {
+describe("Week N is open on its schedule", () => {
   beforeEach(() => reset(seedWorld({ scheduled: true })));
 
-  test("goes two days before, at the session's own time in London, either side of the clocks going back", async () => {
-    // Group A meets Monday 26 October at 6pm GMT, the day after the clocks go
-    // back. Two days before is Saturday 24 October at 6pm, which is still BST:
-    // 17:00 UTC. Counting 48 hours would have sent it at 7pm.
+  test("goes six days before, at 9am in London, either side of the clocks going back", async () => {
+    // Group A meets Monday 26 October at 6pm. Six days before is Tuesday 20
+    // October at 9am, still BST: 8am UTC.
     await runJob(nextWeekEmailJob, AT.beforeGroupA);
-    assert.equal(mailTo("ana").length, 0, "not a minute early");
+    assert.equal(weekMail("ana", 2).length, 0, "not a minute early");
     await runJob(nextWeekEmailJob, AT.groupADue);
-    assert.equal(mailTo("ana").length, 1, "on the minute");
+    assert.equal(weekMail("ana", 2).length, 1, "on the minute");
     assert.equal(read(gnudgeFor(GROUP.a, WEEK2_SLOT)).via, "schedule");
     await runJob(nextWeekEmailJob, AT.groupAElapsed);
-    assert.equal(mailTo("ana").length, 1, "and once");
+    assert.equal(weekMail("ana", 2).length, 1, "and once");
 
-    // Group B meets Tuesday 27 October at 6pm GMT: Sunday 25 October at 6pm
-    // GMT, after the change, is 18:00 UTC.
+    // Group B meets Tuesday 27 October: Wednesday 21 October at 9am BST.
     await runJob(nextWeekEmailJob, AT.beforeGroupB);
-    for (const uid of MEMBERS_B) assert.equal(mailTo(uid).length, 0);
+    for (const uid of MEMBERS_B) assert.equal(weekMail(uid, 2).length, 0);
     await runJob(nextWeekEmailJob, AT.groupBDue);
-    for (const uid of MEMBERS_B) assert.equal(mailTo(uid).length, 1, `${uid} on time`);
+    for (const uid of MEMBERS_B) assert.equal(weekMail(uid, 2).length, 1, `${uid} on time`);
     await runJob(nextWeekEmailJob, new Date(AT.groupBDue.getTime() + 15 * 60_000));
-    for (const uid of MEMBERS_B) assert.equal(mailTo(uid).length, 1, `${uid} once`);
+    for (const uid of MEMBERS_B) assert.equal(weekMail(uid, 2).length, 1, `${uid} once`);
 
-    const text = await textOf(mailTo("amara")[0]);
-    // The session in the words the placement email uses (the walk of stage
-    // two's fixes, G6), and its room.
-    assert.match(text, /Your group meets Tue 27 Oct, 6pm to 8pm, Room C20\./);
-    assert.match(text, /Week 2 theme/);
-    assert.match(text, /There is one thing to read or watch this week/);
+    const [message] = weekMail("amara", 2);
+    assert.equal(message.subject, "Week 2 is open: Week 2 theme");
+    const text = await textOf(message);
+    assert.match(text, /Hi Amara, .*Week 2 of AGI Strategy Fellowship is open: Week 2 theme\. Your next session is Tue 27 Oct at 6pm in Room C20\./);
+    assert.match(text, /Something to read or watch/);
+    assert.match(text, /Open week 2/);
+
+    // Week 3, after the clocks have gone back: Wednesday 28 October at 9am GMT.
+    world.db.poke(`courseRuns/${RUN}/weeks/w03`, { published: true });
+    await runJob(nextWeekEmailJob, new Date(AT.groupBWeek3Due.getTime() - 60_000));
+    for (const uid of MEMBERS_B) assert.equal(weekMail(uid, 3).length, 0, `${uid}: week 3's email is a minute away`);
+    await runJob(nextWeekEmailJob, AT.groupBWeek3Due);
+    for (const uid of MEMBERS_B) assert.equal(weekMail(uid, 3).length, 1, `${uid}: week 3's email at 9am GMT`);
+    assert.equal(read(gnudgeFor(GROUP.b, WEEK3_SLOT)).via, "schedule");
   });
 
-  test("the group's first session is never mailed about", async () => {
-    // Week 1's session is Tuesday 20 October; two days before is Sunday 18.
-    await runJob(nextWeekEmailJob, new Date("2026-10-18T17:30:00Z"));
-    assert.deepEqual(world.mail, []);
+  test("the group's first session too: Week 1 is open goes six days before it", async () => {
+    // Group B's week 1 meets on Tuesday 20 October: six days before is
+    // Wednesday 14 October at 9am BST. (Group A's, on the Monday, went a day
+    // before it.)
+    await runJob(nextWeekEmailJob, new Date("2026-10-14T07:59:00Z"));
+    for (const uid of MEMBERS_B) assert.equal(mailTo(uid).length, 0, uid);
+    assert.equal(weekMail("ana", 1).length, 1, "Group A's own week 1, a day earlier");
+    await runJob(nextWeekEmailJob, new Date("2026-10-14T08:00:00Z"));
+    for (const uid of MEMBERS_B) assert.equal(mailTo(uid).length, 1, uid);
+    assert.equal(mailTo("amara")[0].subject, "Week 1 is open: Week 1 theme");
+    const text = await textOf(mailTo("amara")[0]);
+    assert.match(text, /Your first session is Tue 20 Oct at 6pm in Room C20\./);
+    assert.ok(read(gnudgeFor(GROUP.b, WEEK1_SLOT)));
   });
 
   test("two ticks at once send it once", async () => {
@@ -325,7 +348,7 @@ describe("next week's email on its schedule", () => {
     assert.equal(mailTo("amara").length, 0);
     assert.equal(read(gnudgeFor(GROUP.b, WEEK2_SLOT)), undefined, "held, not claimed");
     world.db.poke(`courseRuns/${RUN}/weeks/w02`, { published: true });
-    await runJob(nextWeekEmailJob, new Date("2026-10-26T10:00:00Z"));
+    await runJob(nextWeekEmailJob, new Date("2026-10-23T10:00:00Z"));
     for (const uid of MEMBERS_B) assert.equal(mailTo(uid).length, 1);
   });
 
@@ -353,7 +376,7 @@ describe("next week's email on its schedule", () => {
     const card = read(cards[0]);
     assert.deepEqual(card.completerUids, ["claudia", "zach"], "the lead, then the admins");
     assert.equal(card.visibility, "committee");
-    assert.equal(card.title, "Next week’s email held: Group B, week 2");
+    assert.equal(card.title, "Week 2’s email held: Group B");
     assert.match(card.description, /missing the group’s room/);
     assert.ok(card.initialNotifyAt instanceof Date, "born notified, so it emails nobody");
     assert.equal(card.sourceRef.sessionKey, undefined, "finishing a register never closes it");
@@ -367,11 +390,17 @@ describe("next week's email on its schedule", () => {
     assert.equal(read(cards[0]).archived, true, "and the card has done its job");
   });
 
-  test("a week with no reading, or a room holding a link, holds it too", async () => {
+  test("a week that asks for nothing, one with no title, or a room holding a link, holds it too", async () => {
     world.db.poke(`courseRuns/${RUN}/weeks/w02`, { materials: [], estimatedMinutes: null });
     await runJob(nextWeekEmailJob, AT.groupBDue);
     assert.equal(mailTo("amara").length, 0);
-    assert.match(read(`tasks/${heldEmailTaskId(RUN, GROUP.b, "w02")}`).description, /week 2’s reading/);
+    assert.match(read(`tasks/${heldEmailTaskId(RUN, GROUP.b, "w02")}`).description, /what week 2 asks for/);
+
+    reset(seedWorld({ scheduled: true }));
+    world.db.poke(`courseRuns/${RUN}/weeks/w02`, { title: "" });
+    await runJob(nextWeekEmailJob, AT.groupBDue);
+    assert.equal(mailTo("amara").length, 0);
+    assert.match(read(`tasks/${heldEmailTaskId(RUN, GROUP.b, "w02")}`).description, /week 2’s title/);
 
     reset(seedWorld({ scheduled: true }));
     world.db.poke(`courseGroups/${GROUP.b}`, {
@@ -389,20 +418,21 @@ describe("next week's email on its schedule", () => {
     });
     await runJob(nextWeekEmailJob, AT.groupBDue);
     const text = await textOf(mailTo("amara")[0]);
-    assert.match(text, /Online/);
+    assert.match(text, /Your next session is Tue 27 Oct at 6pm, online\./);
     assert.doesNotMatch(text, /meet\.example\.com/);
     for (const message of world.mail) {
       assert.doesNotMatch(JSON.stringify(message.subject), /meet\.example\.com/);
     }
   });
 
-  test("the same recipients and opt-outs as before", async () => {
+  test("a notice: everybody holding a place in the group, whatever they switched off, and nobody else", async () => {
     world.db.poke("users/chloe", { "profile.notifications": { categories: { courses: false } } });
+    world.db.poke(`subscriptions/sub_amara__cohort-${RUN}`, { subscribed: false });
     world.db.seed("suppressedEmails/farah@example.com", { email: "farah@example.com" });
     await runJob(nextWeekEmailJob, AT.groupBDue);
-    assert.equal(mailTo("amara").length, 1);
-    assert.equal(mailTo("chloe").length, 0, "switched course email off");
-    assert.equal(mailTo("farah").length, 0, "a suppressed address");
+    assert.equal(mailTo("amara").length, 1, "unsubscribed from the run's list, and reached: it is a notice");
+    assert.equal(mailTo("chloe").length, 1, "switched course email off, and reached: it is a notice");
+    assert.equal(mailTo("farah").length, 0, "a suppressed address is the one thing that stops it");
     assert.equal(mailTo("ana").length, 1, "Group A's own email, not Group B's");
     assert.equal(mailTo("nell").length, 0, "on no run");
     for (const uid of ["rahul", "sofia", "claudia", "zach"]) {
@@ -681,9 +711,9 @@ describe("what the register says about how it ends", () => {
     });
     const words = registerEndingWords(value);
     assert.equal(words.button, "Push attendance");
-    assert.equal(words.effect, "Locks the register, shows everyone their mark and emails Group B about next week.");
+    assert.equal(words.effect, "Locks the register, shows everyone their mark and emails Group B that week 2 is open.");
     assert.deepEqual(words.notes, [
-      "If nobody pushes, nobody gets next week’s email.",
+      "If nobody pushes, nobody gets week 2’s email.",
       "After 60 hours Claudia and admins get a task.",
     ]);
   });
@@ -695,7 +725,7 @@ describe("what the register says about how it ends", () => {
     assert.equal(words.button, "Finish the register");
     assert.equal(words.effect, "Locks it and shows everyone their mark. Nobody’s emailed.");
     assert.deepEqual(words.notes, [
-      "Next week’s email goes to Group B on Sun 25 Oct at 6pm, whatever happens here.",
+      "Week 2’s email goes to Group B on Wed 21 Oct at 9am, whatever happens here.",
       "Not finished 36 hours after the session? Rahul and Sofia get a reminder. At 60 hours, Claudia and admins get a task.",
     ]);
   });
@@ -717,11 +747,11 @@ describe("what the register says about how it ends", () => {
     let words = registerEndingWords(await ending());
     assert.deepEqual(words.notes, [
       "This register is finished. Everyone can see their mark.",
-      "Next week’s email goes to Group B on Sun 25 Oct at 6pm, whatever happens here.",
+      "Week 2’s email goes to Group B on Wed 21 Oct at 9am, whatever happens here.",
     ]);
     await runJob(nextWeekEmailJob, AT.groupBDue);
     words = registerEndingWords(await ending());
-    assert.equal(words.notes[1], "Next week’s email went to Group B on Sun 25 Oct at 6pm.");
+    assert.equal(words.notes[1], "Week 2’s email went to Group B on Wed 21 Oct at 9am.");
   });
 
   test("a held email and a waiting week say why", async () => {
@@ -729,17 +759,17 @@ describe("what the register says about how it ends", () => {
     world.db.poke(`courseGroups/${GROUP.b}`, { "session.location": "" });
     at(AT.groupBDue);
     let words = registerEndingWords(await ending());
-    assert.equal(words.notes[0], "Next week’s email to Group B is held: it’s missing the group’s room.");
+    assert.equal(words.notes[0], "Week 2’s email to Group B is held: it’s missing the group’s room.");
     world.db.poke(`courseGroups/${GROUP.b}`, { "session.location": "Room C20" });
     world.db.poke(`courseRuns/${RUN}/weeks/w02`, { published: false });
     words = registerEndingWords(await ending());
-    assert.equal(words.notes[0], "Next week’s email to Group B is waiting for week 2 to be published.");
+    assert.equal(words.notes[0], "Week 2’s email to Group B is waiting for week 2 to be published.");
   });
 
   test("a run no programme names has no lead to name, and a job switched off promises nothing", async () => {
     reset(seedWorld({ scheduled: true, reminders: false, tasks: false }));
     assert.deepEqual(registerEndingWords(await ending()).notes, [
-      "Next week’s email goes to Group B on Sun 25 Oct at 6pm, whatever happens here.",
+      "Week 2’s email goes to Group B on Wed 21 Oct at 9am, whatever happens here.",
     ]);
     reset(seedWorld({ scheduled: true }));
     const other = await ending("pia", GROUP.other);
