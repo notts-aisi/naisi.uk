@@ -133,7 +133,7 @@ export const REVIEW_WORDS = {
 
   // The foot.
   foot:
-    "Claude was sent the week’s questions, written answers and reflections, and, for what people found hard only, the check-ins pooled by group with no person attached and the facilitators’ reports, each with a number in place of a name; the site puts the names back. A task you ask for here carries fixed words, never Claude’s and never anyone’s check-in. Notes about a person never use Claude’s grades or anyone’s check-ins.",
+    "Claude was sent the week’s questions, written answers and reflections and the facilitators’ reports, each with a number in place of a name, and, for what people found hard only, the check-ins pooled by group with no person attached; the site puts the names back. A task you ask for here carries fixed words, never Claude’s and never anyone’s check-in. Notes about a person never use Claude’s grades or anyone’s check-ins.",
 
   // The follow-up route.
   followUpBadUid: "Say who to ask about.",
