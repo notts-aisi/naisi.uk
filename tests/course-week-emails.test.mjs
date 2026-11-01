@@ -321,6 +321,32 @@ describe("2. the reminders, word for word", () => {
     assert.deepEqual(ticks.lists[0].items, ["Two steps aren’t ticked."]);
     assert.deepEqual(ticks.after, ["Ticking everything it asks for stops these reminders. Your work locks when the session starts."]);
   });
+
+  test("two weeks are finished each their own way: what stops the reminders never asks a week with nothing to write to be submitted", () => {
+    const reminder = (writes) =>
+      words.weekReminderEmailWords(
+        {
+          courseTitle: "AGI Strategy",
+          daysBefore: 3,
+          sessionAt: SESSION,
+          where: "",
+          weeks: writes.map((write, at) => ({
+            weekNumber: 3 + at,
+            left: { items: [{ kind: "steps", count: 1 }], notSubmitted: write },
+            writes: write,
+          })),
+          weekUrl: "https://naisi.uk/learn/agi/weeks/3",
+        },
+        "",
+      ).after[0];
+    const locks = " Your work locks when the session starts.";
+    assert.equal(reminder([true, true]), `Submitting each week, with every reading ticked, stops these reminders.${locks}`);
+    assert.equal(reminder([false, false]), `Ticking everything they ask for stops these reminders.${locks}`);
+    assert.equal(reminder([true, false]), `Finishing each week stops these reminders.${locks}`);
+    assert.equal(reminder([false, true]), `Finishing each week stops these reminders.${locks}`);
+    assert.equal(reminder([true]), `Submitting it, with every reading ticked, stops these reminders.${locks}`);
+    assert.equal(reminder([false]), `Ticking everything it asks for stops these reminders.${locks}`);
+  });
 });
 
 // ===========================================================================

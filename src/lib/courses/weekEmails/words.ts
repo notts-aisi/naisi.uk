@@ -243,15 +243,22 @@ export function weekLeftWords(weekNumber: number, left: WeekLeft): string[] {
   return lines;
 }
 
-/** The line under the button: what stops these reminders, and when the work locks. */
+/**
+ * The line under the button: what stops these reminders, and when the work
+ * locks. Two weeks where only one has something to write are each finished
+ * their own way, which the lists above spell out, so that line says "each".
+ */
 function reminderAfterWords(weeks: readonly ReminderWeek[]): string {
   const locks = "Your work locks when the session starts.";
-  if (weeks.some((week) => week.writes)) {
-    return weeks.length === 1
+  const writing = weeks.filter((week) => week.writes).length;
+  if (weeks.length === 1) {
+    return writing === 1
       ? `Submitting it, with every reading ticked, stops these reminders. ${locks}`
-      : `Submitting each week, with every reading ticked, stops these reminders. ${locks}`;
+      : `Ticking everything it asks for stops these reminders. ${locks}`;
   }
-  return `Ticking everything it asks for stops these reminders. ${locks}`;
+  if (writing === weeks.length) return `Submitting each week, with every reading ticked, stops these reminders. ${locks}`;
+  if (writing === 0) return `Ticking everything they ask for stops these reminders. ${locks}`;
+  return `Finishing each week stops these reminders. ${locks}`;
 }
 
 /**
