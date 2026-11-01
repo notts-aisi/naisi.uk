@@ -10027,6 +10027,17 @@ describe("v15 lets admins ask Claude to review a week's coursework, check-ins an
     assert.ok(existsSync(join(REPO_ROOT, "tests", "week-review.test.mjs")), "the week review's suite is gone");
   });
 
+  test("\"deleted with it\" and \"the notes and ratings about you\": the run's destroy takes its reviews and follow-ups, and an account's deletion takes the account out of both", () => {
+    v15Says("<strong>What AI tools returned:</strong> with what it was about, and deleted with it.");
+    const cascade = strip(read("src/lib/firestore/accountDeletion.ts"));
+    assert.match(cascade, /summary\.courseWeekReviewsCleared = await clearWeekReviewEntries\(db, uid\);/);
+    assert.match(cascade, /summary\.reviewFollowUpsDeleted = await deleteReviewFollowUpsAbout\(db, uid\);/);
+    assert.match(cascade, /\.where\("sourceRef\.aboutUid", "==", uid\)/);
+    const destroy = strip(read("src/lib/firestore/courseDeletion.ts"));
+    assert.match(destroy, /key: "weekReviews",/);
+    assert.match(destroy, /drainSourcedTasks\(db, storage, REVIEW_FOLLOW_UP_TASK_SOURCE, runId, budget\)/);
+  });
+
   test("\"only what you wrote after you first agreed to version 13 ... is ever sent\", and the stricter version 15 moment for this new use", () => {
     const input = strip(read("src/lib/courses/weekReview/input.ts"));
     assert.match(input, /return work\.counted && cameAfter\(work\.firstWrittenAt, momentOf\.get\(work\.uid\) \?\? null\);/);

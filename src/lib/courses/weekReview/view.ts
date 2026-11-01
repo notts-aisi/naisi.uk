@@ -59,7 +59,7 @@ export type WeekReviewView = {
     weakest: GradeEntry[];
   }>;
   themes: PartState<{ list: Array<{ title: string; part: string | null; from: string; detail: string }> }>;
-  hands: PartState<Record<string, never>> | { state: "none" };
+  hands: PartState<Record<never, never>>;
   /** Every row of Might need a hand: the site's facts and Claude's picks together. */
   rows: HandRow[];
   /** How many to read each way under the chart. */
