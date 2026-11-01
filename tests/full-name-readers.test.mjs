@@ -309,8 +309,12 @@ const READERS = new Map([
   }],
   ["src/lib/applications/arrange/advise.ts", {
     who: "scrub",
-    proof: ["const accountNames = await namesToScrubOf(db, uids);", "question: scrubbed(input.question, named),"],
-    why: "an admin's question about arranging groups, and the turns before it, have every name on each person's account taken out before they are sent",
+    proof: [
+      "const accountNames = await namesToScrubOf(db, uids);",
+      "const fullName = application?.sent?.aboutYou.fullName.trim();",
+      "question: scrubbed(input.question, named),",
+    ],
+    why: "an admin's question about arranging groups, and the turns before it, have every name on each person's account, and the full name on their application, taken out before they are sent",
   }],
   ["src/lib/courses/coursework/gather.ts", {
     who: "scrub",
@@ -550,8 +554,8 @@ describe("every scrub of words that leave the site knows the full name", () => {
       why: "an admin's question about a programme: each row's names, read back from its staff line, and every name on each account",
     }],
     ["src/lib/applications/arrange/advise.ts", {
-      names: ["namesToScrubOf(db, uids)"],
-      why: "an admin's question about arranging groups, and the turns before it: the name on the screen, and every name on each account",
+      names: ["namesToScrubOf(db, uids)", "application?.sent?.aboutYou.fullName"],
+      why: "an admin's question about arranging groups, and the turns before it: the name on the screen, every name on each account, and the full name on each application",
     }],
     ["src/lib/courses/coursework/input.ts", {
       names: [],

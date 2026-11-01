@@ -474,9 +474,10 @@ Who sees which name follows the site's one rule (`src/lib/names/staffName.ts`):
   `displayName` and never the full name.
 - **A question an admin types** about a programme or about arranging its
   groups has every name each person holds taken out before it is sent: the
-  names on their row (a staff line is read back into its names by
-  `namesInStaffWords`) and every name on their account, the full name among
-  them (`namesToScrubOf` in `src/lib/names/scrub.ts`).
+  full name on their application and the name they go by (a programme's row
+  holds both, read back by `namesInStaffWords`; arranging reads the
+  application), and every name on their account, the full name among them
+  (`namesToScrubOf` in `src/lib/names/scrub.ts`).
 
 ### Question sets, and who is asked each
 

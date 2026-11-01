@@ -306,6 +306,17 @@ describe("asking Claude about the groups on the screen", () => {
     assert.equal(ask.dropped.length, 1);
   });
 
+  test("a full name given only on the form is taken out too", async () => {
+    // Dev applied from an account with no full name on it, and typed one into the form.
+    db.poke(applicationPath("dev"), { "sent.aboutYou.fullName": "Devendra Patel" });
+    as("zach");
+    const response = await ASK({ question: "Should Devendra Patel lead?", groups: screen });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    const { message } = globalThis.__claudeAsked[0];
+    assert.doesNotMatch(message, /Devendra/, "the full name on Dev's form was sent");
+    assert.match(message, /## The admin asks\nShould Applicant 2 lead\?/);
+  });
+
   test("a full name an account holds is taken out too, though the screen names them otherwise", async () => {
     // Dev joined with an email address: no display name, "Dev" to go by, and
     // the full name the site asked for. The screen names him from his application.

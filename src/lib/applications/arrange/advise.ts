@@ -8,7 +8,8 @@ import { namesToScrubOf } from "@/lib/names/scrub";
 import { canRunTerm } from "../access";
 import { storedReadFor } from "../assessment/stored";
 import { own } from "../keys";
-import { loadForm } from "../repo";
+import { normaliseApplication } from "../normalise";
+import { applicationRef, loadForm } from "../repo";
 import { NOT_FOUND, refuse } from "../review/refusals";
 import type { Refusal } from "../review/types";
 import { scrubbed } from "../assessment/programmeInput";
@@ -477,10 +478,20 @@ export async function askAboutArrangement(
   const uids = [...arranging.people.keys()].sort();
   const label = (uid: string) => `Applicant ${uids.indexOf(uid) + 1}`;
   // Every name each person holds is taken out of what the admin typed: the
-  // name on the screen, and their account's own, the full name among them.
+  // name on the screen, their account's own, the full name among them, and
+  // the full name they gave on this form, which somebody who applied from an
+  // account may have typed there and nowhere else.
   const accountNames = await namesToScrubOf(db, uids);
+  const appliedAs = new Map<string, string>();
+  if (uids.length > 0) {
+    for (const snap of await db.getAll(...uids.map((uid) => applicationRef(db, roundId, uid)))) {
+      const application = snap.exists ? normaliseApplication(snap.id, snap.data(), form.round.availabilityGrid) : null;
+      const fullName = application?.sent?.aboutYou.fullName.trim();
+      if (application && fullName) appliedAs.set(application.uid, fullName);
+    }
+  }
   const named = uids.flatMap((uid) =>
-    [...new Set([arranging.people.get(uid)?.name ?? "", ...(accountNames.get(uid) ?? [])])]
+    [...new Set([arranging.people.get(uid)?.name ?? "", ...(accountNames.get(uid) ?? []), appliedAs.get(uid) ?? ""])]
       .filter((name) => name.trim())
       .map((name) => ({ label: label(uid), name })),
   );
