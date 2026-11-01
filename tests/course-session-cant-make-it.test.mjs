@@ -396,6 +396,17 @@ describe("5. the programme page offers it on the ticket of the next session", ()
     assert.equal(await ticketFor("chloe"), null);
   });
 
+  test("only on the ticket of the session it is about, of the group it is about", async () => {
+    await w.asBrowser("chloe");
+    const view = await ticketFor("chloe");
+    // A view about another session, or another group, than the ticket shows draws nothing.
+    for (const other of [{ ...view, sessionKey: "w04" }, { ...view, groupId: D }]) {
+      const drawn = w.programmeHome("chloe", { cantMakeIt: other });
+      assert.doesNotMatch(drawn.text, /Can’t make it/, JSON.stringify(other));
+      assert.ok(drawn.text.includes("Add to calendar"), "the ticket lost Add to calendar");
+    }
+  });
+
   test("the control: one button, then the line and the way back; drawn locked as the member in a view-as session", () => {
     const view = { groupId: B, sessionKey: "w03", day: "Tue 17 Nov", told: false };
     const open = renderToStaticMarkup(createElement(CantMakeIt, { view }));
