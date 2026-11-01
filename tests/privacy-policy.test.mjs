@@ -10299,3 +10299,64 @@ describe("the services we use", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Messages' Sent: who reads the email log and the record of a send
+// ---------------------------------------------------------------------------
+
+describe("Messages' Sent: who reads the email log and the record of a send", () => {
+  test("the email log is an admin's alone; a facilitator reads their own groups' sends, by name, never an address", () => {
+    // v15, the sentences Sent keeps true: who sees what, and what the log holds.
+    assert.ok(
+      PAGE_FLAT.includes(
+        "Admins see most of it. The people leading a programme see what they need to run it. Facilitators see their own groups, by name, never your email address.",
+      ),
+    );
+    assert.ok(PAGE_FLAT.includes("a log of the emails we send (subject, recipient and whether it was delivered)"));
+
+    const sent = withoutComments(read("src/lib/messages/sent.ts"));
+    // The email log is read for an admin and nobody else.
+    assert.match(sent, /scope\.admin\s*\?\s*db\s*\.collection\("emailSends"\)/);
+    assert.equal((sent.match(/collection\("emailSends"\)/g) ?? []).length, 1, "Sent reads the email log in more than one place");
+    // A record of a send is read by anybody but an admin only when every tag in it is one they may
+    // use now: the people they run, by the same table the send asks.
+    assert.match(sent, /if \(scope\.admin\) return true;\s*return \(\s*record\.tags\.length > 0 &&\s*record\.tags\.every\(\(each\) => \{\s*const tag = parseTag\(each\.id\);\s*return tag !== null && mayUse\(scope, tag\);/);
+    assert.match(sent, /\.filter\(\(record\): record is MessageSendDoc => record !== null && maySeeSend\(scope, record\)\);/);
+    // Everybody is named by the reader's rule, and why somebody was left out is said by name to an admin alone.
+    assert.match(sent, /return data \? nameForViewer\(reader\.viewer, accountNamesOf\(data\), NO_NAME\) : SENT_WORDS\.gone;/);
+    assert.match(sent, /why: reasonsByName && !emailed \? whyOf\(person, record\) : null,/);
+    // An address from the log is matched to an account to name it, and one no account holds is counted.
+    assert.match(sent, /else if \(row\.to\) others\.set\(row\.to, better\(others\.get\(row\.to\), outcome\)\);/);
+    assert.match(sent, /noAccount: others\.size > 0 \? noAccountWords\(others\.size\) : null,/);
+    // The page asks Write's gate before anything is read.
+    const page = withoutComments(read("src/app/(app)/messages/sent/page.tsx"));
+    assert.match(page, /const writer = user && db \? await messageWriterOf\(db, user, now\) : null;\s*if \(!user \|\| !db \|\| !writer\) \{/);
+    assert.ok(page.indexOf("if (!user || !db || !writer)") < page.indexOf("await loadSent("), "Sent reads before it asks who is reading");
+  });
+
+  test("the record of a Messages send is written in one place and read in one, and the email log by its own few", () => {
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\bMESSAGE_SENDS_COLLECTION\b|collection\(\s*["'`]messageSends["'`]/),
+      new Map([
+        ["src/lib/firestore/messageSends.ts", "the record's name and its shape, and the normaliser Sent reads it through"],
+        ["src/lib/messages/sending.ts", "the send's writer: the record is written before the first email and settled after the last"],
+        ["src/lib/messages/sent.ts", "Sent, the one reader: each record is shown only to a writer every one of whose tags it was for, or an admin"],
+      ]),
+      "places that address the record of a Messages send",
+      "Decide who reads what it reads, and that it names nobody but by the reader's rule, before listing it.",
+    );
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/collection\(\s*["'`]emailSends["'`]/),
+      new Map([
+        ["src/lib/firestore/emailSends.ts", "the log's writers, beside every send, and the bounce and complaint matcher"],
+        ["src/app/api/admin/deliverability/sends/route.ts", "the admins' Email delivery page, which refuses anybody but an admin before the log is read"],
+        ["src/lib/messages/sent.ts", "Sent, which reads the log for an admin alone and names its people by the reader's rule"],
+        ["src/lib/firestore/courseDeletion.ts", "the manifest an admin reads before destroying a course run: how many rows of the log mention it, which are kept, counted and never read"],
+        ["src/lib/worksheets/destroy.ts", "the manifest before a circulation is destroyed: how many rows of the log mention it, which are kept, counted and never read"],
+        ["src/lib/admissions/destroy.ts", "the manifest an admin reads before destroying a round: how many rows of the log mention it, which are kept, counted and never read"],
+      ]),
+      "places that address the email log",
+      "The log holds who was emailed and at which address: decide who reads it, and say so here.",
+    );
+  });
+});

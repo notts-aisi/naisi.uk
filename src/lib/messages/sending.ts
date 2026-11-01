@@ -167,6 +167,7 @@ export async function startMessageRecord(
       held: 0,
       suppressed: 0,
       failed: 0,
+      pushed: 0,
     },
     reasons: Object.fromEntries(resolution.reasons.map((each) => [each.reason, each.count])),
     postedUpdateId: args.postedUpdateId,
@@ -176,13 +177,18 @@ export async function startMessageRecord(
   return ref.id;
 }
 
-/** What the emails did, once the last has gone: the tally, and each person's outcome by their place in the list. */
+/**
+ * What the emails did, once the last has gone: the tally, each person's
+ * outcome by their place in the list, and how many phones a notice to one
+ * group reached (`pushed`, 0 for every other send).
+ */
 export async function settleMessageRecord(
   db: Firestore,
   id: string,
   resolution: Resolution,
   outcomes: ReadonlyMap<string, MessageOutcome>,
   tally: MessageTally,
+  pushed: number,
 ): Promise<void> {
   const people: MessagePerson[] = resolution.people.map((person) => ({
     uid: person.uid,
@@ -196,6 +202,7 @@ export async function settleMessageRecord(
     "counts.held": tally.held,
     "counts.suppressed": tally.suppressed,
     "counts.failed": tally.failed,
+    "counts.pushed": pushed,
     settled: true,
   });
 }

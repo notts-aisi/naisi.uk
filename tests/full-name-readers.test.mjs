@@ -150,6 +150,13 @@ const READERS = new Map([
     proof: ['return nameForViewer(viewer, accountNamesOf(data), "NAISI member");'],
     why: "the picker of who a message is for names everybody through one function, by the rule for the session's own viewer: the committee and admins see the full name, a facilitator the name people go by",
   }],
+  ["src/lib/messages/sent.ts", {
+    who: "rule",
+    proof: ["return data ? nameForViewer(reader.viewer, accountNamesOf(data), NO_NAME) : SENT_WORDS.gone;"],
+    why:
+      "Messages' Sent names everybody a send reached, its writer and a person named one by one through one function, by " +
+      "the rule for the session's own viewer: the committee and admins see the full name, a facilitator the name people go by",
+  }],
   ["src/lib/events/requestCard.ts", {
     who: "rule",
     proof: ["staffNamesFor(db, uids, viewer, { emailShown: access.everyone })"],

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import MessageEmail from "@/emails/MessageEmail";
 import { loadAudienceWorld, resolveAudience } from "@/lib/audience/load";
-import { AUDIENCE_REFUSAL } from "@/lib/audience/words";
+import { AUDIENCE_REFUSAL, UNNAMED_GROUP } from "@/lib/audience/words";
 import { displayNameOf, staffMessageBlocks, staffPreheader } from "@/lib/email/courseFacilitatorEmails";
 import { dispatchSends } from "@/lib/email/dispatch";
 import { sendNotice } from "@/lib/email/notice";
@@ -11,6 +11,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import type { MessageOutcome, MessageTally } from "@/lib/firestore/messageSends";
+import { groupPushOf, groupPushPath } from "@/lib/messages/groupPush";
 import { parseMessageSend } from "@/lib/messages/parse";
 import { mayPostOn, postOnProgrammePage, postTargetFor, settlePostedEmail } from "@/lib/messages/posting";
 import {
@@ -26,6 +27,7 @@ import {
 } from "@/lib/messages/sending";
 import { isApprovedAccount, messageWriterOf, writesMessages } from "@/lib/messages/writers";
 import { MESSAGE_REFUSAL, becauseWords, countChangedWords, overCeilingWords } from "@/lib/messages/words";
+import { sendNoticePush } from "@/lib/push/noticeNotifications";
 
 /**
  * MESSAGES (docs/messages.md): one composer for writing to people, on the
@@ -59,7 +61,13 @@ import { MESSAGE_REFUSAL, becauseWords, countChangedWords, overCeilingWords } fr
  * settings, the one row the writer chose (or the tags suggest): one
  * `sendEmail` per address the row routes to, with the line saying which row
  * it read and the link that unsubscribes them from it, guests through their
- * own subscription to that row's list. No push: Messages sends email only.
+ * own subscription to that row's list.
+ *
+ * EMAIL, AND ONE PUSH. A programme notice to one group is the group email it
+ * took over from a run's pages, and keeps that email's push: each person it
+ * reached with an account, and each whose every address bounced, gets a
+ * notification through the notice lane's push door, never the writer
+ * (`src/lib/messages/groupPush.ts`). Every other message is email alone.
  *
  * WHOLE OR NOT AT ALL. Every refusal comes before anything is written or
  * sent: the body, the gate, a tag the writer may not use, nobody to email, a
@@ -238,11 +246,30 @@ export async function POST(req: Request) {
 
   const tally: MessageTally = { sent: 0, held: 0, suppressed: 0, failed: 0 };
   for (const outcome of outcomes.values()) tally[outcome] += 1;
+
+  // The group email's push, for the one send that is that email (see the
+  // module comment). Over the people it reached and those whose every address
+  // bounced, as the group email pushed over its recipients and not only its
+  // deliverable ones; never the writer, whom the group email never sent to.
+  // `sendNoticePush` reads no preference, never throws, and answers whether a
+  // device took it, so `pushed` counts notifications rather than calls.
+  let pushed = 0;
+  const pushGroupId = groupPushOf(send.selection.include, resolution.mode);
+  const pushRun = pushGroupId ? writer.roles.runs.find((run) => run.groups.some((group) => group.id === pushGroupId)) : undefined;
+  const pushGroup = pushRun?.groups.find((group) => group.id === pushGroupId);
+  if (pushRun && pushGroup) {
+    const note = { title: pushGroup.name.trim() || UNNAMED_GROUP, body: send.subject, url: groupPushPath(pushRun.runId, pushGroup.id) };
+    for (const person of resolution.people) {
+      if (!person.uid || person.you || (person.leftOut !== null && person.leftOut !== "suppressed")) continue;
+      if (await sendNoticePush(person.uid, note)) pushed += 1;
+    }
+  }
+
   try {
-    await settleMessageRecord(db, recordId, resolution, outcomes, tally);
+    await settleMessageRecord(db, recordId, resolution, outcomes, tally, pushed);
     if (postedUpdateId) await settlePostedEmail(db, postedUpdateId, planned, tally);
   } catch (err) {
     console.error("[messages] could not record what the emails did", recordId, err);
   }
-  return NextResponse.json({ ok: true, ...tally, posted: target ? target.programme : null });
+  return NextResponse.json({ ok: true, ...tally, pushed, posted: target ? target.programme : null });
 }

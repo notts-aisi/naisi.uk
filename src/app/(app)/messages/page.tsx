@@ -1,5 +1,6 @@
 import PageHead from "@/components/ui/PageHead";
 import MessageComposer, { type ComposerPostTarget } from "@/features/messages/MessageComposer";
+import MessagesTabs from "@/features/messages/MessagesTabs";
 import styles from "@/features/messages/messages.module.css";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * Run NAISI › Messages (docs/messages.md): one composer for writing to
- * people, on the picker.
+ * people, on the picker. Write, beside Sent (`./sent/page.tsx`).
  *
  * FOR ADMINS, A PROGRAMME'S LEAD AND A GROUP'S FACILITATOR
  * (`messageWriterOf`), each writing to the tags the picker's scope gives
@@ -52,6 +53,7 @@ export default async function MessagesPage({ searchParams }: { searchParams: Pro
   return (
     <div className={styles.page}>
       <PageHead title={PAGE_WORDS.title} description={PAGE_WORDS.lede} />
+      <MessagesTabs current="write" />
       <MessageComposer initial={initial} postTargets={postTargets} />
     </div>
   );

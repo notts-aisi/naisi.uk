@@ -1811,7 +1811,9 @@ and one route, `/api/courses/runs/[runId]/updates`.
 - **The programme's lead and admins**: the programme page's Messages tab.
   To offers everyone, each live group and the facilitators, each with how
   many people it is to. Below the composer, every update on the run, with
-  who it was to and what its email did.
+  who it was to and what its email did. Above it, "Write in Messages" opens
+  Messages set to the programme's people, where a message to one programme's
+  people or one of its groups is posted here as well ([messages.md](messages.md)).
 - **A group's facilitators**: "Write to Group B (8)" on their group's page,
   which opens the composer for that group alone.
 - **A run's track leads** may write as the lead does, through the same
@@ -1848,7 +1850,8 @@ and one route, `/api/courses/runs/[runId]/updates`.
   nothing. Ten an hour.
 - Caps, on counters of their own: three emailed updates an hour per writer
   and audience, ten a day per audience; ten an hour posted without an email.
-  The existing "Email the group" and run email composers keep their own.
+  The run's own email composers keep their own. A message written in
+  Messages and posted here takes Messages' caps, not these.
 
 ### What the list says about an email
 

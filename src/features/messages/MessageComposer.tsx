@@ -8,6 +8,7 @@ import WhoIsThisFor, { type AudienceChoice } from "@/features/audience/WhoIsThis
 import { useHydrated } from "@/hooks/useHydrated";
 import type { CountView } from "@/lib/audience/resolve";
 import { MESSAGE_LIMITS, type MessageTally } from "@/lib/firestore/messageSends";
+import { groupPushOf } from "@/lib/messages/groupPush";
 import {
   COMPOSER_WORDS,
   countWords,
@@ -29,6 +30,9 @@ import styles from "./messages.module.css";
  * A TEST FIRST. The send is held until a test of exactly these words has
  * reached the writer, as Publish holds; the server is the authority (it
  * refuses an untested send), and this only says so before the press.
+ *
+ * A NOTICE TO ONE GROUP also goes to phones, as the group email it took over
+ * did (`groupPushOf`), and the composer says so above the buttons.
  *
  * "ALSO POST IT ON THE PROGRAMME'S PAGE" is offered when the choice is one of
  * the tags the page names (`postTargets`): one programme's people or one
@@ -95,6 +99,8 @@ export default function MessageComposer({ initial, postTargets }: Props) {
       ? (postTargets.find((each) => each.tagId === choice.include[0]) ?? null)
       : null;
   const post = target !== null && postOn;
+  // The one message that also goes to phones: a notice to one group (the server decides it by the same rule).
+  const pushes = count !== null && groupPushOf(choice.include, count.mode) !== null;
   const testFresh = tested !== null && tested.subject === words.subject && tested.message === words.message;
 
   /** Why Send waits, in the order the writer meets them; null when it is ready. */
@@ -241,6 +247,8 @@ export default function MessageComposer({ initial, postTargets }: Props) {
             />
           </div>
         )}
+
+        {pushes && <p className={styles.pushes}>{COMPOSER_WORDS.pushes}</p>}
 
         <div className={styles.actions}>
           <Button type="button" variant="secondary" disabled={!hydrated || busy !== null} onClick={() => void press("test")}>

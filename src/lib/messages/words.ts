@@ -1,4 +1,5 @@
 import type { GridRow } from "@/lib/audience/kind";
+import { rowInASentence } from "@/lib/audience/words";
 import type { CourseUpdateTo } from "@/lib/firestore/courseUpdates";
 import type { MessageTally } from "@/lib/firestore/messageSends";
 
@@ -48,6 +49,109 @@ export function messagesHrefFor(tagId: string): string {
   return `/messages?for=${encodeURIComponent(tagId)}`;
 }
 
+/** Write and Sent, the two halves of Messages, as the pills under the title. */
+export const TAB_WORDS = { nav: "Messages", write: "Write", sent: "Sent" } as const;
+
+/**
+ * Where the old composers on a run's pages hand over: the cohort's card on a
+ * run's home, for the people it opens Messages for.
+ */
+export const HANDOVER_WORDS = {
+  cohortTitle: "The whole cohort",
+  cohortNote: "Messages writes to everyone holding a place on this programme, and can post it on the programme’s page as well.",
+} as const;
+
+// ---------------------------------------------------------------------------
+// Sent
+// ---------------------------------------------------------------------------
+
+export const SENT_WORDS = {
+  /** Under the title, for an admin, who reads every send. */
+  ledeAdmin:
+    "Every send to people on the site, newest first, with who it reached. A message from Messages also says who was left out, and why.",
+  /** Under the title, for a programme's lead or a group's facilitator. */
+  lede: "What was sent from Messages to the people you run, newest first, with who it reached and who was left out.",
+  earlier: "Earlier",
+  later: "Later",
+  /** Nothing in the window. */
+  nothing: "Nothing was sent in these two weeks.",
+  nothingYours: "Nothing was sent to the people you run in these two weeks.",
+  /** The email log held more rows in the window than the page reads at once. */
+  capped:
+    "These two weeks hold more emails than this page reads at once, so their oldest sends may be missing here. Every email is listed under Email delivery.",
+  /** The tags of a message, for a screen reader, and each one's sign. */
+  tagsLabel: "Who it was for",
+  included: "Included",
+  leftOut: "Left out",
+  seeWho: "See who",
+  emailed: "Emailed",
+  notEmailed: "Not emailed",
+  leftOutTitle: "Left out, and why",
+  why: "Why",
+  people: "People",
+  you: "you",
+  /** A send whose record never settled: what its emails did is not known for everybody. */
+  cutOff: "This send stopped before it finished, so what became of some of its emails isn’t known.",
+  posted: "Also posted on the programme’s page.",
+  /** Who sent a send the site made, or one whose writer is no account. */
+  site: "NAISI",
+  /** A writer or a person whose account has since been deleted. */
+  gone: "An account since deleted",
+  /** The people who were emailed, and their outcomes, for an admin. */
+  held: "Held: this copy of the site doesn’t email them",
+  suppressed: "Not emailed: do-not-email list",
+  bounced: "Bounced or marked as spam",
+  failed: "Couldn’t be sent",
+  unknown: "Not known: the send stopped first",
+} as const;
+
+/** "Sent from Mon 19 Oct to Sun 1 Nov." `first` and `last` are the window's days, said in London. */
+export function sentWindowWords(first: string, last: string): string {
+  return `Sent from ${first} to ${last}.`;
+}
+
+/** "by Zachary Levin", "by you", "by NAISI": who sent a send. */
+export function byWords(from: string): string {
+  return `by ${from}`;
+}
+
+/** "1 person with no account", "3 people with no account": guests, walk-ins and addresses no account holds. */
+export function noAccountWords(n: number): string {
+  return `${peopleWords(n)} with no account`;
+}
+
+/** How a message from Messages went: "Programme notice", or "By their settings: event announcements". */
+export function sentModeWords(mode: "notice" | "grid", row: GridRow | null): string {
+  if (mode === "notice") return "Programme notice";
+  return row ? `By their settings: ${rowInASentence(row)}` : "By their settings";
+}
+
+/**
+ * A message from Messages, in numbers: "23 emailed · 2 left out · 1 held".
+ * A send that stopped before it finished says how many it was to email, and
+ * nothing of what it did.
+ */
+export function messageCountsWords(
+  counts: { emailed: number; leftOut: number; sent: number; held: number; suppressed: number; failed: number },
+  settled: boolean,
+): string {
+  if (!settled) return `${countWords(counts.emailed)} to be emailed · ${countWords(counts.leftOut)} left out`;
+  const parts = [`${countWords(counts.sent)} emailed`, `${countWords(counts.leftOut)} left out`];
+  if (counts.held > 0) parts.push(`${countWords(counts.held)} held`);
+  if (counts.suppressed > 0) parts.push(`${countWords(counts.suppressed)} on the do-not-email list`);
+  if (counts.failed > 0) parts.push(`${countWords(counts.failed)} couldn’t be sent`);
+  return parts.join(" · ");
+}
+
+/** Another sender's send, in numbers: "38 emailed · 2 bounced · 1 held". */
+export function logCountsWords(counts: { emailed: number; bounced: number; held: number; suppressed: number }): string {
+  const parts = [`${countWords(counts.emailed)} emailed`];
+  if (counts.bounced > 0) parts.push(`${countWords(counts.bounced)} bounced or marked as spam`);
+  if (counts.held > 0) parts.push(`${countWords(counts.held)} held`);
+  if (counts.suppressed > 0) parts.push(`${countWords(counts.suppressed)} on the do-not-email list`);
+  return parts.join(" · ");
+}
+
 // ---------------------------------------------------------------------------
 // The composer
 // ---------------------------------------------------------------------------
@@ -61,6 +165,8 @@ export const COMPOSER_WORDS = {
   testSending: "Sending a test…",
   sending: "Sending…",
   post: "Also post it on the programme’s page",
+  /** A programme notice to one group, which pushes as the group email did. */
+  pushes: "A notice to one group also goes as a notification to any device its people have set up.",
   /** Under the buttons while there is nothing chosen. */
   chooseFirst: "Add a tag to choose who this is for.",
   /** While the count is being worked out. */

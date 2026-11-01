@@ -77,8 +77,17 @@ const w = makeWorld("__messages", [
       "  globalThis.__messagesUi.h('a', { href, className, ...rest }, children);",
   ],
   ["next/navigation", "export function redirect(to) { throw Object.assign(new Error('NEXT_REDIRECT'), { to }); }"],
+  // The notice lane's push door, which writes down what it was handed and
+  // answers that a device took it unless a suite says otherwise.
+  [
+    "@/lib/push/noticeNotifications",
+    "export async function sendNoticePush(uid, note) {\n" +
+      "  globalThis.__messages.pushes.push({ uid, ...note });\n" +
+      "  return globalThis.__messagesUi.pushTaken ? globalThis.__messagesUi.pushTaken(uid) : true;\n" +
+      "}",
+  ],
 ]);
-globalThis.__messagesUi = { h: createElement };
+globalThis.__messagesUi = { h: createElement, pushTaken: null };
 
 const lib = (...parts) => w.loadTs(join("lib", ...parts));
 const tags = await lib("audience", "tags.ts");
@@ -324,7 +333,7 @@ describe("the send, as every kind of caller", () => {
         const count = await countOf(uid, [T.groupC]);
         const sent = await call(uid, route.POST, { body: { include: [T.groupC], exclude: [], row: null, ...WORDS, count: count.emailed } });
         assert.equal(sent.status, 200, `${persona}: ${JSON.stringify(sent.body)}`);
-        assert.deepEqual(Object.keys(sent.body).sort(), ["failed", "held", "ok", "posted", "sent", "suppressed"]);
+        assert.deepEqual(Object.keys(sent.body).sort(), ["failed", "held", "ok", "posted", "pushed", "sent", "suppressed"]);
         continue;
       }
       const refused = await call(uid, route.POST, { body: { include: [T.groupC], exclude: [], row: null, ...WORDS, count: 1 } });
@@ -577,10 +586,19 @@ describe("notice or by their settings, one class for the whole send", () => {
     assert.deepEqual({ ...tokenOf(mo), iat: 0, exp: 0 }, { s: "unsubscribe", email: "mo@example.com", c: "events", iat: 0, exp: 0 });
   });
 
-  test("no push, ever", () => {
-    for (const file of [join("src", "app", "api", "messages", "route.ts"), join("src", "lib", "messages", "sending.ts"), join("src", "lib", "messages", "posting.ts")]) {
+  test("no push but the group email's: only the notice lane's door, only for a notice to one group", () => {
+    // The record, the post and the picker's words never push.
+    for (const file of [join("src", "lib", "messages", "sending.ts"), join("src", "lib", "messages", "posting.ts"), join("src", "lib", "messages", "groupPush.ts")]) {
       assert.doesNotMatch(read(file), /sendNoticePush|sendPushToUid|sendPushToRowAudience|mirror\w*ToPush/, file);
     }
+    // The send pushes through the door that reads no preference, once a person, and through nothing else.
+    const sendRoute = read("src", "app", "api", "messages", "route.ts");
+    assert.doesNotMatch(sendRoute, /sendPushToUid|sendPushToRowAudience|mirror\w*ToPush|wantsPushFor/);
+    assert.equal((sendRoute.match(/\bsendNoticePush\(/g) ?? []).length, 1, "the send pushes from more than one place");
+    assert.match(sendRoute, /const pushGroupId = groupPushOf\(send\.selection\.include, resolution\.mode\);/);
+    assert.match(sendRoute, /if \(!person\.uid \|\| person\.you \|\| \(person\.leftOut !== null && person\.leftOut !== "suppressed"\)\) continue;\s*if \(await sendNoticePush\(person\.uid, note\)\) pushed \+= 1;/);
+    // The test never pushes.
+    assert.doesNotMatch(read("src", "app", "api", "messages", "test", "route.ts"), /Push/);
   });
 });
 
@@ -906,6 +924,13 @@ describe("the words", () => {
       join("src", "app", "api", "messages", "route.ts"),
       join("src", "app", "api", "messages", "test", "route.ts"),
       join("src", "app", "(app)", "messages", "page.tsx"),
+      join("src", "app", "(app)", "messages", "sent", "page.tsx"),
+      join("src", "lib", "messages", "sent.ts"),
+      join("src", "lib", "messages", "sentSenders.ts"),
+      join("src", "lib", "messages", "groupPush.ts"),
+      join("src", "lib", "messages", "handover.ts"),
+      join("src", "features", "messages", "MessagesTabs.tsx"),
+      join("src", "features", "messages", "SentList.tsx"),
       join("docs", "messages.md"),
     ];
     for (const file of files) assert.doesNotMatch(read(file), /[\u2013\u2014]/, file);
@@ -937,5 +962,508 @@ describe("what a Messages notice says about itself", () => {
   test("the marker's reason for the messages surface", () => {
     assert.match(read("src", "emails", "NoticeMarker.tsx"), /messages: "you hold a place on a programme or help run one",/);
     assert.match(read("src", "lib", "firestore", "emailSends.ts"), /\| "messages";/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 13. Sent
+// ---------------------------------------------------------------------------
+
+const sentLib = await lib("messages", "sent.ts");
+const senders = await lib("messages", "sentSenders.ts");
+const handover = await lib("messages", "handover.ts");
+const groupPush = await lib("messages", "groupPush.ts");
+const SentPage = (await w.loadTs(join("app", "(app)", "messages", "sent", "page.tsx"))).default;
+
+/**
+ * The store, answering `orderBy` on the field its range is on: Sent asks for
+ * the newest of a window, one range on one field ordered by that field, which
+ * Firestore answers with no declared index. The suite's store keeps no order
+ * of its own, so this sorts what it found and then cuts it to the limit.
+ */
+function withOrdering(t) {
+  const db = w.world.db;
+  const real = db.collection.bind(db);
+  const ordered = (inner, order = null, max = Number.POSITIVE_INFINITY) => ({
+    where: (...args) => ordered(inner.where(...args), order, max),
+    orderBy: (field, direction = "asc") => ordered(inner, { field, direction }, max),
+    limit: (n) => ordered(inner, order, Math.min(max, n)),
+    get: async () => {
+      const found = [...(await inner.get()).docs];
+      if (order) {
+        const at = (doc) => {
+          const value = doc.data()?.[order.field];
+          return value instanceof Date ? value.getTime() : Number(value ?? 0);
+        };
+        found.sort((a, b) => (order.direction === "desc" ? at(b) - at(a) : at(a) - at(b)));
+      }
+      const docs = found.slice(0, max);
+      return { docs, size: docs.length, empty: docs.length === 0 };
+    },
+  });
+  db.collection = (name) => {
+    const collection = real(name);
+    return { ...collection, where: (...args) => ordered(collection.where(...args)), orderBy: (field, direction) => ordered(collection, { field, direction }) };
+  };
+  t.after(() => {
+    db.collection = real;
+  });
+}
+
+/** Sent as `who` reads it, over the two weeks ending on the suite's day. */
+async function sentAs(who, until) {
+  const user = sessionFor(who);
+  const writer = await writers.messageWriterOf(w.world.db, user, new Date());
+  assert.ok(writer, `${who} writes nothing in Messages`);
+  return sentLib.loadSent(w.world.db, user, writer, sentLib.sentWindowOf(until, new Date()), new Date());
+}
+
+/** One row of the email log, as `sendEmail` and `sendNotice` leave it. */
+const logRow = (over) => ({
+  to: "amara@example.com",
+  subject: "Room change tonight",
+  fromEmail: "notifications@naisi.invalid",
+  fromName: "NAISI",
+  kind: "notice",
+  surface: "course-room",
+  actorUid: "tom",
+  referenceId: C,
+  status: "sent",
+  sentAt: new Date("2026-12-09T17:00:00Z"),
+  ...over,
+});
+
+describe("Sent: who reads which send", () => {
+  test("an admin reads every message; a lead and a facilitator only the ones to people they run; anybody else is told who it is for", async (t) => {
+    freshTerm(t);
+    withOrdering(t);
+    // Three sends, each by its writer: the VR night's people, less everybody holding a place
+    // (an admin's: the term's own tag is the admins' alone); AGI Strategy's everyone (its lead);
+    // Group C (its facilitator).
+    assert.equal((await testAndSend("zach", [T.vrCame], { exclude: [T.holding], row: "events" })).status, 200);
+    mock.timers.tick(60_000);
+    assert.equal((await testAndSend("claudia", [T.agiEveryone], { post: false })).status, 200);
+    mock.timers.tick(60_000);
+    assert.equal((await testAndSend("tom", [T.groupC], { post: false })).status, 200);
+
+    const subjectsFor = async (who) => (await sentAs(who)).sends.filter((send) => send.source === "messages").map((send) => send.from);
+    // Newest first.
+    assert.deepEqual(await subjectsFor("zach"), ["Tom Fletcher", "Claudia Reyes", "you"]);
+    // Claudia leads AGI Strategy, so Group C is hers too; the VR night's tag is hers as SU-recognised
+    // committee, and the term's own tag is not, so the admin's send is not.
+    assert.deepEqual(await subjectsFor("claudia"), ["Tom Fletcher", "you"]);
+    assert.deepEqual(await subjectsFor("tom"), ["you"]);
+    // Sofia facilitates Groups A and B: none of these was to them.
+    assert.deepEqual(await subjectsFor("sofia"), []);
+    assert.equal((await sentAs("sofia")).everything, false);
+    assert.equal((await sentAs("zach")).everything, true);
+
+    // The page: the same people, and anybody else reads the line Write gives them.
+    for (const who of ["amara", "sue", "lloyd"]) {
+      w.world.user = sessionFor(who);
+      const html = renderToStaticMarkup(await SentPage({ searchParams: Promise.resolve({}) }));
+      assert.ok(textOf(html).includes(words.PAGE_WORDS.notForYou), who);
+      assert.doesNotMatch(html, /See who/, who);
+    }
+  });
+
+  test("a message is read only when every tag in it, left out or included, is the reader's", async (t) => {
+    freshTerm(t);
+    withOrdering(t);
+    // An admin writes to Group C, leaving out AGI Strategy's people holding a place: Tom may use
+    // Group C's tag and not the programme's, so the send is not his to read.
+    assert.equal((await testAndSend("zach", [T.groupC], { exclude: [T.agiFacilitating] })).status, 200);
+    assert.equal((await sentAs("tom")).sends.length, 0);
+    assert.equal((await sentAs("claudia")).sends.length, 1);
+    const scope = (await lib("audience", "scope.ts")).scopeOf(sessionFor("tom"), { leads: [], groups: [C] });
+    assert.equal(sentLib.maySeeSend(scope, { tags: [{ id: T.groupC, label: "", sign: "include" }] }), true);
+    assert.equal(sentLib.maySeeSend(scope, { tags: [{ id: T.groupC, label: "", sign: "include" }, { id: T.groupB, label: "", sign: "exclude" }] }), false);
+    assert.equal(sentLib.maySeeSend(scope, { tags: [] }), false, "a record with no tag is nobody's");
+    assert.equal(sentLib.maySeeSend(scope, { tags: [{ id: "not a tag", label: "", sign: "include" }] }), false);
+  });
+});
+
+describe("Sent: what a message says, for the person reading", () => {
+  test("names by the site's rule, who was left out and why by name to an admin alone, and counts to everybody", async (t) => {
+    freshTerm(t);
+    withOrdering(t);
+    // The VR night by event announcements: Amara and Mo said yes, Gwen's address bounced, Bea and
+    // Dev said no, Dan walked in. Claudia may use the tag (SU-recognised committee).
+    assert.equal((await testAndSend("zach", [T.vrCame], { row: "events" })).status, 200);
+    const [admin] = (await sentAs("zach")).sends;
+    assert.equal(admin.subject, WORDS.subject);
+    assert.equal(admin.what, "By their settings: event announcements");
+    assert.equal(admin.notice, false);
+    assert.deepEqual(admin.tags, [{ label: "Came to: VR games night", sign: "include" }]);
+    assert.equal(admin.when, "Thu 10 Dec, 12pm");
+    const emailed = admin.people.filter((person) => person.emailed).map((person) => person.name);
+    assert.deepEqual(emailed, ["Amara Okafor"]);
+    const notEmailed = Object.fromEntries(admin.people.filter((person) => !person.emailed).map((person) => [person.name, person.why]));
+    assert.equal(notEmailed["Gwen Price"], "Their address bounced or marked us as spam");
+    assert.equal(notEmailed["Bea Lindqvist"], "Didn’t say yes to event announcements");
+    assert.ok(admin.reasons.some((each) => each.why === "Didn’t say yes to event announcements" && each.count >= 2), JSON.stringify(admin.reasons));
+    assert.ok(admin.noAccount, "the guests and the walk-in are not counted");
+    assert.match(admin.counts, /^\d+ emailed · \d+ left out$/);
+
+    // Claudia: the same people by the same rule (she is on the committee), and no reason beside any name.
+    const [lead] = (await sentAs("claudia")).sends;
+    assert.deepEqual(lead.people.map((person) => person.name), admin.people.map((person) => person.name));
+    assert.ok(lead.people.every((person) => person.why === null), "a reason reached somebody who is not an admin");
+    assert.deepEqual(lead.reasons, admin.reasons);
+  });
+
+  test("a facilitator sees the name people go by, never a full name; nothing reaches the page but names and counts", async (t) => {
+    freshTerm(t);
+    withOrdering(t);
+    assert.equal((await testAndSend("tom", [T.groupC], { post: false })).status, 200);
+    const [admin] = (await sentAs("zach")).sends;
+    const [own] = (await sentAs("tom")).sends;
+    assert.equal(own.from, "you");
+    assert.equal(admin.from, "Tom Fletcher");
+    assert.equal(own.what, "Programme notice");
+    assert.equal(own.notice, true);
+    assert.ok(own.people.length > 0);
+    // "Amara Okafor" to the admin is "Amara" to the facilitator, who is not on the committee.
+    for (const [index, person] of own.people.entries()) {
+      assert.ok(!person.name.includes(" "), `a full name reached a facilitator: ${person.name}`);
+      assert.ok(admin.people.some((each) => each.name.startsWith(person.name)), person.name);
+      assert.equal(person.why, null, `${index}`);
+    }
+    const shown = JSON.stringify(await sentAs("tom")) + JSON.stringify(await sentAs("zach"));
+    assert.doesNotMatch(shown, /@/, "an address reached the page");
+    for (const uid of ["amara", "tom", "zach", "claudia", "sofia", "rahul", "bea", "dev"]) {
+      assert.doesNotMatch(shown, new RegExp(`"${uid}"`), `an account id reached the page: ${uid}`);
+    }
+  });
+
+  test("a send that stopped before it settled says so, and claims nothing it did", async (t) => {
+    freshTerm(t);
+    withOrdering(t);
+    assert.equal((await testAndSend("tom", [T.groupC], { post: false })).status, 200);
+    const [path] = recordPaths();
+    w.world.db.poke(path, { settled: false, "counts.sent": 0 });
+    const [send] = (await sentAs("tom")).sends;
+    assert.equal(send.cutOff, true);
+    assert.match(send.counts, /^\d+ to be emailed · 0 left out$/);
+  });
+
+  test("a person named one by one is named for the person reading, not as the writer saw them", async (t) => {
+    freshTerm(t);
+    withOrdering(t);
+    const amara = id({ kind: "person", uid: "amara" });
+    assert.equal((await testAndSend("zach", [amara])).status, 200);
+    const [path] = recordPaths();
+    // Whatever the writer saw, the reader's rule names the person.
+    w.world.db.poke(path, { tags: [{ id: amara, label: "Somebody else entirely", sign: "include" }] });
+    const [send] = (await sentAs("claudia")).sends;
+    assert.deepEqual(send.tags, [{ label: "Amara Okafor", sign: "include" }]);
+  });
+});
+
+describe("Sent: the site's other sends, from the email log, for an admin", () => {
+  test("rows of one send are one card; a lead or a facilitator reads none of the log", async (t) => {
+    freshTerm(t, {
+      // A room notice from Tom to three addresses within a minute: Amara's own, Bea's university
+      // address, and one no account holds; Gwen's was on the do-not-email list.
+      "emailSends/r1": logRow({}),
+      "emailSends/r2": logRow({ to: "bea@students.example.com", sentAt: new Date("2026-12-09T17:00:20Z") }),
+      "emailSends/r3": logRow({ to: "stranger@example.org", sentAt: new Date("2026-12-09T17:00:40Z") }),
+      "emailSends/r4": logRow({ to: "gwen@example.com", status: "suppressed", sentAt: new Date("2026-12-09T17:01:00Z") }),
+      // The newsletter, twice with the same subject an hour apart: two sends.
+      "emailSends/n1": logRow({ kind: "newsletter", surface: undefined, actorUid: "zach", referenceId: "issue-1", subject: "December news", sentAt: new Date("2026-12-08T10:00:00Z") }),
+      "emailSends/n2": logRow({ kind: "newsletter", surface: undefined, actorUid: "zach", referenceId: "issue-1", subject: "December news", to: "bea@example.com", sentAt: new Date("2026-12-08T11:00:00Z") }),
+      // A job's reminder: the site sent it.
+      "emailSends/j1": logRow({ surface: "course-week-reminder", actorUid: "courses-week-reminders", subject: "Before Tuesday", sentAt: new Date("2026-12-07T09:00:00Z") }),
+      // Not sends to people: a confirmation, a test, and Messages' own rows, which its record covers.
+      "emailSends/x1": logRow({ kind: "rsvp", surface: undefined, subject: "You’re in" }),
+      "emailSends/x2": logRow({ kind: "message-test", surface: undefined, subject: "[TEST] Hello" }),
+      "emailSends/x3": logRow({ kind: "message", surface: undefined, subject: "From Messages" }),
+      "emailSends/x4": logRow({ surface: "messages", subject: "From Messages too" }),
+      // Outside the two weeks.
+      "emailSends/old": logRow({ subject: "Long ago", sentAt: new Date("2026-11-01T10:00:00Z") }),
+    });
+    withOrdering(t);
+    const view = await sentAs("zach");
+    assert.deepEqual(
+      view.sends.map((send) => [send.what, send.subject, send.from]),
+      [
+        ["Room notice", "Room change tonight", "Tom Fletcher"],
+        ["Newsletter", "December news", "you"],
+        ["Newsletter", "December news", "you"],
+        ["Reminder before a session", "Before Tuesday", "NAISI"],
+      ],
+    );
+    const [room] = view.sends;
+    assert.equal(room.notice, true);
+    // Three people emailed, one of them with no account; Gwen not.
+    assert.equal(room.counts, "3 emailed · 1 on the do-not-email list");
+    assert.deepEqual(
+      room.people.map((person) => [person.name, person.emailed, person.why]),
+      [
+        ["Amara Okafor", true, null],
+        ["Bea Lindqvist", true, null],
+        ["Gwen Price", false, "Not emailed: do-not-email list"],
+      ],
+    );
+    assert.equal(room.noAccount, "1 person with no account");
+    assert.deepEqual(room.reasons, [], "the log says nobody was left out, because it records nobody it left out");
+    assert.doesNotMatch(JSON.stringify(view), /@/);
+    for (const who of ["claudia", "tom"]) {
+      assert.ok((await sentAs(who)).sends.every((send) => send.source === "messages"), `${who} read the email log`);
+    }
+  });
+
+  test("a window holding more of the log than the page reads keeps the newest, and says some may be missing", async (t) => {
+    const over = {};
+    // One more row than the page reads, a minute apart, the newest on the suite's day.
+    for (let n = 0; n <= sentLib.MAX_LOG_ROWS; n += 1) {
+      over[`emailSends/many${n}`] = logRow({
+        subject: `Notice ${n}`,
+        to: `person${n}@example.org`,
+        sentAt: new Date(new Date("2026-12-10T11:00:00Z").getTime() - n * 60_000),
+      });
+    }
+    freshTerm(t, over);
+    withOrdering(t);
+    const view = await sentAs("zach");
+    assert.equal(view.capped, true);
+    const subjects = view.sends.map((send) => send.subject);
+    assert.ok(subjects.includes("Notice 0"), "the newest send is missing");
+    assert.ok(!subjects.includes(`Notice ${sentLib.MAX_LOG_ROWS}`), "the oldest row beyond the ceiling was read");
+    w.world.user = sessionFor("zach");
+    const html = renderToStaticMarkup(await SentPage({ searchParams: Promise.resolve({}) }));
+    assert.ok(textOf(html).includes(words.SENT_WORDS.capped));
+    // A window that fits says nothing of the kind.
+    const small = renderToStaticMarkup(await SentPage({ searchParams: Promise.resolve({ until: "2026-11-01" }) }));
+    assert.ok(!textOf(small).includes(words.SENT_WORDS.capped));
+  });
+
+  test("grouping: the same kind, surface, sender, reference and subject within half an hour is one send", () => {
+    const at = (minutes) => new Date(Date.UTC(2026, 11, 9, 17, minutes));
+    const row = (over) => ({ kind: "notice", surface: "course-group", actorUid: "tom", referenceId: C, subject: "S", to: "a@x", status: "sent", sentAt: at(0), ...over });
+    const sends = sentLib.groupLogSends([
+      row({}),
+      row({ to: "b@x", sentAt: at(29) }),
+      row({ to: "c@x", sentAt: at(59) }),
+      row({ to: "d@x", sentAt: at(90) }),
+      row({ subject: "Other", sentAt: at(1) }),
+      row({ actorUid: "sofia", sentAt: at(2) }),
+      row({ kind: "rsvp", surface: null, sentAt: at(3) }),
+    ]);
+    assert.deepEqual(
+      sends.map((send) => [send.subject, send.actorUid, send.rows.length]).sort(),
+      [["Other", "tom", 1], ["S", "sofia", 1], ["S", "tom", 1], ["S", "tom", 3]].sort(),
+    );
+    assert.equal(sends[0].at.getTime(), at(90).getTime(), "not newest first");
+  });
+
+  test("every kind and every surface the log can hold is decided: listed with its words, or not, with why", () => {
+    // The unions as written, their comments taken out first (a comment may hold a semicolon).
+    const source = read("src", "lib", "firestore", "emailSends.ts").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+    const union = (name) => {
+      const body = new RegExp(`export type ${name} =([\\s\\S]*?);`).exec(source)?.[1] ?? "";
+      return [...body.matchAll(/"([^"]+)"/g)].map((match) => match[1]).sort();
+    };
+    const kinds = union("EmailSendKind");
+    const surfaces = union("EmailSendSurface");
+    assert.ok(kinds.length > 20 && surfaces.length > 10, "could not read the unions");
+    assert.deepEqual(Object.keys(senders.SENT_KINDS).sort(), kinds);
+    assert.deepEqual(Object.keys(senders.SENT_SURFACES).sort(), surfaces);
+    for (const [key, entry] of [...Object.entries(senders.SENT_KINDS), ...Object.entries(senders.SENT_SURFACES)]) {
+      if ("listed" in entry) assert.ok(entry.listed.label.length > 2, key);
+      else assert.ok(entry.notListed.length > 20, `${key} says nothing about why it is not listed`);
+    }
+    // Messages' own rows, every test and the person-by-person mail are never listed.
+    for (const kind of ["message", "message-test", "course-test", "admin-test", "application-test", "rsvp", "admissions", "unknown"]) {
+      assert.equal(senders.listedSendOf(kind, null), null, kind);
+    }
+    assert.equal(senders.listedSendOf("notice", "messages"), null);
+    assert.equal(senders.listedSendOf("notice", null), null, "a notice with no surface is listed");
+    assert.equal(senders.listedSendOf("notice", "a-surface-nobody-made"), null);
+    assert.deepEqual(senders.listedSendOf("notice", "course-room"), { label: "Room notice", byPerson: true });
+    assert.equal(senders.listedSendOf("constructor", null), null);
+  });
+});
+
+describe("Sent: its words", () => {
+  test("counts, who sent it, how it went and who had no account", () => {
+    const counts = { emailed: 23, leftOut: 2, sent: 21, held: 1, suppressed: 0, failed: 1 };
+    assert.equal(words.messageCountsWords(counts, true), "21 emailed · 2 left out · 1 held · 1 couldn’t be sent");
+    assert.equal(words.messageCountsWords({ ...counts, held: 0, failed: 0, sent: 23 }, true), "23 emailed · 2 left out");
+    assert.equal(words.messageCountsWords(counts, false), "23 to be emailed · 2 left out");
+    assert.equal(words.logCountsWords({ emailed: 1200, bounced: 2, held: 0, suppressed: 1 }), "1,200 emailed · 2 bounced or marked as spam · 1 on the do-not-email list");
+    assert.equal(words.noAccountWords(1), "1 person with no account");
+    assert.equal(words.noAccountWords(3), "3 people with no account");
+    assert.equal(words.byWords("you"), "by you");
+    assert.equal(words.sentModeWords("notice", null), "Programme notice");
+    assert.equal(words.sentModeWords("grid", "events"), "By their settings: event announcements");
+    assert.equal(words.sentModeWords("grid", "courses"), "By their settings: course announcements");
+    assert.equal(words.sentWindowWords("Mon 19 Oct", "Sun 1 Nov"), "Sent from Mon 19 Oct to Sun 1 Nov.");
+    for (const said of [...Object.values(words.SENT_WORDS), ...Object.values(words.HANDOVER_WORDS), ...Object.values(words.TAB_WORDS), words.COMPOSER_WORDS.pushes]) {
+      assert.doesNotMatch(said, /[\u2013\u2014]/, said);
+    }
+  });
+});
+
+describe("Sent: two weeks at a time, in London", () => {
+  test("ending today, or on a real day before it; anything else is today", () => {
+    const now = new Date("2026-11-01T15:00:00Z");
+    const today = sentLib.sentWindowOf(undefined, now);
+    assert.deepEqual([today.firstDay, today.lastDay, today.earlier, today.later], ["2026-10-19", "2026-11-01", "2026-10-18", null]);
+    // Mon 19 Oct is British Summer Time, Mon 2 Nov is not: London midnights both ways.
+    assert.equal(today.start.toISOString(), "2026-10-18T23:00:00.000Z");
+    assert.equal(today.end.toISOString(), "2026-11-02T00:00:00.000Z");
+    const earlier = sentLib.sentWindowOf("2026-10-18", now);
+    assert.deepEqual([earlier.firstDay, earlier.lastDay, earlier.later], ["2026-10-05", "2026-10-18", "2026-11-01"]);
+    const longAgo = sentLib.sentWindowOf("2026-09-01", now);
+    assert.equal(longAgo.later, "2026-09-15");
+    for (const asked of ["2026-11-02", "2026-02-30", "tomorrow", ["2026-10-01"], "2026-10-1"]) {
+      assert.equal(sentLib.sentWindowOf(asked, now).lastDay, "2026-11-01", JSON.stringify(asked));
+    }
+    assert.equal(sentLib.sentHref("2026-11-01", now), "/messages/sent");
+    assert.equal(sentLib.sentHref(null, now), "/messages/sent");
+    assert.equal(sentLib.sentHref("2026-10-18", now), "/messages/sent?until=2026-10-18");
+  });
+});
+
+describe("Sent: the page", () => {
+  test("Write and Sent as two pills, the window, and each send with See who; nothing but names and counts", async (t) => {
+    freshTerm(t);
+    withOrdering(t);
+    assert.equal((await testAndSend("tom", [T.groupC], { post: false })).status, 200);
+    w.world.user = sessionFor("tom");
+    const html = renderToStaticMarkup(await SentPage({ searchParams: Promise.resolve({}) }));
+    const said = textOf(html);
+    assert.match(html, /<h1[^>]*>Messages<\/h1>/);
+    assert.match(html, /<nav[^>]*aria-label="Messages"[^>]*>/);
+    assert.match(html, /<a href="\/messages\/sent"[^>]*aria-current="page"[^>]*>Sent<\/a>/);
+    assert.match(html, /<a href="\/messages"[^>]*>Write<\/a>/);
+    for (const words_ of [words.SENT_WORDS.lede, "Sent from Fri 27 Nov to Thu 10 Dec.", "Earlier", WORDS.subject, "Programme notice", "by you", "See who", "Emailed ("]) {
+      assert.ok(said.includes(words_), `Sent does not say: ${words_}`);
+    }
+    assert.match(html, /<details[^>]*><summary[^>]*>See who<\/summary>/);
+    assert.match(html, /<time dateTime="2026-12-10T12:00:00.000Z">Thu 10 Dec, 12pm<\/time>/);
+    assert.doesNotMatch(html, /@example\.com/);
+    // Write carries the same pills, with Write the current one.
+    const write = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({}) }));
+    assert.match(write, /<a href="\/messages"[^>]*aria-current="page"[^>]*>Write<\/a>/);
+  });
+
+  test("an earlier window, and nothing in it", async (t) => {
+    freshTerm(t);
+    withOrdering(t);
+    w.world.user = sessionFor("tom");
+    const html = renderToStaticMarkup(await SentPage({ searchParams: Promise.resolve({ until: "2026-11-01" }) }));
+    const said = textOf(html);
+    assert.ok(said.includes("Sent from Mon 19 Oct to Sun 1 Nov."), said);
+    assert.ok(said.includes(words.SENT_WORDS.nothingYours));
+    assert.match(html, /<a href="\/messages\/sent\?until=2026-11-15"[^>]*>Later<\/a>/);
+    assert.match(html, /<a href="\/messages\/sent\?until=2026-10-18"[^>]*>Earlier<\/a>/);
+  });
+});
+
+describe("the push the group email made, kept for a notice to one group", () => {
+  test("a facilitator's notice to their group goes to each person's devices, the group's name and the subject, never the writer's", async (t) => {
+    freshTerm(t);
+    const response = await testAndSend("tom", [T.groupC], { post: false });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    const pushes = w.world.pushes;
+    assert.ok(pushes.length > 0, "nothing was pushed");
+    const record = w.world.db.read(recordPaths()[0]);
+    const reached = record.people.filter((person) => person.uid && person.leftOut === null).map((person) => person.uid).sort();
+    assert.deepEqual(pushes.map((push) => push.uid).sort(), reached);
+    for (const push of pushes) {
+      assert.equal(push.title, "Group C");
+      assert.equal(push.body, WORDS.subject);
+      assert.equal(push.url, `/learn/${encodeURIComponent(RUN.agi)}/group/${encodeURIComponent(C)}`);
+    }
+    assert.ok(!pushes.some((push) => push.uid === "tom"));
+    assert.equal(response.body.pushed, pushes.length);
+    assert.equal(record.counts.pushed, pushes.length);
+  });
+
+  test("a phone that took nothing is not counted, and a bounced address still gets the notification", async (t) => {
+    freshTerm(t);
+    globalThis.__messagesUi.pushTaken = (uid) => uid !== "amara";
+    t.after(() => {
+      globalThis.__messagesUi.pushTaken = null;
+    });
+    // Tom's group's people, one of whose addresses has bounced.
+    const record0 = await (async () => {
+      await testAndSend("tom", [T.groupC], { post: false });
+      return w.world.db.read(recordPaths()[0]);
+    })();
+    const bounced = record0.people.filter((person) => person.leftOut === "suppressed").map((person) => person.uid);
+    for (const uid of bounced) assert.ok(w.world.pushes.some((push) => push.uid === uid), `${uid}'s phone was not told`);
+    const taken = w.world.pushes.filter((push) => push.uid !== "amara").length;
+    assert.equal(record0.counts.pushed, taken);
+  });
+
+  test("nothing else pushes: a notice to a programme's people, to two groups, or a message by their settings", async (t) => {
+    freshTerm(t);
+    assert.equal((await testAndSend("claudia", [T.agiEveryone], { post: false })).status, 200);
+    assert.equal((await testAndSend("zach", [T.groupA, T.groupB])).status, 200);
+    assert.equal((await testAndSend("zach", [T.vrCame], { row: "events" })).status, 200);
+    assert.deepEqual(w.world.pushes, []);
+    for (const path of recordPaths()) assert.equal(w.world.db.read(path).counts.pushed, 0, path);
+    assert.equal(groupPush.groupPushOf([T.groupC], "notice"), C);
+    assert.equal(groupPush.groupPushOf([T.groupC], "grid"), null);
+    assert.equal(groupPush.groupPushOf([T.groupC, T.groupB], "notice"), null);
+    assert.equal(groupPush.groupPushOf([T.agiHolding], "notice"), null);
+  });
+});
+
+describe("the old composers hand over to Messages", () => {
+  test("a run's links open Messages set to the group or the cohort, where Messages would start with it for the person", async (t) => {
+    freshTerm(t);
+    const entriesFor = (who) => handover.messagesEntriesFor(w.world.db, sessionFor(who), RUN.agi, new Date());
+    const cohort = words.messagesHrefFor(T.agiHolding);
+    // The programme's lead, and an admin: the cohort and every group.
+    for (const who of ["claudia", "zach"]) {
+      const entries = await entriesFor(who);
+      assert.equal(entries.cohort, cohort, who);
+      assert.deepEqual(Object.keys(entries.groups).sort(), [A, B, C].sort(), who);
+    }
+    // A facilitator: their own group, and no cohort.
+    assert.deepEqual(await entriesFor("tom"), { cohort: null, groups: { [C]: words.messagesHrefFor(T.groupC) } });
+    // The run's track lead, who leads no programme, and a member: nothing, so the old pages stay theirs.
+    assert.deepEqual(await entriesFor("yusuf"), { cohort: null, groups: {} });
+    assert.deepEqual(await entriesFor("amara"), { cohort: null, groups: {} });
+    // A run whose allocation has not gone out has no group to start with: its lead gets the cohort alone.
+    assert.deepEqual(await handover.messagesEntriesFor(w.world.db, sessionFor("tess"), RUN.tais, new Date()), {
+      cohort: words.messagesHrefFor(id({ kind: "programme", roundId: ROUND, programmeId: TAIS, part: "holding" })),
+      groups: {},
+    });
+  });
+
+  test("a facilitator's group card: Messages where it has an entry, the run's own pages where it has none", async () => {
+    const Panel = (await w.loadTs(join("features", "courses", "FacilitatorGroupPanel.tsx"))).default;
+    const group = {
+      id: C,
+      name: "Group C",
+      calendar: { currentWeek: null, firstSessionDate: "", lastSessionDate: "", nextSession: null, totalWeeks: 0, source: "run" },
+    };
+    const hrefOf = (html, words) => new RegExp(`<a[^>]*href="([^"]*)"[^>]*>${words}`).exec(html)?.[1]?.replace(/&amp;/g, "&");
+    const toGroup = words.messagesHrefFor(T.groupC);
+    const toCohort = words.messagesHrefFor(T.agiHolding);
+    const handed = renderToStaticMarkup(
+      createElement(Panel, { runId: RUN.agi, group, publishedWeekNumbers: [], showCohortLinks: true, emailGroupHref: toGroup, emailCohortHref: toCohort }),
+    );
+    assert.equal(hrefOf(handed, "Email the group"), toGroup);
+    assert.equal(hrefOf(handed, "Email the whole cohort"), toCohort);
+    const kept = renderToStaticMarkup(createElement(Panel, { runId: RUN.agi, group, publishedWeekNumbers: [], showCohortLinks: true }));
+    assert.equal(hrefOf(kept, "Email the group"), `/learn/${encodeURIComponent(RUN.agi)}/group/${encodeURIComponent(C)}/email`);
+    assert.equal(hrefOf(kept, "Email the whole cohort"), `/learn/${encodeURIComponent(RUN.agi)}/email`);
+  });
+
+  test("the run's home and its group card say where to write", () => {
+    const panel = read("src", "features", "courses", "FacilitatorGroupPanel.tsx");
+    assert.match(panel, /href=\{emailGroupHref \?\? `\$\{groupHref\}\/email`\}/);
+    assert.match(panel, /href=\{emailCohortHref \?\? `\/learn\/\$\{encodeURIComponent\(runId\)\}\/email`\}/);
+    const home = read("src", "features", "courses", "RunHome.tsx");
+    assert.match(home, /href=\{messages\.cohort \?\? `\/learn\/\$\{encodeURIComponent\(runId\)\}\/email`\}/);
+    assert.equal((home.match(/emailGroupHref=\{messages\.groups\[facilitated\.id\] \?\? null\}/g) ?? []).length, 2);
+    const page = read("src", "app", "(app)", "learn", "[runId]", "page.tsx");
+    assert.match(page, /db && \(canEmailCohort \|\| access\.isFacilitator\)\s*\? await messagesEntriesFor\(db, access\.user, runId, new Date\(\)\)/);
   });
 });

@@ -16,7 +16,9 @@
  * alone, marked [TEST], with no notice line -> "Send to 3 people" sends one
  * notice each to Ada, Ben and Cleo, saying why it reached them, and nothing
  * to anybody else -> the message is an update on the programme's page too,
- * and the record of the send names no address.
+ * and the record of the send names no address -> Sent lists it, with who it
+ * reached by name and no address -> the run's home opens Messages set to the
+ * programme's people holding a place, from "Email the whole cohort".
  *
  * ## How to run it
  *
@@ -77,6 +79,12 @@ const WORDS = Object.freeze({
   send: "Send to 3 people",
   sent: (programme) => `Sent to 3 people. Posted on ${programme}’s page too.`,
   marker: "You are getting this because you hold a place on a programme or help run one",
+  sentTab: "Sent",
+  sentCounts: "3 emailed · 0 left out",
+  byYou: "by you",
+  emailedTitle: "Emailed (3)",
+  cohortTitle: "The whole cohort",
+  cohortLink: "Email the whole cohort",
 });
 
 /** The message the admin writes: words nothing else on the site says. */
@@ -271,7 +279,8 @@ test("messages: one message to a programme's people, from a test to their inboxe
       const send = main.getByRole("button", { name: WORDS.send, exact: true });
       await waitFor("Send to be live once the test reached the admin", async () => send.isEnabled());
       const [sent] = await Promise.all([responseTo("/api/messages", "POST"), send.click()]);
-      assert.deepEqual(await okBody(sent, "Sending"), { ok: true, sent: 3, held: 0, suppressed: 0, failed: 0, posted: term.programmeName });
+      // A notice to a programme's people is email alone: only a notice to one group pushes.
+      assert.deepEqual(await okBody(sent, "Sending"), { ok: true, sent: 3, held: 0, suppressed: 0, failed: 0, pushed: 0, posted: term.programmeName });
       await main.getByText(WORDS.sent(term.programmeName), { exact: true }).waitFor({ timeout: WAIT_MS });
       for (const person of people) {
         const [notice] = await waitFor(`${person.first}'s notice`, async () => {
@@ -302,6 +311,36 @@ test("messages: one message to a programme's people, from a test to their inboxe
       assert.deepEqual(record.people.map((person) => person.uid).sort(), people.map((person) => person.uid).sort());
       assert.doesNotMatch(JSON.stringify(record), /@/, "the record keeps an address");
       assert.ok(!JSON.stringify(record).includes("Room E3"), "the record keeps the message");
+      assert.equal(record.counts.pushed, 0, "a notice to a programme's people was pushed");
+    });
+
+    await step("Sent lists the send, with who it reached by name and no address", async () => {
+      const main = page.locator("main");
+      await Promise.all([
+        page.waitForURL((url) => url.pathname === "/messages/sent", { timeout: WAIT_MS }),
+        main.getByRole("link", { name: WORDS.sentTab, exact: true }).click(),
+      ]);
+      const card = main.getByRole("listitem").filter({ has: page.getByRole("heading", { level: 2, name: SUBJECT, exact: true }) });
+      await card.waitFor({ timeout: WAIT_MS });
+      const said = await textOf(card);
+      for (const words of [WORDS.notice, WORDS.byYou, WORDS.chip(term.programmeName), WORDS.sentCounts]) {
+        assert.ok(said.includes(words), `Sent's card does not say ${JSON.stringify(words)}: ${said}`);
+      }
+      await card.getByText(WORDS.seeWho, { exact: true }).click();
+      await card.getByText(WORDS.emailedTitle, { exact: true }).waitFor({ timeout: WAIT_MS });
+      const named = await textOf(card);
+      for (const person of people) assert.ok(named.includes(person.first), `Sent does not name ${person.first}: ${named}`);
+      assert.doesNotMatch(await textOf(main), /@/, "an address is on Sent");
+    });
+
+    await step("the run's home opens Messages set to the programme's people holding a place, from Email the whole cohort", async () => {
+      await page.goto(`${origin}/learn/${enc(term.runId)}`, { waitUntil: "domcontentloaded" });
+      const card = page.locator("section").filter({ has: page.getByRole("heading", { name: WORDS.cohortTitle, exact: true }) });
+      await card.waitFor({ timeout: WAIT_MS });
+      const link = card.getByRole("link", { name: WORDS.cohortLink });
+      const href = new URL(await link.getAttribute("href"), origin);
+      assert.equal(href.pathname, "/messages", "Email the whole cohort does not open Messages for the admin");
+      assert.equal(href.searchParams.get("for"), `programme:${term.formId}:${term.programmeId}:holding`);
     });
   } finally {
     await context.close().catch(() => {});
