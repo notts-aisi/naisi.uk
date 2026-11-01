@@ -3128,9 +3128,7 @@ const insideSurveyCode = (file) =>
 const SURVEY_STORE = /\bSURVEY_(?:ANSWERS|PEOPLE)_COLLECTION\b|["'`](?:surveyAnswers|surveyPeople)["'`]/;
 /** Whether somebody has said they are coming: the one reading, pure. */
 const comingReplies = await loadTs("lib/applications/status/coming.ts");
-/** What the written answer's pages say: who reads it, beside the box. Pure. */
-const writtenWords = await loadTs("lib/courses/writtenAnswerWords.ts");
-/** The week you submit: its words and its one answer to whether a written answer may be read. */
+/** The week you submit: who reads a written answer and from when, its other words, and its one answer to whether the answer may be read. */
 const weekWorkWords = await loadTs("lib/courses/weekWork/words.ts");
 const weekWorkModel = await loadTs("lib/courses/weekWork/model.ts");
 /** The anonymous form's records: what an answer holds, and the readers' order. Pure. */
