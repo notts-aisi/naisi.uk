@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import { useHydrated } from "@/hooks/useHydrated";
-import type { WorkRatingCleared, WorkRatingSaved } from "@/app/api/courses/runs/[runId]/work-ratings/route";
 import { WORK_RATING_SCALE, type TeamRatingRow, type TeamRatingsView } from "@/lib/courses/workRatings/model";
 import {
   CLEAR_IT,
@@ -97,12 +96,11 @@ function YourRating({ runId, uid, firstName, weekNumber, team }: { runId: string
   // Every failure throws words to show: the route's refusal, or, with no
   // answer at all (no connection), the line for what was being done. Never
   // the browser's own error text.
-  const call = async (method: "PUT" | "DELETE", body: Record<string, unknown>): Promise<WorkRatingSaved | WorkRatingCleared> => {
+  const call = async (method: "PUT" | "DELETE", body: Record<string, unknown>): Promise<void> => {
     const fallback = method === "DELETE" ? RATING_NOT_CLEARED : RATING_NOT_SAVED;
     const res = await fetch(base, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
     const out = res ? ((await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null) : null;
     if (!res || !res.ok || !out?.ok) throw new Error(out?.error || fallback);
-    return { ok: true };
   };
 
   const save = async () => {
