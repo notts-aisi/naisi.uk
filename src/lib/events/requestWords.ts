@@ -143,6 +143,11 @@ export function foodHealthOrAccessQuestions(questions: readonly FormQuestion[]):
 /** One answer as a request shows it: the question, then what they said. */
 export type AnswerLine = { question: string; answer: string };
 
+/** A question before its answer: "Dietary needs:", but "Why would you like to come?" keeps its own mark. */
+export function questionLead(question: string): string {
+  return /[?:!.]$/.test(question) ? question : `${question}:`;
+}
+
 /**
  * A request's answers, in the order the event asks them, leaving out the
  * questions it was not answered. `withFoodHealthAndAccess` is false for an

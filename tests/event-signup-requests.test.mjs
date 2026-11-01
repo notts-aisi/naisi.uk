@@ -590,7 +590,7 @@ describe("the Sign-ups page", () => {
       /^Waiting for a decision \(4\) An approved request gets a place if there is one left; .* Patricia Ellis \(Pat\) pat@example\.com Asked Fri 16 Oct, 10:40am Turn down… Approve AGI Strategy · Group K Offered to facilitate SU member: bought Dietary needs: Vegetarian /,
     );
     assert.match(zach, /Open Patricia Ellis’s page/);
-    assert.match(zach, /Sam Guest: first name only sam@example\.com Asked Tue 20 Oct, 12:30am Turn down… Approve Guest, no account Which game first\?: Half-Life$/);
+    assert.match(zach, /Sam Guest: first name only sam@example\.com Asked Tue 20 Oct, 12:30am Turn down… Approve Guest, no account Which game first\? Half-Life$/);
 
     const sue = view((await ask(SUE)).body);
     assert.ok(!/Approve|Turn down/.test(sue), "SU-recognised committee who organise nothing were offered the buttons");
@@ -598,7 +598,7 @@ describe("the Sign-ups page", () => {
     assert.ok(!/Open .*’s page/.test(sue));
 
     const ada = view((await ask(ADA)).body);
-    assert.match(ada, /Pat Asked Fri 16 Oct, 10:40am Turn down… Approve AGI Strategy · Group K SU member Why would you like to come\?: I loved the last one Which game first\?: Beat Saber Tom /);
+    assert.match(ada, /Pat Asked Fri 16 Oct, 10:40am Turn down… Approve AGI Strategy · Group K SU member Why would you like to come\? I loved the last one Which game first\? Beat Saber Tom /);
   });
 
   test("with nobody waiting it says so", () => {
@@ -621,6 +621,8 @@ describe("the Sign-ups page", () => {
     assert.equal(words.placeWords("AGI Strategy", null), "AGI Strategy · not in a group yet");
     assert.equal(words.facilitatesWords("AGI Strategy", "Group C"), "Facilitator · AGI Strategy, Group C");
     assert.equal(words.openPageWords("Priya Shah"), "Open Priya Shah’s page");
+    assert.equal(words.questionLead("Dietary needs"), "Dietary needs:");
+    assert.equal(words.questionLead("Why would you like to come?"), "Why would you like to come?");
     // In London: Mon 16 Nov 2026 is GMT, so 9:40 in the morning is 09:40Z.
     assert.equal(manageWords.askedWords(new Date("2026-11-16T09:40:00Z")), "Asked Mon 16 Nov, 9:40am");
     assert.equal(manageWords.dayTimeWords(new Date("2026-11-19T19:00:00Z")), "Thu 19 Nov, 7pm");

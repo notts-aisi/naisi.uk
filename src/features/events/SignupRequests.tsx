@@ -10,6 +10,7 @@ import { Field, Input } from "@/components/ui/Input";
 import Notice from "@/components/ui/Notice";
 import {
   openPageWords,
+  questionLead,
   waitingHeading,
   type AboutKind,
   type SignupRequestView,
@@ -316,7 +317,7 @@ function RequestCard({
         <ul className={styles.answers}>
           {request.answers.map((line, i) => (
             <li key={i}>
-              <span className={styles.question}>{line.question}:</span> {line.answer}
+              <span className={styles.question}>{questionLead(line.question)}</span> {line.answer}
             </li>
           ))}
         </ul>
