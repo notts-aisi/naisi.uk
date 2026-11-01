@@ -125,8 +125,8 @@ The count is everybody it reaches; "N will be emailed · M left out" splits it.
 
 ## The routes
 
-Both read and write nothing, and both answer every approved account: a
-member who leads and facilitates nothing is offered nothing.
+They read, and write and send nothing. They answer every approved account:
+a member who leads and facilitates nothing is offered nothing.
 
 - `GET /api/audience`: the caller's tags, grouped as the picker lists them,
   each with how many people are in it; the people they may name one by one
