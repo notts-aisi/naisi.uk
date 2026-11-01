@@ -269,10 +269,11 @@ describe("2. who is a row, and 3. a placement nobody has told", () => {
       ["Group B", "Chloe Nguyen", ""],
       ["Group B", "Farah Hussain", ""],
       ["Group B", "Kofi Asante", ""],
-      ["Group B", "Rahul Mehta", "facilitating"],
-      ["Group B", "Sofia Rossi", "facilitating"],
+      // Facilitators by the names they go by (`fullNameOfUser`).
+      ["Group B", "Rahul", "facilitating"],
+      ["Group B", "Sofia", "facilitating"],
       ["Group C", "Hamza Qureshi", ""],
-      ["Group C", "Tom Fletcher", "facilitating"],
+      ["Group C", "Tom", "facilitating"],
       ["Group C", "Una Byrne", "not told"],
       ["Group A", "Amara Okafor", ""],
       ["Group A", "Bea Lindqvist", ""],
@@ -288,7 +289,7 @@ describe("2. who is a row, and 3. a placement nobody has told", () => {
     const view = tableOf(drawn);
     const rows = rowsOf(view);
     assert.deepEqual(rows.filter(([, name]) => name === "Una Byrne"), [["Not in a group yet", "Una Byrne", ""]]);
-    assert.deepEqual(rows.filter(([section]) => section === "Group C").map(([, name]) => name), ["Hamza Qureshi", "Tom Fletcher"]);
+    assert.deepEqual(rows.filter(([section]) => section === "Group C").map(([, name]) => name), ["Hamza Qureshi", "Tom"]);
     assert.doesNotMatch(drawn.text, /Not told yet/);
     assert.match(drawn.text, /Only you and admins can open Coursework\./);
     // Una's page says the same to the lead, and her group to an admin.
@@ -321,7 +322,7 @@ describe("4. a cell", () => {
       assert.deepEqual([cellOf(view, "Farah Hussain", 3).reflections, cellOf(view, "Farah Hussain", 3).answer.state], [{ written: 2, of: 3 }, "feedback"]);
       assert.equal(cellOf(view, "Kofi Asante", 3).answer.state, "started");
       // A facilitator's own work, counted on the group they facilitate, its answer on the lead's feedback page.
-      assert.deepEqual([cellOf(view, "Rahul Mehta", 3).reflections, cellOf(view, "Rahul Mehta", 3).answer.href], [{ written: 1, of: 3 }, written("rahul")]);
+      assert.deepEqual([cellOf(view, "Rahul", 3).reflections, cellOf(view, "Rahul", 3).answer.href], [{ written: 1, of: 3 }, written("rahul")]);
       // Tariq is in no group: his week 1 work, on the run's own week 1, is counted, and his answer opens no feedback page.
       assert.deepEqual(cellOf(view, "Tariq Mensah", 1).reflections, { written: 1, of: 3 });
       assert.deepEqual(cellOf(view, "Tariq Mensah", 1).ticks, { ticked: 1, of: 2 });
@@ -357,7 +358,7 @@ describe("6. a person's page", () => {
     assert.deepEqual(view.weeks.map((week) => week.weekNumber), [3, 1]);
     assert.deepEqual(view.person, { uid: "farah", name: "Farah Hussain", facilitating: false, groupName: "Group B", notToldYet: false });
     assert.match(drawn.text, new RegExp(`How many lighthouses are still lit, do you think\\? ${SAID.farah["k3-rp1"]} Sun 15 Nov, 4:12pm`));
-    assert.match(drawn.text, /Written answer Who should keep the lamps lit, and why\? Feedback sent 4 words Sent Mon 16 Nov, 9am farah wrote a plan\. Feedback from Rahul Mehta Mon 16 Nov, 8pm Argument ?: Strong \(Names a keeper and a reason\.\) Clear and short\. Open the feedback page/);
+    assert.match(drawn.text, /Written answer Who should keep the lamps lit, and why\? Feedback sent 4 words Sent Mon 16 Nov, 9am farah wrote a plan\. Feedback from Rahul Mon 16 Nov, 8pm Argument ?: Strong \(Names a keeper and a reason\.\) Clear and short\. Open the feedback page/);
     assert.match(drawn.html, new RegExp(`href="${PROGRAMME_PATH}/written\\?group=${B}&amp;week=3&amp;person=farah"`));
     assert.match(drawn.text, /Sources · Ticked 2 of 2 Ticked A keeper's diary Ticked Lamps at night/);
     const chloe = await person("claudia", "chloe");
@@ -387,7 +388,7 @@ describe("6. a person's page", () => {
   test("a facilitator's own page is marked, and the column for notes about a person is drawn only when handed something", async () => {
     const drawn = await person("claudia", "rahul");
     assert.deepEqual([personOf(drawn).person.facilitating, personOf(drawn).person.groupName], [true, "Group B"]);
-    assert.match(drawn.text, /Rahul Mehta AGI Strategy · Group B Facilitator/);
+    assert.match(drawn.text, /Rahul AGI Strategy · Group B Facilitator/);
     // The lead is handed the column with the notes kept for leads (section 9), so it is drawn;
     // handed nothing, the same page draws no column at all.
     const page = find(drawn.element, "PersonCoursework")[0];

@@ -622,7 +622,7 @@ describe("3. week 1 (Thu 29 Oct to Wed 4 Nov; Group B meets on Tue 3 Nov)", () =
     // The policy: a facilitator's own ticks are the lead's and admins', never another facilitator's.
     assert.equal(
       ticks,
-      "Reading ticks Part 2 · Read A keeper's diary 1 of 1 ticked it See who AO Amara Okafor Part 2 · Watch Lamps at night 1 of 1 ticked it See who AO Amara Okafor ",
+      "Reading ticks Part 2 · Read A keeper's diary 1 of 1 ticked it See who A Amara Part 2 · Watch Lamps at night 1 of 1 ticked it See who A Amara ",
     );
     assert.equal(ticksOf("bea").length, 2);
   });
@@ -822,7 +822,7 @@ describe("4. week 2 (Group B meets on Tue 10 Nov): a written answer, sent and gi
     assert.match(amara.text, /Rahul’s comment A lighthouse view anyone could argue with\./);
     assert.match(bea.text, /From Claudia · Mon 9 Nov, 10am/);
     // The group's review page lists the group's fellows: never Bea, who facilitates it.
-    assert.match(rahulReview.text, /AO Amara Okafor By you/);
+    assert.match(rahulReview.text, /A Amara By you/);
     assert.doesNotMatch(rahulReview.text, /Bea/);
   });
 
@@ -830,7 +830,7 @@ describe("4. week 2 (Group B meets on Tue 10 Nov): a written answer, sent and gi
     await w.asBrowser("rahul", 2, []);
     const page = await serverPage(["[runId]", "group", "[groupId]", "page.tsx"], { runId: RUN.agi, groupId: B }, "rahul");
     // The group page leaves its reader out of the group's facilitators (W-self: the programme page does not).
-    assert.match(page.text, /with Sofia Rossi and Bea Lindqvist/);
+    assert.match(page.text, /with Sofia and Bea/);
     // Counts over the fellows alone: Amara. Bea's ticks and reflections are the lead's and admins'.
     assert.match(page.text, /Review queue Reflections Part 1, 0 of 1 · Part 2, 0 of 1/);
     assert.match(page.text, /Part 1 · Read A field guide to base rates 0 of 1 ticked it/);
@@ -843,9 +843,9 @@ describe("4. week 2 (Group B meets on Tue 10 Nov): a written answer, sent and gi
     // may reopen it for her; the head says when the group's week locks.
     assert.match(
       page.text,
-      /This week’s work Week 2 · Thu 5 to Wed 11 Nov · Locks Tue 6pm Name Part 1 reflection Part 2 reflection Week 2 Pack Written answer Case AO Amara Okafor Not yet Not yet Submitted Sun 8 Nov, 8pm 1 of 3 done Reopen week 2 for Amara Not given yet Feedback sent · Rahul Not given yet /,
+      /This week’s work Week 2 · Thu 5 to Wed 11 Nov · Locks Tue 6pm Name Part 1 reflection Part 2 reflection Week 2 Pack Written answer Case A Amara Not yet Not yet Submitted Sun 8 Nov, 8pm 1 of 3 done Reopen week 2 for Amara Not given yet Feedback sent · Rahul Not given yet /,
     );
-    assert.match(page.text, /AO Amara Okafor Reflections Not yet Week 2 Submitted Sun 8 Nov, 8pm 1 of 3 done Reopen week 2 for Amara Pack Not given yet Written answer Feedback sent · Rahul Case Not given yet /);
+    assert.match(page.text, /A Amara Reflections Not yet Week 2 Submitted Sun 8 Nov, 8pm 1 of 3 done Reopen week 2 for Amara Pack Not given yet Written answer Feedback sent · Rahul Case Not given yet /);
     // Three facilitators: the notes are for Rahul and the other two, in one list with the reader
     // first. Putting "you and" before a list already joined with "and" said "and" twice.
     assert.match(page.text, /Notes for you, Sofia and Bea Only Group B’s facilitators, Claudia and admins see these\./);
@@ -979,12 +979,12 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
   test("Late is staff's: an admin's review page marks Bea's answer Late and Amara's not; Rahul's never lists Bea's", async () => {
     const review = (who, person) => serverPage(["[runId]", "group", "[groupId]", "written", "page.tsx"], { runId: RUN.agi, groupId: B }, who, { week: "3", person });
     const admin = await review("zach", "bea");
-    assert.match(admin.text, /To give feedback on 2 AO Amara Okafor Submitted Mon 16 Nov, 9pm BL Bea Lindqvist Submitted Tue 17 Nov, 9am Late /);
+    assert.match(admin.text, /To give feedback on 2 A Amara Submitted Mon 16 Nov, 9pm B Bea Submitted Tue 17 Nov, 9am Late /);
     assert.match(admin.text, /Bea’s answer 200 words · 200 to 300 Submitted Tue 17 Nov, 9am Late /);
     // Asked for Bea, Rahul's page opens on the one answer it may show him, Amara's.
     const rahul = await review("rahul", "bea");
-    assert.match(rahul.text, /To give feedback on 1 AO Amara Okafor Submitted Mon 16 Nov, 9pm Feedback sent/);
-    assert.doesNotMatch(rahul.text, /Bea Lindqvist|Bea’s answer|\bLate\b/);
+    assert.match(rahul.text, /To give feedback on 1 A Amara Submitted Mon 16 Nov, 9pm Feedback sent/);
+    assert.doesNotMatch(rahul.text, /B Bea Submitted|Bea’s answer|\bLate\b/);
     // Submitted, the week is locked: the page says so, and Rahul may reopen it for Amara.
     assert.match(rahul.text, /Submitted Mon 16 Nov, 9pm, so Amara can’t change it now\. Reopen week 3 for Amara/);
   });
@@ -1006,7 +1006,7 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
       assert.match(
         page.text,
         new RegExp(
-          `Name Part 1 reflection Part 2 reflection Week 3 ${given.title} Written answer Case AO Amara Okafor Written Written ` +
+          `Name Part 1 reflection Part 2 reflection Week 3 ${given.title} Written answer Case A Amara Written Written ` +
             `Submitted Mon 16 Nov, 9pm 3 of 3 done Reopen week 3 for Amara ${given.packs[0].name} To give feedback ${caseTitle("amara")} `,
         ),
         who,
@@ -1022,12 +1022,12 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
     const admin = await groupPage("zach");
     assert.match(
       admin.text,
-      new RegExp(`BL Bea Lindqvist Facilitator Not yet Not yet Submitted Tue 17 Nov, 9am 1 of 3 done Reopen week 3 for Bea ${given.packs[1].name} To give feedback ${caseTitle("bea")} `),
+      new RegExp(`B Bea Facilitator Not yet Not yet Submitted Tue 17 Nov, 9am 1 of 3 done Reopen week 3 for Bea ${given.packs[1].name} To give feedback ${caseTitle("bea")} `),
     );
     // Rahul wrote nothing in week 3, and facilitates Group B alone, whose week 3 has not met: not started, nothing to reopen.
-    assert.match(admin.text, /RM Rahul Mehta Facilitator Not yet Not yet Not started Not given yet Not started Not given yet /);
+    assert.match(admin.text, /R Rahul Facilitator Not yet Not yet Not started Not given yet Not started Not given yet /);
     // Sofia also facilitates Group A, which met on Thursday: her own week 3 locked then, and an admin may reopen it.
-    assert.match(admin.text, /SR Sofia Rossi Facilitator Not yet Not yet Not submitted 0 of 3 done Reopen week 3 for Sofia /);
+    assert.match(admin.text, /S Sofia Facilitator Not yet Not yet Not submitted 0 of 3 done Reopen week 3 for Sofia /);
     assert.ok(admin.html.includes(review("bea")), "an admin has no way to Bea's answer");
     // A fellow never reaches the group page.
     assert.equal((await groupPage("amara")).to, `/learn/${encodeURIComponent(RUN.agi)}`);
@@ -1183,7 +1183,7 @@ describe("7. week 6 (Group B meets on Tue 8 Dec, its last session)", () => {
     const fillIn = stored(6).week.blocks.flatMap((block) => (block.type === "part" ? block.blocks : [block])).find((block) => block.type === "fillIn");
     const heading = `Each person’s ${fillIn.title.replace(/^my\s+/i, "")}`;
     const section = (text) => text.slice(text.indexOf(heading), text.indexOf("Reading ticks"));
-    const listed = (text) => [...section(text).matchAll(/(Amara Okafor|Bea Lindqvist|Rahul Mehta|Sofia Rossi)(?: Facilitator)? (\d+) of 12 filled/g)].map((m) => `${m[1].split(" ")[0].toLowerCase()} ${m[2]}`);
+    const listed = (text) => [...section(text).matchAll(/(Amara|Bea|Rahul|Sofia)(?: Facilitator)? (\d+) of 12 filled/g)].map((m) => `${m[1].split(" ")[0].toLowerCase()} ${m[2]}`);
     const admitted = async (who) => {
       const out = [];
       for (const uid of ["amara", "bea", "rahul", "sofia"]) if ((await readBoxes(who, uid)).status === 200) out.push(uid);
@@ -1204,7 +1204,7 @@ describe("7. week 6 (Group B meets on Tue 8 Dec, its last session)", () => {
       // Their words are on the page, behind "Read it", and nobody else's.
       const words = (page.html.match(/A step on /g) ?? []).length;
       assert.equal(words, people.reduce((sum, entry) => sum + Number(entry.split(" ")[1]), 0), `${who}: words of people not listed`);
-      assert.match(page.html, /aria-label="Read it: Amara Okafor’s [^"]+"/);
+      assert.match(page.html, /aria-label="Read it: Amara’s [^"]+"/);
     }
     // Rahul and Sofia are refused Bea's by the route, and Bea's plan is on neither of their pages.
     for (const who of ["rahul", "sofia"]) assert.deepEqual(await admitted(who), ["amara"], who);
