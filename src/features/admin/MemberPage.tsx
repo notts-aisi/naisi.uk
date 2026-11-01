@@ -7,7 +7,7 @@ import PageHead from "@/components/ui/PageHead";
 import { useAuth } from "@/auth/AuthProvider";
 import { AdminLoadingBar, AdminPage } from "./adminList";
 import MemberItem, { PersonCrumb } from "./MemberItem";
-import { accountName } from "./MembersTable";
+import { accountStaffWords } from "./MembersTable";
 import { useMembers } from "./useMembers";
 import styles from "./MemberItem.module.css";
 
@@ -28,7 +28,7 @@ export default function MemberPage({ uid }: { uid: string }) {
 
   const person = useMemo(() => users.find((u) => u.uid === uid) ?? null, [users, uid]);
   const nameByUid = useMemo(
-    () => new Map(users.map((u) => [u.uid, accountName(u)] as const)),
+    () => new Map(users.map((u) => [u.uid, accountStaffWords(u)] as const)),
     [users],
   );
 

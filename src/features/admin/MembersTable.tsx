@@ -57,7 +57,7 @@ export function accountStaffName(user: UserDoc): StaffName {
 }
 
 /** The same name as one line of words, for a sentence or a list. */
-export function accountName(user: UserDoc): string {
+export function accountStaffWords(user: UserDoc): string {
   return staffNameWords(accountStaffName(user));
 }
 
