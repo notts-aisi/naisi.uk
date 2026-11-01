@@ -1,6 +1,7 @@
 /*
-  Run NAISI › Surveys, by what each survey is for: two tabs, then a card per
-  programme (or one card of surveys after events), each a list of rows.
+  Run NAISI › Surveys, by what each survey is for: three tabs, then a card per
+  programme (or one card of surveys after events, or of question sets), each
+  a list of rows.
 
   Desktop first. A row is four cells across, its name, its line, its chip and
   its ways in, each row its own grid of the same fixed columns, so the cells
@@ -234,6 +235,38 @@
 
 .checkInLink:hover {
   text-decoration: underline;
+}
+
+/* --- Question sets: each kind's name and size, then Edit -------------- */
+
+.cardLine {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.setRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  min-height: 3.25rem;
+  padding: var(--space-1) 0;
+}
+
+.setText {
+  min-width: 0;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.setName {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.setLine {
+  font-size: var(--text-sm);
 }
 
 .muted {

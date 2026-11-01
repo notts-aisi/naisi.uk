@@ -11,6 +11,7 @@ import {
   type SurveyAuto,
 } from "@/lib/firestore/surveys";
 import { sanitizeSurveyItems, surveyQuestionsOf, type SurveyItem } from "../items";
+import { eventStandardItems } from "../questionSetsStore";
 import { REFUSAL } from "../words";
 import { asksMissed, audienceKindOf, firstPressOf, minutesFor, questionProblems, settingsOf, stillPending, whoAt } from "./after";
 import { readEventSendPlan, sendSurveyAfter, type EventPressOutcome, type EventPressTally } from "./sending";
@@ -109,8 +110,11 @@ export async function setUpEventSurvey(db: Firestore, eventId: string, byUid: st
   if (!event.startAt) return refuse(409, EVENT_REFUSAL.undated);
   const until = addLaterUntil(event);
   if (until && until.getTime() <= now.getTime()) return refuse(409, EVENT_REFUSAL.tooLate);
-  const settings = settingsOf(setting);
-  const problem = questionProblems(settings.items)[0];
+  // The standard set as it stands now, when the step chose none: the survey
+  // keeps what it copies here, whatever the set says later.
+  const standard = await eventStandardItems(db);
+  const settings = settingsOf(setting, standard);
+  const problem = questionProblems(settings.items, standard)[0];
   if (problem) return refuse(400, problem);
 
   const words = fromEvent(event, settings.items);
@@ -426,7 +430,7 @@ export async function changeSurveyAfter(
 ): Promise<ChangeOutcome> {
   const { event, setting, byUid, now } = input;
   if (event.status !== "published") return refuse(409, SURVEY_AFTER_REFUSAL.notPublished);
-  const problem = setting.on ? questionProblems(setting.items)[0] : undefined;
+  const problem = setting.on ? questionProblems(setting.items, await eventStandardItems(db))[0] : undefined;
   if (problem) return refuse(400, problem);
   const eventRef = db.collection("events").doc(event.id);
   const stored = { ...setting, items: JSON.parse(JSON.stringify(setting.items)) as unknown[] };

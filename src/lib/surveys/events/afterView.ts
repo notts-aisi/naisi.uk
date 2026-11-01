@@ -4,6 +4,7 @@ import type { StoredSurveyAfter } from "@/lib/events/surveyAfter";
 import type { EventDoc } from "@/lib/firestore/events";
 import type { EventSurveyDoc } from "@/lib/firestore/surveys";
 import type { SurveyItem } from "../items";
+import { eventStandardItems } from "../questionSetsStore";
 import { surveyState } from "../repo";
 import { firstPressOf, settingsOf } from "./after";
 import { SURVEY_AFTER_REFUSAL, sendNowCount } from "./setUp";
@@ -34,6 +35,8 @@ export type SurveyAfterPanel = {
   sendNote: string | null;
   /** "Send a test to me" is offered. */
   test: boolean;
+  /** The standard questions as they stand, for "Back to the standard questions" and the step's marks. */
+  standard: SurveyItem[];
 };
 
 const NOT_YET_STARTED = "You can send it from here once the event has started.";
@@ -54,7 +57,8 @@ export async function surveyAfterPanel(
   if (survey && !survey.auto) return null;
   if (!survey) {
     if (!event.surveyAfter) return null;
-    const settings = settingsOf(event.surveyAfter);
+    const standard = await eventStandardItems(db);
+    const settings = settingsOf(event.surveyAfter, standard);
     return {
       setting: { ...event.surveyAfter, items: settings.items },
       setUp: false,
@@ -62,10 +66,12 @@ export async function surveyAfterPanel(
       send: null,
       sendNote: null,
       test: false,
+      standard,
     };
   }
   const auto = survey.auto;
   if (!auto) return null;
+  const standard = await eventStandardItems(db);
   const opened = survey.firstSentAt !== null;
   const went = firstPressOf(survey) !== null;
   const state = surveyState(survey, now);
@@ -103,5 +109,6 @@ export async function surveyAfterPanel(
     send,
     sendNote,
     test: live,
+    standard,
   };
 }

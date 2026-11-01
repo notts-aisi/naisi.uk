@@ -7,9 +7,10 @@
  * events), with a survey about leaving, two check-ins and a survey of an
  * earlier programme whose form has gone added here.
  *
- *  1. WHO: only an admin is shown either tab or Reports; everybody else, a
- *     view-as session and somebody signed out are sent to the dashboard
- *     before anything is read.
+ *  1. WHO: only an admin is shown any of the three tabs or Reports;
+ *     everybody else, a view-as session and somebody signed out are sent to
+ *     the dashboard before anything is read. (The third tab, Question sets,
+ *     is drawn and changed in `tests/survey-question-sets.test.mjs`.)
  *  2. BY PROGRAMME: the term's programmes in the form's order, a row for every
  *     stage each will have, the survey at the end not sent yet due at the
  *     last session and never scheduled; then the earlier programme.
@@ -177,6 +178,7 @@ function checkInSurvey(id, weekNumber, startsAt) {
 
 const programmesAs = (who) => w.page(w.pages.list, { searchParams: Promise.resolve({}) }, who);
 const eventsAs = (who) => w.page(w.pages.list, { searchParams: Promise.resolve({ tab: "events" }) }, who);
+const questionSetsAs = (who) => w.page(w.pages.list, { searchParams: Promise.resolve({ tab: "question-sets" }) }, who);
 const reportsAs = (who) => w.page(reportsPage, {}, who);
 
 /** The words of one programme's card, from its heading to the next card. */
@@ -198,6 +200,7 @@ describe("1. only an admin is shown either tab, or Reports", () => {
       for (const [where, page] of [
         ["By programme", programmesAs],
         ["Events", eventsAs],
+        ["Question sets", questionSetsAs],
         ["Reports", reportsAs],
       ]) {
         const reads = w.world.db.stats.reads;
@@ -206,10 +209,10 @@ describe("1. only an admin is shown either tab, or Reports", () => {
         assert.equal(w.world.db.stats.reads, reads, `${where}: ${what}: the page read something before sending them away`);
       }
     }
-    for (const page of [programmesAs, eventsAs, reportsAs]) assert.equal((await page(null)).to, "/dashboard", "somebody signed out");
+    for (const page of [programmesAs, eventsAs, questionSetsAs, reportsAs]) assert.equal((await page(null)).to, "/dashboard", "somebody signed out");
     w.world.viewAs = true;
     try {
-      for (const page of [programmesAs, eventsAs, reportsAs]) assert.equal((await page("amara")).to, "/dashboard", "a view-as session is the member's");
+      for (const page of [programmesAs, eventsAs, questionSetsAs, reportsAs]) assert.equal((await page("amara")).to, "/dashboard", "a view-as session is the member's");
     } finally {
       w.world.viewAs = false;
     }
@@ -242,8 +245,9 @@ describe("2. By programme: the term's programmes, a row for every stage, then th
     const { text, html } = page;
     assert.ok(
       text.startsWith(
+        // CHANGED ON PURPOSE: the third tab, Question sets (the questions each kind of survey starts with).
         "Surveys Only admins make and send surveys. Leads see results for their own programme, in its Surveys tab. New survey " +
-          "By programme Events Confidential We know who answered. Only admins see who said what. ",
+          "By programme Events Question sets Confidential We know who answered. Only admins see who said what. ",
       ),
       text.slice(0, 300),
     );
@@ -256,7 +260,10 @@ describe("2. By programme: the term's programmes, a row for every stage, then th
     assert.ok(order.every((found) => found !== -1), `a card is missing:\n${text}`);
     assert.deepEqual([...order].sort((a, b) => a - b), order, "the cards are out of order");
     // The tabs: links to the page's own address, By programme the current one.
-    assert.match(html, /<a href="\/admin\/surveys" class="tab current" aria-current="page">By programme<\/a><a href="\/admin\/surveys\?tab=events" class="tab">Events<\/a>/);
+    assert.match(
+      html,
+      /<a href="\/admin\/surveys" class="tab current" aria-current="page">By programme<\/a><a href="\/admin\/surveys\?tab=events" class="tab">Events<\/a><a href="\/admin\/surveys\?tab=question-sets" class="tab">Question sets<\/a>/,
+    );
   });
 
   test("AGI Strategy: each survey's row says when it went, how many of the people it went to answered, and when it closed", async (t) => {
@@ -402,13 +409,16 @@ describe("4. Events: each survey after an event, the newest event first", () => 
     const { text, html } = await eventsAs("zach");
     assert.ok(
       text.endsWith(
-        "By programme Events Confidential We know who answered. Only admins see who said what. Surveys after events " +
+        "By programme Events Question sets Confidential We know who answered. Only admins see who said what. Surveys after events " +
           "After the AI policy careers panel Thu 5 Nov · Not sent yet Draft Edit " +
           "After VR games night Sun 1 Nov · 3 answers · Closed Sun 8 Nov Closed Results",
       ),
       text,
     );
-    assert.match(html, /<a href="\/admin\/surveys" class="tab">By programme<\/a><a href="\/admin\/surveys\?tab=events" class="tab current" aria-current="page">Events<\/a>/);
+    assert.match(
+      html,
+      /<a href="\/admin\/surveys" class="tab">By programme<\/a><a href="\/admin\/surveys\?tab=events" class="tab current" aria-current="page">Events<\/a><a href="\/admin\/surveys\?tab=question-sets" class="tab">Question sets<\/a>/,
+    );
     assert.ok(html.includes('<a href="/admin/surveys/s-panel/questions" class="action" aria-label="Edit After the AI policy careers panel">Edit</a>'));
     assert.ok(html.includes('<a href="/admin/surveys/s-vr/results" class="action" aria-label="Results for After VR games night">Results</a>'));
     assert.ok(!text.includes("Remind"));
@@ -585,7 +595,7 @@ describe("6. nothing about a person, every way in at least 44px, and the words",
   test("neither tab nor Reports names anybody, carries an address or an account's id", async (t) => {
     clock(t);
     w.reset(seed());
-    const pages = [await programmesAs("zach"), await eventsAs("zach"), await reportsAs("zach")];
+    const pages = [await programmesAs("zach"), await eventsAs("zach"), await questionSetsAs("zach"), await reportsAs("zach")];
     for (const { html } of pages) {
       for (const bit of ["Amara", "Okafor", "Bea", "Lindqvist", "Gwen", "Tariq", "Rahul", "Sofia", "Dev Patel", "example.com", "Example.com"]) {
         assert.ok(!html.includes(bit), `a page holds "${bit}"`);
@@ -602,8 +612,9 @@ describe("6. nothing about a person, every way in at least 44px, and the words",
     for (const target of [".action", ".remindButton", ".seeThem", ".checkInLink"]) {
       assert.match(block(hub, target), /min-height: 2\.75rem;/, `${target} is drawn under 44px`);
     }
-    // The check-ins' row is the summary of a disclosure, and a row is never under 44px.
+    // The check-ins' row is the summary of a disclosure, and a row is never under 44px; nor is a question set's.
     assert.match(block(hub, ".row"), /min-height: 3\.25rem;/);
+    assert.match(block(hub, ".setRow"), /min-height: 3\.25rem;/);
     const reports = readFileSync(join(REPO_ROOT, "src", "features", "reports", "reports.module.css"), "utf8");
     assert.match(block(reports, ".card"), /position: relative;[\s\S]*min-height: 2\.75rem;/);
     assert.match(block(reports, ".link"), /min-height: 2\.75rem;/, "a report's name is drawn under 44px");
@@ -615,8 +626,10 @@ describe("6. nothing about a person, every way in at least 44px, and the words",
     assert.equal(hubTabOf("events"), "events");
     assert.equal(hubTabOf(["events"]), "programmes", "a repeated parameter is no tab");
     assert.equal(hubTabOf("term"), "programmes", "The term is not a tab");
+    assert.equal(hubTabOf("question-sets"), "question-sets");
     assert.equal(hubTabHref("programmes"), "/admin/surveys");
     assert.equal(hubTabHref("events"), "/admin/surveys?tab=events");
+    assert.equal(hubTabHref("question-sets"), "/admin/surveys?tab=question-sets");
     assert.equal(hubWords.weeksWords([]), "");
     assert.equal(hubWords.weeksWords([4]), "Week 4");
     assert.equal(hubWords.weeksWords([3, 1, 2]), "Weeks 1 to 3");
@@ -639,6 +652,10 @@ describe("6. nothing about a person, every way in at least 44px, and the words",
       join("lib", "reports", "words.ts"),
       join("features", "surveys", "admin", "SurveyList.tsx"),
       join("app", "(app)", "admin", "(admin-only)", "reports", "page.tsx"),
+      join("lib", "surveys", "questionSets.ts"),
+      join("features", "surveys", "questionSets", "QuestionSetWords.tsx"),
+      join("features", "surveys", "questionSets", "EventQuestionSet.tsx"),
+      join("app", "(app)", "admin", "(admin-only)", "surveys", "question-sets", "[kind]", "page.tsx"),
     ]) {
       const source = readFileSync(join(REPO_ROOT, "src", file), "utf8");
       assert.doesNotMatch(source, /[\u2013\u2014]/, `${file} carries a dash`);

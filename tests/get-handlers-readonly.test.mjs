@@ -112,6 +112,10 @@ const MUTATION_HELPERS = {
   // would show nothing in its body.
   freezeWholeWeeks: "fixes which check-ins each whole week of a programme has, which its lead then reads",
   createCheckInWeek: "creates one week's record of which check-ins its programme's lead reads",
+  // The question sets. The one route that keeps a set holds a PUT alone, and
+  // the write is made in `src/lib/surveys/questionSetsStore.ts`, so a GET
+  // added beside it later could call this and show nothing in its body.
+  saveQuestionSet: "changes the questions every survey of one kind made from then on starts with",
 };
 
 /**

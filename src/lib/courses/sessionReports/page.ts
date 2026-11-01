@@ -3,10 +3,12 @@ import type { Firestore } from "firebase-admin/firestore";
 import { londonDayLabel } from "@/lib/courses/londonLabels";
 import type { SessionUser } from "@/lib/firebase/session";
 import type { ReportPart, SessionReportAnswers } from "@/lib/firestore/courseSessionReports";
+import { sessionReportWords } from "@/lib/surveys/questionSetsStore";
 import { gateReportWriter, leadFirstName, loadReportSession, readOwnReport, sessionsOf, type ReportPerson } from "./context";
 import { latestStartedSession } from "./model";
 import { ownReportView, type RunReportView } from "./readers";
 import {
+  REPORT_QUESTION_WORDS,
   changeUntilLine,
   closedLine,
   noReportLine,
@@ -15,6 +17,7 @@ import {
   reportTitle,
   sentLine,
   undatedLine,
+  type ReportQuestionWords,
 } from "./words";
 
 /**
@@ -29,6 +32,11 @@ import {
  * register's link writes it), or, when it names none the group holds, the
  * latest of the group's sessions that has started. Before the first, the
  * page says when reports open.
+ *
+ * THE QUESTIONS are asked in the words of the session report's question set
+ * (Run NAISI › Surveys › Question sets) as it stands when the form is drawn,
+ * else the code's. The answers are kept by question, not by its words, so a
+ * report already sent keeps them whatever the words say later.
  */
 
 /** The form's starting point, handed to the browser: nothing beyond what it draws and sends. */
@@ -47,6 +55,8 @@ export type ReportFormProps = {
   sent: string;
   /** "You can change it until week 4 starts, Tue 24 Nov at 6pm." */
   changeUntil: string;
+  /** The words the questions are asked in. */
+  questions: ReportQuestionWords;
 };
 
 export type ReportPageView =
@@ -98,6 +108,11 @@ export async function loadReportPage(
   }
 
   const lead = await leadFirstName(db, run.id);
+  // A set that can't be read leaves the code's words: the form is filled in on a phone, straight after the register.
+  const questions = await sessionReportWords(db).catch((err) => {
+    console.error("[session report] could not read its question set", err);
+    return REPORT_QUESTION_WORDS;
+  });
   return {
     kind: "open",
     groupName,
@@ -113,6 +128,7 @@ export async function loadReportPage(
       answers: own?.answers ?? null,
       sent: own?.updatedAt ? sentLine(own.updatedAt) : "",
       changeUntil: changeUntilLine(window.closesAt, window.nextWeekNumber),
+      questions,
     },
   };
 }

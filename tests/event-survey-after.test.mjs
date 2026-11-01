@@ -42,6 +42,9 @@ function clock(t, at) {
 const setTime = (t, at) => t.mock.timers.setTime(at.getTime());
 
 const after = await w.load("lib/surveys/events/after.ts");
+const eventTemplate = await w.load("lib/surveys/events/template.ts");
+/** The standard set with no question set stored: the code's, as the server reads it then. */
+const CODE = eventTemplate.eventTemplateItems();
 const stored = await w.load("lib/events/surveyAfter.ts");
 const setUp = await w.load("lib/surveys/events/setUp.ts");
 const records = await w.load("lib/surveys/events/records.ts");
@@ -185,21 +188,21 @@ describe("the setting: on for a new event, only a stored one counts, read strict
   });
 
   test("the questions: the standard set, reworded, moved, removed and added to; a standard question never retyped", () => {
-    const standard = after.settingsOf(setting());
+    const standard = after.settingsOf(setting(), CODE);
     assert.equal(standard.standard, true);
-    assert.deepEqual(after.questionProblems(standard.items), []);
+    assert.deepEqual(after.questionProblems(standard.items, CODE), []);
     const [how, ...rest] = standard.items;
     // Moved and reworded: fine.
-    assert.deepEqual(after.questionProblems([...rest, { ...how, title: "How did it go?" }]), []);
+    assert.deepEqual(after.questionProblems([...rest, { ...how, title: "How did it go?" }], CODE), []);
     // Retyped: refused, naming the question.
-    assert.deepEqual(after.questionProblems([{ ...rest[1], type: "longText", options: undefined, limit: { unit: "characters", max: 200 } }]), [
+    assert.deepEqual(after.questionProblems([{ ...rest[1], type: "longText", options: undefined, limit: { unit: "characters", max: 200 } }], CODE), [
       "Question 1 can’t change its kind.",
     ]);
     // An added question needs its words; every question removed is no survey.
     const added = { kind: "question", id: "q_mine", type: "shortText", title: "", body: [], required: false };
-    assert.match(after.questionProblems([...standard.items, added]).join(" "), /^Question 6: /);
-    assert.deepEqual(after.questionProblems([]), ["A survey needs at least one question."]);
-    assert.deepEqual(after.problemsByQuestion([...standard.items, added]).get("q_mine"), ["This question needs a title."]);
+    assert.match(after.questionProblems([...standard.items, added], CODE).join(" "), /^Question 6: /);
+    assert.deepEqual(after.questionProblems([], CODE), ["A survey needs at least one question."]);
+    assert.deepEqual(after.problemsByQuestion([...standard.items, added], CODE).get("q_mine"), ["This question needs a title."]);
   });
 
   test("the step's last line says what publishing sets up, and while the job is off, that nothing goes by itself", () => {
@@ -257,7 +260,7 @@ describe("publishing sets it up: the survey as an admin's is made, a draft until
 
   test("its own questions, everyone with a place, a number of hours: as the step chose", async (t) => {
     clock(t, MORNING);
-    const items = after.settingsOf(setting()).items.slice(0, 2);
+    const items = after.settingsOf(setting(), CODE).items.slice(0, 2);
     world({ items, who: "signups", when: "after", hours: 30, reminder: false, showCode: false });
     const survey = w.survey(await setItUp());
     assert.deepEqual(survey.items.map((item) => item.id), ["q_ev_how", "q_ev_again"]);
@@ -559,7 +562,7 @@ describe("the Survey after tab's routes: the event's author, its collaborators a
     await setItUp();
     const before = w.everything();
     for (const [path, method, body] of [
-      ["", "PATCH", setting({ items: after.settingsOf(setting()).items })],
+      ["", "PATCH", setting({ items: after.settingsOf(setting(), CODE).items })],
       ["/send", "POST", { emails: 0 }],
       ["/test", "POST", {}],
     ]) {
@@ -605,7 +608,7 @@ describe("the Survey after tab's routes: the event's author, its collaborators a
     world();
     const id = await setItUp();
     const patch = (await route("")).PATCH;
-    const items = after.settingsOf(setting()).items;
+    const items = after.settingsOf(setting(), CODE).items;
     const save = (who, over) => w.call(who, patch, { id: EVENT_ID }, { body: setting({ items, ...over }) });
     // Before it opens, everything; the event keeps the setting too.
     assert.deepEqual(await save("iris", { items: items.slice(1), who: "signups", when: "after", hours: 20 }), { status: 200, body: { ok: true } });
@@ -735,5 +738,75 @@ describe("the event's tabs: what is set and what went for everybody in the event
     assert.equal((await w.call("sue", qr, { slug: "vr-survey" })).status, 403);
     assert.equal((await w.call("zach", qr, { slug: "vr-survey" })).status, 200);
     assert.equal(textOf(""), "");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The question set: the standard questions an admin keeps
+// ---------------------------------------------------------------------------
+
+describe("the standard questions are the question set an admin keeps: read when a survey is made, never by one already made", () => {
+  /** An admin keeps a set on Run NAISI › Surveys › Question sets. */
+  const keepSet = async (items) => w.call("zach", (await w.route("surveys/question-sets/[kind]")).PUT, { kind: "event" }, { body: { items } });
+  /** The set: "How was it?" kept, and one question of the set's own. */
+  const SET = () => [
+    CODE[0],
+    { kind: "question", id: "q_set_food", type: "singleChoice", title: "How was the food?", body: [], required: false, optional: false, options: [{ id: "o_good", label: "Good" }, { id: "o_meh", label: "Not great" }] },
+  ];
+
+  test("a survey its event set up keeps the questions it was set up with, through the job opening it; one set up after the change takes the set", async (t) => {
+    clock(t, MORNING);
+    world();
+    const id = await setItUp();
+    const made = structuredClone(w.survey(id).items);
+    assert.deepEqual(made.map((item) => item.id), CODE.map((item) => item.id));
+    assert.equal((await keepSet(SET())).status, 200);
+    assert.deepEqual(w.survey(id).items, made, "a change to the set reached a survey already set up");
+    // Opening it at the start follows the event's words and days, never the set's questions.
+    setTime(t, DURING);
+    await tick(DURING);
+    assert.ok(w.survey(id).firstSentAt, "it did not open at the start");
+    assert.deepEqual(w.survey(id).items, made, "opening it took the set's questions");
+
+    // An event published after the change: its survey starts from the set.
+    setTime(t, MORNING);
+    world();
+    assert.equal((await keepSet(SET())).status, 200);
+    const later = w.survey(await setItUp());
+    assert.deepEqual(later.items.map((item) => [item.id, item.type, item.title]), [
+      ["q_ev_how", "rating", "How was it?"],
+      ["q_set_food", "singleChoice", "How was the food?"],
+    ]);
+    assert.equal(later.intro, "Thanks for coming on Sunday. 2 quick questions, about a minute.");
+  });
+
+  test("the step's own questions are the event's, whatever the set says; and a set question keeps its kind in the step", async (t) => {
+    clock(t, MORNING);
+    world();
+    assert.equal((await keepSet(SET())).status, 200);
+    // An event whose step chose its own questions: those, not the set's.
+    world({ items: CODE.slice(1, 3) });
+    assert.equal((await keepSet(SET())).status, 200);
+    assert.deepEqual(w.survey(await setItUp()).items.map((item) => item.id), ["q_ev_again", "q_ev_next_text"]);
+    // The set's question retyped in the step: refused when it is set up.
+    world({ items: [{ ...SET()[1], type: "shortText", options: undefined, limit: { unit: "characters", max: 200 } }] });
+    assert.equal((await keepSet(SET())).status, 200);
+    const refused = await setUp.setUpEventSurvey(w.world.db, EVENT_ID, "zach", MORNING);
+    assert.deepEqual(refused, { ok: false, status: 400, error: "Question 1 can’t change its kind." });
+  });
+
+  test("After a social, an admin's survey from New survey, starts from the set too, and keeps what it was made with", async (t) => {
+    clock(t, MORNING);
+    w.reset(eventSurveySeed());
+    const first = await w.make();
+    assert.equal(first.status, 200, JSON.stringify(first.body));
+    const made = structuredClone(w.survey(first.body.survey.id).items);
+    assert.equal((await keepSet(SET())).status, 200);
+    assert.deepEqual(w.survey(first.body.survey.id).items, made, "a change to the set reached a survey already made");
+    w.reset(eventSurveySeed());
+    assert.equal((await keepSet(SET())).status, 200);
+    const second = await w.make();
+    assert.equal(second.status, 200, JSON.stringify(second.body));
+    assert.deepEqual(w.survey(second.body.survey.id).items.map((item) => item.id), ["q_ev_how", "q_set_food"]);
   });
 });

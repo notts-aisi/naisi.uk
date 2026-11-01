@@ -3216,6 +3216,8 @@ const kairosWords = await loadTs("lib/kairos/words.ts");
 const ratingRules = await loadTs("lib/ratings/rules.ts");
 const ratingModel = await loadTs("lib/ratings/model.ts");
 const kairosReport = await loadTs("lib/surveys/kairosReport.ts");
+/** The question sets: what each kind of survey starts with, words only but after an event. Pure. */
+const questionSets = await loadTs("lib/surveys/questionSets.ts");
 /** Survey code imported from anywhere: the library, its components and its record. */
 const SURVEY_CODE = /(?:\bfrom\s*|\bimport\s*\(\s*)"(?:@\/(?:lib\/surveys|features\/surveys|lib\/firestore\/surveys)|(?:\.{1,2}\/)+(?:[\w-]+\/)*surveys)["\/]/;
 /** Whether a file is survey code itself, rather than code that reaches it. */
@@ -4880,6 +4882,14 @@ describe("the course hub passage", () => {
     for (const question of ["How did the session go?", "Who engaged well?", "Did anyone seem not to have done the readings?", "Anyone who might need a hand?"]) {
       assert.ok(reportWords.includes(`"${question}"`), `the report no longer asks: ${question}`);
     }
+    // An admin may reword these questions (Run NAISI › Surveys › Question
+    // sets), never change what they ask: the set's places are the record's
+    // own questions, by their ids, words alone, and a save naming anything
+    // else is refused whole.
+    assert.deepEqual(questionSets.REPORT_ENTRY_IDS, ["how", "wentWell", "didnt", "unclear", "engaged", "notRead", "needsHand", "forLead"]);
+    for (const words of [{ "engaged:type": "longText" }, { "kudos:title": "Who deserves a mention?" }, { "notRead:option:o_x": "Somebody" }]) {
+      assert.equal(questionSets.checkWordsChange("session-report", { words }).ok, false, `the report's set takes ${JSON.stringify(words)}`);
+    }
 
     // "After a session, facilitators": the one writer takes a report only
     // from a live facilitator of the group, refuses an admin and the lead,
@@ -6108,6 +6118,20 @@ describe("the course hub passage", () => {
         ["src/lib/events/eventProgramme.ts", "which of the term's programmes an event for chosen people may be part of (chooseTerm, the forms alone), and nothing of any survey, its answers or who answered"],
         // This term in numbers: counts made on the server, never a name.
         ["src/app/(app)/admin/(admin-only)/surveys/term/page.tsx", `${ADMIN_PAGE}; This term in numbers, counts made on the server, never a name`],
+        // CHANGED ON PURPOSE (question sets): the questions each kind of survey
+        // starts with, changed by an admin for the surveys made from then on;
+        // words alone but for the survey after an event. A set holds no survey,
+        // answer or row, and no survey already made reads it again.
+        ["src/app/(app)/admin/(admin-only)/surveys/question-sets/[kind]/page.tsx", `${ADMIN_PAGE}; one kind's question set, read and changed: no survey, answer or row`],
+        ["src/app/api/surveys/question-sets/[kind]/route.ts", `${ADMIN_ROUTE}; keeps one kind's question set, its words alone but after an event, and reads no survey, answer or row`],
+        [
+          "src/app/(app)/events/manage/[id]/page.tsx",
+          "the event editor's page reads the standard questions after an event from their question set, for the Survey after step; never a survey record, an answer or who answered",
+        ],
+        [
+          "src/lib/courses/sessionReports/page.ts",
+          "the facilitator's report page reads the words its questions are asked in from the session report's question set; never a survey, an answer or who answered",
+        ],
         // Run NAISI › Reports: the way to This term in numbers, Public numbers
         // and Kairos, by their names; it reads no survey, answer or row.
         ["src/app/(app)/admin/(admin-only)/reports/page.tsx", `${ADMIN_PAGE}; the way to the term's numbers, public numbers and Kairos, reading no survey, answer or row`],
@@ -6489,6 +6513,16 @@ describe("the course hub passage", () => {
           ["@/lib/surveys/checkIns/reviewPool"],
         ],
       ],
+      // CHANGED ON PURPOSE (question sets): the facilitator's report form asks
+      // in the words an admin keeps for the session report's questions. The
+      // set holds words alone, and no answer of any survey.
+      [
+        "src/lib/courses/sessionReports/page.ts",
+        [
+          "the facilitator's report form: the words its questions are asked in, from the session report's question set (sessionReportWords); reads no survey and no answer, deciding nothing",
+          ["@/lib/surveys/questionSetsStore"],
+        ],
+      ],
     ]);
     assertExactlyTheseFiles(
       decides,
@@ -6821,8 +6855,27 @@ describe("the course hub passage", () => {
     }
     assert.deepEqual([...asked].filter((id) => !named.has(id)), [], "a template asks a question of a kind the policy does not name");
     // Every survey is made from a template, and a fellowship asks none of an incubator's questions.
+    // CHANGED ON PURPOSE (question sets): was `const items = templateItems(input.stage,
+    // programme.kind, strand);`. A programme's survey is made from its stage's
+    // template with its question set's words over the code's, and a set
+    // holds words alone: every question the kinds above are held to is still
+    // asked, under the same id and kind, whatever a set says. Held to the
+    // template here, then run over every stage with every word changed.
     const create = withoutComments(read("src/lib/surveys/create.ts"));
-    assert.match(create, /const items = templateItems\(input\.stage, programme\.kind, strand\);/);
+    assert.match(create, /const items = await programmeTemplateItems\(db, input\.stage, programme\.kind, strand\);/);
+    assert.match(
+      withoutComments(read("src/lib/surveys/questionSetsStore.ts")),
+      /const items = templateItems\(stage, programmeKind, strand\);\s*const set = setOfTemplate\(stage\);\s*return set \? withSetWords\(set, items, \(await readQuestionSet\(db, set\)\)\?\.words\) : items;/,
+    );
+    for (const [stage, kind, strand] of [["before", "fellowship", null], ["after", "fellowship", null], ["before", "incubator", "alignment"], ["after", "incubator", "governance"], ["leaving", "fellowship", null]]) {
+      const set = questionSets.setOfTemplate(stage);
+      const everyWord = Object.fromEntries(questionSets.setEntries(set, {}).flatMap((entry) => entry.slots.map((slot) => [slot.key, `New ${slot.key}`.slice(0, slot.max)])));
+      const code = surveyTemplates.templateItems(stage, kind, strand);
+      const ask = (list) => surveyItems.surveyQuestionsOf(list).map((question) => [question.id, question.type]);
+      assert.deepEqual(ask(questionSets.withSetWords(set, code, everyWord)), ask(code), `the ${stage} set of a ${kind} asks something the template does not`);
+    }
+    assert.equal(questionSets.setOfTemplate("followUp6"), null, "a follow-up reads a set");
+    assert.equal(questionSets.setOfTemplate("followUp12"), null, "a follow-up reads a set");
     assert.ok(![...surveyItems.surveyQuestionsOf(surveyTemplates.templateItems("after", "fellowship", null))].some((question) => question.id.startsWith("q_i")));
     assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-items.test.mjs")), "tests/surveys-items.test.mjs holds every template word for word");
   });
@@ -8194,6 +8247,15 @@ describe("the survey after an event", () => {
       [["q_ev_missed_why", "What stopped you coming?", "longText", true]],
       "the question about not coming asks something new: check it against the kinds the policy names, then list it here",
     );
+    // The question set an admin keeps for these (Run NAISI › Surveys ›
+    // Question sets) adds, removes and rewords questions as the event
+    // editor's step does ("the questions vary"), of the step's five kinds and
+    // no other, and a question above never changes its kind there; the code's
+    // set above stays the one held here.
+    for (const type of ["lines", "percent", "number", "scale", "poll", "imageUpload"]) {
+      assert.equal(questionSets.checkWholeChange({ items: [{ kind: "question", id: "q_x", type, title: "Words", body: [], required: false }] }).ok, false, `the set after an event takes a ${type} question`);
+    }
+    assert.equal(questionSets.checkWholeChange({ items: [{ ...items[0], type: "longText", limit: { unit: "characters", max: 2000 } }] }).ok, false, "a standard question changed its kind in the set");
     // CHANGED ON PURPOSE (v14): was "no question is required". What the policy
     // says, run: every question needs an answer unless it is marked optional,
     // and the last ("Anything we should change?") is the one marked optional.

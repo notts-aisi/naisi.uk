@@ -1890,6 +1890,18 @@ const NOT_COVERED = {
     coverWhen:
       "When a spec opens This term in numbers, Public numbers or Kairos, which it reaches from the menu through this page.",
   },
+  "/(app)/admin/(admin-only)/surveys/question-sets/[kind]": {
+    reason:
+      "Surveys: one kind's question set; tests/survey-question-sets.test.mjs draws every kind's page as every kind of caller, with the set's words over the code's and the original beside a changed word, and a kind that names no set in a sentence.",
+    coverWhen:
+      "When a spec changes a question set and then makes a survey from it, so the browser drives the save the route keeps.",
+  },
+  "/api/surveys/question-sets/[kind]": {
+    reason:
+      "Surveys: keeping one kind's question set; tests/survey-question-sets.test.mjs saves every kind as every kind of caller and during view-as, refuses a question added, taken out or retyped where only words change, and makes surveys before and after a change to prove none already made is reached; the check-in, event and report suites do the same for theirs.",
+    coverWhen:
+      "When a spec changes a question set and then makes a survey from it, so the browser drives the save the route keeps.",
+  },
   "/(app)/admin/(admin-only)/surveys/term": {
     reason:
       "Surveys: This term in numbers; tests/surveys-term-numbers-page.test.mjs renders the real page as every kind of caller over a term with events, check-ins, an event's survey and two programmes, and tests/surveys-term-numbers.test.mjs holds each number to its own page's reader.",

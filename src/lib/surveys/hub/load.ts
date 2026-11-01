@@ -9,6 +9,8 @@ import { isEventAudience, isProgrammeAudience, type SurveyDoc, type SurveyPerson
 import { readAudience, type AudienceRead } from "../audience";
 import { checkInListView } from "../checkIns/adminView";
 import { eventPeopleOf } from "../events/store";
+import { questionSetRows } from "../questionSets";
+import { readQuestionSets } from "../questionSetsStore";
 import { canRunSurveys, listCheckIns, listSurveys, peopleOf, surveyState } from "../repo";
 import { remindReach } from "../sending";
 import { chooseTerm } from "../term/choose";
@@ -46,6 +48,9 @@ import type { HubTab } from "./tabs";
  *
  * EVENTS reads the surveys and each survey after an event's people rows, which
  * may hold guests (`eventPeopleOf`).
+ *
+ * QUESTION SETS reads the stored sets alone (`readQuestionSets`, the
+ * collection whole: six documents at most), and no survey.
  *
  * Every query is one equality, one `in` or one range on one field, so none
  * needs a declared index.
@@ -142,6 +147,7 @@ async function lastDaysOf(db: Firestore, form: ApplicationForm, surveys: readonl
 /** One tab of Run NAISI › Surveys for `viewer` at `now`, or null when the viewer may not have it. */
 export async function loadSurveyHub(db: Firestore, viewer: SessionUser, tab: HubTab, now: Date): Promise<HubView | null> {
   if (!canRunSurveys(viewer)) return null;
+  if (tab === "question-sets") return { tab, sets: questionSetRows(await readQuestionSets(db)) };
   const surveys = await listSurveys(db);
   if (tab === "events") {
     const events = surveys.filter((survey) => isEventAudience(survey.audience));

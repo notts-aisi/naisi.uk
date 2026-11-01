@@ -48,6 +48,32 @@ export const REPORT_WORDS = {
   noneSent: "You didn’t send a report on this session.",
 } as const;
 
+/** The words the report's questions are asked in: every one an admin may reword on Run NAISI › Surveys › Question sets. */
+export type ReportQuestionWords = Record<
+  "how" | "howLow" | "howHigh" | "wentWell" | "didnt" | "unclear" | "somethingElse" | "engaged" | "notRead" | "needsHand",
+  string
+>;
+
+/**
+ * The questions' words as this file writes them. The form asks in a question
+ * set's words where an admin changed them (`sessionReportWordsWith` in
+ * `src/lib/surveys/questionSets.ts`), and these everywhere else. "Anything
+ * for Claudia or the admins?" is not among them: it names the programme's
+ * lead (`forLeadLabel`).
+ */
+export const REPORT_QUESTION_WORDS: ReportQuestionWords = {
+  how: REPORT_WORDS.how,
+  howLow: REPORT_WORDS.howLow,
+  howHigh: REPORT_WORDS.howHigh,
+  wentWell: REPORT_WORDS.wentWell,
+  didnt: REPORT_WORDS.didnt,
+  unclear: REPORT_WORDS.unclear,
+  somethingElse: REPORT_WORDS.somethingElse,
+  engaged: REPORT_WORDS.engaged,
+  notRead: REPORT_WORDS.notRead,
+  needsHand: REPORT_WORDS.needsHand,
+};
+
 /** "Week 3", or "Week 3, session 2" for a week's second meeting. */
 export function sessionName(weekNumber: number, occurrence = 1): string {
   return occurrence > 1 ? `Week ${weekNumber}, session ${occurrence}` : `Week ${weekNumber}`;

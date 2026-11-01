@@ -1,6 +1,7 @@
 import { SESSION_REPORT_QUESTIONS } from "@/lib/firestore/courseSessionReports";
 import { isEventAudience, programmeOf, type SurveyDoc } from "@/lib/firestore/surveys";
 import type { CheckInListGroup, CheckInListRow } from "../checkIns/adminView";
+import type { QuestionSetRow } from "../questionSets";
 import { closedOn, surveyState } from "../repo";
 import type { SurveyTemplate } from "../templates";
 import { LIST_WORDS, closesWords, dayWords, notAnsweredWords, programmeLine } from "../words";
@@ -105,7 +106,11 @@ export type ProgrammeCard = {
   rows: HubRow[];
 };
 
-export type HubView = { tab: "programmes"; cards: ProgrammeCard[] } | { tab: "events"; rows: HubRow[] };
+export type HubView =
+  | { tab: "programmes"; cards: ProgrammeCard[] }
+  | { tab: "events"; rows: HubRow[] }
+  /** The questions each kind of survey starts with (`../questionSets.ts`). */
+  | { tab: "question-sets"; sets: QuestionSetRow[] };
 
 /** One key for one programme of one form. Ids never hold a colon. */
 export function programmeKey(roundId: string, programmeId: string): string {
