@@ -6,8 +6,10 @@
  * Publish told everybody their group before the run began, so Ada, Ben and
  * Cleo each hold a place on the programme.
  *
- * -> the admin names the running run on the programme's Settings tab, which
- * gives the programme its tags -> the programme's Messages tab links to
+ * -> the picker reads this term (the seed made the fixture's form the term)
+ * and offers the admin the programme's people -> the admin names the running
+ * run on the programme's Settings tab, which gives its groups their tags and
+ * lets a message be kept on its page -> the programme's Messages tab links to
  * Messages set to the programme's people: "3 people", "3 will be emailed · 0
  * left out", a programme notice, and "Also post it on the programme's page"
  * on -> Send waits for a test; the test reaches the admin's own address
@@ -165,9 +167,39 @@ test("messages: one message to a programme's people, from a test to their inboxe
   }
   const notices = async (person) => (await messagesTo(person.email)).filter((each) => each.Subject === SUBJECT);
 
+  /** The picker's own answer for the admin: the term it reads, and every tag it offers, under its heading. */
+  async function catalogue(what) {
+    return okBody(await page.request.get(`${origin}/api/audience`), what);
+  }
+  const programmeTags = (answer) => answer.groups?.find((group) => group.heading === term.programmeName)?.tags ?? [];
+
   try {
-    await step("the admin names the running course run on the programme's Settings tab, so its people have a tag", async () => {
+    await step("the picker reads this term, and offers the admin the programme's people", async () => {
       await signInWithPassword(page, origin, { email: secrets.adminEmail, password: secrets.adminPassword }, { timeout: WAIT_MS });
+      const answer = await catalogue("The picker's tags");
+      // Everything after this needs the fixture's form to be the current term: the
+      // opened form whose decisions went out most recently, which the seed stamped.
+      assert.equal(
+        answer.term,
+        term.formLabel,
+        `The picker reads the term ${JSON.stringify(answer.term)}, not this spec's form ${JSON.stringify(term.formLabel)}. ` +
+          "Messages writes to the current term, the opened form whose decisions went out most recently, and the seed " +
+          "stamped this form's decision day later than every other decided form's on the server: another form now " +
+          "has a later one, set after the seed ran.",
+      );
+      const tags = programmeTags(answer);
+      assert.deepEqual(
+        tags.map((tag) => tag.listLabel),
+        ["Everyone", "Holding a place", "Facilitating"],
+        `The picker does not offer the admin ${term.programmeName}'s tags as a programme of the term (and no group's, its run not ` +
+          `named yet). Its headings: ${JSON.stringify((answer.groups ?? []).map((group) => group.heading))}.`,
+      );
+      const everyoneTag = tags.find((tag) => tag.id === everyone);
+      assert.ok(everyoneTag, `The programme's everyone tag is not ${everyone}: ${JSON.stringify(tags.map((tag) => tag.id))}`);
+      assert.equal(everyoneTag.count, people.length, `${term.programmeName}'s everyone counts ${everyoneTag.count}, not the ${people.length} holding a place`);
+    });
+
+    await step("the admin names the running course run on the programme's Settings tab, so its groups have tags and a message can be kept on its page", async () => {
       await page.goto(`${formBase}/setup`, { waitUntil: "domcontentloaded" });
       const panel = page.getByRole("region", { name: "Course run" });
       await panel.waitFor({ timeout: WAIT_MS });
@@ -178,12 +210,21 @@ test("messages: one message to a programme's people, from a test to their inboxe
         runBox.selectOption({ label: `${term.runLabel} · Running` }),
       ]);
       assert.equal((await okBody(named, "Naming the run")).panel?.runId, term.runId);
+      // The run's allocation was published, so its groups now have tags beside the programme's.
+      const labels = programmeTags(await catalogue("The picker's tags, once the run is named")).map((tag) => tag.listLabel);
+      for (const group of term.groups) assert.ok(labels.includes(group.name), `The picker offers no tag for ${group.name} once the run is named: ${JSON.stringify(labels)}`);
     });
 
     await step("the programme's Messages tab opens Messages set to its people, as a programme notice, with the post switch on", async () => {
       await page.goto(`${formBase}/messages`, { waitUntil: "domcontentloaded" });
       const link = page.getByRole("link", { name: WORDS.openInMessages, exact: true });
-      await link.waitFor({ timeout: WAIT_MS });
+      await link.waitFor({ timeout: WAIT_MS }).catch((err) => {
+        throw new Error(
+          `The programme's Messages tab draws no ${JSON.stringify(WORDS.openInMessages)}. It is drawn when Messages would start ` +
+            "with the programme's people for the reader (postTargetsOf in src/lib/messages/posting.ts): the programme is the " +
+            `term's, its run is named and still there. ${err.message}`,
+        );
+      });
       assert.equal(new URL(await link.getAttribute("href"), origin).searchParams.get("for"), everyone);
       const [counted] = await Promise.all([responseTo("/api/audience", "POST"), link.click()]);
       const count = (await okBody(counted, "Counting the programme's people")).count;
