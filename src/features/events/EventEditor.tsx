@@ -223,7 +223,8 @@ function announcementLine(body: PublishResponse): string | null {
     const home = body.invited.home ?? 0;
     const emailed = body.invited.emailed ?? 0;
     const failed = body.invited.failed ?? 0;
-    const sent = emailed === 1 ? "1 invitation was emailed" : `${emailed} invitations were emailed`;
+    const sent =
+      emailed === 0 ? "nobody was emailed" : emailed === 1 ? "1 invitation was emailed" : `${emailed} invitations were emailed`;
     const trailer = failed > 0 ? ` ${failed === 1 ? "1 couldn’t be sent" : `${failed} couldn’t be sent`}.` : "";
     return `Published. It shows on ${peopleCount(home)}’s Home, and ${sent}.${trailer}`;
   }
@@ -934,7 +935,11 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     }
     const limitProblem = signupFormLimitError();
     if (limitProblem) add("signup", limitProblem);
-    if (forChosenPeople && (audience.tags?.include.length ?? 0) === 0 && !audience.stored?.chosenBy) {
+    // The tags on the screen when this person can see them (their own choice,
+    // or a draft); otherwise whether anybody has chosen at all.
+    const nothingChosen =
+      audience.tags !== null ? audience.tags.include.length === 0 : !audience.stored?.chosenBy;
+    if (forChosenPeople && nothingChosen) {
       add("who", "Choose who it’s for: nobody would be invited.");
     }
     return found;
@@ -1014,11 +1019,28 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
 
   async function onPublish() {
     if (!event) return;
+    // WHAT IS ON THE SCREEN IS WHAT IS PUBLISHED. Unsaved changes are saved
+    // first, as Approve does, so a change to who it is for (or to Announce)
+    // can never be left behind by a publish that announces the event as it was
+    // stored. Refused, nothing is published, and the sentence says why. From
+    // here on the form and the stored event agree, so the form decides.
+    setBusy(true);
+    setError(null);
+    try {
+      await flush();
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Save failed");
+      return;
+    } finally {
+      setBusy(false);
+    }
+    const shown = { visibility, announce };
     // AN EVENT FOR CHOSEN PEOPLE is not announced: the confirm says how many
     // Homes it shows on and how many invitations it emails, counted by the
     // press's own plan. A count that cannot be had says so, and the press
     // still goes, refusing for itself whatever it would refuse.
-    if (isForChosenPeople(event)) {
+    if (isForChosenPeople(shown)) {
       setCountingReach(true);
       let counted: Awaited<ReturnType<typeof countPublishReach>> = null;
       try {
@@ -1034,7 +1056,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
       return;
     }
     // A LISTED EVENT WHOSE ANNOUNCEMENT IS SWITCHED OFF mails nobody.
-    if (!announces(event)) {
+    if (!announces(shown)) {
       if (!window.confirm("Publish this event? It goes live on the events page. It won’t be announced.")) return;
       await pressPublish();
       return;
@@ -1930,9 +1952,11 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                         ? audience.count
                           ? `On ${peopleCount(audience.count.home)}’s Home, not listed and not announced.`
                           : "Not listed and not announced."
-                        : announces({ visibility, announce })
-                          ? "Listed, and announced when it’s published."
-                          : "Listed, and not announced."}
+                        : event.announcedAt
+                          ? "Listed, and already announced."
+                          : announces({ visibility, announce })
+                            ? "Listed, and announced when it’s published."
+                            : "Listed, and not announced."}
                     </span>
                   </dd>
                 </div>
@@ -2075,7 +2099,7 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                 {step === "send" && showPublish && (
                   <Button
                     onClick={onPublish}
-                    disabled={publishStatus.kind === "publishing" || countingReach}
+                    disabled={busy || publishStatus.kind === "publishing" || countingReach}
                   >
                     {publishStatus.kind === "publishing"
                       ? "Publishing…"
