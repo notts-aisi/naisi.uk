@@ -1840,13 +1840,13 @@ weekly Home above.
 ## A facilitator's session report
 
 Privacy policy v15's "Session reports": two minutes on a phone straight after
-the register. How the session went (1 to 5, the one
-answer it needs), what went well, what didn't, what seemed unclear (the
-week's parts and "Something else"), who engaged well and what made each of
-them stand out, who seemed not to have done the readings, who might need a
-hand and a word about each, and anything for the programme's lead or admins.
-It is a course record of its own, not a survey and not a note: the register's
-notes about a named person stay exactly as they are beside it.
+the register. How the session went (1 to 5, the one answer it needs), what
+went well, what didn't, what seemed unclear (the week's parts and "Something
+else"), who engaged well and what made each of them stand out, who seemed not
+to have done the readings, who might need a hand and a word about each, and
+anything for the programme's lead or admins. It is a course record of its
+own, not a survey and not a note: the register's notes about a named person
+stay exactly as they are beside it.
 
 ### Who writes, and when
 
