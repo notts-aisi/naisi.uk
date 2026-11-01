@@ -914,6 +914,12 @@ const USERS = new Map([
       "for real, so the counts are proved against the sends they describe rather than a copy",
   ],
   [
+    "event-visibility-readers.test.mjs",
+    "the one reader of who an event is for (`src/lib/events/reach.ts`) executed, and the events " +
+      "normaliser beside it: `reach.ts` imports the event permission checks from the users " +
+      "module, so the normaliser's graph reaches past a single file",
+  ],
+  [
     "scheduler-markers.test.mjs",
     "same shape: `registry.ts` is loaded for the caps and windows and drags every job's graph in " +
       "with it, and the stub comments said so in as many words",
