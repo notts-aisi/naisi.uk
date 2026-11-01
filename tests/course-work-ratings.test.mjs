@@ -72,6 +72,9 @@ async function weekTwoWritten() {
   w.at(NOW);
 }
 
+/** Every field a stored rating holds, and nothing else. */
+const RATING_FIELDS = ["comment", "createdAt", "itemId", "programmeLabel", "raterRole", "raterUid", "rating", "runId", "uid", "updatedAt", "weekId", "weekNumber"];
+
 const ratingsOf = (uid) => w.workRatings().filter((rating) => rating.uid === uid);
 const ratingPath = (uid, n, raterUid) => `courseWorkRatings/${record.courseWorkRatingId(RUN.agi, uid, `w0${n}`, raterUid)}`;
 const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -113,6 +116,7 @@ describe("1. rating an answer: admins and the programme's lead, on readable work
       },
     );
     assert.ok(stored.createdAt instanceof Date && stored.updatedAt instanceof Date, "a rating keeps when it was given and last changed");
+    assert.deepEqual(Object.keys(stored).sort(), RATING_FIELDS, "a rating stores something else");
     assert.equal(w.world.mail.length, 0, "a rating emails nobody");
     // Nothing of it reaches the feedback the person reads.
     assert.equal(w.pieces().length, 0);
@@ -228,6 +232,7 @@ describe("1. rating an answer: admins and the programme's lead, on readable work
     assert.equal(after.createdAt.getTime(), first.createdAt.getTime(), "a change keeps when it was first given");
     assert.ok(after.updatedAt.getTime() > first.updatedAt.getTime(), "a change says when");
     assert.equal(after.programmeLabel, first.programmeLabel);
+    assert.deepEqual(Object.keys(after).sort(), RATING_FIELDS, "a change stored something the body carried");
     // Another rater's is their own.
     assert.equal((await w.rate("zach", "chloe", 2, 9, "Best in the group.")).status, 200);
     assert.deepEqual(ratingsOf("chloe").map((rating) => rating.raterUid).sort(), ["claudia", "zach"]);
