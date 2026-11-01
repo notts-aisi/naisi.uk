@@ -6,7 +6,7 @@ import {
 import { GRID_ROWS, suggestedRow, tagsAllowNotice, wholeMode, type GridRow, type Policy, type SendMode } from "./kind";
 import { mayUse, seesReasonsByName, type Scope } from "./scope";
 import { parseTag, tagId, type Selection, type Tag } from "./tags";
-import { LEFT_OUT_REASONS, ROW_LABELS, type LeftOutReason } from "./words";
+import { LEFT_OUT_REASONS, NO_NAME, ROW_LABELS, type LeftOutReason } from "./words";
 
 /**
  * FROM A SELECTION TO PEOPLE, over a world the loader has read (`./load.ts`).
@@ -307,7 +307,7 @@ export function reachedBy(world: AudienceWorld, plan: Plan, guestSaidYes: (addre
     if (key.startsWith("a:")) {
       const uid = key.slice(2);
       const account = world.accounts.get(uid);
-      const name = account?.name ?? world.nameable.get(uid) ?? "";
+      const name = account?.name ?? world.nameable.get(uid) ?? NO_NAME;
       if (membership === "left") {
         out.push({ ...base, uid, name, leftOut: "left" });
         continue;
@@ -339,7 +339,7 @@ export function reachedBy(world: AudienceWorld, plan: Plan, guestSaidYes: (addre
     }
 
     const guest = world.guests.get(key);
-    const name = guest?.name ?? "";
+    const name = guest?.name ?? NO_NAME;
     if (membership === "walk-in") {
       out.push({ ...base, uid: null, name, leftOut: "walk-in" });
       continue;

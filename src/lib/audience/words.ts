@@ -13,7 +13,7 @@ import type { EventPart, ProgrammePart, RoleTag, SubscribedChannel, TermPart } f
  */
 
 /** The sign on a tag that leaves its people out. */
-export const LEAVE_OUT_SIGN = "−";
+export const LEAVE_OUT_SIGN = "\u2212";
 /** The sign on a tag that includes its people. */
 export const INCLUDE_SIGN = "+";
 

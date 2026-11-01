@@ -640,9 +640,9 @@ describe("the words", () => {
   strings.push(words.emailedWords(31, 53), words.headlineWords(1, true), words.termHeading("Autumn 2026"));
 
   test("no dashes anywhere, and the sign that leaves people out is a minus sign", () => {
-    for (const each of strings) assert.doesNotMatch(each, /[–—]/, `a dash in: ${each}`);
-    assert.equal(words.LEAVE_OUT_SIGN, "−");
-    assert.ok(words.PICKER_WORDS.hint.endsWith("−"));
+    for (const each of strings) assert.doesNotMatch(each, /[\u2013\u2014]/, `a dash in: ${each}`);
+    assert.equal(words.LEAVE_OUT_SIGN, "\u2212");
+    assert.ok(words.PICKER_WORDS.hint.endsWith("\u2212"));
   });
 
   test("the count and its reasons", () => {

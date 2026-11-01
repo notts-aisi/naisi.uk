@@ -124,6 +124,7 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
           const view = json.count as CountView | undefined;
           if (!view || typeof view.people !== "number") throw new Error("no count");
           setCount({ key, view });
+          setCountFailedFor(null);
         })
         .catch(() => {
           if (!controller.signal.aborted) setCountFailedFor(key);
@@ -144,6 +145,7 @@ export default function WhoIsThisFor({ initial, onChange }: Props) {
         .then((json) => {
           if (!Array.isArray(json.people)) throw new Error("no names");
           setWho({ key, lines: json.people as WhoLine[] });
+          setWhoFailedFor(null);
         })
         .catch(() => {
           if (!controller.signal.aborted) setWhoFailedFor(key);
