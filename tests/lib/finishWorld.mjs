@@ -216,6 +216,8 @@ const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(nam
 
 const STYLESHEETS = [
   "./ProgrammeOverview.module.css",
+  // The Overview's Feedback to send draws with feedback's own stylesheet.
+  "./feedback.module.css",
   "./ProgrammeSetup.module.css",
   "@/features/applications/editor/ProgrammeSetup.module.css",
   "./ProgrammeFrame.module.css",

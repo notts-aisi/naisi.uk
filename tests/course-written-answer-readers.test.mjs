@@ -80,12 +80,11 @@ const READERS = {
     treats: "others",
     why: "Claude, Pangram, the notes draft and best answers: a written answer is gathered only once its readers may read it",
   },
-  "app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts": {
+  "lib/courses/feedback/access.ts": {
     treats: "others",
-    why: "feedback is given only on an answer its readers may read; the words are never sent back",
+    why: "feedback is saved only on work its readers may read, asked inside the save's transaction; the words are never read out or sent back",
   },
   // ---- own: the caller's own rows only -------------------------------------
-  "app/(app)/learn/[runId]/weeks/[n]/feedback/page.tsx": { treats: "own", proof: "user.uid", why: "the writer's own feedback page: their own answer, by an id built from their own uid" },
   "app/api/courses/runs/[runId]/my-exercises/route.ts": { treats: "own", proof: "actor.uid", why: "the person's own rows on their own week page, by their own uid" },
   "app/api/courses/runs/[runId]/overview/route.ts": { treats: "own", proof: "actor.uid", why: "the caller's own rows, for This week's count and their answer's line, by their own uid" },
   "app/api/courses/runs/[runId]/written-answers/[answerId]/route.ts": { treats: "own", proof: "actor.uid", why: "the writer's own route: it writes their own answer, at an id built from their own uid" },
@@ -161,9 +160,9 @@ test("the readers of somebody else's words are the five that review, queue, read
       .map(([file]) => file)
       .sort(),
     [
-      "app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts",
       "lib/courses/coursework/gather.ts",
       "lib/courses/facilitatorWeek/readers.ts",
+      "lib/courses/feedback/access.ts",
       "lib/courses/writtenAnswers/queue.ts",
       "lib/courses/writtenAnswers/reviewPage.ts",
     ],

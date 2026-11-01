@@ -1,13 +1,15 @@
 /**
- * The week's written answer, its review and its feedback (boards wk-week,
- * wk-week-phone, wk-review, wk-review-phone, wk-feedback-phone, wk-fac-group,
- * wk-programme, en-finish; Q30 C, Q33, Q34 B; Zach on Mon 26 Oct: a
- * facilitator's own answer is the lead's and admins' to read and give
- * feedback on), since a week's work is submitted (the week you submit,
- * `src/lib/courses/weekWork/`): the answer is sent by submitting its week,
- * the week locks when it is submitted or its group's session starts, opening
- * an answer locks nothing, and its readers read it, and give feedback on it,
- * only once its week is submitted or locked (privacy v15).
+ * The week's written answer, its review and the feedback on it (boards
+ * wk-week, wk-week-phone, wk-review, wk-review-phone, wk-fac-group,
+ * wk-programme, en-finish; Q30 C, Q33; Zach on Mon 26 Oct: a facilitator's
+ * own answer is the lead's and admins' to read and give feedback on), since
+ * a week's work is submitted (the week you submit, `src/lib/courses/weekWork/`):
+ * the answer is sent by submitting its week, the week locks when it is
+ * submitted or its group's session starts, opening an answer locks nothing,
+ * and its readers read it, and give feedback on it, only once its week is
+ * submitted or locked (privacy v15). Feedback is a signed comment
+ * (`src/lib/courses/feedback/`, `tests/course-feedback.test.mjs`): saved to
+ * the person's week page and emailed only in an admin's batch.
  *
  * Driven through the real routes and the real pages, as every kind of
  * caller: Chloe, a fellow of Group B; Farah, another fellow of Group B;
@@ -28,11 +30,11 @@
  *     stamped; the range's top a limit; the labelled boxes sent together.
  *  2. The gate: who may give feedback and reopen; opening locks nothing;
  *     the week's lock; feedback only on an answer its readers may read.
- *  3. Feedback: the rubric, once, the one email; a course with no rubric.
- *     Late, from the group's own calendar.
+ *  3. Feedback: a signed comment, never a level or a mark, many pieces,
+ *     emailing nobody when saved. Late, from the group's own calendar.
  *  4. The pages: the week page (open, submitted, locked, reopened), the
- *     review page (the group's and the lead's), the feedback page, the
- *     group page's review queue, Home, the programme page's task row.
+ *     review page (the group's and the lead's), the week's Feedback, the
+ *     group page's Feedback to write, Home, the programme page's task row.
  *  5. The summer's answers still read, and are never given a verdict here.
  *  6. Finishing's column, the rubric's setting, the email's words and class.
  *
@@ -45,11 +47,15 @@
  */
 import { beforeEach, describe, mock, test } from "node:test";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { A, AGI, B, C, COURSE, NOW, ONE_BOX, ROUND, RUBRIC, RUN, makeWrittenAnswersWorld } from "./lib/writtenAnswersWorld.mjs";
 
 mock.timers.enable({ apis: ["Date"], now: NOW });
 
 const w = await makeWrittenAnswersWorld();
+const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
 const { WEEK_SHUT } = await w.loadTs("lib/courses/weekWork/words.ts");
 
 beforeEach(() => {
@@ -72,8 +78,10 @@ function inOrder(text, phrases) {
 const stored = (uid, n) => w.world.db.read(w.rowPath(uid, n));
 const iso = (when) => new Date(when).toISOString();
 
-/** Feedback at a level for every row of the rubric. */
-const feedback = (comment = "x", level = "Solid") => ({ action: "feedback", levels: w.levels(level), comment });
+/** `who` saves a piece of feedback on `uid`'s written answer to week `n`, as the review page does. */
+const feedback = (who, uid, n, text = "x", options) => w.give(who, uid, n, text, options);
+/** The pieces of feedback on `uid`'s week `n`, oldest saved first. */
+const piecesOn = (uid, n) => w.pieces().filter((piece) => piece.uid === uid && piece.weekNumber === n);
 
 /** Wed 4 Nov at 10am: before Group A meets for week 2 (Thu 5 Nov, 6pm), the first of the week 2 sessions here. */
 const BEFORE_A_MEETS = "2026-11-04T10:00:00Z";
@@ -246,14 +254,17 @@ async function sendFour() {
 }
 
 describe("2. the gate: who gives feedback, who reopens, and the week's lock", () => {
-  test("opening an answer locks nothing any more, and the review route takes feedback alone: the week locks, when it is submitted or its session starts", async () => {
+  test("opening an answer locks nothing any more, and no route opens or reopens an answer: the week locks, when it is submitted or its session starts", async () => {
     w.at(BEFORE_DUE_2);
     assert.equal((await w.write("chloe", 2, { text: words(25) }, { send: true })).status, 200);
     assert.equal((await w.write("kofi", 2, { text: words(3) })).status, 200);
-    // The review page's opening stamp, and its Reopen for edits, are gone: refused before anything is read.
+    // The review route, with its opening stamp and its Reopen for edits, is gone; the feedback route
+    // saves a comment and nothing else, so a body asking to open or reopen is refused before anything is read.
+    assert.equal(existsSync(join(SRC, "app", "api", "courses", "runs", "[runId]", "written-answers", "[answerId]", "review", "route.ts")), false);
     const before = w.everything();
     for (const action of ["open", "reopen"]) {
-      assert.deepEqual(await w.review("rahul", "chloe", 2, { action }), { status: 400, body: { error: "Say what to do: feedback." } }, action);
+      const asked = await w.call("rahul", w.routes.feedback.POST, { runId: RUN.agi }, { course: true, body: { uid: "chloe", weekId: "w02", action } });
+      assert.equal(asked.status, 400, action);
     }
     assert.equal(w.everything(), before, "nothing is stamped");
     // Submitted, Chloe's week takes no change, refused inside the write's own transaction.
@@ -293,39 +304,40 @@ describe("2. the gate: who gives feedback, who reopens, and the week's lock", ()
     );
     assert.equal(stored("farah", 2).words, 22);
     // Sent before weeks were submitted, it is its readers' to read while the week is open, and takes feedback.
-    assert.equal((await w.review("sofia", "farah", 2, feedback("Read."))).status, 200);
+    assert.equal((await feedback("sofia", "farah", 2, "Read.")).status, 200);
   });
 
   test("feedback locks nothing either: the lead and admins give it on a submitted answer, and the week's own state decides what its writer may change", async () => {
     await sendFour();
-    const sent = await w.review("claudia", "farah", 2, feedback("Good."));
+    const row = JSON.stringify(stored("farah", 2));
+    const sent = await feedback("claudia", "farah", 2, "Good.");
     assert.equal(sent.status, 200, JSON.stringify(sent.body));
-    assert.deepEqual([sent.body.state.openedAt, sent.body.state.openedByUid], [null, null]);
+    // Feedback writes nothing to the answer's own row: no lock, no stamp, and its last save stays its writer's.
+    assert.equal(JSON.stringify(stored("farah", 2)), row);
     assert.equal(stored("farah", 2).openedAt, undefined);
     assert.equal(stored("farah", 2).openedByUid, undefined);
-    // The row's last save stays its writer's.
     assert.equal(iso(stored("farah", 2).updatedAt), iso(LATE_2));
     // Farah's week is submitted: that, and not the feedback, is why it can't change.
     assert.deepEqual((await w.write("farah", 2, { text: words(31) })).body.error, WEEK_SHUT);
     // An admin may give feedback too, on another answer.
-    assert.equal((await w.review("zach", "chloe", 2, feedback(""))).status, 200);
-    assert.equal(stored("chloe", 2).feedback.byUid, "zach");
+    assert.equal((await feedback("zach", "chloe", 2, "From an admin.")).status, 200);
+    assert.equal(piecesOn("chloe", 2)[0].byUid, "zach");
   });
 
   test("a facilitator's own answer is the lead's and admins' to give feedback on and reopen: never a co-facilitator's, never their own", async () => {
     await sendFour();
     const before = w.everything();
     for (const who of ["rahul", "sofia"]) {
-      assert.deepEqual(await w.review(who, "rahul", 2, feedback()), { status: 403, body: { error: "Forbidden" } }, who);
+      assert.deepEqual(await feedback(who, "rahul", 2), { status: 403, body: { error: "Forbidden" } }, who);
       assert.deepEqual(await w.reopenWeek(who, "rahul", 2), { status: 403, body: { error: "Forbidden" } }, who);
     }
     assert.equal(w.everything(), before);
     // An admin gives the feedback; the lead reopens the week, which hands it back to Rahul.
-    assert.equal((await w.review("zach", "rahul", 2, feedback("", "Strong"))).status, 200);
+    assert.equal((await feedback("zach", "rahul", 2, "Strong reasons.")).status, 200);
     assert.equal((await w.write("rahul", 2, { text: words(23) })).status, 409, "submitted");
     assert.equal((await w.reopenWeek("claudia", "rahul", 2)).status, 200);
     assert.equal((await w.write("rahul", 2, { text: words(23) })).status, 200);
-    assert.equal(stored("rahul", 2).feedback.byUid, "zach", "the feedback stays");
+    assert.deepEqual(piecesOn("rahul", 2).map((piece) => [piece.byUid, piece.byRole]), [["zach", "admin"]], "the feedback stays");
   });
 
   test("nobody gives feedback on, or reopens, their own: not the lead who also facilitates a group, not an admin", async () => {
@@ -336,15 +348,15 @@ describe("2. the gate: who gives feedback, who reopens, and the week's lock", ()
     assert.equal((await w.write("claudia", 2, { text: words(22) }, { send: true })).status, 200);
     w.at(NOW);
     const before = w.everything();
-    assert.deepEqual(await w.review("claudia", "claudia", 2, feedback("Mine.")), { status: 403, body: { error: "Forbidden" } });
+    assert.deepEqual(await feedback("claudia", "claudia", 2, "Mine."), { status: 403, body: { error: "Forbidden" } });
     assert.deepEqual(await w.reopenWeek("claudia", "claudia", 2), { status: 403, body: { error: "Forbidden" } });
     assert.equal(w.everything(), before);
     // Tom, Group C's other facilitator, may not either; an admin may.
-    assert.equal((await w.review("tom", "claudia", 2, feedback())).status, 403);
+    assert.equal((await feedback("tom", "claudia", 2)).status, 403);
     assert.equal((await w.reopenWeek("tom", "claudia", 2)).status, 403);
     assert.equal(w.everything(), before);
-    assert.equal((await w.review("zach", "claudia", 2, feedback())).status, 200);
-    assert.equal(stored("claudia", 2).feedback.byUid, "zach");
+    assert.equal((await feedback("zach", "claudia", 2)).status, 200);
+    assert.equal(piecesOn("claudia", 2)[0].byUid, "zach");
     assert.equal((await w.reopenWeek("zach", "claudia", 2)).status, 200);
     assert.equal(w.weekWorkOf("claudia", 2).reopenedByUid, "zach");
   });
@@ -369,42 +381,42 @@ describe("2. the gate: who gives feedback, who reopens, and the week's lock", ()
       ["rahul", "una"],
       ["rahul", "sam"],
     ]) {
-      assert.deepEqual(await w.review(who, uid, 2, feedback()), { status: 403, body: { error: "Forbidden" } }, `${who} on ${uid}`);
+      assert.deepEqual(await feedback(who, uid, 2), { status: 403, body: { error: "Forbidden" } }, `${who} on ${uid}`);
       assert.deepEqual(await w.reopenWeek(who, uid, 2), { status: 403, body: { error: "Forbidden" } }, `${who} reopening ${uid}'s week`);
     }
     assert.equal(w.everything(), before);
-    assert.equal((await w.review(null, "chloe", 2, feedback())).status, 401);
+    assert.equal((await feedback(null, "chloe", 2)).status, 401);
     assert.equal((await w.reopenWeek(null, "chloe", 2)).status, 401);
-    assert.deepEqual(await w.review("rahul", "chloe", 2, feedback(), { viewAs: true }), { status: 403, body: { error: "view-as" } });
+    assert.deepEqual(await feedback("rahul", "chloe", 2, "x", { viewAs: true }), { status: 403, body: { error: "view-as" } });
     assert.deepEqual(await w.reopenWeek("rahul", "chloe", 2, { viewAs: true }), { status: 403, body: { error: "view-as" } });
     assert.equal(w.everything(), before, "a view-as session stamps nothing");
     // Sofia facilitates Group A too, so Amara's is Sofia's to give feedback on.
-    assert.equal((await w.review("sofia", "amara", 2, feedback())).status, 200);
-    assert.equal(stored("amara", 2).feedback.byUid, "sofia");
+    assert.equal((await feedback("sofia", "amara", 2)).status, 200);
+    assert.equal(piecesOn("amara", 2)[0].byUid, "sofia");
   });
 
   test("an answer its readers may not read yet takes no feedback: a draft in an open week, a week reopened; the session's lock opens it to them", async () => {
     w.at(BEFORE_DUE_2);
     await w.write("kofi", 2, { text: words(3) });
     await w.write("chloe", 2, { text: words(25) }, { send: true });
-    const draft = await w.review("rahul", "kofi", 2, feedback());
-    assert.deepEqual([draft.status, draft.body.error], [409, "That answer hasn’t been submitted yet."]);
-    assert.equal(stored("kofi", 2).feedback, undefined);
-    // A body is checked before anything is read.
-    assert.equal((await w.review("rahul", "chloe", 2, { action: "wave" })).status, 400);
-    assert.equal((await w.review("rahul", "", 2, feedback())).status, 400);
-    const noWeek = await w.call("rahul", w.routes.review.POST, { runId: RUN.agi, answerId: ONE_BOX.id }, { course: true, body: { uid: "chloe", ...feedback() } });
+    const draft = await feedback("rahul", "kofi", 2);
+    assert.deepEqual([draft.status, draft.body.error], [409, "That week hasn’t been submitted yet, so there’s nothing to give feedback on."]);
+    assert.deepEqual(piecesOn("kofi", 2), []);
+    // A body is checked before anything is read: no words, nobody, no week.
+    assert.equal((await w.call("rahul", w.routes.feedback.POST, { runId: RUN.agi }, { course: true, body: { action: "wave" } })).status, 400);
+    assert.equal((await feedback("rahul", "", 2)).status, 400);
+    const noWeek = await w.call("rahul", w.routes.feedback.POST, { runId: RUN.agi }, { course: true, body: { uid: "chloe", on: "writtenAnswer", itemId: ONE_BOX.id, text: "x" } });
     assert.equal(noWeek.status, 400);
     // Group B's session locked Kofi's week with his draft unsent: his readers may now read it, and give feedback on it.
     w.at(NOW);
-    assert.equal((await w.review("rahul", "kofi", 2, feedback("On the draft."))).status, 200);
-    assert.equal(stored("kofi", 2).feedback.comment, "On the draft.");
+    assert.equal((await feedback("rahul", "kofi", 2, "On the draft.")).status, 200);
+    assert.equal(piecesOn("kofi", 2)[0].text, "On the draft.");
     // A week reopened is unsent again: no feedback until it is submitted, or locks again at the next session.
     assert.equal((await w.reopenWeek("rahul", "chloe", 2)).status, 200);
-    const reopened = await w.review("rahul", "chloe", 2, feedback());
-    assert.deepEqual([reopened.status, reopened.body.error], [409, "That answer hasn’t been submitted yet."]);
+    const reopened = await feedback("rahul", "chloe", 2);
+    assert.deepEqual([reopened.status, reopened.body.error], [409, "That week hasn’t been submitted yet, so there’s nothing to give feedback on."]);
     w.at("2026-11-17T18:00:00Z");
-    assert.equal((await w.review("rahul", "chloe", 2, feedback())).status, 200);
+    assert.equal((await feedback("rahul", "chloe", 2)).status, 200);
   });
 });
 
@@ -412,96 +424,75 @@ describe("2. the gate: who gives feedback, who reopens, and the week's lock", ()
 // 3. Feedback, by the rubric, once, and one email
 // ---------------------------------------------------------------------------
 
-describe("3. feedback: a level for each row and a comment, never a mark, and one email", () => {
-  test("feedback stores each level with its descriptor and who sent it, and emails the writer once that it is waiting", async () => {
+describe("3. feedback: a signed comment, never a level or a mark, many pieces, and no email when saved", () => {
+  test("feedback stores the comment, who wrote it, as what and when; nobody is emailed; a second piece from somebody else is kept beside it", async () => {
     await sendFour();
     w.at("2026-11-17T10:05:00Z");
-    const chosen = [
-      { row: "A clear view", level: "Strong" },
-      { row: "Reasons", level: "Solid" },
-      { row: "The best objection", level: "Solid" },
-      { row: "So what", level: "Not yet" },
-    ];
-    const sent = await w.review("rahul", "chloe", 2, { action: "feedback", levels: chosen, comment: "Clear steps. Say why." });
+    const sent = await feedback("rahul", "chloe", 2, "Clear steps. Say why.");
     assert.equal(sent.status, 200, JSON.stringify(sent.body));
-    assert.equal(sent.body.emailed, true);
-    const given = stored("chloe", 2).feedback;
-    assert.deepEqual(given.levels, [
-      { row: "A clear view", level: "Strong", descriptor: "States a view someone could dispute" },
-      { row: "Reasons", level: "Solid", descriptor: "Gives reasons from the week" },
-      { row: "The best objection", level: "Solid", descriptor: "Names one" },
-      { row: "So what", level: "Not yet", descriptor: "No link to action" },
-    ]);
-    assert.equal(given.comment, "Clear steps. Say why.");
+    const [given] = piecesOn("chloe", 2);
+    assert.equal(given.text, "Clear steps. Say why.");
     assert.equal(given.byUid, "rahul");
-    assert.equal(iso(given.sentAt), "2026-11-17T10:05:00.000Z");
-    // Never a mark, a score or a total, anywhere on the row; and no lock stamped with it.
-    assert.doesNotMatch(JSON.stringify(stored("chloe", 2)), /"(?:score|mark|marks|total|points)"/);
+    assert.equal(given.byRole, "facilitator");
+    assert.equal(iso(given.createdAt), "2026-11-17T10:05:00.000Z");
+    // Never a level, a mark, a score or a total, on the piece or on the answer's row; and no lock stamped with it.
+    assert.doesNotMatch(JSON.stringify(given), /"(?:levels|level|score|mark|marks|total|points)"/);
+    assert.doesNotMatch(JSON.stringify(stored("chloe", 2)), /"(?:score|mark|marks|total|points|feedback)"/);
     assert.equal(stored("chloe", 2).openedAt, undefined);
-    // One email, to Chloe's own address, saying only that feedback is waiting.
-    assert.equal(w.world.mail.length, 1);
-    const mail = w.world.mail[0];
-    assert.equal(mail.to, "chloe@example.com");
-    assert.equal(mail.subject, "Feedback on your week 2 written answer");
-    assert.equal(mail.kind, "course-feedback");
-    const html = JSON.stringify(mail.react);
-    assert.match(html, /Rahul has left feedback on your lamp plan\./);
-    assert.match(html, /https:\/\/naisi\.invalid\/learn\/[^"]+\/weeks\/2\/feedback/);
-    assert.doesNotMatch(html, /Clear steps|Strong|Solid|Not yet/, "the feedback itself stays on the site");
-    // Sent once: a second is refused and emails nobody.
-    const again = await w.review("sofia", "chloe", 2, feedback("More."));
-    assert.equal(again.status, 409);
-    assert.equal(again.body.error, "Feedback on this answer has already been sent.");
-    assert.equal(w.world.mail.length, 1);
-  });
-
-  test("a level for every row, each one of the rubric's; a level the rubric does not have says the rubric changed", async () => {
-    await sendFour();
-    const short = await w.review("rahul", "chloe", 2, { action: "feedback", levels: w.levels().slice(0, 3), comment: "x" });
-    assert.equal(short.status, 409);
-    assert.equal(short.body.error, "Choose a level for “So what”.");
-    const odd = await w.review("rahul", "chloe", 2, { action: "feedback", levels: [...w.levels().slice(0, 3), { row: "So what", level: "Excellent" }], comment: "x" });
-    assert.equal(odd.status, 409);
-    assert.match(odd.body.error, /The rubric changed while you were giving feedback/);
-    assert.equal(stored("chloe", 2).feedback, undefined);
+    // Saving emails nobody: the email that says it is there goes in an admin's batch (tests/course-feedback.test.mjs).
     assert.equal(w.world.mail.length, 0);
-    const long = await w.review("rahul", "chloe", 2, { action: "feedback", levels: w.levels(), comment: words(301) });
+    // Many pieces: a second, from Sofia, is kept beside the first, and still nobody is emailed.
+    const again = await feedback("sofia", "chloe", 2, "More.");
+    assert.equal(again.status, 200);
+    assert.deepEqual(piecesOn("chloe", 2).map((piece) => [piece.byUid, piece.text]).sort(), [["rahul", "Clear steps. Say why."], ["sofia", "More."]]);
+    assert.equal(w.world.mail.length, 0);
+  });
+
+  test("levels sent with the words are never stored, and a comment over its cap is refused, storing nothing", async () => {
+    await sendFour();
+    const withLevels = await feedback("rahul", "chloe", 2, "x", { extra: { levels: w.levels().slice(0, 3) } });
+    assert.equal(withLevels.status, 200);
+    assert.equal("levels" in piecesOn("chloe", 2)[0], false);
+    const long = await feedback("rahul", "farah", 2, words(301));
     assert.equal(long.status, 400);
+    assert.deepEqual(piecesOn("farah", 2), []);
+    assert.equal(w.world.mail.length, 0);
   });
 
-  test("a course with no rubric takes the comment alone, and says why when there is none", async () => {
+  test("with a rubric or without, feedback is a comment alone: the review page asks for one, and the week page names no rows and no marks", async () => {
     await sendFour();
-    w.world.db.poke(`courses/${COURSE.agi}`, { rubric: null });
-    const levelsSent = await w.review("rahul", "chloe", 2, { action: "feedback", levels: w.levels(), comment: "x" });
-    assert.equal(levelsSent.status, 409);
-    const empty = await w.review("rahul", "chloe", 2, { action: "feedback", levels: [], comment: "" });
-    assert.equal(empty.status, 400);
-    assert.equal(empty.body.error, "Write a short comment: this course has no rubric, so the comment is the feedback.");
-    const sent = await w.review("rahul", "chloe", 2, { action: "feedback", levels: [], comment: "A comment alone." });
-    assert.equal(sent.status, 200);
-    assert.deepEqual(stored("chloe", 2).feedback.levels, []);
-    // The pages say so: the review page offers the comment alone and says why; the week page names no rows.
-    const page = await w.writtenPage("rahul", { week: "2", person: "farah" });
-    assert.match(page.text, /The rubric This course has no rubric yet, so feedback here is a comment alone\. An admin can add one in the course’s details\./);
-    assert.match(page.text, /Farah sees your comment\. There are no marks\./);
-    assert.doesNotMatch(page.html, /aria-pressed/);
-    // Kofi's week, while it is still open.
-    w.at(BEFORE_DUE_2);
-    const week = await w.weekPage("kofi", 2);
-    assert.match(week.text, /Rahul and Sofia read it before your session and give feedback\. No marks\./);
-    w.at(NOW);
-    // The feedback page reads the comment alone.
-    const page2 = await w.feedbackPage("chloe", 2);
-    assert.match(page2.text, /There are no marks\. Rahul’s comment A comment alone\./);
+    for (const rubric of [RUBRIC, null]) {
+      w.world.db.poke(`courses/${COURSE.agi}`, { rubric });
+      const page = await w.writtenPage("rahul", { week: "2", person: "farah" });
+      assert.match(page.text, /Your feedback Optional: write it when there’s time, when it’s needed, or when they’ve asked a question\. It’s signed with your name\. Comment/);
+      assert.doesNotMatch(page.text, /The rubric|There are no marks|No marks|sees the four levels/);
+      assert.doesNotMatch(page.html, /aria-pressed/);
+      // Kofi's week, while it is still open.
+      w.at(BEFORE_DUE_2);
+      const week = await w.weekPage("kofi", 2);
+      assert.match(week.text, /Rahul and Sofia read it before your session and may give feedback on it\./);
+      assert.doesNotMatch(week.text, /No marks|four things|a clear view, reasons/);
+      w.at(NOW);
+    }
+    // The person reads the comment alone, on their week page.
+    assert.equal((await feedback("rahul", "chloe", 2, "A comment alone.")).status, 200);
+    const chloe = await w.weekPage("chloe", 2);
+    assert.match(chloe.text, /Feedback from Rahul Your facilitator · Tue 17 Nov A comment alone\./);
+    assert.doesNotMatch(chloe.text, /There are no marks/);
   });
 
-  test("a message that does not go undoes nothing, and the page is told", async () => {
+  test("an email that does not go undoes nothing: the feedback stays on the person's page, and is owed to the next press", async () => {
     await sendFour();
+    assert.equal((await feedback("rahul", "chloe", 2, "Kept.")).status, 200);
+    assert.equal((await w.sendTest("zach")).status, 200);
     w.world.mailFate = () => "fail";
-    const sent = await w.review("rahul", "chloe", 2, feedback("Kept."));
+    const [piece] = piecesOn("chloe", 2);
+    const sent = await w.send("zach", { ids: [piece.id], pieces: 1, people: 1 });
     assert.equal(sent.status, 200);
-    assert.equal(sent.body.emailed, false);
-    assert.equal(stored("chloe", 2).feedback.comment, "Kept.");
+    assert.equal(sent.body.report.failed.length, 1);
+    assert.equal(piecesOn("chloe", 2)[0].text, "Kept.");
+    assert.equal(piecesOn("chloe", 2)[0].emailedAt, null);
+    assert.match((await w.weekPage("chloe", 2)).text, /Feedback from Rahul Your facilitator · Tue 17 Nov Kept\./);
   });
 });
 
@@ -564,7 +555,7 @@ describe("4. the pages, as the boards draw them", () => {
       "A strong answer names a keeper and a reason.",
       "Your answer",
       "0 words · 20 to 40",
-      "Due by noon, Mon 9 Nov. Rahul and Sofia read it before your session and give feedback on four things: a clear view, reasons, the best objection, and so what. No marks.",
+      "Due by noon, Mon 9 Nov. Rahul and Sofia read it before your session and may give feedback on it.",
       "Once you submit, or your week locks, Rahul, Sofia, Claudia and admins can read your written answer.",
       "Other fellows can’t.",
       "Submit week 2",
@@ -582,7 +573,7 @@ describe("4. the pages, as the boards draw them", () => {
     assert.match((await w.weekPage("chloe", 2)).text, /0 of 2 done/);
   });
 
-  test("once submitted the week page says so and is read only; Feedback from leads to the feedback; a reopen hands it back, the feedback kept", async () => {
+  test("once submitted the week page says so and is read only; Feedback from leads to the week's Feedback; a reopen hands it back, the feedback kept", async () => {
     w.at(BEFORE_DUE_2);
     await w.write("chloe", 2, { text: words(25) }, { send: true });
     w.at(NOW);
@@ -603,9 +594,11 @@ describe("4. the pages, as the boards draw them", () => {
     assert.doesNotMatch(page.text, /Submit week 2|Saved as you go/);
 
     w.at("2026-11-17T10:05:00Z");
-    await w.review("rahul", "chloe", 2, feedback("Clear."));
+    await feedback("rahul", "chloe", 2, "Clear.");
     page = await w.weekPage("chloe", 2);
-    assert.match(page.html, /href="\/learn\/[^"]+\/weeks\/2\/feedback"[^>]*>Feedback from Rahul<\/a>/);
+    // The answer's line and This week's row lead to the week's own Feedback, on the same page.
+    assert.match(page.html, /href="#feedback"[^>]*>Feedback from Rahul<\/a>/);
+    assert.match(page.html, /<section id="feedback"/);
     assert.doesNotMatch(page.text, /\bLate\b/);
 
     // Reopened: it takes writing again until it is submitted or the group's next session starts, and the feedback stays.
@@ -669,7 +662,7 @@ describe("4. the pages, as the boards draw them", () => {
     const rahul = await w.weekPage("rahul", 2);
     inOrder(rahul.text, [
       "Your session: Tue 10 Nov, 6pm, Hallward B12. This week locks when it starts.",
-      "Due by noon, Mon 9 Nov. Claudia and admins read it and give feedback on four things",
+      "Due by noon, Mon 9 Nov. Claudia and admins read it and may give feedback on it.",
       "Once you submit, or your week locks, Claudia and admins can read your written answer.",
       "Nobody else on the programme can read it, your co-facilitators included.",
       "Submit week 2",
@@ -708,9 +701,9 @@ describe("4. the pages, as the boards draw them", () => {
     home = await w.programmeHome("chloe");
     assert.match(home.text, /Your written answer Submitted Tue 17 Nov/);
     assert.match(home.text, /1 of 2 done/, "the programme page counts a submitted answer done, from the overview's own rows");
-    await w.review("sofia", "chloe", 3, feedback(""));
+    await feedback("sofia", "chloe", 3, "On your plan.");
     home = await w.programmeHome("chloe");
-    assert.match(home.html, /Submitted Tue 17 Nov <a href="\/learn\/[^"]+\/weeks\/3\/feedback" class="cardLink">Feedback from Sofia<span aria-hidden="true">→<\/span><\/a>/);
+    assert.match(home.html, /Submitted Tue 17 Nov <a href="\/learn\/[^"]+\/weeks\/3#feedback" class="cardLink">Feedback from Sofia<span aria-hidden="true">→<\/span><\/a>/);
 
     // Amara's week 3 locked when Group A met on Thursday, with her draft unsent.
     w.at("2026-11-11T10:00:00Z");
@@ -720,9 +713,9 @@ describe("4. the pages, as the boards draw them", () => {
     assert.match(home.text, /Your written answer Not submitted/);
     assert.doesNotMatch(home.text, /Draft · 4 words/);
     // Its readers may give feedback on it now, and the row leads to it.
-    assert.equal((await w.review("sofia", "amara", 3, feedback("On what you had."))).status, 200);
+    assert.equal((await feedback("sofia", "amara", 3, "On what you had.")).status, 200);
     home = await w.programmeHome("amara");
-    assert.match(home.html, /Not submitted <a href="\/learn\/[^"]+\/weeks\/3\/feedback" class="cardLink">Feedback from Sofia<span aria-hidden="true">→<\/span><\/a>/);
+    assert.match(home.html, /Not submitted <a href="\/learn\/[^"]+\/weeks\/3#feedback" class="cardLink">Feedback from Sofia<span aria-hidden="true">→<\/span><\/a>/);
   });
 
   test("the review page: a facilitator sees their group's fellows, never a facilitator's own; grouped as the board groups them; nothing unsubmitted is read", async () => {
@@ -750,7 +743,7 @@ describe("4. the pages, as the boards draw them", () => {
       "Farah Hussain",
       "Submitted Tue 10 Nov, 12pm",
       "Late",
-      "Feedback sent",
+      "With feedback",
       "0",
       "Not submitted yet",
       "1",
@@ -764,31 +757,22 @@ describe("4. the pages, as the boards draw them", () => {
       "Submitted Sun 8 Nov, 10am",
       "Submitted Sun 8 Nov, 10am, so Chloe can’t change it now.",
       "Reopen week 2 for Chloe",
-      "The rubric",
-      "A clear view",
-      "Not yet",
-      "Solid",
-      "Strong",
-      "A short comment",
-      "What worked, what to try next. Short and specific beats long.",
+      "Your feedback",
+      "Optional: write it when there’s time, when it’s needed, or when they’ve asked a question. It’s signed with your name.",
+      "Comment",
+      "Shows on Chloe’s week 2 page as soon as you save.",
       "0 words",
-      "Send feedback to Chloe",
-      "Emails Chloe that feedback is waiting. The feedback stays on the site.",
-      "Chloe sees the four levels and your comment. There are no marks.",
-      "The email Chloe gets",
-      "Feedback on your week 2 written answer",
-      "Reply to",
-      "ai-safety@uonsu.com",
-      "Rahul has left feedback on your lamp plan.",
-      "Read your feedback",
+      "Save feedback",
     ]);
+    // No rubric, no level, and no email from this page: saving emails nobody, and an admin sends the emails in a batch.
+    assert.doesNotMatch(page.text, /The rubric|A short comment|Send feedback to|The email Chloe gets|There are no marks/);
     // Never a word of an unsubmitted draft, nor how long it is (privacy v15).
     assert.ok(!page.html.includes("beacon"), "the review page shows Kofi's unsubmitted draft");
     assert.doesNotMatch(page.text, /Kofi Asante 4 words|Kofi’s answer/);
     // His own answer would be drawn as "Rahul’s answer" under "Rahul’s lamp
-    // plan" (the name he goes by, which the email preview above uses too).
-    assert.doesNotMatch(page.text, /Rahul’s answer|Rahul’s lamp plan|Amara/, "a facilitator's own answer and another group's are not on the page");
-    assert.match(page.html, /aria-pressed="false"/);
+    // plan" (the name he goes by); his full name is on no page of his either.
+    assert.doesNotMatch(page.text, /Rahul Mehta|Rahul’s answer|Rahul’s lamp plan|Amara/, "a facilitator's own answer and another group's are not on the page");
+    assert.doesNotMatch(page.html, /aria-pressed/);
     // Sofia, the co-facilitator, does not get Rahul's either.
     const sofia = (await w.writtenPage("sofia", { week: "2" })).element.props.model;
     assert.ok(![...sofia.toGive, ...sofia.feedbackSent, ...sofia.notSent].some((person) => person.uid === "rahul"));
@@ -890,57 +874,61 @@ describe("4. the pages, as the boards draw them", () => {
     for (const who of ["rahul", "sofia", "zach"]) assert.equal((await w.writtenPage(who, { week: "2" })).to, null, who);
   });
 
-  test("the feedback page: the writer's own answer, each level with its descriptor, the comment and who gave it; never Late", async () => {
+  test("the week's Feedback: the writer's own feedback on their own page, signed, never a level and never Late; the old feedback page sends its reader there", async () => {
     // Kofi's draft, which Group B's session locks unsent.
     w.at(BEFORE_DUE_2);
     await w.write("kofi", 2, { text: words(3) });
     await sendFour();
     w.at("2026-11-17T10:05:00Z");
-    await w.review("rahul", "farah", 2, feedback("Good steps.", "Strong"));
+    await feedback("rahul", "farah", 2, "Good steps.");
     w.at(NOW);
-    const page = await w.feedbackPage("farah", 2);
-    inOrder(page.text, [
-      "Week 2",
-      "Feedback",
-      "Week 2 · Your written answer",
-      "Feedback on your lamp plan",
-      "From Rahul · Tue 17 Nov, 10:05am",
-      "A clear view",
-      "Strong",
-      "States a view someone could dispute",
-      "So what",
-      "Strong",
-      "Says who should do what",
-      "There are no marks. The four levels are the rubric on Start here.",
-      "Rahul’s comment",
-      "Good steps.",
-      "Your answer",
-      "30 words · submitted Tue 10 Nov, 12pm",
-    ]);
-    // Feedback locks nothing: no line says anybody opened it.
+    const page = await w.weekPage("farah", 2);
+    inOrder(page.text, ["Who keeps the lamps", "Feedback", "Feedback from Rahul", "Your facilitator · Tue 17 Nov", "Good steps.", "Your answer", "30 words · 20 to 40"]);
+    // Feedback locks nothing: no line says anybody opened it; and nothing here is a level, a mark or Late.
     assert.doesNotMatch(page.text, /opened it|can’t change now/);
-    assert.doesNotMatch(page.text, /\bLate\b|\bmark\b(?!s)/);
-    // Before any feedback: who gives it. Before submitting: the way back to the week.
-    assert.match((await w.feedbackPage("chloe", 2)).text, /No feedback yet\. Rahul and Sofia give feedback once they’ve read it\./);
-    assert.match((await w.feedbackPage("kofi", 2)).text, /You haven’t submitted this answer yet\. It’s on the week’s page\./);
-    assert.match((await w.feedbackPage("rahul", 2)).text, /No feedback yet\. Claudia and admins give feedback once they’ve read it\./);
-    // Nobody reads anybody else's here: Chloe's page is Chloe's.
-    assert.doesNotMatch((await w.feedbackPage("chloe", 2)).text, /Good steps/);
-    for (const who of ["claudia", "tess", "sam", "una"]) assert.ok((await w.feedbackPage(who, 2)).to, who);
+    assert.doesNotMatch(page.text, /\bLate\b|\bmark\b(?!s)|There are no marks|Strong|Solid/);
+    // Before any feedback the week has no Feedback, and the answer's card still says who reads it.
+    const chloe = await w.weekPage("chloe", 2);
+    assert.doesNotMatch(chloe.html, /<section id="feedback"/);
+    assert.match(chloe.text, /Once you submit, or your week locks, Rahul, Sofia, Claudia and admins can read your written answer\./);
+    // Nobody reads anybody else's here: Chloe's page is Chloe's, and nobody else's carries Farah's.
+    assert.doesNotMatch(chloe.text, /Good steps/);
+    for (const who of ["claudia", "tess", "sam", "una", "kofi"]) {
+      const theirs = await w.weekPage(who, 2);
+      assert.doesNotMatch(theirs.text, /Good steps/, who);
+      const week = theirs.overview?.weeks?.find((entry) => entry.weekNumber === 2) ?? null;
+      assert.ok(!week || !week.feedback || week.feedback.length === 0, `${who} is handed feedback`);
+    }
+    // The old feedback page, where emails already sent link, reads nothing and sends its reader to the week's Feedback.
+    for (const who of ["farah", "chloe", "claudia", "tess"]) {
+      const old = await w.feedbackPage(who, 2);
+      assert.equal(old.to, `/learn/${RUN.agi}/weeks/2#feedback`, who);
+      assert.equal(old.wrote, false);
+    }
 
-    // Feedback on Kofi's draft, which his week locked unsent: the email leads here, and here it is.
-    assert.equal((await w.review("rahul", "kofi", 2, feedback("Finish the last line."))).status, 200);
-    const kofi = await w.feedbackPage("kofi", 2);
-    inOrder(kofi.text, ["From Rahul · Tue 17 Nov, 12pm", "Rahul’s comment", "Finish the last line.", "Your answer", "3 words", "lamp lamp lamp"]);
-    assert.doesNotMatch(kofi.text, /You haven’t submitted this answer yet|submitted Tue/);
+    // Feedback on Kofi's draft, which his week locked unsent: it is on his week page, beside what he saved.
+    assert.equal((await feedback("rahul", "kofi", 2, "Finish the last line.")).status, 200);
+    const kofi = await w.weekPage("kofi", 2);
+    inOrder(kofi.text, ["Feedback from Rahul", "Your facilitator · Tue 17 Nov", "Finish the last line.", "Your answer", "lamp lamp lamp"]);
+    assert.doesNotMatch(kofi.text, /submitted Tue/);
   });
 
-  test("the group page's review queue lists what waits, oldest first; Home counts it; the lead's tab lists each group", async () => {
+  test("the group page's Feedback to write lists what waits, oldest first; Home counts it; the lead's tab lists each group", async () => {
     await sendFour();
     const group = await w.groupPage("rahul");
-    inOrder(group.text, ["Review queue", "Written answers", "2 to give feedback on", "Chloe Nguyen", "Submitted Sun 8 Nov, 10am", "Give feedback", "Farah Hussain", "Submitted Tue 10 Nov, 12pm", "Give feedback"]);
+    inOrder(group.text, [
+      "Feedback to write",
+      "2 week 2 answers",
+      "People see your feedback on their page as soon as you save it; the email telling them goes in a batch.",
+      "Chloe Nguyen",
+      "Submitted Sun 8 Nov, 10am",
+      "Write feedback",
+      "Farah Hussain",
+      "Submitted Tue 10 Nov, 12pm",
+      "Write feedback",
+    ]);
     assert.match(group.html, /href="\/learn\/[^"]+\/group\/[^"]+\/written\?week=2&amp;person=chloe"/);
-    assert.doesNotMatch(group.text.slice(group.text.indexOf("Review queue"), group.text.indexOf("Review queue") + 400), /\bRahul\b/);
+    assert.doesNotMatch(group.text.slice(group.text.indexOf("Feedback to write"), group.text.indexOf("Feedback to write") + 400), /\bRahul\b/);
     // The summer's card stays for the summer's answers still waiting, and holds no written answer.
     const summer = group.text.slice(group.text.indexOf("To review"));
     assert.match(summer, /^To review 1 CN Chloe Nguyen · Week 1 exercise/);
@@ -953,31 +941,32 @@ describe("4. the pages, as the boards draw them", () => {
     assert.equal(summary.body.writtenToGive, 2);
     assert.equal(summary.body.toReview, 1, "the summer's count holds the summer's answers alone");
     assert.deepEqual(summary.body.writtenNext, { weekNumber: 2, uid: "chloe" }, "the oldest sent waits first");
+    assert.deepEqual(summary.body.writtenWeeks, [2, 2]);
     const home = await w.home("rahul");
-    assert.match(home.text, /2 to give feedback on Give feedback/);
+    assert.match(home.text, /2 week 2 answers Write feedback/);
     assert.match(home.html, /href="\/learn\/[^"]+\/group\/[^"]+\/written\?week=2&amp;person=chloe"/);
     // The lead's Attendance tab: a line per group, the facilitator's own answer counted for the lead.
     const tab = await w.attendanceTab("claudia");
-    assert.match(tab.text, /Written answers .*Group B 3 to give feedback on Give feedback/);
-    // Feedback sent takes it off the queue.
-    await w.review("rahul", "chloe", 2, feedback());
+    assert.match(tab.text, /Feedback to write .*Group B 3 week 2 answers Write feedback/);
+    // Feedback from anyone takes it off.
+    await feedback("rahul", "chloe", 2);
     assert.equal((await w.summary("rahul")).body.writtenToGive, 1);
   });
 
-  test("the queue waits only for answers their readers may read: a draft in an open week for nobody, a week locked unsent from its lock", async () => {
+  test("Feedback to write waits only for answers their readers may read: a draft in an open week for nobody, a week locked unsent from its lock", async () => {
     w.at(BEFORE_DUE_2);
     await w.write("kofi", 2, { text: words(4) });
     assert.equal((await w.summary("rahul")).body.writtenToGive, 0, "a draft in a week still open waits for nobody");
     w.at(NOW);
     const group = await w.groupPage("rahul");
-    inOrder(group.text, ["Review queue", "Written answers", "1 to give feedback on", "Kofi Asante", "Locked Tue 10 Nov, 6pm, not submitted", "Give feedback"]);
+    inOrder(group.text, ["Feedback to write", "1 week 2 answer", "Kofi Asante", "Locked Tue 10 Nov, 6pm, not submitted", "Write feedback"]);
     assert.deepEqual((await w.summary("rahul")).body.writtenNext, { weekNumber: 2, uid: "kofi" });
     // A week reopened is unsent again, and waits for nobody until it is submitted again.
     assert.equal((await w.reopenWeek("rahul", "kofi", 2)).status, 200);
     assert.equal((await w.summary("rahul")).body.writtenToGive, 0);
     assert.equal((await w.submitWeek("kofi", 2)).status, 200);
     assert.equal((await w.summary("rahul")).body.writtenToGive, 1);
-    inOrder((await w.groupPage("rahul")).text, ["Kofi Asante", "Submitted Tue 17 Nov, 12pm", "Give feedback"]);
+    inOrder((await w.groupPage("rahul")).text, ["Kofi Asante", "Submitted Tue 17 Nov, 12pm", "Write feedback"]);
   });
 });
 
@@ -1075,7 +1064,7 @@ describe("6. finishing's column, the rubric's setting, the email", () => {
   });
 
   test("a rubric's levels are words; the stored rubric is read by one function; problems say what to change", () => {
-    const { normalizeRubric, rubricProblems, rubricOf, givenLevelsOf } = w.lib.rubric;
+    const { normalizeRubric, rubricProblems, rubricOf, givenLevelsOf, normalizeGivenLevels } = w.lib.rubric;
     assert.deepEqual(rubricOf({ rubric: RUBRIC }), RUBRIC);
     assert.equal(rubricOf({ rubric: { levels: ["One"], rows: [{ name: "A", descriptors: ["x"] }] } }), null, "one level is nothing to choose between");
     assert.equal(normalizeRubric("not a rubric"), null);
@@ -1083,7 +1072,12 @@ describe("6. finishing's column, the rubric's setting, the email", () => {
       "Two levels are called “A”. Give each its own name.",
       "“R” has no description for A. Write one in that cell.",
     ]);
-    assert.deepEqual(givenLevelsOf(RUBRIC, w.levels("Solid")).levels.map((level) => level.level), ["Solid", "Solid", "Solid", "Solid"]);
+    // Feedback is a signed comment now: nothing gives a level any more, and the levels feedback carried before still read.
+    assert.equal(givenLevelsOf, undefined, "the rubric still offers a way to give levels as feedback");
+    assert.deepEqual(
+      normalizeGivenLevels([{ row: "A clear view", level: "Solid", descriptor: "States a view" }, { row: "", level: "x" }, "junk"]),
+      [{ row: "A clear view", level: "Solid", descriptor: "States a view" }],
+    );
     // A pasted cell's entities are read once: "&amp;lt;" is the "&lt;" the
     // Markdown says, never a "<"; and "x < y" and "Q & A" read as typed.
     const pasted = w.lib.rubricMarkdown.readRubricMarkdown(
@@ -1099,14 +1093,14 @@ describe("6. finishing's column, the rubric's setting, the email", () => {
     }
   });
 
-  test("the email's words come from records, and it is the transactional kind with no feedback in it", () => {
-    const said = w.lib.email.writtenFeedbackWords({ weekNumber: 3, byFirstName: "Rahul", answerName: "your threat model" });
-    assert.deepEqual(said, {
-      subject: "Feedback on your week 3 written answer",
-      lead: "Rahul has left feedback on your threat model.",
-      buttonLabel: "Read your feedback",
-    });
-    assert.equal(w.lib.email.feedbackPageUrl("https://naisi.invalid", RUN.agi, 3), `https://naisi.invalid/learn/${encodeURIComponent(RUN.agi)}/weeks/3/feedback`);
+  test("the email's words come from records, and it carries no feedback: who left it, on what, and the week's page", () => {
+    const said = w.lib.feedbackWords;
+    const about = w.lib.feedbackModel.emailAboutOf([{ weekNumber: 3, on: "writtenAnswer", byName: "Rahul", at: new Date("2026-11-17T10:00:00Z") }]);
+    assert.deepEqual(
+      [said.emailSubjectWords("AGI Strategy"), said.emailLeadWords(about), said.READ_YOUR_FEEDBACK],
+      ["New feedback on your AGI Strategy work", "Rahul has left feedback on your week 3 written answer.", "Read your feedback"],
+    );
+    assert.equal(w.lib.feedbackSend.feedbackWeekUrl("https://naisi.invalid", RUN.agi, 3), `https://naisi.invalid/learn/${encodeURIComponent(RUN.agi)}/weeks/3#feedback`);
     assert.equal(w.lib.model.answerNameOf("Your threat model, the week’s written answer"), "your threat model");
     assert.equal(w.lib.model.answerNameOf("Part four"), "your written answer");
   });
@@ -1127,10 +1121,24 @@ describe("6. finishing's column, the rubric's setting, the email", () => {
     assert.equal(said.dueLineWords("dayBefore", { dateKey: "2026-11-02" }, { todayKey: "2026-11-01", dayBeforeTime: "12:00", first: false }), "Due by noon, Mon 2 Nov.");
     const at = new Date("2026-11-16T22:42:00Z");
     assert.deepEqual(
-      [said.SENT, said.sentLineWords(at), said.sentOnWords(at), said.sentMetaWords(266, at), said.listSentWords(at), said.NOT_SENT_YET],
-      ["Submitted", "Submitted Mon 16 Nov, 10:42pm.", "Submitted Mon 16 Nov", "266 words · submitted Mon 16 Nov, 10:42pm", "Submitted Mon 16 Nov, 10:42pm", "Not submitted yet"],
+      [said.SENT, said.sentLineWords(at), said.sentOnWords(at), said.listSentWords(at), said.NOT_SENT_YET],
+      ["Submitted", "Submitted Mon 16 Nov, 10:42pm.", "Submitted Mon 16 Nov", "Submitted Mon 16 Nov, 10:42pm", "Not submitted yet"],
     );
-    assert.equal(said.sentMetaWords(3, null), "3 words");
     assert.equal(said.listLockedWords(at), "Locked Mon 16 Nov, 10:42pm, not submitted");
+    // The feedback page's "266 words · submitted ..." went with the page: the feedback the writer reads,
+    // on their week page, is signed and dated and never says it was sent, nor carries a dash.
+    const feedbackWords = w.lib.feedbackWords;
+    assert.doesNotMatch(
+      Object.values(feedbackWords).map((value) => (typeof value === "string" ? value : "")).join(" "),
+      /[–—]/,
+    );
+    for (const card of [
+      { byRole: "facilitator", byName: "Rahul", at: at.toISOString() },
+      { byRole: "lead", byName: "Claudia", at: at.toISOString() },
+      { byRole: "admin", byName: "Zach", at: at.toISOString() },
+    ]) {
+      const read = `${feedbackWords.cardHeadingWords(card)} ${feedbackWords.cardByWords(card, "AGI Strategy")}`;
+      assert.doesNotMatch(read, /\bsent\b|emailed|[–—]/i, read);
+    }
   });
 });

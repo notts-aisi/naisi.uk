@@ -69,10 +69,6 @@ const ADDRESSES =
 const TELLS = /\bisReflectionResponse\(|\bisFillInResponse\(|\bisOwnBoxResponse\(|\.kind\s*===\s*["'`](?:reflection|fillIn)["'`]/;
 
 const READERS = {
-  "app/(app)/learn/[runId]/weeks/[n]/feedback/page.tsx": {
-    treats: "tells",
-    why: "the writer's own feedback page: their own written answer, read by its id; a reflection's row reads as no answer",
-  },
   "app/api/courses/exercise-responses/[responseId]/review/route.ts": {
     treats: "tells",
     answers: true,
@@ -147,9 +143,9 @@ const READERS = {
     treats: "tells",
     why: "the written answer's writer: it refuses to write over a reflection's row, or any row not counted in words",
   },
-  "app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts": {
+  "lib/courses/feedback/access.ts": {
     treats: "tells",
-    why: "opening, reopening and feedback on one written answer: a reflection's row is refused as an answer not sent",
+    why: "feedback on one person's week: their written answer read by its id, only for whether it may be read; a reflection's row reads as no answer",
   },
   "lib/courses/facilitatorGroup.ts": {
     treats: "tells",

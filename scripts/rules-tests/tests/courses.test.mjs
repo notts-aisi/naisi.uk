@@ -927,7 +927,7 @@ describe("courseGroups", () => {
 // ---------------------------------------------------------------------------
 
 describe("server-owned course collections", () => {
-  it("refuses EVERY client write — member and admin — on all five collections", async () => {
+  it("refuses EVERY client write, a member's and an admin's, on every server-owned collection", async () => {
     await seedCast();
     const member = await asUser("learner");
     const admin = await asUser("admin1");
@@ -940,6 +940,9 @@ describe("server-owned course collections", () => {
       // The week you submit: where a week stands, and the log of what was done to it.
       ["courseWeekWork", "run1__learner__w01", { runId: "run1", uid: "learner", weekId: "w01", submittedAt: new Date() }],
       ["courseWorkLog", "log1", { runId: "run1", uid: "learner", kind: "tick", at: new Date() }],
+      // Feedback on somebody's week, and the batch email's own record.
+      ["courseFeedback", "fb1", { runId: "run1", uid: "learner", weekId: "w01", on: { kind: "week" }, text: "Good.", byUid: "facil", byRole: "facilitator" }],
+      ["courseFeedbackSends", "send1", { runId: "run1", kind: "test", byUid: "admin1", at: new Date() }],
     ];
     for (const [collection, id, data] of attempts) {
       await assertFails(member.collection(collection).doc(id).set(data));
@@ -995,6 +998,32 @@ describe("server-owned course collections", () => {
       await assertFails(db.collection("courseWeekWork").doc("run1__learner__w01").get());
       await assertFails(db.collection("courseWorkLog").doc("log1").get());
       await assertFails(db.collection("courseWorkLog").where("uid", "==", "learner").get());
+    }
+  });
+
+  it("feedback and the batch's own record are read and written by no browser: not the person it is about, its writer, or an admin", async () => {
+    await seedCast();
+    await seed(async (db) => {
+      await db.collection("courseFeedback").doc("fb1").set({
+        runId: "run1",
+        uid: "learner",
+        weekId: "w01",
+        weekNumber: 1,
+        on: { kind: "week" },
+        text: "Good.",
+        byUid: "facil",
+        byRole: "facilitator",
+      });
+      await db.collection("courseFeedbackSends").doc("send1").set({ runId: "run1", kind: "send", byUid: "admin1", at: new Date() });
+    });
+    for (const who of ["learner", "facil", "admin1"]) {
+      const db = await asUser(who);
+      await assertFails(db.collection("courseFeedback").doc("fb1").get());
+      await assertFails(db.collection("courseFeedback").where("uid", "==", "learner").get());
+      await assertFails(db.collection("courseFeedback").doc("fb1").update({ text: "Changed." }));
+      await assertFails(db.collection("courseFeedback").doc("fb1").delete());
+      await assertFails(db.collection("courseFeedbackSends").doc("send1").get());
+      await assertFails(db.collection("courseFeedbackSends").where("runId", "==", "run1").get());
     }
   });
 

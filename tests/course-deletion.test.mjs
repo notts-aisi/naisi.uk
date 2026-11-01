@@ -339,6 +339,12 @@ const RUN_COUNT_KEYS = [
   // for each, as packsAndCases was.
   "weekWork",
   "workLog",
+  // `courseFeedback` and `courseFeedbackSends`, the feedback on people's
+  // weeks and the batch email's own record. Keyed by `runId`, added to the
+  // manifest in the same change that gave the cascade a stage for each, as
+  // weekWork was.
+  "feedback",
+  "feedbackSends",
   // `coursePairs`, who was paired with whom for a session in pairs and who
   // was bringing a laptop. Keyed by `runId`, added to the manifest in the same
   // change that gave the cascade a stage for it, as packsAndCases was.
@@ -429,22 +435,22 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   const counts = Object.fromEntries(
     [...RUN_COUNT_KEYS, ...COURSE_COUNT_KEYS].map((k) => [k, 10]),
   );
-  // Forty-two counters at ten rows each: thirty-seven that die,
+  // Forty-four counters at ten rows each: thirty-nine that die,
   // `materialNotes`, `auditRows`, `schedulerMarkers`, the V3 `coursePages`,
   // the V3 W2 `registerTasks`, the course hub's `pitches`, `updates`,
   // `groupNotes`, `groupSharedNotes`, `sessionReports`, `placementNotes`, v13's `bestAnswers`
   // and `pangramChecks`, `packsAndCases`, the week you submit's `weekWork`
-  // and `workLog`, `pairs`, `teams`,
+  // and `workLog`, feedback's `feedback` and `feedbackSends`, `pairs`, `teams`,
   // `teamEntries`, `finishing`, `facilitating`, `ratings`, `certificates`,
   // `anonymousFeedback`, `predictions` and `recordOpenings`, and the course's
   // `facilitatorGuide` among them, plus the five survivors
   // (`admissionSeatOffers` is released, `dataExportRows` is retained,
   // `certificatesKept` stays without its run).
-  assert.equal(sumCounts(counts), 420);
+  assert.equal(sumCounts(counts), 440);
   // The progress denominator counts only what actually dies, so a large
   // retained counter cannot inflate it into a bar that never fills. Adding a
   // survivor must not move this number; adding a DESTROYED counter must.
-  assert.equal(destroyedTotal(counts), 370);
+  assert.equal(destroyedTotal(counts), 390);
 });
 
 test("MODEL — every key the cascade can report has copy, including the ones the manifest never shows", () => {
@@ -674,6 +680,10 @@ test("MODEL — the cascade's declared stage order is the one the contract needs
     // leaves, every record names a week, so they go before the weeks.
     "weekWork",
     "workLog",
+    // The feedback on people's weeks and the batch email's own record:
+    // run-keyed leaves, every piece names a week, so they go before the weeks.
+    "feedback",
+    "feedbackSends",
     // Who was paired with whom for a session in pairs: a run-keyed leaf,
     // every record names a group and a block of a week, so it goes before both.
     "pairs",

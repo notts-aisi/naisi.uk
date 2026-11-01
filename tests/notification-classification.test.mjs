@@ -522,11 +522,15 @@ const REGISTRY = {
   "src/lib/courses/leaveRun.ts#sendCourseDroppedOutEmail": T(
     "The call site of that note, in the one leave both doors take: Leave the programme on the programme page, and I can’t make it from somebody in a group on their application page. It goes to the person who left and nobody else.",
   ),
-  "src/lib/email/writtenFeedbackEmail.ts#sendEmail": T(
-    "The one short \"feedback is waiting\" email (Q34 B): feedback has been sent on somebody's own written answer, and this says it is on the site, with a link to their feedback page. Owed to the person who sent their answer for feedback, as the course hub's other messages to one person about their own place and work are (the placement email, the leaving note), so it consults no notification preference.",
+  "src/lib/courses/feedback/send.ts#sendEmail": T(
+    "The \"you have feedback\" email, sent in a batch: one message to each person whose feedback an admin's press left ticked, however many pieces it announces, saying feedback on their own week is on the site with a link to that week's page, and carrying none of it; and a rehearsal of the first such email, marked as a test, to the address on the presser's own session and nobody else. About the person's own work, as the course hub's other messages to one person about their own place and work are (the placement email, the leaving note, the certificates), so it consults no notification preference. One call each.",
+    2,
   ),
-  "src/app/api/courses/runs/[runId]/written-answers/[answerId]/review/route.ts#sendWrittenFeedbackEmail": T(
-    "The call site of that email: once per feedback sent, after the feedback is saved, to the address on the account of the person whose answer it is and nobody else.",
+  "src/app/api/courses/runs/[runId]/feedback/send/route.ts#sendFeedbackBatch": T(
+    "The call site of those emails: an admin's press of \"Send N emails\" on the programme's Overview, to the address on the account of each person the ticked feedback is about and nobody else, consulting nobody's notification row, as the certificates do not.",
+  ),
+  "src/app/api/courses/runs/[runId]/feedback/send/test/route.ts#sendFeedbackTest": T(
+    "\"Send a test to me\" beside that button: the first person's email, marked as a test, to the address on the presser's own session and nobody else.",
   ),
   "src/lib/email/admissionEmails.ts#sendEmail": T(
     "The admissions template's send door, shared by five callers. It consults nothing itself; the two scheduled callers consult the courses row before they reach it and carry their own grid entries.",

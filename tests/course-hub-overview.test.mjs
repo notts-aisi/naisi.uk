@@ -69,6 +69,8 @@ const CLASS_NAMES = "export default new Proxy({}, { get: (_, name) => String(nam
 const SESSION = "export async function getCurrentUser() { return globalThis.__hubOverviewPages.user; }";
 const STYLESHEETS = [
   "./ProgrammeOverview.module.css",
+  // The Overview's Feedback to send draws with feedback's own stylesheet.
+  "./feedback.module.css",
   "./editor.module.css",
   "@/features/applications/editor/editor.module.css",
   "./ProgrammeFrame.module.css",

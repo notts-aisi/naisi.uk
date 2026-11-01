@@ -605,7 +605,7 @@ export const ROUTES = {
   "/api/admin/registrations/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseSessionReportsCleared", "courseTeamEntriesCleared", "courseTeamsCleared", "courseWeekWorkDeleted", "courseWorkLogDeleted", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFeedbackCleared", "courseFeedbackDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseSessionReportsCleared", "courseTeamEntriesCleared", "courseTeamsCleared", "courseWeekWorkDeleted", "courseWorkLogDeleted", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -694,7 +694,7 @@ export const ROUTES = {
   "/api/admin/users/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseSessionReportsCleared", "courseTeamEntriesCleared", "courseTeamsCleared", "courseWeekWorkDeleted", "courseWorkLogDeleted", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFeedbackCleared", "courseFeedbackDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseSessionReportsCleared", "courseTeamEntriesCleared", "courseTeamsCleared", "courseWeekWorkDeleted", "courseWorkLogDeleted", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -2042,7 +2042,7 @@ export const ROUTES = {
   "/api/courses/groups/[groupId]/summary": {
     GET: {
       expect: adminOnly(404),
-      fields: ["groupId", "expected", "notYetTold", "toReview", "writtenToGive", "writtenNext", "nextEmail", "leftRecently", "coFacilitators", "whosComing", "write"],
+      fields: ["groupId", "expected", "notYetTold", "toReview", "writtenToGive", "writtenWeeks", "writtenNext", "nextEmail", "leftRecently", "coFacilitators", "whosComing", "write"],
       why:
         "What a facilitator's Home says about their group, behind the group page's own gate: a live " +
         "facilitator of the group or an admin. A missing group and one that is not the caller's collapse " +
@@ -2745,13 +2745,48 @@ export const ROUTES = {
         "valid body arrives.",
     },
   },
-  "/api/courses/runs/[runId]/written-answers/[answerId]/review": {
+  "/api/courses/runs/[runId]/feedback": {
     POST: {
       expect: signedIn(400),
       why:
-        "View-as is refused first, then the session, then the body is checked before anything is " +
-        "read (which week, whose answer, what to do), so every signed-in persona meets the same 400 " +
-        "on an empty one. The one gate is asked once a valid body arrives, before any answer is read.",
+        "Saving a piece of feedback on somebody's week: view-as is refused first, then the session, then " +
+        "the body is checked before anything is read (whose week, which week, what it is on, and its " +
+        "words), so every signed-in persona meets the same 400 on an empty one. The one gate on whose " +
+        "work a reader may act on is asked once a valid body arrives, before anything of theirs is read.",
+    },
+    PATCH: {
+      expect: signedIn(400),
+      why:
+        "Changing a piece's words: view-as is refused first, then the session, then the body is checked " +
+        "before anything is read (which piece, and its words), so every signed-in persona meets the same " +
+        "400 on an empty one. The piece, the one gate on whose work it is about and its writer are asked " +
+        "once a valid body arrives, every refusal before the gate the same 404.",
+    },
+    DELETE: {
+      expect: signedIn(400),
+      why:
+        "Deleting a piece: view-as is refused first, then the session, then the body is checked before " +
+        "anything is read (which piece), so every signed-in persona meets the same 400 on an empty one. " +
+        "The piece and the one gate are asked once a valid body arrives; its writer deletes it until its " +
+        "email has gone, an admin whenever.",
+    },
+  },
+  "/api/courses/runs/[runId]/feedback/send": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Sending the \"you have feedback\" emails: view-as is refused first, then the session, then an " +
+        "admin, decided on the session before anything is read, so every other persona is forbidden. The " +
+        "admin meets the body check: an empty one names no feedback and no numbers.",
+    },
+  },
+  "/api/courses/runs/[runId]/feedback/send/test": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "A test of the feedback emails takes no body: view-as is refused first, then the session, then an " +
+        "admin, decided on the session before anything is read, so every other persona is forbidden. The " +
+        "admin is told the battery's run is not there, and nothing is sent.",
     },
   },
   "/api/courses/certificates/[code]": {
@@ -4590,8 +4625,8 @@ export const PAGES = {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
     why:
       "A run under /learn: the run layout sends every approved account back to /learn when the run is " +
-      "missing, and the page shows the caller their own answer alone, sending anybody with no place " +
-      "and no group to the run's home.",
+      "missing. The page itself reads nothing: it sends whoever the layout admits to the week's own " +
+      "page, at its Feedback, which keeps its own gate.",
   },
   "/(app)/learn/draw/[groupId]": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
@@ -6088,8 +6123,19 @@ export const REAL_ROUTES = {
   "/api/courses/runs/[runId]/written-answers/[answerId]": {
     PUT: seatWrite("writing a written answer", { weekId: "w01", text: "Written by the persona battery." }),
   },
-  "/api/courses/runs/[runId]/written-answers/[answerId]/review": {
-    POST: bodyFirst("Then the one gate on whose answer it is."),
+  "/api/courses/runs/[runId]/feedback": {
+    POST: bodyFirst("Then the one gate on whose work it is, asked before anything of theirs is read."),
+    PATCH: bodyFirst("Then the piece, and the one gate on whose work it is about, every refusal before the gate the same 404."),
+    DELETE: bodyFirst("Then the piece, and the one gate on whose work it is about, every refusal before the gate the same 404."),
+  },
+  "/api/courses/runs/[runId]/feedback/send": {
+    POST: adminAlone("Sending the feedback emails", c(400, "Admitted on the session, then the body is checked: an empty one names no feedback and no numbers, so nothing is read or sent.")),
+  },
+  "/api/courses/runs/[runId]/feedback/send/test": {
+    POST: adminAlone(
+      "A test of the feedback emails",
+      c(409, "Admitted on the session; nobody's feedback on the run is waiting for its email, so there is no email to test and nothing is sent."),
+    ),
   },
 
   // ---- A programme's survey ---------------------------------------------------
@@ -6406,9 +6452,9 @@ export const REAL_PAGES = {
     leadWhy: LEAD_LEARN_ONLY_WHY,
   }),
   "/(app)/learn/[runId]/weeks/[n]/feedback": learnPage({
-    admin: c("run", "An admin holds no place and facilitates no group: sent to the run's home."),
-    facilitator: c("week", "Holds a place, and week 1 is a plain week with no written answer to give feedback on: sent to week 1."),
-    participant: c("week", "Holds a place, and week 1 is a plain week with no written answer: sent to week 1."),
+    admin: c("week", "The old feedback page reads nothing: whoever the run layout admits is sent to the week's page, at its Feedback."),
+    facilitator: c("week", "The old feedback page reads nothing: sent to the week's page, at its Feedback, which keeps its own gate."),
+    participant: c("week", "The old feedback page reads nothing: sent to the week's page, at its Feedback, which keeps its own gate."),
   }),
 
   // ---- Course-scoped, group-scoped and ask-scoped pages under /learn --------------
