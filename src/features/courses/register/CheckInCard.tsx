@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 import Chip from "@/components/ui/Chip";
 import Modal from "@/components/ui/Modal";
@@ -24,8 +24,8 @@ import styles from "./CheckInCard.module.css";
  *  - WHILE IT IS OPEN: "4 of 6 have sent it", never who; "Show the QR code",
  *    which shows the room the code that opens it signed in; "Close it now",
  *    asked once, never undone; and when it closes by itself.
- *  - ONCE CLOSED: how many sent it, and the group's totals from three
- *    answers, never a comment and never who. Beside it, the group's latest
+ *  - ONCE CLOSED: the group's totals from three answers, with how many
+ *    answered, never a comment and never who. Beside it, the group's latest
  *    closed check-in before this session's, the same way.
  *
  * Everything shown is the route's (`checkInRegisterView`) but the count on
@@ -152,7 +152,7 @@ export default function CheckInCard({ groupId, sessionKey, marks, rows }: CheckI
       {card && (
         <section className={styles.card} aria-labelledby="check-in-title">
           <h3 id="check-in-title" className={styles.title}>
-            {CHECK_IN_CARD.title}
+            {card.state === "closed" ? card.heading : CHECK_IN_CARD.title}
           </h3>
           {card.state !== "closed" && <p className={styles.body}>{CHECK_IN_CARD.body}</p>}
 
@@ -190,7 +190,6 @@ export default function CheckInCard({ groupId, sessionKey, marks, rows }: CheckI
                 <Chip tone="neutral" size="sm">
                   {CHECK_IN_CARD.closed}
                 </Chip>
-                <span data-testid="check-in-sent">{card.sent}</span>
               </p>
               <Totals totals={card.totals} tooFew={card.tooFew} />
             </>
@@ -267,10 +266,10 @@ function Totals({ totals, tooFew }: { totals: string[] | null; tooFew: string | 
   return (
     <p className={styles.totals} data-testid="check-in-totals">
       {totals.map((part, at) => (
-        <span key={at} className={styles.part}>
-          {at > 0 ? " · " : ""}
-          {part}
-        </span>
+        <Fragment key={at}>
+          {at > 0 ? " · " : null}
+          <span className={styles.part}>{part}</span>
+        </Fragment>
       ))}
     </p>
   );

@@ -928,6 +928,20 @@
   cursor: pointer;
 }
 
+/* The summary's own marker, since a flex summary draws none: right, then down once open. */
+.checkInSummary::before {
+  content: "▸";
+  color: var(--color-text-muted);
+}
+
+.checkInGroup[open] > .checkInSummary::before {
+  content: "▾";
+}
+
+.checkInSummary::-webkit-details-marker {
+  display: none;
+}
+
 .checkInSummary:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;

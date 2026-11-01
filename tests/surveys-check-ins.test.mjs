@@ -616,7 +616,7 @@ describe("5. the register's card, as every kind of caller, and its floors", () =
     await answerAs("chloe", ANSWERS(4, "The debate"));
     at(CLOSES);
     let view = (await card("rahul")).body.card;
-    assert.deepEqual(view, { state: "closed", sent: "2 of 3 sent it", totals: null, tooFew: "2 of 3 answered. Too few answers to show." });
+    assert.deepEqual(view, { state: "closed", heading: "Week 2’s check-in, Group B", totals: null, tooFew: "2 of 3 answered. Too few answers to show." });
     // A third answer, kept before it closed.
     at(DURING);
     await answerAs("farah", ANSWERS(3, "Chips"));

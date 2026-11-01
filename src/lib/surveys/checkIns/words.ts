@@ -184,11 +184,6 @@ export function sentSoFarWords(answered: number, of: number): string {
   return `${answered} of ${of} ${answered === 1 ? "has" : "have"} sent it`;
 }
 
-/** Once closed: "5 of 6 sent it". */
-export function sentInAllWords(answered: number, of: number): string {
-  return `${answered} of ${of} sent it`;
-}
-
 /** Under the open card: "It closes by itself at 11pm. Then you see your group’s totals, never who said what." */
 export function closesByItselfWords(closesAt: Date, now: Date): string {
   return `It closes by itself at ${closesClockWords(closesAt, now)}. Then you see your group’s totals, never who said what.`;
@@ -197,8 +192,10 @@ export function closesByItselfWords(closesAt: Date, now: Date): string {
 /** The question in front of "Close it now": "Close the check-in? 2 of 6 haven’t sent it." */
 export function closeConfirmWords(answered: number, of: number): string {
   const left = of - answered;
-  if (left <= 0) return "Close the check-in? Everybody here has sent it.";
-  return `Close the check-in? ${left} of ${of} ${left === 1 ? "hasn’t" : "haven’t"} sent it, and it can’t be opened again.`;
+  const again = "and it can’t be opened again.";
+  if (left <= 0) return `Close the check-in? Everybody here has sent it, ${again}`;
+  if (answered === 0) return of === 1 ? `Close the check-in? The 1 here hasn’t sent it, ${again}` : `Close the check-in? None of the ${of} have sent it, ${again}`;
+  return `Close the check-in? ${left} of ${of} ${left === 1 ? "hasn’t" : "haven’t"} sent it, ${again}`;
 }
 
 /** The count on the button no longer matches the register: nothing was sent. */

@@ -1821,8 +1821,8 @@ is shown nothing of it.
 - While it is open: how many have sent it, never who; "Show the QR code";
   "Close it now", asked once; and when it closes by itself (11pm, or an hour
   after a late session ends).
-- Once it has closed: how many sent it, and the group's totals from three
-  answers, never a comment. Beside it, the group's latest closed check-in
+- Once it has closed: the group's totals from three answers, with how many
+  answered, never a comment. Beside it, the group's latest closed check-in
   before this session's.
 
 Marking somebody there while the session's check-in is open gives them their

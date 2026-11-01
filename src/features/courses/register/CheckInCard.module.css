@@ -114,9 +114,16 @@
   color: var(--color-text);
 }
 
-/* Each total wraps as one piece, never across two lines. */
+/* Each total wraps as one piece where it fits on a line; a long part's
+   words still wrap rather than widen the page. */
 .part {
   white-space: nowrap;
+}
+
+@media (max-width: 36rem) { /* --bp-sm */
+  .part {
+    white-space: normal;
+  }
 }
 
 .code {
@@ -167,11 +174,6 @@
 @media (max-width: 48rem) { /* --bp-md */
   .stack {
     max-width: none;
-  }
-
-  .actions {
-    flex-direction: column;
-    align-items: stretch;
   }
 
   .confirmActions {

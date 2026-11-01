@@ -11,7 +11,6 @@ import { readCheckInSession, readRegisterMarks } from "./sessionRead";
 import {
   closeConfirmWords,
   closesByItselfWords,
-  sentInAllWords,
   sentSoFarWords,
   tooFewWords,
   totalsHeadingWords,
@@ -28,8 +27,8 @@ import {
  *    (the group's facilitators), so the button counts who it is for.
  *  - While it is open: how many have sent it, of how many it is for, never
  *    who; when it closes; and the code to show the room.
- *  - Once it has closed: how many sent it, and its totals from three answers
- *    (`facilitatorCount`), never a comment, never who.
+ *  - Once it has closed: its totals from three answers, how many answered
+ *    among them (`facilitatorCount`), never a comment, never who.
  *
  * Beside it, the group's latest closed check-in before this session's, with
  * its totals the same way. Every answer is counted here and none leaves: what
@@ -42,7 +41,8 @@ export type CheckInCardView =
   /** On its session's day, not opened yet. `notCounted` are the rows it never reaches: the group's facilitators. */
   | { state: "ready"; closes: string; notCounted: string[] }
   | { state: "open"; sent: string; answered: number; of: number; closes: string; confirm: string; code: CheckInCodeView }
-  | { state: "closed"; sent: string; totals: string[] | null; tooFew: string | null };
+  /** Once it has closed: "Week 3’s check-in, Group C", and its totals (with how many answered) or too few. */
+  | { state: "closed"; heading: string; totals: string[] | null; tooFew: string | null };
 
 export type CheckInTotalsView = { heading: string; totals: string[] | null; tooFew: string | null };
 
@@ -122,7 +122,11 @@ export async function checkInRegisterView(
     };
   } else if (survey) {
     const count = await closedCount(db, survey);
-    card = { state: "closed", sent: sentInAllWords(count.answered, count.of), ...totalsLines(count) };
+    card = {
+      state: "closed",
+      heading: totalsHeadingWords(survey.audience.weekNumber, survey.checkIn.groupName || group.name),
+      ...totalsLines(count),
+    };
   } else if (window && !session.cancelled && windowState(window, now) === "now") {
     const register = await readRegisterMarks(db, runId, group.id, session);
     if (register.held) {

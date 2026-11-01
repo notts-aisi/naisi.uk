@@ -771,11 +771,11 @@ and `src/features/courses/register/CheckInCard.tsx` (the card).
   floored view, `GET .../check-in?session=w03`, the register's own gate): on
   the session's day, before it opens, "Open it for the 6 here" counted from the
   register as it is tapped; while it is open, "4 of 6 have sent it", never who,
-  the code and "Close it now"; once it has closed, how many sent it and its
-  totals from three answers (`TOTALS_FROM`: usefulness and confidence on
-  average, how many did most or all of the reading, the parts named unclear
-  with how many named each), below that "Too few answers to show.", never a
-  comment; and beside it the group's latest closed check-in before this
+  the code and "Close it now"; once it has closed, its totals from three
+  answers (`TOTALS_FROM`: usefulness and confidence on average, how many of
+  how many answered, how many did most or all of the reading, the parts named
+  unclear with how many named each), below that "2 of 6 answered. Too few
+  answers to show.", never a comment; and beside it the group's latest closed check-in before this
   session's, the same way. The short answers are never read for it.
 - **What admins see**: one line a programme on Run NAISI › Surveys, opening on
   its check-ins, each with a survey's own pages: Results, Who answered, one
