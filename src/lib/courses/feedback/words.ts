@@ -237,7 +237,9 @@ export const NO_RUN_HERE = "There’s no programme run here.";
 
 /** The numbers on the button are no longer what a press would send. */
 export function countMovedWords(pieces: number, people: number): string {
-  return `There are now ${pieces} ${pieces === 1 ? "piece" : "pieces"} of feedback to email, to ${people} ${people === 1 ? "person" : "people"}. Check the list, then press again.`;
+  if (pieces === 0) return "There’s no feedback left to email.";
+  const now = pieces === 1 ? "There is now 1 piece" : `There are now ${pieces} pieces`;
+  return `${now} of feedback to email, to ${people} ${people === 1 ? "person" : "people"}. Check the list, then press again.`;
 }
 
 /** What a test did. */

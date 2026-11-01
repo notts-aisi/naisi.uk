@@ -384,6 +384,10 @@ describe("3. the batch: an admin's, a test first, the count a promise, one email
     const gone = await w.send("zach", { ids: [first], pieces: 1, people: 1 });
     assert.deepEqual([gone.status, gone.body.error], [409, words.countMovedWords(1, 1)]);
     assert.equal(w.world.mail.length, 0);
+    // The numbers read as a sentence, one or many or none.
+    assert.equal(words.countMovedWords(2, 2), "There are now 2 pieces of feedback to email, to 2 people. Check the list, then press again.");
+    assert.equal(words.countMovedWords(1, 1), "There is now 1 piece of feedback to email, to 1 person. Check the list, then press again.");
+    assert.equal(words.countMovedWords(0, 0), "There’s no feedback left to email.");
     // The body is checked after the session: no ids, nothing ticked.
     assert.equal((await w.send("zach", {})).status, 400);
     assert.deepEqual((await w.send("zach", { ids: [], pieces: 0, people: 0 })).body, { error: words.NOTHING_TICKED });
