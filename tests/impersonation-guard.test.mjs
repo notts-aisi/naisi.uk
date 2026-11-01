@@ -86,6 +86,12 @@ const GUARDED_TREES = [
   // or write the session account, so they are on ALLOWLIST with that reason.
   "src/app/api/register",
   "src/app/api/account",
+
+  // Who a message is for. Both routes today only read, each a POST for the
+  // choice of tags its body carries, and are on ALLOWLIST with that reason.
+  // The tree is registered so a route added beside them that writes (a kept
+  // list, a send) is caught by the sweep.
+  "src/app/api/audience",
 ];
 
 /**
@@ -601,6 +607,14 @@ const ALLOWLIST = [
   [
     "src/app/api/register/resend/route.ts",
     "Public, unauthenticated resend keyed on the body email. It only ever re-sends to a pending registration for that address and never reads or writes the session user, so a view-as session cannot turn it against the impersonated member.",
+  ],
+  [
+    "src/app/api/audience/route.ts",
+    "Reads only. Its POST carries a choice of tags and answers how many people it reaches, and it writes and sends nothing, so a view-as session reads what the member being viewed would be offered, which is the question view-as exists to answer.",
+  ],
+  [
+    "src/app/api/audience/who/route.ts",
+    "Reads only. Its POST carries a choice of tags and answers the names it reaches, never an address, and it writes and sends nothing, so a view-as session reads what the member being viewed may read.",
   ],
 ];
 

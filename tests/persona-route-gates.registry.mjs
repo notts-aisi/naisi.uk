@@ -1547,6 +1547,35 @@ export const ROUTES = {
         "is forbidden before the read.",
     },
   },
+  "/api/audience": {
+    GET: {
+      expect: approvedOnly(200),
+      fields: ["groups", "names", "rows", "term"],
+      why:
+        "The tags a person may use to choose who a message is for, from their own records: every approved " +
+        "account is answered, a member who leads and facilitates nothing with an empty list, and a pending or " +
+        "rejected account is refused before anything is read. Names come only to admins and SU-recognised " +
+        "committee, and never an address.",
+    },
+    POST: {
+      expect: approvedOnly(200),
+      fields: ["count"],
+      why:
+        "Who a choice of tags reaches, as counts: an empty body is a choice of nothing, which every approved " +
+        "account may count, so the answer is the gate's and never a record's. A tag the caller may not use " +
+        "refuses the whole request (tests/audience-picker.test.mjs runs that as every kind of caller).",
+    },
+  },
+  "/api/audience/who": {
+    POST: {
+      expect: approvedOnly(200),
+      fields: ["people"],
+      why:
+        "The names behind the picker's count, never an address or an account id: an empty body names nobody " +
+        "to every approved account, and a tag the caller may not use refuses the whole request before a name " +
+        "is read.",
+    },
+  },
   "/api/auth/google/callback": {
     POST: {
       expect: everyone(303),

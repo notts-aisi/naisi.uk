@@ -125,6 +125,14 @@ const READERS = {
     asks: 1,
     why: "who reads a run's updates: an untold seat reads nothing, as no seat read nothing, so no update to its group is shown to it",
   },
+  "lib/audience/load.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "who a message may be for: a group's tag holds the people Publish has told are in it, whoever is asking, an " +
+      "admin included, and a facilitator runs only those, so a seat nobody has told is in no group's tag and no " +
+      "message chosen by one reaches it; somebody who left after being told is listed as having left",
+  },
   "lib/courses/weekOne/door.ts": {
     kind: "told",
     asks: 1,
