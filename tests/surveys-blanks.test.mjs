@@ -17,7 +17,7 @@
  *     A blank is a REQUIRED question by the survey's own rule: one switched
  *     to optional is never counted, pressed, shown or taken, and a survey
  *     stored before the switch (`required: false` everywhere) counts all.
- *  3. EVERY READER MERGES: Who answered, the results, the spreadsheet and one
+ *  3. EVERY READER MERGES: the Answers tab, the results, the spreadsheet and one
  *     person's page (which marks what came later, and when); the admins'
  *     before-the-first-session switch leaves out a later send that came after.
  *  4. NAMES OFF AND DELETION: a later send is nameless with the answer it is
@@ -31,7 +31,8 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { NOW, ROUND, RUN, makeSurveyWorld } from "./lib/surveyWorld.mjs";
+import { renderToStaticMarkup } from "react-dom/server";
+import { NOW, ROUND, RUN, makeSurveyWorld, textOf } from "./lib/surveyWorld.mjs";
 import { EVENT_ID, NEXT_DAY, RSVP, makeEventSurveyWorld } from "./lib/eventSurveyWorld.mjs";
 
 const w = await makeSurveyWorld("__surveysBlanks");
@@ -46,6 +47,23 @@ const signedInRoute = await route("[surveyId]", "blanks");
 const openingRoute = await route("[surveyId]", "people", "[who]");
 const adminView = await w.loadTs(join("lib", "surveys", "adminView.ts"));
 const repo = await w.loadTs(join("lib", "surveys", "repo.ts"));
+const BlanksButton = (await w.loadTs(join("features", "surveys", "admin", "BlanksButton.tsx"))).default;
+
+/**
+ * The Answers tab's rows as an admin reads them, once its route has recorded
+ * the opening: each person's name and how they came or their group, then the
+ * Left blank column as `BlanksButton` draws it.
+ */
+async function answersTabOf(world, id) {
+  const route = await world.loadTs(join("app", "api", "surveys", "[surveyId]", "answers", "route.ts"));
+  const view = (await world.call("zach", route.POST, { surveyId: id })).body.answers;
+  return view.rows
+    .map((row) => {
+      const blanks = row.blanks && row.who ? textOf(renderToStaticMarkup(w.createElement(BlanksButton, { surveyId: id, who: row.who, name: row.name, row: row.blanks }))) : "";
+      return [row.name, row.as, blanks].filter(Boolean).join(" ");
+    })
+    .join(" ");
+}
 
 /** The clock, set to `at` for one test: Date only, so the mail dispatcher's pauses stay real. */
 function clock(t, at = NOW) {
@@ -308,7 +326,7 @@ describe("the link shows only what was left blank, and keeps what comes back bes
     const stored = w.survey(id);
     w.world.db.seed(`surveys/${id}`, { ...stored, items: stored.items.map((item) => (item.id === "q_p6" ? { ...item, optional: true } : item)) });
     answered(id, "amara", AMARA);
-    const tab = async () => (await w.page(w.pages.answered, { params: Promise.resolve({ surveyId: id }) }, "zach")).text;
+    const tab = () => answersTabOf(w, id);
     assert.match(await tab(), /Amara Okafor .* Left 2 blank Send the questions they left blank/);
     const stale = await press(id, "zach", { questions: 3 });
     assert.equal(stale.status, 409, "a press counting the optional question was taken");
@@ -341,7 +359,7 @@ describe("the link shows only what was left blank, and keeps what comes back bes
     });
     w.world.db.seed(`surveys/${id}`, { ...stored, items: legacy });
     answered(id, "amara", AMARA);
-    const tab = (await w.page(w.pages.answered, { params: Promise.resolve({ surveyId: id }) }, "zach")).text;
+    const tab = await answersTabOf(w, id);
     assert.match(tab, /Amara Okafor .* Left 3 blank Send the questions they left blank/);
     assert.equal((await press(id, "zach", { questions: 3 })).status, 200);
     assert.ok((await linkPage(rowOf(id, "amara").blanks.token)).includes("What do you most want to get out of this programme"));
@@ -366,13 +384,13 @@ describe("the link shows only what was left blank, and keeps what comes back bes
 // ---------------------------------------------------------------------------
 
 describe("every reader reads the first answers with what came later", () => {
-  test("Who answered marks what is blank and the press; the results, the spreadsheet and one person's page read the later answers", async (t) => {
+  test("the Answers tab marks what is blank and the press; the results, the spreadsheet and one person's page read the later answers", async (t) => {
     clock(t);
     w.reset();
     const id = await sentSurvey();
     answered(id, "amara", AMARA);
     answered(id, "bea", WHOLE);
-    const tab = async () => (await w.page(w.pages.answered, { params: Promise.resolve({ surveyId: id }) }, "zach")).text;
+    const tab = () => answersTabOf(w, id);
     const before = await tab();
     assert.match(before, /Amara Okafor .* Left 3 blank Send the questions they left blank/);
     assert.equal((before.match(/Left \d+ blank/g) ?? []).length, 1, "somebody with nothing blank is marked");
@@ -467,7 +485,7 @@ describe("names off and deletion take a later send with the answer it sits besid
 // ---------------------------------------------------------------------------
 
 describe("a survey after an event: a guest with no account, by the address they gave the event", () => {
-  test("pressed, emailed to the guest, answered through the link, and marked on Who answered", async (t) => {
+  test("pressed, emailed to the guest, answered through the link, and marked on the Answers tab", async (t) => {
     const e = await makeEventSurveyWorld("__surveysBlanksEvent");
     t.mock.timers.enable({ apis: ["Date"], now: NEXT_DAY });
     e.reset();
@@ -490,7 +508,7 @@ describe("a survey after an event: a guest with no account, by the address they 
     const { path, ...data } = row;
     e.world.db.seed(path, { ...data, answered: true });
 
-    const tab = async () => (await e.page("app/(app)/admin/(admin-only)/surveys/[surveyId]/answered/page.tsx", { params: Promise.resolve({ surveyId: id }) }, "zach")).text;
+    const tab = () => answersTabOf(e, id);
     assert.match(await tab(), /Gwen Price .* Left 1 blank Send the questions they left blank/);
 
     const blanksPress = (await e.route("surveys/[surveyId]/people/[who]/blanks")).POST;

@@ -16,7 +16,7 @@ import {
 } from "./words";
 
 /**
- * ONE PERSON'S ANSWERS, LAID OUT AS THE BOARD DRAWS THEM (sv-person): the
+ * ONE PERSON'S ANSWERS, LAID OUT AS THEY WERE DESIGNED: the
  * change questions with the start and the end side by side, then each
  * survey's own questions under its own heading. Every word of a question is
  * the survey's own, as its record holds it, and every value is the person's
@@ -28,7 +28,7 @@ import {
  */
 
 /**
- * The address segment a person's answers are opened by, from Who answered:
+ * The address segment a person's answers are opened by, from the Answers tab:
  * their uid, or `g_<signupId>` for a guest of an event (`subjectOf` in
  * `./onePerson.ts` reads it back).
  */

@@ -3492,6 +3492,33 @@ export const ROUTES = {
         "recorded.",
     },
   },
+  "/api/surveys/[surveyId]/who": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "\"See who\" behind a bar of a survey's results, or \"Whose is this?\" beside a comment, is an admin's alone: " +
+        "view-as first, then the session and the admin bar, then the body, so the admin meets the 400 for a press " +
+        "that names no question and no bar, and nothing is read or recorded.",
+    },
+  },
+  "/api/surveys/[surveyId]/answers": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "A survey's Answers tab, every answer with names, is an admin's alone: view-as first, then the session and " +
+        "the admin bar, before the database; the admin is told the made-up survey is not there, and no opening is " +
+        "recorded.",
+    },
+  },
+  "/api/surveys/[surveyId]/totals": {
+    GET: {
+      expect: adminOnly(400),
+      why:
+        "One question's totals and comments as a file is an admin's alone: canRunSurveys refuses everybody else " +
+        "before anything is read, and the admin meets the 400 for a request that names no question. A GET that " +
+        "writes nothing, and a file, not JSON, so no fields.",
+    },
+  },
   "/api/surveys/[surveyId]/people/[who]/blanks": {
     POST: {
       expect: adminOnly(400),
@@ -3973,9 +4000,9 @@ export const PAGES = {
   "/(app)/admin/(admin-only)/surveys/[surveyId]/answered": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
     why:
-      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard. The survey id changes " +
-      "nothing about the gate: an id that opens no survey is answered on the page in a sentence, never " +
-      "notFound.",
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard. The Answers tab's page " +
+      "reads the survey for its head and nothing of anybody: the table comes from the route that records each " +
+      "opening first. An id that opens no survey is answered on the page in a sentence, never notFound.",
   },
   "/(app)/admin/(admin-only)/surveys/[surveyId]/answered/[who]": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
@@ -3983,6 +4010,13 @@ export const PAGES = {
       "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard. The page reads the " +
       "survey's name alone: an id that opens no survey is answered on the page in a sentence, never " +
       "notFound, and the person's answers come only from the opening route, which records each opening first.",
+  },
+  "/(app)/admin/(admin-only)/surveys/[surveyId]/log": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
+    why:
+      "The (admin-only) tree: requireAdminPage sends every non-admin to the dashboard. The survey's log says who " +
+      "opened names on it and downloaded its answers, never whose: an id that opens no survey is answered on the " +
+      "page in a sentence, never notFound.",
   },
   "/(app)/admin/(admin-only)/surveys/[surveyId]/questions": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200 }),
@@ -6705,6 +6739,18 @@ export const REAL_ROUTES = {
         },
       },
     ),
+  },
+  "/api/surveys/[surveyId]/who": {
+    POST: adminAlone("Opening the names behind a bar or a comment", c(400, "An admin meets the body check: no question and no bar or comment named.")),
+  },
+  "/api/surveys/[surveyId]/answers": {
+    POST: adminAlone(
+      "Opening a survey's Answers tab",
+      c(ACTS, "An admin's opening of the tab is recorded before any name is read: it takes no body, so it would act."),
+    ),
+  },
+  "/api/surveys/[surveyId]/totals": {
+    GET: adminAlone("A file of one question's totals", c(400, "An admin meets the question check: the battery names no question, so nothing is read.")),
   },
 };
 

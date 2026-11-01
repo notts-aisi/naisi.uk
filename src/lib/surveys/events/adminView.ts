@@ -7,12 +7,9 @@ import type { EventAudience, EventSurveyDoc } from "@/lib/firestore/surveys";
 import type { NameViewer } from "@/lib/names/staffName";
 import { shortLinkAddress } from "@/lib/qr/shortLinkCode";
 import { preview, testView, type EmailPreview, type SurveyState, type TestView } from "../adminView";
-import { blanksOf, blanksRowOf, type BlanksRow } from "../blanks";
 import { emailWordsFor, siteAddress } from "../emails";
 import { surveyQuestionsOf } from "../items";
-import { whoOf } from "../onePersonLayout";
-import { namesOf } from "../names";
-import { closedOn, isOpen, surveyState } from "../repo";
+import { closedOn, surveyState } from "../repo";
 import { signerOf, testStateFor } from "../sending";
 import {
   dayAndClockWords,
@@ -27,15 +24,16 @@ import {
 } from "../words";
 import { respondentKey, type EventAudienceMember } from "./audience";
 import { findSurveyCode } from "./code";
-import { readEventSendPlan, type EventSendPlan } from "./sending";
+import { readEventSendPlan } from "./sending";
 import { eventAnswersOf } from "./store";
 import { AUDIENCE_WORDS, eventLine, eventNamesOffWords, joinedSentHead } from "./words";
 
 /**
- * WHAT THE ADMINS' PAGES ABOUT A SURVEY AFTER AN EVENT ARE HANDED, built on
- * the server in the boards' words (sv-send, sv-list, sv-results), never a
- * stored document. Admins only: every page that calls these sits in the
- * (admin-only) tree or asks `canRunSurveys` first.
+ * WHAT THE ADMINS' PAGES ABOUT A SURVEY AFTER AN EVENT ARE HANDED (its Send
+ * tab, its row on the list of surveys and its Results), built on the server
+ * in the words designed for them, never a stored document. Admins only:
+ * every page that calls these sits in the (admin-only) tree or asks
+ * `canRunSurveys` first.
  */
 
 /** "4:30pm on Sun 1 Nov" and the like, for when the code went up. */
@@ -53,13 +51,13 @@ async function organiserOf(db: Firestore, authorUid: string | null): Promise<{ n
   };
 }
 
-/** "Admins only. Iris, the organiser, sees who came, not the results." (Q42) */
+/** "Admins only. Iris, the organiser, sees who came, not the results." */
 export function resultsWhoWords(organiser: { name: string; seesWhoCame: boolean } | null): string {
   if (!organiser || !organiser.name) return "Admins only. The event’s organisers see that it went, not the results.";
   return `Admins only. ${organiser.name}, the organiser, sees ${organiser.seesWhoCame ? "who came" : "how many came"}, not the results.`;
 }
 
-/** Who reads a survey after an event's results, as its Results tab says (Q42): admins, and not the organiser. */
+/** Who reads a survey after an event's results, as its Results tab says: admins, and not the organiser. */
 export async function resultsWhoFor(db: Firestore, survey: EventSurveyDoc): Promise<string> {
   const snap = await db.collection("events").doc(survey.audience.eventId).get();
   const authorUid = snap.exists ? ((snap.data() ?? {}) as Record<string, unknown>).authorUid : null;
@@ -256,62 +254,7 @@ export async function eventSendView(db: Firestore, survey: EventSurveyDoc, press
   };
 }
 
-/** Who answered, for admins (`viewer`, who is shown names by the names rule): name, when it was emailed, when and how they answered. */
-export async function eventAnsweredView(
-  db: Firestore,
-  survey: EventSurveyDoc,
-  viewer: NameViewer,
-  plan?: EventSendPlan,
-  now: Date = new Date(),
-): Promise<{
-  rows: { name: string; who: string; sent: string; answered: string; how: string; label: string; reminded: string; blanks: BlanksRow | null }[];
-  answered: number;
-  sent: number;
-  heading: string;
-}> {
-  const read = plan ?? (await readEventSendPlan(db, survey, viewer));
-  const answers = await eventAnswersOf(db, survey);
-  const names = new Map((read.read?.people ?? []).map((member) => [member.key, member.name]));
-  const byKey = new Map(answers.flatMap((answer) => (answer.respondent ? [[respondentKey(answer.respondent), answer] as const] : [])));
-  const pressers = await namesOf(db, read.rows.flatMap((row) => row.blanksPresses.map((press) => press.byUid)), viewer);
-  const open = isOpen(survey, now);
-  const rows = read.rows
-    .filter((row) => row.sentAt !== null || row.answered)
-    .map((row) => {
-      const key = respondentKey(row.respondent);
-      const answer = byKey.get(key);
-      const blanks = answer
-        ? blanksRowOf({
-            count: blanksOf(survey.items, answer.answers).length,
-            open,
-            link: row.blanks,
-            presses: row.blanksPresses,
-            nameOf: (uid) => pressers.get(uid) ?? "",
-          })
-        : null;
-      return {
-        name: names.get(key) ?? (row.respondent.kind === "guest" ? "A guest no longer on the list" : "Somebody whose account has gone"),
-        who: whoOf(row.respondent),
-        sent: row.sentAt ? dayAndClockWords(row.sentAt) : "",
-        answered: answer?.sentAt ? dayAndClockWords(answer.sentAt) : row.answered ? "Answered" : "",
-        how: answer ? (answer.via === "signed-in" ? "With the QR code, signed in" : "Personal link") : "",
-        label: "",
-        reminded: row.reminders > 0 ? `Reminded ${row.reminders === 1 ? "once" : `${row.reminders} times`}` : "",
-        blanks,
-      };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name, "en"));
-  const answered = read.rows.filter((row) => row.answered).length;
-  const atEvent = read.answeredAtEvent;
-  return {
-    rows,
-    answered,
-    sent: read.emailed,
-    heading: `${answered} ${answered === 1 ? "has" : "have"} answered: ${atEvent} with the QR code before any email, and ${read.answeredEmail} of the ${read.emailed} it was emailed to`,
-  };
-}
-
-/** The numbers above a survey after an event's results (sv-results): answers, who came, and the email's rate. */
+/** The numbers above a survey after an event's results: answers, who came, and the email's rate. */
 export type EventResultsHead = {
   answers: number;
   /** "7 with the QR code, 8 by email". */

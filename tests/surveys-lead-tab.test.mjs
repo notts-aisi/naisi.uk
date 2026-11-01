@@ -1,6 +1,6 @@
 /**
- * A programme lead's Surveys tab (board sv-programme; Q41, Q49 A; the stage
- * four walk's finding L2), its views, and each survey's results under it.
+ * A programme lead's Surveys tab (the stage four walk's finding L2), its
+ * views, and each survey's results under it.
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
@@ -1028,6 +1028,21 @@ describe("4. each survey's results, under the tab", () => {
     ]);
   });
 
+  test("the lead's results carry the charts, and never a See who, a Whose is this?, a filter or a download", async () => {
+    const page = await resultsAs("claudia", made.after);
+    // Each question's bars in the accent, each with its count and share written outside it.
+    assert.ok(page.html.includes('class="fill"'), "no bar is drawn");
+    assert.match(page.text, / \d+ · \d+%/);
+    for (const words of ["See who", "Whose is this?", "Download this question", "Download the chart", "Everyone who answered", "Came as"]) {
+      assert.ok(!page.text.includes(words), `the lead's page draws ${words}`);
+    }
+    assert.doesNotMatch(page.html, /\/api\/surveys\//, "the lead's page links a survey's route");
+    // The page asks for no key of a comment and hands the charts no admin's part, so none can reach its HTML.
+    const source = readFileSync(join(REPO_ROOT, "src", "app", "(app)", "admin", "admissions", "forms", "[roundId]", "programmes", "[programmeId]", "(tabs)", "surveys", "[surveyId]", "page.tsx"), "utf8");
+    assert.match(source, /resultsView\(db, survey, false, \{ commentsInOrder: "words" \}\)/);
+    assert.doesNotMatch(source, /\badmin=|keys:/);
+  });
+
   test("a survey that is no programme's, another programme's, or a draft that does not exist is answered in a sentence", async () => {
     // Under the row of views, with none of them current. A check-in is never one the lead reads here: its weeks are on Check-ins.
     for (const id of [made.night, made.other, "no-such-survey", made.checkIns.a1, made.checkIns.a3]) {
@@ -1250,13 +1265,13 @@ describe("4c. the Check-ins view: whole weeks, its floors, never a group's own f
     for (const id of Object.values(made.checkIns)) assert.ok(!lead.html.includes(id), id);
   });
 
-  test("an admin also has each group's check-in, a row each, with the way to its Results and Who answered", async () => {
+  test("an admin also has each group's check-in, a row each, with the way to its Results and Answers", async () => {
     const admin = await checkInsAs("zach");
     inOrder(admin.text, [
       "Week 3",
       `${CHECK_INS_TAB_WORDS.groups} ${CHECK_INS_TAB_WORDS.groupsLine}`,
-      "Group A · Thu 12 Nov, 6pm · 3 of 3 answered · Closed Results Who answered",
-      "Group D · Mon 16 Nov, 6pm · 1 of 1 answered · Closed Results Who answered",
+      "Group A · Thu 12 Nov, 6pm · 3 of 3 answered · Closed Results Answers",
+      "Group D · Mon 16 Nov, 6pm · 1 of 1 answered · Closed Results Answers",
       "Week 2",
       "Group A · Thu 5 Nov, 6pm · 1 of 2 answered · Closed",
       "Week 1",
@@ -1424,7 +1439,7 @@ describe("4d. the words of the views, one by one: counted right, no dash, no pro
     assert.equal(ci.outOfFive(4.25), "4.3 of 5");
     assert.equal(ci.groupCheckInWords("Group C", new Date("2026-11-18T15:00:00Z")), "Group C · Wed 18 Nov, 3pm");
     assert.equal(ci.groupCheckInWords("Group C", null), "Group C");
-    assert.equal(ci.checkInLinkLabel("Who answered", "Group C", 3), "Who answered: Group C, week 3");
+    assert.equal(ci.checkInLinkLabel("Answers", "Group C", 3), "Answers: Group C, week 3");
     // CHANGED ON PURPOSE: "shortly after", not "once", for the reason the Overview's dot gives above.
     assert.equal(
       ci.checkInsTabLine(3, 5),

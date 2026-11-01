@@ -3,11 +3,12 @@
 import { useState } from "react";
 import Button from "@/components/ui/Button";
 import { useHydrated } from "@/hooks/useHydrated";
+import { ANSWERS_WORDS } from "@/lib/surveys/words";
 import styles from "./surveyAdmin.module.css";
 
 /**
- * "Download the answers, with names": a spreadsheet the site records as a
- * download before it hands it over (`dataExports`). A POST, so only this
+ * "Download all answers": the spreadsheet with names, which the site records
+ * as a download before it hands it over (`dataExports`). A POST, so only this
  * press makes one.
  */
 export default function ExportButton({ surveyId }: { surveyId: string }) {
@@ -50,9 +51,9 @@ export default function ExportButton({ surveyId }: { surveyId: string }) {
         </p>
       )}
       <Button variant="secondary" onClick={download} disabled={!hydrated || busy}>
-        {busy ? "Preparing it…" : "Download the answers, with names"}
+        {busy ? "Preparing it…" : ANSWERS_WORDS.download}
       </Button>
-      <p className={styles.muted}>Each download is recorded. Delete your copy when you’re done.</p>
+      <p className={styles.muted}>{ANSWERS_WORDS.downloadNote} Delete your copy when you’re done.</p>
     </div>
   );
 }

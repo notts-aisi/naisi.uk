@@ -806,7 +806,7 @@ const MUST_NAME = [
   ["where a leaver's reason is kept", /and is kept with your place, not your application\./],
   ["a leaver's marks stay on the register", /The register keeps what it said about you up to then, with the day you left,/],
   ["what a leaver wrote stays for the lead and admins", /and what you wrote stays in our records for the lead and admins\./],
-  // The survey about leaving (Q46): who it reaches and how. Who reads it,
+  // The survey about leaving: who it reaches and how. Who reads it,
   // what it asks and when the names come off are what v15 says of every
   // survey, in the entries further down. §2g holds each to the code.
   ["the survey about leaving reaches somebody who leaves", /If you leave a programme while it has a survey about leaving, a link to it appears where you are told you left\./],
@@ -862,8 +862,8 @@ const MUST_NAME = [
   // survey. v15 says they may see their own group's check-in totals, and
   // nothing else of one.
   ["facilitators may see their own group's check-in totals, and nothing else of a survey", /Facilitators may see their own group&apos;s check-in totals, never who said what and never the comments, and see nothing else of a survey\./],
-  // A programme's lead reads its surveys' totals and comments (Q41, Q49 A;
-  // the stage four walk's finding L2). §2g holds each to its code.
+  // A programme's lead reads its surveys' totals and comments (the stage
+  // four walk's finding L2). §2g holds each to its code.
   ["the lead sees a programme's surveys' totals and comments", /The programme&apos;s lead sees the totals and comments of its surveys,/],
   ["the lead never sees a survey's names, who answered, or a download of its answers", /and never sees your name or who answered and who did not, and cannot download the answers\./],
   ["the lead may tell whose a survey answer is", /When only a few people answer, the lead may still be able to tell which answer is yours\./],
@@ -3305,7 +3305,7 @@ describe("the course hub passage", () => {
       /saying yes also puts you in that group/i,
       /If you facilitate your own group\./i,
       /A facilitator who held a place and finished is sent both/i,
-      // The survey about leaving (Q46), new in v7.
+      // The survey about leaving, new in v7.
       /a survey about leaving open/i,
       /the survey about leaving is confidential/i,
       /the lead may still be able to tell which answer is yours/i,
@@ -5933,9 +5933,10 @@ describe("the course hub passage", () => {
     // in by their own row), and the two that take names off. No facilitator's
     // page, and no lead's but the programme's: its Surveys tab, one survey's
     // results under it and the Overview's count, the totals and comments of
-    // the lead's own programme's surveys, never a name (CHANGED ON PURPOSE,
-    // Q46 and Q49 A; then finding L2, which widened the second from the
-    // leaving survey to every survey of the programme and added the first).
+    // the lead's own programme's surveys, never a name (CHANGED ON PURPOSE
+    // for the survey about leaving and results as answers come in, then by
+    // finding L2, which widened the second from the leaving survey to every
+    // survey of the programme and added the first).
     const ADMIN_PAGE = "an admins' page: the (admin-only) layout sends everybody else to the dashboard first";
     const ADMIN_ROUTE = "an admin's action: canRunSurveys refuses everybody else before anything is read";
     assertExactlyTheseFiles(
@@ -5950,7 +5951,7 @@ describe("the course hub passage", () => {
         ["src/app/(app)/admin/(admin-only)/surveys/[surveyId]/answered/[who]/page.tsx", `${ADMIN_PAGE}; one person's answers, drawn only from what the opening route hands back`],
         ["src/app/(app)/admin/(admin-only)/surveys/[surveyId]/results/page.tsx", `${ADMIN_PAGE}; totals, made on the server, with no name`],
         ["src/app/(app)/admin/(admin-only)/surveys/kairos/[roundId]/[programmeId]/page.tsx", `${ADMIN_PAGE}; the Kairos report, totals made on the server, with no name`],
-        // Public numbers (sv-public): an admin publishes totals and ticked
+        // Public numbers: an admin publishes totals and ticked
         // comments, never a name, on a programme's public page, which the
         // policy says; the public page reads only the published record,
         // outside survey code (the public numbers block below).
@@ -5966,6 +5967,14 @@ describe("the course hub passage", () => {
         ["src/app/api/surveys/[surveyId]/open/route.ts", `${ADMIN_ROUTE}; opens a leaving survey, which emails nobody`],
         ["src/app/api/surveys/[surveyId]/export/route.ts", `${ADMIN_ROUTE}; the spreadsheet with names`],
         ["src/app/api/surveys/[surveyId]/people/[who]/route.ts", `${ADMIN_ROUTE}; opens one person's answers, the opening recorded before any is read`],
+        // CHANGED ON PURPOSE (v15, "Only NAISI's admins
+        // can see who said what, and we record each time one of them does"):
+        // names on a survey's own pages, each opening recorded before any name
+        // is read, and the file of one question, which names nobody.
+        ["src/app/api/surveys/[surveyId]/who/route.ts", `${ADMIN_ROUTE}; opens the names behind a bar or a comment of the results, the opening recorded before any name is read`],
+        ["src/app/api/surveys/[surveyId]/answers/route.ts", `${ADMIN_ROUTE}; opens the Answers tab, every answer with names, the opening recorded before any name is read`],
+        ["src/app/api/surveys/[surveyId]/totals/route.ts", `${ADMIN_ROUTE}; one question's totals and comments as a file that names nobody, not a recorded download`],
+        ["src/app/(app)/admin/(admin-only)/surveys/[surveyId]/log/page.tsx", `${ADMIN_PAGE}; the survey's log: who opened names on it or downloaded its answers, and when, never whose`],
         ["src/app/survey/[token]/page.tsx", "the person's own survey, by the secret in their link, which opens their own row and nobody else's"],
         ["src/app/api/surveys/answer/route.ts", "the person's own answers, sent through the secret in their link"],
         ["src/app/(app)/learn/[runId]/survey/[surveyId]/page.tsx", "the person's own survey, signed in: shown only to somebody it was sent to, by their own row"],
@@ -5993,18 +6002,18 @@ describe("the course hub passage", () => {
           "src/lib/courses/weekReview/gather.ts",
           "the admins' week review, behind its admin-only door: a week's check-in answers pooled by group with no sender, id or time (poolWeekCheckIns), for Claude's themes alone, never shown and never who said what",
         ],
-        // CHANGED ON PURPOSE (Q50 B): the cards of the surveys waiting for the
+        // CHANGED ON PURPOSE: the cards of the surveys waiting for the
         // person, drawn on their own pages. Each card is a survey's title,
         // size and closing day and the person's own link: no answer, no name,
         // never how many others have answered.
         [`src/app/(app)/dashboard/page.tsx`, "Home asks surveysWaitingFor for the session's own person, and hands on the cards of surveys sent to them"],
         [`src/app/(app)/dashboard/HomeMember.tsx`, "Home draws the survey cards it is handed: the card's type and its component"],
-        // CHANGED ON PURPOSE (Q48 B, wk-lastweek-phone): in its programme's
+        // CHANGED ON PURPOSE: in its programme's
         // last week, the survey at the end is drawn among the programme's
         // cards, the one card HomeMember was handed and moved there, so it is
         // drawn once. No answer, no name, never how many others answered.
         [`src/app/(app)/dashboard/HomeProgramme.tsx`, "Home's programme card draws the survey at the end it is handed in the last week: the card's type and its component"],
-        // CHANGED ON PURPOSE (Q48 B, en-after-phone): the programme page once
+        // CHANGED ON PURPOSE: the programme page once
         // it is over draws the survey at the end as it stands for its reader,
         // theirs to answer or sent, by endSurveyFor, which asks
         // surveysWaitingFor and reads only the reader's own row and answer.
@@ -6014,7 +6023,7 @@ describe("the course hub passage", () => {
         [`src/app/(app)/learn/LearnHub.tsx`, "My programmes draws the survey cards it is handed: the card's type and its component"],
         ["src/app/(app)/learn/[runId]/weeks/[n]/page.tsx", "week 1's first card: the run's before survey while it waits for the reader, by beforeSurveyCardFor"],
         ["src/features/courses/WeekView.tsx", "week 1's page draws the before survey's card it is handed: the card's type and its component"],
-        // CHANGED ON PURPOSE (Q46): the leaving survey reaches somebody as
+        // CHANGED ON PURPOSE: the leaving survey reaches somebody as
         // they leave, through their own row made then, and the page that
         // says they left draws its card while it is theirs to answer.
         ["src/lib/courses/leaveRun.ts", "leaving makes the leaver's own row on the programme's open leaving survey, with their own link for their email: no answer is read"],
@@ -6066,7 +6075,7 @@ describe("the course hub passage", () => {
         ["src/lib/audience/load.ts", "which term the picker's tags are for (chooseTerm, the forms alone), and nothing of any survey, its answers or who answered"],
         // An event for chosen people: which of the term's programmes it may be part of.
         ["src/lib/events/eventProgramme.ts", "which of the term's programmes an event for chosen people may be part of (chooseTerm, the forms alone), and nothing of any survey, its answers or who answered"],
-        // This term in numbers (sv-term, Q51 B): counts made on the server, never a name.
+        // This term in numbers: counts made on the server, never a name.
         ["src/app/(app)/admin/(admin-only)/surveys/term/page.tsx", `${ADMIN_PAGE}; This term in numbers, counts made on the server, never a name`],
         // Run NAISI › Reports: the way to This term in numbers, Public numbers
         // and Kairos, by their names; it reads no survey, answer or row.
@@ -6104,10 +6113,10 @@ describe("the course hub passage", () => {
         ["src/lib/surveys/answer.ts", "the one writer of an answer: a person's own, once"],
         ["src/lib/surveys/sending.ts", "the send, which writes each person's row with their link before their email"],
         ["src/lib/surveys/namesOff.ts", "names off: two years after the programme, and at once with an account"],
-        // CHANGED ON PURPOSE (Q50 B): which surveys wait for a person is read
+        // CHANGED ON PURPOSE: which surveys wait for a person is read
         // from their own rows, for them alone.
         ["src/lib/surveys/waiting.ts", "the cards: a person's own rows, read for that person alone, to say which surveys sent to them wait for an answer"],
-        // CHANGED ON PURPOSE (Q46): the leaving survey's row for a person is made as they leave.
+        // CHANGED ON PURPOSE: the leaving survey's row for a person is made as they leave.
         ["src/lib/surveys/leaving.ts", "the leaving survey's row for a person, made as they leave the programme, with their own link: never an answer"],
         ["src/lib/surveys/events/store.ts", "a survey after an event's rows and its one writer of answers: each person's row before their email, their own answers, once, by their link or signed in, and one person's row and answers for the admins' page that opens them, read once that opening is recorded"],
         // The questions somebody left blank (docs/surveys.md): an admin's press
@@ -6183,6 +6192,9 @@ describe("the course hub passage", () => {
       "src/app/api/surveys/[surveyId]/open-at-event/route.ts",
       "src/app/api/surveys/[surveyId]/people/[who]/route.ts",
       "src/app/api/surveys/[surveyId]/people/[who]/blanks/route.ts",
+      "src/app/api/surveys/[surveyId]/who/route.ts",
+      "src/app/api/surveys/[surveyId]/answers/route.ts",
+      "src/app/api/surveys/[surveyId]/totals/route.ts",
     ]) {
       const code = withoutComments(read(route));
       const refused = code.indexOf("if (!canRunSurveys(actor)) return NextResponse.json({ error: REFUSAL.adminOnly }, { status: 403 });");
@@ -6332,7 +6344,7 @@ describe("the course hub passage", () => {
     const decides = sourceFilesNaming(SURVEY_CODE)
       .filter((file) => !insideSurveyCode(file))
       .filter((file) => /^src\/(?:lib|features|app\/api)\/(?:applications|admissions|courses)\//.test(file) || /^src\/app\/\(app\)\/(?:admin\/admissions|admin\/courses|learn\/\[runId\]\/(?!survey\/))/.test(file));
-    // CHANGED ON PURPOSE (Q50 B, Q46, Q49 A): was "none at all". Week 1's
+    // CHANGED ON PURPOSE: was "none at all". Week 1's
     // page and the page that says somebody left draw the card of a survey
     // waiting for their reader, which reads whether it waits and never an
     // answer; leaving makes the leaver's own row on the leaving survey,
@@ -6345,7 +6357,7 @@ describe("the course hub passage", () => {
       ["src/features/courses/WeekView.tsx", ["draws the card it is handed, by the card's own component", ["@/lib/surveys/waiting", "@/features/surveys/cards/SurveyCards"]]],
       ["src/features/courses/leaving/leftSurvey.ts", ["asks leavingSurveyCardFor whether the leaving survey of the run they left waits for them", ["@/lib/surveys/waiting"]]],
       ["src/features/courses/leaving/LeftProgramme.tsx", ["draws the leaving survey's card it is handed, by the card's own component", ["@/lib/surveys/waiting", "@/features/surveys/cards/LeavingSurveyCard"]]],
-      // CHANGED ON PURPOSE (Q48 B): the programme page once it is over draws
+      // CHANGED ON PURPOSE: the programme page once it is over draws
       // the survey at the end as it stands for its reader, which reads
       // whether it waits and the day they sent theirs, never an answer's
       // words, and decides nothing by it.
@@ -6506,8 +6518,8 @@ describe("the course hub passage", () => {
     assert.match(sending, /\.filter\(\(person\) => person\.sentAt !== null && !person\.answered && holding\.has\(person\.respondent\.uid\)\)/);
     assert.match(sending, /const owed = plan\.unanswered;/);
     // A link of their own: 32 random bytes, one row each. CHANGED ON PURPOSE
-    // (Q46): the one minting function moved to its own module, which the
-    // leave's row asks too, and the send asks it from there.
+    // for the survey about leaving: the one minting function moved to its own
+    // module, which the leave's row asks too, and the send asks it from there.
     assert.match(withoutComments(read("src/lib/surveys/token.ts")), /return randomBytes\(32\)\.toString\("base64url"\);/);
     assert.match(sending, /import \{ mintSurveyToken \} from "\.\/token";/);
     assertExactlyTheseFiles(
@@ -7159,7 +7171,7 @@ describe("the check-in passage", () => {
     const readers = sourceFilesNaming(NAMED_CHECK_IN_READERS).filter(
       (file) => file !== "src/lib/events/checkInLoad.ts" && file !== "src/lib/events/checkInView.ts",
     );
-    // CHANGED ON PURPOSE (Q51 B): This term in numbers counts the people the
+    // CHANGED ON PURPOSE: This term in numbers counts the people the
     // Check-in tab's rows hold, across a term's events, for admins alone; its
     // loader asks the check-in bar beside the surveys' own, and hands on
     // counts only (the "this term in numbers" block below).
@@ -7265,7 +7277,7 @@ describe("the check-in passage", () => {
     assert.match(rules, /kind: walkIn \? "walk-in" : "signup",/);
   });
 
-  // Since the surveys after events (Q44), the email goes when the event's
+  // Since the surveys after events, the email goes when the event's
   // survey closes, or a week after the event if that comes first: the week
   // when there is no survey or it closes later, the survey's close when that
   // is sooner. Both ways are run below, and the old sentence is held gone.
@@ -7585,7 +7597,7 @@ describe("the check-in passage", () => {
     assert.equal((rules.match(/\.where\("rsvpId"/g) ?? []).length, 0);
   });
 
-  // The survey about leaving (Q46, 26 October 2026): two sentences, each held
+  // The survey about leaving (26 October 2026): two sentences, each held
   // to the code that keeps it.
   test("the survey about leaving reaches only somebody who leaves, through a link of their own where they are told they left, and nobody presses send", () => {
     assert.ok(PAGE_FLAT.includes("If you leave a programme while it has a survey about leaving, a link to it appears where you are told you left."));
@@ -7820,7 +7832,7 @@ describe("the check-in passage", () => {
   });
 
   test("the survey about leaving is confidential: admins see who said what, the lead its totals and comments as they come and never a name, in no order that follows when they came, facilitators nothing, and names come off as every survey's", () => {
-    // CHANGED ON PURPOSE (finding L2; Q41, Q49 A): was the leaving survey
+    // CHANGED ON PURPOSE (finding L2): was the leaving survey
     // alone. The lead reads every kind of survey the programme has of its own,
     // the leaving survey among them, and never a survey after an event, under
     // the programme, after the lead's own gate.
@@ -7833,10 +7845,14 @@ describe("the check-in passage", () => {
     assert.match(page, /if \(outcome\.status === "not-yours"\) \{/);
     // As answers come in, with no floor, in an order that does not follow when they came.
     assert.match(page, /const view = await resultsView\(db, survey, false, \{ commentsInOrder: "words" \}\);/);
+    // CHANGED ON PURPOSE (the charts on a survey's results): the order of their words is one
+    // comparator, `byWords`, which an admin's Results use too, each comment
+    // there put in order with the key of the answer it came from.
     assert.match(
       withoutComments(read("src/lib/surveys/adminView.ts")),
-      /options\.commentsInOrder === "words" && result\.kind === "comments"\s*\? \{ \.\.\.result, comments: \[\.\.\.result\.comments\]\.sort\(\(a, b\) => a\.localeCompare\(b, "en-GB"\)\) \}/,
+      /return options\.commentsInOrder === "words" \? \{ \.\.\.result, comments: \[\.\.\.result\.comments\]\.sort\(byWords\) \} : result;/,
     );
+    assert.match(withoutComments(read("src/lib/surveys/charts.ts")), /export function byWords\(a: string, b: string\): number \{\s*return a\.localeCompare\(b, "en-GB"\);\s*\}/);
     // The box says so: confidential, the lead without names, the facilitators never.
     const box = surveyWords.confidentialPoints({ stage: "leaving", leadName: "Claudia", facilitatorNames: null, namesOffOn: "2028-12-09", programmeKind: "fellowship" });
     assert.deepEqual(box.points.slice(0, 2), ["Only NAISI’s admins can see who said what.", "Claudia sees totals and comments, never names. Your facilitators never see your answers."]);
@@ -8092,8 +8108,8 @@ describe("the survey after an event", () => {
 // ---------------------------------------------------------------------------
 
 /**
- * What the policy says about This term in numbers (Q51 B; docs/surveys.md
- * "This term in numbers"), held to the code that makes it true: who sees it,
+ * What the policy says about This term in numbers (docs/surveys.md, "This
+ * term in numbers"), held to the code that makes it true: who sees it,
  * how one person is matched across events and who never is, and that it is
  * totals and nothing else. First said by v7; v15 says it in the last
  * sentence of Attendance. `tests/surveys-term-numbers.test.mjs` and its page
@@ -8506,7 +8522,22 @@ describe("the last pass before version 7 goes live, held to v15", () => {
   test("the record of an admin opening somebody's sealed predictions or survey answers is a staff log a deletion leaves", () => {
     says(OPENINGS);
     // The two kinds, and nothing a record says in a row.
-    assert.match(read("src/lib/firestore/recordOpenings.ts"), /export const RECORD_OPENING_KINDS: readonly RecordOpeningKind\[\] = \["sealed-predictions", "survey-answers"\];/);
+    // CHANGED ON PURPOSE (names on a survey's own pages): three more kinds of survey
+    // answers opened, names on a survey's own pages, each a row of who, whose
+    // by ids, the survey and when, and never which bar or which comment.
+    assert.match(
+      read("src/lib/firestore/recordOpenings.ts"),
+      /export const RECORD_OPENING_KINDS: readonly RecordOpeningKind\[\] = \["sealed-predictions", "survey-answers", "survey-bar", "survey-comment", "survey-table"\];/,
+    );
+    const namesWriter = withoutComments(read("src/lib/firestore/recordOpenings.ts"));
+    const names = namesWriter.slice(namesWriter.indexOf("export async function openSurveyNamesRecorded"));
+    const namesRow = names.slice(names.indexOf("await ref.create({"), names.indexOf("});", names.indexOf("await ref.create({")));
+    assert.deepEqual(
+      [...namesRow.matchAll(/^\s*(\w+)(?=[:,])/gm)].map((m) => m[1]),
+      ["kind", "actorUid", "actorName", "surveyId", "subjectUids", "subjectSignupIds", "openedAt"],
+      "an opening of names on a survey's pages now keeps something an audit record of what staff did does not: which bar or comment, beside whose, would be what they said",
+    );
+    assert.ok(names.indexOf("await ref.create({") < names.indexOf("const value = await read();"), "the names are read before the opening is recorded");
     const log = withoutComments(read("src/lib/firestore/recordOpenings.ts"));
     const sealed = log.slice(log.indexOf("export async function openRecorded"), log.indexOf("export async function openSurveyAnswersRecorded"));
     const row = sealed.slice(sealed.indexOf(".create({"), sealed.indexOf("});", sealed.indexOf(".create({")));

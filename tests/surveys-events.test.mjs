@@ -655,7 +655,7 @@ describe("the admins' pages for a survey after an event", () => {
     assert.doesNotMatch(closed, /Closes Sun 8 Nov/);
   });
 
-  test("the list, Who answered with guests by name, and the results with n beside every number and the numbers above", async (t) => {
+  test("the list, the Answers tab with guests by name, and the results with n beside every number and the numbers above", async (t) => {
     clock(t, NEXT_DAY);
     w.reset();
     const id = await made();
@@ -671,12 +671,16 @@ describe("the admins' pages for a survey after an event", () => {
     assert.match(list.text, /After VR games night Sun 1 Nov · 2 answers · Closes Sun 8 Nov Open Results/);
     const byProgramme = await w.page("app/(app)/admin/(admin-only)/surveys/page.tsx", { searchParams: Promise.resolve({}) }, "zach");
     assert.ok(!byProgramme.text.includes("After VR games night"), "a survey after an event is listed under a programme");
+    // The Answers tab: its page draws the head and nothing of anybody; its route, once the opening is
+    // recorded, names everybody who answered and how they came, and who it was emailed to and has not.
     const answered = await w.page("app/(app)/admin/(admin-only)/surveys/[surveyId]/answered/page.tsx", { params: Promise.resolve({ surveyId: id }) }, "zach");
-    assert.match(answered.text, /2 have answered: 1 with the QR code before any email, and 1 of the 4 it was emailed to/);
-    assert.match(answered.text, /Gwen Price/);
-    assert.match(answered.text, /\bKofi\b/);
-    assert.match(answered.text, /Rosa Martinez/);
-    assert.match(answered.text, /With the QR code, signed in/);
+    assert.match(answered.text, /Answers 2/);
+    assert.doesNotMatch(answered.text, /Gwen|Kofi|Rosa/);
+    const tab = (await w.call("zach", (await w.route("surveys/[surveyId]/answers")).POST, { surveyId: id })).body.answers;
+    // An account by the names rule for the admin (`nameForViewer`: in full); a guest by the name they gave the event.
+    assert.deepEqual(tab.rows.map((row) => [row.name, row.as]), [["Gwen Price", "Guest"], ["Kofi Asante", "Member"]]);
+    assert.match(tab.rows[1].sent, /, with the QR code, signed in\.$/);
+    assert.ok(tab.notAnswered.some((person) => person.name === "Rosa Martinez"), JSON.stringify(tab.notAnswered));
     const results = await w.page("app/(app)/admin/(admin-only)/surveys/[surveyId]/results/page.tsx", { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
     assert.match(results.text, /2 Answers 1 with the QR code, 1 by email 6 Came 3 who signed up, 3 walk-ins 1 of 4 Answered the email Sent Mon 2 Nov, 10am/);
     assert.match(results.text, /2 answers\./);

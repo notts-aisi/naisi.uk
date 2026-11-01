@@ -13,10 +13,10 @@ import { LEAD_RESULTS_WORDS } from "@/lib/surveys/words";
 export const dynamic = "force-dynamic";
 
 /**
- * ONE OF A PROGRAMME'S SURVEYS' RESULTS, for its lead and admins (Q41, Q46,
- * Q49 A): totals and comments for their own programme, made on the server,
- * never a name, from the first answer, under the programme's head. Linked
- * from the programme's Surveys tab.
+ * ONE OF A PROGRAMME'S SURVEYS' RESULTS, for its lead and admins: totals and
+ * comments for their own programme, made on the server, never a name, from
+ * the first answer, under the programme's head. Linked from the programme's
+ * Surveys tab.
  *
  * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`loadProgrammeRun`), decided from the
  * form before any survey is read; a reviewer is told in a sentence that this
@@ -25,7 +25,7 @@ export const dynamic = "force-dynamic";
  * sentence too (`leadSurveyOf`). Its comments are listed by their words, not
  * in the order they came in, and the admins' switch that leaves out answers
  * sent after someone's first session is not drawn. Who answered is never
- * here: that is the admins' Who answered tab.
+ * here: that is the admins' Answers tab.
  *
  * Under the tab's row of views, with the view its stage is listed on current:
  * Before, End (the survey at the end and the survey about leaving) or

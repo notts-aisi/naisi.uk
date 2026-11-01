@@ -5,9 +5,8 @@ import type { IncubatorStrand, SurveyTemplate } from "./templates";
 /**
  * EVERY SENTENCE A SURVEY SAYS, in one place: the answer page, the
  * confidential box, the two emails and the admins' pages. The words are the
- * boards' (sv-before-phone, sv-privacy, sv-send-programme, sv-list), with
- * their apostrophes; every value in them comes from a record and arrives
- * here as an argument.
+ * ones designed for them, with their apostrophes; every value in them comes
+ * from a record and arrives here as an argument.
  *
  * No imports but a type, so the server and the browser word a survey alike.
  * Dates are read in London, never the machine's own zone.
@@ -110,8 +109,9 @@ export function weekWords(n: number): string {
 /**
  * Each stage's words: what the admins call its survey ("AGI Strategy: after"),
  * the title people see (and the start of its email's subject), and the New
- * survey page's card for its template. The leaving survey's card is sv-new's
- * words; its title is written in the boards' voice, for the admin to change.
+ * survey page's card for its template. The leaving survey's card is in the
+ * words designed for New survey; its title is written in their voice, for
+ * the admin to change.
  */
 export const STAGE_WORDS: Record<SurveyTemplate, { name: string; title: string; card: string; cardLine: string }> = {
   before: {
@@ -222,7 +222,7 @@ export const ANSWER_WORDS = {
   sending: "Sending…",
   thanks: "Thank you. Your answers are in.",
   tryAgain: "Your answers didn’t send. Check your connection and press Send my answers again.",
-  /** The box under a long answer (sv-privacy, sv-after-phone, sv-social-phone), unticked until ticked. */
+  /** The box under a long answer, unticked until ticked. */
   quote: "You can quote this, without my name",
   quoteLine: "We might put it in a report for the committee or our funder, Kairos, or on our site.",
 } as const;
@@ -312,7 +312,7 @@ export const STATE_WORDS = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// The confidential box (sv-privacy, "A programme survey")
+// The confidential box at the top of a survey
 // ---------------------------------------------------------------------------
 
 export type ConfidentialFacts = {
@@ -333,10 +333,10 @@ export type ConfidentialFacts = {
 export const CONFIDENTIAL_HEADING = "Confidential";
 
 /**
- * The box at the top of a programme survey, point by point, as sv-privacy
- * words it. Two things in it come from records about the person: the lead,
- * and their group's facilitators. Somebody in no group they have been told
- * about yet is told about their facilitators without names.
+ * The box at the top of a programme survey, point by point, in the words
+ * designed for it. Two things in it come from records about the person: the
+ * lead, and their group's facilitators. Somebody in no group they have been
+ * told about yet is told about their facilitators without names.
  */
 export function confidentialPoints(facts: ConfidentialFacts): { points: string[]; note: string } {
   const who: string[] = [];
@@ -353,9 +353,9 @@ export function confidentialPoints(facts: ConfidentialFacts): { points: string[]
   if (who.length > 0) points.push(who.join(" "));
   const names = `Your name comes off on ${dateKeyWords(facts.namesOffOn)}, two years after the ${facts.programmeKind} ends. The totals stay.`;
   if (facts.stage === "leaving") {
-    // sv-privacy's leaving box, with the words that said it was anonymous
-    // replaced by what confidential means here (Q46): listed in the build
-    // notes for the boards' designers to confirm.
+    // The leaving box as first designed, with the words that said it was
+    // anonymous replaced by what confidential means here: listed in the
+    // build notes for the designers to confirm.
     points.push(
       "Nothing you say changes your account or a future application.",
       "Totals may go in reports to the committee and our funder, Kairos.",
@@ -378,7 +378,7 @@ export function confidentialPoints(facts: ConfidentialFacts): { points: string[]
 }
 
 // ---------------------------------------------------------------------------
-// The two emails (HANDOFF, "Emails, word for word")
+// The two emails, word for word as designed
 // ---------------------------------------------------------------------------
 
 export type SurveyEmailWords = {
@@ -470,7 +470,7 @@ function pointsList(points: readonly number[]): string {
 
 /**
  * A question's kind in a few words, as the editor and the read-only list name
- * it (sv-edit: "Choose one", "Pick any", "1 to 5 for each line").
+ * it ("Choose one", "Pick any", "1 to 5 for each line").
  */
 export function questionTypeWords(question: SurveyQuestion): string {
   switch (question.type) {
@@ -513,7 +513,7 @@ export function questionTypeWords(question: SurveyQuestion): string {
 export const LIST_WORDS = {
   title: "Surveys",
   /**
-   * sv-list's lede, the board's words. Its second sentence waited for the
+   * The list's lede, as designed. Its second sentence waited for the
    * lead's Surveys tab, which is built (`(tabs)/surveys`), so it is true now.
    */
   lede: "Only admins make and send surveys. Leads see results for their own programme, in its Surveys tab.",
@@ -528,7 +528,7 @@ export const LIST_WORDS = {
   edit: "Edit",
   /** Under the tabs, beside the Confidential chip: what confidential means. */
   howConfidential: "We know who answered. Only admins see who said what.",
-  /** sv-list, a leaving survey's row: it has no closing day. */
+  /** A leaving survey's row on the list: it has no closing day. */
   neverCloses: "No closing date",
 } as const;
 
@@ -544,7 +544,8 @@ export function notAnsweredWords(n: number): string {
 
 export const TAB_WORDS = {
   results: "Results",
-  answered: "Who answered",
+  /** Every answer in one table, with names; it was "Who answered". */
+  answered: "Answers",
   questions: "Questions",
   send: "Send",
 } as const;
@@ -773,6 +774,111 @@ export const RESULT_WORDS = {
   toggleCountAll: "Count every answer",
 } as const;
 
+/**
+ * The charts on a survey's results, and the admins' ways to the
+ * names behind them: "See who" on a bar, "Whose is this?" beside a comment,
+ * each opening recorded first.
+ */
+export const CHART_WORDS = {
+  /** Above an admin's charts. */
+  namesNote:
+    "Results never show a name by themselves. “See who” opens the people behind a bar, for admins only, and each opening is recorded, as opening one person’s answers is.",
+  who: "Who",
+  everyone: "Everyone who answered",
+  cameAs: "Came as",
+  noGroup: "In no group",
+  /** What the results count when the Who filter is In no group: "4 answers from people in no group." */
+  noGroupPeople: "people in no group",
+  membersAndGuests: "Members and guests",
+  members: "Members",
+  guests: "Guests",
+  /** The filters' button, for a browser that has not run the page's script. */
+  show: "Show",
+  downloadQuestion: "Download this question",
+  downloadChart: "Download the chart",
+  /** Beside a bar nobody is behind. */
+  nobody: "Nobody",
+  whose: "Whose is this?",
+  /** Under a comments question's line: how the comments are listed. */
+  byWords: "in the order of their words, not when they came",
+  /** While an opening is being recorded. */
+  opening: "Opening…",
+  hide: "Hide the names",
+  failed: "That didn’t open. Check your connection and try again.",
+  notRecorded: "We couldn’t record that you opened these names, so they stay closed. Try again.",
+  changed: "These results have changed since the page was drawn. Reload it, then open the names again.",
+  namesOff: "Names have come off this survey’s answers, so there’s nobody to name. The totals stay.",
+  noQuestion: "That question isn’t on this survey.",
+  noComment: "That comment isn’t among these results any more. Reload the page.",
+  /** A filter that leaves nobody. */
+  noneHere: "Nobody here has answered yet.",
+  /** The picture's own line, when the chart is downloaded. */
+  pictureFrom: "NAISI survey results",
+  pictureFailed: "This browser couldn’t make the picture. Try again, or try another browser.",
+} as const;
+
+/** "See who (7)", the button behind a bar. */
+export function seeWhoWords(n: number): string {
+  return `See who (${n})`;
+}
+
+/** What "See who (7)" says to assistive technology: "See who answered “5: Loved it” (7)". */
+export function seeWhoLabelWords(label: string, heading: string, n: number): string {
+  return heading ? `See who answered “${label}” for “${heading}” (${n})` : `See who answered “${label}” (${n})`;
+}
+
+/** What "Whose is this?" says to assistive technology: the comment's first words. */
+export function whoseLabelWords(comment: string): string {
+  const words = comment.length > 60 ? `${comment.slice(0, 60).trimEnd()}…` : comment;
+  return `Whose is this? “${words}”`;
+}
+
+/** "Show all 15", under the first few comments. */
+export function showAllWords(n: number): string {
+  return `Show all ${n}`;
+}
+
+/** "Everyone who answered (15)", the Who filter's first choice. */
+export function everyoneWhoAnsweredWords(n: number): string {
+  return `${CHART_WORDS.everyone} (${n})`;
+}
+
+/** "Group A (5)", a choice of the Who filter. */
+export function groupChoiceWords(name: string, n: number): string {
+  return `${name} (${n})`;
+}
+
+/** "7 · 47%": a bar's count and its share. */
+export function barShareWords(count: number, percent: number): string {
+  return `${count} · ${percent}%`;
+}
+
+/** "Opened by Zach, Sat 21 Nov": what stays beside a bar or a comment once its names are hidden. */
+export function openedByWords(name: string, at: Date): string {
+  return `Opened by ${name}, ${dayWords(at)}`;
+}
+
+/** "5 answers from Group A.", "3 answers from guests.": the Results' first line when a filter narrows them. */
+export function narrowedAnswersWords(answers: number, from: string): string {
+  if (answers === 0) return `No answers yet from ${from}.`;
+  return `${answers} ${answers === 1 ? "answer" : "answers"} from ${from}.`;
+}
+
+/** "1 whose name has come off", beside the names a bar opened. */
+export function namesOffCountWords(n: number): string {
+  return `${n} whose ${n === 1 ? "name has" : "names have"} come off`;
+}
+
+/** The file of one question: "agi-strategy-before-q5-2026-11-05.csv". */
+export function questionFileWords(surveyName: string, number: number, today: string): string {
+  const slug = surveyName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+  return `${slug || "survey"}-q${number}-${today}`;
+}
+
 /** "Of the 20 who answered it both times, against AGI Strategy: before: 12 moved up, 6 stayed, 2 moved down." */
 export function movedWords(both: number, against: string, up: number, same: number, down: number): string {
   if (both === 0) return `Nobody has answered it both times yet (${against}).`;
@@ -849,14 +955,14 @@ export function countChangedWords(now: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// The cards (Q50 B): a survey waiting for somebody, on Home, My programmes and
+// The cards: a survey waiting for somebody, on Home, My programmes and
 // week 1's page
 // ---------------------------------------------------------------------------
 
 /**
- * A card's own words (HANDOFF, "Home and My programmes": "A survey for you:
- * Before you start · about 3 minutes · Answer"). What it is, how long, when
- * it closes and "Answer", and never how many others have answered.
+ * A card's own words, as designed for Home and My programmes ("A survey for
+ * you: Before you start · about 3 minutes · Answer"). What it is, how long,
+ * when it closes and "Answer", and never how many others have answered.
  */
 export const CARD_WORDS = {
   eyebrow: "A survey for you",
@@ -869,22 +975,21 @@ export function cardSizeWords(questions: number, minutes: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// The survey at the end, on its programme's own pages (Q48 B): Home in the
-// last week (wk-lastweek-phone) and the programme page once the programme is
-// over (en-after-phone, en-after-nofinish-phone). The boards' words, every
-// number, day and name in them from the survey's own record and the group's;
-// the words for a day the boards do not draw are in their voice and listed in
-// the build notes for the boards' designers to confirm.
+// The survey at the end, on its programme's own pages: Home in the last week
+// and the programme page once the programme is over. The words as designed,
+// every number, day and name in them from the survey's own record and the
+// group's; the words for a day the design does not draw are in its voice and
+// listed in the build notes for the designers to confirm.
 // ---------------------------------------------------------------------------
 
 export const END_CARD_WORDS = {
   /** While it is theirs to answer ("cards call the after survey 'The survey at the end'"). */
   heading: "The survey at the end",
-  /** Once they have sent it (en-after-phone). */
+  /** Once they have sent it. */
   sentHeading: "Your survey at the end",
-  /** Its button in the last week (wk-lastweek-phone). */
+  /** Its button in the last week. */
   open: "Open the survey",
-  /** Its button once the programme is over (en-after-nofinish-phone). */
+  /** Its button once the programme is over. */
   answer: "Answer it",
 } as const;
 
@@ -978,7 +1083,7 @@ export function endCardClosesWords(closesOn: string): string {
 }
 
 /**
- * Once the programme is over (en-after-nofinish-phone): "The same 6
+ * Once the programme is over: "The same 6
  * questions as week 1, then how it went. About 5 minutes. It closes on Fri
  * 18 Dec."
  */
@@ -1000,7 +1105,7 @@ export function endCardKeptWords(keptUntil: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// The leaving survey's tab, for admins (Q46): opened, never sent
+// The leaving survey's tab, for admins: opened, never sent
 // ---------------------------------------------------------------------------
 
 export const OPEN_WORDS = {
@@ -1037,16 +1142,16 @@ export function reachedWords(reached: number, answered: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Reaching somebody who left (Q46): the page that says they left, and the
+// Reaching somebody who left: the page that says they left, and the
 // leaving email
 // ---------------------------------------------------------------------------
 
 /**
- * The leaving survey's card on the page that says somebody left
- * (wk-left-phone). The board drew "Tell us why, anonymously" and "This survey
- * never records who answers, even when you’re signed in.", which are untrue
- * of a confidential survey (Q46): these are the nearest true words, listed in
- * the build notes for the boards' designers to confirm.
+ * The leaving survey's card on the page that says somebody left. The design
+ * said "Tell us why, anonymously" and "This survey never records who
+ * answers, even when you’re signed in.", which are untrue of a confidential
+ * survey: these are the nearest true words, listed in the build notes for
+ * the designers to confirm.
  */
 export const LEAVING_CARD_WORDS = {
   heading: "Tell us why",
@@ -1073,7 +1178,7 @@ export function leavingEmailWords(questions: number, minutes: number): { before:
 }
 
 // ---------------------------------------------------------------------------
-// A programme's survey results, for its lead (Q49 A)
+// A programme's survey results, for its lead
 // ---------------------------------------------------------------------------
 
 export const LEAD_RESULTS_WORDS = {
@@ -1083,16 +1188,15 @@ export const LEAD_RESULTS_WORDS = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// The lead's Surveys tab (sv-programme, Q41, Q49 A)
+// The lead's Surveys tab
 // ---------------------------------------------------------------------------
 
 /**
- * The words of a programme lead's Surveys tab: the board's where it draws
- * them. Where the records hold something other than what the board drew (the
- * questionnaire replaced the board's questions, and Q41 and Q49 took away
- * the floors and the wait for a survey to close), the words are in the
- * board's voice, listed in the build notes for the boards' designers to
- * confirm.
+ * The words of a programme lead's Surveys tab: as designed, where the design
+ * has them. Where the records hold something other than what was drawn (the
+ * questionnaire replaced the questions first drawn, and Zach's decisions took
+ * away the floors and the wait for a survey to close), the words are in its
+ * voice, listed in the build notes for the designers to confirm.
  */
 export const LEAD_TAB_WORDS = {
   changed: "What changed",
@@ -1279,13 +1383,13 @@ export function haveAnsweredParts(answered: number, of: number): { count: string
 }
 
 /**
- * "The after survey" on the lead's Overview once the programme is over
- * (en-finish): how many have answered, and the way to the Surveys tab. The
- * board's "Results show in Surveys once it closes on Fri 18 Dec, so nobody can
- * be worked out from one new answer." and "Totals show from 3 answers,
- * comments from 5." were taken away by Q49 A (results as answers come in) and
- * Q41 (no floors), so the line says what the tab does, in its own words:
- * listed in the build notes for the boards' designers to confirm.
+ * "The after survey" on the lead's Overview once the programme is over: how
+ * many have answered, and the way to the Surveys tab. The design's "Results
+ * show in Surveys once it closes on Fri 18 Dec, so nobody can be worked out
+ * from one new answer." and "Totals show from 3 answers, comments from 5."
+ * were taken away when Zach decided results show as answers come in, with no
+ * floors, so the line says what the tab does, in its own words: listed in the
+ * build notes for the designers to confirm.
  */
 export const AFTER_SURVEY_CARD_WORDS = {
   heading: "The after survey",
@@ -1382,11 +1486,11 @@ export function seeAllWords(total: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// One person's answers, for admins (sv-person)
+// One person's answers, for admins
 // ---------------------------------------------------------------------------
 
 /**
- * The page an admin opens from Who answered: one person's answers to each of
+ * The page an admin opens from the Answers tab: one person's answers to each of
  * a programme's surveys, the change questions start and end side by side, or
  * to a survey after an event. The board's words where it draws them; where it
  * draws none (a follow-up's column, a survey not answered, nothing to open),
@@ -1411,7 +1515,7 @@ export const PERSON_WORDS = {
   tryAgain: "Try again",
   /** The person's name, when their account is gone. */
   accountGone: "A deleted account",
-  /** A guest the event's list no longer holds, as Who answered names them. */
+  /** A guest the event's list no longer holds, as the Answers tab names them. */
   guestGone: "A guest no longer on the list",
   notRecorded: "We couldn’t record that you opened these answers, so they stay closed. Try again.",
   nobodyHere: "There’s nobody by that address on this survey.",
@@ -1468,9 +1572,105 @@ export function surveyComesOffWords(surveyName: string, key: string): string {
   return `${surveyName}, ${dateKeyWords(key)}`;
 }
 
-/** "Zach Levin · Mon 21 Dec, 11:04am", one opening in Who has opened this. */
-export function openingLineWords(name: string, at: Date | null): string {
-  return at ? `${name} · ${dayAndClockWords(at)}` : name;
+/**
+ * "Zach Levin · Mon 21 Dec, 11:04am", one opening in Who has opened this,
+ * with where it was for an opening of names on a survey's own pages:
+ * "Zach Levin · Mon 21 Dec, 11:04am · the Answers tab".
+ */
+export function openingLineWords(name: string, at: Date | null, where = ""): string {
+  const line = at ? `${name} · ${dayAndClockWords(at)}` : name;
+  return where ? `${line} · ${where}` : line;
+}
+
+/** Where an opening of answers was, by its kind: nothing for one person's answers opened alone. */
+export function openingWhereWords(kind: "survey-answers" | "survey-bar" | "survey-comment" | "survey-table"): string {
+  switch (kind) {
+    case "survey-table":
+      return "the Answers tab";
+    case "survey-bar":
+      return "See who, on the results";
+    case "survey-comment":
+      return "Whose is this?, on the results";
+    default:
+      return "";
+  }
+}
+
+/**
+ * The Answers tab: every answer in one table, with names, for
+ * admins, one person's beside it. Nothing of it is read until the opening is
+ * recorded.
+ */
+export const ANSWERS_WORDS = {
+  opening: "Opening the answers…",
+  seeLog: "See the log",
+  download: "Download all answers",
+  downloadNote: "A download with names is logged too.",
+  person: "Person",
+  as: "As",
+  group: "Group",
+  member: "Member",
+  guest: "Guest",
+  noGroup: "No group",
+  noAnswer: "No answer",
+  openPage: "Open their page",
+  choose: "Show their answers beside the table",
+  notAnswered: "Not answered yet",
+  nobodyYet: "Nobody has answered yet.",
+  tryAgain: "Try again",
+  notRecorded: "We couldn’t record that you opened this tab, so its answers stay closed. Try again.",
+  namesOff: "Names have come off this survey’s answers, so there are none of anybody’s to show. The answers stay in the totals on Results.",
+  unreachable: "We couldn’t reach the site, so nothing was opened. Check your connection and try again.",
+  caption: "Every answer to this survey, one person to a row",
+  afterFirst: "After their first session",
+} as const;
+
+/** "You’re seeing names because you’re an admin. Opening this tab was recorded: Zach, Sat 21 Nov, 11:02am." */
+export function answersRecordedWords(name: string, at: Date): string {
+  return `You’re seeing names because you’re an admin. Opening this tab was recorded: ${name}, ${dayAndClockWords(at)}.`;
+}
+
+/** "Sent Fri 20 Nov, 2:14pm, from their own link.": when and how one person's answers came. */
+export function sentHowWords(at: Date | null, via: "link" | "signed-in", event: boolean): string {
+  const how = via === "link" ? "from their own link" : event ? "with the QR code, signed in" : "signed in";
+  return at ? `Sent ${dayAndClockWords(at)}, ${how}.` : `Sent ${how}.`;
+}
+
+/** "Not answered yet (6)". */
+export function notAnsweredHeadingWords(n: number): string {
+  return `${ANSWERS_WORDS.notAnswered} (${n})`;
+}
+
+/** "Sent Thu 29 Oct, 9am · Reminded once", one person on Not answered yet. */
+export function notAnsweredLineWords(sentAt: Date | null, reminders: number): string {
+  const parts = [sentAt ? `Sent ${dayAndClockWords(sentAt)}` : "Not sent"];
+  if (reminders > 0) parts.push(`Reminded ${reminders === 1 ? "once" : `${reminders} times`}`);
+  return parts.join(" · ");
+}
+
+/** A survey's log ("See the log" on its Answers tab): every opening of names on it, and every download with names. */
+export const LOG_WORDS = {
+  title: "The log",
+  lede: "Each time an admin opened names on this survey, and each download of its answers with names. It says who and when, never whose answers were shown.",
+  none: "Nobody has opened names on this survey, or downloaded its answers, yet.",
+  back: "Back to the answers",
+} as const;
+
+/** One line of a survey's log, after who: "opened the Answers tab: 15 people". */
+export function logWhatWords(kind: "survey-answers" | "survey-bar" | "survey-comment" | "survey-table" | "download", people: number): string {
+  const many = `${people} ${people === 1 ? "person" : "people"}`;
+  switch (kind) {
+    case "survey-table":
+      return `opened the Answers tab: ${many}`;
+    case "survey-bar":
+      return `opened who is behind a bar: ${many}`;
+    case "survey-comment":
+      return "opened whose a comment is";
+    case "survey-answers":
+      return "opened one person’s answers";
+    case "download":
+      return `downloaded all answers: ${many}`;
+  }
 }
 
 /** "Amara Okafor has no answers here to open." */
@@ -1524,7 +1724,7 @@ export function personScaleWords(question: SurveyQuestion): string {
 export const BLANKS_WORDS = {
   /** The admin's button, beside somebody who sent the survey with required questions left blank. */
   button: "Send the questions they left blank",
-  /** Who answered's column for it. */
+  /** The Answers tab's column for it. */
   column: "Left blank",
   /** The confirmation's two buttons. */
   confirmCancel: "Not now",
@@ -1564,7 +1764,7 @@ export const BLANKS_REFUSAL = {
   nobody: "There’s nobody by that address on this survey.",
 } as const;
 
-/** "Left 3 blank", beside a person on Who answered and on their own page. */
+/** "Left 3 blank", beside a person on the Answers tab and on their own page. */
 export function leftBlankWords(n: number): string {
   return `Left ${n} blank`;
 }

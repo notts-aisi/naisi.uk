@@ -1,6 +1,7 @@
 /*
-  The admins' survey pages (sv-new, sv-edit, sv-send-programme). The list of
-  every survey, Run NAISI › Surveys, has its own: surveyHub.module.css.
+  The admins' survey pages (New survey, a survey's Questions and its Send
+  tab). The list of every survey, Run NAISI › Surveys, has its own:
+  surveyHub.module.css.
 
   Desktop first: a main column and a narrower aside on a laptop, one column
   on a phone. Wide content (a table of people) scrolls inside its own card,
@@ -310,7 +311,7 @@
   color: var(--color-text);
 }
 
-/* --- questions (sv-edit) ----------------------------------------------- */
+/* --- questions ---------------------------------------------------------- */
 
 .field {
   display: flex;
@@ -511,7 +512,7 @@
   overflow-wrap: anywhere;
 }
 
-/* A name in Who answered, which opens that person's answers (sv-person). The
+/* A name on the Answers tab, which opens that person's answers. The
    negative margins keep the row's height while the target reaches 44px. */
 .personLink {
   display: inline-flex;
@@ -634,7 +635,7 @@
   overflow-x: auto;
 }
 
-/* --- new survey (sv-new) ----------------------------------------------- */
+/* --- new survey ---------------------------------------------------------- */
 
 .template {
   display: flex;

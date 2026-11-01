@@ -283,7 +283,7 @@ export const CHECK_INS_TAB_WORDS = {
   groupsLine:
     "Only admins see these. Each check-in’s own pages open who said what, one person at a time, and every opening is recorded.",
   results: "Results",
-  whoAnswered: "Who answered",
+  answers: "Answers",
   open: "Open",
   closed: "Closed",
   /** On an admin's row for a check-in opened after its week's check-ins were fixed: the lead's week leaves it out. */
@@ -315,7 +315,7 @@ export function groupCheckInWords(groupName: string, startsAt: Date | null): str
   return startsAt ? `${groupName} · ${sessionWhenWords(startsAt)}` : groupName;
 }
 
-/** What a link on an admin's row says to assistive technology: "Who answered: Group C, week 3". */
+/** What a link on an admin's row says to assistive technology: "Answers: Group C, week 3". */
 export function checkInLinkLabel(action: string, groupName: string, weekNumber: number): string {
   return `${action}: ${groupName}, week ${weekNumber}`;
 }

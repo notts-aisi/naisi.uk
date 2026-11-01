@@ -383,6 +383,14 @@ const READERS = {
       "whether a leaving survey or a check-in is still the caller's to answer: the caller's own seat only, and " +
       "nothing of it is shown. A seat Publish has not told them about is no seat they left or are on, so it keeps no card",
   },
+  "lib/surveys/resultsFilters.ts": {
+    kind: "told",
+    asks: 1,
+    why:
+      "a programme's survey results by group, for admins: the Who filter, the people behind its bars and the Answers " +
+      "tab's Group column read each person's group as Publish told it, so a seat Publish has not told them about is " +
+      "in no group, and no answer is counted under a group its person has not been told",
+  },
   "lib/applications/people/load.ts": {
     kind: "staff",
     proof: ['if (!opensProgrammeGroups(role)) return { status: "not-yours" };'],

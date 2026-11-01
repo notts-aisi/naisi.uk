@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
  * totals from three answers and comments from five, in the order of their
  * words (`readProgrammeCheckIns`, its floors decided on the server). An admin
  * also has a row for each group's check-in, with the way to its Results and
- * Who answered on the admins' own pages, where one person's answers open only
+ * Answers on the admins' own pages, where one person's answers open only
  * once the opening is recorded; the lead never has those rows.
  *
  * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`loadProgrammeRun`), decided from the
