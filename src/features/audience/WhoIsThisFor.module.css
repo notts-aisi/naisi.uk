@@ -456,6 +456,11 @@
   padding: var(--space-2) var(--space-5) var(--space-5);
 }
 
+/* A class that sets `display` would otherwise draw the body while it is hidden. */
+.previewBody[hidden] {
+  display: none;
+}
+
 .previewNote {
   margin: 0;
   font-size: var(--text-sm);
