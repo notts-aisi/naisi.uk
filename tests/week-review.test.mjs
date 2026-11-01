@@ -637,6 +637,19 @@ describe("4. the page: an admin's alone, saying what would be sent before any pr
     for (const said of Object.values(CHECK_IN_SAID)) for (const text of [said.most, said.better].filter(Boolean)) assert.ok(!drawn.text.includes(text), `the page shows a check-in: ${text}`);
   });
 
+  test("with nothing that may be sent, it says so and offers no press", async () => {
+    reset();
+    for (const path of w.world.db.paths()) {
+      if (path.startsWith("courseExerciseResponses/") || path.startsWith("surveyAnswers/") || path.startsWith("courseSessionReports/")) {
+        await w.world.db.collection(path.split("/")[0]).doc(path.split("/")[1]).delete();
+      }
+    }
+    const drawn = await page("zach");
+    assert.match(drawn.text, /0 written answers · 0 reflections · 0 check-ins · 0 facilitator reports/);
+    assert.match(drawn.text, /Nothing of this week can be sent yet: only what people wrote after they agreed to version 15 of the privacy policy is\./);
+    assert.equal(findProps(drawn.element, "ReviewPress").length, 0, "a press with nothing to send");
+  });
+
   test("the programme's lead is told it is for admins, a reviewer that the tab is not theirs, and anybody else that there is no programme", async () => {
     reset();
     const lead = await page("claudia");
