@@ -110,7 +110,8 @@
   color: var(--color-on-accent);
 }
 
-.option:focus-within {
+/* The ring for a keyboard's focus only, not after a press. */
+.option:has(.optionInput:focus-visible) {
   box-shadow: var(--focus-ring);
 }
 
