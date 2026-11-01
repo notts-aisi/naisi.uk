@@ -987,8 +987,13 @@ const BUILT = new Map([
   [
     "src/features/applications/weeks/WeeksList.tsx",
     {
-      built: ["copyWeeksPath(roundId, programmeId)", "weekReviewPath(roundId, programmeId, week.weekId)", "weeksPath(roundId, programmeId, week.weekId)"],
-      from: "the Weeks tab's own paths (src/lib/courses/weeksTab/paths.ts), made from the form's and the programme's ids and a week's document id, each encoded; a week's review is the week's own path and `/review`",
+      built: [
+        "copyWeeksPath(roundId, programmeId)",
+        "weekNotesPath(roundId, programmeId, week.weekId)",
+        "weekReviewPath(roundId, programmeId, week.weekId)",
+        "weeksPath(roundId, programmeId, week.weekId)",
+      ],
+      from: "the Weeks tab's own paths (src/lib/courses/weeksTab/paths.ts), made from the form's and the programme's ids and a week's document id, each encoded; a week's review is the week's own path and `/review`, and its notes the week's own path and `/notes`",
     },
   ],
   [
@@ -1035,6 +1040,13 @@ const BUILT = new Map([
     {
       built: ["review", "weeksPath(view.roundId, view.programmeId)", "weeksPath(view.roundId, view.programmeId, form.weekId)"],
       from: "the way back to the week's review (`weekReviewPath`), the Weeks tab and the week's page on it, made from the form's and the programme's ids and the week's document id, each encoded",
+    },
+  ],
+  [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/notes/page.tsx",
+    {
+      built: ["weeksPath(view.roundId, view.programmeId, page.opened.weekId)"],
+      from: "the way back to the week's page on the Weeks tab, before its first session, made from the form's and the programme's ids and the week's document id, each encoded",
     },
   ],
   [

@@ -38,9 +38,12 @@ import { writtenAfterReviewUse } from "@/lib/legal/reviewUse";
  *    (`courseworkCountsFrom`) is never shown beside an application, and on a
  *    programme's own pages only when it was written from that programme
  *    (`notesShownIn`); the profile shows every note, marking those.
- *  - CLAUDE DRAFTS, AN ADMIN SAVES. A draft is never stored by the draft
- *    route; the Save that stores it carries `draftedByClaude`, and the flag is
- *    shown beside the note for as long as it is kept, to everybody who reads it.
+ *  - CLAUDE DRAFTS, AN ADMIN SAVES. The profile's draft is never stored; an
+ *    end-of-week draft is kept with its run, never here, until an admin saves
+ *    or discards it (`src/lib/courses/weekNotes/`). Only a Save makes a note,
+ *    carrying `draftedByClaude` (and, for an end-of-week note, its week and
+ *    what it was built from, `builtFrom`), and the flag is shown beside the
+ *    note for as long as it is kept, to everybody who reads it.
  *  - THE AUTHOR'S NAME IS LOOKED UP WHEN READ, never stored: an author whose
  *    account is deleted leaves the note, and the note no longer names them.
  *  - DELETED WITH ITS PERSON'S ACCOUNT (`deleteMemberNotes` in
@@ -68,8 +71,49 @@ export type NoteSuggestion = "facilitating" | "incubator" | "committee";
 
 export const NOTE_SUGGESTIONS: readonly NoteSuggestion[] = ["facilitating", "incubator", "committee"];
 
-/** A note written by a person, or one of the end-of-week notes (not built yet: nothing writes "weekly"). */
+/**
+ * A note written by a person, or an end-of-week note: Claude's draft from one
+ * submitted week, read, edited and saved by an admin on the week's Notes page.
+ */
 export type NoteKind = "note" | "weekly";
+
+/** As what a piece of feedback was written: by the person's facilitator, the programme's lead or an admin. */
+export type NoteSourceRole = "facilitator" | "lead" | "admin";
+
+/**
+ * ONE THING AN END-OF-WEEK NOTE WAS BUILT FROM, exactly as Claude was sent it
+ * (privacy v15: "using only the work they submitted and the feedback, ratings
+ * and comments people on the team gave it"). A draft keeps the list, and a
+ * saved note keeps it as its "Built only from":
+ *
+ *  - `work`: a submitted week's own work, how many written answers,
+ *    reflections and boxes went, and when the week was submitted;
+ *  - `levels`: feedback given before pieces existed, sent as its levels on
+ *    the course's rubric and never its comment;
+ *  - `feedback`: one piece of feedback, by its writer and as what they wrote;
+ *  - `rating`: one rating for the team with its comment, and the label its
+ *    rater went by in the message ("Rater 1").
+ *
+ * Names are never kept: a writer is an account, named when the note is read,
+ * so an account that has gone names nobody. Deleting an account takes its
+ * own entries out (`sourcesWithout`), because a rating copied here is still
+ * a rating it gave.
+ */
+export type NoteSource =
+  | { kind: "work"; weekNumber: number; submittedAt: Date | null; written: number; reflections: number; boxes: number }
+  | { kind: "levels"; weekNumber: number }
+  | { kind: "feedback"; weekNumber: number; byUid: string; role: NoteSourceRole; on: "writtenAnswer" | "week"; at: Date | null }
+  | {
+      kind: "rating";
+      weekNumber: number;
+      raterUid: string;
+      role: "lead" | "admin";
+      /** "Rater 1": what Claude's words call this rater. */
+      label: string;
+      rating: number;
+      comment: string;
+      at: Date | null;
+    };
 
 /** A stored note, read. */
 export type MemberNoteDoc = {
@@ -92,6 +136,8 @@ export type MemberNoteDoc = {
   /** The week an end-of-week note is about, or null. */
   weekId: string | null;
   weekNumber: number | null;
+  /** What an end-of-week note was built from, as Claude was sent it; none for any other note. */
+  builtFrom: NoteSource[];
   createdAt: Date | null;
   updatedAt: Date | null;
   /** The admin who last changed its words, when that was not its author. */
@@ -168,6 +214,67 @@ export function suggestionsOf(value: unknown): NoteSuggestion[] {
   return NOTE_SUGGESTIONS.filter((suggestion) => given.includes(suggestion));
 }
 
+const count = (value: unknown): number => (typeof value === "number" && Number.isInteger(value) && value > 0 ? value : 0);
+
+/** One stored source, read, or null for anything that is not one. */
+function sourceOf(value: unknown): NoteSource | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const raw = value as Raw;
+  const weekNumber = count(raw.weekNumber);
+  if (weekNumber === 0) return null;
+  if (raw.kind === "work") {
+    return {
+      kind: "work",
+      weekNumber,
+      submittedAt: instantOf(raw.submittedAt),
+      written: count(raw.written),
+      reflections: count(raw.reflections),
+      boxes: count(raw.boxes),
+    };
+  }
+  if (raw.kind === "levels") return { kind: "levels", weekNumber };
+  if (raw.kind === "feedback") {
+    const role: NoteSourceRole = raw.role === "facilitator" || raw.role === "lead" ? raw.role : "admin";
+    return { kind: "feedback", weekNumber, byUid: str(raw.byUid), role, on: raw.on === "writtenAnswer" ? "writtenAnswer" : "week", at: instantOf(raw.at) };
+  }
+  if (raw.kind === "rating") {
+    const rating = typeof raw.rating === "number" && Number.isInteger(raw.rating) && raw.rating >= 1 && raw.rating <= 10 ? raw.rating : null;
+    if (rating === null) return null;
+    return {
+      kind: "rating",
+      weekNumber,
+      raterUid: str(raw.raterUid),
+      role: raw.role === "lead" ? "lead" : "admin",
+      label: str(raw.label),
+      rating,
+      comment: str(raw.comment),
+      at: instantOf(raw.at),
+    };
+  }
+  return null;
+}
+
+/** Stored sources, read: the ones that are sources, in the order kept. Never throws. */
+export function noteSourcesOf(value: unknown): NoteSource[] {
+  return (Array.isArray(value) ? value : []).map(sourceOf).filter((source): source is NoteSource => source !== null);
+}
+
+/** Every account a list of sources names (a feedback writer, a rater), each once: what an account's deletion finds it by. */
+export function sourceUidsOf(sources: readonly NoteSource[]): string[] {
+  const uids = sources.map((source) => (source.kind === "feedback" ? source.byUid : source.kind === "rating" ? source.raterUid : ""));
+  return [...new Set(uids.filter(Boolean))].sort();
+}
+
+/** The sources without anything `uid` wrote or gave: what is left once their account is deleted. */
+export function sourcesWithout(sources: readonly NoteSource[], uid: string): NoteSource[] {
+  return sources.filter((source) => !(source.kind === "feedback" && source.byUid === uid) && !(source.kind === "rating" && source.raterUid === uid));
+}
+
+/** Whether any of these notes is the end-of-week note kept from one week of one run: at most one ever is. */
+export function keptFromWeek(notes: ReadonlyArray<Pick<MemberNoteDoc, "kind" | "runId" | "weekId">>, runId: string, weekId: string): boolean {
+  return notes.some((note) => note.kind === "weekly" && note.runId === runId && note.weekId === weekId);
+}
+
 /** A stored note, read. Never throws. */
 export function normalizeMemberNote(id: string, data: Raw): MemberNoteDoc {
   const runId = str(data.runId);
@@ -186,6 +293,7 @@ export function normalizeMemberNote(id: string, data: Raw): MemberNoteDoc {
     kind: data.kind === "weekly" ? "weekly" : "note",
     weekId: weekId || null,
     weekNumber,
+    builtFrom: noteSourcesOf(data.builtFrom),
     createdAt: instantOf(data.createdAt),
     updatedAt: instantOf(data.updatedAt),
     editedByUid: str(data.editedByUid),

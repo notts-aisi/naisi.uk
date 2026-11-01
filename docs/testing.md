@@ -566,13 +566,17 @@ The same shape, older:
   every file outside the review's own library that reaches it, each with why
   it may, both ways; the review's loaders called only by its admin-only page
   and route, and no browser file reaching its server code. It also fails when
-  the notes kept about a person reach a review, or a weekly note's drafts
-  (`courseNoteDrafts`, listed when the end-of-week notes are built), because
-  the privacy policy says Claude's grades are never kept on anybody's record
-  and what Claude returns is seen by admins only. An explainer reads one
-  theme for the admin's form and nothing else: the guard holds the
-  explainers' record and every reader of it (the tickets, the overview, the
-  week's email, the week's page) off the review.
+  the notes kept about a person reach a review, or a weekly note's drafts,
+  because the privacy policy says Claude's grades are never kept on
+  anybody's record and what Claude returns is seen by admins only. An
+  explainer reads one theme for the admin's form and nothing else: the guard
+  holds the explainers' record and every reader of it (the tickets, the
+  overview, the week's email, the week's page) off the review. Its second
+  half holds the same for Claude's end-of-week drafts (`courseNoteDrafts`):
+  the files that address them and that reach them, both ways, their loader
+  handing a draft to an admin and never the programme's lead, their presses
+  refusing everybody but an admin first, and a draft reaching a person's
+  notes only through the notes' own store when an admin saves it.
 
 ### Settings that are not files
 

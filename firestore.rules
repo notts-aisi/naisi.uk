@@ -3382,6 +3382,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // === courseNoteDrafts ===
+    // Claude's draft of an end-of-week note about one person, from one week
+    // of a run (privacy v15; src/lib/firestore/courseNoteDrafts.ts), waiting
+    // for an admin to save or discard it. Read and written only on the Admin
+    // SDK, by the week's notes page and routes after their door admits an
+    // admin, and by the two deletions. What Claude returns is seen by admins
+    // only and reaches a person's notes only when an admin saves it, so every
+    // browser is refused, admins included.
+    match /courseNoteDrafts/{docId} {
+      allow read, write: if false;
+    }
+
     // === coursePangramChecks ===
     // Pangram's reading of each of one person's counted answers on a run
     // (privacy v13; src/lib/courses/coursework/pangram.ts). Read and written

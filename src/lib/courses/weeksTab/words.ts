@@ -53,6 +53,8 @@ export const NO_OWNER = "No owner yet";
 export const REVIEW_LINK = "Review";
 /** What the programme's lead is shown in its place. */
 export const REVIEW_ADMINS_ONLY = "Review: admins only";
+/** The same week's notes about people: an admin's drafts, and the saved notes the lead reads. */
+export const NOTES_LINK = "Notes";
 
 /**
  * The line under the list, about where the weeks meet (pr-weeks: "AGI

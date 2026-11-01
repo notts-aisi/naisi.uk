@@ -26,6 +26,12 @@ export function weekReviewPath(roundId: string, programmeId: string, weekId: str
   return `${weeksPath(roundId, programmeId, weekId)}/review`;
 }
 
+/** One week's notes about people: an admin's drafts and saved notes, and the lead's reading of the saved ones. */
+export function weekNotesPath(roundId: string, programmeId: string, weekId: string, only?: "drafts" | "suggestions" | null): string {
+  const page = `${weeksPath(roundId, programmeId, weekId)}/notes`;
+  return only ? `${page}?only=${only}` : page;
+}
+
 /** "Copy weeks from the course". */
 export function copyWeeksPath(roundId: string, programmeId: string): string {
   return `${weeksPath(roundId, programmeId)}/copy`;

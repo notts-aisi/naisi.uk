@@ -22,7 +22,11 @@
  * Claude is not set up, and no press) and Pangram's count before any press,
  * with nothing pressed; reads who might need a hand from the site's own
  * records; asks Fern to have a word with Ben, which makes one task with fixed
- * words and no reason; and Fern, signed in, finds the task on My Work.
+ * words and no reason; opens the week's Notes beside its review, where Ada's
+ * week 3 is submitted and a draft of a note about her waits, as if Claude had
+ * drafted it (seeded here: the harness's own server has no key), built only
+ * from her submitted week; saves it to her notes; and Fern, signed in, finds
+ * the task on My Work.
  *
  * ## What it cannot drive, and where that is held instead
  *
@@ -32,8 +36,9 @@
  * admins' and nothing of the week is read" is held by the persona battery
  * against a real build (`tests/persona-route-gates.registry.mjs`, the `lead`
  * persona on the review page and both routes) and by
- * `tests/week-review.test.mjs`, not here. Nothing is pressed that would send
- * anything to Claude or Pangram.
+ * `tests/week-review.test.mjs`, not here; so is the lead's reading of the
+ * saved notes kept for leads (`tests/week-notes.test.mjs`). Nothing is pressed
+ * that would send anything to Claude or Pangram.
  *
  * ## It reads no mail
  *
@@ -55,6 +60,8 @@ export const WEEK_REVIEW_STEPS = [
   "the review says what would be sent before any press, and with no key that Claude is not set up, with nothing pressed",
   "who might need a hand, from the site's own records, each line saying where it came from",
   "the admin asks the facilitator to have a word with a person: one task, fixed words and no reason",
+  "the week's notes, beside its review: who submitted, and a waiting draft built only from a submitted week",
+  "the admin saves the draft to the person's notes, in the admin's words, and the card says who saved it",
   "the facilitator finds the task on My Work",
 ];
 
@@ -90,27 +97,72 @@ async function seed({ runId, suppress, onState }) {
       { merge: true },
     );
   }
+  // Ada submits week 3 after writing it, as Submit stores it.
+  const submitted = new Date(Date.now() + SUBMITTED_AFTER_MS);
+  await fixtureDoc("courseWeekWork", `${state.runId}__${ada.uid}__w03`).set({
+    e2eTermRunId: state.termRunId,
+    runId: state.runId,
+    uid: ada.uid,
+    weekId: "w03",
+    weekNumber: 3,
+    submittedAt: submitted,
+    firstSubmittedAt: submitted,
+    submitCount: 1,
+    updatedAt: submitted,
+  });
+  // A draft of a note about Ada from week 3, in the shape the draft route keeps
+  // (src/lib/firestore/courseNoteDrafts.ts), built from her submitted week alone.
+  await fixtureDoc("courseNoteDrafts", `${state.runId}__w03__${ada.uid}`).set({
+    e2eTermRunId: state.termRunId,
+    runId: state.runId,
+    weekId: "w03",
+    weekNumber: 3,
+    uid: ada.uid,
+    text: DRAFTED,
+    builtFrom: [{ kind: "work", weekNumber: 3, submittedAt: submitted, written: 1, reflections: 1, boxes: 0 }],
+    raters: {},
+    sourceUids: [],
+    fingerprint: "e2e-seeded",
+    model: "e2e-seeded",
+    at: submitted,
+    askedByUid: "",
+  });
   return state;
 }
 
-/** What the review keeps on the run, and the follow-ups made from it. */
+/** Ada's week 3 is submitted two seconds after the seed: after her rows were first written. */
+const SUBMITTED_AFTER_MS = 2_000;
+
+/** The seeded draft's words, labels and all, as Claude's would come back. */
+export const DRAFTED = "The fellow argues from the week's reading with care. Worth asking the fellow about facilitating.";
+
+/** What the review keeps on the run, the follow-ups made from it, the drafts of notes and the notes saved from them. */
 async function countReview(state) {
   const courseWeekReviews = (await fixtureQuery("courseWeekReviews").where("runId", "==", state.runId).get()).size;
   const reviewFollowUps = (
     await fixtureQuery("tasks").where("source", "==", "review-follow-up").where("sourceRef.cohortId", "==", state.runId).get()
   ).size;
-  return { courseWeekReviews, reviewFollowUps };
+  const courseNoteDrafts = (await fixtureQuery("courseNoteDrafts").where("runId", "==", state.runId).get()).size;
+  // The notes saved from a draft are about the term's people, and keyed by the run they came from.
+  const memberNotes = (await fixtureQuery("memberNotes").where("runId", "==", state.runId).get()).size;
+  return { courseWeekReviews, reviewFollowUps, courseNoteDrafts, memberNotes };
 }
 
 async function teardown(state) {
   await deleteQuery(fixtureQuery("courseWeekReviews").where("runId", "==", state.runId));
   await deleteQuery(fixtureQuery("tasks").where("source", "==", "review-follow-up").where("sourceRef.cohortId", "==", state.runId));
+  await deleteQuery(fixtureQuery("courseNoteDrafts").where("runId", "==", state.runId));
+  await deleteQuery(fixtureQuery("memberNotes").where("runId", "==", state.runId));
   // The runner reads the manifest this returns, and calls the fixture clean
   // only when its total is zero: the term's own, plus what is left of the
-  // two above, counted again after the deletes.
+  // four above, counted again after the deletes.
   const term = await teardownTerm(state);
   const left = await countReview(state);
-  return { ...term, ...left, total: term.total + left.courseWeekReviews + left.reviewFollowUps };
+  return {
+    ...term,
+    ...left,
+    total: term.total + left.courseWeekReviews + left.reviewFollowUps + left.courseNoteDrafts + left.memberNotes,
+  };
 }
 
 export const SPEC = {
@@ -130,6 +182,7 @@ export const SPEC = {
       "/api/courses/groups/[groupId]/facilitators",
       "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/pangram",
       "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review/follow-up",
+      "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/notes/[uid]/save",
     ],
     pages: [
       "/(auth)/login",
@@ -138,6 +191,7 @@ export const SPEC = {
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/groups/facilitators",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks",
       "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review",
+      "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/notes",
       "/(app)/tasks",
     ],
   },
@@ -148,6 +202,12 @@ export const SPEC = {
    * before teardown, and the fixture manifest read zero after it. Nothing was
    * pressed that sends anything to Claude or Pangram: the local server has no
    * key for either.
+   *
+   * OWED: the two steps on the week's Notes (the seeded draft, and saving it)
+   * were added on Sun 1 Nov 2026 after that run, and are owed a local run
+   * (`npm run e2e:browser -- --local --spec course-hub-week-review`) once the
+   * laptop's cloud credential is renewed. Their page and route are held by
+   * `tests/week-notes.test.mjs` meanwhile.
    */
   status: "verified",
   seed,

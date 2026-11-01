@@ -2,10 +2,11 @@ import Link from "next/link";
 import Chip, { type ChipTone } from "@/components/ui/Chip";
 import InitialsChip from "@/components/ui/InitialsChip";
 import type { WeeksTab, WeeksTabWeek } from "@/lib/courses/weeksTab/load";
-import { copyWeeksPath, weekReviewPath, weeksPath } from "@/lib/courses/weeksTab/paths";
+import { copyWeeksPath, weekNotesPath, weekReviewPath, weeksPath } from "@/lib/courses/weeksTab/paths";
 import {
   COPY_WEEKS,
   NO_OWNER,
+  NOTES_LINK,
   REVIEW_ADMINS_ONLY,
   REVIEW_LINK,
   STATE_WORDS,
@@ -33,7 +34,9 @@ import styles from "./weeks.module.css";
  * REVIEW, for a week whose first session has started: the week's review
  * page, an admin's alone (privacy v15: what Claude returns is seen by admins
  * only). The programme's lead is shown "Review: admins only" there instead,
- * and no way in.
+ * and no way in. NOTES beside it, for both: an admin drafts and saves the
+ * week's notes about people there, and the lead reads the saved ones kept
+ * for leads.
  *
  * A server component: every word comes from the tab's loader, nothing about
  * anybody but the owner's name.
@@ -102,13 +105,18 @@ export default function WeeksList({
                     </span>
                   </Link>
                   {review && week.firstStartsAt && week.firstStartsAt.getTime() <= review.now.getTime() && (
-                    review.viewer === "admin" ? (
-                      <Link href={weekReviewPath(roundId, programmeId, week.weekId)} className={styles.reviewLink}>
-                        {REVIEW_LINK}
+                    <>
+                      {review.viewer === "admin" ? (
+                        <Link href={weekReviewPath(roundId, programmeId, week.weekId)} className={styles.reviewLink}>
+                          {REVIEW_LINK}
+                        </Link>
+                      ) : (
+                        <span className={styles.reviewNote}>{REVIEW_ADMINS_ONLY}</span>
+                      )}
+                      <Link href={weekNotesPath(roundId, programmeId, week.weekId)} className={styles.reviewLink}>
+                        {NOTES_LINK}
                       </Link>
-                    ) : (
-                      <span className={styles.reviewNote}>{REVIEW_ADMINS_ONLY}</span>
-                    )
+                    </>
                   )}
                 </li>
               );

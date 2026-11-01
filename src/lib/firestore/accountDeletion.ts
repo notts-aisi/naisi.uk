@@ -44,9 +44,10 @@ import {
   normalizeReportAnswers,
 } from "./courseSessionReports";
 import { PLACEMENT_NOTES_COLLECTION } from "@/lib/courses/placementNotes/model";
-import { MEMBER_NOTES_COLLECTION } from "@/lib/memberNotes/model";
+import { MEMBER_NOTES_COLLECTION, noteSourcesOf, sourcesWithout } from "@/lib/memberNotes/model";
 import { BEST_ANSWERS_COLLECTION, PANGRAM_CHECKS_COLLECTION } from "@/lib/courses/coursework/collections";
 import { COURSE_WEEK_REVIEWS_COLLECTION, reviewWithout } from "./courseWeekReviews";
+import { COURSE_NOTE_DRAFTS_COLLECTION, noteDraftWithout } from "./courseNoteDrafts";
 import { REVIEW_FOLLOW_UP_TASK_SOURCE } from "./courseTasks";
 import { COURSE_EXPLAINERS_COLLECTION, EXPLAINER_ACCOUNT_FIELDS } from "./courseExplainers";
 import {
@@ -360,6 +361,20 @@ export type AccountDeletionSummary = {
    * explainer" without a name. Counted once per document.
    */
   courseExplainersCleared: number;
+  /**
+   * Claude's end-of-week drafts ABOUT this account (`courseNoteDrafts`,
+   * privacy v15), on every run: each is about this account alone, and goes.
+   */
+  courseNoteDraftsDeleted: number;
+  /**
+   * End-of-week drafts and saved notes about OTHER people that were built
+   * from this account's feedback or ratings (`courseNoteDrafts` and
+   * `memberNotes`, found by `sourceUids`): each stays with its person, and
+   * this account's entries are taken out of what it was built from, because
+   * a rating copied there is still a rating it gave. Counted once per
+   * document.
+   */
+  noteSourcesCleared: number;
   authDeleted: boolean;
   /** Set when the teardown was not fully clean (a best-effort step failed, or the
    *  Auth account could not be deleted). Routes return 207 when this is present. */
@@ -936,6 +951,39 @@ export async function clearExplainerNames(db: Firestore, uid: string): Promise<n
     }
   }
   return cleared.size;
+}
+
+/**
+ * Delete every end-of-week draft Claude made ABOUT this account
+ * (`courseNoteDrafts`, privacy v15), on every run, a page at a time: found by
+ * the one equality on `uid`, the person a draft is about.
+ */
+export async function deleteNoteDraftsAbout(db: Firestore, uid: string): Promise<number> {
+  return deleteOwnedCourseRows(db, COURSE_NOTE_DRAFTS_COLLECTION, uid);
+}
+
+/**
+ * Take this account out of what every end-of-week draft and saved note about
+ * somebody else was built from (`courseNoteDrafts` and `memberNotes`, privacy
+ * v15): the feedback it wrote and the ratings it gave, found by the one
+ * `array-contains` on `sourceUids` in each. The draft or note stays with its
+ * person; a draft's "Rater N" for this account then reads "a rater".
+ */
+export async function clearNoteSourcesBy(db: Firestore, uid: string): Promise<number> {
+  let cleared = 0;
+  const drafts = await db.collection(COURSE_NOTE_DRAFTS_COLLECTION).where("sourceUids", "array-contains", uid).get();
+  for (const doc of drafts.docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    await doc.ref.update({ ...noteDraftWithout(data, uid), sourceUids: FieldValue.arrayRemove(uid) });
+    cleared += 1;
+  }
+  const notes = await db.collection(MEMBER_NOTES_COLLECTION).where("sourceUids", "array-contains", uid).get();
+  for (const doc of notes.docs) {
+    const data = (doc.data() ?? {}) as Record<string, unknown>;
+    await doc.ref.update({ builtFrom: sourcesWithout(noteSourcesOf(data.builtFrom), uid), sourceUids: FieldValue.arrayRemove(uid) });
+    cleared += 1;
+  }
+  return cleared;
 }
 
 /**
@@ -1726,6 +1774,8 @@ export async function deleteAccountCascade(
     coursePangramChecksDeleted: 0,
     courseBestAnswersCleared: 0,
     courseWeekReviewsCleared: 0,
+    courseNoteDraftsDeleted: 0,
+    noteSourcesCleared: 0,
     reviewFollowUpsDeleted: 0,
     courseExplainersCleared: 0,
     authDeleted: false,
@@ -2296,6 +2346,23 @@ export async function deleteAccountCascade(
     summary.courseExplainersCleared = await clearExplainerNames(db, uid);
   } catch (err) {
     console.error("[deleteAccount] explainers clear failed:", uid, err);
+    partialFailure = true;
+  }
+  //      Claude's end-of-week drafts about this account are about it alone,
+  //      and go. A draft or a saved note about somebody else that was built
+  //      from this account's feedback or ratings stays with that person,
+  //      without this account's entries in what it was built from: "the
+  //      ratings you gave" go with the account.
+  try {
+    summary.courseNoteDraftsDeleted = await deleteNoteDraftsAbout(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseNoteDrafts delete failed:", uid, err);
+    partialFailure = true;
+  }
+  try {
+    summary.noteSourcesCleared = await clearNoteSourcesBy(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] note sources clear failed:", uid, err);
     partialFailure = true;
   }
 

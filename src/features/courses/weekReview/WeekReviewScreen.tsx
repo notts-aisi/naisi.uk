@@ -1,10 +1,12 @@
 import Link from "next/link";
+import SectionTabs from "@/components/ui/SectionTabs";
 import PangramWeek from "@/features/courses/courseworkClaude/PangramWeek";
 import ExplainerList from "@/features/courses/explainers/ExplainerList";
 import type { ExplainerRow } from "@/lib/courses/explainers/readers";
 import { REVIEW_EXPLAINER_WORDS } from "@/lib/courses/explainers/words";
 import type { WeekReviewView } from "@/lib/courses/weekReview/view";
 import { REVIEW_WORDS } from "@/lib/courses/weekReview/words";
+import { WEEK_TABS_LABEL, weekTabs } from "@/lib/courses/weeksTab/tabs";
 import { weeksPath } from "@/lib/courses/weeksTab/paths";
 import FollowUpButton from "./FollowUpButton";
 import ReviewPress from "./ReviewPress";
@@ -80,6 +82,8 @@ export default function WeekReviewScreen({ view, roundId, programmeId, programme
           </div>
         )}
       </header>
+
+      <SectionTabs tabs={weekTabs(roundId, programmeId, view.weekId)} current="review" ariaLabel={WEEK_TABS_LABEL} />
 
       {!view.reviewable ? (
         <p className={styles.line}>{REVIEW_WORDS.notYet(view.weekNumber)}</p>

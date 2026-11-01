@@ -31,6 +31,7 @@ import { PLACEMENT_NOTES_COLLECTION } from "@/lib/courses/placementNotes/model";
 import { BEST_ANSWERS_COLLECTION, PANGRAM_CHECKS_COLLECTION } from "@/lib/courses/coursework/collections";
 import { COURSE_WEEK_REVIEWS_COLLECTION } from "./courseWeekReviews";
 import { COURSE_EXPLAINERS_COLLECTION } from "./courseExplainers";
+import { COURSE_NOTE_DRAFTS_COLLECTION } from "./courseNoteDrafts";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
 import { COURSE_WEEK_WORK_COLLECTION } from "./courseWeekWork";
 import { COURSE_WORK_LOG_COLLECTION } from "./courseWorkLog";
@@ -393,6 +394,16 @@ export type RunDestroyCounts = {
    * the dialog.
    */
   explainerTasks: number;
+  /**
+   * `courseNoteDrafts` rows: Claude's draft of an end-of-week note about each
+   * person, from each week of this run, waiting for an admin to save or
+   * discard it (privacy v15, `src/lib/firestore/courseNoteDrafts.ts`). Keyed
+   * by `runId` on the row like every other leaf here, and it dies with the
+   * run: the privacy policy says what the tools return is kept with the
+   * programme's run and deleted with it. A note an admin saved from one is
+   * the person's, in `memberNotes`, and stays.
+   */
+  noteDrafts: number;
   /**
    * `coursePangramChecks` rows: Pangram's readings of each person's answers
    * on this run (privacy v13, `src/lib/courses/coursework/pangram.ts`). Keyed
@@ -1263,6 +1274,7 @@ export async function countRunDestroyTargets(
     reviewFollowUps,
     explainers,
     explainerTasks,
+    noteDrafts,
     pangramChecks,
     packsAndCases,
     weekWork,
@@ -1370,6 +1382,8 @@ export async function countRunDestroyTargets(
         .where("source", "==", EXPLAINER_TASK_SOURCE)
         .where("sourceRef.cohortId", "==", runId),
     ),
+    // The same single equality the note drafts stage drains on.
+    countAgg(db.collection(COURSE_NOTE_DRAFTS_COLLECTION).where("runId", "==", runId)),
     // The same single equality the Pangram readings stage drains on.
     countAgg(db.collection(PANGRAM_CHECKS_COLLECTION).where("runId", "==", runId)),
     // The same single equality the packs and cases stage drains on.
@@ -1434,6 +1448,7 @@ export async function countRunDestroyTargets(
     reviewFollowUps,
     explainers,
     explainerTasks,
+    noteDrafts,
     pangramChecks,
     packsAndCases,
     weekWork,
@@ -2081,6 +2096,14 @@ export async function destroyRunCascade(
       // client, and its route reads the run first and finds nothing once it
       // is being destroyed, so nothing recreates one behind the cascade.
       drain: () => drainQuery(db, COURSE_EXPLAINERS_COLLECTION, byRunId(COURSE_EXPLAINERS_COLLECTION), budget),
+    },
+    {
+      key: "noteDrafts",
+      // Claude's end-of-week drafts about each person: a leaf keyed by
+      // `runId`, drained with the other leaves. `write: if false` to every
+      // client, and the draft route reads the run first and finds nothing once
+      // it is being destroyed, so nothing recreates one behind the cascade.
+      drain: () => drainQuery(db, COURSE_NOTE_DRAFTS_COLLECTION, byRunId(COURSE_NOTE_DRAFTS_COLLECTION), budget),
     },
     {
       key: "pangramChecks",

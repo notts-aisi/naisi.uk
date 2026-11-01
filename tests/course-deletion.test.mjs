@@ -342,6 +342,11 @@ const RUN_COUNT_KEYS = [
   // cascade its stage, as weekReviews was.
   "explainers",
   "explainerTasks",
+  // `courseNoteDrafts`, Claude's drafts of an end-of-week note about each
+  // person (privacy v15), waiting for an admin to save or discard them. A
+  // leaf keyed by `runId`, added to the manifest in the same change that gave
+  // the cascade its stage, as weekReviews was.
+  "noteDrafts",
   "pangramChecks",
   // `coursePacksAndCases`, what each person had in the weeks' packs and
   // talks (plan item 8). Keyed by `runId`, added to the manifest in the same
@@ -461,13 +466,13 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   const counts = Object.fromEntries(
     [...RUN_COUNT_KEYS, ...COURSE_COUNT_KEYS].map((k) => [k, 10]),
   );
-  // Fifty counters at ten rows each: forty-four that die,
+  // Fifty-one counters at ten rows each: forty-five that die,
   // `materialNotes`, `auditRows`, `schedulerMarkers`, the V3 `coursePages`,
   // the V3 W2 `registerTasks`, the course hub's `pitches`, `updates`,
   // `groupNotes`, `groupSharedNotes`, `sessionReports`, `placementNotes`, v13's `bestAnswers`
   // and `pangramChecks`, the week review's `weekReviews` and
   // `reviewFollowUps`, the explainers' `explainers` and `explainerTasks`,
-  // `packsAndCases`, the week you submit's `weekWork`
+  // the end-of-week notes' `noteDrafts`, `packsAndCases`, the week you submit's `weekWork`
   // and `workLog`, feedback's `feedback` and `feedbackSends`, `pairs`, `teams`,
   // `teamEntries`, `finishing`, `facilitating`, `ratings`, `certificates`,
   // `anonymousFeedback`, `predictions`, `recordOpenings` and `checkInWeeks`,
@@ -475,11 +480,11 @@ test("GUARD — the survivors are not counted as deaths, and the arithmetic foll
   // (`admissionSeatOffers` is released, `dataExportRows` is retained,
   // `certificatesKept` stays without its run, `workRatingsKept` stays with
   // the person rated).
-  assert.equal(sumCounts(counts), 500);
+  assert.equal(sumCounts(counts), 510);
   // The progress denominator counts only what actually dies, so a large
   // retained counter cannot inflate it into a bar that never fills. Adding a
   // survivor must not move this number; adding a DESTROYED counter must.
-  assert.equal(destroyedTotal(counts), 440);
+  assert.equal(destroyedTotal(counts), 450);
 });
 
 test("MODEL — every key the cascade can report has copy, including the ones the manifest never shows", () => {
@@ -713,6 +718,9 @@ test("MODEL — the cascade's declared stage order is the one the contract needs
     // The explainers scheduled from those reviews: a run-keyed leaf whose
     // every record names groups' sessions, so it goes before the groups.
     "explainers",
+    // Claude's end-of-week drafts: a run-keyed leaf that names a week and a
+    // person, so it goes before the weeks with the other leaves.
+    "noteDrafts",
     "pangramChecks",
     // What each person had in the weeks' packs and talks: a run-keyed leaf,
     // every record names a block of a week, so it goes before the weeks.
