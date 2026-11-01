@@ -1,5 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
+import { own } from "@/lib/applications/keys";
 import type { SurveyAnswer } from "../items";
 import { answersOf, checkInsOfRun } from "../repo";
 import { CHECK_IN_QUESTION_IDS, READING_OPTIONS, UNCLEAR_ELSE, UNCLEAR_NOTHING } from "./template";
@@ -108,17 +109,17 @@ export async function poolWeekCheckIns(
         continue;
       }
       const said = answer.answers;
-      const reading = picked(said[CHECK_IN_QUESTION_IDS.reading])[0];
+      const reading = picked(own(said, CHECK_IN_QUESTION_IDS.reading))[0];
       pooled.push({
         groupId: survey.audience.groupId,
-        useful: rating(said[CHECK_IN_QUESTION_IDS.useful]),
-        confident: rating(said[CHECK_IN_QUESTION_IDS.confident]),
+        useful: rating(own(said, CHECK_IN_QUESTION_IDS.useful)),
+        confident: rating(own(said, CHECK_IN_QUESTION_IDS.confident)),
         reading: reading ? (READING_WORDS[reading] ?? null) : null,
-        unclear: picked(said[CHECK_IN_QUESTION_IDS.unclear])
+        unclear: picked(own(said, CHECK_IN_QUESTION_IDS.unclear))
           .filter((id) => id !== UNCLEAR_NOTHING)
           .map((id) => (id === UNCLEAR_ELSE ? ELSE_ID : id)),
-        most: text(said[CHECK_IN_QUESTION_IDS.most]),
-        better: text(said[CHECK_IN_QUESTION_IDS.better]),
+        most: text(own(said, CHECK_IN_QUESTION_IDS.most)),
+        better: text(own(said, CHECK_IN_QUESTION_IDS.better)),
       });
     }
   }

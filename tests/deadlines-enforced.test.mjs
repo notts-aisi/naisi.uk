@@ -395,6 +395,9 @@ const DEADLINE_NAMES = new Map([
         "src/app/api/worksheets/circulations/route.ts",
         "src/lib/courses/heldEmailTask.ts",
         "src/lib/courses/unmarkedRegisters.ts",
+        // A week review's follow-up task, due at the group's next session.
+        "src/lib/courses/weekReview/followUp.ts",
+        "src/lib/courses/weekReview/followUpTask.ts",
         "src/lib/email/worksheetReminderEmails.ts",
         "src/lib/firestore/circulations.ts",
         "src/lib/firestore/courseTasks.ts",
