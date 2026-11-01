@@ -339,6 +339,11 @@ describe("3. the review page: for an admin and the lead, the Pangram chip for an
     assert.match(again.text, /Clear my rating/);
     assert.match(again.text, /Rated Tue 17 Nov, 12pm/);
     assert.doesNotMatch(again.text, /Not rated yet/);
+    // Oldest first, the reader's own among them.
+    const listed = again.element.props.model.selected.team;
+    assert.deepEqual(listed.said.map((row) => [row.raterUid, row.mine]), [["claudia", false], ["zach", true]]);
+    assert.equal(listed.mine.rating, 9);
+    assert.match(again.text, /What the team said Claudia Lead 8 of 10 Sun 15 Nov “Takes a side and defends it\.” Zach Admin 9 of 10 Tue 17 Nov “Best in the group this week\.”/);
     // A reading of words that have since changed says so.
     pangramReading({ worthALook: true, words: "Something Chloe wrote before." });
     assert.match((await w.writtenPage("zach", { week: "2", person: "chloe" })).text, /Pangram: changed since it checked/);
