@@ -386,6 +386,27 @@ describe("1. the job fixes a week once, the first tick it is whole, and nothing 
     }
   });
 
+  test("out of time, it stops between runs, writes nothing more, and says how many runs are left for the re-arm", async () => {
+    const before = records();
+    world.course = true;
+    let result;
+    try {
+      result = await surveyCheckInWeeksJob.handler({
+        now: new Date(),
+        budget: { remainingMs: () => 0, expired: () => true },
+        log: () => {},
+        policy: { reclaimAfterMinutes: 20, maxAttempts: 3 },
+        maxPerTick: surveyCheckInWeeksJob.maxPerTick,
+        maxLateHours: surveyCheckInWeeksJob.maxLateHours,
+      });
+    } finally {
+      world.course = false;
+    }
+    // Two runs are named: AGI Strategy's and Technical AI Safety's.
+    assert.deepEqual(result, { processed: 0, hasMore: true, note: "2 runs still to look at" });
+    assert.deepEqual(records(), before);
+  });
+
   test("fixing a week reads which check-ins it has and whether any is open, never an answer or who a check-in was sent to", () => {
     const strip = (code) => code.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
     for (const file of [["lib", "surveys", "checkIns", "weeks.ts"], ["lib", "scheduler", "jobs", "surveyCheckInWeeks.ts"], ["lib", "firestore", "checkInWeeks.ts"]]) {
