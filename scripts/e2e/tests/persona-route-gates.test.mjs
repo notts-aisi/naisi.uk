@@ -39,6 +39,12 @@
  * stop it: it takes no body, or reads an empty one as a choice) is not sent,
  * so no write ever lands; the registry gives the reason for each.
  *
+ * The same world holds two events, THEIRS written by the `eventAuthor`
+ * persona and helped by the `eventCollaborator` persona, ANOTHER by accounts
+ * that are none of the personas, each with a request waiting for a decision.
+ * Every route and page whose columns say `world: "event"` (the ones whose
+ * code asks the sign-ups rule) is asked again about both events the same way.
+ *
  * HOW A CELL IS READ lives in `scripts/e2e/lib/personaCells.mjs`: a request
  * path from a key, a redirect put back into key shape, the calm states a page
  * drew, and an outcome held to its expectation. That half reads and writes
@@ -73,6 +79,7 @@ import {
   ACTS,
   PAGES,
   ROUTES,
+  asksAboutTheEvent,
   asksBothSets,
   expectedFor,
   realColumnsFor,
@@ -291,7 +298,7 @@ describe("persona route gates on a real build", { skip: !ARMED && !REQUIRED ? "E
   const observed = { routes: {}, pages: {}, second: { routes: {}, pages: {} } };
   const routes = routeSurfaces();
   const pages = pageSurfaces();
-  /** The world's two programmes, once seeded: `sets.theirs` and `sets.another`, each segment to an id. */
+  /** The world's two programmes and two events, once seeded: `sets.theirs` and `sets.another`, each segment to an id. */
   let world = null;
   let notSent = 0;
 
@@ -304,6 +311,8 @@ describe("persona route gates on a real build", { skip: !ARMED && !REQUIRED ? "E
       lead: personas.get("lead"),
       facilitator: personas.get("facilitator"),
       participant: personas.get("participant"),
+      eventAuthor: personas.get("eventAuthor"),
+      eventCollaborator: personas.get("eventCollaborator"),
     });
   });
 
@@ -378,11 +387,14 @@ describe("persona route gates on a real build", { skip: !ARMED && !REQUIRED ? "E
    */
   const realWant = (key, method, set, name) => realExpectedFor(realColumnsFor(key, method), set, name);
 
-  it("every course hub route answers every persona about both programmes", async () => {
+  /** Whether the second pass asks this handler or page: a course hub key the world fills, or an event's. */
+  const secondPass = (key, method) => asksBothSets(key) || asksAboutTheEvent(key, method);
+
+  it("every course hub route answers every persona about both programmes, and every sign-ups route about both events", async () => {
     const cells = [];
     for (const { key, methods } of routes) {
-      if (!asksBothSets(key)) continue;
       for (const method of methods) {
+        if (!secondPass(key, method)) continue;
         const entry = ROUTES[key]?.[method];
         for (const set of WORLD_SETS) for (const name of PERSONA_NAMES) cells.push({ key, method, set, name, entry });
       }
@@ -407,10 +419,10 @@ describe("persona route gates on a real build", { skip: !ARMED && !REQUIRED ? "E
     );
   });
 
-  it("every course hub page answers every persona about both programmes", async () => {
+  it("every course hub page answers every persona about both programmes, and every sign-ups page about both events", async () => {
     const cells = [];
     for (const key of pages) {
-      if (!asksBothSets(key)) continue;
+      if (!secondPass(key, null)) continue;
       for (const set of WORLD_SETS) for (const name of PERSONA_NAMES) cells.push({ key, set, name, entry: PAGES[key] });
     }
     await drain(
@@ -484,8 +496,8 @@ describe("persona route gates on a real build", { skip: !ARMED && !REQUIRED ? "E
     }
     // The second pass, held to the entry's two columns.
     for (const { key, methods } of routes) {
-      if (!asksBothSets(key)) continue;
       for (const method of methods) {
+        if (!secondPass(key, method)) continue;
         const entry = ROUTES[key]?.[method];
         const columns = realColumnsFor(key, method);
         if (!columns?.theirs || !columns?.another) {
@@ -513,7 +525,7 @@ describe("persona route gates on a real build", { skip: !ARMED && !REQUIRED ? "E
       }
     }
     for (const key of pages) {
-      if (!asksBothSets(key)) continue;
+      if (!secondPass(key, null)) continue;
       const columns = realColumnsFor(key, null);
       if (!columns?.theirs || !columns?.another) {
         failures.push(`${key}: a course hub page with no theirs and another columns, so nothing was asked`);

@@ -26,6 +26,13 @@
  * the same answer from both, so a difference between the two columns of the
  * answer key is exactly a role at work.
  *
+ * AND TWO EVENTS, the same way: THEIRS, published, written by the
+ * `eventAuthor` persona and helped by the `eventCollaborator` persona, and
+ * ANOTHER, written and helped by two accounts that are none of the personas.
+ * Each has one request for a place waiting for a decision, from a third
+ * account that is none of them. Each set's ids carry its event (`id`) and the
+ * request (`rsvpId`), which only an event's keys have.
+ *
  * THE SAME TERMS AS `./personas.mjs`. This module writes roles above `pending`
  * (the other programme's lead is SU-recognised committee) and authority over
  * records (a programme's `leadUid`, a group's `facilitatorUids`), which is
@@ -523,18 +530,72 @@ function otherAccountDoc({ uid, name, shape, now }) {
   };
 }
 
+/**
+ * An event, created as the editor creates one (`createEvent` in
+ * src/features/events/eventMutations.ts) and published as the publish route
+ * leaves it, a week ahead, with one request waiting on its counter.
+ */
+function eventDoc({ title, authorUid, authorDisplayName, collaboratorUids, startAt, now }) {
+  return {
+    title,
+    blocks: [],
+    startAt,
+    endAt: new Date(startAt.getTime() + 2 * 60 * 60 * 1000),
+    location: "Room E3",
+    locationHidden: false,
+    locationPublicText: "",
+    visibility: "public",
+    capacity: 30,
+    waitlistEnabled: true,
+    noSignup: false,
+    selfCheckIn: false,
+    signupForm: [],
+    foodProvenance: "none",
+    coverBranding: "corner",
+    status: "published",
+    archived: false,
+    authorUid,
+    authorDisplayName,
+    collaboratorUids,
+    rsvpCountPending: 1,
+    rsvpCountConfirmed: 0,
+    rsvpCountWaitlisted: 0,
+    publishedAt: now,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+/** A request for a place, as the RSVP route makes one (src/app/api/events/[id]/rsvp/route.ts). */
+function requestDoc({ eventId, uid, name, email, at }) {
+  return {
+    eventId,
+    uid,
+    name,
+    email,
+    answers: {},
+    status: "pending",
+    decisionNote: null,
+    decidedBy: null,
+    decidedAt: null,
+    signupSnapshot: null,
+    createdAt: at,
+    cancelledAt: null,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Seeding and teardown
 // ---------------------------------------------------------------------------
 
 /**
- * Writes both programmes for one battery run and returns each set's ids and
- * a `dispose()` that deletes every document written. `people` are the three
- * personas holding roles on THEIRS, as `withPersona` returns them.
+ * Writes both programmes and both events for one battery run and returns each
+ * set's ids and a `dispose()` that deletes every document written. `people`
+ * are the five personas holding roles on THEIRS, as `withPersona` returns them.
  */
 export async function seedPersonaWorld(runId, people) {
   assertEmulator();
-  for (const name of ["lead", "facilitator", "participant"]) {
+  for (const name of ["lead", "facilitator", "participant", "eventAuthor", "eventCollaborator"]) {
     if (!people?.[name]?.uid) throw new Error(`seedPersonaWorld needs the ${name} persona's account first.`);
   }
   const db = emulatorDb();
@@ -672,6 +733,45 @@ export async function seedPersonaWorld(runId, people) {
         surveyPersonDoc({ ids, uid: place.uid, sentAt: surveySentAt }),
       );
     }
+
+    // The event, its author and its collaborator, and one request waiting.
+    const tag = set === "theirs" ? "t" : "a";
+    const eventIds = { id: `e2e-${runId}-${tag}-event`, rsvpId: `e2e-${runId}-${tag}-request` };
+    sets[set] = { ...ids, ...eventIds };
+    const asker = `e2e-${runId}-${set}-asker`;
+    await put(
+      db.collection("users").doc(asker),
+      otherAccountDoc({ uid: asker, name: `${set} asker`, shape: { role: "member" }, now }),
+    );
+    const organisers =
+      set === "theirs"
+        ? { author: people.eventAuthor.uid, collaborator: people.eventCollaborator.uid }
+        : { author: `e2e-${runId}-another-event-author`, collaborator: `e2e-${runId}-another-event-collaborator` };
+    if (set === "another") {
+      await put(
+        db.collection("users").doc(organisers.author),
+        otherAccountDoc({ uid: organisers.author, name: "other event author", shape: { role: "member", permissions: { draftEvent: true } }, now }),
+      );
+      await put(
+        db.collection("users").doc(organisers.collaborator),
+        otherAccountDoc({ uid: organisers.collaborator, name: "other event collaborator", shape: { role: "committee", suRecognised: false }, now }),
+      );
+    }
+    await put(
+      db.collection("events").doc(eventIds.id),
+      eventDoc({
+        title: `E2E persona ${set} event`,
+        authorUid: organisers.author,
+        authorDisplayName: `E2E ${set} event author`,
+        collaboratorUids: [organisers.collaborator],
+        startAt: new Date(now.getTime() + 7 * DAY_MS),
+        now,
+      }),
+    );
+    await put(
+      db.collection("eventRsvps").doc(eventIds.rsvpId),
+      requestDoc({ eventId: eventIds.id, uid: asker, name: `E2E ${set} asker`, email: `${asker}@e2e.invalid`, at: surveySentAt }),
+    );
   }
 
   return {

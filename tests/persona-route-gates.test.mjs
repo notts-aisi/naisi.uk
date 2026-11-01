@@ -32,6 +32,13 @@
  * reaches nobody its gate admits; and a stranger is refused with a 401, or
  * with the 307 to sign in where the route's first pass already gives one.
  *
+ * THE EVENT WORLD'S COLUMNS, found from the code. Every route and page under
+ * `src/app` whose code asks the sign-ups rule (`signupAccessFor` or
+ * `decidesSignups`, `src/lib/events/signupAccess.ts`) has columns saying
+ * `world: "event"`, and every such column is one of those, so a new reader or
+ * decider of an event's requests is asked about two events the day it lands.
+ * Their `theirs` names exactly the two event roles.
+ *
  * HOW THE BATTERY READS A CELL. The pure half of the battery
  * (`scripts/e2e/lib/personaCells.mjs`) is held here too: a key's path fills
  * the world's segments and nothing else, a redirect to one of a programme's
@@ -50,8 +57,11 @@ import { stripSource } from "./lib/stripSource.mjs";
 import { exportedHandlers, walkRoutes } from "./lib/routeScan.mjs";
 import {
   ACTS,
+  EVENT_ROLES,
+  EVENT_WORLD_SEGMENTS,
   PAGES,
   PERSONA_NAMES,
+  PROGRAMME_ROLES,
   REAL_PAGES,
   REAL_ROUTES,
   REDIRECTS,
@@ -59,11 +69,13 @@ import {
   ROUTES,
   STATES,
   WORLD_SEGMENTS,
+  asksAboutTheEvent,
   asksBothSets,
   cellIn,
   expectedFor,
   isHubKey,
   realExpectedFor,
+  rolesOf,
   segmentsOf,
 } from "./persona-route-gates.registry.mjs";
 import {
@@ -112,9 +124,11 @@ describe("the registry and the tree agree in both directions", () => {
   test("the walk found the tree", () => {
     assert.ok(routes.size > 150, `only ${routes.size} routes found`);
     assert.ok(pages.length > 50, `only ${pages.length} authed pages found`);
-    assert.equal(PERSONA_NAMES.length, 18);
-    // The three who hold a role on a record, each resolving through a base that is a persona of its own.
-    assert.deepEqual(Object.keys(ROLE_PERSONAS), ["lead", "facilitator", "participant"]);
+    assert.equal(PERSONA_NAMES.length, 20);
+    // The five who hold a role on a record (three on a programme, two on an
+    // event), each resolving through a base that is a persona of its own.
+    assert.deepEqual(Object.keys(ROLE_PERSONAS), ["lead", "facilitator", "participant", "eventAuthor", "eventCollaborator"]);
+    assert.deepEqual([...PROGRAMME_ROLES, ...EVENT_ROLES], Object.keys(ROLE_PERSONAS));
     for (const [name, base] of Object.entries(ROLE_PERSONAS)) {
       assert.ok(PERSONA_NAMES.includes(name), `${name} is not a persona`);
       assert.ok(PERSONA_NAMES.includes(base) && !(base in ROLE_PERSONAS), `${name}'s base ${base} must be a persona with no role of its own`);
@@ -235,9 +249,11 @@ function columnProblems(label, columns, { kind, method, key }) {
     if (!columns[set] || typeof columns[set] !== "object") problems.push(`${label}: no ${set} column`);
   }
   if (problems.length > 0) return problems;
+  if (columns.world !== undefined && columns.world !== "event") problems.push(`${label}: ${JSON.stringify(columns.world)} is not a world`);
+  const roles = rolesOf(columns);
   const theirsKeys = Object.keys(columns.theirs).sort();
-  if (JSON.stringify(theirsKeys) !== JSON.stringify([...ROLE_NAMES].sort())) {
-    problems.push(`${label}: theirs must name exactly ${ROLE_NAMES.join(", ")}, and names ${theirsKeys.join(", ") || "nobody"}`);
+  if (JSON.stringify(theirsKeys) !== JSON.stringify([...roles].sort())) {
+    problems.push(`${label}: theirs must name exactly ${roles.join(", ")}, and names ${theirsKeys.join(", ") || "nobody"}`);
   }
   const isName = (v) => typeof v === "string" && (v in REDIRECTS || v in STATES);
   for (const set of SETS) {
@@ -255,7 +271,7 @@ function columnProblems(label, columns, { kind, method, key }) {
           if (!MUTATING.has(method)) problems.push(`${at}: only a mutating route can act; a GET writes nothing`);
           if (["anonymous", "pending", "rejected"].includes(persona)) problems.push(`${at}: an account no gate admits cannot act`);
           if (set === "another" && ROLE_NAMES.includes(persona)) {
-            problems.push(`${at}: a role persona holds no role on another programme, so it acts there only where its base does`);
+            problems.push(`${at}: a role persona holds no role on another programme or event, so it acts there only where its base does`);
           }
         } else if (!STATUS(outcome)) {
           problems.push(`${at}: ${JSON.stringify(outcome)} is neither a status nor ACTS`);
@@ -273,7 +289,7 @@ function columnProblems(label, columns, { kind, method, key }) {
   // sign in that its first-pass entry already gives a stranger.
   const linkToSignIn = kind === "route" && anonymous === 307 && expectedFor(ROUTES[key]?.[method]?.expect ?? {}, "anonymous") === 307;
   if (kind === "route" && anonymous !== 401 && !linkToSignIn) {
-    problems.push(`${label} (another): anonymous gets ${JSON.stringify(anonymous)}; a course hub route asked about a real record refuses a stranger with 401 (or the 307 to sign in its first pass gives one)`);
+    problems.push(`${label} (another): anonymous gets ${JSON.stringify(anonymous)}; a route asked about a real record refuses a stranger with 401 (or the 307 to sign in its first pass gives one)`);
   }
   if (kind === "page" && anonymous !== "login") problems.push(`${label} (another): anonymous gets ${JSON.stringify(anonymous)}; an authed page sends a stranger to sign in`);
   if (columns.realDrive !== undefined) {
@@ -283,8 +299,9 @@ function columnProblems(label, columns, { kind, method, key }) {
     if (method === "GET") {
       if (drive?.body !== undefined) problems.push(`${label}: a GET is sent no body`);
       if (typeof drive?.query !== "string" || !drive.query.startsWith("?")) problems.push(`${label}: realDrive.query is a query string`);
+      const filled = columns.world === "event" ? EVENT_WORLD_SEGMENTS : WORLD_SEGMENTS;
       for (const [, name] of (drive?.query ?? "").matchAll(/\{(\w+)\}/g)) {
-        if (!WORLD_SEGMENTS.includes(name)) problems.push(`${label}: realDrive.query fills {${name}}, which the world does not`);
+        if (!filled.includes(name)) problems.push(`${label}: realDrive.query fills {${name}}, which the world does not`);
       }
     } else {
       if (drive?.query !== undefined) problems.push(`${label}: a mutating route is sent a body, not a query`);
@@ -329,6 +346,7 @@ describe("the second pass's columns and the tree agree in both directions", () =
     const stale = [];
     for (const [key, byMethod] of Object.entries(REAL_ROUTES)) {
       for (const method of Object.keys(byMethod)) {
+        if (asksAboutTheEvent(key, method)) continue; // the event world's, held below
         if (!asksBothSets(key) || !routes.get(key)?.includes(method)) stale.push(`${key}#${method}`);
       }
     }
@@ -338,7 +356,7 @@ describe("the second pass's columns and the tree agree in both directions", () =
   test("every course hub page the world can address has its columns, and every column has a page", () => {
     const missing = pages.filter((key) => asksBothSets(key) && !REAL_PAGES[key]);
     assert.deepEqual(missing, [], "A course hub page with no theirs and another columns in REAL_PAGES.");
-    const stale = Object.keys(REAL_PAGES).filter((key) => !asksBothSets(key) || !pages.includes(key));
+    const stale = Object.keys(REAL_PAGES).filter((key) => !asksAboutTheEvent(key, null) && (!asksBothSets(key) || !pages.includes(key)));
     assert.deepEqual(stale, [], "These columns name no course hub page the world can address. Delete them.");
   });
 
@@ -358,6 +376,59 @@ describe("the second pass's columns and the tree agree in both directions", () =
       problems.push(...columnProblems(key, columns, { kind: "page", method: null }));
     }
     assert.deepEqual(problems, [], `\n${problems.join("\n")}\n`);
+  });
+});
+
+/** The code of a route or page file, by its key, with comments and strings gone. */
+function codeOfKey(key, kind) {
+  return stripSource(readFileSync(join(APP_DIR, ...key.slice(1).split("/"), kind === "route" ? "route.ts" : "page.tsx"), "utf8"));
+}
+const ASKS_THE_SIGNUPS_RULE = /\b(?:signupAccessFor|decidesSignups)\s*\(/;
+
+describe("the event world's columns and the code agree in both directions", () => {
+  test("every route that asks the sign-ups rule has event columns for each handler, and every event column's route asks it", () => {
+    const asking = [...routes.keys()].filter((key) => ASKS_THE_SIGNUPS_RULE.test(codeOfKey(key, "route"))).sort();
+    assert.ok(asking.includes("/api/events/[id]/signups"), "the walk no longer finds the requests route");
+    const missing = [];
+    for (const key of asking) {
+      for (const method of routes.get(key)) if (!asksAboutTheEvent(key, method)) missing.push(`${key}#${method}`);
+    }
+    assert.deepEqual(
+      missing,
+      [],
+      "A route that asks who sees or decides an event's sign-ups, with no event columns in REAL_ROUTES. Decide what " +
+        "every persona gets about the event they organise and about another one, and write each cell with its reason.",
+    );
+    const stale = [];
+    for (const [key, byMethod] of Object.entries(REAL_ROUTES)) {
+      for (const method of Object.keys(byMethod)) {
+        if (asksAboutTheEvent(key, method) && !(asking.includes(key) && routes.get(key).includes(method))) stale.push(`${key}#${method}`);
+      }
+    }
+    assert.deepEqual(stale, [], "These event columns name a handler that no longer asks the sign-ups rule. Delete them.");
+  });
+
+  test("every page that asks the sign-ups rule has event columns, and every event column's page asks it", () => {
+    const asking = pages.filter((key) => ASKS_THE_SIGNUPS_RULE.test(codeOfKey(key, "page"))).sort();
+    assert.ok(asking.includes("/(app)/events/manage/[id]/attendees"), "the walk no longer finds the Sign-ups page");
+    assert.deepEqual(asking.filter((key) => !asksAboutTheEvent(key, null)), [], "A page that asks the sign-ups rule with no event columns in REAL_PAGES.");
+    assert.deepEqual(
+      Object.keys(REAL_PAGES).filter((key) => asksAboutTheEvent(key, null) && !asking.includes(key)),
+      [],
+      "These event columns name a page that no longer asks the sign-ups rule. Delete them.",
+    );
+  });
+
+  test("the event world fills exactly the segments its keys have, and no course hub key has them", () => {
+    const eventKeys = [
+      ...Object.entries(REAL_ROUTES).flatMap(([key, byMethod]) => (Object.values(byMethod).some((columns) => columns.world === "event") ? [key] : [])),
+      ...Object.keys(REAL_PAGES).filter((key) => asksAboutTheEvent(key, null)),
+    ];
+    const seen = new Set(eventKeys.flatMap(segmentsOf));
+    assert.deepEqual([...seen].sort(), [...EVENT_WORLD_SEGMENTS].sort());
+    const hubSegments = new Set([...routes.keys(), ...pages].filter(isHubKey).flatMap(segmentsOf));
+    for (const name of EVENT_WORLD_SEGMENTS) assert.ok(!hubSegments.has(name), `a course hub key has [${name}], which the event world fills`);
+    for (const key of eventKeys) assert.ok(!isHubKey(key), `${key} is a course hub key and an event's`);
   });
 });
 

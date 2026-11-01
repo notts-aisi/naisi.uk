@@ -64,6 +64,17 @@
  * refusal or `ACTS`, and the body only ever goes to somebody refused. A page
  * that draws a calm "not here" in place of itself answers a 200 either way,
  * so the second pass names that state (`STATES`) rather than the status.
+ *
+ * THE SAME PASS ON TWO EVENTS, THEIRS AND ANOTHER. Two more personas hold a
+ * role on a record: `eventAuthor` wrote THEIRS' event (a member holding
+ * draftEvent) and `eventCollaborator` helps run it (committee the SU does not
+ * recognise); ANOTHER's event is written and helped by accounts that are none
+ * of the personas, and each event has a request waiting for a decision (the
+ * world fills `[id]` and `[rsvpId]`, `EVENT_WORLD_SEGMENTS`). Every route and
+ * page whose code asks the sign-ups rule (`src/lib/events/signupAccess.ts`)
+ * is asked about both events: its columns say `world: "event"`, and their
+ * `theirs` names exactly the two event roles. Found from the code, not the
+ * address, and held both ways by `tests/persona-route-gates.test.mjs`.
  */
 
 export const PERSONA_NAMES = [
@@ -85,22 +96,42 @@ export const PERSONA_NAMES = [
   "lead",
   "facilitator",
   "participant",
+  "eventAuthor",
+  "eventCollaborator",
 ];
 
 /**
- * THE THREE PERSONAS WHO HOLD A ROLE ON A RECORD, and the persona each one is
+ * THE PERSONAS WHO HOLD A ROLE ON A RECORD, and the persona each one is
  * everywhere else: on a record it holds no role on, a programme's lead is an
- * SU-recognised committee member (the bar a lead stands behind) and a
- * facilitator or a participant is a member. An expectation that does not name
- * one of them is read through its base before `"*"`, in the first pass and in
- * the `another` column alike.
+ * SU-recognised committee member (the bar a lead stands behind), a
+ * facilitator or a participant is a member, an event's author is a member
+ * holding draftEvent and its collaborator is committee the SU does not
+ * recognise. An expectation that does not name one of them is read through
+ * its base before `"*"`, in the first pass and in the `another` column alike.
  *
  * One difference is real and is named wherever it shows: appointing a lead
  * flags the account (`users.admissionsReviewer`, which `setProgrammeRoles`
  * sets), and the admissions tree's gate admits a flagged account that still
  * stands, so on the pages under /admin/admissions the lead is named.
  */
-export const ROLE_PERSONAS = Object.freeze({ lead: "suCommittee", facilitator: "member", participant: "member" });
+export const ROLE_PERSONAS = Object.freeze({
+  lead: "suCommittee",
+  facilitator: "member",
+  participant: "member",
+  eventAuthor: "draftEvent",
+  eventCollaborator: "committee",
+});
+
+/** The three who hold a role on a programme: a course hub column's `theirs` names exactly these. */
+export const PROGRAMME_ROLES = Object.freeze(["lead", "facilitator", "participant"]);
+
+/** The two who hold a role on an event: an event column's `theirs` names exactly these. */
+export const EVENT_ROLES = Object.freeze(["eventAuthor", "eventCollaborator"]);
+
+/** The roles a key's `theirs` column names, by the world its columns ask about. */
+export function rolesOf(columns) {
+  return columns?.world === "event" ? EVENT_ROLES : PROGRAMME_ROLES;
+}
 
 /** A second-pass cell the battery does not send: the gate admits the persona and the request would act. */
 export const ACTS = "acts";
@@ -146,6 +177,21 @@ export const WORLD_SEGMENTS = Object.freeze([
   "weekId",
   "n",
 ]);
+
+/**
+ * The segments the event world fills: THEIRS' or ANOTHER's event, and the
+ * request waiting for a decision on it.
+ */
+export const EVENT_WORLD_SEGMENTS = Object.freeze(["id", "rsvpId"]);
+
+/**
+ * Does the second pass ask this key about the two events? Exactly when its
+ * columns say so (`world: "event"`); which keys must is the code's to say,
+ * and the offline guard holds the two together. `method` is null for a page.
+ */
+export function asksAboutTheEvent(key, method) {
+  return realColumnsFor(key, method)?.world === "event";
+}
 
 /**
  * THE COURSE HUB, walked from the address and never listed: every route under
@@ -2996,6 +3042,17 @@ export const ROUTES = {
         "told the RSVP is missing.",
     },
   },
+  "/api/events/[id]/signups": {
+    GET: {
+      expect: signedIn(404, { pending: 403, rejected: 403 }),
+      fields: ["decides", "requests"],
+      why:
+        "The requests waiting for a decision on one event, with who is asking. Nobody below an approved account " +
+        "organises an event, so a pending or refused account is refused before anything is read; every approved " +
+        "account is told the battery's event is missing, because who sees the requests (the event's author and " +
+        "collaborators, SU-recognised committee, admins) is the event's to say. The second pass asks it about two events.",
+    },
+  },
   "/api/events/[id]/test-rsvps": {
     POST: {
       expect: adminOnly(400),
@@ -4368,13 +4425,12 @@ export const PAGES = {
       "events layout. A missing event renders the area's own not-found state.",
   },
   "/(app)/events/manage/[id]/attendees": {
-    expect: everyone(["dashboard", "event"], { anonymous: "login", pending: "pendingApproval", rejected: "home", committee: "event", suCommittee: 200, admin: 200, draftEvent: "event", approveEvent: "event" }),
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", committee: 200, suCommittee: 200, admin: 200, draftEvent: 200, approveEvent: 200 }),
     why:
-      "Attendee PII is SU-recognised committee and admins only: the attendees page sends " +
-      "any other visitor the events layout admits (non-SU committee, draftEvent, " +
-      "approveEvent) back to the event, while the layout sends a plain member or another " +
-      "permission holder to the dashboard. Both redirects are in the stream for the latter, " +
-      "so either is accepted.",
+      "An event's Sign-ups: who may open it is the event's to say (its author and collaborators, SU-recognised " +
+      "committee, admins), so the page reads the event first, and with the battery's id that addresses nothing it " +
+      "renders the area's own not-found state for everybody the events layout admits. The layout sends a plain " +
+      "member or another permission holder to the dashboard. The second pass asks it about two events.",
   },
   "/(app)/events/manage/[id]/check-in": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", committee: 200, suCommittee: 200, admin: 200, draftEvent: 200, approveEvent: 200 }),
@@ -6221,7 +6277,61 @@ export const REAL_ROUTES = {
       c(ACTS, "An admin's opening is recorded before anything of the person is read: it takes no body, so it would act."),
     ),
   },
+
+  // ---- An event's sign-ups: the event world ------------------------------------
+  // THEIRS' event was written by `eventAuthor` (a member holding draftEvent)
+  // and is helped by `eventCollaborator` (committee the SU does not
+  // recognise); ANOTHER's by two accounts that are none of the personas. Each
+  // has one request waiting for a decision, which `[rsvpId]` names.
+  "/api/events/[id]/signups": {
+    GET: {
+      world: "event",
+      another: {
+        anonymous: c(401, NO_SESSION),
+        pending: c(403, "Not an approved account, so nobody it could organise: refused before anything is read."),
+        rejected: c(403, "Not an approved account, so nobody it could organise: refused before anything is read."),
+        "*": c(403, "Organises nothing here and the SU does not recognise them: refused once the event is read, before any request is."),
+        suCommittee: c(200, "SU-recognised committee see who has asked, with each address and every answer; deciding is the organisers' and approvers'."),
+        admin: c(200, "An admin sees who has asked and decides, whatever the event."),
+      },
+      theirs: {
+        eventAuthor: c(200, "Wrote the event and holds draftEvent: sees its requests, without addresses or dietary and accessibility answers, and decides them."),
+        eventCollaborator: c(200, "Helps run the event: sees its requests, without addresses or dietary and accessibility answers, and decides them."),
+      },
+    },
+  },
+  "/api/events/[id]/rsvp/[rsvpId]/approve": {
+    POST: signupDecision("Approving a request", "approving takes no body"),
+  },
+  "/api/events/[id]/rsvp/[rsvpId]/deny": {
+    POST: signupDecision("Turning a request down", "an empty body is no note, and turning down needs none"),
+  },
 };
+
+/**
+ * Deciding a request for a place (`decidesSignups`): admins and approvers on
+ * any event, the author holding draftEvent and the collaborators on their
+ * own. Asked inside the transaction once the request and its event are read,
+ * so everybody else meets one 403 before anything is written. `body` says why
+ * an admitted caller's empty body would act.
+ */
+function signupDecision(what, body) {
+  const acts = (who) => c(ACTS, `${who}, so admitted, and ${body}: it would act.`);
+  return {
+    world: "event",
+    another: {
+      anonymous: c(401, NO_SESSION),
+      "*": c(403, `${what} is for admins, approvers and the event's own author and collaborators: refused before anything is written.`),
+      suCommittee: c(403, `SU-recognised committee see the requests and decide none they do not organise: ${what.toLowerCase()} is refused.`),
+      admin: acts("An admin decides any request"),
+      approveEvent: acts("An approver decides any request"),
+    },
+    theirs: {
+      eventAuthor: acts("The event's author, holding draftEvent, decides its requests"),
+      eventCollaborator: acts("A collaborator decides the event's requests"),
+    },
+  };
+}
 
 /** The facilitator guide's writer: an admin, or the lead of a programme naming a live run of the course. */
 function guideWriter(what) {
@@ -6482,7 +6592,47 @@ export const REAL_PAGES = {
   "/(app)/learn/facilitator-guide/[courseId]/[doc]": facilitatorGuidePage("one page of the guide (the battery names none, so the page says there is no such page)"),
   "/(app)/learn/draw/[groupId]": drawPage("the draw"),
   "/(app)/learn/pairs/[groupId]": drawPage("the pairs"),
+
+  // ---- An event's own pages: the event world -------------------------------------
+  "/(app)/events/manage/[id]/attendees": {
+    world: "event",
+    another: {
+      ...PAGE_BASE,
+      "*": c(["dashboard", "event"], "Not in the events area: the layout sends them to the dashboard, and the page beneath sends them back to the event, so either is accepted."),
+      committee: c("event", "In the events area, but organises nothing here and the SU does not recognise them: sent back to the event."),
+      draftEvent: c("event", "Holds draftEvent, but did not write this event: sent back to it."),
+      approveEvent: c("event", "Approves events, and organises nothing here: sent back to the event, since deciding is the routes' and seeing the requests the organisers'."),
+      suCommittee: c(200, "SU-recognised committee: the requests and everybody who signed up."),
+      admin: c(200, "An admin: the requests, everybody who signed up, and the way to each person's page."),
+    },
+    theirs: {
+      eventAuthor: c(200, "Wrote the event: its requests, each saying who is asking, with Approve and Turn down."),
+      eventCollaborator: c(200, "Helps run the event: its requests, each saying who is asking, with Approve and Turn down, and never everybody who signed up."),
+    },
+  },
+  "/(app)/events/manage/[id]/check-in": eventsAreaTab("the event's Check-in tab, its Sign-ups tab beside it"),
+  "/(app)/events/manage/[id]/survey": eventsAreaTab("the event's Survey after tab, its Sign-ups tab beside it"),
 };
+
+/** A tab of an event's own page that the whole events area opens: what each draws differs, never whether it opens. */
+function eventsAreaTab(what) {
+  return {
+    world: "event",
+    another: {
+      ...PAGE_BASE,
+      "*": c("dashboard", "Not in the events area: the layout sends them to the dashboard."),
+      committee: c(200, `In the events area: ${what}, drawn for somebody who organises nothing here.`),
+      suCommittee: c(200, `In the events area: ${what}.`),
+      admin: c(200, `An admin: ${what}.`),
+      draftEvent: c(200, `In the events area: ${what}, drawn for somebody who organises nothing here.`),
+      approveEvent: c(200, `In the events area: ${what}, drawn for somebody who organises nothing here.`),
+    },
+    theirs: {
+      eventAuthor: c(200, `Wrote the event: ${what}.`),
+      eventCollaborator: c(200, `Helps run the event: ${what}.`),
+    },
+  };
+}
 
 /**
  * A page for one group under a run: the group's live facilitators and admins.

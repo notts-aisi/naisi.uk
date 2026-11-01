@@ -47,7 +47,7 @@ import { mintSessionCookie } from "./session.mjs";
  * `anonymous` has no account and no cookie. The permission holders are plain
  * members with one key each, which is how the map is granted in the product.
  *
- * The last three hold a role on a RECORD, which `./personaWorld.mjs` writes
+ * Three more hold a role on a PROGRAMME, which `./personaWorld.mjs` writes
  * once their accounts exist: `lead` leads a programme whose run is running,
  * `facilitator` facilitates one group on that run and holds a place in it,
  * and `participant` holds a place in the run's other group. Their documents
@@ -60,6 +60,17 @@ import { mintSessionCookie } from "./session.mjs";
  *    sets (`setProgrammeRoles`), which the admissions tree's gate reads.
  *  - `facilitator` and `participant` are plain members: the bar for a group's
  *    facilitators and for a place is an approved account.
+ *
+ * The last two hold a role on an EVENT, which `./personaWorld.mjs` writes as
+ * well: `eventAuthor` wrote it and `eventCollaborator` helps run it.
+ *
+ *  - `eventAuthor` is a plain member holding draftEvent: anybody holding it
+ *    may write an event, and the author decides its requests only while they
+ *    hold it.
+ *  - `eventCollaborator` is committee the SU does not recognise: the people a
+ *    collaborator is chosen from are committee and admins, and one the SU
+ *    does not recognise is the organiser the sign-ups rule sends the
+ *    requests alone.
  */
 export const PERSONAS = {
   anonymous: null,
@@ -80,6 +91,8 @@ export const PERSONAS = {
   lead: { role: "committee", suRecognised: true, admissionsReviewer: true },
   facilitator: { role: "member" },
   participant: { role: "member" },
+  eventAuthor: { role: "member", permissions: { draftEvent: true } },
+  eventCollaborator: { role: "committee", suRecognised: false },
 };
 
 export const PERSONA_NAMES = Object.keys(PERSONAS);

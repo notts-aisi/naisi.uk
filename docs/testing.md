@@ -401,8 +401,9 @@ The same shape, older:
   question is asked by request, of every route under `src/app/api` and every
   page under `src/app/(app)`, as every persona (`anonymous`, `pending`,
   `rejected`, `member`, non-SU `committee`, `suCommittee`, `admin`, a
-  plain member holding each `permissions` key, and three who hold a role on a
-  record: `lead`, `facilitator` and `participant`), with ids that address nothing
+  plain member holding each `permissions` key, three who hold a role on a
+  programme, `lead`, `facilitator` and `participant`, and two who hold a role
+  on an event, `eventAuthor` and `eventCollaborator`), with ids that address nothing
   and empty bodies so the answer is the gate's or the first validation's, and
   each cell is held to the registry: a status per persona, a redirect target
   per persona for a page, the allowed top-level fields for a 2xx, and a reason
@@ -424,7 +425,15 @@ The same shape, older:
   `REAL_ROUTES` and `REAL_PAGES` say what each gets with each, every cell with
   its reason: `theirs` names the three role personas, and everybody else's
   cell on THEIRS is their `another` cell, because the two programmes are
-  mirrors in every field a gate reads. A mutating route is sent an empty body,
+  mirrors in every field a gate reads. The same world writes two events, and
+  every route and page whose code asks the sign-ups rule
+  (`src/lib/events/signupAccess.ts`; found from the code, both ways, so a new
+  reader or decider of an event's requests is asked the day it lands) is asked
+  about both: THEIRS written by `eventAuthor` (a member holding draftEvent)
+  and helped by `eventCollaborator` (committee the SU does not recognise),
+  ANOTHER by accounts that are none of the personas, each with a request
+  waiting for a decision. Those columns say `world: "event"`, and their
+  `theirs` names the two event roles. A mutating route is sent an empty body,
   so a gate that admits somebody stops at the first validation; a cell where
   nothing would stop it (a route that takes no body, or reads an empty one as
   a choice) is marked `ACTS` with what it would do, and is not sent, so no

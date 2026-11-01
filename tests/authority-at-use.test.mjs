@@ -1055,6 +1055,31 @@ describe("named cases where being on the document is not enough", () => {
     );
   });
 
+  test("an event's collaborator decides its requests while their account stands; an author decides while they hold draftEvent", async () => {
+    // Approve and Turn down read `events.collaboratorUids` as well as the
+    // author now (src/lib/events/signupAccess.ts), through the helper, so the
+    // standing floor is asked at use. The collaborator bar is the widened one
+    // the broadcast route settled: a collaborator demoted to member keeps the
+    // event they help run, a rejected account keeps nothing.
+    const { decidesSignups, signupAccessFor } = await loadTs(join("lib", "events", "signupAccess.ts"));
+    const event = { authorUid: "someone-else", collaboratorUids: ["u1"] };
+    for (const persona of ["member", "committeeNonSu", "committeeSu"]) {
+      assert.equal(decidesSignups(PERSONAS[persona], event), true, `${persona} named as a collaborator`);
+      assert.equal(signupAccessFor(PERSONAS[persona], event).requests, true, `${persona} named as a collaborator`);
+    }
+    for (const persona of ["pending", "rejected"]) {
+      assert.equal(decidesSignups(PERSONAS[persona], event), false, `${persona} must not decide a request it is only named on`);
+      assert.equal(signupAccessFor(PERSONAS[persona], event).requests, false, `${persona} must not see the requests`);
+    }
+    const authored = { authorUid: "u1", collaboratorUids: [] };
+    const withDraft = session({ role: "member", permissions: { ...session().permissions, draftEvent: true } });
+    assert.equal(decidesSignups(withDraft, authored), true);
+    assert.equal(decidesSignups(PERSONAS.member, authored), false, "an author who no longer holds draftEvent decides nothing");
+    assert.equal(signupAccessFor(PERSONAS.member, authored).requests, true, "and still sees the requests of the event their name is on");
+    assert.equal(decidesSignups(session({ ...withDraft, role: "rejected" }), authored), false);
+    assert.equal(decidesSignups(PERSONAS.committeeSu, { authorUid: "x", collaboratorUids: [] }), false, "SU recognition decides nothing it does not organise");
+  });
+
   test("an ex-committee worksheet author cannot delete the document", () => {
     const author = "u1";
     assert.equal(
