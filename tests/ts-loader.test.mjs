@@ -262,6 +262,11 @@ describe("the shared loader reads JSX", () => {
  */
 const USERS = new Map([
   [
+    "course-week-work.test.mjs",
+    "runs the week you submit's model, lock and words as plain functions, which are .ts modules this loader " +
+      "compiles, beside the written answers world that executes Submit, Reopen and the tick route",
+  ],
+  [
     "admissions-form-fence.test.mjs",
     "executes every older round route against a stored application form and against a round " +
       "of the older kind, with the session, the Admin SDK handle and every sending door faked, " +
