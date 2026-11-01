@@ -193,6 +193,7 @@
  * reads its own mail declares `requiresCaughtMail` and is skipped anywhere
  * else.
  */
+import { createHash } from "node:crypto";
 import {
   assertFixtureTarget,
   cohortChannel,
@@ -2018,6 +2019,54 @@ async function surveyIdsOf(state) {
 }
 
 /**
+ * The tags of "Who is this for?" this term's own records answer to, spelled as
+ * `tagId` in src/lib/audience/tags.ts spells them (restated): the programme's
+ * everyone, people holding a place and facilitators, and each of its groups.
+ * A message sent from Messages to any of them is this term's.
+ */
+function messageTagsOf(state) {
+  const programme = ["everyone", "holding", "facilitating"].map((part) => `programme:${state.formId}:${state.programmeId}:${part}`);
+  return [...programme, ...(state.groups ?? []).map((group) => `group:${group.id}`)];
+}
+
+/**
+ * The records of the messages sent from Messages to this term's people
+ * (`messageSends`), each found by a tag it was for: the record keeps its
+ * tags' ids as plain strings (`tagIds`), and nothing else on it names the
+ * term. Read first, like the surveys: the send log's rows about a message
+ * are found by its record's id.
+ */
+async function messageSendIdsOf(state) {
+  const ids = new Set();
+  for (const tag of messageTagsOf(state)) {
+    const snap = await fixtureQuery("messageSends").where("tagIds", "array-contains", tag).get();
+    for (const doc of snap.docs) ids.add(doc.id);
+  }
+  return [...ids].sort();
+}
+
+/**
+ * The counters and the test record Messages leaves in `courseNudges`, by the
+ * ids src/lib/messages/sending.ts builds (restated): for each of this term's
+ * tags sent to alone, its daily counter and each presser's hourly one; and
+ * each presser's record of their last test and its hourly counter. An
+ * audience is the choice of tags, spelled in one order and hashed.
+ */
+function messageCounterIdsOf(state) {
+  const audienceKey = (include) =>
+    createHash("sha256").update(JSON.stringify([[...include].sort(), []]), "utf8").digest("hex").slice(0, 24);
+  const pressers = [state.adminUid, state.facilitator?.uid].filter(Boolean);
+  const ids = [];
+  for (const tag of messageTagsOf(state)) {
+    const key = audienceKey([tag]);
+    ids.push(`emailrate__messageday__${key}`);
+    for (const uid of pressers) ids.push(`emailrate__message__${key}__${uid}`);
+  }
+  for (const uid of pressers) ids.push(`messagetest__${uid}`, `emailrate__messagetest__${uid}`);
+  return ids;
+}
+
+/**
  * The send counters a survey's presses leave (`claimCaps` in
  * src/lib/surveys/sending.ts, restated: `reserveNoticeSlots` keeps them in
  * `courseNudges` as `emailrate__<key>`, with nothing on the row to query by):
@@ -2044,7 +2093,7 @@ function surveyCounterIdsOf(state, surveyIds) {
  * about the run, the test of an update to one group is about that group, and
  * a survey's tests (of its email and of its reminder) are about the survey.
  */
-async function sendRowsOf(state, surveyIds = []) {
+async function sendRowsOf(state, surveyIds = [], messageIds = []) {
   const rows = new Map();
   for (const account of accountsOf(state)) {
     const snap = await fixtureQuery("emailSends").where("to", "==", account.email).get();
@@ -2059,6 +2108,14 @@ async function sendRowsOf(state, surveyIds = []) {
   for (const id of surveyIds) {
     const aboutSurvey = await fixtureQuery("emailSends").where("referenceId", "==", id).get();
     for (const doc of aboutSurvey.docs) rows.set(doc.id, doc.ref);
+  }
+  // A message from Messages: every email it sent names its record, and each
+  // presser's tests name their record of the last one, which is all a test
+  // to the presser's own address could be found by.
+  const tests = [state.adminUid, state.facilitator?.uid].filter(Boolean).map((uid) => `messagetest__${uid}`);
+  for (const id of [...messageIds, ...tests]) {
+    const aboutMessage = await fixtureQuery("emailSends").where("referenceId", "==", id).get();
+    for (const doc of aboutMessage.docs) rows.set(doc.id, doc.ref);
   }
   return rows;
 }
@@ -2120,6 +2177,10 @@ function reminderMarkersOf(state) {
  *  - placing (allocate route): `courseEnrolments`, the groups' counters;
  *  - appointing a facilitator: the group, a facilitator `courseEnrolments` row;
  *  - "Send a test to me": a `courseNudges` record of the test, `emailSends` rows;
+ *  - a message from Messages to the term's people (src/lib/messages/): its
+ *    `messageSends` record (`tagIds` names the tags it was for), the update
+ *    when it is posted on the programme's page as well, its counters and the
+ *    presser's test record in `courseNudges`, and its `emailSends` rows;
  *  - Publish: `courseNudges` (its press lock, one marker per facilitator told),
  *    cohort `subscriptions` and their `subscriptionEvents`, the enrolments'
  *    told stamps, `emailSends` rows;
@@ -2237,8 +2298,9 @@ export async function countTerm(state) {
   const counts = {};
   const { formId, runId } = state;
   // First, while they are there to be read: everything a survey's routes
-  // write is found by the survey's id.
+  // write is found by the survey's id, and a message's emails by its record's.
   const surveyIds = await surveyIdsOf(state);
+  const messageIds = await messageSendIdsOf(state);
 
   for (const [name, collection, id] of [
     ["admissionRounds", "admissionRounds", formId],
@@ -2334,7 +2396,14 @@ export async function countTerm(state) {
     if ((await fixtureDoc("suppressedEmails", id).get()).exists) suppressionRows += 1;
   }
   counts.suppressedEmails = suppressionRows;
-  counts.emailSends = (await sendRowsOf(state, surveyIds)).size;
+  counts.emailSends = (await sendRowsOf(state, surveyIds, messageIds)).size;
+  // Messages: each send's record, and the counters and test records it keeps.
+  counts.messageSends = messageIds.length;
+  let messageCounters = 0;
+  for (const id of messageCounterIdsOf(state)) {
+    if ((await fixtureDoc("courseNudges", id).get()).exists) messageCounters += 1;
+  }
+  counts.messageCounters = messageCounters;
 
   const accounts = await countAccounts(accountsOf(state).map((account) => account.uid));
   counts.users = accounts.users;
@@ -2372,9 +2441,11 @@ export async function teardownTerm(state) {
     }
   }
   const { formId, runId } = state;
-  // Every survey made on the term's programme, read before anything is
-  // deleted: the rows its routes wrote are found by its id.
+  // Every survey made on the term's programme, and every message sent from
+  // Messages to its people, read before anything is deleted: the rows their
+  // routes wrote are found by their ids.
   const surveyIds = await surveyIdsOf(state);
+  const messageIds = await messageSendIdsOf(state);
 
   // Rows the routes wrote. Event lines before the subscription rows they describe.
   for (const id of subscriptionIdsOf(state)) {
@@ -2407,6 +2478,7 @@ export async function teardownTerm(state) {
   await deleteQuery(fixtureQuery("courseCertificates").where("runId", "==", runId));
 
   for (const id of sendCounterIdsOf(state)) await fixtureDoc("courseNudges", id).delete();
+  for (const id of messageCounterIdsOf(state)) await fixtureDoc("courseNudges", id).delete();
   for (const ref of reminderMarkersOf(state)) await ref.delete();
   // The eighth point's: each survey's answers, who it was sent to (with
   // their links), the download log's rows and the send counters. The surveys
@@ -2440,9 +2512,10 @@ export async function teardownTerm(state) {
   // The send log LAST of the rows: a send is logged a moment after its
   // message leaves, so the later this runs the smaller the window for a row
   // to land behind it.
-  for (const ref of (await sendRowsOf(state, surveyIds)).values()) await ref.delete();
-  // Then the surveys, the last record anything above was found by.
+  for (const ref of (await sendRowsOf(state, surveyIds, messageIds)).values()) await ref.delete();
+  // Then the surveys and the messages' records, the last records anything above was found by.
   for (const id of surveyIds) await fixtureDoc("surveys", id).delete();
+  for (const id of messageIds) await fixtureDoc("messageSends", id).delete();
 
   for (const account of accounts) {
     // The users document first: an Auth account whose document outlives it is

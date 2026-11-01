@@ -367,6 +367,11 @@ export const FIXTURE_COLLECTIONS = [
   // answer route writes it only when the person changed the box on the form,
   // so a fixture account's is counted, and removed, by that uid.
   "kairosChoices",
+  // The record of a message sent from Messages: who wrote it, the tags it was
+  // for (their ids kept as `tagIds`, by which a fixture finds the sends to its
+  // own programme and groups), and how each person was reached. Written by
+  // the send route a spec drives, and by nothing a fixture seeds.
+  "messageSends",
   "courseEnrolments",
   "courseProgress",
   // A person's own rows on a week written as blocks: each reflection box they
