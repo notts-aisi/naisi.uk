@@ -30,11 +30,11 @@
  *
  * Real: the overview, my-exercises, the written answer's route, the
  * feedback route and the batch's two, the ratings for the team's route, the
- * rubric's route, the summary
- * route, the summer's review route and queue, the week page's shell and the
- * week page, the programme home, the review page for the group and for the
- * lead, the old feedback page, the group page, the Attendance and Overview
- * tabs, Home's facilitator form, and every library under them.
+ * rubric's route, the summary route, the summer's review route and queue,
+ * the week page's shell and the week page, the programme home, the review
+ * page for the group and for the lead, the old feedback page, the group
+ * page, the Attendance and Overview tabs, Home's facilitator form, and every
+ * library under them.
  * Stubbed: what the hand-over world stubs (the session, view-as, the mail
  * door), Next's navigation and link, the stylesheets, and the browser's
  * data hooks, each handing its component what a suite set.
