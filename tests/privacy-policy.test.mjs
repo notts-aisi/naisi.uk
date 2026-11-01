@@ -10073,13 +10073,24 @@ describe("v15 lets the people running a programme rate written work for each oth
     // walk is over all of them, read off the file rather than listed here.
     const READERS_FILE = "src/lib/courses/workRatings/readers.ts";
     const readerExports = [...strip(read(READERS_FILE)).matchAll(/\bexport\s+(?:async\s+)?function\s+(\w+)\s*\(/g)].map((m) => m[1]).sort();
-    assert.deepEqual(readerExports, ["loadTeamRatings", "readAnswerRatings", "readRatingsAbout"], "the reader of ratings hands out a new way to read them");
+    assert.deepEqual(
+      readerExports,
+      ["loadTeamRatings", "readAnswerRatings", "readPersonRatings", "readRatingsAbout", "readWeekRatings"],
+      "the reader of ratings hands out a new way to read them",
+    );
     assertExactlyTheseFiles(
       sourceFilesNaming(new RegExp(`\\b(?:${readerExports.join("|")})\\(`)),
       new Map([
-        [READERS_FILE, "the reader itself, which reads one person's answer and the names of whoever rated it, or the ratings about the people a note suggests"],
+        [
+          READERS_FILE,
+          "the reader itself, which reads one person's answer and the names of whoever rated it, the ratings about the people a note suggests, or one person's ratings on a run and a week's for a note's draft",
+        ],
         [REVIEW_PAGE, "the review page, for an admin or the programme's lead alone (`mayRateWorkOf`)"],
         ["src/lib/applications/nextTerm/load.ts", "a term's Next term page, for an admin alone (`canRunTerm`, asked before anything is read), never about the admin looking"],
+        [
+          "src/lib/courses/weekNotes/gather.ts",
+          "what a note's draft is built from, for an admin alone (the week's notes door, or `gateNotes` on the profile), never about the admin drafting; tests/course-work-ratings.test.mjs holds its callers",
+        ],
       ]),
       "reading ratings for the team",
       "A new caller shows ratings somewhere new: decide it is an admin's or the lead's alone first.",

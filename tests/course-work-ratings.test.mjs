@@ -429,7 +429,7 @@ describe("4. never to the person or a facilitator, and never to Kairos", () => {
   test("every file that addresses ratings for the team is listed, both ways", () => {
     const EXPECTED = new Map([
       ["src/lib/firestore/courseWorkRatings.ts", "the record: its name, its id, its scale and its normaliser"],
-      ["src/lib/courses/workRatings/readers.ts", "the one reader, for the review page and a term's Next term page, each after its gate"],
+      ["src/lib/courses/workRatings/readers.ts", "the one reader, for the review page, a term's Next term page and what a note is drafted from, each after its gate"],
       ["src/app/api/courses/runs/[runId]/work-ratings/route.ts", "the one writer: an admin's or the lead's own rating, saved or cleared"],
       ["src/lib/firestore/accountDeletion.ts", "an account takes the ratings about it and those it gave"],
       ["src/lib/firestore/courseDeletion.ts", "a run's destroy counts them, and keeps them"],
@@ -438,18 +438,21 @@ describe("4. never to the person or a facilitator, and never to Kairos", () => {
     assert.deepEqual(found, [...EXPECTED.keys()].sort(), "a file addresses courseWorkRatings that this list does not know: decide who it shows ratings to first");
   });
 
-  test("the one reader is called by the review page and a term's Next term page alone, each after its own gate and only for an admin or the lead", () => {
+  test("the one reader is called by the review page, a term's Next term page and what a note is drafted from alone, each after its own gate and only for an admin or the lead", () => {
     // Every function the reader exports is a way in, read off the file rather than listed here.
     const exported = [...codeOf("src/lib/courses/workRatings/readers.ts").matchAll(/\bexport\s+(?:async\s+)?function\s+(\w+)\s*\(/g)]
       .map((m) => m[1])
       .sort();
-    assert.deepEqual(exported, ["loadTeamRatings", "readAnswerRatings", "readRatingsAbout"]);
+    assert.deepEqual(exported, ["loadTeamRatings", "readAnswerRatings", "readPersonRatings", "readRatingsAbout", "readWeekRatings"]);
     const callers = filesMatching(new RegExp(`\\b(?:${exported.join("|")})\\(`));
     assert.deepEqual(callers, [
       "src/lib/applications/nextTerm/load.ts",
+      "src/lib/courses/weekNotes/gather.ts",
       "src/lib/courses/workRatings/readers.ts",
       "src/lib/courses/writtenAnswers/reviewPage.ts",
     ]);
+    // What a note is drafted from calls only the two readers made for it, held in the next test.
+    assert.doesNotMatch(codeOf("src/lib/courses/weekNotes/gather.ts"), /loadTeamRatings\(|readAnswerRatings\(|readRatingsAbout\(/);
     const page = codeOf("src/lib/courses/writtenAnswers/reviewPage.ts");
     assert.match(page, /mayRateWorkOf\(actor, facts, owner, liveGroups\)\s*\?\s*loadTeamRatings\(db, \{/);
     assert.match(page, /facts\.isAdmin && record\s*\?\s*readAnswerReading\(db, \{/);
