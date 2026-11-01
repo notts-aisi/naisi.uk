@@ -1391,6 +1391,17 @@ const NOT_COVERED = {
     coverWhen:
       "When an event next runs with a capacity and a waitlist, because a wrong decision there is a real person losing their place.",
   },
+  "/api/events/[id]/signups": {
+    reason:
+      "Sign-ups: the requests waiting for a decision, with who is asking; tests/event-signup-requests.test.mjs drives it as every " +
+      "kind of caller (the event's author holding draftEvent and without it, a collaborator the SU does not recognise, " +
+      "SU-recognised committee and admins, an approver, another drafter, other committee, a member, a pending account, a " +
+      "turned-down collaborator, signed out) and holds each one's projection: the name by the rule, no address and no dietary " +
+      "or accessibility answer for an organiser, the card's words, and who decides.",
+    coverWhen:
+      "With the events-authoring browser spec owed by the editor's reshaping: sign in as an event's author, open Sign-ups, " +
+      "read who is asking and approve a request.",
+  },
   "/api/events/[id]/test-rsvps": {
     reason:
       "Events authoring: /api/events/[id]/test-rsvps is a deliberate committee action whose result is visible on the manage screen.",
@@ -1957,7 +1968,9 @@ const NOT_COVERED = {
   },
   "/(app)/events/manage/[id]/attendees": {
     reason:
-      "Events authoring: /(app)/events/manage/[id]/attendees is committee-facing, and a failure surfaces on the editor that caused it.",
+      "Events authoring: /(app)/events/manage/[id]/attendees is organiser-facing, and a failure surfaces on the editor that caused it. " +
+      "tests/event-signup-requests.test.mjs renders it as each kind of caller: the head and its tab, the requests alone for an " +
+      "organiser the SU does not recognise, and the whole list only for admins and SU-recognised committee.",
     coverWhen:
       "When the events editor is next reshaped, because the hand pass that covers it today is a memory of the old screen.",
   },

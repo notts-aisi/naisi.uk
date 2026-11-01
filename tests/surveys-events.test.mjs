@@ -734,8 +734,9 @@ describe("the event's Survey after tab: admins see the results; the organiser se
     const iris = await w.page(TAB, props(), "iris");
     assert.match(iris.text, /No survey has gone out after this event\./);
     assert.ok(!/Make a survey/.test(iris.text), "the organiser was offered to make a survey");
-    // The tabs, on this page and on Check-in.
-    assert.match(iris.text, /Details Check-in Survey after/);
+    // The tabs, on this page and on Check-in. Iris wrote the event, so its
+    // Sign-ups, where one request is waiting, opens for her as well.
+    assert.match(iris.text, /Details Sign-ups 3 1 waiting Check-in Survey after/);
     const checkInTab = await w.page("app/(app)/events/manage/[id]/check-in/page.tsx", props(), "sue");
     assert.match(checkInTab.html, /href="\/events\/manage\/vr-games-night-ev01\/survey"/);
   });

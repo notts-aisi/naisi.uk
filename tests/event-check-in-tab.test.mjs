@@ -91,9 +91,13 @@ describe("the tabs", () => {
 
   // The survey after an event is built (docs/surveys.md, "Surveys after events"), so the
   // fourth section, Survey after, sits beside Check-in, as ev-manage draws it.
-  test("Details, Sign-ups with its count, Check-in and Survey after, each its own address, the current one marked", () => {
-    const html = tabs({ current: "check-in", showSignups: true, signups: 18, showCheckIn: true });
-    assert.equal(textOf(html), "Details Sign-ups 18 Check-in Survey after");
+  // CHANGED ON PURPOSE (sign-up requests that say who's asking): after the
+  // count of places taken, Sign-ups says how many requests are waiting for a
+  // decision, the thing somebody has to do there, and nothing while nobody is.
+  test("Details, Sign-ups with its count and how many are waiting, Check-in and Survey after, each its own address, the current one marked", () => {
+    const html = tabs({ current: "check-in", showSignups: true, signups: 18, waiting: 4, showCheckIn: true });
+    assert.equal(textOf(html), "Details Sign-ups 18 4 waiting Check-in Survey after");
+    assert.equal(textOf(tabs({ current: "check-in", showSignups: true, signups: 18, waiting: 0, showCheckIn: true })), "Details Sign-ups 18 Check-in Survey after");
     assert.match(html, new RegExp(`href="/events/manage/${EVENT_ID}/survey"[^>]*>Survey after`));
     assert.match(html, /<nav[^>]*aria-label="Sections"/);
     assert.match(html, new RegExp(`href="/events/manage/${EVENT_ID}"[^>]*>Details`));
@@ -107,15 +111,31 @@ describe("the tabs", () => {
     assert.ok(!tabs({ current: "details", showSignups: true, showCheckIn: false }).includes("Survey"));
   });
 
-  test("the editor and the attendees page both draw them, with the attendees page's own gate for Sign-ups", () => {
+  // CHANGED ON PURPOSE (sign-up requests that say who's asking): the
+  // Sign-ups page opens for the event's author and collaborators as well
+  // (src/lib/events/signupAccess.ts), so the tab shows for them too. The
+  // editor draws it from the same people, and the page asks the rule itself.
+  test("the editor and every tab's page draw them, with the Sign-ups page's own gate for Sign-ups", () => {
     const editor = readFileSync(join(REPO_ROOT, "src/features/events/EventEditor.tsx"), "utf8");
     assert.match(
       editor,
-      /<EventTabs\s+eventId=\{event\.id\}\s+current="details"\s+showSignups=\{canSeeAttendees\}\s+signups=\{event\.rsvpCountConfirmed \?\? undefined\}\s+showCheckIn=\{status === "published"\}\s+\/>/,
+      /<EventTabs\s+eventId=\{event\.id\}\s+current="details"\s+showSignups=\{canSeeSignups\}\s+signups=\{event\.rsvpCountConfirmed \?\? undefined\}\s+waiting=\{pendingSignups\}\s+showCheckIn=\{status === "published"\}\s+\/>/,
     );
-    assert.match(editor, /const canSeeAttendees =\s+role === "admin" \|\| \(role === "committee" && suRecognised\);/);
+    assert.match(
+      editor,
+      /const canSeeSignups =\s+role === "admin" \|\| \(role === "committee" && suRecognised\) \|\| isAuthor \|\| isCollaborator;/,
+    );
     const attendees = readFileSync(join(REPO_ROOT, "src/app/(app)/events/manage/[id]/attendees/page.tsx"), "utf8");
     assert.match(attendees, /<EventTabs\s+eventId=\{event\.id\}\s+current="signups"\s+showSignups/);
+    assert.match(attendees, /const access = signupAccessFor\(viewer, event\);\s+if \(!access\.requests\) redirect\(/);
+    for (const tab of ["check-in", "survey"]) {
+      const code = readFileSync(join(REPO_ROOT, `src/app/(app)/events/manage/[id]/${tab}/page.tsx`), "utf8");
+      assert.match(
+        code,
+        /showSignups=\{signupAccessFor\(viewer, event\)\.requests\}\s+signups=\{event\.rsvpCountConfirmed \?\? undefined\}\s+waiting=\{event\.rsvpCountPending \?\? undefined\}/,
+        tab,
+      );
+    }
   });
 });
 
@@ -134,9 +154,11 @@ describe("the Check-in tab", () => {
     clock(t, AFTER);
     for (const who of ["iris", "cal"]) {
       const { text, html } = await open(who);
+      // Iris wrote the event and Cal helps run it, so both open its Sign-ups,
+      // where one request is waiting; who came is still not theirs.
       assert.match(
         text,
-        /^Manage events VR games night Past Sun 1 Nov 2pm to 5pm Room B52 30 places Details Check-in /,
+        /^Manage events VR games night Past Sun 1 Nov 2pm to 5pm Room B52 30 places Details Sign-ups 3 1 waiting Check-in /,
         who,
       );
       assert.match(
@@ -164,7 +186,7 @@ describe("the Check-in tab", () => {
     t.mock.timers.reset();
     clock(t, AFTER);
     const { text } = await open("sue");
-    assert.match(text, /Details Sign-ups 3 Check-in/);
+    assert.match(text, /Details Sign-ups 3 1 waiting Check-in/);
     assert.match(text, /Who came 4 Until Sun 8 Nov, a week after the event Add someone who came/);
     // In the order they were checked in; two at the same minute, by name.
     assert.match(

@@ -36,8 +36,8 @@
  *
  *  - `rule`: the names module, which decides who sees what, the component
  *    that draws a name it was handed, and a loader that names everybody
- *    through `nameForViewer` with its own session's viewer (`proof` is the
- *    call).
+ *    through `nameForViewer` or `staffNamesFor` with its own session's
+ *    viewer (`proof` is the call).
  *  - `shape`: declares the field or carries it in a typed shape, and shows
  *    nobody anything.
  *  - `own`: the person's own full name, to the person: joining, Home's
@@ -50,6 +50,10 @@
  *    only to take each out of words before they leave the site for an
  *    outside service. It shows nobody anything: server code, with `proof`
  *    saying where the names are read and where they go.
+ *  - `viewer`: drawn for whoever its page admits, with names a route made
+ *    for the person looking by the rule: the committee and admins are sent
+ *    the full name, anybody else the name people go by. `proof` is where its
+ *    names come from, and it reads no account's name itself.
  *  - `other`: a different thing that is also called `fullName`. It may not
  *    read an account's full name.
  *
@@ -124,10 +128,13 @@ const READERS = new Map([
       "src/features/admin/MembersTable.tsx",
       "src/features/admin/MemberItem.tsx",
       "src/features/events/AttendeeDashboard.tsx",
+      "src/features/events/SignupRequests.tsx",
       "src/features/events/checkIn/DoorList.tsx",
       "src/features/events/checkIn/WhoCame.tsx",
     ],
-    why: "draws a staff name it is handed, in its parts; every screen that mounts it is a committee screen listed here",
+    why:
+      "draws a staff name it is handed, in its parts; every screen that mounts it is a committee screen listed here, or " +
+      "one drawn only with names a route made for the person looking (`viewer`)",
   }],
   ["src/lib/names/scrub.ts", {
     who: "rule",
@@ -137,6 +144,14 @@ const READERS = new Map([
     who: "rule",
     proof: ['return nameForViewer(viewer, accountNamesOf(data), "NAISI member");'],
     why: "the picker of who a message is for names everybody through one function, by the rule for the session's own viewer: the committee and admins see the full name, a facilitator the name people go by",
+  }],
+  ["src/lib/events/requestCard.ts", {
+    who: "rule",
+    proof: ["staffNamesFor(db, uids, viewer, { emailShown: access.everyone })"],
+    why:
+      "the names of the people asking for a place at an event, for its Sign-ups page: every one through staffNamesFor with " +
+      "the session's own viewer, so the committee and admins are sent the full name and an organiser who is a member the " +
+      "name people go by; the name a sign-up kept is sent only to admins and SU-recognised committee",
   }],
   ["src/lib/applications/review/people.ts", {
     who: "rule",
@@ -159,6 +174,10 @@ const READERS = new Map([
   ["src/features/admin/adminMutations.ts", {
     who: "shape",
     why: "the list of profile fields an admin's edit writes; it writes what the admin's own form hands it and shows nothing",
+  }],
+  ["src/lib/events/requestWords.ts", {
+    who: "shape",
+    why: "a request for a place carries its name in the parts a staff screen draws; it reads no account, and is filled by the requests route",
   }],
   ["src/lib/events/checkInView.ts", {
     who: "shape",
@@ -224,13 +243,30 @@ const READERS = new Map([
   // --- The committee and admins --------------------------------------------
   ["src/app/(app)/events/manage/[id]/attendees/page.tsx", {
     who: "committee",
-    proof: ["if (!canSeeAttendees) redirect(", "staffNamesFor(db, uids, viewer, { emailShown: true })"],
-    why: "an event's sign-ups, for admins and SU-recognised committee only, as the sign-ups rule has it",
+    proof: [
+      "if (!access.requests) redirect(",
+      "if (access.everyone && db) {",
+      "staffNamesFor(db, uids, viewer, { emailShown: true })",
+    ],
+    why:
+      "an event's Sign-ups: the names of everybody who signed up are looked up only for admins and SU-recognised " +
+      "committee, as the sign-ups rule has it; the event's other organisers are drawn the requests alone, whose names " +
+      "their route makes for them (SignupRequests)",
   }],
   ["src/features/events/AttendeeDashboard.tsx", {
     who: "committee",
     mountedBy: ["src/app/(app)/events/manage/[id]/attendees/page.tsx"],
-    why: "draws the sign-ups' staff names its page looked up behind the sign-ups' own gate",
+    why:
+      "draws the staff names of everybody who signed up, which its page looked up for admins and SU-recognised " +
+      "committee alone; for anybody else its page admits it draws the requests alone (SignupRequests)",
+  }],
+  ["src/features/events/SignupRequests.tsx", {
+    who: "viewer",
+    proof: ["fetch(`/api/events/${encodeURIComponent(eventId)}/signups`"],
+    mountedBy: ["src/features/events/AttendeeDashboard.tsx"],
+    why:
+      "the requests waiting for a decision, drawn for an event's organisers as well as the committee, with the names the " +
+      "requests route made for the person looking by the rule (src/lib/events/requestCard.ts)",
   }],
   ["src/app/(app)/events/manage/[id]/door/page.tsx", {
     who: "committee",
@@ -396,7 +432,7 @@ const READERS = new Map([
   }],
 ]);
 
-const WHO = ["rule", "shape", "own", "committee", "scrub", "other"];
+const WHO = ["rule", "shape", "own", "committee", "scrub", "viewer", "other"];
 
 /** Every file under `src` that imports `target`, by repository path. A type-only import draws nothing and is left out. */
 function importersOf(target) {
@@ -472,8 +508,20 @@ describe("every file that names a full name says who reads it", () => {
         }
       }
       if (entry.who === "rule" && entry.mountedBy) {
-        // What draws a staff name it is handed is drawn only on committee screens.
-        for (const parent of entry.mountedBy) assert.ok(behindCommitteeGate(parent), `${parent} mounts it and is not a committee screen`);
+        // What draws a staff name it is handed is drawn only on committee
+        // screens, or by a screen whose names a route made for its viewer.
+        for (const parent of entry.mountedBy) {
+          assert.ok(
+            behindCommitteeGate(parent) || READERS.get(parent)?.who === "viewer",
+            `${parent} mounts it and is neither a committee screen nor one named for its viewer`,
+          );
+        }
+      }
+      if (entry.who === "viewer") {
+        // Drawn for whoever its page admits, so every name in it was made for that person by a route.
+        assert.ok((entry.proof ?? []).length > 0, "a viewer entry has to say where its names come from");
+        assert.ok(file.endsWith(".tsx") && /^"use client";/.test(codeOf(file)), "a viewer entry is a browser component, handed what a route sent");
+        assert.ok(!readsAnAccountsFullName(code), "it is drawn for whoever its page admits, and it reads a full name itself");
       }
       if (entry.who === "scrub") {
         // Server code that hands names to a scrub draws nothing.
@@ -530,9 +578,12 @@ describe("the names module hands out what this file knows", () => {
       "staffNameWords",
     ]);
     const load = codeOf("src/lib/names/load.ts");
+    // `LIVE_RUN` names nobody: it is what "their programme" means, shared
+    // with the card under a request for a place at an event
+    // (src/lib/events/requestCard.ts) so the two say the same programmes.
     assert.deepEqual(
       [...load.matchAll(/\bexport\s+(?:async\s+)?(?:function|const|type)\s+(\w+)/g)].map((match) => match[1]).sort(),
-      ["StaffNamesOptions", "staffNamesFor"],
+      ["LIVE_RUN", "StaffNamesOptions", "staffNamesFor"],
     );
     const scrub = codeOf("src/lib/names/scrub.ts");
     assert.deepEqual(
