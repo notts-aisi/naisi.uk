@@ -5,7 +5,7 @@ import { useState, type ReactNode } from "react";
 import Button from "@/components/ui/Button";
 import codeActions from "@/features/qr/codeActions.module.css";
 import { useHydrated } from "@/hooks/useHydrated";
-import { DOOR_CODE_LINE } from "@/lib/events/checkInView";
+import { doorCodeLine } from "@/lib/events/checkInView";
 import styles from "./CheckInTab.module.css";
 
 type Props = {
@@ -14,18 +14,22 @@ type Props = {
   code: { slug: string; address: string; active: boolean } | null;
   /** The code itself, drawn by the server. */
   qr: ReactNode;
+  /** The event takes no sign-ups: nobody holds a place or has a confirmation email, so the card names neither. */
+  noSignup: boolean;
 };
 
 /**
  * The door QR code (ev-manage): the code, its address, who it is for, and the
  * sign and the PNG. Until the event has one, a button makes it: a short link
- * that is never deleted, so it is made once and on purpose.
+ * that is never deleted, so it is made once and on purpose. Who it is for is
+ * `doorCodeLine`, the words its printed sign carries too.
  */
-export default function DoorCodeCard({ eventId, code, qr }: Props) {
+export default function DoorCodeCard({ eventId, code, qr, noSignup }: Props) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const line = doorCodeLine({ noSignup });
 
   async function make() {
     setBusy(true);
@@ -61,7 +65,7 @@ export default function DoorCodeCard({ eventId, code, qr }: Props) {
           {!code.active && (
             <p className={styles.warn}>This code is switched off in Short links, so a scan lands on /links.</p>
           )}
-          <p className={styles.cardText}>{DOOR_CODE_LINE}</p>
+          <p className={styles.cardText}>{line}</p>
           <div className={styles.cardActions}>
             <a
               href={`/signs/${encodeURIComponent(code.slug)}`}
@@ -84,7 +88,7 @@ export default function DoorCodeCard({ eventId, code, qr }: Props) {
       ) : (
         <>
           <p className={styles.cardText}>
-            No door code yet. Make one, then print it for the door. {DOOR_CODE_LINE}
+            No door code yet. Make one, then print it for the door. {line}
           </p>
           <div className={styles.cardActions}>
             <Button variant="secondary" disabled={!hydrated || busy} onClick={() => void make()}>

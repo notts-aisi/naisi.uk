@@ -95,9 +95,14 @@ export function unmatchedWords(people: number, cameTwice: number): string {
   return `Walk-ins without an account can’t be matched across events, so the ${people} may count one walk-in twice, and the ${cameTwice} may miss some.`;
 }
 
-/** "No sign-up: checked in by QR and at the door", by the ways the event's people were checked in. */
-export function noSignupWords(byQr: boolean, atTheDoor: boolean): string {
-  const ways = [byQr ? "by QR" : "", atTheDoor ? "at the door" : ""].filter(Boolean);
+/**
+ * "No sign-up: checked in by themselves and at the door", by the ways the
+ * event's people were checked in: by themselves, whichever way they did it
+ * (the door code, their email's link or the check-in page), and at the door
+ * list or added later.
+ */
+export function noSignupWords(themselves: boolean, atTheDoor: boolean): string {
+  const ways = [themselves ? "by themselves" : "", atTheDoor ? "at the door" : ""].filter(Boolean);
   return `No sign-up: checked in ${ways.join(" and ")}`;
 }
 

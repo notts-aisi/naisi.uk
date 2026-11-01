@@ -581,8 +581,28 @@ describe("the QR survey code: a permanent short link per event's survey, and the
     assert.match(kofi.html, /<form/);
     const chloe = await w.page(path, props, "chloe");
     assert.match(chloe.text, /We keep your answers with your name, and that you signed up, so nobody is emailed it twice\./);
-    // Pat neither came nor holds a confirmed place: during the door, the way to check in.
+    // Pat neither came nor holds a confirmed place: during the door, the way
+    // to check in, but only at an event that lets people check themselves in,
+    // once its door is open: the check-in page's own rule (`selfCheckInOpen`).
     t.mock.timers.setTime(new Date("2026-11-01T16:45:00Z").getTime());
+    const NOT_YOURS = /This survey is for the people who came It goes to the people who came to this event or signed up for it\. If you came, check in at the door first\./;
+    const eventPath = `events/${EVENT_ID}`;
+    for (const [over, why] of [
+      [{}, "an event that does not let people check themselves in"],
+      [{ selfCheckIn: true }, "the door not opened yet"],
+      [{ doorOpenedAt: new Date("2026-11-01T13:05:00Z"), doorOpenedBy: "iris" }, "the door open, at an event that does not let them"],
+    ]) {
+      w.world.db.seed(eventPath, { ...eventSurveySeed()[eventPath], ...over });
+      const shut = await w.page(path, props, "pat");
+      assert.match(shut.text, NOT_YOURS, why);
+      assert.ok(!shut.text.includes("Check in") && !shut.html.includes("/check-in"), `${why}: offered a way to check in that would refuse`);
+    }
+    w.world.db.seed(eventPath, {
+      ...eventSurveySeed()[eventPath],
+      selfCheckIn: true,
+      doorOpenedAt: new Date("2026-11-01T13:05:00Z"),
+      doorOpenedBy: "iris",
+    });
     const pat = await w.page(path, props, "pat");
     assert.match(pat.text, /This survey is for the people who came It goes to the people who came to this event or signed up for it\. If you came, check in at the door first\. Check in/);
     assert.match(pat.html, /href="\/events\/vr-games-night-ev01\/check-in"/);
@@ -679,7 +699,13 @@ describe("the admins' pages for a survey after an event", () => {
     const { readEventAudience, membersOf } = await w.load("lib/surveys/events/audience.ts");
     const read = await readEventAudience(w.world.db, EVENT_ID);
     assert.equal(membersOf(read, "event-came").length, 6, "a record with its names off reached somebody");
-    assert.deepEqual(read.namesOff, { signups: 1, signupsByQr: 1, walkIns: 1 });
+    // One sign-up who checked themselves in before the ways were told apart, and one walk-in at the door.
+    assert.deepEqual(read.namesOff, {
+      signups: 1,
+      signupsThemselves: { code: 0, email: 0, site: 0, qr: 1 },
+      walkIns: 1,
+      walkInsThemselves: { code: 0, email: 0, site: 0, qr: 0 },
+    });
     const results = await w.page("app/(app)/admin/(admin-only)/surveys/[surveyId]/results/page.tsx", { params: Promise.resolve({ surveyId: id }), searchParams: Promise.resolve({}) }, "zach");
     assert.match(results.text, / 8 Came 4 who signed up, 4 walk-ins /);
     const tab = await w.page("app/(app)/events/manage/[id]/check-in/page.tsx", { params: Promise.resolve({ id: EVENT_ID }) }, "sue");

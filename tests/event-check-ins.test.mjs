@@ -7,7 +7,9 @@
  *     start to an hour after the end; adding from the event's page until a
  *     week after; nothing for an undated event.
  *  2. ONE RECORD PER PERSON, however many phones press at once, and the
- *     fields a record may hold, as a closed list.
+ *     fields a record may hold, as a closed list. Each way in is written as
+ *     itself, never as the old `qr`, which is read back as somebody who
+ *     checked themselves in, the way not recorded.
  *  3. UNDO, for this event's records only.
  *  4. WHAT IS KEPT: a walk-in's email goes a week after the event, names come
  *     off a year after it, by the `event-check-ins-tidy` job, which emails
@@ -15,7 +17,11 @@
  *  5. DELETIONS: an account deleted takes its name off at once (the real
  *     account cascade); an event deleted takes its check-ins (the real route).
  *  6. THE TREE: only two files address the collection, both server-only, so
- *     no browser ever reads or writes a check-in.
+ *     no browser ever reads or writes a check-in; and every call that writes
+ *     one says which way the person came in, from an expression registered
+ *     with the reason it is that person's own way, so no route can again
+ *     write one way for all of them (the old `qr`, which said "QR at the
+ *     door" of people who never scanned anything).
  *
  * Run with `npm test`.
  */
@@ -25,7 +31,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CASCADE_FIRESTORE_STUB, makeCascadeDb } from "./lib/cascadeStore.mjs";
-import { walkSource } from "./lib/functionScan.mjs";
+import { callsOf, walkSource } from "./lib/functionScan.mjs";
 import { createLoader } from "./lib/tsLoader.mjs";
 import {
   AFTER,
@@ -185,7 +191,7 @@ describe("one record per person per event", () => {
     const first = await lib.recordCheckIn(w.world.db, {
       event: event(),
       person: { kind: "signup", rsvp: rsvpOf("kofi") },
-      how: "qr",
+      how: "code",
       byUid: null,
       now: DURING,
     });
@@ -198,7 +204,7 @@ describe("one record per person per event", () => {
     });
     assert.equal(second.created, false);
     assert.equal(second.checkIn.id, first.checkIn.id);
-    assert.equal(second.checkIn.how, "qr", "the first one stands");
+    assert.equal(second.checkIn.how, "code", "the first one stands");
     assert.equal(checkIns().length, 1);
   });
 
@@ -222,7 +228,7 @@ describe("one record per person per event", () => {
     const mo = await lib.recordCheckIn(w.world.db, {
       event: event(),
       person: { kind: "account", uid: "mo", name: "Mo Rahman" },
-      how: "qr",
+      how: "site",
       byUid: null,
       now: DURING,
     });
@@ -230,7 +236,7 @@ describe("one record per person per event", () => {
     const again = await lib.recordCheckIn(w.world.db, {
       event: event(),
       person: { kind: "account", uid: "mo", name: "Mo Rahman" },
-      how: "qr",
+      how: "code",
       byUid: null,
       now: DURING,
     });
@@ -266,6 +272,47 @@ describe("one record per person per event", () => {
     const withEmail = rows.find((row) => row.email);
     assert.equal(withEmail.emailGoesAt.toISOString(), "2026-11-08T17:00:00.000Z");
     assert.equal(rows.find((row) => !row.email).emailGoesAt, null);
+  });
+
+  test("each way in is written as itself; the old catch-all, or a way nobody knows, is never written", async () => {
+    w.reset();
+    for (const how of ["code", "email", "site", "door", "page"]) {
+      const made = await lib.recordCheckIn(w.world.db, {
+        event: event(),
+        person: { kind: "walk-in", name: `Walk-in ${how}`, email: null },
+        how,
+        byUid: how === "door" || how === "page" ? "sue" : null,
+        now: DURING,
+      });
+      assert.equal(made.checkIn.how, how);
+      assert.equal(w.world.db.read(`eventCheckIns/${made.checkIn.id}`).how, how);
+    }
+    for (const how of ["qr", "QR", "scan", "", undefined]) {
+      await assert.rejects(
+        lib.recordCheckIn(w.world.db, {
+          event: event(),
+          person: { kind: "signup", rsvp: rsvpOf("chloe") },
+          how,
+          byUid: null,
+          now: DURING,
+        }),
+        /is never recorded as/,
+        String(how),
+      );
+    }
+    assert.equal(checkIns().length, 5);
+  });
+
+  test("a stored record reads back each way as itself, the old qr as itself, and a way nobody knows as the door list", async () => {
+    const { normalizeCheckIn, checkedThemselvesIn } = await w.load("lib/firestore/eventCheckIns.ts");
+    const read = (how) => normalizeCheckIn("c", { eventId: EVENT_ID, kind: "signup", how }).how;
+    for (const how of ["code", "email", "site", "door", "page", "qr"]) assert.equal(read(how), how);
+    for (const how of [undefined, null, "", "QR", "scan", 1]) assert.equal(read(how), "door", String(how));
+    // Who checked themselves in: the three ways and the old one; never the door list or the event's page.
+    assert.deepEqual(
+      ["code", "email", "site", "qr", "door", "page"].filter((how) => checkedThemselvesIn(how)),
+      ["code", "email", "site", "qr"],
+    );
   });
 
   test("a sign-up of another event is refused", async () => {
@@ -317,7 +364,7 @@ describe("the event-check-ins-tidy job", () => {
     await lib.recordCheckIn(w.world.db, {
       event: event(),
       person: { kind: "signup", rsvp: rsvpOf("kofi") },
-      how: "qr",
+      how: "code",
       byUid: null,
       now: DURING,
     });
@@ -506,5 +553,53 @@ describe("no browser reaches a check-in", () => {
       /^import "server-only";/,
       "the reads and writes are server-only",
     );
+  });
+});
+
+describe("every check-in is written with its own way in", () => {
+  /**
+   * Every call of `recordCheckIn` under src, by file, with the expression its
+   * `how` is and why that is the way the person came. Both directions: a new
+   * writer fails until it is written down here, and an entry with no call
+   * fails as stale.
+   */
+  const WRITERS = {
+    "src/app/api/events/[id]/check-in/route.ts": [
+      [
+        "selfHow({ viaLink: decision.viaLink, doorCode: parsed.doorCode })",
+        "checking yourself in: the link in your email, the door code that opened the page, or the page itself, decided by `selfHow`",
+      ],
+    ],
+    "src/app/api/events/[id]/check-ins/route.ts": [
+      [
+        'parsed.from === "door" ? "door" : "page"',
+        "a walk-in added by somebody who runs check-in: on the door list, or from the event's page afterwards",
+      ],
+      [
+        'parsed.from === "door" ? "door" : "page"',
+        "a sign-up ticked by somebody who runs check-in: on the door list, or from the event's page afterwards",
+      ],
+    ],
+  };
+
+  test("each writer, and the way it writes, is registered with its reason", () => {
+    const found = {};
+    for (const file of walkSource(join(REPO_ROOT, "src"))) {
+      const path = relative(REPO_ROOT, file).split("\\").join("/");
+      for (const call of callsOf(file, "recordCheckIn")) {
+        const record = call.args[1]?.text ?? "";
+        const how = /\bhow:\s*([\s\S]+?),\s*\n/.exec(record);
+        assert.ok(how, `${path}:${call.line} writes a check-in without saying how they came in`);
+        (found[path] ||= []).push(how[1].replace(/\s+/g, " ").trim());
+      }
+    }
+    const registered = Object.fromEntries(Object.entries(WRITERS).map(([path, rows]) => [path, rows.map(([how]) => how)]));
+    assert.deepEqual(found, registered);
+    for (const [path, rows] of Object.entries(WRITERS)) {
+      for (const [how, why] of rows) {
+        assert.ok(why.length > 40, `${path}: say why ${how} is the person's own way in`);
+        assert.ok(!/"qr"/.test(how), `${path} writes the old catch-all`);
+      }
+    }
   });
 });

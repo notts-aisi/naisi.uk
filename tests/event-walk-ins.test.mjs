@@ -6,14 +6,16 @@
  * Through the real route (`POST /api/events/<id>/check-ins` with a `walkIn`),
  * the door list page that offers it, the form's own words, and the tidy job
  * on the day the email goes. As the people who run check-in, the organiser
- * the SU does not recognise, a member, signed out and view-as. The world is
+ * the SU does not recognise, a member, signed out and view-as. At the door
+ * only once the door is open (`tests/event-door-list.test.mjs` opens it); from
+ * the event's page whether or not it was. The world is
  * `tests/lib/checkInWorld.mjs`. Run with `npm test`.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AFTER, DURING, EVENT_ID, WEEK_LATER, makeCheckInWorld, textOf } from "./lib/checkInWorld.mjs";
+import { AFTER, DOOR_OPEN, DURING, EVENT_ID, WEEK_LATER, makeCheckInWorld, textOf, withEvent } from "./lib/checkInWorld.mjs";
 
 const w = await makeCheckInWorld("__walkIns");
 const { call, render, load } = w;
@@ -33,11 +35,13 @@ const checkIns = () =>
     .map((path) => w.world.db.read(path));
 const short = (res) => [res.status, res.body?.error ?? null];
 const BAD_EMAIL = "That email doesn’t look right. Leave it empty if they don’t want the survey.";
+/** The night, with the door open. */
+const opened = () => w.reset(withEvent(DOOR_OPEN));
 
 describe("adding a walk-in", () => {
   test("a name and an email: kept for the survey until a week after the event, and never sent back", async (t) => {
     clock(t, DURING);
-    w.reset();
+    opened();
     const res = await add("sue", { name: "  Dan   Fitzgerald ", email: " Dan@Example.com " });
     assert.equal(res.status, 201);
     assert.deepEqual(
@@ -51,6 +55,7 @@ describe("adding a walk-in", () => {
           id: "-",
           how: "door",
           at: DURING.toISOString(),
+          by: "Sue",
           emailGoesAt: "2026-11-08T17:00:00.000Z",
           noEmail: false,
         },
@@ -67,7 +72,7 @@ describe("adding a walk-in", () => {
 
   test("a name alone: no email is kept, and the row says so", async (t) => {
     clock(t, DURING);
-    w.reset();
+    opened();
     for (const email of [undefined, null, "", "   "]) {
       const res = await add("zach", { name: "Mo Rahman", email });
       assert.equal(res.status, 201, String(email));
@@ -111,7 +116,14 @@ describe("adding a walk-in", () => {
   });
 
   test("at the door while it is open; from the event's page until a week after", async (t) => {
+    clock(t, DURING);
     w.reset();
+    assert.deepEqual(short(await add("sue", { name: "Dan" }, "door")), [
+      409,
+      "The door isn’t open yet. The event’s author or an admin opens it from the Check-in tab.",
+    ]);
+    assert.equal(checkIns().length, 0, "not at the door before it is opened");
+    t.mock.timers.reset();
     clock(t, AFTER);
     assert.equal((await add("sue", { name: "Dan" }, "door")).status, 409);
     const later = await add("sue", { name: "Dan", email: "dan@example.com" }, "page");
@@ -125,7 +137,7 @@ describe("adding a walk-in", () => {
 
   test("a week after the event the job deletes the email; the walk-in is still counted, with their name", async (t) => {
     clock(t, DURING);
-    w.reset();
+    opened();
     await add("sue", { name: "Rosa Martinez", email: "rosa@example.com" });
     t.mock.timers.reset();
     clock(t, WEEK_LATER);
@@ -136,9 +148,12 @@ describe("adding a walk-in", () => {
 });
 
 describe("where a walk-in is added", () => {
-  test("the door list offers Add a walk-in while it is open, and not after", async (t) => {
+  test("the door list offers Add a walk-in while it is open, and not before it is opened or after", async (t) => {
     w.reset();
     clock(t, DURING);
+    const shut = await render(doorPage, { as: "sue", params: { id: EVENT_ID } });
+    assert.ok(!shut.text.includes("Add a walk-in"), "not before the door is opened");
+    opened();
     const during = await render(doorPage, { as: "sue", params: { id: EVENT_ID } });
     assert.match(during.text, /Add a walk-in$/);
     t.mock.timers.reset();

@@ -35,11 +35,12 @@
  *     and comments with no name, as the box at its top says. Sam leaves
  *     before Group B first meets and answers the leaving survey, which the
  *     lead reads without a name.
- *  D. An event (Sun 1 Nov). Sign-ups checked in on the door list and by the
- *     QR code, a member who did not sign up by the code, two walk-ins at the
- *     door; its survey opened at the event and emailed to who came. The
- *     Check-in tab, the organiser's tab and the survey's Results agree, and
- *     each reader reads what the policy says.
+ *  D. An event (Sun 1 Nov) that lets people check themselves in. Its
+ *     organiser opens the door; sign-ups checked in on the door list and with
+ *     the door code, a member who did not sign up with the code, two walk-ins
+ *     at the door; its survey opened at the event and emailed to who came.
+ *     The Check-in tab, the organiser's tab and the survey's Results agree,
+ *     and each reader reads what the policy says.
  *  E. The weeks and after the end (to Fri 11 Dec). Every register typed and
  *     finished by its facilitator in its own week, Callum taken off after
  *     week 2, the survey at the end sent and answered (Kofi saying no to
@@ -83,7 +84,7 @@ import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { FIELD_VALUE_STUB } from "./lib/applicationsStore.mjs";
-import { checkInSeed, EVENT_ID, RSVP } from "./lib/checkInWorld.mjs";
+import { checkInSeed, EVENT_ID, RSVP, SELF_ON, withEvent } from "./lib/checkInWorld.mjs";
 import { walkSource } from "./lib/functionScan.mjs";
 import { COURSE, loadJoin, makeWorld } from "./lib/handoverWorld.mjs";
 import { A, AGI, B, C, ROUND, RUN } from "./lib/leadWorld.mjs";
@@ -258,13 +259,14 @@ const mailText = (messages = world.mail) =>
  *
  * On top, an event of the term (`tests/lib/checkInWorld.mjs`): VR GAMES
  * NIGHT, Sun 1 Nov from 2pm to 5pm, run by Iris (committee the SU does not
- * recognise) with Cal; Sue is SU-recognised committee and runs the door.
+ * recognise) with Cal; Sue is SU-recognised committee and runs the door. It
+ * lets people check themselves in, as its author set it before it went out.
  * Sign-ups: Kofi and Chloe (members), Gwen (a guest), Wren (waiting list),
  * Pat (not decided), Cora (cancelled), Dina (refused) and a test sign-up.
  */
 function journeySeed() {
   const seed = termSeed();
-  for (const [path, doc] of Object.entries(checkInSeed())) {
+  for (const [path, doc] of Object.entries(checkInSeed(withEvent(SELF_ON)))) {
     if (path.startsWith("users/") && seed[path]) continue;
     seed[path] = doc;
   }
@@ -304,6 +306,7 @@ async function loadRoutes() {
   R.doorCode = await route("events/[id]/door-code");
   R.checkIns = await route("events/[id]/check-ins");
   R.selfCheckIn = await route("events/[id]/check-in");
+  R.door = await route("events/[id]/door");
   R.remove = await route("courses/runs/[runId]/enrolments/[uid]/remove");
   R.register = await route("courses/groups/[groupId]/attendance");
   R.registerPush = await route("courses/groups/[groupId]/attendance/push");
@@ -650,12 +653,16 @@ async function tellTheStory() {
   await everyQuestionOptional(night, "2026-11-08");
   seen.doorCodeByIris = await call("iris", R.doorCode.POST, { id: EVENT_ID }, { body: {} });
   seen.doorCode = await call("sue", R.doorCode.POST, { id: EVENT_ID }, { body: {} });
+  // The door list and the code work once the door is open: Iris, the event's author, opens it.
+  at("2026-11-01T13:05:00Z");
+  seen.suePressesOpen = await call("sue", R.door.POST, { id: EVENT_ID }, { body: {} });
+  seen.irisOpensDoor = await call("iris", R.door.POST, { id: EVENT_ID }, { body: {} });
   at("2026-11-01T14:05:00Z");
-  seen.kofiSelf = await call("kofi", R.selfCheckIn.POST, { id: EVENT_ID }, {});
+  seen.kofiSelf = await call("kofi", R.selfCheckIn.POST, { id: EVENT_ID }, { body: { doorCode: true } });
   at("2026-11-01T14:10:00Z");
   seen.gwenDoor = await call("sue", R.checkIns.POST, { id: EVENT_ID }, { body: { rsvpId: RSVP.gwen, from: "door" } });
   seen.wrenDoor = await call("sue", R.checkIns.POST, { id: EVENT_ID }, { body: { rsvpId: RSVP.wren, from: "door" } });
-  seen.moSelf = await call("mo", R.selfCheckIn.POST, { id: EVENT_ID }, {});
+  seen.moSelf = await call("mo", R.selfCheckIn.POST, { id: EVENT_ID }, { body: { doorCode: true } });
   seen.rosaWalkIn = await call("sue", R.checkIns.POST, { id: EVENT_ID }, {
     body: { walkIn: { name: "Rosa Martinez", email: "rosa@example.com" }, from: "door" },
   });
@@ -1285,6 +1292,14 @@ describe("C. Sam leaves before Group B first meets: People, the leaving survey a
 });
 
 describe("D. VR games night: Check-in, the organiser's tab and the night's survey agree on who came", () => {
+  test("the door is the organiser's to open, and opens once; the committee check people in at it", () => {
+    assert.deepEqual(seen.suePressesOpen, { status: 403, body: { error: "Only the event’s author or an admin opens the door." } });
+    assert.deepEqual(seen.irisOpensDoor, { status: 201, body: { created: true, openedAt: "2026-11-01T13:05:00.000Z" } });
+    assert.ok(seen.checkInIris.text.includes("At the door The door is open. You opened it at 1:05pm."));
+    assert.ok(seen.checkInSue.text.includes("At the door The door is open. Iris opened it at 1:05pm."));
+    assert.equal(seen.gwenDoor.status, 201);
+  });
+
   test("the door code is SU-recognised committee's and admins', never the organiser's", () => {
     assert.deepEqual(seen.doorCodeByIris, { status: 403, body: { error: "Only admins and SU-recognised committee members run check-in." } });
     assert.deepEqual(seen.doorCode, { status: 201, body: { made: true, slug: "vr-in", active: true } });
@@ -1298,32 +1313,32 @@ describe("D. VR games night: Check-in, the organiser's tab and the night's surve
     // Of the 3 who signed up (the Sign-ups tab's 3) Kofi and Gwen came, and Wren
     // was let in from the waiting list (L9).
     const counts =
-      "6 came 2 of 3 who signed up, 1 from the waiting list, and 3 walk-ins 2 checked themselves in With the QR code at the door 2 at the door list Plus 2 of the 3 walk-ins 1 still to come";
+      "6 came 2 of 3 who signed up, 1 from the waiting list, and 3 walk-ins 2 checked themselves in With the door code 2 at the door list Plus 2 of the 3 walk-ins 1 still to come";
     assert.ok(seen.checkInSue.text.includes(counts));
     assert.ok(seen.checkInIris.text.includes(counts));
     assert.ok(seen.checkInIris.text.endsWith("Only NAISI’s admins and the committee members the Students’ Union recognises see who came, as they see who signed up."));
     for (const name of ["Kofi", "Gwen", "Wren", "Rosa", "Dan", "Mo Rahman", "Chloe"]) assert.ok(!seen.checkInIris.html.includes(name), name);
     inOrder(seen.checkInSue.text, [
-      "KA Kofi Asante QR at the door 2:05pm",
-      "GP Gwen Price Door list 2:10pm",
-      "WH Wren Hale Door list 2:10pm",
-      "DF Dan Fitzgerald No email Walk-in 2:10pm",
-      "MR Mo Rahman QR at the door 2:10pm",
-      "RM Rosa Martinez Email kept for the survey until Sun 8 Nov Walk-in 2:10pm",
+      "KA Kofi Asante Scanned the door code Themselves 2:05pm",
+      "GP Gwen Price Door list Sue 2:10pm",
+      "WH Wren Hale Door list Sue 2:10pm",
+      "DF Dan Fitzgerald No email Walk-in Sue 2:10pm",
+      "MR Mo Rahman Scanned the door code Themselves 2:10pm",
+      "RM Rosa Martinez Email kept for the survey until Sun 8 Nov Walk-in Sue 2:10pm",
       "Still to come 1 CN Chloe Nguyen",
     ]);
     assert.ok(seen.checkInAfter.text.includes("Didn’t come 1 CN Chloe Nguyen"));
   });
 
-  test("Mo checked in with the code, signed in: Check-in says QR at the door and counts Mo as checking in by the code; the survey names Mo as somebody who came without signing up and emails Mo (L5)", () => {
+  test("Mo checked in with the code, signed in: Check-in says Scanned the door code and counts Mo as checking in themselves; the survey names Mo as somebody who came without signing up and emails Mo (L5)", () => {
     assert.deepEqual(seen.moSelf.status, 201);
     // Mo's survey goes to Mo's account, so no "No email" under Mo's name
-    // (`view` in src/lib/events/checkInView.ts); "QR at the door", as a
-    // sign-up who used the code reads (`walkedInByCode`, `WhoCame`); and Mo is
-    // among the 2 who checked themselves in (`byQr`).
-    assert.ok(seen.checkInSue.text.includes("MR Mo Rahman QR at the door 2:10pm"));
+    // (`view` in src/lib/events/checkInView.ts); "Scanned the door code", as
+    // a sign-up who used the code reads (`walkedInThemselves`, `WhoCame`);
+    // and Mo is among the 2 who checked themselves in (`themselves`).
+    assert.ok(seen.checkInSue.text.includes("MR Mo Rahman Scanned the door code Themselves 2:10pm"));
     assert.ok(!/Mo Rahman No email/.test(seen.checkInSue.text));
-    assert.ok(seen.checkInSue.text.includes("2 checked themselves in With the QR code at the door"));
+    assert.ok(seen.checkInSue.text.includes("2 checked themselves in With the door code"));
     // The survey reads the account's address (src/lib/surveys/events/audience.ts)
     // and says Mo apart from the walk-in who left one (`cameDetail`).
     assert.ok(
@@ -1352,7 +1367,7 @@ describe("D. VR games night: Check-in, the organiser's tab and the night's surve
     assert.equal(seen.rosaWalkIn.body.row.checkIn.emailGoesAt, "2026-11-08T23:59:00.000Z");
     assert.ok(seen.nightSendPage.text.includes("Closes Sun 8 Nov, 23:59"));
     assert.ok(seen.checkInAfter.text.includes("Who came 6 Until the survey closes on Sun 8 Nov Add someone who came"));
-    assert.ok(seen.checkInAfter.text.includes("RM Rosa Martinez Email kept for the survey until Sun 8 Nov Walk-in 2:10pm"));
+    assert.ok(seen.checkInAfter.text.includes("RM Rosa Martinez Email kept for the survey until Sun 8 Nov Walk-in Sue 2:10pm"));
   });
 
   test("the night's survey: opened at the event, Kofi answers signed in, the email skips Kofi and goes to the 4 the page names", () => {

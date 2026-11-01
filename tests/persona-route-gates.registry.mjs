@@ -2763,6 +2763,16 @@ export const ROUTES = {
         "is missing. Authorship is per event.",
     },
   },
+  "/api/events/[id]/door": {
+    POST: {
+      expect: adminOnly(404),
+      why:
+        "Opening an event's door is for its author, while their account stands, and admins, decided " +
+        "before the event is shown to exist: the battery's id addresses nothing, so nobody is its author, " +
+        "every session but the admin's is forbidden (SU-recognised committee and the permission holders " +
+        "included) and the admin is told the event is missing.",
+    },
+  },
   "/api/events/[id]/door-code": {
     POST: {
       expect: adminOnly(404, { suCommittee: 404 }),

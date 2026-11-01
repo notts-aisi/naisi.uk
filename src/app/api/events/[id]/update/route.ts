@@ -131,6 +131,10 @@ export async function POST(
   // Strictly `true`, so a client that predates the switch and sends nothing
   // cannot turn sign-ups off on a published event by omission.
   const noSignup = body.noSignup === true;
+  // The same for letting people check themselves in: off unless the editor
+  // says a strict true, so an older client that sends nothing turns it off,
+  // which is where every event starts.
+  const selfCheckIn = body.selfCheckIn === true;
 
   const foodText = typeof body.foodText === "string" ? body.foodText.trim() : "";
   const dietaryTags = Array.isArray(body.dietaryTags)
@@ -168,6 +172,7 @@ export async function POST(
     capacity,
     waitlistEnabled,
     noSignup,
+    selfCheckIn,
     signupForm,
     foodText: foodText ? foodText : FieldValue.delete(),
     dietaryTags,

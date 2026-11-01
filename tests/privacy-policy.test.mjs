@@ -6502,6 +6502,14 @@ describe("the course hub passage", () => {
  * rule that is run or a line of source that is matched. Check-in was first
  * described by v7. The suites that run check-in as every kind of caller are
  * `tests/event-*.test.mjs`.
+ *
+ * "At an event that lets you" is the event's own switch (`selfCheckIn`, only
+ * a stored true is on, off for a new event and for every event made before
+ * it), and only once its author or an admin has opened the door. "How" is
+ * each way in recorded as itself: the door list or the event's page by a
+ * committee member, or yourself by your email's link, the code at the door,
+ * or the check-in page that code opens. The link is in the email that
+ * confirms a place only at an event that lets you.
  */
 /** v15's paragraph about coming to an event, whole. */
 const COMING_TO_AN_EVENT =
@@ -6512,6 +6520,9 @@ const WHO_CAME_KEPT =
 const checkInAccess = await loadTs("lib/events/checkInAccess.ts");
 const checkInRules = await loadTs("lib/events/checkIns.ts");
 const checkInCounts = await loadTs("lib/events/checkInView.ts");
+const checkInRecords = await loadTs("lib/firestore/eventCheckIns.ts");
+const selfCheckInRules = await loadTs("lib/events/selfCheckIn.ts");
+const eventRecords = await loadTs("lib/firestore/events.ts");
 /** Every file that reads or builds a list of who came, by name. */
 const NAMED_CHECK_IN_READERS = /\bloadEventAtTheDoor\(|\bdoorRows\(/;
 
@@ -6674,9 +6685,26 @@ describe("the check-in passage", () => {
     const records = [off("signup", "qr"), off("signup", "door"), off("walk-in", "door")];
     // Listed nowhere: no row, since a row is a name.
     assert.deepEqual(checkInCounts.doorRows([], records), []);
-    // Counted: three people came, two by a sign-up (one with the code) and one walking in.
+    // Counted: three people came, two by a sign-up (one who checked
+    // themselves in before the ways were told apart, one on the door list)
+    // and one walking in. CHANGED ON PURPOSE (each way in recorded as
+    // itself): who checked themselves in is `themselves`, split by the way
+    // they came in `themselvesBy`, where it was one count of the code.
     const counts = checkInCounts.doorCounts([], checkInCounts.namesOffOf(records));
-    assert.deepEqual([counts.here, counts.signupsHere, counts.walkIns, counts.byQr, counts.byList], [3, 2, 1, 1, 1]);
+    assert.deepEqual([counts.here, counts.signupsHere, counts.walkIns, counts.themselves, counts.byList], [3, 2, 1, 1, 1]);
+    assert.deepEqual({ ...counts.themselvesBy }, { code: 0, email: 0, site: 0, qr: 1 });
+    // "How" stays in the count as itself once the names are off: a sign-up
+    // and a walk-in for every way a record can say, each counted by its own way.
+    const hows = checkInRecords.CHECK_IN_HOWS;
+    const selfWays = checkInRecords.SELF_WAYS;
+    const every = hows.flatMap((how) => [off("signup", how), off("walk-in", how)]);
+    assert.deepEqual(checkInCounts.doorRows([], every), []);
+    const all = checkInCounts.doorCounts([], checkInCounts.namesOffOf(every));
+    assert.deepEqual(
+      [all.here, all.signupsHere, all.walkIns, all.themselves, all.walkInsThemselves, all.byList, all.notListed],
+      [2 * hows.length, hows.length, hows.length, 2 * selfWays.length, selfWays.length, hows.length - selfWays.length, 2 * hows.length],
+    );
+    assert.deepEqual({ ...all.themselvesBy }, Object.fromEntries(selfWays.map((way) => [way, 2])));
     // Every count of who came takes them, from the same check-ins as its rows.
     assertExactlyTheseFiles(
       sourceFilesNaming(/\bdoorCounts\(/).filter((file) => file !== "src/lib/events/checkInView.ts"),
@@ -6705,15 +6733,161 @@ describe("the check-in passage", () => {
     assert.match(head, /const total = came\.length \+ namesOff\.signups \+ namesOff\.walkIns;/);
   });
 
-  test("the email that confirms a place carries the check-in link, and no other email does", () => {
+  // CHANGED ON PURPOSE (v15, the self check-in switch): v14 said the email
+  // that confirms a place always has a link that checks you in. v15 says "at
+  // an event that lets you": the link is built only while the event lets
+  // people check themselves in (only a stored true), only on an email that
+  // holds a place, and in one place. Off, that email says to give your name
+  // at the door. The link alone is a credential, as v15 warns.
+  test("the email that confirms a place carries the check-in link only at an event that lets you, and no other email does", () => {
     assert.ok(
       PAGE_FLAT.includes(
         "you check yourself in from the link in your confirmation email or with the code at the door. Anyone holding your email&apos;s link could check in in your name, so keep it to yourself.",
       ),
     );
+    assert.ok(
+      V14_FLAT.includes("When your place at an event is confirmed, the email that tells you has a link that checks you in at the door, so you can check in without an account."),
+      "v14 is frozen and should still carry the link it promised",
+    );
     const send = withoutComments(read("src/lib/events/sendRsvpEmail.ts"));
-    assert.match(send, /if \(holder\) \{\s*checkInUrl = `\$\{baseUrl\(\)\}\/events\/\$\{event\.id\}\/check-in\?r=/);
+    assert.match(send, /const selfCheckIn = event\.selfCheckIn === true;/);
+    assert.match(send, /if \(holder && selfCheckIn\) \{\s*checkInUrl = `\$\{baseUrl\(\)\}\/events\/\$\{event\.id\}\/check-in\?r=/);
+    assert.equal((send.match(/\bcheckInUrl = /g) ?? []).length, 1, "the check-in link is built in more than one place");
     assert.match(send, /return holdsPlace\(variant === "approved" \|\| variant === "promoted" \? "confirmed" : "pending"\);/);
+    assert.match(send, /const atTheDoor = holder && !checkInUrl;/);
+    // The two routes that send an email holding a place hand it the event's switch as it stands.
+    assert.match(withoutComments(read("src/app/api/events/[id]/rsvp/[rsvpId]/approve/route.ts")), /selfCheckIn: evt\.selfCheckIn === true,/);
+    assert.match(withoutComments(read("src/app/api/events/[id]/rsvp/[rsvpId]/cancel/route.ts")), /selfCheckIn: outcome\.event\.selfCheckIn === true,/);
+    // No other file builds a link that checks somebody in with a sign-up's token.
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/\/check-in\?r=/),
+      new Map([
+        ["src/lib/events/sendRsvpEmail.ts", "the email that holds a place builds the check-in link, at an event that lets people check themselves in"],
+      ]),
+      "building a check-in link that carries a sign-up's token",
+      "The policy says the link is in the email that confirms a place, at an event that lets you. Build it in sendRsvpEmail, or change the policy first.",
+    );
+    // "Anyone holding your email's link could check in in your name": the
+    // link decides before any session is read, signed in or not.
+    const decide = withoutComments(read("src/lib/events/selfCheckIn.ts"));
+    const byLink = decide.indexOf("if (rsvpId && token) {");
+    assert.ok(byLink !== -1 && byLink < decide.indexOf('if (!user) return { kind: "sign-in" };'), "the link no longer decides on its own");
+    assert.match(withoutComments(read("src/app/events/[id]/check-in/page.tsx")), /const user = link\.token \? null : await getCurrentUser\(\);/);
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "event-self-check-in.test.mjs")), "tests/event-self-check-in.test.mjs sends the emails both ways, and through the routes");
+  });
+
+  // "At an event that lets you": the event's switch, off for a new event and
+  // for every event made before it, on only as a stored true, and then only
+  // once the door is open. Off, nobody checks themselves in by any way: the
+  // page and the press say check-in is at the door and write nothing, the
+  // email carries no link (above), and neither the Check-in tab nor a sign
+  // offers the door code as a way in.
+  test("at an event that lets you: only a stored true lets anybody check themselves in, and only once the door is open", () => {
+    assert.ok(PAGE_FLAT.includes("or, at an event that lets you, you check yourself in from the link in your confirmation email or with the code at the door."));
+    for (const [stored, on] of [[true, true], [false, false], ["true", false], [1, false], [null, false]]) {
+      assert.equal(eventRecords.normalizeEvent("e", { selfCheckIn: stored }).selfCheckIn, on, JSON.stringify(stored));
+    }
+    assert.equal(eventRecords.normalizeEvent("e", {}).selfCheckIn, false, "an event made before the switch existed lets nobody");
+    // Run: the one rule every way in asks.
+    const opened = { ...VR, status: "published", doorOpenedAt: new Date("2026-11-01T13:05:00Z"), doorOpenedBy: "iris" };
+    const during = new Date("2026-11-01T14:05:00Z");
+    assert.equal(checkInRules.selfCheckInOpen({ ...opened, selfCheckIn: true }, during), true);
+    assert.equal(selfCheckInRules.selfClosedWords({ ...opened, selfCheckIn: true }, during), null);
+    for (const selfCheckIn of [false, "true", undefined]) {
+      assert.equal(checkInRules.selfCheckInOpen({ ...opened, selfCheckIn }, during), false, String(selfCheckIn));
+      assert.equal(selfCheckInRules.selfClosedWords({ ...opened, selfCheckIn }, during), selfCheckInRules.AT_THE_DOOR_ONLY, String(selfCheckIn));
+    }
+    const unopened = { ...opened, selfCheckIn: true, doorOpenedAt: null, doorOpenedBy: null };
+    assert.equal(checkInRules.selfCheckInOpen(unopened, during), false, "before the door is opened");
+    assert.equal(selfCheckInRules.selfClosedWords(unopened, during), selfCheckInRules.DOOR_NOT_OPEN_YET);
+    // The press and the page ask it before they decide anybody.
+    const press = withoutComments(read("src/app/api/events/[id]/check-in/route.ts"));
+    const refused = press.indexOf("if (closed) return NextResponse.json({ error: closed }, { status: 409 });");
+    assert.ok(press.indexOf("const closed = selfClosedWords(event, now);") !== -1 && refused !== -1 && refused < press.indexOf("decideSelf(db,"), "the press decides somebody before it asks whether the event lets them");
+    const page = withoutComments(read("src/app/events/[id]/check-in/page.tsx"));
+    const closedAt = page.indexOf("const closed = selfClosedWords(event, new Date());");
+    assert.ok(closedAt !== -1 && closedAt < page.indexOf("selfCheckInView(db,"), "the page decides somebody before it asks whether the event lets them");
+    assert.match(withoutComments(read("src/lib/events/selfCheckIn.ts")), /export function selfClosedWords\(event: EventDoc, now: Date\): string \| null \{\s*if \(event\.selfCheckIn !== true\) return AT_THE_DOOR_ONLY;/);
+    // The editor writes a boolean; the route behind a published event takes only a strict true.
+    assert.match(withoutComments(read("src/app/api/events/[id]/update/route.ts")), /const selfCheckIn = body\.selfCheckIn === true;/);
+    assert.match(withoutComments(read("src/features/events/eventMutations.ts")), /if \(fields\.selfCheckIn !== undefined\) patch\.selfCheckIn = fields\.selfCheckIn === true;/);
+    // Off, the door code is no way in: the tab does not offer it, and its sign says check-in is at the door.
+    assert.match(withoutComments(read("src/app/(app)/events/manage/[id]/check-in/page.tsx")), /\{event\.selfCheckIn && \(\s*<DoorCodeCard/);
+    assert.match(withoutComments(read("src/lib/qr/codeAccess.ts")), /note: event\?\.selfCheckIn \? doorCodeLine\(event\) : AT_THE_DOOR_ONLY,/);
+    // The survey's code offers the way to check in only while you can.
+    assert.match(withoutComments(read("src/lib/surveys/events/codePage.ts")), /const door = event !== null && selfCheckInOpen\(event, now\);/);
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "event-self-check-in.test.mjs")), "tests/event-self-check-in.test.mjs presses I'm here as every kind of person, the switch off and on");
+  });
+
+  // "How": each way in is recorded as itself. By a committee member, on the
+  // door list (`door`) or from the event's page afterwards (`page`); by
+  // yourself, at an event that lets you, from your email's link (`email`),
+  // with the code at the door (`code`), or on the check-in page that code
+  // opens while signed in (`site`). A record from before the ways were told
+  // apart says `qr`: read back as somebody who checked themselves in, the
+  // way not recorded, and never written again.
+  test("how you came is recorded as itself: the door list or the event's page by a committee member, or yourself by your email's link, the code at the door or its check-in page", () => {
+    assert.ok(PAGE_FLAT.includes("If you come, we may record that you came, how and when: a committee member checks you in on the door list, or, at an event that lets you, you check yourself in from the link in your confirmation email or with the code at the door."));
+    assert.deepEqual([...checkInRecords.CHECK_IN_HOWS], ["code", "email", "site", "qr", "door", "page"]);
+    assert.deepEqual([...checkInRecords.SELF_WAYS], ["code", "email", "site", "qr"]);
+    for (const how of checkInRecords.CHECK_IN_HOWS) {
+      assert.equal(checkInRecords.normalizeCheckIn("c", { how }).how, how, `${how} is read back as itself`);
+      assert.equal(checkInRecords.checkedThemselvesIn(how), checkInRecords.SELF_WAYS.includes(how), how);
+    }
+    assert.equal(checkInRecords.normalizeCheckIn("c", { how: "teleport" }).how, "door", "a way nobody knows reads as the door list, as a record with none always has");
+    // A press is recorded by the way it came: the email's link decides alone, then the door code, then the page.
+    assert.equal(selfCheckInRules.selfHow({ viaLink: true, doorCode: true }), "email");
+    assert.equal(selfCheckInRules.selfHow({ viaLink: true, doorCode: false }), "email");
+    assert.equal(selfCheckInRules.selfHow({ viaLink: false, doorCode: true }), "code");
+    assert.equal(selfCheckInRules.selfHow({ viaLink: false, doorCode: false }), "site");
+    assert.match(
+      withoutComments(read("src/app/api/events/[id]/check-in/route.ts")),
+      /how: selfHow\(\{ viaLink: decision\.viaLink, doorCode: parsed\.doorCode \}\),\s*byUid: null,/,
+    );
+    // A committee member: only somebody who runs check-in, recorded as the one who did, on the door list only once the door is open.
+    const list = withoutComments(read("src/app/api/events/[id]/check-ins/route.ts"));
+    assert.equal((list.match(/how: parsed\.from === "door" \? "door" : "page",\s*byUid: user\.uid,/g) ?? []).length, 2);
+    const asked = list.indexOf("if (!runsCheckIn(user)) {");
+    assert.ok(asked !== -1 && asked < list.indexOf("recordCheckIn(db"), "the door list writes a check-in before it asks who is pressing");
+    assert.match(list, /if \(parsed\.from === "door"\) \{\s*const closed = doorClosedWords\(phase, window, openingOf\(event\) !== null\);/);
+    // The old catch-all is never written again.
+    const rules = withoutComments(read("src/lib/events/checkIns.ts"));
+    assert.match(rules, /const RECORDED_HOWS: readonly string\[\] = CHECK_IN_HOWS\.filter\(\(how\) => how !== "qr"\);/);
+    assert.match(rules, /if \(!RECORDED_HOWS\.includes\(how\)\) throw new Error\(/);
+    // Each way as the Check-in tab says it, to the people who see who came.
+    assert.deepEqual(
+      { ...checkInCounts.HOW_WORDS },
+      { code: "Scanned the door code", email: "From their email", site: "On the check-in page", qr: "Checked themselves in", door: "Door list", page: "Added later" },
+    );
+    // Every writer of a check-in, and the way each writes, is registered, both ways.
+    assert.match(read("tests/event-check-ins.test.mjs"), /describe\("every check-in is written with its own way in"/);
+  });
+
+  // The Check-in tab and the door list, as v15 has them: a committee member
+  // checks you in on the door list, which only somebody who runs check-in
+  // opens; the event's other organisers read the tab's numbers, split by the
+  // way people came, and the one name it shows them is whoever opened the
+  // door (the event's author or an admin), never anybody who came.
+  test("the door list and the Check-in tab: who checks you in, and the one name the other organisers read", () => {
+    assert.ok(PAGE_FLAT.includes("Only admins and the committee members the Students&apos; Union recognises can see who came; the event&apos;s other organisers see how many came, never who."));
+    const door = withoutComments(read("src/app/(app)/events/manage/[id]/door/page.tsx"));
+    const gate = door.indexOf("if (!runsCheckIn(viewer)) redirect(");
+    assert.ok(gate !== -1 && gate < door.indexOf("loadEventAtTheDoor(db, id)"), "the door list reads who signed up before it asks who is looking");
+    const tab = withoutComments(read("src/app/(app)/events/manage/[id]/check-in/page.tsx"));
+    // Names of who checked people in for the people who run check-in; for everybody else, the opener's alone.
+    assert.match(tab, /const names = await staffNames\(db, staff \? \[\.\.\.checkIns\.map\(\(row\) => row\.byUid\), opening\?\.by \?\? null\] : \[opening\?\.by \?\? null\]\);/);
+    assert.match(tab, /const rows = doorRows\(doorListSignups\(signups\), checkIns, staff \? names : undefined\);/);
+    assert.match(tab, /name: names\.get\(opening\.by\) \?\? null, isViewer: opening\.by === viewer\.uid/);
+    // Who may open the door: the event's author while their account stands, and admins. Opening it checks nobody in.
+    const opens = withoutComments(read("src/app/api/events/[id]/door/route.ts"));
+    assert.match(opens, /const mayOpen = viewer\.role === "admin" \|\| \(raw !== null && isNamedWithStanding\(viewer, "events\.authorUid", authorUid\)\);/);
+    assert.ok(!/recordCheckIn\(/.test(opens), "opening the door now checks somebody in");
+    // The tab's numbers, by the way people came, name nobody.
+    const counts = checkInCounts.doorCounts([], checkInCounts.namesOffOf([]));
+    for (const event of [{ selfCheckIn: true, noSignup: false }, { selfCheckIn: true, noSignup: true }, { selfCheckIn: false, noSignup: false }]) {
+      assert.match(checkInCounts.themselvesWords(counts, event), /^(With the door code(, or the link in their email)?|Self check-in is off for this event)$/);
+    }
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "event-check-in-tab.test.mjs")), "tests/event-check-in-tab.test.mjs renders the tab as an organiser the SU does not recognise and finds no name of anybody who came");
   });
 
   // TAKEN BACK BY v15: v14 said nobody is shown one person's list of the

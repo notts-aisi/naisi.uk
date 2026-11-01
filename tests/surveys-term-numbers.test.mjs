@@ -113,10 +113,18 @@ describe("what an event's note says", () => {
 
   test("a no-sign-up event says how its people were checked in, by the ways the Check-in tab groups them", () => {
     const came = (...ways) => event({ noSignup: true, counted: ways.map((how) => ({ how, keys: [] })) });
-    assert.equal(model.eventNote(came("qr", "door"), since), "No sign-up: checked in by QR and at the door");
-    assert.equal(model.eventNote(came("qr"), since), "No sign-up: checked in by QR");
+    // By themselves, whichever way, never said to be a scan: the door code,
+    // their email's link, the check-in page, or a record from before the ways
+    // were told apart (`qr`).
+    assert.equal(model.eventNote(came("qr", "door"), since), "No sign-up: checked in by themselves and at the door");
+    assert.equal(model.eventNote(came("qr"), since), "No sign-up: checked in by themselves");
+    for (const way of ["code", "email", "site"]) {
+      assert.equal(model.eventNote(came(way), since), "No sign-up: checked in by themselves", way);
+      assert.equal(model.eventNote(came(way, "page"), since), "No sign-up: checked in by themselves and at the door", way);
+    }
     assert.equal(model.eventNote(came("door", "page"), since), "No sign-up: checked in at the door");
     assert.equal(model.eventNote(event({ counted: [{ how: "qr", keys: [] }] }), since), "", "an event with sign-ups needs no note");
+    assert.ok(!/QR/.test(model.eventNote(came("code", "door"), since)), "a self check-in is never called a scan");
   });
 });
 

@@ -17,6 +17,10 @@ import {
  * it is a short link like any other (docs/tracked-links.md): permanent, never
  * deleted, switched off rather than removed, repointable in the console.
  *
+ * It checks somebody in only at an event that lets people check themselves
+ * in (`selfCheckIn`), once the door is open; anywhere else the page it lands
+ * on says check-in is at the door, and the Check-in tab does not offer it.
+ *
  * WHICH LINK IS THE DOOR CODE is not a field: it is the `trackedLinks` record
  * whose destination is the event's check-in page, found by one equality on
  * `destination`. So the record has exactly the fields every other link has,
@@ -33,8 +37,8 @@ import {
 /** The campaign every door code is filed under in the console. */
 export const DOOR_CODE_CAMPAIGN = "Check-in";
 
-/** What the sign and the event page say under a door code. */
-export { DOOR_CODE_LINE } from "./checkInView";
+/** What the sign and the event page say under a door code, at an event that lets people check themselves in. */
+export { doorCodeLine } from "./checkInView";
 
 /** The event's check-in page: where its door code goes. */
 export function checkInPath(eventId: string): string {

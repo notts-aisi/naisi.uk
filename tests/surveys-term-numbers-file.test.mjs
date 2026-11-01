@@ -80,7 +80,7 @@ describe("Download totals (CSV)", () => {
         "Fri 16 Oct,Movie night: WarGames,Not counted,No survey,,Before check-in",
         "Sun 1 Nov,VR games night,7,3,4.5,",
         "Thu 5 Nov,AI policy careers panel,4,Not sent yet,,",
-        "Thu 12 Nov,How do you test an AI model?,2,No survey,,No sign-up: checked in by QR and at the door",
+        "Thu 12 Nov,How do you test an AI model?,2,No survey,,No sign-up: checked in by themselves and at the door",
         "Thu 19 Nov,Pizza and board games,Not counted,No survey,,No check-in",
         "Wed 25 Nov,Movie night: Ex Machina,Not counted,No survey,,No sign-up and no check-in",
         "",

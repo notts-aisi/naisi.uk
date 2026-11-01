@@ -149,6 +149,8 @@ export async function POST(
           foodProvenance: evt.foodProvenance,
           foodProvenanceNote: evt.foodProvenanceNote,
           signupForm: evt.signupForm,
+          // Only a strict true lets the email carry a check-in link.
+          selfCheckIn: evt.selfCheckIn === true,
         },
       });
     }

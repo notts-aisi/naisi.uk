@@ -3,7 +3,8 @@ import { isCampaignSlug } from "@/lib/campaign/attribution";
 import { PRINTED_LINKS } from "@/lib/campaign/printedLinks";
 import { lookupTrackedLink } from "@/lib/campaign/trackedLinkStore";
 import { runsCheckIn } from "@/lib/events/checkInAccess";
-import { DOOR_CODE_LINE, eventOfCheckInPath } from "@/lib/events/doorCode";
+import { doorCodeLine, eventOfCheckInPath } from "@/lib/events/doorCode";
+import { AT_THE_DOOR_ONLY } from "@/lib/events/selfCheckIn";
 import { getAdminDb } from "@/lib/firebase/admin";
 import type { SessionUser } from "@/lib/firebase/session";
 import { normalizeEvent } from "@/lib/firestore/events";
@@ -20,7 +21,8 @@ import { eventSurveyOf } from "@/lib/surveys/events/records";
  *    list, so its code works).
  *  - THE PEOPLE WHO RUN CHECK-IN (`runsCheckIn`), for an event's door code:
  *    the link that goes to an event's check-in page. Its sign carries the
- *    event's name and the line about who checks themselves in.
+ *    event's name and the line about who checks themselves in, or, at an
+ *    event that does not let people, the line its check-in page says.
  *  - THE SAME PEOPLE, for an event survey's code (the link that goes to an
  *    event's survey page) while that survey is taking answers, which they
  *    show at the end of the event: `surveyCodeAtEvent`, the one rule the
@@ -63,12 +65,15 @@ export async function codeForViewer(user: SessionUser, rawSlug: string): Promise
     const parsed = parseDestination(record.destination);
     const eventId = parsed.ok && parsed.kind === "internal" ? eventOfCheckInPath(parsed.value) : null;
     if (eventId) {
+      const event = await eventOfCode(eventId);
       return {
         ok: true,
         link: {
           slug,
-          name: (await eventTitle(eventId)) ?? (record.label || slug),
-          note: DOOR_CODE_LINE,
+          name: event?.title ?? (record.label || slug),
+          // A sign never says people check themselves in at an event that does
+          // not let them, and at one with no sign-up it names no place or email.
+          note: event?.selfCheckIn ? doorCodeLine(event) : AT_THE_DOOR_ONLY,
           backHref: `/events/manage/${eventId}/check-in`,
         },
       };
@@ -108,11 +113,18 @@ async function surveyCodeShowable(user: SessionUser, eventId: string): Promise<b
   return surveyCodeAtEvent(user, await eventSurveyOf(db, eventId), new Date()) === "show";
 }
 
-/** The event's name as its sign prints it, or null when the event is gone. */
-async function eventTitle(eventId: string): Promise<string | null> {
+/**
+ * The event's name as its sign prints it, whether it lets people check
+ * themselves in, and whether it takes sign-ups (`doorCodeLine` says who can);
+ * null when the event is gone.
+ */
+async function eventOfCode(
+  eventId: string,
+): Promise<{ title: string | null; selfCheckIn: boolean; noSignup: boolean } | null> {
   const db = getAdminDb();
   if (!db) return null;
   const snap = await db.collection("events").doc(eventId).get();
   if (!snap.exists) return null;
-  return normalizeEvent(snap.id, snap.data() ?? {}).title.trim() || null;
+  const event = normalizeEvent(snap.id, snap.data() ?? {});
+  return { title: event.title.trim() || null, selfCheckIn: event.selfCheckIn, noSignup: event.noSignup };
 }

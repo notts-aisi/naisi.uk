@@ -7,12 +7,12 @@ import { clockWords, dayWords } from "@/features/events/manageWords";
 import { useHydrated } from "@/hooks/useHydrated";
 import { isSameSiteDay } from "@/lib/datetime/siteTime";
 import {
-  HOW_WORDS,
   NO_NAMES_OFF,
+  byWords,
   cameUntickedWords,
   doorCounts,
+  howWords,
   notListedWords,
-  walkedInByCode,
   type DoorRow,
   type NamesOff,
 } from "@/lib/events/checkInView";
@@ -53,10 +53,14 @@ type Props = {
  * is counted with who came and listed nowhere, and the confirmed sign-ups
  * with no tick say when some of them came that way.
  *
- * A walk-in who checked themselves in with the code (an account with no
- * sign-up) reads "QR at the door", as a sign-up who did reads, and nothing
- * under their name: the event's survey reaches the account, so there is no
- * email to keep or to say is missing.
+ * Four columns: Name, How (each way in as itself: "Door list", "Walk-in",
+ * "Added later", "Scanned the door code", "From their email", "On the
+ * check-in page", or "Checked themselves in" for a record from before the
+ * ways were told apart), Checked in by ("Themselves", or who did it) and When.
+ * A walk-in who checked themselves in (an account with no sign-up) reads the
+ * way they came, as a sign-up who did reads, and nothing under their name:
+ * the event's survey reaches the account, so there is no email to keep or to
+ * say is missing.
  */
 export default function WhoCame({
   eventId,
@@ -156,7 +160,8 @@ export default function WhoCame({
                 <tr>
                   <th scope="col">Name</th>
                   <th scope="col">How</th>
-                  <th scope="col">Checked in</th>
+                  <th scope="col">Checked in by</th>
+                  <th scope="col">When</th>
                 </tr>
               </thead>
               <tbody>
@@ -177,14 +182,9 @@ export default function WhoCame({
                         </div>
                       </div>
                     </td>
-                    <td data-label="How">
-                      {row.checkIn && (row.standing !== "walk-in" || walkedInByCode(row))
-                        ? HOW_WORDS[row.checkIn.how]
-                        : row.standing === "walk-in"
-                          ? "Walk-in"
-                          : ""}
-                    </td>
-                    <td data-label="Checked in">{row.checkIn ? when(row.checkIn.at) : ""}</td>
+                    <td data-label="How">{howWords(row)}</td>
+                    <td data-label="Checked in by">{row.checkIn ? byWords(row.checkIn) : ""}</td>
+                    <td data-label="When">{row.checkIn ? when(row.checkIn.at) : ""}</td>
                   </tr>
                 ))}
               </tbody>

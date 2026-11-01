@@ -11,6 +11,7 @@ import {
   doorListSignups,
   doorWindow,
   eventTakesCheckIns,
+  openingOf,
   walkInEmailGoesAt,
 } from "@/lib/events/checkIns";
 import { findDoorCode } from "@/lib/events/doorCode";
@@ -31,6 +32,12 @@ export const dynamic = "force-dynamic";
  * sign-ups, who is already here and the door code's address. After that,
  * each Check in is one small request, so a phone on the hall's signal waits
  * once and then only for its own presses.
+ *
+ * NO TICK UNTIL THE DOOR IS OPEN. Inside the door's hours the names show from
+ * the start, and Check in and Add a walk-in only once the event's author or an
+ * admin has opened the door from the Check-in tab (`openingOf`). At an event
+ * that does not let people check themselves in, a line over the names says
+ * everyone gives their name here, and the door code's address is not offered.
  */
 export default async function DoorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -46,9 +53,10 @@ export default async function DoorPage({ params }: { params: Promise<{ id: strin
   // A walk-in's email goes when the event's survey closes, if that is sooner than a week.
   const surveyClosesAt = await surveyClosesFor(db, event.id);
   const closedWords = eventTakesCheckIns(event)
-    ? doorClosedWords(checkInPhase(event, new Date(), surveyClosesAt), doorWindow(event))
+    ? doorClosedWords(checkInPhase(event, new Date(), surveyClosesAt), doorWindow(event), openingOf(event) !== null)
     : "Only a published event takes check-ins.";
-  const doorCode = await findDoorCode(db, event.id);
+  // The door code checks nobody in at an event that does not let people check themselves in.
+  const doorCode = event.selfCheckIn ? await findDoorCode(db, event.id) : null;
   const title = event.title.trim() || "Untitled event";
   const emailGoesAt = walkInEmailGoesAt(event, surveyClosesAt);
   const untilSurvey = emailGoesAt !== null && emailGoesAt.getTime() !== walkInEmailGoesAt(event)?.getTime();
@@ -60,6 +68,8 @@ export default async function DoorPage({ params }: { params: Promise<{ id: strin
       initialRows={doorRows(doorListSignups(signups), checkIns)}
       namesOff={namesOffOf(checkIns)}
       closedWords={closedWords}
+      selfCheckIn={event.selfCheckIn}
+      noSignup={event.noSignup}
       doorAddress={doorCode && doorCode.active ? shortLinkAddress(doorCode.slug) : null}
       eventLine={event.startAt ? `${title} · ${dayWords(event.startAt)}` : title}
       emailGoesOn={emailGoesAt ? dayWords(emailGoesAt) : "the day after"}

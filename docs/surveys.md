@@ -1043,8 +1043,10 @@ with `isEventSurvey` and hand it over.
   (`events/codePage.ts`) is outside the route groups and never `notFound()`:
   signed in, somebody who signed up or came answers it (their row is made as
   they answer, `via: "signed-in"`); somebody who did neither is told so, with
-  the way to check in while the door is open; signed out, it asks them to sign
-  in and tells a guest to use their emailed link.
+  the way to check in while they can check themselves in (the event lets
+  people, and its door is open: `selfCheckInOpen`, the check-in page's own
+  rule); signed out, it asks them to sign in and tells a guest to use their
+  emailed link.
 - **What an answer keeps**: `surveyId`, `eventId`, `respondent`, `answers`,
   `sentAt`, `via`. No group, nothing before Send, no record of opening it.
 - **The admins' pages** draw it with its own Send tab (`EventSendTab`: who
@@ -1127,8 +1129,9 @@ base; no threshold (Zach, 26 Oct 2026). The code: `src/lib/surveys/term/`
   used on the site (the first check-in its events hold, or any before the
   term): "Before check-in"; else "No sign-up and no check-in" for an event
   with no sign-up, else "No check-in". A no-sign-up event with people counted
-  says how they were checked in, as the Check-in tab groups them ("by QR",
-  "at the door" for the door list and those added later).
+  says how they were checked in, as the Check-in tab groups them ("by
+  themselves", whichever way they did it, never called a scan; "at the door"
+  for the door list and those added later).
 - **A programme's row**: "Considering, planning or already doing it" is C1 at
   stage 2 or more (`CONSIDERING_STAGE`), at the start and at the end, of the
   people who answered both surveys; somebody who skipped C1 at one end is not
@@ -1169,6 +1172,13 @@ survey has who came to send to. What it can rely on:
 - A walk-in's email goes on `emailGoesAt`: when the event's survey closes, or
   a week after the event if that comes first (see "Surveys after events"). The
   walk-in form and the Check-in tab say whichever day it is.
+- How they came in, each way as itself (`how`): `door` on the door list,
+  `page` added from the event's page afterwards, and by themselves `code` (a
+  page the door code opened), `email` (the link in their confirmation email)
+  or `site` (the check-in page, signed in). A record from before the ways were
+  told apart says `qr`: it counts as somebody who checked themselves in, the
+  way not recorded, and is never written again. Who checked them in
+  (`byUid`) is null for every way of their own.
 - Names come off a year after the event (`event-check-ins-tidy`), and at once
   when an account is deleted. The record still counts as one person who came,
   by a sign-up or walking in and how, wherever who came is counted

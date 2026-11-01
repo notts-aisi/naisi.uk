@@ -2290,6 +2290,12 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a published event with sign-ups, so a spec can make the code, scan it and check in.",
   },
+  "/api/events/[id]/door": {
+    reason:
+      "Check-in: opening the door; tests/event-door-list.test.mjs drives it as every kind of caller (the event's author with and without standing, a collaborator, an approver, SU-recognised committee, an admin, a member, signed out and view-as), at each edge of the door's hours, and twice to hold the first opening, and tests/event-check-in-tab.test.mjs renders the card that presses it as each of them.",
+    coverWhen:
+      "When the end-to-end fixtures seed a published event with sign-ups, so a spec can open the door as its author and check people in on a phone.",
+  },
   "/api/events/[id]/check-ins": {
     reason:
       "Check-in: the door list's tick and a walk-in; tests/event-door-list.test.mjs and tests/event-walk-ins.test.mjs drive it at each point of the evening as every kind of caller.",
@@ -2304,7 +2310,7 @@ const NOT_COVERED = {
   },
   "/api/events/[id]/check-in": {
     reason:
-      "Check-in: checking yourself in with the door code; tests/event-self-check-in.test.mjs drives it as a member with each kind of sign-up, a guest with their email's link, a wrong link, signed out and view-as.",
+      "Check-in: checking yourself in; tests/event-self-check-in.test.mjs drives it as a member with each kind of sign-up, a guest with their email's link, a wrong link, signed out and view-as, at an event that lets people and one that does not, before and after its door is opened, each way in recorded as itself.",
     coverWhen:
       "When the end-to-end fixtures seed a published event with sign-ups, so a spec can scan the door code and press I'm here.",
   },
@@ -2316,7 +2322,7 @@ const NOT_COVERED = {
   },
   "/(app)/events/manage/[id]/door": {
     reason:
-      "Check-in: the door list; tests/event-door-list.test.mjs renders it as every kind of caller before, during and after the door is open.",
+      "Check-in: the door list; tests/event-door-list.test.mjs renders it as every kind of caller before the door's hours, inside them before and after the door is opened, and after them.",
     coverWhen:
       "When the end-to-end fixtures seed a published event with sign-ups, so a spec can check people in at the door on a phone.",
   },

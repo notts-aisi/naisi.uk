@@ -565,6 +565,7 @@ const MUST_GUARD = [
   ["src/app/api/events/[id]/check-ins/route.ts", "checks people in and adds walk-ins at the door"],
   ["src/app/api/events/[id]/check-ins/[checkInId]/route.ts", "undoes a check-in at the door"],
   ["src/app/api/events/[id]/door-code/route.ts", "makes an event's permanent door code"],
+  ["src/app/api/events/[id]/door/route.ts", "opens an event's door, recorded as whoever opened it"],
 ];
 
 /**
