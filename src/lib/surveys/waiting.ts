@@ -7,7 +7,13 @@ import { loadForm } from "@/lib/applications/repo";
 import { loadApplication, loadDecision } from "@/lib/applications/staffRepo";
 import { getImpersonator, markerIsLive } from "@/lib/firebase/impersonation";
 import type { SessionUser } from "@/lib/firebase/session";
-import { courseEnrolmentId, enrolmentHasLeft, normalizeCourseEnrolment, placementIsTold } from "@/lib/firestore/courseEnrolments";
+import {
+  courseEnrolmentId,
+  enrolmentHasLeft,
+  normalizeCourseEnrolment,
+  placementIsTold,
+  type CourseEnrolmentDoc,
+} from "@/lib/firestore/courseEnrolments";
 import {
   SURVEY_PEOPLE_COLLECTION,
   isCheckIn,
@@ -143,28 +149,28 @@ async function holdsPlaceNow(
 }
 
 /**
- * Whether the person's own seat on a run says they left it. Their own seat
- * only, and nothing of it is shown. A seat Publish has not told them about is
- * no seat they left: leaving needs a seat they were told, and keeps the stamp.
+ * The person's own seat on a run once Publish has told them of it, or null.
+ * Their own seat only, and nothing of it is shown. A seat Publish has not told
+ * them about is no seat they left and no seat they are on.
  */
-async function leftTheRun(db: Firestore, runId: string, uid: string): Promise<boolean> {
-  if (!runId || runId.includes("/")) return false;
+async function toldSeatOn(db: Firestore, runId: string, uid: string): Promise<CourseEnrolmentDoc | null> {
+  if (!runId || runId.includes("/")) return null;
   const snap = await db.collection("courseEnrolments").doc(courseEnrolmentId(runId, uid)).get();
-  if (!snap.exists) return false;
+  if (!snap.exists) return null;
   const seat = normalizeCourseEnrolment(snap.id, snap.data() ?? {});
-  return seat.uid === uid && seat.runId === runId && placementIsTold(seat) && enrolmentHasLeft(seat.status);
+  return seat.uid === uid && seat.runId === runId && placementIsTold(seat) ? seat : null;
 }
 
-/**
- * Whether the person's own seat on a run is live: told by Publish and not
- * left. Their own seat only, and nothing of it is shown.
- */
+/** Whether the person's own told seat on a run says they left it: leaving needs a seat they were told, and keeps the stamp. */
+async function leftTheRun(db: Firestore, runId: string, uid: string): Promise<boolean> {
+  const seat = await toldSeatOn(db, runId, uid);
+  return seat !== null && enrolmentHasLeft(seat.status);
+}
+
+/** Whether the person's own told seat on a run is live: told by Publish and not left. */
 async function onTheRun(db: Firestore, runId: string, uid: string): Promise<boolean> {
-  if (!runId || runId.includes("/")) return false;
-  const snap = await db.collection("courseEnrolments").doc(courseEnrolmentId(runId, uid)).get();
-  if (!snap.exists) return false;
-  const seat = normalizeCourseEnrolment(snap.id, snap.data() ?? {});
-  return seat.uid === uid && seat.runId === runId && placementIsTold(seat) && !enrolmentHasLeft(seat.status);
+  const seat = await toldSeatOn(db, runId, uid);
+  return seat !== null && !enrolmentHasLeft(seat.status);
 }
 
 /** Whether a survey sent to the person is still theirs to answer: see the note at the top. */

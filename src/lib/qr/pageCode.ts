@@ -1,4 +1,5 @@
 import "server-only";
+import { safeReturnPath } from "@/lib/safeReturnPath";
 import { qrShape, siteOrigin, type QrShape } from "./shortLinkCode";
 
 /**
@@ -14,12 +15,13 @@ import { qrShape, siteOrigin, type QrShape } from "./shortLinkCode";
  * inline, and no route hands it out as a file.
  *
  * The address is this site's own origin (`siteOrigin`, never the request's)
- * and a path on it, refused when it is anything else.
+ * and a path on it, refused when it is anything else (`safeReturnPath`, the
+ * one place that is decided).
  */
 
-/** The code of a page of this site: `path` starts with one "/" and names a page here. */
+/** The code of a page of this site: `path` is a path on this site. */
 export function pageCodeShape(path: string): QrShape & { address: string } {
-  if (!/^\/(?!\/)[A-Za-z0-9/_.~-]*$/.test(path)) throw new Error(`Not a page of this site: ${JSON.stringify(path)}`);
+  if (safeReturnPath(path) === null) throw new Error(`Not a page of this site: ${JSON.stringify(path)}`);
   const url = `${siteOrigin()}${path}`;
   return { ...qrShape(url), address: `${new URL(url).host}${path}` };
 }
