@@ -1,3 +1,4 @@
+import { visibilityOf } from "@/lib/events/reach";
 import { sanitizeBlocks, type Block } from "./newsletterBlocks";
 
 /**
@@ -23,7 +24,23 @@ export const EVENT_STATUS_LABEL: Record<EventStatus, string> = {
   cancelled: "Cancelled",
 };
 
-export type EventVisibility = "public" | "members";
+/**
+ * Who an event is for: anyone (`public`), people with a NAISI account
+ * (`members`), or only the people its organiser chose (`chosen`). Read
+ * through `src/lib/events/reach.ts` and nowhere else: a missing value is
+ * `members`, as it always was, and any other value is `chosen`, so an event
+ * nobody can tell the audience of is listed and announced nowhere.
+ */
+export type EventVisibility = "public" | "members" | "chosen";
+
+/**
+ * The programme an event for chosen people is part of: its invitation is then
+ * a programme notice to the people holding a place on it. Written only by
+ * `/api/events/[id]/audience`, for the programme's lead or an admin, and
+ * pinned against every browser in `firestore.rules`. `name` is the
+ * programme's short name as it was when it was set, for the card on Home.
+ */
+export type EventProgramme = { roundId: string; programmeId: string; name: string };
 
 /**
  * Where a QUEUED new-event announcement has got to. Absent on an event that
@@ -523,6 +540,15 @@ export type EventDoc = {
    */
   locationPublicText: string | null;
   visibility: EventVisibility;
+  /**
+   * Whether publishing announces it to the people who said yes to event
+   * announcements. Only a stored `false` is off, so every event made before
+   * this existed announces as it always did. Never true in effect for an event
+   * for chosen people: `announces` in `src/lib/events/reach.ts` decides.
+   */
+  announce: boolean;
+  /** See {@link EventProgramme}. Null for every event that is not part of one. */
+  programme: EventProgramme | null;
   capacity: number | null;
   waitlistEnabled: boolean;
   /**
@@ -658,8 +684,20 @@ function asStatus(v: unknown): EventStatus {
   return ok.includes(v as EventStatus) ? (v as EventStatus) : "draft";
 }
 
-function asVisibility(v: unknown): EventVisibility {
-  return v === "public" ? "public" : "members";
+/** Plain ids only: what the site mints, never a path or a name every object answers to. */
+const PLAIN_ID = /^[A-Za-z0-9_-]{1,128}$/;
+
+/** The programme an event is part of, or null for anything that is not exactly one. */
+export function asEventProgramme(v: unknown): EventProgramme | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const raw = v as Record<string, unknown>;
+  const roundId = typeof raw.roundId === "string" ? raw.roundId : "";
+  const programmeId = typeof raw.programmeId === "string" ? raw.programmeId : "";
+  if (!PLAIN_ID.test(roundId) || !PLAIN_ID.test(programmeId) || roundId === "__proto__" || programmeId === "__proto__") {
+    return null;
+  }
+  const name = typeof raw.name === "string" ? raw.name.trim().slice(0, 120) : "";
+  return { roundId, programmeId, name };
 }
 
 export function asCoverBranding(v: unknown): CoverBranding {
@@ -798,7 +836,9 @@ export function normalizeEvent(id: string, data: Raw): EventDoc {
     location: (data.location as string) ?? "",
     locationHidden: Boolean(data.locationHidden),
     locationPublicText: (data.locationPublicText as string | null | undefined) ?? null,
-    visibility: asVisibility(data.visibility),
+    visibility: visibilityOf(data.visibility),
+    announce: data.announce !== false,
+    programme: asEventProgramme(data.programme),
     capacity,
     waitlistEnabled:
       capacity === null ? false : data.waitlistEnabled !== false,

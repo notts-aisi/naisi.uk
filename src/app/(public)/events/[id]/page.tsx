@@ -1,22 +1,29 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import EventDetailView from "@/features/events/EventDetailView";
-import { getPublishedEvent } from "@/features/events/fetchEvents";
+import OnlyForInvited from "@/features/events/OnlyForInvited";
+import { eventMetaFor, getEventForViewer } from "@/features/events/fetchEvents";
 import styles from "../events.module.css";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * A link preview is fetched with no session, so it is decided with none: an
+ * event for chosen people gets a plain title and nothing of its own, and is
+ * kept out of search results.
+ */
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const event = await getPublishedEvent(id);
-  if (!event) return { title: "Event not found" };
+  const meta = await eventMetaFor(id);
+  if (!meta) return { title: "Event not found" };
   return {
-    title: event.title,
-    description: `NAISI event on ${event.startAt?.toDateString() ?? "a date to be confirmed"}.`,
+    title: meta.title,
+    description: meta.description,
+    ...(meta.chosen ? { robots: { index: false, follow: false } } : {}),
   };
 }
 
@@ -26,13 +33,19 @@ export default async function PublicEventPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const event = await getPublishedEvent(id);
-  if (!event) notFound();
+  const found = await getEventForViewer(id);
+  if (!found) notFound();
 
   return (
     <section className={styles.eventSection}>
       <div className="container">
-        <EventDetailView event={event} />
+        {/* An event for chosen people that is not this person's: a calm page
+            of its own, rendered here, never notFound(). See OnlyForInvited. */}
+        {found.kind === "open" ? (
+          <EventDetailView event={found.event} />
+        ) : (
+          <OnlyForInvited eventId={id} signedIn={found.signedIn} />
+        )}
       </div>
     </section>
   );

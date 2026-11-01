@@ -77,6 +77,7 @@ type EditableEventFields = Partial<{
   locationHidden: boolean;
   locationPublicText: string | null;
   visibility: EventVisibility;
+  announce: boolean;
   capacity: number | null;
   waitlistEnabled: boolean;
   noSignup: boolean;
@@ -115,6 +116,9 @@ export async function updateEvent(id: string, fields: EditableEventFields) {
         ? deleteField()
         : fields.locationPublicText.trim();
   if (fields.visibility !== undefined) patch.visibility = fields.visibility;
+  // Whether publishing announces it. Stored either way once the editor has
+  // saved it; only a stored `false` is off (src/lib/events/reach.ts).
+  if (fields.announce !== undefined) patch.announce = fields.announce === true;
   if (fields.capacity !== undefined) patch.capacity = fields.capacity;
   if (fields.waitlistEnabled !== undefined) patch.waitlistEnabled = fields.waitlistEnabled;
   if (fields.noSignup !== undefined) patch.noSignup = fields.noSignup === true;
