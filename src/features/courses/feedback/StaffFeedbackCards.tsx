@@ -9,7 +9,7 @@ import { useHydrated } from "@/hooks/useHydrated";
 import type { StaffFeedbackCard } from "@/lib/courses/feedback/model";
 import {
   DELETE,
-  FEEDBACK_NOT_SAVED,
+  FEEDBACK_NOT_DELETED,
   KEEP_IT,
   cardHeadingWords,
   deleteConfirmWords,
@@ -97,17 +97,18 @@ function DeleteButton({ runId, id, firstName }: { runId: string; id: string; fir
     setBusy(true);
     setError(null);
     try {
+      // With no answer at all (no connection), the words for a delete that didn't go, never the browser's own.
       const res = await fetch(`/api/courses/runs/${encodeURIComponent(runId)}/feedback`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
-      });
-      const out = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
-      if (!res.ok || !out?.ok) throw new Error(out?.error ?? FEEDBACK_NOT_SAVED);
+      }).catch(() => null);
+      const out = res ? ((await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null) : null;
+      if (!res || !res.ok || !out?.ok) throw new Error(out?.error || FEEDBACK_NOT_DELETED);
       setConfirming(false);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : FEEDBACK_NOT_SAVED);
+      setError(err instanceof Error ? err.message : FEEDBACK_NOT_DELETED);
     } finally {
       setBusy(false);
     }

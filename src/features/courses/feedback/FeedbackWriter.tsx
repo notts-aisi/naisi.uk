@@ -10,6 +10,7 @@ import type { StaffFeedbackCard } from "@/lib/courses/feedback/model";
 import {
   COMMENT,
   DELETE,
+  FEEDBACK_NOT_DELETED,
   FEEDBACK_NOT_SAVED,
   KEEP_IT,
   NOT_EMAILED_YET,
@@ -82,10 +83,14 @@ export default function FeedbackWriter({
   const changed = own ? text.trim() !== own.text.trim() : text.trim().length > 0;
   const canSave = hydrated && mayWrite && !busy && words > 0 && changed;
 
+  // Every failure throws words to show: the route's refusal, or, with no answer
+  // at all (no connection), the line for what was being done. Never the
+  // browser's own error text.
   const call = async (method: "POST" | "PATCH" | "DELETE", body: Record<string, unknown>): Promise<FeedbackSaved | { ok: true }> => {
-    const res = await fetch(base, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    const out = (await res.json().catch(() => null)) as ({ ok?: boolean; error?: string } & Partial<FeedbackSaved>) | null;
-    if (!res.ok || !out?.ok) throw new Error(out?.error ?? FEEDBACK_NOT_SAVED);
+    const fallback = method === "DELETE" ? FEEDBACK_NOT_DELETED : FEEDBACK_NOT_SAVED;
+    const res = await fetch(base, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
+    const out = res ? ((await res.json().catch(() => null)) as ({ ok?: boolean; error?: string } & Partial<FeedbackSaved>) | null) : null;
+    if (!res || !res.ok || !out?.ok) throw new Error(out?.error || fallback);
     return out as FeedbackSaved | { ok: true };
   };
 
@@ -127,7 +132,7 @@ export default function FeedbackWriter({
       setSaid(deletedWords(firstName));
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : FEEDBACK_NOT_SAVED);
+      setError(err instanceof Error ? err.message : FEEDBACK_NOT_DELETED);
     } finally {
       setBusy(false);
     }
