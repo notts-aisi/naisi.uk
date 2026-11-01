@@ -9721,7 +9721,9 @@ describe("v15 lets the people running a programme rate written work for each oth
       /export async function deleteCourseWorkRatings\(db: Firestore, uid: string\): Promise<number> \{\s*const about = await deleteOwnedCourseRows\(db, COURSE_WORK_RATINGS_COLLECTION, uid\);\s*const gave = await deleteOwnedCourseRows\(db, COURSE_WORK_RATINGS_COLLECTION, uid, "raterUid"\);\s*return about \+ gave;\s*\}/,
     );
     assert.match(cascade, /try \{\s*summary\.courseWorkRatingsDeleted = await deleteCourseWorkRatings\(db, uid\);\s*\} catch \(err\) \{[^}]*partialFailure = true;/);
-    // Nothing else deletes them: no job, no clear-out, no stage. The yearly clear-out is by hand.
+    // Nothing else deletes them: the five files that address the record are
+    // listed above, none of them a job, and the yearly clear-out is by hand.
+    // The route's one delete is the caller's own rating.
     assert.doesNotMatch(route, /\.delete\(ref\)[\s\S]*\.delete\(ref\)/, "the ratings route deletes more than the caller's own rating");
     assert.ok(route.includes("courseWorkRatingId(runId, week.uid, week.weekId, actor.uid)"), "the route reaches a rating that is not the caller's own");
   });
