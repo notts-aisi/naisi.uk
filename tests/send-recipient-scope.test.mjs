@@ -23,6 +23,10 @@
  *     literal that scopes it. Both directions, per-file per-field counts, a
  *     written reason each. A new recipient list fails here until somebody
  *     writes down why the caller cannot choose who it reaches.
+ *  4. THE PICKER ("Who is this for?", `src/lib/audience/`): the people a
+ *     caller names one by one are admitted by its scope table, executed here
+ *     as every role, and every file that can send and takes people from the
+ *     picker resolves them through its one door, `resolveAudience`.
  *
  * `tests/task-email-routes.test.mjs` is the neighbour that asks a different
  * question of the same five routes: whether the three gates that decide
@@ -1755,5 +1759,99 @@ describe("the scanner still matches what it is meant to", () => {
     }
     SEND_DOORS.lastIndex = 0;
     assert.equal(SEND_DOORS.test("const sendEmailLabel = 'x';"), false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. The picker: people named one by one are the scope table's to admit
+// ---------------------------------------------------------------------------
+
+/**
+ * "WHO IS THIS FOR?" (`src/lib/audience/`) takes a list the caller writes:
+ * the tags of a selection, people named one by one (`person:<uid>`) among
+ * them. Each is admitted by the scope table (`mayUse` in `scope.ts`) and, for
+ * a person, by the world the loader read for that caller (an approved
+ * account, for the people who may read the roster), in `pickPeople`, before
+ * anybody is resolved. A tag that is not admitted refuses the whole
+ * selection, so a refusal says nothing about who exists. A send that takes
+ * its people from the picker takes them through `resolveAudience`, which
+ * calls `pickPeople`; the walk below holds every future one to that.
+ */
+const { loadTs: loadPicker } = createLoader({ stubs: new Map([["server-only", "export {};"]]) });
+const pickerScope = await loadPicker("lib/audience/scope.ts");
+const pickerResolve = await loadPicker("lib/audience/resolve.ts");
+
+describe("the picker's people named one by one are the scope table's to admit", () => {
+  const named = { kind: "person", uid: "someone" };
+  const VIEWERS = [
+    [{ uid: "p", role: "pending" }, null],
+    [{ uid: "r", role: "rejected" }, null],
+    [{ uid: "m", role: "member" }, false],
+    [{ uid: "c", role: "committee", suRecognised: false }, false],
+    [{ uid: "s", role: "committee", suRecognised: true }, true],
+    [{ uid: "z", role: "admin" }, true],
+  ];
+
+  test("only admins and SU-recognised committee may name anybody, whatever they lead or facilitate", () => {
+    for (const [viewer, may] of VIEWERS) {
+      const scope = pickerScope.scopeOf(viewer, { leads: ["round:programme"], groups: ["group"] });
+      if (may === null) {
+        assert.equal(scope, null, `${viewer.role} has a scope`);
+        continue;
+      }
+      assert.equal(pickerScope.mayUse(scope, named), may, `${viewer.role}${viewer.suRecognised ? " (SU)" : ""}`);
+    }
+  });
+
+  const worldFor = (viewer, nameable) => ({
+    viewerUid: viewer.uid,
+    scope: pickerScope.scopeOf(viewer),
+    term: null,
+    tags: [],
+    nameable: new Map(nameable.map((uid) => [uid, uid])),
+    accounts: new Map(),
+    guests: new Map(),
+    runs: new Map(),
+    gmailOnly: false,
+  });
+
+  test("a name outside the roster the caller may read refuses the whole selection, naming only what failed", () => {
+    const committee = worldFor({ uid: "s", role: "committee", suRecognised: true }, ["amara"]);
+    const picked = pickerResolve.pickPeople(committee, { include: ["person:amara"], exclude: [] });
+    assert.equal(picked.ok, true);
+    assert.deepEqual([...picked.people.keys()], ["a:amara"]);
+    assert.deepEqual(pickerResolve.pickPeople(committee, { include: ["person:amara", "person:penny"], exclude: [] }), {
+      ok: false,
+      unknown: ["person:penny"],
+    });
+    assert.deepEqual(pickerResolve.pickPeople(committee, { include: ["person:amara"], exclude: ["person:penny"] }), {
+      ok: false,
+      unknown: ["person:penny"],
+    });
+    // A member's world can name nobody, even somebody on the roster.
+    const member = worldFor({ uid: "m", role: "member" }, ["amara"]);
+    assert.deepEqual(pickerResolve.pickPeople(member, { include: ["person:amara"], exclude: [] }), { ok: false, unknown: ["person:amara"] });
+  });
+
+  test("every file that can send and takes people from the picker resolves them through resolveAudience", () => {
+    const PICKER = /\bfrom\s*"@\/lib\/audience\/[\w/]+"/;
+    const importers = [];
+    for (const root of ["src/app/api", "src/lib"]) {
+      for (const file of walkTs(join(REPO_ROOT, root))) {
+        const source = codeOf(file);
+        if (!PICKER.test(withStrings(file))) continue;
+        importers.push({ path: relative(REPO_ROOT, file).split("\\").join("/"), source });
+      }
+    }
+    // The scan is reading: the picker's own routes import it, and send nothing.
+    assert.ok(importers.some((each) => each.path === "src/app/api/audience/route.ts"), "the picker's route was not seen importing it");
+    for (const { path, source } of importers) {
+      SEND_DOORS.lastIndex = 0;
+      if (!SEND_DOORS.test(source)) continue;
+      assert.ok(
+        source.includes("resolveAudience("),
+        `${path} sends and takes people from the picker without resolveAudience, so a name the caller wrote could reach a send unadmitted`,
+      );
+    }
   });
 });

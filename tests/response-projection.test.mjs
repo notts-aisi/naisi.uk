@@ -180,6 +180,26 @@ const PROJECTIONS = {
       "person's coursework may go to Claude, the runs Claude may draft from and whether Claude is set up, and on " +
       "each note the privacy v13 mark and whether an admin may share it",
   },
+  projectCatalogue: {
+    from: "@/lib/audience/resolve",
+    serves: "any approved account, each with the tags its own records give it (src/lib/audience/scope.ts)",
+    why:
+      "each tag's words and how many people are in it, and, for admins and SU-recognised committee " +
+      "only, the names of the approved accounts they may pick one by one; never an address, and an " +
+      "account's id only inside the tag that names it",
+  },
+  projectAudienceCount: {
+    from: "@/lib/audience/resolve",
+    serves: "any approved account, about a choice of the tags it may use",
+    why: "counts only: how many are reached, emailed and left out and why, and how it would be sent; never a name, an id or an address",
+  },
+  projectWhoLines: {
+    from: "@/lib/audience/resolve",
+    serves: "any approved account, about a choice of the tags it may use, which are the people whose names it may already read",
+    why:
+      "a name per person, whether it is the caller and whether they would be emailed; why one is left out " +
+      "only for an admin; never an address or an account id",
+  },
 };
 
 /**

@@ -854,6 +854,18 @@ const NOT_COVERED = {
     coverWhen:
       "When a round runs with a reviewer other than the admin who runs it, so a release lands on somebody else's screen before anybody has read it.",
   },
+  "/api/audience": {
+    reason:
+      "The picker sends nothing: /api/audience answers the tags a person may use and how many a choice reaches, to a person looking at the result, and tests/audience-picker.test.mjs drives it as every kind of caller against a real term.",
+    coverWhen:
+      "When a send first takes its people from the picker, so a wrong count becomes a wrong send.",
+  },
+  "/api/audience/who": {
+    reason:
+      "The picker sends nothing: /api/audience/who lists names to a person looking at them, and tests/audience-picker.test.mjs drives it as every kind of caller against a real term.",
+    coverWhen:
+      "When a send first takes its people from the picker, so a wrong count becomes a wrong send.",
+  },
   "/api/auth/google/callback": {
     reason:
       "Google sign-in is not automatable by design: GIS refuses the interception a script would need, as src/auth/signInWithGoogle.ts documents.",

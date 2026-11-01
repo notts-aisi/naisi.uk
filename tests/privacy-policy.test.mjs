@@ -5779,6 +5779,8 @@ describe("the course hub passage", () => {
         ["src/app/(app)/events/manage/[id]/door/page.tsx", "the door list reads when the event's survey closes, for the day a walk-in's email goes, and nothing of its answers or who answered"],
         ["src/app/api/events/[id]/check-ins/route.ts", "the door list's route reads when the event's survey closes, the end of adding somebody who came and the day a walk-in's email goes, and nothing of its answers or who answered"],
         ["src/lib/qr/codeAccess.ts", "who may draw a code: an event survey's code for the people who run check-in while that survey takes answers (surveyCodeAtEvent), from the survey's state alone, and nothing of its answers or who answered"],
+        // Who a message is for: which term this is, by its forms alone.
+        ["src/lib/audience/load.ts", "which term the picker's tags are for (chooseTerm, the forms alone), and nothing of any survey, its answers or who answered"],
         // This term in numbers (sv-term, Q51 B): counts made on the server, never a name.
         ["src/app/(app)/admin/(admin-only)/surveys/term/page.tsx", `${ADMIN_PAGE}; This term in numbers, counts made on the server, never a name`],
         ["src/app/api/surveys/term/totals/route.ts", `${ADMIN_ROUTE}; This term in numbers as a file of totals that names nobody, not a recorded download`],
@@ -6806,10 +6808,15 @@ describe("the check-in passage", () => {
     // Check-in tab's rows hold, across a term's events, for admins alone; its
     // loader asks the check-in bar beside the surveys' own, and hands on
     // counts only (the "this term in numbers" block below).
+    // CHANGED ON PURPOSE (the picker, "Who is this for?"): the tags of each
+    // of the term's events, "Came to" among them, are read for somebody who
+    // runs check-in, by the Check-in tab's own records; See who hands on
+    // names behind the same bar and never an address (src/lib/audience/).
     assert.deepEqual(readers, [
       "src/app/(app)/events/manage/[id]/check-in/page.tsx",
       "src/app/(app)/events/manage/[id]/door/page.tsx",
       "src/app/api/events/[id]/check-ins/route.ts",
+      "src/lib/audience/load.ts",
       "src/lib/surveys/term/load.ts",
     ]);
     for (const file of readers) assert.match(read(file), /runsCheckIn\((?:viewer|user)\)/, file);
