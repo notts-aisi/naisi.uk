@@ -2149,6 +2149,12 @@ nothing in it is a mark.
   group's facilitators as their facilitator, else the lead as the lead, else an
   admin. The person's page signs it "Feedback from Rahul, Your facilitator", or
   "From the NAISI team, Claudia, who leads AGI Strategy".
+- **Whose name**: the name the writer goes by (`fullNameOfUser`, which puts
+  it first; the signature is its first word, as the member area names
+  people), for every reader. The person is not on the committee, so privacy
+  v15 gives them the name, never a full name, and the people running the
+  group read each piece signed as the person does. A writer's chip takes its
+  initials from that name, so no initial comes from a full name.
 - **On what**: a week written as blocks, once its readers may read it
   (`workIsReadable`: submitted, or locked at the session first), asked inside
   the save's transaction; a week open or reopened takes none. A piece on the
