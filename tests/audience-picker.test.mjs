@@ -376,6 +376,15 @@ describe("each tag is read from the records of the term", () => {
     assert.equal(label(id({ kind: "event", eventId: EV.pizza, part: "signed-up" })), "Signed up: VR games night, Thu 19 Nov");
   });
 
+  test("before any form has opened there is no term: no term's, programme's, group's or event's tags", async () => {
+    const base = seed();
+    w.reset({ ...base, [`admissionRounds/${ROUND}`]: { ...base[`admissionRounds/${ROUND}`], opensAt: new Date("2027-01-10T09:00:00Z") } });
+    const world = await worldOf("zach");
+    assert.equal(world.term, null);
+    assert.deepEqual([...new Set(world.tags.map((tag) => tag.tag.kind))].sort(), ["role", "subscribed", "track"]);
+    assert.ok(world.nameable.size > 0, "nobody can be named without a term");
+  });
+
   test("the lists, the roles and the tracks", async () => {
     w.reset(seed());
     const world = await worldOf("zach");
