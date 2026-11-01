@@ -817,7 +817,7 @@ const MUST_NAME = [
   // src/lib/courses/registerAccess.ts) and no private note on the material
   // (`privateNotesOf` in src/lib/courses/facilitatorWeek/readers.ts), and
   // v15 itself says the private notes are the facilitators' and admins'.
-  ["what a programme's lead sees once it is running", /<strong>What the people leading a programme see\.<\/strong>\{" "\} Everything a facilitator sees, for every group, except the notes facilitators write about a named person and the private notes people keep on the material, and also: who can&apos;t make their group&apos;s time and why, the reasons people give for leaving, the pitches and teams on an incubator, who might facilitate, who finished, and the totals and comments of the programme&apos;s surveys, never with a name\./],
+  ["what a programme's lead sees once it is running", /<strong>What the people leading a programme see\.<\/strong>\{" "\} Everything a facilitator sees, for every group, except the notes facilitators write about a named person or a session, and the private notes people keep on the material, and also: who can&apos;t make their group&apos;s time and why, the reasons people give for leaving, the pitches and teams on an incubator, who might facilitate, who finished, and the totals and comments of the programme&apos;s surveys, never with a name\./],
   ["facilitators see names only", /<strong>What your facilitators see\.<\/strong> Who is in their group, by name only:/],
   ["what facilitators read of their own groups", /The register, your work and progress \(see <a href="#your-work">Your work<\/a>\), and before the first session whether you have said you are coming\./],
   // The notes a group's facilitators share (C30) and the notes a group shares
@@ -935,7 +935,7 @@ const MUST_NAME = [
   ["how long course records are kept", /<strong>Your course record<\/strong> \(your place, the registers, your work and the feedback on it, notes facilitators wrote and session reports\): while your account exists\./],
   ["how long the Kairos choice is kept", /<strong>Your choice about Kairos:<\/strong> while your account exists, so a later programme goes by it too\./],
   ["how long who came to an event is kept with names, and a walk-in's address", /<strong>Who came to an event:<\/strong> names for a year after the event, then only the count\. A walk-in&apos;s email address until that event&apos;s survey closes, or a week after the event if sooner\./],
-  ["what a deletion removes, every kind of course record named", /Deleting it removes your account and profile, your subscriptions, your applications and drafts with their access requirements and the scores, comments and decisions about them, your places on programmes, your work and the feedback on it, the notes and ratings about you, the ratings you gave, the notes you wrote for a group&apos;s other facilitators, a conduct flag, your survey links and your name on your survey answers, your membership records, your choice about Kairos and a certificate whose link is off\. Registers keep the rest of the group, without you\./],
+  ["what a deletion removes, every kind of course record named", /Deleting it removes your account and profile, your subscriptions, your applications and drafts with their access requirements and the scores, comments and decisions about them, your places on programmes, your work and the feedback on it, the notes and ratings about you, the ratings you gave, the notes you wrote for a group&apos;s other facilitators, the notes you shared with a group, a conduct flag, your survey links and your name on your survey answers, your membership records, your choice about Kairos and a certificate whose link is off\. Registers keep the rest of the group, without you\./],
   ["work goes with the account", /your places on programmes, your work and the feedback on it,/],
   ["notes and ratings go with the account of whoever they are about or wrote them", /the notes and ratings about you, the ratings you gave, the notes you wrote for a group&apos;s other facilitators,/],
   // A note on a register about a named person records no writer, so the
@@ -1345,7 +1345,7 @@ describe("the courses section", () => {
       // to accept or decline it. v15 is the last version anybody is asked to
       // accept, and says a change to how it uses somebody's information is
       // told on the site and by email before it takes effect.
-      ["a change is told before it takes effect, and this is the last version anybody is asked to accept", /we tell you on the site and by email before it takes effect, saying what changed\. Anything that relies on your consent asks you for that one thing on its own\. You were asked to accept this version\. If you decline it, you are signed out, and you can email us to have your account removed\. We will not ask you to accept later versions\./],
+      ["a change is told before it takes effect, and this is the last version anybody is asked to accept", /we tell you on the site and by email before it takes effect, saying what changed\. Anything that relies on your consent asks you for that one thing on its own\. You were asked to accept this version\. If you decline it, you are signed out, and you can email us to have your account removed; an external collaborator can delete theirs there and then\. We will not ask you to accept later versions\./],
       ["the statutory response time", /We aim to answer within 30 days\./],
       ["no solely automated decisions", /No decision about you is made solely by automated means\./],
       ["children", /We do not knowingly collect data from anyone under 16\./],
@@ -3225,15 +3225,15 @@ describe("the course hub passage", () => {
     // register of the run its programme names, its marks and none of its
     // notes. The policy says a facilitator sees the register, that the lead
     // sees everything a facilitator sees, for every group, except the notes
-    // facilitators write about a named person (and people's private notes on
-    // the material), and that a note about a named person after a session is
-    // read by the group's facilitators and admins: `readsNotes`, held below.
-    // The register's note on a session as a whole is withheld from a lead the
-    // same way (below), and v15 names no such note.
+    // facilitators write about a named person or a session (and people's
+    // private notes on the material), and that a note about a named person
+    // after a session is read by the group's facilitators and admins:
+    // `readsNotes`, held below, which also keeps the register's note on a
+    // session as a whole from a lead.
     // The lead does read the notes its groups' facilitators keep for each
     // other and the notes each group shares on its week pages, each held to
     // its reader further down.
-    const EXCEPT = " except the notes facilitators write about a named person and the private notes people keep on the material,";
+    const EXCEPT = " except the notes facilitators write about a named person or a session, and the private notes people keep on the material,";
     const facilitators = hubPassageOf("<strong>What your facilitators see.</strong>");
     const lead = hubPassageOf("<strong>What the people leading a programme see.</strong>");
     assert.ok(facilitators.length > 100, "could not find what the page says a group's facilitators see");
@@ -4053,7 +4053,7 @@ describe("the course hub passage", () => {
     // people keep on the material"), and a facilitator's own is read by admins
     // alone: `readsPrivateNotes` and `readsFacilitatorsPrivateNotes` below.
     assert.ok(
-      PAGE_FLAT.includes("Everything a facilitator sees, for every group, except the notes facilitators write about a named person and the private notes people keep on the material, and also:"),
+      PAGE_FLAT.includes("Everything a facilitator sees, for every group, except the notes facilitators write about a named person or a session, and the private notes people keep on the material, and also:"),
       "the policy no longer keeps the private notes on the material from what a programme's lead sees",
     );
     const record = hubPassageOf("<strong>What we record.</strong>");
@@ -4747,12 +4747,10 @@ describe("the course hub passage", () => {
   });
 
   test("the notes a group shares on its week pages reach the group, its facilitators, the programme's lead and admins and nobody else, are deleted by their writer alone, stay when somebody leaves, and go with the writer's account", () => {
-    // The paragraph, whole; and that other people taking part see these and
-    // "Nothing else". REPORTED: v15's list of what a deletion removes names
-    // the notes somebody wrote for a group's other facilitators and not the
-    // notes they shared with a group, which the code deletes with the account
-    // (`deleteCourseGroupSharedNotes`, held in the deletion test below); the
-    // policy at least never says a deletion leaves them. v14 also said the week a note was written on is
+    // The paragraph, whole; that other people taking part see these and
+    // "Nothing else"; and that a deletion removes "the notes you shared with a
+    // group", which the cascade does (`deleteCourseGroupSharedNotes`, below)
+    // and "It leaves" never names. v14 also said the week a note was written on is
     // shown with it, that the page says who reads them under the notes, and
     // that nobody but its writer can delete a note; v15 leaves those out, and
     // the checks on the code below stay.
@@ -4761,6 +4759,15 @@ describe("the course hub passage", () => {
     );
     const othersSee = hubPassageOf("<strong>What other people taking part see.</strong>");
     assert.ok(othersSee.includes(" In a group, the notes you share with it, with your name and the day.") && othersSee.endsWith(" Nothing else. "), "the policy no longer says the people in a group see the notes shared with it, and nothing else");
+    assert.ok(
+      hubPassageOf("<strong>Deleting your account.</strong>").includes(" the notes you wrote for a group&apos;s other facilitators, the notes you shared with a group,"),
+      "the policy no longer says a deletion removes the notes somebody shared with a group",
+    );
+    assert.match(
+      withoutComments(read("src/lib/firestore/accountDeletion.ts")),
+      /summary\.courseGroupSharedNotesDeleted = await deleteCourseGroupSharedNotes\(db, uid\);/,
+      "a deletion no longer removes the notes somebody shared with a group, which the policy says it does",
+    );
     assert.ok(
       !/shared? with (?:a|your) group/i.test(hubPassageOf("It leaves:")),
       "the policy now says a deletion leaves the notes somebody shared with a group, which the code deletes with the account",
@@ -5434,7 +5441,7 @@ describe("the course hub passage", () => {
   test("a deletion removes the calendar link, the notes shared with a group and the notes written for a group's other facilitators", () => {
     assert.ok(
       hubPassageOf("<strong>Deleting your account.</strong>").includes(
-        " your places on programmes, your work and the feedback on it, the notes and ratings about you, the ratings you gave, the notes you wrote for a group&apos;s other facilitators, a conduct flag, your survey links and your name on your survey answers,",
+        " your places on programmes, your work and the feedback on it, the notes and ratings about you, the ratings you gave, the notes you wrote for a group&apos;s other facilitators, the notes you shared with a group, a conduct flag, your survey links and your name on your survey answers,",
       ),
       "the policy no longer says a deletion removes somebody's work, the notes they gave and their survey links",
     );
@@ -7526,7 +7533,7 @@ describe("the re-consent gate", () => {
     // space"); v15 does not, and the walk below still holds where.
     assert.ok(
       PAGE_FLAT.includes(
-        "You were asked to accept this version. If you decline it, you are signed out, and you can email us to have your account removed. We will not ask you to accept later versions.",
+        "You were asked to accept this version. If you decline it, you are signed out, and you can email us to have your account removed; an external collaborator can delete theirs there and then. We will not ask you to accept later versions.",
       ),
     );
     // Declining, as the accept page does it: a member presses "I don't
@@ -7536,10 +7543,25 @@ describe("the re-consent gate", () => {
     assert.match(actions, /async function signOutOnly\(\) \{\s*setBusy\("decline"\);\s*try \{\s*await signOut\(\);/);
     assert.match(actions, /\{isMember \? \(\s*<Button variant="secondary" onClick=\{signOutOnly\} disabled=\{busy !== null\}>/);
     assert.match(actions, /If you don&apos;t accept, you&apos;ll be signed out\. To delete your\s+account, email\{" "\}/);
+    const reconsent = withoutComments(read("src/app/api/account/reconsent/route.ts"));
     assert.match(
-      withoutComments(read("src/app/api/account/reconsent/route.ts")),
+      reconsent,
       /if \(isMember\) \{\s*return NextResponse\.json\(\s*\{\s*error:\s*"Your account has a member profile, so it can't be self-deleted here\. You've been signed out; email ai-safety@uonsu\.com to have it removed\.",/,
     );
+    // "An external collaborator can delete theirs there and then": the page
+    // offers anybody without a member profile "Delete my account" behind a
+    // second press, and the route deletes that account through the cascade
+    // and clears its session, once it has refused a member.
+    assert.match(actions, /\) : !confirmDelete \? \(\s*<Button\s*variant="secondary"\s*onClick=\{\(\) => setConfirmDelete\(true\)\}/);
+    assert.match(actions, /<Button variant="danger" onClick=\{deleteAccount\} disabled=\{busy !== null\}>/);
+    assert.match(actions, /body: JSON\.stringify\(\{ action: "delete" \}\),/);
+    const refusedMember = reconsent.indexOf("so it can't be self-deleted here.");
+    const deleted = reconsent.indexOf("const summary = await deleteAccountCascade(auth, db, uid);");
+    assert.ok(refusedMember !== -1 && deleted > refusedMember, "the reconsent route deletes an account before it refuses a member");
+    assert.equal((reconsent.match(/deleteAccountCascade\(/g) ?? []).length, 1, "the reconsent route deletes an account somewhere new");
+    assert.match(reconsent, /const summary = await deleteAccountCascade\(auth, db, uid\);\s*await clearSessionCookieOnly\(\);/);
+    // A collaborator's record is what the page is told: no member document, so the delete is theirs.
+    assert.match(read("src/app/re-consent/page.tsx"), /const isMember = !collaborator;/);
     assert.ok(
       PAGE_FLAT.includes(
         "If a change affects how we use your information (a new use, a new outside service, or keeping something longer), we tell you on the site and by email before it takes effect, saying what changed.",
@@ -7578,7 +7600,7 @@ describe("the re-consent gate", () => {
       [
         "that it is arranged by use and the last version anybody is asked to accept",
         "This policy is now arranged by what we use your information for, and it is the last version you&apos;ll be asked to accept: from now on, if a change affects how we use your information, we&apos;ll tell you on the site and by email before it takes effect.",
-        "You were asked to accept this version. If you decline it, you are signed out, and you can email us to have your account removed. We will not ask you to accept later versions.",
+        "You were asked to accept this version. If you decline it, you are signed out, and you can email us to have your account removed; an external collaborator can delete theirs there and then. We will not ask you to accept later versions.",
       ],
       [
         "the team's ratings of written work, never shown",

@@ -478,8 +478,8 @@ export default function PrivacyContentV15({
               <p>
                 <strong>What the people leading a programme see.</strong>{" "}
                 Everything a facilitator sees, for every group, except the notes
-                facilitators write about a named person and the private notes
-                people keep on the material, and also: who
+                facilitators write about a named person or a session, and the
+                private notes people keep on the material, and also: who
                 can&apos;t make their group&apos;s time and why, the reasons
                 people give for leaving, the pitches and teams on an incubator,
                 who might facilitate, who finished, and the totals and comments
@@ -1100,7 +1100,8 @@ export default function PrivacyContentV15({
                 scores, comments and decisions about them, your places on
                 programmes, your work and the feedback on it, the notes and
                 ratings about you, the ratings you gave, the notes you wrote for
-                a group&apos;s other facilitators, a conduct flag, your
+                a group&apos;s other facilitators, the notes you shared with a
+                group, a conduct flag, your
                 survey links and your name on your survey answers, your
                 membership records, your choice about Kairos and a certificate
                 whose link is off. Registers keep the rest of the group, without
@@ -1285,8 +1286,9 @@ export default function PrivacyContentV15({
                 changed. Anything that relies on your consent asks you for that
                 one thing on its own. You were asked to accept this version. If
                 you decline it, you are signed out, and you can email us to have
-                your account removed. We will not ask you to accept later
-                versions. The application
+                your account removed; an external collaborator can delete theirs
+                there and then. We will not ask you to accept later versions.
+                The application
                 form&apos;s last step says that sending your application is
                 agreeing to this policy, with the date it was last updated.
                 Earlier versions stay readable at{" "}
