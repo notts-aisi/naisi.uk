@@ -36,6 +36,15 @@
  * THE FORMATTER is executed below, as a table of stored times and what each
  * prints, and so is the scanner, on synthetic sources and near misses, so a
  * scanner that had quietly stopped matching fails rather than passes.
+ *
+ * THE STORED LABELS. Four entries in `ALLOWED` make a session's label in its
+ * stored form ("Tuesdays 18:00" then the range mark and "19:30"), because an
+ * application keeps the labels its applicant ticked and Publish compares them
+ * byte for byte, so that form never moves. A person reads one only through
+ * `sessionLabelWords` (src/lib/courses/outsideTheirTimes.ts), which says it as
+ * `slotRangeWords` says the slot it was made from. That is executed below
+ * against the stored form, and the screens that print a label are read with
+ * the same scanner for one printed as it is stored.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -55,12 +64,19 @@ const READ_ATTRIBUTES = new Set(["title", "aria-label", "alt", "placeholder", "l
 // The scanner
 // ---------------------------------------------------------------------------
 
-/** Whether an expression IS one of the two stored values, not something made from one. */
-function isStraight(node) {
-  if (ts.isIdentifier(node)) return FIELDS.has(node.text);
-  if (ts.isPropertyAccessExpression(node)) return FIELDS.has(node.name.text);
+/**
+ * The names a stored value goes by, as a variable and as a property. A stored
+ * time goes by the two field names either way; a stored label, below, by the
+ * names each screen gives one.
+ */
+const TIME_NAMES = { identifiers: FIELDS, properties: FIELDS };
+
+/** Whether an expression IS one of the stored values `names` names, not something made from one. */
+function isStraight(node, names = TIME_NAMES) {
+  if (ts.isIdentifier(node)) return names.identifiers.has(node.text);
+  if (ts.isPropertyAccessExpression(node)) return names.properties.has(node.name.text);
   if (ts.isElementAccessExpression(node)) {
-    return ts.isStringLiteralLike(node.argumentExpression) && FIELDS.has(node.argumentExpression.text);
+    return ts.isStringLiteralLike(node.argumentExpression) && names.properties.has(node.argumentExpression.text);
   }
   if (
     ts.isParenthesizedExpression(node) ||
@@ -69,15 +85,15 @@ function isStraight(node) {
     ts.isTypeAssertionExpression(node) ||
     (ts.isSatisfiesExpression && ts.isSatisfiesExpression(node))
   ) {
-    return isStraight(node.expression);
+    return isStraight(node.expression, names);
   }
-  if (ts.isConditionalExpression(node)) return isStraight(node.whenTrue) || isStraight(node.whenFalse);
+  if (ts.isConditionalExpression(node)) return isStraight(node.whenTrue, names) || isStraight(node.whenFalse, names);
   if (ts.isBinaryExpression(node)) {
     const op = node.operatorToken.kind;
     if (op === ts.SyntaxKind.QuestionQuestionToken || op === ts.SyntaxKind.BarBarToken) {
-      return isStraight(node.left) || isStraight(node.right);
+      return isStraight(node.left, names) || isStraight(node.right, names);
     }
-    if (op === ts.SyntaxKind.AmpersandAmpersandToken) return isStraight(node.right);
+    if (op === ts.SyntaxKind.AmpersandAmpersandToken) return isStraight(node.right, names);
   }
   return false;
 }
@@ -90,29 +106,30 @@ function isText(node) {
 }
 
 /**
- * Every place in one file's source that puts a stored time into text
- * straight, as `{ kind, expr, line }`. `kind` is "template", "jsx",
- * "concatenation" or "attribute"; `expr` is the expression as written.
+ * Every place in one file's source that puts a stored time (or, given other
+ * `names`, another stored value) into text straight, as `{ kind, expr, line }`.
+ * `kind` is "template", "jsx", "concatenation" or "attribute"; `expr` is the
+ * expression as written.
  */
-function rawTimesIn(source, name = "file.tsx") {
+function rawTimesIn(source, name = "file.tsx", names = TIME_NAMES) {
   const kindOfScript = name.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const file = ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true, kindOfScript);
   const found = [];
   const hit = (kind, node) =>
     found.push({ kind, expr: node.getText(file), line: file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1 });
   const visit = (node) => {
-    if (ts.isTemplateSpan(node) && isStraight(node.expression)) hit("template", node.expression);
+    if (ts.isTemplateSpan(node) && isStraight(node.expression, names)) hit("template", node.expression);
     if (
       ts.isJsxExpression(node) &&
       node.expression &&
       (ts.isJsxElement(node.parent) || ts.isJsxFragment(node.parent)) &&
-      isStraight(node.expression)
+      isStraight(node.expression, names)
     ) {
       hit("jsx", node.expression);
     }
     if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
-      if (isStraight(node.left) && isText(node.right)) hit("concatenation", node.left);
-      if (isStraight(node.right) && isText(node.left)) hit("concatenation", node.right);
+      if (isStraight(node.left, names) && isText(node.right)) hit("concatenation", node.left);
+      if (isStraight(node.right, names) && isText(node.left)) hit("concatenation", node.right);
     }
     if (
       ts.isJsxAttribute(node) &&
@@ -120,7 +137,7 @@ function rawTimesIn(source, name = "file.tsx") {
       node.initializer &&
       ts.isJsxExpression(node.initializer) &&
       node.initializer.expression &&
-      isStraight(node.initializer.expression)
+      isStraight(node.initializer.expression, names)
     ) {
       hit("attribute", node.initializer.expression);
     }
@@ -177,28 +194,35 @@ const ALLOWED = [
     count: 2,
     why:
       "the availability label an applicant ticks, stored on their application as this label and compared with a group's label " +
-      "byte for byte (`placedOutsideTheirTimes` in src/lib/courses/outsideTheirTimes.ts): a stored format, which moves only with the labels already stored",
+      "byte for byte (`placedOutsideTheirTimes` in src/lib/courses/outsideTheirTimes.ts): a stored format, which moves only with the labels already stored. " +
+      "Where it is printed, it is printed through `sessionLabelWords` (below)",
   },
   {
     file: "features/courses/fetchCourses.ts",
     kind: "template",
     expr: "session.startTimeLocal",
     count: 1,
-    why: "the apply page's chip, posted back as the value the apply route matches and stores: the same stored label, a form value",
+    why:
+      "the apply page's chip VALUE, posted back as the value the apply route matches and stores: the same stored label, a form value. " +
+      "The chip prints it through `sessionLabelWords`",
   },
   {
     file: "app/api/courses/runs/[runId]/applications/route.ts",
     kind: "template",
     expr: "session.startTimeLocal",
     count: 1,
-    why: "the admissions queue's group label, kept byte for byte the stored labels it is read beside on the same card",
+    why:
+      "the admissions queue's group label, sent in the stored form so it stays byte for byte the labels applicants ticked, " +
+      "read beside it on the same card; the queue prints both through `sessionLabelWords`",
   },
   {
     file: "lib/courses/outsideTheirTimes.ts",
     kind: "template",
     expr: "session.startTimeLocal",
     count: 1,
-    why: "`sessionLabelOf`, a group's label in the stored form, compared byte for byte with the labels somebody ticked",
+    why:
+      "`sessionLabelOf`, a group's label in the stored form, compared byte for byte with the labels somebody ticked; " +
+      "a person reads it only through `sessionLabelWords`, beside it",
   },
 ];
 
@@ -347,5 +371,125 @@ describe("the house's clock", () => {
         assert.doesNotMatch(said, /[\u2013\u2014]|\b\d{2}:\d{2}\b/, said);
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The stored labels
+// ---------------------------------------------------------------------------
+
+const labels = await loadTs(join("lib", "courses", "outsideTheirTimes.ts"));
+
+/** The stored form's range mark, by its code point: it belongs to the stored labels, never to house words. */
+const RANGE = "\u2013";
+
+/**
+ * Every screen that prints a stored session label, with the names it gives
+ * one: the variable a chip or a slot is drawn from, and the property a group's
+ * label or an application's line is read from. Each prints a label through the
+ * words named here, and never as it is stored.
+ */
+const LABEL_SCREENS = [
+  {
+    file: "features/courses/ApplyForm.tsx",
+    names: { identifiers: new Set(["label"]), properties: new Set(["sessionLabel", "availability"]) },
+    words: ["sessionLabelWords", "availabilityLineWords"],
+    why: "the run's own apply page: each chip, and the line of times on an application already sent",
+  },
+  {
+    file: "features/courses/AdmissionsQueue.tsx",
+    names: { identifiers: new Set(["slot"]), properties: new Set(["sessionLabel", "availability"]) },
+    words: ["sessionLabelWords"],
+    why: "the admissions queue: the times an applicant ticked, and each group in the preferred group menu",
+  },
+  {
+    file: "features/courses/AllocationBoard.tsx",
+    names: { identifiers: new Set(["slot"]), properties: new Set(["sessionLabel", "availability"]) },
+    words: ["sessionLabelWords"],
+    why: "the allocation board: a card's times, its Can't make chip, and each column's session",
+  },
+];
+
+describe("a stored session label: stored as it always was, printed in the house's clock", () => {
+  test("the stored form has not moved, byte for byte", () => {
+    assert.equal(labels.sessionLabelOf({ weekday: 2, startTimeLocal: "18:00", durationMinutes: 90 }), `Tuesdays 18:00${RANGE}19:30`);
+    assert.equal(labels.sessionLabelOf({ weekday: 0, startTimeLocal: "23:30", durationMinutes: 60 }), `Sundays 23:30${RANGE}00:30`);
+    assert.equal(labels.sessionLabelOf({ weekday: 4, startTimeLocal: "10:00", durationMinutes: 0 }), "Thursdays 10:00");
+    assert.equal(labels.sessionLabelOf({ weekday: 2, startTimeLocal: "", durationMinutes: 90 }), "");
+  });
+
+  test("a label prints as slotRangeWords says the slot it was made from, never with a dash or a 24-hour time", () => {
+    assert.equal(labels.sessionLabelWords(`Tuesdays 18:00${RANGE}19:30`), "Tuesdays 6pm to 7:30pm");
+    assert.equal(labels.sessionLabelWords(`Sundays 23:30${RANGE}00:30`), "Sundays 11:30pm to 12:30am");
+    assert.equal(labels.sessionLabelWords("Thursdays 10:00"), "Thursdays 10am");
+    for (const weekday of [0, 1, 2, 3, 4, 5, 6]) {
+      for (const startTimeLocal of ["00:00", "09:05", "12:00", "13:30", "18:00", "23:30"]) {
+        for (const durationMinutes of [0, 30, 60, 90, 120, 1440]) {
+          const stored = labels.sessionLabelOf({ weekday, startTimeLocal, durationMinutes });
+          const printed = labels.sessionLabelWords(stored);
+          assert.equal(printed, words.slotRangeWords(weekday, startTimeLocal, durationMinutes), stored);
+          assert.doesNotMatch(printed, /[\u2013\u2014]|\b\d{2}:\d{2}\b/, printed);
+        }
+      }
+    }
+  });
+
+  test("anything that is not a label in the stored form prints as it is", () => {
+    for (const text of [
+      "",
+      "Mondays after six",
+      `Tuesday 18:00${RANGE}19:30`,
+      "Tuesdays 18:00 - 19:30",
+      "Tuesdays 24:00",
+      "tuesdays 18:00",
+      " Tuesdays 18:00",
+    ]) {
+      assert.equal(labels.sessionLabelWords(text), text, JSON.stringify(text));
+    }
+  });
+
+  test("an application's stored line prints each label in the house's clock, and the rest as it is", () => {
+    assert.equal(
+      labels.availabilityLineWords(`Tuesdays 18:00${RANGE}19:30, Thursdays 10:00${RANGE}11:30`),
+      "Tuesdays 6pm to 7:30pm, Thursdays 10am to 11:30am",
+    );
+    assert.equal(labels.availabilityLineWords(`Mondays 18:00${RANGE}20:00`), "Mondays 6pm to 8pm");
+    assert.equal(labels.availabilityLineWords("Weekday evenings, mostly"), "Weekday evenings, mostly");
+    assert.equal(labels.availabilityLineWords(""), "");
+  });
+
+  test("each screen that prints one prints it through those words, and never as it is stored", () => {
+    for (const screen of LABEL_SCREENS) {
+      const source = readFileSync(join(SRC, screen.file), "utf8");
+      for (const word of screen.words) {
+        assert.match(
+          source,
+          new RegExp(`import \\{[^}]*\\b${word}\\b[^}]*\\} from "@/lib/courses/outsideTheirTimes";`),
+          `${screen.file} no longer imports ${word}`,
+        );
+        assert.match(source, new RegExp(`\\b${word}\\(`), `${screen.file} no longer prints through ${word}`);
+      }
+      assert.deepEqual(
+        rawTimesIn(source, screen.file, screen.names).map((hit) => `${screen.file}:${hit.line} (${hit.kind}) ${hit.expr}`),
+        [],
+        `${screen.why}: a stored label is printed as it is stored. Print it through ${screen.words.join(" or ")}.`,
+      );
+      assert.ok(screen.why.length >= 40, `${screen.file}: says what it prints`);
+    }
+  });
+
+  test("and the check finds a label printed as it is stored", () => {
+    const names = LABEL_SCREENS[2].names;
+    const found = (source, name) => rawTimesIn(source, name, names).map((hit) => `${hit.kind} ${hit.expr}`);
+    assert.deepEqual(found("const a = <li>{slot}</li>;", "a.tsx"), ["jsx slot"]);
+    assert.deepEqual(found('const a = <p>{group.sessionLabel || "No session time set"}</p>;', "a.tsx"), [
+      'jsx group.sessionLabel || "No session time set"',
+    ]);
+    assert.deepEqual(found("const a = `${g.name} \u00b7 ${g.sessionLabel}`;", "a.ts"), ["template g.sessionLabel"]);
+    assert.deepEqual(found("const a = <dd>{application.availability}</dd>;", "a.tsx"), ["jsx application.availability"]);
+    // Printed through the words, compared, or used as a key: none of them is a label printed as it is stored.
+    assert.deepEqual(found("const a = <li>{sessionLabelWords(slot)}</li>;", "a.tsx"), []);
+    assert.deepEqual(found("const a = <li key={slot} className={slot === g.sessionLabel ? ok : no} />;", "a.tsx"), []);
+    assert.deepEqual(found("const a = <p>{row.availability.length > 0 ? <b /> : null}</p>;", "a.tsx"), []);
   });
 });

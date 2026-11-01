@@ -42,6 +42,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Dropdown, { type DropdownOption } from "@/components/ui/Dropdown";
 import { divergenceNote, type GroupDivergenceInput } from "@/lib/courses/groupResolve";
+import { sessionLabelWords } from "@/lib/courses/outsideTheirTimes";
 import { emailsLabel, publishConfirmText, publishResultLines } from "@/lib/courses/publishWords";
 import AllocationPublish from "./AllocationPublish";
 import {
@@ -358,12 +359,13 @@ function PersonCardBody({
         <ul className={styles.chips}>
           {facts.fit.slots.map((slot) => (
             /* The slot matching this card's own session is highlighted: it is
-               the one fact that answers "can they actually come to this?". */
+               the one fact that answers "can they actually come to this?".
+               Compared as stored, printed in the house's clock. */
             <li
               key={slot}
               className={slot === group?.sessionLabel ? styles.chipOk : styles.chip}
             >
-              {slot}
+              {sessionLabelWords(slot)}
             </li>
           ))}
         </ul>
@@ -383,7 +385,7 @@ function PersonCardBody({
             currently sitting in. */}
         {facts.availabilityConflict && group ? (
           <li className={styles.chipWarn}>
-            Can&apos;t make {group.sessionLabel}
+            Can&apos;t make {sessionLabelWords(group.sessionLabel)}
           </li>
         ) : null}
         {facts.preferredGroupName ? (
@@ -648,7 +650,7 @@ function BoardColumn({
         ) : (
           <>
             <p className={styles.columnMeta}>
-              {group.sessionLabel || "No session time set"}
+              {sessionLabelWords(group.sessionLabel) || "No session time set"}
             </p>
             <p className={styles.columnMeta}>
               {group.facilitatorNames.length > 0

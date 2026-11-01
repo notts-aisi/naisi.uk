@@ -1099,7 +1099,9 @@ const USERS = new Map([
     "clock-times-printed.test.mjs",
     "it executes `clockWords` and `slotRangeWords` (src/lib/courses/sessionChange/words.ts), the house's " +
       "clock every printed time of day goes through, as a table of stored times and what each prints, " +
-      "because the guard beside it only says where a time is printed and not what it says; nothing is stubbed",
+      "and `sessionLabelOf` and `sessionLabelWords` (src/lib/courses/outsideTheirTimes.ts), a session's stored " +
+      "label and how it prints, because the guard beside it only says where a time is printed and not what " +
+      "it says; nothing is stubbed",
   ],
   [
     "course-hub-times-counting.test.mjs",
