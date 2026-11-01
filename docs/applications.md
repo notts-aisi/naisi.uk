@@ -472,6 +472,11 @@ Who sees which name follows the site's one rule (`src/lib/names/staffName.ts`):
   that reads it names it and `tests/full-name-readers.test.mjs` lists them.
   `nameOnRecord` (`handover/holders.ts`), which writes the run's rows, reads
   `displayName` and never the full name.
+- **A question an admin types** about a programme or about arranging its
+  groups has every name each person holds taken out before it is sent: the
+  names on their row (a staff line is read back into its names by
+  `namesInStaffWords`) and every name on their account, the full name among
+  them (`namesToScrubOf` in `src/lib/names/scrub.ts`).
 
 ### Question sets, and who is asked each
 

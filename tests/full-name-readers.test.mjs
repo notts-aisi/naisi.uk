@@ -546,7 +546,7 @@ describe("every scrub of words that leave the site knows the full name", () => {
    */
   const SCRUBS = new Map([
     ["src/lib/applications/assessment/run.ts", {
-      names: ["namesInStaffWords(applicantNames[label]", "namesToScrubOf(db, Object.values(input.applicants))"],
+      names: ["namesInStaffWords(own(applicantNames, label)", "namesToScrubOf(db, Object.values(input.applicants))"],
       why: "an admin's question about a programme: each row's names, read back from its staff line, and every name on each account",
     }],
     ["src/lib/applications/arrange/advise.ts", {

@@ -379,7 +379,7 @@ export async function askAboutProgramme(
     // their account's own names.
     const accountNames = await namesToScrubOf(db, Object.values(input.applicants));
     const applicants = Object.entries(input.applicants).flatMap(([label, uid]) => {
-      const names = new Set([...namesInStaffWords(applicantNames[label] ?? ""), ...(accountNames.get(uid) ?? [])]);
+      const names = new Set([...namesInStaffWords(own(applicantNames, label) ?? ""), ...(accountNames.get(uid) ?? [])]);
       return [...names].map((name) => ({ label, name }));
     });
     const people = [...applicants, ...Object.entries(reviewerNames).map(([label, name]) => ({ label, name }))];
