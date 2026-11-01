@@ -756,9 +756,10 @@ describe("4. the pages", () => {
     assert.equal((await send("sofia", withAnswers({ how: 3, wentWell: "", didnt: "", unclear: [], engaged: [], notRead: [], needsHand: [] }))).status, 200);
 
     const weeks = await readers.readRunSessionReports(world.courseDb, RUN.agi);
+    // Each writer by the name they go by (`fullNameOfUser`, since the full names change).
     assert.deepEqual(weeks.map((week) => [week.weekNumber, week.reports.map((report) => `${report.groupName} · ${report.writerName}`)]), [
-      [3, ["Group A · Sofia Rossi"]],
-      [2, ["Group B · Rahul Mehta", "Group B · Sofia Rossi"]],
+      [3, ["Group A · Sofia"]],
+      [2, ["Group B · Rahul", "Group B · Sofia"]],
     ]);
     const rahuls = weeks[1].reports[0];
     assert.deepEqual(
@@ -767,7 +768,7 @@ describe("4. the pages", () => {
         id: `${RUN.agi}__${B}__w02__rahul`,
         groupId: B,
         groupName: "Group B",
-        writerName: "Rahul Mehta",
+        writerName: "Rahul",
         weekNumber: 2,
         occurrence: 1,
         sessionAt: "2026-11-10T18:00:00.000Z",
@@ -790,14 +791,14 @@ describe("4. the pages", () => {
     const drawn = await leadPageAs("claudia");
     for (const said of [
       "Surveys Session reports What each group’s facilitators reported after each session, with names.",
-      "Week 3 Group A · Sofia Rossi Thu 12 Nov · Sent Thu 12 Nov at 7:30pm How it went 5 of 5 What went well Group A flew. Engaged well Amara Okafor : Led the debate.",
-      "Week 2 Group B · Rahul Mehta Tue 10 Nov · Sent Tue 17 Nov at 12pm How it went 4 of 5",
+      "Week 3 Group A · Sofia Thu 12 Nov · Sent Thu 12 Nov at 7:30pm How it went 5 of 5 What went well Group A flew. Engaged well Amara Okafor : Led the debate.",
+      "Week 2 Group B · Rahul Tue 10 Nov · Sent Tue 17 Nov at 12pm How it went 4 of 5",
       "What seemed unclear Races between AI developers Something else",
       "Engaged well Chloe Nguyen : Brought the compute reading into the race debate. Kofi Asante",
       "Seemed not to have done the readings Farah Hussain",
       "Might need a hand Kofi Asante : Arrives after a lab; missed the first half hour.",
       "For the lead and admins Can we swap rooms?",
-      "Group B · Sofia Rossi Tue 10 Nov · Sent Tue 17 Nov at 12pm How it went 3 of 5",
+      "Group B · Sofia Tue 10 Nov · Sent Tue 17 Nov at 12pm How it went 3 of 5",
     ]) {
       assert.ok(drawn.text.includes(said), `the lead's page does not say: ${said}\n${drawn.text}`);
     }
@@ -908,7 +909,7 @@ describe("5. what takes reports away", () => {
       weeks.map((week) => [week.weekNumber, week.reports.map((report) => `${report.groupName} · ${report.writerName}`)]),
       [
         [3, ["Group A · A former facilitator"]],
-        [2, ["Group B · A former facilitator", "Group B · Rahul Mehta"]],
+        [2, ["Group B · A former facilitator", "Group B · Rahul"]],
       ],
     );
   });
