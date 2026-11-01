@@ -403,8 +403,12 @@ test(
       term.people
         .filter((person) => person.groupKey === group.key)
         .sort((a, b) => a.first.localeCompare(b.first, "en-GB") || a.uid.localeCompare(b.uid));
-    /** Whether a row's heading names this person: their whole go-by name, alone or before what follows it. */
-    const headedBy = (said, person) => said === person.first || said.startsWith(`${person.first} `);
+    /**
+     * A row heading's name pattern for this person: their whole go-by name at
+     * its start, never the start of a longer name. Text read off the page
+     * runs the name straight into what follows it ("BenLeft Fri 13 Nov").
+     */
+    const headingOf = (person) => new RegExp(`^${escapeRegExp(person.first)}(?![a-z])`);
 
     const weeks = Array.from({ length: term.weekCount }, (_, i) => i + 1);
 
@@ -1295,7 +1299,7 @@ test(
           for (const person of leavers) {
             const row = grid
               .getByRole("row")
-              .filter({ has: fernPage.getByRole("rowheader", { name: new RegExp(`^${escapeRegExp(person.first)}(?:\\s|$)`) }) });
+              .filter({ has: fernPage.getByRole("rowheader", { name: headingOf(person) }) });
             await row.waitFor({ timeout: WAIT_MS });
             assert.deepEqual(
               await textsOf(row.getByRole("rowheader").locator(":scope > span")),
@@ -1316,9 +1320,9 @@ test(
           }
           // Last, after everybody still taking part.
           const rowHeads = await textsOf(grid.locator("tbody").getByRole("rowheader"));
-          assert.ok(headedBy(rowHeads[0], ada), `the register does not list ${ada.first} first: ${JSON.stringify(rowHeads)}`);
+          assert.ok(headingOf(ada).test(rowHeads[0]), `the register does not list ${ada.first} first: ${JSON.stringify(rowHeads)}`);
           assert.deepEqual(
-            rowHeads.slice(1).map((said) => leavers.find((person) => headedBy(said, person))?.key ?? said),
+            rowHeads.slice(1).map((said) => leavers.find((person) => headingOf(person).test(said))?.key ?? said),
             leavers.map((person) => person.key),
             "the register does not list the two who left last",
           );
@@ -1483,7 +1487,7 @@ test(
         for (const group of ordered) {
           for (const person of membersOf(group)) {
             const row = grid.getByRole("row").filter({
-              has: adminPage.getByRole("rowheader", { name: new RegExp(`^${escapeRegExp(person.first)}(?:\\s|$)`) }),
+              has: adminPage.getByRole("rowheader", { name: headingOf(person) }),
             });
             await row.waitFor({ timeout: WAIT_MS });
             const marks = row.getByRole("img");

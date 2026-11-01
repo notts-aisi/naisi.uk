@@ -1051,8 +1051,9 @@ test(
         for (const [index, person] of byName.entries()) {
           const row = rows.nth(index);
           const rowSaid = flat(await row.innerText());
+          // The disc's initials, then the whole name, never the start of a longer one.
           assert.ok(
-            rowSaid === `${initialsOf(person.first)} ${person.first}` || rowSaid.startsWith(`${initialsOf(person.first)} ${person.first} `),
+            new RegExp(`^${escapeRegExp(initialsOf(person.first))} ${escapeRegExp(person.first)}(?![a-z])`).test(rowSaid),
             `row ${index} is not ${person.first}: ${rowSaid}`,
           );
           const marks = row.getByRole("img");

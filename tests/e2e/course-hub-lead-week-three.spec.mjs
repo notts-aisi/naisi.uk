@@ -1048,7 +1048,8 @@ test(
         for (const group of ordered) {
           for (const person of membersOf(group)) {
             const row = grid.getByRole("row").filter({
-              has: adminPage.getByRole("rowheader", { name: new RegExp(`^${escapeRegExp(person.first)}(?:\\s|$)`) }),
+              // The whole name the grid shows, never the start of a longer one.
+              has: adminPage.getByRole("rowheader", { name: new RegExp(`^${escapeRegExp(person.first)}(?![a-z])`) }),
             });
             await row.waitFor({ timeout: WAIT_MS });
             const marks = row.getByRole("img");
