@@ -240,6 +240,11 @@ const FETCHES_IT_CANNOT_READ = new Map([
       "(`base`): one piece, never a run's groups.",
   ],
   [
+    "src/features/courses/written/RatingForTheTeam.tsx",
+    "Saving and clearing the reader's own rating for the team of one written answer, at the ratings route built " +
+      "from the run id it is handed (`base`): one rating, never a run's groups.",
+  ],
+  [
     "src/features/admin/memberNotes/PersonNotes.tsx",
     "The notes kept about one person, at the notes route under the member address, or under the programme's " +
       "address for its lead, each built from the ids it is handed: it draws notes, who reads each and the runs " +

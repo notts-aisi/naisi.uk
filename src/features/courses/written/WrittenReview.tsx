@@ -35,9 +35,11 @@ import {
   REOPENED_NOT_SUBMITTED,
   STARTED,
 } from "@/lib/courses/weekWork/words";
+import { pangramChipWords } from "@/lib/courses/workRatings/words";
 import FeedbackWriter from "../feedback/FeedbackWriter";
 import StaffFeedbackCards from "../feedback/StaffFeedbackCards";
 import Prose from "../weekBlocks/Prose";
+import RatingForTheTeam from "./RatingForTheTeam";
 import ReopenWeekButton from "./ReopenWeekButton";
 import weekly from "../weekly/weekly.module.css";
 import styles from "./written.module.css";
@@ -53,6 +55,12 @@ import styles from "./written.module.css";
  * piece of feedback on their week. "Late" beside an answer is shown here, to
  * staff, and nowhere its writer reads. No rubric level is given here: the
  * rubric stays on Start here, as guidance for writing.
+ *
+ * For an admin or the programme's lead alone, "Rating for the team" and
+ * "What the team said" sit under the feedback (`RatingForTheTeam`, privacy
+ * v15: never shown to the person), and an admin alone sees Pangram's last
+ * reading of the answer beside when it was sent. The model carries neither
+ * for anybody else.
  *
  * Drawn from `loadWrittenReview` on the server, after the page's gate; every
  * person here is somebody the reader may review by the one gate, and an
@@ -373,10 +381,15 @@ function Review({ model }: { model: ReviewPageModel }) {
           <h2 className={styles.answerTitle}>{answerHeadWords(person.firstName)}</h2>
           <p className={styles.answerCount}>{wordCountWords(person.words, answer.words)}</p>
         </div>
-        {person.firstSentAt && (
+        {(person.firstSentAt || selected.pangram) && (
           <p className={styles.sentLine}>
-            {listSentWords(new Date(person.firstSentAt))}
+            {person.firstSentAt && <span>{listSentWords(new Date(person.firstSentAt))}</span>}
             {person.late && <span className={styles.lateChip}>{LATE}</span>}
+            {selected.pangram && (
+              <span className={selected.pangram.worthALook && !selected.pangram.outOfDate ? styles.pangramChipFlag : styles.pangramChip}>
+                {pangramChipWords(selected.pangram)}
+              </span>
+            )}
           </p>
         )}
         <div className={styles.answerBody}>
@@ -419,6 +432,9 @@ function Review({ model }: { model: ReviewPageModel }) {
           weekNumber={model.weekNumber}
           programme={model.programme}
         />
+        {selected.team && (
+          <RatingForTheTeam runId={model.runId} uid={person.uid} firstName={person.firstName} weekNumber={model.weekNumber} team={selected.team} />
+        )}
       </div>
     </div>
   );

@@ -365,6 +365,11 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "Who sent the “you have feedback” emails and their tests, when, and to how many people. It belongs to this run, so it goes with the run.",
   },
+  workRatingsKept: {
+    label: "Ratings for the team",
+    fate: "retained",
+    note: "KEPT. Each rating an admin or the programme’s lead gave somebody’s written answer, with its comment for the team. They are about the person, as the notes kept about a person are, so they stay with the programme’s name and the week, and go with the account of the person rated or of whoever gave them.",
+  },
   pairs: {
     label: "Pairs and laptops",
     fate: "destroyed",

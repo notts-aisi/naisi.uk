@@ -943,6 +943,8 @@ describe("server-owned course collections", () => {
       // Feedback on somebody's week, and the batch email's own record.
       ["courseFeedback", "fb1", { runId: "run1", uid: "learner", weekId: "w01", on: { kind: "week" }, text: "Good.", byUid: "facil", byRole: "facilitator" }],
       ["courseFeedbackSends", "send1", { runId: "run1", kind: "test", byUid: "admin1", at: new Date() }],
+      // Ratings for the team: an admin's or the lead's rating of somebody's written answer.
+      ["courseWorkRatings", "run1__learner__w01__admin1", { runId: "run1", uid: "learner", weekId: "w01", itemId: "wa1", rating: 8, comment: "Clear.", raterUid: "admin1", raterRole: "admin" }],
     ];
     for (const [collection, id, data] of attempts) {
       await assertFails(member.collection(collection).doc(id).set(data));
@@ -1024,6 +1026,39 @@ describe("server-owned course collections", () => {
       await assertFails(db.collection("courseFeedback").doc("fb1").delete());
       await assertFails(db.collection("courseFeedbackSends").doc("send1").get());
       await assertFails(db.collection("courseFeedbackSends").where("runId", "==", "run1").get());
+    }
+  });
+
+  it("ratings for the team are read and written by no browser: not the person rated, a facilitator, the lead who gave one, or an admin", async () => {
+    await seedCast();
+    const rating = (raterUid, raterRole) => ({
+      runId: "run1",
+      uid: "learner",
+      weekId: "w01",
+      weekNumber: 1,
+      itemId: "wa1",
+      rating: 8,
+      comment: "Takes a side and defends it.",
+      raterUid,
+      raterRole,
+      programmeLabel: "AI Safety Fundamentals, Autumn 2026",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    await seed(async (db) => {
+      await db.collection("courseWorkRatings").doc("run1__learner__w01__lead").set(rating("lead", "lead"));
+      await db.collection("courseWorkRatings").doc("run1__learner__w01__admin1").set(rating("admin1", "admin"));
+    });
+    for (const who of ["learner", "facil", "lead", "admin1"]) {
+      const db = await asUser(who);
+      for (const id of ["run1__learner__w01__lead", "run1__learner__w01__admin1"]) {
+        await assertFails(db.collection("courseWorkRatings").doc(id).get());
+        await assertFails(db.collection("courseWorkRatings").doc(id).update({ rating: 3 }));
+        await assertFails(db.collection("courseWorkRatings").doc(id).delete());
+      }
+      await assertFails(db.collection("courseWorkRatings").where("uid", "==", "learner").get());
+      await assertFails(db.collection("courseWorkRatings").where("raterUid", "==", who).get());
+      await assertFails(db.collection("courseWorkRatings").doc(`run1__learner__w02__${who}`).set(rating(who, "lead")));
     }
   });
 

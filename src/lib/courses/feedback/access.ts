@@ -106,9 +106,14 @@ export type FeedbackWeek = {
 /**
  * The person's week as they read it (their group's copy, or the one group
  * they facilitate), or null when it is not a week written as blocks. Reads
- * the week and their place, nothing of their work.
+ * the week and their place, nothing of their work. The ratings for the team
+ * ask it too (`src/lib/courses/workRatings/`), after their own gate.
  */
-export async function feedbackWeekOf(db: Firestore, gate: FeedbackGate, weekId: string): Promise<FeedbackWeek | null> {
+export async function feedbackWeekOf(
+  db: Firestore,
+  gate: Pick<FeedbackGate, "run" | "liveGroups" | "owner">,
+  weekId: string,
+): Promise<FeedbackWeek | null> {
   const { run, liveGroups, owner } = gate;
   const facilitated = liveGroups.filter((group) => group.facilitatorUids.includes(owner.uid));
   const ownGroupId = owner.placedGroupId ?? (facilitated.length === 1 ? facilitated[0].id : null);

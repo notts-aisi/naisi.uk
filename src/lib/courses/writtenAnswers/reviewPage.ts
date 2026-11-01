@@ -39,6 +39,11 @@ import { workIsReadable, type WeekWorkState } from "../weekWork/model";
 import { loadRunWeekStates } from "../weekWork/readers";
 import { byOldest, staffCardOf, staffLegacyCardOf, type StaffFeedbackCard } from "../feedback/model";
 import { legacyRoleOf, readWeekFeedback } from "../feedback/readers";
+import { mayRateWorkOf, workRatingRoleOf } from "../workRatings/access";
+import type { TeamRatingsView } from "../workRatings/model";
+import { loadTeamRatings } from "../workRatings/readers";
+import { writtenAnswerWords } from "../coursework/input";
+import { readAnswerReading, type AnswerReading } from "../coursework/pangramReadings";
 
 /**
  * WHAT THE REVIEW PAGE SHOWS (boards wk-review, wk-review-phone), worked
@@ -69,11 +74,19 @@ import { legacyRoleOf, readWeekFeedback } from "../feedback/readers";
  * reopened reads "Reopened, not submitted again". Where each week stands is
  * read once for the run (`loadRunWeekStates`).
  *
+ * RATINGS FOR THE TEAM (`src/lib/courses/workRatings/`, privacy v15): the
+ * person open on the page carries every rating on their answer, and the
+ * reader's own, only for a reader who gives and reads them (an admin, or the
+ * programme's lead: `mayRateWorkOf`). For anybody else, a facilitator above
+ * all, `team` is null and no rating is read. Pangram's last reading of the
+ * answer is read for an admin alone (`pangram`), never for the lead.
+ *
  * Reads: the run's groups and the reader's standing (the gate's), the run's
  * enrolments by one equality, the group's own copy of the week, each
  * person's row by its id, the week's feedback by two equalities, the names,
- * and the course's time for work due the day before. No query needs a
- * declared index.
+ * and the course's time for work due the day before; for an admin or the
+ * lead, the open answer's ratings by two equalities, and for an admin its
+ * Pangram reading by its id. No query needs a declared index.
  */
 
 export type ReviewPerson = {
@@ -121,6 +134,14 @@ export type ReviewSelected = {
   own: StaffFeedbackCard | null;
   /** What the reader may do with this answer: give feedback, and reopen the week. */
   role: ReviewRole;
+  /**
+   * Ratings for the team on this answer, for an admin or the programme's
+   * lead; null for every other reader, a facilitator above all, for whom no
+   * rating is read.
+   */
+  team: TeamRatingsView | null;
+  /** Pangram's last reading of this answer, for an admin alone; null for everybody else, and when it was never checked. */
+  pangram: AnswerReading | null;
 };
 
 export type ReviewPageModel = {
@@ -350,6 +371,27 @@ export async function loadWrittenReview(
     // "Your feedback" changes the reader's newest piece on the answer while it may change.
     const own =
       [...cards].reverse().find((card) => card.mine && card.mayChange && card.on === "writtenAnswer" && !card.legacy) ?? null;
+    // Ratings for the team, read for an admin or the programme's lead and for
+    // nobody else; Pangram's reading of the answer for an admin alone.
+    const [team, pangram] = await Promise.all([
+      mayRateWorkOf(actor, facts, owner, liveGroups)
+        ? loadTeamRatings(db, {
+            runId: run.id,
+            uid: chosen.uid,
+            weekId,
+            itemId: answer.id,
+            viewer: { uid: actor.uid, role: workRatingRoleOf(facts) },
+          })
+        : Promise.resolve(null),
+      facts.isAdmin && record
+        ? readAnswerReading(db, {
+            runId: run.id,
+            uid: chosen.uid,
+            rowId: exerciseResponseId(run.id, chosen.uid, weekId, answer.id),
+            words: writtenAnswerWords(answer.boxes, record),
+          })
+        : Promise.resolve(null),
+    ]);
     selected = {
       person: chosen,
       text: record?.text ?? "",
@@ -358,6 +400,8 @@ export async function loadWrittenReview(
       cards: cards.filter((card) => card !== own),
       own,
       role,
+      team,
+      pangram,
     };
   }
 

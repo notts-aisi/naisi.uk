@@ -81,6 +81,26 @@ const KIND_WORDS: Record<CourseworkKind, string> = {
   fillIn: "Box to fill in",
 };
 
+/**
+ * A written answer's words as Claude and Pangram are sent them: an answer of
+ * one box, its words; an answer in boxes, each box with words under its
+ * label. `boxes` are the question's, in order. The review page's Pangram chip
+ * hashes the same words to say whether a reading is out of date.
+ */
+export function writtenAnswerWords(
+  boxes: ReadonlyArray<{ id: string; label: string }>,
+  record: { text: string; boxes: Record<string, string> | null },
+): string {
+  if (record.boxes) {
+    return boxes
+      .map((box) => ({ label: box.label, text: (record.boxes?.[box.id] ?? "").trim() }))
+      .filter((box) => box.text)
+      .map((box) => `${box.label}: ${box.text}`)
+      .join("\n\n");
+  }
+  return record.text.trim();
+}
+
 /** A hash of a message, kept with what came back to tell when it is out of date. */
 export function fingerprintOf(text: string): string {
   return createHash("sha256").update(text).digest("hex").slice(0, 32);

@@ -33,6 +33,7 @@ import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
 import { COURSE_WEEK_WORK_COLLECTION } from "./courseWeekWork";
 import { COURSE_WORK_LOG_COLLECTION } from "./courseWorkLog";
 import { COURSE_FEEDBACK_COLLECTION, COURSE_FEEDBACK_SENDS_COLLECTION } from "./courseFeedback";
+import { COURSE_WORK_RATINGS_COLLECTION } from "./courseWorkRatings";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import { RECORD_OPENINGS_COLLECTION } from "./recordOpenings";
 import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
@@ -403,6 +404,20 @@ export type RunDestroyCounts = {
    * row like every other leaf here, and it dies with the run.
    */
   feedbackSends: number;
+  /**
+   * `courseWorkRatings` rows on this run: ratings for the team, an admin's
+   * or the programme's lead's rating of somebody's written answer with a
+   * comment for the team (`src/lib/firestore/courseWorkRatings.ts`).
+   *
+   * COUNTED, NEVER DELETED. A rating is about a person, as the notes kept
+   * about a person are, and the privacy policy keeps ratings while that
+   * person is a member: each one keeps the programme's name and the week it
+   * was given in, so it still says where it came from once the run has gone.
+   * It goes with the account of the person rated or of whoever gave it, and
+   * an admin clears out those about people who have left, by hand. The count
+   * is on the manifest so the dialog says they are kept.
+   */
+  workRatingsKept: number;
   /**
    * `coursePairs` rows: who was paired with whom for a session in pairs, and
    * who was bringing a laptop (`src/lib/firestore/coursePairs.ts`). Keyed by
@@ -1206,6 +1221,7 @@ export async function countRunDestroyTargets(
     workLog,
     feedback,
     feedbackSends,
+    workRatingsKept,
     pairs,
     anonymousFeedbackCounts,
     predictions,
@@ -1297,6 +1313,8 @@ export async function countRunDestroyTargets(
     // The same single equality the feedback stages drain on.
     countAgg(db.collection(COURSE_FEEDBACK_COLLECTION).where("runId", "==", runId)),
     countAgg(db.collection(COURSE_FEEDBACK_SENDS_COLLECTION).where("runId", "==", runId)),
+    // Ratings for the team are counted and KEPT: no stage drains them.
+    countAgg(db.collection(COURSE_WORK_RATINGS_COLLECTION).where("runId", "==", runId)),
     // The same single equality the pairs stage drains on.
     countAgg(db.collection(COURSE_PAIRS_COLLECTION).where("runId", "==", runId)),
     // The same single equality, on each of the three collections the
@@ -1349,6 +1367,7 @@ export async function countRunDestroyTargets(
     workLog,
     feedback,
     feedbackSends,
+    workRatingsKept,
     pairs,
     anonymousFeedback: anonymousFeedbackCounts.reduce((a, b) => a + b, 0),
     predictions,

@@ -11,7 +11,7 @@ import { workIsReadable } from "@/lib/courses/weekWork/model";
 import { readRunForLock } from "@/lib/courses/weekWork/own";
 import { loadRunWeekStates } from "@/lib/courses/weekWork/readers";
 import { namesToScrubOf } from "@/lib/names/scrub";
-import type { CourseworkAnswer, CourseworkQuestion, CourseworkWeek } from "./input";
+import { writtenAnswerWords, type CourseworkAnswer, type CourseworkQuestion, type CourseworkWeek } from "./input";
 
 /**
  * THE ONE READER OF COURSEWORK FOR CLAUDE AND PANGRAM (privacy v13), on the
@@ -143,17 +143,7 @@ export async function loadRunWeeks(db: Firestore, runId: string, groupIds: reado
 
 /** One row's words: a written answer in boxes is its boxes, each under its label. */
 function answerWords(question: CourseworkQuestion, data: Raw): string {
-  if (question.kind === "written") {
-    const record = readWrittenAnswer(data);
-    if (record.boxes) {
-      return question.boxes
-        .map((box) => ({ label: box.label, text: (record.boxes?.[box.id] ?? "").trim() }))
-        .filter((box) => box.text)
-        .map((box) => `${box.label}: ${box.text}`)
-        .join("\n\n");
-    }
-    return record.text.trim();
-  }
+  if (question.kind === "written") return writtenAnswerWords(question.boxes, readWrittenAnswer(data));
   return typeof data.text === "string" ? data.text.trim() : "";
 }
 

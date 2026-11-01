@@ -2199,6 +2199,56 @@ nothing in it is a mark.
   counts them.
 
 
+## Ratings for the team
+
+Admins and the programme's lead may rate a person's written answer from 1 to
+10, with a comment for the team, on that answer's review page
+(`src/lib/courses/workRatings/`, privacy v15's "Ratings for the team"). The
+person rated never sees a rating or its comment, and nor does a facilitator as
+such. Not the ratings at a programme's end (`src/lib/ratings/`, the Ratings
+tab), which facilitators give and which go to Kairos: nothing here reaches the
+Ratings tab or the Kairos file.
+
+- **Who gives them, and who reads them**: admins, and the lead of the
+  programme that names the run while they stand (`programmeLedBy`, through
+  `reviewerFactsOf`): never a track lead, a reviewer, another programme's lead
+  or a facilitator as such. A lead who also facilitates the group rates and
+  reads as the lead. They rate anybody whose answer the one gate lets them
+  read (`writtenReviewRole`), a facilitator's own among them, never their own.
+  The same people read them, on the same page; for anybody else the page is
+  handed no rating at all.
+- **What is rated**: the week's written answer, once its readers may read it
+  (`workIsReadable`, asked inside the save's transaction), and only with words
+  in it. Reflections are not rated. A rating stays when the week is reopened.
+- **One each**: `courseWorkRatings/{runId}__{uid}__{weekId}__{raterUid}`, with
+  `itemId` (the answer's block), `rating` (a whole number from 1 to 10),
+  `comment` (needed; 300 words at most), `raterRole` (`admin` or `lead`),
+  `programmeLabel` (the programme's name when it was first rated),
+  `weekNumber`, `createdAt` and `updatedAt`. Saving again changes it; "Clear my
+  rating" deletes it. Nobody changes or clears anybody else's.
+  `PUT|DELETE /api/courses/runs/[runId]/work-ratings`, view-as refused first,
+  the body checked before anything is read, the gate before anything of the
+  person's. Nothing is emailed.
+- **On the page**: "Rating for the team" (ten 44px choices and the comment)
+  and "What the team said" (every rating on the answer, oldest first, and
+  "Not rated yet" for the reader until they rate it), under the feedback. An
+  admin also sees Pangram's last reading of the answer beside when it was sent
+  ("Pangram: worth a look", "nothing to flag", or "changed since it checked"),
+  read for an admin alone; the lead never sees a reading.
+- **A copy of somebody's data** includes the ratings about them and those they
+  gave: `courseWorkRatings` where `uid` is theirs, and where `raterUid` is.
+- **Deleting**: an account takes the ratings about it and those it gave
+  (`deleteCourseWorkRatings`). Destroying a run keeps them: each still names
+  the programme and the week, as the notes kept about a person do, and the
+  destroy dialog counts them as kept ("Ratings for the team"). The policy keeps
+  them while the person is a member: once a year an admin clears out those
+  about people who have left, by hand. Nothing deletes them on a timer.
+- **Rules**: `match /courseWorkRatings/{docId}` refuses every browser, admins
+  included, the same as Firestore's default, so nothing has to be deployed for
+  the feature to work. Deploy the rules anyway so the file and the live rules
+  agree. No index, no job and no setting.
+
+
 ## Changing a session
 
 One week's session of one group can be held online, moved for that week only,
@@ -3226,7 +3276,9 @@ shows as out of date.
   and how many before the press, then the browser sends one person at a
   time. Kept per answer with a hash of its words, so a changed answer shows
   as out of date. A flag reads "worth a look". Deleted with the run and with
-  the account.
+  the account. A written answer's last reading also shows as a chip beside it
+  on its review page, read for an admin alone (`pangramReadings.ts`, which
+  only reads what is kept and never reaches the code that sends).
 - **What Claude is never sent**: a name, an email address, an account id, a
   group's name, a facilitator's name, availability, a review score, a survey
   answer, a private note, a tick, or anything written before its writer's

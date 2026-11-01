@@ -294,9 +294,11 @@ and its readers read its words only once the week is submitted or locked
 (`workIsReadable`, `src/lib/courses/weekWork/model.ts`). Feedback on it is a
 signed comment (`src/lib/courses/feedback/`, "Feedback" in
 `docs/courses-ops.md`); the course's rubric (`src/lib/courses/rubric.ts`)
-is guidance for writing, and no level of it goes back to the person. The
-answer keeps the block's id, so a paste that keeps the id keeps everybody's
-answers to it.
+is guidance for writing, and no level of it goes back to the person. Admins
+and the programme's lead may also rate it for the team, from 1 to 10 with a
+comment the person never sees (`src/lib/courses/workRatings/`, "Ratings for
+the team" in `docs/courses-ops.md`). The answer keeps the block's id, so a
+paste that keeps the id keeps everybody's answers to it.
 
 ### Fill-in boxes, a checklist and a talk
 
