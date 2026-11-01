@@ -6,7 +6,7 @@ import { REVIEW_WORDS, listWords } from "./words";
 
 /**
  * A WEEK'S REVIEW AS ITS PAGE DRAWS IT, for an admin (privacy v15), worked
- * out from what Claude last said (`courseWeekReviews`), what would be sent
+ * out from what Claude last said (the review kept with the run), what would be sent
  * now, and what the site already knows. Names come back here, from who
  * holds a place NOW: a grade, a theme's answer or a hand about somebody who
  * no longer holds one is left out, and a label nobody holds reads "a fellow".

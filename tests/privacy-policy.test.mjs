@@ -5985,6 +5985,14 @@ describe("the course hub passage", () => {
         // check-ins the week has, by their ids, and reads no answer and nobody
         // a check-in was sent to.
         ["src/lib/scheduler/jobs/surveyCheckInWeeks.ts", "the job that fixes which check-ins each whole week of a programme has, by their ids, reading no answer and no row of who a check-in was sent to"],
+        // CHANGED ON PURPOSE (v15, "Admins may ask Claude to help review
+        // coursework, survey answers and session reports"): the admins' week
+        // review sends a week's check-ins to Claude pooled by group, with no
+        // person attached, for what people found hard.
+        [
+          "src/lib/courses/weekReview/gather.ts",
+          "the admins' week review, behind its admin-only door: a week's check-in answers pooled by group with no sender, id or time (poolWeekCheckIns), for Claude's themes alone, never shown and never who said what",
+        ],
         // CHANGED ON PURPOSE (Q50 B): the cards of the surveys waiting for the
         // person, drawn on their own pages. Each card is a survey's title,
         // size and closing day and the person's own link: no answer, no name,
@@ -6423,6 +6431,18 @@ describe("the course hub passage", () => {
       [
         "src/app/api/courses/groups/[groupId]/attendance/route.ts",
         ["after a mark is kept, gives somebody marked there their own row on the session's open check-in, reading no answer; the mark is decided before it, and nothing of a check-in changes it", ["@/lib/surveys/checkIns/lateMark"]],
+      ],
+      // CHANGED ON PURPOSE (v15, admins may ask Claude to help review survey
+      // answers): the week review reads a week's check-ins pooled by group,
+      // with no person attached, for what people found hard and nothing else.
+      // Never a grade, never who might need a hand (that request is sent no
+      // check-in), never a note, a register or a place.
+      [
+        "src/lib/courses/weekReview/gather.ts",
+        [
+          "a reading of answers here: the admins' week review sends a week's check-ins to Claude pooled by group, with no person attached, for what people found hard; never a grade, a hand, a note, a register or a place, deciding nothing",
+          ["@/lib/surveys/checkIns/reviewPool"],
+        ],
       ],
     ]);
     assertExactlyTheseFiles(
@@ -8698,10 +8718,13 @@ describe("the re-consent gate", () => {
     // The weekly note is drafted from submitted work and the team's feedback.
     assert.ok(PAGE_FLAT.includes("Once a week Claude may also draft a short note on how each person is doing, using only the work they submitted and the feedback, ratings and comments people on the team gave it."));
     // "Only admins see what comes back" is the code's: Claude's best answers,
-    // and Pangram on coursework, refuse anybody but an admin on the session.
+    // Pangram on coursework, and the week review and its follow-up refuse
+    // anybody but an admin on the session.
     for (const route of [
       "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers/route.ts",
       "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/pangram/route.ts",
+      "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review/route.ts",
+      "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review/follow-up/route.ts",
     ]) {
       const code = codeOnly(read(route));
       for (const handler of code.split(/export async function (?=GET|POST)/).slice(1)) {
@@ -9952,6 +9975,65 @@ describe("v15 lets the people running a programme rate written work for each oth
     // The route's one delete is the caller's own rating.
     assert.doesNotMatch(route, /\.delete\(ref\)[\s\S]*\.delete\(ref\)/, "the ratings route deletes more than the caller's own rating");
     assert.ok(route.includes("courseWorkRatingId(runId, week.uid, week.weekId, actor.uid)"), "the route reaches a rating that is not the caller's own");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §2m‴ The week review: Claude on coursework, check-ins and session reports (v15)
+// ---------------------------------------------------------------------------
+
+describe("v15 lets admins ask Claude to review a week's coursework, check-ins and reports; the code agrees", () => {
+  const strip = (source) => source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+
+  test("v15 says it", () => {
+    v15Says([
+      "Admins may ask Claude to help review coursework, survey answers and session reports: to grade answers, pick out the strongest and weakest, and say what people found hard and who might need a hand.",
+      "The tools receive the words with a number in place of each name, and no email address. What comes back is seen by admins only,",
+      "kept with what it was about (the application, or the programme&apos;s run) and deleted with it.",
+      "those grades are never shown to you, are never a mark, and are never kept on your record.",
+      "Only NAISI&apos;s admins can see who said what, and we record each time one of them does.",
+      "Nothing you say in a survey affects your place on a programme or an application.",
+    ]);
+  });
+
+  test("\"grades ... are never kept on your record\" and \"what comes back is seen by admins only\": the review is read on the run, by admins, and its guard walks the tree", () => {
+    // tests/claude-output-readers.test.mjs walks every reader of a review, both ways.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "claude-output-readers.test.mjs")), "the guard on Claude's week reviews is gone");
+    assertExactlyTheseFiles(
+      sourceFilesNaming(/COURSE_WEEK_REVIEWS_COLLECTION|["'`]courseWeekReviews["'`]/),
+      new Map([
+        ["src/lib/firestore/courseWeekReviews.ts", "the record: its shape, its normaliser, and what an account's deletion takes out of it"],
+        ["src/lib/courses/weekReview/store.ts", "the review's page and its press, each behind the review's door, which admits an admin alone"],
+        ["src/lib/firestore/accountDeletion.ts", "an account's deletion takes the account out of every review that names it"],
+        ["src/lib/firestore/courseDeletion.ts", "the run's destroy counts the reviews and deletes them with the run, as the policy says"],
+      ]),
+      "addressing Claude's week reviews",
+      "What Claude returns is an admin's and stays with the run: read it from the review's own store, or change the policy first.",
+    );
+    assert.match(read("firestore.rules"), /match \/courseWeekReviews\/\{docId\} \{\s*allow read, write: if false;\s*\}/);
+    assert.match(strip(read("src/lib/courses/weekReview/door.ts")), /openCourseworkDoor\(db, user, roundId, programmeId, \{ adminOnly: REVIEW_WORDS\.onlyAdmins \}\)/);
+  });
+
+  test("\"only admins can see who said what\": check-ins leave survey code pooled by group, with no sender, and never reach who might need a hand", () => {
+    const pool = strip(read("src/lib/surveys/checkIns/reviewPool.ts"));
+    const shape = /export type PooledCheckIn = \{([\s\S]*?)\};/.exec(pool)?.[1] ?? "";
+    assert.ok(shape.length > 0, "the pooled check-in's shape is gone");
+    assert.doesNotMatch(shape, /uid|respondent|sentAt|\bid\b|name/, "a pooled check-in carries who sent it");
+    const input = strip(read("src/lib/courses/weekReview/input.ts"));
+    const hands = input.slice(input.indexOf("const handAnswers = new Map"), input.indexOf("const written = going.filter"));
+    assert.ok(hands.length > 200, "could not find the hands request's builder");
+    assert.doesNotMatch(hands, /checkIn|pooled/, "the hands request is built from check-ins");
+    // tests/week-review.test.mjs reads every message that would go.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "week-review.test.mjs")), "the week review's suite is gone");
+  });
+
+  test("\"only what you wrote after you first agreed to version 13 ... is ever sent\", and the stricter version 15 moment for this new use", () => {
+    const input = strip(read("src/lib/courses/weekReview/input.ts"));
+    assert.match(input, /return work\.counted && cameAfter\(work\.firstWrittenAt, momentOf\.get\(work\.uid\) \?\? null\);/);
+    assert.match(input, /return cameAfter\(at, momentOf\.get\(uid\) \?\? null\);/);
+    const gather = strip(read("src/lib/courses/weekReview/gather.ts"));
+    assert.match(gather, /reviewUseFrom\(data\)/);
+    assert.match(gather, /!fellows\.has\(uid\) \? "never" : allAfter\(sends, momentOf\.get\(uid\) \?\? null\) \? "use" : "not-yet"/);
   });
 });
 
