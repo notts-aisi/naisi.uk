@@ -692,6 +692,47 @@ const PUBLIC_HANDLERS = new Map([
         "back to the pool.",
     },
   ],
+  [
+    "src/app/api/events/[id]/audience/route.ts#POST",
+    {
+      anonymous: false,
+      gatedBy: "planFor(req, ctx)",
+      why:
+        "Counting who an event for chosen people would reach: after the view-as guard, a helper " +
+        "in the file refuses a missing session, then anybody who does not run events, before the " +
+        "body or the event is read. It writes nothing.",
+    },
+  ],
+  [
+    "src/app/api/events/[id]/audience/route.ts#PUT",
+    {
+      anonymous: false,
+      gatedBy: "planFor(req, ctx)",
+      why:
+        "The same helper on keeping who an event for chosen people is for, refusing a missing " +
+        "session before anything is read or written.",
+    },
+  ],
+  [
+    "src/app/api/events/[id]/invitations/route.ts#GET",
+    {
+      anonymous: false,
+      gatedBy: "gate(ctx)",
+      why:
+        "How many people are new to an event's tags: a helper in the file refuses a missing " +
+        "session, then anybody who does not run events, before the event is read.",
+    },
+  ],
+  [
+    "src/app/api/events/[id]/invitations/route.ts#POST",
+    {
+      anonymous: false,
+      gatedBy: "gate(ctx)",
+      why:
+        "Inviting the people new to an event's tags, which emails them: after the view-as guard, " +
+        "the same helper refuses a missing session before anybody is invited.",
+    },
+  ],
 ]);
 
 /**

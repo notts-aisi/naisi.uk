@@ -60,7 +60,14 @@ const STUBS = [
   ],
   ["@/lib/email/send", "export async function sendEmail() { globalThis.__regTouched.push('mail'); }"],
   ["@/lib/signedTokens", "export function randomOpaqueId() { return 'id'; }\nexport function signToken() { return 't'; }"],
-  ["@/lib/firestore/users", "export function isAcademicEmail() { return false; }\nexport function isNottinghamEmail() { return false; }"],
+  // The event permission checks are there because `lib/firestore/events.ts`,
+  // read below for EMAIL_MAX, reads who an event is for through
+  // src/lib/events/reach.ts, which imports them.
+  [
+    "@/lib/firestore/users",
+    "export function isAcademicEmail() { return false; }\nexport function isNottinghamEmail() { return false; }\n" +
+      "export function canDraftEvent() { return false; }\nexport function canApproveEvent() { return false; }",
+  ],
   ["@/lib/authReturn", "export function safeFunnelReturn() { return null; }"],
   // The captcha says no, so an address that gets past the shape check stops
   // at the next gate, with a different answer from one that did not.
