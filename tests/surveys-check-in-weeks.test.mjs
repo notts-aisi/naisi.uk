@@ -372,11 +372,10 @@ describe("1. the job fixes a week once, the first tick it is whole, and nothing 
   test("its reading of the run is the tab's: the same groups, sessions and weeks as readRunRecords and weeksOf", async () => {
     const tab = await lib.attendance.readRunRecords(world.courseDb, RUN.agi);
     const job = await lib.weeks.readRunWeeks(world.courseDb, RUN.agi);
-    assert.deepEqual(job.groups.map((group) => group.id).sort(), tab.groups.map((group) => group.id).sort());
+    // The same groups in the same order (the one comparator), the same weeks and so the same sessions.
+    assert.deepEqual(job.groups.map((group) => group.id), tab.groups.map((group) => group.id));
     assert.deepEqual(job.weeks, lib.attendance.weeksOf(tab));
-    // The same sessions, whichever order the groups are read in: a week waits on every one of them alike.
-    const sessions = (run, groups) => lib.weeks.sessionsOf(run, groups).map((session) => JSON.stringify(session)).sort();
-    assert.deepEqual(sessions(job.run, job.groups), sessions(tab.run, tab.groups));
+    assert.deepEqual(lib.weeks.sessionsOf(job.run, job.groups), lib.weeks.sessionsOf(tab.run, tab.groups));
     // A run being destroyed reads as no run at all.
     world.db.poke(`courseRuns/${RUN.agi}`, { destroying: true });
     try {

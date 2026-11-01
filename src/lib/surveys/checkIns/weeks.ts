@@ -3,7 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { weeksOf } from "@/lib/courses/programmeAttendance";
 import { resolveSessions, sessionInstants } from "@/lib/courses/sessions";
 import { createCheckInWeek, readCheckInWeeks } from "@/lib/firestore/checkInWeeks";
-import { normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
+import { compareGroupsByMeeting, normalizeCourseGroup, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
 import { normalizeCourseRun, type CourseRunDoc } from "@/lib/firestore/courses";
 import type { CheckInSurveyDoc } from "@/lib/firestore/surveys";
 import { checkInsOfRun, isOpen } from "../repo";
@@ -79,11 +79,12 @@ export async function frozenWeeksOf(db: Firestore, runId: string): Promise<Map<n
 export type RunWeeks = { run: CourseRunDoc; groups: CourseGroupDoc[]; weeks: number[] };
 
 /**
- * The run, its groups that still meet (not archived) and its taught weeks
- * (`weeksOf`), as the Surveys tab has them from `readRunRecords`, with only
- * the two reads the weeks need: the job asks this of every run a programme
- * names, on every tick. Null when the run is not there, or is being
- * destroyed, so no week of it is fixed behind its destroy.
+ * The run, its groups that still meet (not archived, in the one order,
+ * `compareGroupsByMeeting`) and its taught weeks (`weeksOf`), as the Surveys
+ * tab has them from `readRunRecords`, with only the two reads the weeks need:
+ * the job asks this of every run a programme names, on every tick. Null when
+ * the run is not there, or is being destroyed, so no week of it is fixed
+ * behind its destroy.
  */
 export async function readRunWeeks(db: Firestore, runId: string): Promise<RunWeeks | null> {
   if (!runId || runId.includes("/")) return null;
@@ -95,7 +96,8 @@ export async function readRunWeeks(db: Firestore, runId: string): Promise<RunWee
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
   const groups = groupSnap.docs
     .map((doc) => normalizeCourseGroup(doc.id, doc.data() ?? {}))
-    .filter((group) => !group.archived && group.runId === runId);
+    .filter((group) => !group.archived && group.runId === runId)
+    .sort(compareGroupsByMeeting);
   return { run, groups, weeks: weeksOf({ run, groups }) };
 }
 
