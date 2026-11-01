@@ -40,6 +40,7 @@ import {
   openBrowser,
   signInWithPassword,
   stubRecaptchaOnLoopback,
+  waitForRecaptchaWidget,
 } from "../../scripts/e2e/lib/browser.mjs";
 import { ARTIFACTS_DIR, RECAPTCHA_SKIP_REASON, markerPath, readState, stateDir, statePath } from "../../scripts/e2e-fixtures/core.mjs";
 import { RECAPTCHA_DEPENDENT_STEPS, SPEC } from "../../scripts/e2e-fixtures/events-authoring.mjs";
@@ -53,6 +54,21 @@ const WAIT_MS = 45_000;
 const ONLY_INVITED = "This event is only for the people invited to it.";
 
 let skipReasonFor = () => null;
+
+/**
+ * Waits for the calm page an event for chosen people shows somebody it is not
+ * for. A page that shows anything else fails with what it did show, since the
+ * step's own snapshot is of the admin's page, not this one.
+ */
+async function waitForOnlyInvited(page) {
+  await page
+    .getByRole("heading", { name: ONLY_INVITED })
+    .waitFor({ timeout: WAIT_MS })
+    .catch(async (err) => {
+      const said = (await page.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ").slice(0, 1500);
+      throw new Error(`${err.message}\nThe page at ${page.url()} said: ${said}`);
+    });
+}
 
 async function loadPlaywright() {
   try {
@@ -115,10 +131,14 @@ test(
         await page.goto(`${origin}/events/manage/new`, { waitUntil: "domcontentloaded" });
         await page.locator("#new-title").fill(state.eventTitle);
         await page.getByRole("button", { name: "Create event" }).click();
-        await page.waitForURL(/\/events\/manage\/[^/]+$/, { timeout: WAIT_MS });
+        // The new event's own editor, not the page the press was made on:
+        // `/events/manage/new` matches the shape too, and is where we start.
+        await page.waitForURL((url) => /^\/events\/manage\/[^/]+$/.test(url.pathname) && url.pathname !== "/events/manage/new", {
+          timeout: WAIT_MS,
+        });
         editorUrl = page.url();
         eventId = new URL(editorUrl).pathname.split("/").pop();
-        assert.ok(eventId, "the editor's address carries no event id");
+        assert.ok(eventId && eventId !== "new", `the editor's address carries no event id: ${editorUrl}`);
 
         // Basics: a day next month at the popover's own time, and a place.
         await page.getByRole("button", { name: /Pick a start date and time/ }).click();
@@ -171,7 +191,7 @@ test(
         const visitor = await newIdentityPage(browser);
         others.push(visitor);
         await visitor.page.goto(`${origin}/events/${eventId}`, { waitUntil: "domcontentloaded" });
-        await visitor.page.getByRole("heading", { name: ONLY_INVITED }).waitFor({ timeout: WAIT_MS });
+        await waitForOnlyInvited(visitor.page);
         assert.equal(await visitor.page.getByText(state.eventTitle).count(), 0, "the page names the event to a stranger");
         assert.doesNotMatch(await visitor.page.title(), new RegExp(state.eventTitle));
       });
@@ -194,8 +214,18 @@ test(
         await card.waitFor({ timeout: WAIT_MS });
         await card.getByRole("link", { name: "Ask for a place" }).click();
         await invitee.page.getByRole("heading", { name: state.eventTitle }).waitFor({ timeout: WAIT_MS });
+        // The sign-up is reCAPTCHA-gated: a person takes seconds to press, a
+        // spec milliseconds, so the press waits for the widget, as every gated
+        // press in this harness does.
+        await waitForRecaptchaWidget(invitee.page);
         await invitee.page.getByTestId("rsvp-submit").click();
-        await invitee.page.getByTestId("rsvp-submitted").waitFor({ timeout: WAIT_MS });
+        await invitee.page
+          .getByTestId("rsvp-submitted")
+          .waitFor({ timeout: WAIT_MS })
+          .catch(async (err) => {
+            const said = (await invitee.page.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ").slice(0, 1500);
+            throw new Error(`${err.message}\nThe page at ${invitee.page.url()} said: ${said}`);
+          });
       });
 
       await step("a member who was not invited is told it is only for the people invited", async () => {
@@ -203,7 +233,7 @@ test(
         others.push(stranger);
         await signInWithPassword(stranger.page, origin, { email: state.stranger.email, password: state.stranger.password }, { timeout: WAIT_MS });
         await stranger.page.goto(`${origin}/events/${eventId}`, { waitUntil: "domcontentloaded" });
-        await stranger.page.getByRole("heading", { name: ONLY_INVITED }).waitFor({ timeout: WAIT_MS });
+        await waitForOnlyInvited(stranger.page);
         assert.equal(await stranger.page.getByText(state.eventTitle).count(), 0);
       });
     } finally {
