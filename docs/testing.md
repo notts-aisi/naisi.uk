@@ -413,8 +413,9 @@ The same shape, older:
   page under `src/app/(app)`, as every persona (`anonymous`, `pending`,
   `rejected`, `member`, non-SU `committee`, `suCommittee`, `admin`, a
   plain member holding each `permissions` key, three who hold a role on a
-  programme, `lead`, `facilitator` and `participant`, and two who hold a role
-  on an event, `eventAuthor` and `eventCollaborator`), with ids that address nothing
+  programme, `lead`, `facilitator` and `participant`, two who hold a role
+  on an event, `eventAuthor` and `eventCollaborator`, and `invitee`, on an
+  event's list of the people invited to it), with ids that address nothing
   and empty bodies so the answer is the gate's or the first validation's, and
   each cell is held to the registry: a status per persona, a redirect target
   per persona for a page, the allowed top-level fields for a 2xx, and a reason
@@ -438,13 +439,16 @@ The same shape, older:
   cell on THEIRS is their `another` cell, because the two programmes are
   mirrors in every field a gate reads. The same world writes two events, and
   every route and page whose code asks the sign-ups rule
-  (`src/lib/events/signupAccess.ts`; found from the code, both ways, so a new
-  reader or decider of an event's requests is asked the day it lands) is asked
-  about both: THEIRS written by `eventAuthor` (a member holding draftEvent)
-  and helped by `eventCollaborator` (committee the SU does not recognise),
-  ANOTHER by accounts that are none of the personas, each with a request
-  waiting for a decision. Those columns say `world: "event"`, and their
-  `theirs` names the two event roles. A mutating route is sent an empty body,
+  (`src/lib/events/signupAccess.ts`) or who runs an event's list
+  (`src/lib/events/invitationAccess.ts`; found from the code, both ways, so a
+  new reader or decider of an event's requests or its list is asked the day it
+  lands) is asked about both: THEIRS written by `eventAuthor` (a member
+  holding draftEvent) and helped by `eventCollaborator` (committee the SU does
+  not recognise), ANOTHER by accounts that are none of the personas, each with
+  a request waiting for a decision, and each for chosen people, its list
+  naming its asker and, on THEIRS, `invitee`. Those columns say
+  `world: "event"`, and their `theirs` names the two event roles; no column
+  names the invitee, since being invited is no role on any of them. A mutating route is sent an empty body,
   so a gate that admits somebody stops at the first validation; a cell where
   nothing would stop it (a route that takes no body, or reads an empty one as
   a choice) is marked `ACTS` with what it would do, and is not sent, so no
