@@ -650,8 +650,13 @@ export function listGroups(
   });
 }
 
-/** Every week number the run's plan or a group's own calendar teaches, in order. */
-export function weeksOf(records: RunRecords): number[] {
+/**
+ * Every week number the run's plan or a group's own calendar teaches, in
+ * order. It reads the run and its groups alone, so a reader that has only
+ * those (the scheduler's job that fixes each week's check-ins) asks the same
+ * question the tabs do.
+ */
+export function weeksOf(records: Pick<RunRecords, "run" | "groups">): number[] {
   const weeks = new Set<number>();
   for (const session of resolveSessions(records.run, null)) weeks.add(session.weekNumber);
   for (const group of records.groups) {

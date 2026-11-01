@@ -29,8 +29,9 @@ import { leadSurveyRows, type LeadSurveyRow } from "./leadTab";
  *    (`groupSessions`: held, and started).
  *  - NAMELESS. What leaves is totals and the words of a week's parts: never a
  *    name, a uid, a row per person, a group or a group's own figure. A
- *    check-in's week shows only when it is whole, with its floors
- *    (`leadWeekOf`).
+ *    check-in's week shows only once its check-ins are fixed, which happens
+ *    the first time it is whole, and then only those check-ins, with their
+ *    floors (`leadWeekOf`): the Check-ins view's weeks, one count.
  *  - NOTHING THE RECORDS DO NOT HOLD YET. The share who ticked every reading,
  *    the team's ratings of written work, a summary of what reports say and
  *    anything booked to explain a week again are not drawn, and nothing
@@ -62,7 +63,7 @@ export type SurveysOverview = {
   followUp: LeadSurveyRow | null;
   /** The day of the run's last session, "Wed 9 Dec", for the End card before its survey goes out. */
   lastSession: string | null;
-  /** The check-ins' answers over the weeks that are whole and had one, and how many weeks. */
+  /** The check-ins' answers over the weeks that have shown and had one, and how many weeks. */
   checkIns: { answers: number; weeks: number };
   /** The sessions held so far with a report on them, and how many sessions were held; null while no run is named. */
   reported: { sessions: number; of: number } | null;
@@ -148,7 +149,7 @@ export async function leadSurveysOverview(
     countRunReportsByWeek(db, records.run.id),
   ]);
 
-  // The check-ins' card: every whole week that had one.
+  // The check-ins' card: every week that has shown and had one.
   const counted = checkIns.weeks.filter(
     (week): week is Extract<LeadCheckInWeek, { state: "shown" | "too-few" }> => week.state === "shown" || week.state === "too-few",
   );

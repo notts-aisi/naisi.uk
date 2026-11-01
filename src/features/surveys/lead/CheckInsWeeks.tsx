@@ -21,16 +21,18 @@ import styles from "./analysis.module.css";
  * (`readProgrammeCheckIns`).
  *
  * What a week says follows its floors, decided on the server
- * (`leadWeekOf`): nothing until every group's check-in that week has closed;
- * below three answers how many answered and why nothing more shows; from
- * three the averages, the share who did most or all of the reading and what
- * was unclear; from five what people wrote, in the order of their words.
- * Never a group's own figure and never a name.
+ * (`leadWeekOf`): nothing until every group's check-in that week has closed
+ * and the week's check-ins are fixed; below three answers how many answered
+ * and why nothing more shows; from three the averages, the share who did most
+ * or all of the reading and what was unclear; from five what people wrote, in
+ * the order of their words. Never a group's own figure and never a name.
  *
  * An admin also has each group's check-in under its week (`rows`, which the
  * server makes only for an admin): how many answered it, and the way to its
  * Results and Who answered on the admins' own pages, where one person's
- * answers open only once the opening is recorded.
+ * answers open only once the opening is recorded. A check-in opened after its
+ * week's check-ins were fixed says, on its row alone, that the week above
+ * does not count it; the lead is never told.
  */
 
 /** Comments shown before "See all". */
@@ -141,6 +143,7 @@ function GroupRows({ weekNumber, rows }: { weekNumber: number; rows: AdminCheckI
               <span className={styles.groupText}>
                 {`${groupCheckInWords(row.groupName, row.startsAt)} · ${answeredOfWords(row.answered, row.of)} · `}
                 <span className={styles.groupState}>{row.open ? WORDS.open : WORDS.closed}</span>
+                {row.openedAfterWeek && <span className={styles.groupNote}>{` ${WORDS.openedAfterWeek}`}</span>}
               </span>
               <span className={styles.groupLinks}>
                 <Link href={`${survey}/results`} className={styles.adminLink} aria-label={checkInLinkLabel(WORDS.results, row.groupName, weekNumber)}>

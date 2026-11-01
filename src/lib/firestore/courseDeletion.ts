@@ -36,6 +36,7 @@ import { COURSE_FEEDBACK_COLLECTION, COURSE_FEEDBACK_SENDS_COLLECTION } from "./
 import { COURSE_WORK_RATINGS_COLLECTION } from "./courseWorkRatings";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import { RECORD_OPENINGS_COLLECTION } from "./recordOpenings";
+import { CHECK_IN_WEEKS_COLLECTION } from "./checkInWeeks";
 import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
 import { COURSE_UPDATES_COLLECTION } from "./courseUpdates";
 import {
@@ -449,6 +450,16 @@ export type RunDestroyCounts = {
    * account takes none of them.
    */
   recordOpenings: number;
+  /**
+   * `checkInWeeks` rows: which check-ins each week of this run showed the
+   * programme's lead, fixed the first time the week was whole
+   * (`src/lib/firestore/checkInWeeks.ts`). Keyed by `runId` on the row like
+   * every other leaf here, and it dies with the run: nothing can read a week
+   * of a run that is gone. Survey ids and a week number, nothing anybody
+   * wrote and nothing about a person; the check-ins themselves are surveys,
+   * which a destroy leaves alone (docs/surveys.md, "Deletion").
+   */
+  checkInWeeks: number;
   /**
    * `schedulerMarkers` rows this run owns: the send-dedupe markers the
    * scheduler tick writes before it sends anything.
@@ -1226,6 +1237,7 @@ export async function countRunDestroyTargets(
     anonymousFeedbackCounts,
     predictions,
     recordOpenings,
+    checkInWeeks,
     schedulerMarkerCounts,
     emailSendCounts,
     exportCounts,
@@ -1328,6 +1340,8 @@ export async function countRunDestroyTargets(
     countAgg(db.collection(COURSE_PREDICTIONS_COLLECTION).where("runId", "==", runId)),
     // The same single equality the openings stage drains on.
     countAgg(db.collection(RECORD_OPENINGS_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the check-in weeks stage drains on.
+    countAgg(db.collection(CHECK_IN_WEEKS_COLLECTION).where("runId", "==", runId)),
     Promise.all(markerCountPromises),
     Promise.all(emailCountPromises),
     Promise.all(exportCountPromises),
@@ -1372,6 +1386,7 @@ export async function countRunDestroyTargets(
     anonymousFeedback: anonymousFeedbackCounts.reduce((a, b) => a + b, 0),
     predictions,
     recordOpenings,
+    checkInWeeks,
     schedulerMarkers: schedulerMarkerCounts.reduce((a, b) => a + b, 0),
     emailSendRows: emailSendCounts.reduce((a, b) => a + b, 0),
     dataExportRows: exportCounts.reduce((a, b) => a + b, 0),
@@ -2062,6 +2077,15 @@ export async function destroyRunCascade(
       // marker, so no row is added behind the cascade.
       drain: () =>
         drainQuery(db, RECORD_OPENINGS_COLLECTION, byRunId(RECORD_OPENINGS_COLLECTION), budget),
+    },
+    {
+      key: "checkInWeeks",
+      // Which check-ins each week showed the programme's lead: a leaf keyed by
+      // `runId` that names no group or week document, drained with the other
+      // leaves. `write: if false` to every client, and its one writer, the
+      // scheduler's job, reads the run first and leaves alone one being
+      // destroyed, so nothing recreates one behind the cascade.
+      drain: () => drainQuery(db, CHECK_IN_WEEKS_COLLECTION, byRunId(CHECK_IN_WEEKS_COLLECTION), budget),
     },
     {
       key: "groups",

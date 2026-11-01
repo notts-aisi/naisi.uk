@@ -15,12 +15,12 @@ export const dynamic = "force-dynamic";
  * A PROGRAMME'S SURVEYS TAB, its Check-ins view, for its lead and admins: each
  * week of the check-ins at the end of its groups' sessions, every group's
  * answers together and never a group's alone, once every group's check-in
- * that week has closed; totals from three answers and comments from five, in
- * the order of their words (`readProgrammeCheckIns`, its floors decided on the
- * server). An admin also has a row for each group's check-in, with the way to
- * its Results and Who answered on the admins' own pages, where one person's
- * answers open only once the opening is recorded; the lead never has those
- * rows.
+ * that week has closed and the scheduler has fixed the week's check-ins;
+ * totals from three answers and comments from five, in the order of their
+ * words (`readProgrammeCheckIns`, its floors decided on the server). An admin
+ * also has a row for each group's check-in, with the way to its Results and
+ * Who answered on the admins' own pages, where one person's answers open only
+ * once the opening is recorded; the lead never has those rows.
  *
  * FOR AN ADMIN AND THE PROGRAMME'S LEAD (`loadProgrammeRun`), decided from the
  * form before any check-in is read; a reviewer is told the tab is the lead's
