@@ -172,6 +172,17 @@ The same shape, older:
   both directions: a renderer imports the helper and reads none of the fields
   raw, a relay may pass them along but may not branch on `locationHidden`,
   a template takes a finished line, and exactly one file branches.
+- `tests/event-visibility-readers.test.mjs`: who an event is for is read in
+  one place, `src/lib/events/reach.ts`. The helper is executed (missing reads
+  as "members", any value that is none of the three as "chosen", so an event
+  nobody can tell the audience of is listed and announced nowhere), every
+  `.ts` and `.tsx` under `src` is read for a comparison of a `visibility`
+  outside it (a task's and a worksheet question's are registered with what
+  they are, and held to comparing none of an event's values), every file
+  that imports the helper is registered with what it asks, both directions,
+  and the rules' read branch is held to the same two decisions.
+  `tests/event-chosen-people.test.mjs` runs the routes and pages of an event
+  for chosen people as every kind of caller against a real term.
 - `tests/event-check-ins.test.mjs`, its last block: every write of a
   check-in says which way the person came in. It walks every call of
   `recordCheckIn` under `src` and holds each one's `how` to a registered

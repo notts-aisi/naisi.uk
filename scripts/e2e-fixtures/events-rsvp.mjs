@@ -113,9 +113,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * that leans on a normaliser stops testing the shape the editor really stores.
  *
  * `status: "published"` plus `visibility: "public"` is what makes this
- * reachable signed out: `getPublishedEvent()` refuses anything that is not
- * published or cancelled, and `RsvpForm` puts a sign-in gate in front of a
- * members-only event. `capacity` is a real number with `waitlistEnabled` on so
+ * reachable signed out: `getEventForViewer()` refuses anything that is not
+ * published or cancelled, and `RsvpForm` puts a sign-in gate in front of an
+ * event that needs an account. `capacity` is a real number with `waitlistEnabled` on so
  * the capacity fact and its waitlist note render; the counts start at zero so
  * the spec can assert the one the route moves.
  */
@@ -407,7 +407,7 @@ export const SPEC = {
    *
    * `/api/events/[id]/rsvp` is the only route the browser calls: the event
    * page and the confirmation page are both server components that read
-   * Firestore through `getPublishedEvent()` rather than fetching, and the one
+   * Firestore through `getEventForViewer()` rather than fetching, and the one
    * client subscription on the page (the maintenance notice) is a Firestore
    * listener, not an HTTP route.
    */

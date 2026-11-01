@@ -1445,6 +1445,7 @@ export const REGISTRY = [
   },
   {
     id: "event-editor-doc",
+    sharesKeyWith: "event-editor-doc-chosen",
     file: "src/features/events/EventEditor.tsx",
     path: "events/{eventId}",
     clauses: [],
@@ -1468,6 +1469,41 @@ export const REGISTRY = [
         authorUid: OTHER,
         collaboratorUids: [],
         visibility: "members",
+      });
+    },
+    run: (db) => db.doc(`events/${EVENT_ID}`).get(),
+  },
+  {
+    // THE NEGATIVE CASE for an event for chosen people. A published event is
+    // readable by any signed-in account only while it is listed: one for
+    // chosen people is the events team's, and the people invited to it read
+    // it on the server, which decides who may open it. So a plain member is
+    // refused this read even though the event is live, whoever they are.
+    id: "event-editor-doc-chosen",
+    sharesKeyWith: "event-editor-doc",
+    file: "src/features/events/EventEditor.tsx",
+    path: "events/{eventId}",
+    clauses: [],
+    docShape:
+      "A PUBLISHED event for chosen people by another author: the case the read branch for any signed-in account leaves out.",
+    reason:
+      "The same read as the editor's, of a live event for chosen people: the events team only. A member, invited or not, is refused it, so no member-facing page can list or open one from the browser.",
+    outcomes: {
+      "signed-out": "refused",
+      pending: "refused",
+      member: "refused",
+      committee: "allowed",
+      "su-committee": "allowed",
+      admin: "allowed",
+      ...EVENT_STAFF,
+    },
+    seed: async (db) => {
+      await db.doc(`events/${EVENT_ID}`).set({
+        title: "Guard event",
+        status: "published",
+        authorUid: OTHER,
+        collaboratorUids: [],
+        visibility: "chosen",
       });
     },
     run: (db) => db.doc(`events/${EVENT_ID}`).get(),

@@ -362,15 +362,16 @@ test("events RSVP: a signed-out guest books a place and the page fits a phone", 
       await page.getByText(state.location, { exact: false }).first().waitFor({ timeout: WAIT_MS });
 
       // The form itself, and the custom question inside it. A public event
-      // must render the form to a signed-out visitor: the members-only branch
-      // would put a sign-in gate here instead, and that is the difference
-      // between a guest RSVP working and nobody being able to book at all.
+      // must render the form to a signed-out visitor: an event that needs an
+      // account puts a sign-in gate here instead, headed "Account needed",
+      // and that is the difference between a guest RSVP working and nobody
+      // being able to book at all.
       const form = page.getByTestId("rsvp-form");
       await form.waitFor({ timeout: WAIT_MS });
       await page.getByText(state.questionLabel, { exact: false }).first().waitFor({ timeout: WAIT_MS });
       await page.locator(`#${state.questionId}-input`).waitFor({ timeout: WAIT_MS });
       assert.equal(
-        await page.getByRole("heading", { name: "Members-only event" }).count(),
+        await page.getByRole("heading", { name: "Account needed" }).count(),
         0,
         "the public event page put the members-only sign-in gate in front of a signed-out " +
           "visitor, so nobody without an account could book a place",

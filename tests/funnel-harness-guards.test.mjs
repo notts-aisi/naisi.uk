@@ -483,6 +483,9 @@ test("the funnel fixture declares every collection its teardown must drain", () 
     // The RSVP smoke: a fixture event and the attendee rows a guest creates.
     "events",
     "eventRsvps",
+    // Events authoring: who an event for chosen people is for, and its list.
+    "eventAudiences",
+    "eventInvitations",
     // The membership console: the year, the rows under it, and the pointer at
     // config/membership that says which year is current.
     "membershipPeriods",
