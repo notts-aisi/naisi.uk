@@ -544,6 +544,17 @@ describe("5b. the layout: the follow-ups, an earlier programme on a form still t
     );
   });
 
+  test("a survey about leaving that has reached nobody says so, in place of 0 of 0", () => {
+    const leaving = counted("s-left", {
+      ...programmeSurvey("leaving", ROUND),
+      audience: { kind: "leaving", roundId: ROUND, programmeId: AGI },
+      closesAt: null,
+      presses: [],
+    });
+    const cards = model.programmeCards({ forms: [], termRoundId: null, lastDays: new Map(), surveys: [leaving], checkIns: [], now: NOW });
+    assert.equal(cards[0].rows[0].line, "When someone leaves · Nobody has left yet · No closing date");
+  });
+
   test("a survey of a kind no stage draws is still a row, by its own name", () => {
     const cards = model.programmeCards({
       forms: [],
@@ -587,6 +598,7 @@ describe("6. nothing about a person, every way in at least 44px, and the words",
     assert.match(block(hub, ".row"), /min-height: 3\.25rem;/);
     const reports = readFileSync(join(REPO_ROOT, "src", "features", "reports", "reports.module.css"), "utf8");
     assert.match(block(reports, ".card"), /position: relative;[\s\S]*min-height: 2\.75rem;/);
+    assert.match(block(reports, ".link"), /min-height: 2\.75rem;/, "a report's name is drawn under 44px");
     assert.match(reports, /\.link::after \{\s*content: "";\s*position: absolute;\s*inset: 0;/, "a report's link no longer covers its card");
   });
 

@@ -149,10 +149,12 @@ function surveyRow(counted: CountedSurvey, now: Date, name: string, due = ""): H
   const first = leaving ? HUB_WORDS.whenSomeoneLeaves : survey.firstSentAt ? sentOnWords(survey.firstSentAt) : "";
   // Remind is the Send tab's, for a survey that is sent: never one about leaving.
   const reminds = state === "open" && !leaving && remind > 0;
+  // A survey about leaving that has reached nobody says so, not "0 of 0 answered".
+  const answers = leaving && sent === 0 ? HUB_WORDS.nobodyLeft : answeredLineWords(answered, sent);
   return {
     key: survey.id,
     name,
-    line: rowLineWords([first, answeredLineWords(answered, sent), closes]),
+    line: rowLineWords([first, answers, closes]),
     chip: STATE_CHIP[state],
     remind: reminds
       ? { href: `/admin/surveys/${encodeURIComponent(survey.id)}/send`, label: LIST_WORDS.remind, aria: HUB_LABELS.remind(survey.name), note: notAnsweredWords(remind) }

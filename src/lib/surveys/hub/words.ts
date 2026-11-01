@@ -28,6 +28,8 @@ export const HUB_WORDS = {
   notOpen: "Not open yet",
   /** The survey about leaving reaches each person as they leave. */
   whenSomeoneLeaves: "When someone leaves",
+  /** An open survey about leaving that has reached nobody yet, in place of "0 of 0 answered". */
+  nobodyLeft: "Nobody has left yet",
   /** A programme of the term with no check-in yet. */
   noneYet: "None yet",
   /** The check-ins' row opens its list in place. */
