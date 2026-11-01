@@ -362,6 +362,8 @@ describe("6. a person's page", () => {
     // The week's Feedback: feedback given before pieces existed is a signed card, already emailed, its comment
     // shown; with no comment it reads as its levels, one plain line each.
     assert.match(drawn.text, /Feedback RM Feedback from Rahul Farah’s facilitator · Mon 16 Nov Clear and short\. Emailed to Farah on Mon 16 Nov/);
+    // The lead may write a piece on the week as a whole, once its readers may read it.
+    assert.match(drawn.text, /Feedback on the week For the week as a whole, not one answer\. It’s signed with your name and shows on their week page as soon as you save it\. Comment/);
     w.world.db.poke(`courseExerciseResponses/${RUN.agi}__farah__w03__k3-wa`, { "feedback.comment": "" });
     assert.match((await person("claudia", "farah")).text, /Feedback from Rahul Farah’s facilitator · Mon 16 Nov Argument: Strong Emailed to Farah on Mon 16 Nov/);
     assert.match(drawn.html, new RegExp(`href="${PROGRAMME_PATH}/written\\?group=${B}&amp;week=3&amp;person=farah"`));

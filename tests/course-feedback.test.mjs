@@ -22,6 +22,8 @@
  *     never in a batch.
  *  5. The pages: the person's week page, the old feedback page, the review
  *     page, Feedback to write and the Overview's Feedback to send.
+ *  6. Deleting an account: the feedback on its work and the feedback it
+ *     wrote go; its presses stay, without its name.
  *
  * Every word in the weeks is made up; every address is on example.com.
  */
