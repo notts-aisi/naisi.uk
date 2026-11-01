@@ -1836,7 +1836,8 @@ minutes: the check-in" (`src/features/courses/register/CheckInCard.tsx`, the
 survey at the end of a session, `docs/surveys.md`, "Check-ins at the end of a
 session"). Its own route, `GET /api/courses/groups/[groupId]/check-in`, behind
 the register's own gate, so the programme's lead, who reads the register,
-is shown nothing of it.
+is shown nothing of it there: the lead reads check-ins a whole week at a time,
+every group's together, on the programme's Surveys tab.
 
 - On the session's day, from its start until it would close: "Open it for the
   6 here", counted from the grid as it is tapped (marked present, late or left

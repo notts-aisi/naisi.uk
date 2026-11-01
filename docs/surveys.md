@@ -1395,8 +1395,9 @@ base; no threshold (Zach, 26 Oct 2026). The code: `src/lib/surveys/term/`
 
 Downloading or deleting one person's answers from their page; "Can be quoted"
 beside a ticked comment on Results (sv-results) and on the lead's tab; the
-lead's Surveys tab's per-week usefulness and per-facilitator scores, which no
-survey asks; and an option's own words ("Something else: ..."). The model is built so none
+lead's Surveys tab's per-facilitator scores, which no survey asks (its
+usefulness week by week comes from the check-ins); and an option's own words
+("Something else: ..."). The model is built so none
 of them needs a rewrite: another `audience.kind`, another `respondent.kind`,
 the same records.
 
