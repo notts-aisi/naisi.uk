@@ -194,7 +194,7 @@ function Grades({ view, base, read, press }: { view: WeekReviewView; base: strin
     return (
       <>
         <PartLine part={grades} press={press} which="grades" />
-        {grades.state === "none" && <p className={styles.line}>{REVIEW_WORDS.gradesNotAsked}</p>}
+        {grades.state === "none" && <p className={styles.line}>{REVIEW_WORDS.notAsked}</p>}
         <p className={styles.line}>{REVIEW_WORDS.gradesLine}</p>
       </>
     );
@@ -265,7 +265,7 @@ function Themes({ view, press }: { view: WeekReviewView; press: Press }) {
     return (
       <>
         <PartLine part={themes} press={press} which="themes" />
-        {themes.state === "none" && <p className={styles.line}>{REVIEW_WORDS.gradesNotAsked}</p>}
+        {themes.state === "none" && <p className={styles.line}>{REVIEW_WORDS.notAsked}</p>}
       </>
     );
   }

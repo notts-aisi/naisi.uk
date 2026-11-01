@@ -69,7 +69,7 @@ export const REVIEW_WORDS = {
   gradesTitle: "Draft grades",
   gradesTag: "Claude, on the team’s 1 to 10 scale",
   gradesNone: "No written answer this week can be graded yet.",
-  gradesNotAsked: "Not asked for yet.",
+  notAsked: "Not asked for yet.",
   gradesLine:
     "Grades help you choose what to read first. They’re never shown to the person, a lead or a facilitator, never become feedback, and never go into anyone’s notes or profile.",
   gradeBar: (grade: number, count: number) => `${plural(count, "1 answer", "{n} answers")} graded ${grade}`,
