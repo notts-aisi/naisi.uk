@@ -91,8 +91,12 @@ export async function staffNamesFor(
   return out;
 }
 
-/** A run that is still going: what "their programme" means on a staff screen. */
-const LIVE_RUN = (run: { status: string; archived: boolean }) =>
+/**
+ * A run that is still going: what "their programme" means on a staff screen,
+ * and on the card under a request for a place at an event
+ * (`src/lib/events/requestCard.ts`).
+ */
+export const LIVE_RUN = (run: { status: string; archived: boolean }) =>
   !run.archived && run.status !== "completed" && run.status !== "cancelled" && run.status !== "draft";
 
 /**

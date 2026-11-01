@@ -46,6 +46,7 @@ import {
   publicLocationLine,
   publicLocationText,
 } from "@/lib/events/location";
+import { signupsButtonWords } from "@/lib/events/requestWords";
 import { canApproveEvent, canDraftEvent } from "@/lib/firestore/users";
 import BlockEditor from "@/components/blocks/BlockEditor";
 import ImageUpload from "@/components/blocks/ImageUpload";
@@ -621,9 +622,12 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
     !!user && !!event && (event.collaboratorUids ?? []).includes(user.uid);
   // The "Who can edit this" picker is managed by the author or an admin.
   const canManageCollaborators = isAuthor || role === "admin";
-  // Attendee PII is for SU-recognised committee and admins only.
-  const canSeeAttendees =
-    role === "admin" || (role === "committee" && suRecognised);
+  // The Sign-ups page is for the people who see an event's requests: admins
+  // and SU-recognised committee, and the event's own author and
+  // collaborators. This only draws the way there; the page asks the rule
+  // itself (src/lib/events/signupAccess.ts), with the account's standing.
+  const canSeeSignups =
+    role === "admin" || (role === "committee" && suRecognised) || isAuthor || isCollaborator;
   const status = event?.status ?? "draft";
   // Null on every event the queue has never touched, which is all of them
   // wherever the `event-announcements` job is switched off.
@@ -1227,14 +1231,13 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
                 Preview
               </Button>
             </Link>
-            {canSeeAttendees && (
+            {canSeeSignups && (
               <Link
                 href={`/events/manage/${event.id}/attendees`}
                 className={styles.buttonLink}
               >
                 <Button variant="secondary" tabIndex={-1}>
-                  Attendees
-                  {pendingSignups > 0 && ` · ${pendingSignups} waiting`}
+                  {signupsButtonWords(pendingSignups)}
                 </Button>
               </Link>
             )}
@@ -1245,8 +1248,9 @@ export default function EventEditor({ eventId, announcementsQueued = false }: Pr
       <EventTabs
         eventId={event.id}
         current="details"
-        showSignups={canSeeAttendees}
+        showSignups={canSeeSignups}
         signups={event.rsvpCountConfirmed ?? undefined}
+        waiting={pendingSignups}
         showCheckIn={status === "published"}
       />
 

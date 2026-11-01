@@ -126,6 +126,16 @@ export function stampWords(date: Date): string {
   return `${dayWords(date)} at ${clockWords(date)}`;
 }
 
+/** "Thu 19 Nov, 7pm": a day and a time in London, as one fact. */
+export function dayTimeWords(date: Date): string {
+  return `${dayWords(date)}, ${clockWords(date)}`;
+}
+
+/** "Asked Mon 16 Nov, 9:40am": when somebody asked for a place. */
+export function askedWords(date: Date): string {
+  return `Asked ${dayTimeWords(date)}`;
+}
+
 /**
  * Whether an event is over: its end has passed, or, with no end time, the
  * London day it started on has. An event with no date is never over.

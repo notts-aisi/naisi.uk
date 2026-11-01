@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
-import { canApproveEvent, canDraftEvent } from "@/lib/firestore/users";
+import { decidesSignups } from "@/lib/events/signupAccess";
 import { sendRsvpEmail } from "@/lib/events/sendRsvpEmail";
 import { asSignupSnapshot } from "@/lib/firestore/events";
 import type { EventChange } from "@/lib/events/changeSummary";
@@ -17,7 +16,8 @@ import { scheduleChangeSinceSignup } from "@/lib/events/signupSchedule";
  *   pending → waitlisted (if capacity hit and waitlist is enabled)
  *   pending → error (if capacity hit and no waitlist)
  *
- * Gated to: event author (draftEvent), approvers, admins.
+ * Gated to: admins, approvers, the event's author while they hold draftEvent,
+ * and its collaborators (`decidesSignups`).
  */
 export async function POST(
   _req: Request,
@@ -47,11 +47,9 @@ export async function POST(
         throw new ApproveError("This RSVP doesn't belong to that event.", 400);
       }
 
-      const isApprover =
-        canApproveEvent(viewer) ||
-        (canDraftEvent(viewer) &&
-          isNamedWithStanding(viewer, "events.authorUid", event.authorUid));
-      if (!isApprover) throw new ApproveError("You can't approve this RSVP.", 403);
+      // The one rule for who decides (src/lib/events/signupAccess.ts), asked
+      // of the event as this transaction read it.
+      if (!decidesSignups(viewer, event)) throw new ApproveError("You can't approve this RSVP.", 403);
 
       if (rsvp.status !== "pending") {
         throw new ApproveError(`Only pending RSVPs can be approved (was "${rsvp.status}").`, 400);
