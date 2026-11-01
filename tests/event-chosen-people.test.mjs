@@ -35,6 +35,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { render } from "@react-email/render";
 import { makeWorld } from "./lib/handoverWorld.mjs";
 import { session, userDoc } from "./lib/applicationsSmallTerm.mjs";
 import { TOLD } from "./lib/surveyWorld.mjs";
@@ -312,6 +313,23 @@ describe("publishing an event for chosen people", () => {
     assert.equal(mail.some((each) => each.to === "iris@example.com"), false, "its author is never emailed");
     assert.equal(mail.some((each) => each.kind === "event-announcement"), false);
     assert.equal(w.world.pushes.length, 0, "no notification on anybody's phone");
+
+    // What each copy says, rendered: the notice carries the marker and no way
+    // to switch it off; the copy by settings carries the events channel's link.
+    const notice = await render(notices[0].react);
+    assert.match(notice, /Sent as an important notice/);
+    assert.match(notice, /you are on the programme this event is part of/);
+    assert.match(notice, /You’re invited to Pitching dinner, part of AGI Strategy\./);
+    assert.match(notice, /Ask for a place/);
+    assert.doesNotMatch(notice, /unsubscribe/i);
+    const bySettings = await render(grid[0].react);
+    assert.doesNotMatch(bySettings, /Sent as an important notice/);
+    assert.match(bySettings, /you said yes to event announcements/);
+    assert.match(bySettings, /\/api\/unsubscribe\?t=/);
+    for (const html of [notice, bySettings]) {
+      assert.match(html, /Cobden Room/, "the public place");
+      assert.doesNotMatch(html, /[\u2013\u2014]/, "no dash");
+    }
   });
 
   test("publishing twice invites nobody twice", async (t) => {
