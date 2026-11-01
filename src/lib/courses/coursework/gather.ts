@@ -3,7 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { resolveWeekDocs, type ResolvedWeekEntry } from "@/lib/courses/groupResolve";
 import { isBlockWeek } from "@/lib/courses/weekBlocks/model";
 import { weekFillInBoxes, weekReflectionPrompts, weekWrittenAnswers } from "@/lib/courses/weekBlocks/reader";
-import { readWrittenAnswer } from "@/lib/courses/writtenAnswers/model";
+import { instantOf, readWrittenAnswer } from "@/lib/courses/writtenAnswers/model";
 import { isFillInResponse, isOwnBoxResponse, isReflectionResponse } from "@/lib/firestore/courseExercises";
 import { normalizeCourseGroup } from "@/lib/firestore/courseGroups";
 import { courseworkCountsFrom, rowCountsFrom } from "@/lib/legal/courseworkUse";
@@ -225,6 +225,7 @@ export async function loadAnswers(
         text,
         counted: rowCountsFrom(row.data, fromOf.get(row.uid) ?? null),
         agreed: (fromOf.get(row.uid) ?? null) !== null,
+        firstWrittenAt: instantOf(row.data.firstWrittenAt),
         levels: written?.feedback ? written.feedback.levels.map((level) => ({ row: level.row, level: level.level })) : [],
       };
     })

@@ -4,6 +4,8 @@ import { isInTerm } from "@/lib/applications/decisions";
 import { placeHoldersOn, type PlaceHolder } from "@/lib/applications/handover/holders";
 import { loadProgrammeRun } from "@/lib/applications/handover/programmeRun";
 import { loadForm } from "@/lib/applications/repo";
+import { readRunLead } from "@/lib/courses/programmeLead";
+import { normalizeCourseRun } from "@/lib/firestore/courses";
 import { listDecisions, listSentApplications } from "@/lib/applications/staffRepo";
 import type { SessionUser } from "@/lib/firebase/session";
 import { loadAccountNames, loadRunPeople, loadRunWeeks, type RunPeople } from "./gather";
@@ -70,14 +72,45 @@ export async function openCourseworkDoor(
   return { ok: true, viewer: view.viewer, runId, programmeName: view.programmeName, holders, people, weeks };
 }
 
+/** What the name of somebody running the programme becomes in words that leave the site. */
+export const RUNNING_LABEL = "someone running the programme";
+
 /**
- * Everybody on the run whose name could be typed into somebody's words, each
- * name with the words it becomes unless they are numbered: the people holding
- * a place ("a fellow") and the facilitators ("a facilitator"), every name
- * they go by.
+ * The people running the programme beyond its groups, whose names may be
+ * typed into anybody's words ("as Claudia said in the session"): the
+ * programme's lead, the run's helpers (its track leads) and every admin. The
+ * run's explainers join them here once a run can have any. Ids only.
+ */
+export async function runStaffUids(db: Firestore, runId: string): Promise<string[]> {
+  const [lead, runSnap, admins] = await Promise.all([
+    readRunLead(db, runId),
+    db.collection("courseRuns").doc(runId).get(),
+    // One equality on one field; ids only, as the register's tasks read them.
+    db.collection("users").where("role", "==", "admin").select().get(),
+  ]);
+  const helpers = runSnap.exists ? normalizeCourseRun(runSnap.id, runSnap.data() ?? {}).trackLeadUids : [];
+  return [...new Set([...(lead ? [lead.uid] : []), ...helpers, ...admins.docs.map((doc) => doc.id)])].filter(Boolean);
+}
+
+/**
+ * Everybody whose name could be typed into somebody's words, each name with
+ * the words it becomes unless they are numbered: the people holding a place
+ * ("a fellow"), and anybody else with a seat on the run, such as somebody
+ * who joined it after decision day ("a fellow" too); the facilitators ("a
+ * facilitator"); and the people running the programme ("someone running the
+ * programme": its lead, the run's helpers and every admin), every name they
+ * go by.
  */
 export async function runPeopleToScrub(db: Firestore, door: CourseworkDoor): Promise<RunPerson[]> {
-  const uids = [...door.holders.map((holder) => holder.uid), ...door.people.facilitators];
+  const [staff, seats] = await Promise.all([
+    runStaffUids(db, door.runId),
+    // Every seat on the run, whatever its state: one equality on the run.
+    db.collection("courseEnrolments").where("runId", "==", door.runId).get(),
+  ]);
+  const seated = seats.docs
+    .map((doc) => (doc.data() ?? {}).uid)
+    .filter((uid): uid is string => typeof uid === "string" && uid.length > 0);
+  const uids = [...door.holders.map((holder) => holder.uid), ...door.people.facilitators, ...staff, ...seated];
   const names = await loadAccountNames(db, uids);
   const out: RunPerson[] = [];
   for (const holder of door.holders) {
@@ -89,6 +122,15 @@ export async function runPeopleToScrub(db: Firestore, door: CourseworkDoor): Pro
   for (const uid of door.people.facilitators) {
     if (door.holders.some((holder) => holder.uid === uid)) continue;
     for (const name of names.get(uid) ?? []) out.push({ uid, name, label: "a facilitator" });
+  }
+  const listed = (uid: string) => door.people.facilitators.has(uid) || door.holders.some((holder) => holder.uid === uid);
+  for (const uid of new Set(seated)) {
+    if (listed(uid)) continue;
+    for (const name of names.get(uid) ?? []) out.push({ uid, name, label: "a fellow" });
+  }
+  for (const uid of staff) {
+    if (listed(uid) || seated.includes(uid)) continue;
+    for (const name of names.get(uid) ?? []) out.push({ uid, name, label: RUNNING_LABEL });
   }
   return out;
 }

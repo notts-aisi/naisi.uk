@@ -65,6 +65,11 @@ export type CourseworkAnswer = {
   counted: boolean;
   /** Whether its writer has agreed to privacy v13 at all. */
   agreed: boolean;
+  /**
+   * When the row was first written, for a later moment than version 13's:
+   * the week review sends work only from its writer's version 15 moment.
+   */
+  firstWrittenAt?: Date | null;
   /** A written answer's feedback, as levels only. */
   levels: Array<{ row: string; level: string }>;
 };

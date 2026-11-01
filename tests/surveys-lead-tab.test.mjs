@@ -1274,6 +1274,10 @@ describe("4c. the Check-ins view: whole weeks, its floors, never a group's own f
       "lib/surveys/checkIns/weeks.ts":
         "the scheduler's job that fixes each week's check-ins the first time it is whole, by their ids and whether any is open; reads no answer",
       "lib/surveys/onePerson.ts": "the admins' page of one person's answers, read once the opening is recorded",
+      // The admins' week review (privacy v15): Claude may be sent survey
+      // answers, and check-ins go pooled by group for what people found hard.
+      "lib/surveys/checkIns/reviewPool.ts":
+        "the admins' week review, behind its admin-only door: a week's answers pooled by group with no sender, id or time, each held to its sender's version 15 moment, for Claude's themes alone",
       "lib/surveys/hub/load.ts":
         "the admins' Surveys page by programme, behind the admin-only layout and canRunSurveys: a line a programme with the weeks they were at; reads no answer",
     };

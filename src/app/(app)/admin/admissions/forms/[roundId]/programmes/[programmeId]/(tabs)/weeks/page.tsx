@@ -17,6 +17,8 @@ import { requireAdmissionsPage } from "@/lib/firebase/pageGates";
  * the form before the run is read, as the programme's other run tabs are. A
  * reviewer is told the tab is the lead's and an admin's; anybody with no
  * role on the programme is shown there is no programme here (the layout's).
+ * A week whose first session has started offers its review to an admin, and
+ * says "admins only" to the lead.
  */
 export default async function ProgrammeWeeksPage({
   params,
@@ -32,5 +34,5 @@ export default async function ProgrammeWeeksPage({
   if (!view.run) return <RunBlank view={view} />;
   const tab = await loadWeeksTab(db, view.run.id, view.programmeName, user);
   if (!tab) return <RunBlank view={{ ...view, blank: "run-gone" }} />;
-  return <WeeksList tab={tab} roundId={view.roundId} programmeId={view.programmeId} />;
+  return <WeeksList tab={tab} roundId={view.roundId} programmeId={view.programmeId} review={{ viewer: view.viewer, now: new Date() }} />;
 }

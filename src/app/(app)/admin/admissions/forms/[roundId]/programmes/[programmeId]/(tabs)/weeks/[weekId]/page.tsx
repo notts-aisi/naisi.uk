@@ -58,7 +58,13 @@ export default async function ProgrammeWeekPage({
 
   return (
     <div className={styles.stack}>
-      <WeeksList tab={tab} roundId={view.roundId} programmeId={view.programmeId} current={week.weekId} />
+      <WeeksList
+        tab={tab}
+        roundId={view.roundId}
+        programmeId={view.programmeId}
+        current={week.weekId}
+        review={{ viewer: view.viewer, now: new Date() }}
+      />
       <WeekPageView page={page} runId={tab.runId} roundId={view.roundId} programmeId={view.programmeId} viewer={view.viewer} />
     </div>
   );

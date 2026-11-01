@@ -3349,11 +3349,24 @@ service cloud.firestore {
     // Claude's pick of the strongest answers to one week of a run (privacy
     // v13; src/lib/courses/coursework/bestAnswers.ts): the accounts it
     // picked and why. Read and written only by the best-answers route on the
-    // Admin SDK, after the Coursework tab's own door (an admin or the
-    // programme's lead), which puts names back from who holds a place now.
-    // So every browser is refused, the people picked included: a fellow
-    // never reads which of their peers' answers were picked.
+    // Admin SDK, after the Coursework tab's own door turns away everybody but
+    // an admin (privacy v15: what Claude returns is seen by admins only), and
+    // names are put back from who holds a place now. So every browser is
+    // refused, the people picked included: a fellow never reads which of
+    // their peers' answers were picked.
     match /courseBestAnswers/{docId} {
+      allow read, write: if false;
+    }
+
+    // === courseWeekReviews ===
+    // Claude's review of one week of a run (privacy v15;
+    // src/lib/firestore/courseWeekReviews.ts): draft grades for the written
+    // answers, what people found hard and who might need a hand, by account.
+    // Read and written only on the Admin SDK, by the week review's page and
+    // route after their door admits an admin, and by the two deletions. What
+    // Claude returns is seen by admins only, and grades never reach anybody's
+    // record, so every browser is refused, admins included.
+    match /courseWeekReviews/{docId} {
       allow read, write: if false;
     }
 

@@ -21,6 +21,11 @@ export function weekPreviewPath(roundId: string, programmeId: string, weekId: st
   return groupId ? `${page}?group=${encodeURIComponent(groupId)}` : page;
 }
 
+/** One week's review, for an admin. */
+export function weekReviewPath(roundId: string, programmeId: string, weekId: string): string {
+  return `${weeksPath(roundId, programmeId, weekId)}/review`;
+}
+
 /** "Copy weeks from the course". */
 export function copyWeeksPath(roundId: string, programmeId: string): string {
   return `${weeksPath(roundId, programmeId)}/copy`;
