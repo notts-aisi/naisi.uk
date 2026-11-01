@@ -14,7 +14,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { parseMessageTest } from "@/lib/messages/parse";
-import { MESSAGE_TESTS_PER_HOUR, recordMessageTest, wordingOf } from "@/lib/messages/sending";
+import { MESSAGE_TESTS_PER_HOUR, recordMessageTest, testDocId, wordingOf } from "@/lib/messages/sending";
 import { MESSAGE_REFUSAL, testSubject, tooManyTestsWords } from "@/lib/messages/words";
 import { isApprovedAccount, messageWriterOf } from "@/lib/messages/writers";
 
@@ -97,6 +97,7 @@ export async function POST(req: Request) {
       }),
       kind: "message-test",
       actorUid: user.uid,
+      referenceId: testDocId(user.uid),
     });
   } catch (err) {
     console.error("[messages test] send failed", user.uid, err);

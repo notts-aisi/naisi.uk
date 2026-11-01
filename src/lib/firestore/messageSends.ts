@@ -12,7 +12,9 @@ import { COURSE_UPDATE_LIMITS } from "./courseUpdates";
  *
  * WHAT IT KEEPS, and what it never does:
  *  - who wrote it (`writerUid`), the subject and when (`sentAt`);
- *  - the tags, included and left out, each with the words the writer saw;
+ *  - the tags, included and left out, each with the words the writer saw,
+ *    and their ids again as plain strings (`tagIds`), so a send can be found
+ *    by a tag it was for;
  *  - how it went: as a programme notice or by the one row of the settings
  *    grid the writer chose (`mode`, `row`);
  *  - each person it reached, by account id, with how a message would reach

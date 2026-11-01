@@ -65,7 +65,8 @@ export function wordingOf(subject: string, message: string): string {
   return sha256(JSON.stringify(["message", subject, message]));
 }
 
-const testDocId = (uid: string) => `messagetest__${uid}`;
+/** Where a writer's last test is recorded: also the test email's reference, so the send log finds it. */
+export const testDocId = (uid: string) => `messagetest__${uid}`;
 
 /** Whether this writer's last test that reached them was of these words: none sent, of other words, or of these. */
 export async function testStandingOf(db: Firestore, uid: string, wording: string): Promise<"none" | "stale" | "fresh"> {
@@ -152,6 +153,8 @@ export async function startMessageRecord(
   await ref.set({
     writerUid: args.writerUid,
     tags: args.tags,
+    // The same ids as plain strings, so a send can be found by a tag it was for.
+    tagIds: args.tags.map((tag) => tag.id),
     mode: resolution.mode,
     row: resolution.mode === "grid" ? resolution.row : null,
     subject: args.subject,

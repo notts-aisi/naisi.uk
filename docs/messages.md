@@ -284,7 +284,8 @@ stays beside it for now.
 
 `messageSends/{id}` (`src/lib/firestore/messageSends.ts`), server only, every
 browser refused in `firestore.rules`: who wrote it, the tags with the words
-the writer saw, the class and the row, each person it reached by account id
+the writer saw (and their ids as plain strings, `tagIds`, so a send can be
+found by a tag it was for), the class and the row, each person it reached by account id
 (a guest or a walk-in as no account) with how a message would reach them, why
 they were left out and what became of their email, the counts, how many were
 left out for each reason, the subject, the update it was posted as, and when.

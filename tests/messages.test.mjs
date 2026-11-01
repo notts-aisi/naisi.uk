@@ -441,6 +441,7 @@ describe("a test first, as Publish waits for one", () => {
     assert.equal(message.kind, "message-test");
     assert.equal(message.surface, undefined);
     assert.equal(message.listUnsubscribe, undefined);
+    assert.equal(message.referenceId, "messagetest__tom");
     const text = textOf(renderToStaticMarkup(message.react));
     assert.ok(text.includes("Hi all, a short check-in for everyone facilitating this term."));
     assert.ok(text.includes("Sent by Tom"));
@@ -714,7 +715,8 @@ describe("the record of a send", () => {
     await testAndSend("zach", [T.vrCame], { exclude: [T.holding], row: "events" });
     const [path] = recordPaths();
     const record = w.world.db.read(path);
-    assert.deepEqual(Object.keys(record).sort(), ["counts", "mode", "people", "postedUpdateId", "reasons", "row", "sentAt", "settled", "subject", "tags", "writerUid"]);
+    assert.deepEqual(Object.keys(record).sort(), ["counts", "mode", "people", "postedUpdateId", "reasons", "row", "sentAt", "settled", "subject", "tagIds", "tags", "writerUid"]);
+    assert.deepEqual(record.tagIds, [T.vrCame, T.holding]);
     assert.equal(record.writerUid, "zach");
     assert.equal(record.subject, WORDS.subject);
     assert.equal(record.settled, true);
