@@ -117,7 +117,7 @@ export function eventTagLabel(part: EventPart, title: string, day: string | null
   return `${EVENT_LABELS[part]}: ${title}${day ? `, ${day}` : ""}`;
 }
 
-/** An event's day, "Wed 30 Sep", read in London. */
+/** An event's day, "Tue 15 Dec", read in London. */
 export function eventDay(at: Date): string {
   return formatSiteDate(at, { weekday: "short", day: "numeric", month: "short" });
 }
