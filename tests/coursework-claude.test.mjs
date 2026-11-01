@@ -37,6 +37,10 @@
  *     dropped for somebody who no longer holds a place; out of date.
  *  4. Pangram: admins only (the lead never sees a reading), only counted
  *     answers of 50 words or more, one request, out of date on a change.
+ *     A written answer is gathered for any of it only once its readers may
+ *     read it: its week submitted or locked, or the answer sent before
+ *     weeks were submitted; never a draft in an open week, nor a week
+ *     reopened.
  *  5. The pure builders, on fixtures holding every kind of identifier.
  *  6. Deletion: an account's notes, readings and picks.
  */
@@ -526,6 +530,104 @@ describe("Pangram on coursework: admins only, counted answers of 50 words or mor
   test("somebody not on the programme is answered as not here", async () => {
     reset();
     assert.equal((await ask("zach", routes.person.GET, { ...params, uid: "chloe-not-on-the-form" })).status, 404);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4b. A written answer is gathered only once its readers may read it
+// ---------------------------------------------------------------------------
+
+describe("the gatherer takes a written answer only once its readers may read it (privacy v15)", () => {
+  const WEEK_THREE = `courseRuns/${RUN.agi}/weeks/w03`;
+  const ANSWER = `courseExerciseResponses/${RUN.agi}__amara__w03__k3-wa`;
+  const WEEK_WORK = `courseWeekWork/${RUN.agi}__amara__w03`;
+  /** Wed 11 Nov at 10am: Group A meets for week 3 on Thu 12 Nov at 6pm, so Amara's week 3 is open. */
+  const WEEK_OPEN = "2026-11-11T10:00:00Z";
+  const GATHERED = [["written", `${RUN.agi}__amara__w03__k3-wa`]];
+
+  /** Week 3 as the world writes it, with a written answer in a fourth part. */
+  function weekThreeWithAnswer() {
+    const week = seed()[WEEK_THREE];
+    const prompt = [{ type: "p", runs: [{ text: "Who should keep the lamps lit, and why?" }] }];
+    return {
+      ...week,
+      blocks: [
+        ...week.blocks,
+        {
+          id: "k3-p4",
+          type: "part",
+          title: "Your keeper's plan, the week’s written answer",
+          time: "About 30 minutes",
+          framing: [],
+          blocks: [{ id: "k3-wa", type: "writtenAnswer", prompt, boxes: [], guidance: [], words: null, due: "dayBefore" }],
+        },
+      ],
+    };
+  }
+  /** Amara's written answer to week 3, long enough for Pangram, first written after her agreement. */
+  const answer = (over = {}) => ({
+    runId: RUN.agi,
+    uid: "amara",
+    weekId: "w03",
+    weekNumber: 3,
+    exerciseId: "k3-wa",
+    responseType: "text",
+    text: LONG,
+    words: LONG.split(/\s+/).length,
+    submittedAt: null,
+    reviewStatus: "unreviewed",
+    firstWrittenAt: AFTER,
+    updatedAt: AFTER,
+    ...over,
+  });
+  /** Amara's week 3 as Submit stores it. */
+  const submittedWeek = (at) => ({ runId: RUN.agi, uid: "amara", weekId: "w03", weekNumber: 3, submittedAt: at, firstSubmittedAt: at, submitCount: 1, updatedAt: at });
+  /** What the gatherer handed Pangram's reading of Amara, as the admin's page asks for it. */
+  const gathered = async () => {
+    const read = await ask("zach", routes.person.GET, { ...params, uid: "amara" });
+    assert.equal(read.status, 200, JSON.stringify(read.body));
+    return { parts: read.body.parts.map((part) => [part.kind, part.rowId]), notCounted: read.body.notCounted };
+  };
+  /** Whether the week's plan for Pangram would send anything of Amara's. */
+  const planned = async () => (await ask("zach", routes.week.GET, params, { query: "?week=w03" })).body.people.some((person) => person.uid === "amara");
+
+  test("a draft in a week still open is its writer's: never gathered, and not even counted as left out", async () => {
+    reset({ [WEEK_THREE]: weekThreeWithAnswer(), [ANSWER]: answer() });
+    w.at(WEEK_OPEN);
+    // Her reflection from before her agreement is the only thing left out, and nothing is gathered.
+    assert.deepEqual(await gathered(), { parts: [], notCounted: 1 });
+    assert.equal(await planned(), false);
+  });
+
+  test("submitted, it is gathered; reopened, it is its writer's again until it is submitted or the next session locks it", async () => {
+    const at = new Date("2026-11-10T21:00:00Z");
+    reset({
+      [WEEK_THREE]: weekThreeWithAnswer(),
+      [ANSWER]: answer({ firstSentAt: at, submittedAt: at }),
+      [WEEK_WORK]: submittedWeek(at),
+    });
+    w.at(WEEK_OPEN);
+    assert.deepEqual((await gathered()).parts, GATHERED);
+    assert.equal(await planned(), true);
+    // Reopened at 10am: unsent again, so gathered no more.
+    w.world.db.poke(WEEK_WORK, { submittedAt: null, reopenedAt: new Date(WEEK_OPEN), reopenedByUid: "sofia" });
+    assert.deepEqual((await gathered()).parts, []);
+    assert.equal(await planned(), false);
+    // Group A's session locks it again, and its readers may read it.
+    w.at("2026-11-12T18:00:00Z");
+    assert.deepEqual((await gathered()).parts, GATHERED);
+  });
+
+  test("locked at the session before it was submitted, it is gathered whether it was sent or not", async () => {
+    reset({ [WEEK_THREE]: weekThreeWithAnswer(), [ANSWER]: answer() });
+    // The world's own clock: Group A met for week 3 on Thursday.
+    assert.deepEqual((await gathered()).parts, GATHERED);
+  });
+
+  test("an answer sent before weeks were submitted stays gathered while its week is open", async () => {
+    reset({ [WEEK_THREE]: weekThreeWithAnswer(), [ANSWER]: answer({ firstSentAt: AFTER, submittedAt: AFTER }) });
+    w.at(WEEK_OPEN);
+    assert.deepEqual((await gathered()).parts, GATHERED);
   });
 });
 
