@@ -16,7 +16,7 @@
  *  - AGREEMENTS: Bea, Rahul and Wen agreed to privacy v15 on Mon 2 Nov
  *    (`AGREED`); Dev is still on v14.
  *  - NOTES about Bea, each with when it was written: one kept for leads
- *    after she agreed, one kept for leads before, one kept to admins, one
+ *    after Bea agreed, one kept for leads before, one kept to admins, one
  *    written before version 15 existed (no `audience`), and one Claude
  *    drafted, kept for leads. One kept for leads about Rahul.
  *
@@ -74,10 +74,10 @@ const AFTER = new Date("2026-11-10T09:00:00Z");
 
 const NOTE_TEXT = {
   leadsAfter: "Leads discussion well; quiet in the first half hour.",
-  leadsBefore: "Kept for leads, but written before she agreed.",
+  leadsBefore: "Kept for leads, but written before the agreement.",
   adminsAfter: "Asked to move to a Thursday group if a seat opens.",
   legacy: "Written before version 15 existed, so nobody chose.",
-  claude: "Takes a clear position and limits her own claim.",
+  claude: "Takes a clear position and limits the claim.",
   aboutRahul: "Runs a calm room; might lead a programme one day.",
 };
 
@@ -261,7 +261,7 @@ describe("which notes a programme's lead is shown: the one rule", () => {
 // ---------------------------------------------------------------------------
 
 describe("the programme's lead reads the notes kept for leads about the people on their programme, and nothing else", () => {
-  test("about somebody holding a place: only the notes kept for leads from after she agreed, Claude's marked", async () => {
+  test("about somebody holding a place: only the notes kept for leads from after the agreement, Claude's marked", async () => {
     reset();
     const read = await ask("claudia", routes.notes.GET, on("bea"));
     assert.equal(read.status, 200);
@@ -350,7 +350,7 @@ describe("the programme's lead reads the notes kept for leads about the people o
     assert.equal(byId["leads-after"].audience, "leads");
     assert.equal(byId["admins-after"].audience, "admins");
     assert.equal(byId.legacy.audience, "admins", "a note nobody chose for is admins only");
-    assert.equal(byId["leads-before"].audience, "admins", "a note written before she agreed to v15 is read by admins only");
+    assert.equal(byId["leads-before"].audience, "admins", "a note written before Bea agreed to v15 is read by admins only");
     assert.equal(byId["leads-before"].leadsMayRead, false);
     assert.equal(byId["admins-after"].leadsMayRead, true);
   });

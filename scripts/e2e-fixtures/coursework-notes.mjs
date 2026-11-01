@@ -16,7 +16,7 @@
  *  - A NOTE ABOUT ADA WRITTEN BEFORE THAT AGREEMENT (a day before the seed),
  *    by the harness's admin, from no programme: the profile shows it marked,
  *    and the application screen leaves it out and says so. Written before
- *    she agreed to privacy v15 as well (the seed's agreement is to v15), it
+ *    Ada agreed to privacy v15 as well (the seed's agreement is to v15), it
  *    says admins only read it, and can never be kept for leads.
  *
  * The spec (`tests/e2e/coursework-notes.spec.mjs`) is the harness's admin,
