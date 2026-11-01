@@ -293,6 +293,18 @@ const MUST_GUARD = [
     "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]/pangram/route.ts",
     "sends one person's answers to Pangram and keeps its readings with the run, in the caller's name",
   ],
+  // The week review (privacy v15): it sends a week's work, pooled check-ins
+  // and reports to Claude and keeps what came back with the run, and its
+  // follow-up makes a task on facilitators' boards and emails them, each in
+  // the caller's name.
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review/route.ts",
+    "sends a week's coursework, check-ins pooled by group and reports to Claude, and keeps its review with the run, in the caller's name",
+  ],
+  [
+    "src/app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review/follow-up/route.ts",
+    "makes a task on a group's facilitators' boards and emails each of them, in the caller's name",
+  ],
   // The notes about a person on a programme, for its lead and admins
   // (privacy v15): a record about a named member, written as the caller,
   // which no client can read back to check what happened.

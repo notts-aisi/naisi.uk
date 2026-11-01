@@ -176,6 +176,8 @@ export const STATES = {
   surveyNotYours: "This survey isn’t one you were sent",
   /** An ask to facilitate that is not the caller's own (`NOT_YOURS` in src/lib/courses/facilitatorAsks/words.ts). */
   askNotYours: "This page is for the person we asked.",
+  /** A week's review, to the programme's lead (`LEAD_REVIEW_WORDS.title` in src/lib/courses/weekReview/words.ts). */
+  reviewAdminsOnly: "A week’s review is for admins",
 };
 
 /**
@@ -1072,6 +1074,24 @@ export const ROUTES = {
       why:
         "Who a week's Pangram check would send: an admin's alone, decided on the session before anything is " +
         "read; the admin then meets the query check, which week.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Review with Claude (privacy v15): an admin's alone, decided on the session before the body, the params " +
+        "or the database are read; the admin then meets the body check, the hash of what the page said would be " +
+        "sent, which an empty body fails before anything is read or sent.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review/follow-up": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "A follow-up task from a week's review: an admin's alone, decided on the session before the body, the " +
+        "params or the database are read; the admin then meets the body check, who to ask about, which an empty " +
+        "body fails before anything is read, made or sent.",
     },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]/pangram": {
@@ -4410,6 +4430,15 @@ export const PAGES = {
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
       "and with an address that names nothing is drawn the same not-here state.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "A week's review, on the Weeks tab's terms: what Claude returns is an admin's alone (privacy v15), so the " +
+      "programme's lead is drawn a calm refusal and nothing of the week is read. A programme the caller has no " +
+      "role on, or one that does not exist, renders 'there is no programme here' with a 200 before the week is " +
+      "looked at. The lead persona is admitted as an approveCourse holder is, and with an address that names " +
+      "nothing is drawn the same not-here state.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/preview": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
@@ -5211,6 +5240,18 @@ export const REAL_ROUTES = {
         c(404, "An admin is let through on any programme, and told week 1 has no coursework: the world's weeks are written before blocks."),
       ),
     },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review": {
+    POST: adminAlone(
+      "Review with Claude",
+      c(400, "An admin meets the body check: an empty body does not carry the hash of what the page showed would be sent, so nothing is read or sent."),
+    ),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review/follow-up": {
+    POST: adminAlone(
+      "A follow-up task from a week's review",
+      c(400, "An admin meets the body check: an empty body names nobody to ask about, so nothing is read, made or sent."),
+    ),
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]/pangram": {
     GET: adminAlone(
@@ -6747,6 +6788,16 @@ export const REAL_PAGES = {
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks": programmePage("the Weeks tab."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/copy": programmePage("Copy weeks from the course."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]": programmePage("week 1's page, a taught week of the run's plan."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review": {
+    ...programmePage("week 1's review, or the day it can be reviewed from."),
+    theirs: {
+      ...programmePage("week 1's review.").theirs,
+      lead: c(
+        "reviewAdminsOnly",
+        "The programme's own lead: what Claude returns is seen by admins only, so the page draws a calm 'a week's review is for admins' and reads nothing of the week.",
+      ),
+    },
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/preview": programmePage("week 1 as a fellow sees it, with nobody's answers."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/setup": programmePage("the programme's Settings."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/anonymous-feedback": programmePage("the answers to its anonymous form."),

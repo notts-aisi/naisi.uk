@@ -2122,6 +2122,23 @@ const NOT_COVERED = {
     coverWhen:
       "When the end-to-end fixtures seed a run whose last session is over, with a group's facilitator signed in.",
   },
+  // The week review (privacy v15). Its spec, course-hub-week-review, is
+  // written and not yet verified, so its covers count for nothing until it is.
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review": {
+    reason:
+      "Course hub: a week's review for an admin; tests/week-review.test.mjs renders it as an admin, the programme's lead (a calm refusal, nothing read), its reviewer, a facilitator, a fellow and another programme's lead, before the week's first session and after, with what Claude said and without, and the course-hub-week-review spec drives it in a browser.",
+    coverWhen: "When the course-hub-week-review spec has passed end to end against the harness's server and is marked verified.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review": {
+    reason:
+      "Course hub: Review with Claude; every caller, a view-as session, no key, a page that saw something else, nothing to send and a part that fails are executed by tests/week-review.test.mjs with Claude stubbed, reading every message that would go.",
+    coverWhen: "When the course-hub-week-review spec has passed end to end against a server with a Claude key set, and is marked verified.",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/review/follow-up": {
+    reason:
+      "Course hub: a follow-up task from a week's review; who may ask, about whom, the task it makes, the email on the tasks row and asking twice are executed by tests/week-review.test.mjs as each kind of caller.",
+    coverWhen: "When the course-hub-week-review spec has passed end to end against the harness's server and is marked verified.",
+  },
   "/api/courses/groups/[groupId]/session-report": {
     reason:
       "Course hub: a facilitator's own report on a session of their group; who writes, every refusal, who a report may pick, when it is open and what it keeps are executed by tests/course-session-reports.test.mjs as each kind of caller, with the account deletion and the run's destroy.",
