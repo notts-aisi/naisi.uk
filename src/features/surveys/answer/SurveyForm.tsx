@@ -57,6 +57,12 @@ type Props = {
   testWords: string;
   /** The Kairos choice the last page ends with, or null for a survey that does not ask it. */
   kairos: AnswerKairos | null;
+  /**
+   * The Send button's words where they are not "Send my answers" (a
+   * check-in's "Send check-in"). A survey that gives its own words has one
+   * page and no page line over it.
+   */
+  send?: string;
 };
 
 /** The field name a line of a scale question is answered under. */
@@ -542,7 +548,7 @@ function focusQuestion(questionId: string) {
   (control ?? block)?.focus();
 }
 
-export default function SurveyForm({ pages, closing, submit, testWords, kairos }: Props) {
+export default function SurveyForm({ pages, closing, submit, testWords, kairos, send }: Props) {
   const hydrated = useHydrated();
   const [page, setPage] = useState(0);
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
@@ -644,6 +650,8 @@ export default function SurveyForm({ pages, closing, submit, testWords, kairos }
   }
 
   const last = pages.length - 1;
+  // A check-in is one page with no heading: no "Page 1 of 1" over it.
+  const bare = send !== undefined && pages.length === 1 && !pages[0].heading;
   const numbers = new Map(pages.flatMap((each) => each.questions.map((question) => [question.id, question.number] as const)));
   /** The line by a page's buttons naming its blank questions, or "". */
   const blankLine = (on: AnswerPage) => {
@@ -659,21 +667,23 @@ export default function SurveyForm({ pages, closing, submit, testWords, kairos }
           key={index}
           className={styles.page}
           hidden={hydrated && index !== page}
-          aria-labelledby={`page-${index}`}
+          aria-labelledby={bare ? undefined : `page-${index}`}
         >
-          <div className={styles.pageHead}>
-            <span className={styles.pageOf}>{pageWords(index + 1, pages.length)}</span>
-            <h2
-              id={`page-${index}`}
-              className={styles.section}
-              tabIndex={-1}
-              ref={(node) => {
-                headings.current[index] = node;
-              }}
-            >
-              {each.heading}
-            </h2>
-          </div>
+          {!bare && (
+            <div className={styles.pageHead}>
+              <span className={styles.pageOf}>{pageWords(index + 1, pages.length)}</span>
+              <h2
+                id={`page-${index}`}
+                className={styles.section}
+                tabIndex={-1}
+                ref={(node) => {
+                  headings.current[index] = node;
+                }}
+              >
+                {each.heading}
+              </h2>
+            </div>
+          )}
           {each.questions.map((question) => (
             <Question key={question.id} question={question} hydrated={hydrated} blank={hydrated && blanks.includes(question.id)} />
           ))}
@@ -717,7 +727,7 @@ export default function SurveyForm({ pages, closing, submit, testWords, kairos }
                   <p className={styles.testLine}>{testWords}</p>
                 ) : (
                   <button type="submit" className={styles.send} disabled={!hydrated || state === "sending"}>
-                    {state === "sending" ? ANSWER_WORDS.sending : ANSWER_WORDS.send}
+                    {state === "sending" ? ANSWER_WORDS.sending : (send ?? ANSWER_WORDS.send)}
                   </button>
                 )}
               </div>

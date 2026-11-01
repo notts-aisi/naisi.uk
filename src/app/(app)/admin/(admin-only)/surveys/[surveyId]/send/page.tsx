@@ -1,13 +1,15 @@
 import { AdminPage } from "@/features/admin/adminList";
 import EventSendTab from "@/features/surveys/admin/EventSendTab";
 import OpenTab from "@/features/surveys/admin/OpenTab";
+import OpeningTab from "@/features/surveys/admin/OpeningTab";
 import SendTab from "@/features/surveys/admin/SendTab";
 import SurveyHead from "@/features/surveys/admin/SurveyHead";
 import SurveyMissing from "@/features/surveys/admin/SurveyMissing";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentUser } from "@/lib/firebase/session";
-import { isEventSurvey } from "@/lib/firestore/surveys";
+import { isCheckIn, isEventSurvey } from "@/lib/firestore/surveys";
 import { openView, sendView, surveyPage } from "@/lib/surveys/adminView";
+import { openingView } from "@/lib/surveys/checkIns/adminView";
 import { eventSendView } from "@/lib/surveys/events/adminView";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +22,8 @@ export const dynamic = "force-dynamic";
  * layout (`requireAdminPage()`); the session is read here for the signature.
  *
  * A LEAVING SURVEY is never sent (Q46): at this address it has its Open tab
- * instead, where it is opened and, once open, closed.
+ * instead, where it is opened and, once open, closed. Nor is A CHECK-IN: its
+ * Opening tab says how its group's facilitator opened it.
  */
 export default async function SurveySendPage({ params }: { params: Promise<{ surveyId: string }> }) {
   const { surveyId } = await params;
@@ -32,6 +35,15 @@ export default async function SurveySendPage({ params }: { params: Promise<{ sur
     return (
       <AdminPage>
         <SurveyMissing />
+      </AdminPage>
+    );
+  }
+  // A check-in is opened from its group's register, never sent: how it was opened.
+  if (isCheckIn(page.survey)) {
+    return (
+      <AdminPage wide>
+        <SurveyHead head={page.head} current="send" />
+        <OpeningTab surveyId={page.survey.id} view={await openingView(db, page.survey, now)} />
       </AdminPage>
     );
   }

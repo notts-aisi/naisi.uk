@@ -133,11 +133,12 @@ function programmeNameOf(form: ApplicationForm, programmeId: string): string {
   return programme ? programme.shortName.trim() || programme.name.trim() : "";
 }
 
-/** The surveys already made for one programme, by stage. */
+/** The surveys already made for one programme, by stage. A check-in is no stage: it is one session's. */
 function surveysOf(surveys: readonly SurveyDoc[], roundId: string, programmeId: string): Map<SurveyTemplate, SurveyDoc> {
   const out = new Map<SurveyTemplate, SurveyDoc>();
   for (const survey of surveys) {
-    if (survey.kind !== "event" && isProgrammeAudience(survey.audience, roundId, programmeId) && !out.has(survey.kind)) out.set(survey.kind, survey);
+    if (survey.kind === "event" || survey.kind === "checkIn") continue;
+    if (isProgrammeAudience(survey.audience, roundId, programmeId) && !out.has(survey.kind)) out.set(survey.kind, survey);
   }
   return out;
 }

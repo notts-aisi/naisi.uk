@@ -974,6 +974,18 @@ const NOT_COVERED = {
     coverWhen:
       "When the October curriculum rebuild lands, because a spec written against today's shape would be thrown away with it.",
   },
+  "/api/courses/groups/[groupId]/check-in": {
+    reason:
+      "Courses: the check-in at the end of a session, opened from the register by a group's facilitator. Every caller and every refusal of it is driven offline in tests/surveys-check-ins.test.mjs; its browser spec (tests/e2e/course-hub-check-in.spec.mjs) has not passed end to end yet.",
+    coverWhen:
+      "When the check-in spec has passed end to end against the harness's server with its mail caught, and is marked verified.",
+  },
+  "/api/courses/groups/[groupId]/check-in/close": {
+    reason:
+      "Courses: closing a session's check-in early from the register, the card's Close it now. Driven as every caller in tests/surveys-check-ins.test.mjs; its browser spec has not passed end to end yet.",
+    coverWhen:
+      "When the check-in spec has passed end to end against the harness's server with its mail caught, and is marked verified.",
+  },
   "/api/courses/groups/[groupId]/notice": {
     reason:
       "Courses: /api/courses/groups/[groupId]/notice is staff-facing, taken deliberately, and answered on the screen that called it.",

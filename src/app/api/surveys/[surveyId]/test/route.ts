@@ -3,7 +3,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { assertNotImpersonating } from "@/lib/firebase/impersonation";
 import { sendEmail } from "@/lib/email/send";
 import { getCurrentUser } from "@/lib/firebase/session";
-import { SURVEYS_COLLECTION, isEventSurvey } from "@/lib/firestore/surveys";
+import { SURVEYS_COLLECTION, isCheckIn, isEventSurvey } from "@/lib/firestore/surveys";
 import { eventNamesOffDay } from "@/lib/surveys/events/records";
 import { namesOffDayFor } from "@/lib/surveys/namesOff";
 import { canRunSurveys, isOpen, isSurveyId, readSurvey } from "@/lib/surveys/repo";
@@ -53,6 +53,8 @@ export async function POST(req: Request, ctx: Ctx) {
   if (!survey) return NextResponse.json({ error: REFUSAL.noSurvey }, { status: 404 });
   // A leaving survey is never sent: it reaches each person as they leave (Q46).
   if (survey.kind === "leaving") return NextResponse.json({ error: REFUSAL.leavingNotSent }, { status: 409 });
+  // Nor is a check-in: its group's facilitator opens it from the register.
+  if (isCheckIn(survey)) return NextResponse.json({ error: REFUSAL.checkInNotSent }, { status: 409 });
   const now = new Date();
   // A survey after an event opens at the event before its email goes, so its
   // email has gone once its first press has.

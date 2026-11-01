@@ -1,7 +1,9 @@
 import Link from "next/link";
 import Chip from "@/components/ui/Chip";
 import type { ListRow, ListView } from "@/lib/surveys/adminView";
-import { LIST_WORDS } from "@/lib/surveys/words";
+import type { CheckInListGroup } from "@/lib/surveys/checkIns/adminView";
+import { CHECK_IN_ADMIN_WORDS } from "@/lib/surveys/checkIns/words";
+import { LIST_WORDS, peopleWords } from "@/lib/surveys/words";
 import styles from "./surveyAdmin.module.css";
 
 /**
@@ -10,8 +12,8 @@ import styles from "./surveyAdmin.module.css";
  * and the way to its Send tab or its results. Beside it, what "confidential"
  * means.
  *
- * Built from what exists: programme surveys. Event surveys, public numbers
- * and this term in numbers come later, and nothing here offers them.
+ * Below them, the check-ins at the end of sessions, one line a programme,
+ * each opening on its check-ins.
  */
 
 function Row({ row }: { row: ListRow }) {
@@ -81,7 +83,48 @@ function Group({ title, rows }: { title: string; rows: ListRow[] }) {
   );
 }
 
-export default function SurveyList({ view }: { view: ListView }) {
+/**
+ * THE CHECK-INS, one line a programme, each opening on its check-ins: the
+ * week, the group and the day, whether it is open, when it closes and how
+ * many it reached, each the way to its results. A programme's line says how
+ * many it has had.
+ */
+function CheckIns({ groups }: { groups: readonly CheckInListGroup[] }) {
+  if (groups.length === 0) return null;
+  return (
+    <section className={`${styles.card} ${styles.checkIns}`} aria-labelledby="check-ins">
+      <h2 id="check-ins" className={styles.cardTitle}>
+        {CHECK_IN_ADMIN_WORDS.listHeading}
+      </h2>
+      <p className={styles.muted}>{CHECK_IN_ADMIN_WORDS.listLede}</p>
+      {groups.map((group) => (
+        <details key={group.key} className={styles.checkInGroup}>
+          <summary className={styles.checkInSummary}>
+            <span className={styles.rowName}>{group.programme}</span>
+            <span className={styles.rowSub}>{group.line}</span>
+          </summary>
+          <ul className={styles.checkInRows}>
+            {group.rows.map((row) => (
+              <li key={row.id} className={styles.checkInRow}>
+                <Link href={`/admin/surveys/${encodeURIComponent(row.id)}/results`} className={styles.rowLink}>
+                  {row.label}
+                </Link>
+                {row.open && (
+                  <Chip tone="success" size="sm" dot>
+                    {LIST_WORDS.open}
+                  </Chip>
+                )}
+                <span className={styles.rowSub}>{[row.closes, peopleWords(row.reached)].filter(Boolean).join(" · ")}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ))}
+    </section>
+  );
+}
+
+export default function SurveyList({ view, checkIns = [] }: { view: ListView; checkIns?: readonly CheckInListGroup[] }) {
   const any = view.open.length + view.drafts.length + view.closed.length > 0;
   return (
     <div className={styles.layout}>
@@ -102,6 +145,7 @@ export default function SurveyList({ view }: { view: ListView }) {
             <p className={`${styles.muted} ${styles.empty}`}>{LIST_WORDS.empty}</p>
           )}
         </div>
+        <CheckIns groups={checkIns} />
       </div>
       <aside className={styles.aside}>
         <section className={styles.card}>

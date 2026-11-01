@@ -16,7 +16,10 @@ import { clockWords, dayWords, namesWords } from "@/lib/courses/sessionChange/wo
  * One change to a drawn line, on purpose: in-team's "Zach and your team see
  * this." names admins too, because the privacy policy says the page names
  * everybody who reads what is written there ("the team, the programme's lead
- * and admins").
+ * and admins"). And the team's weekly entry is an UPDATE in every word a
+ * person reads ("This week’s update", "Save update"), as the privacy policy
+ * calls it: "the check-in" is the survey at the end of a session
+ * (`src/lib/surveys/checkIns/`). The stored kind stays `check-in`.
  *
  * Pure, with no server import, so a page's client code can read them.
  * Dates are London civil dates ("2027-02-18"); nothing here re-zones an
@@ -32,10 +35,10 @@ export const PAPER = "Paper";
 export const YOUR_TWIST = "Your twist";
 /** The lead's and an admin's reading of a team's page names it as the team's, not the reader's. */
 export const THE_TWIST = "Twist";
-export const THIS_WEEKS_CHECK_IN = "This week’s check-in";
+export const THIS_WEEKS_UPDATE = "This week’s update";
 export const WHAT_WE_DID = "What we did";
 export const WHATS_IN_THE_WAY = "What’s in the way";
-export const SAVE_CHECK_IN = "Save check-in";
+export const SAVE_UPDATE = "Save update";
 export const TEAM_LINKS = "Team links";
 export const ADD_A_LINK = "Add a link";
 export const HAND_IN = "Hand-in";
@@ -53,7 +56,7 @@ export const HAND_IN_FOR_THE_TEAM = "Hand in for the team";
 // Words the boards do not draw, in their voice (for the boards' designers)
 // ---------------------------------------------------------------------------
 
-export const CHECK_IN_SAVED = "Check-in saved.";
+export const UPDATE_SAVED = "Update saved.";
 export const SAVING = "Saving…";
 export const NO_LINKS_YET = "No links yet.";
 export const LINK_LABEL = "Label";
@@ -65,8 +68,8 @@ export const REMOVE = "Remove";
 export const LINK_ADDED = "Link added.";
 export const LINK_REMOVED = "Link removed.";
 export const HANDED_IN_NOW = "Handed in. Your team sees it now.";
-export const CHECK_INS = "Check-ins";
-export const NO_CHECK_INS = "No check-ins yet.";
+export const UPDATES = "Updates";
+export const NO_UPDATES = "No updates yet.";
 export const NOT_HANDED_IN = "Not handed in yet.";
 export const OFFLINE = "That didn’t reach the site. Check your connection, then try again.";
 export const NOT_SAVED = "That didn’t save. Reload the page, then try again.";
@@ -255,14 +258,14 @@ export function showcaseOptionWords(weekNumber: number, dateKey: string): string
   return day ? `Week ${weekNumber}, ${day}` : `Week ${weekNumber}`;
 }
 
-/** "Saved Thu 26 Nov by Wen", under a week's check-in on the lead's reading. */
+/** "Saved Thu 26 Nov by Wen", under a week's update on the lead's reading. */
 export function savedWords(firstName: string | null, dateKey: string): string {
   const day = dayWords(dateKey);
   const by = firstName ? ` by ${firstName}` : "";
   return day ? `Saved ${day}${by}` : `Saved${by}`;
 }
 
-/** "Week 5", over one week's check-in on the lead's reading. */
+/** "Week 5", over one week's update on the lead's reading. */
 export function weekWords(weekNumber: number): string {
   return `Week ${weekNumber}`;
 }
@@ -272,7 +275,7 @@ export function weekWords(weekNumber: number): string {
 // ---------------------------------------------------------------------------
 
 export const NOT_IN_A_TEAM = "Only the people in this team can write on its page.";
-export const CHECK_IN_NOT_THIS_WEEK = "That week’s check-in has closed. Reload the page for this week’s.";
+export const UPDATE_NOT_THIS_WEEK = "That week’s update has closed. Reload the page for this week’s.";
 export const RUN_NOT_RUNNING = "This programme isn’t running now, so its team pages can’t change.";
 export const TOO_MANY_LINKS = "Your team has as many links as a page holds. Remove one first.";
 export const NO_SUCH_LINK = "That link isn’t on your team’s page any more. Reload the page.";

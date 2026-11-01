@@ -3108,6 +3108,9 @@ const surveyNamesOff = await loadTs("lib/surveys/namesOff.ts");
 const surveyProfileOffer = await loadTs("lib/surveys/profileOffer.ts");
 const surveyExport = await loadTs("lib/surveys/exportTable.ts");
 const surveyRecords = await loadTs("lib/firestore/surveys.ts");
+/** The check-in at the end of a session: its rules and its questions, both pure. */
+const checkInModel = await loadTs("lib/surveys/checkIns/model.ts");
+const checkInTemplate = await loadTs("lib/surveys/checkIns/template.ts");
 /** The Kairos file's layout. Pure: its route and its loader are read as source. */
 const kairosFileTable = await loadTs("lib/kairos/fileTable.ts");
 /** The Kairos choice's record and words, who rates whom, and the Kairos report's counting. All pure. */
@@ -5612,10 +5615,13 @@ describe("the course hub passage", () => {
     // The policy's Confidential, sentence by sentence: confidential with the
     // name kept, said at the top; only admins see who said what; the lead
     // sees totals and comments and never a name or who answered; facilitators
-    // see nothing of a survey (v15 says they MAY see their own group's
-    // check-in totals, which nothing shows them yet, and v14's "Facilitators
-    // never see anything of a survey" is taken back for that); an event's
-    // organisers see that its survey went and when.
+    // see nothing of a survey but their own group's check-ins (v15 says they
+    // MAY see their own group's check-in totals, and v14's "Facilitators
+    // never see anything of a survey" is taken back for that: the register's
+    // check-in card shows them how many have sent it while it is open, and its
+    // totals from three answers once it has closed, never a comment or who
+    // said what, held below); an event's organisers see that its survey went
+    // and when.
     const confidential = hubPassageOf("<strong>Confidential.</strong>");
     for (const sentence of [
       "<strong>Confidential.</strong> Every survey is confidential: we keep your answers with your name, and each survey says so at the top. Only NAISI&apos;s admins can see who said what, and we record each time one of them does.",
@@ -5741,14 +5747,27 @@ describe("the course hub passage", () => {
         // This term in numbers (sv-term, Q51 B): counts made on the server, never a name.
         ["src/app/(app)/admin/(admin-only)/surveys/term/page.tsx", `${ADMIN_PAGE}; This term in numbers, counts made on the server, never a name`],
         ["src/app/api/surveys/term/totals/route.ts", `${ADMIN_ROUTE}; This term in numbers as a file of totals that names nobody, not a recorded download`],
+        // CHANGED ON PURPOSE (v15, "Facilitators may see their own group's
+        // check-in totals"): the check-in at the end of a session, opened from
+        // the register by the group's facilitator, and the one floored view of
+        // it a facilitator reads (docs/surveys.md, "Check-ins").
+        [
+          "src/app/api/courses/groups/[groupId]/check-in/route.ts",
+          "the group's live facilitators and admins (gateGroupRegister first): opens a session's check-in, a row and an email for each person the register marks there, and hands the register's card how many have sent it while it is open and its totals from three answers once closed, never a comment, an answer or a name",
+        ],
+        ["src/app/api/courses/groups/[groupId]/check-in/close/route.ts", "the group's live facilitators and admins (gateGroupRegister first): closes a session's check-in, reading no answer"],
+        ["src/features/courses/register/CheckInCard.tsx", "the register's check-in card: draws what the check-in route hands it, a count while it is open and totals once closed, never a comment, an answer or a name"],
+        ["src/app/api/courses/groups/[groupId]/attendance/route.ts", "the register's marking route: somebody marked at a session while its check-in is open gets their own row on it (reachLateMarks), with no email, and no answer is read"],
       ]),
       "reaching survey code from outside it",
       "The policy says only admins see who said what; the programme's lead " +
         "sees totals and comments, never a name or who answered; facilitators " +
-        "see nothing of a survey beyond, one day, their own group's check-in " +
-        "totals; and an event's organisers see only that its survey went and " +
-        "when. If this file shows a survey, its answers or who answered to " +
-        "anybody else, the sentence is wrong and a new version has to say so.",
+        "see nothing of a survey beyond their own group's check-ins, how many " +
+        "have sent one while it is open and its totals from three answers once " +
+        "it has closed, never a comment or who said what; and an event's " +
+        "organisers see only that its survey went and when. If this file shows " +
+        "a survey, its answers or who answered to anybody else, the sentence " +
+        "is wrong and a new version has to say so.",
     );
     // The two collections that name a person are addressed by survey code alone.
     assertExactlyTheseFiles(
@@ -5772,12 +5791,57 @@ describe("the course hub passage", () => {
         // answers. Their answer is read to count what is blank, and the admins
         // are shown a count, never an answer.
         ["src/lib/surveys/blanksStore.ts", "the questions left blank: a person's own link of blanks on their own row, made by an admin's press and recorded with it, their own answer read to count what is still blank, and the one writer of what they send later, kept beside their first answers"],
+        // The check-in at the end of a session (docs/surveys.md, "Check-ins"):
+        // each person the register marks there gets their own row with their
+        // own link as it opens, or as they are marked while it is open. Never
+        // an answer; its readers of answers are repo.ts's, above.
+        ["src/lib/surveys/checkIns/open.ts", "the check-in's rows as it opens: one for each person the register marks at the session, with their own link, before their email; never an answer"],
+        ["src/lib/surveys/checkIns/lateMark.ts", "the check-in's row for somebody marked at the session after it opened, with their own link and no email; never an answer"],
       ]),
       "addressing who a survey was sent to, or what somebody answered",
       "The policy says only admins see who said what or who has answered. If " +
         "this file reads either for anybody else, the sentence is wrong and a " +
         "new version has to say so.",
     );
+    // "Facilitators may see their own group's check-in totals, never who said
+    // what and never the comments, and see nothing else of a survey." What a
+    // group's facilitators are ever handed of a check-in is the register's
+    // card (`checkInRegisterView`), from the register's own gate: while it is
+    // open, how many have sent it of how many; once it has closed, its totals
+    // from three answers (`facilitatorCount`), and below that only that there
+    // are too few. The short answers are never read for it, so no comment can
+    // reach it, and nothing in it names or numbers a person.
+    assert.equal(checkInModel.TOTALS_FROM, 3);
+    const ciItems = checkInTemplate.checkInItems({ parts: [{ id: "part_a", title: "Compute as a lever" }], hasReading: true });
+    const ciAnswer = (useful, comment) => ({
+      answers: {
+        q_ci_useful: { type: "rating", value: useful },
+        q_ci_most: { type: "text", text: comment },
+        q_ci_better: { type: "text", text: `${comment}, again` },
+        q_ci_unclear: { type: "choices", optionIds: ["part_a"] },
+        q_ci_reading: { type: "choice", optionId: "o_ci_read_most" },
+        q_ci_confident: { type: "rating", value: 3 },
+      },
+    });
+    const ciAnswers = [ciAnswer(5, "Riya’s point about chips"), ciAnswer(4, "The races reading"), ciAnswer(3, "The debate")];
+    assert.deepEqual(checkInModel.facilitatorCount("open", ciItems, ciAnswers, 6), { state: "open", answered: 3, of: 6 }, "an open check-in hands a facilitator more than a count");
+    assert.deepEqual(checkInModel.facilitatorCount("closed", ciItems, ciAnswers.slice(0, 2), 6), { state: "closed", answered: 2, of: 6, totals: null }, "a check-in with two answers shows its facilitators totals");
+    const ciTotals = checkInModel.facilitatorCount("closed", ciItems, ciAnswers, 6).totals;
+    assert.deepEqual(Object.keys(ciTotals).sort(), ["answered", "confident", "of", "readMost", "unclear", "useful"]);
+    assert.ok(!/Riya|races reading|debate|again/.test(JSON.stringify(ciTotals)), "a check-in's totals carry a comment");
+    const ciView = withoutComments(read("src/lib/surveys/checkIns/facilitatorView.ts"));
+    assert.ok(!/\btotalsOf\(|\.answers\b(?!Of)|respondent/.test(ciView.replace(/answersOf\(db, survey\)/g, "")), "the register's view of a check-in reads answers round the floored count");
+    assert.match(ciView, /return facilitatorCount\("closed", survey\.items, answers, sentCountOf\(survey\)\);/);
+    const ciRoute = withoutComments(read("src/app/api/courses/groups/[groupId]/check-in/route.ts"));
+    for (const verb of ["GET", "POST"]) {
+      const handler = new RegExp(`export async function ${verb}\\([\\s\\S]*?\\n\\}`).exec(ciRoute)?.[0] ?? "";
+      const gate = handler.indexOf("await gateGroupRegister(groupId, actor, db)");
+      const reads = Math.min(...["checkInRegisterView(", "openCheckIn("].map((call) => handler.indexOf(call)).filter((at) => at !== -1));
+      assert.ok(gate !== -1 && gate < reads, `the check-in route's ${verb} reads the check-in before the register's gate`);
+    }
+    assert.match(ciRoute, /return NextResponse\.json\(\{ sessionKey: view\.sessionKey, card: view\.card, last: view\.last \}\);/);
+    // tests/surveys-check-ins.test.mjs drives the card, the route and the floors as every kind of caller.
+    assert.ok(existsSync(join(REPO_ROOT, "tests", "surveys-check-ins.test.mjs")), "tests/surveys-check-ins.test.mjs is gone");
     // The admins' pages: the layout every one of them sits under.
     assert.match(read("src/app/(app)/admin/(admin-only)/layout.tsx"), /await requireAdminPage\(\);/);
     // The admins' routes: each refuses everybody but an admin before it reads.
@@ -5865,6 +5929,8 @@ describe("the course hub passage", () => {
       "src/lib/surveys/personFacts.ts",
       // The page a link of the questions left blank opens, and the signed-in page when it shows them.
       "src/lib/surveys/blanksView.ts",
+      // A check-in's own page: its eyebrow, line, box and button.
+      "src/lib/surveys/checkIns/answerView.ts",
     ]) {
       assert.ok(
         !/\.(?:set|update|add|create|delete)\(|runTransaction\(|\.batch\(\)/.test(withoutComments(read(file))),
@@ -5981,6 +6047,30 @@ describe("the course hub passage", () => {
           "the Overview once the programme is over: how many have answered the survey at the end, the Surveys tab's own count for its lead and admins, never a name, deciding nothing",
           ["@/lib/surveys/leadTab"],
         ],
+      ],
+      // CHANGED ON PURPOSE (v15, check-ins at the end of a session): the
+      // register opens and closes a session's check-in, and its card shows
+      // the group's facilitators a count and, from three answers, its totals.
+      // None of it decides a place: no mark, no attendance and no record of
+      // who finished reads what a check-in says.
+      [
+        "src/app/api/courses/groups/[groupId]/check-in/route.ts",
+        [
+          "a reading of answers here: a closed check-in's totals for the group's own facilitators, from three answers, never a comment or a name; and its opening, a row and an email for each person marked there; deciding nothing",
+          ["@/lib/surveys/checkIns/facilitatorView", "@/lib/surveys/checkIns/open", "@/lib/surveys/checkIns/sessionRead", "@/lib/surveys/checkIns/words"],
+        ],
+      ],
+      [
+        "src/app/api/courses/groups/[groupId]/check-in/close/route.ts",
+        ["closes a session's check-in, reading no answer and deciding nothing", ["@/lib/surveys/checkIns/close", "@/lib/surveys/checkIns/sessionRead", "@/lib/surveys/checkIns/words"]],
+      ],
+      [
+        "src/features/courses/register/CheckInCard.tsx",
+        ["draws the check-in card the route hands it, by its words, deciding nothing", ["@/lib/surveys/checkIns/facilitatorView", "@/lib/surveys/checkIns/words"]],
+      ],
+      [
+        "src/app/api/courses/groups/[groupId]/attendance/route.ts",
+        ["after a mark is kept, gives somebody marked there their own row on the session's open check-in, reading no answer; the mark is decided before it, and nothing of a check-in changes it", ["@/lib/surveys/checkIns/lateMark"]],
       ],
     ]);
     assertExactlyTheseFiles(
@@ -6106,7 +6196,16 @@ describe("the course hub passage", () => {
     const job = withoutComments(read("src/lib/scheduler/jobs/surveyNamesOff.ts"));
     assert.match(job, /id: "surveys-names-off",/);
     assert.ok(!/enabledByDefault/.test(job), "the job that takes names off now waits for somebody to switch it on, while the policy says it happens");
-    assert.match(job, /const due = \(await listSurveys\(db\)\)\.filter\(\(survey\) => namesDueOff\(survey, today\)\);/);
+    // CHANGED ON PURPOSE (the check-in at the end of a session): the job read
+    // every survey through the list of surveys, which now leaves check-ins
+    // out, so it reads the surveys due by their day instead: one range on
+    // `namesOffOn`, with no other filter, so every kind is found, check-ins
+    // included, and only those not taken off yet are kept.
+    assert.match(job, /const due = \(await surveysNamesDueBy\(db, today\)\)\.filter\(\(survey\) => namesDueOff\(survey, today\)\);/);
+    const dueBy = /export async function surveysNamesDueBy\([\s\S]*?\n\}/.exec(withoutComments(read("src/lib/surveys/repo.ts")))?.[0] ?? "";
+    assert.match(dueBy, /db\.collection\(SURVEYS_COLLECTION\)\.where\("namesOffOn", "<=", today\)\.get\(\)/, "the names-off job no longer finds every survey due by its day");
+    assert.equal((dueBy.match(/\.where\(/g) ?? []).length, 1, "the names-off job's read now leaves some kind of survey out");
+    assert.ok(surveyNamesOff.namesDueOff({ namesOffOn: "2028-12-09", namesOffAt: null }, "2028-12-09"), "a survey is no longer due on its day");
     assert.match(job, /const done = await takeNamesOffSurvey\(db, survey\);/);
     const registry = withoutComments(read("src/lib/scheduler/registry.ts"));
     assert.match(registry, /^\s*"surveys-names-off",$/m);
@@ -7317,7 +7416,7 @@ describe("the survey after an event", () => {
     assert.match(records, /const ends = eventEnds\(event\);\s*return ends \? twoYearsAfter\(londonDateKey\(ends\)\) : null;/);
     // The day is the survey's own, which the surveys-names-off job reads for every survey alike.
     assert.match(withoutComments(read("src/lib/surveys/events/create.ts")), /namesOffOn,\n/);
-    assert.match(withoutComments(read("src/lib/scheduler/jobs/surveyNamesOff.ts")), /const due = \(await listSurveys\(db\)\)\.filter\(\(survey\) => namesDueOff\(survey, today\)\);/);
+    assert.match(withoutComments(read("src/lib/scheduler/jobs/surveyNamesOff.ts")), /const due = \(await surveysNamesDueBy\(db, today\)\)\.filter\(\(survey\) => namesDueOff\(survey, today\)\);/);
     // The file: the programme surveys' table, less the group's column, a guest by the name they gave.
     const file = withoutComments(read("src/lib/surveys/events/exportTable.ts"));
     assert.match(file, /const drop = table\.header\.indexOf\("After their first session"\);/);

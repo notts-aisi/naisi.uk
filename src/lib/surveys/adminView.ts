@@ -1,6 +1,6 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
-import { isEventAudience, isEventSurvey, type SurveyDoc, type SurveyPersonDoc } from "@/lib/firestore/surveys";
+import { isCheckIn, isEventAudience, isEventSurvey, type SurveyDoc, type SurveyPersonDoc } from "@/lib/firestore/surveys";
 import { readAudience, type AudienceRead } from "./audience";
 import { eventListRow } from "./events/listRow";
 import { eventPeopleOf } from "./events/store";
@@ -162,6 +162,8 @@ export type HeadView = {
   answered: number;
   /** A leaving survey: opened rather than sent, so its fourth tab is Open. */
   leaving: boolean;
+  /** A check-in: opened from a group's register, so its fourth tab is Opening. */
+  checkIn: boolean;
 };
 
 export function headView(survey: SurveyDoc, people: readonly { answered: boolean }[], now: Date): HeadView {
@@ -171,10 +173,15 @@ export function headView(survey: SurveyDoc, people: readonly { answered: boolean
     id: survey.id,
     name: survey.name,
     state,
-    programme: isEventSurvey(survey) ? eventMeta(survey.event.title, survey.event.startAt) : programmeLine(survey.programmeKind, survey.programmeName),
+    programme: isEventSurvey(survey)
+      ? eventMeta(survey.event.title, survey.event.startAt)
+      : isCheckIn(survey)
+        ? `${programmeLine(survey.programmeKind, survey.programmeName)} · ${survey.checkIn.groupName}`
+        : programmeLine(survey.programmeKind, survey.programmeName),
     closes: ends ? closesWords(ends, state === "closed") : survey.kind === "leaving" ? LIST_WORDS.neverCloses : "",
     answered: people.filter((person) => person.answered).length,
     leaving: survey.kind === "leaving",
+    checkIn: isCheckIn(survey),
   };
 }
 

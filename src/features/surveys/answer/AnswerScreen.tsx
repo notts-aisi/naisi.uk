@@ -10,7 +10,8 @@ import styles from "./AnswerScreen.module.css";
  * programme and week, the title and intro, "Every question needs an answer
  * unless it’s marked optional." (with "The boxes asking your permission are
  * up to you." where the form has one), the confidential box, then the
- * questions. Or, instead, one calm message:
+ * questions. A check-in draws its own eyebrow, line and button, and no rule
+ * line, with its box at the top all the same. Or, instead, one calm message:
  * answered, closed, or a link that opens nothing. Under either, when the
  * person can change a consent here ("Stop the follow-ups"), its panel.
  *
@@ -48,7 +49,8 @@ export default function AnswerScreen({ screen }: { screen: Screen }) {
             {paragraph}
           </p>
         ))}
-        <p className={styles.rule}>{survey.lead ?? survey.rule}</p>
+        {/* A check-in has no rule line: its one optional question says so beside it. */}
+        {(survey.lead ?? survey.rule) && <p className={styles.rule}>{survey.lead ?? survey.rule}</p>}
       </header>
 
       <section className={styles.box} aria-label={survey.box.heading}>
@@ -75,12 +77,12 @@ export default function AnswerScreen({ screen }: { screen: Screen }) {
             <li key={point}>{point}</li>
           ))}
         </ul>
-        <p className={styles.note}>{survey.box.note}</p>
+        {survey.box.note && <p className={styles.note}>{survey.box.note}</p>}
       </section>
 
       {screen.consent && <ConsentPanel panel={screen.consent} />}
 
-      <SurveyForm pages={survey.pages} closing={survey.closing} submit={survey.submit} testWords={STATE_WORDS.test} kairos={survey.kairos} />
+      <SurveyForm pages={survey.pages} closing={survey.closing} submit={survey.submit} testWords={STATE_WORDS.test} kairos={survey.kairos} send={survey.send} />
     </div>
   );
 }

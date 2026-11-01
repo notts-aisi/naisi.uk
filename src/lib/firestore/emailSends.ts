@@ -141,7 +141,10 @@ export type EmailSendSurface =
   | "event-survey"
   // The questions somebody left blank on a survey they sent (docs/surveys.md),
   // to that one person, by an admin's press.
-  | "survey-blanks";
+  | "survey-blanks"
+  // The check-in at the end of a session (docs/surveys.md, "Check-ins"), to
+  // the people the register marks at it, when the group's facilitator opens it.
+  | "course-check-in";
 
 export type EmailSend = {
   messageId: string;

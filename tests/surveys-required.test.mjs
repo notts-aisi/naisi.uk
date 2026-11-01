@@ -30,14 +30,24 @@ const { loadTs } = createLoader({ stubs: new Map([["server-only", "export {};"]]
 const items = await loadTs(join("lib", "surveys", "items.ts"));
 const templates = await loadTs(join("lib", "surveys", "templates.ts"));
 const { eventTemplateItems } = await loadTs(join("lib", "surveys", "events", "template.ts"));
+const { checkInItems } = await loadTs(join("lib", "surveys", "checkIns", "template.ts"));
 
-/** Every template a survey is made from, both kinds of programme, and the event's. */
+/**
+ * Every template a survey is made from, both kinds of programme, the event's,
+ * and the check-in's for a week with parts and reading and for a week with
+ * neither (it asks one question fewer there).
+ */
 const EVERY_TEMPLATE = [
   ...templates.SURVEY_TEMPLATES.flatMap((stage) => [
     [`${stage}, fellowship`, templates.templateItems(stage, "fellowship", null)],
     [`${stage}, incubator`, templates.templateItems(stage, "incubator", "alignment")],
   ]),
   ["after an event", eventTemplateItems()],
+  [
+    "a check-in, a week with parts and reading",
+    checkInItems({ parts: [{ id: "part_a", title: "Why powerful AI might seek power" }, { id: "part_b", title: "Races between AI developers" }], hasReading: true }),
+  ],
+  ["a check-in, a week with neither", checkInItems({ parts: [], hasReading: false })],
 ];
 
 const question = (extra = {}) => ({ kind: "question", id: "q_x", type: "shortText", title: "A question", body: [], required: false, ...extra });
@@ -149,7 +159,10 @@ describe("2. every template: required but the list, and the list only ever text 
   });
 
   test("the list is exactly the questions that do not apply to everybody (Zach's examples among them)", () => {
+    // CHANGED ON PURPOSE (the check-in at the end of a session): its "What
+    // could have gone better?" is a catch-all, like the event's.
     assert.deepEqual([...items.NOT_FOR_EVERYBODY_IDS].sort(), [
+      "q_ci_better",
       "q_ev_change",
       "q_f1_where",
       "q_f3",
@@ -160,7 +173,7 @@ describe("2. every template: required but the list, and the list only ever text 
       "q_i4_when",
     ]);
     // Text questions everybody can answer stay required.
-    for (const id of ["q_p6", "q_a5", "q_leave_stay"]) assert.equal(items.NOT_FOR_EVERYBODY_IDS.includes(id), false, id);
+    for (const id of ["q_p6", "q_a5", "q_leave_stay", "q_ci_most"]) assert.equal(items.NOT_FOR_EVERYBODY_IDS.includes(id), false, id);
   });
 
   test("requiredQuestionsOf: the required questions in the survey's order", () => {

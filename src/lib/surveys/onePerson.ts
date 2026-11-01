@@ -18,7 +18,7 @@ import type { SurveyAnswer } from "./items";
 import { namesOf } from "./names";
 import { personTables, type PersonBlanks, type PersonSurvey, type PersonView } from "./onePersonLayout";
 import { hiddenLinesFor, toldGroupOf } from "./personFacts";
-import { isOpen, listSurveys, personOnSurveys } from "./repo";
+import { checkInsOfRun, isOpen, listSurveys, personOnSurveys } from "./repo";
 import {
   PERSON_WORDS,
   answeredSummaryWords,
@@ -50,8 +50,8 @@ import {
  * document.
  */
 
-/** The order a programme's surveys are shown in, start to finish. */
-const STAGE_ORDER: readonly SurveyKind[] = ["before", "after", "followUp6", "followUp12", "leaving", "event"];
+/** The order a programme's surveys are shown in, start to finish: its check-ins come between the start and the end, week by week. */
+const STAGE_ORDER: readonly SurveyKind[] = ["before", "checkIn", "after", "followUp6", "followUp12", "leaving", "event"];
 
 const ID = /^[A-Za-z0-9_-]{1,128}$/;
 
@@ -71,16 +71,18 @@ export function subjectOf(survey: SurveyDoc, who: string): OpeningSubject | null
 
 /**
  * The surveys the page shows: a survey after an event alone; for a programme's
- * survey, every survey of the same programme that has been sent or opened
- * (the four stages and leaving), in the order of a programme, read from the
- * whole surveys collection (a handful a term). Survey records only.
+ * survey or a check-in, every survey of the same programme that has been sent
+ * or opened (the four stages and leaving, read from the whole surveys
+ * collection, a handful a term) and every check-in of its run (read by the
+ * run, one equality), in the order of a programme, its check-ins week by week
+ * between the start and the end. Survey records only.
  */
 export async function surveysShownWith(db: Firestore, survey: SurveyDoc): Promise<SurveyDoc[]> {
   if (isEventSurvey(survey)) return [survey];
   const { roundId, programmeId } = programmeOf(survey.audience);
   if (!roundId || !programmeId) return [survey];
-  const all = await listSurveys(db);
-  return all
+  const [all, checkIns] = await Promise.all([listSurveys(db), checkInsOfRun(db, survey.runId)]);
+  return [...all, ...checkIns]
     .filter((each) => !isEventSurvey(each) && isProgrammeAudience(each.audience, roundId, programmeId))
     .filter((each) => each.id === survey.id || each.firstSentAt !== null)
     .sort(

@@ -32,6 +32,9 @@ import { listSurveys, peopleOf } from "./repo";
  *  - THE LEAVING SURVEY'S (`leaving`): nobody, ever, by a press. Each person
  *    who leaves the programme by their own hand gets their row as they leave
  *    (`./leaving.ts`).
+ *  - A CHECK-IN'S (`checkIn`): nobody by a press either. The people its
+ *    session's register marks there get their rows when its group's
+ *    facilitator opens it (`./checkIns/`).
  */
 
 export type AudienceRead =
@@ -81,6 +84,8 @@ export async function readAudience(db: Firestore, audience: SurveyAudience): Pro
   if (!programme) return { status: "gone" };
   // Nobody is sent a leaving survey: each person's row is made as they leave (`./leaving.ts`).
   if (audience.kind === "leaving") return { status: "ok", form, programme, holders: [] };
+  // Nor a check-in by a press: its rows are made from the register when it opens (`./checkIns/open.ts`).
+  if (audience.kind === "checkIn") return { status: "ok", form, programme, holders: [] };
   if (form.decisionsSentAt === null) return { status: "ok", form, programme, holders: [] };
   const [applications, decisions] = await Promise.all([
     listSentApplications(db, form),

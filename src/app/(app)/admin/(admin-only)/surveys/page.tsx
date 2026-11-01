@@ -5,7 +5,8 @@ import SurveyList from "@/features/surveys/admin/SurveyList";
 import styles from "@/features/surveys/admin/surveyAdmin.module.css";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { listView, type ListView } from "@/lib/surveys/adminView";
-import { listSurveys } from "@/lib/surveys/repo";
+import { checkInListView, type CheckInListGroup } from "@/lib/surveys/checkIns/adminView";
+import { listCheckIns, listSurveys } from "@/lib/surveys/repo";
 import { TERM_WORDS } from "@/lib/surveys/term/words";
 import { LIST_WORDS } from "@/lib/surveys/words";
 
@@ -14,11 +15,15 @@ export const dynamic = "force-dynamic";
 /**
  * Run NAISI › Surveys (sv-list). Under `(admin-only)`, so the group's layout
  * (`requireAdminPage()`) is the gate: only admins make, send and read
- * surveys. Read on the server, from collections no browser can read.
+ * surveys. Read on the server, from collections no browser can read. The
+ * check-ins at the end of sessions are listed apart, one line a programme.
  */
 export default async function SurveysPage() {
   const db = getAdminDb();
-  const view: ListView = db ? await listView(db, await listSurveys(db), new Date()) : { open: [], drafts: [], closed: [] };
+  const now = new Date();
+  const [view, checkIns]: [ListView, CheckInListGroup[]] = db
+    ? await Promise.all([listView(db, await listSurveys(db), now), listCheckIns(db).then((all) => checkInListView(all, now))])
+    : [{ open: [], drafts: [], closed: [] }, []];
   return (
     <AdminPage wide>
       <PageHead
@@ -41,7 +46,7 @@ export default async function SurveysPage() {
           </>
         }
       />
-      <SurveyList view={view} />
+      <SurveyList view={view} checkIns={checkIns} />
     </AdminPage>
   );
 }

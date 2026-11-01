@@ -543,6 +543,7 @@ export const NOT_FOR_EVERYBODY: Readonly<Record<string, string>> = {
   q_f4_accepted: "Which of those accepted you?: only for somebody who applied and was accepted.",
   q_f7: "Anything else that happened partly because of NAISI?: a catch-all.",
   q_ev_change: "Anything we should change?: a catch-all, after an event.",
+  q_ci_better: "What could have gone better?: a catch-all, at the end of a session.",
 };
 
 /** The ids `NOT_FOR_EVERYBODY` names. */

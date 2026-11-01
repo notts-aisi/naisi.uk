@@ -106,7 +106,7 @@ describe("this week's check-in", () => {
   test("only this week's, by the team's group's own calendar", async () => {
     assert.deepEqual(short(await ask.checkIn("amara", { ...CHECK_IN, weekNumber: 4 })), [
       409,
-      "That week’s check-in has closed. Reload the page for this week’s.",
+      "That week’s update has closed. Reload the page for this week’s.",
     ]);
     assert.deepEqual(short(await ask.checkIn("amara", { ...CHECK_IN, weekNumber: 6 }))[0], 409);
     // The last day of week 5 is still week 5; the next morning is week 6.
@@ -127,8 +127,8 @@ describe("this week's check-in", () => {
       [null, "Write what you did or what’s in the way, then save."],
       [{ weekNumber: 5 }, "Write what you did or what’s in the way, then save."],
       [{ weekNumber: 5, did: "  ", inTheWay: "\n" }, "Write what you did or what’s in the way, then save."],
-      [{ weekNumber: 0, did: "x", inTheWay: "" }, "That check-in isn’t for one of this programme’s weeks. Reload the page."],
-      [{ weekNumber: "5", did: "x", inTheWay: "" }, "That check-in isn’t for one of this programme’s weeks. Reload the page."],
+      [{ weekNumber: 0, did: "x", inTheWay: "" }, "That update isn’t for one of this programme’s weeks. Reload the page."],
+      [{ weekNumber: "5", did: "x", inTheWay: "" }, "That update isn’t for one of this programme’s weeks. Reload the page."],
       [{ weekNumber: 5, did: "x".repeat(1001), inTheWay: "" }, "Each box takes up to 1,000 characters. Cut it down, then save."],
     ];
     for (const [body, error] of cases) {

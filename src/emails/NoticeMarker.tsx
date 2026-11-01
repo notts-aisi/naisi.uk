@@ -46,6 +46,8 @@ const NOTICE_REASON: Record<EmailSendSurface, string> = {
   "event-survey": "you came to this event or signed up for it",
   // Whichever survey it was, the person sent it, and these are its questions they left blank.
   "survey-blanks": "you sent this survey with some of its questions left blank",
+  // The register marks the person at the session the check-in is about.
+  "course-check-in": "you were at this session of your course group",
 };
 
 type Props = {

@@ -5,19 +5,19 @@ import { useRouter } from "next/navigation";
 import { useHydrated } from "@/hooks/useHydrated";
 import { TEAM_PAGE_LIMITS } from "@/lib/courses/teamPage/model";
 import {
-  CHECK_IN_SAVED,
+  UPDATE_SAVED,
   NOT_SAVED,
   OFFLINE,
-  SAVE_CHECK_IN,
+  SAVE_UPDATE,
   SAVING,
-  THIS_WEEKS_CHECK_IN,
+  THIS_WEEKS_UPDATE,
   WHATS_IN_THE_WAY,
   WHAT_WE_DID,
 } from "@/lib/courses/teamPage/words";
 import styles from "./team.module.css";
 
 /**
- * "THIS WEEK’S CHECK-IN" (board in-team): two boxes and "Save check-in",
+ * "THIS WEEK’S UPDATE" (board in-team): two boxes and "Save update",
  * with who reads it said beside the button, as the privacy policy promises.
  *
  * The boxes are uncontrolled, so whatever is typed before the page's script
@@ -66,7 +66,7 @@ export default function CheckInForm({ runId, weekNumber, did, inTheWay, canSave,
       });
       const answer = (await response.json().catch(() => ({}))) as { error?: unknown };
       if (response.ok) {
-        setSaid(CHECK_IN_SAVED);
+        setSaid(UPDATE_SAVED);
         router.refresh();
       } else {
         setProblem(typeof answer.error === "string" ? answer.error : NOT_SAVED);
@@ -80,7 +80,7 @@ export default function CheckInForm({ runId, weekNumber, did, inTheWay, canSave,
   return (
     <section className={styles.card} aria-labelledby={`${id}-heading`}>
       <h2 id={`${id}-heading`} className={`${styles.h2} ${styles.h2Spaced}`}>
-        {THIS_WEEKS_CHECK_IN}
+        {THIS_WEEKS_UPDATE}
       </h2>
       <form ref={form} onSubmit={submit} noValidate>
         <label htmlFor={`${id}-did`} className={styles.label}>
@@ -111,7 +111,7 @@ export default function CheckInForm({ runId, weekNumber, did, inTheWay, canSave,
         <div className={styles.actions}>
           {canSave ? (
             <button type="submit" className={styles.button} disabled={!hydrated || busy}>
-              {busy ? SAVING : SAVE_CHECK_IN}
+              {busy ? SAVING : SAVE_UPDATE}
             </button>
           ) : null}
           <p className={styles.who}>{whoLine}</p>
