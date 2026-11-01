@@ -140,6 +140,11 @@ const READERS = new Map([
     who: "rule",
     why: "every name an account holds, the full name among them, for a scrub: read to be taken out of words and never shown; its callers are the scrub entries below",
   }],
+  ["src/app/api/events/[id]/audience/route.ts", {
+    who: "rule",
+    proof: ['chosenBy: chooser?.exists ? nameForViewer(viewer, accountNamesOf(chooser.data()), "NAISI member") : null,'],
+    why: "who chose the people an event for chosen people is for, named to the people who run events by the rule for the session's own viewer: the committee and admins see the full name, a member who drafts or approves events the name people go by",
+  }],
   ["src/lib/audience/load.ts", {
     who: "rule",
     proof: ['return nameForViewer(viewer, accountNamesOf(data), "NAISI member");'],

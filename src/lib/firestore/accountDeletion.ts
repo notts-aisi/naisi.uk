@@ -11,7 +11,7 @@ import { deleteCalendarLink } from "@/lib/courses/calendarLink";
 import { deleteKairosChoice } from "@/lib/kairos/choice";
 import { deleteRatingsForAccount } from "@/lib/ratings/store";
 import { takeCheckInNamesOffForAccount } from "@/lib/events/checkIns";
-import { deleteInvitationsForAccount } from "@/lib/events/invitations";
+import { deleteInvitationsForAccount } from "@/lib/events/invitationRecords";
 import { takeNamesOffForAccount } from "@/lib/surveys/namesOff";
 import { FACILITATING_COLLECTION } from "@/lib/courses/facilitatorAsks/model";
 import { CERTIFICATES_COLLECTION } from "@/lib/courses/certificates/model";

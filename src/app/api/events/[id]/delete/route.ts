@@ -3,7 +3,7 @@ import { getAdminDb, getAdminStorage } from "@/lib/firebase/admin";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { getCurrentUser } from "@/lib/firebase/session";
 import { deleteEventCheckIns } from "@/lib/events/checkIns";
-import { deleteEventInvitations } from "@/lib/events/invitations";
+import { deleteEventInvitations } from "@/lib/events/invitationRecords";
 import { canDraftEvent } from "@/lib/firestore/users";
 
 type Ctx = RouteContext<"/api/events/[id]/delete">;

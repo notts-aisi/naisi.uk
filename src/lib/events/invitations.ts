@@ -442,33 +442,3 @@ export async function inviteNewSince(
   const tally = await deliverInvitations(db, { event, invitees: created, actorUid });
   return { ok: true, invited: created.length, emailed: tally.emailed };
 }
-
-/**
- * An event's choice and its whole list, for the event's own deletion. Counts
- * the people taken off. Batches of 400, under Firestore's 500.
- */
-export async function deleteEventInvitations(db: Firestore, eventId: string): Promise<number> {
-  const snap = await db.collection(EVENT_INVITATIONS_COLLECTION).where("eventId", "==", eventId).get();
-  for (let at = 0; at < snap.docs.length; at += 400) {
-    const batch = db.batch();
-    for (const doc of snap.docs.slice(at, at + 400)) batch.delete(doc.ref);
-    await batch.commit();
-  }
-  await db.collection(EVENT_AUDIENCES_COLLECTION).doc(eventId).delete();
-  return snap.docs.length;
-}
-
-/**
- * Every invitation an account holds, for the account's own deletion: being on
- * an event's list says who was chosen for what, and goes with them. One
- * equality on `uid`.
- */
-export async function deleteInvitationsForAccount(db: Firestore, uid: string): Promise<number> {
-  const snap = await db.collection(EVENT_INVITATIONS_COLLECTION).where("uid", "==", uid).get();
-  for (let at = 0; at < snap.docs.length; at += 400) {
-    const batch = db.batch();
-    for (const doc of snap.docs.slice(at, at + 400)) batch.delete(doc.ref);
-    await batch.commit();
-  }
-  return snap.docs.length;
-}

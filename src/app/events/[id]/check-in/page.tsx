@@ -85,36 +85,23 @@ export default async function SelfCheckInPage({
   }
 
   // AN EVENT FOR CHOSEN PEOPLE is for the people invited to it
-  // (src/lib/events/reach.ts). Signed out, nothing of it is named and the way
-  // in is to sign in; signed in as somebody who may not open it, it says so,
-  // with nothing of it named. The link in a confirmation email is its own
-  // credential, and only somebody invited has one.
-  if (isForChosenPeople(event) && !link.token) {
-    const viewer = await getCurrentUser();
-    if (!viewer) {
-      const back = checkInReturnPath(event.id, doorCode);
-      return (
-        <Frame>
-          <h1 className={styles.title}>Are you here?</h1>
-          <p className={styles.lead}>Sign in to check yourself in.</p>
-          <Link href={`/login?next=${encodeURIComponent(back)}`} prefetch={false} className={styles.primary}>
-            Sign in
-          </Link>
-          <p>Otherwise, give your name at the door.</p>
-        </Frame>
-      );
-    }
-    if (!(await mayOpenFor(db, event.id, event, viewer))) {
-      return (
-        <Frame>
-          <h1 className={styles.title}>{REACH_WORDS.onlyInvited}</h1>
-          <p className={styles.lead}>Give your name at the door.</p>
-        </Frame>
-      );
-    }
+  // (src/lib/events/reach.ts). Signed in as somebody who may not open it, the
+  // page says so and names nothing of it; signed out, every state below is
+  // drawn without the event's name, day or place, and the way in is to sign
+  // in. The link in a confirmation email is its own credential, and only
+  // somebody invited has one.
+  const chosen = isForChosenPeople(event) && !link.token;
+  const signedIn = chosen ? await getCurrentUser() : null;
+  if (chosen && signedIn && !(await mayOpenFor(db, event.id, event, signedIn))) {
+    return (
+      <Frame>
+        <h1 className={styles.title}>{REACH_WORDS.onlyInvited}</h1>
+        <p className={styles.lead}>Give your name at the door.</p>
+      </Frame>
+    );
   }
 
-  const line = eventLine(event);
+  const line = chosen && !signedIn ? undefined : eventLine(event);
   if (event.status === "cancelled") {
     return (
       <Frame line={line}>
