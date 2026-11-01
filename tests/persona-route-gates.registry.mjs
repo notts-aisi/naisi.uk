@@ -688,7 +688,7 @@ export const ROUTES = {
   "/api/admin/registrations/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFeedbackCleared", "courseFeedbackDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseSessionReportsCleared", "courseTeamEntriesCleared", "courseTeamsCleared", "courseWeekReviewsCleared", "courseWeekWorkDeleted", "courseWorkLogDeleted", "courseWorkRatingsDeleted", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "eventInvitationsDeleted", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "reviewFollowUpsDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseExplainersCleared", "courseFacilitatingCleared", "courseFeedbackCleared", "courseFeedbackDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseSessionReportsCleared", "courseTeamEntriesCleared", "courseTeamsCleared", "courseWeekReviewsCleared", "courseWeekWorkDeleted", "courseWorkLogDeleted", "courseWorkRatingsDeleted", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "eventInvitationsDeleted", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "reviewFollowUpsDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -777,7 +777,7 @@ export const ROUTES = {
   "/api/admin/users/[uid]": {
     DELETE: {
       expect: everyone(403, { admin: 200 }),
-      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseFacilitatingCleared", "courseFeedbackCleared", "courseFeedbackDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseSessionReportsCleared", "courseTeamEntriesCleared", "courseTeamsCleared", "courseWeekReviewsCleared", "courseWeekWorkDeleted", "courseWorkLogDeleted", "courseWorkRatingsDeleted", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "eventInvitationsDeleted", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "reviewFollowUpsDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
+      fields: ["admissionApplicationPrivateDeleted", "admissionApplicationsDeleted", "admissionAssessmentsDeleted", "admissionDecisionsDeleted", "admissionReviewsAuthoredDeleted", "admissionReviewsDeleted", "admissionRoundRolesCleared", "authDeleted", "calendarLinkDeleted", "collaboratorDeleted", "conductFlagDeleted", "courseApplicationsDeleted", "courseAttendanceMarksCleared", "courseBestAnswersCleared", "courseCertificatesDeleted", "courseCertificatesKept", "courseEnrolmentsDeleted", "courseExerciseResponsesDeleted", "courseExplainersCleared", "courseFacilitatingCleared", "courseFeedbackCleared", "courseFeedbackDeleted", "courseFinishingCleared", "courseGroupNotesDeleted", "courseGroupSharedNotesDeleted", "coursePacksAndCasesDeleted", "coursePairsDeleted", "coursePangramChecksDeleted", "coursePitchesCleared", "coursePlacementNotesDeleted", "coursePredictionsDeleted", "courseProgressDeleted", "courseSessionReportsCleared", "courseTeamEntriesCleared", "courseTeamsCleared", "courseWeekReviewsCleared", "courseWeekWorkDeleted", "courseWorkLogDeleted", "courseWorkRatingsDeleted", "emailVerificationsDeleted", "eventCheckInsNamesTakenOff", "eventInvitationsDeleted", "kairosChoiceDeleted", "memberNotesDeleted", "memberRecordApplicationsRetained", "membershipImportRowsDeleted", "membershipsDeleted", "ok", "programmeRatingsDeleted", "pushSubscriptionsDeleted", "registrationDeleted", "reviewFollowUpsDeleted", "schedulerMarkersDeleted", "subscriptionsDeleted", "surveyAnswersNamesTakenOff", "surveyPeopleDeleted", "userDocDeleted", "worksheetResponsesRetained"],
       why:
         "Admin only through the tree's own requireAdmin helper, which answers a missing " +
         "session with the same 403 an outsider gets, so an anonymous probe learns nothing an " +
@@ -1092,6 +1092,24 @@ export const ROUTES = {
         "A follow-up task from a week's review: an admin's alone, decided on the session before the body, the " +
         "params or the database are read; the admin then meets the body check, who to ask about, which an empty " +
         "body fails before anything is read, made or sent.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/explainers": {
+    POST: {
+      expect: adminOnly(400),
+      why:
+        "Scheduling an explainer from a week's review: an admin's alone, decided on the session before the body, " +
+        "the params or the database are read; the admin then meets the body check, the topic, who explains, how " +
+        "long and which sessions, which an empty body fails before anything is read, written or sent.",
+    },
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/explainers/[explainerId]": {
+    DELETE: {
+      expect: adminOnly(404),
+      why:
+        "Cancelling an explainer: an admin's alone, decided on the session before the params or the database are " +
+        "read; the admin is then told there is no programme here, as the battery's ids address none, before any " +
+        "explainer is read.",
     },
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]/pangram": {
@@ -2152,7 +2170,7 @@ export const ROUTES = {
   "/api/courses/groups/[groupId]/summary": {
     GET: {
       expect: adminOnly(404),
-      fields: ["groupId", "expected", "notYetTold", "toReview", "writtenToGive", "writtenWeeks", "writtenNext", "nextEmail", "leftRecently", "coFacilitators", "whosComing", "write"],
+      fields: ["groupId", "expected", "notYetTold", "toReview", "writtenToGive", "writtenWeeks", "writtenNext", "nextEmail", "leftRecently", "coFacilitators", "whosComing", "write", "explainer"],
       why:
         "What a facilitator's Home says about their group, behind the group page's own gate: a live " +
         "facilitator of the group or an admin. A missing group and one that is not the caller's collapse " +
@@ -4430,6 +4448,15 @@ export const PAGES = {
       "The lead persona is admitted as an approveCourse holder is (appointing a lead sets the flag the tree reads), " +
       "and with an address that names nothing is drawn the same not-here state.",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review/explainer": {
+    expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
+    why:
+      "Schedule an explainer, under a week's review and on its terms: an admin's alone, so the programme's lead is " +
+      "drawn the review's calm refusal and nothing of the week is read. A programme the caller has no role on, or " +
+      "one that does not exist, renders 'there is no programme here' with a 200 before the week is looked at. The " +
+      "lead persona is admitted as an approveCourse holder is, and with an address that names nothing is drawn the " +
+      "same not-here state.",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review": {
     expect: everyone("dashboard", { anonymous: "login", pending: "pendingApproval", rejected: "home", admin: 200, approveCourse: 200, lead: 200 }),
     why:
@@ -5251,6 +5278,18 @@ export const REAL_ROUTES = {
     POST: adminAlone(
       "A follow-up task from a week's review",
       c(400, "An admin meets the body check: an empty body names nobody to ask about, so nothing is read, made or sent."),
+    ),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/explainers": {
+    POST: adminAlone(
+      "Scheduling an explainer",
+      c(400, "An admin meets the body check: an empty body has no topic, so nothing is read, written or sent."),
+    ),
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/explainers/[explainerId]": {
+    DELETE: adminAlone(
+      "Cancelling an explainer",
+      c(404, "An admin is told there is no explainer here: the battery's id addresses none on the programme's run, so nothing is written."),
     ),
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/[uid]/pangram": {
@@ -6788,6 +6827,16 @@ export const REAL_PAGES = {
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks": programmePage("the Weeks tab."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/copy": programmePage("Copy weeks from the course."),
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]": programmePage("week 1's page, a taught week of the run's plan."),
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review/explainer": {
+    ...programmePage("the form to schedule an explainer from week 1's review, or the day it can be from."),
+    theirs: {
+      ...programmePage("the form to schedule an explainer.").theirs,
+      lead: c(
+        "reviewAdminsOnly",
+        "The programme's own lead: an explainer is scheduled from a week's review, which is an admin's, so the page draws the review's calm 'a week's review is for admins' and reads nothing of the week.",
+      ),
+    },
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review": {
     ...programmePage("week 1's review, or the day it can be reviewed from."),
     theirs: {

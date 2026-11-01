@@ -29,6 +29,7 @@ import { facilitatorGuidePath } from "@/lib/courses/facilitatorGuide/model";
 import { readGuideIndex } from "@/lib/courses/facilitatorGuide/store";
 import { guideForWeekWords } from "@/lib/courses/facilitatorGuide/words";
 import { loadFacilitatorGroup } from "@/lib/courses/facilitatorGroup";
+import { facilitatorExplainerOn } from "@/lib/courses/explainers/readers";
 import { hasDraw } from "@/lib/courses/packsAndCases/model";
 import { drawPeople, readDrawState, readGroupWeek, spreadOf } from "@/lib/courses/packsAndCases/readers";
 import { changeDrawWords, spreadTitleWords } from "@/lib/courses/packsAndCases/words";
@@ -253,6 +254,11 @@ export default async function GroupHomePage({
     londonDateKey(now),
   );
 
+  // The explainer an admin scheduled at the start of the next session, if
+  // any: on the ticket, named as this reader sees people (the ticket's own
+  // words), and on the session's facts as each member reads it.
+  const explainer = await facilitatorExplainerOn(db, access.user, runId, group.id, range.next?.sessionKey);
+
   // A break week and the before/after phases have no week doc of their own, so
   // the session override falls back to the anchor (the last taught week that
   // started), the slot the group will return to. Empty means "no override",
@@ -288,6 +294,7 @@ export default async function GroupHomePage({
             location: changes.next?.location ?? "",
             // The gate above is the overview route's `canSeeMeetingUrl`.
             meetingUrl: changes.next?.meetingUrl ?? null,
+            explainer: explainer ? { minutes: explainer.minutes, topic: explainer.topic } : null,
           }
         : null,
     },
@@ -435,6 +442,7 @@ export default async function GroupHomePage({
           expected={model.expected > 0 ? model.expected : null}
           registerHref={registerHref}
           guide={guide}
+          explainer={explainer}
         />
       )}
       {/* Every session the group holds is over: Home's sentence where the

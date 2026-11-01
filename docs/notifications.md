@@ -183,7 +183,7 @@ is that helper inverted, for the loops that hold a raw document and are asking
 | `newsletter` | `POST /api/newsletter/[id]/send`, the only sender of an issue; and a message in Messages by their settings whose writer chose this row | the newsletter send, alongside its email loop |
 | `events` | the new-event announcement, on publish, inline or queued to the `event-announcements` job, for a listed event whose Announce is not switched off; an event for chosen people's invitation, to the people chosen who are not reached as a notice; and a message in Messages by their settings whose writer chose this row | the same announcement; never the invitation |
 | `courses` | the cohort announcement composer, the admissions deadline reminder job, the admissions stage-release job, the daily invitation reminder job; and a message in Messages by their settings whose writer chose this row | an admissions decision, an allocation publish, the stage release |
-| `tasks` | the five `/api/tasks/[id]/*` senders, the four worksheet circulation messages, the worksheet due-soon reminder, the register reminder to a group's facilitators (`courses-register-reminders`), a week review's follow-up to the person's group's facilitators (`src/lib/courses/weekReview/followUp.ts`, the you-have-been-added mail as the task is made) | a mirror beside each of those but the register reminder, which is email only |
+| `tasks` | the five `/api/tasks/[id]/*` senders, the four worksheet circulation messages, the worksheet due-soon reminder, the register reminder to a group's facilitators (`courses-register-reminders`), a week review's follow-up to the person's group's facilitators (`src/lib/courses/weekReview/followUp.ts`, the you-have-been-added mail as the task is made), an explainer's one email to whoever gives it, beside the task each of its sessions gives them (`src/lib/courses/explainers/schedule.ts`) | a mirror beside each of those but the register reminder, which is email only |
 
 **The two opt-in rows share one push audience shape**, in
 `sendPushToRowAudience` (`src/lib/push/rowAudience.ts`): every account with a
@@ -362,7 +362,11 @@ per person per reminder, and that claim is their bound. Their words are fixed
 in `src/lib/courses/weekEmails/words.ts` and drawn by `src/emails/WeekEmail.tsx`;
 "Week N is open" was next week's email, a grid send that honoured the courses
 row and the run's list, until November 2026, and the weekly nudge beside it
-is gone.
+is gone. An explainer an admin scheduled at the start of a session is a line
+in its "Week N is open" ("Your session starts with a 10-minute explainer on
+..."), read when the email is built, so it rides that notice and sends
+nothing of its own: a group whose email has already gone is told on its
+session tickets alone (docs/courses-ops.md, "Explainers").
 
 **An event for chosen people's invitation** (src/lib/events/invitations.ts)
 decides its class person by person, through the picker's one resolver with

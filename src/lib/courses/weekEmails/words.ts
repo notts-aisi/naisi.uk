@@ -1,3 +1,4 @@
+import { memberLineWords } from "../explainers/words";
 import { londonClockLabel, londonDayLabel } from "../londonLabels";
 import { namesAnd } from "../writtenAnswerWords";
 import { notDoneWords, yourWords } from "../weekWork/words";
@@ -103,6 +104,12 @@ export type WeekOpenFacts = {
   feedbackUrl: string;
   /** Whether the week's work locks at the session: a week written as blocks. */
   locks: boolean;
+  /**
+   * The explainer an admin scheduled at the start of the session, read when
+   * the email is built: how long and what about, or null. An email that has
+   * gone is never sent again for one scheduled after it.
+   */
+  explainer?: { minutes: number; topic: string } | null;
 };
 
 /** "Week 3 is open: Power and incentives", or "Week 3 is open" for a week with no title. */
@@ -143,7 +150,8 @@ function weekOpenLead(facts: WeekOpenFacts): string {
 /**
  * EVERY WORD OF "WEEK N IS OPEN" for one person: the subject, a greeting by
  * the first name they go by, the week and when the group meets (or, for a
- * cancelled evening, that it is off, why and when they meet next), what the
+ * cancelled evening, that it is off, why and when they meet next), the
+ * explainer the session starts with when an admin scheduled one, what the
  * week asks for, a button to its page, and that the work saves as you go
  * and locks when the session starts.
  */
@@ -151,6 +159,8 @@ export function weekOpenEmailWords(facts: WeekOpenFacts, firstName: string): Wee
   const lead = weekOpenLead(facts);
   const paragraphs = [lead];
   if (oneLine(facts.change)) paragraphs.push(oneLine(facts.change));
+  // A session that is off starts with nothing.
+  if (facts.explainer && !facts.cancelled) paragraphs.push(memberLineWords(facts.explainer.minutes, facts.explainer.topic));
   const after: string[] = [];
   if (facts.locks) {
     after.push(

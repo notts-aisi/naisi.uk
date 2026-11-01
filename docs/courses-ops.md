@@ -3367,8 +3367,9 @@ shows as out of date.
   fellow" unless numbered), the run's facilitators ("a facilitator"), and the
   people running the programme, its lead, the run's helpers and every admin
   ("someone running the programme"), so "as Claudia said in the session"
-  leaves without Claudia. The run's explainers join the last group once a run
-  can have any.
+  leaves without Claudia. Everybody who has explained on the run (see
+  "Explainers" below), a cancelled explainer's included, is in that last
+  group too, so "Maya's explainer helped" leaves without Maya.
 - **What Claude is never sent**: a name, an email address, an account id, a
   group's name, a facilitator's name, availability, a review score, a
   register or a tick, a private note, or anything written before its
@@ -3459,16 +3460,94 @@ and who might need a hand. `src/lib/courses/weekReview/` holds it.
   Its `sourceRef` names the run, week, group and person (`aboutUid`): the
   run's destroy sweeps it (`reviewFollowUps`), and the person's account
   deletion deletes it, because it names them.
-- **Not built here**: a way to schedule an explainer from a theme, and
-  Claude's grade beside the team's own rating of an answer, which is to
-  show only once the admin has saved theirs. Each joins the review's own
-  code and `tests/claude-output-readers.test.mjs`'s list when it lands.
+- **Schedule an explainer**, from each theme and with a typed topic: see
+  "Explainers" below.
+- **Not built here**: Claude's grade beside the team's own rating of an
+  answer, which is to show only once the admin has saved theirs. It joins the
+  review's own code and `tests/claude-output-readers.test.mjs`'s list when it
+  lands.
 
 `tests/week-review.test.mjs` reads every message that would go, the checkers,
 the facts, the page as every reader, every press and the follow-up as every
 caller, and the account cascade; `tests/claude-output-readers.test.mjs` walks
 the tree for every reader of a review, both ways, and fails one in the notes
 kept about a person.
+
+### Explainers
+
+An explainer is a few minutes at the start of a session in which somebody on
+the committee (or an admin) explains one topic, scheduled by an admin from a
+week's review: "Schedule an explainer" on each theme of what people found
+hard, or on the review's Explainers card with a typed topic. The form is a
+page under the review (`.../weeks/[weekId]/review/explainer`, `?theme=N`
+opening it from the review's Nth theme), an admin's alone as the review is:
+the programme's lead is shown the review's calm "admins only" and nothing is
+read for them. `src/lib/courses/explainers/` holds it;
+`courseExplainers/{autoId}` is the record.
+
+- **What it is made of.** The topic, the admin's own words on one line, at
+  most 120 characters (a theme's title to start from, which the admin may
+  change); who explains, anybody whose role is committee or admin, read and
+  held to that on the server; how long, 5, 10, 15 or 20 minutes; and the
+  sessions, each live group's NEXT session that meets (the soonest of its
+  own sessions, at its own day and time, that is not cancelled and has not
+  started), listed in the order they meet, the theme's groups ticked. A group
+  with no session to come that has a day and time is not listed, and the
+  form says so. The record keeps nothing of the review: no theme, no count,
+  no words of Claude's, so nothing that reads an explainer reaches what
+  Claude returned (`tests/claude-output-readers.test.mjs`).
+- **One to a session.** A session that already starts with an explainer is
+  shown as taken, and the route refuses a second inside the transaction that
+  writes the record, so two presses never put two on one session. Each
+  session asked for must still be its group's next, or the press is refused
+  and the page says to look again.
+- **What "Schedule for N groups" does.** One record, one task per session
+  for whoever explains (`source: "explainer"`, `assignees-only`, due when the
+  session starts, the session's day, time and room and never a link to join;
+  an online session says to ask its facilitators for the link), and ONE
+  email to them for all of it, on their tasks row (a grid send, behind the
+  site's task-email switch), with the push beside it. The tasks are born
+  notified, so the task system sends nothing more. The line under the press
+  says so: "Maya gets a task for each session, and an email if their task
+  emails are on."
+- **Who is told, and where.** Nobody in the groups is emailed for it. The
+  group's facilitators see it on their session ticket at once, on the group
+  page and on Home ("Starts with an explainer: 10 minutes on ..., by Maya.
+  Then the week as planned.", and under the ticket who scheduled it from
+  which week's review); each person in the group sees "Your session starts
+  with a 10-minute explainer on ..." on their own ticket (the overview's
+  `nextSession.explainer`: how long and what about, never who); and "Week N
+  is open" carries that line when it is built, so it is in that email only
+  when the email had not gone when the explainer was scheduled. A ticket
+  follows the session's key: a session moved for one week keeps it, and a
+  cancelled one drops off every ticket (its task stays until somebody closes
+  it). Names are each viewer's (`nameForViewer`): a facilitator who is not
+  on the committee reads the name people go by.
+- **The lead** sees, on the week's page on the Weeks tab, the explainers
+  scheduled from that week's review (topic, how long, who, and each
+  session), and the Surveys tab's Overview says under what was unclear "The
+  week 3 review has an explainer booked for four groups." Never the theme,
+  its counts or anything Claude said.
+- **Cancel**, an admin's, on the review's Explainers card, asked once more
+  before it goes: the record is stamped `cancelledAt` and kept, its tasks are
+  archived, and every ticket and the week's email drop it. Nobody is
+  emailed, so an email that has gone is never followed by another.
+- **Deleting.** The run's destroy deletes the run's explainers
+  (`explainers`) and sweeps their tasks (`explainerTasks`, a fourth sourced
+  sweep of `tasks`), each counted in the dialog. An account's deletion leaves
+  each explainer it gave, scheduled or cancelled, and takes its id off
+  (`clearExplainerNames`: who explains, who scheduled, who cancelled), so the
+  ticket says "Starts with an explainer" without a name; its tasks are left as
+  every task is.
+- **Rules.** `courseExplainers` refuses every browser, admins included: the
+  route, the pages and routes that draw a ticket, "Week N is open" and the two
+  deletions read and write it on the Admin SDK. Deploy the rules after this
+  lands.
+
+`tests/course-explainers.test.mjs` drives the page as every reader, the press
+and Cancel as every caller, both kinds of ticket, Home, the overview, "Week N
+is open" (the line while the email has not gone, and no second email), the
+week's page, the scrub and the account cascade.
 
 ## Cutover: membership periods
 

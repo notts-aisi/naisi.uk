@@ -295,6 +295,11 @@ const COUNT_META: Record<string, CountMeta> = {
     fate: "destroyed",
     note: "The tasks an admin made from a week’s review, asking a group’s facilitators to have a word with somebody, and any comments on them. They go with the run.",
   },
+  explainerTasks: {
+    label: "Explainers’ tasks",
+    fate: "destroyed",
+    note: "The task for each session an explainer opens, on the board of whoever gives it, and any comments on them. They go with the run.",
+  },
   subscriptionRows: {
     label: "Cohort email subscriptions",
     fate: "destroyed",
@@ -339,6 +344,11 @@ const COUNT_META: Record<string, CountMeta> = {
     label: "Claude’s best answers",
     fate: "destroyed",
     note: "Claude’s pick of the strongest answers to each week, asked for by an admin or the programme’s lead. Every pick is an answer this destroy deletes, so they go with the run.",
+  },
+  explainers: {
+    label: "Explainers",
+    fate: "destroyed",
+    note: "The explainers an admin scheduled from a week’s review at the start of groups’ sessions, cancelled ones included. Each opens a session of this run, so they go with it.",
   },
   weekReviews: {
     label: "Claude’s week reviews",

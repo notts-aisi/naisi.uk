@@ -28,6 +28,13 @@
  * The rating page's own block for an admin, Claude's grade beside the
  * team's rating once the admin has saved theirs, is not built: when it is,
  * it joins `REACHERS` with its gate, and nothing else here changes.
+ *
+ * EXPLAINERS (`src/lib/courses/explainers/`) start from a theme: the admin's
+ * form reads one theme through the review's own store, behind its door
+ * (`themeForExplainer`), and nothing else does. What an explainer keeps, and
+ * every reader of it (the tickets, the overview, "Week N is open", the
+ * week's page and the Surveys tab), reaches none of the review: the topic is
+ * the admin's words, and that is all that leaves.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -79,7 +86,28 @@ const REACHERS = {
   "features/courses/weekReview/WeekReviewScreen.tsx": "the review's screen, drawn by the review's page alone, from the view it is handed",
   "features/courses/weekReview/ReviewPress.tsx": "the press: the review's words, and the route",
   "features/courses/weekReview/FollowUpButton.tsx": "the follow-up press: the review's words, and the route",
+  "lib/courses/explainers/schedule.ts":
+    "scheduling an explainer, an admin's alone: the review's door, and one theme's title, groups and counts for the admin's form, read through the review's own store; the record it writes holds the admin's topic and nothing of the review",
+  "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review/explainer/page.tsx":
+    "the explainer's form, under the review: the programme's lead is drawn the review's calm refusal before anything is read, and an admin's form is loaded behind the review's door",
 };
+
+/**
+ * The explainers' readers: what draws a session's ticket, the overview,
+ * "Week N is open", the week's page and the Surveys tab. None of them may
+ * reach the review, so a facilitator, a member or a lead never meets what
+ * Claude returned.
+ */
+const EXPLAINER_READERS = [
+  "lib/firestore/courseExplainers.ts",
+  "lib/courses/explainers/readers.ts",
+  "lib/courses/explainers/model.ts",
+  "lib/courses/explainers/words.ts",
+  "lib/courses/explainers/task.ts",
+  "features/courses/explainers/ExplainerList.tsx",
+  "features/courses/explainers/CancelExplainer.tsx",
+  "features/courses/explainers/ExplainerForm.tsx",
+];
 
 /** What reaches the review: its record by name or import, or its library by import. */
 const REACHES = /COURSE_WEEK_REVIEWS_COLLECTION|["'`]courseWeekReviews["'`]|from\s+"@\/lib\/firestore\/courseWeekReviews"|from\s+"\.\/courseWeekReviews"|from\s+"@\/lib\/courses\/weekReview\/[^"]+"|from\s+"@\/features\/courses\/weekReview\/[^"]+"/;
@@ -139,6 +167,25 @@ describe("Claude's week reviews: read by admins, on the run, never on a record",
     assert.deepEqual(callers(/from\s+"@\/features\/courses\/weekReview\/WeekReviewScreen"/), [
       "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review/page.tsx",
     ]);
+    assert.deepEqual(callers(/\bthemeForExplainer\s*\(/), ["lib/courses/explainers/schedule.ts"]);
+    // Its definition aside: the explainers' own module is outside the review's library.
+    assert.deepEqual(callers(/(?<!function )\bloadExplainerForm\s*\(/), [
+      "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review/explainer/page.tsx",
+    ]);
+  });
+
+  test("an explainer, and everything that reads one, reaches nothing of the review: only the admin's topic leaves it", () => {
+    const REVIEW = /courseWeekReviews|COURSE_WEEK_REVIEWS_COLLECTION|from\s+"@\/lib\/courses\/weekReview\/|from\s+"@\/features\/courses\/weekReview\/|\bthemeForExplainer\b/;
+    for (const file of EXPLAINER_READERS) {
+      const found = files.find(([path]) => path === file);
+      assert.ok(found, `${file} is gone: say where the explainers' readers live now`);
+      assert.doesNotMatch(withoutComments(found[1]), REVIEW, `${file} reaches Claude's week review`);
+    }
+    // The record keeps the admin's topic and no part of a theme.
+    const record = withoutComments(files.find(([path]) => path === "lib/firestore/courseExplainers.ts")[1]);
+    const shape = /export type CourseExplainerDoc = \{([\s\S]*?)\n\};/.exec(record)?.[1] ?? "";
+    assert.ok(shape.length > 100, "the explainer's shape is gone");
+    assert.doesNotMatch(shape, /theme|checkIns|reports|answers|grade|detail|from:/i, "an explainer keeps part of the review it came from");
   });
 
   test("the page refuses the lead before it loads anything, and both routes refuse everybody but an admin first", () => {
@@ -147,6 +194,12 @@ describe("Claude's week reviews: read by admins, on the run, never on a record",
     );
     const refusal = page.indexOf('if (view.viewer !== "admin")');
     assert.ok(refusal !== -1 && refusal < page.indexOf("loadWeekReview("), "the review page loads the review before it refuses the lead");
+    // The explainer's form shows a theme's title and counts: the same order.
+    const form = withoutComments(
+      readFileSync(join(SRC, "app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review/explainer/page.tsx"), "utf8"),
+    );
+    const turnedAway = form.indexOf('if (view.viewer !== "admin")');
+    assert.ok(turnedAway !== -1 && turnedAway < form.indexOf("loadExplainerForm("), "the explainer's page loads a theme before it refuses the lead");
     for (const route of ["review/route.ts", "review/follow-up/route.ts"]) {
       const code = withoutComments(readFileSync(join(SRC, "app/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]", route), "utf8"));
       const refused = code.indexOf("if (!canRunTerm(user)) return NextResponse.json(");

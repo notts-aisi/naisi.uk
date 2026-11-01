@@ -48,6 +48,7 @@ import { MEMBER_NOTES_COLLECTION } from "@/lib/memberNotes/model";
 import { BEST_ANSWERS_COLLECTION, PANGRAM_CHECKS_COLLECTION } from "@/lib/courses/coursework/collections";
 import { COURSE_WEEK_REVIEWS_COLLECTION, reviewWithout } from "./courseWeekReviews";
 import { REVIEW_FOLLOW_UP_TASK_SOURCE } from "./courseTasks";
+import { COURSE_EXPLAINERS_COLLECTION, EXPLAINER_ACCOUNT_FIELDS } from "./courseExplainers";
 import {
   MEMBER_RECORDS_COLLECTION,
   MEMBER_RECORD_APPLICATIONS,
@@ -352,6 +353,13 @@ export type AccountDeletionSummary = {
    * facilitators to have a word with this person by name, so each goes.
    */
   reviewFollowUpsDeleted: number;
+  /**
+   * Explainers (`courseExplainers`) this account gave, scheduled or
+   * cancelled: each is the run's, opening its groups' sessions, so it stays,
+   * and this account's id comes off it, so its tickets say "Starts with an
+   * explainer" without a name. Counted once per document.
+   */
+  courseExplainersCleared: number;
   authDeleted: boolean;
   /** Set when the teardown was not fully clean (a best-effort step failed, or the
    *  Auth account could not be deleted). Routes return 207 when this is present. */
@@ -901,6 +909,33 @@ export async function deleteReviewFollowUpsAbout(db: Firestore, uid: string): Pr
     deleted += 1;
   }
   return deleted;
+}
+
+/**
+ * Take this account's id off every explainer that names it
+ * (`courseExplainers`, `src/lib/firestore/courseExplainers.ts`): as the one
+ * explaining, as the admin who scheduled it, or as the admin who cancelled
+ * it, found by one equality per field. The explainer stays, for the groups
+ * whose sessions it opens; a ticket then says "Starts with an explainer"
+ * without a name. Its tasks are left, as every task this account was a
+ * completer or creator of is.
+ */
+export async function clearExplainerNames(db: Firestore, uid: string): Promise<number> {
+  const explainers = db.collection(COURSE_EXPLAINERS_COLLECTION);
+  // In the order of `EXPLAINER_ACCOUNT_FIELDS`, each one equality on one field.
+  const found = await Promise.all([
+    explainers.where("explainerUid", "==", uid).get(),
+    explainers.where("scheduledByUid", "==", uid).get(),
+    explainers.where("cancelledByUid", "==", uid).get(),
+  ]);
+  const cleared = new Set<string>();
+  for (const [index, field] of EXPLAINER_ACCOUNT_FIELDS.entries()) {
+    for (const doc of found[index].docs) {
+      await doc.ref.update({ [field]: null });
+      cleared.add(doc.id);
+    }
+  }
+  return cleared.size;
 }
 
 /**
@@ -1692,6 +1727,7 @@ export async function deleteAccountCascade(
     courseBestAnswersCleared: 0,
     courseWeekReviewsCleared: 0,
     reviewFollowUpsDeleted: 0,
+    courseExplainersCleared: 0,
     authDeleted: false,
   };
   // Tracks whether any best-effort step (2-5) failed after attempting, so we can
@@ -2251,6 +2287,15 @@ export async function deleteAccountCascade(
     summary.reviewFollowUpsDeleted = await deleteReviewFollowUpsAbout(db, uid);
   } catch (err) {
     console.error("[deleteAccount] review follow-ups delete failed:", uid, err);
+    partialFailure = true;
+  }
+  //      An explainer opens a group's session and is the run's: it stays, and
+  //      this account's id comes off it, as the one explaining or the admin
+  //      who scheduled or cancelled it.
+  try {
+    summary.courseExplainersCleared = await clearExplainerNames(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] explainers clear failed:", uid, err);
     partialFailure = true;
   }
 

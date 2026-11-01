@@ -2,6 +2,8 @@ import "server-only";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import WeekEmail from "@/emails/WeekEmail";
 import { unpublishedHeldWords } from "@/features/courses/registerEndingWords";
+import { memberExplainerOn } from "@/lib/courses/explainers/model";
+import { readRunExplainers } from "@/lib/courses/explainers/readers";
 import { resolveWeekDoc } from "@/lib/courses/groupResolve";
 import { nextWeekChangeLine } from "@/lib/courses/sessionChange/model";
 import { resolveSessions, sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
@@ -166,6 +168,12 @@ export type NextWeekEmailReading = {
  * Read what one group's email about `session` would carry: the week as this
  * group sees it (its own copy when it has one), whether that week is
  * published, every fact the email says, and which of them are empty.
+ *
+ * AN EXPLAINER an admin scheduled at the start of the session is read here,
+ * when the email is built, so the line goes only in an email that has not
+ * gone yet. It is never a value a whole email waits for, and a read of it
+ * that fails leaves the line out rather than hold the group's email: each
+ * person's ticket says it either way.
  */
 export async function readNextWeekEmail(
   db: Firestore,
@@ -178,7 +186,13 @@ export async function readNextWeekEmail(
   },
 ): Promise<NextWeekEmailReading> {
   const { run, group, session } = args;
+  // Asked beside the week, and waited for after it.
+  const explainersRead = readRunExplainers(db, run.id).catch((err: unknown) => {
+    console.error("[courses week open email] explainers could not be read", run.id, err);
+    return [];
+  });
   const { week } = await resolveWeekDoc(db, run.id, group.id, session.weekId);
+  const explainers = await explainersRead;
   const sessions = resolveSessions(run, group);
   const blocks = week && isBlockWeek(week) ? week.blocks : null;
   const facts: WeekOpenFacts = {
@@ -197,6 +211,7 @@ export async function readNextWeekEmail(
     weekUrl: courseWeekUrl(args.appUrl, run.id, session.weekNumber),
     feedbackUrl: args.feedbackUrl,
     locks: blocks !== null,
+    explainer: memberExplainerOn(explainers, group.id, session.sessionKey),
   };
   const missing = week ? missingWeekOpenValues(facts) : [];
   return { published: Boolean(week?.published), missing, facts, week };

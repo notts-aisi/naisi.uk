@@ -6,6 +6,9 @@ import {
   type GroupLeftRecently,
 } from "@/lib/courses/facilitatorGroup";
 import type { NextEmailLine } from "@/lib/courses/registerEnding";
+import { facilitatorExplainerOn, type FacilitatorExplainer } from "@/lib/courses/explainers/readers";
+import { resolveGroupCalendar } from "@/lib/courses/groupResolve";
+import { resolveSessions, sessionRange } from "@/lib/courses/sessions";
 import { updateAudienceCounts } from "@/lib/courses/updates/audience";
 import { loadRunGroups } from "@/lib/courses/updates/readers";
 import {
@@ -38,6 +41,11 @@ import { normalizeCourseRun } from "@/lib/firestore/courses";
  * of it here: no admin's Home draws it.
  *
  *   GET  ->  FacilitatorSummary
+ *
+ * AN EXPLAINER an admin scheduled at the start of the group's next session
+ * (the session the run's overview names for the group): how long, what
+ * about, who gives it and who scheduled it, named as the reader sees people,
+ * for Home's ticket, as the group page's ticket says it.
  *
  * WHO READS IT: a live facilitator of the group, and admins: the group
  * page's own gate. Everybody else, and a group that is not there, is one 403;
@@ -90,6 +98,12 @@ export type FacilitatorSummary = {
    * archived group: the group page has the button every week.
    */
   write: { people: number; emails: number; notYetTold: number } | null;
+  /**
+   * The explainer the group's next session starts with, as the ticket says
+   * it, with that session's key so Home draws it on that session alone. Null
+   * with none.
+   */
+  explainer: FacilitatorExplainer | null;
 };
 
 export async function GET(_req: Request, ctx: { params: Promise<{ groupId: string }> }) {
@@ -118,9 +132,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ groupId: strin
   const run = normalizeCourseRun(runSnap.id, runSnap.data() ?? {});
   const now = new Date();
   const model = await loadFacilitatorGroup(db, run, group, { isAdmin, actor }, now);
-  const [line, writtenQueue] = await Promise.all([
+  // The group's next session, on its own calendar, as the overview names it.
+  const next = sessionRange(resolveSessions(run, group, resolveGroupCalendar(run, group, now).calendar), now).next;
+  const [line, writtenQueue, explainer] = await Promise.all([
     readNextEmailForHome(db, run, group, model.scheduled, now),
     loadWrittenQueue(db, actor, run, group),
+    facilitatorExplainerOn(db, actor, run.id, group.id, next?.sessionKey),
   ]);
   // Who's coming: a facilitator's, before the first session's day, about the
   // people the facilitator's own view of the group lists (told, taking part),
@@ -163,6 +180,16 @@ export async function GET(_req: Request, ctx: { params: Promise<{ groupId: strin
       ? whosComing.map((person) => ({ firstName: person.firstName, coming: person.coming }))
       : null,
     write: count ? { people: count.people, emails: count.emails, notYetTold: count.notYetTold } : null,
+    explainer: explainer
+      ? {
+          sessionKey: explainer.sessionKey,
+          minutes: explainer.minutes,
+          topic: explainer.topic,
+          by: explainer.by,
+          scheduledBy: explainer.scheduledBy,
+          fromWeekNumber: explainer.fromWeekNumber,
+        }
+      : null,
   };
   return NextResponse.json(answer);
 }

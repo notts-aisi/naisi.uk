@@ -178,6 +178,8 @@ describe("1. who opens a group's page, its register and its summary", () => {
     // Two fields since board st-fac-before-phone, both for Home before the
     // group's first session's day and null after it (week 3 is long after
     // it): who's coming, and how many an update to the group reaches.
+    // CHANGED ON PURPOSE (explainers): a third, the explainer the next
+    // session starts with, null while an admin has scheduled none.
     assert.deepEqual(answer.body, {
       groupId: B,
       expected: 3,
@@ -188,6 +190,7 @@ describe("1. who opens a group's page, its register and its summary", () => {
       coFacilitators: ["Sofia"],
       whosComing: null,
       write: null,
+      explainer: null,
     });
     assert.deepEqual((await summary("sofia")).body.coFacilitators, ["Rahul"]);
     assert.deepEqual((await summary("zach")).body.coFacilitators, ["Rahul", "Sofia"]);

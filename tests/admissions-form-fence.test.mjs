@@ -526,6 +526,12 @@ const ROUND_SURFACES = {
       "A week's review, an admin's alone: loadProgrammeRun first, which reads the round through the form's own " +
       "loader and answers 'none' for a round that is not a form, then the review's own door",
   },
+  "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review/explainer": {
+    kind: "form",
+    why:
+      "Schedule an explainer, under a week's review, an admin's alone: loadProgrammeRun first, which reads the " +
+      "round through the form's own loader and answers 'none' for a round that is not a form, then the review's own door",
+  },
   "/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]": {
     kind: "form",
     why:
@@ -731,6 +737,19 @@ const ROUND_SURFACES = {
       "A follow-up task from a week's review, an admin's alone, through openWeekReview and the coursework door, " +
       "which starts from loadProgrammeRun and the form's own loader and answers 'none' (a 404) for a round that " +
       "is not a form, before anybody is read or a task is made",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/weeks/[weekId]/explainers": {
+    kind: "form",
+    why:
+      "Scheduling an explainer from a week's review, an admin's alone, through openWeekReview and the coursework " +
+      "door, which starts from loadProgrammeRun and the form's own loader and answers 'none' (a 404) for a round " +
+      "that is not a form, before anybody is read or anything is written",
+  },
+  "/api/admissions/forms/[roundId]/programmes/[programmeId]/explainers/[explainerId]": {
+    kind: "form",
+    why:
+      "Cancelling an explainer, an admin's alone, through loadProgrammeRun, which reads the round through the form's " +
+      "own loader and answers 'none' (a 404) for a round that is not a form, before the explainer is read",
   },
   "/api/admissions/forms/[roundId]/programmes/[programmeId]/coursework/best-answers": {
     kind: "form",

@@ -29,7 +29,8 @@ export type TaskFilterState = {
    * the same time as the option is added.
    *
    * `review-follow-up` has no option either, for the same reason: a week
-   * review's follow-up is always `assignees-only`.
+   * review's follow-up is always `assignees-only`. Nor has `explainer`: an
+   * explainer's task is always `assignees-only` too.
    */
   source:
     | "all"
@@ -38,7 +39,8 @@ export type TaskFilterState = {
     | "personal"
     | "course-register"
     | "worksheet"
-    | "review-follow-up";
+    | "review-follow-up"
+    | "explainer";
   kind: "all" | TaskKind;
 };
 

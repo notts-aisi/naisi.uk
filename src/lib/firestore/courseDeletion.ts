@@ -30,6 +30,7 @@ import { COURSE_SESSION_REPORTS_COLLECTION } from "./courseSessionReports";
 import { PLACEMENT_NOTES_COLLECTION } from "@/lib/courses/placementNotes/model";
 import { BEST_ANSWERS_COLLECTION, PANGRAM_CHECKS_COLLECTION } from "@/lib/courses/coursework/collections";
 import { COURSE_WEEK_REVIEWS_COLLECTION } from "./courseWeekReviews";
+import { COURSE_EXPLAINERS_COLLECTION } from "./courseExplainers";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
 import { COURSE_WEEK_WORK_COLLECTION } from "./courseWeekWork";
 import { COURSE_WORK_LOG_COLLECTION } from "./courseWorkLog";
@@ -51,6 +52,7 @@ import {
   MIRRORED_TASK_SOURCE,
   REGISTER_FOLLOW_UP_TASK_SOURCE,
   REVIEW_FOLLOW_UP_TASK_SOURCE,
+  EXPLAINER_TASK_SOURCE,
 } from "./courseTasks";
 import { COURSE_MATERIAL_NOTES_COLLECTION } from "./courseMaterialNotes";
 import { DATA_EXPORTS_COLLECTION } from "./dataExports";
@@ -378,6 +380,19 @@ export type RunDestroyCounts = {
    * is a different thing to the person reading the dialog.
    */
   reviewFollowUps: number;
+  /**
+   * `courseExplainers` rows: the explainers an admin scheduled from this
+   * run's week reviews, scheduled or cancelled. Keyed by `runId` on the row,
+   * and they die with the run: each opens a session of one of its groups.
+   */
+  explainers: number;
+  /**
+   * `tasks` carrying `source: "explainer"` and pointing at this run: one per
+   * session an explainer opens, for whoever gives it. Counted apart from the
+   * other sourced tasks, as each is a different thing to the person reading
+   * the dialog.
+   */
+  explainerTasks: number;
   /**
    * `coursePangramChecks` rows: Pangram's readings of each person's answers
    * on this run (privacy v13, `src/lib/courses/coursework/pangram.ts`). Keyed
@@ -1246,6 +1261,8 @@ export async function countRunDestroyTargets(
     bestAnswers,
     weekReviews,
     reviewFollowUps,
+    explainers,
+    explainerTasks,
     pangramChecks,
     packsAndCases,
     weekWork,
@@ -1344,6 +1361,15 @@ export async function countRunDestroyTargets(
         .where("source", "==", REVIEW_FOLLOW_UP_TASK_SOURCE)
         .where("sourceRef.cohortId", "==", runId),
     ),
+    // The same single equality the explainers stage drains on.
+    countAgg(db.collection(COURSE_EXPLAINERS_COLLECTION).where("runId", "==", runId)),
+    // The explainers' tasks' sweep, counted on the predicate its stage deletes on.
+    countAgg(
+      db
+        .collection("tasks")
+        .where("source", "==", EXPLAINER_TASK_SOURCE)
+        .where("sourceRef.cohortId", "==", runId),
+    ),
     // The same single equality the Pangram readings stage drains on.
     countAgg(db.collection(PANGRAM_CHECKS_COLLECTION).where("runId", "==", runId)),
     // The same single equality the packs and cases stage drains on.
@@ -1406,6 +1432,8 @@ export async function countRunDestroyTargets(
     bestAnswers,
     weekReviews,
     reviewFollowUps,
+    explainers,
+    explainerTasks,
     pangramChecks,
     packsAndCases,
     weekWork,
@@ -1714,9 +1742,10 @@ function auditIncrements(totals: Record<string, number>): Record<string, unknown
  *  3. Applications (email PII + denormalised names — same reasoning as
  *     accountDeletion's SCOPE note: with the run gone these render as ghost
  *     rows no surface can find).
- *  4. Machine-minted tasks, in two sweeps on the same collection (see
- *     drainSourcedTasks): the members' My Work week mirrors, then the
- *     committee board's unmarked-register follow-ups. The index note is in
+ *  4. Machine-minted tasks, in sweeps on the same collection, one a source
+ *     (see drainSourcedTasks): the members' My Work week mirrors, the
+ *     committee board's unmarked-register follow-ups, a week review's
+ *     follow-ups and the explainers' tasks. The index note is in
  *     drainSourcedTasks too.
  *  5. Nudge markers (courseNudges) — send-dedupe machinery keyed by runId;
  *     hygiene, so counted in `deleted` but not in the manifest. Then the
@@ -1936,6 +1965,12 @@ export async function destroyRunCascade(
       drain: () => drainSourcedTasks(db, storage, REVIEW_FOLLOW_UP_TASK_SOURCE, runId, budget),
     },
     {
+      key: "explainerTasks",
+      // The FOURTH sweep on the same collection, for the explainers' tasks,
+      // on the same predicate and for the same reasons as the three above.
+      drain: () => drainSourcedTasks(db, storage, EXPLAINER_TASK_SOURCE, runId, budget),
+    },
+    {
       key: "nudgeMarkers",
       drain: () => drainQuery(db, "courseNudges", byRunId("courseNudges"), budget),
     },
@@ -2038,6 +2073,14 @@ export async function destroyRunCascade(
       // reads the run first and finds nothing once it is being destroyed, so
       // nothing recreates one behind the cascade.
       drain: () => drainQuery(db, COURSE_WEEK_REVIEWS_COLLECTION, byRunId(COURSE_WEEK_REVIEWS_COLLECTION), budget),
+    },
+    {
+      key: "explainers",
+      // The explainers scheduled from the run's week reviews: a leaf keyed by
+      // `runId`, drained with the other leaves. `write: if false` to every
+      // client, and its route reads the run first and finds nothing once it
+      // is being destroyed, so nothing recreates one behind the cascade.
+      drain: () => drainQuery(db, COURSE_EXPLAINERS_COLLECTION, byRunId(COURSE_EXPLAINERS_COLLECTION), budget),
     },
     {
       key: "pangramChecks",

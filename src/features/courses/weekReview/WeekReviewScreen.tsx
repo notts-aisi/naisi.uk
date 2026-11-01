@@ -1,5 +1,8 @@
 import Link from "next/link";
 import PangramWeek from "@/features/courses/courseworkClaude/PangramWeek";
+import ExplainerList from "@/features/courses/explainers/ExplainerList";
+import type { ExplainerRow } from "@/lib/courses/explainers/readers";
+import { REVIEW_EXPLAINER_WORDS } from "@/lib/courses/explainers/words";
 import type { WeekReviewView } from "@/lib/courses/weekReview/view";
 import { REVIEW_WORDS } from "@/lib/courses/weekReview/words";
 import { weeksPath } from "@/lib/courses/weeksTab/paths";
@@ -19,8 +22,14 @@ import styles from "./weekReview.module.css";
  * Grades only ever order reading here: no grade is shown anywhere a member,
  * a lead or a facilitator reads, and none is kept on anybody's record.
  *
- * Not drawn, for a later change: a way to schedule an explainer from a theme,
- * and Claude's grade beside the team's own rating of an answer.
+ * EXPLAINERS: each theme offers "Schedule an explainer", the form with the
+ * theme's title to start from and its groups ticked (`?theme=` is its place
+ * in the list), and the Explainers card lists the ones scheduled from this
+ * week's review with Cancel, and offers one with a typed topic. What reaches
+ * a ticket is the topic the admin schedules, never the theme or its counts.
+ *
+ * Not drawn, for a later change: Claude's grade beside the team's own rating
+ * of an answer.
  */
 
 type Props = {
@@ -32,9 +41,11 @@ type Props = {
   names: Readonly<Record<string, string>>;
   /** Which list of answers to show under the chart, from the address. */
   read: "strongest" | "weakest" | null;
+  /** The explainers still on that were scheduled from this week's review. */
+  explainers: readonly ExplainerRow[];
 };
 
-export default function WeekReviewScreen({ view, roundId, programmeId, programmeName, names, read }: Props) {
+export default function WeekReviewScreen({ view, roundId, programmeId, programmeName, names, read, explainers }: Props) {
   const base = `${weeksPath(roundId, programmeId, view.weekId)}/review`;
   const coursework = `/admin/admissions/forms/${encodeURIComponent(roundId)}/programmes/${encodeURIComponent(programmeId)}/coursework`;
   const asked = view.askedLine !== null;
@@ -102,9 +113,28 @@ export default function WeekReviewScreen({ view, roundId, programmeId, programme
                   {REVIEW_WORDS.themesTitle}
                 </h3>
               </div>
-              <Themes view={view} press={press} />
+              <Themes view={view} press={press} explainerHref={(index) => `${base}/explainer?theme=${index}`} />
             </section>
           </div>
+
+          <section id="review-explainers" className={styles.card} aria-labelledby="review-explainers-title">
+            <div className={styles.cardHead}>
+              <h3 id="review-explainers-title" className={styles.cardTitle}>
+                {REVIEW_EXPLAINER_WORDS.title}
+              </h3>
+            </div>
+            {explainers.length === 0 ? (
+              <p className={styles.line}>{REVIEW_EXPLAINER_WORDS.none}</p>
+            ) : (
+              <ExplainerList rows={explainers} cancel={{ roundId, programmeId }} />
+            )}
+            <div className={styles.row}>
+              <Link href={`${base}/explainer`} className={styles.linkButton}>
+                {REVIEW_EXPLAINER_WORDS.scheduleTyped}
+              </Link>
+            </div>
+            <p className={styles.line}>{REVIEW_EXPLAINER_WORDS.line}</p>
+          </section>
 
           <section className={styles.card} aria-labelledby="review-hands">
             <div className={styles.cardHead}>
@@ -259,7 +289,7 @@ function Grades({ view, base, read, press }: { view: WeekReviewView; base: strin
   );
 }
 
-function Themes({ view, press }: { view: WeekReviewView; press: Press }) {
+function Themes({ view, press, explainerHref }: { view: WeekReviewView; press: Press; explainerHref: (index: number) => string }) {
   const themes = view.themes;
   if (themes.state !== "ready") {
     return (
@@ -282,6 +312,11 @@ function Themes({ view, press }: { view: WeekReviewView; press: Press }) {
               {theme.part && <p className={styles.muted}>{theme.part}</p>}
               <p className={styles.themeFrom}>{theme.from}</p>
               {theme.detail && <p className={styles.line}>{theme.detail}</p>}
+              <div className={styles.row}>
+                <Link href={explainerHref(index)} className={styles.linkButton}>
+                  {REVIEW_EXPLAINER_WORDS.scheduleFromTheme}
+                </Link>
+              </div>
             </li>
           ))}
         </ul>

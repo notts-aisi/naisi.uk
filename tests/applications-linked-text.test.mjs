@@ -1031,6 +1031,13 @@ const BUILT = new Map([
     },
   ],
   [
+    "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/review/explainer/page.tsx",
+    {
+      built: ["review", "weeksPath(view.roundId, view.programmeId)", "weeksPath(view.roundId, view.programmeId, form.weekId)"],
+      from: "the way back to the week's review (`weekReviewPath`), the Weeks tab and the week's page on it, made from the form's and the programme's ids and the week's document id, each encoded",
+    },
+  ],
+  [
     "src/app/(app)/admin/admissions/forms/[roundId]/programmes/[programmeId]/(tabs)/weeks/[weekId]/preview/page.tsx",
     {
       built: ["weeksPath(view.roundId, view.programmeId, weekId)"],

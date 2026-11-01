@@ -6,6 +6,7 @@ import { tilePartsOfDay } from "@/app/(app)/dashboard/homeWords";
 import type { TicketFacts } from "../sessionChange/cardFacts";
 import { ROOM_CHANGED, withWords } from "@/lib/courses/memberPageWords";
 import { JOIN_ONLINE, LINK_IS_HERE } from "@/lib/courses/sessionChange/words";
+import { memberLineWords } from "@/lib/courses/explainers/words";
 import AddToCalendar from "./AddToCalendar";
 import styles from "./weekly.module.css";
 
@@ -27,6 +28,10 @@ import styles from "./weekly.module.css";
  * only here. "Can’t make it" (`cantMakeIt`) sits beside Add to calendar on
  * the programme page's ticket, for somebody taking part in the group, until
  * the session starts; Home's ticket has none.
+ *
+ * A session an admin scheduled an explainer for says so under the room
+ * ("Your session starts with a 10-minute explainer on ..."), from the
+ * session's own facts: how long and what about, never who scheduled it.
  */
 
 export type TicketPerson = { uid: string; name: string; firstName: string };
@@ -122,6 +127,9 @@ export default function SessionTicket({
               )
             )}
             {facts.missing && <p className={styles.ticketNote}>{facts.missing}</p>}
+            {facts.explainer && (
+              <p className={styles.ticketExplainer}>{memberLineWords(facts.explainer.minutes, facts.explainer.topic)}</p>
+            )}
             {((offerCalendar && !home) || cantMakeIt) && (
               <div className={styles.ticketActions}>
                 {offerCalendar && !home && <AddToCalendar />}

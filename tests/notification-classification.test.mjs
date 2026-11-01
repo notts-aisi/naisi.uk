@@ -329,6 +329,10 @@ const REGISTRY = {
     "tasks",
     "A week review's follow-up: the you-have-been-added mail to each of the person's group's facilitators, as the task is made. Grid: their tasks row is read first, behind the site's task-email switch.",
   ),
+  "src/lib/courses/explainers/schedule.ts#sendEmail": G(
+    "tasks",
+    "An explainer scheduled from a week's review: ONE email to whoever explains, beside the task each session gives them, as the tasks are made (born notified, so the task system sends none of its own). Grid: their tasks row is read first, behind the site's task-email switch. Nobody in the groups is emailed: their tickets say it, and \"Week N is open\" carries a line while it has not gone.",
+  ),
   "src/app/api/worksheets/circulations/route.ts#notifyWorksheetEvent": G(
     "tasks",
     "Sending a worksheet: the `assigned` message to every recipient.",
@@ -394,6 +398,11 @@ const REGISTRY = {
   "src/lib/courses/weekReview/followUp.ts#mirrorTaskEmailToPush": G(
     "tasks",
     "The push mirror beside a week review follow-up's you-have-been-added email.",
+    "src/lib/push/taskNotifications.ts",
+  ),
+  "src/lib/courses/explainers/schedule.ts#mirrorTaskEmailToPush": G(
+    "tasks",
+    "The push mirror beside the one email to whoever gives an explainer, landing on My work.",
     "src/lib/push/taskNotifications.ts",
   ),
   "src/lib/push/taskNotifications.ts#sendPushToUid": G(
@@ -722,7 +731,7 @@ const REGISTRY = {
     "The notification beside that notice. The ordinary announcement lane has no push leg at all, deliberately: a scheduled cohort mail that also buzzed every phone is how people turn notifications off for good.",
   ),
   "src/lib/courses/nextWeekEmail.ts#sendNotice": N(
-    "\"Week N is open\" to one group, the one send both of its lanes go through: the register's push while it is not on its schedule (and an admin's resend), and the `courses-next-week-email` job 6 days before each session while it is. It was next week's email, a grid send that honoured the courses row and the cohort list's unsubscribe; it is now the people running the programme telling everybody holding a place in the group (`resolveNoticeAudience`) what this week is, whatever they unsubscribed from, with the marker (surface course-week). Once per group per session, by the group's claim. Email only: no push leg.",
+    "\"Week N is open\" to one group, the one send both of its lanes go through: the register's push while it is not on its schedule (and an admin's resend), and the `courses-next-week-email` job 6 days before each session while it is. It was next week's email, a grid send that honoured the courses row and the cohort list's unsubscribe; it is now the people running the programme telling everybody holding a place in the group (`resolveNoticeAudience`) what this week is, whatever they unsubscribed from, with the marker (surface course-week). Once per group per session, by the group's claim. Email only: no push leg. An explainer an admin scheduled at the start of the session is a line in it, read when it is built, so it rides this notice and never sends one of its own: a group whose email has gone is told on its tickets alone.",
   ),
   "src/app/api/courses/groups/[groupId]/attendance/push/route.ts#sendNextWeekEmail": N(
     "Pushing a register while \"Week N is open\" is not on its schedule, and an admin's resend on a finished register: the group's email about its next session, sent as the notice it is.",
