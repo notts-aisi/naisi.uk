@@ -698,6 +698,43 @@ session raising none; finishing the register archiving the card it raised; and
 a task id that is already taken going to the `__alt` fallback rather than
 overwriting anything.
 
+#### `surveys-check-in-weeks`
+
+"Check-in weeks for programme leads" on Site status. A programme's lead reads
+the check-ins at the end of its groups' sessions a week at a time, and a
+week's check-ins are fixed when it first shows: on every tick this job looks at
+every run exactly one programme names, and for each week that is whole (every
+session of it that can have a check-in is past its check-in time, and none of
+its check-ins is open), has begun and is not fixed yet, it records which
+check-ins the week has. The lead's Check-ins view and the Overview read only
+weeks so fixed, so a week shows to the lead from the first tick after it is
+whole. The contract is docs/surveys.md, "Check-ins at the end of a session".
+
+| | |
+| --- | --- |
+| Handler | [`src/lib/scheduler/jobs/surveyCheckInWeeks.ts`](../src/lib/scheduler/jobs/surveyCheckInWeeks.ts) |
+| Record | `checkInWeeks/{runId}__w03`, one per run and week, created once and never changed |
+| Marker | none: the record is created with `.create()`, so two ticks at once fix a week once |
+| Runs looked at | every run exactly one programme names, whatever its status; a run being destroyed is left alone |
+| `maxLateHours` | 0: a whole week is fixed whenever the tick next reaches it |
+
+**Ships switched on.** It emails nobody, so it takes the registry's default,
+as `surveys-names-off` and `anonymous-feedback-move` do. Switched off, no new
+week of check-ins shows to any programme's lead (the Surveys tab says "Shows
+shortly after every group's check-in this week has closed" for as long as it
+is off), and each week then shows at the first tick once it is on again. Where
+the tick is not armed at all, no week shows to a lead.
+
+**A run that fails to read** is logged (`a run's weeks of check-ins could not
+be looked at`) and stepped over, so other runs' weeks still show, and the
+receipt's note says how many runs were not looked at. The next tick tries it
+again.
+
+**Deploying it** owes the rules block for `checkInWeeks`
+(`allow read, write: if false`), which a rules deploy carries; it needs no
+index. A week that was already showing on the day it deploys shows again from
+the first tick, with the check-ins it has then.
+
 ### Budget, re-arm, and the Cloud Run caveat
 
 The backend's request timeout was 60s when this was written and is 300s since

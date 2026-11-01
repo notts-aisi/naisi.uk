@@ -30,8 +30,10 @@ questions somebody left blank, sent to them by an admin's press).
   group's count while it is open and its totals from three answers once it
   has closed, never a comment or who said what; the lead reads check-ins a
   whole week at a time, once every group's check-in that week has closed,
-  every group's together, totals from three answers and comments from five.
-  Facilitators see nothing else of any survey, about themselves included.
+  every group's together, totals from three answers and comments from five,
+  and a week's check-ins are fixed when it first shows: one opened for that
+  week later never joins it. Facilitators see nothing else of any survey,
+  about themselves included.
 - **Confidential, never anonymous.** Every survey on the site knows who answered.
   The confidential box at the top of every survey says so, in sv-privacy's words.
   The one anonymous form on the site is not a survey and has no anonymous mode
@@ -67,7 +69,8 @@ questions somebody left blank, sent to them by an admin's press).
   has closed and only from three answers (Zach, 1 Nov 2026), so a small group's
   answers are never read one by one; its programme's lead reads a week of them
   only once every group's has closed, never a group's alone, totals from three
-  answers and comments from five, decided on the server.
+  answers and comments from five, decided on the server, and only the
+  check-ins the week had when it first showed.
 - **No answer or result is ever in an email.**
 - **Names come off** two years after the programme's last session (Zach, 26
   Oct 2026), the same day for every stage, and at once when an account is
@@ -89,6 +92,11 @@ is a server page or route. The rules blocks are deny-all.
 | `surveys/{autoId}` | survey | its stage (`before`, `after`, `followUp6`, `followUp12`, `leaving`, `event`, or `checkIn`), privacy (`confidential`), the admins' name, the title and intro people see, its items, about how many minutes, its audience (`{ kind: "programme", roundId, programmeId }`, or for a follow-up `{ kind: "followUps", roundId, programmeId, consentFrom }`, or for a check-in `{ kind: "checkIn", roundId, programmeId, groupId, sessionKey, weekNumber }`), the programme's short name and kind as they were when it was made, the run the programme named, the survey it pairs with (`pairOf`), an incubator's strand, a check-in's session as it was when it opened (`checkIn`: the group's name, when the session started and ended), when it closes, when it was closed by hand, the day names come off and when they did, when it was first sent, a record of each press of a send button (kind, time, how many), the last test of each email (who, when, the wording's fingerprint), the secret of its test link. A check-in's id is worked out from its session (`ci-` and a hash of the run, the group and the session), and it carries no `roundId` at its top |
 | `surveyPeople/{surveyId}__{uid}` | person a survey is for | the survey and form, the person (`respondent: { kind: "account", uid }`), the secret in their personal link, the press that sent it, when it was sent and what became of it, when they were last reminded and how often, whether they have answered, what their consent boxes say (`consents`, `consentsAt`), and once an admin has sent them the questions they left blank, that link (`blanks`: its own secret, what became of its email, when it was used) and each press for it (`blanksPresses`: when, by whom, how many questions) |
 | `surveyAnswers/{autoId}` | person who answered | the survey and form, the person (`respondent`, null once names come off), the answers, when "Send my answers" was pressed (day and time), how (`link` or `signed-in`), and whether their group had met for the first time by then; and each later send of questions they had left blank (`fills`, oldest first: its answers, when, how, and whether the group had met by then), beside the first answers and never over them |
+
+Beside them, `checkInWeeks/{runId}__w03` holds which check-ins each week of a
+programme showed its lead, by their survey ids, fixed the first time the week
+was whole ("Check-ins at the end of a session", below). It names nobody, its
+one writer is the scheduler's job, and its rules block is deny-all as well.
 
 **The person is a map**, `respondent: { kind: "account", uid }`, found by one
 equality on `respondent.uid`. Another kind (an event guest's sign-up,
@@ -800,20 +808,44 @@ and `src/features/courses/register/CheckInCard.tsx` (the card).
   never a group: nothing of it until it is **whole** (`weekIsWhole`: every
   session of the week that can have a check-in, dated and not called off, is
   past its check-in window, and none of the week's check-ins is open, so none
-  can still be opened), then every group's answers together (`leadWeekOf`),
-  totals from three answers (`TOTALS_FROM`) and comments from five
-  (`COMMENTS_FROM`), the comments in the order of their words. Below three it
-  says how many answered and that totals show from three, so nobody can be
-  worked out. A share of a smaller slice than the week (the reading question,
-  asked only where the week had something to read) shows from three answers
-  to it. Nothing of a week that is not whole is read at all, not even how many
-  have answered so far, so no group's answers can be had by reading the week
-  before and after its check-in closed. An admin also has a row for each
-  group's check-in (when its session started, how many answered of how many
-  it reached, open or closed), with the way to its Results and Who answered on
-  the admins' own pages; the lead never has those rows. One count: the
-  facilitators' totals and the lead's week both count answers through
-  `tallyOf`, and the comments are each check-in's Results' own.
+  can still be opened) and its check-ins are **fixed** (below), then every
+  group's answers together (`leadWeekOf`), totals from three answers
+  (`TOTALS_FROM`) and comments from five (`COMMENTS_FROM`), the comments in
+  the order of their words. Below three it says how many answered and that
+  totals show from three, so nobody can be worked out. A share of a smaller
+  slice than the week (the reading question, asked only where the week had
+  something to read) shows from three answers to it. Nothing of a week that
+  is not fixed is read at all, not even how many have answered so far, so no
+  group's answers can be had by reading the week before and after its
+  check-in closed. An admin also has a row for each group's check-in (when
+  its session started, how many answered of how many it reached, open or
+  closed), with the way to its Results and Who answered on the admins' own
+  pages; the lead never has those rows. One count: the facilitators' totals
+  and the lead's week both count answers through `tallyOf`, and the comments
+  are each check-in's Results' own.
+- **A week's check-ins are fixed when it first shows.** On every tick the
+  scheduler's `surveys-check-in-weeks` job
+  (`src/lib/scheduler/jobs/surveyCheckInWeeks.ts`) looks at every run exactly
+  one programme names, the rule a check-in is opened by, and records, for
+  each week that is whole, has begun (a session of it has started, or it has
+  a check-in) and is not fixed yet, which check-ins the week has: a
+  `checkInWeeks/{runId}__w03` document holding their survey ids
+  (`freezeWholeWeeks` in `src/lib/surveys/checkIns/weeks.ts`, created once,
+  so two ticks at once fix it once). The lead's views read only fixed weeks,
+  and only the check-ins each was fixed with, so a week shows from the first
+  tick after it is whole (the scheduler ticks every 15 minutes; the words say
+  "shortly after"), and stays as it first showed whatever its sessions do
+  afterwards: a check-in opened for it later, because a group's session was
+  dated, moved or put back after the week was fixed, never joins it. An
+  admin's row for such a check-in says "Not counted in the week above: it
+  opened after the week had already shown."; the lead is never told. A week
+  whose sessions are none of them dated has not begun and is never fixed, so
+  a run given its times later fixes nothing early. No page or route writes
+  the record: the job is its one writer (`tests/get-handlers-readonly.test.mjs`
+  names both its helpers). **The job registers on**, as `surveys-names-off`
+  does: it emails nobody, and while it is off no new week of check-ins shows
+  to any lead (each shows at the first tick once it is on again). A run being
+  destroyed is left alone.
 - **Names come off** on the day the survey says, two years after the run's last
   session, by the same job: it finds every survey due by its day
   (`surveysNamesDueBy`), so the check-ins the list of surveys leaves out are
@@ -929,7 +961,7 @@ nameless:
 - **A card for each view**, each the way to it: Before, End and Follow-ups
   with their survey's count and closing day once it has gone out ("Not sent
   yet" before, with the run's last session for End); Check-ins with the
-  answers over the weeks that are whole ("139 answers over 3 weeks");
+  answers over the weeks that have shown ("139 answers over 3 weeks");
   Facilitators' reports with the sessions held so far that a report is about
   ("31 of 33 sessions", the Attendance tab's facts: held, and started).
 - **How useful the sessions were** and **how much of the reading people did**,
@@ -1167,6 +1199,13 @@ after an event `g_<signupId>` for a guest (`whoOf` and `subjectOf`).
   course run, in the run's destroy (stage `anonymousFeedback`: the form first,
   then the answers waiting and the answers kept), and a form's destroy leaves
   them, as it leaves the surveys.
+- **Which check-ins each week showed the lead** (`checkInWeeks`, "A week's
+  check-ins are fixed when it first shows" above) is survey ids, a run and a
+  week, and names nobody, so an account's deletion has nothing of it to find
+  and names coming off leave it. It goes with the run, in the run's destroy
+  (stage `checkInWeeks`, counted on its dialog as "Weeks of check-ins shown
+  to the lead"); the check-ins themselves are surveys, which the destroy
+  leaves alone.
 
 ## The anonymous form at a programme's end
 
@@ -1457,12 +1496,18 @@ kind of caller, and nothing about a person in either), and
 `tests/surveys-lead-tab.test.mjs` (the lead's Surveys tab, every view of it,
 and each survey's results under it as every kind of caller, over check-ins and
 session reports sent through their routes; every number held to its own
-page's reader; a week of check-ins only once whole, with its floors; nothing
-about a person, and no group for the lead; and a walk of every file that
-finds check-ins), and
+page's reader; a week of check-ins only once whole and fixed, with its
+floors; nothing about a person, and no group for the lead; and a walk of
+every file that finds check-ins), and
 `tests/surveys-check-ins.test.mjs` (the check-in at the end of a session: its
 window, who it reaches, its questions and its floors, and every route, page
-and card as every kind of caller).
+and card as every kind of caller), and
+`tests/surveys-check-in-weeks.test.mjs` (the job that fixes each week's
+check-ins: once, at the first tick the week is whole and has begun, two ticks
+at once included; a week not fixed shows the lead nothing; a check-in opened
+for a fixed week later left out of the lead's week and the Overview, and
+said so on an admin's row alone; the record naming nobody, and the run's
+destroy deleting it).
 
 The privacy policy says what a survey keeps, who sees it, when names come off
 and what a deletion does, under "When you answer a survey", and
