@@ -8,6 +8,7 @@ import { NAMES_WHEN_GROUPS_GO_OUT } from "@/features/courses/groupNamesWords";
 import { registerTitle } from "@/lib/courses/facilitatorPageWords";
 import { gateGroupRegister, loadRegisterMembers } from "@/lib/courses/registerAccess";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 
 /**
  * A GROUP'S REGISTER, on a page of its own (board wk-register: the register
@@ -61,6 +62,10 @@ export default async function GroupRegisterPage({
   // sentence. The rows are the register's own (`loadRegisterMembers`).
   const roster = await loadRegisterMembers(db, gated.runId, groupId, { isAdmin: gated.isAdmin });
   const namesToCome = roster.members.length === 0 && roster.notYetTold;
+  // Each of the group's live facilitators writes their own session report,
+  // so the finished register leads them on to it; an admin writes none.
+  const writesReports =
+    !gated.group.archived && isNamedWithStanding(access.user, "courseGroups.facilitatorUids", gated.group.facilitatorUids);
 
   return (
     <div className={`${facilitator.page} ${facilitator.registerPage}`}>
@@ -88,7 +93,7 @@ export default async function GroupRegisterPage({
       {/* The register owns its own week controls and its own horizontal
           overflow: a wide table handles its own responsiveness rather than
           widening the shell (the `.mainWide` rule). */}
-      <AttendanceGrid groupId={groupId} runId={runId} />
+      <AttendanceGrid groupId={groupId} runId={runId} reportHref={writesReports ? `${groupPath}/report` : undefined} />
     </div>
   );
 }

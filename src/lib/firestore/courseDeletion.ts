@@ -26,6 +26,7 @@ import { COURSE_PAGES_COLLECTION } from "./coursePages";
 import { countCourseGuide, courseGuideRefs } from "@/lib/courses/facilitatorGuide/store";
 import { COURSE_GROUP_NOTES_COLLECTION } from "./courseGroupNotes";
 import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
+import { COURSE_SESSION_REPORTS_COLLECTION } from "./courseSessionReports";
 import { PLACEMENT_NOTES_COLLECTION } from "@/lib/courses/placementNotes/model";
 import { BEST_ANSWERS_COLLECTION, PANGRAM_CHECKS_COLLECTION } from "@/lib/courses/coursework/collections";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
@@ -328,6 +329,15 @@ export type RunDestroyCounts = {
    * the group is gone.
    */
   groupSharedNotes: number;
+  /**
+   * `courseSessionReports` rows: each facilitator's report on each session
+   * of the run's groups (`src/lib/firestore/courseSessionReports.ts`), which
+   * names the people in the group. Staff writing, keyed by `runId` on the row
+   * like every other leaf here, and it dies with the run: a report is about a
+   * session of a group this cascade deletes, and nothing can show it once the
+   * group is gone.
+   */
+  sessionReports: number;
   /**
    * `coursePlacementNotes` rows: what somebody who may publish chose for a
    * person placed outside the times they gave, a note of their own words or
@@ -1155,6 +1165,7 @@ export async function countRunDestroyTargets(
     updates,
     groupNotes,
     groupSharedNotes,
+    sessionReports,
     placementNotes,
     bestAnswers,
     pangramChecks,
@@ -1234,6 +1245,8 @@ export async function countRunDestroyTargets(
     countAgg(db.collection(COURSE_GROUP_NOTES_COLLECTION).where("runId", "==", runId)),
     // The same single equality the group shared notes stage drains on.
     countAgg(db.collection(COURSE_GROUP_SHARED_NOTES_COLLECTION).where("runId", "==", runId)),
+    // The same single equality the session reports stage drains on.
+    countAgg(db.collection(COURSE_SESSION_REPORTS_COLLECTION).where("runId", "==", runId)),
     // The same single equality the placement notes stage drains on.
     countAgg(db.collection(PLACEMENT_NOTES_COLLECTION).where("runId", "==", runId)),
     // The same single equality the best answers stage drains on.
@@ -1285,6 +1298,7 @@ export async function countRunDestroyTargets(
     updates,
     groupNotes,
     groupSharedNotes,
+    sessionReports,
     placementNotes,
     bestAnswers,
     pangramChecks,
@@ -1871,6 +1885,16 @@ export async function destroyRunCascade(
           byRunId(COURSE_GROUP_SHARED_NOTES_COLLECTION),
           budget,
         ),
+    },
+    {
+      key: "sessionReports",
+      // Each facilitator's report on each session: staff writing, a leaf
+      // keyed by `runId`, drained with the other leaves and BEFORE the groups
+      // each report is about. `write: if false` to every client, and the
+      // report route refuses a run carrying the destroy marker, so nothing
+      // recreates one behind the cascade.
+      drain: () =>
+        drainQuery(db, COURSE_SESSION_REPORTS_COLLECTION, byRunId(COURSE_SESSION_REPORTS_COLLECTION), budget),
     },
     {
       key: "placementNotes",

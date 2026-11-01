@@ -31,6 +31,12 @@ import { COURSE_GROUP_SHARED_NOTES_COLLECTION } from "./courseGroupSharedNotes";
 import { COURSE_PACKS_AND_CASES_COLLECTION } from "./coursePacksAndCases";
 import { COURSE_PREDICTIONS_COLLECTION } from "./coursePredictions";
 import { COURSE_PAIRS_COLLECTION } from "./coursePairs";
+import {
+  COURSE_SESSION_REPORTS_COLLECTION,
+  aboutUidsOf,
+  answersWithout,
+  normalizeReportAnswers,
+} from "./courseSessionReports";
 import { PLACEMENT_NOTES_COLLECTION } from "@/lib/courses/placementNotes/model";
 import { MEMBER_NOTES_COLLECTION } from "@/lib/memberNotes/model";
 import { BEST_ANSWERS_COLLECTION, PANGRAM_CHECKS_COLLECTION } from "@/lib/courses/coursework/collections";
@@ -205,6 +211,14 @@ export type AccountDeletionSummary = {
    * longer resolves, and nothing the card said.
    */
   coursePredictionsDeleted: number;
+  /**
+   * Session reports (`courseSessionReports`): this account is taken out of
+   * every report that picks it (who engaged well and why, who seemed not to
+   * have done the readings, who might need a hand and the word about them),
+   * and every report it wrote stays with no writer at all, as a register
+   * keeps the notes on it. Counted once per document.
+   */
+  courseSessionReportsCleared: number;
   /** Admission applications (drafts included) written by this account. */
   admissionApplicationsDeleted: number;
   /** Their access-requirements rows, deleted in the SAME batch. See below. */
@@ -883,6 +897,48 @@ export async function deleteCoursePredictions(db: Firestore, uid: string): Promi
 }
 
 /**
+ * Take one account out of every session report (`courseSessionReports`,
+ * described in `src/lib/firestore/courseSessionReports.ts`).
+ *
+ * A report picks people by account. The reports that pick this one are found
+ * by the one `array-contains` on `aboutUids`, and its entries come out of
+ * each (its line, why it stood out, the word about it): the report stays for
+ * the rest of the group. The reports this account WROTE are found by the one
+ * equality on `writerUid` and stay for the programme's lead and admins with
+ * no writer at all, as a register keeps the notes on it, which record no
+ * writer: each moves to an automatic id, because its own id names its writer,
+ * and `writerUid` is cleared. Names typed into a report's own words cannot be
+ * found, and stay. One transaction per report; counted once per document.
+ */
+export async function clearSessionReports(db: Firestore, uid: string): Promise<number> {
+  const rows = db.collection(COURSE_SESSION_REPORTS_COLLECTION);
+  const touched = new Set<string>();
+  const about = await rows.where("aboutUids", "array-contains", uid).get();
+  for (const doc of about.docs) {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(doc.ref);
+      if (!snap.exists) return;
+      const answers = answersWithout(normalizeReportAnswers((snap.data() ?? {}).answers), uid);
+      tx.update(doc.ref, { answers, aboutUids: aboutUidsOf(answers) });
+    });
+    touched.add(doc.id);
+  }
+  const written = await rows.where("writerUid", "==", uid).get();
+  for (const doc of written.docs) {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(doc.ref);
+      if (!snap.exists) return;
+      const data = (snap.data() ?? {}) as Record<string, unknown>;
+      const answers = answersWithout(normalizeReportAnswers(data.answers), uid);
+      tx.create(rows.doc(), { ...data, writerUid: null, answers, aboutUids: aboutUidsOf(answers) });
+      tx.delete(doc.ref);
+    });
+    touched.add(doc.id);
+  }
+  return touched.size;
+}
+
+/**
  * Remove a member from every attendance register on the given runs.
  *
  * A register is SHARED — one doc per (group, week), with the uid as a MAP KEY
@@ -1434,6 +1490,7 @@ export async function deleteAccountCascade(
     courseCertificatesDeleted: 0,
     courseCertificatesKept: 0,
     coursePredictionsDeleted: 0,
+    courseSessionReportsCleared: 0,
     admissionApplicationsDeleted: 0,
     admissionApplicationPrivateDeleted: 0,
     admissionDecisionsDeleted: 0,
@@ -1911,6 +1968,16 @@ export async function deleteAccountCascade(
     summary.coursePredictionsDeleted = await deleteCoursePredictions(db, uid);
   } catch (err) {
     console.error("[deleteAccount] coursePredictions delete failed:", uid, err);
+    partialFailure = true;
+  }
+
+  // 5c. SESSION REPORTS. This account comes out of every report that picks
+  //      it, found by `aboutUids`; a report it wrote stays with no writer, as
+  //      a register keeps the notes on it (see clearSessionReports).
+  try {
+    summary.courseSessionReportsCleared = await clearSessionReports(db, uid);
+  } catch (err) {
+    console.error("[deleteAccount] courseSessionReports clear failed:", uid, err);
     partialFailure = true;
   }
 

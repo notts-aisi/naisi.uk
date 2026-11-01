@@ -16,6 +16,7 @@ import {
 } from "@/lib/firestore/courseAttendance";
 import styles from "./AttendanceGrid.module.css";
 import ParticipantNoteDrawer from "./ParticipantNoteDrawer";
+import ReportLink from "./report/ReportLink";
 import PushConfirm from "./PushConfirm";
 import { registerEndingWords } from "./registerEndingWords";
 import useAttendance, {
@@ -100,6 +101,12 @@ export type AttendanceGridProps = {
    * under.
    */
   runId?: string;
+  /**
+   * The session report page of this group, for a caller who writes one (a
+   * live facilitator of the group): once the session the foot is about is
+   * finished, the foot leads on to its report. Absent for anybody else.
+   */
+  reportHref?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -286,7 +293,7 @@ function SessionNoteDialog({
 // AttendanceGrid
 // ---------------------------------------------------------------------------
 
-export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
+export default function AttendanceGrid({ groupId, reportHref }: AttendanceGridProps) {
   const {
     group,
     sessions,
@@ -1035,6 +1042,7 @@ export default function AttendanceGrid({ groupId }: AttendanceGridProps) {
               ))}
             </div>
           )}
+          {focus.finished && reportHref && <ReportLink href={reportHref} sessionKey={focus.sessionKey} />}
         </section>
       )}
 
