@@ -1236,6 +1236,9 @@ describe("4c. the Check-ins view: whole weeks, its floors, never a group's own f
       let tab = await tabAs("claudia");
       inOrder(tab.text, ["Check-ins 8 answers over 2 weeks", "Week 3: not shown yet", "What was unclear, week 1"]);
       assert.ok(!tab.text.includes("Who decides what AGI means"), "week 3's parts show before the week is whole");
+      // One week shows, so there is no week to choose, and asking for week 3 gives week 1.
+      assert.ok(!tab.html.includes("?week="), "a row of one week to choose from is drawn");
+      assert.ok((await tabAs("claudia", AGI, { week: "3" })).text.includes("What was unclear, week 1"));
       assert.ok((await checkInsAs("claudia")).text.includes(`Week 3 ${CHECK_INS_TAB_WORDS.waiting}`));
 
       // Tonight Group B's facilitator takes the register and opens its check-in, and one person answers.
