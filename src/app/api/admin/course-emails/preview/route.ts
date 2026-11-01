@@ -1,12 +1,6 @@
 import { NextResponse } from "next/server";
 import { render } from "@react-email/render";
 import ApplicationEmail from "@/emails/ApplicationEmail";
-import CourseNudgeEmail from "@/emails/CourseNudgeEmail";
-import {
-  courseNudgeTokensFrom,
-  renderCourseNudge,
-  COURSE_NUDGE_TEMPLATE_ID,
-} from "@/lib/email/courseNudgeEmail";
 import { composeFacilitatingEmail, facilitatingFactsFromSample } from "@/lib/courses/facilitatingEmail";
 import { composeIncubatorStartEmail, incubatorStartFactsFromSample } from "@/lib/courses/incubatorStartEmail";
 import { composePlacementEmail, placementFactsFromSample } from "@/lib/courses/placementEmail";
@@ -31,19 +25,13 @@ const INCUBATOR_TEMPLATE_ID: CourseTemplateId = "course-allocated-incubator";
 /**
  * Server-side render of a COURSE email for the admin editor's iframe preview.
  *
- * Five of the six course templates render exactly as the application-email
- * preview does — same `ApplicationEmail` chrome, same `personaliseBlocks`, same
- * "an unresolved token stays literal so an admin notices" convention — which is
- * why the course editor used that endpoint verbatim until now.
- *
- * THE WEEKLY NUDGE IS THE EXCEPTION, and it is the whole reason this route
- * exists. It renders through different chrome (`CourseNudgeEmail`, which carries
- * the visible unsubscribe line), and its tokens go through `renderCourseNudge`,
- * which escapes per destination context and DELETES a sentence whose tokens all
- * resolved empty instead of leaving its scaffolding behind. Previewing it
- * through the generic path showed an admin a message no recipient would ever
- * receive — no unsubscribe footer, and a rendering that could not demonstrate
- * the one rule the editor's own help text promises.
+ * The course lifecycle templates render exactly as the application-email
+ * preview does: same `ApplicationEmail` chrome, same `personaliseBlocks`, same
+ * "an unresolved token stays literal so an admin notices" convention. Three are
+ * the exception, each written by its own composer so the preview is the email
+ * a person gets: the placement email, the facilitators' email and an
+ * incubator's. (The weekly reminder this route was first written for is gone:
+ * the week's emails are fixed words, `src/lib/courses/weekEmails/words.ts`.)
  *
  * Admin-only (it renders unsaved copy). Mirrors
  * `/api/admin/application-emails/preview`.
@@ -76,15 +64,13 @@ export async function POST(req: Request) {
 
   try {
     const html =
-      templateId === COURSE_NUDGE_TEMPLATE_ID
-        ? await renderNudgePreview(rawSubject, blocks, tokens)
-        : templateId === PLACEMENT_TEMPLATE_ID
-          ? await renderPlacementPreview(rawSubject, blocks, tokens)
-          : templateId === FACILITATING_TEMPLATE_ID
-            ? await renderFacilitatingPreview(rawSubject, blocks, tokens)
-            : templateId === INCUBATOR_TEMPLATE_ID
-              ? await renderIncubatorPreview(rawSubject, blocks, tokens)
-              : await renderCourseTemplatePreview(rawSubject, blocks, tokens);
+      templateId === PLACEMENT_TEMPLATE_ID
+        ? await renderPlacementPreview(rawSubject, blocks, tokens)
+        : templateId === FACILITATING_TEMPLATE_ID
+          ? await renderFacilitatingPreview(rawSubject, blocks, tokens)
+          : templateId === INCUBATOR_TEMPLATE_ID
+            ? await renderIncubatorPreview(rawSubject, blocks, tokens)
+            : await renderCourseTemplatePreview(rawSubject, blocks, tokens);
     return new NextResponse(html, {
       status: 200,
       headers: { "content-type": "text/html; charset=utf-8" },
@@ -98,7 +84,7 @@ export async function POST(req: Request) {
   }
 }
 
-/** The five lifecycle templates — unchanged from the application-email path. */
+/** The lifecycle templates with no composer of their own: the application-email path. */
 function renderCourseTemplatePreview(
   rawSubject: string,
   blocks: ReturnType<typeof sanitizeBlocks>,
@@ -180,35 +166,6 @@ function renderIncubatorPreview(
       subject,
       blocks: proof.ok ? proof.blocks : [],
       preheader: subject,
-    }),
-  );
-}
-
-/**
- * The nudge, through the one implementation a recipient gets.
- *
- * The unsubscribe link is a SAMPLE. A real one is a signed token scoped to one
- * member and one run's cohort channel, and a designer preview has neither — so
- * the footer shows the copy and the shape without minting anything that could
- * flip a subscription row. The preview iframe is sandboxed without
- * `allow-top-navigation`, so it is inert there regardless.
- */
-function renderNudgePreview(
-  rawSubject: string,
-  blocks: ReturnType<typeof sanitizeBlocks>,
-  tokens: TokenValues,
-): Promise<string> {
-  const rendered = renderCourseNudge(
-    { subject: rawSubject, blocks },
-    courseNudgeTokensFrom(tokens),
-  );
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/+$/, "");
-  return render(
-    CourseNudgeEmail({
-      subject: rendered.subject,
-      blocks: rendered.blocks,
-      unsubscribeUrl: `${appUrl}/api/unsubscribe?t=sample-preview-token`,
-      preheader: rendered.preheader || rendered.subject,
     }),
   );
 }

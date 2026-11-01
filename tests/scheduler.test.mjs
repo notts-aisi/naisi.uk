@@ -111,6 +111,7 @@ const {
   markerFamilyOf,
   normalizeSchedulerMarker,
   registerReminderMarker,
+  weekReminderMarker,
   reminderMarker,
   stageRecipientMarker,
   stageReleaseMarker,
@@ -335,6 +336,7 @@ const FAMILY_SAMPLES = {
     worksheetReminderMarker("week-3-reading__c7d2e9f0", "uid1", "2026-10-11T1000"),
   evannounce: () => eventAnnouncementMarker("reading-group__b8c1d0e2", "email", "uid1"),
   regremind: () => registerReminderMarker("tuesdays-1800__aa11bb22", "w03", "uid1"),
+  weekremind: () => weekReminderMarker("tuesdays-1800__aa11bb22", "w03", "uid1", 3),
 };
 
 describe("marker ids", () => {
@@ -474,6 +476,20 @@ describe("marker ids", () => {
       groupId: "tuesdays-1800__aa11bb22",
       slotStartKey: "20270201",
     });
+
+    // A session's two reminders are two markers, one per person each, and
+    // the number of days is the last component, so the first never silences
+    // the second.
+    const three = weekReminderMarker("tuesdays-1800__aa11bb22", "w03", "uid1", 3);
+    const one = weekReminderMarker("tuesdays-1800__aa11bb22", "w03", "uid1", 1);
+    assert.equal(three.id, "weekremind__tuesdays-1800__aa11bb22__w03__uid1__3");
+    assert.equal(one.id, "weekremind__tuesdays-1800__aa11bb22__w03__uid1__1");
+    assert.deepEqual(three.fields, {
+      groupId: "tuesdays-1800__aa11bb22",
+      sessionKey: "w03",
+      uid: "uid1",
+      daysBefore: "3",
+    });
   });
 
   test("refuse a component Firestore would reject or that we compose ourselves", () => {
@@ -514,6 +530,13 @@ describe("marker ids", () => {
     );
     assert.throws(() => eventAnnouncementMarker("e/1", "email", "uuid1"), /eventId/);
     assert.throws(() => eventAnnouncementMarker("e1", "email", ""), /recipientKey/);
+    // The week's reminder: the group id is a slugId and keeps its `__`; the
+    // session key, the uid and the number of days are ours and must not.
+    assert.throws(() => weekReminderMarker("g1", "w03", "uid__1", 3), /uid/);
+    assert.throws(() => weekReminderMarker("g1", "w03.1", "uid1", 3), /sessionKey/);
+    assert.throws(() => weekReminderMarker("g/1", "w03", "uid1", 1), /groupId/);
+    assert.throws(() => weekReminderMarker("g1", "w03", "uid1", 1.5), /daysBefore/);
+    assert.doesNotThrow(() => weekReminderMarker("tuesdays-1800__aa11bb22", "w03-2", "uid1", 1));
   });
 
   test("family is recoverable from a stored id", () => {

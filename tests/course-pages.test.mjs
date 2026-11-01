@@ -63,7 +63,7 @@ const SRC = join(REPO_ROOT, "src");
 const SPECIFIER = /(\bfrom\s*|\bimport\s*\(?\s*)(["'])([^"']+)\2/g;
 
 /**
- * See `course-nudge.test.mjs`; nothing here is reachable from an assertion,
+ * See `course-schedule-changes.test.mjs`; nothing here is reachable from an assertion,
  * EXCEPT the admin stub, which §2c drives on purpose. `getAdminDb` reads a
  * global rather than closing over a fixture so one test can hand the fetcher a
  * stored row and the next can hand it nothing.

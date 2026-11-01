@@ -43,17 +43,6 @@ export type CoursesConfig = {
    */
   registerTaskHours: number;
   /**
-   * How many days before each of a group's sessions that group is sent next
-   * week's email (its time, room and reading), at the session's own time of
-   * day in London. Read by the `courses-next-week-email` job only, and only
-   * while that job is switched on: while it is off, pushing the register
-   * sends the email instead.
-   *
-   * WHOLE DAYS ON THE CALENDAR, never 24-hour blocks, so a Tuesday 6pm group
-   * hears on the Sunday at 6pm on either side of a clock change.
-   */
-  nextWeekEmailDaysBefore: number;
-  /**
    * The anonymous feedback form a member is offered when they drop out.
    * Empty = no link shown, which is a complete state: the drop-out still
    * works, it just asks for nothing.
@@ -62,14 +51,12 @@ export type CoursesConfig = {
    */
   dropOutFeedbackUrl: string;
   /**
-   * The weekly feedback form the attendance push links to, resolved into the
-   * nudge email's `{feedbackUrl}` token.
+   * The weekly feedback form "Week N is open" links to, from a group's
+   * second session on ("Tell us how the last session went").
    *
-   * Empty = the paragraph carrying the token is dropped from the email
-   * whole, which is the renderer's existing degradation rule and a complete
-   * state: the reminder still goes out, it just asks for nothing. That is
-   * why this can ship before the survey machinery that will own the real
-   * link exists.
+   * Empty = the email has no such line, which is a complete state: it still
+   * goes out, it just asks for nothing. That is why this can ship before the
+   * check-in that will take its place.
    *
    * ALWAYS `http://` or `https://` or empty; see `readCoursesConfig`.
    */
@@ -108,9 +95,6 @@ export type CoursesConfig = {
 export const DEFAULT_COURSES_CONFIG: CoursesConfig = Object.freeze({
   unmarkedRegisterGraceHours: 36,
   registerTaskHours: 60,
-  // The board's "2 days before its session". Written here and nowhere else:
-  // every other reader takes it from the stored setting or from this default.
-  nextWeekEmailDaysBefore: 2,
   dropOutFeedbackUrl: "",
   weeklyFeedbackUrl: "",
   nextSessionMaxDays: 14,
@@ -152,19 +136,6 @@ function positiveInt(v: unknown, fallback: number): number {
  */
 export const REGISTER_CHASE_MAX_HOURS = 336;
 
-/**
- * The most days before a session next week's email may go. A group meets
- * weekly, so seven days before one session is the previous session's own
- * evening, before its register could even have been taken.
- */
-export const NEXT_WEEK_EMAIL_MAX_DAYS = 6;
-
-/** A whole number of days in 1 to the maximum, or the fallback. */
-function daysBefore(v: unknown, fallback: number): number {
-  if (typeof v !== "number" || !Number.isInteger(v)) return fallback;
-  return v >= 1 && v <= NEXT_WEEK_EMAIL_MAX_DAYS ? v : fallback;
-}
-
 /** Hours in (0, the maximum], or the fallback. */
 function chaseHours(v: unknown, fallback: number): number {
   const n = positiveNumber(v, fallback);
@@ -186,10 +157,6 @@ export async function readCoursesConfig(db: Firestore): Promise<CoursesConfig> {
     registerTaskHours: chaseHours(
       data.registerTaskHours,
       DEFAULT_COURSES_CONFIG.registerTaskHours,
-    ),
-    nextWeekEmailDaysBefore: daysBefore(
-      data.nextWeekEmailDaysBefore,
-      DEFAULT_COURSES_CONFIG.nextWeekEmailDaysBefore,
     ),
     // Scheme-checked, not merely type-checked: this one is rendered as an
     // href. See `externalUrlOrEmpty`.

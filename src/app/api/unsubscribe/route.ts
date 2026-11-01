@@ -194,7 +194,7 @@ async function performUnsubscribe(signed: string | null): Promise<{
     //
     // `courses` is deliberately NOT flipped on the push column, and the two
     // cells of that row are the reason: its EMAIL cell gates cohort
-    // announcements and session nudges, while its PUSH cell gates an
+    // announcements, while its PUSH cell gates an
     // admissions decision, a stage release and a course placement. Those are
     // messages about somebody's own application and their own place on a run,
     // and a click at the foot of a cohort email must not be read as a refusal
@@ -260,8 +260,9 @@ async function performUnsubscribe(signed: string | null): Promise<{
  *
  * For every list but a programme's, everything that list sends. A programme's
  * cohort list (`cohort:<runId>`) is different: unsubscribing from it stops the
- * programme's OPTIONAL mail (its announcements, the weekly nudge, next week's
- * email), and its notices keep coming while the person holds a place on it,
+ * programme's OPTIONAL mail (its announcements), and its notices (among them
+ * "Week N is open" and the reminders before a session) keep coming while the
+ * person holds a place on it,
  * because a notice is not read off the list at all (`resolveNoticeAudience` in
  * `src/lib/email/courseFacilitatorEmails.ts`). "We won't send any more" would
  * be untrue there, so the page says what does stop and what does not.

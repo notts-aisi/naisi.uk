@@ -1,7 +1,7 @@
 /**
  * One course run in its second week, with registers to take and finish, for
  * the suites about how a register ends (wk-register, option B): finishing,
- * next week's email on its schedule, the facilitators' reminder and the task
+ * "Week N is open" on its schedule, the facilitators' reminder and the task
  * for the programme's lead and the admins.
  *
  * ## What it is made of
@@ -85,20 +85,28 @@ export const MEMBERS = {
   [GROUP.other]: ["dev"],
 };
 
-/** The instants the suites move the clock to. All in London. */
+/**
+ * The instants the suites move the clock to. All in London. "Week N is open"
+ * goes at 9am six days before each session: week 2's for Group A (Monday 26
+ * October) on Tuesday 20 October, and Group B's (Tuesday 27 October) on
+ * Wednesday 21 October, both still BST; week 3's for Group B (Tuesday 3
+ * November) on Wednesday 28 October, after the clocks go back.
+ */
 export const AT = {
   /** Tuesday 20 October, 7:58pm BST: week 1's register for Group B, just taken. */
   week1Evening: new Date("2026-10-20T18:58:00Z"),
-  /** Saturday 24 October, 5:59pm BST: one minute before Group A's email is due. */
-  beforeGroupA: new Date("2026-10-24T16:59:00Z"),
-  /** Saturday 24 October, 6pm BST: Group A's email, two days before Monday 6pm. */
-  groupADue: new Date("2026-10-24T17:00:00Z"),
-  /** Saturday 24 October, 7pm BST: where 48 elapsed hours would have put it. */
-  groupAElapsed: new Date("2026-10-24T18:00:00Z"),
-  /** Sunday 25 October, 5:59pm GMT: one minute before Group B's email. */
-  beforeGroupB: new Date("2026-10-25T17:59:00Z"),
-  /** Sunday 25 October, 6pm GMT: Group B's email, two days before Tuesday 6pm. */
-  groupBDue: new Date("2026-10-25T18:00:00Z"),
+  /** Tuesday 20 October, 8:59am BST: one minute before Group A's week 2 email is due. */
+  beforeGroupA: new Date("2026-10-20T07:59:00Z"),
+  /** Tuesday 20 October, 9am BST: Group A's week 2 email, six days before Monday 6pm. */
+  groupADue: new Date("2026-10-20T08:00:00Z"),
+  /** Tuesday 20 October, 10am BST: a later tick the same morning. */
+  groupAElapsed: new Date("2026-10-20T09:00:00Z"),
+  /** Wednesday 21 October, 8:59am BST: one minute before Group B's week 2 email. */
+  beforeGroupB: new Date("2026-10-21T07:59:00Z"),
+  /** Wednesday 21 October, 9am BST: Group B's week 2 email, six days before Tuesday 6pm. */
+  groupBDue: new Date("2026-10-21T08:00:00Z"),
+  /** Wednesday 28 October, 9am GMT: Group B's week 3 email, after the clocks go back. */
+  groupBWeek3Due: new Date("2026-10-28T09:00:00Z"),
   /** Tuesday 27 October, 6pm GMT: Group B's week 2 session starts. */
   groupBStarts: new Date("2026-10-27T18:00:00Z"),
 };

@@ -4,22 +4,23 @@
  *
  * Run with `npm test` (Node's built-in runner, no emulator, no credentials).
  *
- * Two patterns in the tree read text a caller controls, so the time they take
- * must not depend on what that text is made of:
+ * One pattern in the tree reads text a caller controls, so the time it takes
+ * must not depend on what that text is made of: `/api/register` matches the
+ * submitted address against a pattern in which no host label can hold a dot,
+ * after the address has been capped. It is the one route here anybody can
+ * call with no session and no captcha answer yet. It is held three ways: the
+ * cap comes BEFORE the pattern, the pattern is timed on input shaped to make a
+ * pattern slow, and what the pattern accepts is written down so that making it
+ * fast cannot make it wrong.
  *
- *  - `/api/register` matches the submitted address against a pattern in which
- *    no host label can hold a dot, after the address has been capped. It is
- *    the one route here anybody can call with no session and no captcha
- *    answer yet.
- *  - the course email preheader strips tags with `<[^<>]*>`, so a tag cannot
- *    hold another opening bracket.
+ * There used to be a second: the weekly course email's preheader stripped tags
+ * from markup a facilitator's words had been spliced into. The week's emails
+ * that replaced it are fixed words, so their preheader is never markup and no
+ * pattern reads it. The last section holds that, so a tag-stripping pattern
+ * cannot come back into the course emails unseen.
  *
- * Each is held three ways: the cap comes BEFORE the pattern, the pattern is
- * timed on input shaped to make a pattern slow, and what the pattern accepts
- * is written down so that making it fast cannot make it wrong.
- *
- * CodeQL holds the class; this file holds these two so that a revert fails
- * here, by name, with the reason.
+ * CodeQL holds the class; this file holds these so that a revert fails here,
+ * by name, with the reason.
  */
 import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -196,31 +197,48 @@ describe("the address pattern reads its input once", () => {
 // The course email preheader
 // ---------------------------------------------------------------------------
 
-describe("the course email preheader strips tags in one pass", () => {
-  const source = readFileSync(join(REPO_ROOT, "src/lib/email/courseNudgeEmail.ts"), "utf8");
-  const body = source.slice(source.indexOf("function preheaderOf("));
-  const literal = body.slice(0, body.indexOf("\n}\n")).match(/block\.html\.replace\(\/(.+?)\/g, " "\)/);
+describe("the course email preheader is words, so no pattern reads it", () => {
+  const WORDS = "src/lib/courses/weekEmails/words.ts";
+  const TEMPLATE = "src/emails/WeekEmail.tsx";
 
-  test("the pattern can be read out of preheaderOf", () => {
-    assert.ok(literal, "preheaderOf no longer strips tags with a pattern this test can find");
+  test("each of the week's emails previews its first paragraph, written as words", () => {
+    const words = codeOf(WORDS);
+    assert.equal((words.match(/preheader: lead,/g) ?? []).length, 2, "both emails preview their first paragraph");
+    assert.doesNotMatch(words, /\.replace\(\s*\/</, "the week's emails strip tags with a pattern again");
   });
 
-  test("a tag cannot hold another opening bracket", () => {
-    assert.equal(literal[1], "<[^<>]*>");
+  test("the template hands the preview line to the inbox as text, never as markup", () => {
+    const template = codeOf(TEMPLATE);
+    assert.match(template, /preheader=\{words\.preheader\}/);
+    assert.doesNotMatch(template, /dangerouslySetInnerHTML/);
   });
 
-  test("it still turns markup into text", () => {
-    const strip = (html) => html.replace(new RegExp(literal[1], "g"), " ");
-    assert.equal(strip("<p>Hi <strong>Alex</strong>,</p>").replace(/\s+/g, " ").trim(), "Hi Alex ,");
-    assert.equal(strip('<a href="https://naisi.uk">this week</a>').trim(), "this week");
-  });
-
-  test("a run of opening brackets is read at once", async () => {
-    for (const repeat of [["", "<", 200_000, ""], ["", "<a", 200_000, ""], ["", "<", 200_000, ">"]]) {
-      const run = await timeBoxed({ kind: "regex-replace", source: literal[1], repeat }, LIMIT_MS);
-      const what = `${repeat[1]}${repeat[1]}${repeat[1]}...${repeat[3]}`;
-      assert.ok(run.finished, `${what}: still running after ${LIMIT_MS} ms and was stopped`);
-      assert.ok(run.took < BOUND_MS, `${what}: took ${Math.round(run.took)} ms`);
-    }
+  test("a week title shaped like a tag reaches the preview as the text it is", async () => {
+    const { loadTs } = createLoader({ stubs: new Map([["server-only", "export {};"]]) });
+    const { weekOpenEmailWords } = await loadTs("lib/courses/weekEmails/words.ts");
+    const WeekEmail = (await loadTs("emails/WeekEmail.tsx")).default;
+    const { render } = await import("@react-email/render");
+    const words = weekOpenEmailWords(
+      {
+        courseTitle: "AGI Strategy",
+        weekNumber: 3,
+        weekTitle: `<${"<a".repeat(2000)}>`,
+        sessionAt: new Date("2026-11-18T15:00:00Z"),
+        where: "Portland A21",
+        first: false,
+        cancelled: false,
+        change: "",
+        asks: [],
+        weekUrl: "https://naisi.uk/learn/run/weeks/3",
+        feedbackUrl: "",
+        locks: true,
+      },
+      "Priya",
+    );
+    const started = performance.now();
+    const html = await render(WeekEmail({ words, notice: null }));
+    assert.ok(performance.now() - started < 2000, "rendering a long tag-shaped title took too long");
+    assert.ok(!html.includes("<<a<a"), "a title shaped like a tag reached the email as markup");
+    assert.ok(html.includes("&lt;&lt;a&lt;a"), "the title is not in the email as text");
   });
 });

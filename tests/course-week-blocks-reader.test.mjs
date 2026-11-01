@@ -13,7 +13,7 @@
  *   aggregateRetrospective                     the retrospective's rows
  *   sync-tasks route                           the My Work mirror's card
  *   readExerciseTallies                        finishing's count of written answers
- *   courseWeekPrepLine, groupNudgeFacts        next week's email: its line and summary
+ *   blockWeekAsks, legacyWeekAsks              "Week N is open": what the week asks for
  *   pitching readings                          pitching week's papers
  *
  * Week 3 of AGI Strategy's run (`tests/lib/memberPagesWorld.mjs`) is turned
@@ -32,7 +32,9 @@ const { world, call, courseRoute, loadTs } = w;
 const reader = await loadTs(join("lib", "courses", "weekBlocks", "reader.ts"));
 const courses = await loadTs(join("lib", "firestore", "courses.ts"));
 const { aggregateRetrospective } = await loadTs(join("lib", "firestore", "courseTemplates.ts"));
-const nudge = await loadTs(join("lib", "email", "courseNudgeEmail.ts"));
+const weekEmails = await loadTs(join("lib", "courses", "weekEmails", "model.ts"));
+const weekEmailWords = await loadTs(join("lib", "courses", "weekEmails", "words.ts"));
+const { weekTaskNeeds } = await loadTs(join("lib", "courses", "weekBlocks", "progress.ts"));
 const leftView = await loadTs(join("lib", "courses", "leftView.ts"));
 const enrolments = await loadTs(join("lib", "firestore", "courseEnrolments.ts"));
 const notesRoute = await courseRoute("runs", "[runId]", "material-notes");
@@ -233,36 +235,51 @@ describe("2. the server-side readers, on a block week", () => {
     assert.equal(moved.get("amara").of, before.get("amara").of);
   });
 
-  test("next week's email: a block week's line counts This week's tasks, says In all, and never says exercise", () => {
-    assert.equal(nudge.courseWeekPrepLine(blockWeek()), "There are three things to do this week, about 2 hours in all.");
+  test("Week N is open: a block week lists what its tasks ask for, read from its blocks, and never says exercise", () => {
+    const asks = (week) => weekEmails.blockWeekAsks(week.blocks, weekTaskNeeds(week.blocks));
+    const lines = (week) => asks(week).map(weekEmailWords.weekAskWords);
+    assert.deepEqual(lines(blockWeek()), [
+      "4 readings",
+      "Your pack’s reading",
+      "2 short reflections",
+      "Your plan",
+      "A written answer",
+      "Getting ready for your talk",
+    ]);
+    // A This week box whose tasks cover no block asks for nothing yet, and
+    // holds an email that goes whole rather than send it with an empty list.
     const one = courses.normalizeCourseWeek("w01", syntheticWeekDoc({
       blocks: [{ ...syntheticWeekBlocks()[0], rows: [syntheticWeekBlocks()[0].rows[0], syntheticWeekBlocks()[0].rows[3]], total: "About 80 minutes" }],
     }));
-    assert.equal(nudge.courseWeekPrepLine(one), "There is one thing to do this week, about 80 minutes in all.");
-    const noTotal = courses.normalizeCourseWeek("w01", syntheticWeekDoc({ blocks: [{ ...syntheticWeekBlocks()[0], total: "" }] }));
-    assert.equal(nudge.courseWeekPrepLine(noTotal), "There are three things to do this week.");
-    assert.equal(nudge.courseWeekPrepLine(courses.normalizeCourseWeek("w01", syntheticWeekDoc({ blocks: [] }))), "", "no task yet holds an email that goes whole");
-    for (const week of [blockWeek(), one, noTotal]) assert.doesNotMatch(nudge.courseWeekPrepLine(week), /exercise/i);
-    // A week written before blocks reads as it always did.
-    assert.equal(nudge.courseWeekPrepLine(legacyWeek()), "There are three things to read or watch this week.");
-    assert.equal(
-      nudge.courseWeekPrepLine({ materials: [{}, {}], exercises: [{ required: true }], estimatedMinutes: null }),
-      "There are two things to read or watch and one exercise to write up this week.",
+    assert.deepEqual(asks(one), []);
+    assert.deepEqual(asks(courses.normalizeCourseWeek("w01", syntheticWeekDoc({ blocks: [] }))), []);
+    for (const week of [blockWeek(), one]) for (const line of lines(week)) assert.doesNotMatch(line, /exercise/i);
+    // A week written before blocks reads its materials and exercises, as it always did.
+    assert.deepEqual(weekEmails.legacyWeekAsks(legacyWeek()).map(weekEmailWords.weekAskWords), ["3 things to read or watch"]);
+    assert.deepEqual(
+      weekEmails.legacyWeekAsks({ materials: [{}, {}], exercises: [{ required: true }] }).map(weekEmailWords.weekAskWords),
+      ["2 things to read or watch", "An exercise to write up"],
     );
   });
 
-  test("next week's email: a block week with no summary of its own says its Why this week, so it is not held", () => {
-    const facts = nudge.groupNudgeFacts({
+  test("Week N is open: a block week is not held for anything a block week has no box for", () => {
+    // The email carries no summary, so a block week with no summary of its own
+    // is whole once it has a title, a session and something to ask for.
+    const week = blockWeek();
+    const facts = {
       courseTitle: "AGI Strategy",
-      runLabel: "Autumn 2026",
-      runId: RUN.agi,
-      appUrl: "https://naisi.invalid",
+      weekNumber: 3,
+      weekTitle: week.title,
+      sessionAt: new Date("2026-11-17T18:00:00Z"),
+      where: "A room",
+      first: false,
+      cancelled: false,
+      change: "",
+      asks: weekEmails.blockWeekAsks(week.blocks, weekTaskNeeds(week.blocks)),
+      weekUrl: `https://naisi.invalid/learn/${RUN.agi}/weeks/3`,
       feedbackUrl: "",
-      session: { weekNumber: 3, dateKey: "2026-11-17", session: { weekday: 2, startTimeLocal: "18:00", durationMinutes: 120, location: "A room", meetingUrl: null, notes: "" } },
-      mode: null,
-      week: blockWeek(),
-    });
-    assert.match(facts.context.weekSummary, /^Forecasts are only useful/);
-    assert.equal(facts.context.weekPrep, "There are three things to do this week, about 2 hours in all.");
+      locks: true,
+    };
+    assert.deepEqual(weekEmailWords.missingWeekOpenValues(facts), []);
   });
 });

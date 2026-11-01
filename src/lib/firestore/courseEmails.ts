@@ -30,7 +30,9 @@ export const COURSE_TEMPLATE_IDS = [
   // the placement email. Written by `composeFacilitatingEmail`
   // (`src/lib/courses/facilitatingEmail.ts`) under the placement email's rules.
   "course-facilitating",
-  "course-week-nudge",
+  // `course-week-nudge`, the "Weekly reminder", was here: the week's emails
+  // are fixed words now (`src/lib/courses/weekEmails/words.ts`), and a copy
+  // saved under that id on either backend is read by nothing.
   "course-dropped-out",
   // The ADMISSIONS lifecycle (V3). Same collection and same editor as the
   // course templates above, because they are the same job to an admin: the
@@ -68,7 +70,6 @@ export type CourseTemplateTrigger =
   | "allocated"
   | "allocated-incubator"
   | "facilitating"
-  | "week-nudge"
   | "dropped-out"
   | "admissions-submitted"
   | "admissions-reinstated"
@@ -89,7 +90,6 @@ export const COURSE_TEMPLATE_TRIGGER: Record<CourseTemplateId, CourseTemplateTri
   "course-allocated": "allocated",
   "course-allocated-incubator": "allocated-incubator",
   "course-facilitating": "facilitating",
-  "course-week-nudge": "week-nudge",
   "course-dropped-out": "dropped-out",
   "admissions-submitted": "admissions-submitted",
   "admissions-reinstated": "admissions-reinstated",
@@ -309,7 +309,6 @@ export const COURSE_DEFAULT_LABELS: Record<CourseTemplateId, string> = {
   "course-allocated": "Placed in a group",
   "course-allocated-incubator": "Placed on an incubator",
   "course-facilitating": "You’re facilitating",
-  "course-week-nudge": "Weekly reminder",
   "course-dropped-out": "Left a course",
   "admissions-submitted": "Application received",
   "admissions-reinstated": "Application picked back up",
@@ -507,54 +506,6 @@ export const courseTemplateDefaults: Record<
           "<p>Take the register on your phone during the session.</p>" +
           '<p>{leadName}<br /><span style="color:#71717a">{programmeName} lead, NAISI</span></p>' +
           "<p>{naisiSignOff}</p>",
-      ),
-    ],
-  },
-  /**
-   * The weekly nudge (P11). Four things make this seed different from the five
-   * above, and an editor should know them before rewriting it — the full
-   * argument is in `src/lib/email/courseNudgeEmail.ts`, whose
-   * `COURSE_NUDGE_TOKEN_KEYS` is the authoritative list:
-   *
-   *  1. **It has its own token map.** `{firstName}` `{courseTitle}`
-   *     `{runLabel}` `{weekNumber}` `{weekTitle}` `{weekSummary}`
-   *     `{sessionWhen}` `{sessionWhere}` `{weekPrep}` `{weekUrl}`
-   *     `{feedbackUrl}` resolve here;
-   *     `{preferredName}`, `{startDate}` and the group trio do NOT. The list is
-   *     closed — a token outside it stays literal in the inbox.
-   *  2. **An unresolved token deletes its sentence, it does not stay literal.**
-   *     A paragraph whose tokens ALL come back empty is dropped whole, so a
-   *     week with no summary, or a member with no group time, gets a shorter
-   *     email rather than a broken one. Hence the shape below: ONE OPTIONAL
-   *     TOKEN PER PARAGRAPH, in plain text — not wrapped in bold or a link, and
-   *     not mixed with copy that only makes sense when it resolves.
-   *  3. **The SUBJECT leads with what varies.** A phone truncates a subject at
-   *     roughly 35 characters, so "Week 3 of AI Safety Fundamentals: …" spends
-   *     the whole visible line on the half that is identical every week. The
-   *     week's own title goes first; the fixed half is what gets cut. When there
-   *     is no title yet the leading separator is trimmed and the subject falls
-   *     back to "Week 3 of AI Safety Fundamentals".
-   *  4. **The voice is deliberately unpushy.** It says what is in the week and
-   *     where to find it, and it never implies the reader is behind — it has no
-   *     idea whether they are. Keep the last line, or something like it.
-   *
-   * `{runLabel}` resolves but is not used: a member is on exactly one run, so
-   * "(Autumn 2026)" in the body is bookkeeping addressed to nobody. It stays on
-   * the token list for an admin who has a reason to name it.
-   */
-  "course-week-nudge": {
-    label: COURSE_DEFAULT_LABELS["course-week-nudge"],
-    subject: "{weekTitle} · Week {weekNumber} of {courseTitle}",
-    blocks: [
-      h("Hi {firstName},"),
-      rt(
-        "<p>Week {weekNumber} of {courseTitle} is open: {weekTitle}.</p>" +
-          "<p>{weekSummary}</p>" +
-          "<p>Your group meets {sessionWhen}, {sessionWhere}.</p>" +
-          "<p>{weekPrep}</p>" +
-          '<p><a href="{weekUrl}" style="color:#2563eb">Open this week on the site</a></p>' +
-          '<p><a href="{feedbackUrl}" style="color:#2563eb">Tell us how the last session went</a></p>' +
-          "<p>Read what you can. The week stays open.</p>",
       ),
     ],
   },

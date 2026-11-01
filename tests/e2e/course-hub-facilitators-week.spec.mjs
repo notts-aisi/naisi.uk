@@ -331,21 +331,22 @@ function endingWords(ending) {
   };
 
   const nextEmailSentence = (line) => {
+    const email = `Week ${line.weekNumber}’s email`;
     switch (line.state) {
       case "goes":
-        return `Next week’s email goes to ${group} on ${line.at}, whatever happens here.`;
+        return `${email} goes to ${group} on ${line.at}, whatever happens here.`;
       case "went":
-        return `Next week’s email went to ${group} on ${line.at}.`;
+        return `${email} went to ${group} on ${line.at}.`;
       case "waiting-for-week":
-        return `Next week’s email to ${group} is waiting for week ${line.weekNumber} to be published.`;
+        return `${email} to ${group} is waiting for week ${line.weekNumber} to be published.`;
       case "held":
-        return `Next week’s email to ${group} is held: it’s missing ${listOfNames(line.missing)}.`;
+        return `${email} to ${group} is held: it’s missing ${listOfNames(line.missing)}.`;
       case "shortly":
-        return `Next week’s email to ${group} goes out shortly.`;
+        return `${email} to ${group} goes out shortly.`;
       case "missed":
         return `Week ${line.weekNumber} has started without its email.`;
       default:
-        throw new Error(`the register's GET answered a next week's email state this spec does not know: ${line.state}`);
+        throw new Error(`the register's GET answered a state of the week's email this spec does not know: ${line.state}`);
     }
   };
 
@@ -388,7 +389,13 @@ function endingWords(ending) {
   const sends = line ? line.kind === "sends" : ending.hasNext;
   const notes = [];
   if (finished) notes.push("This register is pushed. Everyone can see their mark.");
-  if (!finished && sends) notes.push("If nobody pushes, nobody gets next week’s email.");
+  if (!finished && sends) {
+    notes.push(
+      line?.kind === "sends"
+        ? `If nobody pushes, nobody gets week ${line.weekNumber}’s email.`
+        : "If nobody pushes, nobody gets the next week’s email.",
+    );
+  }
   if (!finished && chase) notes.push(chase);
   const locks = "Locks the register and shows everyone their mark.";
   const kind = line?.kind ?? (ending.hasNext ? "sends" : "last");
@@ -397,7 +404,9 @@ function endingWords(ending) {
     columnButton: "Push",
     effect:
       kind === "sends"
-        ? `Locks the register, shows everyone their mark and emails ${group} about next week.`
+        ? line?.kind === "sends"
+          ? `Locks the register, shows everyone their mark and emails ${group} that week ${line.weekNumber} is open.`
+          : `Locks the register, shows everyone their mark and emails ${group} that the next week is open.`
         : kind === "last"
           ? `${locks} It’s the group’s last session, so nobody’s emailed.`
           : line?.kind === "held"
@@ -1132,7 +1141,7 @@ test(
         assert.equal(ending.hasNext, true, "the register says this is the group's last session");
         // What pressing this week's register emails, as the GET answers it for
         // the foot and the confirm alike, from the push's own decision: week 4
-        // is not published, so while the push sends next week's email it sends
+        // is not published, so while the push sends "Week 4 is open" it sends
         // nobody one, and on the schedule finishing never does.
         assert.deepEqual(
           ending.pushEmails,
@@ -1220,8 +1229,8 @@ test(
           await textsOf(confirm.getByRole("listitem")),
           [
             ending.scheduled
-              ? "Nobody’s emailed. Next week’s email goes on its own schedule, whatever happens here."
-              : // While next week's email is not on its schedule, the confirm
+              ? "Nobody’s emailed. Each week’s email goes on its own schedule, whatever happens here."
+              : // While the week's email is not on its schedule, the confirm
                 // says what the push will do with it, from the register's GET:
                 // the session after this one in the group's whole schedule
                 // (week 4, not the register's columns, which hold only the
@@ -1238,11 +1247,11 @@ test(
         // Everybody is marked, so nobody is about to be counted absent for want of a mark.
         assert.ok(!(await textOf(confirm)).includes("no mark yet"), "the confirm warns of somebody unmarked");
 
-        // Week 4 is not published, so while the push sends next week's email it
+        // Week 4 is not published, so while the push sends "Week 4 is open" it
         // has nothing to send yet, and while the schedule sends it, finishing
         // never does: either way, this press emails nobody.
         const reason = ending.scheduled
-          ? "Next week’s email goes on its schedule, so finishing the register emailed nobody."
+          ? "Each week’s email goes on its schedule, so finishing the register emailed nobody."
           : // The push's answer says who marks the week ready to the facilitator who pressed: the
             // programme's lead by name, or here, where the programme has no lead, an admin.
             `Week ${nextWeek} isn’t published yet, so nobody was emailed. An admin marks it ready.`;

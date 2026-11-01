@@ -1207,12 +1207,6 @@ const NOT_COVERED = {
     coverWhen:
       "When the October curriculum rebuild lands, because a spec written against today's shape would be thrown away with it.",
   },
-  "/api/courses/runs/[runId]/nudge": {
-    reason:
-      "Courses: /api/courses/runs/[runId]/nudge is staff-facing, taken deliberately, and answered on the screen that called it.",
-    coverWhen:
-      "When the run that opens on 21 September is administered through these routes with real applicants in it, because a mistake then costs a member their group rather than an admin a retry.",
-  },
   "/api/courses/runs/[runId]/packs-and-cases/[blockId]": {
     reason:
       "Course hub: a person's own pick in a Choose one and their Ready for my talk (wk-week, wk-week6-phone); who writes, who is refused, the pick's lock at the session and the ready box's wait for a case are executed by tests/course-hub-packs-and-cases.test.mjs; pressed in a browser on the preview kit.",
@@ -2101,12 +2095,6 @@ const NOT_COVERED = {
     reason:
       "Course hub: one team's page as an incubator's lead and admins read it, from the Teams tab's Hand-ins; drawn by tests/course-hub-team-page-pages.test.mjs for the lead, an admin, the reviewer and everybody else.",
     coverWhen: "When the incubator's browser spec opens a team's page from the Teams tab as the lead.",
-  },
-  "/(app)/learn/[runId]/nudge": {
-    reason:
-      "Learn hub: /(app)/learn/[runId]/nudge is part of the curriculum surface being rebuilt in October, so a spec written now would be rewritten with it.",
-    coverWhen:
-      "When the October curriculum rebuild lands and its first cohort works a week through the new shape.",
   },
   "/(app)/learn/[runId]/progress": {
     reason:

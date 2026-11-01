@@ -106,6 +106,9 @@ const STUBS = new Map([
   [
     "@/lib/email/courseFacilitatorEmails",
     "export const resolveCohortAudience = async () => ({ members: [], skipped: 0, enrolledCount: 0, refusal: null });\n" +
+      // The week's emails' audience: "Week N is open" and the reminders before
+      // a session are notices, read off the places rather than the list.
+      "export const resolveNoticeAudience = async () => ({ members: [], skipped: 0, enrolledCount: 0, refusal: null, dropped: [] });\n" +
       "export const hasOptedOutOfCourseAnnouncements = () => false;\n" +
       "export const memberNameOf = () => '';",
   ],

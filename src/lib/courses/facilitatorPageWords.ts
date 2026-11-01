@@ -217,31 +217,32 @@ export function paceWords(weeksBehind: number): string {
 export const THIS_WEEK = "This week";
 
 /**
- * Next week's email on Home, while it is on its schedule (2c): when it goes,
- * or what it is waiting for. The register's own sentence without its "whatever
+ * The next "Week N is open" on Home, while it is on its schedule (2c): when it
+ * goes, or what it is waiting for. The register's own sentence without its "whatever
  * happens here", which belongs beside the register's button.
  */
 export function homeNextEmailWords(
   groupName: string,
   line:
-    | { state: "goes"; at: string }
-    | { state: "went"; at: string }
+    | { state: "goes"; at: string; weekNumber: number }
+    | { state: "went"; at: string; weekNumber: number }
     | { state: "waiting-for-week"; weekNumber: number }
-    | { state: "held"; missing: string[] }
-    | { state: "shortly" },
+    | { state: "held"; missing: string[]; weekNumber: number }
+    | { state: "shortly"; weekNumber: number },
 ): string {
   const group = groupName.trim() || "your group";
+  const email = `Week ${line.weekNumber}’s email`;
   switch (line.state) {
     case "goes":
-      return `Next week’s email goes to ${group} on ${line.at}.`;
+      return `${email} goes to ${group} on ${line.at}.`;
     case "went":
-      return `Next week’s email went to ${group} on ${line.at}.`;
+      return `${email} went to ${group} on ${line.at}.`;
     case "waiting-for-week":
-      return `Next week’s email to ${group} is waiting for week ${line.weekNumber} to be published.`;
+      return `${email} to ${group} is waiting for week ${line.weekNumber} to be published.`;
     case "held":
-      return `Next week’s email to ${group} is held: it’s missing ${namesWords(line.missing)}.`;
+      return `${email} to ${group} is held: it’s missing ${namesWords(line.missing)}.`;
     case "shortly":
-      return `Next week’s email to ${group} goes out shortly.`;
+      return `${email} to ${group} goes out shortly.`;
   }
 }
 

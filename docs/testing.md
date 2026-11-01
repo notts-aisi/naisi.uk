@@ -136,7 +136,7 @@ The same shape, older:
 - `tests/notification-classification.test.mjs`: every send in `src` declares
   which of the three notification classes it belongs to. The scanner walks the
   tree for calls to `sendEmail`, the two push mirrors and every named wrapper
-  (`sendRsvpEmail`, `notifyWorksheetEvent`, the admission and nudge wrappers,
+  (`sendRsvpEmail`, `notifyWorksheetEvent`, the admission wrappers, the week's email,
   and the rest, enumerated rather than remembered); `REGISTRY` maps each
   `file#symbol` to `grid` with its row, `transactional`, or `notice`, with a
   written reason. Both directions, and the class is read out of the source

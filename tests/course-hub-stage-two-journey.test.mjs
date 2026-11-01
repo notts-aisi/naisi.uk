@@ -31,11 +31,11 @@
  *  3. Week 1's updates, emailed: the count on each button, who each email
  *     reaches, what it says.
  *  4. The registers, marked and finished by the facilitators, read by the
- *     lead, shown to each person once finished, and next week's email.
+ *     lead, shown to each person once finished, and "Week N is open".
  *  5. The lead adds facilitators on the Facilitators view; Publish tells them.
  *  6. The lead removes somebody who has left, and what that does to the
  *     grid, the registers and her next Publish.
- *  7. Somebody stops the weekly email, and what the next update does.
+ *  7. Somebody leaves the run's list, and what the next update does.
  *  8. Pitching week on the incubator: its lead opens week 3, its people
  *     pitch and pick, each sees their own picks, the lead sees the counts,
  *     and the group's session closes it.
@@ -325,6 +325,7 @@ const pages = {
   group: (await loadTs(join(LEARN, "group", "[groupId]", "page.tsx"))).default,
 };
 const unsubscribe = await loadTs(join("app", "api", "unsubscribe", "route.ts"));
+const { signToken } = await loadTs(join("lib", "signedTokens.ts"));
 const { RunUpdatesView } = await loadTs(join("features", "courses", "updates", "RunUpdates.tsx"));
 const { default: PitchingWeek } = await loadTs(join("features", "courses", "pitching", "PitchingWeek.tsx"));
 /** The session card itself, as the run home draws it (the group page's copy of it is stood in, above). */
@@ -1548,17 +1549,19 @@ async function weeksOneAndTwo() {
 
   at("groupAWeek2");
   r.a2 = await aSession("tom", GROUP.A, 2, { dev: "present", joel: "present", priya: "late" }, "Group A");
-  // Joel follows "you can stop it here" at the foot of the weekly email he
-  // has just been sent, and confirms on the page it opens.
+  // "Week N is open", which he has just been sent, is a notice and offers no
+  // way to stop it. Joel takes himself off the run's list through the link
+  // the run's optional mail carries at its foot (the announcement lane's own
+  // token, scoped to this run's list), and confirms on the page it opens.
   later(60);
-  const link = r.a2.finishMail.find((mail) => mail.to === address("joel"))?.links.find((href) => href.includes("/api/unsubscribe?t=")) ?? "";
-  const token = new URL(link || `${APP_URL}/api/unsubscribe?t=none`).searchParams.get("t");
+  r.joelWeekMailLinks = r.a2.finishMail.find((mail) => mail.to === address("joel"))?.links ?? null;
+  const token = signToken({ s: "unsubscribe", uid: "joel", c: `cohort:${RUN}` }, 60 * 60 * 24 * 365);
   const asked = await call(null, unsubscribe.GET, {}, { query: { t: token } });
   r.joelStops = {
     page: typeof asked.body === "string" ? pageText(asked.body.replace(/<head[\s\S]*?<\/head>/i, "")) : asked.status,
-    confirmed: await step("Joel stops the weekly email", 200, null, unsubscribe.POST, {}, { query: { t: token } }),
+    confirmed: await step("Joel leaves the run's list", 200, null, unsubscribe.POST, {}, { query: { t: token } }),
   };
-  await lookAround("Joel stopped the weekly email");
+  await lookAround("Joel left the run's list");
   at("incubatorWeek2");
   r.inc2 = await aSession("tess", INC_GROUP, 2, { omar: "present", wen: "late", lena: "present", tariq: "present" }, "the incubator");
   at("groupBWeek2");
@@ -1891,7 +1894,7 @@ const AFTER_PUBLISH = [
   "week 1's registers finished",
   "Kofi removed",
   "Sofia added to Group A and told",
-  "Joel stopped the weekly email",
+  "Joel left the run's list",
   "Group B's register not finished",
   "the end of week 3",
 ];
@@ -2186,13 +2189,11 @@ describe("stage two of the course hub, one term from Publish to the end of week 
       }
     });
 
-    // The weekly email goes from the press that finishes a register while its
-    // job is off (how it ships), once the next week is published. Since the
-    // walk of stage two's fixes (G6) it names the session as the placement
-    // email names a first session ("Tue 3 Nov, 6pm"), with its end added, and
-    // its foot has no dash; until then it said "Tuesday 10 November" and the
-    // hours with a dash between.
-    test("finishing a register emails the group next week's email once that week is published, and says why not when it is not", () => {
+    // "Week N is open" goes from the press that finishes a register while its
+    // job is off (how it ships), once the next week is published. It names
+    // the session as the day and the time it starts ("Tue 10 Nov at 6pm"),
+    // and nothing in it has a dash.
+    test("finishing a register emails the group that the next week is open once it is published, and says why not when it is not", () => {
       // The answer says who marks the week ready to whoever pressed: AGI Strategy's facilitators are told
       // Claudia does; Tess, who leads the incubator and runs its group, is told that marking it ready publishes it.
       const reason = (n, marksReady) => `Week ${n} isn’t published yet, so nobody was emailed. ${marksReady}`;
@@ -2213,21 +2214,19 @@ describe("stage two of the course hub, one term from Publish to the end of week 
         ],
       );
       const amara = r().b1.finishMail[0];
-      assert.deepEqual([amara.subject, amara.kind], ["Week 2 · Week 2 of AGI Strategy Fellowship", "course-nudge"]);
+      assert.deepEqual([amara.subject, amara.kind], ["Week 2 is open: Week 2", "notice"]);
+      // A notice now: the line saying why it reached her, and no way to stop it.
       assert.equal(
         readFrom(amara, "Hi "),
-        "Hi Amara, Week 2 of AGI Strategy Fellowship is open: Week 2. Your group meets Tue 10 Nov, 6pm to 8pm, Room C20. " +
-          "Open this week on the site Read what you can. The week stays open. You're getting this because " +
-          `you're on this course with NAISI. If the weekly email isn't useful to you, you can stop it here. You stay on the course either way. ${FOOTER}`,
+        `Hi Amara, ${NOTICE_LINE("you are in this course group")} ` +
+          "Week 2 of AGI Strategy Fellowship is open: Week 2. Your next session is Tue 10 Nov at 6pm in Room C20. " +
+          `Open week 2 ${FOOTER}`,
       );
       for (const mail of SESSIONS.flatMap((key) => r()[key].finishMail)) {
         assert.doesNotMatch(`${mail.subject} ${mail.text}`, new RegExp(`[${EN_DASH}${EM_DASH}]`), mail.to);
       }
-      // Its two links: the week's page and the way to stop it. No meeting link.
-      assert.deepEqual(
-        amara.links.map((href) => href.replace(/\?t=.*$/, "?t=")),
-        [`${APP_URL}/learn/${RUN}/weeks/2`, `${APP_URL}/api/unsubscribe?t=`],
-      );
+      // Its one link: the week's page. No way to stop it, and no meeting link.
+      assert.deepEqual(amara.links, [`${APP_URL}/learn/${RUN}/weeks/2`]);
     });
 
     // The run home's card wrote "Monday 2 November" and the hours with a dash
@@ -2404,14 +2403,18 @@ describe("stage two of the course hub, one term from Publish to the end of week 
   });
 
   // -------------------------------------------------------------------------
-  // The weekly email's foot offers to stop the weekly email; the page it
-  // opens takes the address off the run's cohort list, which stops the run's
-  // optional mail and nothing else. An update is a notice, read off the run's
+  // The run's optional mail offers, at its foot, to take the address off the
+  // run's cohort list, which stops that mail and nothing else. "Week N is
+  // open" is a notice and offers no such link. An update is a notice, read off the run's
   // places rather than off that list, so the lead's room change afterwards is
   // still emailed to him: it "reaches you whatever your notification settings
   // say", and whatever he unsubscribed from (the walk of stage two's G7, which
   // the owner settled this way). The page says so before he confirms.
-  describe("7. Joel stops the weekly email", () => {
+  describe("7. Joel leaves the run's list", () => {
+    test("the week's email he was sent offers no way to stop it: its one link is the week's page", () => {
+      assert.deepEqual(seen.registers.joelWeekMailLinks, [`${APP_URL}/learn/${RUN}/weeks/3`]);
+    });
+
     test("the page it opens says it stops the programme's optional emails and not its notices, and confirming takes him off the run's list", () => {
       const stop = seen.registers.joelStops;
       assert.equal(
@@ -2422,11 +2425,11 @@ describe("stage two of the course hub, one term from Publish to the end of week 
           "Confirm unsubscribe Cancel",
       );
       assert.deepEqual(stop.confirmed.body, { ok: true, category: `cohort:${RUN}` });
-      assert.deepEqual(lookAt("Joel stopped the weekly email").onTheList[RUN], ["amara", "dev", "ella", "priya"]);
+      assert.deepEqual(lookAt("Joel left the run's list").onTheList[RUN], ["amara", "dev", "ella", "priya"]);
     });
 
     test("then an update to his group still emails all three, him included, as the Messages tab and the group page both count it, and he reads it on his page", () => {
-      const look = lookAt("Joel stopped the weekly email");
+      const look = lookAt("Joel left the run's list");
       assert.deepEqual(look.lead.messages.to.find(([label]) => label.startsWith("Group A")), ["Group A (3)", 3]);
       assert.equal(look.facilitators["amelia (Group A)"].page.write, "Write to Group A (3) Posts an update to the group and emails 3 people. Replies go to ai-safety@uonsu.com.");
       const one = seen.oneGroup;

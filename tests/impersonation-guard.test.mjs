@@ -158,7 +158,6 @@ const MUST_GUARD = [
   ["src/app/api/courses/runs/[runId]/predictions/people/[uid]/route.ts", "an admin opens one person's predictions card, the opening recorded before the card is read"],
   ["src/app/api/courses/runs/[runId]/material-notes/route.ts", "records feedback attributed to the reader"],
   ["src/app/api/courses/runs/[runId]/normalise-weeks/route.ts", "rewrites every week id on a run"],
-  ["src/app/api/courses/runs/[runId]/nudge/route.ts", "sends the weekly nudge email"],
   ["src/app/api/courses/runs/[runId]/pitching/picks/route.ts", "records which pitches a member would join, which their lead makes teams from"],
   ["src/app/api/courses/runs/[runId]/pitching/pitch/route.ts", "saves a pitch in the member's own name and chooses who pitches it with them"],
   ["src/app/api/courses/runs/[runId]/team/check-in/route.ts", "saves a team's check-in for the week, recorded as whoever the session says saved it"],
@@ -1082,7 +1081,7 @@ test("a live marker refuses with 403 and the honest copy", async () => {
 test("a same-uid marker is stale, not a session: the write proceeds and the cookie is cleared", async () => {
   // The admin is signed in as THEMSELVES with a leftover marker. Refusing here
   // would leave them unable to publish a course, allocate a cohort or send a
-  // nudge, with nothing on screen explaining why: the banner is already
+  // group email, with nothing on screen explaining why: the banner is already
   // suppressed in exactly this case.
   setState({ marker: LIVE_MARKER, uid: ADMIN_UID });
   assert.equal(await assertNotImpersonating(), null);

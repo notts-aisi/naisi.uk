@@ -12,7 +12,7 @@
  * email to the whole group, and three session cards said the facilitator
  * would send the joining link. The suites of the two emails that tell a group
  * where it meets already render them with a link set and find it absent
- * (`tests/course-nudge.test.mjs`, `tests/email-unfilled-tokens.test.mjs`,
+ * (`tests/course-week-emails.test.mjs`, `tests/email-unfilled-tokens.test.mjs`,
  * `tests/course-register-ends.test.mjs`); an update about a session held
  * online is held to the same in `tests/course-hub-sessions-routes.test.mjs`.
  * What they cannot see is the NEXT composer or email that reads the link. So:

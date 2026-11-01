@@ -254,13 +254,18 @@ describe("the shared loader reads JSX", () => {
  * list that can only grow is a list nobody trusts, and the reason column is
  * what makes the next person's decision to adopt it legible.
  *
- * The forty-three suites that still carry their own copy are not required to
+ * The forty-two suites that still carry their own copy are not required to
  * migrate. That they pass at all is the proof their graphs stop short of a
  * `.tsx`, so a wholesale rewrite would be a large diff with no failure behind
  * it. They move when they next need to change, and until then they are held
  * still by `LEGACY_LOADERS` below.
  */
 const USERS = new Map([
+  [
+    "course-week-emails.test.mjs",
+    "runs the week's emails' timing, words and what a week asks for as plain functions, and renders their one " +
+      "template, a .tsx component, to read every combination of missing facts as an inbox would",
+  ],
   [
     "course-week-work.test.mjs",
     "runs the week you submit's model, lock and words as plain functions, which are .ts modules this loader " +
@@ -1341,7 +1346,7 @@ const USERS = new Map([
 ]);
 
 /**
- * The forty-three suites that still carry a hand-copied loader, frozen.
+ * The forty-two suites that still carry a hand-copied loader, frozen.
  *
  * One reason covers the list, because it is one decision: each of these works
  * today, each one's module graph stops short of a `.tsx`, and rewriting them
@@ -1373,7 +1378,6 @@ const LEGACY_LOADERS = [
   "course-deletion.test.mjs",
   "course-enrol.test.mjs",
   "course-group-resolve.test.mjs",
-  "course-nudge.test.mjs",
   "course-offer.test.mjs",
   "course-pages.test.mjs",
   "course-programme-page.test.mjs",

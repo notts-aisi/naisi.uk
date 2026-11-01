@@ -39,17 +39,17 @@
  *
  * ## The loader dance
  *
- * Lifted from `course-nudge.test.mjs`, which already solved importing TypeScript
- * from `.mjs` on this repo's Node (v20, no native type stripping) INCLUDING
- * `@/…` alias resolution and stubbing `server-only`. Same rules apply: nothing
- * in `STUBS` is reachable from an assertion here, and no test in this file may
- * ever put mail on the wire.
+ * Lifted from the weekly nudge's suite (gone with the nudge), which solved
+ * importing TypeScript from `.mjs` on this repo's Node (v20, no native type
+ * stripping) INCLUDING `@/…` alias resolution and stubbing `server-only`. Same
+ * rules apply: nothing in `STUBS` is reachable from an assertion here, and no
+ * test in this file may ever put mail on the wire.
  *
  * Route handlers cannot be imported at all (`next/server`, `firebase-admin`),
- * so route-level properties are asserted at the SOURCE, exactly as the nudge
- * suite does for the marker ordering. That is not a weaker test — it is the
- * only thing standing between a pure model in here and a route that no longer
- * matches it.
+ * so route-level properties are asserted at the SOURCE, exactly as
+ * `course-week-emails.test.mjs` does for the claim's ordering. That is not a
+ * weaker test: it is the only thing standing between a pure model in here and
+ * a route that no longer matches it.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -62,14 +62,9 @@ const SRC = join(REPO_ROOT, "src");
 
 const SPECIFIER = /(\bfrom\s*|\bimport\s*\(?\s*)(["'])([^"']+)\2/g;
 
-/** See `course-nudge.test.mjs` — nothing here is reachable from an assertion. */
+/** Nothing here is reachable from an assertion. */
 const STUBS = new Map([
   ["server-only", "export {};"],
-  [
-    join(SRC, "emails", "CourseNudgeEmail.tsx"),
-    "export default function CourseNudgeEmail() {\n" +
-      "  throw new Error('CourseNudgeEmail is stubbed in tests');\n}",
-  ],
   [
     join(SRC, "lib", "email", "send.ts"),
     "export function sendEmail() {\n" +
@@ -188,14 +183,10 @@ const { attendanceDocId } = await loadTs("lib/firestore/courseAttendance.ts");
 const { ENROLMENT_STATUSES, courseEnrolmentId, normalizeCourseEnrolment } =
   await loadTs("lib/firestore/courseEnrolments.ts");
 const { courseTaskId } = await loadTs("lib/firestore/courseTasks.ts");
-const {
-  buildCourseNudgeTokens,
-  courseNudgeSessionWhere,
-  nudgeMarkerId,
-  nudgeWeekMarkerIds,
-  renderCourseNudge,
-} = await loadTs("lib/email/courseNudgeEmail.ts");
-const { courseTemplateDefaults } = await loadTs("lib/firestore/courseEmails.ts");
+const { courseNudgeSessionWhere, groupNudgeMarkerId } = await loadTs("lib/email/courseNudgeEmail.ts");
+const { resolveSessions } = await loadTs("lib/courses/sessions.ts");
+const { weekOpenEmailWords } = await loadTs("lib/courses/weekEmails/words.ts");
+const { nextWeekEmailTiming } = await loadTs("lib/courses/registerChase.ts");
 
 // ---------------------------------------------------------------------------
 // Source handles. Every route-level property below is asserted against one of
@@ -205,7 +196,11 @@ const { courseTemplateDefaults } = await loadTs("lib/firestore/courseEmails.ts")
 const src = (...parts) => readFileSync(join(SRC, ...parts), "utf8");
 const api = (...parts) => src("app", "api", "courses", ...parts);
 
-const NUDGE = api("runs", "[runId]", "nudge", "route.ts");
+/** "Week N is open": the one send both of its lanes use, the job that schedules it, and the reminders. */
+const WEEK_EMAIL = src("lib", "courses", "nextWeekEmail.ts");
+const WEEK_EMAIL_JOB = src("lib", "scheduler", "jobs", "nextWeekEmail.ts");
+const REMINDERS_JOB = src("lib", "scheduler", "jobs", "weekReminders.ts");
+const WEEK_EMAIL_TIMING = src("lib", "courses", "weekEmails", "model.ts");
 const SYNC_TASKS = api("runs", "[runId]", "sync-tasks", "route.ts");
 const OVERVIEW = api("runs", "[runId]", "overview", "route.ts");
 const ME = api("me", "route.ts");
@@ -828,7 +823,9 @@ test("GUARD — every member-facing surface addresses a week by weekDocId(number
     // The run home's ticket, through `ticketFacts`: the mode of the week of
     // the session it is dated to, addressed by that week's number.
     [CARD_FACTS, /sessionModes\[weekDocId\(next\.weekNumber\)\]/],
-    [NUDGE, /const weekId = weekDocId\(weekNumber\);/],
+    // The reminders read each week they are about as the group sees it,
+    // addressed by its number.
+    [REMINDERS_JOB, /resolveWeekDoc\(db, run\.id, group\.id, weekDocId\(weekNumber\)\)/],
     // V2-3 moved the mirror's read behind the group resolver, so the pattern
     // now pins BOTH doctrines at once: addressed by number, resolved
     // group-first. A mirror built from a different document than the member's
@@ -1119,66 +1116,81 @@ test("moving startDate BACKWARD skips weeks that are never mirrored", () => {
   assert.match(SYNC_TASKS, /There is deliberately no backlog pass/);
 });
 
-test("a jumped week's NUDGE has no path to a send once the cohort has moved past it", () => {
-  // The same edit, on the email lane. `resolveNudgeWeek` resolves only the
-  // CURRENT slot and `force` re-sends only that same slot, so a week the cohort
-  // skipped over has no path to a send and no marker recording the omission.
-  assert.match(NUDGE, /const currentWeek = currentWeekFor\(/);
-  assert.match(NUDGE, /slotStartKey: currentWeek\.slotStartKey/);
-  // No week parameter anywhere: the caller cannot ask for a past week.
-  assert.doesNotMatch(NUDGE, /searchParams\.get\("week"\)/);
-  assert.doesNotMatch(NUDGE, /body\.weekNumber/);
+/** A group that meets weekly on `weekday` at 6pm, as the week's emails read one. */
+function meetingGroup(weekday = 2) {
+  return normalizeCourseGroup("grpA", {
+    runId: "run1",
+    name: "Group A",
+    session: { weekday, startTimeLocal: "18:00", durationMinutes: 90, location: "Hallward B12", meetingUrl: null, notes: "" },
+  });
+}
+
+test("a jumped week's email has no path to a send once its session has started", () => {
+  // The same edit, on the email lane. "Week N is open" is about a SESSION, and
+  // once that session has started nothing sends it: the schedule sends only a
+  // session that is due (its window open, the session ahead), and the push
+  // sends only about the session after the register it finishes. A week the
+  // group skipped over has no path to a send.
+  const sessions = resolveSessions(run(), meetingGroup());
+  const third = sessions.findIndex((session) => session.weekNumber === 3);
+  const starts = new Date(`${sessions[third].dateKey}T12:00:00Z`);
+  assert.equal(nextWeekEmailTiming(sessions, third, new Date(starts.getTime() + 86_400_000)).state, "past");
+  assert.match(WEEK_EMAIL_JOB, /if \(timing\.state === "due" && markerId\) \{/);
+  assert.match(ATTENDANCE_PUSH, /sessionAfter\(sessions, session\.sessionKey\)/);
+  // No week parameter anywhere: nobody can ask for a past week's email.
+  for (const source of [WEEK_EMAIL, WEEK_EMAIL_JOB, REMINDERS_JOB]) {
+    assert.doesNotMatch(source, /searchParams\.get\("week"\)/);
+    assert.doesNotMatch(source, /body\.weekNumber/);
+  }
 });
 
-test("GUARD — NO startDate edit, of any size, can escape the duplicate-nudge span", () => {
-  // It might be expected that a `startDate` edit of 7 or more days mints a
-  // slot key outside the ±6-day span, so that `.create()` succeeds and the
-  // whole cohort is mailed the same week's nudge twice. IT CANNOT HAPPEN, and
-  // this is the proof, because the reasoning is not obvious enough to leave to
-  // a comment.
+test("GUARD — a group's claim on its week's email is keyed on the session's slot, and a startDate edit can move it", () => {
+  // The claim that keeps "Week N is open" to one email per group per session
+  // is the session's SLOT (`groupNudgeMarkerId`), the key both lanes have
+  // always shared, so a claim written before this email existed still
+  // stands. Over every edit of up to two terms either way: a session whose
+  // slot an edit leaves alone keeps its claim, and nobody is mailed its week
+  // twice; a session the edit moves to a new date gets a claim of its own, so
+  // its email goes for its new date.
   //
-  // Slot keys are always `startDate + k*7`. Shift the start date by `d = 7q + r`
-  // and the slot index absorbs the whole `7q`: the key moves by `r` or `r - 7`,
-  // never further. So the reachable displacement is exactly [-6, +6] — which is
-  // precisely the span `nudgeWeekMarkerIds` consults. A one-day correction and
-  // a two-term slip are the same size to this defence.
-  //
-  // Asserted exhaustively rather than algebraically, over every (edit, day)
-  // pair where a second send is even possible: both readings must be `running`,
-  // because the route refuses to send at all in the `before` and `after`
-  // phases (and both clamp their slot key, which is why they are excluded here
-  // rather than being a hole).
-  const longPlan = plainPlan(60);
-  const slotOf = (startDate, now) => currentWeekFor({ startDate, weekPlan: longPlan }, now);
-
-  let cases = 0;
-  let maxDrift = 0;
+  // THE COST, PINNED AS IT IS. An edit that moves the slot by less than a week
+  // can leave a session on the SAME date under a NEW slot, and so a new claim:
+  // its email can then go a second time while its window is open. The weekly
+  // nudge guarded its own run-wide send against this with a span of ±6 days;
+  // the group claim never had one, and docs/courses-ops.md ("A mid-term
+  // startDate edit") says what to do about it. This test fails the day that
+  // changes, so the docs change with it.
+  const plan = plainPlan(12);
+  let kept = 0;
+  let moved = 0;
+  let sameDateNewClaim = 0;
   for (let d = -60; d <= 60; d += 1) {
     const edited = addDaysToKey(START, d);
-    for (let day = 0; day < 60; day += 1) {
-      const now = dayOfRun(day);
-      const before = slotOf(START, now);
-      const after = slotOf(edited, now);
-      if (before.phase !== "running" || after.phase !== "running") continue;
-
-      const drift = Math.abs(
-        (Date.parse(`${after.slotStartKey}T00:00:00Z`) -
-          Date.parse(`${before.slotStartKey}T00:00:00Z`)) /
-          86_400_000,
-      );
-      maxDrift = Math.max(maxDrift, drift);
-      assert.ok(
-        nudgeWeekMarkerIds("run1", after.slotStartKey).includes(
-          nudgeMarkerId("run1", before.slotStartKey),
-        ),
-        `a ${d}-day edit on day ${day} escaped the span (${before.slotStartKey} → ${after.slotStartKey})`,
-      );
-      cases += 1;
+    for (const weekday of [0, 2, 4]) {
+      const group = meetingGroup(weekday);
+      const before = resolveSessions(run({ weekPlan: plan }), group);
+      const after = resolveSessions(run({ weekPlan: plan, startDate: edited }), group);
+      for (let i = 0; i < before.length; i += 1) {
+        const claimBefore = groupNudgeMarkerId("run1", "grpA", before[i].slotStartKey, before[i].occurrence);
+        const claimAfter = groupNudgeMarkerId("run1", "grpA", after[i].slotStartKey, after[i].occurrence);
+        // The slot is the claim's whole key.
+        assert.equal(claimBefore === claimAfter, before[i].slotStartKey === after[i].slotStartKey);
+        // A session on a new date never keeps an old claim.
+        if (before[i].dateKey !== after[i].dateKey) assert.notEqual(claimBefore, claimAfter);
+        if (claimBefore === claimAfter) kept += 1;
+        else if (before[i].dateKey === after[i].dateKey) sameDateNewClaim += 1;
+        else moved += 1;
+      }
     }
   }
-  assert.ok(cases > 3000, `only ${cases} reachable cases — the loop stopped covering the space`);
-  // The ceiling the span is sized against. Six, never seven.
-  assert.equal(maxDrift, 6);
+  assert.ok(kept > 30 && moved > 3000, `only ${kept} kept and ${moved} moved: the loop stopped covering the space`);
+  // The cost: a five-day edit back leaves Tuesday's week 1 on Tue 29 Sep, under a new slot.
+  assert.ok(sameDateNewClaim > 0);
+  const tuesday = meetingGroup(2);
+  const [kept1] = resolveSessions(run(), tuesday);
+  const [moved1] = resolveSessions(run({ startDate: addDaysToKey(START, -5) }), tuesday);
+  assert.equal(kept1.dateKey, moved1.dateKey);
+  assert.notEqual(kept1.slotStartKey, moved1.slotStartKey);
 });
 
 test("a WEEK PLAN edit renumbers the display week without moving the slot key", () => {
@@ -1193,7 +1205,7 @@ test("a WEEK PLAN edit renumbers the display week without moving the slot key", 
     run({ weekPlan: [week(1), brk("Reading week"), ...plainPlan(7).slice(1)] }),
     now,
   );
-  // The marker survives — that half is already pinned by `course-nudge.test.mjs`.
+  // The run's slot survives the edit.
   assert.equal(before.slotStartKey, after.slotStartKey);
   // But the cohort's own week number moved under it, and lands on the break.
   assert.equal(before.weekNumber, 3);
@@ -1204,81 +1216,61 @@ test("a WEEK PLAN edit renumbers the display week without moving the slot key", 
   );
   assert.equal(onBreak.weekNumber, null);
   assert.equal(onBreak.breakLabel, "Reading week");
-  assert.match(NUDGE, /The cohort is on \$\{label\} this week — nothing to send/);
+  // The week's emails are about sessions, and a break has none: no week's
+  // email is ever about it, and the jobs walk sessions, never the run's week.
+  const withBreak = resolveSessions(
+    run({ weekPlan: [week(1), week(2), brk("Reading week"), ...plainPlan(6).slice(2)] }),
+    meetingGroup(),
+  );
+  assert.deepEqual(withBreak.map((session) => session.weekNumber), [1, 2, 3, 4, 5, 6]);
+  for (const source of [WEEK_EMAIL_JOB, REMINDERS_JOB]) {
+    assert.match(source, /resolveSessions\((run|runState\.run), group\)/);
+    assert.doesNotMatch(source, /currentWeekFor/);
+  }
 });
 
 // ===========================================================================
 // THE ARCHIVED GROUP — a member left holding a placement nobody serves
 // ===========================================================================
 
-const NO_SESSION = { sessionWhen: "", sessionWhere: "" };
-
-/**
- * The nudge route's `groupContextFor`, reproduced. Pinned below.
- *
- * `byGroupId` holds ONLY live, time-bearing groups: `loadGroups` filters
- * `archived` out and skips any group whose slot has no start time.
- */
-function groupContextFor(groups, groupId) {
-  if (groupId) return groups.byGroupId.get(groupId) ?? NO_SESSION;
-  return groups.common ?? NO_SESSION;
-}
-
 test("GUARD — a placed member is NEVER mailed another group's session time", () => {
-  // The archived-group case: `loadGroups` drops archived groups, so a member
-  // whose group was archived after they were placed is absent from the index —
-  // and the shared-session fallback would hand them a time and a room they must
-  // not turn up to. The fallback is for the UNPLACED only.
-  assert.match(
-    NUDGE,
-    /function groupContextFor\(groups: GroupIndex, groupId: string \| null\): SessionContext \{\s*if \(groupId\) return groups\.byGroupId\.get\(groupId\) \?\? NO_SESSION;\s*return groups\.common \?\? NO_SESSION;\s*\}/,
-    "groupContextFor falls back across groups again",
-  );
-  assert.match(NUDGE, /\.filter\(\(g\) => !g\.archived\)/);
-
-  const live = { sessionWhen: "Tuesday 20 October, 18:00–19:30", sessionWhere: "Hallward B12" };
-  const groups = { byGroupId: new Map([["grp-live", live]]), common: live };
-
-  // A member in the live group gets their own session.
-  assert.deepEqual(groupContextFor(groups, "grp-live"), live);
-  // A member whose group was archived gets NOTHING — not the other group's.
-  assert.deepEqual(groupContextFor(groups, "grp-archived"), NO_SESSION);
-  // An unplaced recipient (accepted-not-allocated, or a sender rehearsing)
-  // still gets the shared session. That fallback is the documented one.
-  assert.deepEqual(groupContextFor(groups, null), live);
+  // The archived-group case: a member whose group was archived after they
+  // were placed still names it on their place. The week's emails are sent
+  // group by group, each from that group's OWN sessions to that group's OWN
+  // people, and an archived group is skipped, so that member is mailed
+  // nothing rather than another group's time and room.
+  assert.match(WEEK_EMAIL, /resolveNoticeAudience\(db, run\.id, LANE, \{ groupId: group\.id \}\)/);
+  assert.match(WEEK_EMAIL, /const sessions = resolveSessions\(run, group\);/);
+  assert.match(WEEK_EMAIL, /sessionAt: sessionInstants\(session\)\.startsAt,/);
+  assert.match(WEEK_EMAIL, /where: courseNudgeSessionWhere\(session\.session, sessionModeForWeek\(group, session\.weekId\)\),/);
+  assert.match(WEEK_EMAIL_JOB, /if \(group\.archived\) continue;/);
+  assert.match(REMINDERS_JOB, /resolveNoticeAudience\(db, runState\.run\.id, LANE, \{ groupId: group\.id \}\)/);
+  assert.match(REMINDERS_JOB, /\.filter\(\(group\) => !group\.archived\)/);
 });
 
-test("GUARD — that member's email drops the session sentence rather than lying", () => {
-  // End to end through the REAL renderer and the REAL seed template: the two
-  // empty tokens must delete the whole sentence, not ship "Your group meets ."
-  // and not leak the other group's room name from anywhere else in the email.
-  const seed = courseTemplateDefaults["course-week-nudge"];
-  const context = groupContextFor(
-    { byGroupId: new Map([["grp-live", { sessionWhen: "Tuesday 20 October, 18:00–19:30", sessionWhere: "Hallward B12" }]]), common: { sessionWhen: "Tuesday 20 October, 18:00–19:30", sessionWhere: "Hallward B12" } },
-    "grp-archived",
-  );
-  const rendered = renderCourseNudge(
-    seed,
-    buildCourseNudgeTokens({
+test("GUARD — an email with no session for its group says less rather than lying", () => {
+  // Through the real words: a group with no time and no room set gets the
+  // week, and no sentence about where or when it meets.
+  const email = weekOpenEmailWords(
+    {
       courseTitle: "AI Safety Fundamentals",
-      runLabel: "Autumn 2026",
       weekNumber: 3,
       weekTitle: "Goal misgeneralisation",
-      weekSummary: "Why a system that learned the right thing can pursue the wrong one.",
-      weekPrep: "Two things to read this week.",
+      sessionAt: null,
+      where: "",
+      first: false,
+      cancelled: false,
+      change: "",
+      asks: [{ kind: "readings", count: 2 }],
       weekUrl: "https://naisi.uk/learn/asf-autumn-2026/weeks/3",
-      recipientName: "Alex Taylor",
-      ...context,
-    }),
+      feedbackUrl: "",
+      locks: true,
+    },
+    "Alex",
   );
-  const body = rendered.blocks
-    .map((b) => (b.type === "heading" ? b.text : b.type === "richText" ? b.html : ""))
-    .join("\n");
-
-  assert.doesNotMatch(body, /Your group meets/);
-  assert.doesNotMatch(body, /Hallward/);
-  assert.doesNotMatch(body, /18:00/);
-  // The rest of the nudge is untouched — they still get their week.
+  const body = [...email.paragraphs, ...email.lists.flatMap((list) => list.items)].join("\n");
+  assert.doesNotMatch(body, /Your next session|Hallward|18:00|6pm/);
+  // The rest of the email is untouched: they still get their week.
   assert.match(body, /Goal misgeneralisation/);
 });
 
@@ -1287,7 +1279,8 @@ test("GUARD — archiving a group withdraws it from every live surface at once",
   // register or queue disappearing. They must stay in step: a surface that
   // stopped filtering would serve a meet link for a group nobody staffs.
   assert.match(OVERVIEW, /\.filter\(\(g\) => !g\.archived\)/);
-  assert.match(NUDGE, /\.filter\(\(g\) => !g\.archived\)/);
+  assert.match(WEEK_EMAIL_JOB, /if \(group\.archived\) continue;/);
+  assert.match(REMINDERS_JOB, /\.filter\(\(group\) => !group\.archived\)/);
   assert.match(ALLOCATION, /archived/);
   // Attendance treats archiving as UNSTAFFING: the facilitator loses the
   // register with the group. V3 moved that predicate into `registerAccess.ts`
@@ -1516,7 +1509,16 @@ test("GUARD: the transition table is forward-only, terminal-safe, and the only o
 test("GUARD — a run walked backwards is refused new work by both write lanes", () => {
   // The allowlists are the containment: whatever the status becomes, `draft`,
   // `completed` and `cancelled` hand nobody new homework and mail nobody.
-  for (const [source, name] of [[SYNC_TASKS, "MIRRORING_STATUSES"], [NUDGE, "NUDGING_STATUSES"]]) {
+  // The week's emails' two jobs keep the same allowlist as an array.
+  for (const [source, name] of [[WEEK_EMAIL_JOB, "Week N is open"], [REMINDERS_JOB, "the reminders"]]) {
+    const block = /const LIVE_STATUSES: CourseRunStatus\[\] = \[([^\]]*)\];/.exec(source);
+    assert.ok(block, `${name} no longer keeps its run statuses as one list`);
+    for (const forbidden of ["draft", "completed", "cancelled"]) {
+      assert.equal(block[1].includes(`"${forbidden}"`), false, `${name} now mails a run that is ${forbidden}`);
+    }
+    assert.ok(block[1].includes('"running"'), `${name} no longer mails a running run`);
+  }
+  for (const [source, name] of [[SYNC_TASKS, "MIRRORING_STATUSES"]]) {
     const block = new RegExp(`${name}[\\s\\S]{0,300}?\\]\\)`).exec(source);
     assert.ok(block, `${name} is no longer a set literal`);
     for (const forbidden of ["draft", "completed", "cancelled"]) {
@@ -1895,7 +1897,8 @@ test("GUARD — every date-driven consumer guards with isValidDateKey before pac
   // of 500ing a page mount. Remove any one guard and that surface throws.
   for (const [source, name] of [
     [ME, "me"],
-    [NUDGE, "nudge"],
+    // The week's emails' timing, which every one of their three asks.
+    [WEEK_EMAIL_TIMING, "the week's emails"],
     [SYNC_TASKS, "sync-tasks"],
     [ATTENDANCE, "attendance"],
     // Publish's dates are worked out by its plan (see PUBLISH_PLAN).
@@ -2114,50 +2117,41 @@ test("GUARD — a group's pacing override moves that group, and only that group"
   assert.equal(memberCurrentWeek(r, null, at).weekNumber, 4);
 });
 
-test("GUARD — a group's pace override cannot move the RUN's nudge marker", () => {
-  // The nudge's idempotency key is per (run, CALENDAR SLOT) and stays that way
-  // (see the route header): one send, one claim, one record, whatever the
-  // groups are doing. If a group's pacing could reach the marker id, twelve
-  // groups would mean twelve chances to double-mail the same cohort.
+test("GUARD — a group's pace override moves its own week's email with it, and no other group's", () => {
+  // "Week N is open" is per GROUP: each group's email is about its own
+  // session, dated by its own calendar, and claimed by its own id. A group
+  // that paced itself apart from its run hears about its week on its own
+  // dates, and its neighbours are untouched.
   const r = run();
-  const at = dayOfRun(21);
-  const runSlot = currentWeekFor(r, at).slotStartKey;
   // Ten days, not fourteen: a whole number of WEEKS behind would put the
   // group's slot boundary on the same civil date as the run's, and this test
   // would pass without ever asking its question.
-  const behind = groupWith("grpA", { paceStartDate: addDaysToKey(START, 10) });
-  const groupSlot = memberCurrentWeek(r, behind, at).slotStartKey;
-
-  // The two really have parted — this test is about something, not a tautology.
-  assert.notEqual(groupSlot, runSlot);
-  // …and the marker is keyed on the RUN's slot, so it does not move.
-  assert.equal(nudgeMarkerId("run1", runSlot), nudgeMarkerId("run1", runSlot));
-  assert.notEqual(nudgeMarkerId("run1", groupSlot), nudgeMarkerId("run1", runSlot));
-
-  // The route pins that: the week it claims comes from `resolveNudgeWeek(db,
-  // run, …)` — the RUN — and the marker id is built from that week's slot.
-  assert.match(NUDGE, /const resolved = await resolveNudgeWeek\(db, run, now\);/);
-  assert.match(NUDGE, /\.doc\(nudgeMarkerId\(runId, resolved\.slotStartKey\)\)/);
-  assert.match(NUDGE, /findWeekMarker\(db, runId, resolved\.slotStartKey\)/);
-  // And the decision is written down where the next reader will find it.
-  assert.match(NUDGE, /THE RUN'S CADENCE DECIDES \*WHEN\*/);
+  const behind = { ...meetingGroup(), id: "grpA", paceStartDate: addDaysToKey(START, 10), paceWeekPlan: null, forkedWeekIds: [] };
+  const onPace = { ...meetingGroup(), id: "grpB", paceStartDate: null, paceWeekPlan: null, forkedWeekIds: [] };
+  const [behindWeek3, onPaceWeek3] = [behind, onPace].map(
+    (group) => resolveSessions(r, group).find((session) => session.weekNumber === 3),
+  );
+  // The two really have parted: this test is about something, not a tautology.
+  assert.notEqual(behindWeek3.slotStartKey, onPaceWeek3.slotStartKey);
+  assert.notEqual(behindWeek3.dateKey, onPaceWeek3.dateKey);
+  // Each claim is the group's own, on its own slot.
+  assert.notEqual(
+    groupNudgeMarkerId("run1", "grpA", behindWeek3.slotStartKey),
+    groupNudgeMarkerId("run1", "grpB", onPaceWeek3.slotStartKey),
+  );
+  // The job and the push take the session, and the claim, from the group's own calendar.
+  assert.match(WEEK_EMAIL_JOB, /const sessions = resolveSessions\(run, group\);/);
+  assert.match(WEEK_EMAIL_JOB, /const markerId = nextWeekEmailMarkerId\(run\.id, group\.id, session\);/);
+  assert.match(WEEK_EMAIL, /return groupNudgeMarkerId\(runId, groupId, session\.slotStartKey, session\.occurrence\);/);
 });
 
-test("GUARD — the nudge resolves CONTENT per recipient but never a foreign session", () => {
-  // The deliberate asymmetry (nudge route header): an unresolved group falls
-  // back to the RUN's week (shared curriculum, safe) but NEVER to another
-  // group's session time (a room they must not turn up to).
-  assert.match(NUDGE, /function groupWeekFor\(/);
-  assert.match(NUDGE, /if \(!groupId\) return runWeek;\s*return weeks\.get\(groupId\) \?\? runWeek;/);
-  // Resolved once per DISTINCT GROUP, before the dispatch loop — a per-recipient
-  // read would put 200 round trips inside a 60s request.
-  assert.match(NUDGE, /resolveGroupWeeks\(\s*db,\s*runId,\s*groups,\s*recipients\.map\(\(r\) => r\.groupId\),\s*\)/);
-  // …and each recipient's tokens come from THEIR week, not the run's.
-  assert.match(NUDGE, /const week = groupWeekFor\(groupWeeks, recipient\.groupId, runWeek\);/);
-  assert.match(NUDGE, /weekUrl: courseWeekUrl\(appUrl, runId, week\.weekNumber\)/);
-  // An unpublished fork is never mailed: a facilitator's half-written week must
-  // not go out on the run's cadence.
-  assert.match(NUDGE, /if \(!week \|\| !week\.published\) return;/);
+test("GUARD — the week's emails read each week as the group sees it, and never mail an unpublished one", () => {
+  // A group with its own copy of a week reads that copy; a facilitator's
+  // half-written week, or one not published, must not go out.
+  assert.match(WEEK_EMAIL, /const \{ week \} = await resolveWeekDoc\(db, run\.id, group\.id, session\.weekId\);/);
+  assert.match(WEEK_EMAIL, /if \(!reading\.week \|\| !reading\.published\) \{/);
+  assert.match(WEEK_EMAIL, /weekUrl: courseWeekUrl\(args\.appUrl, run\.id, session\.weekNumber\),/);
+  assert.match(REMINDERS_JOB, /if \(!week \|\| !week\.published \|\| !isBlockWeek\(week\)\) continue;/);
 });
 
 test("GUARD — every member-facing consumer resolves through the ONE helper", () => {
@@ -2169,7 +2163,8 @@ test("GUARD — every member-facing consumer resolves through the ONE helper", (
     [ME, "me"],
     [OVERVIEW, "overview"],
     [SYNC_TASKS, "sync-tasks"],
-    [NUDGE, "nudge"],
+    [WEEK_EMAIL, "Week N is open"],
+    [REMINDERS_JOB, "the reminders"],
     [ATTENDANCE, "attendance"],
     [GROUP_EXERCISES, "group exercises"],
     [ALLOCATION_BOARD, "allocation board"],
@@ -2181,14 +2176,17 @@ test("GUARD — every member-facing consumer resolves through the ONE helper", (
     );
   }
 
-  // No MEMBER-facing surface paces off the run's own calendar any more. The
-  // nudge is the one deliberate exception (its TRIGGER is run-level), and it
-  // is excluded by name rather than by omission.
+  // No MEMBER-facing surface paces off the run's own calendar any more, the
+  // week's emails included: the weekly nudge was the one exception (its
+  // TRIGGER was run-level), and it is gone.
   for (const [source, name] of [
     [ME, "me"],
     [OVERVIEW, "overview"],
     [SYNC_TASKS, "sync-tasks"],
     [ATTENDANCE, "attendance"],
+    [WEEK_EMAIL, "Week N is open"],
+    [WEEK_EMAIL_JOB, "Week N is open's job"],
+    [REMINDERS_JOB, "the reminders"],
   ]) {
     assert.doesNotMatch(
       source,
@@ -2196,7 +2194,6 @@ test("GUARD — every member-facing consumer resolves through the ONE helper", (
       `${name} paces a member off the run's calendar again`,
     );
   }
-  assert.match(NUDGE, /currentWeekFor\(/);
 
   // The week-content readers go through `resolveWeekDoc`, never a raw
   // `courseRuns/{id}/weeks` get.
@@ -2374,7 +2371,7 @@ test("GUARD — virtual/in-person reaches the member, on the card and in the ema
   // rules, prefilled into the notice composer — and read by no member-facing
   // surface at all. `sessionForWeek` STRIPS `mode`, the overview payload
   // carried none, the card showed the room AND the join button unconditionally,
-  // and the nudge named the room on a week the group met online. Meanwhile the
+  // and the weekly email named the room on a week the group met online. Meanwhile the
   // facilitator editor promised, in as many words, that the switch changes what
   // the group sees.
 
@@ -2433,10 +2430,10 @@ test("GUARD — virtual/in-person reaches the member, on the card and in the ema
     NUDGE_EMAIL,
     /export function courseNudgeSessionWhere\(\s*session: GroupSession \| null \| undefined,\s*mode\?: GroupSessionMode \| null,\s*\): string \{/,
   );
-  assert.match(
-    NUDGE_EMAIL,
-    /export function courseNudgeSessionWhen\(\s*session: GroupSession \| null \| undefined,\s*sessionDateKey\?: string \| null,\s*\): string \{/,
-  );
+  // The week's email reads WHEN off the session's own instant, which no mode
+  // touches, and WHERE through the mode of that session's week.
+  assert.match(WEEK_EMAIL, /sessionAt: sessionInstants\(session\)\.startsAt,/);
+  assert.match(WEEK_EMAIL, /where: courseNudgeSessionWhere\(session\.session, sessionModeForWeek\(group, session\.weekId\)\),/);
 
   // ── THE WIRING ────────────────────────────────────────────────────────────
   // The payload carries the WHOLE MAP, not one resolved answer — see the
@@ -2463,10 +2460,11 @@ test("GUARD — virtual/in-person reaches the member, on the card and in the ema
   // `ticketFacts` (the CARD_FACTS row above pins how), handed this whole map.
   assert.match(GROUP_PAGE, /sessionModes: sessionModesOf\(group\),/);
   assert.match(GROUP_PAGE, /const facts = ticketFacts\(sessionGroup\);/);
-  // The nudge resolves it for the group's OWN week address, not the run's.
+  // The week's emails resolve it for the group's OWN week address, not the run's.
+  assert.match(WEEK_EMAIL, /where: courseNudgeSessionWhere\(session\.session, sessionModeForWeek\(group, session\.weekId\)\),/);
   assert.match(
-    NUDGE,
-    /sessionWhere: courseNudgeSessionWhere\(\s*session,\s*sessionModeForWeek\(group, at\.weekId\),\s*\)/,
+    REMINDERS_JOB,
+    /const where = courseNudgeSessionWhere\(due\.session\.session, sessionModeForWeek\(group, due\.session\.weekId\)\);/,
   );
 
   // THE CARD: the point is the SUPPRESSION, both directions.
@@ -2587,14 +2585,13 @@ test("GUARD — the week page shows the VIEWED week's mode, not the current week
   assert.match(CARD_FACTS, /const room = mode !== "virtual" && next\.location\.trim\(\) \? next\.location\.trim\(\) : null;/);
   assert.match(RUN_HOME, /const facts = group \? ticketFacts\(group\) : null;/);
 
-  // THE NUDGE IS UNAFFECTED, and that is verified rather than assumed: it
-  // always resolved per week from the group DOC (it has no payload to read),
-  // and it must keep doing so rather than being pointed at this map.
-  assert.match(
-    NUDGE,
-    /sessionWhere: courseNudgeSessionWhere\(\s*session,\s*sessionModeForWeek\(group, at\.weekId\),\s*\)/,
-  );
-  assert.doesNotMatch(NUDGE, /sessionModesOf/);
+  // THE WEEK'S EMAILS ARE UNAFFECTED, and that is verified rather than
+  // assumed: they resolve per week from the group DOC (they have no payload to
+  // read), and must keep doing so rather than being pointed at this map.
+  for (const source of [WEEK_EMAIL, REMINDERS_JOB]) {
+    assert.match(source, /courseNudgeSessionWhere\((due\.)?session\.session, sessionModeForWeek\(group, (due\.)?session\.weekId\)\)/);
+    assert.doesNotMatch(source, /sessionModesOf/);
+  }
 });
 
 /**
@@ -2913,10 +2910,6 @@ test("GUARD — nothing outside the allowlist calls currentWeekFor, anywhere in 
   const ALLOWED = new Map([
     ["lib/courses/weekPlan.ts", "the definition"],
     ["lib/courses/groupResolve.ts", "THE wrapper — `memberCurrentWeek` is this call, group-aware"],
-    [
-      "app/api/courses/runs/[runId]/nudge/route.ts",
-      "the send TRIGGER is run-level by design (one send, one claim, one record)",
-    ],
     [
       "features/courses/GroupPaceEditor.tsx",
       "previews the DRAFT calendar the facilitator is typing — its inputs are " +

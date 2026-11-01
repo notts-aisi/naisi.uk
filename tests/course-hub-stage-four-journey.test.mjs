@@ -723,7 +723,7 @@ describe("3. week 1 (Thu 29 Oct to Wed 4 Nov; Group B meets on Tue 3 Nov)", () =
     // finds the email still held, claims nothing, sends nothing, and is answered in an admin's words.
     const forced = ok(await asCourse("zach", routes.finish.POST, { groupId: A }, { weekNumber: 1, force: true }), "an admin's resend");
     assert.equal(forced.sent, 0);
-    assert.equal(forced.reason, "Week 2 isn’t published yet, so nobody was emailed. Mark it ready, then use the run’s catch-up send.");
+    assert.equal(forced.reason, "Week 2 isn’t published yet, so nobody was emailed. Mark it ready, then use Resend on this register.");
     assert.equal(world.mail.length, 0);
     // A facilitator is never told to mark it ready; a lead who facilitates a group of the lead's own run is
     // (the stage two journey's incubator, run by its lead), and is never named to themselves.
@@ -732,7 +732,7 @@ describe("3. week 1 (Thu 29 Oct to Wed 4 Nov; Group B meets on Tue 3 Nov)", () =
         lib.ending.unpublishedPushWords(2, who),
       ),
       [
-        "Week 2 isn’t published yet, so nobody was emailed. Mark it ready, then use the run’s catch-up send.",
+        "Week 2 isn’t published yet, so nobody was emailed. Mark it ready, then use Resend on this register.",
         "Week 2 isn’t published yet, so nobody was emailed. Marking it ready publishes it.",
         "Week 2 isn’t published yet, so nobody was emailed. Claudia marks it ready.",
         "Week 2 isn’t published yet, so nobody was emailed. The programme’s lead marks it ready.",
@@ -894,11 +894,14 @@ describe("5. week 3 (Group B meets on Tue 17 Nov): the draw, a pack ticked, a ta
     at("2026-11-10T20:20:00Z");
     world.mail.length = 0;
     await register("rahul", B, 2, ["amara", "bea"]);
-    // Finishing the register sends next week's email to the group's people, Bea among them: what it says week 3
-    // asks is what week 3's page counts, from its This week box, and never an "exercise".
+    // Finishing the register sends "Week 3 is open" to the group's people, Bea among them: what it says week 3
+    // asks for is what week 3's page asks for, read off its blocks, and never an "exercise".
     const nextWeek = mailTo("amara@example.com");
     assert.deepEqual([nextWeek.length, mailTo("bea@example.com").length, mailTo("rahul@example.com").length], [1, 1, 0]);
-    assert.match(nextWeek[0].text, /There are three things to do this week, about 2 hours in all\./);
+    assert.equal(nextWeek[0].subject, "Week 3 is open: How sure are you, again?");
+    assert.match(nextWeek[0].text, /Week 3 of AGI Strategy Fellowship is open: How sure are you, again\? Your next session is Tue 17 Nov at 6pm in Hallward B12\./);
+    assert.match(nextWeek[0].text, /4 readings Your pack’s reading 2 short reflections Your plan A written answer Getting ready for your talk/);
+    assert.match(nextWeek[0].text, /Your work saves as you go and locks when your session starts\./);
     assert.doesNotMatch(nextWeek[0].text, /exercise/i);
     const weekThree = await w.weekPage("amara", 3, ticksOf("amara"));
     assert.equal(doneOn(weekThree.text), "0 of 3 done");

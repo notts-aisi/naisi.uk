@@ -242,12 +242,35 @@ const RECIPIENT_SOURCES = new Map([
       reads: 1,
       origin: "assembled",
       sourceOutsideScan:
-        "Built by `resolveCohortAudience` from the run's cohort channel intersected with the " +
-        "group's own active `courseEnrolments` rows, and each uid comes off a document rather " +
-        "than a recipient-shaped field, so there is nothing for the scan to name as its source.",
+        "Built by `resolveNoticeAudience` from the group's own active `courseEnrolments` rows, " +
+        "each person's address from their cohort row or their account, and each uid comes off a " +
+        "document rather than a recipient-shaped field, so there is nothing for the scan to name " +
+        "as its source.",
       why:
-        "The members of one group, for next week's email: the push lane and the schedule both " +
-        "send through here, and neither takes a recipient from a request.",
+        "Everybody holding a place in one group, for \"Week N is open\": the push lane and the " +
+        "schedule both send through here, and neither takes a recipient from a request.",
+    },
+  ],
+  [
+    "src/lib/scheduler/jobs/nextWeekEmail.ts#people.completerUids",
+    {
+      reads: 1,
+      origin: "record",
+      why:
+        "Who the card saying a group's \"Week N is open\" is held goes on the board of: the " +
+        "programme's lead and the admins. The card is born notified and emails nobody; the " +
+        "email it is about goes to the group, through the shared send.",
+    },
+  ],
+  [
+    "src/lib/scheduler/jobs/nextWeekEmail.ts#state.adminUids",
+    {
+      reads: 6,
+      origin: "record",
+      why:
+        "The admins, read once a tick and kept (six reads of the one cached list) to put the " +
+        "held card on their boards and to know the card as the job's own before archiving it. " +
+        "Nobody is emailed from it.",
     },
   ],
   [
@@ -461,19 +484,6 @@ const RECIPIENT_SOURCES = new Map([
       why:
         "Read off a mirrored week card to check it is the leaving member's own before the leave " +
         "deletes it, since a card's id says nothing about who made it. Not a recipient list.",
-    },
-  ],
-  [
-    "src/app/api/courses/runs/[runId]/nudge/route.ts#local:recipients",
-    {
-      reads: 1,
-      origin: "assembled",
-      sourceOutsideScan:
-        "The same shared cohort-audience helper as the run email route beside it, over the " +
-        "same enrolment rows, with the uids coming off document ids rather than off a field.",
-      why:
-        "The weekly nudge's audience, resolved the same way from the run's own enrolment " +
-        "rows.",
     },
   ],
   [

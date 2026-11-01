@@ -12,11 +12,8 @@ import {
 import { firstNameOfUser, readRunLead, standingUserOf } from "@/lib/courses/programmeLead";
 import { readPushEmails, sessionAfter, type PushEmailLine } from "@/lib/courses/pushEmail";
 import { sessionInstants, type ResolvedSession } from "@/lib/courses/sessions";
-import {
-  courseNudgeSessionWhere,
-  missingNudgeValueWords,
-  resolveCourseNudgeTemplate,
-} from "@/lib/email/courseNudgeEmail";
+import { missingWeekOpenWords } from "@/lib/courses/weekEmails/words";
+import { courseNudgeSessionWhere } from "@/lib/email/courseNudgeEmail";
 import { isNamedWithStanding } from "@/lib/firebase/eligibility";
 import { readCoursesConfig } from "@/lib/firestore/config";
 import { sessionModeForWeek, type CourseGroupDoc } from "@/lib/firestore/courseGroups";
@@ -37,8 +34,9 @@ import { registerSwitchesIn } from "@/lib/scheduler/registerSwitches";
  *  - what pressing the button of each register on the page emails, from the
  *    push's own decision (`src/lib/courses/pushEmail.ts`), which the foot and
  *    the confirm in front of the button both put into words;
- *  - when next week's email goes, from the same timing the job keeps, and
- *    whether it has gone, from the same claim the job and the push take;
+ *  - when the next "Week N is open" goes, from the same timing the job
+ *    keeps, and whether it has gone, from the same claim the job and the
+ *    push take;
  *  - who is reminded and who gets a task, from those jobs' switches, the
  *    group's facilitators and the run's lead, each held to the bar their
  *    role is appointed behind.
@@ -47,18 +45,21 @@ import { registerSwitchesIn } from "@/lib/scheduler/registerSwitches";
  * works with: the group's own facilitators and the programme's lead.
  */
 
-/** Where next week's email stands, for the session after the one on the page. */
+/**
+ * Where "Week N is open" stands, for the session after the one on the page.
+ * `weekNumber` is the week it opens.
+ */
 export type NextEmailLine =
   /** Still ahead: the board's own sentence. */
-  | { state: "goes"; at: string }
+  | { state: "goes"; at: string; weekNumber: number }
   /** It has gone, at this time. */
-  | { state: "went"; at: string }
+  | { state: "went"; at: string; weekNumber: number }
   /** Due, and waiting for its week to be published. */
   | { state: "waiting-for-week"; weekNumber: number }
-  /** Due, and held because a value it uses is empty. */
-  | { state: "held"; missing: string[] }
+  /** Due, and held because a fact it carries is empty. */
+  | { state: "held"; missing: string[]; weekNumber: number }
   /** Due and whole: the next tick sends it. */
-  | { state: "shortly" }
+  | { state: "shortly"; weekNumber: number }
   /** The session it was about has started without it. */
   | { state: "missed"; weekNumber: number };
 
@@ -90,7 +91,7 @@ export type RegisterEnding = {
    * (`readPushEmails`), so the foot, the confirm and the push agree.
    */
   pushEmails: Record<string, PushEmailLine>;
-  /** Next week's email for the session after the focus. Only while it is on its schedule. */
+  /** "Week N is open" for the session after the focus. Only while it is on its schedule. */
   nextEmail: NextEmailLine | null;
   /** The facilitators' reminder, when its job is on and the group has facilitators. */
   reminder: { hours: number; names: string[] } | null;
@@ -140,7 +141,7 @@ function instantOf(value: unknown): Date | null {
 }
 
 /**
- * WHERE NEXT WEEK'S EMAIL STANDS FOR ONE SESSION, while the email is on its
+ * WHERE "WEEK N IS OPEN" STANDS FOR ONE SESSION, while the email is on its
  * schedule: gone (the claim the job and the push take is there), still ahead,
  * due and waiting for its week, held for an empty value, about to go, or
  * missed because its session started first. One answer for the register's
@@ -156,33 +157,33 @@ export async function nextEmailLineFor(
     sessions: readonly ResolvedSession[];
     /** The session the email is about. */
     session: ResolvedSession;
-    config: { nextWeekEmailDaysBefore: number; weeklyFeedbackUrl: string };
+    config: { weeklyFeedbackUrl: string };
     now: Date;
   },
 ): Promise<NextEmailLine | null> {
   const { run, group, sessions, session, config, now } = args;
   const index = sessions.findIndex((s) => s.sessionKey === session.sessionKey);
-  const timing = nextWeekEmailTiming(sessions, index, config.nextWeekEmailDaysBefore, now);
+  const timing = nextWeekEmailTiming(sessions, index, now);
   const markerId = nextWeekEmailMarkerId(run.id, group.id, session);
   const marker = markerId ? await db.collection("courseNudges").doc(markerId).get() : null;
   const sentAt = marker?.exists ? instantOf(marker.data()?.sentAt) : null;
-  if (marker?.exists) return sentAt ? { state: "went", at: londonDayAndClock(sentAt) } : null;
-  if (timing.state === "waiting") return { state: "goes", at: londonDayAndClock(timing.sendAt) };
+  const weekNumber = session.weekNumber;
+  if (marker?.exists) return sentAt ? { state: "went", at: londonDayAndClock(sentAt), weekNumber } : null;
+  if (timing.state === "waiting") return { state: "goes", at: londonDayAndClock(timing.sendAt), weekNumber };
   if (timing.state === "past") return { state: "missed", weekNumber: session.weekNumber };
   if (timing.state !== "due") return null;
   const reading = await readNextWeekEmail(db, {
     run,
     group,
     session,
-    template: await resolveCourseNudgeTemplate(db),
     feedbackUrl: config.weeklyFeedbackUrl,
     appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "",
   });
-  if (!reading.published) return { state: "waiting-for-week", weekNumber: session.weekNumber };
+  if (!reading.published) return { state: "waiting-for-week", weekNumber };
   if (reading.missing.length > 0) {
-    return { state: "held", missing: missingNudgeValueWords(reading.missing, session.weekNumber) };
+    return { state: "held", missing: missingWeekOpenWords(reading.missing, weekNumber), weekNumber };
   }
-  return { state: "shortly" };
+  return { state: "shortly", weekNumber };
 }
 
 export async function readRegisterEnding(

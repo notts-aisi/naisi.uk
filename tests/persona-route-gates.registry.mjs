@@ -2442,21 +2442,6 @@ export const ROUTES = {
         "is forbidden before the read.",
     },
   },
-  "/api/courses/runs/[runId]/nudge": {
-    GET: {
-      expect: adminOnly(404),
-      fields: ["week", "recipients", "alreadySentAt", "sessionLine", "subjectPreview", "bodyPreview"],
-      why:
-        "Run staff only through gateRunStaff, collapsed onto one 403 for a non-admin; an " +
-        "admin is told the run is missing.",
-    },
-    POST: {
-      expect: adminOnly(404),
-      why:
-        "Run staff only through gateRunStaff, collapsed onto one 403 for a non-admin; an " +
-        "admin is told the run is missing.",
-    },
-  },
   "/api/courses/runs/[runId]/overview": {
     GET: {
       expect: signedIn(404),
@@ -4496,12 +4481,6 @@ export const PAGES = {
       "missing, and the page sends anybody with no learner seat of their own on it, taking part or left " +
       "by themselves, to the run's home.",
   },
-  "/(app)/learn/[runId]/nudge": {
-    expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
-    why:
-      "A run under /learn: the run layout sends every approved account back to /learn when " +
-      "the run is missing, and the run's own roster decides the rest once it exists.",
-  },
   "/(app)/learn/[runId]/pitching": {
     expect: everyone("learn", { anonymous: "login", pending: "pendingApproval", rejected: "home" }),
     why:
@@ -5856,32 +5835,6 @@ export const REAL_ROUTES = {
   "/api/courses/runs/[runId]/normalise-weeks": {
     POST: courseApprovers("Normalising a run's week ids", c(409, "An approver is told week ids move only while a run is a draft, and this one is running: nothing is written.")),
   },
-  "/api/courses/runs/[runId]/nudge": {
-    GET: {
-      another: {
-        anonymous: c(401, NO_SESSION),
-        "*": c(403, "Staffs nothing on the run: one 403."),
-        admin: c(200, "An admin is shown the weekly nudge's preview. It writes nothing."),
-      },
-      theirs: {
-        lead: c(200, "Leads the programme that names the run, so staffs it: the nudge's preview."),
-        facilitator: c(403, "Facilitating a group does not staff the run."),
-        participant: c(403, "Holding a place does not staff the run."),
-      },
-    },
-    POST: {
-      another: {
-        anonymous: c(401, NO_SESSION),
-        "*": c(403, "Staffs nothing on the run: one 403."),
-        admin: c(ACTS, "An admin's empty body is the run-wide catch-up: it would send it."),
-      },
-      theirs: {
-        lead: c(403, "Staffs the run, but the run-wide catch-up is an admin's: the lead is refused before anything is sent."),
-        facilitator: c(403, "Facilitating a group does not staff the run."),
-        participant: c(403, "Holding a place does not staff the run."),
-      },
-    },
-  },
   "/api/courses/runs/[runId]/overview": {
     GET: {
       another: {
@@ -6353,11 +6306,6 @@ export const REAL_PAGES = {
     admin: c("run", "An admin holds no learner place: sent to the run's home."),
     facilitator: c(200, "Holds a learner place: their own notes."),
     participant: c(200, "Holds a learner place: their own notes."),
-  }),
-  "/(app)/learn/[runId]/nudge": learnPage({
-    admin: c(200, "An admin: the weekly nudge."),
-    facilitator: c("run", "The nudge page is the run's staff's (run facilitators, track leads, admins): sent to the run's home."),
-    participant: c("run", "The nudge page is the run's staff's: sent to the run's home."),
   }),
   "/(app)/learn/[runId]/pitching": learnPage({
     admin: c("run", "An admin holds no seat in a group: sent to the run's home."),

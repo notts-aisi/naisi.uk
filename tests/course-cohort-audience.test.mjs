@@ -12,7 +12,7 @@
  *
  * ## The loader dance
  *
- * Same shape as `course-nudge.test.mjs`. `courseFacilitatorEmails.ts` reaches
+ * Same shape as `course-schedule-changes.test.mjs`. `courseFacilitatorEmails.ts` reaches
  * for React email components, the Admin SDK singleton and the transport, none
  * of which a unit test may touch, so each is stubbed by specifier. Nothing in
  * `STUBS` is reachable from an assertion here: the audience derivation itself

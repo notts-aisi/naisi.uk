@@ -830,14 +830,6 @@ export default function RunHome({
                   →
                 </span>
               </Link>
-              {/* The weekly nudge lives in the same lane and behind the same
-                  gate: prepared for you and sent by you. */}
-              <Link className={styles.panelLink} href={`/learn/${encodeURIComponent(runId)}/nudge`}>
-                Send this week&apos;s nudge
-                <span className={styles.arrow} aria-hidden="true">
-                  →
-                </span>
-              </Link>
             </Card>
           )}
 

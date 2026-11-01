@@ -33,13 +33,14 @@
  *
  * THREE HELPERS carry the question for the files that call them, and are
  * held here too: `loadRegisterMembers` (the register, its notes) is handed the
- * caller's role by every caller, and `resolveCohortAudience` (the register
- * push's reminder, the week nudge, the run email's announcement) and
- * `resolveNoticeAudience` (the run email's notice, an update's email) each ask
- * `placementIsTold`.
+ * caller's role by every caller, and `resolveCohortAudience` (the run email's
+ * announcement) and `resolveNoticeAudience` (the run email's notice, an
+ * update's email, "Week N is open" and the reminders before a session) each
+ * ask `placementIsTold`.
  *
  * WHAT THE READERS THEN DO is executed in
- * `tests/course-hub-group-published-{member,facilitator,mail,nudge}.test.mjs`.
+ * `tests/course-hub-group-published-{member,facilitator,mail}.test.mjs` and
+ * `tests/course-notice-reach.test.mjs`.
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
@@ -319,22 +320,17 @@ const READERS = {
       "write of their answer. A seat Publish has not told them about is no question, whoever they are, an admin's " +
       "own untold seat included, so neither the card nor the refusal says anything of a group before Publish has",
   },
-  "app/api/courses/runs/[runId]/nudge/route.ts": {
-    kind: "shown",
-    asks: 1,
-    why: "the sender's own group picks the week their preview and test show: an untold seat picks none",
-  },
   "lib/email/courseFacilitatorEmails.ts": {
     kind: "told",
     asks: 2,
     why:
-      "the cohort audience behind the register push's reminder, the week nudge and the run email's announcement, and " +
-      "the notice audience behind the run email's notice and an update's email, each leave out untold seats",
+      "the cohort audience behind the run email's announcement, and the notice audience behind the run email's " +
+      "notice, an update's email, \"Week N is open\" and the reminders before a session, each leave out untold seats",
   },
   "lib/courses/pushEmail.ts": {
     kind: "told",
     asks: 1,
-    why: "what pressing a register emails, said before the press: the people its count is out of are the group's placements Publish has told, the email itself goes through the cohort audience, which leaves an untold seat out, and it names nobody",
+    why: "what pressing a register emails, said before the press: the people its count is out of are the group's placements Publish has told, the email itself goes through the notice audience, which leaves an untold seat out, and it names nobody",
   },
   "lib/courses/calendarFeed.ts": {
     kind: "told",

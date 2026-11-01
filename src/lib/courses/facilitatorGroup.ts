@@ -379,10 +379,10 @@ function leftRecentlyIn(
 }
 
 /**
- * Where the next of next week's emails stands, while the email is on its
- * schedule: the first session still to come whose email has not gone. Null
- * while the email is not on its schedule (the push still sends it), and when
- * no session is left to email about.
+ * Where the next "Week N is open" stands, while the email is on its schedule:
+ * the first session still to come (the group's first among them) whose email
+ * has not gone. Null while the email is not on its schedule (the push still
+ * sends it), and when no session is left to email about.
  */
 export async function readNextEmailForHome(
   db: Firestore,
@@ -394,7 +394,7 @@ export async function readNextEmailForHome(
   if (!scheduled) return null;
   const sessions: ResolvedSession[] = resolveSessions(run, group);
   const config = await readCoursesConfig(db);
-  for (const session of sessions.slice(1)) {
+  for (const session of sessions) {
     const { startsAt } = sessionInstants(session);
     if (!startsAt || startsAt.getTime() <= now.getTime()) continue;
     const line = await nextEmailLineFor(db, { run, group, sessions, session, config, now });

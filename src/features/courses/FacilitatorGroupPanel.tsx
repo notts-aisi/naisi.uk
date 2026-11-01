@@ -33,10 +33,9 @@ import styles from "./FacilitatorGroupPanel.module.css";
  * two date ranges, and a line saying so on whichever group has left the run's
  * schedule.
  *
- * The cohort-wide links (announcements, the weekly nudge) are passed in rather
- * than derived here, and only the first card is asked to draw them: they
- * address the RUN, and repeating them under every group would read as three
- * separate lanes.
+ * The cohort-wide link (announcements) is passed in rather than derived here,
+ * and only the first card is asked to draw it: it addresses the RUN, and
+ * repeating it under every group would read as separate lanes.
  */
 
 type Props = {
@@ -242,22 +241,6 @@ export default function FacilitatorGroupPanel({
           href={`/learn/${encodeURIComponent(runId)}/email`}
         >
           Email the whole cohort
-          <span className={styles.arrow} aria-hidden="true">
-            →
-          </span>
-        </Link>
-      )}
-
-      {/* Same gate as the cohort link above, and for the same reason: the
-          nudge addresses the whole run. Nothing sends it on a schedule, since
-          this app has no scheduler, so the link has to exist for it to go out
-          at all. */}
-      {showCohortLinks && (
-        <Link
-          className={styles.panelLink}
-          href={`/learn/${encodeURIComponent(runId)}/nudge`}
-        >
-          Send this week&apos;s nudge
           <span className={styles.arrow} aria-hidden="true">
             →
           </span>

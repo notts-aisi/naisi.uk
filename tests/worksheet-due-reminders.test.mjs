@@ -123,6 +123,8 @@ const STUBS = new Map([
   [
     "@/lib/email/courseFacilitatorEmails",
     "export const resolveCohortAudience = async () => ({ members: [], skipped: 0, enrolledCount: 0, refusal: null });\n" +
+      // The week's emails' audience, which the registry's course jobs import.
+      "export const resolveNoticeAudience = async () => ({ members: [], skipped: 0, enrolledCount: 0, refusal: null, dropped: [] });\n" +
       "export const hasOptedOutOfCourseAnnouncements = () => false;\n" +
       "export const memberNameOf = () => '';",
   ],

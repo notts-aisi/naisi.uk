@@ -9256,6 +9256,51 @@ describe("v14 made survey questions required unless marked optional and named th
  * list, and every service on the list is one the code calls. A new service is
  * a new entry in both maps below, and a notice, before it receives anything.
  */
+describe("v15 says reminders before a session are about what is left, are part of running the programme, and stop once the week is done; the code agrees", () => {
+  // "Before your group's session we may email you about what is left of that
+  // week's work. These reminders are part of running the programme, so your
+  // notification settings don't switch them off, and they stop once the week
+  // is done." Each clause, held to the one job that sends them
+  // (`courses-week-reminders`); the job is run end to end in
+  // tests/course-week-reminders.test.mjs.
+  const job = withoutComments(read("src/lib/scheduler/jobs/weekReminders.ts"));
+  const model = withoutComments(read("src/lib/courses/weekEmails/model.ts"));
+  const words = withoutComments(read("src/lib/courses/weekEmails/words.ts"));
+
+  test("the policy says it, in those words", () => {
+    assert.ok(
+      PAGE_FLAT.includes(
+        "<strong>Reminders.</strong> Before your group&apos;s session we may email you about what is left of that week&apos;s work. These reminders are part of running the programme, so your notification settings don&apos;t switch them off, and they stop once the week is done.",
+      ),
+      "the policy no longer says what the reminders before a session are",
+    );
+  });
+
+  test("before your group's session: 3 days and 1 day before it, and never once it has started", () => {
+    assert.match(model, /export const WEEK_REMINDER_DAYS = \[3, 1\] as const;/);
+    assert.match(job, /if \(!startsAt \|\| now\.getTime\(\) >= startsAt\.getTime\(\)\) continue;/);
+    assert.match(job, /const sessions = resolveSessions\(runState\.run, group\);/, "the group's own sessions");
+  });
+
+  test("about what is left of that week's work: the check before Submit's own lines, and nothing else", () => {
+    assert.match(job, /left: weekLeft\(\{ blocks: week\.blocks, tasks: week\.tasks, state: own\.state, writes: week\.writes, submitted: false \}\),/);
+    assert.match(words, /const lines = left\.items\.map\(notDoneWords\);/);
+  });
+
+  test("part of running the programme, so the settings don't switch them off: a notice, to everybody holding a place", () => {
+    assert.match(job, /surface: "course-week-reminder",/);
+    assert.match(job, /resolveNoticeAudience\(db, runState\.run\.id, LANE, \{ groupId: group\.id \}\)/);
+    assert.doesNotMatch(job, /resolveCohortAudience|wantsEmailForProfile|hasOptedOut|listUnsubscribe/, "a reminder reads somebody's settings, or offers to switch itself off");
+  });
+
+  test("they stop once the week is done: a week done is asked about before anything is sent", () => {
+    const done = job.indexOf("if (weekDone({ tasks: week.tasks, state: own.state, writes: week.writes, submitted })) continue;");
+    const remind = job.indexOf("remind.push({");
+    assert.ok(done > 0 && remind > done, "a reminder can go to somebody whose week is done");
+    assert.match(job, /await stampSkipped\(db, marker\.id, verdict\.why, ctx\.now\);/);
+  });
+});
+
 describe("the services we use", () => {
   const SERVICES_PAGE = "src/app/(public)/privacy/services/page.tsx";
   /** Each listed service, with the line of code or configuration that calls it. */

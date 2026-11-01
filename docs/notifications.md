@@ -182,7 +182,7 @@ is that helper inverted, for the loops that hold a raw document and are asking
 | --- | --- | --- |
 | `newsletter` | `POST /api/newsletter/[id]/send`, the only sender that addresses this row | the same send, alongside its email loop |
 | `events` | the new-event announcement, on publish, inline or queued to the `event-announcements` job | the same announcement |
-| `courses` | the cohort announcement composer, the weekly session nudge (pushed from a register, or on its schedule by `courses-next-week-email`), the run catch-up nudge, the admissions deadline reminder job, the admissions stage-release job, the daily invitation reminder job | an admissions decision, an allocation publish, the stage release |
+| `courses` | the cohort announcement composer, the admissions deadline reminder job, the admissions stage-release job, the daily invitation reminder job | an admissions decision, an allocation publish, the stage release |
 | `tasks` | the five `/api/tasks/[id]/*` senders, the four worksheet circulation messages, the worksheet due-soon reminder, the register reminder to a group's facilitators (`courses-register-reminders`) | a mirror beside each of those but the register reminder, which is email only |
 
 **The two opt-in rows share one push audience shape**, in
@@ -283,7 +283,7 @@ notification arriving from the very message they unsubscribed from, with nothing
 on the page they landed on to suggest they had not finished.
 
 `courses` is the deliberate exception, and its two cells are the reason. The
-EMAIL cell gates cohort announcements and session nudges; the PUSH cell gates an
+EMAIL cell gates cohort announcements; the PUSH cell gates an
 admissions decision, a stage release and a course placement. Those are messages
 about somebody's own application and their own place on a run, so a click at the
 foot of a cohort email must not be read as a refusal of them. That cell is
@@ -296,8 +296,8 @@ newsletter stamped a course-mail refusal the member never made. Adding the push
 column keeps that rule: two dotted leaves per row, never a map.
 
 **A programme's own link stops its optional mail, not its notices.** The
-footer of a cohort announcement, a weekly nudge or next week's email carries a
-token for that run's `cohort:<runId>` list, and confirming it takes the person
+footer of a cohort announcement carries a token for that run's
+`cohort:<runId>` list, and confirming it takes the person
 off that list and writes no category at all. That stops the run's optional
 mail; a notice about running the programme still reaches them while they hold a
 place on it, because a notice is not read off the list (see "Who a notice to a
@@ -332,6 +332,21 @@ preference at all.
 | `course-follow-up` | the same two routes, for a follow-up survey at 6 or 12 months (docs/surveys.md) | admins | everybody whose row on the programme's before survey says yes to follow-ups now, each with their own link; the reminder to those of them who have not answered |
 | `event-survey` | the same two routes, for the survey after an event (docs/surveys.md) | admins | the people who came to the event (each with an email: an account at its own address, a guest or a walk-in at the address they gave the event) or everybody whose sign-up was confirmed, less anybody who already answered with the QR code, each with their own link; the reminder to those it reached who have not answered |
 | `course-check-in` | `POST /api/courses/groups/[groupId]/check-in`, opening the check-in at the end of a session (docs/surveys.md) | admins, and a facilitator of THIS group while it is live | the people the session's register marks present, late or left early, never the group's facilitators, each at their account's address with their own link; once, when it opens: somebody marked there later is reached with no email, and nobody is reminded |
+| `course-week` | "Week N is open", 6 days before each of a group's sessions at 9am: the `courses-next-week-email` job, or, while that job is off, `POST /api/courses/groups/[groupId]/attendance/push` (finishing the register before it) and an admin's Resend on a finished register | the job; the group's facilitator or an admin pressing the register; an admin resending | everybody holding a place in the group whose group has gone out, whatever they unsubscribed from; once per group per session, by the group's claim |
+| `course-week-reminder` | the reminders 3 days and 1 day before each of a group's sessions at 9am: the `courses-week-reminders` job | the job | each person holding a place in the group whose week (written as blocks, and published) is not done, listing what is left of it; one per person per reminder, by a scheduler marker; a week done, submitted or locked is never reminded about |
+
+**The week's emails** (`course-week` and `course-week-reminder`) are the
+people running the programme telling the people on it what this week is and
+what is left of their own work (privacy policy v15, "Reminders"), so they are
+notices: the line above the words says why each reached them ("you are in
+this course group"; "our records show this week's work isn't finished"),
+there is no unsubscribe link, and nothing is pushed. They take no slot under
+the caps below: each is sent by a claim, once per group per session or once
+per person per reminder, and that claim is their bound. Their words are fixed
+in `src/lib/courses/weekEmails/words.ts` and drawn by `src/emails/WeekEmail.tsx`;
+"Week N is open" was next week's email, a grid send that honoured the courses
+row and the run's list, until November 2026, and the weekly nudge beside it
+is gone.
 
 An update (Q18) is kept on the site as well as emailed, and its email is a
 notice for the reason the group email is one: the lead of a programme, an
@@ -347,16 +362,18 @@ Who reads an update on the site is decided apart from who is emailed it, in
 
 Everybody holding a place on the run whose group has gone out, whatever they
 unsubscribed from. Unsubscribing from a run's emails (the link at the foot of
-an announcement, a weekly nudge or next week's email) takes the person off the
-run's cohort list, and that stops the run's OPTIONAL mail and nothing else: a
+an announcement) takes the person off the run's cohort list, and that stops the run's OPTIONAL mail and nothing else: a
 notice is the people running the programme telling the people on it something
 they need in order to take part, and it is not read off that list at all
 (Zach, 31 October 2026). The unsubscribe page says so to whoever clicks (see
 "The marketing unsubscribe link's reach").
 
 `resolveNoticeAudience` in `src/lib/email/courseFacilitatorEmails.ts` is that
-audience, and the run composer's notice lane and an update to everyone or to
-one group both use it. It reads the run's ACTIVE `courseEnrolments` rather
+audience, and the run composer's notice lane, an update to everyone or to one
+group, "Week N is open" and the reminders before a session all use it. It says
+who in scope it left out and why (`dropped`: no account, no address, an inbox
+shared with somebody already sent it, a suppressed address), which the
+reminders stamp on each person's marker. It reads the run's ACTIVE `courseEnrolments` rather
 than its cohort list, and holds them to everything that is not a preference,
 exactly as the notice lane did when it went through the list:
 
@@ -376,7 +393,7 @@ exactly as the notice lane did when it went through the list:
 
 The optional mail keeps `resolveCohortAudience`, the cohort list intersected
 with the active places, so an unsubscribe still stops it: the announcement
-lane, the weekly nudge and next week's email.
+lane.
 
 The event broadcast gate is wider than it was, on purpose: until this lane landed
 the committee member who organised an event could not mail its attendees unless
