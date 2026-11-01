@@ -160,7 +160,7 @@ export function notOpenRefusal(weekNumber: number, occurrence: number): string {
   return `${sessionName(weekNumber, occurrence)}’s report opens when the session starts.`;
 }
 
-/** "Week 3’s report has closed: it could be changed until the group’s next session started." */
+/** "Week 3’s report has closed: it could be changed until week 4 started." */
 export function closedRefusal(weekNumber: number, occurrence: number, nextWeekNumber: number | null): string {
   const name = sessionName(weekNumber, occurrence);
   return nextWeekNumber !== null
